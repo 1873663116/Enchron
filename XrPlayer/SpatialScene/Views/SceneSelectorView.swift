@@ -1,6 +1,8 @@
 import SwiftUI
 
 public struct SceneSelectorView: View {
+    @State private var selectedEnvironmentIndex: Int?
+
     let columns = [
         GridItem(.adaptive(minimum: 200))
     ]
@@ -15,10 +17,12 @@ public struct SceneSelectorView: View {
             ScrollView {
                 LazyVGrid(columns: columns, spacing: 20) {
                 ForEach(0..<4) { index in
-                    Button(action: {}) {
+                    Button {
+                        selectedEnvironmentIndex = index
+                    } label: {
                         VStack {
                             RoundedRectangle(cornerRadius: 12)
-                                .fill(Color.secondary.opacity(0.3))
+                                .fill(selectedEnvironmentIndex == index ? Color.accentColor.opacity(0.35) : Color.secondary.opacity(0.3))
                                 .aspectRatio(16/9, contentMode: .fill)
                                 .overlay {
                                     Image(systemName: "moon.stars")
@@ -31,6 +35,13 @@ public struct SceneSelectorView: View {
                 }
             }
             .padding()
+            }
+
+            if let selectedEnvironmentIndex {
+                Text("Selected Environment \(selectedEnvironmentIndex + 1)")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.bottom, 8)
             }
         }
         .navigationTitle("Scenes")

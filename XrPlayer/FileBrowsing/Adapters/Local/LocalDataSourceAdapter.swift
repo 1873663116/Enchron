@@ -10,6 +10,7 @@ public enum LocalDataSourceError: Error {
 public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
     private let fileManager: FileManager
     private let filter: FileBrowsingDomain.FileFilter
+    private let ioQueue = DispatchQueue(label: "xrplayer.localdatasource.io", qos: .userInitiated)
 
     private var rootURL: URL?
     public private(set) var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
@@ -41,7 +42,15 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
     public func listContents(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
         let baseURL = try connectedBaseURL()
         let directoryURL = URL(fileURLWithPath: path, relativeTo: baseURL).standardizedFileURL
-        return try loadMediaFiles(in: directoryURL)
+        return try await withCheckedThrowingContinuation { continuation in
+            ioQueue.async { [self] in
+                do {
+                    continuation.resume(returning: try loadMediaFiles(in: directoryURL))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     public func resolveURL(for item: FileBrowsingDomain.MediaFile) async throws -> URL {
@@ -54,8 +63,16 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
         in folder: FileBrowsingDomain.MediaFolder,
         sortBy: FileBrowsingDomain.SortCriteria
     ) async throws -> [FileBrowsingDomain.MediaFile] {
-        let files = try loadMediaFiles(in: folder.url)
-        return sort(files: files, by: sortBy)
+        return try await withCheckedThrowingContinuation { continuation in
+            ioQueue.async { [self] in
+                do {
+                    let files = try loadMediaFiles(in: folder.url)
+                    continuation.resume(returning: sort(files: files, by: sortBy))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
     }
 
     public func resolvePlayableURL(for file: FileBrowsingDomain.MediaFile) async throws -> URL {

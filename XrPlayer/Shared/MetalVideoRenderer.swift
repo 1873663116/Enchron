@@ -160,3 +160,9 @@ extension MetalVideoRenderer: MTKViewDelegate {
         render(in: view)
     }
 }
+
+extension MetalVideoRenderer: FrameOutput {
+    public func didOutputFrame(_ pixelBuffer: CVPixelBuffer) {
+        enqueueFrame(pixelBuffer)
+    }
+}

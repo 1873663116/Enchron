@@ -31,6 +31,23 @@ public struct MainView: View {
                 .padding()
             }
         }
+        .alert(
+            "Playback Error",
+            isPresented: Binding(
+                get: { windowVideoViewModel.lastErrorMessage != nil },
+                set: { isPresented in
+                    if isPresented == false {
+                        windowVideoViewModel.lastErrorMessage = nil
+                    }
+                }
+            )
+        ) {
+            Button("OK", role: .cancel) {
+                windowVideoViewModel.lastErrorMessage = nil
+            }
+        } message: {
+            Text(windowVideoViewModel.lastErrorMessage ?? "Unknown playback error")
+        }
         .ornament(attachmentAnchor: .scene(.bottom)) {
             if appModel.isPlaying {
                 PlayerControlsView()

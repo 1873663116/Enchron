@@ -7,7 +7,9 @@ struct XrPlayerApp: App {
     @State private var fileBrowsingViewModel: FileBrowsingViewModel
 
     init() {
-        Self.copySampleVideoIfAvailable()
+        Task.detached(priority: .utility) {
+            Self.copySampleVideoIfAvailable()
+        }
 
         let appModel = AppModel()
         let player = MPVPlayerAdapter()
@@ -16,7 +18,11 @@ struct XrPlayerApp: App {
         let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: localDataSource) { url in
             appModel.startPlayback(url: url)
             Task {
-                await windowVideoViewModel.play(url: url)
+                do {
+                    try await windowVideoViewModel.play(url: url)
+                } catch {
+                    appModel.stopPlayback()
+                }
             }
         }
 
@@ -46,17 +52,23 @@ struct XrPlayerApp: App {
         .immersionStyle(selection: .constant(.full), in: .full)
     }
 
-    private static func copySampleVideoIfAvailable(fileManager: FileManager = .default) {
+    nonisolated private static func copySampleVideoIfAvailable(fileManager: FileManager = .default) {
         guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return
         }
 
         let candidateNames = ["SampleMovie", "Sample Movie"]
-        let candidateExtensions = ["mp4", "mov", "m4v"]
+        let candidateExtensions = ["mp4", "mov", "m4v", "mkv"]
 
         for name in candidateNames {
             for ext in candidateExtensions {
                 guard let bundledURL = Bundle.main.url(forResource: name, withExtension: ext) else {
+                    continue
+                }
+
+                // Avoid blocking startup by copying very large bundled media.
+                if let size = try? bundledURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                   size > 200 * 1024 * 1024 {
                     continue
                 }
 

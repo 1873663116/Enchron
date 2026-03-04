@@ -1,0 +1,54 @@
+import Metal
+import QuartzCore
+import UIKit
+
+final class MPVNativeMetalLayer: CAMetalLayer {
+    // Work around MoltenVK temporary 1x1 drawable resizing.
+    override var drawableSize: CGSize {
+        get { super.drawableSize }
+        set {
+            if Int(newValue.width) > 1, Int(newValue.height) > 1 {
+                super.drawableSize = newValue
+            }
+        }
+    }
+}
+
+final class MPVNativeMetalLayerView: UIView {
+    override class var layerClass: AnyClass {
+        MPVNativeMetalLayer.self
+    }
+
+    var metalLayer: CAMetalLayer {
+        layer as! CAMetalLayer
+    }
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        configureLayer()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        configureLayer()
+    }
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        metalLayer.contentsScale = traitCollection.displayScale
+        metalLayer.frame = bounds
+        metalLayer.drawableSize = CGSize(
+            width: bounds.width * contentScaleFactor,
+            height: bounds.height * contentScaleFactor
+        )
+    }
+
+    private func configureLayer() {
+        backgroundColor = .black
+        metalLayer.device = MTLCreateSystemDefaultDevice()
+        metalLayer.pixelFormat = .bgra8Unorm
+        metalLayer.framebufferOnly = true
+        metalLayer.contentsScale = traitCollection.displayScale
+        metalLayer.wantsExtendedDynamicRangeContent = true
+    }
+}

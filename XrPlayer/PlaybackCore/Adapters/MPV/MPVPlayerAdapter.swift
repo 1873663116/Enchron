@@ -1,6 +1,7 @@
 import CoreVideo
 import Foundation
 import Libmpv
+import QuartzCore
 
 // Integration paths:
 // 1) Primary: Swift Package Manager dependency on MPVKit (module: Libmpv).
@@ -13,10 +14,37 @@ public enum MPVPlayerAdapterError: Error {
     case commandFailed([String], Int32)
     case propertyFailed(name: String, Int32)
     case renderContextCreationFailed(Int32)
+    case fileNotFound(URL)
+    case fileNotReadable(URL)
+}
+
+extension MPVPlayerAdapterError: LocalizedError {
+    public var errorDescription: String? {
+        switch self {
+        case .createFailed:
+            return "Failed to create mpv context."
+        case let .optionFailed(name, code):
+            return "mpv option failed: \(name) (\(code))."
+        case let .initializeFailed(code):
+            return "mpv initialization failed (\(code))."
+        case let .commandFailed(args, code):
+            return "mpv command failed: \(args.joined(separator: " ")) (\(code))."
+        case let .propertyFailed(name, code):
+            return "mpv property failed: \(name) (\(code))."
+        case let .renderContextCreationFailed(code):
+            return "mpv render context creation failed (\(code))."
+        case let .fileNotFound(url):
+            return "File not found: \(url.lastPathComponent)"
+        case let .fileNotReadable(url):
+            return "File is not readable: \(url.lastPathComponent)"
+        }
+    }
 }
 
 public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManaging {
     public weak var frameOutput: FrameOutput?
+    public var onRuntimeError: ((String) -> Void)?
+    public var usesNativeGPUOutput: Bool { configuration.useNativeGPUOutput }
 
     private let configuration: MPVConfiguration
     private let videoToolboxBridge: VideoToolboxBridge
@@ -41,6 +69,13 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var currentDurationSeconds: Double = 0
     private var renderWidth: Int = 1920
     private var renderHeight: Int = 1080
+    private var activeSecurityScopedURL: URL?
+    private var pixelBufferPool: CVPixelBufferPool?
+    private var pooledWidth: Int = 0
+    private var pooledHeight: Int = 0
+    private weak var videoLayer: CAMetalLayer?
+    private var activeNativeGPUOutput: Bool = false
+    private var didLogPipelineForCurrentFile = false
 
     private static let renderUpdateCallback: mpv_render_update_fn = { context in
         guard let context else { return }
@@ -53,17 +88,63 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         self.videoToolboxBridge = VideoToolboxBridge()
     }
 
+    public func attachVideoLayer(_ layer: CAMetalLayer?) {
+        stateQueue.sync {
+            videoLayer = layer
+        }
+    }
+
     deinit {
         teardownMPV()
     }
 
     public func play(url: URL) async throws {
-        try ensureMPVReady()
+        do {
+            await waitForVideoLayerIfNeeded()
+            try ensureMPVReady()
+            startEventLoop()
 
-        updateState(.loading)
-        try command(["loadfile", url.path, "replace"])
-        updateState(.playing)
-        startEventLoop()
+            let normalizedURL = url.standardizedFileURL
+            let path = normalizedURL.path
+
+            guard FileManager.default.fileExists(atPath: path) else {
+                throw MPVPlayerAdapterError.fileNotFound(normalizedURL)
+            }
+
+            guard FileManager.default.isReadableFile(atPath: path) else {
+                throw MPVPlayerAdapterError.fileNotReadable(normalizedURL)
+            }
+
+            var acquiredScope = false
+            if normalizedURL.startAccessingSecurityScopedResource() {
+                acquiredScope = true
+                activeSecurityScopedURL = normalizedURL
+            }
+
+            do {
+                updateState(.loading)
+                // Force playback-related defaults on every new load. This avoids
+                // inheriting a paused/muted/no-track state from previous sessions.
+                setFlagProperty(name: "pause", value: false)
+                setFlagProperty(name: "mute", value: false)
+                _ = try? command(["set", "vid", "auto"])
+                _ = try? command(["set", "aid", "auto"])
+                try command(["loadfile", path, "replace"])
+                setFlagProperty(name: "pause", value: false)
+                setFlagProperty(name: "mute", value: false)
+                _ = try? command(["set", "vid", "auto"])
+                _ = try? command(["set", "aid", "auto"])
+            } catch {
+                if acquiredScope {
+                    normalizedURL.stopAccessingSecurityScopedResource()
+                    activeSecurityScopedURL = nil
+                }
+                throw error
+            }
+        } catch {
+            notifyRuntimeError(error.localizedDescription)
+            throw error
+        }
     }
 
     public func pause() {
@@ -79,11 +160,13 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     public func stop() {
         _ = try? command(["stop"])
         updateState(.stopped)
+        releaseSecurityScopedAccess()
     }
 
     public func cancelPendingLoad() {
         _ = try? command(["stop"])
         updateState(.idle)
+        releaseSecurityScopedAccess()
     }
 
     public func seek(to seconds: Double) {
@@ -167,16 +250,31 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
 
         do {
-            try applyConfiguration(to: created)
+            let wantsNativeGPUOutput = stateQueue.sync {
+                configuration.useNativeGPUOutput && videoLayer != nil
+            }
+
+            try applyConfiguration(to: created, useNativeGPUOutput: wantsNativeGPUOutput)
             observeCoreProperties(on: created)
+
+            if wantsNativeGPUOutput {
+                try setWindowLayerOption(on: created)
+            }
 
             let initCode = mpv_initialize(created)
             guard initCode >= 0 else {
                 throw MPVPlayerAdapterError.initializeFailed(initCode)
             }
 
+            _ = mpv_request_log_messages(created, "warn")
+
             handle = created
-            try createRenderContext()
+            activeNativeGPUOutput = wantsNativeGPUOutput
+            print("[MPV] output-route=\(activeNativeGPUOutput ? "native-gpu" : "sw-render-fallback")")
+
+            if activeNativeGPUOutput == false {
+                try createRenderContext()
+            }
         } catch {
             mpv_terminate_destroy(created)
             throw error
@@ -197,6 +295,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             self.handle = nil
         }
 
+        activeNativeGPUOutput = false
+
+        releaseSecurityScopedAccess()
+
         stateQueue.sync {
             isEventLoopRunning = false
             shouldStopEventLoop = true
@@ -205,38 +307,57 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
     }
 
-    private func applyConfiguration(to handle: OpaquePointer) throws {
-        for (name, value) in configuration.defaultOptions {
+    private func applyConfiguration(to handle: OpaquePointer, useNativeGPUOutput: Bool) throws {
+        for (name, value) in configuration.options(useNativeGPUOutput: useNativeGPUOutput) {
             let result = mpv_set_option_string(handle, name, value)
-            guard result >= 0 else {
-                throw MPVPlayerAdapterError.optionFailed(name: name, code: result)
+            if result < 0 {
+                // Some packaged libmpv builds (especially on visionOS) omit
+                // non-critical options. Skip unsupported options so playback
+                // can continue with defaults instead of failing startup.
+                print("[MPV] skip unsupported option \(name)=\(value), code=\(result)")
             }
         }
     }
 
     private func observeCoreProperties(on handle: OpaquePointer) {
-        _ = mpv_observe_property(handle, 1, "time-pos", MPV_FORMAT_DOUBLE)
         _ = mpv_observe_property(handle, 2, "duration", MPV_FORMAT_DOUBLE)
         _ = mpv_observe_property(handle, 3, "pause", MPV_FORMAT_FLAG)
         _ = mpv_observe_property(handle, 4, "eof-reached", MPV_FORMAT_FLAG)
         _ = mpv_observe_property(handle, 5, "track-list", MPV_FORMAT_NONE)
         _ = mpv_observe_property(handle, 6, "dwidth", MPV_FORMAT_INT64)
         _ = mpv_observe_property(handle, 7, "dheight", MPV_FORMAT_INT64)
+        _ = mpv_observe_property(handle, 8, "playback-time", MPV_FORMAT_DOUBLE)
+    }
+
+    private func setWindowLayerOption(on handle: OpaquePointer) throws {
+        guard let layer = stateQueue.sync(execute: { videoLayer }) else {
+            return
+        }
+
+        let pointer = Unmanaged.passUnretained(layer).toOpaque()
+        var wid = Int64(bitPattern: UInt64(UInt(bitPattern: pointer)))
+        let result = withUnsafeMutablePointer(to: &wid) { widPtr in
+            mpv_set_option(handle, "wid", MPV_FORMAT_INT64, widPtr)
+        }
+
+        if result < 0 {
+            throw MPVPlayerAdapterError.optionFailed(name: "wid", code: result)
+        }
     }
 
     private func createRenderContext() throws {
         guard let handle else { return }
 
         var context: OpaquePointer?
-        let apiType = MPV_RENDER_API_TYPE_SW
+        let code = MPV_RENDER_API_TYPE_SW.withCString { apiTypeCString in
+            var params: [mpv_render_param] = [
+                mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE, data: UnsafeMutableRawPointer(mutating: apiTypeCString)),
+                mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil)
+            ]
 
-        var params: [mpv_render_param] = [
-            mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE, data: UnsafeMutableRawPointer(mutating: apiType)),
-            mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil)
-        ]
-
-        let code = params.withUnsafeMutableBufferPointer { buffer in
-            mpv_render_context_create(&context, handle, buffer.baseAddress)
+            return params.withUnsafeMutableBufferPointer { buffer in
+                mpv_render_context_create(&context, handle, buffer.baseAddress)
+            }
         }
 
         guard code >= 0, let context else {
@@ -268,6 +389,14 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                 continue
             }
 
+            // Defensive throttle: if libmpv returns MPV_EVENT_NONE immediately
+            // (e.g. accidental stub linkage), avoid a CPU spin-loop that can
+            // make the app unresponsive.
+            if event.pointee.event_id == MPV_EVENT_NONE {
+                Thread.sleep(forTimeInterval: 0.01)
+                continue
+            }
+
             stateQueue.sync { internalQueueDepth += 1 }
             process(event: event.pointee)
             stateQueue.sync { internalQueueDepth = max(0, internalQueueDepth - 1) }
@@ -282,9 +411,17 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             updateState(.loading)
         case MPV_EVENT_FILE_LOADED:
             updateState(.playing)
+            didLogPipelineForCurrentFile = false
+            setFlagProperty(name: "pause", value: false)
+            setFlagProperty(name: "mute", value: false)
+            _ = try? command(["set", "vid", "auto"])
+            _ = try? command(["set", "aid", "auto"])
             refreshTrackCache()
+            logPipelineIfNeeded()
         case MPV_EVENT_END_FILE:
-            updateState(.ended)
+            handleEndFileEvent(event.data)
+        case MPV_EVENT_LOG_MESSAGE:
+            handleLogMessageEvent(event.data)
         case MPV_EVENT_SHUTDOWN:
             stopEventLoop()
         case MPV_EVENT_PROPERTY_CHANGE:
@@ -292,7 +429,9 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                 handlePropertyChange(propertyPointer.pointee)
             }
         case MPV_EVENT_VIDEO_RECONFIG:
-            scheduleRender(forceFrame: true)
+            if activeNativeGPUOutput == false {
+                scheduleRender(forceFrame: true)
+            }
         default:
             break
         }
@@ -303,7 +442,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let name = String(cString: rawName)
 
         switch name {
-        case "time-pos":
+        case "playback-time":
             guard property.format == MPV_FORMAT_DOUBLE,
                   let data = property.data?.assumingMemoryBound(to: Double.self)
             else { return }
@@ -388,21 +527,57 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
     }
 
+    private func handleEndFileEvent(_ data: UnsafeMutableRawPointer?) {
+        guard let pointer = data?.assumingMemoryBound(to: mpv_event_end_file.self) else {
+            updateState(.ended)
+            releaseSecurityScopedAccess()
+            return
+        }
+
+        let payload = pointer.pointee
+        if payload.reason == MPV_END_FILE_REASON_ERROR {
+            updateState(.failed)
+            let message = "Playback ended with error: \(mpvErrorString(payload.error)) (\(payload.error))"
+            print("[MPV] \(message)")
+            notifyRuntimeError(message)
+        } else {
+            updateState(.ended)
+        }
+
+        releaseSecurityScopedAccess()
+    }
+
+    private func handleLogMessageEvent(_ data: UnsafeMutableRawPointer?) {
+        guard let pointer = data?.assumingMemoryBound(to: mpv_event_log_message.self) else {
+            return
+        }
+
+        let payload = pointer.pointee
+        let level = payload.level.map(String.init(cString:)) ?? "unknown"
+        let prefix = payload.prefix.map(String.init(cString:)) ?? "mpv"
+        let text = payload.text.map(String.init(cString:))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard text.isEmpty == false else { return }
+
+        print("[MPV][\(level)][\(prefix)] \(text)")
+    }
+
     private func command(_ args: [String]) throws {
         guard let handle else { return }
 
-        var cArgs: [UnsafeMutablePointer<CChar>?] = args.map { strdup($0) }
-        cArgs.append(nil)
-
+        let duplicated = args.map { strdup($0) }
         defer {
-            for argument in cArgs where argument != nil {
-                free(argument)
+            for item in duplicated where item != nil {
+                free(item)
             }
         }
 
+        var cArgs: [UnsafePointer<CChar>?] = duplicated.map { ptr in
+            ptr.map { UnsafePointer<CChar>($0) }
+        }
+        cArgs.append(nil)
+
         let code = cArgs.withUnsafeMutableBufferPointer { buffer -> Int32 in
-            let bound = UnsafeMutablePointer<UnsafePointer<CChar>?>(OpaquePointer(buffer.baseAddress))
-            return mpv_command(handle, bound)
+            mpv_command(handle, buffer.baseAddress)
         }
 
         guard code >= 0 else {
@@ -435,6 +610,26 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
     }
 
+    private func releaseSecurityScopedAccess() {
+        guard let url = activeSecurityScopedURL else { return }
+        url.stopAccessingSecurityScopedResource()
+        activeSecurityScopedURL = nil
+    }
+
+    private func mpvErrorString(_ code: Int32) -> String {
+        guard let cString = mpv_error_string(code) else {
+            return "unknown"
+        }
+        return String(cString: cString)
+    }
+
+    private func notifyRuntimeError(_ message: String) {
+        guard message.isEmpty == false else { return }
+        DispatchQueue.main.async { [weak self] in
+            self?.onRuntimeError?(message)
+        }
+    }
+
     private func scheduleRender(forceFrame: Bool = false) {
         renderQueue.async { [weak self] in
             self?.renderNextFrame(forceFrame: forceFrame)
@@ -450,84 +645,109 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
         let width = max(1, renderWidth)
         let height = max(1, renderHeight)
-        let stride = width * 4
-        var rawBytes = [UInt8](repeating: 0, count: stride * height)
 
-        var size = [Int32(width), Int32(height)]
-        var rowStride = stride
-        var softwareFormat = strdup("bgr0")
-
-        defer {
-            if let softwareFormat {
-                free(softwareFormat)
-            }
-        }
-
-        let result: Int32 = rawBytes.withUnsafeMutableBytes { bytes -> Int32 in
-            guard let pixelPointer = bytes.baseAddress else { return -1 }
-            return size.withUnsafeMutableBufferPointer { sizeBuffer -> Int32 in
-                guard let sizePtr = sizeBuffer.baseAddress else { return -1 }
-
-                var params: [mpv_render_param] = [
-                    mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: sizePtr),
-                    mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: softwareFormat),
-                    mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: &rowStride),
-                    mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: pixelPointer),
-                    mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil)
-                ]
-
-                params.withUnsafeMutableBufferPointer { buffer in
-                    mpv_render_context_render(renderContext, buffer.baseAddress)
-                }
-                return 0
-            }
-        }
-
-        guard result >= 0 else { return }
-
-        guard let pixelBuffer = try? makeBGRAFrame(width: width, height: height, bytes: rawBytes, bytesPerRow: stride) else {
+        guard let pixelBuffer = makePooledPixelBuffer(width: width, height: height) else {
             return
-        }
-
-        frameOutput?.didOutputFrame(pixelBuffer)
-    }
-
-    private func makeBGRAFrame(width: Int, height: Int, bytes: [UInt8], bytesPerRow: Int) throws -> CVPixelBuffer {
-        var pixelBuffer: CVPixelBuffer?
-        let attrs: [CFString: Any] = [
-            kCVPixelBufferWidthKey: width,
-            kCVPixelBufferHeightKey: height,
-            kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
-            kCVPixelBufferIOSurfacePropertiesKey: [:],
-            kCVPixelBufferMetalCompatibilityKey: true
-        ]
-
-        let status = CVPixelBufferCreate(
-            nil,
-            width,
-            height,
-            kCVPixelFormatType_32BGRA,
-            attrs as CFDictionary,
-            &pixelBuffer
-        )
-
-        guard status == kCVReturnSuccess, let pixelBuffer else {
-            return try videoToolboxBridge.makePlaceholderPixelBuffer(width: width, height: height)
         }
 
         CVPixelBufferLockBaseAddress(pixelBuffer, [])
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, []) }
+        guard let destination = CVPixelBufferGetBaseAddress(pixelBuffer) else { return }
 
-        guard let destination = CVPixelBufferGetBaseAddress(pixelBuffer) else {
-            return try videoToolboxBridge.makePlaceholderPixelBuffer(width: width, height: height)
-        }
+        var size = [Int32(width), Int32(height)]
+        var rowStride = Int32(CVPixelBufferGetBytesPerRow(pixelBuffer))
 
-        bytes.withUnsafeBytes { source in
-            if let sourceAddress = source.baseAddress {
-                memcpy(destination, sourceAddress, bytesPerRow * height)
+        let result: Int32 = "bgr0".withCString { softwareFormat in
+            size.withUnsafeMutableBufferPointer { sizeBuffer -> Int32 in
+                guard let sizePtr = sizeBuffer.baseAddress else { return -1 }
+
+                return withUnsafeMutablePointer(to: &rowStride) { rowStridePtr in
+                    var params: [mpv_render_param] = [
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: UnsafeMutableRawPointer(sizePtr)),
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: softwareFormat)),
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: UnsafeMutableRawPointer(rowStridePtr)),
+                        mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: destination),
+                        mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil)
+                    ]
+
+                    _ = params.withUnsafeMutableBufferPointer { buffer in
+                        mpv_render_context_render(renderContext, buffer.baseAddress)
+                    }
+                    return 0
+                }
             }
         }
 
+        guard result >= 0 else { return }
+        frameOutput?.didOutputFrame(pixelBuffer)
+    }
+
+    private func waitForVideoLayerIfNeeded() async {
+        guard configuration.useNativeGPUOutput else { return }
+
+        for _ in 0..<240 {
+            let isReady = stateQueue.sync { videoLayer != nil }
+            if isReady { return }
+            try? await Task.sleep(for: .milliseconds(25))
+        }
+    }
+
+    private func stringProperty(_ name: String) -> String? {
+        guard let handle else { return nil }
+        var raw: UnsafeMutablePointer<CChar>?
+        let code = mpv_get_property(handle, name, MPV_FORMAT_STRING, &raw)
+        guard code >= 0, let raw else { return nil }
+        defer { mpv_free(raw) }
+        return String(cString: raw)
+    }
+
+    private func logPipelineIfNeeded() {
+        guard didLogPipelineForCurrentFile == false else { return }
+        didLogPipelineForCurrentFile = true
+
+        let voName = stringProperty("current-vo") ?? "unknown"
+        let hwdecName = stringProperty("hwdec-current") ?? "unknown"
+        let vCodec = stringProperty("video-codec") ?? "unknown"
+        let aCodec = stringProperty("audio-codec-name") ?? "unknown"
+        print("[MPV] pipeline vo=\(voName) hwdec=\(hwdecName) vcodec=\(vCodec) acodec=\(aCodec)")
+    }
+
+    private func makePooledPixelBuffer(width: Int, height: Int) -> CVPixelBuffer? {
+        if pixelBufferPool == nil || pooledWidth != width || pooledHeight != height {
+            pooledWidth = width
+            pooledHeight = height
+
+            let poolAttributes: [CFString: Any] = [
+                kCVPixelBufferPoolMinimumBufferCountKey: 6
+            ]
+            let pixelBufferAttributes: [CFString: Any] = [
+                kCVPixelBufferWidthKey: width,
+                kCVPixelBufferHeightKey: height,
+                kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferIOSurfacePropertiesKey: [:],
+                kCVPixelBufferMetalCompatibilityKey: true
+            ]
+
+            var pool: CVPixelBufferPool?
+            let createStatus = CVPixelBufferPoolCreate(
+                nil,
+                poolAttributes as CFDictionary,
+                pixelBufferAttributes as CFDictionary,
+                &pool
+            )
+            guard createStatus == kCVReturnSuccess else {
+                pixelBufferPool = nil
+                return nil
+            }
+            pixelBufferPool = pool
+        }
+
+        guard let pixelBufferPool else { return nil }
+        var pixelBuffer: CVPixelBuffer?
+        let status = CVPixelBufferPoolCreatePixelBuffer(nil, pixelBufferPool, &pixelBuffer)
+        guard status == kCVReturnSuccess, let pixelBuffer else {
+            return nil
+        }
         return pixelBuffer
     }
 }
