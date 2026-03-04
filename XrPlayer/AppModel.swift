@@ -1,21 +1,63 @@
-//
-//  AppModel.swift
-//  XrPlayer
-//
-//  Created by 熊志鹏 on 2026/3/3.
-//
-
 import SwiftUI
+import Observation
 
-/// Maintains app-wide state
 @MainActor
 @Observable
-class AppModel {
-    let immersiveSpaceID = "ImmersiveSpace"
-    enum ImmersiveSpaceState {
+public final class AppModel {
+    // MARK: - Navigation & Space State
+    public let immersiveSpaceID = "ImmersiveSpace"
+    
+    public enum ImmersiveSpaceState {
         case closed
         case inTransition
         case open
     }
-    var immersiveSpaceState = ImmersiveSpaceState.closed
+    public var immersiveSpaceState: ImmersiveSpaceState = .closed
+    
+    // MARK: - Playback State
+    public var playbackState: PlaybackCoreDomain.PlaybackState = .idle
+    public var playbackPosition: PlaybackCoreDomain.PlaybackPosition = .init(seconds: 0, duration: 0)
+    public var playbackSpeed: PlaybackCoreDomain.PlaybackSpeed = .default
+    public var mediaProfile: PlaybackCoreDomain.MediaProfile?
+    public var playbackMode: PlaybackMode = .window
+    public var isPlaying: Bool = false
+    public var currentPlaybackURL: URL?
+    
+    // MARK: - Current Media
+    public var currentMedia: PlaybackCoreDomain.MediaFile?
+    
+    public init() {}
+    
+    // MARK: - Actions
+    public func updatePlaybackState(_ state: PlaybackCoreDomain.PlaybackState) {
+        playbackState = state
+    }
+    
+    public func updatePlaybackPosition(_ position: PlaybackCoreDomain.PlaybackPosition) {
+        playbackPosition = position
+    }
+    
+    public func updatePlaybackSpeed(_ speed: PlaybackCoreDomain.PlaybackSpeed) {
+        playbackSpeed = speed
+    }
+    
+    public func updateMediaProfile(_ profile: PlaybackCoreDomain.MediaProfile) {
+        mediaProfile = profile
+    }
+    
+    public func updatePlaybackMode(_ mode: PlaybackMode) {
+        playbackMode = mode
+    }
+
+    public func startPlayback(url: URL) {
+        currentPlaybackURL = url
+        isPlaying = true
+        playbackState = .loading
+    }
+
+    public func stopPlayback() {
+        isPlaying = false
+        playbackState = .stopped
+        currentPlaybackURL = nil
+    }
 }

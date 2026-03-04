@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = C32D79C32F57A609002717FA /* MPVKit-GPL */; };
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
 /* End PBXBuildFile section */
 
@@ -41,6 +42,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */,
 				C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -94,6 +96,7 @@
 			name = XrPlayer;
 			packageProductDependencies = (
 				C3B0F9852F5726B30064596E /* RealityKitContent */,
+				C32D79C32F57A609002717FA /* MPVKit-GPL */,
 			);
 			productName = XrPlayer;
 			productReference = C3B0F9802F5726B30064596E /* XrPlayer.app */;
@@ -123,6 +126,9 @@
 			);
 			mainGroup = C3B0F9772F5726B30064596E;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C3B0F9812F5726B30064596E /* Products */;
 			projectDirPath = "";
@@ -177,6 +183,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "XrPlayer/XrPlayer-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 7;
@@ -206,6 +213,7 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_BRIDGING_HEADER = "XrPlayer/XrPlayer-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = 7;
@@ -356,7 +364,23 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mpvkit/MPVKit.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.41.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
+		C32D79C32F57A609002717FA /* MPVKit-GPL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */;
+			productName = "MPVKit-GPL";
+		};
 		C3B0F9852F5726B30064596E /* RealityKitContent */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = RealityKitContent;

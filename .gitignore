@@ -1,0 +1,13 @@
+# macOS
+.DS_Store
+
+# Local agent/tooling
+.omc/
+.omc_inner_repo/
+
+# SwiftPM local workspace state
+.swiftpm/
+**/.swiftpm/
+
+# Local test media
+XrPlayer/86ForTest.mkv
