@@ -2,6 +2,29 @@ import SwiftUI
 
 @main
 struct XrPlayerApp: App {
+    private struct SmokeLaunchConfiguration {
+        enum Panel: String {
+            case tracks
+            case timeline
+        }
+
+        let videoName: String
+        let panel: Panel?
+        let enableFirstSubtitle: Bool
+        let hideControlsAfterSetup: Bool
+
+        init?(environment: [String: String]) {
+            guard environment["XRPLAYER_SMOKE_TEST"] == "1" else {
+                return nil
+            }
+
+            self.videoName = environment["XRPLAYER_SMOKE_VIDEO"] ?? "sim-sample.mp4"
+            self.panel = environment["XRPLAYER_SMOKE_PANEL"].flatMap(Panel.init(rawValue:))
+            self.enableFirstSubtitle = environment["XRPLAYER_SMOKE_ENABLE_SUBTITLE"] == "1"
+            self.hideControlsAfterSetup = environment["XRPLAYER_SMOKE_HIDE_CONTROLS"] == "1"
+        }
+    }
+
     @State private var appModel: AppModel
     @State private var windowVideoViewModel: WindowVideoViewModel
     @State private var fileBrowsingViewModel: FileBrowsingViewModel
@@ -14,10 +37,17 @@ struct XrPlayerApp: App {
         let appModel = AppModel()
         let player = MPVPlayerAdapter()
         let windowVideoViewModel = WindowVideoViewModel(player: player)
-        let localDataSource = LocalDataSourceAdapter()
-        let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: localDataSource) { url in
+        let smokeLaunch = SmokeLaunchConfiguration(environment: ProcessInfo.processInfo.environment)
+
+        @MainActor
+        func beginPlayback(for url: URL) {
             appModel.startPlayback(url: url)
-            Task {
+            Task { @MainActor in
+                // Give SwiftUI multiple run-loop passes to render WindowVideoView
+                // and call attachVideoLayer. The continuation in
+                // waitForVideoLayerIfNeeded() will then fire instantly instead
+                // of falling back to a timeout. Extra yields are cheap.
+                for _ in 0..<8 { await Task.yield() }
                 do {
                     try await windowVideoViewModel.play(url: url)
                 } catch {
@@ -26,9 +56,28 @@ struct XrPlayerApp: App {
             }
         }
 
+        // Pre-warm MPV in the background to reduce first-play black-screen latency.
+        player.warmup()
+        let localDataSource = LocalDataSourceAdapter()
+        let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: localDataSource) { url in
+            beginPlayback(for: url)
+        }
+
         _appModel = State(initialValue: appModel)
         _windowVideoViewModel = State(initialValue: windowVideoViewModel)
         _fileBrowsingViewModel = State(initialValue: fileBrowsingViewModel)
+
+        if let smokeLaunch {
+            appModel.showControls = true
+            Task { @MainActor in
+                await Self.runSmokeLaunch(
+                    smokeLaunch,
+                    appModel: appModel,
+                    windowVideoViewModel: windowVideoViewModel,
+                    beginPlayback: beginPlayback
+                )
+            }
+        }
     }
     
     var body: some Scene {
@@ -82,6 +131,61 @@ struct XrPlayerApp: App {
                 }
                 return
             }
+        }
+    }
+
+    @MainActor
+    private static func runSmokeLaunch(
+        _ configuration: SmokeLaunchConfiguration,
+        appModel: AppModel,
+        windowVideoViewModel: WindowVideoViewModel,
+        beginPlayback: @escaping @MainActor (URL) -> Void
+    ) async {
+        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+
+        let videoURL = documentsURL.appendingPathComponent(configuration.videoName)
+        for _ in 0..<20 where FileManager.default.fileExists(atPath: videoURL.path) == false {
+            try? await Task.sleep(for: .milliseconds(250))
+        }
+
+        guard FileManager.default.fileExists(atPath: videoURL.path) else {
+            print("[SmokeTest] video not found at \(videoURL.path)")
+            return
+        }
+
+        if let panel = configuration.panel {
+            appModel.smokePanelRequest = panel.rawValue
+        }
+
+        print(
+            "[SmokeTest] autoplay \(videoURL.lastPathComponent) panel=\(configuration.panel?.rawValue ?? "none") subtitle=\(configuration.enableFirstSubtitle)"
+        )
+        beginPlayback(videoURL)
+
+        guard configuration.enableFirstSubtitle else {
+            return
+        }
+
+        for _ in 0..<24 {
+            if let track = windowVideoViewModel.availableSubtitleTracks.first {
+                print("[SmokeTest] enabling subtitle track \(track.id) \(track.displayName)")
+                windowVideoViewModel.selectSubtitleTrack(track)
+                try? await Task.sleep(for: .milliseconds(700))
+                if let state = windowVideoViewModel.debugSubtitleState() {
+                    print("[SmokeTest] subtitle-state \(state)")
+                }
+                let screenshotURL = documentsURL.appendingPathComponent("smoke-subtitle-capture.png")
+                windowVideoViewModel.captureScreenshot(to: screenshotURL)
+                print("[SmokeTest] requested screenshot \(screenshotURL.lastPathComponent)")
+                if configuration.hideControlsAfterSetup {
+                    appModel.showControls = false
+                    print("[SmokeTest] controls hidden")
+                }
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(250))
         }
     }
 }

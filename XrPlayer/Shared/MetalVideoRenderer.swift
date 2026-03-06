@@ -2,6 +2,7 @@ import Metal
 import MetalKit
 import CoreVideo
 import Foundation
+import QuartzCore
 import simd
 
 public final class MetalVideoRenderer: NSObject {
@@ -10,6 +11,7 @@ public final class MetalVideoRenderer: NSObject {
     private var textureCache: CVMetalTextureCache?
     private var renderPipelineState: MTLRenderPipelineState?
     private var renderPipelineStateNV12: MTLRenderPipelineState?
+    private var pipelineColorFormat: MTLPixelFormat = .invalid
     
     private let frameSemaphore = DispatchSemaphore(value: 1)
     private var currentPixelBuffer: CVPixelBuffer?
@@ -37,10 +39,11 @@ public final class MetalVideoRenderer: NSObject {
         self.textureCache = cache
         
         super.init()
-        setupPipelines()
+        setupPipelines(colorPixelFormat: .bgra8Unorm)
     }
     
-    private func setupPipelines() {
+    private func setupPipelines(colorPixelFormat: MTLPixelFormat) {
+        guard pipelineColorFormat != colorPixelFormat else { return }
         guard let library = device.makeDefaultLibrary() else { return }
         
         let vertexFunction = library.makeFunction(name: "video_vertex")
@@ -50,13 +53,14 @@ public final class MetalVideoRenderer: NSObject {
         let pipelineDescriptor = MTLRenderPipelineDescriptor()
         pipelineDescriptor.vertexFunction = vertexFunction
         pipelineDescriptor.fragmentFunction = fragmentFunctionBGRA
-        pipelineDescriptor.colorAttachments[0].pixelFormat = .bgra8Unorm
+        pipelineDescriptor.colorAttachments[0].pixelFormat = colorPixelFormat
         
         do {
             renderPipelineState = try device.makeRenderPipelineState(descriptor: pipelineDescriptor)
             
             pipelineDescriptor.fragmentFunction = fragmentFunction
             renderPipelineStateNV12 = try device.makeRenderPipelineState(descriptor: pipelineDescriptor)
+            pipelineColorFormat = colorPixelFormat
         } catch {
             print("Failed to create pipeline state: \(error)")
         }
@@ -82,10 +86,9 @@ public final class MetalVideoRenderer: NSObject {
         }
         
         let pixelFormat = CVPixelBufferGetPixelFormatType(pixelBuffer)
-        
-        // Update pixel format if changed (e.g. for HDR)
-        // For visionOS, we might want to use .bgra10_xr for HDR content
-        
+        let isHDR10Bit = pixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
+        configureViewForDynamicRange(view, isHDR10Bit: isHDR10Bit)
+
         if pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange || 
            pixelFormat == kCVPixelFormatType_420YpCbCr8BiPlanarFullRange ||
            pixelFormat == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange {
@@ -100,14 +103,14 @@ public final class MetalVideoRenderer: NSObject {
         
         do {
             let is10Bit = CVPixelBufferGetPixelFormatType(pixelBuffer) == kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
-            let pixelFormatY: MTLPixelFormat = is10Bit ? .r16Uint : .r8Unorm
-            let pixelFormatUV: MTLPixelFormat = is10Bit ? .rg16Uint : .rg8Unorm
+            let pixelFormatY: MTLPixelFormat = is10Bit ? .r16Unorm : .r8Unorm
+            let pixelFormatUV: MTLPixelFormat = is10Bit ? .rg16Unorm : .rg8Unorm
             
             let textureY = try pixelBuffer.makeMetalTexture(cache: textureCache, pixelFormat: pixelFormatY, planeIndex: 0)
             let textureUV = try pixelBuffer.makeMetalTexture(cache: textureCache, pixelFormat: pixelFormatUV, planeIndex: 1)
             
             // Choose color matrix
-            var colorMatrix = bt709Matrix
+            var colorMatrix = is10Bit ? bt2020Matrix : bt709Matrix
             if let colorPrimaries = CVBufferGetAttachment(pixelBuffer, kCVImageBufferColorPrimariesKey, nil) {
                 if (colorPrimaries as? String) == (kCVImageBufferColorPrimaries_ITU_R_2020 as String) {
                     colorMatrix = bt2020Matrix
@@ -164,5 +167,19 @@ extension MetalVideoRenderer: MTKViewDelegate {
 extension MetalVideoRenderer: FrameOutput {
     public func didOutputFrame(_ pixelBuffer: CVPixelBuffer) {
         enqueueFrame(pixelBuffer)
+    }
+}
+
+private extension MetalVideoRenderer {
+    func configureViewForDynamicRange(_ view: MTKView, isHDR10Bit: Bool) {
+        let colorPixelFormat: MTLPixelFormat = isHDR10Bit ? .bgr10a2Unorm : .bgra8Unorm
+        if view.colorPixelFormat != colorPixelFormat {
+            view.colorPixelFormat = colorPixelFormat
+        }
+        setupPipelines(colorPixelFormat: colorPixelFormat)
+
+        guard let metalLayer = view.layer as? CAMetalLayer else { return }
+        metalLayer.pixelFormat = colorPixelFormat
+        metalLayer.wantsExtendedDynamicRangeContent = isHDR10Bit
     }
 }

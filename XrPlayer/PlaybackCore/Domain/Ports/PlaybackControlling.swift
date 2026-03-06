@@ -11,9 +11,19 @@ public protocol PlaybackControlling: AnyObject {
     func setSpeed(_ speed: PlaybackCoreDomain.PlaybackSpeed)
     func selectAudioTrack(_ track: PlaybackCoreDomain.AudioTrack)
     func selectSubtitleTrack(_ track: PlaybackCoreDomain.SubtitleTrack?)
+    func replay()
+    func setHDREnabled(_ enabled: Bool)
+    func frameStepForward()
+    func frameStepBackward()
 
+    var onMediaProfileDetected: ((PlaybackCoreDomain.MediaProfile) -> Void)? { get set }
+    var onPlaybackEnded: (() -> Void)? { get set }
     var currentState: PlaybackCoreDomain.PlaybackState { get }
     var currentPosition: PlaybackCoreDomain.PlaybackPosition { get }
     var availableAudioTracks: [PlaybackCoreDomain.AudioTrack] { get }
     var availableSubtitleTracks: [PlaybackCoreDomain.SubtitleTrack] { get }
+    var currentAudioTrackID: String? { get }
+    var currentSubtitleTrackID: String? { get }
+    var isHDRContent: Bool { get }
+    var isHDROutputEnabled: Bool { get }
 }

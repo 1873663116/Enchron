@@ -38,7 +38,19 @@ let package = Package(
                 "XrPlayer/FileBrowsing/Domain/Entities/MediaFolder.swift",
                 "XrPlayer/FileBrowsing/Domain/Ports/FileProviding.swift",
                 "XrPlayer/FileBrowsing/Domain/Ports/DataSourceConnecting.swift",
-                "XrPlayer/FileBrowsing/Adapters/Local/LocalDataSourceAdapter.swift"
+                "XrPlayer/FileBrowsing/Adapters/Local/LocalDataSourceAdapter.swift",
+                "XrPlayer/FileBrowsing/Adapters/WebDAV/WebDAVDataSourceAdapter.swift",
+                "XrPlayer/FileBrowsing/Adapters/SMB/SMBDataSourceAdapter.swift",
+                "XrPlayer/Persistence/Domain/Ports/CredentialStoring.swift",
+                "XrPlayer/Persistence/Adapters/KeychainStore.swift",
+                "XrPlayer/PlayerUI/Domain/ValueObjects/GestureType.swift",
+                "XrPlayer/PlayerUI/UseCases/DisambiguateGestureUseCase.swift",
+                "XrPlayer/PlaybackCore/Adapters/MPV/MPVConfiguration.swift",
+                "XrPlayer/PlaybackCore/Adapters/MPV/VideoToolboxBridge.swift"
+            ],
+            linkerSettings: [
+                .linkedFramework("Security"),
+                .linkedFramework("CoreVideo")
             ]
         ),
         .testTarget(

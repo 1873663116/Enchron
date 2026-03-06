@@ -4,6 +4,7 @@ public struct FolderListView: View {
     public let files: [FileBrowsingDomain.MediaFile]
     public let isLoading: Bool
     public let onFileSelected: (FileBrowsingDomain.MediaFile) -> Void
+    public let onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)?
     
     private let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
@@ -22,11 +23,13 @@ public struct FolderListView: View {
     public init(
         files: [FileBrowsingDomain.MediaFile],
         isLoading: Bool = false,
-        onFileSelected: @escaping (FileBrowsingDomain.MediaFile) -> Void
+        onFileSelected: @escaping (FileBrowsingDomain.MediaFile) -> Void,
+        onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)? = nil
     ) {
         self.files = files
         self.isLoading = isLoading
         self.onFileSelected = onFileSelected
+        self.onFileDeleted = onFileDeleted
     }
     
     @ViewBuilder
@@ -73,6 +76,15 @@ public struct FolderListView: View {
                     }
                     .padding(.vertical, 4)
                     .contentShape(Rectangle())
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    if let onFileDeleted {
+                        Button(role: .destructive) {
+                            onFileDeleted(file)
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
                 }
             }
             .listStyle(.plain)

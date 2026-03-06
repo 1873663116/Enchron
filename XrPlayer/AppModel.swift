@@ -22,6 +22,8 @@ public final class AppModel {
     public var playbackMode: PlaybackMode = .window
     public var isPlaying: Bool = false
     public var currentPlaybackURL: URL?
+    public var showControls: Bool = true
+    public var smokePanelRequest: String?
     
     // MARK: - Current Media
     public var currentMedia: PlaybackCoreDomain.MediaFile?
@@ -53,6 +55,7 @@ public final class AppModel {
         currentPlaybackURL = url
         isPlaying = true
         playbackState = .loading
+        showControls = true
     }
 
     public func stopPlayback() {

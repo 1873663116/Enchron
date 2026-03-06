@@ -5,6 +5,7 @@ public struct FileBrowserView: View {
     @Environment(FileBrowsingViewModel.self) private var viewModel
     @State private var isFolderPickerPresented = false
     @State private var isVideoPickerPresented = false
+    @State private var isAddSourcePresented = false
 
     public init() {}
 
@@ -20,13 +21,63 @@ public struct FileBrowserView: View {
     
     public var body: some View {
         NavigationStack {
-            FolderListView(
-                files: viewModel.files,
-                isLoading: viewModel.isLoading,
-                onFileSelected: { file in
-                    viewModel.selectFile(file)
+            VStack(spacing: 0) {
+                if let active = viewModel.activeDataSource {
+                    HStack {
+                        Image(systemName: "network")
+                        Text("Connected to \(active.name)")
+                            .font(.subheadline)
+                        Spacer()
+                        Button("Disconnect") {
+                            Task {
+                                await viewModel.useDefaultFolder()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    .padding()
+                    .background(.secondary.opacity(0.1))
                 }
-            )
+                
+                if !viewModel.savedDataSources.isEmpty {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack {
+                            ForEach(viewModel.savedDataSources) { ds in
+                                Button {
+                                    Task { await viewModel.connectToDataSource(ds) }
+                                } label: {
+                                    HStack {
+                                        Circle()
+                                            .fill(viewModel.activeDataSource?.id == ds.id ? .green : .gray)
+                                            .frame(width: 8, height: 8)
+                                        Text(ds.name)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.secondary.opacity(0.2))
+                                    .cornerRadius(16)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                        .padding(.horizontal)
+                        .padding(.vertical, 8)
+                    }
+                    Divider()
+                }
+
+                FolderListView(
+                    files: viewModel.files,
+                    isLoading: viewModel.isLoading,
+                    onFileSelected: { file in
+                        viewModel.selectFile(file)
+                    },
+                    onFileDeleted: viewModel.isInDocumentsFolder ? { file in
+                        Task { await viewModel.deleteFile(file) }
+                    } : nil
+                )
+            }
             .navigationTitle("Files")
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
@@ -38,19 +89,47 @@ public struct FileBrowserView: View {
 
                 ToolbarItem(placement: .topBarTrailing) {
                     Menu("Folder") {
-                        Button("Choose Folder...") {
-                            isFolderPickerPresented = true
+                        Section("Local") {
+                            Button("Choose Folder...") {
+                                isFolderPickerPresented = true
+                            }
+                            Button("Import Video...") {
+                                isVideoPickerPresented = true
+                            }
+                            Button("Use App Documents") {
+                                Task {
+                                    await viewModel.useDefaultFolder()
+                                }
+                            }
                         }
-                        Button("Import Video...") {
-                            isVideoPickerPresented = true
-                        }
-                        Button("Use App Documents") {
-                            Task {
-                                await viewModel.useDefaultFolder()
+                        
+                        Section("Remote") {
+                            Button("Add Remote Source...") {
+                                isAddSourcePresented = true
+                            }
+                            
+                            if !viewModel.savedDataSources.isEmpty {
+                                Divider()
+                                ForEach(viewModel.savedDataSources) { ds in
+                                    Button {
+                                        Task { await viewModel.connectToDataSource(ds) }
+                                    } label: {
+                                        HStack {
+                                            if viewModel.activeDataSource?.id == ds.id {
+                                                Image(systemName: "checkmark")
+                                            }
+                                            Text(ds.name)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
                 }
+            }
+            .sheet(isPresented: $isAddSourcePresented) {
+                DataSourceConfigView()
+                    .environment(viewModel)
             }
             .onAppear {
                 Task {

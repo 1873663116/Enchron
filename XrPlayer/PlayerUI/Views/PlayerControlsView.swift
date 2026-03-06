@@ -1,92 +1,319 @@
 import SwiftUI
 
 public struct PlayerControlsView: View {
+    private enum AuxiliaryPanel {
+        case tracks
+        case playlist
+    }
+
     @Environment(AppModel.self) private var appModel
     @Environment(WindowVideoViewModel.self) private var videoViewModel
-    
+
+    @State private var isDraggingSlider = false
+    @State private var dragValue: Double = 0
+    @State private var activePanel: AuxiliaryPanel?
+    @State private var showDetailedTimeline = false
+    @State private var pausedForTimeline = false
+    @State private var hasAppliedSmokePanelRequest = false
+
     public init() {}
-    
+
     public var body: some View {
-        VStack(spacing: 16) {
-            // Timeline
+        VStack(spacing: 24) {
+            // HDR Badge + Toggle
             HStack(spacing: 12) {
-                Text(formatTime(videoViewModel.playbackPosition.seconds))
-                    .font(.caption2.monospacedDigit())
-                
-                Slider(
-                    value: Binding(
-                        get: { videoViewModel.playbackPosition.seconds },
-                        set: { _ in } // Scrubbing logic would go here
-                    ),
-                    in: 0...max(videoViewModel.playbackPosition.duration, 1)
-                )
-                .tint(.accentColor)
-                
-                Text(formatTime(videoViewModel.playbackPosition.duration))
-                    .font(.caption2.monospacedDigit())
-            }
-            .padding(.horizontal)
-            
-            // Buttons
-            HStack(spacing: 30) {
-                Button {
-                    // Backward action
-                } label: {
-                    Image(systemName: "backward.fill")
-                        .font(.title2)
-                }
-                .buttonStyle(.plain)
-                
-                Button {
-                    if videoViewModel.playbackState == .playing {
-                        videoViewModel.pause()
-                        appModel.updatePlaybackState(.paused)
-                    } else {
-                        videoViewModel.resume()
-                        appModel.updatePlaybackState(.playing)
+                if let hdrType = videoViewModel.currentMediaProfile?.hdrType, hdrType != .sdr {
+                    Text(hdrType.rawValue.uppercased())
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.black.opacity(0.3)))
+
+                    Button {
+                        videoViewModel.setHDREnabled(!videoViewModel.isHDROutputEnabled)
+                    } label: {
+                        Text(videoViewModel.isHDROutputEnabled ? "HDR" : "SDR")
+                            .font(.caption.bold())
+                            .foregroundStyle(videoViewModel.isHDROutputEnabled ? .orange : .secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(
+                                Capsule().stroke(
+                                    videoViewModel.isHDROutputEnabled ? Color.orange : Color.secondary,
+                                    lineWidth: 1
+                                )
+                            )
                     }
-                } label: {
-                    Image(systemName: videoViewModel.playbackState == .playing ? "pause.fill" : "play.fill")
-                        .font(.system(size: 44))
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-                
-                Button {
-                    // Forward action
-                } label: {
-                    Image(systemName: "forward.fill")
-                        .font(.title2)
+            }
+
+            // Main Slider Area
+            if showDetailedTimeline {
+                DetailedTimelineView(
+                    onClose: {
+                        withAnimation(.spring()) {
+                            showDetailedTimeline = false
+                            if pausedForTimeline {
+                                pausedForTimeline = false
+                                videoViewModel.resume()
+                            }
+                        }
+                    }
+                )
+                .transition(.scale(scale: 0.95).combined(with: .opacity))
+            } else {
+                VStack(spacing: 12) {
+                    HStack(spacing: 12) {
+                        Text(formatTime(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds))
+                            .font(.caption2.monospacedDigit())
+                            .frame(width: 60, alignment: .leading)
+
+                        Slider(
+                            value: Binding(
+                                get: { isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds },
+                                set: { dragValue = $0 }
+                            ),
+                            in: 0...max(videoViewModel.playbackPosition.duration, 1),
+                            onEditingChanged: { editing in
+                                isDraggingSlider = editing
+                                if !editing {
+                                    videoViewModel.seek(to: dragValue)
+                                }
+                            }
+                        )
+                        .tint(.white)
+                        .frame(minHeight: 44)
+
+                        Text(formatTime(videoViewModel.playbackPosition.duration))
+                            .font(.caption2.monospacedDigit())
+                            .frame(width: 60, alignment: .trailing)
+                    }
+                    .padding(.vertical, 8)
                 }
-                .buttonStyle(.plain)
-                
-                Divider()
-                    .frame(height: 30)
-                
-                Button {
-                    videoViewModel.stop()
-                    appModel.stopPlayback()
-                } label: {
-                    Image(systemName: "stop.fill")
-                        .font(.title2)
-                        .foregroundStyle(.red)
+                .padding(.horizontal)
+            }
+
+            // Control Buttons
+            ZStack(alignment: .top) {
+                floatingPanelHost
+                    .offset(y: -260)
+
+                VStack(spacing: 20) {
+                // Row 1: Primary Controls
+                    HStack(spacing: 40) {
+                        Button {
+                            videoViewModel.skip(by: -10)
+                        } label: {
+                            Image(systemName: "backward.10.fill")
+                                .font(.title)
+                                .frame(width: 60, height: 60)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Backward 10s")
+
+                        // Play / Pause / Replay
+                        Button {
+                            if videoViewModel.playbackState == .ended {
+                                videoViewModel.replay()
+                            } else if videoViewModel.playbackState == .playing {
+                                videoViewModel.pause()
+                            } else {
+                                videoViewModel.resume()
+                            }
+                        } label: {
+                            Image(systemName: playButtonIcon)
+                                .font(.system(size: 44))
+                                .frame(width: 60, height: 60)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+
+                        Button {
+                            videoViewModel.skip(by: 10)
+                        } label: {
+                            Image(systemName: "forward.10.fill")
+                                .font(.title)
+                                .frame(width: 60, height: 60)
+                                .contentShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Forward 10s")
+                    }
+                    
+                    secondaryControlRow
                 }
-                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 16)
+        }
+        .padding(24)
+        .frame(width: 700)
+        .glassBackgroundEffect()
+        .task(id: appModel.smokePanelRequest) {
+            await applySmokePanelRequestIfNeeded()
+        }
+    }
+
+    private var playButtonIcon: String {
+        switch videoViewModel.playbackState {
+        case .playing:
+            return "pause.fill"
+        case .ended:
+            return "arrow.counterclockwise"
+        default:
+            return "play.fill"
+        }
+    }
+
+    @ViewBuilder
+    private var secondaryControlRow: some View {
+        HStack(spacing: 32) {
+            Menu {
+                ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
+                    Button {
+                        videoViewModel.setSpeed(speed)
+                        appModel.updatePlaybackSpeed(speed)
+                    } label: {
+                        HStack {
+                            Text(String(format: "%.2f\u{00D7}", speed.value))
+                            if appModel.playbackSpeed == speed {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Text(String(format: "%.1f\u{00D7}", appModel.playbackSpeed.value))
+                    .font(.system(.body, design: .monospaced))
+                    .frame(width: 60, height: 60)
+                    .background(Color.white.opacity(0.1))
+                    .clipShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            panelToggleButton(
+                systemImage: "text.bubble",
+                panel: .tracks,
+                helpText: "Audio and Subtitles"
+            )
+
+            panelToggleButton(
+                systemImage: "list.bullet",
+                panel: .playlist,
+                helpText: "Playlist"
+            )
+
+            Button {
+                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                    activePanel = nil
+                    if showDetailedTimeline {
+                        showDetailedTimeline = false
+                        if pausedForTimeline {
+                            pausedForTimeline = false
+                            videoViewModel.resume()
+                        }
+                    } else {
+                        showDetailedTimeline = true
+                        if videoViewModel.playbackState == .playing {
+                            pausedForTimeline = true
+                            videoViewModel.pause()
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "waveform.path")
+                    .font(.title3)
+                    .foregroundStyle(showDetailedTimeline ? .orange : .white)
+                    .frame(width: 60, height: 60)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Toggle Detailed Timeline")
+        }
+    }
+
+    @ViewBuilder
+    private var floatingPanelHost: some View {
+        ZStack {
+            PlaybackMenuView(onClose: closeAuxiliaryPanel)
+                .opacity(activePanel == .tracks ? 1 : 0.001)
+                .allowsHitTesting(activePanel == .tracks)
+                .accessibilityHidden(activePanel != .tracks)
+
+            PlaylistView(onClose: closeAuxiliaryPanel)
+                .opacity(activePanel == .playlist ? 1 : 0.001)
+                .allowsHitTesting(activePanel == .playlist)
+                .accessibilityHidden(activePanel != .playlist)
+        }
+        .frame(width: 380, height: 500)
+        .scaleEffect(activePanel == nil ? 0.96 : 1, anchor: .bottom)
+        .opacity(activePanel == nil ? 0 : 1)
+        .allowsHitTesting(activePanel != nil)
+        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: activePanel == nil)
+    }
+
+    @ViewBuilder
+    private func panelToggleButton(systemImage: String, panel: AuxiliaryPanel, helpText: String) -> some View {
+        Button {
+            withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+                showDetailedTimeline = false
+                activePanel = activePanel == panel ? nil : panel
+            }
+        } label: {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundStyle(activePanel == panel ? .orange : .white)
+                .frame(width: 60, height: 60)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .help(helpText)
+    }
+
+    private func closeAuxiliaryPanel() {
+        withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
+            activePanel = nil
+        }
+    }
+
+    @MainActor
+    private func applySmokePanelRequestIfNeeded() async {
+        guard hasAppliedSmokePanelRequest == false,
+              let request = appModel.smokePanelRequest else {
+            return
+        }
+
+        hasAppliedSmokePanelRequest = true
+        appModel.showControls = true
+        try? await Task.sleep(for: .seconds(1))
+
+        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+            switch request {
+            case "tracks":
+                activePanel = .tracks
+            case "timeline":
+                showDetailedTimeline = true
+                if videoViewModel.playbackState == .playing {
+                    pausedForTimeline = true
+                    videoViewModel.pause()
+                }
+            default:
+                break
             }
         }
-        .padding()
-        .frame(width: 500)
-        .glassBackgroundEffect()
     }
-    
+
     private func formatTime(_ seconds: Double) -> String {
-        let hours = Int(seconds) / 3600
-        let minutes = (Int(seconds) % 3600) / 60
-        let secs = Int(seconds) % 60
-        
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        let h = Int(seconds) / 3600
+        let m = (Int(seconds) % 3600) / 60
+        let s = Int(seconds) % 60
+
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
         } else {
-            return String(format: "%02d:%02d", minutes, secs)
+            return String(format: "%02d:%02d", m, s)
         }
     }
 }
@@ -94,4 +321,5 @@ public struct PlayerControlsView: View {
 #Preview {
     PlayerControlsView()
         .environment(AppModel())
+        .environment(WindowVideoViewModel(player: MPVPlayerAdapter()))
 }

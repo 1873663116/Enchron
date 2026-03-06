@@ -19,6 +19,11 @@ public final class AppCoordinator: MediaProfileDetecting, PlaybackEventListening
 
     public init(player: PlaybackControlling) {
         self.player = player
+        if let adapter = player as? MPVPlayerAdapter {
+            adapter.onMediaProfileDetected = { [weak self] profile in
+                self?.didDetectMediaProfile(profile)
+            }
+        }
     }
 
     public func startPlayback(url: URL) async throws {

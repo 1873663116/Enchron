@@ -15,15 +15,18 @@ extension PlaybackCoreDomain {
         public let projectionType: ProjectionType
         public let hdrType: HDRType
         public let resolution: Resolution
+        public let frameRate: Double
 
         public init(
             projectionType: ProjectionType,
             hdrType: HDRType,
-            resolution: Resolution
+            resolution: Resolution,
+            frameRate: Double = 0
         ) {
             self.projectionType = projectionType
             self.hdrType = hdrType
             self.resolution = resolution
+            self.frameRate = max(0, frameRate)
         }
     }
 }
