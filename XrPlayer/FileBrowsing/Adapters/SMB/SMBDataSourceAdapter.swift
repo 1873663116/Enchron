@@ -15,7 +15,7 @@ public enum SMBError: LocalizedError {
         case .libraryNotAvailable:
             return "SMB support requires the AMSMB2 library. Add it in Xcode: File -> Add Package Dependencies -> https://github.com/amosavian/AMSMB2"
         case .invalidConnectionInfo:
-            return "Invalid SMB connection information. Use root path format: /share or /share/subfolder."
+            return "Invalid SMB connection information. Use server address only, or provide root path format: /share or /share/subfolder."
         case .notConnected:
             return "SMB data source is not connected."
         case .connectionFailed(let reason):
@@ -53,11 +53,6 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
             throw SMBError.invalidConnectionInfo
         }
 
-        let shareAndPath = parseShareAndPath(info.rootPath)
-        guard let shareAndPath else {
-            throw SMBError.invalidConnectionInfo
-        }
-
         connectionStatus = .connecting
         do {
             let auth = try resolveCredential(for: info)
@@ -68,6 +63,13 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
             )
             guard let manager = SMB2Manager(url: serverURL, credential: credential) else {
                 throw SMBError.connectionFailed("Unable to initialize SMB manager.")
+            }
+
+            let shareAndPath: (share: String, pathInShare: String)
+            if let parsed = parseShareAndPath(info.rootPath) {
+                shareAndPath = parsed
+            } else {
+                shareAndPath = try await selectFallbackShare(using: manager)
             }
 
             try await manager.connectShare(name: shareAndPath.share)
@@ -206,6 +208,27 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
 
         let username = (finalUsername?.isEmpty == false) ? finalUsername! : "guest"
         return (username, finalPassword)
+    }
+
+    private func selectFallbackShare(
+        using manager: SMB2Manager
+    ) async throws -> (share: String, pathInShare: String) {
+        let shares = try await manager.listShares(enumerateHidden: false)
+
+        if let publicShare = shares.first(where: { share in
+            let name = share.name.trimmingCharacters(in: .whitespacesAndNewlines)
+            return name.isEmpty == false && name.hasSuffix("$") == false
+        }) {
+            return (publicShare.name, "/")
+        }
+
+        if let anyShare = shares.first(where: { share in
+            share.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        }) {
+            return (anyShare.name, "/")
+        }
+
+        throw SMBError.invalidConnectionInfo
     }
 
     private func parseShareAndPath(_ rootPath: String) -> (share: String, pathInShare: String)? {
