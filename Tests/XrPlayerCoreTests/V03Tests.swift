@@ -83,6 +83,50 @@ final class DataSourceCodableTests: XCTestCase {
     }
 }
 
+// MARK: - Credential Key Tests
+
+final class CredentialStorageKeyTests: XCTestCase {
+    func testWebDAVCredentialStorageKeyUsesNormalizedHostAndDefaultPort() {
+        let info = FileBrowsingDomain.ConnectionInfo(
+            sourceType: .webDAV,
+            host: " NAS.LOCAL ",
+            port: nil,
+            username: "alice",
+            rootPath: "videos"
+        )
+        XCTAssertEqual(info.credentialStorageKey, "webDAV:nas.local:443:/videos")
+    }
+
+    func testSMBCredentialStorageKeyUsesExplicitPortAndRootPath() {
+        let info = FileBrowsingDomain.ConnectionInfo(
+            sourceType: .smb,
+            host: "192.168.1.9",
+            port: 1445,
+            username: "bob",
+            rootPath: "/share"
+        )
+        XCTAssertEqual(info.credentialStorageKey, "smb:192.168.1.9:1445:/share")
+    }
+
+    func testLocalSourceDoesNotHaveCredentialStorageKey() {
+        let info = FileBrowsingDomain.ConnectionInfo(
+            sourceType: .local,
+            host: "localhost",
+            rootPath: "/tmp"
+        )
+        XCTAssertNil(info.credentialStorageKey)
+    }
+
+    func testDataSourceCredentialStorageKeyPassThrough() {
+        let ds = FileBrowsingDomain.DataSource(
+            name: "NAS",
+            sourceType: .webDAV,
+            connectionInfo: .init(sourceType: .webDAV, host: "nas", port: nil, username: "u", rootPath: "/")
+        )
+        XCTAssertEqual(ds.credentialStorageKey, "webDAV:nas:443:/")
+    }
+}
+
 // MARK: - SMBDataSourceAdapter Tests
 
 final class SMBDataSourceAdapterTests: XCTestCase {
@@ -326,5 +370,122 @@ final class KeychainStoreTests: XCTestCase {
         XCTAssertEqual(l1?.username, "u1")
         XCTAssertEqual(l2?.username, "u2")
         XCTAssertNotEqual(l1?.password, l2?.password)
+    }
+}
+
+// MARK: - FileIdentifier Normalization Tests
+
+final class FileIdentifierNormalizationTests: XCTestCase {
+    func testRemoteIdentifierIgnoresHostForSamePathAndSize() {
+        let first = PersistenceDomain.FileIdentifier.make(
+            url: URL(string: "https://nas.local/media/movie.mp4")!,
+            sizeInBytes: 1_024
+        )
+        let second = PersistenceDomain.FileIdentifier.make(
+            url: URL(string: "https://192.168.1.8/media/movie.mp4")!,
+            sizeInBytes: 1_024
+        )
+        XCTAssertEqual(first, second)
+    }
+
+    func testCustomServerFingerprintOverridesDefaultFingerprint() {
+        let first = PersistenceDomain.FileIdentifier.make(
+            url: URL(string: "smb://nas.local/share/movie.mkv")!,
+            sizeInBytes: 42,
+            serverFingerprint: "server-a"
+        )
+        let second = PersistenceDomain.FileIdentifier.make(
+            url: URL(string: "webdav://alias/share/movie.mkv")!,
+            sizeInBytes: 42,
+            serverFingerprint: "SERVER-A"
+        )
+        XCTAssertEqual(first, second)
+    }
+
+    func testLocalIdentifierUsesStandardizedPath() {
+        let url = URL(fileURLWithPath: "/tmp/a/../movie.mp4")
+        let id = PersistenceDomain.FileIdentifier.make(url: url, sizeInBytes: 10)
+        XCTAssertTrue(id.rawValue.hasPrefix("/tmp/movie.mp4|10|local"))
+    }
+}
+
+// MARK: - SwiftDataStore Tests
+
+final class SwiftDataStoreTests: XCTestCase {
+    func testProgressRoundtripPersistsAcrossStoreRecreation() async {
+        let (storeURL, cleanup) = makeTempStoreURL()
+        defer { cleanup() }
+
+        let fileID = PersistenceDomain.FileIdentifier(rawValue: "file-1")
+        let progress = PersistenceDomain.PlaybackProgress(
+            fileID: fileID,
+            position: .init(seconds: 123.4),
+            updatedAt: Date()
+        )
+
+        let firstStore = SwiftDataStore(storageURL: storeURL)
+        await firstStore.saveProgress(progress)
+
+        let secondStore = SwiftDataStore(storageURL: storeURL)
+        let loaded = await secondStore.loadProgress(for: fileID)
+        XCTAssertNotNil(loaded)
+        XCTAssertEqual(loaded?.position.seconds, 123.4)
+    }
+
+    func testCleanExpiredProgressRemovesOnlyExpiredEntries() async {
+        let (storeURL, cleanup) = makeTempStoreURL()
+        defer { cleanup() }
+
+        let store = SwiftDataStore(storageURL: storeURL)
+        let oldID = PersistenceDomain.FileIdentifier(rawValue: "old")
+        let freshID = PersistenceDomain.FileIdentifier(rawValue: "fresh")
+        let oldProgress = PersistenceDomain.PlaybackProgress(
+            fileID: oldID,
+            position: .init(seconds: 1),
+            updatedAt: Date().addingTimeInterval(-8 * 86_400)
+        )
+        let freshProgress = PersistenceDomain.PlaybackProgress(
+            fileID: freshID,
+            position: .init(seconds: 2),
+            updatedAt: Date()
+        )
+
+        await store.saveProgress(oldProgress)
+        await store.saveProgress(freshProgress)
+        await store.cleanExpiredProgress(olderThan: 5)
+
+        let oldLoaded = await store.loadProgress(for: oldID)
+        let freshLoaded = await store.loadProgress(for: freshID)
+        XCTAssertNil(oldLoaded)
+        XCTAssertNotNil(freshLoaded)
+    }
+
+    func testScreenPositionRoundtrip() async {
+        let (storeURL, cleanup) = makeTempStoreURL()
+        defer { cleanup() }
+
+        let store = SwiftDataStore(storageURL: storeURL)
+        await store.savePosition(
+            for: "living-room",
+            distanceMeters: 2.0,
+            verticalOffsetMeters: 0.3,
+            angleDegrees: 12
+        )
+
+        let loaded = await store.loadPosition(for: "living-room")
+        XCTAssertNotNil(loaded)
+        XCTAssertEqual(loaded?.distanceMeters, 2.0)
+        XCTAssertEqual(loaded?.verticalOffsetMeters, 0.3)
+        XCTAssertEqual(loaded?.viewAngleDegrees, 12)
+    }
+
+    private func makeTempStoreURL() -> (URL, () -> Void) {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("xrplayer-tests-\(UUID().uuidString)", isDirectory: true)
+        let url = directory.appendingPathComponent("store.json", isDirectory: false)
+        let cleanup: () -> Void = {
+            _ = try? FileManager.default.removeItem(at: directory)
+        }
+        return (url, cleanup)
     }
 }

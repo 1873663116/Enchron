@@ -39,6 +39,18 @@ public struct FileBrowserView: View {
                     .padding()
                     .background(.secondary.opacity(0.1))
                 }
+
+                if let reconnectMessage = viewModel.reconnectStatusMessage {
+                    HStack(spacing: 8) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                        Text(reconnectMessage)
+                            .font(.footnote)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.vertical, 8)
+                    .background(Color.yellow.opacity(0.18))
+                }
                 
                 if !viewModel.savedDataSources.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
@@ -59,6 +71,16 @@ public struct FileBrowserView: View {
                                     .cornerRadius(16)
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button(role: .destructive) {
+                                        if viewModel.activeDataSource?.id == ds.id {
+                                            Task { await viewModel.useDefaultFolder() }
+                                        }
+                                        viewModel.removeDataSource(id: ds.id)
+                                    } label: {
+                                        Label("Remove", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal)
@@ -111,14 +133,21 @@ public struct FileBrowserView: View {
                             if !viewModel.savedDataSources.isEmpty {
                                 Divider()
                                 ForEach(viewModel.savedDataSources) { ds in
-                                    Button {
-                                        Task { await viewModel.connectToDataSource(ds) }
-                                    } label: {
-                                        HStack {
+                                    Menu(ds.name) {
+                                        Button("Connect") {
+                                            Task { await viewModel.connectToDataSource(ds) }
+                                        }
+                                        Button("Remove", role: .destructive) {
                                             if viewModel.activeDataSource?.id == ds.id {
-                                                Image(systemName: "checkmark")
+                                                Task { await viewModel.useDefaultFolder() }
                                             }
-                                            Text(ds.name)
+                                            viewModel.removeDataSource(id: ds.id)
+                                        }
+                                    }
+                                    .labelStyle(.titleOnly)
+                                    .overlay(alignment: .trailing) {
+                                        if viewModel.activeDataSource?.id == ds.id {
+                                            Image(systemName: "checkmark")
                                         }
                                     }
                                 }

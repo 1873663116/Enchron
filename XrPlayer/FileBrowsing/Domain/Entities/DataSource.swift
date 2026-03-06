@@ -18,5 +18,9 @@ extension FileBrowsingDomain {
             self.sourceType = sourceType
             self.connectionInfo = connectionInfo
         }
+
+        public var credentialStorageKey: String? {
+            connectionInfo.credentialStorageKey
+        }
     }
 }

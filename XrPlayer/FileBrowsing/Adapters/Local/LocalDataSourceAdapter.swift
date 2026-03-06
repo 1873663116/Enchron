@@ -42,10 +42,18 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
     public func listContents(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
         let baseURL = try connectedBaseURL()
         let directoryURL = URL(fileURLWithPath: path, relativeTo: baseURL).standardizedFileURL
+        let fileManager = self.fileManager
+        let filter = self.filter
         return try await withCheckedThrowingContinuation { continuation in
-            ioQueue.async { [self] in
+            ioQueue.async {
                 do {
-                    continuation.resume(returning: try loadMediaFiles(in: directoryURL))
+                    continuation.resume(
+                        returning: try Self.loadMediaFiles(
+                            in: directoryURL,
+                            fileManager: fileManager,
+                            filter: filter
+                        )
+                    )
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -63,11 +71,17 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
         in folder: FileBrowsingDomain.MediaFolder,
         sortBy: FileBrowsingDomain.SortCriteria
     ) async throws -> [FileBrowsingDomain.MediaFile] {
+        let fileManager = self.fileManager
+        let filter = self.filter
         return try await withCheckedThrowingContinuation { continuation in
-            ioQueue.async { [self] in
+            ioQueue.async {
                 do {
-                    let files = try loadMediaFiles(in: folder.url)
-                    continuation.resume(returning: sort(files: files, by: sortBy))
+                    let files = try Self.loadMediaFiles(
+                        in: folder.url,
+                        fileManager: fileManager,
+                        filter: filter
+                    )
+                    continuation.resume(returning: Self.sort(files: files, by: sortBy))
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -89,7 +103,11 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
         return rootURL
     }
 
-    private func loadMediaFiles(in directoryURL: URL) throws -> [FileBrowsingDomain.MediaFile] {
+    private static func loadMediaFiles(
+        in directoryURL: URL,
+        fileManager: FileManager,
+        filter: FileBrowsingDomain.FileFilter
+    ) throws -> [FileBrowsingDomain.MediaFile] {
         let contents = try fileManager.contentsOfDirectory(
             at: directoryURL,
             includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey],
@@ -111,7 +129,7 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
         }
     }
 
-    private func sort(
+    private static func sort(
         files: [FileBrowsingDomain.MediaFile],
         by criteria: FileBrowsingDomain.SortCriteria
     ) -> [FileBrowsingDomain.MediaFile] {

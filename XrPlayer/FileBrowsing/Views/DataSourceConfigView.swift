@@ -16,6 +16,7 @@ public struct DataSourceConfigView: View {
     
     private var defaultPort: Int { selectedType == .smb ? 445 : 443 }
     private var isValid: Bool { !host.trimmingCharacters(in: .whitespaces).isEmpty && !displayName.trimmingCharacters(in: .whitespaces).isEmpty }
+    private var rootPathLabel: String { selectedType == .smb ? "Share Path" : "Root Path" }
     
     public init() {}
     
@@ -41,7 +42,7 @@ public struct DataSourceConfigView: View {
                         TextField("Port (default: \(defaultPort))", text: $portText)
                             .keyboardType(.numberPad)
                     }
-                    TextField("Share Path", text: $rootPath)
+                    TextField(rootPathLabel, text: $rootPath)
                 }
                 
                 Section("Authentication") {
@@ -80,8 +81,13 @@ public struct DataSourceConfigView: View {
     private func connectAndSave() {
         let trimmedHost = host.trimmingCharacters(in: .whitespaces)
         let trimmedName = displayName.trimmingCharacters(in: .whitespaces)
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedHost.isEmpty, !trimmedName.isEmpty else {
             validationError = "Display name and server address are required."
+            return
+        }
+        guard trimmedUsername.isEmpty == false || password.isEmpty else {
+            validationError = "Username is required when a password is provided."
             return
         }
         let port = Int(portText) ?? defaultPort
@@ -89,20 +95,17 @@ public struct DataSourceConfigView: View {
             sourceType: selectedType,
             host: trimmedHost,
             port: port,
-            username: username.isEmpty ? nil : username,
+            username: trimmedUsername.isEmpty ? nil : trimmedUsername,
             rootPath: rootPath.isEmpty ? "/" : rootPath
         )
         let ds = FileBrowsingDomain.DataSource(name: trimmedName, sourceType: selectedType, connectionInfo: info)
-        
-        // Save password to keychain (via viewModel indirectly — viewModel.credentialStore is private)
-        // For now, store it through the DataSource flow
+
         isConnecting = true
         validationError = nil
         Task {
-            viewModel.addDataSource(ds)
-            await viewModel.connectToDataSource(ds)
+            let didConnect = await viewModel.connectAndSaveRemoteDataSource(ds, password: password)
             isConnecting = false
-            if viewModel.lastErrorMessage == nil {
+            if didConnect {
                 dismiss()
             } else {
                 validationError = viewModel.lastErrorMessage

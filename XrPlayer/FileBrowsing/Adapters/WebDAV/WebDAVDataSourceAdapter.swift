@@ -176,9 +176,10 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
 
         var finalUsername = username
         var finalPassword = ""
+        let credentialKey = info.credentialStorageKey ?? credentialSourceID(baseURL: baseURL)
 
         if let credentialStore,
-           let credential = try credentialStore.loadCredential(for: credentialSourceID(info: info, baseURL: baseURL)) {
+           let credential = try credentialStore.loadCredential(for: credentialKey) {
             finalUsername = credential.username
             finalPassword = credential.password
         }
@@ -187,11 +188,8 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         return "Basic \(token)"
     }
 
-    private func credentialSourceID(info: FileBrowsingDomain.ConnectionInfo, baseURL: URL) -> String {
-        if let host = info.host {
-            return "webdav:\(host):\(info.port ?? 0):\(normalizedPath(info.rootPath))"
-        }
-        return "webdav:\(baseURL.absoluteString)"
+    private func credentialSourceID(baseURL: URL) -> String {
+        "webdav:\(baseURL.absoluteString.lowercased())"
     }
 
     private func buildRequestURL(baseURL: URL, path: String) throws -> URL {

@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C34E5E402F9C00010001AAAA /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = C34E5E422F9C00010001AAAA /* AMSMB2 */; };
 		C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = C32D79C32F57A609002717FA /* MPVKit-GPL */; };
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
 /* End PBXBuildFile section */
@@ -29,6 +30,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C34E5E402F9C00010001AAAA /* AMSMB2 in Frameworks */,
 				C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */,
 				C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */,
 			);
@@ -83,6 +85,7 @@
 			name = XrPlayer;
 			packageProductDependencies = (
 				C3B0F9852F5726B30064596E /* RealityKitContent */,
+				C34E5E422F9C00010001AAAA /* AMSMB2 */,
 				C32D79C32F57A609002717FA /* MPVKit-GPL */,
 			);
 			productName = XrPlayer;
@@ -114,6 +117,7 @@
 			mainGroup = C3B0F9772F5726B30064596E;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				C34E5E412F9C00010001AAAA /* XCRemoteSwiftPackageReference "AMSMB2" */,
 				C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -358,6 +362,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		C34E5E412F9C00010001AAAA /* XCRemoteSwiftPackageReference "AMSMB2" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/amosavian/AMSMB2";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.0;
+			};
+		};
 		C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/mpvkit/MPVKit.git";
@@ -369,6 +381,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		C34E5E422F9C00010001AAAA /* AMSMB2 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = C34E5E412F9C00010001AAAA /* XCRemoteSwiftPackageReference "AMSMB2" */;
+			productName = AMSMB2;
+		};
 		C32D79C32F57A609002717FA /* MPVKit-GPL */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */;
