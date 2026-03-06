@@ -2,6 +2,14 @@
 
 > 本文档将 Phase 1-3 的架构设计转化为具体的开发计划。遵循"先跑通再做全"原则：用首个垂直切片验证技术栈，再逐步扩展功能。
 
+## 2026-03-06 收口更新
+
+- 已完成播放稳定性收口：native GPU 路径 warmup、视频层 attach 握手、首帧 loading 时机与本地文件首帧参数调优已落地。
+- 已完成字幕链路收口：捆绑 `Noto Sans SC`、显式 `sub-fonts-dir`、禁用 fontconfig/provider fallback，并补充配置测试。
+- 已完成控件与交互收口：音轨/字幕和播放列表已改为控件内面板宿主，二级时间轴已改为固定中心指针 + 时间带拖动模型。
+- 已完成模拟器与测试验证：`swift build`、visionOS Simulator `xcodebuild`、`xcrun xctest` 142 项测试、播放/菜单/时间轴/字幕 smoke 均已通过。
+- 已知问题文档已归档至 [docs/archive/known_issues_2026-03-06_resolved.md](/Users/xiongzhipeng/Applications/XrPlayer/docs/archive/known_issues_2026-03-06_resolved.md)。
+
 ---
 
 ## 首个垂直切片：v0.1 — "本地视频窗口播放"
