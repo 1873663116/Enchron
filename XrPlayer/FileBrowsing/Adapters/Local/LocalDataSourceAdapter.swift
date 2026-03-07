@@ -53,6 +53,35 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
         }
     }
 
+    public func listFolders(at path: String) async throws -> [FileBrowsingDomain.MediaFolder] {
+        let baseURL = try connectedBaseURL()
+        let directoryURL = URL(fileURLWithPath: path, relativeTo: baseURL).standardizedFileURL
+        return try await withCheckedThrowingContinuation { continuation in
+            ioQueue.async { [self] in
+                do {
+                    let contents = try fileManager.contentsOfDirectory(
+                        at: directoryURL,
+                        includingPropertiesForKeys: [.isDirectoryKey],
+                        options: [.skipsHiddenFiles]
+                    )
+                    let folders = contents.compactMap { url -> FileBrowsingDomain.MediaFolder? in
+                        let values = try? url.resourceValues(forKeys: [.isDirectoryKey])
+                        guard values?.isDirectory == true else { return nil }
+                        return FileBrowsingDomain.MediaFolder(
+                            name: url.lastPathComponent,
+                            dataSourceID: UUID(),
+                            path: url.path,
+                            url: url
+                        )
+                    }
+                    continuation.resume(returning: folders)
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
     public func resolveURL(for item: FileBrowsingDomain.MediaFile) async throws -> URL {
         let reachable = try item.url.checkResourceIsReachable()
         guard reachable else { throw LocalDataSourceError.itemNotReachable }

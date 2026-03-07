@@ -26,6 +26,7 @@ public enum WebDAVError: LocalizedError {
 public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding {
     private var baseURL: URL?
     private var authHeader: String?
+    private var connectionInfo: FileBrowsingDomain.ConnectionInfo?
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     private let session: URLSession
     private let credentialStore: CredentialStoring?
@@ -42,7 +43,8 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         do {
             let rootURL = try buildBaseURL(from: info)
             baseURL = rootURL
-            authHeader = try buildAuthHeader(info: info, baseURL: rootURL)
+            connectionInfo = info
+            authHeader = try buildAuthHeader(info: info)
 
             var request = URLRequest(url: rootURL)
             request.httpMethod = "OPTIONS"
@@ -68,6 +70,7 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
     public func disconnect() {
         baseURL = nil
         authHeader = nil
+        connectionInfo = nil
         connectionStatus = .disconnected
     }
 
@@ -77,34 +80,10 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         }
 
         let targetURL = try buildRequestURL(baseURL: baseURL, path: path)
-        var request = URLRequest(url: targetURL)
-        request.httpMethod = "PROPFIND"
-        request.setValue("1", forHTTPHeaderField: "Depth")
-        request.setValue("application/xml; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        if let authHeader {
-            request.setValue(authHeader, forHTTPHeaderField: "Authorization")
-        }
-        request.httpBody = Self.propfindBody.data(using: .utf8)
-
-        let (data, response) = try await session.data(for: request)
-        guard let httpResponse = response as? HTTPURLResponse else {
-            throw WebDAVError.invalidResponse
-        }
-        guard (200 ... 299).contains(httpResponse.statusCode) else {
-            throw WebDAVError.requestFailed(httpResponse.statusCode)
-        }
-
-        let parser = XMLParser(data: data)
-        let delegate = PROPFINDParserDelegate()
-        parser.delegate = delegate
-
-        guard parser.parse() else {
-            throw WebDAVError.malformedResponse
-        }
-
+        let responses = try await performPROPFIND(url: targetURL)
         let normalizedTargetPath = normalizedComparablePath(targetURL.path)
 
-        return delegate.responses.compactMap { responseItem in
+        return responses.compactMap { responseItem in
             guard responseItem.isCollection == false else { return nil }
             guard let href = responseItem.href, let fileURL = resolveFileURL(from: href, requestURL: targetURL) else {
                 return nil
@@ -131,6 +110,38 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         }
     }
 
+    public func listFolders(at path: String) async throws -> [FileBrowsingDomain.MediaFolder] {
+        guard let baseURL else {
+            throw WebDAVError.notConnected
+        }
+
+        let targetURL = try buildRequestURL(baseURL: baseURL, path: path)
+        let responses = try await performPROPFIND(url: targetURL)
+        let normalizedTargetPath = normalizedComparablePath(targetURL.path)
+
+        return responses.compactMap { responseItem in
+            guard responseItem.isCollection else { return nil }
+            guard let href = responseItem.href,
+                  let folderURL = resolveFileURL(from: href, requestURL: targetURL) else {
+                return nil
+            }
+
+            if normalizedComparablePath(folderURL.path) == normalizedTargetPath {
+                return nil
+            }
+
+            let folderName = folderURL.lastPathComponent.removingPercentEncoding
+                ?? folderURL.lastPathComponent
+
+            return FileBrowsingDomain.MediaFolder(
+                name: folderName,
+                dataSourceID: UUID(),
+                path: folderURL.path,
+                url: folderURL
+            )
+        }
+    }
+
     public func listFiles(
         in folder: FileBrowsingDomain.MediaFolder,
         sortBy: FileBrowsingDomain.SortCriteria
@@ -144,7 +155,68 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
     }
 
     public func resolvePlayableURL(for file: FileBrowsingDomain.MediaFile) async throws -> URL {
-        file.url
+        guard let info = connectionInfo else {
+            return file.url
+        }
+
+        // Try loading credentials from keychain to embed in URL for mpv playback
+        let sourceID = credentialSourceID(info: info)
+        if let credentialStore,
+           let credential = try? credentialStore.loadCredential(for: sourceID),
+           !credential.username.isEmpty {
+            return embedCredentials(
+                in: file.url,
+                username: credential.username,
+                password: credential.password
+            )
+        }
+
+        // Fallback: use username from ConnectionInfo
+        if let username = info.username, !username.isEmpty {
+            return embedCredentials(in: file.url, username: username, password: "")
+        }
+
+        return file.url
+    }
+
+    private func embedCredentials(in url: URL, username: String, password: String) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+        components.user = username
+        if !password.isEmpty {
+            components.password = password
+        }
+        return components.url ?? url
+    }
+
+    private func performPROPFIND(url: URL) async throws -> [PROPFINDParserDelegate.ResponseItem] {
+        var request = URLRequest(url: url)
+        request.httpMethod = "PROPFIND"
+        request.setValue("1", forHTTPHeaderField: "Depth")
+        request.setValue("application/xml; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        if let authHeader {
+            request.setValue(authHeader, forHTTPHeaderField: "Authorization")
+        }
+        request.httpBody = Self.propfindBody.data(using: .utf8)
+
+        let (data, response) = try await session.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw WebDAVError.invalidResponse
+        }
+        guard (200 ... 299).contains(httpResponse.statusCode) else {
+            throw WebDAVError.requestFailed(httpResponse.statusCode)
+        }
+
+        let parser = XMLParser(data: data)
+        let delegate = PROPFINDParserDelegate()
+        parser.delegate = delegate
+
+        guard parser.parse() else {
+            throw WebDAVError.malformedResponse
+        }
+
+        return delegate.responses
     }
 
     private func buildBaseURL(from info: FileBrowsingDomain.ConnectionInfo) throws -> URL {
@@ -167,31 +239,31 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
     }
 
     private func buildAuthHeader(
-        info: FileBrowsingDomain.ConnectionInfo,
-        baseURL: URL
+        info: FileBrowsingDomain.ConnectionInfo
     ) throws -> String? {
-        guard let username = info.username, username.isEmpty == false else {
-            return nil
-        }
-
-        var finalUsername = username
-        var finalPassword = ""
+        let sourceID = credentialSourceID(info: info)
 
         if let credentialStore,
-           let credential = try credentialStore.loadCredential(for: credentialSourceID(info: info, baseURL: baseURL)) {
-            finalUsername = credential.username
-            finalPassword = credential.password
+           let credential = try credentialStore.loadCredential(for: sourceID),
+           !credential.username.isEmpty {
+            let token = Data("\(credential.username):\(credential.password)".utf8).base64EncodedString()
+            return "Basic \(token)"
         }
 
-        let token = Data("\(finalUsername):\(finalPassword)".utf8).base64EncodedString()
+        // Fallback: use username from ConnectionInfo without password (anonymous)
+        guard let username = info.username, !username.isEmpty else {
+            return nil
+        }
+        let token = Data("\(username):".utf8).base64EncodedString()
         return "Basic \(token)"
     }
 
-    private func credentialSourceID(info: FileBrowsingDomain.ConnectionInfo, baseURL: URL) -> String {
-        if let host = info.host {
-            return "webdav:\(host):\(info.port ?? 0):\(normalizedPath(info.rootPath))"
-        }
-        return "webdav:\(baseURL.absoluteString)"
+    private func credentialSourceID(info: FileBrowsingDomain.ConnectionInfo) -> String {
+        let type = info.sourceType.rawValue
+        let host = info.host ?? ""
+        let port = info.port ?? 0
+        let path = info.rootPath
+        return "\(type):\(host):\(port):\(path)"
     }
 
     private func buildRequestURL(baseURL: URL, path: String) throws -> URL {
