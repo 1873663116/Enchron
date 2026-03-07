@@ -300,7 +300,8 @@ final class WebDAVDataSourceAdapterTests: XCTestCase {
             .notConnected,
             .invalidResponse,
             .requestFailed(404),
-            .malformedResponse
+            .malformedResponse,
+            .emptyDirectoryListing
         ]
         for error in errors {
             XCTAssertFalse(error.localizedDescription.isEmpty, "Error \(error) has empty description")

@@ -6,6 +6,7 @@ public enum WebDAVError: LocalizedError {
     case invalidResponse
     case requestFailed(Int)
     case malformedResponse
+    case emptyDirectoryListing
 
     public var errorDescription: String? {
         switch self {
@@ -19,6 +20,8 @@ public enum WebDAVError: LocalizedError {
             return "WebDAV request failed with HTTP status \(statusCode)."
         case .malformedResponse:
             return "WebDAV server returned malformed XML."
+        case .emptyDirectoryListing:
+            return "WebDAV server returned only the current directory entry. Directory listing could not be resolved."
         }
     }
 }
@@ -84,7 +87,7 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         let normalizedTargetPath = normalizedComparablePath(targetURL.path)
 
         return responses.compactMap { responseItem in
-            guard responseItem.isCollection == false else { return nil }
+            guard isDirectory(responseItem) == false else { return nil }
             guard let href = responseItem.href, let fileURL = resolveFileURL(from: href, requestURL: targetURL) else {
                 return nil
             }
@@ -120,7 +123,7 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         let normalizedTargetPath = normalizedComparablePath(targetURL.path)
 
         return responses.compactMap { responseItem in
-            guard responseItem.isCollection else { return nil }
+            guard isDirectory(responseItem) else { return nil }
             guard let href = responseItem.href,
                   let folderURL = resolveFileURL(from: href, requestURL: targetURL) else {
                 return nil
@@ -191,6 +194,29 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
     }
 
     private func performPROPFIND(url: URL) async throws -> [PROPFINDParserDelegate.ResponseItem] {
+        let primaryResult = try await performPROPFINDRequest(url: url)
+        logPROPFINDResult(url: url, result: primaryResult)
+
+        if isSelfOnlyResponse(primaryResult.responses, requestURL: url) {
+            let retryURL = directoryURL(for: url)
+            if retryURL != url {
+                let retryResult = try await performPROPFINDRequest(url: retryURL)
+                logPROPFINDResult(url: retryURL, result: retryResult)
+
+                if isSelfOnlyResponse(retryResult.responses, requestURL: retryURL) == false {
+                    return retryResult.responses
+                }
+            }
+
+            throw WebDAVError.emptyDirectoryListing
+        }
+
+        return primaryResult.responses
+    }
+
+    private func performPROPFINDRequest(
+        url: URL
+    ) async throws -> (responses: [PROPFINDParserDelegate.ResponseItem], xml: String) {
         var request = URLRequest(url: url)
         request.httpMethod = "PROPFIND"
         request.setValue("1", forHTTPHeaderField: "Depth")
@@ -216,7 +242,7 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
             throw WebDAVError.malformedResponse
         }
 
-        return delegate.responses
+        return (delegate.responses, String(decoding: data, as: UTF8.self))
     }
 
     private func buildBaseURL(from info: FileBrowsingDomain.ConnectionInfo) throws -> URL {
@@ -319,6 +345,58 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
             return String(normalized.dropLast())
         }
         return normalized
+    }
+
+    private func isDirectory(_ responseItem: PROPFINDParserDelegate.ResponseItem) -> Bool {
+        if responseItem.isCollection {
+            return true
+        }
+
+        guard let href = responseItem.href?.trimmingCharacters(in: .whitespacesAndNewlines),
+              href.isEmpty == false else {
+            return false
+        }
+
+        return href.hasSuffix("/")
+    }
+
+    private func isSelfOnlyResponse(
+        _ responses: [PROPFINDParserDelegate.ResponseItem],
+        requestURL: URL
+    ) -> Bool {
+        guard responses.count == 1,
+              let href = responses.first?.href,
+              let resolvedURL = resolveFileURL(from: href, requestURL: requestURL) else {
+            return false
+        }
+
+        return normalizedComparablePath(resolvedURL.path) == normalizedComparablePath(requestURL.path)
+    }
+
+    private func directoryURL(for url: URL) -> URL {
+        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
+            return url
+        }
+
+        let path = normalizedPath(components.path)
+        guard path.hasSuffix("/") == false else {
+            return url
+        }
+
+        components.path = path + "/"
+        return components.url ?? url
+    }
+
+    private func logPROPFINDResult(
+        url: URL,
+        result: (responses: [PROPFINDParserDelegate.ResponseItem], xml: String)
+    ) {
+        let hrefs = result.responses.compactMap(\.href).joined(separator: ", ")
+        print("[WebDAV] PROPFIND url=\(url.absoluteString)")
+        print("[WebDAV] PROPFIND responses=\(result.responses.count) hrefs=[\(hrefs)]")
+        if result.responses.count <= 1 {
+            print("[WebDAV] PROPFIND xml=\(result.xml)")
+        }
     }
 
     private func sort(
