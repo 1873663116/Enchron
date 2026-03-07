@@ -123,8 +123,14 @@ public struct FileBrowserView: View {
                 }
 
                 FolderListView(
+                    folders: viewModel.folders,
                     files: viewModel.files,
                     isLoading: viewModel.isLoading,
+                    onFolderSelected: { folder in
+                        Task {
+                            await viewModel.navigateToFolder(folder)
+                        }
+                    },
                     onFileSelected: { file in
                         viewModel.selectFile(file)
                     },

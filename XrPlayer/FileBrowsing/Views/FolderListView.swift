@@ -1,8 +1,10 @@
 import SwiftUI
 
 public struct FolderListView: View {
+    public let folders: [FileBrowsingDomain.MediaFolder]
     public let files: [FileBrowsingDomain.MediaFile]
     public let isLoading: Bool
+    public let onFolderSelected: (FileBrowsingDomain.MediaFolder) -> Void
     public let onFileSelected: (FileBrowsingDomain.MediaFile) -> Void
     public let onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)?
     
@@ -21,13 +23,17 @@ public struct FolderListView: View {
     }()
     
     public init(
+        folders: [FileBrowsingDomain.MediaFolder] = [],
         files: [FileBrowsingDomain.MediaFile],
         isLoading: Bool = false,
+        onFolderSelected: @escaping (FileBrowsingDomain.MediaFolder) -> Void = { _ in },
         onFileSelected: @escaping (FileBrowsingDomain.MediaFile) -> Void,
         onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)? = nil
     ) {
+        self.folders = folders
         self.files = files
         self.isLoading = isLoading
+        self.onFolderSelected = onFolderSelected
         self.onFileSelected = onFileSelected
         self.onFileDeleted = onFileDeleted
     }
@@ -37,52 +43,95 @@ public struct FolderListView: View {
         if isLoading {
             ProgressView("Loading files...")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else if files.isEmpty {
+        } else if folders.isEmpty && files.isEmpty {
             VStack(spacing: 20) {
-                Image(systemName: "video.slash")
+                Image(systemName: "folder.badge.questionmark")
                     .font(.system(size: 60))
                     .foregroundStyle(.secondary)
-                Text("No playable videos found.")
+                Text("No folders or playable videos found.")
                     .font(.headline)
-                Text("Add videos to your Movies folder to see them here.")
+                Text("This location does not currently expose any browsable folders or supported video files.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            List(files) { file in
-                Button {
-                    onFileSelected(file)
-                } label: {
-                    HStack(spacing: 16) {
-                        fileIcon(for: file.fileExtension)
-                            .font(.title)
-                            .foregroundStyle(.tint)
-                            .frame(width: 40)
+            List {
+                if folders.isEmpty == false {
+                    Section("Folders") {
+                        ForEach(folders) { folder in
+                            Button {
+                                onFolderSelected(folder)
+                            } label: {
+                                HStack(spacing: 16) {
+                                    Image(systemName: "folder.fill")
+                                        .font(.title3)
+                                        .foregroundStyle(.yellow)
+                                        .frame(width: 40)
 
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(file.name)
-                                .font(.headline)
-                                .lineLimit(1)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(folder.name)
+                                            .font(.headline)
+                                            .lineLimit(1)
 
-                            HStack {
-                                Text(byteFormatter.string(fromByteCount: file.sizeInBytes))
-                                Text("•")
-                                Text(dateFormatter.string(from: file.modifiedAt))
+                                        Text("Open folder")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Spacer()
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.caption.weight(.semibold))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
                             }
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+                            .buttonStyle(.plain)
                         }
                     }
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
                 }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    if let onFileDeleted {
-                        Button(role: .destructive) {
-                            onFileDeleted(file)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+
+                if files.isEmpty == false {
+                    Section("Videos") {
+                        ForEach(files) { file in
+                            Button {
+                                onFileSelected(file)
+                            } label: {
+                                HStack(spacing: 16) {
+                                    fileIcon(for: file.fileExtension)
+                                        .font(.title)
+                                        .foregroundStyle(.tint)
+                                        .frame(width: 40)
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text(file.name)
+                                            .font(.headline)
+                                            .lineLimit(1)
+
+                                        HStack {
+                                            Text(byteFormatter.string(fromByteCount: file.sizeInBytes))
+                                            Text("•")
+                                            Text(dateFormatter.string(from: file.modifiedAt))
+                                        }
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    }
+                                }
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
+                            }
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                if let onFileDeleted {
+                                    Button(role: .destructive) {
+                                        onFileDeleted(file)
+                                    } label: {
+                                        Label("Delete", systemImage: "trash")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -105,6 +154,14 @@ public struct FolderListView: View {
 
 #Preview {
     FolderListView(
+        folders: [
+            FileBrowsingDomain.MediaFolder(
+                name: "Movies",
+                dataSourceID: UUID(),
+                path: "/Movies",
+                url: URL(fileURLWithPath: "/Movies")
+            )
+        ],
         files: [
             FileBrowsingDomain.MediaFile(
                 name: "Sample Movie.mp4",
@@ -114,6 +171,7 @@ public struct FolderListView: View {
                 url: URL(fileURLWithPath: "/sample.mp4")
             )
         ],
+        onFolderSelected: { _ in },
         onFileSelected: { _ in }
     )
 }
