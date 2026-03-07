@@ -90,6 +90,4 @@ In PR description, include:
 - Reproduction and validation steps
 - Risks and rollback plan (if any)
 
-## License
 
-No formal `LICENSE` file is included yet. Please add one before public open-source release.
