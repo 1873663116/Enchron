@@ -42,13 +42,13 @@ final class CoreLogicTests: XCTestCase {
         let adapter = LocalDataSourceAdapter()
         try await adapter.connect(with: .init(sourceType: .local, rootPath: root.path))
 
-        let folder = FileBrowsingDomain.MediaFolder(dataSourceID: UUID(), path: ".", url: root)
+        let folder = FileBrowsingDomain.MediaFolder(name: "Root", dataSourceID: UUID(), path: ".", url: root)
         let sorted = try await adapter.listFiles(
             in: folder,
             sortBy: .init(key: .name, order: .descending)
         )
 
-        XCTAssertEqual(sorted.map(\.name), ["z.mp4", "a.mp4"])
+        XCTAssertEqual(sorted.map { $0.name }, ["z.mp4", "a.mp4"])
     }
 
     func testProjectionTypePanoramicClassification() {
