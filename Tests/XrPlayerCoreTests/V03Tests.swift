@@ -7,6 +7,8 @@ final class DataSourceCodableTests: XCTestCase {
     func testConnectionInfoCodableRoundtrip() throws {
         let info = FileBrowsingDomain.ConnectionInfo(
             sourceType: .webDAV,
+            address: "http://nas.local:8080/videos",
+            scheme: "http",
             host: "nas.local",
             port: 8080,
             username: "alice",
@@ -28,6 +30,34 @@ final class DataSourceCodableTests: XCTestCase {
         XCTAssertNil(decoded.host)
         XCTAssertNil(decoded.port)
         XCTAssertNil(decoded.username)
+    }
+
+    func testRemoteWebDAVAddressParsingWithoutSchemeDefaultsToHTTP() throws {
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: "192.168.1.8:5244/dav",
+            username: "alice"
+        )
+
+        XCTAssertEqual(info.scheme, "http")
+        XCTAssertEqual(info.host, "192.168.1.8")
+        XCTAssertEqual(info.port, 5244)
+        XCTAssertEqual(info.rootPath, "/dav")
+        XCTAssertEqual(info.username, "alice")
+    }
+
+    func testRemoteSMBAddressParsingRequiresShareName() {
+        XCTAssertThrowsError(
+            try FileBrowsingDomain.ConnectionInfo.remote(
+                sourceType: .smb,
+                address: "smb://192.168.1.9"
+            )
+        ) { error in
+            XCTAssertEqual(
+                error.localizedDescription,
+                "SMB address must include a share name, for example smb://192.168.1.20/share."
+            )
+        }
     }
 
     func testDataSourceCodableRoundtrip() throws {

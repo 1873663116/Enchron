@@ -62,6 +62,14 @@ public final class FileBrowsingViewModel {
         }
     }
 
+    public func deleteCredential(for dataSource: FileBrowsingDomain.DataSource) {
+        do {
+            try credentialStore.deleteCredential(for: dataSource.credentialSourceID)
+        } catch {
+            print("[FileBrowser] Failed to delete credential for \(dataSource.credentialSourceID): \(error)")
+        }
+    }
+
     public func addDataSource(_ ds: FileBrowsingDomain.DataSource) {
         if !savedDataSources.contains(where: { $0.id == ds.id }) {
             savedDataSources.append(ds)
@@ -70,8 +78,18 @@ public final class FileBrowsingViewModel {
     }
 
     public func removeDataSource(id: UUID) {
+        guard let removedSource = savedDataSources.first(where: { $0.id == id }) else {
+            return
+        }
         savedDataSources.removeAll { $0.id == id }
+        deleteCredential(for: removedSource)
         persistDataSources()
+
+        if activeDataSource?.id == id {
+            Task { [weak self] in
+                await self?.useDefaultFolder()
+            }
+        }
     }
 
     public func loadSavedDataSources() {
