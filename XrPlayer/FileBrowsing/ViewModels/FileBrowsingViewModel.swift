@@ -5,9 +5,12 @@ import Observation
 @Observable
 public final class FileBrowsingViewModel {
     public var files: [FileBrowsingDomain.MediaFile] = []
+    public var folders: [FileBrowsingDomain.MediaFolder] = []
     public var isLoading: Bool = false
     public var lastErrorMessage: String?
     public private(set) var currentRootDisplayName: String = "Documents"
+    public private(set) var currentRemotePath: String = "/"
+    public private(set) var canNavigateUp: Bool = false
 
     public var savedDataSources: [FileBrowsingDomain.DataSource] = []
     public var activeDataSource: FileBrowsingDomain.DataSource?
@@ -22,6 +25,7 @@ public final class FileBrowsingViewModel {
     private var rootURL: URL
     private var securityScopedRootURL: URL?
     private var activeRemoteAdapter: (any DataSourceConnecting & FileProviding)?
+    private var remotePathStack: [String] = []
 
     public init(
         localDataSource: LocalDataSourceAdapter,
@@ -44,6 +48,18 @@ public final class FileBrowsingViewModel {
         }
 
         loadSavedDataSources()
+    }
+
+    public func saveCredential(for dataSource: FileBrowsingDomain.DataSource, username: String, password: String) {
+        let sourceID = dataSource.credentialSourceID
+        do {
+            try credentialStore.saveCredential(
+                for: sourceID,
+                credential: StorageCredential(username: username, password: password)
+            )
+        } catch {
+            print("[FileBrowser] Failed to save credential for \(sourceID): \(error)")
+        }
     }
 
     public func addDataSource(_ ds: FileBrowsingDomain.DataSource) {
@@ -89,30 +105,68 @@ public final class FileBrowsingViewModel {
         do {
             try await adapter.connect(with: ds.connectionInfo)
             activeRemoteAdapter = adapter
+            let rootPath = ds.connectionInfo.rootPath
+            remotePathStack = [rootPath]
+            currentRemotePath = rootPath
+            canNavigateUp = false
             isLoading = true
             defer { isLoading = false }
 
-            let remoteFiles = try await adapter.listContents(at: ds.connectionInfo.rootPath)
+            let remoteFiles = try await adapter.listContents(at: rootPath)
+            let remoteFolders = try await adapter.listFolders(at: rootPath)
             files = remoteFiles
+            folders = remoteFolders
             currentRootDisplayName = ds.name
             lastErrorMessage = nil
         } catch {
             activeRemoteAdapter = nil
             activeDataSource = nil
-            lastErrorMessage = "Connection failed: \(error.localizedDescription)"
+            lastErrorMessage = Self.friendlyErrorMessage(for: error)
         }
+    }
+
+    private static func friendlyErrorMessage(for error: Error) -> String {
+        if let webDAVError = error as? WebDAVError {
+            switch webDAVError {
+            case .requestFailed(let code) where code == 401 || code == 403:
+                return "Authentication failed. Please check your username and password."
+            case .requestFailed(let code):
+                return "Server returned error (HTTP \(code))."
+            case .invalidConnectionInfo:
+                return "Invalid server address or connection settings."
+            default:
+                return "Connection failed: \(error.localizedDescription)"
+            }
+        }
+        if error is SMBError {
+            return error.localizedDescription
+        }
+        let nsError = error as NSError
+        if nsError.domain == NSURLErrorDomain {
+            switch nsError.code {
+            case NSURLErrorTimedOut:
+                return "Connection timed out. Please check the server address and network."
+            case NSURLErrorCannotConnectToHost, NSURLErrorCannotFindHost:
+                return "Cannot reach server. Please check the address and your network connection."
+            default:
+                return "Network error: \(error.localizedDescription)"
+            }
+        }
+        return "Connection failed: \(error.localizedDescription)"
     }
 
     public func loadFiles() async {
         isLoading = true
         defer { isLoading = false }
 
-        if let remoteAdapter = activeRemoteAdapter, let activeDataSource {
+        if let remoteAdapter = activeRemoteAdapter {
             do {
-                files = try await remoteAdapter.listContents(at: activeDataSource.connectionInfo.rootPath)
+                files = try await remoteAdapter.listContents(at: currentRemotePath)
+                folders = try await remoteAdapter.listFolders(at: currentRemotePath)
                 lastErrorMessage = nil
             } catch {
                 files = []
+                folders = []
                 lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             }
             return
@@ -169,11 +223,39 @@ public final class FileBrowsingViewModel {
         }
     }
 
+    public func navigateToFolder(_ folder: FileBrowsingDomain.MediaFolder) async {
+        guard activeRemoteAdapter != nil else { return }
+        remotePathStack.append(folder.path)
+        currentRemotePath = folder.path
+        canNavigateUp = remotePathStack.count > 1
+        currentRootDisplayName = folder.name
+        await loadFiles()
+    }
+
+    public func navigateUp() async {
+        guard activeRemoteAdapter != nil, remotePathStack.count > 1 else { return }
+        remotePathStack.removeLast()
+        let previousPath = remotePathStack.last ?? "/"
+        currentRemotePath = previousPath
+        canNavigateUp = remotePathStack.count > 1
+
+        if let ds = activeDataSource, remotePathStack.count == 1 {
+            currentRootDisplayName = ds.name
+        } else {
+            let name = (previousPath as NSString).lastPathComponent
+            currentRootDisplayName = name.removingPercentEncoding ?? name
+        }
+        await loadFiles()
+    }
+
     public func selectLocalFolder(_ folderURL: URL) async {
         let normalizedURL = folderURL.standardizedFileURL
         activeDataSource = nil
         activeRemoteAdapter?.disconnect()
         activeRemoteAdapter = nil
+        folders = []
+        remotePathStack = []
+        canNavigateUp = false
 
         do {
             let values = try normalizedURL.resourceValues(forKeys: [.isDirectoryKey])
@@ -204,6 +286,9 @@ public final class FileBrowsingViewModel {
         activeDataSource = nil
         activeRemoteAdapter?.disconnect()
         activeRemoteAdapter = nil
+        folders = []
+        remotePathStack = []
+        canNavigateUp = false
         securityScopedRootURL?.stopAccessingSecurityScopedResource()
         securityScopedRootURL = nil
         rootURL = defaultRootURL

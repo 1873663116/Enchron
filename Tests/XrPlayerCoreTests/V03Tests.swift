@@ -142,6 +142,31 @@ final class SMBDataSourceAdapterTests: XCTestCase {
         XCTAssertFalse(error.localizedDescription.isEmpty)
         XCTAssertTrue(error.localizedDescription.contains("AMSMB2"))
     }
+
+    func testListFoldersThrowsLibraryNotAvailable() async {
+        let sut = SMBDataSourceAdapter()
+        do {
+            _ = try await sut.listFolders(at: "/")
+            XCTFail("Expected SMBError.libraryNotAvailable")
+        } catch SMBError.libraryNotAvailable {
+            // expected
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
+    func testAllSMBErrorsHaveDescriptions() {
+        let errors: [SMBError] = [
+            .libraryNotAvailable,
+            .notConnected,
+            .invalidConnectionInfo,
+            .connectionFailed("test"),
+            .authenticationFailed
+        ]
+        for error in errors {
+            XCTAssertFalse(error.localizedDescription.isEmpty, "SMBError.\(error) has empty description")
+        }
+    }
 }
 
 // MARK: - WebDAVDataSourceAdapter Tests
@@ -212,7 +237,8 @@ final class WebDAVDataSourceAdapterTests: XCTestCase {
         }
     }
 
-    func testResolvePlayableURLReturnsFileURL() async throws {
+    func testResolvePlayableURLReturnsFileURLWithoutAuth() async throws {
+        // When not connected (no connectionInfo), resolvePlayableURL returns the original URL
         let sut = WebDAVDataSourceAdapter()
         let expectedURL = URL(string: "http://nas.local/videos/movie.mp4")!
         let file = FileBrowsingDomain.MediaFile(
@@ -224,6 +250,18 @@ final class WebDAVDataSourceAdapterTests: XCTestCase {
         )
         let resolved = try await sut.resolvePlayableURL(for: file)
         XCTAssertEqual(resolved, expectedURL)
+    }
+
+    func testListFoldersThrowsNotConnectedWhenDisconnected() async {
+        let sut = WebDAVDataSourceAdapter()
+        do {
+            _ = try await sut.listFolders(at: "/")
+            XCTFail("Expected WebDAVError.notConnected")
+        } catch WebDAVError.notConnected {
+            // expected
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
     }
 
     func testWebDAVErrorDescriptionsAreNonEmpty() {
@@ -326,5 +364,79 @@ final class KeychainStoreTests: XCTestCase {
         XCTAssertEqual(l1?.username, "u1")
         XCTAssertEqual(l2?.username, "u2")
         XCTAssertNotEqual(l1?.password, l2?.password)
+    }
+}
+
+// MARK: - DataSource credentialSourceID Tests
+
+final class CredentialSourceIDTests: XCTestCase {
+    func testCredentialSourceIDFormatWebDAV() {
+        let ds = FileBrowsingDomain.DataSource(
+            name: "Test",
+            sourceType: .webDAV,
+            connectionInfo: .init(sourceType: .webDAV, host: "nas.local", port: 443, rootPath: "/videos")
+        )
+        XCTAssertEqual(ds.credentialSourceID, "webDAV:nas.local:443:/videos")
+    }
+
+    func testCredentialSourceIDFormatSMB() {
+        let ds = FileBrowsingDomain.DataSource(
+            name: "SMB",
+            sourceType: .smb,
+            connectionInfo: .init(sourceType: .smb, host: "server", port: 445, rootPath: "/share")
+        )
+        XCTAssertEqual(ds.credentialSourceID, "smb:server:445:/share")
+    }
+
+    func testCredentialSourceIDWithNilFields() {
+        let ds = FileBrowsingDomain.DataSource(
+            name: "Minimal",
+            sourceType: .webDAV,
+            connectionInfo: .init(sourceType: .webDAV, rootPath: "/")
+        )
+        XCTAssertEqual(ds.credentialSourceID, "webDAV::0:/")
+    }
+
+    func testDifferentDataSourcesProduceDifferentIDs() {
+        let ds1 = FileBrowsingDomain.DataSource(
+            name: "A",
+            sourceType: .webDAV,
+            connectionInfo: .init(sourceType: .webDAV, host: "host1", port: 80, rootPath: "/a")
+        )
+        let ds2 = FileBrowsingDomain.DataSource(
+            name: "B",
+            sourceType: .webDAV,
+            connectionInfo: .init(sourceType: .webDAV, host: "host2", port: 80, rootPath: "/b")
+        )
+        XCTAssertNotEqual(ds1.credentialSourceID, ds2.credentialSourceID)
+    }
+}
+
+// MARK: - MediaFolder Tests
+
+final class MediaFolderTests: XCTestCase {
+    func testMediaFolderInit() {
+        let folder = FileBrowsingDomain.MediaFolder(
+            name: "Videos",
+            dataSourceID: UUID(),
+            path: "/media/videos",
+            url: URL(string: "http://nas.local/media/videos")!
+        )
+        XCTAssertEqual(folder.name, "Videos")
+        XCTAssertEqual(folder.path, "/media/videos")
+    }
+
+    func testMediaFolderEquality() {
+        let id = UUID()
+        let dsID = UUID()
+        let folder1 = FileBrowsingDomain.MediaFolder(
+            id: id, name: "A", dataSourceID: dsID,
+            path: "/a", url: URL(string: "http://x/a")!
+        )
+        let folder2 = FileBrowsingDomain.MediaFolder(
+            id: id, name: "A", dataSourceID: dsID,
+            path: "/a", url: URL(string: "http://x/a")!
+        )
+        XCTAssertEqual(folder1, folder2)
     }
 }
