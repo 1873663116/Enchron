@@ -73,7 +73,7 @@ public struct PlaylistView: View {
                 .padding(12)
             }
         }
-        .frame(width: 350, height: 500)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .glassBackgroundEffect()
     }
 

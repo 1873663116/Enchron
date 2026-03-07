@@ -2,10 +2,26 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 public struct FileBrowserView: View {
+    private enum RemoteSourceDraft: String, Identifiable {
+        case webDAV
+        case smb
+
+        var id: String { rawValue }
+
+        var sourceType: FileBrowsingDomain.SourceType {
+            switch self {
+            case .webDAV:
+                return .webDAV
+            case .smb:
+                return .smb
+            }
+        }
+    }
+
     @Environment(FileBrowsingViewModel.self) private var viewModel
     @State private var isFolderPickerPresented = false
     @State private var isVideoPickerPresented = false
-    @State private var isAddSourcePresented = false
+    @State private var remoteSourceDraft: RemoteSourceDraft?
 
     public init() {}
 
@@ -42,29 +58,68 @@ public struct FileBrowserView: View {
                 
                 if !viewModel.savedDataSources.isEmpty {
                     ScrollView(.horizontal, showsIndicators: false) {
-                        HStack {
+                        HStack(spacing: 10) {
                             ForEach(viewModel.savedDataSources) { ds in
-                                Button {
-                                    Task { await viewModel.connectToDataSource(ds) }
-                                } label: {
-                                    HStack {
-                                        Circle()
-                                            .fill(viewModel.activeDataSource?.id == ds.id ? .green : .gray)
-                                            .frame(width: 8, height: 8)
-                                        Text(ds.name)
+                                HStack(spacing: 8) {
+                                    Button {
+                                        Task { await viewModel.connectToDataSource(ds) }
+                                    } label: {
+                                        HStack(spacing: 8) {
+                                            Image(systemName: ds.sourceType == .smb ? "externaldrive.connected.to.line.below" : "network")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+
+                                            Circle()
+                                                .fill(viewModel.activeDataSource?.id == ds.id ? .green : .gray)
+                                                .frame(width: 8, height: 8)
+
+                                            Text(ds.name)
+                                                .lineLimit(1)
+                                                .truncationMode(.tail)
+                                        }
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 8)
+                                        .background(Color.secondary.opacity(0.2))
+                                        .clipShape(Capsule())
                                     }
-                                    .padding(.horizontal, 12)
-                                    .padding(.vertical, 6)
-                                    .background(Color.secondary.opacity(0.2))
-                                    .cornerRadius(16)
+                                    .buttonStyle(.plain)
+
+                                    Button(role: .destructive) {
+                                        viewModel.removeDataSource(id: ds.id)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                            .frame(width: 24, height: 24)
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Delete \(ds.name)")
                                 }
-                                .buttonStyle(.plain)
+                                .padding(.trailing, 4)
                             }
                         }
                         .padding(.horizontal)
                         .padding(.vertical, 8)
                     }
                     Divider()
+                }
+
+                if viewModel.canNavigateUp {
+                    HStack {
+                        Button {
+                            Task {
+                                await viewModel.navigateUp()
+                            }
+                        } label: {
+                            Label("Up", systemImage: "chevron.up")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    .padding(.top, 8)
                 }
 
                 FolderListView(
@@ -102,23 +157,26 @@ public struct FileBrowserView: View {
                                 }
                             }
                         }
-                        
+
                         Section("Remote") {
-                            Button("Add Remote Source...") {
-                                isAddSourcePresented = true
+                            Button("Add WebDAV Server...") {
+                                remoteSourceDraft = .webDAV
                             }
-                            
+
+                            Button("Add SMB Server...") {
+                                remoteSourceDraft = .smb
+                            }
+
                             if !viewModel.savedDataSources.isEmpty {
                                 Divider()
                                 ForEach(viewModel.savedDataSources) { ds in
-                                    Button {
-                                        Task { await viewModel.connectToDataSource(ds) }
-                                    } label: {
-                                        HStack {
-                                            if viewModel.activeDataSource?.id == ds.id {
-                                                Image(systemName: "checkmark")
-                                            }
-                                            Text(ds.name)
+                                    Menu(ds.name) {
+                                        Button("Connect") {
+                                            Task { await viewModel.connectToDataSource(ds) }
+                                        }
+
+                                        Button("Delete", role: .destructive) {
+                                            viewModel.removeDataSource(id: ds.id)
                                         }
                                     }
                                 }
@@ -127,8 +185,8 @@ public struct FileBrowserView: View {
                     }
                 }
             }
-            .sheet(isPresented: $isAddSourcePresented) {
-                DataSourceConfigView()
+            .sheet(item: $remoteSourceDraft) { draft in
+                DataSourceConfigView(sourceType: draft.sourceType)
                     .environment(viewModel)
             }
             .onAppear {

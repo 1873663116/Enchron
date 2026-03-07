@@ -3,52 +3,47 @@ import SwiftUI
 public struct DataSourceConfigView: View {
     @Environment(FileBrowsingViewModel.self) private var viewModel
     @Environment(\.dismiss) private var dismiss
-    
-    @State private var selectedType: FileBrowsingDomain.SourceType = .webDAV
+
+    private let sourceType: FileBrowsingDomain.SourceType
     @State private var displayName = ""
-    @State private var host = ""
-    @State private var portText = ""
-    @State private var rootPath = "/"
+    @State private var serverAddress = ""
     @State private var username = ""
     @State private var password = ""
     @State private var isConnecting = false
     @State private var validationError: String?
-    
-    private var defaultPort: Int { selectedType == .smb ? 445 : 443 }
-    private var isValid: Bool { !host.trimmingCharacters(in: .whitespaces).isEmpty }
-    
-    public init() {}
+
+    private var isValid: Bool { !serverAddress.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+    private var navigationTitle: String {
+        sourceType == .smb ? "Add SMB Server" : "Add WebDAV Server"
+    }
+
+    private var addressPrompt: String {
+        sourceType == .smb ? "smb://192.168.1.20/share" : "http://192.168.1.10:5244/dav"
+    }
+
+    public init(sourceType: FileBrowsingDomain.SourceType) {
+        self.sourceType = sourceType
+    }
     
     public var body: some View {
         NavigationStack {
             Form {
-                Section("Protocol") {
-                    Picker("Type", selection: $selectedType) {
-                        Text("WebDAV").tag(FileBrowsingDomain.SourceType.webDAV)
-                        Text("SMB").tag(FileBrowsingDomain.SourceType.smb)
-                    }
-                    .pickerStyle(.segmented)
-                    .onChange(of: selectedType) { _, new in
-                        portText = "" // reset port on type change
-                    }
-                }
-                
-                Section("Server") {
-                    TextField("Display Name (optional)", text: $displayName)
-                    TextField("Server Address (host or IP)", text: $host)
+                Section("Connection") {
+                    TextField("Server Address", text: $serverAddress, prompt: Text(addressPrompt))
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                         .textContentType(.URL)
-                    HStack {
-                        TextField("Port (default: \(defaultPort))", text: $portText)
-                            .keyboardType(.numberPad)
-                    }
-                    TextField("Share Path", text: $rootPath)
-                }
-                
-                Section("Authentication") {
+
                     TextField("Username (optional)", text: $username)
+                        .textInputAutocapitalization(.never)
+                        .autocorrectionDisabled()
                         .textContentType(.username)
-                    SecureField("Password", text: $password)
+
+                    SecureField("Password (optional)", text: $password)
                         .textContentType(.password)
+
+                    TextField("Server Name (optional)", text: $displayName)
                 }
                 
                 if let error = validationError {
@@ -62,13 +57,13 @@ public struct DataSourceConfigView: View {
                         if isConnecting {
                             HStack { ProgressView().padding(.trailing, 4); Text("Connecting...") }
                         } else {
-                            Text("Connect & Save")
+                            Text("Connect")
                         }
                     }
                     .disabled(!isValid || isConnecting)
                 }
             }
-            .navigationTitle("Add Remote Source")
+            .navigationTitle(navigationTitle)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
                     Button("Cancel") { dismiss() }
@@ -78,34 +73,42 @@ public struct DataSourceConfigView: View {
     }
     
     private func connectAndSave() {
-        let trimmedHost = host.trimmingCharacters(in: .whitespaces)
-        guard !trimmedHost.isEmpty else {
+        let trimmedAddress = serverAddress.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedAddress.isEmpty == false else {
             validationError = "Server address is required."
             return
         }
+
         let trimmedName = displayName.trimmingCharacters(in: .whitespaces)
-        let finalName = trimmedName.isEmpty ? trimmedHost : trimmedName
-        let port = Int(portText) ?? defaultPort
-        let info = FileBrowsingDomain.ConnectionInfo(
-            sourceType: selectedType,
-            host: trimmedHost,
-            port: port,
-            username: username.isEmpty ? nil : username,
-            rootPath: rootPath.isEmpty ? "/" : rootPath
-        )
-        let ds = FileBrowsingDomain.DataSource(name: finalName, sourceType: selectedType, connectionInfo: info)
+        let trimmedUsername = username.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        let info: FileBrowsingDomain.ConnectionInfo
+        do {
+            info = try .remote(
+                sourceType: sourceType,
+                address: trimmedAddress,
+                username: trimmedUsername.isEmpty ? nil : trimmedUsername
+            )
+        } catch {
+            validationError = error.localizedDescription
+            return
+        }
+
+        let finalName = trimmedName.isEmpty ? (info.host ?? trimmedAddress) : trimmedName
+        let ds = FileBrowsingDomain.DataSource(name: finalName, sourceType: sourceType, connectionInfo: info)
 
         isConnecting = true
         validationError = nil
         Task {
-            // Save credentials to keychain before connecting
-            if !username.isEmpty || !password.isEmpty {
-                viewModel.saveCredential(for: ds, username: username, password: password)
+            if trimmedUsername.isEmpty == false || password.isEmpty == false {
+                viewModel.saveCredential(for: ds, username: trimmedUsername, password: password)
             }
-            viewModel.addDataSource(ds)
+
             await viewModel.connectToDataSource(ds)
             isConnecting = false
+
             if viewModel.lastErrorMessage == nil {
+                viewModel.addDataSource(ds)
                 dismiss()
             } else {
                 validationError = viewModel.lastErrorMessage

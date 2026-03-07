@@ -11,7 +11,6 @@ public struct PlaybackMenuView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header
             HStack {
                 Text("Playback Settings")
                     .font(.headline)
@@ -72,7 +71,7 @@ public struct PlaybackMenuView: View {
                 .padding(.bottom, 8)
             }
         }
-        .frame(width: 360, height: 440)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .glassBackgroundEffect()
     }
 
@@ -98,10 +97,13 @@ public struct PlaybackMenuView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text(title)
                         .font(.body)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
                         .foregroundStyle(.primary)
                     if let lang {
                         Text(lang)
                             .font(.caption)
+                            .lineLimit(1)
                             .foregroundStyle(.secondary)
                     }
                 }

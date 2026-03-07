@@ -19,7 +19,7 @@ public struct PlayerControlsView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 20) {
             // HDR Badge + Toggle
             HStack(spacing: 12) {
                 if let hdrType = videoViewModel.currentMediaProfile?.hdrType, hdrType != .sdr {
@@ -48,6 +48,7 @@ public struct PlayerControlsView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
 
             // Main Slider Area
             if showDetailedTimeline {
@@ -64,95 +65,112 @@ public struct PlayerControlsView: View {
                 )
                 .transition(.scale(scale: 0.95).combined(with: .opacity))
             } else {
-                VStack(spacing: 12) {
-                    HStack(spacing: 12) {
-                        Text(formatTime(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds))
-                            .font(.caption2.monospacedDigit())
-                            .frame(width: 60, alignment: .leading)
-
-                        Slider(
-                            value: Binding(
-                                get: { isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds },
-                                set: { dragValue = $0 }
-                            ),
-                            in: 0...max(videoViewModel.playbackPosition.duration, 1),
-                            onEditingChanged: { editing in
-                                isDraggingSlider = editing
-                                if !editing {
-                                    videoViewModel.seek(to: dragValue)
-                                }
-                            }
-                        )
-                        .tint(.white)
-                        .frame(minHeight: 44)
-
-                        Text(formatTime(videoViewModel.playbackPosition.duration))
-                            .font(.caption2.monospacedDigit())
-                            .frame(width: 60, alignment: .trailing)
-                    }
-                    .padding(.vertical, 8)
-                }
-                .padding(.horizontal)
+                sliderSection
             }
 
-            // Control Buttons
-            ZStack(alignment: .top) {
+            if activePanel != nil {
                 floatingPanelHost
-                    .offset(y: -260)
-
-                VStack(spacing: 20) {
-                // Row 1: Primary Controls
-                    HStack(spacing: 40) {
-                        Button {
-                            videoViewModel.skip(by: -10)
-                        } label: {
-                            Image(systemName: "backward.10.fill")
-                                .font(.title)
-                                .frame(width: 60, height: 60)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Backward 10s")
-
-                        // Play / Pause / Replay
-                        Button {
-                            if videoViewModel.playbackState == .ended {
-                                videoViewModel.replay()
-                            } else if videoViewModel.playbackState == .playing {
-                                videoViewModel.pause()
-                            } else {
-                                videoViewModel.resume()
-                            }
-                        } label: {
-                            Image(systemName: playButtonIcon)
-                                .font(.system(size: 44))
-                                .frame(width: 60, height: 60)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-
-                        Button {
-                            videoViewModel.skip(by: 10)
-                        } label: {
-                            Image(systemName: "forward.10.fill")
-                                .font(.title)
-                                .frame(width: 60, height: 60)
-                                .contentShape(Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Forward 10s")
-                    }
-                    
-                    secondaryControlRow
-                }
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
-            .padding(.bottom, 16)
+
+            VStack(spacing: 20) {
+                primaryControlRow
+                secondaryControlRow
+            }
+            .padding(.bottom, 4)
         }
-        .padding(24)
-        .frame(width: 700)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 24)
+        .frame(width: controlsWidth)
         .glassBackgroundEffect()
         .task(id: appModel.smokePanelRequest) {
             await applySmokePanelRequestIfNeeded()
+        }
+    }
+
+    private var controlsWidth: CGFloat {
+        if showDetailedTimeline {
+            return 860
+        }
+        if activePanel != nil {
+            return 760
+        }
+        return 720
+    }
+
+    @ViewBuilder
+    private var sliderSection: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 12) {
+                Text(formatTime(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds))
+                    .font(.caption2.monospacedDigit())
+                    .frame(width: 60, alignment: .leading)
+
+                Slider(
+                    value: Binding(
+                        get: { isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds },
+                        set: { dragValue = $0 }
+                    ),
+                    in: 0...max(videoViewModel.playbackPosition.duration, 1),
+                    onEditingChanged: { editing in
+                        isDraggingSlider = editing
+                        if !editing {
+                            videoViewModel.seek(to: dragValue)
+                        }
+                    }
+                )
+                .tint(.white)
+                .frame(minHeight: 44)
+
+                Text(formatTime(videoViewModel.playbackPosition.duration))
+                    .font(.caption2.monospacedDigit())
+                    .frame(width: 60, alignment: .trailing)
+            }
+            .padding(.vertical, 8)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    @ViewBuilder
+    private var primaryControlRow: some View {
+        HStack(spacing: 40) {
+            Button {
+                videoViewModel.skip(by: -10)
+            } label: {
+                Image(systemName: "backward.10.fill")
+                    .font(.title)
+                    .frame(width: 60, height: 60)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Backward 10s")
+
+            Button {
+                if videoViewModel.playbackState == .ended {
+                    videoViewModel.replay()
+                } else if videoViewModel.playbackState == .playing {
+                    videoViewModel.pause()
+                } else {
+                    videoViewModel.resume()
+                }
+            } label: {
+                Image(systemName: playButtonIcon)
+                    .font(.system(size: 44))
+                    .frame(width: 60, height: 60)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                videoViewModel.skip(by: 10)
+            } label: {
+                Image(systemName: "forward.10.fill")
+                    .font(.title)
+                    .frame(width: 60, height: 60)
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .help("Forward 10s")
         }
     }
 
@@ -247,10 +265,8 @@ public struct PlayerControlsView: View {
                 .allowsHitTesting(activePanel == .playlist)
                 .accessibilityHidden(activePanel != .playlist)
         }
-        .frame(width: 380, height: 500)
-        .scaleEffect(activePanel == nil ? 0.96 : 1, anchor: .bottom)
-        .opacity(activePanel == nil ? 0 : 1)
-        .allowsHitTesting(activePanel != nil)
+        .frame(maxWidth: .infinity)
+        .frame(height: 360)
         .animation(.spring(response: 0.28, dampingFraction: 0.88), value: activePanel == nil)
     }
 

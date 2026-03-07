@@ -225,7 +225,7 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         }
 
         var components = URLComponents()
-        components.scheme = info.port == 443 ? "https" : "http"
+        components.scheme = info.scheme ?? (info.port == 443 ? "https" : "http")
         components.host = host
         if let port = info.port {
             components.port = port
