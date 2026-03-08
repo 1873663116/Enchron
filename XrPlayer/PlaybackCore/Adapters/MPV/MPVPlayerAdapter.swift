@@ -53,7 +53,11 @@ struct MPVHDRMetadataSnapshot: Equatable {
     let primaries: String
     let gamma: String
     let colormatrix: String
+    let colorlevels: String
     let signalPeak: Double?
+    let sceneMaxR: Double?
+    let sceneMaxG: Double?
+    let sceneMaxB: Double?
 }
 
 public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManaging {
@@ -1065,7 +1069,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let frameRate = max(0, doubleProperty("container-fps") ?? 0)
 
         print(
-            "[MPV] media-profile hdr=\(hdrType.rawValue) dovi=\(hdrMetadata.dolbyVisionProfile.map(String.init) ?? "nil") hdr-format=\(hdrMetadata.hdrFormat.ifEmpty("nil")) colormatrix=\(hdrMetadata.colormatrix.ifEmpty("nil")) gamma=\(hdrMetadata.gamma.ifEmpty("nil")) primaries=\(hdrMetadata.primaries.ifEmpty("nil")) sig-peak=\(hdrMetadata.signalPeak.map { String(format: "%.2f", $0) } ?? "nil")"
+            "[MPV] media-profile hdr=\(hdrType.rawValue) dovi=\(hdrMetadata.dolbyVisionProfile.map(String.init) ?? "nil") hdr-format=\(hdrMetadata.hdrFormat.ifEmpty("nil")) colormatrix=\(hdrMetadata.colormatrix.ifEmpty("nil")) gamma=\(hdrMetadata.gamma.ifEmpty("nil")) primaries=\(hdrMetadata.primaries.ifEmpty("nil")) colorlevels=\(hdrMetadata.colorlevels.ifEmpty("nil")) sig-peak=\(hdrMetadata.signalPeak.map { String(format: "%.2f", $0) } ?? "nil") scene-max=\(hdrMetadata.sceneMaxR.map { String(format: "%.2f", $0) } ?? "nil")/\(hdrMetadata.sceneMaxG.map { String(format: "%.2f", $0) } ?? "nil")/\(hdrMetadata.sceneMaxB.map { String(format: "%.2f", $0) } ?? "nil")"
         )
 
         let profile = PlaybackCoreDomain.MediaProfile(
@@ -1089,6 +1093,14 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let primaries = metadata.primaries.lowercased()
         let gamma = metadata.gamma.lowercased()
         let colormatrix = metadata.colormatrix.lowercased()
+        let colorlevels = metadata.colorlevels.lowercased()
+        let scenePeak = [
+            metadata.sceneMaxR,
+            metadata.sceneMaxG,
+            metadata.sceneMaxB
+        ]
+        .compactMap { $0 }
+        .max() ?? 0
         let hasDolbyVisionMarkers =
             metadata.dolbyVisionProfile != nil ||
             hdrFormat.contains("dolby") ||
@@ -1111,7 +1123,16 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         if let signalPeak = metadata.signalPeak, signalPeak > 1.05 {
             return .hdr10
         }
+        if scenePeak > 1.0 {
+            return .hdr10
+        }
+        if colormatrix.contains("bt.2020") || colormatrix.contains("bt2020") {
+            return .hdr10
+        }
         if primaries.contains("bt.2020") || primaries.contains("bt2020") {
+            return .hdr10
+        }
+        if colorlevels.contains("hdr") {
             return .hdr10
         }
         return .sdr
@@ -1128,7 +1149,11 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             colormatrix: stringProperty("video-params/colormatrix")
                 ?? stringProperty("video-params/colorspace")
                 ?? "",
-            signalPeak: doubleProperty("video-params/sig-peak")
+            colorlevels: stringProperty("video-params/colorlevels") ?? "",
+            signalPeak: doubleProperty("video-params/sig-peak"),
+            sceneMaxR: doubleProperty("video-params/scene-max-r"),
+            sceneMaxG: doubleProperty("video-params/scene-max-g"),
+            sceneMaxB: doubleProperty("video-params/scene-max-b")
         )
     }
 
