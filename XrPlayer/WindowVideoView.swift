@@ -3,10 +3,22 @@ import MetalKit
 import CoreVideo
 
 public struct WindowVideoView: UIViewRepresentable {
+    public final class Coordinator {
+        weak var viewModel: WindowVideoViewModel?
+
+        init(viewModel: WindowVideoViewModel) {
+            self.viewModel = viewModel
+        }
+    }
+
     @Bindable var viewModel: WindowVideoViewModel
     
     public init(viewModel: WindowVideoViewModel) {
         self.viewModel = viewModel
+    }
+
+    public func makeCoordinator() -> Coordinator {
+        Coordinator(viewModel: viewModel)
     }
 
     public func makeUIView(context: Context) -> UIView {
@@ -37,5 +49,9 @@ public struct WindowVideoView: UIViewRepresentable {
         if viewModel.usesNativeGPUOutput, let nativeView = uiView as? MPVNativeMetalLayerView {
             viewModel.attachVideoLayer(nativeView.metalLayer)
         }
+    }
+
+    public static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+        coordinator.viewModel?.attachVideoLayer(nil)
     }
 }

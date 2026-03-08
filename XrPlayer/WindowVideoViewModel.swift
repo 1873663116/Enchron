@@ -128,6 +128,11 @@ public final class WindowVideoViewModel {
         lastErrorMessage = nil
     }
 
+    public func cancelPendingLoad() {
+        player.cancelPendingLoad()
+        lastErrorMessage = nil
+    }
+
     public func seek(to seconds: Double) {
         player.seek(to: seconds)
         // Immediate UI update — don't wait for 200ms polling

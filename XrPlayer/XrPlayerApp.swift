@@ -2,6 +2,11 @@ import SwiftUI
 
 @main
 struct XrPlayerApp: App {
+    private final class PlaybackLaunchGate {
+        var activeTask: Task<Void, Never>?
+        var generation: Int = 0
+    }
+
     private struct SmokeLaunchConfiguration {
         enum Panel: String {
             case tracks
@@ -38,19 +43,50 @@ struct XrPlayerApp: App {
         let player = MPVPlayerAdapter()
         let windowVideoViewModel = WindowVideoViewModel(player: player)
         let smokeLaunch = SmokeLaunchConfiguration(environment: ProcessInfo.processInfo.environment)
+        let playbackLaunchGate = PlaybackLaunchGate()
 
         @MainActor
         func beginPlayback(for url: URL) {
+            playbackLaunchGate.generation += 1
+            let generation = playbackLaunchGate.generation
+
+            playbackLaunchGate.activeTask?.cancel()
+            playbackLaunchGate.activeTask = nil
+
+            switch windowVideoViewModel.playbackState {
+            case .loading, .buffering:
+                windowVideoViewModel.cancelPendingLoad()
+            case .playing, .paused, .ended, .failed, .stopped:
+                windowVideoViewModel.stop()
+            case .idle:
+                break
+            }
+
             appModel.startPlayback(url: url)
-            Task { @MainActor in
+            playbackLaunchGate.activeTask = Task { @MainActor in
+                defer {
+                    if playbackLaunchGate.generation == generation {
+                        playbackLaunchGate.activeTask = nil
+                    }
+                }
+
                 // Give SwiftUI multiple run-loop passes to render WindowVideoView
                 // and call attachVideoLayer. The continuation in
                 // waitForVideoLayerIfNeeded() will then fire instantly instead
                 // of falling back to a timeout. Extra yields are cheap.
-                for _ in 0..<8 { await Task.yield() }
+                for _ in 0..<8 {
+                    guard Task.isCancelled == false else { return }
+                    await Task.yield()
+                }
+
+                guard Task.isCancelled == false else { return }
+                guard playbackLaunchGate.generation == generation else { return }
+                guard appModel.currentPlaybackURL == url else { return }
+
                 do {
                     try await windowVideoViewModel.play(url: url)
                 } catch {
+                    guard playbackLaunchGate.generation == generation else { return }
                     appModel.stopPlayback()
                 }
             }
