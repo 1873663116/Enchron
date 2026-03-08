@@ -297,11 +297,12 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     public func setHDREnabled(_ enabled: Bool) {
-        let commands = enabled
-            ? configuration.hdrRuntimeCommands()
-            : configuration.sdrRuntimeCommands()
+        let commands = manualHDROutputCommands(enabled: enabled)
         for args in commands {
             _ = try? command(args)
+        }
+        stateQueue.sync {
+            videoLayer?.wantsExtendedDynamicRangeContent = enabled
         }
         isHDROutputEnabled = enabled
     }
@@ -1155,6 +1156,21 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         for args in configuration.hdrRuntimeCommands() {
             _ = try? command(args)
         }
+        stateQueue.sync {
+            videoLayer?.wantsExtendedDynamicRangeContent = true
+        }
+    }
+
+    private func manualHDROutputCommands(enabled: Bool) -> [[String]] {
+        if enabled {
+            return [
+                ["set", "target-colorspace-hint", "auto"]
+            ] + configuration.hdrRuntimeCommands()
+        }
+
+        return [
+            ["set", "target-colorspace-hint", "no"]
+        ] + configuration.sdrRuntimeCommands()
     }
 
     private func logPipelineIfNeeded() {

@@ -33,7 +33,7 @@ public struct PlayerControlsView: View {
                     Button {
                         videoViewModel.setHDREnabled(!videoViewModel.isHDROutputEnabled)
                     } label: {
-                        Text(videoViewModel.isHDROutputEnabled ? "HDR" : "SDR")
+                        Text(outputModeLabel(for: hdrType))
                             .font(.caption.bold())
                             .foregroundStyle(videoViewModel.isHDROutputEnabled ? .orange : .secondary)
                             .padding(.horizontal, 10)
@@ -366,6 +366,10 @@ public struct PlayerControlsView: View {
         case .hlg:
             return "HLG"
         }
+    }
+
+    private func outputModeLabel(for hdrType: PlaybackCoreDomain.HDRType) -> String {
+        videoViewModel.isHDROutputEnabled ? hdrTypeLabel(hdrType) : "SDR"
     }
 }
 
