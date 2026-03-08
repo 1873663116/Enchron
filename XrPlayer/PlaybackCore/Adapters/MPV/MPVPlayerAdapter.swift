@@ -47,6 +47,15 @@ struct MPVLoadRequest: Equatable {
     let requiresSecurityScopedAccess: Bool
 }
 
+struct MPVHDRMetadataSnapshot: Equatable {
+    let dolbyVisionProfile: Int64?
+    let hdrFormat: String
+    let primaries: String
+    let gamma: String
+    let colormatrix: String
+    let signalPeak: Double?
+}
+
 public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManaging {
     public weak var frameOutput: FrameOutput?
     public var onRuntimeError: ((String) -> Void)?
@@ -1042,7 +1051,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     private func detectAndNotifyMediaProfile() {
-        let hdrType = inferHDRType()
+        let hdrMetadata = currentHDRMetadata()
+        let hdrType = Self.inferHDRType(from: hdrMetadata)
         isHDRContent = hdrType != .sdr
         if isHDRContent {
             isHDROutputEnabled = true
@@ -1054,7 +1064,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let frameRate = max(0, doubleProperty("container-fps") ?? 0)
 
         print(
-            "[MPV] media-profile hdr=\(hdrType.rawValue) dovi=\(dolbyVisionProfile().map(String.init) ?? "nil") hdr-format=\(stringProperty("video-params/hdr-format") ?? "nil") primaries=\(stringProperty("video-params/primaries") ?? "nil") trc=\(stringProperty("video-params/transfer-characteristics") ?? "nil")"
+            "[MPV] media-profile hdr=\(hdrType.rawValue) dovi=\(hdrMetadata.dolbyVisionProfile.map(String.init) ?? "nil") hdr-format=\(hdrMetadata.hdrFormat.ifEmpty("nil")) colormatrix=\(hdrMetadata.colormatrix.ifEmpty("nil")) gamma=\(hdrMetadata.gamma.ifEmpty("nil")) primaries=\(hdrMetadata.primaries.ifEmpty("nil")) sig-peak=\(hdrMetadata.signalPeak.map { String(format: "%.2f", $0) } ?? "nil")"
         )
 
         let profile = PlaybackCoreDomain.MediaProfile(
@@ -1070,33 +1080,55 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     private func inferHDRType() -> PlaybackCoreDomain.HDRType {
-        let doviProfile = dolbyVisionProfile()
-        let hdrFormat = stringProperty("video-params/hdr-format")?.lowercased() ?? ""
-        let allowsBT2020Fallback = doviProfile == nil
-        let primaries = stringProperty("video-params/primaries")?.lowercased() ?? ""
-        let transfer = stringProperty("video-params/transfer-characteristics")?.lowercased() ?? ""
-        let computesPeak = flagProperty("hdr-compute-peak")
-            ?? (stringProperty("hdr-compute-peak")?.lowercased() == "yes")
+        Self.inferHDRType(from: currentHDRMetadata())
+    }
 
-        if doviProfile != nil || hdrFormat.contains("dolby") || hdrFormat.contains("dovi") {
+    static func inferHDRType(from metadata: MPVHDRMetadataSnapshot) -> PlaybackCoreDomain.HDRType {
+        let hdrFormat = metadata.hdrFormat.lowercased()
+        let primaries = metadata.primaries.lowercased()
+        let gamma = metadata.gamma.lowercased()
+        let colormatrix = metadata.colormatrix.lowercased()
+        let hasDolbyVisionMarkers =
+            metadata.dolbyVisionProfile != nil ||
+            hdrFormat.contains("dolby") ||
+            hdrFormat.contains("dovi") ||
+            colormatrix.contains("dolby") ||
+            colormatrix.contains("dovi")
+
+        if hasDolbyVisionMarkers {
             return .dolbyVision
         }
         if hdrFormat.contains("hdr10+") || hdrFormat.contains("hdr10plus") {
             return .hdr10Plus
         }
-        if transfer.contains("arib-std-b67") {
+        if gamma.contains("arib-std-b67") || gamma.contains("hlg") {
             return .hlg
         }
-        if transfer.contains("smpte2084") {
+        if gamma.contains("smpte2084") || gamma.contains("pq") {
             return .hdr10
         }
-        if allowsBT2020Fallback && (primaries.contains("bt.2020") || primaries.contains("bt2020")) {
+        if let signalPeak = metadata.signalPeak, signalPeak > 1.05 {
             return .hdr10
         }
-        if computesPeak {
+        if primaries.contains("bt.2020") || primaries.contains("bt2020") {
             return .hdr10
         }
         return .sdr
+    }
+
+    private func currentHDRMetadata() -> MPVHDRMetadataSnapshot {
+        MPVHDRMetadataSnapshot(
+            dolbyVisionProfile: dolbyVisionProfile(),
+            hdrFormat: stringProperty("video-params/hdr-format") ?? "",
+            primaries: stringProperty("video-params/primaries") ?? "",
+            gamma: stringProperty("video-params/gamma")
+                ?? stringProperty("video-params/transfer-characteristics")
+                ?? "",
+            colormatrix: stringProperty("video-params/colormatrix")
+                ?? stringProperty("video-params/colorspace")
+                ?? "",
+            signalPeak: doubleProperty("video-params/sig-peak")
+        )
     }
 
     private func dolbyVisionProfile() -> Int64? {
@@ -1173,5 +1205,11 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             return nil
         }
         return pixelBuffer
+    }
+}
+
+private extension String {
+    func ifEmpty(_ fallback: String) -> String {
+        isEmpty ? fallback : self
     }
 }

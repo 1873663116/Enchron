@@ -12,6 +12,21 @@ final class MPVNativeMetalLayer: CAMetalLayer {
             }
         }
     }
+
+    // Match MPVKit's EDR activation workaround: screen HDR mode only flips
+    // reliably when this property is updated on the main thread.
+    override var wantsExtendedDynamicRangeContent: Bool {
+        get { super.wantsExtendedDynamicRangeContent }
+        set {
+            if Thread.isMainThread {
+                super.wantsExtendedDynamicRangeContent = newValue
+            } else {
+                DispatchQueue.main.sync {
+                    super.wantsExtendedDynamicRangeContent = newValue
+                }
+            }
+        }
+    }
 }
 
 final class MPVNativeMetalLayerView: UIView {

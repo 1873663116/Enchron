@@ -163,10 +163,9 @@ final class MPVConfigurationOptionsTests: XCTestCase {
 
     // MARK: HDR/SDR Runtime Commands
 
-    func testHDRRuntimeCommandsSetsColorspaceHint() {
+    func testHDRRuntimeCommandsRestoreAutoTRCAndPrimaries() {
         let config = MPVConfiguration()
         let cmds = config.hdrRuntimeCommands()
-        XCTAssertTrue(cmds.contains(["set", "target-colorspace-hint", "yes"]))
         XCTAssertTrue(cmds.contains(["set", "target-trc", "auto"]))
         XCTAssertTrue(cmds.contains(["set", "target-prim", "auto"]))
     }
@@ -174,7 +173,6 @@ final class MPVConfigurationOptionsTests: XCTestCase {
     func testSDRRuntimeCommandsForcesBT709() {
         let config = MPVConfiguration()
         let cmds = config.sdrRuntimeCommands()
-        XCTAssertTrue(cmds.contains(["set", "target-colorspace-hint", "no"]))
         XCTAssertTrue(cmds.contains(["set", "target-trc", "srgb"]))
         XCTAssertTrue(cmds.contains(["set", "target-prim", "bt.709"]))
     }
@@ -183,7 +181,9 @@ final class MPVConfigurationOptionsTests: XCTestCase {
         let config = MPVConfiguration()
         let hdr = config.hdrRuntimeCommands()
         let sdr = config.sdrRuntimeCommands()
-        // Both should set the same properties (colorspace-hint, trc, prim)
+        // Both should only toggle target TRC and primaries. Colorspace hint is
+        // intentionally fixed at initialization time because mpv warns that
+        // changing it at runtime can cause issues.
         let hdrKeys = Set(hdr.map { $0[1] })
         let sdrKeys = Set(sdr.map { $0[1] })
         XCTAssertEqual(hdrKeys, sdrKeys, "HDR and SDR commands should toggle the same properties")
@@ -809,6 +809,24 @@ final class HDRTypeExtendedTests: XCTestCase {
     func testHDRTypeIsSendable() {
         // Compile-time check: if this compiles, HDRType conforms to Sendable
         let _: @Sendable () -> PlaybackCoreDomain.HDRType = { .hdr10 }
+    }
+}
+
+final class MPVHDRConfigurationSafetyTests: XCTestCase {
+    func testHDRDefaultsUseAutoTargetColorspaceHint() {
+        let config = MPVConfiguration(hdrEnabled: true)
+        let hint = config.defaultOptions.first(where: { $0.0 == "target-colorspace-hint" })?.1
+        XCTAssertEqual(hint, "auto")
+    }
+
+    func testHDRRuntimeCommandsDoNotMutateTargetColorspaceHint() {
+        let commands = MPVConfiguration().hdrRuntimeCommands()
+        XCTAssertFalse(commands.flatMap { $0 }.contains("target-colorspace-hint"))
+    }
+
+    func testSDRRuntimeCommandsDoNotMutateTargetColorspaceHint() {
+        let commands = MPVConfiguration().sdrRuntimeCommands()
+        XCTAssertFalse(commands.flatMap { $0 }.contains("target-colorspace-hint"))
     }
 }
 
