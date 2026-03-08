@@ -105,6 +105,7 @@ public final class WindowVideoViewModel {
 
     public func play(url: URL) async throws {
         do {
+            currentMediaProfile = nil
             try await player.play(url: url)
             lastErrorMessage = nil
         } catch {
@@ -126,11 +127,13 @@ public final class WindowVideoViewModel {
     public func stop() {
         player.stop()
         lastErrorMessage = nil
+        currentMediaProfile = nil
     }
 
     public func cancelPendingLoad() {
         player.cancelPendingLoad()
         lastErrorMessage = nil
+        currentMediaProfile = nil
     }
 
     public func seek(to seconds: Double) {
