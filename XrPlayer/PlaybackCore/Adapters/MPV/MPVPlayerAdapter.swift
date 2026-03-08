@@ -111,15 +111,33 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     public func attachVideoLayer(_ layer: CAMetalLayer?) {
-        let continuation: CheckedContinuation<Void, Never>? = stateQueue.sync {
+        let (continuation, shouldRecreateNativeContext): (CheckedContinuation<Void, Never>?, Bool) = stateQueue.sync {
+            let previousLayer = videoLayer
             videoLayer = layer
+
+            let continuation: CheckedContinuation<Void, Never>?
             if layer != nil {
-                let c = videoLayerContinuation
+                continuation = videoLayerContinuation
                 videoLayerContinuation = nil
-                return c
+            } else {
+                continuation = nil
             }
-            return nil
+
+            let shouldRecreateNativeContext =
+                activeNativeGPUOutput &&
+                previousLayer != nil &&
+                previousLayer !== layer
+
+            return (continuation, shouldRecreateNativeContext)
         }
+
+        if shouldRecreateNativeContext {
+            // The native gpu-next path stores the CAMetalLayer pointer via `wid`.
+            // When SwiftUI destroys or replaces the hosting view, that pointer
+            // becomes stale. Recreate libmpv so MoltenVK binds to the new layer.
+            teardownMPV()
+        }
+
         // Resume outside stateQueue to avoid priority inversion.
         continuation?.resume()
         if layer != nil {
@@ -1035,6 +1053,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let height = Int(int64Property("video-params/h") ?? 0)
         let frameRate = max(0, doubleProperty("container-fps") ?? 0)
 
+        print(
+            "[MPV] media-profile hdr=\(hdrType.rawValue) dovi=\(dolbyVisionProfile().map(String.init) ?? "nil") hdr-format=\(stringProperty("video-params/hdr-format") ?? "nil") primaries=\(stringProperty("video-params/primaries") ?? "nil") trc=\(stringProperty("video-params/transfer-characteristics") ?? "nil")"
+        )
+
         let profile = PlaybackCoreDomain.MediaProfile(
             projectionType: .flat,
             hdrType: hdrType,
@@ -1048,15 +1070,19 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     private func inferHDRType() -> PlaybackCoreDomain.HDRType {
-        let doviProfile = stringProperty("video-params/dovi-profile") ?? ""
-        let allowsBT2020Fallback = doviProfile.isEmpty || doviProfile == "0"
+        let doviProfile = dolbyVisionProfile()
+        let hdrFormat = stringProperty("video-params/hdr-format")?.lowercased() ?? ""
+        let allowsBT2020Fallback = doviProfile == nil
         let primaries = stringProperty("video-params/primaries")?.lowercased() ?? ""
         let transfer = stringProperty("video-params/transfer-characteristics")?.lowercased() ?? ""
         let computesPeak = flagProperty("hdr-compute-peak")
             ?? (stringProperty("hdr-compute-peak")?.lowercased() == "yes")
 
-        if !doviProfile.isEmpty && doviProfile != "0" {
+        if doviProfile != nil || hdrFormat.contains("dolby") || hdrFormat.contains("dovi") {
             return .dolbyVision
+        }
+        if hdrFormat.contains("hdr10+") || hdrFormat.contains("hdr10plus") {
+            return .hdr10Plus
         }
         if transfer.contains("arib-std-b67") {
             return .hlg
@@ -1071,6 +1097,26 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             return .hdr10
         }
         return .sdr
+    }
+
+    private func dolbyVisionProfile() -> Int64? {
+        for propertyName in [
+            "video-params/dovi-profile",
+            "video-params/dolby-vision-profile"
+        ] {
+            if let numericValue = int64Property(propertyName), numericValue > 0 {
+                return numericValue
+            }
+
+            if let stringValue = stringProperty(propertyName)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+               let parsedValue = Int64(stringValue),
+               parsedValue > 0 {
+                return parsedValue
+            }
+        }
+
+        return nil
     }
 
     private func applyHDRRuntimeConfiguration() {
