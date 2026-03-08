@@ -23,7 +23,7 @@ public struct PlayerControlsView: View {
             // HDR Badge + Toggle
             HStack(spacing: 12) {
                 if let hdrType = videoViewModel.currentMediaProfile?.hdrType, hdrType != .sdr {
-                    Text(hdrType.rawValue.uppercased())
+                    Text(hdrTypeLabel(hdrType))
                         .font(.caption.bold())
                         .foregroundStyle(.orange)
                         .padding(.horizontal, 8)
@@ -83,6 +83,26 @@ public struct PlayerControlsView: View {
         .padding(.vertical, 24)
         .frame(width: controlsWidth)
         .glassBackgroundEffect()
+        .onHover { isHovering in
+            appModel.setControlsFocused(isHovering)
+        }
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in
+                    appModel.registerControlsInteraction()
+                    if appModel.showControls == false {
+                        appModel.showControls = true
+                    }
+                }
+        )
+        .onChange(of: activePanel != nil) { _, isExpanded in
+            appModel.setControlsFocused(isExpanded || showDetailedTimeline)
+            appModel.registerControlsInteraction()
+        }
+        .onChange(of: showDetailedTimeline) { _, isVisible in
+            appModel.setControlsFocused(isVisible || activePanel != nil)
+            appModel.registerControlsInteraction()
+        }
         .task(id: appModel.smokePanelRequest) {
             await applySmokePanelRequestIfNeeded()
         }
@@ -330,6 +350,21 @@ public struct PlayerControlsView: View {
             return String(format: "%d:%02d:%02d", h, m, s)
         } else {
             return String(format: "%02d:%02d", m, s)
+        }
+    }
+
+    private func hdrTypeLabel(_ hdrType: PlaybackCoreDomain.HDRType) -> String {
+        switch hdrType {
+        case .sdr:
+            return "SDR"
+        case .hdr10:
+            return "HDR10"
+        case .hdr10Plus:
+            return "HDR10+"
+        case .dolbyVision:
+            return "Dolby Vision"
+        case .hlg:
+            return "HLG"
         }
     }
 }
