@@ -41,6 +41,12 @@ extension MPVPlayerAdapterError: LocalizedError {
     }
 }
 
+struct MPVLoadRequest: Equatable {
+    let url: URL
+    let loadArgument: String
+    let requiresSecurityScopedAccess: Bool
+}
+
 public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManaging {
     public weak var frameOutput: FrameOutput?
     public var onRuntimeError: ((String) -> Void)?
@@ -151,32 +157,23 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             try ensureMPVReady()
             startEventLoop()
 
-            let normalizedURL = url.standardizedFileURL
-            lastPlayedURL = normalizedURL
-            let path = normalizedURL.path
-
-            guard FileManager.default.fileExists(atPath: path) else {
-                throw MPVPlayerAdapterError.fileNotFound(normalizedURL)
-            }
-
-            guard FileManager.default.isReadableFile(atPath: path) else {
-                throw MPVPlayerAdapterError.fileNotReadable(normalizedURL)
-            }
+            let loadRequest = try Self.makeLoadRequest(for: url)
+            lastPlayedURL = loadRequest.url
 
             var acquiredScope = false
-            if normalizedURL.startAccessingSecurityScopedResource() {
+            if loadRequest.requiresSecurityScopedAccess, loadRequest.url.startAccessingSecurityScopedResource() {
                 acquiredScope = true
-                activeSecurityScopedURL = normalizedURL
+                activeSecurityScopedURL = loadRequest.url
             }
 
             do {
                 updateState(.loading)
                 isHDRContent = false
                 isHDROutputEnabled = true
-                try command(["loadfile", path, "replace"])
+                try command(["loadfile", loadRequest.loadArgument, "replace"])
             } catch {
                 if acquiredScope {
-                    normalizedURL.stopAccessingSecurityScopedResource()
+                    loadRequest.url.stopAccessingSecurityScopedResource()
                     activeSecurityScopedURL = nil
                 }
                 throw error
@@ -797,6 +794,33 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         guard code >= 0 else {
             throw MPVPlayerAdapterError.commandFailed(args, code)
         }
+    }
+
+    static func makeLoadRequest(for url: URL) throws -> MPVLoadRequest {
+        if url.isFileURL {
+            let normalizedURL = url.standardizedFileURL
+            let path = normalizedURL.path
+
+            guard FileManager.default.fileExists(atPath: path) else {
+                throw MPVPlayerAdapterError.fileNotFound(normalizedURL)
+            }
+
+            guard FileManager.default.isReadableFile(atPath: path) else {
+                throw MPVPlayerAdapterError.fileNotReadable(normalizedURL)
+            }
+
+            return MPVLoadRequest(
+                url: normalizedURL,
+                loadArgument: path,
+                requiresSecurityScopedAccess: true
+            )
+        }
+
+        return MPVLoadRequest(
+            url: url,
+            loadArgument: url.absoluteString,
+            requiresSecurityScopedAccess: false
+        )
     }
 
     private func setFlagProperty(name: String, value: Bool) {
