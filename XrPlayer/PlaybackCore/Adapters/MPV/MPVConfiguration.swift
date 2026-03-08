@@ -123,7 +123,7 @@ public struct MPVConfiguration: Sendable {
             ("video-latency-hacks", "yes"),
             ("keep-open", "yes"),
             ("hr-seek", "yes"),
-            ("target-colorspace-hint", "yes"),
+            ("target-colorspace-hint", hdrEnabled ? "auto" : "no"),
             ("tone-mapping", "auto"),
             ("msg-level", "all=warn"),
             ("sub-codepage", "utf-8"),
@@ -201,7 +201,6 @@ public struct MPVConfiguration: Sendable {
     /// Commands to enable HDR passthrough — let the display handle tone mapping.
     public func hdrRuntimeCommands() -> [[String]] {
         [
-            ["set", "target-colorspace-hint", "yes"],
             ["set", "target-trc", "auto"],
             ["set", "target-prim", "auto"]
         ]
@@ -210,7 +209,6 @@ public struct MPVConfiguration: Sendable {
     /// Commands to force SDR output — MPV performs tone mapping to sRGB/BT.709.
     public func sdrRuntimeCommands() -> [[String]] {
         [
-            ["set", "target-colorspace-hint", "no"],
             ["set", "target-trc", "srgb"],
             ["set", "target-prim", "bt.709"]
         ]
