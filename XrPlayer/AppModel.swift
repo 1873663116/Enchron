@@ -24,6 +24,8 @@ public final class AppModel {
     public var currentPlaybackURL: URL?
     public var showControls: Bool = true
     public var smokePanelRequest: String?
+    public var isControlsFocused: Bool = false
+    public var lastControlsInteractionAt: Date = .distantPast
     
     // MARK: - Current Media
     public var currentMedia: PlaybackCoreDomain.MediaFile?
@@ -56,11 +58,28 @@ public final class AppModel {
         isPlaying = true
         playbackState = .loading
         showControls = true
+        registerControlsInteraction()
     }
 
     public func stopPlayback() {
         isPlaying = false
         playbackState = .stopped
         currentPlaybackURL = nil
+        isControlsFocused = false
+    }
+
+    public func registerControlsInteraction(at date: Date = Date()) {
+        lastControlsInteractionAt = date
+    }
+
+    public func setControlsFocused(_ focused: Bool, at date: Date = Date()) {
+        isControlsFocused = focused
+        if focused {
+            registerControlsInteraction(at: date)
+        }
+    }
+
+    public var canAutoHideControls: Bool {
+        showControls && isControlsFocused == false
     }
 }

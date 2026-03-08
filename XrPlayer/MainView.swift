@@ -90,12 +90,17 @@ public struct MainView: View {
                 switch gesture {
                 case .singlePinch:
                     if appModel.showControls {
+                        guard appModel.isControlsFocused == false else {
+                            appModel.registerControlsInteraction()
+                            break
+                        }
                         // Controls visible + pinch outside controls area = hide all
                         withAnimation { appModel.showControls = false }
                         controlsTimerTask?.cancel()
                     } else {
                         // Controls hidden = show in initial state + restart timer
                         withAnimation { appModel.showControls = true }
+                        appModel.registerControlsInteraction()
                         startControlsTimer()
                     }
                 case .doublePinch:
@@ -131,6 +136,7 @@ public struct MainView: View {
         }
         .onChange(of: appModel.isPlaying) { _, isPlaying in
             if isPlaying {
+                appModel.registerControlsInteraction()
                 appModel.showControls = true
                 startControlsTimer()
             }
@@ -143,10 +149,18 @@ public struct MainView: View {
     private func startControlsTimer() {
         controlsTimerTask?.cancel()
         controlsTimerTask = Task {
-            try? await Task.sleep(for: .seconds(5))
-            if !Task.isCancelled, windowVideoViewModel.playbackState == .playing {
-                withAnimation {
-                    appModel.showControls = false
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard !Task.isCancelled else { return }
+                guard windowVideoViewModel.playbackState == .playing else { continue }
+                guard appModel.canAutoHideControls else { continue }
+
+                let idleTime = Date().timeIntervalSince(appModel.lastControlsInteractionAt)
+                if idleTime >= 3 {
+                    withAnimation {
+                        appModel.showControls = false
+                    }
+                    return
                 }
             }
         }
