@@ -2,56 +2,88 @@
 
 [中文](./README.md) | [English](./README.en.md)
 
-Enchron 是一个面向 VisionOS 平台的视频播放器项目，目标是提供本地与远程（SMB / WebDAV）统一浏览和播放体验，并持续推进空间场景下的播放交互能力。
+XrPlayer 是面向 visionOS 的沉浸式视频播放器。
+
+对外名称是 `XrPlayer`。当前工作目录与部分内部资料中使用 `Enchron`，它更适合作为内部代号、工作目录名或阶段性整理口径，而不是对外品牌名。
+
+## 产品定位
+
+XrPlayer 不是一个把传统播放器简单搬到头显里的项目。它的目标是：
+
+- 提供原生、低学习成本的 visionOS 观影体验
+- 统一本地与远程媒体浏览和播放
+- 为三种模式建立同一套播放内核与控件体系：
+  - 窗口模式
+  - 沉浸场景模式
+  - 全景模式
+
+当前阶段最重视的不是功能堆叠，而是：
+
+- 首播体验与冷启动体感
+- 二级时间轴与播放控件交互
+- HDR 识别与输出可信度
+- SMB / WebDAV 等远程数据源稳定性
 
 ## 当前状态
 
-- 当前主线版本聚焦 v0.3：远程数据源链路已进入“可实际连接与浏览”的阶段
-- `main` 已包含最近一轮远程连接/浏览修复（SMB + WebDAV）
-- 核心逻辑可通过 `swift test` 进行基础验证
+- README 与对外描述统一使用 `XrPlayer`
+- `Enchron` 仍可能出现在当前工作目录、提交历史或内部整理文档中
+- 当前实现覆盖本地播放、远程浏览/播放、播放控件、HDR 状态管理和部分持久化能力
+- 核心测试可通过 `swift test` 验证
 
 ## 核心能力
 
 - 本地文件浏览与播放
-- 远程数据源接入：`WebDAV`、`SMB`
-- 远程目录浏览（包含文件夹列表，不仅限视频文件）
-- 数据源管理（新增、连接、删除）
-- 连接错误提示与基础鉴权处理
+- 远程数据源接入：`SMB`、`WebDAV`
+- 播放列表、音轨、字幕、倍速、快进快退
+- 二级时间轴与精确定位交互
+- HDR 内容识别与输出模式区分
+- 播放进度、偏好与部分场景参数持久化
 
-## 远程连接规则（v0.3）
+## 名称约定
 
-- 地址为必填，用户名可选
-- 当服务端要求鉴权时再补充密码
-- 仅在连接成功后才将数据源持久化，避免把失败连接写入主页列表
-- 已输入凭证会保存到 Keychain（用于后续连接复用）
+- `XrPlayer`：产品名、对外名称、README 默认叫法
+- `Enchron`：当前工作目录名 / 内部代号
+
+如果你在仓库中看到这些内容，属于预期行为：
+
+- `Enchron/` 工作目录
+- `XrPlayer/` 目录
+- `XrPlayer.xcodeproj`
+- `XrPlayer` scheme
+
+这不代表产品名未定，只是工程与工作区还保留了部分内部命名。
 
 ## 开发环境
 
 - Xcode 16+
 - Swift 6
 - macOS 14+
-- visionOS SDK（用于真机或模拟器构建）
+- visionOS SDK
 
-> 说明：SMB 依赖 `AMSMB2`。在未引入该依赖的环境中，SMB 适配器会以降级桩实现编译通过，但无法实际连接 SMB。
+说明：
+
+- SMB 依赖 `AMSMB2`
+- 没有该依赖时，SMB 适配器会以降级桩实现通过编译，但无法建立真实 SMB 连接
 
 ## 快速开始
 
-### 1) 克隆仓库
+### 1. 克隆仓库
 
 ```bash
 git clone <your-repo-url>
-cd XrPlayer
+cd Enchron
 ```
 
-### 2) Xcode 打开并运行
+### 2. 在 Xcode 中打开
 
 ```bash
 open XrPlayer.xcodeproj
 ```
 
-在 Xcode 中选择 `XrPlayer` scheme，目标选择 visionOS Simulator 或 Apple Vision Pro 真机后运行。
+选择 `XrPlayer` scheme，在 visionOS Simulator 或 Apple Vision Pro 真机上运行。
 
-### 3) 运行核心测试
+### 3. 运行测试
 
 ```bash
 swift test
@@ -60,34 +92,34 @@ swift test
 ## 项目结构
 
 ```text
-XrPlayer/
-  FileBrowsing/      # 本地/远程数据源接入与文件浏览
-  PlaybackCore/      # 播放内核与播放器适配
-  PlayerUI/          # 播放控制与交互
-  Persistence/       # 持久化与 Keychain 凭证存储
-docs/                # 需求、架构与路线图文档
-Tests/               # SwiftPM 测试
+Enchron/
+  XrPlayer/             # 主要应用代码
+    FileBrowsing/       # 本地/远程数据源接入与浏览
+    PlaybackCore/       # 播放内核与播放器适配
+    PlayerUI/           # 控件与播放交互
+    Persistence/        # 偏好、进度、凭证等持久化
+  Tests/                # SwiftPM 测试
+  workspace-agents/     # 产品、架构、质量门禁与技能文档
 ```
 
-## 路线图
+## 文档入口
 
-- v0.3：远程数据源真实可用（进行中）
-- 后续：播放稳定性、UI 打磨、更多协议与媒体能力扩展
-
-详细计划见 `docs/phase4_implementation_roadmap.md`。
-
-文档总览见 `docs/README.md`，测试资产说明见 `docs/test_inventory.md`。
+- 产品哲学：`workspace-agents/product_philosophy.md`
+- 功能需求：`workspace-agents/Requirements.md`
+- 已知问题：`workspace-agents/known_issues.md`
+- 质量门禁：`workspace-agents/quality_gates.md`
+- 架构设计：`workspace-agents/design_docs/`
 
 ## 贡献
 
-欢迎提交 Issue / PR。建议在提交前完成：
+欢迎提交 Issue 或 PR。提交前建议至少完成：
 
 ```bash
 swift test
 ```
 
-并在 PR 描述中说明：
+如果改动涉及播放链路、HDR、远程连接或核心交互，建议同时补充：
 
-- 变更目标
-- 复现与验证步骤
-- 风险点与回滚方式（如有）
+- 回归测试
+- 日志或 smoke 验证步骤
+- 风险点与回滚说明
