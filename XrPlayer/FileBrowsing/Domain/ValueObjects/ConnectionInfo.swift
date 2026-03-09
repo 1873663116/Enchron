@@ -28,6 +28,13 @@ extension FileBrowsingDomain {
             self.rootPath = Self.normalizedPath(rootPath)
         }
 
+        /// Creates a remote connection info.
+        ///
+        /// For SMB: `address` must be an IP address (digits and dots only).
+        /// The connection is host-only — no share name required at this stage.
+        /// Share selection happens after successful login via the SMB adapter.
+        ///
+        /// For WebDAV: `address` is a full URL or host:port/path.
         public static func remote(
             sourceType: SourceType,
             address: String,
@@ -38,6 +45,23 @@ extension FileBrowsingDomain {
                 throw ConnectionInfoError.emptyAddress
             }
 
+            if sourceType == .smb {
+                // SMB: address must be IP-only (digits and dots).
+                guard Self.isValidIPAddress(trimmed) else {
+                    throw ConnectionInfoError.invalidSMBAddress
+                }
+                return ConnectionInfo(
+                    sourceType: sourceType,
+                    address: trimmed,
+                    scheme: "smb",
+                    host: trimmed,
+                    port: nil,
+                    username: username,
+                    rootPath: "/"
+                )
+            }
+
+            // WebDAV: parse as URL
             let preparedAddress = canonicalAddress(for: sourceType, rawAddress: trimmed)
             guard let components = URLComponents(string: preparedAddress),
                   let host = components.host,
@@ -46,10 +70,6 @@ extension FileBrowsingDomain {
             }
 
             let path = normalizedPath(components.path)
-            if sourceType == .smb && shareName(from: path) == nil {
-                throw ConnectionInfoError.missingSMBShare
-            }
-
             return ConnectionInfo(
                 sourceType: sourceType,
                 address: trimmed,
@@ -58,6 +78,20 @@ extension FileBrowsingDomain {
                 port: components.port,
                 username: username,
                 rootPath: path
+            )
+        }
+
+        /// Creates an SMB connection info with a specific share selected.
+        /// Used after the user picks a share from the share list.
+        public func withSMBShare(_ shareName: String) -> ConnectionInfo {
+            ConnectionInfo(
+                sourceType: sourceType,
+                address: address,
+                scheme: scheme,
+                host: host,
+                port: port,
+                username: username,
+                rootPath: "/\(shareName)"
             )
         }
 
@@ -85,6 +119,20 @@ extension FileBrowsingDomain {
             }
         }
 
+        /// Validates that a string is a valid IPv4 address (digits and dots only).
+        private static func isValidIPAddress(_ string: String) -> Bool {
+            let allowedCharacters = CharacterSet(charactersIn: "0123456789.")
+            guard string.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
+                return false
+            }
+            let parts = string.split(separator: ".")
+            guard parts.count == 4 else { return false }
+            return parts.allSatisfy { part in
+                guard let num = Int(part), num >= 0, num <= 255 else { return false }
+                return true
+            }
+        }
+
         private static func canonicalAddress(for sourceType: SourceType, rawAddress: String) -> String {
             if rawAddress.contains("://") {
                 return rawAddress
@@ -100,10 +148,6 @@ extension FileBrowsingDomain {
             }
         }
 
-        private static func shareName(from path: String) -> String? {
-            path.split(separator: "/", omittingEmptySubsequences: true).first.map(String.init)
-        }
-
         private static func normalizedPath(_ path: String) -> String {
             let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
             guard trimmed.isEmpty == false else { return "/" }
@@ -117,7 +161,7 @@ extension FileBrowsingDomain {
     public enum ConnectionInfoError: LocalizedError {
         case emptyAddress
         case invalidAddress
-        case missingSMBShare
+        case invalidSMBAddress
 
         public var errorDescription: String? {
             switch self {
@@ -125,8 +169,8 @@ extension FileBrowsingDomain {
                 return "Server address is required."
             case .invalidAddress:
                 return "Invalid server address."
-            case .missingSMBShare:
-                return "SMB address must include a share name, for example smb://192.168.1.20/share."
+            case .invalidSMBAddress:
+                return "SMB address must be an IP address (e.g., 192.168.1.20). Do not include smb://, paths, or share names."
             }
         }
     }

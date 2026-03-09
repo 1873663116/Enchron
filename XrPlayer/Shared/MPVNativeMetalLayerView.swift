@@ -35,7 +35,8 @@ final class MPVNativeMetalLayerView: UIView {
     }
 
     var metalLayer: CAMetalLayer {
-        layer as! CAMetalLayer
+        // swiftlint:disable:next force_cast
+        layer as! CAMetalLayer  // 安全：layerClass 已声明返回 MPVNativeMetalLayer
     }
 
     override init(frame: CGRect) {
@@ -61,7 +62,9 @@ final class MPVNativeMetalLayerView: UIView {
     private func configureLayer() {
         backgroundColor = .black
         metalLayer.device = MTLCreateSystemDefaultDevice()
-        metalLayer.pixelFormat = .bgra8Unorm
+        // Use rgba16Float for HDR passthrough capability.
+        // Falls back gracefully on devices that don't support EDR.
+        metalLayer.pixelFormat = .rgba16Float
         metalLayer.framebufferOnly = true
         metalLayer.contentsScale = traitCollection.displayScale
         metalLayer.wantsExtendedDynamicRangeContent = true

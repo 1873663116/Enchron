@@ -76,6 +76,8 @@ Tests/               # SwiftPM 测试
 
 详细计划见 `docs/phase4_implementation_roadmap.md`。
 
+文档总览见 `docs/README.md`，测试资产说明见 `docs/test_inventory.md`。
+
 ## 贡献
 
 欢迎提交 Issue / PR。建议在提交前完成：

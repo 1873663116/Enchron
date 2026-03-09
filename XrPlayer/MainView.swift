@@ -11,56 +11,59 @@ public struct MainView: View {
         ZStack {
             AppTabView()
 
-            if appModel.isPlaying && appModel.playbackMode == .window {
-                ZStack(alignment: .topTrailing) {
-                    WindowVideoView(viewModel: windowVideoViewModel)
-                        .glassBackgroundEffect()
-                        .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    if !pinchBegan {
-                                        pinchBegan = true
-                                        windowVideoViewModel.gestureUseCase.handlePinchBegan()
-                                    } else {
-                                        windowVideoViewModel.gestureUseCase.handlePinchChanged(
-                                            translation: value.translation
-                                        )
-                                    }
+            // Always-mounted video surface — hidden when not playing,
+            // so attachVideoLayer() and native warmup complete before first play.
+            ZStack(alignment: .topTrailing) {
+                WindowVideoView(viewModel: windowVideoViewModel)
+                    .glassBackgroundEffect()
+                    .contentShape(Rectangle())
+                    .gesture(
+                        DragGesture(minimumDistance: 0)
+                            .onChanged { value in
+                                if !pinchBegan {
+                                    pinchBegan = true
+                                    windowVideoViewModel.gestureUseCase.handlePinchBegan()
+                                } else {
+                                    windowVideoViewModel.gestureUseCase.handlePinchChanged(
+                                        translation: value.translation
+                                    )
                                 }
-                                .onEnded { _ in
-                                    pinchBegan = false
-                                    windowVideoViewModel.gestureUseCase.handlePinchEnded()
-                                }
-                        )
+                            }
+                            .onEnded { _ in
+                                pinchBegan = false
+                                windowVideoViewModel.gestureUseCase.handlePinchEnded()
+                            }
+                    )
 
-                        // Loading indicator — shown during initial file open (black-screen period).
-                    if windowVideoViewModel.playbackState == .loading {
-                        ProgressView()
-                            .progressViewStyle(.circular)
-                            .scaleEffect(1.5)
-                            .padding(20)
-                            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-                            .transition(.opacity)
-                    }
-
-                    if appModel.showControls {
-                        Button {
-                            windowVideoViewModel.stop()
-                            appModel.stopPlayback()
-                        } label: {
-                            Image(systemName: "xmark")
-                                .font(.title2)
-                                .padding(8)
-                                .background(.ultraThinMaterial, in: Circle())
-                        }
-                        .buttonStyle(.plain)
+                // Loading indicator — shown during initial file open (black-screen period).
+                if windowVideoViewModel.playbackState == .loading {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .scaleEffect(1.5)
                         .padding(20)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
                         .transition(.opacity)
-                    }
                 }
-                .padding()
+
+                if appModel.showControls && appModel.isPlaying {
+                    Button {
+                        windowVideoViewModel.stop()
+                        appModel.stopPlayback()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.title2)
+                            .padding(8)
+                            .background(.ultraThinMaterial, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(20)
+                    .transition(.opacity)
+                }
             }
+            .padding()
+            .opacity(appModel.isPlaying && appModel.playbackMode == .window ? 1 : 0)
+            .allowsHitTesting(appModel.isPlaying && appModel.playbackMode == .window)
+            .accessibilityHidden(!(appModel.isPlaying && appModel.playbackMode == .window))
         }
         .alert(
             "Playback Error",
@@ -94,11 +97,9 @@ public struct MainView: View {
                             appModel.registerControlsInteraction()
                             break
                         }
-                        // Controls visible + pinch outside controls area = hide all
                         withAnimation { appModel.showControls = false }
                         controlsTimerTask?.cancel()
                     } else {
-                        // Controls hidden = show in initial state + restart timer
                         withAnimation { appModel.showControls = true }
                         appModel.registerControlsInteraction()
                         startControlsTimer()
@@ -123,9 +124,7 @@ public struct MainView: View {
                 windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(1.0))
             }
 
-            // Wire up playback ended callback
             windowVideoViewModel.onPlaybackEnded = {
-                // Playback ended: stay on screen, show controls with play (replay) button
                 withAnimation { appModel.showControls = true }
                 controlsTimerTask?.cancel()
             }

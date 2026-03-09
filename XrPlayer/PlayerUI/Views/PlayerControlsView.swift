@@ -20,9 +20,10 @@ public struct PlayerControlsView: View {
 
     public var body: some View {
         VStack(spacing: 20) {
-            // HDR Badge + Toggle
+            // HDR Badge + Output Mode
             HStack(spacing: 12) {
                 if let hdrType = videoViewModel.currentMediaProfile?.hdrType, hdrType != .sdr {
+                    // Content detection badge — always shows what the file contains
                     Text(hdrTypeLabel(hdrType))
                         .font(.caption.bold())
                         .foregroundStyle(.orange)
@@ -30,22 +31,52 @@ public struct PlayerControlsView: View {
                         .padding(.vertical, 4)
                         .background(Capsule().fill(Color.black.opacity(0.3)))
 
-                    Button {
-                        videoViewModel.setHDREnabled(!videoViewModel.isHDROutputEnabled)
-                    } label: {
-                        Text(outputModeLabel(for: hdrType))
+                    // Output mode label — shows actual rendering state
+                    let outputMode = videoViewModel.hdrOutputMode
+                    switch outputMode {
+                    case .passthroughHDR:
+                        Button {
+                            videoViewModel.setHDREnabled(false)
+                        } label: {
+                            Text(hdrTypeLabel(hdrType))
+                                .font(.caption.bold())
+                                .foregroundStyle(.orange)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule().stroke(Color.orange, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+
+                    case .toneMappedSDR:
+                        Button {
+                            videoViewModel.setHDREnabled(true)
+                        } label: {
+                            Text("SDR")
+                                .font(.caption.bold())
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 4)
+                                .background(
+                                    Capsule().stroke(Color.secondary, lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+
+                    case .previewSDR:
+                        Text("SDR Preview")
                             .font(.caption.bold())
-                            .foregroundStyle(videoViewModel.isHDROutputEnabled ? .orange : .secondary)
+                            .foregroundStyle(.secondary)
                             .padding(.horizontal, 10)
                             .padding(.vertical, 4)
                             .background(
-                                Capsule().stroke(
-                                    videoViewModel.isHDROutputEnabled ? Color.orange : Color.secondary,
-                                    lineWidth: 1
-                                )
+                                Capsule().stroke(Color.secondary.opacity(0.5), lineWidth: 1)
                             )
+
+                    case .unsupported:
+                        EmptyView()
                     }
-                    .buttonStyle(.plain)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -159,7 +190,9 @@ public struct PlayerControlsView: View {
             } label: {
                 Image(systemName: "backward.10.fill")
                     .font(.title)
-                    .frame(width: 60, height: 60)
+                    .foregroundStyle(.white)
+                    .frame(width: 72, height: 72)
+                    .background(Color.white.opacity(0.08), in: Circle())
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -176,7 +209,9 @@ public struct PlayerControlsView: View {
             } label: {
                 Image(systemName: playButtonIcon)
                     .font(.system(size: 44))
-                    .frame(width: 60, height: 60)
+                    .foregroundStyle(.white)
+                    .frame(width: 72, height: 72)
+                    .background(Color.white.opacity(0.1), in: Circle())
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -186,7 +221,9 @@ public struct PlayerControlsView: View {
             } label: {
                 Image(systemName: "forward.10.fill")
                     .font(.title)
-                    .frame(width: 60, height: 60)
+                    .foregroundStyle(.white)
+                    .frame(width: 72, height: 72)
+                    .background(Color.white.opacity(0.08), in: Circle())
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -264,7 +301,8 @@ public struct PlayerControlsView: View {
                 Image(systemName: "waveform.path")
                     .font(.title3)
                     .foregroundStyle(showDetailedTimeline ? .orange : .white)
-                    .frame(width: 60, height: 60)
+                    .frame(width: 64, height: 64)
+                    .background(Color.white.opacity(showDetailedTimeline ? 0.12 : 0.06), in: Circle())
                     .contentShape(Circle())
             }
             .buttonStyle(.plain)
@@ -301,7 +339,8 @@ public struct PlayerControlsView: View {
             Image(systemName: systemImage)
                 .font(.title3)
                 .foregroundStyle(activePanel == panel ? .orange : .white)
-                .frame(width: 60, height: 60)
+                .frame(width: 64, height: 64)
+                .background(Color.white.opacity(activePanel == panel ? 0.12 : 0.06), in: Circle())
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
@@ -368,9 +407,6 @@ public struct PlayerControlsView: View {
         }
     }
 
-    private func outputModeLabel(for hdrType: PlaybackCoreDomain.HDRType) -> String {
-        videoViewModel.isHDROutputEnabled ? hdrTypeLabel(hdrType) : "SDR"
-    }
 }
 
 #Preview {

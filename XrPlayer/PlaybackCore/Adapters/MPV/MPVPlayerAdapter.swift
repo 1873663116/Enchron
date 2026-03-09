@@ -68,6 +68,19 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     public var usesNativeGPUOutput: Bool { configuration.useNativeGPUOutput }
     public private(set) var isHDROutputEnabled: Bool = true
     public private(set) var isHDRContent: Bool = false
+
+    /// Computed HDR output mode based on content detection, native GPU path, and configuration.
+    public var hdrOutputMode: PlaybackCoreDomain.HDROutputMode {
+        guard isHDRContent else { return .unsupported }
+
+        if usesNativeGPUOutput {
+            // Native GPU path with proper HDR surface
+            return isHDROutputEnabled ? .passthroughHDR : .toneMappedSDR
+        } else {
+            // Fallback renderer — cannot guarantee true HDR output.
+            return .previewSDR
+        }
+    }
     private var lastPlayedURL: URL?
 
     private let configuration: MPVConfiguration
@@ -184,8 +197,11 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
     public func play(url: URL) async throws {
         do {
+            print("[MPV] request_started url=\(url.lastPathComponent)")
             await waitForVideoLayerIfNeeded()
+            print("[MPV] layer_attached url=\(url.lastPathComponent)")
             try ensureMPVReady()
+            print("[MPV] mpv_ready url=\(url.lastPathComponent)")
             startEventLoop()
 
             let loadRequest = try Self.makeLoadRequest(for: url)
@@ -201,7 +217,11 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                 updateState(.loading)
                 isHDRContent = false
                 isHDROutputEnabled = true
+                if url.scheme == "smb" || url.scheme == "http" || url.scheme == "https" {
+                    print("[MPV] remote_prepare_started url=\(url.lastPathComponent)")
+                }
                 try command(["loadfile", loadRequest.loadArgument, "replace"])
+                print("[MPV] loadfile_sent url=\(url.lastPathComponent)")
             } catch {
                 if acquiredScope {
                     loadRequest.url.stopAccessingSecurityScopedResource()
@@ -210,6 +230,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                 throw error
             }
         } catch {
+            print("[MPV] playback_failed url=\(url.lastPathComponent) error=\(error.localizedDescription)")
             notifyRuntimeError(error.localizedDescription)
             throw error
         }
@@ -1004,6 +1025,9 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
         guard shouldTransition else { return }
 
+        if let url = lastPlayedURL {
+            print("[MPV] first_frame_visible url=\(url.lastPathComponent)")
+        }
         let isPaused = flagProperty("pause") ?? false
         updateState(isPaused ? .paused : .playing)
     }

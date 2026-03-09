@@ -1,22 +1,61 @@
 import Foundation
 
+/// Minimal viable implementation of progress and screen position storage.
+///
+/// Uses JSON-encoded UserDefaults storage as a starting point.
+/// Can be migrated to SwiftData when the persistence layer matures.
 public final class SwiftDataStore: ProgressStoring, ScreenPositionStoring {
-    public init() {}
+    private let defaults: UserDefaults
+    private static let progressPrefix = "xrplayer.progress."
+    private static let screenPositionPrefix = "xrplayer.screenPos."
+
+    public init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+    }
+
+    // MARK: - ProgressStoring
 
     public func saveProgress(_ progress: PersistenceDomain.PlaybackProgress) async {
-        _ = progress
-        fatalError("TODO: implement")
+        let key = Self.progressPrefix + progress.fileID.rawValue
+        let entry = ProgressEntry(
+            seconds: progress.position.seconds,
+            updatedAt: progress.updatedAt.timeIntervalSince1970
+        )
+        if let data = try? JSONEncoder().encode(entry) {
+            defaults.set(data, forKey: key)
+        }
     }
 
     public func loadProgress(for fileID: PersistenceDomain.FileIdentifier) async -> PersistenceDomain.PlaybackProgress? {
-        _ = fileID
-        fatalError("TODO: implement")
+        let key = Self.progressPrefix + fileID.rawValue
+        guard let data = defaults.data(forKey: key),
+              let entry = try? JSONDecoder().decode(ProgressEntry.self, from: data) else {
+            return nil
+        }
+        return PersistenceDomain.PlaybackProgress(
+            fileID: fileID,
+            position: PersistenceDomain.ProgressPosition(seconds: entry.seconds),
+            updatedAt: Date(timeIntervalSince1970: entry.updatedAt)
+        )
     }
 
     public func cleanExpiredProgress(olderThan days: Int) async {
-        _ = days
-        fatalError("TODO: implement")
+        let cutoff = Date().addingTimeInterval(-Double(days) * 86400).timeIntervalSince1970
+        let allKeys = defaults.dictionaryRepresentation().keys.filter {
+            $0.hasPrefix(Self.progressPrefix)
+        }
+        for key in allKeys {
+            guard let data = defaults.data(forKey: key),
+                  let entry = try? JSONDecoder().decode(ProgressEntry.self, from: data) else {
+                continue
+            }
+            if entry.updatedAt < cutoff {
+                defaults.removeObject(forKey: key)
+            }
+        }
     }
+
+    // MARK: - ScreenPositionStoring
 
     public func savePosition(
         for environmentID: String,
@@ -24,15 +63,41 @@ public final class SwiftDataStore: ProgressStoring, ScreenPositionStoring {
         verticalOffsetMeters: Double,
         angleDegrees: Double
     ) async {
-        _ = environmentID
-        _ = distanceMeters
-        _ = verticalOffsetMeters
-        _ = angleDegrees
-        fatalError("TODO: implement")
+        let key = Self.screenPositionPrefix + environmentID
+        let entry = ScreenPositionEntry(
+            distanceMeters: distanceMeters,
+            verticalOffsetMeters: verticalOffsetMeters,
+            angleDegrees: angleDegrees
+        )
+        if let data = try? JSONEncoder().encode(entry) {
+            defaults.set(data, forKey: key)
+        }
     }
 
     public func loadPosition(for environmentID: String) async -> PersistenceDomain.SavedScreenPosition? {
-        _ = environmentID
-        fatalError("TODO: implement")
+        let key = Self.screenPositionPrefix + environmentID
+        guard let data = defaults.data(forKey: key),
+              let entry = try? JSONDecoder().decode(ScreenPositionEntry.self, from: data) else {
+            return nil
+        }
+        return PersistenceDomain.SavedScreenPosition(
+            environmentID: environmentID,
+            distanceMeters: entry.distanceMeters,
+            verticalOffsetMeters: entry.verticalOffsetMeters,
+            viewAngleDegrees: entry.angleDegrees
+        )
     }
+}
+
+// MARK: - Internal Codable types
+
+private struct ProgressEntry: Codable {
+    let seconds: Double
+    let updatedAt: Double
+}
+
+private struct ScreenPositionEntry: Codable {
+    let distanceMeters: Double
+    let verticalOffsetMeters: Double
+    let angleDegrees: Double
 }

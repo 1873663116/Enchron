@@ -1,0 +1,48 @@
+# .swiftlint.yml — Enchron 架构守卫
+# 审计修正版：仅保留高确信度规则，避免误杀
+
+# ── 基础配置 ──────────────────────────────────
+included:
+  - XrPlayer
+excluded:
+  - .build
+  - Packages
+  - XrPlayer/Libraries
+  - XrPlayer/third_party
+  - XrPlayer/XrPlayer.xcodeproj.bak
+
+# ── 内置规则 ──────────────────────────────────
+opt_in_rules:
+  - force_unwrapping
+
+disabled_rules:
+  - trailing_whitespace
+  - type_body_length        # 大型 View 文件不适合行数限制
+
+# 放宽内置规则，避免误报
+identifier_name:
+  min_length: 1             # 允许 h/m/s 等业界惯用单字母（时间格式化）
+  max_length: 80
+  allowed_symbols: ["_"]   # 允许下划线（如 speed0_5 枚举值）
+line_length: 200            # Metal renderer / WebDAV 适配器里有合理的长行
+file_length:
+  warning: 600
+  error: 1500               # MPVPlayerAdapter 是大型适配器，暂不拆分
+
+# ── 自定义架构守卫 ────────────────────────────
+custom_rules:
+
+  # 所有模块的 Domain 层不得依赖 UI/渲染/网络框架
+  # 允许例外：Foundation, CoreVideo, Observation
+  domain_no_ui_framework:
+    regex: 'import\s+(UIKit|SwiftUI|RealityKit|Metal|MetalKit|AMSMB2|ARKit|RealityKitContent)'
+    included: ".*/Domain/.*\\.swift"
+    message: "Domain 层禁止直接 import UI/渲染/网络框架，请通过 protocol 隔离"
+    severity: error
+
+  # Domain 层禁止 try!（隐藏崩溃风险）
+  no_force_try_in_domain:
+    regex: 'try!'
+    included: ".*/Domain/.*\\.swift"
+    message: "Domain 层禁止使用 try!，请用 do-catch 显式处理错误"
+    severity: error

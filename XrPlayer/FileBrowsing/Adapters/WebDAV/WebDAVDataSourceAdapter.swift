@@ -27,6 +27,8 @@ public enum WebDAVError: LocalizedError {
 }
 
 public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding {
+    /// Stable DataSource ID for folder identity pass-through.
+    public var ownerDataSourceID: UUID = UUID()
     private var baseURL: URL?
     private var authHeader: String?
     private var connectionInfo: FileBrowsingDomain.ConnectionInfo?
@@ -35,9 +37,9 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
     private let credentialStore: CredentialStoring?
     private let filter = FileBrowsingDomain.FileFilter.playable
 
-    public init(credentialStore: CredentialStoring? = nil) {
+    public init(credentialStore: CredentialStoring? = nil, session: URLSession? = nil) {
         self.credentialStore = credentialStore
-        self.session = URLSession(configuration: .default)
+        self.session = session ?? URLSession(configuration: .default)
     }
 
     public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
@@ -45,23 +47,11 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
 
         do {
             let rootURL = try buildBaseURL(from: info)
-            baseURL = rootURL
-            connectionInfo = info
             authHeader = try buildAuthHeader(info: info)
+            let validatedURL = try await validateConnection(startingAt: rootURL)
 
-            var request = URLRequest(url: rootURL)
-            request.httpMethod = "OPTIONS"
-            if let authHeader {
-                request.setValue(authHeader, forHTTPHeaderField: "Authorization")
-            }
-
-            let (_, response) = try await session.data(for: request)
-            guard let httpResponse = response as? HTTPURLResponse else {
-                throw WebDAVError.invalidResponse
-            }
-            guard (200 ... 299).contains(httpResponse.statusCode) else {
-                throw WebDAVError.requestFailed(httpResponse.statusCode)
-            }
+            baseURL = validatedURL
+            connectionInfo = info
 
             connectionStatus = .connected
         } catch {
@@ -138,7 +128,7 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
 
             return FileBrowsingDomain.MediaFolder(
                 name: folderName,
-                dataSourceID: UUID(),
+                dataSourceID: ownerDataSourceID,
                 path: folderURL.path,
                 url: folderURL
             )
@@ -245,6 +235,30 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         return (delegate.responses, String(decoding: data, as: UTF8.self))
     }
 
+    private func validateConnection(startingAt rootURL: URL) async throws -> URL {
+        var lastError: Error = WebDAVError.invalidConnectionInfo
+
+        for candidateURL in candidateBaseURLs(startingAt: rootURL) {
+            do {
+                let result = try await performPROPFINDRequest(url: candidateURL)
+                logPROPFINDResult(url: candidateURL, result: result)
+                return candidateURL
+            } catch {
+                lastError = error
+            }
+        }
+
+        throw lastError
+    }
+
+    private func candidateBaseURLs(startingAt rootURL: URL) -> [URL] {
+        let preferredURL = directoryURL(for: rootURL)
+        if preferredURL == rootURL {
+            return [rootURL]
+        }
+        return [preferredURL, rootURL]
+    }
+
     private func buildBaseURL(from info: FileBrowsingDomain.ConnectionInfo) throws -> URL {
         guard let host = info.host?.trimmingCharacters(in: .whitespacesAndNewlines), host.isEmpty == false else {
             throw WebDAVError.invalidConnectionInfo
@@ -294,22 +308,18 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
 
     private func buildRequestURL(baseURL: URL, path: String) throws -> URL {
         var components = URLComponents(url: baseURL, resolvingAgainstBaseURL: false)
-        let normalized = normalizedPath(path)
+        let requestedPath = normalizedPath(path)
+        let baseComparablePath = normalizedComparablePath(baseURL.path)
+        let requestedComparablePath = normalizedComparablePath(requestedPath)
 
-        if normalized == "/" {
+        if requestedPath == "/" {
             components?.path = normalizedPath(baseURL.path)
-        } else if normalized == normalizedPath(baseURL.path) {
-            components?.path = normalized
+        } else if requestedComparablePath == baseComparablePath {
+            components?.path = requestedPath
+        } else if baseComparablePath == "/" || requestedComparablePath.hasPrefix(baseComparablePath + "/") {
+            components?.path = requestedPath
         } else {
-            let basePath = normalizedPath(baseURL.path)
-            if basePath == "/" {
-                components?.path = normalized
-            } else if normalized.hasPrefix(basePath + "/") {
-                components?.path = normalized
-            } else {
-                let appended = normalized.dropFirst()
-                components?.path = basePath + "/" + appended
-            }
+            components?.path = joinPath(base: baseComparablePath, relativePath: requestedPath)
         }
 
         guard let resolved = components?.url else {
@@ -325,6 +335,17 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
             return trimmed
         }
         return "/" + trimmed
+    }
+
+    private func joinPath(base: String, relativePath: String) -> String {
+        let normalizedBase = normalizedComparablePath(base)
+        let normalizedRelative = normalizedPath(relativePath)
+
+        if normalizedBase == "/" {
+            return normalizedRelative
+        }
+
+        return normalizedBase + normalizedRelative
     }
 
     private func resolveFileURL(from href: String, requestURL: URL) -> URL? {
@@ -451,9 +472,17 @@ private final class PROPFINDParserDelegate: NSObject, XMLParserDelegate {
         var isCollection: Bool = false
     }
 
+    private struct Propstat {
+        var statusCode: Int?
+        var contentLength: String?
+        var lastModified: String?
+        var isCollection: Bool = false
+    }
+
     private(set) var responses: [ResponseItem] = []
     private var elementStack: [String] = []
     private var currentResponse: ResponseItem?
+    private var currentPropstat: Propstat?
     private var buffer: String = ""
 
     func parser(
@@ -470,11 +499,15 @@ private final class PROPFINDParserDelegate: NSObject, XMLParserDelegate {
             currentResponse = ResponseItem()
         }
 
-        if name == "collection", currentResponse != nil, elementStack.contains("resourcetype") {
-            currentResponse?.isCollection = true
+        if name == "propstat" {
+            currentPropstat = Propstat()
         }
 
-        if name == "href" || name == "getcontentlength" || name == "getlastmodified" {
+        if name == "collection", currentPropstat != nil, elementStack.contains("resourcetype") {
+            currentPropstat?.isCollection = true
+        }
+
+        if name == "href" || name == "getcontentlength" || name == "getlastmodified" || name == "status" {
             buffer = ""
         }
     }
@@ -482,7 +515,10 @@ private final class PROPFINDParserDelegate: NSObject, XMLParserDelegate {
     func parser(_ parser: XMLParser, foundCharacters string: String) {
         guard currentResponse != nil,
               let currentElement = elementStack.last,
-              currentElement == "href" || currentElement == "getcontentlength" || currentElement == "getlastmodified"
+              currentElement == "href"
+                || currentElement == "getcontentlength"
+                || currentElement == "getlastmodified"
+                || currentElement == "status"
         else {
             return
         }
@@ -500,14 +536,39 @@ private final class PROPFINDParserDelegate: NSObject, XMLParserDelegate {
         if var response = currentResponse {
             switch name {
             case "href":
-                response.href = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
-                currentResponse = response
+                if currentPropstat == nil {
+                    response.href = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    currentResponse = response
+                }
             case "getcontentlength":
-                response.contentLength = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
-                currentResponse = response
+                if var propstat = currentPropstat {
+                    propstat.contentLength = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    currentPropstat = propstat
+                }
             case "getlastmodified":
-                response.lastModified = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
-                currentResponse = response
+                if var propstat = currentPropstat {
+                    propstat.lastModified = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    currentPropstat = propstat
+                }
+            case "status":
+                if var propstat = currentPropstat {
+                    propstat.statusCode = parseStatusCode(buffer)
+                    currentPropstat = propstat
+                }
+            case "propstat":
+                if let propstat = currentPropstat, let statusCode = propstat.statusCode, (200 ... 299).contains(statusCode) {
+                    if let contentLength = propstat.contentLength {
+                        response.contentLength = contentLength
+                    }
+                    if let lastModified = propstat.lastModified {
+                        response.lastModified = lastModified
+                    }
+                    if propstat.isCollection {
+                        response.isCollection = true
+                    }
+                    currentResponse = response
+                }
+                currentPropstat = nil
             case "response":
                 responses.append(response)
                 currentResponse = nil
@@ -524,5 +585,13 @@ private final class PROPFINDParserDelegate: NSObject, XMLParserDelegate {
 
     private func normalized(_ raw: String) -> String {
         raw.split(separator: ":").last?.lowercased() ?? raw.lowercased()
+    }
+
+    private func parseStatusCode(_ value: String) -> Int? {
+        let components = value.split(separator: " ")
+        guard components.count >= 2 else {
+            return nil
+        }
+        return Int(components[1])
     }
 }
