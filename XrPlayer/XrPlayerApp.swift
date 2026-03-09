@@ -2,11 +2,6 @@ import SwiftUI
 
 @main
 struct XrPlayerApp: App {
-    private final class PlaybackLaunchGate {
-        var activeTask: Task<Void, Never>?
-        var generation: Int = 0
-    }
-
     private struct SmokeLaunchConfiguration {
         enum Panel: String {
             case tracks
@@ -33,6 +28,7 @@ struct XrPlayerApp: App {
     @State private var appModel: AppModel
     @State private var windowVideoViewModel: WindowVideoViewModel
     @State private var fileBrowsingViewModel: FileBrowsingViewModel
+    @State private var playbackLauncher: PlaybackLaunchCoordinator
 
     init() {
         Task.detached(priority: .utility) {
@@ -43,65 +39,23 @@ struct XrPlayerApp: App {
         let player = MPVPlayerAdapter()
         let windowVideoViewModel = WindowVideoViewModel(player: player)
         let smokeLaunch = SmokeLaunchConfiguration(environment: ProcessInfo.processInfo.environment)
-        let playbackLaunchGate = PlaybackLaunchGate()
 
-        @MainActor
-        func beginPlayback(for url: URL) {
-            playbackLaunchGate.generation += 1
-            let generation = playbackLaunchGate.generation
-
-            playbackLaunchGate.activeTask?.cancel()
-            playbackLaunchGate.activeTask = nil
-
-            switch windowVideoViewModel.playbackState {
-            case .loading, .buffering:
-                windowVideoViewModel.cancelPendingLoad()
-            case .playing, .paused, .ended, .failed, .stopped:
-                windowVideoViewModel.stop()
-            case .idle:
-                break
-            }
-
-            appModel.startPlayback(url: url)
-            playbackLaunchGate.activeTask = Task { @MainActor in
-                defer {
-                    if playbackLaunchGate.generation == generation {
-                        playbackLaunchGate.activeTask = nil
-                    }
-                }
-
-                // Give SwiftUI multiple run-loop passes to render WindowVideoView
-                // and call attachVideoLayer. The continuation in
-                // waitForVideoLayerIfNeeded() will then fire instantly instead
-                // of falling back to a timeout. Extra yields are cheap.
-                for _ in 0..<8 {
-                    guard Task.isCancelled == false else { return }
-                    await Task.yield()
-                }
-
-                guard Task.isCancelled == false else { return }
-                guard playbackLaunchGate.generation == generation else { return }
-                guard appModel.currentPlaybackURL == url else { return }
-
-                do {
-                    try await windowVideoViewModel.play(url: url)
-                } catch {
-                    guard playbackLaunchGate.generation == generation else { return }
-                    appModel.stopPlayback()
-                }
-            }
-        }
+        let launcher = PlaybackLaunchCoordinator(
+            appModel: appModel,
+            windowVideoViewModel: windowVideoViewModel
+        )
 
         // Pre-warm MPV in the background to reduce first-play black-screen latency.
         player.warmup()
         let localDataSource = LocalDataSourceAdapter()
         let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: localDataSource) { url in
-            beginPlayback(for: url)
+            launcher.beginPlayback(for: url)
         }
 
         _appModel = State(initialValue: appModel)
         _windowVideoViewModel = State(initialValue: windowVideoViewModel)
         _fileBrowsingViewModel = State(initialValue: fileBrowsingViewModel)
+        _playbackLauncher = State(initialValue: launcher)
 
         if let smokeLaunch {
             appModel.showControls = true
@@ -110,20 +64,21 @@ struct XrPlayerApp: App {
                     smokeLaunch,
                     appModel: appModel,
                     windowVideoViewModel: windowVideoViewModel,
-                    beginPlayback: beginPlayback
+                    launcher: launcher
                 )
             }
         }
     }
-    
+
     var body: some Scene {
         WindowGroup {
             MainView()
                 .environment(appModel)
                 .environment(windowVideoViewModel)
                 .environment(fileBrowsingViewModel)
+                .environment(playbackLauncher)
         }
-        
+
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
             ImmersiveSpaceView()
                 .environment(appModel)
@@ -175,7 +130,7 @@ struct XrPlayerApp: App {
         _ configuration: SmokeLaunchConfiguration,
         appModel: AppModel,
         windowVideoViewModel: WindowVideoViewModel,
-        beginPlayback: @escaping @MainActor (URL) -> Void
+        launcher: PlaybackLaunchCoordinator
     ) async {
         guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
             return
@@ -198,7 +153,7 @@ struct XrPlayerApp: App {
         print(
             "[SmokeTest] autoplay \(videoURL.lastPathComponent) panel=\(configuration.panel?.rawValue ?? "none") subtitle=\(configuration.enableFirstSubtitle)"
         )
-        beginPlayback(videoURL)
+        launcher.beginPlayback(for: videoURL)
 
         guard configuration.enableFirstSubtitle else {
             return

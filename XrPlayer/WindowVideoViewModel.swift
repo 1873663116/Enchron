@@ -10,6 +10,7 @@ public final class WindowVideoViewModel {
     public var playbackPosition: PlaybackCoreDomain.PlaybackPosition = .init(seconds: 0, duration: 0)
     public var lastErrorMessage: String?
     public var currentMediaProfile: PlaybackCoreDomain.MediaProfile?
+    public private(set) var currentPlaybackURL: URL?
     public let usesNativeGPUOutput: Bool
     public let gestureUseCase = DisambiguateGestureUseCase()
 
@@ -103,9 +104,14 @@ public final class WindowVideoViewModel {
         player.isHDROutputEnabled
     }
 
+    public var hdrOutputMode: PlaybackCoreDomain.HDROutputMode {
+        player.hdrOutputMode
+    }
+
     public func play(url: URL) async throws {
         do {
             currentMediaProfile = nil
+            currentPlaybackURL = url
             try await player.play(url: url)
             lastErrorMessage = nil
         } catch {
@@ -128,12 +134,14 @@ public final class WindowVideoViewModel {
         player.stop()
         lastErrorMessage = nil
         currentMediaProfile = nil
+        currentPlaybackURL = nil
     }
 
     public func cancelPendingLoad() {
         player.cancelPendingLoad()
         lastErrorMessage = nil
         currentMediaProfile = nil
+        currentPlaybackURL = nil
     }
 
     public func seek(to seconds: Double) {

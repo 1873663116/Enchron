@@ -9,6 +9,7 @@ public enum SMBError: LocalizedError {
     case invalidConnectionInfo
     case connectionFailed(String)
     case authenticationFailed
+    case noShareSelected
 
     public var errorDescription: String? {
         switch self {
@@ -22,6 +23,8 @@ public enum SMBError: LocalizedError {
             return "SMB connection failed: \(reason)"
         case .authenticationFailed:
             return "SMB authentication failed. Check username and password."
+        case .noShareSelected:
+            return "No SMB share selected. Please select a share first."
         }
     }
 }
@@ -33,12 +36,20 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
     private let credentialStore: CredentialStoring?
     private let filter = FileBrowsingDomain.FileFilter.playable
     private var smbManager: AMSMB2?
-    private var connectionInfo: FileBrowsingDomain.ConnectionInfo?
+    /// Stable DataSource ID for folder identity pass-through.
+    public var ownerDataSourceID: UUID = UUID()
+    public private(set) var currentConnectionInfo: FileBrowsingDomain.ConnectionInfo?
+    private var connectionInfo: FileBrowsingDomain.ConnectionInfo? {
+        get { currentConnectionInfo }
+        set { currentConnectionInfo = newValue }
+    }
+    private var connectedShareName: String?
 
     public init(credentialStore: CredentialStoring? = nil) {
         self.credentialStore = credentialStore
     }
 
+    /// Connect and login to the SMB server (host-only, no share yet).
     public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
         connectionStatus = .connecting
 
@@ -70,17 +81,17 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
 
             try await smb.connectAndLogin()
 
-            // Extract share name from rootPath (first path component)
-            let rootPath = info.rootPath
-            let pathComponents = rootPath.split(separator: "/", omittingEmptySubsequences: true)
-            guard let shareName = pathComponents.first else {
-                throw SMBError.invalidConnectionInfo
-            }
-
-            try await smb.connectShare(name: String(shareName))
-
             smbManager = smb
             connectionInfo = info
+
+            // If rootPath already has a share (e.g., reconnecting a saved source),
+            // connect to that share immediately.
+            let pathComponents = info.rootPath.split(separator: "/", omittingEmptySubsequences: true)
+            if let shareName = pathComponents.first {
+                try await smb.connectShare(name: String(shareName))
+                connectedShareName = String(shareName)
+            }
+
             connectionStatus = .connected
         } catch let error as SMBError {
             connectionStatus = .failed(error.localizedDescription)
@@ -91,16 +102,55 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
         }
     }
 
+    /// List available shares on the connected server.
+    /// Must be called after `connect(with:)` succeeds.
+    public func listShares() async throws -> [String] {
+        guard let smb = smbManager else {
+            throw SMBError.notConnected
+        }
+        let shares = try await smb.listShares()
+        // Filter out administrative/hidden shares (ending with $)
+        return shares
+            .map { $0.name }
+            .filter { !$0.hasSuffix("$") }
+            .sorted()
+    }
+
+    /// Connect to a specific share after listing.
+    /// Updates the connectionInfo to include the share in rootPath.
+    public func selectShare(_ shareName: String) async throws {
+        guard let smb = smbManager else {
+            throw SMBError.notConnected
+        }
+
+        // Disconnect previous share if any
+        if connectedShareName != nil {
+            smb.disconnectShare()
+        }
+
+        try await smb.connectShare(name: shareName)
+        connectedShareName = shareName
+
+        // Update connectionInfo with the selected share
+        if let info = connectionInfo {
+            connectionInfo = info.withSMBShare(shareName)
+        }
+    }
+
     public func disconnect() {
         smbManager?.disconnectShare()
         smbManager = nil
         connectionInfo = nil
+        connectedShareName = nil
         connectionStatus = .disconnected
     }
 
     public func listContents(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
         guard let smb = smbManager else {
             throw SMBError.notConnected
+        }
+        guard connectedShareName != nil else {
+            throw SMBError.noShareSelected
         }
 
         let smbPath = smbRelativePath(from: path)
@@ -128,8 +178,11 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
     }
 
     public func listFolders(at path: String) async throws -> [FileBrowsingDomain.MediaFolder] {
-        guard let smb = smbManager else {
+        guard let smb = smbManager, let info = connectionInfo else {
             throw SMBError.notConnected
+        }
+        guard connectedShareName != nil else {
+            throw SMBError.noShareSelected
         }
 
         let smbPath = smbRelativePath(from: path)
@@ -146,7 +199,7 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
 
             return FileBrowsingDomain.MediaFolder(
                 name: name,
-                dataSourceID: UUID(),
+                dataSourceID: self.ownerDataSourceID,
                 path: folderPath,
                 url: folderURL
             )
@@ -208,19 +261,16 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
     }
 
     /// Convert the full rootPath-based path to a path relative to the share.
-    /// e.g., rootPath="/share/videos", path="/share/videos/subfolder" → "videos/subfolder"
     private func smbRelativePath(from path: String) -> String {
         guard let info = connectionInfo else { return path }
         let components = info.rootPath.split(separator: "/", omittingEmptySubsequences: true)
         guard components.count > 1 else { return "/" }
 
-        // Drop the share name (first component), keep the rest
         let subPath = components.dropFirst().joined(separator: "/")
         if path == info.rootPath {
             return subPath.isEmpty ? "/" : "/\(subPath)"
         }
 
-        // For navigated paths, strip rootPath prefix and use as-is
         return path.hasPrefix("/") ? path : "/\(path)"
     }
 
@@ -246,6 +296,8 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
 // Stub implementation for platforms without AMSMB2 (e.g., Linux)
 public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
+    public var ownerDataSourceID: UUID = UUID()
+    public private(set) var currentConnectionInfo: FileBrowsingDomain.ConnectionInfo?
 
     public init(credentialStore: CredentialStoring? = nil) {
         _ = credentialStore
@@ -256,6 +308,14 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
     }
 
     public func disconnect() {}
+
+    public func listShares() async throws -> [String] {
+        throw SMBError.libraryNotAvailable
+    }
+
+    public func selectShare(_ shareName: String) async throws {
+        throw SMBError.libraryNotAvailable
+    }
 
     public func listContents(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
         throw SMBError.libraryNotAvailable

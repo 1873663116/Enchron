@@ -308,6 +308,7 @@ final class MockPlaybackController: PlaybackControlling {
     var currentSubtitleTrackID: String? = "no"
     var isHDRContent: Bool = false
     var isHDROutputEnabled: Bool = false
+    var hdrOutputMode: PlaybackCoreDomain.HDROutputMode = .unsupported
     var onMediaProfileDetected: ((PlaybackCoreDomain.MediaProfile) -> Void)?
     var onPlaybackEnded: (() -> Void)?
 

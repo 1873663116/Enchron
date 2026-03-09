@@ -1,6 +1,52 @@
 import XCTest
 @testable import XrPlayerCore
 
+private final class MockURLProtocol: URLProtocol, @unchecked Sendable {
+    nonisolated(unsafe) static var requestHandler: (@Sendable (URLRequest) throws -> (HTTPURLResponse, Data))?
+
+    override class func canInit(with request: URLRequest) -> Bool {
+        true
+    }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest {
+        request
+    }
+
+    override func startLoading() {
+        guard let handler = Self.requestHandler else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badServerResponse))
+            return
+        }
+
+        do {
+            let (response, data) = try handler(request)
+            client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            client?.urlProtocol(self, didLoad: data)
+            client?.urlProtocolDidFinishLoading(self)
+        } catch {
+            client?.urlProtocol(self, didFailWithError: error)
+        }
+    }
+
+    override func stopLoading() {}
+}
+
+private struct TestCredentialStore: CredentialStoring {
+    private let values: [String: StorageCredential]
+
+    init(values: [String: StorageCredential] = [:]) {
+        self.values = values
+    }
+
+    func saveCredential(for sourceID: String, credential: StorageCredential) throws {}
+
+    func loadCredential(for sourceID: String) throws -> StorageCredential? {
+        values[sourceID]
+    }
+
+    func deleteCredential(for sourceID: String) throws {}
+}
+
 // MARK: - DataSource Codable Tests
 
 final class DataSourceCodableTests: XCTestCase {
@@ -46,18 +92,18 @@ final class DataSourceCodableTests: XCTestCase {
         XCTAssertEqual(info.username, "alice")
     }
 
-    func testRemoteSMBAddressParsingRequiresShareName() {
-        XCTAssertThrowsError(
-            try FileBrowsingDomain.ConnectionInfo.remote(
-                sourceType: .smb,
-                address: "smb://192.168.1.9"
-            )
-        ) { error in
-            XCTAssertEqual(
-                error.localizedDescription,
-                "SMB address must include a share name, for example smb://192.168.1.20/share."
-            )
-        }
+    func testRemoteSMBAddressParsingAcceptsIPAddressOnly() throws {
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "192.168.1.9",
+            username: "alice"
+        )
+
+        XCTAssertEqual(info.scheme, "smb")
+        XCTAssertEqual(info.host, "192.168.1.9")
+        XCTAssertNil(info.port)
+        XCTAssertEqual(info.rootPath, "/")
+        XCTAssertEqual(info.username, "alice")
     }
 
     func testDataSourceCodableRoundtrip() throws {
@@ -202,6 +248,11 @@ final class SMBDataSourceAdapterTests: XCTestCase {
 // MARK: - WebDAVDataSourceAdapter Tests
 
 final class WebDAVDataSourceAdapterTests: XCTestCase {
+    override func tearDown() {
+        MockURLProtocol.requestHandler = nil
+        super.tearDown()
+    }
+
     func testInitialStatusIsDisconnected() {
         let sut = WebDAVDataSourceAdapter()
         if case .disconnected = sut.connectionStatus { } else {
@@ -311,6 +362,205 @@ final class WebDAVDataSourceAdapterTests: XCTestCase {
     func testRequestFailedErrorContainsStatusCode() {
         let error = WebDAVError.requestFailed(401)
         XCTAssertTrue(error.localizedDescription.contains("401"))
+    }
+
+    func testConnectUsesPropfindAgainstSlashNormalizedCollectionURL() async throws {
+        let requests = RequestLog()
+        let session = makeMockSession()
+        MockURLProtocol.requestHandler = { request in
+            requests.record(request)
+            let response = HTTPURLResponse(
+                url: try XCTUnwrap(request.url),
+                statusCode: 207,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "text/xml; charset=utf-8"]
+            )!
+            return (response, Self.alistCollectionListingXML.data(using: .utf8)!)
+        }
+
+        let sut = WebDAVDataSourceAdapter(session: session)
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: "http://127.0.0.1:5244/dav"
+        )
+
+        try await sut.connect(with: info)
+
+        let capturedRequests = requests.snapshot()
+        XCTAssertEqual(capturedRequests.count, 1)
+        XCTAssertEqual(capturedRequests.first?.httpMethod, "PROPFIND")
+        XCTAssertEqual(capturedRequests.first?.url?.absoluteString, "http://127.0.0.1:5244/dav/")
+        if case .connected = sut.connectionStatus { } else {
+            XCTFail("Expected .connected, got \(sut.connectionStatus)")
+        }
+    }
+
+    func testListFoldersParsesTopLevelHrefWhen404PropstatContainsEmptyHref() async throws {
+        let session = makeMockSession()
+        let requests = RequestLog()
+        MockURLProtocol.requestHandler = { request in
+            requests.record(request)
+            let response = HTTPURLResponse(
+                url: try XCTUnwrap(request.url),
+                statusCode: 207,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "text/xml; charset=utf-8"]
+            )!
+            return (response, Self.alistCollectionListingXML.data(using: .utf8)!)
+        }
+
+        let sut = WebDAVDataSourceAdapter(session: session)
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: "http://127.0.0.1:5244/dav"
+        )
+
+        try await sut.connect(with: info)
+        let folders = try await sut.listFolders(at: "/")
+
+        XCTAssertEqual(folders.count, 1)
+        XCTAssertEqual(folders.first?.name, "夸克")
+        XCTAssertEqual(folders.first?.path, "/dav/夸克")
+
+        let capturedRequests = requests.snapshot()
+        XCTAssertEqual(capturedRequests.dropFirst().first?.url?.absoluteString, "http://127.0.0.1:5244/dav")
+    }
+
+    func testListFoldersUsesStableNestedPathWhenBaseURLHasTrailingSlash() async throws {
+        let session = makeMockSession()
+        let requests = RequestLog()
+        MockURLProtocol.requestHandler = { request in
+            requests.record(request)
+            let xml = request.url?.path == "/dav/Movies/"
+                ? Self.selfOnlyListingXML(for: "/dav/Movies/")
+                : Self.alistCollectionListingXML
+            let response = HTTPURLResponse(
+                url: try XCTUnwrap(request.url),
+                statusCode: 207,
+                httpVersion: nil,
+                headerFields: ["Content-Type": "text/xml; charset=utf-8"]
+            )!
+            return (response, xml.data(using: .utf8)!)
+        }
+
+        let sut = WebDAVDataSourceAdapter(session: session)
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: "http://127.0.0.1:5244/dav"
+        )
+
+        try await sut.connect(with: info)
+        _ = try? await sut.listFolders(at: "/dav/Movies/")
+
+        let capturedRequests = requests.snapshot()
+        XCTAssertEqual(capturedRequests.last?.url?.absoluteString, "http://127.0.0.1:5244/dav/Movies/")
+    }
+
+    func testRealWebDAVListingAgainstConfiguredServer() async throws {
+        let environment = ProcessInfo.processInfo.environment
+        guard
+            let address = environment["XRPLAYER_WEBDAV_URL"],
+            let username = environment["XRPLAYER_WEBDAV_USERNAME"],
+            let password = environment["XRPLAYER_WEBDAV_PASSWORD"]
+        else {
+            throw XCTSkip("Set XRPLAYER_WEBDAV_URL, XRPLAYER_WEBDAV_USERNAME, and XRPLAYER_WEBDAV_PASSWORD to run the integration test.")
+        }
+
+        let info = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .webDAV,
+            address: address,
+            username: username
+        )
+        let sourceID = "webDAV:\(info.host ?? ""):\(info.port ?? 0):\(info.rootPath)"
+        let credentialStore = TestCredentialStore(
+            values: [sourceID: StorageCredential(username: username, password: password)]
+        )
+        let sut = WebDAVDataSourceAdapter(credentialStore: credentialStore)
+
+        try await sut.connect(with: info)
+        let folders = try await sut.listFolders(at: info.rootPath)
+
+        XCTAssertFalse(folders.isEmpty, "Expected the configured WebDAV root to expose at least one folder.")
+    }
+
+    private func makeMockSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        return URLSession(configuration: configuration)
+    }
+
+    private final class RequestLog: @unchecked Sendable {
+        private var requests: [URLRequest] = []
+        private let lock = NSLock()
+
+        func record(_ request: URLRequest) {
+            lock.lock()
+            defer { lock.unlock() }
+            requests.append(request)
+        }
+
+        func snapshot() -> [URLRequest] {
+            lock.lock()
+            defer { lock.unlock() }
+            return requests
+        }
+    }
+
+    private static let alistCollectionListingXML = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <D:multistatus xmlns:D="DAV:">
+      <D:response>
+        <D:href>/dav/</D:href>
+        <D:propstat>
+          <D:prop>
+            <D:getlastmodified>Mon, 01 Jan 0001 00:00:00 GMT</D:getlastmodified>
+            <D:resourcetype><D:collection /></D:resourcetype>
+          </D:prop>
+          <D:status>HTTP/1.1 200 OK</D:status>
+        </D:propstat>
+        <D:propstat>
+          <D:prop>
+            <D:href></D:href>
+            <D:getcontentlength></D:getcontentlength>
+          </D:prop>
+          <D:status>HTTP/1.1 404 Not Found</D:status>
+        </D:propstat>
+      </D:response>
+      <D:response>
+        <D:href>/dav/%E5%A4%B8%E5%85%8B/</D:href>
+        <D:propstat>
+          <D:prop>
+            <D:getlastmodified>Fri, 06 Mar 2026 23:20:34 GMT</D:getlastmodified>
+            <D:resourcetype><D:collection /></D:resourcetype>
+          </D:prop>
+          <D:status>HTTP/1.1 200 OK</D:status>
+        </D:propstat>
+        <D:propstat>
+          <D:prop>
+            <D:href></D:href>
+            <D:getcontentlength></D:getcontentlength>
+          </D:prop>
+          <D:status>HTTP/1.1 404 Not Found</D:status>
+        </D:propstat>
+      </D:response>
+    </D:multistatus>
+    """
+
+    private static func selfOnlyListingXML(for path: String) -> String {
+        """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <D:multistatus xmlns:D="DAV:">
+          <D:response>
+            <D:href>\(path)</D:href>
+            <D:propstat>
+              <D:prop>
+                <D:resourcetype><D:collection /></D:resourcetype>
+              </D:prop>
+              <D:status>HTTP/1.1 200 OK</D:status>
+            </D:propstat>
+          </D:response>
+        </D:multistatus>
+        """
     }
 }
 

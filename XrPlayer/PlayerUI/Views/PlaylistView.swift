@@ -3,7 +3,7 @@ import SwiftUI
 public struct PlaylistView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(FileBrowsingViewModel.self) private var fileBrowsingViewModel
-    @Environment(WindowVideoViewModel.self) private var videoViewModel
+    @Environment(PlaybackLaunchCoordinator.self) private var launcher
     @Environment(\.dismiss) private var dismiss
     private let onClose: (() -> Void)?
 
@@ -37,11 +37,8 @@ public struct PlaylistView: View {
                         let isCurrent = appModel.currentPlaybackURL == file.url
 
                         Button {
-                            appModel.startPlayback(url: file.url)
+                            launcher.beginPlayback(for: file.url)
                             dismissPanel()
-                            Task {
-                                try? await videoViewModel.play(url: file.url)
-                            }
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: isCurrent ? "play.fill" : "play")

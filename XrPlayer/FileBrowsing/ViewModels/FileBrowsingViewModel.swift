@@ -17,7 +17,8 @@ public final class FileBrowsingViewModel {
 
     private let localDataSource: LocalDataSourceAdapter
     private let fileManager: FileManager
-    private let credentialStore: CredentialStoring
+    public let credentialStoreForConfig: CredentialStoring
+    private var credentialStore: CredentialStoring { credentialStoreForConfig }
     private static let savedDataSourcesKey = "xrplayer.savedDataSources"
     private let importQueue = DispatchQueue(label: "xrplayer.fileimport.io", qos: .utility)
     private let onPlayFile: @MainActor (URL) -> Void
@@ -35,7 +36,7 @@ public final class FileBrowsingViewModel {
     ) {
         self.localDataSource = localDataSource
         self.fileManager = fileManager
-        self.credentialStore = credentialStore
+        self.credentialStoreForConfig = credentialStore
         self.onPlayFile = onPlayFile
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
@@ -107,9 +108,13 @@ public final class FileBrowsingViewModel {
         let adapter: any DataSourceConnecting & FileProviding
         switch ds.connectionInfo.sourceType {
         case .webDAV:
-            adapter = WebDAVDataSourceAdapter(credentialStore: credentialStore)
+            let webDAV = WebDAVDataSourceAdapter(credentialStore: credentialStore)
+            webDAV.ownerDataSourceID = ds.id
+            adapter = webDAV
         case .smb:
-            adapter = SMBDataSourceAdapter(credentialStore: credentialStore)
+            let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
+            smb.ownerDataSourceID = ds.id
+            adapter = smb
         case .local:
             await useDefaultFolder()
             return

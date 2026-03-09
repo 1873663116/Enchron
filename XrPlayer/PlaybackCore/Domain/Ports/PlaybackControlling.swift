@@ -26,4 +26,5 @@ public protocol PlaybackControlling: AnyObject {
     var currentSubtitleTrackID: String? { get }
     var isHDRContent: Bool { get }
     var isHDROutputEnabled: Bool { get }
+    var hdrOutputMode: PlaybackCoreDomain.HDROutputMode { get }
 }
