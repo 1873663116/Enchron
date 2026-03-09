@@ -4,8 +4,6 @@
 
 XrPlayer is an immersive video player for visionOS.
 
-The public-facing product name is `XrPlayer`. `Enchron` is better treated as an internal codename, workspace name, or temporary documentation label, not the external brand name.
-
 ## Positioning
 
 XrPlayer is not meant to be a flat 2D player transplanted into a headset. The goal is to deliver a native spatial media experience on visionOS with:
