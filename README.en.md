@@ -2,92 +2,124 @@
 
 [中文](./README.md) | [English](./README.en.md)
 
-XrPlayer is a visionOS-focused video player project. The goal is to provide a unified browsing and playback experience across local and remote sources (SMB / WebDAV), and keep evolving spatial playback interactions.
+XrPlayer is an immersive video player for visionOS.
+
+The public-facing product name is `XrPlayer`. `Enchron` is better treated as an internal codename, workspace name, or temporary documentation label, not the external brand name.
+
+## Positioning
+
+XrPlayer is not meant to be a flat 2D player transplanted into a headset. The goal is to deliver a native spatial media experience on visionOS with:
+
+- unified local and remote media browsing
+- a shared playback core and control system
+- three playback modes:
+  - window mode
+  - immersive scene mode
+  - panoramic mode
+
+At this stage, the project is more focused on playback quality than feature count:
+
+- first-play latency and cold-start feel
+- secondary timeline and playback controls
+- HDR detection and output trustworthiness
+- remote source stability for SMB and WebDAV
 
 ## Current Status
 
-- The current mainline focus is v0.3: remote source flow is now in a practically usable stage.
-- `main` already includes the latest remote connection/browsing fixes (SMB + WebDAV).
-- Core logic can be validated with `swift test`.
+- The README and public-facing wording now consistently use `XrPlayer`
+- `Enchron` may still appear in the current workspace path, commit history, or internal docs
+- The codebase currently covers local playback, remote browsing/playback, playback controls, HDR state handling, and baseline persistence
+- Core behavior can be validated with `swift test`
 
-## Core Features
+## Core Capabilities
 
-- Local file browsing and playback
-- Remote source integration: `WebDAV`, `SMB`
-- Remote directory browsing (folders are listed, not only video files)
-- Data source management (add, connect, delete)
-- Connection error feedback and basic authentication handling
+- local file browsing and playback
+- remote source support: `SMB`, `WebDAV`
+- playlist, audio/subtitle selection, playback speed, skip controls
+- secondary timeline for precise seeking
+- HDR content detection with explicit output mode handling
+- persistence for playback progress, preferences, and selected scene-related values
 
-## Remote Connection Rules (v0.3)
+## Naming Convention
 
-- Address is required, username is optional.
-- Password is only required when the server challenges for authentication.
-- A data source is persisted only after a successful connection.
-- Credentials are stored in Keychain for reuse.
+- `XrPlayer`: product name and the default public-facing name
+- `Enchron`: current workspace name / internal codename
+
+Seeing the following is expected:
+
+- `Enchron/` workspace directory
+- `XrPlayer/`
+- `XrPlayer.xcodeproj`
+- `XrPlayer` scheme
+
+That does not mean the product is unnamed. It only means the codebase and workspace still preserve some internal naming.
 
 ## Development Environment
 
 - Xcode 16+
 - Swift 6
 - macOS 14+
-- visionOS SDK (for simulator/device build)
+- visionOS SDK
 
-> Note: SMB depends on `AMSMB2`. Without this dependency, SMB adapter compiles in fallback stub mode and cannot establish real SMB connections.
+Notes:
+
+- SMB support depends on `AMSMB2`
+- without that dependency, the SMB adapter falls back to a stub implementation that compiles but cannot establish real SMB connections
 
 ## Quick Start
 
-### 1) Clone
+### 1. Clone the repo
 
 ```bash
 git clone <your-repo-url>
-cd XrPlayer
+cd Enchron
 ```
 
-### 2) Open and Run in Xcode
+### 2. Open in Xcode
 
 ```bash
 open XrPlayer.xcodeproj
 ```
 
-Select `XrPlayer` scheme and run on visionOS Simulator or Apple Vision Pro device.
+Use the `XrPlayer` scheme and run on the visionOS Simulator or an Apple Vision Pro device.
 
-### 3) Run Core Tests
+### 3. Run tests
 
 ```bash
 swift test
 ```
 
-## Project Layout
+## Repository Layout
 
 ```text
-XrPlayer/
-  FileBrowsing/      # local/remote source integration and file browsing
-  PlaybackCore/      # playback core and player adapters
-  PlayerUI/          # controls and interaction
-  Persistence/       # persistence and Keychain credential storage
-docs/                # requirements, architecture, and roadmap
-Tests/               # SwiftPM tests
+Enchron/
+  XrPlayer/             # main app code
+    FileBrowsing/       # local/remote source integration and browsing
+    PlaybackCore/       # playback core and player adapters
+    PlayerUI/           # controls and playback interactions
+    Persistence/        # preferences, progress, and credential storage
+  Tests/                # SwiftPM tests
+  workspace-agents/     # product, architecture, quality, and skill docs
 ```
 
-## Roadmap
+## Documentation
 
-- v0.3: make remote sources production-usable (in progress)
-- Next: playback stability, UI polishing, more protocols/media capabilities
-
-See `docs/phase4_implementation_roadmap.md` for details.
+- Product philosophy: `workspace-agents/product_philosophy.md`
+- Requirements: `workspace-agents/Requirements.md`
+- Known issues: `workspace-agents/known_issues.md`
+- Quality gates: `workspace-agents/quality_gates.md`
+- Architecture docs: `workspace-agents/design_docs/`
 
 ## Contributing
 
-Issues and PRs are welcome. Before submitting:
+Issues and PRs are welcome. Before submitting, at minimum run:
 
 ```bash
 swift test
 ```
 
-In PR description, include:
+If your change touches playback, HDR, remote connections, or core interaction paths, also include:
 
-- Goal of the change
-- Reproduction and validation steps
-- Risks and rollback plan (if any)
-
-
+- regression coverage
+- logs or smoke-check evidence
+- risks and rollback notes
