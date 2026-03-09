@@ -2,7 +2,7 @@
 
 [中文](./README.md) | [English](./README.en.md)
 
-XrPlayer 是一个面向 visionOS 的视频播放器项目，目标是提供本地与远程（SMB / WebDAV）统一浏览和播放体验，并持续推进空间场景下的播放交互能力。
+Enchron 是一个面向 VisionOS 平台的视频播放器项目，目标是提供本地与远程（SMB / WebDAV）统一浏览和播放体验，并持续推进空间场景下的播放交互能力。
 
 ## 当前状态
 
