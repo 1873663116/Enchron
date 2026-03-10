@@ -14,6 +14,7 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
 
     private var rootURL: URL?
     public private(set) var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
+    public var ownerDataSourceID: UUID = UUID()
 
     public init(
         fileManager: FileManager = .default,
@@ -69,7 +70,7 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
                         guard values?.isDirectory == true else { return nil }
                         return FileBrowsingDomain.MediaFolder(
                             name: url.lastPathComponent,
-                            dataSourceID: UUID(),
+                            dataSourceID: self.ownerDataSourceID,
                             path: url.path,
                             url: url
                         )

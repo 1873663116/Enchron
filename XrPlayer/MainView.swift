@@ -4,6 +4,7 @@ import RealityKit
 public struct MainView: View {
     @Environment(AppModel.self) var appModel
     @Environment(WindowVideoViewModel.self) var windowVideoViewModel
+    @Environment(PlaybackLaunchCoordinator.self) var playbackLauncher
 
     public init() {}
 
@@ -35,8 +36,13 @@ public struct MainView: View {
                             }
                     )
 
-                // Loading indicator — shown during initial file open (black-screen period).
-                if windowVideoViewModel.playbackState == .loading {
+                if windowVideoViewModel.presentationState != .videoVisible {
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .fill(.black)
+                        .transition(.opacity)
+                }
+
+                if windowVideoViewModel.presentationState == .placeholder {
                     ProgressView()
                         .progressViewStyle(.circular)
                         .scaleEffect(1.5)
@@ -47,15 +53,13 @@ public struct MainView: View {
 
                 if appModel.showControls && appModel.isPlaying {
                     Button {
-                        windowVideoViewModel.stop()
-                        appModel.stopPlayback()
+                        playbackLauncher.stopPlayback()
                     } label: {
                         Image(systemName: "xmark")
                             .font(.title2)
-                            .padding(8)
-                            .background(.ultraThinMaterial, in: Circle())
+                            .foregroundStyle(.white)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(PlayerControlSurfaceStyle(size: 56))
                     .padding(20)
                     .transition(.opacity)
                 }
@@ -83,7 +87,7 @@ public struct MainView: View {
             Text(windowVideoViewModel.lastErrorMessage ?? "Unknown playback error")
         }
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
-            if appModel.isPlaying && appModel.showControls {
+            if appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls {
                 PlayerControlsView()
                     .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .center)))
             }
@@ -167,6 +171,19 @@ public struct MainView: View {
 }
 
 #Preview(windowStyle: .automatic) {
+    let appModel = AppModel()
+    let windowVideoViewModel = WindowVideoViewModel(player: MPVPlayerAdapter())
+    let launcher = PlaybackLaunchCoordinator(
+        appModel: appModel,
+        windowVideoViewModel: windowVideoViewModel
+    )
+    let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: LocalDataSourceAdapter()) { request in
+        launcher.beginPlayback(request)
+    }
+
     MainView()
-        .environment(AppModel())
+        .environment(appModel)
+        .environment(windowVideoViewModel)
+        .environment(fileBrowsingViewModel)
+        .environment(launcher)
 }

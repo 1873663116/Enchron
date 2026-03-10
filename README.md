@@ -81,6 +81,12 @@ open XrPlayer.xcodeproj
 
 选择 `XrPlayer` scheme，在 visionOS Simulator 或 Apple Vision Pro 真机上运行。
 
+### 构建入口说明
+
+- 日常开发、运行、真机/模拟器构建：使用 `XrPlayer.xcodeproj`
+- 顶层 `Package.swift`：仅用于 `swift build` / `swift test` 的辅助校验，不是应用主工程
+- `XrPlayer/XrPlayer.xcodeproj.bak`：历史备份，不参与当前开发和构建
+
 ### 3. 运行测试
 
 ```bash

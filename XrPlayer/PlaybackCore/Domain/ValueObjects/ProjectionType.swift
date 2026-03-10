@@ -1,7 +1,7 @@
 import Foundation
 
 extension PlaybackCoreDomain {
-    public enum ProjectionType: String, Sendable, CaseIterable {
+    public enum ProjectionType: String, Sendable, CaseIterable, Codable {
         case flat
         case stereoscopicSBS
         case stereoscopicOU

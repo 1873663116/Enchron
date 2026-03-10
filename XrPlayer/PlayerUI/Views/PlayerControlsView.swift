@@ -1,87 +1,22 @@
 import SwiftUI
 
 public struct PlayerControlsView: View {
-    private enum AuxiliaryPanel {
-        case tracks
-        case playlist
-    }
-
     @Environment(AppModel.self) private var appModel
     @Environment(WindowVideoViewModel.self) private var videoViewModel
+    @Environment(FileBrowsingViewModel.self) private var fileBrowsingViewModel
+    @Environment(PlaybackLaunchCoordinator.self) private var launcher
 
     @State private var isDraggingSlider = false
     @State private var dragValue: Double = 0
-    @State private var activePanel: AuxiliaryPanel?
     @State private var showDetailedTimeline = false
     @State private var pausedForTimeline = false
+    @State private var showInfoPanel = false
     @State private var hasAppliedSmokePanelRequest = false
 
     public init() {}
 
     public var body: some View {
         VStack(spacing: 20) {
-            // HDR Badge + Output Mode
-            HStack(spacing: 12) {
-                if let hdrType = videoViewModel.currentMediaProfile?.hdrType, hdrType != .sdr {
-                    // Content detection badge — always shows what the file contains
-                    Text(hdrTypeLabel(hdrType))
-                        .font(.caption.bold())
-                        .foregroundStyle(.orange)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Capsule().fill(Color.black.opacity(0.3)))
-
-                    // Output mode label — shows actual rendering state
-                    let outputMode = videoViewModel.hdrOutputMode
-                    switch outputMode {
-                    case .passthroughHDR:
-                        Button {
-                            videoViewModel.setHDREnabled(false)
-                        } label: {
-                            Text(hdrTypeLabel(hdrType))
-                                .font(.caption.bold())
-                                .foregroundStyle(.orange)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule().stroke(Color.orange, lineWidth: 1)
-                                )
-                        }
-                        .buttonStyle(.plain)
-
-                    case .toneMappedSDR:
-                        Button {
-                            videoViewModel.setHDREnabled(true)
-                        } label: {
-                            Text("SDR")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(
-                                    Capsule().stroke(Color.secondary, lineWidth: 1)
-                                )
-                        }
-                        .buttonStyle(.plain)
-
-                    case .previewSDR:
-                        Text("SDR Preview")
-                            .font(.caption.bold())
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(
-                                Capsule().stroke(Color.secondary.opacity(0.5), lineWidth: 1)
-                            )
-
-                    case .unsupported:
-                        EmptyView()
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // Main Slider Area
             if showDetailedTimeline {
                 DetailedTimelineView(
                     onClose: {
@@ -99,11 +34,6 @@ public struct PlayerControlsView: View {
                 sliderSection
             }
 
-            if activePanel != nil {
-                floatingPanelHost
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
             VStack(spacing: 20) {
                 primaryControlRow
                 secondaryControlRow
@@ -112,10 +42,10 @@ public struct PlayerControlsView: View {
         }
         .padding(.horizontal, 28)
         .padding(.vertical, 24)
-        .frame(width: controlsWidth)
+        .frame(width: showDetailedTimeline ? 860 : 720)
         .glassBackgroundEffect()
         .onHover { isHovering in
-            appModel.setControlsFocused(isHovering)
+            appModel.setControlsFocused(isHovering || showInfoPanel || showDetailedTimeline)
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
@@ -126,27 +56,21 @@ public struct PlayerControlsView: View {
                     }
                 }
         )
-        .onChange(of: activePanel != nil) { _, isExpanded in
-            appModel.setControlsFocused(isExpanded || showDetailedTimeline)
+        .onChange(of: showDetailedTimeline) { _, isVisible in
+            appModel.setControlsFocused(isVisible || showInfoPanel)
             appModel.registerControlsInteraction()
         }
-        .onChange(of: showDetailedTimeline) { _, isVisible in
-            appModel.setControlsFocused(isVisible || activePanel != nil)
+        .onChange(of: showInfoPanel) { _, isVisible in
+            appModel.setControlsFocused(isVisible || showDetailedTimeline)
             appModel.registerControlsInteraction()
         }
         .task(id: appModel.smokePanelRequest) {
             await applySmokePanelRequestIfNeeded()
         }
-    }
-
-    private var controlsWidth: CGFloat {
-        if showDetailedTimeline {
-            return 860
+        .popover(isPresented: $showInfoPanel, attachmentAnchor: .point(.top), arrowEdge: .top) {
+            infoPanel
+                .presentationCompactAdaptation(.popover)
         }
-        if activePanel != nil {
-            return 760
-        }
-        return 720
     }
 
     @ViewBuilder
@@ -188,14 +112,11 @@ public struct PlayerControlsView: View {
             Button {
                 videoViewModel.skip(by: -10)
             } label: {
-                Image(systemName: "backward.10.fill")
-                    .font(.title)
-                    .foregroundStyle(.white)
-                    .frame(width: 72, height: 72)
-                    .background(Color.white.opacity(0.08), in: Circle())
-                    .contentShape(Circle())
+                Image(systemName: "backward.10")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(.primary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
             .help("Backward 10s")
 
             Button {
@@ -208,25 +129,25 @@ public struct PlayerControlsView: View {
                 }
             } label: {
                 Image(systemName: playButtonIcon)
-                    .font(.system(size: 44))
-                    .foregroundStyle(.white)
-                    .frame(width: 72, height: 72)
-                    .background(Color.white.opacity(0.1), in: Circle())
-                    .contentShape(Circle())
+                    .font(.system(size: 44, weight: .medium))
+                    .foregroundStyle(.primary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(
+                PlayerControlSurfaceStyle(
+                    size: 72,
+                    isSelected: videoViewModel.playbackState == .playing,
+                    prominence: .primary
+                )
+            )
 
             Button {
                 videoViewModel.skip(by: 10)
             } label: {
-                Image(systemName: "forward.10.fill")
-                    .font(.title)
-                    .foregroundStyle(.white)
-                    .frame(width: 72, height: 72)
-                    .background(Color.white.opacity(0.08), in: Circle())
-                    .contentShape(Circle())
+                Image(systemName: "forward.10")
+                    .font(.system(size: 28, weight: .semibold))
+                    .foregroundStyle(.primary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
             .help("Forward 10s")
         }
     }
@@ -244,45 +165,24 @@ public struct PlayerControlsView: View {
 
     @ViewBuilder
     private var secondaryControlRow: some View {
-        HStack(spacing: 32) {
-            Menu {
-                ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
-                    Button {
-                        videoViewModel.setSpeed(speed)
-                        appModel.updatePlaybackSpeed(speed)
-                    } label: {
-                        HStack {
-                            Text(String(format: "%.2f\u{00D7}", speed.value))
-                            if appModel.playbackSpeed == speed {
-                                Image(systemName: "checkmark")
-                            }
-                        }
-                    }
-                }
+        HStack(spacing: 24) {
+            speedMenu
+            tracksMenu
+            playlistMenu
+
+            Button {
+                appModel.registerControlsInteraction()
+                showInfoPanel.toggle()
             } label: {
-                Text(String(format: "%.1f\u{00D7}", appModel.playbackSpeed.value))
-                    .font(.system(.body, design: .monospaced))
-                    .frame(width: 60, height: 60)
-                    .background(Color.white.opacity(0.1))
-                    .clipShape(Circle())
+                Image(systemName: "info.circle")
+                    .font(.title3)
+                    .foregroundStyle(showInfoPanel ? Color.accentColor : Color.primary)
             }
-            .buttonStyle(.plain)
-
-            panelToggleButton(
-                systemImage: "text.bubble",
-                panel: .tracks,
-                helpText: "Audio and Subtitles"
-            )
-
-            panelToggleButton(
-                systemImage: "list.bullet",
-                panel: .playlist,
-                helpText: "Playlist"
-            )
+            .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showInfoPanel))
+            .help("Media Info")
 
             Button {
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                    activePanel = nil
                     if showDetailedTimeline {
                         showDetailedTimeline = false
                         if pausedForTimeline {
@@ -290,6 +190,7 @@ public struct PlayerControlsView: View {
                             videoViewModel.resume()
                         }
                     } else {
+                        showInfoPanel = false
                         showDetailedTimeline = true
                         if videoViewModel.playbackState == .playing {
                             pausedForTimeline = true
@@ -300,56 +201,182 @@ public struct PlayerControlsView: View {
             } label: {
                 Image(systemName: "waveform.path")
                     .font(.title3)
-                    .foregroundStyle(showDetailedTimeline ? .orange : .white)
-                    .frame(width: 64, height: 64)
-                    .background(Color.white.opacity(showDetailedTimeline ? 0.12 : 0.06), in: Circle())
-                    .contentShape(Circle())
+                    .foregroundStyle(showDetailedTimeline ? Color.accentColor : Color.primary)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showDetailedTimeline))
             .help("Toggle Detailed Timeline")
         }
     }
 
-    @ViewBuilder
-    private var floatingPanelHost: some View {
-        ZStack {
-            PlaybackMenuView(onClose: closeAuxiliaryPanel)
-                .opacity(activePanel == .tracks ? 1 : 0.001)
-                .allowsHitTesting(activePanel == .tracks)
-                .accessibilityHidden(activePanel != .tracks)
-
-            PlaylistView(onClose: closeAuxiliaryPanel)
-                .opacity(activePanel == .playlist ? 1 : 0.001)
-                .allowsHitTesting(activePanel == .playlist)
-                .accessibilityHidden(activePanel != .playlist)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: 360)
-        .animation(.spring(response: 0.28, dampingFraction: 0.88), value: activePanel == nil)
-    }
-
-    @ViewBuilder
-    private func panelToggleButton(systemImage: String, panel: AuxiliaryPanel, helpText: String) -> some View {
-        Button {
-            withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
-                showDetailedTimeline = false
-                activePanel = activePanel == panel ? nil : panel
+    private var speedMenu: some View {
+        Menu {
+            ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
+                Button {
+                    videoViewModel.setSpeed(speed)
+                    appModel.updatePlaybackSpeed(speed)
+                } label: {
+                    if appModel.playbackSpeed == speed {
+                        Label(speedLabel(speed), systemImage: "checkmark")
+                    } else {
+                        Text(speedLabel(speed))
+                    }
+                }
             }
         } label: {
-            Image(systemName: systemImage)
-                .font(.title3)
-                .foregroundStyle(activePanel == panel ? .orange : .white)
-                .frame(width: 64, height: 64)
-                .background(Color.white.opacity(activePanel == panel ? 0.12 : 0.06), in: Circle())
-                .contentShape(Circle())
+            Text(String(format: "%.1f\u{00D7}", appModel.playbackSpeed.value))
+                .font(.system(.body, design: .monospaced))
+                .foregroundStyle(.primary)
+                .playerControlSurface(size: 60)
         }
         .buttonStyle(.plain)
-        .help(helpText)
     }
 
-    private func closeAuxiliaryPanel() {
-        withAnimation(.spring(response: 0.28, dampingFraction: 0.88)) {
-            activePanel = nil
+    private var tracksMenu: some View {
+        Menu {
+            Section("Audio") {
+                ForEach(videoViewModel.availableAudioTracks) { track in
+                    Button {
+                        videoViewModel.selectAudioTrack(track)
+                    } label: {
+                        if videoViewModel.currentAudioTrackID == track.id {
+                            Label(track.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(track.displayName)
+                        }
+                    }
+                }
+            }
+
+            Section("Subtitles") {
+                Button {
+                    videoViewModel.selectSubtitleTrack(nil)
+                } label: {
+                    if videoViewModel.currentSubtitleTrackID == nil || videoViewModel.currentSubtitleTrackID == "no" {
+                        Label("Off", systemImage: "checkmark")
+                    } else {
+                        Text("Off")
+                    }
+                }
+
+                ForEach(videoViewModel.availableSubtitleTracks) { track in
+                    Button {
+                        videoViewModel.selectSubtitleTrack(track)
+                    } label: {
+                        if videoViewModel.currentSubtitleTrackID == track.id {
+                            Label(track.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(track.displayName)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "text.bubble")
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .playerControlSurface(size: 60)
+        }
+        .buttonStyle(.plain)
+        .help("Audio and Subtitles")
+    }
+
+    private var playlistMenu: some View {
+        Menu {
+            if fileBrowsingViewModel.files.isEmpty {
+                Text("No playlist items")
+            } else {
+                ForEach(fileBrowsingViewModel.files, id: \.id) { file in
+                    Button {
+                        Task {
+                            do {
+                                let request = try await fileBrowsingViewModel.playbackRequest(for: file)
+                                await MainActor.run {
+                                    launcher.beginPlayback(request)
+                                }
+                            } catch {
+                                await MainActor.run {
+                                    fileBrowsingViewModel.lastErrorMessage = "Failed to open \"\(file.name)\": \(error.localizedDescription)"
+                                }
+                            }
+                        }
+                    } label: {
+                        if appModel.currentPlaybackURL?.lastPathComponent == file.name {
+                            Label(file.name, systemImage: "checkmark")
+                        } else {
+                            Text(file.name)
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "list.bullet")
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .playerControlSurface(size: 60)
+        }
+        .buttonStyle(.plain)
+        .help("Playlist")
+    }
+
+    private var infoPanel: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Media Info")
+                    .font(.headline)
+                Spacer()
+                Button("Done") {
+                    showInfoPanel = false
+                }
+                .buttonStyle(.plain)
+            }
+
+            if let profile = videoViewModel.displayMediaProfile {
+                infoRow("HDR", value: hdrTypeLabel(profile.hdrType))
+                infoRow(
+                    "Output",
+                    value: hdrOutputDescription(for: videoViewModel.hdrOutputMode)
+                )
+                infoRow(
+                    "Resolution",
+                    value: "\(profile.resolution.width)×\(profile.resolution.height)"
+                )
+                infoRow("Frame Rate", value: formatFrameRate(profile.frameRate))
+            } else {
+                Text("Loading media profile…")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            infoRow("File Size", value: formatFileSize(videoViewModel.displayFileSizeInBytes))
+
+            if let profile = videoViewModel.displayMediaProfile, profile.hdrType != .sdr {
+                Divider()
+                Button {
+                    videoViewModel.setHDREnabled(videoViewModel.isHDROutputEnabled == false)
+                } label: {
+                    HStack {
+                        Text(videoViewModel.isHDROutputEnabled ? "Switch to SDR" : "Switch to HDR")
+                        Spacer()
+                        Image(systemName: videoViewModel.isHDROutputEnabled ? "sun.max" : "sparkles.tv")
+                    }
+                }
+                .buttonStyle(.borderless)
+            }
+        }
+        .padding(20)
+        .frame(width: 320, alignment: .leading)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func infoRow(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.body.monospacedDigit())
+                .foregroundStyle(.primary)
         }
     }
 
@@ -364,20 +391,19 @@ public struct PlayerControlsView: View {
         appModel.showControls = true
         try? await Task.sleep(for: .seconds(1))
 
-        withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-            switch request {
-            case "tracks":
-                activePanel = .tracks
-            case "timeline":
+        if request == "timeline" {
+            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
                 showDetailedTimeline = true
                 if videoViewModel.playbackState == .playing {
                     pausedForTimeline = true
                     videoViewModel.pause()
                 }
-            default:
-                break
             }
         }
+    }
+
+    private func speedLabel(_ speed: PlaybackCoreDomain.PlaybackSpeed) -> String {
+        String(format: "%.2f\u{00D7}", speed.value)
     }
 
     private func formatTime(_ seconds: Double) -> String {
@@ -389,6 +415,37 @@ public struct PlayerControlsView: View {
             return String(format: "%d:%02d:%02d", h, m, s)
         } else {
             return String(format: "%02d:%02d", m, s)
+        }
+    }
+
+    private func formatFrameRate(_ frameRate: Double) -> String {
+        guard frameRate > 0 else {
+            return "Unknown"
+        }
+        return String(format: "%.2f fps", frameRate)
+    }
+
+    private func formatFileSize(_ sizeInBytes: Int64?) -> String {
+        guard let sizeInBytes, sizeInBytes > 0 else {
+            return "Unknown"
+        }
+
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useMB, .useGB, .useTB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: sizeInBytes)
+    }
+
+    private func hdrOutputDescription(for outputMode: PlaybackCoreDomain.HDROutputMode) -> String {
+        switch outputMode {
+        case .passthroughHDR:
+            return "HDR Passthrough"
+        case .toneMappedSDR:
+            return "Tone-Mapped SDR"
+        case .previewSDR:
+            return "SDR Preview"
+        case .unsupported:
+            return "Unavailable"
         }
     }
 
@@ -406,11 +463,22 @@ public struct PlayerControlsView: View {
             return "HLG"
         }
     }
-
 }
 
 #Preview {
+    let appModel = AppModel()
+    let windowVideoViewModel = WindowVideoViewModel(player: MPVPlayerAdapter())
+    let launcher = PlaybackLaunchCoordinator(
+        appModel: appModel,
+        windowVideoViewModel: windowVideoViewModel
+    )
+    let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: LocalDataSourceAdapter()) { request in
+        launcher.beginPlayback(request)
+    }
+
     PlayerControlsView()
-        .environment(AppModel())
-        .environment(WindowVideoViewModel(player: MPVPlayerAdapter()))
+        .environment(appModel)
+        .environment(windowVideoViewModel)
+        .environment(fileBrowsingViewModel)
+        .environment(launcher)
 }

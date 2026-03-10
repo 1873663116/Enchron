@@ -1,6 +1,15 @@
 {
-  "originHash" : "c7b7784a410ce5b4cfa15d4fdb37736ccda7dc39d80458ae43c6e29ec918981a",
+  "originHash" : "fdf62eb4965efe6553fdf07b8412b00974266f77f1f11522e9c1c225375304ca",
   "pins" : [
+    {
+      "identity" : "amsmb2",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/amosavian/AMSMB2.git",
+      "state" : {
+        "revision" : "1726aaaf7adf63d7d1d2a0c5d1b0e635028215c0",
+        "version" : "4.0.3"
+      }
+    },
     {
       "identity" : "mpvkit",
       "kind" : "remoteSourceControl",

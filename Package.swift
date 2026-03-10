@@ -9,9 +9,15 @@ let package = Package(
     products: [
         .library(name: "XrPlayerCore", targets: ["XrPlayerCore"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/amosavian/AMSMB2.git", from: "4.0.3")
+    ],
     targets: [
         .target(
             name: "XrPlayerCore",
+            dependencies: [
+                .product(name: "AMSMB2", package: "AMSMB2")
+            ],
             path: ".",
             sources: [
                 "XrPlayer/PlaybackCore/Domain/ValueObjects/PlaybackState.swift",
@@ -45,6 +51,7 @@ let package = Package(
                 "XrPlayer/Persistence/Adapters/KeychainStore.swift",
                 "XrPlayer/PlayerUI/Domain/ValueObjects/GestureType.swift",
                 "XrPlayer/PlayerUI/UseCases/DisambiguateGestureUseCase.swift",
+                "XrPlayer/PlayerUI/UseCases/DetailedTimelineGeometry.swift",
                 "XrPlayer/PlaybackCore/Adapters/MPV/MPVConfiguration.swift",
                 "XrPlayer/PlaybackCore/Adapters/MPV/VideoToolboxBridge.swift"
             ],
