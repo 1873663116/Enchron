@@ -7,10 +7,25 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A4C19FA02FD1000100AABBCC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A4C19F9F2FD1000100AABBCC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
 		C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = C32D79C32F57A609002717FA /* MPVKit-GPL */; };
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		A4C19FA12FD1000100AABBCC /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				A4C19FA02FD1000100AABBCC /* AMSMB2 in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		C3B0F9802F5726B30064596E /* XrPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XrPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -73,6 +88,7 @@
 			buildPhases = (
 				C3B0F97C2F5726B30064596E /* Sources */,
 				C3B0F97D2F5726B30064596E /* Frameworks */,
+				A4C19FA12FD1000100AABBCC /* Embed Frameworks */,
 				C3B0F97E2F5726B30064596E /* Resources */,
 				A1B2C3D42F600000DEADBEEF /* SwiftLint */,
 			);
