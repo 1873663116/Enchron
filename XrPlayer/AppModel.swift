@@ -57,6 +57,8 @@ public final class AppModel {
         currentPlaybackURL = url
         isPlaying = true
         playbackState = .loading
+        playbackPosition = .init(seconds: 0, duration: 0)
+        mediaProfile = nil
         showControls = true
         registerControlsInteraction()
     }
@@ -64,6 +66,8 @@ public final class AppModel {
     public func stopPlayback() {
         isPlaying = false
         playbackState = .stopped
+        playbackPosition = .init(seconds: 0, duration: 0)
+        mediaProfile = nil
         currentPlaybackURL = nil
         isControlsFocused = false
     }

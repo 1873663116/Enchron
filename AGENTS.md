@@ -95,7 +95,7 @@ XrPlayer/
 
 ## 技术 Skill
 
-`workspace-agents/skills/` 目录包含领域专属技术 skill。**按需查阅，不要一次性全部加载。**
+`workspace-agents/skills/` 目录包含领域专用 skill。**务必按需调用**
 
 | Skill | 用途 |
 |-------|------|

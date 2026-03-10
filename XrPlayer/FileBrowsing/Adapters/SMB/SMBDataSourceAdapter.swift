@@ -7,8 +7,9 @@ public enum SMBError: LocalizedError {
     case libraryNotAvailable
     case notConnected
     case invalidConnectionInfo
-    case connectionFailed(String)
     case authenticationFailed
+    case networkFailed(String)
+    case protocolFailed(String)
     case noShareSelected
 
     public var errorDescription: String? {
@@ -19,10 +20,12 @@ public enum SMBError: LocalizedError {
             return "SMB data source is not connected."
         case .invalidConnectionInfo:
             return "Invalid SMB connection information."
-        case .connectionFailed(let reason):
-            return "SMB connection failed: \(reason)"
         case .authenticationFailed:
             return "SMB authentication failed. Check username and password."
+        case .networkFailed(let reason):
+            return "SMB network failed: \(reason)"
+        case .protocolFailed(let reason):
+            return "SMB protocol failed: \(reason)"
         case .noShareSelected:
             return "No SMB share selected. Please select a share first."
         }
@@ -35,7 +38,7 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     private let credentialStore: CredentialStoring?
     private let filter = FileBrowsingDomain.FileFilter.playable
-    private var smbManager: AMSMB2?
+    private var smbManager: SMB2Manager?
     /// Stable DataSource ID for folder identity pass-through.
     public var ownerDataSourceID: UUID = UUID()
     public private(set) var currentConnectionInfo: FileBrowsingDomain.ConnectionInfo?
@@ -71,15 +74,19 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
             }
 
             let port = info.port ?? 445
-            let serverURL = URL(string: "smb://\(host):\(port)")!
-
-            let smb = AMSMB2(url: serverURL, credential: URLCredential(
-                user: username,
-                password: password,
-                persistence: .forSession
-            ))!
-
-            try await smb.connectAndLogin()
+            guard let serverURL = URL(string: "smb://\(host):\(port)") else {
+                throw SMBError.invalidConnectionInfo
+            }
+            guard let smb = SMB2Manager(
+                url: serverURL,
+                credential: URLCredential(
+                    user: username,
+                    password: password,
+                    persistence: .forSession
+                )
+            ) else {
+                throw SMBError.protocolFailed("Failed to initialize SMB client.")
+            }
 
             smbManager = smb
             connectionInfo = info
@@ -90,15 +97,15 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
             if let shareName = pathComponents.first {
                 try await smb.connectShare(name: String(shareName))
                 connectedShareName = String(shareName)
+            } else {
+                _ = try await smb.listShares()
             }
 
             connectionStatus = .connected
-        } catch let error as SMBError {
-            connectionStatus = .failed(error.localizedDescription)
-            throw error
         } catch {
-            connectionStatus = .failed(error.localizedDescription)
-            throw SMBError.connectionFailed(error.localizedDescription)
+            let mappedError = Self.classify(error)
+            connectionStatus = .failed(mappedError.localizedDescription)
+            throw mappedError
         }
     }
 
@@ -111,7 +118,7 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
         let shares = try await smb.listShares()
         // Filter out administrative/hidden shares (ending with $)
         return shares
-            .map { $0.name }
+            .map(\.name)
             .filter { !$0.hasSuffix("$") }
             .sorted()
     }
@@ -125,7 +132,7 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
 
         // Disconnect previous share if any
         if connectedShareName != nil {
-            smb.disconnectShare()
+            try? await smb.disconnectShare()
         }
 
         try await smb.connectShare(name: shareName)
@@ -138,7 +145,10 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
     }
 
     public func disconnect() {
-        smbManager?.disconnectShare()
+        let manager = smbManager
+        Task {
+            try? await manager?.disconnectShare()
+        }
         smbManager = nil
         connectionInfo = nil
         connectedShareName = nil
@@ -157,15 +167,15 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
         let items = try await smb.contentsOfDirectory(atPath: smbPath)
 
         return items.compactMap { item -> FileBrowsingDomain.MediaFile? in
-            let name = item[.nameKey] as? String ?? ""
-            let isDirectory = (item[.fileResourceTypeKey] as? URLFileResourceType) == .directory
+            let name = item[URLResourceKey.nameKey] as? String ?? ""
+            let isDirectory = (item[URLResourceKey.fileResourceTypeKey] as? URLFileResourceType) == .directory
             guard !isDirectory else { return nil }
 
             let fileURL = URL(string: "smb://placeholder/\(name)") ?? URL(fileURLWithPath: "/\(name)")
             guard filter.matches(fileURL: fileURL) else { return nil }
 
-            let size = item[.fileSizeKey] as? Int64 ?? 0
-            let modified = item[.contentModificationDateKey] as? Date ?? .distantPast
+            let size = item[URLResourceKey.fileSizeKey] as? Int64 ?? 0
+            let modified = item[URLResourceKey.contentModificationDateKey] as? Date ?? .distantPast
 
             return FileBrowsingDomain.MediaFile(
                 name: name,
@@ -178,7 +188,7 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
     }
 
     public func listFolders(at path: String) async throws -> [FileBrowsingDomain.MediaFolder] {
-        guard let smb = smbManager, let info = connectionInfo else {
+        guard let smb = smbManager, connectionInfo != nil else {
             throw SMBError.notConnected
         }
         guard connectedShareName != nil else {
@@ -189,8 +199,8 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
         let items = try await smb.contentsOfDirectory(atPath: smbPath)
 
         return items.compactMap { item -> FileBrowsingDomain.MediaFolder? in
-            let name = item[.nameKey] as? String ?? ""
-            let isDirectory = (item[.fileResourceTypeKey] as? URLFileResourceType) == .directory
+            let name = item[URLResourceKey.nameKey] as? String ?? ""
+            let isDirectory = (item[URLResourceKey.fileResourceTypeKey] as? URLFileResourceType) == .directory
             guard isDirectory else { return nil }
             guard name != "." && name != ".." else { return nil }
 
@@ -256,8 +266,35 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
         let type = info.sourceType.rawValue
         let host = info.host ?? ""
         let port = info.port ?? 0
-        let path = info.rootPath
-        return "\(type):\(host):\(port):\(path)"
+        return "\(type):\(host):\(port)"
+    }
+
+    private static func classify(_ error: Error) -> SMBError {
+        if let smbError = error as? SMBError {
+            return smbError
+        }
+
+        let nsError = error as NSError
+        let reason = error.localizedDescription
+        let normalizedReason = reason.lowercased()
+
+        if nsError.domain == NSURLErrorDomain {
+            return .networkFailed(reason)
+        }
+        if normalizedReason.contains("auth")
+            || normalizedReason.contains("logon")
+            || normalizedReason.contains("login")
+            || normalizedReason.contains("access denied") {
+            return .authenticationFailed
+        }
+        if normalizedReason.contains("network")
+            || normalizedReason.contains("timed out")
+            || normalizedReason.contains("host")
+            || normalizedReason.contains("connect") {
+            return .networkFailed(reason)
+        }
+
+        return .protocolFailed(reason)
     }
 
     /// Convert the full rootPath-based path to a path relative to the share.

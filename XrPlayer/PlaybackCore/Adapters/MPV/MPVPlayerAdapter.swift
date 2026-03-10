@@ -73,13 +73,13 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     public var hdrOutputMode: PlaybackCoreDomain.HDROutputMode {
         guard isHDRContent else { return .unsupported }
 
-        if usesNativeGPUOutput {
-            // Native GPU path with proper HDR surface
+        if hasVerifiedHDRSurface {
             return isHDROutputEnabled ? .passthroughHDR : .toneMappedSDR
-        } else {
-            // Fallback renderer — cannot guarantee true HDR output.
-            return .previewSDR
         }
+
+        // Fallback renderer or a native route without a verified HDR surface:
+        // keep the UI honest and present it as an SDR preview only.
+        return .previewSDR
     }
     private var lastPlayedURL: URL?
 
@@ -124,6 +124,13 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var videoLayerContinuation: CheckedContinuation<Void, Never>?
     private var shouldWarmupWhenLayerArrives = false
     private var isAwaitingVisualPlaybackStart = false
+
+    private var hasVerifiedHDRSurface: Bool {
+        stateQueue.sync {
+            guard activeNativeGPUOutput, let videoLayer else { return false }
+            return videoLayer.pixelFormat == .rgba16Float && videoLayer.wantsExtendedDynamicRangeContent
+        }
+    }
 
     private static let renderUpdateCallback: mpv_render_update_fn = { context in
         guard let context else { return }
@@ -1117,7 +1124,6 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let primaries = metadata.primaries.lowercased()
         let gamma = metadata.gamma.lowercased()
         let colormatrix = metadata.colormatrix.lowercased()
-        let colorlevels = metadata.colorlevels.lowercased()
         let scenePeak = [
             metadata.sceneMaxR,
             metadata.sceneMaxG,
@@ -1125,6 +1131,11 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         ]
         .compactMap { $0 }
         .max() ?? 0
+        let hasBT2020Markers =
+            primaries.contains("bt.2020") ||
+            primaries.contains("bt2020") ||
+            colormatrix.contains("bt.2020") ||
+            colormatrix.contains("bt2020")
         let hasDolbyVisionMarkers =
             metadata.dolbyVisionProfile != nil ||
             hdrFormat.contains("dolby") ||
@@ -1141,22 +1152,19 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         if gamma.contains("arib-std-b67") || gamma.contains("hlg") {
             return .hlg
         }
+        if hdrFormat.contains("hdr10") {
+            return .hdr10
+        }
         if gamma.contains("smpte2084") || gamma.contains("pq") {
             return .hdr10
         }
-        if let signalPeak = metadata.signalPeak, signalPeak > 1.05 {
+        // Trust peak-based fallback only when the stream also carries BT.2020-era gamut markers.
+        // Primaries alone are not a sufficient HDR signal, but combined with extended peak data
+        // they are a safer fallback than the previous "BT.2020 means HDR" heuristic.
+        if let signalPeak = metadata.signalPeak, signalPeak > 1.05, hasBT2020Markers {
             return .hdr10
         }
-        if scenePeak > 1.0 {
-            return .hdr10
-        }
-        if colormatrix.contains("bt.2020") || colormatrix.contains("bt2020") {
-            return .hdr10
-        }
-        if primaries.contains("bt.2020") || primaries.contains("bt2020") {
-            return .hdr10
-        }
-        if colorlevels.contains("hdr") {
+        if scenePeak > 1.0, hasBT2020Markers {
             return .hdr10
         }
         return .sdr

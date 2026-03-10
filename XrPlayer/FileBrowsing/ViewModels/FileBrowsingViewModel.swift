@@ -18,11 +18,12 @@ public final class FileBrowsingViewModel {
     private let localDataSource: LocalDataSourceAdapter
     private let fileManager: FileManager
     public let credentialStoreForConfig: CredentialStoring
+    private let savedDataSourceStore: SavedDataSourceRecordStoring
     private var credentialStore: CredentialStoring { credentialStoreForConfig }
-    private static let savedDataSourcesKey = "xrplayer.savedDataSources"
     private let importQueue = DispatchQueue(label: "xrplayer.fileimport.io", qos: .utility)
-    private let onPlayFile: @MainActor (URL) -> Void
+    private let onPlayFile: @MainActor (PlaybackLaunchRequest) -> Void
     private let defaultRootURL: URL
+    private let localDataSourceID = UUID()
     private var rootURL: URL
     private var securityScopedRootURL: URL?
     private var activeRemoteAdapter: (any DataSourceConnecting & FileProviding)?
@@ -32,17 +33,20 @@ public final class FileBrowsingViewModel {
         localDataSource: LocalDataSourceAdapter,
         fileManager: FileManager = .default,
         credentialStore: CredentialStoring = KeychainStore(),
-        onPlayFile: @escaping @MainActor (URL) -> Void
+        savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
+        onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void
     ) {
         self.localDataSource = localDataSource
         self.fileManager = fileManager
         self.credentialStoreForConfig = credentialStore
+        self.savedDataSourceStore = savedDataSourceStore
         self.onPlayFile = onPlayFile
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
         self.defaultRootURL = documentsURL
         self.rootURL = documentsURL
         self.currentRootDisplayName = documentsURL.lastPathComponent.isEmpty ? documentsURL.path : documentsURL.lastPathComponent
+        self.localDataSource.ownerDataSourceID = localDataSourceID
 
         Task { [weak self] in
             await self?.connectAndLoad()
@@ -94,12 +98,12 @@ public final class FileBrowsingViewModel {
     }
 
     public func loadSavedDataSources() {
-        guard let data = UserDefaults.standard.data(forKey: Self.savedDataSourcesKey),
-              let sources = try? JSONDecoder().decode([FileBrowsingDomain.DataSource].self, from: data)
+        guard let data = savedDataSourceStore.loadSavedDataSourceRecords(),
+              let records = try? JSONDecoder().decode([SavedDataSourceRecord].self, from: data)
         else {
             return
         }
-        savedDataSources = sources
+        savedDataSources = records.compactMap(\.domainValue)
     }
 
     public func connectToDataSource(_ ds: FileBrowsingDomain.DataSource) async {
@@ -230,20 +234,35 @@ public final class FileBrowsingViewModel {
         Task { [weak self] in
             guard let self else { return }
             do {
-                let playableURL: URL
-                if let activeRemoteAdapter {
-                    playableURL = try await activeRemoteAdapter.resolvePlayableURL(for: file)
-                } else {
-                    playableURL = try await localDataSource.resolvePlayableURL(for: file)
-                }
-                print("[FileBrowser] selected file: \(playableURL.path)")
-                onPlayFile(playableURL)
+                let request = try await playbackRequest(for: file)
+                print("[FileBrowser] selected file: \(request.url.path)")
+                onPlayFile(request)
             } catch {
                 lastErrorMessage = "Failed to open \"\(file.name)\": \(error.localizedDescription)"
                 print("[FileBrowser] selectFile failed for \(file.name): \(error)")
                 return
             }
         }
+    }
+
+    public func playbackRequest(
+        for file: FileBrowsingDomain.MediaFile
+    ) async throws -> PlaybackLaunchRequest {
+        let playableURL: URL
+        if let activeRemoteAdapter {
+            playableURL = try await activeRemoteAdapter.resolvePlayableURL(for: file)
+        } else {
+            playableURL = try await localDataSource.resolvePlayableURL(for: file)
+        }
+
+        let fileIdentifier = makeFileIdentifier(for: file, playableURL: playableURL)
+        let metadata = PlaybackMediaMetadata(fileSizeInBytes: file.sizeInBytes)
+        return PlaybackLaunchRequest(
+            url: playableURL,
+            displayName: file.name,
+            fileIdentifier: fileIdentifier,
+            initialMetadata: metadata
+        )
     }
 
     public func navigateToFolder(_ folder: FileBrowsingDomain.MediaFolder) async {
@@ -432,8 +451,99 @@ public final class FileBrowsingViewModel {
     }
 
     private func persistDataSources() {
-        if let data = try? JSONEncoder().encode(savedDataSources) {
-            UserDefaults.standard.set(data, forKey: Self.savedDataSourcesKey)
+        let records = savedDataSources.map(SavedDataSourceRecord.init)
+        let data = try? JSONEncoder().encode(records)
+        savedDataSourceStore.saveSavedDataSourceRecords(data)
+    }
+
+    private func makeFileIdentifier(
+        for file: FileBrowsingDomain.MediaFile,
+        playableURL: URL
+    ) -> PersistenceDomain.FileIdentifier {
+        let path: String
+        let serverFingerprint: String?
+
+        if let dataSource = activeDataSource {
+            let logicalDirectory = currentRemotePath == "/" ? "" : currentRemotePath
+            path = "\(logicalDirectory)/\(file.name)"
+            let host = dataSource.connectionInfo.host ?? dataSource.name
+            let port = dataSource.connectionInfo.port.map(String.init) ?? "-"
+            serverFingerprint = "\(dataSource.sourceType.rawValue):\(host):\(port)"
+        } else {
+            path = playableURL.path
+            serverFingerprint = nil
         }
+
+        return PersistenceDomain.FileIdentifier.make(
+            path: path,
+            sizeInBytes: file.sizeInBytes,
+            serverFingerprint: serverFingerprint
+        )
+    }
+}
+
+private struct SavedDataSourceRecord: Codable {
+    let id: String
+    let name: String
+    let sourceType: String
+    let connectionInfo: SavedConnectionInfoRecord
+
+    init(_ dataSource: FileBrowsingDomain.DataSource) {
+        self.id = dataSource.id.uuidString
+        self.name = dataSource.name
+        self.sourceType = dataSource.sourceType.rawValue
+        self.connectionInfo = SavedConnectionInfoRecord(dataSource.connectionInfo)
+    }
+
+    var domainValue: FileBrowsingDomain.DataSource? {
+        guard let id = UUID(uuidString: id),
+              let sourceType = FileBrowsingDomain.SourceType(rawValue: sourceType),
+              let connectionInfo = connectionInfo.domainValue(fallbackSourceType: sourceType)
+        else {
+            return nil
+        }
+
+        return FileBrowsingDomain.DataSource(
+            id: id,
+            name: name,
+            sourceType: sourceType,
+            connectionInfo: connectionInfo
+        )
+    }
+}
+
+private struct SavedConnectionInfoRecord: Codable {
+    let sourceType: String
+    let address: String?
+    let scheme: String?
+    let host: String?
+    let port: Int?
+    let username: String?
+    let rootPath: String
+
+    init(_ connectionInfo: FileBrowsingDomain.ConnectionInfo) {
+        self.sourceType = connectionInfo.sourceType.rawValue
+        self.address = connectionInfo.address
+        self.scheme = connectionInfo.scheme
+        self.host = connectionInfo.host
+        self.port = connectionInfo.port
+        self.username = connectionInfo.username
+        self.rootPath = connectionInfo.rootPath
+    }
+
+    func domainValue(
+        fallbackSourceType: FileBrowsingDomain.SourceType
+    ) -> FileBrowsingDomain.ConnectionInfo? {
+        let resolvedSourceType = FileBrowsingDomain.SourceType(rawValue: sourceType) ?? fallbackSourceType
+
+        return FileBrowsingDomain.ConnectionInfo(
+            sourceType: resolvedSourceType,
+            address: address,
+            scheme: scheme,
+            host: host,
+            port: port,
+            username: username,
+            rootPath: rootPath
+        )
     }
 }

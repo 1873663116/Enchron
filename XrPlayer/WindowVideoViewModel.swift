@@ -6,11 +6,20 @@ import QuartzCore
 @MainActor
 @Observable
 public final class WindowVideoViewModel {
+    public enum PresentationState: Sendable {
+        case hidden
+        case placeholder
+        case videoVisible
+    }
+
     public var playbackState: PlaybackCoreDomain.PlaybackState = .idle
     public var playbackPosition: PlaybackCoreDomain.PlaybackPosition = .init(seconds: 0, duration: 0)
     public var lastErrorMessage: String?
     public var currentMediaProfile: PlaybackCoreDomain.MediaProfile?
     public private(set) var currentPlaybackURL: URL?
+    public private(set) var currentLaunchRequest: PlaybackLaunchRequest?
+    public private(set) var prefetchedMetadata: PlaybackMediaMetadata?
+    public private(set) var presentationState: PresentationState = .hidden
     public let usesNativeGPUOutput: Bool
     public let gestureUseCase = DisambiguateGestureUseCase()
 
@@ -20,8 +29,10 @@ public final class WindowVideoViewModel {
     // Dependencies
     private let player: PlaybackControlling
     private nonisolated(unsafe) var _cancelStatus: (() -> Void)?
+    private var isAwaitingFirstFramePresentation = false
 
     public var onPlaybackEnded: (() -> Void)?
+    public var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackCoreDomain.MediaProfile) -> Void)?
 
     public init(player: PlaybackControlling) {
         self.player = player
@@ -51,7 +62,7 @@ public final class WindowVideoViewModel {
 
         player.onMediaProfileDetected = { [weak self] profile in
             Task { @MainActor in
-                self?.currentMediaProfile = profile
+                self?.handleMediaProfileDetected(profile)
             }
         }
 
@@ -76,8 +87,19 @@ public final class WindowVideoViewModel {
     }
 
     private func updateStatus() {
-        self.playbackState = player.currentState
+        let latestState = player.currentState
+        self.playbackState = latestState
         self.playbackPosition = player.currentPosition
+
+        if isAwaitingFirstFramePresentation {
+            switch latestState {
+            case .playing, .paused, .ended:
+                isAwaitingFirstFramePresentation = false
+                presentationState = .videoVisible
+            case .idle, .loading, .buffering, .stopped, .failed:
+                break
+            }
+        }
     }
 
     public var availableAudioTracks: [PlaybackCoreDomain.AudioTrack] {
@@ -108,9 +130,20 @@ public final class WindowVideoViewModel {
         player.hdrOutputMode
     }
 
+    public var displayMediaProfile: PlaybackCoreDomain.MediaProfile? {
+        currentMediaProfile ?? prefetchedMetadata?.mediaProfile
+    }
+
+    public var displayFileSizeInBytes: Int64? {
+        prefetchedMetadata?.fileSizeInBytes
+    }
+
+    public var canPresentControls: Bool {
+        presentationState == .videoVisible && (displayMediaProfile != nil || displayFileSizeInBytes != nil)
+    }
+
     public func play(url: URL) async throws {
         do {
-            currentMediaProfile = nil
             currentPlaybackURL = url
             try await player.play(url: url)
             lastErrorMessage = nil
@@ -131,17 +164,15 @@ public final class WindowVideoViewModel {
     }
 
     public func stop() {
-        player.stop()
+        stopPlaybackEngine()
         lastErrorMessage = nil
-        currentMediaProfile = nil
-        currentPlaybackURL = nil
+        clearPresentation()
     }
 
     public func cancelPendingLoad() {
-        player.cancelPendingLoad()
+        cancelPendingLoadEngine()
         lastErrorMessage = nil
-        currentMediaProfile = nil
-        currentPlaybackURL = nil
+        clearPresentation()
     }
 
     public func seek(to seconds: Double) {
@@ -192,5 +223,54 @@ public final class WindowVideoViewModel {
 
     public func attachVideoLayer(_ layer: CAMetalLayer?) {
         (player as? MPVPlayerAdapter)?.attachVideoLayer(layer)
+    }
+
+    public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
+        currentLaunchRequest = request
+        currentPlaybackURL = request.url
+        currentMediaProfile = nil
+        prefetchedMetadata = request.initialMetadata
+        playbackPosition = .init(seconds: 0, duration: 0)
+        playbackState = .loading
+        presentationState = .placeholder
+        isAwaitingFirstFramePresentation = true
+        lastErrorMessage = nil
+    }
+
+    public func applyPrefetchedMetadata(_ metadata: PlaybackMediaMetadata) {
+        prefetchedMetadata = prefetchedMetadata?.merging(with: metadata) ?? metadata
+    }
+
+    public func clearPresentationForTeardown() {
+        currentMediaProfile = nil
+        prefetchedMetadata = nil
+        presentationState = .hidden
+        isAwaitingFirstFramePresentation = false
+        lastErrorMessage = nil
+    }
+
+    public func clearPresentation() {
+        clearPresentationForTeardown()
+        currentLaunchRequest = nil
+        currentPlaybackURL = nil
+        playbackPosition = .init(seconds: 0, duration: 0)
+    }
+
+    public func stopPlaybackEngine() {
+        player.stop()
+        playbackState = .stopped
+    }
+
+    public func cancelPendingLoadEngine() {
+        player.cancelPendingLoad()
+        playbackState = .idle
+    }
+
+    private func handleMediaProfileDetected(_ profile: PlaybackCoreDomain.MediaProfile) {
+        currentMediaProfile = profile
+        print("[Playback] profile_ready name=\(currentLaunchRequest?.displayName ?? profile.projectionType.rawValue)")
+        if let currentLaunchRequest {
+            onMediaProfileResolved?(currentLaunchRequest, profile)
+        }
     }
 }

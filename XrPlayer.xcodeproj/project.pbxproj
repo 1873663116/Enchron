@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		A4C19F9F2FD1000100AABBCC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
 		C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = C32D79C32F57A609002717FA /* MPVKit-GPL */; };
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
 /* End PBXBuildFile section */
@@ -29,6 +30,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A4C19F9F2FD1000100AABBCC /* AMSMB2 in Frameworks */,
 				C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */,
 				C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */,
 			);
@@ -83,6 +85,7 @@
 			);
 			name = XrPlayer;
 			packageProductDependencies = (
+				A4C19F9E2FD1000100AABBCC /* AMSMB2 */,
 				C3B0F9852F5726B30064596E /* RealityKitContent */,
 				C32D79C32F57A609002717FA /* MPVKit-GPL */,
 			);
@@ -115,6 +118,7 @@
 			mainGroup = C3B0F9772F5726B30064596E;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
+				A4C19F9D2FD1000100AABBCC /* XCRemoteSwiftPackageReference "AMSMB2" */,
 				C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -188,7 +192,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-					PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayer;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -221,7 +225,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-					PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayer;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayer;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -381,6 +385,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		A4C19F9D2FD1000100AABBCC /* XCRemoteSwiftPackageReference "AMSMB2" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/amosavian/AMSMB2.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 4.0.3;
+			};
+		};
 		C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/mpvkit/MPVKit.git";
@@ -392,6 +404,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		A4C19F9E2FD1000100AABBCC /* AMSMB2 */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A4C19F9D2FD1000100AABBCC /* XCRemoteSwiftPackageReference "AMSMB2" */;
+			productName = AMSMB2;
+		};
 		C32D79C32F57A609002717FA /* MPVKit-GPL */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */;

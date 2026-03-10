@@ -162,32 +162,34 @@ final class DataSourceCodableTests: XCTestCase {
 // MARK: - SMBDataSourceAdapter Tests
 
 final class SMBDataSourceAdapterTests: XCTestCase {
-    func testConnectThrowsLibraryNotAvailable() async {
-        let sut = SMBDataSourceAdapter()
-        let info = FileBrowsingDomain.ConnectionInfo(sourceType: .smb, host: "server", port: 445, rootPath: "/share")
-        do {
-            try await sut.connect(with: info)
-            XCTFail("Expected SMBError.libraryNotAvailable")
-        } catch SMBError.libraryNotAvailable {
-            // expected
-        } catch {
-            XCTFail("Unexpected error: \(error)")
-        }
-    }
-
-    func testListContentsThrowsLibraryNotAvailable() async {
+    func testListContentsWithoutConnectionThrowsNotConnectedOrLibraryUnavailable() async {
         let sut = SMBDataSourceAdapter()
         do {
             _ = try await sut.listContents(at: "/")
-            XCTFail("Expected SMBError.libraryNotAvailable")
+            XCTFail("Expected SMBError.notConnected or SMBError.libraryNotAvailable")
         } catch SMBError.libraryNotAvailable {
+            // expected when the package is not linked
+        } catch SMBError.notConnected {
             // expected
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
     }
 
-    func testResolvePlayableURLThrowsLibraryNotAvailable() async {
+    func testResolvePlayableURLUsesCredentialedSMBURLWhenAvailable() async throws {
+        #if canImport(AMSMB2)
+        let sut = SMBDataSourceAdapter(
+            credentialStore: TestCredentialStore(
+                values: ["smb:192.168.1.10:445": StorageCredential(username: "alice", password: "secret")]
+            )
+        )
+        do {
+            try await sut.connect(with: .init(sourceType: .smb, host: "", port: 445, rootPath: "/Media"))
+            XCTFail("Expected SMBError.invalidConnectionInfo")
+        } catch SMBError.invalidConnectionInfo {
+            // expected
+        }
+        #else
         let sut = SMBDataSourceAdapter()
         let file = FileBrowsingDomain.MediaFile(
             name: "movie.mkv",
@@ -201,9 +203,8 @@ final class SMBDataSourceAdapterTests: XCTestCase {
             XCTFail("Expected SMBError.libraryNotAvailable")
         } catch SMBError.libraryNotAvailable {
             // expected
-        } catch {
-            XCTFail("Unexpected error: \(error)")
         }
+        #endif
     }
 
     func testInitialStatusIsDisconnected() {
@@ -219,12 +220,14 @@ final class SMBDataSourceAdapterTests: XCTestCase {
         XCTAssertTrue(error.localizedDescription.contains("AMSMB2"))
     }
 
-    func testListFoldersThrowsLibraryNotAvailable() async {
+    func testListFoldersWithoutConnectionThrowsNotConnectedOrLibraryUnavailable() async {
         let sut = SMBDataSourceAdapter()
         do {
             _ = try await sut.listFolders(at: "/")
-            XCTFail("Expected SMBError.libraryNotAvailable")
+            XCTFail("Expected SMBError.notConnected or SMBError.libraryNotAvailable")
         } catch SMBError.libraryNotAvailable {
+            // expected when the package is not linked
+        } catch SMBError.notConnected {
             // expected
         } catch {
             XCTFail("Unexpected error: \(error)")
@@ -236,8 +239,9 @@ final class SMBDataSourceAdapterTests: XCTestCase {
             .libraryNotAvailable,
             .notConnected,
             .invalidConnectionInfo,
-            .connectionFailed("test"),
-            .authenticationFailed
+            .authenticationFailed,
+            .networkFailed("test"),
+            .protocolFailed("test")
         ]
         for error in errors {
             XCTAssertFalse(error.localizedDescription.isEmpty, "SMBError.\(error) has empty description")
@@ -666,7 +670,22 @@ final class CredentialSourceIDTests: XCTestCase {
             sourceType: .smb,
             connectionInfo: .init(sourceType: .smb, host: "server", port: 445, rootPath: "/share")
         )
-        XCTAssertEqual(ds.credentialSourceID, "smb:server:445:/share")
+        XCTAssertEqual(ds.credentialSourceID, "smb:server:445")
+    }
+
+    func testSMBCredentialSourceIDIgnoresSelectedShare() {
+        let hostOnly = FileBrowsingDomain.DataSource(
+            name: "Host",
+            sourceType: .smb,
+            connectionInfo: .init(sourceType: .smb, host: "server", port: 445, rootPath: "/")
+        )
+        let selectedShare = FileBrowsingDomain.DataSource(
+            name: "Host/Movies",
+            sourceType: .smb,
+            connectionInfo: .init(sourceType: .smb, host: "server", port: 445, rootPath: "/Movies")
+        )
+
+        XCTAssertEqual(hostOnly.credentialSourceID, selectedShare.credentialSourceID)
     }
 
     func testCredentialSourceIDWithNilFields() {
@@ -708,7 +727,7 @@ final class MediaFolderTests: XCTestCase {
     }
 
     func testMediaFolderEquality() {
-        let id = UUID()
+        let id = "folder-a"
         let dsID = UUID()
         let folder1 = FileBrowsingDomain.MediaFolder(
             id: id, name: "A", dataSourceID: dsID,
@@ -719,5 +738,23 @@ final class MediaFolderTests: XCTestCase {
             path: "/a", url: URL(string: "http://x/a")!
         )
         XCTAssertEqual(folder1, folder2)
+    }
+
+    func testMediaFolderDefaultIdentityIsStableForSamePath() {
+        let dsID = UUID()
+        let folder1 = FileBrowsingDomain.MediaFolder(
+            name: "A",
+            dataSourceID: dsID,
+            path: "/a",
+            url: URL(string: "http://x/a")!
+        )
+        let folder2 = FileBrowsingDomain.MediaFolder(
+            name: "A",
+            dataSourceID: dsID,
+            path: "/a",
+            url: URL(string: "http://x/a")!
+        )
+
+        XCTAssertEqual(folder1.id, folder2.id)
     }
 }

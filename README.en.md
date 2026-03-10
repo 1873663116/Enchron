@@ -81,6 +81,12 @@ open XrPlayer.xcodeproj
 
 Use the `XrPlayer` scheme and run on the visionOS Simulator or an Apple Vision Pro device.
 
+### Build Entrypoints
+
+- Use `XrPlayer.xcodeproj` for normal development, running, and simulator/device builds
+- The top-level `Package.swift` exists only for auxiliary `swift build` / `swift test` validation and is not the main app project
+- `XrPlayer/XrPlayer.xcodeproj.bak` is a historical backup and should not be used for active development or builds
+
 ### 3. Run tests
 
 ```bash

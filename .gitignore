@@ -4,10 +4,16 @@
 # Local agent/tooling
 .omc/
 .omc_inner_repo/
+.codex-crashlogs/
+.codex-debug-runs/
 
 # SwiftPM local workspace state
+.build/
 .swiftpm/
 **/.swiftpm/
 
 # Local test media
 XrPlayer/86ForTest.mkv
+
+# Local backup project
+XrPlayer/XrPlayer.xcodeproj.bak/

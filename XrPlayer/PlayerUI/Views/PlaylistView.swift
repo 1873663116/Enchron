@@ -37,8 +37,19 @@ public struct PlaylistView: View {
                         let isCurrent = appModel.currentPlaybackURL == file.url
 
                         Button {
-                            launcher.beginPlayback(for: file.url)
-                            dismissPanel()
+                            Task {
+                                do {
+                                    let request = try await fileBrowsingViewModel.playbackRequest(for: file)
+                                    await MainActor.run {
+                                        launcher.beginPlayback(request)
+                                        dismissPanel()
+                                    }
+                                } catch {
+                                    await MainActor.run {
+                                        fileBrowsingViewModel.lastErrorMessage = "Failed to open \"\(file.name)\": \(error.localizedDescription)"
+                                    }
+                                }
+                            }
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: isCurrent ? "play.fill" : "play")

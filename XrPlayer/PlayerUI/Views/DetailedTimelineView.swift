@@ -3,35 +3,19 @@ import SwiftUI
 /// A precision timeline editor using a "fixed center axis + stretchable timeline body + viewport clip" model.
 ///
 /// Interaction model:
-/// - The center vertical line is the **playhead** — it never moves.
-/// - The user **drags the timeline body** left or right to scrub.
-/// - The **zoom slider** adjusts the timeline body width (longer = more detail).
-/// - Actual seeking uses a throttled preview for local files (max 8Hz, min 0.25s change),
-///   and deferred-to-release for remote files (WebDAV / SMB).
-/// - Frame step buttons are centered at the bottom.
+/// - The center vertical line is the playhead and never moves.
+/// - The user drags the timeline body left or right to scrub.
+/// - Zoom stretches the timeline body itself while the viewport stays fixed.
+/// - Local files preview seek at most 8Hz; remote files only seek on gesture end.
 public struct DetailedTimelineView: View {
     @Environment(WindowVideoViewModel.self) private var videoViewModel
     let onClose: () -> Void
 
-    // MARK: - Timeline geometry state
-
-    /// Zoom level: 0.0 = fully zoomed out, 1.0 = fully zoomed in.
-    @State private var zoomLevel: Double = 0.3
-
-    /// Offset of the timeline body relative to the center axis, in points.
-    /// Positive means the timeline has been dragged to the right (earlier time at center).
+    @State private var timelineWidth: CGFloat = 0
     @State private var contentOffsetX: CGFloat = 0
-
-    /// Accumulated drag translation during an active gesture.
     @State private var dragTranslation: CGFloat = 0
-
-    /// Whether the user is currently dragging.
-    @State private var isDragging: Bool = false
-
-    /// Container (viewport) width captured from GeometryReader.
+    @State private var isDragging = false
     @State private var viewportWidth: CGFloat = 600
-
-    // MARK: - Throttled seek state (local files only)
 
     @State private var lastThrottledSeekTime: Date = .distantPast
     @State private var lastThrottledSeekPosition: Double = -1
@@ -40,69 +24,31 @@ public struct DetailedTimelineView: View {
         self.onClose = onClose
     }
 
-    // MARK: - Derived values
+    private var duration: Double {
+        max(videoViewModel.playbackPosition.duration, 0.1)
+    }
 
-    private var duration: Double { max(videoViewModel.playbackPosition.duration, 0.1) }
+    private var geometryModel: DetailedTimelineGeometry {
+        timelineGeometry(for: viewportWidth)
+    }
 
-    /// Whether the current playback source is remote (WebDAV/SMB).
+    private var effectiveOffsetX: CGFloat {
+        geometryModel.clampedContentOffset(contentOffsetX + dragTranslation)
+    }
+
+    private var centerTime: Double {
+        geometryModel.time(atContentOffset: effectiveOffsetX)
+    }
+
+    private var currentZoomLevel: Double {
+        geometryModel.zoomLevel(for: geometryModel.timelineWidth)
+    }
+
     private var isRemoteSource: Bool {
         guard let url = videoViewModel.currentPlaybackURL else { return false }
         let scheme = url.scheme?.lowercased() ?? ""
         return scheme == "smb" || scheme == "http" || scheme == "https"
     }
-
-    /// Timeline body width: at minimum zoom = viewport * 0.5, grows with zoom.
-    private var timelineWidth: CGFloat {
-        let minWidth = viewportWidth * 0.5
-        let maxWidth = viewportWidth * 4.0
-        return minWidth + (maxWidth - minWidth) * CGFloat(zoomLevel)
-    }
-
-    /// Seconds per point on the timeline body.
-    private var secondsPerPoint: Double {
-        guard timelineWidth > 0 else { return 1 }
-        return duration / Double(timelineWidth)
-    }
-
-    /// The effective content offset (base + drag).
-    private var effectiveOffsetX: CGFloat {
-        clampedOffset(contentOffsetX + dragTranslation)
-    }
-
-    /// Current time at the center axis.
-    private var centerTime: Double {
-        // The center axis maps to a position on the timeline body.
-        // When offset = 0, center axis is at timeline midpoint.
-        // contentOffsetX positive = timeline shifted right = center sees earlier time.
-        let centerPointOnTimeline = timelineWidth / 2 - effectiveOffsetX
-        let time = Double(centerPointOnTimeline) * secondsPerPoint
-        return max(0, min(duration, time))
-    }
-
-    // MARK: - Clamping
-
-    /// Clamp offset so that:
-    /// - At first frame: center axis aligns with timeline start.
-    /// - At last frame: center axis aligns with timeline end.
-    private func clampedOffset(_ offset: CGFloat) -> CGFloat {
-        // Center axis at timeline start: centerPointOnTimeline = 0
-        //   → timelineWidth/2 - offset = 0 → offset = timelineWidth/2
-        let maxOffset = timelineWidth / 2
-
-        // Center axis at timeline end: centerPointOnTimeline = timelineWidth
-        //   → timelineWidth/2 - offset = timelineWidth → offset = -timelineWidth/2
-        let minOffset = -timelineWidth / 2
-
-        return max(minOffset, min(maxOffset, offset))
-    }
-
-    /// Convert a time position to a content offset.
-    private func offsetForTime(_ time: Double) -> CGFloat {
-        let pointOnTimeline = CGFloat(time / secondsPerPoint)
-        return timelineWidth / 2 - pointOnTimeline
-    }
-
-    // MARK: - Body
 
     public var body: some View {
         VStack(spacing: 0) {
@@ -128,11 +74,31 @@ public struct DetailedTimelineView: View {
         .frame(maxWidth: .infinity)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 20))
         .onAppear {
+            if timelineWidth == 0 {
+                timelineWidth = DetailedTimelineGeometry(
+                    viewportWidth: viewportWidth,
+                    duration: duration,
+                    zoomLevel: 0
+                ).timelineWidth
+            }
+            syncOffsetToCurrentTime()
+        }
+        .onChange(of: videoViewModel.playbackPosition.seconds) { _, _ in
+            guard !isDragging else { return }
+            syncOffsetToCurrentTime()
+        }
+        .onChange(of: videoViewModel.playbackPosition.duration) { _, _ in
+            if timelineWidth == 0 {
+                timelineWidth = DetailedTimelineGeometry(
+                    viewportWidth: viewportWidth,
+                    duration: duration,
+                    zoomLevel: 0
+                ).timelineWidth
+            }
+            guard !isDragging else { return }
             syncOffsetToCurrentTime()
         }
     }
-
-    // MARK: - Sub-views
 
     private var headerRow: some View {
         HStack {
@@ -140,12 +106,11 @@ public struct DetailedTimelineView: View {
                 .font(.headline)
             Spacer()
             Button { onClose() } label: {
-                Image(systemName: "xmark.circle.fill")
+                Image(systemName: "xmark")
                     .font(.title2)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Circle())
+                    .foregroundStyle(.white)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PlayerControlSurfaceStyle(size: 64))
         }
     }
 
@@ -153,26 +118,21 @@ public struct DetailedTimelineView: View {
         GeometryReader { geo in
             let containerWidth = max(geo.size.width, 260)
             let bandHeight: CGFloat = 84
+            let geometry = timelineGeometry(for: containerWidth)
 
             ZStack {
-                // Outer container (viewport)
                 RoundedRectangle(cornerRadius: 24)
-                    .fill(Color.white.opacity(0.01))
+                    .fill(Color.white.opacity(0.03))
                     .overlay(
                         RoundedRectangle(cornerRadius: 24)
-                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            .stroke(Color.white.opacity(0.16), lineWidth: 1)
                     )
                     .frame(height: bandHeight + 34)
 
-                // Timeline body (clipped to viewport)
-                timelineBody(
-                    containerWidth: containerWidth,
-                    bandHeight: bandHeight
-                )
-                .frame(width: containerWidth, height: bandHeight + 34)
-                .clipShape(RoundedRectangle(cornerRadius: 24))
+                timelineBody(geometry: geometry, bandHeight: bandHeight)
+                    .frame(width: containerWidth, height: bandHeight + 34)
+                    .clipShape(RoundedRectangle(cornerRadius: 24))
 
-                // Center axis playhead
                 Rectangle()
                     .fill(Color.white)
                     .frame(width: 2, height: bandHeight + 18)
@@ -188,32 +148,23 @@ public struct DetailedTimelineView: View {
             .contentShape(Rectangle())
             .gesture(dragGesture)
             .onAppear {
-                viewportWidth = containerWidth
+                updateViewportWidth(containerWidth)
             }
             .onChange(of: geo.size.width) { _, newWidth in
-                let oldTime = centerTime
-                viewportWidth = max(newWidth, 260)
-                contentOffsetX = offsetForTime(oldTime)
+                updateViewportWidth(max(newWidth, 260))
             }
         }
         .frame(height: 128)
     }
 
     @ViewBuilder
-    private func timelineBody(containerWidth: CGFloat, bandHeight: CGFloat) -> some View {
-        let tlWidth = timelineWidth
-        let interval = tickInterval(for: duration, width: tlWidth)
-        let xCenter = containerWidth / 2
-
-        // The timeline body is positioned so that the point corresponding to
-        // centerTime sits at the container center.
-        let timelineBodyCenter = tlWidth / 2 - effectiveOffsetX
-
-        // Offset to apply so timeline body center maps to container center.
-        let shiftX = xCenter - timelineBodyCenter
+    private func timelineBody(
+        geometry: DetailedTimelineGeometry,
+        bandHeight: CGFloat
+    ) -> some View {
+        let tickIntervals = geometry.tickIntervals()
 
         ZStack(alignment: .leading) {
-            // Timeline background band
             RoundedRectangle(cornerRadius: 22)
                 .fill(
                     LinearGradient(
@@ -225,16 +176,15 @@ public struct DetailedTimelineView: View {
                         endPoint: .bottom
                     )
                 )
-                .frame(width: tlWidth, height: bandHeight)
+                .frame(width: geometry.timelineWidth, height: bandHeight)
 
-            // Ticks drawn in timeline body coordinate system
             timelineBodyTicks(
-                width: tlWidth,
+                geometry: geometry,
                 height: bandHeight,
-                interval: interval
+                minorInterval: tickIntervals.minor,
+                majorInterval: tickIntervals.major
             )
 
-            // Edge time labels
             HStack {
                 Text(formatTime(0))
                     .font(.system(size: 10, design: .monospaced))
@@ -245,61 +195,59 @@ public struct DetailedTimelineView: View {
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 16)
-            .frame(width: tlWidth, height: bandHeight, alignment: .bottom)
+            .frame(width: geometry.timelineWidth, height: bandHeight, alignment: .bottom)
             .padding(.bottom, 8)
         }
-        .offset(x: shiftX)
+        .offset(x: geometry.timelineBodyLeadingX(for: effectiveOffsetX))
     }
 
     @ViewBuilder
     private func timelineBodyTicks(
-        width: CGFloat,
+        geometry: DetailedTimelineGeometry,
         height: CGFloat,
-        interval: Double
+        minorInterval: Double,
+        majorInterval: Double
     ) -> some View {
-        let firstTick = max(0, floor(0 / interval) * interval)
-        var ticks: [Double] = []
-        let _ = {
-            var t = firstTick
-            while t <= duration + interval * 0.5 {
-                if t >= 0 && t <= duration {
-                    ticks.append(t)
-                }
-                t += interval
-            }
-        }()
+        let ticks = tickValues(step: minorInterval)
 
         ZStack(alignment: .leading) {
             ForEach(ticks, id: \.self) { tick in
-                let xPos = CGFloat(tick / secondsPerPoint)
-                let isNearCenter = abs(tick - centerTime) < interval * 0.1
+                let xPosition = geometry.xPosition(for: tick)
+                let isNearCenter = abs(tick - centerTime) <= max(minorInterval, geometry.secondsPerPoint * 10)
+                let isMajorTick = isMultiple(tick, of: majorInterval)
+
                 VStack(spacing: 6) {
                     Rectangle()
                         .fill(Color.white.opacity(isNearCenter ? 0.95 : 0.45))
-                        .frame(width: 1, height: isNearCenter ? 26 : 16)
-                    Text(formatTime(tick))
-                        .font(.system(size: 10, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.84))
+                        .frame(width: 1, height: isNearCenter ? 28 : (isMajorTick ? 20 : 12))
+
+                    if isMajorTick {
+                        Text(formatTime(tick))
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.84))
+                    }
                 }
-                .position(x: xPos, y: height / 2 - 4)
+                .position(x: xPosition, y: height / 2 - (isMajorTick ? 2 : 8))
             }
         }
-        .frame(width: width, height: height)
+        .frame(width: geometry.timelineWidth, height: height)
         .clipShape(RoundedRectangle(cornerRadius: 22))
     }
 
     private var currentTimeLabel: some View {
         VStack(spacing: 4) {
-            Text(formatTimeWithFrames(centerTime))
+            Text(formatTimeWithFrames(isDragging ? centerTime : videoViewModel.playbackPosition.seconds))
                 .font(.system(.callout, design: .monospaced))
                 .foregroundStyle(isDragging ? .orange : .primary)
                 .animation(.none, value: isDragging)
 
-            Text(isRemoteSource
-                 ? "固定中心指针，拖动时间轴；松手后提交 seek"
-                 : "固定中心指针，拖动时间轴；实时预览 seek")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            Text(
+                isRemoteSource
+                    ? "固定中心指针，拖动时间轴；松手后提交 seek"
+                    : "固定中心指针，拖动时间轴；实时预览 seek"
+            )
+            .font(.caption2)
+            .foregroundStyle(.secondary)
         }
     }
 
@@ -309,20 +257,16 @@ public struct DetailedTimelineView: View {
                 Image(systemName: "minus.magnifyingglass")
                     .foregroundStyle(.secondary)
                     .font(.caption)
+
                 Slider(
                     value: Binding(
-                        get: { zoomLevel },
-                        set: { newZoom in
-                            let oldTime = centerTime
-                            zoomLevel = newZoom
-                            // Preserve center time after zoom change.
-                            contentOffsetX = offsetForTime(oldTime)
-                        }
+                        get: { currentZoomLevel },
+                        set: { updateTimelineZoom($0) }
                     ),
-                    in: 0...1,
-                    step: 0.01
+                    in: 0...1
                 )
                 .tint(.secondary)
+
                 Image(systemName: "plus.magnifyingglass")
                     .foregroundStyle(.secondary)
                     .font(.caption)
@@ -333,7 +277,7 @@ public struct DetailedTimelineView: View {
                     .font(.caption2)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(String(format: "%.0f%%", zoomLevel * 100))
+                Text(String(format: "%.0f%%", currentZoomLevel * 100))
                     .font(.system(.caption, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
@@ -350,11 +294,9 @@ public struct DetailedTimelineView: View {
             } label: {
                 Image(systemName: "backward.frame.fill")
                     .font(.title2)
-                    .frame(width: 72, height: 72)
-                    .background(Color.white.opacity(0.08), in: Circle())
-                    .contentShape(Circle())
+                    .foregroundStyle(.white)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
 
             Button {
                 videoViewModel.frameStepForward()
@@ -364,15 +306,11 @@ public struct DetailedTimelineView: View {
             } label: {
                 Image(systemName: "forward.frame.fill")
                     .font(.title2)
-                    .frame(width: 72, height: 72)
-                    .background(Color.white.opacity(0.08), in: Circle())
-                    .contentShape(Circle())
+                    .foregroundStyle(.white)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
         }
     }
-
-    // MARK: - Gestures
 
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: 1)
@@ -380,28 +318,27 @@ public struct DetailedTimelineView: View {
                 isDragging = true
                 dragTranslation = value.translation.width
 
-                // Throttled seek for local files
                 if !isRemoteSource {
                     throttledSeek()
                 }
             }
             .onEnded { _ in
+                let finalOffset = effectiveOffsetX
+                let target = geometryModel.time(atContentOffset: finalOffset)
+
                 isDragging = false
-                contentOffsetX = effectiveOffsetX
+                contentOffsetX = finalOffset
                 dragTranslation = 0
 
-                // Commit final seek
-                let target = centerTime
                 videoViewModel.seek(to: target)
                 lastThrottledSeekPosition = -1
             }
     }
 
-    /// Local-file throttled seek: max 8Hz, min 0.25s position change.
     private func throttledSeek() {
         let now = Date()
         let elapsed = now.timeIntervalSince(lastThrottledSeekTime)
-        guard elapsed >= 0.125 else { return } // 8Hz
+        guard elapsed >= 0.125 else { return }
 
         let target = centerTime
         if lastThrottledSeekPosition >= 0 && abs(target - lastThrottledSeekPosition) < 0.25 {
@@ -413,21 +350,77 @@ public struct DetailedTimelineView: View {
         videoViewModel.seek(to: target)
     }
 
-    // MARK: - Sync
-
-    /// Set contentOffsetX so that the center axis points at the current playback position.
     private func syncOffsetToCurrentTime() {
-        let time = videoViewModel.playbackPosition.seconds
-        contentOffsetX = offsetForTime(time)
+        if timelineWidth == 0 {
+            timelineWidth = DetailedTimelineGeometry(
+                viewportWidth: viewportWidth,
+                duration: duration,
+                zoomLevel: 0.3
+            ).timelineWidth
+        }
+        contentOffsetX = geometryModel.contentOffset(for: videoViewModel.playbackPosition.seconds)
     }
 
-    // MARK: - Helpers
+    private func timelineGeometry(for viewportWidth: CGFloat) -> DetailedTimelineGeometry {
+        let width = timelineWidth > 0
+            ? timelineWidth
+            : DetailedTimelineGeometry(
+                viewportWidth: viewportWidth,
+                duration: duration,
+                zoomLevel: 0.3
+            ).timelineWidth
 
-    private func tickInterval(for totalDuration: Double, width: CGFloat) -> Double {
-        let targetTicks = max(1, Double(width) / 80)
-        let rawInterval = totalDuration / targetTicks
-        let nice: [Double] = [0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600]
-        return nice.first { $0 >= rawInterval } ?? rawInterval
+        return DetailedTimelineGeometry(
+            viewportWidth: viewportWidth,
+            duration: duration,
+            timelineWidth: width
+        )
+    }
+
+    private func updateViewportWidth(_ newWidth: CGFloat) {
+        let clampedWidth = max(newWidth, 260)
+        let preservedTime = isDragging ? centerTime : videoViewModel.playbackPosition.seconds
+        let preservedZoom = timelineWidth > 0 ? currentZoomLevel : 0.3
+
+        viewportWidth = clampedWidth
+        let updatedGeometry = DetailedTimelineGeometry(
+            viewportWidth: clampedWidth,
+            duration: duration,
+            zoomLevel: preservedZoom
+        )
+        timelineWidth = updatedGeometry.timelineWidth
+        contentOffsetX = updatedGeometry.contentOffset(for: preservedTime)
+    }
+
+    private func updateTimelineZoom(_ zoomLevel: Double) {
+        let preservedTime = centerTime
+        let updatedGeometry = DetailedTimelineGeometry(
+            viewportWidth: viewportWidth,
+            duration: duration,
+            zoomLevel: zoomLevel
+        )
+        timelineWidth = updatedGeometry.timelineWidth
+        contentOffsetX = updatedGeometry.contentOffset(for: preservedTime)
+    }
+
+    private func isMultiple(_ value: Double, of interval: Double) -> Bool {
+        guard interval > 0 else { return false }
+        let remainder = value.truncatingRemainder(dividingBy: interval)
+        return abs(remainder) < 0.0001 || abs(remainder - interval) < 0.0001
+    }
+
+    private func tickValues(step: Double) -> [Double] {
+        guard step > 0 else { return [0] }
+        var ticks: [Double] = [0]
+        var value = step
+        while value < duration {
+            ticks.append(value)
+            value += step
+        }
+        if ticks.last != duration {
+            ticks.append(duration)
+        }
+        return ticks
     }
 
     private func formatTimeWithFrames(_ seconds: Double) -> String {
