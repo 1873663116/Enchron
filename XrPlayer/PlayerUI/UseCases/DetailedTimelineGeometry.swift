@@ -154,3 +154,42 @@ struct DetailedTimelineGeometry: Sendable {
         return max(minWidth, min(maxWidth, width))
     }
 }
+
+struct DetailedTimelinePreviewSeekPolicy: Sendable {
+    let minimumInterval: TimeInterval
+    let minimumDelta: Double
+    let boundaryTolerance: Double
+
+    init(
+        minimumInterval: TimeInterval = 0.125,
+        minimumDelta: Double = 0.25,
+        boundaryTolerance: Double = 0.001
+    ) {
+        self.minimumInterval = minimumInterval
+        self.minimumDelta = minimumDelta
+        self.boundaryTolerance = boundaryTolerance
+    }
+
+    func shouldDispatchSeek(
+        elapsed: TimeInterval,
+        targetTime: Double,
+        lastSeekTarget: Double,
+        duration: Double
+    ) -> Bool {
+        let clampedDuration = max(duration, 0)
+        let clampedTarget = max(0, min(clampedDuration, targetTime))
+        let isAtBoundary =
+            clampedTarget <= boundaryTolerance ||
+            abs(clampedTarget - clampedDuration) <= boundaryTolerance
+
+        if isAtBoundary {
+            return lastSeekTarget < 0 || abs(clampedTarget - lastSeekTarget) > boundaryTolerance
+        }
+
+        guard elapsed >= minimumInterval else { return false }
+        guard lastSeekTarget < 0 || abs(clampedTarget - lastSeekTarget) >= minimumDelta else {
+            return false
+        }
+        return true
+    }
+}

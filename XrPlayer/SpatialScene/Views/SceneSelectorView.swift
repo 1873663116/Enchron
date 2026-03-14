@@ -12,36 +12,53 @@ public struct SceneSelectorView: View {
     public var body: some View {
         VStack {
             ToggleImmersiveSpaceButton()
-                .padding()
+                .padding(.vertical, 24)
             
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 20) {
-                ForEach(0..<4) { index in
-                    Button {
-                        selectedEnvironmentIndex = index
-                    } label: {
-                        VStack {
-                            RoundedRectangle(cornerRadius: 12)
-                                .fill(selectedEnvironmentIndex == index ? Color.accentColor.opacity(0.35) : Color.secondary.opacity(0.3))
-                                .aspectRatio(16/9, contentMode: .fill)
-                                .overlay {
-                                    Image(systemName: "moon.stars")
-                                        .font(.largeTitle)
-                                }
-                            Text("Environment \(index + 1)")
+                LazyVGrid(columns: columns, spacing: 32) { // Increased breathing room
+                    ForEach(0..<4) { index in
+                        Button {
+                            selectedEnvironmentIndex = index
+                        } label: {
+                            VStack(alignment: .leading, spacing: 12) {
+                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                    .fill(.ultraThinMaterial)
+                                    .aspectRatio(16/9, contentMode: .fill)
+                                    .overlay {
+                                        ZStack {
+                                            if selectedEnvironmentIndex == index {
+                                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                                    .stroke(Color.accentColor, lineWidth: 3)
+                                                    .blur(radius: 2)
+                                            }
+                                            
+                                            Image(systemName: "moon.stars")
+                                                .font(.system(size: 44))
+                                                .foregroundStyle(selectedEnvironmentIndex == index ? Color.accentColor : .primary)
+                                        }
+                                    }
+                                    .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                                    .hoverEffect()
+                                
+                                Text("Environment \(index + 1)")
+                                    .font(.headline)
+                                    .padding(.leading, 8)
+                                    .foregroundStyle(selectedEnvironmentIndex == index ? Color.accentColor : .primary)
+                            }
                         }
+                        .buttonStyle(.plain)
+                        .scaleEffect(selectedEnvironmentIndex == index ? 1.02 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedEnvironmentIndex)
                     }
-                    .buttonStyle(.plain)
                 }
-            }
-            .padding()
+                .padding(32)
             }
 
             if let selectedEnvironmentIndex {
                 Text("Selected Environment \(selectedEnvironmentIndex + 1)")
-                    .font(.footnote)
+                    .font(.footnote.weight(.medium))
                     .foregroundStyle(.secondary)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 20)
             }
         }
         .navigationTitle("Scenes")

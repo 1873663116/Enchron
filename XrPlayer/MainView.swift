@@ -56,16 +56,22 @@ public struct MainView: View {
                         playbackLauncher.stopPlayback()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.title2)
+                            .font(.title3.weight(.bold)) // Thicker icon for better clarity at smaller size
                             .foregroundStyle(.white)
                     }
-                    .buttonStyle(PlayerControlSurfaceStyle(size: 56))
-                    .padding(20)
-                    .transition(.opacity)
+                    .buttonStyle(PlayerControlSurfaceStyle(size: 48)) // Refined, more elegant size
+                    .padding(24)
+                    .transition(.asymmetric(
+                        insertion: .opacity.combined(with: .scale(scale: 0.8)).combined(with: .offset(y: -10)),
+                        removal: .opacity.combined(with: .scale(scale: 0.8))
+                    ))
                 }
             }
             .padding()
             .opacity(appModel.isPlaying && appModel.playbackMode == .window ? 1 : 0)
+            .scaleEffect(appModel.isPlaying && appModel.playbackMode == .window ? 1.0 : 0.98) // Added focus-in effect
+            .blur(radius: appModel.isPlaying && appModel.playbackMode == .window ? 0 : 4) // Added soft reveal
+            .animation(.spring(response: 0.45, dampingFraction: 0.85), value: appModel.isPlaying)
             .allowsHitTesting(appModel.isPlaying && appModel.playbackMode == .window)
             .accessibilityHidden(!(appModel.isPlaying && appModel.playbackMode == .window))
         }
@@ -89,7 +95,16 @@ public struct MainView: View {
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
             if appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls {
                 PlayerControlsView()
-                    .transition(.opacity.combined(with: .scale(scale: 0.95, anchor: .center)))
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity
+                                .combined(with: .scale(scale: 0.92, anchor: .bottom))
+                                .combined(with: .offset(y: 20)),
+                            removal: .opacity
+                                .combined(with: .scale(scale: 0.95, anchor: .bottom))
+                                .combined(with: .offset(y: 10))
+                        )
+                    )
             }
         }
         .onAppear {

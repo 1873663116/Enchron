@@ -61,3 +61,60 @@ final class DetailedTimelineGeometryTests: XCTestCase {
         XCTAssertGreaterThan(zoomedOut.tickIntervals().minor, zoomedIn.tickIntervals().minor)
     }
 }
+
+final class DetailedTimelinePreviewSeekPolicyTests: XCTestCase {
+    func testBoundaryTargetBypassesIntervalThrottle() {
+        let sut = DetailedTimelinePreviewSeekPolicy()
+
+        XCTAssertTrue(
+            sut.shouldDispatchSeek(
+                elapsed: 0.01,
+                targetTime: 0,
+                lastSeekTarget: 12,
+                duration: 240
+            )
+        )
+        XCTAssertTrue(
+            sut.shouldDispatchSeek(
+                elapsed: 0.01,
+                targetTime: 240,
+                lastSeekTarget: 228,
+                duration: 240
+            )
+        )
+    }
+
+    func testBoundaryTargetDoesNotRedispatchSameEdge() {
+        let sut = DetailedTimelinePreviewSeekPolicy()
+
+        XCTAssertFalse(
+            sut.shouldDispatchSeek(
+                elapsed: 0.01,
+                targetTime: 0,
+                lastSeekTarget: 0,
+                duration: 240
+            )
+        )
+    }
+
+    func testMidstreamTargetStillRespectsThrottle() {
+        let sut = DetailedTimelinePreviewSeekPolicy()
+
+        XCTAssertFalse(
+            sut.shouldDispatchSeek(
+                elapsed: 0.01,
+                targetTime: 120,
+                lastSeekTarget: 80,
+                duration: 240
+            )
+        )
+        XCTAssertTrue(
+            sut.shouldDispatchSeek(
+                elapsed: 0.2,
+                targetTime: 120,
+                lastSeekTarget: 80,
+                duration: 240
+            )
+        )
+    }
+}
