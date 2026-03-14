@@ -1,0 +1,179 @@
+openapi: 3.1.0
+info:
+  title: Enchron Remote Data Contract
+  version: 0.1.0
+  summary: Contract baseline for remote browsing, metadata, and playback progress sync.
+  description: |
+    This file is the concrete API reference for Enchron's frontend/backend contract.
+    Here, frontend/backend describes collaboration boundaries, not necessarily deployment boundaries.
+    It only covers remote-source concerns. Local folder access and Photo Library stay frontend-local.
+servers:
+  - url: https://example.enchron.local
+    description: Placeholder server for contract evolution
+tags:
+  - name: RemoteSources
+  - name: Playback
+paths:
+  /v1/remote-sources:
+    get:
+      tags: [RemoteSources]
+      summary: List configured remote data sources
+      operationId: listRemoteSources
+      responses:
+        "200":
+          description: Remote data sources
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DataSource"
+  /v1/remote-sources/{sourceId}/browse:
+    get:
+      tags: [RemoteSources]
+      summary: Browse a remote folder
+      operationId: browseRemoteSource
+      parameters:
+        - $ref: "#/components/parameters/SourceId"
+        - name: path
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Folder contents
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrowseResponse"
+        "401":
+          $ref: "#/components/responses/AuthenticationError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+  /v1/playback/progress/{fileId}:
+    get:
+      tags: [Playback]
+      summary: Load synced playback progress
+      operationId: loadPlaybackProgress
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      responses:
+        "200":
+          description: Playback progress
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaybackProgress"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+    put:
+      tags: [Playback]
+      summary: Save synced playback progress
+      operationId: savePlaybackProgress
+      parameters:
+        - $ref: "#/components/parameters/FileId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlaybackProgress"
+      responses:
+        "204":
+          description: Saved
+components:
+  parameters:
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    FileId:
+      name: fileId
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    AuthenticationError:
+      description: Authentication failed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    DataSource:
+      type: object
+      required: [id, name, sourceType]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sourceType:
+          type: string
+          enum: [smb, webDAV]
+    MediaFolder:
+      type: object
+      required: [name, path]
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+    MediaFile:
+      type: object
+      required: [name, fileId, path]
+      properties:
+        name:
+          type: string
+        fileId:
+          type: string
+        path:
+          type: string
+        sizeInBytes:
+          type: integer
+          format: int64
+    BrowseResponse:
+      type: object
+      required: [folders, files]
+      properties:
+        folders:
+          type: array
+          items:
+            $ref: "#/components/schemas/MediaFolder"
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/MediaFile"
+    PlaybackProgress:
+      type: object
+      required: [fileId, positionSeconds]
+      properties:
+        fileId:
+          type: string
+        positionSeconds:
+          type: number
+          format: double
+    ErrorResponse:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
