@@ -8,6 +8,8 @@ import SwiftUI
 /// - Zoom stretches the timeline body itself while the viewport stays fixed.
 /// - Local files preview seek at most 8Hz; remote files only seek on gesture end.
 public struct DetailedTimelineView: View {
+    private static let defaultZoomLevel: Double = 0
+
     @Environment(WindowVideoViewModel.self) private var videoViewModel
     let onClose: () -> Void
 
@@ -19,6 +21,8 @@ public struct DetailedTimelineView: View {
 
     @State private var lastThrottledSeekTime: Date = .distantPast
     @State private var lastThrottledSeekPosition: Double = -1
+
+    private let previewSeekPolicy = DetailedTimelinePreviewSeekPolicy()
 
     public init(onClose: @escaping () -> Void) {
         self.onClose = onClose
@@ -78,7 +82,7 @@ public struct DetailedTimelineView: View {
                 timelineWidth = DetailedTimelineGeometry(
                     viewportWidth: viewportWidth,
                     duration: duration,
-                    zoomLevel: 0
+                    zoomLevel: Self.defaultZoomLevel
                 ).timelineWidth
             }
             syncOffsetToCurrentTime()
@@ -92,7 +96,7 @@ public struct DetailedTimelineView: View {
                 timelineWidth = DetailedTimelineGeometry(
                     viewportWidth: viewportWidth,
                     duration: duration,
-                    zoomLevel: 0
+                    zoomLevel: Self.defaultZoomLevel
                 ).timelineWidth
             }
             guard !isDragging else { return }
@@ -130,7 +134,7 @@ public struct DetailedTimelineView: View {
                     .frame(height: bandHeight + 34)
 
                 timelineBody(geometry: geometry, bandHeight: bandHeight)
-                    .frame(width: containerWidth, height: bandHeight + 34)
+                    .frame(width: containerWidth, height: bandHeight + 34, alignment: .leading)
                     .clipShape(RoundedRectangle(cornerRadius: 24))
 
                 Rectangle()
@@ -338,10 +342,13 @@ public struct DetailedTimelineView: View {
     private func throttledSeek() {
         let now = Date()
         let elapsed = now.timeIntervalSince(lastThrottledSeekTime)
-        guard elapsed >= 0.125 else { return }
-
         let target = centerTime
-        if lastThrottledSeekPosition >= 0 && abs(target - lastThrottledSeekPosition) < 0.25 {
+        guard previewSeekPolicy.shouldDispatchSeek(
+            elapsed: elapsed,
+            targetTime: target,
+            lastSeekTarget: lastThrottledSeekPosition,
+            duration: duration
+        ) else {
             return
         }
 
@@ -355,7 +362,7 @@ public struct DetailedTimelineView: View {
             timelineWidth = DetailedTimelineGeometry(
                 viewportWidth: viewportWidth,
                 duration: duration,
-                zoomLevel: 0.3
+                zoomLevel: Self.defaultZoomLevel
             ).timelineWidth
         }
         contentOffsetX = geometryModel.contentOffset(for: videoViewModel.playbackPosition.seconds)
@@ -367,7 +374,7 @@ public struct DetailedTimelineView: View {
             : DetailedTimelineGeometry(
                 viewportWidth: viewportWidth,
                 duration: duration,
-                zoomLevel: 0.3
+                zoomLevel: Self.defaultZoomLevel
             ).timelineWidth
 
         return DetailedTimelineGeometry(
@@ -380,7 +387,7 @@ public struct DetailedTimelineView: View {
     private func updateViewportWidth(_ newWidth: CGFloat) {
         let clampedWidth = max(newWidth, 260)
         let preservedTime = isDragging ? centerTime : videoViewModel.playbackPosition.seconds
-        let preservedZoom = timelineWidth > 0 ? currentZoomLevel : 0.3
+        let preservedZoom = timelineWidth > 0 ? currentZoomLevel : Self.defaultZoomLevel
 
         viewportWidth = clampedWidth
         let updatedGeometry = DetailedTimelineGeometry(

@@ -16,11 +16,11 @@ public struct PlayerControlsView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 24) { // Increased vertical rhythm
             if showDetailedTimeline {
                 DetailedTimelineView(
                     onClose: {
-                        withAnimation(.spring()) {
+                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
                             showDetailedTimeline = false
                             if pausedForTimeline {
                                 pausedForTimeline = false
@@ -29,21 +29,26 @@ public struct PlayerControlsView: View {
                         }
                     }
                 )
-                .transition(.scale(scale: 0.95).combined(with: .opacity))
+                .transition(.asymmetric(
+                    insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(with: .offset(y: 10)),
+                    removal: .opacity.combined(with: .scale(scale: 0.98))
+                ))
             } else {
                 sliderSection
+                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
             }
 
-            VStack(spacing: 20) {
+            VStack(spacing: 28) { // More space between controls for clarity
                 primaryControlRow
                 secondaryControlRow
             }
-            .padding(.bottom, 4)
+            .padding(.bottom, 8)
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 24)
+        .padding(.horizontal, 32)
+        .padding(.vertical, 28)
         .frame(width: showDetailedTimeline ? 860 : 720)
-        .glassBackgroundEffect()
+        .glassBackgroundEffect() // Base spatial material
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous)) // Nested glass layering
         .onHover { isHovering in
             appModel.setControlsFocused(isHovering || showInfoPanel || showDetailedTimeline)
         }
