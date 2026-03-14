@@ -28,27 +28,29 @@ private struct PlayerControlSurfaceModifier: ViewModifier {
     let isPressed: Bool
 
     func body(content: Content) -> some View {
-        let cornerRadius = size * 0.32
-        let strokeOpacity = isSelected ? 0.32 : 0.12
-        let shadowOpacity = prominence == .primary ? 0.12 : 0.08
+        // Aesthetic Refinement: More organic corner radius, refined glass materials, and spatial depth
+        let cornerRadius = size * 0.35 
+        let strokeOpacity = isSelected ? 0.45 : 0.15
+        let shadowOpacity = prominence == .primary ? 0.15 : 0.1
 
         content
             .frame(width: size, height: size)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(.regularMaterial)
+                    .fill(.ultraThinMaterial) // Refined spatial glass material
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(
-                        isSelected ? Color.accentColor.opacity(0.8) : Color.white.opacity(strokeOpacity),
-                        lineWidth: isSelected ? 1.25 : 1
+                        isSelected ? Color.accentColor.opacity(0.9) : Color.white.opacity(strokeOpacity),
+                        lineWidth: isSelected ? 1.5 : 0.5 // Thinner stroke for elegance
                     )
             )
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .shadow(color: Color.black.opacity(shadowOpacity), radius: 12, y: 6)
-            .scaleEffect(isPressed ? 0.96 : 1)
-            .animation(.spring(response: 0.22, dampingFraction: 0.82), value: isPressed)
+            .hoverEffect() // Native gaze-to-interact visual feedback
+            .shadow(color: Color.black.opacity(shadowOpacity), radius: 15, x: 0, y: 8)
+            .scaleEffect(isPressed ? 0.92 : 1.0) // More tactile compression
+            .animation(.spring(response: 0.25, dampingFraction: 0.7, blendDuration: 0), value: isPressed)
     }
 }
 
