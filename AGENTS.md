@@ -8,6 +8,7 @@ Enchron 的目标是 Apple 平台原生品质——高质量的窗口播放、�
 
 ---
 
+
 ## 架构速览
 
 Clean Architecture + DDD，5 个限界上下文，依赖方向向内（Adapters → UseCases → Domain）。模块间通过 Swift protocol 通信。
@@ -96,3 +97,14 @@ XrPlayer/
 | visionOS | `arkit-visionos-developer`, `visionos-design-guidelines`, `visionos-widgets` |
 | Apple 设计 | `apple-hig`, `mobile-ios-design`, `liquid-glass-design` |
 | RealityKit | `axiom-realitykit-diag`, `axiom-scenekit` |
+
+
+## Review guidelines
+*非review agent忽略*
+
+- Don't log PII.
+- Verify that authentication middleware wraps every route.
+
+review前先阅读以下文档：
+- workspace-agents/automation/pr-review-agent.md
+- workspace-agents/automation/entropy-automation-workflow.md

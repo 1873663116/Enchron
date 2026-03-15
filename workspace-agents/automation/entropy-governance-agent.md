@@ -114,7 +114,7 @@ cleanup agent 不应依赖 reviewer 的私有 automation memory。你能稳定�
 3. 最近一条 cleaner 结构化返工评论
 4. 当前 PR diff 与 open 状态
 
-若 reviewer 的最近结论是 `request_changes` 或 `needs_human_validation`：
+若 review 的最近结论是 `request_changes` 或 `needs_human_validation`：
 
 - 先处理 `Required Rework`
 - 不要跳过返工要求直接叠加新主题
