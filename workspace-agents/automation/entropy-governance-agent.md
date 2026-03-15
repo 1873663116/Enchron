@@ -21,8 +21,17 @@
 - 你已经位于 Enchron 仓库的专用 worktree 中
 - 当前 worktree 绑定的是一个自动化分支，而不是主线分支
 - 外部调度器决定了本轮运行时机和 worktree 生命周期
+- 调度消息中给出的 automation memory 路径应当是可直接写入的绝对路径；如果消息里写的是环境变量形式，外部调度器应保证该变量已展开或已导出
 
 如果这些前提不成立，不要擅自切主线或改写用户当前工作区。
+
+### worktree / branch 异常处理
+
+- 最优前提是：外部调度器创建 worktree 时就已经把它绑定到自动化分支
+- 如果进入 worktree 后发现当前处于 detached HEAD，cleanup agent 不要继续在 detached 状态下工作
+- 此时 cleanup agent 允许创建并切换到新的自动化分支后继续，分支名建议格式：`automation/<automation-id>-<cleanup-theme>`
+- cleanup agent 不允许切换到 `main`，也不允许直接在主分支提交
+- 如果当前 worktree 既不是自动化分支，也无法安全创建自动化分支，应退出并报告
 
 
 ## 适用范围
@@ -84,6 +93,14 @@
 6. 若验证失败，则退出且不提交
 7. 若验证通过且改动值得保留，则 commit、push、创建或更新 PR
 
+### 清理主题与 PR 生命周期
+
+- 一个 open PR 只服务一个 cleanup theme
+- 同一轮运行中不得把两个无关主题放进同一个分支或同一个 PR
+- 如果当前主题已经存在对应 open PR，cleanup agent 应更新该 PR，而不是新建重复 PR
+- 如果当前主题不存在 open PR，cleanup agent 应创建新分支和新 PR
+- 如果新发现的问题不属于当前主题，即使它很小，也应放入 `Deferred Issues`，不要顺手混入当前 PR
+
 ## 必须执行的验证
 
 - `swift build`
@@ -102,6 +119,9 @@
 - 若验证失败，不允许 commit；必须在输出中明确说明失败项
 - commit message 建议格式：`chore(entropy): <cleanup theme>`
 - PR 标题建议格式：`chore(entropy): <cleanup theme>`
+- 若当前分支已存在对应 open PR，应更新该 PR；若不存在，才创建新 PR
+- 若本轮没有有效 diff，不允许 commit / push / 创建 PR
+- 若本轮有 diff 但主题边界已经失控，不允许“先发 PR 再说”；应先回退到单一主题范围内
 
 ## 必须产出的输出格式
 
@@ -132,3 +152,5 @@
 - 修改与当前清理主题无关的文件
 - 伪造“已验证通过”
 - 直接 merge 主线
+- 在 detached HEAD 上直接 commit
+- 因为“已经跑了一轮”就强行制造 PR
