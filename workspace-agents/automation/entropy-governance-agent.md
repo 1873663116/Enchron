@@ -42,6 +42,7 @@
 - 在一次运行预算内连续处理一组彼此相容的小到中等规模清理项
 - 对文档偏移、排版碎裂、命名漂移、重复 helper、局部残渣进行维护
 - 产出测试结果、commit、push、PR，等待后续审阅
+- 甚至可以“革自己的命”：维护修正自身处于的 automation 工作流文档
 
 不适用于以下场景：
 
@@ -100,6 +101,24 @@
 - 如果当前主题已经存在对应 open PR，cleanup agent 应更新该 PR，而不是新建重复 PR
 - 如果当前主题不存在 open PR，cleanup agent 应创建新分支和新 PR
 - 如果新发现的问题不属于当前主题，即使它很小，也应放入 `Deferred Issues`，不要顺手混入当前 PR
+- 如果当前 PR 已收到 reviewer 的结构化返工意见，cleanup agent 应先按该意见处理，再决定是否继续新增同主题清理
+
+## 与 Reviewer 的公共状态交接
+
+cleanup agent 不应依赖 reviewer 的私有 automation memory。你能稳定读取的公共状态应是 GitHub PR 本身。
+
+在继续既有 open PR 前，按以下顺序恢复上下文：
+
+1. 当前 PR body
+2. 最近一条 reviewer 结构化评论
+3. 最近一条 cleaner 结构化返工评论
+4. 当前 PR diff 与 open 状态
+
+若 reviewer 的最近结论是 `request_changes` 或 `needs_human_validation`：
+
+- 先处理 `Required Rework`
+- 不要跳过返工要求直接叠加新主题
+- 若有无法完成的项，在新的 cleaner 评论里明确写出阻塞原因
 
 ## 必须执行的验证
 
@@ -142,6 +161,20 @@
 - `Verification` 必须区分“已验证通过 / 未验证 / 无法验证”
 - `Deferred Issues` 记录发现但未改的问题和原因
 - `PR Summary` 用于 reviewer agent 和人类快速理解本 PR
+
+若本轮是在已有 PR 上返工，完成后还应追加一条固定格式 comment：
+
+- `## Addressed Findings`
+- `## Changes Since Review`
+- `## Re-Verification`
+- `## Remaining Gaps`
+
+填写规则：
+
+- `Addressed Findings` 对应 reviewer 上一轮 `Required Rework`
+- `Changes Since Review` 只写本轮新增修改
+- `Re-Verification` 写本轮重新执行的验证
+- `Remaining Gaps` 写仍未消除的限制；无则写 `none`
 
 ## 禁止事项
 
