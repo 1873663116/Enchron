@@ -95,6 +95,18 @@ extension FileBrowsingDomain {
             )
         }
 
+        public var credentialSourceID: String {
+            let type = sourceType.rawValue
+            let host = host ?? ""
+            let port = port ?? 0
+
+            if sourceType == .smb {
+                return "\(type):\(host):\(port)"
+            }
+
+            return "\(type):\(host):\(port):\(rootPath)"
+        }
+
         public var displayAddress: String {
             if let address, address.isEmpty == false {
                 return address
