@@ -20,15 +20,7 @@ extension FileBrowsingDomain {
         }
 
         public var credentialSourceID: String {
-            let type = connectionInfo.sourceType.rawValue
-            let host = connectionInfo.host ?? ""
-            let port = connectionInfo.port ?? 0
-            if connectionInfo.sourceType == .smb {
-                return "\(type):\(host):\(port)"
-            }
-
-            let path = connectionInfo.rootPath
-            return "\(type):\(host):\(port):\(path)"
+            connectionInfo.credentialSourceID
         }
     }
 }

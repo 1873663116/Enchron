@@ -63,7 +63,7 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
         }
 
         do {
-            let sourceID = credentialSourceID(info: info)
+            let sourceID = info.credentialSourceID
             var username = info.username ?? "guest"
             var password = ""
 
@@ -235,7 +235,7 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
         }
 
         // Construct smb:// URL with credentials for mpv playback
-        let sourceID = credentialSourceID(info: info)
+        let sourceID = info.credentialSourceID
         var username = info.username ?? "guest"
         var password = ""
 
@@ -260,13 +260,6 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
         components.path = filePath
 
         return components.url ?? file.url
-    }
-
-    private func credentialSourceID(info: FileBrowsingDomain.ConnectionInfo) -> String {
-        let type = info.sourceType.rawValue
-        let host = info.host ?? ""
-        let port = info.port ?? 0
-        return "\(type):\(host):\(port)"
     }
 
     private static func classify(_ error: Error) -> SMBError {
