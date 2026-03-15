@@ -96,3 +96,14 @@ XrPlayer/
 | visionOS | `arkit-visionos-developer`, `visionos-design-guidelines`, `visionos-widgets` |
 | Apple 设计 | `apple-hig`, `mobile-ios-design`, `liquid-glass-design` |
 | RealityKit | `axiom-realitykit-diag`, `axiom-scenekit` |
+
+
+## Review guidelines
+*非review agent忽略*
+
+- Don't log PII.
+- Verify that authentication middleware wraps every route.
+
+review前先阅读以下文档：
+- workspace-agents/automation/pr-review-agent.md
+- workspace-agents/automation/entropy-automation-workflow.md
