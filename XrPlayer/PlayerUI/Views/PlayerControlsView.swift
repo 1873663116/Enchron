@@ -250,15 +250,17 @@ public struct PlayerControlsView: View {
         Menu {
             Section("Media Info") {
                 if let profile = videoViewModel.displayMediaProfile {
-                    Text("HDR: \(hdrTypeLabel(profile.hdrType))")
-                    Text("Output: \(hdrOutputDescription(for: videoViewModel.hdrOutputMode))")
+                    Text("HDR: \(PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))")
+                    Text(
+                        "Output: \(PlaybackInfoFormatter.hdrOutputDescription(videoViewModel.hdrOutputMode))"
+                    )
                     Text("Resolution: \(profile.resolution.width)×\(profile.resolution.height)")
-                    Text("Frame Rate: \(formatFrameRate(profile.frameRate))")
+                    Text("Frame Rate: \(PlaybackInfoFormatter.frameRate(profile.frameRate))")
                 } else {
                     Text("Loading media profile…")
                 }
 
-                Text("File Size: \(formatFileSize(videoViewModel.displayFileSizeInBytes))")
+                Text("File Size: \(PlaybackInfoFormatter.fileSize(videoViewModel.displayFileSizeInBytes))")
             }
         } label: {
             Image(systemName: "info.circle")
@@ -370,52 +372,6 @@ public struct PlayerControlsView: View {
             return String(format: "%d:%02d:%02d", h, m, s)
         } else {
             return String(format: "%02d:%02d", m, s)
-        }
-    }
-
-    private func formatFrameRate(_ frameRate: Double) -> String {
-        guard frameRate > 0 else {
-            return "Unknown"
-        }
-        return String(format: "%.2f fps", frameRate)
-    }
-
-    private func formatFileSize(_ sizeInBytes: Int64?) -> String {
-        guard let sizeInBytes, sizeInBytes > 0 else {
-            return "Unknown"
-        }
-
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useMB, .useGB, .useTB]
-        formatter.countStyle = .file
-        return formatter.string(fromByteCount: sizeInBytes)
-    }
-
-    private func hdrOutputDescription(for outputMode: PlaybackCoreDomain.HDROutputMode) -> String {
-        switch outputMode {
-        case .passthroughHDR:
-            return "HDR Passthrough"
-        case .toneMappedSDR:
-            return "Tone-Mapped SDR"
-        case .previewSDR:
-            return "SDR Preview"
-        case .unsupported:
-            return "Unavailable"
-        }
-    }
-
-    private func hdrTypeLabel(_ hdrType: PlaybackCoreDomain.HDRType) -> String {
-        switch hdrType {
-        case .sdr:
-            return "SDR"
-        case .hdr10:
-            return "HDR10"
-        case .hdr10Plus:
-            return "HDR10+"
-        case .dolbyVision:
-            return "Dolby Vision"
-        case .hlg:
-            return "HLG"
         }
     }
 
