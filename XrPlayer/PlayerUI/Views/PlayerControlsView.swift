@@ -10,47 +10,69 @@ public struct PlayerControlsView: View {
     @State private var dragValue: Double = 0
     @State private var showDetailedTimeline = false
     @State private var pausedForTimeline = false
-    @State private var showInfoPanel = false
+    @State private var showPlaybackSettingsPanel = false
     @State private var hasAppliedSmokePanelRequest = false
 
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 24) { // Increased vertical rhythm
-            if showDetailedTimeline {
-                DetailedTimelineView(
-                    onClose: {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                            showDetailedTimeline = false
-                            if pausedForTimeline {
-                                pausedForTimeline = false
-                                videoViewModel.resume()
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 24) {  // Increased vertical rhythm
+                if showDetailedTimeline {
+                    DetailedTimelineView(
+                        onClose: {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
+                                showDetailedTimeline = false
+                                if pausedForTimeline {
+                                    pausedForTimeline = false
+                                    videoViewModel.resume()
+                                }
                             }
                         }
-                    }
-                )
-                .transition(.asymmetric(
-                    insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(with: .offset(y: 10)),
-                    removal: .opacity.combined(with: .scale(scale: 0.98))
-                ))
-            } else {
-                sliderSection
-                    .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                    )
+                    .transition(
+                        .asymmetric(
+                            insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(
+                                with: .offset(y: 10)),
+                            removal: .opacity.combined(with: .scale(scale: 0.98))
+                        ))
+                } else {
+                    sliderSection
+                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
+                }
+
+                VStack(spacing: 28) {  // More space between controls for clarity
+                    primaryControlRow
+                    secondaryControlRow
+                }
+                .padding(.bottom, 8)
             }
 
-            VStack(spacing: 28) { // More space between controls for clarity
-                primaryControlRow
-                secondaryControlRow
+            if showPlaybackSettingsPanel {
+                PlaybackMenuView {
+                    closePlaybackSettingsPanel()
+                }
+                .frame(width: 340, height: 420, alignment: .topLeading)
+                .padding(.top, 12)
+                .padding(.trailing, 12)
+                .transition(
+                    .opacity
+                        .combined(with: .scale(scale: 0.96, anchor: .topTrailing))
+                        .combined(with: .offset(y: -8))
+                )
+                .zIndex(2)
             }
-            .padding(.bottom, 8)
         }
         .padding(.horizontal, 32)
         .padding(.vertical, 28)
         .frame(width: showDetailedTimeline ? 860 : 720)
-        .glassBackgroundEffect() // Base spatial material
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous)) // Nested glass layering
+        .glassBackgroundEffect()  // Base spatial material
+        .background(
+            .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous)
+        )  // Nested glass layering
         .onHover { isHovering in
-            appModel.setControlsFocused(isHovering || showInfoPanel || showDetailedTimeline)
+            appModel.setControlsFocused(
+                isHovering || showDetailedTimeline || showPlaybackSettingsPanel)
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
@@ -62,19 +84,19 @@ public struct PlayerControlsView: View {
                 }
         )
         .onChange(of: showDetailedTimeline) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showInfoPanel)
+            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel)
             appModel.registerControlsInteraction()
         }
-        .onChange(of: showInfoPanel) { _, isVisible in
+        .onChange(of: showPlaybackSettingsPanel) { _, isVisible in
             appModel.setControlsFocused(isVisible || showDetailedTimeline)
+            appModel.registerControlsInteraction()
+        }
+        .onChange(of: appModel.currentPlaybackURL) { _, _ in
+            resetTransientPanelsForMediaSwitch()
             appModel.registerControlsInteraction()
         }
         .task(id: appModel.smokePanelRequest) {
             await applySmokePanelRequestIfNeeded()
-        }
-        .popover(isPresented: $showInfoPanel, attachmentAnchor: .point(.top), arrowEdge: .top) {
-            infoPanel
-                .presentationCompactAdaptation(.popover)
         }
     }
 
@@ -82,13 +104,18 @@ public struct PlayerControlsView: View {
     private var sliderSection: some View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
-                Text(formatTime(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds))
-                    .font(.caption2.monospacedDigit())
-                    .frame(width: 60, alignment: .leading)
+                Text(
+                    formatTime(
+                        isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)
+                )
+                .font(.caption2.monospacedDigit())
+                .frame(width: 60, alignment: .leading)
 
                 Slider(
                     value: Binding(
-                        get: { isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds },
+                        get: {
+                            isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
+                        },
                         set: { dragValue = $0 }
                     ),
                     in: 0...max(videoViewModel.playbackPosition.duration, 1),
@@ -172,19 +199,9 @@ public struct PlayerControlsView: View {
     private var secondaryControlRow: some View {
         HStack(spacing: 24) {
             speedMenu
-            tracksMenu
+            playbackSettingsButton
             playlistMenu
-
-            Button {
-                appModel.registerControlsInteraction()
-                showInfoPanel.toggle()
-            } label: {
-                Image(systemName: "info.circle")
-                    .font(.title3)
-                    .foregroundStyle(showInfoPanel ? Color.accentColor : Color.primary)
-            }
-            .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showInfoPanel))
-            .help("Media Info")
+            infoMenu
 
             Button {
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
@@ -195,7 +212,7 @@ public struct PlayerControlsView: View {
                             videoViewModel.resume()
                         }
                     } else {
-                        showInfoPanel = false
+                        closePlaybackSettingsPanel()
                         showDetailedTimeline = true
                         if videoViewModel.playbackState == .playing {
                             pausedForTimeline = true
@@ -211,6 +228,46 @@ public struct PlayerControlsView: View {
             .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showDetailedTimeline))
             .help("Toggle Detailed Timeline")
         }
+    }
+
+    private var playbackSettingsButton: some View {
+        Button {
+            appModel.registerControlsInteraction()
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
+                closeDetailedTimelineIfNeeded()
+                showPlaybackSettingsPanel.toggle()
+            }
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.title3)
+                .foregroundStyle(showPlaybackSettingsPanel ? Color.accentColor : Color.primary)
+        }
+        .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showPlaybackSettingsPanel))
+        .help("Playback Settings")
+    }
+
+    private var infoMenu: some View {
+        Menu {
+            Section("Media Info") {
+                if let profile = videoViewModel.displayMediaProfile {
+                    Text("HDR: \(hdrTypeLabel(profile.hdrType))")
+                    Text("Output: \(hdrOutputDescription(for: videoViewModel.hdrOutputMode))")
+                    Text("Resolution: \(profile.resolution.width)×\(profile.resolution.height)")
+                    Text("Frame Rate: \(formatFrameRate(profile.frameRate))")
+                } else {
+                    Text("Loading media profile…")
+                }
+
+                Text("File Size: \(formatFileSize(videoViewModel.displayFileSizeInBytes))")
+            }
+        } label: {
+            Image(systemName: "info.circle")
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .playerControlSurface(size: 60)
+        }
+        .buttonStyle(.plain)
+        .help("Media Info")
     }
 
     private var speedMenu: some View {
@@ -236,55 +293,6 @@ public struct PlayerControlsView: View {
         .buttonStyle(.plain)
     }
 
-    private var tracksMenu: some View {
-        Menu {
-            Section("Audio") {
-                ForEach(videoViewModel.availableAudioTracks) { track in
-                    Button {
-                        videoViewModel.selectAudioTrack(track)
-                    } label: {
-                        if videoViewModel.currentAudioTrackID == track.id {
-                            Label(track.displayName, systemImage: "checkmark")
-                        } else {
-                            Text(track.displayName)
-                        }
-                    }
-                }
-            }
-
-            Section("Subtitles") {
-                Button {
-                    videoViewModel.selectSubtitleTrack(nil)
-                } label: {
-                    if videoViewModel.currentSubtitleTrackID == nil || videoViewModel.currentSubtitleTrackID == "no" {
-                        Label("Off", systemImage: "checkmark")
-                    } else {
-                        Text("Off")
-                    }
-                }
-
-                ForEach(videoViewModel.availableSubtitleTracks) { track in
-                    Button {
-                        videoViewModel.selectSubtitleTrack(track)
-                    } label: {
-                        if videoViewModel.currentSubtitleTrackID == track.id {
-                            Label(track.displayName, systemImage: "checkmark")
-                        } else {
-                            Text(track.displayName)
-                        }
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "text.bubble")
-                .font(.title3)
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-        .help("Audio and Subtitles")
-    }
-
     private var playlistMenu: some View {
         Menu {
             if fileBrowsingViewModel.files.isEmpty {
@@ -294,13 +302,15 @@ public struct PlayerControlsView: View {
                     Button {
                         Task {
                             do {
-                                let request = try await fileBrowsingViewModel.playbackRequest(for: file)
+                                let request = try await fileBrowsingViewModel.playbackRequest(
+                                    for: file)
                                 await MainActor.run {
                                     launcher.beginPlayback(request)
                                 }
                             } catch {
                                 await MainActor.run {
-                                    fileBrowsingViewModel.lastErrorMessage = "Failed to open \"\(file.name)\": \(error.localizedDescription)"
+                                    fileBrowsingViewModel.lastErrorMessage =
+                                        "Failed to open \"\(file.name)\": \(error.localizedDescription)"
                                 }
                             }
                         }
@@ -323,72 +333,11 @@ public struct PlayerControlsView: View {
         .help("Playlist")
     }
 
-    private var infoPanel: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Media Info")
-                    .font(.headline)
-                Spacer()
-                Button("Done") {
-                    showInfoPanel = false
-                }
-                .buttonStyle(.plain)
-            }
-
-            if let profile = videoViewModel.displayMediaProfile {
-                infoRow("HDR", value: hdrTypeLabel(profile.hdrType))
-                infoRow(
-                    "Output",
-                    value: hdrOutputDescription(for: videoViewModel.hdrOutputMode)
-                )
-                infoRow(
-                    "Resolution",
-                    value: "\(profile.resolution.width)×\(profile.resolution.height)"
-                )
-                infoRow("Frame Rate", value: formatFrameRate(profile.frameRate))
-            } else {
-                Text("Loading media profile…")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            infoRow("File Size", value: formatFileSize(videoViewModel.displayFileSizeInBytes))
-
-            if let profile = videoViewModel.displayMediaProfile, profile.hdrType != .sdr {
-                Divider()
-                Button {
-                    videoViewModel.setHDREnabled(videoViewModel.isHDROutputEnabled == false)
-                } label: {
-                    HStack {
-                        Text(videoViewModel.isHDROutputEnabled ? "Switch to SDR" : "Switch to HDR")
-                        Spacer()
-                        Image(systemName: videoViewModel.isHDROutputEnabled ? "sun.max" : "sparkles.tv")
-                    }
-                }
-                .buttonStyle(.borderless)
-            }
-        }
-        .padding(20)
-        .frame(width: 320, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
-
-    @ViewBuilder
-    private func infoRow(_ title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.body.monospacedDigit())
-                .foregroundStyle(.primary)
-        }
-    }
-
     @MainActor
     private func applySmokePanelRequestIfNeeded() async {
         guard hasAppliedSmokePanelRequest == false,
-              let request = appModel.smokePanelRequest else {
+            let request = appModel.smokePanelRequest
+        else {
             return
         }
 
@@ -398,6 +347,7 @@ public struct PlayerControlsView: View {
 
         if request == "timeline" {
             withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
+                closePlaybackSettingsPanel()
                 showDetailedTimeline = true
                 if videoViewModel.playbackState == .playing {
                     pausedForTimeline = true
@@ -468,6 +418,24 @@ public struct PlayerControlsView: View {
             return "HLG"
         }
     }
+
+    private func closePlaybackSettingsPanel() {
+        showPlaybackSettingsPanel = false
+    }
+
+    private func resetTransientPanelsForMediaSwitch() {
+        showPlaybackSettingsPanel = false
+        closeDetailedTimelineIfNeeded()
+    }
+
+    private func closeDetailedTimelineIfNeeded() {
+        guard showDetailedTimeline else { return }
+        showDetailedTimeline = false
+        if pausedForTimeline {
+            pausedForTimeline = false
+            videoViewModel.resume()
+        }
+    }
 }
 
 #Preview {
@@ -477,7 +445,8 @@ public struct PlayerControlsView: View {
         appModel: appModel,
         windowVideoViewModel: windowVideoViewModel
     )
-    let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: LocalDataSourceAdapter()) { request in
+    let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: LocalDataSourceAdapter()) {
+        request in
         launcher.beginPlayback(request)
     }
 

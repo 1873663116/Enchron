@@ -162,6 +162,34 @@ final class DataSourceCodableTests: XCTestCase {
 // MARK: - SMBDataSourceAdapter Tests
 
 final class SMBDataSourceAdapterTests: XCTestCase {
+    func testShareRelativePathAtShareRootResolvesToSlash() {
+        XCTAssertEqual(
+            SMBDataSourceAdapter.shareRelativePath(for: "/Movies", rootPath: "/Movies"),
+            "/"
+        )
+    }
+
+    func testShareRelativePathForNestedFolderStripsOnlySharePrefix() {
+        XCTAssertEqual(
+            SMBDataSourceAdapter.shareRelativePath(for: "/Movies/Anime/Episode1", rootPath: "/Movies"),
+            "/Anime/Episode1"
+        )
+    }
+
+    func testShareRelativePathPreservesSavedSubpathInsideShare() {
+        XCTAssertEqual(
+            SMBDataSourceAdapter.shareRelativePath(for: "/Movies/4K/Demo", rootPath: "/Movies/4K"),
+            "/4K/Demo"
+        )
+    }
+
+    func testChildPathBuildsFullBrowsingPathForNestedEntries() {
+        XCTAssertEqual(
+            SMBDataSourceAdapter.childPath(named: "Episode1.mkv", in: "/Movies/Anime"),
+            "/Movies/Anime/Episode1.mkv"
+        )
+    }
+
     func testListContentsWithoutConnectionThrowsNotConnectedOrLibraryUnavailable() async {
         let sut = SMBDataSourceAdapter()
         do {

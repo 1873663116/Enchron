@@ -31,7 +31,6 @@ public struct PlaybackMenuView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Audio Tracks
                     sectionHeader("Audio Tracks")
                     ForEach(videoViewModel.availableAudioTracks) { track in
                         trackRow(
@@ -65,6 +64,41 @@ public struct PlaybackMenuView: View {
                         ) {
                             videoViewModel.selectSubtitleTrack(track)
                             dismissPanel()
+                        }
+                    }
+
+                    if let profile = videoViewModel.displayMediaProfile, profile.hdrType != .sdr {
+                        Divider().padding(.vertical, 6)
+
+                        sectionHeader("HDR Output")
+                        infoRow(title: "Content", value: hdrTypeLabel(profile.hdrType))
+                        infoRow(
+                            title: "Current Output",
+                            value: hdrOutputDescription(for: videoViewModel.hdrOutputMode))
+
+                        if videoViewModel.hdrOutputMode == .previewSDR {
+                            Text(
+                                "Current playback is running in SDR preview. Reopen on a verified native HDR surface to enable passthrough."
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                        } else {
+                            trackRow(
+                                title: "HDR Passthrough",
+                                lang: nil,
+                                isSelected: videoViewModel.isHDROutputEnabled
+                            ) {
+                                videoViewModel.setHDREnabled(true)
+                            }
+                            trackRow(
+                                title: "Tone-Mapped SDR",
+                                lang: nil,
+                                isSelected: videoViewModel.isHDROutputEnabled == false
+                            ) {
+                                videoViewModel.setHDREnabled(false)
+                            }
                         }
                     }
                 }
@@ -119,6 +153,48 @@ public struct PlaybackMenuView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func infoRow(title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.secondary)
+            Text(value)
+                .font(.body.monospacedDigit())
+                .foregroundStyle(.primary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+    }
+
+    private func hdrOutputDescription(for outputMode: PlaybackCoreDomain.HDROutputMode) -> String {
+        switch outputMode {
+        case .passthroughHDR:
+            return "HDR Passthrough"
+        case .toneMappedSDR:
+            return "Tone-Mapped SDR"
+        case .previewSDR:
+            return "SDR Preview"
+        case .unsupported:
+            return "Unavailable"
+        }
+    }
+
+    private func hdrTypeLabel(_ hdrType: PlaybackCoreDomain.HDRType) -> String {
+        switch hdrType {
+        case .sdr:
+            return "SDR"
+        case .hdr10:
+            return "HDR10"
+        case .hdr10Plus:
+            return "HDR10+"
+        case .dolbyVision:
+            return "Dolby Vision"
+        case .hlg:
+            return "HLG"
+        }
     }
 
     private func dismissPanel() {

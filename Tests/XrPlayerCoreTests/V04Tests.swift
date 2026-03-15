@@ -1,5 +1,6 @@
-import XCTest
 import CoreGraphics
+import XCTest
+
 @testable import XrPlayerCore
 
 // MARK: - MPVConfiguration Option Generation Tests
@@ -12,7 +13,8 @@ final class MPVConfigurationOptionsTests: XCTestCase {
         let config = MPVConfiguration()
         let options = config.options(useNativeGPUOutput: true)
         let hwdec = options.first(where: { $0.0 == "hwdec" })?.1
-        XCTAssertEqual(hwdec, "videotoolbox", "GPU path should use zero-copy videotoolbox (no -copy)")
+        XCTAssertEqual(
+            hwdec, "videotoolbox", "GPU path should use zero-copy videotoolbox (no -copy)")
     }
 
     func testBlendSubtitlesIsEnabledAfterFontFix() {
@@ -74,14 +76,14 @@ final class MPVConfigurationOptionsTests: XCTestCase {
 
     func testSWPathFallsBackToLibmpvVO() {
         // Even if config.vo is gpu-next, SW path should fall back to libmpv
-        let config = MPVConfiguration(useNativeGPUOutput: true) // vo defaults to gpu-next
+        let config = MPVConfiguration(useNativeGPUOutput: true)  // vo defaults to gpu-next
         let options = config.options(useNativeGPUOutput: false)
         let vo = options.first(where: { $0.0 == "vo" })?.1
         XCTAssertEqual(vo, "libmpv", "SW path should override gpu-next to libmpv")
     }
 
     func testSWPathDoesNotIncludeGPUAPIOptions() {
-        let config = MPVConfiguration(useNativeGPUOutput: false) // vo = libmpv
+        let config = MPVConfiguration(useNativeGPUOutput: false)  // vo = libmpv
         let options = config.options(useNativeGPUOutput: false)
         let gpuAPI = options.first(where: { $0.0 == "gpu-api" })
         let gpuCtx = options.first(where: { $0.0 == "gpu-context" })
@@ -146,6 +148,20 @@ final class MPVConfigurationOptionsTests: XCTestCase {
         XCTAssertEqual(computePeak, "no")
     }
 
+    func testHDRGPUPathUsesHDRFramebufferFormat() {
+        let config = MPVConfiguration(hdrEnabled: true, hdrOutputPixelFormat: "rgba16f")
+        let options = config.options(useNativeGPUOutput: true)
+        let fboFormat = options.first(where: { $0.0 == "fbo-format" })?.1
+        XCTAssertEqual(fboFormat, "rgba16f")
+    }
+
+    func testHDRFramebufferFormatIsOmittedForSoftwareVO() {
+        let config = MPVConfiguration(hdrEnabled: true, hdrOutputPixelFormat: "rgba16f")
+        let options = config.options(useNativeGPUOutput: false)
+        let fboFormat = options.first(where: { $0.0 == "fbo-format" })
+        XCTAssertNil(fboFormat)
+    }
+
     func testHDRDisabledForcesSRGB() {
         let config = MPVConfiguration(hdrEnabled: false)
         let options = config.defaultOptions
@@ -157,8 +173,20 @@ final class MPVConfigurationOptionsTests: XCTestCase {
 
     func testForceLibmpvForHDRDefaultsToFalse() {
         let config = MPVConfiguration()
-        XCTAssertFalse(config.forceLibmpvForHDR,
-                       "forceLibmpvForHDR should default to false (root cause of DoVi metadata loss)")
+        XCTAssertFalse(
+            config.forceLibmpvForHDR,
+            "forceLibmpvForHDR should default to false (root cause of DoVi metadata loss)")
+    }
+
+    func testForceLibmpvForHDROverridesGPUVOWhenEnabled() {
+        let config = MPVConfiguration(
+            useNativeGPUOutput: true,
+            hdrEnabled: true,
+            forceLibmpvForHDR: true
+        )
+        let options = config.options(useNativeGPUOutput: true)
+        let vo = options.first(where: { $0.0 == "vo" })?.1
+        XCTAssertEqual(vo, "libmpv")
     }
 
     // MARK: HDR/SDR Runtime Commands
@@ -277,8 +305,9 @@ final class MPVConfigurationOptionsTests: XCTestCase {
         let config = MPVConfiguration()
         let options = config.defaultOptions
         let assOverride = options.first(where: { $0.0 == "sub-ass-override" })
-        XCTAssertNil(assOverride,
-                     "ASS effects should be fully preserved — no strip (GPU compositing handles it)")
+        XCTAssertNil(
+            assOverride,
+            "ASS effects should be fully preserved — no strip (GPU compositing handles it)")
     }
 }
 
@@ -355,13 +384,15 @@ final class MockPlaybackController: PlaybackControlling {
 
     func seek(to seconds: Double) {
         seekTarget = seconds
-        currentPosition = PlaybackCoreDomain.PlaybackPosition(seconds: seconds, duration: currentPosition.duration)
+        currentPosition = PlaybackCoreDomain.PlaybackPosition(
+            seconds: seconds, duration: currentPosition.duration)
     }
 
     func skip(by seconds: Double) {
         skipAmount = seconds
         let newTime = max(0, min(currentPosition.seconds + seconds, currentPosition.duration))
-        currentPosition = PlaybackCoreDomain.PlaybackPosition(seconds: newTime, duration: currentPosition.duration)
+        currentPosition = PlaybackCoreDomain.PlaybackPosition(
+            seconds: newTime, duration: currentPosition.duration)
     }
 
     func setSpeed(_ speed: PlaybackCoreDomain.PlaybackSpeed) {
@@ -387,7 +418,8 @@ final class MockPlaybackController: PlaybackControlling {
     func replay() {
         replayCalled = true
         currentState = .playing
-        currentPosition = PlaybackCoreDomain.PlaybackPosition(seconds: 0, duration: currentPosition.duration)
+        currentPosition = PlaybackCoreDomain.PlaybackPosition(
+            seconds: 0, duration: currentPosition.duration)
     }
 
     func setHDREnabled(_ enabled: Bool) {
@@ -485,10 +517,10 @@ final class PlaybackFlowTests: XCTestCase {
         try await player.play(url: URL(string: "file:///movie.mkv")!)
         player.currentPosition = PlaybackCoreDomain.PlaybackPosition(seconds: 5, duration: 100)
 
-        player.skip(by: -100) // would go negative
+        player.skip(by: -100)  // would go negative
         XCTAssertEqual(player.currentPosition.seconds, 0)
 
-        player.skip(by: 200) // would exceed duration
+        player.skip(by: 200)  // would exceed duration
         XCTAssertEqual(player.currentPosition.seconds, 100)
     }
 
@@ -496,7 +528,8 @@ final class PlaybackFlowTests: XCTestCase {
         let player = MockPlaybackController()
         XCTAssertEqual(player.currentSubtitleTrackID, "no")
 
-        let jpSub = PlaybackCoreDomain.SubtitleTrack(id: "s1", languageCode: "ja", displayName: "Japanese")
+        let jpSub = PlaybackCoreDomain.SubtitleTrack(
+            id: "s1", languageCode: "ja", displayName: "Japanese")
         player.selectSubtitleTrack(jpSub)
         XCTAssertEqual(player.currentSubtitleTrackID, "s1")
         XCTAssertFalse(player.subtitleDisabled)
@@ -556,7 +589,8 @@ final class PlaybackFlowTests: XCTestCase {
 
     func testAudioTrackSelection() {
         let player = MockPlaybackController()
-        let track = PlaybackCoreDomain.AudioTrack(id: "2", languageCode: "zh", displayName: "Chinese", isDefault: false)
+        let track = PlaybackCoreDomain.AudioTrack(
+            id: "2", languageCode: "zh", displayName: "Chinese", isDefault: false)
         player.selectAudioTrack(track)
         XCTAssertEqual(player.currentAudioTrackID, "2")
     }
@@ -693,7 +727,8 @@ final class DisambiguateGestureEdgeCaseTests: XCTestCase {
 
         let t0 = Date()
         sut.handlePinchBegan(at: t0)
-        sut.handlePinchChanged(translation: CGSize(width: 50, height: 0), at: t0.addingTimeInterval(0.01))
+        sut.handlePinchChanged(
+            translation: CGSize(width: 50, height: 0), at: t0.addingTimeInterval(0.01))
         XCTAssertEqual(received, [.drag])
 
         sut.handlePinchEnded(at: t0.addingTimeInterval(0.1))
@@ -733,7 +768,8 @@ final class DisambiguateGestureEdgeCaseTests: XCTestCase {
         let t0 = Date()
         sut.handlePinchBegan(at: t0)
         // hypot(5, 5) ≈ 7.07 < threshold of 8
-        sut.handlePinchChanged(translation: CGSize(width: 5, height: 5), at: t0.addingTimeInterval(0.01))
+        sut.handlePinchChanged(
+            translation: CGSize(width: 5, height: 5), at: t0.addingTimeInterval(0.01))
         XCTAssertNil(received, "Movement below threshold should not trigger drag")
     }
 }
@@ -755,7 +791,8 @@ final class VideoToolboxBridgeTests: XCTestCase {
     func testPlaceholderPixelBufferInvalidDimensions() {
         let bridge = VideoToolboxBridge()
         XCTAssertThrowsError(try bridge.makePlaceholderPixelBuffer(width: 0, height: 0)) { error in
-            if case VideoToolboxBridgeError.invalidDimensions = error { } else {
+            if case VideoToolboxBridgeError.invalidDimensions = error {
+            } else {
                 XCTFail("Expected invalidDimensions, got \(error)")
             }
         }
@@ -771,7 +808,8 @@ final class VideoToolboxBridgeTests: XCTestCase {
     func testMakePixelBufferFromNonEmptyDataThrows() {
         let bridge = VideoToolboxBridge()
         XCTAssertThrowsError(try bridge.makePixelBuffer(from: Data("video".utf8))) { error in
-            if case VideoToolboxBridgeError.unsupportedPacketLayout = error { } else {
+            if case VideoToolboxBridgeError.unsupportedPacketLayout = error {
+            } else {
                 XCTFail("Expected unsupportedPacketLayout, got \(error)")
             }
         }

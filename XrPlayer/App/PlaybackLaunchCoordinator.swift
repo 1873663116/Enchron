@@ -32,7 +32,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         self.windowVideoViewModel.onMediaProfileResolved = { [weak self] request, profile in
             guard let self else { return }
             Task {
-                let metadata = await self.metadataService.recordDetectedProfile(profile, for: request)
+                let metadata = await self.metadataService.recordDetectedProfile(
+                    profile, for: request)
                 await MainActor.run {
                     guard self.windowVideoViewModel.currentLaunchRequest == request else { return }
                     self.windowVideoViewModel.applyPrefetchedMetadata(metadata)
@@ -80,16 +81,22 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
         metadataTask = Task { [weak self] in
             guard let self else { return }
+            print("[Playback] metadata_prefetch_started name=\(preparedRequest.displayName)")
             let resolvedMetadata = await self.metadataService.prepareMetadata(for: preparedRequest)
             guard !Task.isCancelled else { return }
             await MainActor.run {
                 guard self.generation == currentGeneration else { return }
-                guard self.windowVideoViewModel.currentLaunchRequest == preparedRequest else { return }
+                guard self.windowVideoViewModel.currentLaunchRequest == preparedRequest else {
+                    return
+                }
                 if let resolvedMetadata {
+                    print("[Playback] metadata_prefetch_ready name=\(preparedRequest.displayName)")
                     self.windowVideoViewModel.applyPrefetchedMetadata(resolvedMetadata)
                     if let mediaProfile = resolvedMetadata.mediaProfile {
                         self.appModel.updateMediaProfile(mediaProfile)
                     }
+                } else {
+                    print("[Playback] metadata_prefetch_empty name=\(preparedRequest.displayName)")
                 }
             }
         }
@@ -112,6 +119,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             guard !Task.isCancelled else { return }
             guard self.generation == currentGeneration else { return }
             guard self.appModel.currentPlaybackURL == preparedRequest.url else { return }
+            print("[Playback] launch_gate_ready name=\(preparedRequest.displayName)")
 
             do {
                 try await self.windowVideoViewModel.play(url: preparedRequest.url)
@@ -160,19 +168,21 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             return nil
         }
 
-        let metadata = windowVideoViewModel.prefetchedMetadata?.merging(
-            with: windowVideoViewModel.displayMediaProfile.map {
+        let metadata =
+            windowVideoViewModel.prefetchedMetadata?.merging(
+                with: windowVideoViewModel.displayMediaProfile.map {
+                    PlaybackMediaMetadata(
+                        mediaProfile: $0,
+                        fileSizeInBytes: windowVideoViewModel.displayFileSizeInBytes
+                    )
+                }
+            )
+            ?? windowVideoViewModel.displayMediaProfile.map {
                 PlaybackMediaMetadata(
                     mediaProfile: $0,
                     fileSizeInBytes: windowVideoViewModel.displayFileSizeInBytes
                 )
             }
-        ) ?? windowVideoViewModel.displayMediaProfile.map {
-            PlaybackMediaMetadata(
-                mediaProfile: $0,
-                fileSizeInBytes: windowVideoViewModel.displayFileSizeInBytes
-            )
-        }
 
         return PlaybackPersistenceSnapshot(
             request: request,
@@ -185,11 +195,13 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         print("[Playback] persist_queued name=\(snapshot.request.displayName)")
         Task.detached(priority: .utility) { [progressStore, metadataService] in
             if let fileIdentifier = snapshot.request.fileIdentifier,
-               snapshot.position.seconds > 0 {
+                snapshot.position.seconds > 0
+            {
                 await progressStore.saveProgress(
                     PersistenceDomain.PlaybackProgress(
                         fileID: fileIdentifier,
-                        position: PersistenceDomain.ProgressPosition(seconds: snapshot.position.seconds)
+                        position: PersistenceDomain.ProgressPosition(
+                            seconds: snapshot.position.seconds)
                     )
                 )
             }

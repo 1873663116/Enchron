@@ -1,6 +1,6 @@
 import Foundation
-import Observation
 import MetalKit
+import Observation
 import QuartzCore
 
 @MainActor
@@ -13,7 +13,8 @@ public final class WindowVideoViewModel {
     }
 
     public var playbackState: PlaybackCoreDomain.PlaybackState = .idle
-    public var playbackPosition: PlaybackCoreDomain.PlaybackPosition = .init(seconds: 0, duration: 0)
+    public var playbackPosition: PlaybackCoreDomain.PlaybackPosition = .init(
+        seconds: 0, duration: 0)
     public var lastErrorMessage: String?
     public var currentMediaProfile: PlaybackCoreDomain.MediaProfile?
     public private(set) var currentPlaybackURL: URL?
@@ -32,7 +33,8 @@ public final class WindowVideoViewModel {
     private var isAwaitingFirstFramePresentation = false
 
     public var onPlaybackEnded: (() -> Void)?
-    public var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackCoreDomain.MediaProfile) -> Void)?
+    public var onMediaProfileResolved:
+        ((PlaybackLaunchRequest, PlaybackCoreDomain.MediaProfile) -> Void)?
 
     public init(player: PlaybackControlling) {
         self.player = player
@@ -139,7 +141,8 @@ public final class WindowVideoViewModel {
     }
 
     public var canPresentControls: Bool {
-        presentationState == .videoVisible && (displayMediaProfile != nil || displayFileSizeInBytes != nil)
+        presentationState == .videoVisible
+            && (displayMediaProfile != nil || displayFileSizeInBytes != nil)
     }
 
     public func play(url: URL) async throws {
@@ -235,6 +238,7 @@ public final class WindowVideoViewModel {
         presentationState = .placeholder
         isAwaitingFirstFramePresentation = true
         lastErrorMessage = nil
+        print("[Playback] presentation_prepared name=\(request.displayName)")
     }
 
     public func applyPrefetchedMetadata(_ metadata: PlaybackMediaMetadata) {
@@ -268,7 +272,9 @@ public final class WindowVideoViewModel {
 
     private func handleMediaProfileDetected(_ profile: PlaybackCoreDomain.MediaProfile) {
         currentMediaProfile = profile
-        print("[Playback] profile_ready name=\(currentLaunchRequest?.displayName ?? profile.projectionType.rawValue)")
+        print(
+            "[Playback] profile_ready name=\(currentLaunchRequest?.displayName ?? profile.projectionType.rawValue)"
+        )
         if let currentLaunchRequest {
             onMediaProfileResolved?(currentLaunchRequest, profile)
         }

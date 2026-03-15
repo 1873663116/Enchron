@@ -171,7 +171,8 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
             let isDirectory = (item[URLResourceKey.fileResourceTypeKey] as? URLFileResourceType) == .directory
             guard !isDirectory else { return nil }
 
-            let fileURL = URL(string: "smb://placeholder/\(name)") ?? URL(fileURLWithPath: "/\(name)")
+            let fullPath = Self.childPath(named: name, in: path)
+            let fileURL = URL(string: "smb://placeholder\(fullPath)") ?? URL(fileURLWithPath: fullPath)
             guard filter.matches(fileURL: fileURL) else { return nil }
 
             let size = item[URLResourceKey.fileSizeKey] as? Int64 ?? 0
@@ -204,7 +205,7 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
             guard isDirectory else { return nil }
             guard name != "." && name != ".." else { return nil }
 
-            let folderPath = smbPath.hasSuffix("/") ? "\(smbPath)\(name)" : "\(smbPath)/\(name)"
+            let folderPath = Self.childPath(named: name, in: path)
             let folderURL = URL(string: "smb://placeholder\(folderPath)") ?? URL(fileURLWithPath: folderPath)
 
             return FileBrowsingDomain.MediaFolder(
@@ -246,8 +247,9 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
         }
 
         let port = info.port ?? 445
-        let rootPath = info.rootPath.hasPrefix("/") ? info.rootPath : "/\(info.rootPath)"
-        let filePath = "\(rootPath)/\(file.name)"
+        let filePath = Self.normalizeAbsolutePath(
+            file.url.path.isEmpty ? Self.childPath(named: file.name, in: info.rootPath) : file.url.path
+        )
 
         var components = URLComponents()
         components.scheme = "smb"
@@ -292,16 +294,43 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
 
     /// Convert the full rootPath-based path to a path relative to the share.
     private func smbRelativePath(from path: String) -> String {
-        guard let info = connectionInfo else { return path }
-        let components = info.rootPath.split(separator: "/", omittingEmptySubsequences: true)
-        guard components.count > 1 else { return "/" }
+        guard let info = connectionInfo else { return Self.normalizeAbsolutePath(path) }
+        return Self.shareRelativePath(for: path, rootPath: info.rootPath)
+    }
 
-        let subPath = components.dropFirst().joined(separator: "/")
-        if path == info.rootPath {
-            return subPath.isEmpty ? "/" : "/\(subPath)"
+    static func shareRelativePath(for path: String, rootPath: String) -> String {
+        let normalizedPath = normalizeAbsolutePath(path)
+        let normalizedRootPath = normalizeAbsolutePath(rootPath)
+        guard let shareName = normalizedRootPath.split(separator: "/", omittingEmptySubsequences: true).first else {
+            return normalizedPath
         }
 
-        return path.hasPrefix("/") ? path : "/\(path)"
+        let sharePrefix = "/\(shareName)"
+        guard normalizedPath == sharePrefix || normalizedPath.hasPrefix("\(sharePrefix)/") else {
+            return normalizedPath
+        }
+
+        let relativePath = String(normalizedPath.dropFirst(sharePrefix.count))
+        return relativePath.isEmpty ? "/" : relativePath
+    }
+
+    static func childPath(named name: String, in parentPath: String) -> String {
+        let normalizedParentPath = normalizeAbsolutePath(parentPath)
+        if normalizedParentPath == "/" {
+            return "/\(name)"
+        }
+        return "\(normalizedParentPath)/\(name)"
+    }
+
+    static func normalizeAbsolutePath(_ path: String) -> String {
+        let trimmedPath = path.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedPath.isEmpty == false else { return "/" }
+
+        let withLeadingSlash = trimmedPath.hasPrefix("/") ? trimmedPath : "/\(trimmedPath)"
+        guard withLeadingSlash.count > 1, withLeadingSlash.hasSuffix("/") else {
+            return withLeadingSlash
+        }
+        return String(withLeadingSlash.dropLast())
     }
 
     private func sort(

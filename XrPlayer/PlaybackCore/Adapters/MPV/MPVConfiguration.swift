@@ -36,11 +36,11 @@ public struct MPVConfiguration: Sendable {
     }
 
     private static let defaultUseNativeGPUOutput: Bool = {
-#if targetEnvironment(simulator)
-        return false
-#else
-        return true
-#endif
+        #if targetEnvironment(simulator)
+            return false
+        #else
+            return true
+        #endif
     }()
 
     private static func defaultVO(useNativeGPUOutput: Bool) -> String {
@@ -48,19 +48,19 @@ public struct MPVConfiguration: Sendable {
     }
 
     private static let defaultGPUAPI: String = {
-#if targetEnvironment(simulator)
-        return "auto"
-#else
-        return "vulkan"
-#endif
+        #if targetEnvironment(simulator)
+            return "auto"
+        #else
+            return "vulkan"
+        #endif
     }()
 
     private static let defaultGPUContext: String = {
-#if targetEnvironment(simulator)
-        return "auto"
-#else
-        return "moltenvk"
-#endif
+        #if targetEnvironment(simulator)
+            return "auto"
+        #else
+            return "moltenvk"
+        #endif
     }()
 
     public init(
@@ -77,7 +77,7 @@ public struct MPVConfiguration: Sendable {
         demuxerMaxBytes: String = "16MiB",
         initialAudioTrack: String? = nil,
         initialSubtitleTrack: String? = nil,
-        hdrOutputPixelFormat: String = "p010",
+        hdrOutputPixelFormat: String = "rgba16f",
         forceLibmpvForHDR: Bool = false
     ) {
         self.useNativeGPUOutput = useNativeGPUOutput ?? MPVConfiguration.defaultUseNativeGPUOutput
@@ -98,8 +98,11 @@ public struct MPVConfiguration: Sendable {
     }
 
     public func options(useNativeGPUOutput: Bool) -> [(String, String)] {
+        let shouldForceSoftwareVO = forceLibmpvForHDR && hdrEnabled
         let effectiveVO: String
-        if vo.contains("gpu"), useNativeGPUOutput == false {
+        if shouldForceSoftwareVO {
+            effectiveVO = "libmpv"
+        } else if vo.contains("gpu"), useNativeGPUOutput == false {
             effectiveVO = "libmpv"
         } else {
             effectiveVO = vo
@@ -109,7 +112,11 @@ public struct MPVConfiguration: Sendable {
         var options: [(String, String)] = [
             ("profile", profile),
             ("vo", effectiveVO),
-            ("hwdec", enableHardwareDecoding ? (useNativeGPUOutput ? "videotoolbox" : "videotoolbox-copy") : "no"),
+            (
+                "hwdec",
+                enableHardwareDecoding
+                    ? (useNativeGPUOutput ? "videotoolbox" : "videotoolbox-copy") : "no"
+            ),
             ("hwdec-codecs", VideoToolboxBridge.hwdecCodecs),
             ("vd-lavc-dr", "yes"),
             ("cache", cache ? "yes" : "no"),
@@ -127,8 +134,8 @@ public struct MPVConfiguration: Sendable {
             ("tone-mapping", "auto"),
             ("msg-level", "all=warn"),
             ("sub-codepage", "utf-8"),
-            ("sub-auto", "no"),              // never auto-select subtitle track
-            ("sub-font", "Noto Sans SC"),    // bundled CJK font in XrPlayer/Fonts/
+            ("sub-auto", "no"),  // never auto-select subtitle track
+            ("sub-font", "Noto Sans SC"),  // bundled CJK font in XrPlayer/Fonts/
             ("sub-font-size", "55"),
             ("sub-ass-hinting", "none"),
             ("sub-fix-timing", "no"),
@@ -139,7 +146,7 @@ public struct MPVConfiguration: Sendable {
             // Blend subtitles into the video pipeline so libass output is
             // composited on the GPU rather than going through a separate OSD path.
             // This is safe now that the font is bundled (font lookup is fast).
-            ("blend-subtitles", "yes")
+            ("blend-subtitles", "yes"),
         ]
 
         // Simulator uses software rendering; complex ASS effects (animations,
@@ -147,7 +154,7 @@ public struct MPVConfiguration: Sendable {
         // Strip ASS override tags so subtitles render as plain text — fast and
         // correct.  On real device the M2 GPU handles full ASS without issue.
         #if targetEnvironment(simulator)
-        options.append(("sub-ass-override", "strip"))
+            options.append(("sub-ass-override", "strip"))
         #endif
 
         // In native GPU path (vo=gpu-next + hwdec=videotoolbox), VideoToolbox outputs
@@ -161,6 +168,9 @@ public struct MPVConfiguration: Sendable {
         if effectiveVO.contains("gpu") {
             options.append(("gpu-api", gpuAPI))
             options.append(("gpu-context", gpuContext))
+            if hdrEnabled && hdrOutputPixelFormat.isEmpty == false {
+                options.append(("fbo-format", hdrOutputPixelFormat))
+            }
         }
 
         if enableHDRMetadataPassthrough {
@@ -202,7 +212,7 @@ public struct MPVConfiguration: Sendable {
     public func hdrRuntimeCommands() -> [[String]] {
         [
             ["set", "target-trc", "auto"],
-            ["set", "target-prim", "auto"]
+            ["set", "target-prim", "auto"],
         ]
     }
 
@@ -210,7 +220,7 @@ public struct MPVConfiguration: Sendable {
     public func sdrRuntimeCommands() -> [[String]] {
         [
             ["set", "target-trc", "srgb"],
-            ["set", "target-prim", "bt.709"]
+            ["set", "target-prim", "bt.709"],
         ]
     }
 }
