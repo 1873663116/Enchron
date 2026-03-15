@@ -70,7 +70,7 @@
 
 本项目的验证分为两条轨道（详见 TESTING.md）：
 
-- Agent 可自检轨道：swift build、swift test、swiftlint lint、scripts/check-workaround.sh、api/scripts/validate-contract.sh
+- Agent 可自检轨道：swift build、swift test、swiftlint lint、scripts/check-workaround.sh、api/scripts/validate-contract.sh、simulator control
 - 人类真机验证轨道：visionOS 的 UI 流畅度、视觉效果、真机交互必须由人类在真机上验证
 
 每个里程碑的验证章节必须同时覆盖两条轨道。agent 可自检的项直接写命令和预期输出；需要人类真机验证的项写具体操作步骤和预期结果。
@@ -243,6 +243,6 @@ ExecPlan 标记为 done 后：
 
 ## 历史里程碑
 
-v0.1 技术验证 → v0.2 播放体验完善 → v0.3 远程文件访问 → v0.4 沉浸空间（规划中）
+v0.1 技术验证 → v0.2 播放体验完善 → v0.3 远程文件访问（功能迭代中） → v0.4 沉浸空间（规划中）
 
 详见 workspace-agents/design_docs/phase4_implementation_roadmap.md
