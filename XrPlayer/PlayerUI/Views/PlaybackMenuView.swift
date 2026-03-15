@@ -71,10 +71,10 @@ public struct PlaybackMenuView: View {
                         Divider().padding(.vertical, 6)
 
                         sectionHeader("HDR Output")
-                        infoRow(title: "Content", value: hdrTypeLabel(profile.hdrType))
+                        infoRow(title: "Content", value: PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))
                         infoRow(
                             title: "Current Output",
-                            value: hdrOutputDescription(for: videoViewModel.hdrOutputMode))
+                            value: PlaybackInfoFormatter.hdrOutputDescription(videoViewModel.hdrOutputMode))
 
                         if videoViewModel.hdrOutputMode == .previewSDR {
                             Text(
@@ -167,34 +167,6 @@ public struct PlaybackMenuView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-    }
-
-    private func hdrOutputDescription(for outputMode: PlaybackCoreDomain.HDROutputMode) -> String {
-        switch outputMode {
-        case .passthroughHDR:
-            return "HDR Passthrough"
-        case .toneMappedSDR:
-            return "Tone-Mapped SDR"
-        case .previewSDR:
-            return "SDR Preview"
-        case .unsupported:
-            return "Unavailable"
-        }
-    }
-
-    private func hdrTypeLabel(_ hdrType: PlaybackCoreDomain.HDRType) -> String {
-        switch hdrType {
-        case .sdr:
-            return "SDR"
-        case .hdr10:
-            return "HDR10"
-        case .hdr10Plus:
-            return "HDR10+"
-        case .dolbyVision:
-            return "Dolby Vision"
-        case .hlg:
-            return "HLG"
-        }
     }
 
     private func dismissPanel() {
