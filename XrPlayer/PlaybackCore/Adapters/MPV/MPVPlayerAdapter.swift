@@ -23,19 +23,19 @@ extension MPVPlayerAdapterError: LocalizedError {
         switch self {
         case .createFailed:
             return "Failed to create mpv context."
-        case let .optionFailed(name, code):
+        case .optionFailed(let name, let code):
             return "mpv option failed: \(name) (\(code))."
-        case let .initializeFailed(code):
+        case .initializeFailed(let code):
             return "mpv initialization failed (\(code))."
-        case let .commandFailed(args, code):
+        case .commandFailed(let args, let code):
             return "mpv command failed: \(args.joined(separator: " ")) (\(code))."
-        case let .propertyFailed(name, code):
+        case .propertyFailed(let name, let code):
             return "mpv property failed: \(name) (\(code))."
-        case let .renderContextCreationFailed(code):
+        case .renderContextCreationFailed(let code):
             return "mpv render context creation failed (\(code))."
-        case let .fileNotFound(url):
+        case .fileNotFound(let url):
             return "File not found: \(url.lastPathComponent)"
-        case let .fileNotReadable(url):
+        case .fileNotReadable(let url):
             return "File is not readable: \(url.lastPathComponent)"
         }
     }
@@ -91,6 +91,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
     private let stateQueue = DispatchQueue(label: "xrplayer.mpv.state")
     private let eventQueue = DispatchQueue(label: "xrplayer.mpv.events", qos: .userInitiated)
+    private let controlQueue = DispatchQueue(label: "xrplayer.mpv.control", qos: .userInitiated)
     private let renderQueue = DispatchQueue(label: "xrplayer.mpv.render", qos: .userInitiated)
     private let initializationLock = NSLock()
 
@@ -99,7 +100,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var internalQueueDepth = 0
 
     private var internalState: PlaybackCoreDomain.PlaybackState = .idle
-    private var internalPosition: PlaybackCoreDomain.PlaybackPosition = .init(seconds: 0, duration: 0)
+    private var internalPosition: PlaybackCoreDomain.PlaybackPosition = .init(
+        seconds: 0, duration: 0)
     private var internalAudioTracks: [PlaybackCoreDomain.AudioTrack] = []
     private var internalSubtitleTracks: [PlaybackCoreDomain.SubtitleTrack] = []
     // Cached current track IDs — updated from event thread to avoid main-thread mpv_get_property calls.
@@ -128,7 +130,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var hasVerifiedHDRSurface: Bool {
         stateQueue.sync {
             guard activeNativeGPUOutput, let videoLayer else { return false }
-            return videoLayer.pixelFormat == .rgba16Float && videoLayer.wantsExtendedDynamicRangeContent
+            return videoLayer.pixelFormat == .rgba16Float
+                && videoLayer.wantsExtendedDynamicRangeContent
         }
     }
 
@@ -144,25 +147,24 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     public func attachVideoLayer(_ layer: CAMetalLayer?) {
-        let (continuation, shouldRecreateNativeContext): (CheckedContinuation<Void, Never>?, Bool) = stateQueue.sync {
-            let previousLayer = videoLayer
-            videoLayer = layer
+        let (continuation, shouldRecreateNativeContext): (CheckedContinuation<Void, Never>?, Bool) =
+            stateQueue.sync {
+                let previousLayer = videoLayer
+                videoLayer = layer
 
-            let continuation: CheckedContinuation<Void, Never>?
-            if layer != nil {
-                continuation = videoLayerContinuation
-                videoLayerContinuation = nil
-            } else {
-                continuation = nil
+                let continuation: CheckedContinuation<Void, Never>?
+                if layer != nil {
+                    continuation = videoLayerContinuation
+                    videoLayerContinuation = nil
+                } else {
+                    continuation = nil
+                }
+
+                let shouldRecreateNativeContext =
+                    activeNativeGPUOutput && previousLayer != nil && previousLayer !== layer
+
+                return (continuation, shouldRecreateNativeContext)
             }
-
-            let shouldRecreateNativeContext =
-                activeNativeGPUOutput &&
-                previousLayer != nil &&
-                previousLayer !== layer
-
-            return (continuation, shouldRecreateNativeContext)
-        }
 
         if shouldRecreateNativeContext {
             // The native gpu-next path stores the CAMetalLayer pointer via `wid`.
@@ -184,17 +186,23 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     /// so this starts the event loop infrastructure but defers the mpv context
     /// creation until the layer is attached and play() is called.
     public func warmup() {
+        print("[MPV] warmup_requested native=\(configuration.useNativeGPUOutput)")
         if configuration.useNativeGPUOutput {
             let shouldScheduleImmediately = stateQueue.sync { () -> Bool in
                 shouldWarmupWhenLayerArrives = true
                 return videoLayer != nil
+            }
+            if shouldScheduleImmediately == false {
+                print("[MPV] warmup_waiting_for_layer")
             }
             if shouldScheduleImmediately {
                 scheduleDeferredWarmupIfNeeded()
             }
             return
         }
+        print("[MPV] warmup_started mode=software")
         try? ensureMPVReady()
+        print("[MPV] warmup_ready mode=software")
         startEventLoop()
     }
 
@@ -207,37 +215,11 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             print("[MPV] request_started url=\(url.lastPathComponent)")
             await waitForVideoLayerIfNeeded()
             print("[MPV] layer_attached url=\(url.lastPathComponent)")
-            try ensureMPVReady()
-            print("[MPV] mpv_ready url=\(url.lastPathComponent)")
-            startEventLoop()
-
-            let loadRequest = try Self.makeLoadRequest(for: url)
-            lastPlayedURL = loadRequest.url
-
-            var acquiredScope = false
-            if loadRequest.requiresSecurityScopedAccess, loadRequest.url.startAccessingSecurityScopedResource() {
-                acquiredScope = true
-                activeSecurityScopedURL = loadRequest.url
-            }
-
-            do {
-                updateState(.loading)
-                isHDRContent = false
-                isHDROutputEnabled = true
-                if url.scheme == "smb" || url.scheme == "http" || url.scheme == "https" {
-                    print("[MPV] remote_prepare_started url=\(url.lastPathComponent)")
-                }
-                try command(["loadfile", loadRequest.loadArgument, "replace"])
-                print("[MPV] loadfile_sent url=\(url.lastPathComponent)")
-            } catch {
-                if acquiredScope {
-                    loadRequest.url.stopAccessingSecurityScopedResource()
-                    activeSecurityScopedURL = nil
-                }
-                throw error
-            }
+            try await performLoadStart(for: url)
         } catch {
-            print("[MPV] playback_failed url=\(url.lastPathComponent) error=\(error.localizedDescription)")
+            print(
+                "[MPV] playback_failed url=\(url.lastPathComponent) error=\(error.localizedDescription)"
+            )
             notifyRuntimeError(error.localizedDescription)
             throw error
         }
@@ -337,6 +319,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             videoLayer?.wantsExtendedDynamicRangeContent = enabled
         }
         isHDROutputEnabled = enabled
+        logHDRPipelineState(reason: "manual_toggle")
     }
 
     public func frameStepForward() {
@@ -355,7 +338,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let start = stringProperty("sub-start/full") ?? "nil"
         let end = stringProperty("sub-end/full") ?? "nil"
         let vo = stringProperty("current-vo") ?? "nil"
-        return "sid=\(sid) vis=\(visibility) start=\(start) end=\(end) vo=\(vo) text=\(text) ass=\(assText)"
+        return
+            "sid=\(sid) vis=\(visibility) start=\(start) end=\(end) vo=\(vo) text=\(text) ass=\(assText)"
     }
 
     public func captureScreenshot(to url: URL, flags: String = "subtitles") {
@@ -450,7 +434,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
             handle = created
             activeNativeGPUOutput = wantsNativeGPUOutput
-            print("[MPV] output-route=\(activeNativeGPUOutput ? "native-gpu" : "sw-render-fallback")")
+            print(
+                "[MPV] output-route=\(activeNativeGPUOutput ? "native-gpu" : "sw-render-fallback")")
 
             if activeNativeGPUOutput == false {
                 try createRenderContext()
@@ -477,7 +462,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
         if let renderContext {
             mpv_render_context_set_update_callback(renderContext, nil, nil)
-            renderQueue.sync { }  // drain in-flight render callbacks before freeing
+            renderQueue.sync {}  // drain in-flight render callbacks before freeing
             mpv_render_context_free(renderContext)
             self.renderContext = nil
         }
@@ -548,8 +533,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         var context: OpaquePointer?
         let code = MPV_RENDER_API_TYPE_SW.withCString { apiTypeCString in
             var params: [mpv_render_param] = [
-                mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE, data: UnsafeMutableRawPointer(mutating: apiTypeCString)),
-                mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil)
+                mpv_render_param(
+                    type: MPV_RENDER_PARAM_API_TYPE,
+                    data: UnsafeMutableRawPointer(mutating: apiTypeCString)),
+                mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
             ]
 
             return params.withUnsafeMutableBufferPointer { buffer in
@@ -625,8 +612,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             detectAndNotifyMediaProfile()
             logPipelineIfNeeded()
             let hasVideoTrack =
-                (stringProperty("video-codec")?.isEmpty == false) ||
-                ((int64Property("vid") ?? 0) > 0)
+                (stringProperty("video-codec")?.isEmpty == false)
+                || ((int64Property("vid") ?? 0) > 0)
             if hasVideoTrack == false {
                 markPlaybackReadyIfNeeded()
             }
@@ -641,6 +628,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                 handlePropertyChange(propertyPointer.pointee)
             }
         case MPV_EVENT_VIDEO_RECONFIG:
+            detectAndNotifyMediaProfile()
             markPlaybackReadyIfNeeded()
             if activeNativeGPUOutput == false {
                 scheduleRender(forceFrame: true)
@@ -657,7 +645,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         switch name {
         case "playback-time":
             guard property.format == MPV_FORMAT_DOUBLE,
-                  let data = property.data?.assumingMemoryBound(to: Double.self)
+                let data = property.data?.assumingMemoryBound(to: Double.self)
             else { return }
             let time = data.pointee
             stateQueue.sync { currentTimeSeconds = time }
@@ -667,7 +655,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
         case "duration":
             guard property.format == MPV_FORMAT_DOUBLE,
-                  let data = property.data?.assumingMemoryBound(to: Double.self)
+                let data = property.data?.assumingMemoryBound(to: Double.self)
             else { return }
             let dur = data.pointee
             stateQueue.sync { currentDurationSeconds = dur }
@@ -676,7 +664,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
         case "pause":
             guard property.format == MPV_FORMAT_FLAG,
-                  let data = property.data?.assumingMemoryBound(to: Int32.self)
+                let data = property.data?.assumingMemoryBound(to: Int32.self)
             else { return }
             let shouldIgnorePauseChange = stateQueue.sync { isAwaitingVisualPlaybackStart }
             if shouldIgnorePauseChange {
@@ -689,7 +677,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
         case "eof-reached":
             guard property.format == MPV_FORMAT_FLAG,
-                  let data = property.data?.assumingMemoryBound(to: Int32.self)
+                let data = property.data?.assumingMemoryBound(to: Int32.self)
             else { return }
             if data.pointee != 0 {
                 updateState(.ended)
@@ -697,13 +685,13 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
         case "dwidth":
             guard property.format == MPV_FORMAT_INT64,
-                  let data = property.data?.assumingMemoryBound(to: Int64.self)
+                let data = property.data?.assumingMemoryBound(to: Int64.self)
             else { return }
             stateQueue.sync { renderWidth = max(1, Int(data.pointee)) }
 
         case "dheight":
             guard property.format == MPV_FORMAT_INT64,
-                  let data = property.data?.assumingMemoryBound(to: Int64.self)
+                let data = property.data?.assumingMemoryBound(to: Int64.self)
             else { return }
             stateQueue.sync { renderHeight = max(1, Int(data.pointee)) }
 
@@ -783,8 +771,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
 
         // Normalise "no" to nil so cached IDs are consistent with the public API contract.
-        let newAudioID: String? = (activeAudioID == "no" || activeAudioID == nil) ? nil : activeAudioID
-        let newSubtitleID: String? = (activeSubtitleID == "no" || activeSubtitleID == nil) ? nil : activeSubtitleID
+        let newAudioID: String? =
+            (activeAudioID == "no" || activeAudioID == nil) ? nil : activeAudioID
+        let newSubtitleID: String? =
+            (activeSubtitleID == "no" || activeSubtitleID == nil) ? nil : activeSubtitleID
 
         stateQueue.sync {
             internalAudioTracks = audio
@@ -805,7 +795,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let payload = pointer.pointee
         if payload.reason == MPV_END_FILE_REASON_ERROR {
             updateState(.failed)
-            let message = "Playback ended with error: \(mpvErrorString(payload.error)) (\(payload.error))"
+            let message =
+                "Playback ended with error: \(mpvErrorString(payload.error)) (\(payload.error))"
             print("[MPV] \(message)")
             notifyRuntimeError(message)
         } else {
@@ -826,7 +817,9 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let payload = pointer.pointee
         let level = payload.level.map(String.init(cString:)) ?? "unknown"
         let prefix = payload.prefix.map(String.init(cString:)) ?? "mpv"
-        let text = payload.text.map(String.init(cString:))?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let text =
+            payload.text.map(String.init(cString:))?.trimmingCharacters(in: .whitespacesAndNewlines)
+            ?? ""
         guard text.isEmpty == false else { return }
 
         print("[MPV][\(level)][\(prefix)] \(text)")
@@ -961,11 +954,16 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
                 return withUnsafeMutablePointer(to: &rowStride) { rowStridePtr in
                     var params: [mpv_render_param] = [
-                        mpv_render_param(type: MPV_RENDER_PARAM_SW_SIZE, data: UnsafeMutableRawPointer(sizePtr)),
-                        mpv_render_param(type: MPV_RENDER_PARAM_SW_FORMAT, data: UnsafeMutableRawPointer(mutating: softwareFormat)),
-                        mpv_render_param(type: MPV_RENDER_PARAM_SW_STRIDE, data: UnsafeMutableRawPointer(rowStridePtr)),
+                        mpv_render_param(
+                            type: MPV_RENDER_PARAM_SW_SIZE, data: UnsafeMutableRawPointer(sizePtr)),
+                        mpv_render_param(
+                            type: MPV_RENDER_PARAM_SW_FORMAT,
+                            data: UnsafeMutableRawPointer(mutating: softwareFormat)),
+                        mpv_render_param(
+                            type: MPV_RENDER_PARAM_SW_STRIDE,
+                            data: UnsafeMutableRawPointer(rowStridePtr)),
                         mpv_render_param(type: MPV_RENDER_PARAM_SW_POINTER, data: destination),
-                        mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil)
+                        mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
                     ]
 
                     _ = params.withUnsafeMutableBufferPointer { buffer in
@@ -1003,9 +1001,61 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
     }
 
+    private func performLoadStart(for url: URL) async throws {
+        try await runOnControlQueue { [self] in
+            try ensureMPVReady()
+            print("[MPV] mpv_ready url=\(url.lastPathComponent)")
+            logHDRPipelineState(reason: "mpv_ready")
+            startEventLoop()
+
+            let loadRequest = try Self.makeLoadRequest(for: url)
+            lastPlayedURL = loadRequest.url
+
+            var acquiredScope = false
+            if loadRequest.requiresSecurityScopedAccess,
+                loadRequest.url.startAccessingSecurityScopedResource()
+            {
+                acquiredScope = true
+                activeSecurityScopedURL = loadRequest.url
+            }
+
+            do {
+                updateState(.loading)
+                isHDRContent = false
+                isHDROutputEnabled = true
+                if url.scheme == "smb" || url.scheme == "http" || url.scheme == "https" {
+                    print("[MPV] remote_prepare_started url=\(url.lastPathComponent)")
+                }
+                try command(["loadfile", loadRequest.loadArgument, "replace"])
+                print("[MPV] loadfile_sent url=\(url.lastPathComponent)")
+            } catch {
+                if acquiredScope {
+                    loadRequest.url.stopAccessingSecurityScopedResource()
+                    activeSecurityScopedURL = nil
+                }
+                throw error
+            }
+        }
+    }
+
+    private func runOnControlQueue<T: Sendable>(_ work: @escaping @Sendable () throws -> T)
+        async throws -> T
+    {
+        try await withCheckedThrowingContinuation { continuation in
+            controlQueue.async {
+                do {
+                    continuation.resume(returning: try work())
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
     private func scheduleDeferredWarmupIfNeeded() {
         let shouldWarmup = stateQueue.sync { () -> Bool in
-            guard configuration.useNativeGPUOutput, shouldWarmupWhenLayerArrives, videoLayer != nil else {
+            guard configuration.useNativeGPUOutput, shouldWarmupWhenLayerArrives, videoLayer != nil
+            else {
                 return false
             }
             shouldWarmupWhenLayerArrives = false
@@ -1013,10 +1063,12 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
         guard shouldWarmup else { return }
 
-        eventQueue.async { [weak self] in
+        controlQueue.async { [weak self] in
             guard let self else { return }
             do {
+                print("[MPV] warmup_started mode=native")
                 try self.ensureMPVReady()
+                print("[MPV] warmup_ready mode=native")
                 self.startEventLoop()
             } catch {
                 self.notifyRuntimeError(error.localizedDescription)
@@ -1080,7 +1132,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
     private func normalizeTrackMetadata(_ value: String?) -> String? {
         guard let value = value?.trimmingCharacters(in: .whitespacesAndNewlines),
-              value.isEmpty == false else {
+            value.isEmpty == false
+        else {
             return nil
         }
         return value
@@ -1102,6 +1155,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         print(
             "[MPV] media-profile hdr=\(hdrType.rawValue) dovi=\(hdrMetadata.dolbyVisionProfile.map(String.init) ?? "nil") hdr-format=\(hdrMetadata.hdrFormat.ifEmpty("nil")) colormatrix=\(hdrMetadata.colormatrix.ifEmpty("nil")) gamma=\(hdrMetadata.gamma.ifEmpty("nil")) primaries=\(hdrMetadata.primaries.ifEmpty("nil")) colorlevels=\(hdrMetadata.colorlevels.ifEmpty("nil")) sig-peak=\(hdrMetadata.signalPeak.map { String(format: "%.2f", $0) } ?? "nil") scene-max=\(hdrMetadata.sceneMaxR.map { String(format: "%.2f", $0) } ?? "nil")/\(hdrMetadata.sceneMaxG.map { String(format: "%.2f", $0) } ?? "nil")/\(hdrMetadata.sceneMaxB.map { String(format: "%.2f", $0) } ?? "nil")"
         )
+        logHDRPipelineState(reason: "media_profile_detected")
 
         let profile = PlaybackCoreDomain.MediaProfile(
             projectionType: .flat,
@@ -1124,24 +1178,21 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let primaries = metadata.primaries.lowercased()
         let gamma = metadata.gamma.lowercased()
         let colormatrix = metadata.colormatrix.lowercased()
-        let scenePeak = [
-            metadata.sceneMaxR,
-            metadata.sceneMaxG,
-            metadata.sceneMaxB
-        ]
-        .compactMap { $0 }
-        .max() ?? 0
+        let scenePeak =
+            [
+                metadata.sceneMaxR,
+                metadata.sceneMaxG,
+                metadata.sceneMaxB,
+            ]
+            .compactMap { $0 }
+            .max() ?? 0
         let hasBT2020Markers =
-            primaries.contains("bt.2020") ||
-            primaries.contains("bt2020") ||
-            colormatrix.contains("bt.2020") ||
-            colormatrix.contains("bt2020")
+            primaries.contains("bt.2020") || primaries.contains("bt2020")
+            || colormatrix.contains("bt.2020") || colormatrix.contains("bt2020")
         let hasDolbyVisionMarkers =
-            metadata.dolbyVisionProfile != nil ||
-            hdrFormat.contains("dolby") ||
-            hdrFormat.contains("dovi") ||
-            colormatrix.contains("dolby") ||
-            colormatrix.contains("dovi")
+            metadata.dolbyVisionProfile != nil || hdrFormat.contains("dolby")
+            || hdrFormat.contains("dovi") || colormatrix.contains("dolby")
+            || colormatrix.contains("dovi")
 
         if hasDolbyVisionMarkers {
             return .dolbyVision
@@ -1192,7 +1243,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private func dolbyVisionProfile() -> Int64? {
         for propertyName in [
             "video-params/dovi-profile",
-            "video-params/dolby-vision-profile"
+            "video-params/dolby-vision-profile",
         ] {
             if let numericValue = int64Property(propertyName), numericValue > 0 {
                 return numericValue
@@ -1200,8 +1251,9 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
             if let stringValue = stringProperty(propertyName)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-               let parsedValue = Int64(stringValue),
-               parsedValue > 0 {
+                let parsedValue = Int64(stringValue),
+                parsedValue > 0
+            {
                 return parsedValue
             }
         }
@@ -1216,6 +1268,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         stateQueue.sync {
             videoLayer?.wantsExtendedDynamicRangeContent = true
         }
+        logHDRPipelineState(reason: "auto_runtime_config")
     }
 
     private func manualHDROutputCommands(enabled: Bool) -> [[String]] {
@@ -1241,6 +1294,17 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         print("[MPV] pipeline vo=\(voName) hwdec=\(hwdecName) vcodec=\(vCodec) acodec=\(aCodec)")
     }
 
+    private func logHDRPipelineState(reason: String) {
+        let outputMode = hdrOutputMode.rawValue
+        let targetTRC = stringProperty("target-trc") ?? "unknown"
+        let targetPrimaries = stringProperty("target-prim") ?? "unknown"
+        let colorspaceHint = stringProperty("target-colorspace-hint") ?? "unknown"
+        let currentVO = stringProperty("current-vo") ?? "unknown"
+        print(
+            "[MPV] hdr_state reason=\(reason) content=\(isHDRContent) enabled=\(isHDROutputEnabled) verified_surface=\(hasVerifiedHDRSurface) output=\(outputMode) vo=\(currentVO) target-trc=\(targetTRC) target-prim=\(targetPrimaries) colorspace-hint=\(colorspaceHint)"
+        )
+    }
+
     private func makePooledPixelBuffer(width: Int, height: Int) -> CVPixelBuffer? {
         if pixelBufferPool == nil || pooledWidth != width || pooledHeight != height {
             pooledWidth = width
@@ -1254,7 +1318,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                 kCVPixelBufferHeightKey: height,
                 kCVPixelBufferPixelFormatTypeKey: kCVPixelFormatType_32BGRA,
                 kCVPixelBufferIOSurfacePropertiesKey: [:],
-                kCVPixelBufferMetalCompatibilityKey: true
+                kCVPixelBufferMetalCompatibilityKey: true,
             ]
 
             var pool: CVPixelBufferPool?
@@ -1281,8 +1345,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 }
 
-private extension String {
-    func ifEmpty(_ fallback: String) -> String {
+extension String {
+    fileprivate func ifEmpty(_ fallback: String) -> String {
         isEmpty ? fallback : self
     }
 }

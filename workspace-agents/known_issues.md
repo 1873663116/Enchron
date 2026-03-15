@@ -1,6 +1,6 @@
 # Enchron 已知问题
 
-更新时间：2026-03-10
+更新时间：2026-03-15
 
 已归档并标记为已解决：
 
@@ -8,28 +8,151 @@
 - [known_issues_2026-03-08_resolved.md](/Users/xiongzhipeng/Applications/Enchron/workspace-agents/archive/issues archive/known_issues_2026-03-08_resolved.md)
 - [known_issues_2026-03-10_resolved.md](/Users/xiongzhipeng/Applications/Enchron/workspace-agents/archive/issues archive/known_issues_2026-03-10_resolved.md)
 
-当前主文档只保留仍开放、且对当前产品判断有指导意义的问题。
+当前主文档只保留仍开放、且对当前产品判断有指导意义的问题。已在真机上确认关闭的问题，不再继续保留在这里。
+
+2026-03-15 已确认关闭：
+
+- KI-011：SMB 子目录浏览与子目录视频播放已修复。
+- KI-007 的 `i` 信息面板容器与首次弹出问题已修复；该编号当前仅保留“首次构建后首启首播的一次性冷卡顿”子问题。
 
 ---
 
-## KI-007：首播黑屏仍在 5 秒量级，且切换视频时旧画面 / 旧控件会残留到新视频首帧出现前
+## KI-010：HDR 内容识别已准确，但真实 HDR 显示与 HDR/SDR 切换仍然失败
+
+### 优先级
+
+当前最高优先级问题。EP-002 的首要目标就是它。
 
 ### 现象
 
-- 2026-03-11 最新用户实测：首次启动应用打开视频时，黑屏加载仍然大约需要 5 秒。
-- 同样是在第一次启动，打开“i”二级面板时，会有一阵严重的卡顿，之后便不再发生。
+- Dolby Vision 与 HDR10 内容现在都能被正确识别，UI 中的 HDR/SDR 信息也能正确显示。
+- HDR/SDR 按钮已经可点击，但点击后实际显示效果不会发生可信变化。
+- 真机日志稳定显示内容是 HDR，但输出和实际播放i面板的信息显示仍停留在 `previewSDR`。
 
-用户的推测：可能需要参考之前归档过的处理办法，你又一次把非必要的可以后台处理的任务变得需要显式处理了，导致第一次打开的严重卡顿
+### 调查结论（2026-03-15）
+
+这条问题已经从“识别不准”收缩成更具体的问题：**HDR 内容识别链路基本成立，但 native GPU 路径下的真实 HDR 输出链路没有闭环。**
+
+换言之，现在系统知道“内容是 HDR”，但并不能把这件事稳定兑现为“当前播放真的是 HDR 输出”。
+
+### 根本原因
+
+#### 根因 A：内容识别与真实输出是两条链路，前者基本成立，后者仍未成立
+
+真机日志已经能稳定出现：
+
+- `media-profile hdr=dolbyVision ...`
+- `media-profile hdr=hdr10 ...`
+
+同时也稳定出现：
+
+- `hdr_state ... content=true ... verified_surface=false output=previewSDR`
+
+这说明内容识别没有再卡在 `FILE_LOADED` 的早期误判上，而是真正识别到了 HDR；失败点发生在输出路径建立与验证阶段。
+
+#### 根因 B：当前 HDR/SDR 按钮还没有切换真实输出管线
+
+从表现看，当前按钮只是触发了有限的运行时参数变化，但没有把播放器切到一个已经被验证过的 HDR 输出路径上。也就是说，按钮现在更像“尝试改变显示偏好”，而不是“切换一个真实生效的 HDR 播放管线”。
+
+#### 根因 C：native GPU 路径下的 HDR surface 从未被验证成功
+
+当前最关键的状态是 `verified_surface=false`。只要它始终是 `false`，输出就会长期留在 `previewSDR`。这已经不是 UI 文案问题，而是底层渲染路径没有成功建立一个被系统与播放器同时认可的 HDR 输出 surface。
+
+#### 根因 D：native layer / swapchain 线程约束异常可能直接阻断了输出闭环
+
+真机日志反复出现：
+
+- `Modifying properties of a view's layer off the main thread is not allowed`
+
+栈追踪落在 MoltenVK swapchain 初始化 / 重建路径。这说明当前 native GPU 路径至少还带着一类真实线程违规；它很可能既影响稳定性，也影响 HDR surface 的建立与验证。
+
+### 代码与真机证据
+
+- HDR 内容识别日志已经能正确区分 Dolby Vision 和 HDR10。
+- `hdr_state` 日志稳定显示 `content=true` 但 `verified_surface=false output=previewSDR`。
+- native GPU 路径真机日志反复出现 layer off-main-thread 警告，且堆栈落在 MoltenVK swapchain 路径。
+
+### 修正方向
+
+1. 冻结一条唯一可信的 HDR 输出路径，先确认它的 thread、layer、pixel format、`vo` 与验证条件。
+2. 在真实 HDR 路径建立前，不再把 HDR/SDR 按钮当成“已具备真实切换能力”的入口。
+3. 修复 native layer / swapchain 的主线程约束问题，确认它是否是 `verified_surface` 长期为 `false` 的直接原因。
+4. 让 UI、日志与真实输出路径完全对齐，不能再出现“内容识别正确，但按钮与视觉结果不一致”的状态。
 
 ---
 
-## KI-010：HDR 内容识别已经更准确，但 HDR 入口、切换能力和真实输出都还没有成功
+## KI-007：首次构建后首启首播仍有一次性冷卡顿，但之后会进入秒切热态
 
 ### 现象
 
-- 用户 2026-03-10 明确确认：HDR 内容类型本身现在识别更准了。
-- 与此同时，当前真实输出仍然只是 `SDR Preview`，而且正式的 HDR / SDR 的按钮点击，但不具备真正的播放对应hdr视频的能力
+- 首次构建并安装成功后，第一次启动 App 再第一次点开视频时，仍然会有一次性明显卡顿和黑屏等待。
+- 一旦第一次播放成功，之后同一轮使用中的切视频会进入非常快的热态，接近秒切。
+- 这个问题不是每次启动都稳定复现，而是高度集中在“安装后的第一次真实播放”。
+- 先前同条问题里包含的“i 面板容器与首次弹出卡顿”已经修正，不再属于当前开放问题。
 
----
+### 调查结论（2026-03-15）
 
-## KI-011：SMB 现在能够正常连接，也能够读取服务器内的文件夹，文件夹目录中的文件夹是点不开的
+这条问题已经不能再笼统描述为“首播慢”。真机结果显示它更像是：**首次构建后，第一次真实进入 native GPU 播放路径时，会支付一次性的重型建链成本；一旦这条路径成功建立，之后就会进入热态。**
+
+`i` 面板问题已关闭，真正剩下的开放点是“为什么 warmup 已完成，第一次真实播放仍然明显更慢”。
+
+### 根本原因
+
+#### 根因 A：warmup 只证明“基础预热完成”，不等于“真实播放渲染管线已经热好”
+
+真机日志已经明确表明，用户点视频前就出现了：
+
+- `warmup_requested`
+- `warmup_waiting_for_layer`
+- `warmup_started mode=native`
+- `warmup_ready mode=native`
+
+这说明 App 启动后确实会准备 player core。但这个准备到的状态，更接近“基础路径已建立，可以开始真正播放”，而不是“真实播放所需的渲染管线、shader cache、swapchain 和媒体链路都已经热好”。
+
+#### 根因 B：第一次真实播放仍然承担了一次性的 GPU/VO 建链成本
+
+第一次成功播放 HDR 内容时，真机日志会额外出现：
+
+- MoltenVK 实例与设备创建
+- swapchain image 创建
+- `Spent 1010.191 ms generating shader LUT (slow!)`
+- `Spent 1238.006 ms translating SPIR-V (slow!)`
+
+这说明首次真正进入 `vo=gpu-next` 的 native GPU 播放路径时，仍在支付一次性的图形管线建立与 shader 编译成本。后续之所以秒切，就是因为这些昂贵步骤已经完成并处于热态。
+
+#### 根因 C：当前“首启前状态”和“首次播放后状态”之间还没有被产品化地桥接起来
+
+现在的 warmup 做到了“启动时先把 player core 拉起来”，但还没有做到“把第一次真实播放最贵的那部分成本也提前完成或平滑掉”。所以首次点播和后续切播看到的，其实不是同一种内部状态。
+
+### 当前最可信的状态解释
+
+#### App 启动但尚未点播时，播放核心是什么状态
+
+根据现有日志，最可信的描述是：
+
+- player core 已被创建；
+- native 模式 warmup 已完成；
+- 基础 layer 绑定前提已满足；
+- 但尚未发生一次真正的 `vo=gpu-next` 播放；
+- 因此真实播放所需的 shader LUT、SPIR-V 翻译、swapchain 热态和部分媒体链路缓存还没有建立。
+
+#### 第一次成功播放后，播放核心是什么状态
+
+根据现有真机现象，最可信的描述是：
+
+- `mpv_ready` 与首次真实 `loadfile` 已走通；
+- native GPU 播放路径已经成功建链一次；
+- MoltenVK/libplacebo 相关的一次性初始化成本已支付；
+- 后续切视频会复用这条已热起来的播放路径，因此体感接近秒切。
+
+### 代码与真机证据
+
+- `XrPlayer/XrPlayerApp.swift` 会在应用启动时调用 `player.warmup()`。
+- 真机日志中 `warmup_ready` 出现在首次点击视频之前，说明“没有 warmup”不是当前根因。
+- 真机日志中首次播放会出现 MoltenVK 创建、swapchain 创建、shader LUT 生成和 SPIR-V 翻译等重负载记录，说明真正的一次性成本发生在“第一次真实播放”而不是“App 刚启动”。
+
+### 修正方向
+
+1. 先不要再把这个问题笼统叫做“首播慢”，而要按“首次构建后首启首播的一次性冷建链成本”来调查。
+2. 继续补足 warmup 前态与首次真实播放后热态之间的状态证据，回答“为什么只会一次”。
+3. 如果后续要优化，重点应放在“能否把第一次真实 GPU 管线建链成本提前或平滑”，而不是继续在已经收缩过的普通播放逻辑上盲改。

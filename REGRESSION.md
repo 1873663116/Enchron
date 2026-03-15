@@ -1,6 +1,6 @@
 # Enchron 回归集
 
-更新时间：2026-03-14
+更新时间：2026-03-15
 
 
 ## 使用方式
@@ -24,9 +24,9 @@
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
 | PlayerUI/Views/PlaybackMenuView.swift | REG-018 |
 | PlayerUI/Domain/* | REG-010, REG-012, REG-015, REG-016 |
-| FileBrowsing/Adapters/SMB/* | REG-020, REG-021 |
+| FileBrowsing/Adapters/SMB/* | REG-020, REG-021, REG-023 |
 | FileBrowsing/Adapters/WebDAV/* | REG-022 |
-| FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022 |
+| FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023 |
 | FileBrowsing/Domain/* | REG-020, REG-022 |
 | FileBrowsing/Views/* | REG-020 |
 | Persistence/Adapters/SwiftDataStore.swift | REG-030 |
@@ -219,6 +219,17 @@
 - **退化信号**: 连接失败、文件列表为空、选择文件后无法播放
 - **状态**: active
 - **创建日期**: 2026-03-14
+
+
+### REG-023: SMB 子目录中的视频可播放
+
+- **来源**: KI-011 修复后的路径语义收口
+- **触发条件**: 改动 FileBrowsing/Adapters/SMB/*、FileBrowsing/ViewModels/*
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter SMBDataSourceAdapterTests` 通过
+- **真机验证**: 连接 SMB → 进入某个子目录 → 选择该子目录中的视频文件 → 正常播放，且路径不回退到 share 根目录
+- **退化信号**: 子目录能打开但播放 URL 指向 share 根、点击子目录文件后打开了错误视频、子目录文件无法播放
+- **状态**: active
+- **创建日期**: 2026-03-15
 
 
 ---
