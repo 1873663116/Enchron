@@ -652,63 +652,81 @@ final class KeychainStoreTests: XCTestCase {
     }
 }
 
-// MARK: - DataSource credentialSourceID Tests
+// MARK: - Credential Source ID Tests
 
 final class CredentialSourceIDTests: XCTestCase {
-    func testCredentialSourceIDFormatWebDAV() {
-        let ds = FileBrowsingDomain.DataSource(
-            name: "Test",
+    func testConnectionInfoCredentialSourceIDFormatWebDAV() {
+        let info = FileBrowsingDomain.ConnectionInfo(
             sourceType: .webDAV,
-            connectionInfo: .init(sourceType: .webDAV, host: "nas.local", port: 443, rootPath: "/videos")
+            host: "nas.local",
+            port: 443,
+            rootPath: "/videos"
         )
-        XCTAssertEqual(ds.credentialSourceID, "webDAV:nas.local:443:/videos")
+        XCTAssertEqual(info.credentialSourceID, "webDAV:nas.local:443:/videos")
     }
 
-    func testCredentialSourceIDFormatSMB() {
-        let ds = FileBrowsingDomain.DataSource(
-            name: "SMB",
+    func testConnectionInfoCredentialSourceIDFormatSMB() {
+        let info = FileBrowsingDomain.ConnectionInfo(
             sourceType: .smb,
-            connectionInfo: .init(sourceType: .smb, host: "server", port: 445, rootPath: "/share")
+            host: "server",
+            port: 445,
+            rootPath: "/share"
         )
-        XCTAssertEqual(ds.credentialSourceID, "smb:server:445")
+        XCTAssertEqual(info.credentialSourceID, "smb:server:445")
     }
 
-    func testSMBCredentialSourceIDIgnoresSelectedShare() {
-        let hostOnly = FileBrowsingDomain.DataSource(
-            name: "Host",
+    func testSMBConnectionInfoCredentialSourceIDIgnoresSelectedShare() {
+        let hostOnly = FileBrowsingDomain.ConnectionInfo(
             sourceType: .smb,
-            connectionInfo: .init(sourceType: .smb, host: "server", port: 445, rootPath: "/")
+            host: "server",
+            port: 445,
+            rootPath: "/"
         )
-        let selectedShare = FileBrowsingDomain.DataSource(
-            name: "Host/Movies",
+        let selectedShare = FileBrowsingDomain.ConnectionInfo(
             sourceType: .smb,
-            connectionInfo: .init(sourceType: .smb, host: "server", port: 445, rootPath: "/Movies")
+            host: "server",
+            port: 445,
+            rootPath: "/Movies"
         )
 
         XCTAssertEqual(hostOnly.credentialSourceID, selectedShare.credentialSourceID)
     }
 
-    func testCredentialSourceIDWithNilFields() {
-        let ds = FileBrowsingDomain.DataSource(
-            name: "Minimal",
-            sourceType: .webDAV,
-            connectionInfo: .init(sourceType: .webDAV, rootPath: "/")
-        )
-        XCTAssertEqual(ds.credentialSourceID, "webDAV::0:/")
+    func testConnectionInfoCredentialSourceIDWithNilFields() {
+        let info = FileBrowsingDomain.ConnectionInfo(sourceType: .webDAV, rootPath: "/")
+        XCTAssertEqual(info.credentialSourceID, "webDAV::0:/")
     }
 
-    func testDifferentDataSourcesProduceDifferentIDs() {
-        let ds1 = FileBrowsingDomain.DataSource(
-            name: "A",
+    func testDataSourceCredentialSourceIDForwardsConnectionInfoRule() {
+        let info = FileBrowsingDomain.ConnectionInfo(
             sourceType: .webDAV,
-            connectionInfo: .init(sourceType: .webDAV, host: "host1", port: 80, rootPath: "/a")
+            host: "nas.local",
+            port: 443,
+            rootPath: "/videos"
         )
-        let ds2 = FileBrowsingDomain.DataSource(
-            name: "B",
+        let ds = FileBrowsingDomain.DataSource(
+            name: "Test",
             sourceType: .webDAV,
-            connectionInfo: .init(sourceType: .webDAV, host: "host2", port: 80, rootPath: "/b")
+            connectionInfo: info
         )
-        XCTAssertNotEqual(ds1.credentialSourceID, ds2.credentialSourceID)
+
+        XCTAssertEqual(ds.credentialSourceID, info.credentialSourceID)
+    }
+
+    func testDifferentConnectionInfosProduceDifferentCredentialSourceIDs() {
+        let info1 = FileBrowsingDomain.ConnectionInfo(
+            sourceType: .webDAV,
+            host: "host1",
+            port: 80,
+            rootPath: "/a"
+        )
+        let info2 = FileBrowsingDomain.ConnectionInfo(
+            sourceType: .webDAV,
+            host: "host2",
+            port: 80,
+            rootPath: "/b"
+        )
+        XCTAssertNotEqual(info1.credentialSourceID, info2.credentialSourceID)
     }
 }
 
