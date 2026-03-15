@@ -153,7 +153,7 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         }
 
         // Try loading credentials from keychain to embed in URL for mpv playback
-        let sourceID = credentialSourceID(info: info)
+        let sourceID = info.credentialSourceID
         if let credentialStore,
            let credential = try? credentialStore.loadCredential(for: sourceID),
            !credential.username.isEmpty {
@@ -281,7 +281,7 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
     private func buildAuthHeader(
         info: FileBrowsingDomain.ConnectionInfo
     ) throws -> String? {
-        let sourceID = credentialSourceID(info: info)
+        let sourceID = info.credentialSourceID
 
         if let credentialStore,
            let credential = try credentialStore.loadCredential(for: sourceID),
@@ -296,14 +296,6 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         }
         let token = Data("\(username):".utf8).base64EncodedString()
         return "Basic \(token)"
-    }
-
-    private func credentialSourceID(info: FileBrowsingDomain.ConnectionInfo) -> String {
-        let type = info.sourceType.rawValue
-        let host = info.host ?? ""
-        let port = info.port ?? 0
-        let path = info.rootPath
-        return "\(type):\(host):\(port):\(path)"
     }
 
     private func buildRequestURL(baseURL: URL, path: String) throws -> URL {
