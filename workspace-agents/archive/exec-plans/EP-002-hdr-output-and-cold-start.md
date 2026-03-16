@@ -1,4 +1,14 @@
-# 修复 HDR 真实输出并解释首启首播一次性冷卡顿
+# [SUPERSEDED] 修复 HDR 真实输出并解释首启首播一次性冷卡顿
+
+> **状态：SUPERSEDED（2026-03-17）**
+>
+> 本计划基于错误的根因分析，已被废止。核心误判如下：
+>
+> 1. **KI-010 的根因不是 `verified_surface=false` 或 MoltenVK 线程违规。** libmpv gpu-next 路径已能正确渲染 HDR10/HLG/DoVI（tone-mapping=auto + target-trc=auto），Metal Layer 也已配置为 rgba16Float + wantsExtendedDynamicRangeContent。真正缺失的是 `CAEDRMetadata`——Apple 显示系统因此不知道内容的 mastering 亮度，无法做精确的 system-level EDR tone mapping。
+> 2. **HDR/SDR 按钮的问题不是"切换了有限的 runtime hint"。** gpu-next 内部已经处理了 HDR tone mapping，按钮切换 target-trc/target-prim 是有效的。缺失的是 Metal layer 上的 CAEDRMetadata 同步。
+> 3. **首启首播问题与 HDR 输出是独立问题，不应合并在同一个 ExecPlan 中。**
+>
+> 后续工作由新的 HDR + Panorama 综合计划替代，该计划基于对 libmpv 渲染路径的重新调研。
 
 本 ExecPlan 是活文档。Progress、Surprises & Discoveries、Decision Log、
 Outcomes & Retrospective 四个章节必须在工作进行中保持更新。

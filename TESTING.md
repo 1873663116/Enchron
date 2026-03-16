@@ -87,14 +87,16 @@ visionOS 的 UI 流畅度、视觉效果、真机交互无法通过自动化测�
 当前测试文件（Tests/XrPlayerCoreTests/）：
 
 - DetailedTimelineGeometryTests.swift — 二级进度条几何计算（数据驱动，覆盖充分）
-- CoreLogicTests.swift — 核心逻辑验证
-- V02Tests.swift — v0.2 版本验收逻辑
-- V03Tests.swift — v0.3 版本验收逻辑
-- V04Tests.swift — v0.4 版本验收逻辑
+- CoreLogicTests.swift — FileFilter、LocalDataSourceAdapter、ProjectionType 分类、PlaybackSpeed/Position 边界
+- V02Tests.swift — Domain 值对象（MediaProfile、PlaybackSpeed、PlaybackPosition、AudioTrack/SubtitleTrack）、DisambiguateGestureUseCase 状态机
+- V03Tests.swift — 远程浏览适配器（SMB/WebDAV）、KeychainStore、CredentialSourceID、DataSource/ConnectionInfo Codable
+- V04Tests.swift — MPVConfiguration 选项生成、PlaybackControlling Mock 流程、HDR 配置安全、VideoToolboxBridge
+- PlaybackTimeFormatterTests.swift — 时间标签格式化器
 
 应持续扩展的测试方向：
 
-- MediaProfile 识别逻辑：HDR 类型判定的边界条件（BT.2020 标记但非 HDR 的情况、色彩空间组合）
+- CAEDRMetadata 设置逻辑：详见下方"HDR 测试设计"章节
+- 投影类型检测逻辑：详见下方"全景测试设计"章节
 - PlaybackMode 决策逻辑：全景/沉浸/窗口三分支的组合测试（全景格式 + 场景活跃、非全景 + 场景不活跃等）
 - SortCriteria 排序正确性：按名称/时间/大小 x 升序/降序的全组合
 - FileFilter 过滤规则：可播放格式列表的边界情况
@@ -124,6 +126,97 @@ visionOS 的 UI 流畅度、视觉效果、真机交互无法通过自动化测�
 ### 顶层：真机验证
 
 由人类在 Apple Vision Pro 真机上执行，按 REGRESSION.md 中的回归项驱动。真机验证不是"可选的补充"，是验证体系的核心组成部分。回归集（REGRESSION.md）是连接两条轨道的桥梁——它告诉 agent "改了这里就需要人类检查那里"。
+
+
+## HDR 测试设计
+
+HDR 测试分为三个层次：纯逻辑单元测试（agent 可执行）、配置一致性测试（agent 可执行）、真机视觉验证（人类执行）。
+
+### 纯逻辑：CAEDRMetadata 选择逻辑
+
+测试 `applyEDRMetadataToLayer()` 中根据 HDR 类型选择正确 EDR metadata 的逻辑。这部分可以通过提取纯函数来测试，不需要真实的 CAMetalLayer。
+
+数据驱动测试表：
+
+| HDR 类型 | sig-peak | 预期 metadata 类型 | 预期 maxLuminance | 预期 opticalOutputScale |
+|---------|----------|-------------------|------------------|----------------------|
+| sdr | nil | nil | — | — |
+| hdr10 | 5.0 | hdr10 | 1015.0 (5.0 * 203) | 100.0 |
+| hdr10 | nil/1.0 | hdr10 | 203.0 (1.0 * 203) | 100.0 |
+| hdr10Plus | 10.0 | hdr10 | 2030.0 | 100.0 |
+| dolbyVision | 5.0 | hdr10 | 1015.0 | 100.0 |
+| hlg | any | hlg | — | — |
+
+关键边界条件：
+- sig-peak 为 nil 时应默认 1.0（reference white = 203 nits）
+- DoVI 使用 hdr10 metadata（Apple 没有公开 DoVI CAEDRMetadata API）
+- SDR 内容必须设置 `edrMetadata = nil`
+- `CAEDRMetadata.isAvailable` 为 false 时不崩溃
+
+### 纯逻辑：HDR 开关同步
+
+测试 `setHDREnabled(_:)` 是否正确同步 edrMetadata 状态：
+
+- `setHDREnabled(false)` → edrMetadata 被清除为 nil
+- `setHDREnabled(true)` → edrMetadata 根据当前媒体 HDR 类型重新设置
+- 切换 SDR 内容后再切换 HDR 内容 → edrMetadata 从 nil 变为有效值
+
+### 配置一致性：MPVConfiguration HDR 选项
+
+已有测试覆盖（V04Tests.swift）：
+- `testHDRRuntimeCommandsRestoreAutoTRCAndPrimaries`
+- `testSDRRuntimeCommandsForcesBT709`
+- `testHDRAndSDRCommandsAreSymmetric`
+- `testHDRDefaultsUseAutoTargetColorspaceHint`
+- `testHDRRuntimeCommandsDoNotMutateTargetColorspaceHint`
+
+需补充的测试：
+- hdrRuntimeCommands 不应包含 tone-mapping 相关覆盖（gpu-next 内部处理）
+- panorama 配置下 `useNativeGPUOutput = false` 时 HDR 选项不应包含 fbo-format
+
+### 真机视觉验证
+
+HDR 视觉正确性无法通过自动化测试验证。以下项目通过 REGRESSION.md 驱动人类真机验证：
+
+- HDR10 视频：高光区域比 SDR 视频明显更亮（需 HDR 显示器或 AVP）
+- HLG 视频：色彩自然，不过曝
+- DoVI 视频：与 HDR10 类似的亮度表现
+- SDR 视频：不受 HDR 逻辑影响，edrMetadata = nil
+- HDR on/off 切换：视觉差异可感知（HDR on 时高光更亮）
+
+
+## 全景测试设计
+
+### 纯逻辑：投影类型检测
+
+测试 `detectProjectionType()` 从 libmpv metadata 推断投影类型的逻辑。可通过提取纯函数测试。
+
+数据驱动测试表：
+
+| stereo3d-in | GSpherical:Spherical | GSpherical:ProjectionType | 预期 ProjectionType |
+|-------------|---------------------|--------------------------|-------------------|
+| "" | nil | nil | .flat |
+| "sbs2l" | nil | nil | .stereoscopicSBS |
+| "ab2t" | nil | nil | .stereoscopicOU |
+| "" | "true" | "equirectangular" | .panorama360 |
+| "" | "true" | "equirectangular" (hfov<=180) | .panorama180 |
+| "" | nil | nil (普通 16:9) | .flat |
+| "" | nil | nil (2:1 无标记) | .flat（不自动猜测） |
+
+关键边界条件：
+- 无元数据的普通视频必须返回 .flat
+- 2:1 长宽比但无球形元数据标记的视频不应自动判定为全景
+- 立体模式检测优先于球形元数据检测
+
+### 纯逻辑：PanoramaSphereEntity 配置
+
+- panorama360 时球体 scale.x < 0（法线翻转，用户在球内看）
+- panorama180 时球体方向正确
+- 球体半径为 10.0
+
+### 真机验证
+
+全景渲染的视觉正确性只能在 AVP 真机上验证（见 REGRESSION.md）。
 
 
 ## Agent 完成任务时必须产出的四件交付物
