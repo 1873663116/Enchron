@@ -105,7 +105,7 @@ public struct PlayerControlsView: View {
         VStack(spacing: 12) {
             HStack(spacing: 12) {
                 Text(
-                    formatTime(
+                    PlaybackTimeFormatter.clock(
                         isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)
                 )
                 .font(.caption2.monospacedDigit())
@@ -129,7 +129,7 @@ public struct PlayerControlsView: View {
                 .tint(.white)
                 .frame(minHeight: 44)
 
-                Text(formatTime(videoViewModel.playbackPosition.duration))
+                Text(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))
                     .font(.caption2.monospacedDigit())
                     .frame(width: 60, alignment: .trailing)
             }
@@ -361,18 +361,6 @@ public struct PlayerControlsView: View {
 
     private func speedLabel(_ speed: PlaybackCoreDomain.PlaybackSpeed) -> String {
         String(format: "%.2f\u{00D7}", speed.value)
-    }
-
-    private func formatTime(_ seconds: Double) -> String {
-        let h = Int(seconds) / 3600
-        let m = (Int(seconds) % 3600) / 60
-        let s = Int(seconds) % 60
-
-        if h > 0 {
-            return String(format: "%d:%02d:%02d", h, m, s)
-        } else {
-            return String(format: "%02d:%02d", m, s)
-        }
     }
 
     private func closePlaybackSettingsPanel() {
