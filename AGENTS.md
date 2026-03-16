@@ -103,7 +103,3 @@ XrPlayer/
 
 - Don't log PII.
 - Verify that authentication middleware wraps every route.
-
-review前先阅读以下文档：
-- workspace-agents/automation/pr-review-agent.md
-- workspace-agents/automation/entropy-automation-workflow.md

@@ -1,6 +1,6 @@
 # Enchron 回归集
 
-更新时间：2026-03-15
+更新时间：2026-03-17
 
 
 ## 使用方式
@@ -14,7 +14,7 @@
 
 | 改动路径 | 关联回归项 |
 |---------|-----------|
-| PlaybackCore/Adapters/MPV/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
+| PlaybackCore/Adapters/MPV/* | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063 |
 | PlaybackCore/Domain/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlaybackCore/UseCases/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlayerUI/Views/DetailedTimelineView.swift | REG-010, REG-011, REG-014, REG-017 |
@@ -37,7 +37,8 @@
 | App/AppCoordinator.swift | REG-040, REG-041 |
 | App/MainView.swift | REG-041 |
 | App/Navigation/* | REG-041 |
-| SpatialScene/* | REG-050 |
+| SpatialScene/* | REG-050, REG-070, REG-071 |
+| SpatialScene/Renderers/* | REG-070, REG-071 |
 
 路径粒度说明：默认为目录级（如 `PlaybackCore/Domain/*`）。对于高风险的关键文件使用文件级（如 `PlaybackLaunchCoordinator.swift`）。
 
@@ -303,6 +304,84 @@
 - **退化信号**: 列表为空、崩溃、场景卡片显示异常
 - **状态**: active
 - **创建日期**: 2026-03-14
+
+
+---
+
+
+## HDR EDR Metadata 回归项
+
+
+### REG-060: HDR10 内容设置正确的 CAEDRMetadata
+
+- **来源**: KI-010 修复（CAEDRMetadata 缺失）
+- **触发条件**: 改动 PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test` 中 EDR metadata 选择逻辑测试通过
+- **真机验证**: 播放 HDR10 视频 → 高光区域比 SDR 视频明显更亮 → 日志显示 edrMetadata 已设置且 maxLuminance > 203
+- **退化信号**: HDR10 视频高光被压平、edrMetadata 为 nil、maxLuminance 计算错误
+- **状态**: active
+- **创建日期**: 2026-03-17
+
+
+### REG-061: HLG 内容使用 HLG 专用 EDR metadata
+
+- **来源**: KI-010 修复（CAEDRMetadata 缺失）
+- **触发条件**: 改动 PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test` 中 EDR metadata 选择逻辑测试通过
+- **真机验证**: 播放 HLG 视频 → 色彩自然不过曝 → 日志显示使用 CAEDRMetadata.hlg
+- **退化信号**: HLG 视频使用了 hdr10 metadata 而非 hlg、色彩过曝或偏暗
+- **状态**: active
+- **创建日期**: 2026-03-17
+
+
+### REG-062: SDR 内容不设置 EDR metadata
+
+- **来源**: KI-010 修复（防止 SDR 内容被误标为 HDR）
+- **触发条件**: 改动 PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test` 中 SDR → edrMetadata = nil 测试通过
+- **真机验证**: 播放 SDR 视频 → 显示效果与改动前一致 → 不出现异常亮度
+- **退化信号**: SDR 视频出现不自然的高亮度、edrMetadata 不为 nil
+- **状态**: active
+- **创建日期**: 2026-03-17
+
+
+### REG-063: HDR 开关同步更新 EDR metadata
+
+- **来源**: KI-010 修复（HDR on/off 切换一致性）
+- **触发条件**: 改动 PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift 中 setHDREnabled
+- **Agent 自检**: `swift build` 编译通过；`swift test` 中 HDR 开关同步测试通过
+- **真机验证**: HDR 视频播放中 → 关闭 HDR → 高光区域亮度降低 → 重新开启 HDR → 高光恢复
+- **退化信号**: 切换后视觉效果无变化、切换后 edrMetadata 状态与开关不一致
+- **状态**: active
+- **创建日期**: 2026-03-17
+
+
+---
+
+
+## 全景渲染回归项
+
+
+### REG-070: 360 全景视频在 ImmersiveSpace 中正确渲染
+
+- **来源**: Panorama 渲染管线实现
+- **触发条件**: 改动 SpatialScene/Renderers/*、PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift 中 detectProjectionType
+- **Agent 自检**: `swift build` 编译通过；`swift test` 中投影类型检测测试通过
+- **真机验证**: 打开带 GSpherical 元数据的 360 equirectangular 视频 → 自动进入 ImmersiveSpace → 球体内全方向视频正确铺满 → 转动头部方向一致
+- **退化信号**: 视频未自动进入沉浸空间、球面映射扭曲或翻转、视频只在前方显示而非全方向
+- **状态**: active
+- **创建日期**: 2026-03-17
+
+
+### REG-071: 180 全景视频前半球渲染正确
+
+- **来源**: Panorama 渲染管线实现
+- **触发条件**: 改动 SpatialScene/Renderers/*
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 打开 180 度全景视频 → 前半球有内容、后半球空白或黑色 → 内容位于视野正前方
+- **退化信号**: 内容未居中到前方、180 度视频被拉伸到 360 度、后半球出现重复内容
+- **状态**: active
+- **创建日期**: 2026-03-17
 
 
 ---

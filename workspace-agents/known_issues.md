@@ -1,6 +1,6 @@
 # Enchron 已知问题
 
-更新时间：2026-03-15
+更新时间：2026-03-17
 
 已归档并标记为已解决：
 
@@ -17,67 +17,49 @@
 
 ---
 
-## KI-010：HDR 内容识别已准确，但真实 HDR 显示与 HDR/SDR 切换仍然失败
+## KI-010：Window 模式 HDR 缺少 CAEDRMetadata，系统无法做精确 EDR tone mapping
 
 ### 优先级
 
-当前最高优先级问题。EP-002 的首要目标就是它。
+当前最高优先级问题。
 
 ### 现象
 
-- Dolby Vision 与 HDR10 内容现在都能被正确识别，UI 中的 HDR/SDR 信息也能正确显示。
-- HDR/SDR 按钮已经可点击，但点击后实际显示效果不会发生可信变化。
-- 真机日志稳定显示内容是 HDR，但输出和实际播放i面板的信息显示仍停留在 `previewSDR`。
+- HDR10/HLG/DoVI 内容能被正确识别，UI 中的 HDR/SDR 信息能正确显示。
+- libmpv gpu-next 路径已能正确渲染 HDR 内容（tone-mapping=auto + target-trc=auto）。
+- Metal Layer 已配置为 rgba16Float + wantsExtendedDynamicRangeContent。
+- 但显示效果仍不够精确——HDR 高光区域未被正确呈现。
 
-### 调查结论（2026-03-15）
+### 调查结论（2026-03-17，修正 2026-03-15 的错误分析）
 
-这条问题已经从“识别不准”收缩成更具体的问题：**HDR 内容识别链路基本成立，但 native GPU 路径下的真实 HDR 输出链路没有闭环。**
+> **重要修正**：2026-03-15 的根因分析（根因 A~D）存在重大误判，已废止。当时把问题归因于 `verified_surface=false`、MoltenVK 线程违规、HDR surface 未建立等底层渲染路径问题。经过对 libmpv 渲染管线的重新调研，发现这些都不是真正的根因。
 
-换言之，现在系统知道“内容是 HDR”，但并不能把这件事稳定兑现为“当前播放真的是 HDR 输出”。
+**真正的根因是：从未设置 `CAEDRMetadata`。**
+
+libmpv gpu-next 路径内部已经正确完成了 HDR 渲染——它读取内容的 HDR 元数据，执行 tone mapping，将结果输出到 rgba16Float 的 Metal Layer。Metal Layer 也已经通过 `wantsExtendedDynamicRangeContent = true` 告知系统自己能承载 EDR 内容。
+
+但是，Apple 显示系统需要通过 `CAEDRMetadata` 知道内容的 mastering 亮度范围（maxLuminance / minLuminance），才能做精确的 system-level EDR tone mapping。没有 CAEDRMetadata 时，系统只能以保守策略处理 EDR 内容，导致高光被压缩、亮度表现不准确。
 
 ### 根本原因
 
-#### 根因 A：内容识别与真实输出是两条链路，前者基本成立，后者仍未成立
+#### 唯一根因：MPVPlayerAdapter 未在 HDR 内容检测后设置 `layer.edrMetadata`
 
-真机日志已经能稳定出现：
+`applyHDRRuntimeConfiguration()` 中设置了 `wantsExtendedDynamicRangeContent = true`，但没有后续调用来设置 `CAEDRMetadata`。Apple 的 EDR 管线需要两个条件同时满足：
 
-- `media-profile hdr=dolbyVision ...`
-- `media-profile hdr=hdr10 ...`
-
-同时也稳定出现：
-
-- `hdr_state ... content=true ... verified_surface=false output=previewSDR`
-
-这说明内容识别没有再卡在 `FILE_LOADED` 的早期误判上，而是真正识别到了 HDR；失败点发生在输出路径建立与验证阶段。
-
-#### 根因 B：当前 HDR/SDR 按钮还没有切换真实输出管线
-
-从表现看，当前按钮只是触发了有限的运行时参数变化，但没有把播放器切到一个已经被验证过的 HDR 输出路径上。也就是说，按钮现在更像“尝试改变显示偏好”，而不是“切换一个真实生效的 HDR 播放管线”。
-
-#### 根因 C：native GPU 路径下的 HDR surface 从未被验证成功
-
-当前最关键的状态是 `verified_surface=false`。只要它始终是 `false`，输出就会长期留在 `previewSDR`。这已经不是 UI 文案问题，而是底层渲染路径没有成功建立一个被系统与播放器同时认可的 HDR 输出 surface。
-
-#### 根因 D：native layer / swapchain 线程约束异常可能直接阻断了输出闭环
-
-真机日志反复出现：
-
-- `Modifying properties of a view's layer off the main thread is not allowed`
-
-栈追踪落在 MoltenVK swapchain 初始化 / 重建路径。这说明当前 native GPU 路径至少还带着一类真实线程违规；它很可能既影响稳定性，也影响 HDR surface 的建立与验证。
-
-### 代码与真机证据
-
-- HDR 内容识别日志已经能正确区分 Dolby Vision 和 HDR10。
-- `hdr_state` 日志稳定显示 `content=true` 但 `verified_surface=false output=previewSDR`。
-- native GPU 路径真机日志反复出现 layer off-main-thread 警告，且堆栈落在 MoltenVK swapchain 路径。
+1. `wantsExtendedDynamicRangeContent = true` — 已满足
+2. `layer.edrMetadata = CAEDRMetadata.hdr10(...)` 或 `.hlg(...)` — **缺失**
 
 ### 修正方向
 
-1. 冻结一条唯一可信的 HDR 输出路径，先确认它的 thread、layer、pixel format、`vo` 与验证条件。
-2. 在真实 HDR 路径建立前，不再把 HDR/SDR 按钮当成“已具备真实切换能力”的入口。
-3. 修复 native layer / swapchain 的主线程约束问题，确认它是否是 `verified_surface` 长期为 `false` 的直接原因。
-4. 让 UI、日志与真实输出路径完全对齐，不能再出现“内容识别正确，但按钮与视觉结果不一致”的状态。
+1. 在 `applyHDRRuntimeConfiguration()` 中追加调用 `applyEDRMetadataToLayer()`，根据 HDR 类型设置对应的 CAEDRMetadata。
+2. HDR10/HDR10+/DoVI：使用 `CAEDRMetadata.hdr10(minLuminance:maxLuminance:opticalOutputScale:)`，从 sig-peak 推算 maxLuminance（sig-peak * 203 nits），opticalOutputScale = 100.0。
+3. HLG：使用 `CAEDRMetadata.hlg(ambientViewingEnvironment:)`。
+4. SDR：设置 `edrMetadata = nil`。
+5. `setHDREnabled(_:)` 中同步更新 edrMetadata（关闭时清除，开启时重设）。
+
+### 关于之前的 `verified_surface` 和线程违规
+
+这些日志信号仍然存在，但它们不是 HDR 显示效果不佳的根因。`verified_surface` 是 `MPVPlayerAdapter` 内部的验证逻辑，它反映的是内部状态模型的设计，而不是 Apple 显示系统是否收到了正确的 HDR 元数据。MoltenVK 的线程警告需要独立处理，但不阻塞 HDR 效果的修复。
 
 ---
 
