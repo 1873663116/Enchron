@@ -190,11 +190,11 @@ public struct DetailedTimelineView: View {
             )
 
             HStack {
-                Text(formatTime(0))
+                Text(PlaybackTimeFormatter.clock(0))
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)
                 Spacer()
-                Text(formatTime(duration))
+                Text(PlaybackTimeFormatter.clock(duration))
                     .font(.system(size: 10, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
@@ -226,7 +226,7 @@ public struct DetailedTimelineView: View {
                         .frame(width: 1, height: isNearCenter ? 28 : (isMajorTick ? 20 : 12))
 
                     if isMajorTick {
-                        Text(formatTime(tick))
+                        Text(PlaybackTimeFormatter.clock(tick))
                             .font(.system(size: 10, design: .monospaced))
                             .foregroundStyle(.white.opacity(0.84))
                     }
@@ -240,7 +240,12 @@ public struct DetailedTimelineView: View {
 
     private var currentTimeLabel: some View {
         VStack(spacing: 4) {
-            Text(formatTimeWithFrames(isDragging ? centerTime : videoViewModel.playbackPosition.seconds))
+            Text(
+                PlaybackTimeFormatter.preciseClock(
+                    isDragging ? centerTime : videoViewModel.playbackPosition.seconds,
+                    framesPerSecond: videoViewModel.currentMediaProfile?.frameRate ?? 0
+                )
+            )
                 .font(.system(.callout, design: .monospaced))
                 .foregroundStyle(isDragging ? .orange : .primary)
                 .animation(.none, value: isDragging)
@@ -430,25 +435,4 @@ public struct DetailedTimelineView: View {
         return ticks
     }
 
-    private func formatTimeWithFrames(_ seconds: Double) -> String {
-        let fps = videoViewModel.currentMediaProfile?.frameRate ?? 0
-        let h = Int(seconds) / 3600
-        let m = (Int(seconds) % 3600) / 60
-        let s = Int(seconds) % 60
-        if fps > 0 {
-            let frame = Int(seconds.truncatingRemainder(dividingBy: 1) * fps)
-            return String(format: "%02d:%02d:%02d.%02d", h, m, s, frame)
-        }
-        return String(format: "%02d:%02d:%02d", h, m, s)
-    }
-
-    private func formatTime(_ seconds: Double) -> String {
-        let h = Int(seconds) / 3600
-        let m = (Int(seconds) % 3600) / 60
-        let s = Int(seconds) % 60
-        if h > 0 {
-            return String(format: "%d:%02d:%02d", h, m, s)
-        }
-        return String(format: "%02d:%02d", m, s)
-    }
 }

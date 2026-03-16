@@ -52,6 +52,7 @@ let package = Package(
                 "XrPlayer/PlayerUI/Domain/ValueObjects/GestureType.swift",
                 "XrPlayer/PlayerUI/UseCases/DisambiguateGestureUseCase.swift",
                 "XrPlayer/PlayerUI/UseCases/DetailedTimelineGeometry.swift",
+                "XrPlayer/PlayerUI/UseCases/PlaybackTimeFormatter.swift",
                 "XrPlayer/PlaybackCore/Adapters/MPV/MPVConfiguration.swift",
                 "XrPlayer/PlaybackCore/Adapters/MPV/VideoToolboxBridge.swift"
             ],
