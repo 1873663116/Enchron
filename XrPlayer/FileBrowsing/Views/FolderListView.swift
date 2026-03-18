@@ -7,21 +7,7 @@ public struct FolderListView: View {
     public let onFolderSelected: (FileBrowsingDomain.MediaFolder) -> Void
     public let onFileSelected: (FileBrowsingDomain.MediaFile) -> Void
     public let onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)?
-    
-    private let byteFormatter: ByteCountFormatter = {
-        let formatter = ByteCountFormatter()
-        formatter.allowedUnits = [.useAll]
-        formatter.countStyle = .file
-        return formatter
-    }()
-    
-    private let dateFormatter: DateFormatter = {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return formatter
-    }()
-    
+
     public init(
         folders: [FileBrowsingDomain.MediaFolder] = [],
         files: [FileBrowsingDomain.MediaFile],
@@ -112,9 +98,12 @@ public struct FolderListView: View {
                                             .lineLimit(1)
 
                                         HStack {
-                                            Text(byteFormatter.string(fromByteCount: file.sizeInBytes))
-                                            Text("•")
-                                            Text(dateFormatter.string(from: file.modifiedAt))
+                                            Text(
+                                                FolderListMetadataFormatter.subtitle(
+                                                    sizeInBytes: file.sizeInBytes,
+                                                    modifiedAt: file.modifiedAt
+                                                )
+                                            )
                                         }
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
