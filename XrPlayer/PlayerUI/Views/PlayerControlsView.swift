@@ -250,10 +250,7 @@ public struct PlayerControlsView: View {
         Menu {
             Section("Media Info") {
                 if let profile = videoViewModel.displayMediaProfile {
-                    Text("HDR: \(PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))")
-                    Text(
-                        "Output: \(PlaybackInfoFormatter.hdrOutputDescription(videoViewModel.hdrOutputMode))"
-                    )
+                    Text(PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))
                     Text("Resolution: \(profile.resolution.width)×\(profile.resolution.height)")
                     Text("Frame Rate: \(PlaybackInfoFormatter.frameRate(profile.frameRate))")
                 } else {
