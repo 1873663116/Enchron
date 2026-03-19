@@ -130,8 +130,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var hasVerifiedHDRSurface: Bool {
         stateQueue.sync {
             guard activeNativeGPUOutput, let videoLayer else { return false }
-            return videoLayer.pixelFormat == .rgba16Float
-                && videoLayer.wantsExtendedDynamicRangeContent
+            return videoLayer.wantsExtendedDynamicRangeContent
         }
     }
 
