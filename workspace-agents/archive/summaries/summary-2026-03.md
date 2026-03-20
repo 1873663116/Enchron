@@ -2,7 +2,7 @@
 
 更新时间：2026-03-14
 
-补记：2026-03-15
+补记：2026-03-15、2026-03-17
 
 
 ## 已解决问题（RES-001 ~ RES-007）
@@ -25,7 +25,7 @@
 | 编号 | 问题 | 状态 |
 |------|------|------|
 | KI-007 | 首次构建后首启首播的一次性冷卡顿 | 开放，已重新定界 |
-| KI-010 | HDR 识别准确但真实输出与切换仍失败 | 当前最高优先级 |
+| KI-010 | Window 模式 HDR 缺少 CAEDRMetadata | 当前最高优先级，根因已修正（2026-03-17） |
 
 
 ## 文档体系重构
@@ -57,4 +57,35 @@
 - EP-001 `修复 KI-007 KI-010 KI-011` 已归档到 [EP-001-known-issues-remediation.md](/Users/xiongzhipeng/Applications/Enchron/workspace-agents/archive/exec-plans/EP-001-known-issues-remediation.md)。
 - 本轮真机结果确认：KI-011 已关闭；KI-007 中的 `i` 面板容器问题已关闭；KI-010 仍开放，并上升为当前第一优先级。
 - 新建 EP-002 `修复 HDR 真实输出并解释首启首播一次性冷卡顿`，作为后续执行入口。
-- 对 KI-007 的理解已更新：问题不再笼统定义为“首播慢”，而是“首次构建后第一次真实进入 native GPU 播放路径时的一次性冷建链成本”。
+- 对 KI-007 的理解已更新：问题不再笼统定义为”首播慢”，而是”首次构建后第一次真实进入 native GPU 播放路径时的一次性冷建链成本”。
+
+
+## 2026-03-17 文档清理与根因修正
+
+### EP-002 废止
+
+EP-002 `修复 HDR 真实输出并解释首启首播一次性冷卡顿` 标记为 superseded 并归档。原因：该计划基于错误的根因分析——将 HDR 问题归因于 `verified_surface=false` 和 MoltenVK 线程违规，实际根因是缺少 `CAEDRMetadata`。
+
+归档位置：`archive/exec-plans/EP-002-hdr-output-and-cold-start.md`
+
+### KI-010 根因修正
+
+KI-010 的描述从”HDR 识别准确但真实输出与切换仍失败”修正为”Window 模式 HDR 缺少 CAEDRMetadata，系统无法做精确 EDR tone mapping”。之前的根因 A~D（verified_surface、MoltenVK 线程、HDR surface 未建立）全部废止。
+
+真正的根因：libmpv gpu-next 路径已正确渲染 HDR，Metal Layer 已配置 rgba16Float + wantsExtendedDynamicRangeContent，但从未设置 `CAEDRMetadata`，导致 Apple 显示系统无法做精确的 system-level EDR tone mapping。
+
+### 文档批量更新
+
+| 文档 | 变更内容 |
+|------|---------|
+| PLANS.md | EP-002 状态改为 superseded；新增 superseded 状态类型 |
+| known_issues.md | KI-010 完全重写根因分析 |
+| QUALITY_SCORE.md | HDR 可信度评分描述修正；SMB 评分从 2 提升至 3（KI-011 已修复）；冷启动描述修正 |
+| TESTING.md | 新增 HDR 测试设计和全景测试设计章节；更新测试文件描述 |
+| REGRESSION.md | 新增 REG-060~063（HDR EDR Metadata）和 REG-070~071（全景渲染）；更新代码路径映射索引 |
+| Tests/README.md | 修复断链的文档引用；更新测试文件清单 |
+
+### 测试清理
+
+- CoreLogicTests.swift 中与 V02Tests.swift 重复的 PlaybackSpeed/Position 测试已移除
+- V02/V03/V04 文件名保留（重命名风险大于收益），但 Tests/README.md 和 TESTING.md 中已补充清晰的主题描述

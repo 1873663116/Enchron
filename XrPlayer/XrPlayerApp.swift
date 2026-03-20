@@ -29,6 +29,7 @@ struct XrPlayerApp: App {
     @State private var windowVideoViewModel: WindowVideoViewModel
     @State private var fileBrowsingViewModel: FileBrowsingViewModel
     @State private var playbackLauncher: PlaybackLaunchCoordinator
+    @State private var panoramaBridge: PanoramaLayerBridge
 
     init() {
         Task.detached(priority: .utility) {
@@ -56,6 +57,7 @@ struct XrPlayerApp: App {
         _windowVideoViewModel = State(initialValue: windowVideoViewModel)
         _fileBrowsingViewModel = State(initialValue: fileBrowsingViewModel)
         _playbackLauncher = State(initialValue: launcher)
+        _panoramaBridge = State(initialValue: PanoramaLayerBridge())
 
         if let smokeLaunch {
             appModel.showControls = true
@@ -77,16 +79,23 @@ struct XrPlayerApp: App {
                 .environment(windowVideoViewModel)
                 .environment(fileBrowsingViewModel)
                 .environment(playbackLauncher)
+                .environment(panoramaBridge)
         }
 
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
             ImmersiveSpaceView()
                 .environment(appModel)
+                .environment(panoramaBridge)
                 .onAppear {
                     appModel.immersiveSpaceState = .open
                 }
                 .onDisappear {
                     appModel.immersiveSpaceState = .closed
+                    // Ensure bridge stops when immersive space is dismissed.
+                    panoramaBridge.attachVideoLayer(nil)
+                    if appModel.playbackMode != .window {
+                        appModel.updatePlaybackMode(.window)
+                    }
                 }
         }
         .immersionStyle(selection: .constant(.full), in: .full)

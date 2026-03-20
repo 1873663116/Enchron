@@ -224,9 +224,9 @@ ExecPlan 必须包含并维护 Progress 章节、Surprises & Discoveries 章节�
 | 编号 | 标题 | 状态 | 创建日期 |
 |------|------|------|----------|
 | EP-003 | 收敛 PlayerUI 时间标签格式化重复实现 | in-progress | 2026-03-17 |
-| EP-002 | 修复 HDR 真实输出并解释首启首播一次性冷卡顿 | in-progress | 2026-03-15 |
+| EP-002 | 修复 HDR 真实输出并解释首启首播一次性冷卡顿 | superseded | 2026-03-15 |
 
-状态：draft / in-progress / blocked / done
+状态：draft / in-progress / blocked / done / superseded
 
 活跃计划存放在 workspace-agents/exec-plans/ 目录下，命名格式：EP-{序号}-{简称}.md
 
@@ -244,6 +244,6 @@ ExecPlan 标记为 done 后：
 
 ## 历史里程碑
 
-v0.1 技术验证 → v0.2 播放体验完善 → v0.3 远程文件访问（功能迭代中） → v0.4 沉浸空间（规划中）
+v0.1 技术验证 → v0.2 播放体验完善 → v0.3 远程文件访问（功能迭代中） → v0.4 沉浸空间（大部分功能完成，细节迭代中）
 
 详见 workspace-agents/design_docs/phase4_implementation_roadmap.md

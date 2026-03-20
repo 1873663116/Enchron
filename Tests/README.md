@@ -1,8 +1,8 @@
-# XrPlayer 测试目录说明
+# XrPlayer 测试目录
 
 推荐先看：
-- [`docs/test_inventory.md`](../docs/test_inventory.md)
-- [`docs/quality_gates.md`](../docs/quality_gates.md)
+- [`TESTING.md`](../TESTING.md) — 双轨验证体系
+- [`workspace-agents/quality_gates.md`](../workspace-agents/quality_gates.md) — 质量门禁
 
 ## 运行方式
 
@@ -10,27 +10,29 @@
 swift test
 ```
 
-## 当前测试覆盖重点
+## 当前测试文件
 
-- 基础播放规则
-- 手势消歧状态机
-- HDR / SDR 配置安全性
-- SMB / WebDAV 基础适配行为
-- Keychain / 数据源模型
+| 文件 | 覆盖范围 |
+|------|---------|
+| `CoreLogicTests.swift` | FileFilter、LocalDataSourceAdapter、ProjectionType 分类、PlaybackSpeed/Position 边界 |
+| `DetailedTimelineGeometryTests.swift` | 二级进度条几何计算（数据驱动，覆盖充分） |
+| `V02Tests.swift` | Domain 值对象（MediaProfile、PlaybackSpeed、PlaybackPosition、AudioTrack/SubtitleTrack）、DisambiguateGestureUseCase 状态机 |
+| `V03Tests.swift` | 远程浏览适配器（SMB/WebDAV）、KeychainStore、CredentialSourceID、DataSource/ConnectionInfo Codable |
+| `V04Tests.swift` | MPVConfiguration 选项生成、PlaybackControlling Mock 流程、HDR 配置安全、VideoToolboxBridge |
+| `PlaybackTimeFormatterTests.swift` | 时间标签格式化器 |
 
-## 当前测试未充分覆盖
+## 自动化测试不覆盖的领域
 
-- 真机 UI / UX 体验
-- 二级进度条可用性
-- 冷启动首帧体感
+以下必须通过真机验证（见 REGRESSION.md）：
+
+- 真机 UI / UX 体验与流畅度
 - 沉浸空间真实表现
-- 肉眼可见的 HDR 视觉正确性
+- HDR 视觉正确性（CAEDRMetadata 效果需要 HDR 显示器或 AVP）
+- 全景渲染球面映射正确性
 
 ## 维护原则
 
 新增修复时，优先补：
-1. 回归测试
-2. 阶段日志
-3. smoke checklist
-
-不要只修代码，不留下可复用证据。
+1. 回归测试（纯逻辑可自动化的部分）
+2. REGRESSION.md 对应回归项
+3. 人类真机验证清单

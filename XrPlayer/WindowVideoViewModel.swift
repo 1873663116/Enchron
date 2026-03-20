@@ -224,6 +224,11 @@ public final class WindowVideoViewModel {
         (player as? MPVPlayerAdapter)?.captureScreenshot(to: url, flags: flags)
     }
 
+    /// The CAMetalLayer that libmpv's gpu-next renders into.
+    public var nativeVideoLayer: CAMetalLayer? {
+        (player as? MPVPlayerAdapter)?.nativeVideoLayer
+    }
+
     public func attachVideoLayer(_ layer: CAMetalLayer?) {
         (player as? MPVPlayerAdapter)?.attachVideoLayer(layer)
     }

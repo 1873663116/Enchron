@@ -118,6 +118,12 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var pooledWidth: Int = 0
     private var pooledHeight: Int = 0
     private weak var videoLayer: CAMetalLayer?
+
+    /// The native CAMetalLayer used by gpu-next rendering. Exposed read-only
+    /// for the panorama bridge to read rendered drawables.
+    public var nativeVideoLayer: CAMetalLayer? {
+        stateQueue.sync { videoLayer }
+    }
     private var activeNativeGPUOutput: Bool = false
     private var didLogPipelineForCurrentFile = false
 
@@ -130,8 +136,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var hasVerifiedHDRSurface: Bool {
         stateQueue.sync {
             guard activeNativeGPUOutput, let videoLayer else { return false }
-            return videoLayer.pixelFormat == .rgba16Float
-                && videoLayer.wantsExtendedDynamicRangeContent
+            return videoLayer.wantsExtendedDynamicRangeContent
         }
     }
 
@@ -880,6 +885,12 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         guard let handle else { return }
         var flag: Int32 = value ? 1 : 0
         _ = mpv_set_property(handle, name, MPV_FORMAT_FLAG, &flag)
+    }
+
+    private func setIntProperty(name: String, value: Int64) {
+        guard let handle else { return }
+        var v = value
+        _ = mpv_set_property(handle, name, MPV_FORMAT_INT64, &v)
     }
 
     private func setDoubleProperty(name: String, value: Double) {

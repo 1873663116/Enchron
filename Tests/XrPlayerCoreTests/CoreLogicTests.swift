@@ -59,13 +59,8 @@ final class CoreLogicTests: XCTestCase {
         XCTAssertFalse(PlaybackCoreDomain.ProjectionType.stereoscopicSBS.isPanoramic)
     }
 
-    func testPlaybackSpeedAndProgressAreClamped() {
-        XCTAssertEqual(PlaybackCoreDomain.PlaybackSpeed(99).value, 5.0)
-        XCTAssertEqual(PlaybackCoreDomain.PlaybackSpeed(0.1).value, 0.25)
-
-        let position = PlaybackCoreDomain.PlaybackPosition(seconds: 30, duration: 10)
-        XCTAssertEqual(position.progress, 1.0)
-    }
+    // PlaybackSpeed and PlaybackPosition clamping tests are in V02Tests.swift
+    // (PlaybackSpeedTests and PlaybackPositionTests)
 
     private func makeTempDirectory() throws -> URL {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
