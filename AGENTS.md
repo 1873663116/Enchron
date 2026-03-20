@@ -17,7 +17,7 @@ XrPlayer/
   PlaybackCore/   — 视频加载、解码、播放控制（mpv 封装）
   PlayerUI/       — 播放界面与播放模式决策
   FileBrowsing/   — 多数据源文件浏览（本地/SMB/WebDAV）
-  SpatialScene/   — 空间场景管理与帧渲染（大部分 v0.4 规划中）
+  SpatialScene/   — 空间场景管理与帧渲染（PanoramaLayerBridge Blit 管线 + PanoramaSphereEntity 球体渲染已实现）
   Persistence/    — 持久化服务（SwiftData/UserDefaults/Keychain）
   App/            — 启动入口 + 依赖注入组装
 ```
@@ -103,7 +103,3 @@ XrPlayer/
 
 - Don't log PII.
 - Verify that authentication middleware wraps every route.
-
-review前先阅读以下文档：
-- workspace-agents/automation/pr-review-agent.md
-- workspace-agents/automation/entropy-automation-workflow.md

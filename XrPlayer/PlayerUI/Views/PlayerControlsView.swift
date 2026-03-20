@@ -5,12 +5,16 @@ public struct PlayerControlsView: View {
     @Environment(WindowVideoViewModel.self) private var videoViewModel
     @Environment(FileBrowsingViewModel.self) private var fileBrowsingViewModel
     @Environment(PlaybackLaunchCoordinator.self) private var launcher
+    @Environment(PanoramaLayerBridge.self) private var panoramaBridge
+    @Environment(\.openImmersiveSpace) private var openImmersiveSpace
+    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
 
     @State private var isDraggingSlider = false
     @State private var dragValue: Double = 0
     @State private var showDetailedTimeline = false
     @State private var pausedForTimeline = false
     @State private var showPlaybackSettingsPanel = false
+    @State private var showDebugPanel = false
     @State private var hasAppliedSmokePanelRequest = false
 
     public init() {}
@@ -62,6 +66,21 @@ public struct PlayerControlsView: View {
                 )
                 .zIndex(2)
             }
+
+            if showDebugPanel {
+                DebugOverlayView {
+                    closeDebugPanel()
+                }
+                .frame(width: 340, height: 480, alignment: .topLeading)
+                .padding(.top, 12)
+                .padding(.trailing, 12)
+                .transition(
+                    .opacity
+                        .combined(with: .scale(scale: 0.96, anchor: .topTrailing))
+                        .combined(with: .offset(y: -8))
+                )
+                .zIndex(3)
+            }
         }
         .padding(.horizontal, 32)
         .padding(.vertical, 28)
@@ -72,7 +91,7 @@ public struct PlayerControlsView: View {
         )  // Nested glass layering
         .onHover { isHovering in
             appModel.setControlsFocused(
-                isHovering || showDetailedTimeline || showPlaybackSettingsPanel)
+                isHovering || showDetailedTimeline || showPlaybackSettingsPanel || showDebugPanel)
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
@@ -84,11 +103,15 @@ public struct PlayerControlsView: View {
                 }
         )
         .onChange(of: showDetailedTimeline) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel)
+            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel || showDebugPanel)
             appModel.registerControlsInteraction()
         }
         .onChange(of: showPlaybackSettingsPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showDetailedTimeline)
+            appModel.setControlsFocused(isVisible || showDetailedTimeline || showDebugPanel)
+            appModel.registerControlsInteraction()
+        }
+        .onChange(of: showDebugPanel) { _, isVisible in
+            appModel.setControlsFocused(isVisible || showDetailedTimeline || showPlaybackSettingsPanel)
             appModel.registerControlsInteraction()
         }
         .onChange(of: appModel.currentPlaybackURL) { _, _ in
@@ -144,7 +167,7 @@ public struct PlayerControlsView: View {
             Button {
                 videoViewModel.skip(by: -10)
             } label: {
-                Image(systemName: "backward.10")
+                Image(systemName: "gobackward.10")
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(.primary)
             }
@@ -175,7 +198,7 @@ public struct PlayerControlsView: View {
             Button {
                 videoViewModel.skip(by: 10)
             } label: {
-                Image(systemName: "forward.10")
+                Image(systemName: "goforward.10")
                     .font(.system(size: 28, weight: .semibold))
                     .foregroundStyle(.primary)
             }
@@ -200,8 +223,10 @@ public struct PlayerControlsView: View {
         HStack(spacing: 24) {
             speedMenu
             playbackSettingsButton
+            playbackModeMenu
             playlistMenu
             infoMenu
+            debugButton
 
             Button {
                 withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
@@ -213,6 +238,7 @@ public struct PlayerControlsView: View {
                         }
                     } else {
                         closePlaybackSettingsPanel()
+                        closeDebugPanel()
                         showDetailedTimeline = true
                         if videoViewModel.playbackState == .playing {
                             pausedForTimeline = true
@@ -235,6 +261,7 @@ public struct PlayerControlsView: View {
             appModel.registerControlsInteraction()
             withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
                 closeDetailedTimelineIfNeeded()
+                closeDebugPanel()
                 showPlaybackSettingsPanel.toggle()
             }
         } label: {
@@ -250,10 +277,7 @@ public struct PlayerControlsView: View {
         Menu {
             Section("Media Info") {
                 if let profile = videoViewModel.displayMediaProfile {
-                    Text("HDR: \(PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))")
-                    Text(
-                        "Output: \(PlaybackInfoFormatter.hdrOutputDescription(videoViewModel.hdrOutputMode))"
-                    )
+                    Text(PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))
                     Text("Resolution: \(profile.resolution.width)×\(profile.resolution.height)")
                     Text("Frame Rate: \(PlaybackInfoFormatter.frameRate(profile.frameRate))")
                 } else {
@@ -335,6 +359,110 @@ public struct PlayerControlsView: View {
         .help("Playlist")
     }
 
+    private var playbackModeMenu: some View {
+        Menu {
+            ForEach(PlaybackMode.allCases, id: \.self) { mode in
+                Button {
+                    Task {
+                        await switchPlaybackMode(to: mode)
+                    }
+                } label: {
+                    if appModel.playbackMode == mode {
+                        Label(playbackModeLabel(mode), systemImage: "checkmark")
+                    } else {
+                        Label(playbackModeLabel(mode), systemImage: playbackModeIcon(mode))
+                    }
+                }
+                .disabled(mode == appModel.playbackMode || appModel.immersiveSpaceState == .inTransition)
+            }
+        } label: {
+            Image(systemName: playbackModeIcon(appModel.playbackMode))
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .playerControlSurface(size: 60)
+        }
+        .buttonStyle(.plain)
+        .help("Playback Mode: \(appModel.playbackMode.rawValue)")
+    }
+
+    private func switchPlaybackMode(to mode: PlaybackMode) async {
+        let currentMode = appModel.playbackMode
+        guard mode != currentMode else { return }
+
+        // Step 1: stop bridge if leaving panorama
+        if currentMode == .panorama {
+            panoramaBridge.attachVideoLayer(nil)
+        }
+
+        // Step 2: close immersive space if we're leaving immersive/panorama
+        if currentMode == .immersive || currentMode == .panorama {
+            if appModel.immersiveSpaceState == .open {
+                appModel.immersiveSpaceState = .inTransition
+                await dismissImmersiveSpace()
+            }
+        }
+
+        // Step 3: open immersive space if entering immersive/panorama
+        if mode == .immersive || mode == .panorama {
+            appModel.immersiveSpaceState = .inTransition
+            switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
+            case .opened:
+                break
+            case .userCancelled, .error:
+                appModel.immersiveSpaceState = .closed
+                appModel.updatePlaybackMode(.window)
+                return
+            @unknown default:
+                appModel.immersiveSpaceState = .closed
+                appModel.updatePlaybackMode(.window)
+                return
+            }
+        }
+
+        // Step 4: update the mode
+        appModel.updatePlaybackMode(mode)
+
+        // Step 5: start bridge if entering panorama
+        if mode == .panorama {
+            // Grab the CAMetalLayer from the video view model
+            let layer = videoViewModel.nativeVideoLayer
+            panoramaBridge.attachVideoLayer(layer)
+        }
+    }
+
+    private func playbackModeLabel(_ mode: PlaybackMode) -> String {
+        switch mode {
+        case .window: return "Window"
+        case .immersive: return "Immersive"
+        case .panorama: return "Panorama"
+        }
+    }
+
+    private func playbackModeIcon(_ mode: PlaybackMode) -> String {
+        switch mode {
+        case .window: return "rectangle.inset.filled"
+        case .immersive: return "visionpro"
+        case .panorama: return "pano"
+        }
+    }
+
+    private var debugButton: some View {
+        Button {
+            appModel.registerControlsInteraction()
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
+                closePlaybackSettingsPanel()
+                closeDetailedTimelineIfNeeded()
+                showDebugPanel.toggle()
+            }
+        } label: {
+            Image(systemName: "ladybug")
+                .font(.title3)
+                .foregroundStyle(showDebugPanel ? Color.accentColor : Color.primary)
+        }
+        .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showDebugPanel))
+        .help("Debug Controls")
+    }
+
     @MainActor
     private func applySmokePanelRequestIfNeeded() async {
         guard hasAppliedSmokePanelRequest == false,
@@ -367,8 +495,13 @@ public struct PlayerControlsView: View {
         showPlaybackSettingsPanel = false
     }
 
+    private func closeDebugPanel() {
+        showDebugPanel = false
+    }
+
     private func resetTransientPanelsForMediaSwitch() {
         showPlaybackSettingsPanel = false
+        showDebugPanel = false
         closeDetailedTimelineIfNeeded()
     }
 
@@ -399,4 +532,5 @@ public struct PlayerControlsView: View {
         .environment(windowVideoViewModel)
         .environment(fileBrowsingViewModel)
         .environment(launcher)
+        .environment(PanoramaLayerBridge())
 }

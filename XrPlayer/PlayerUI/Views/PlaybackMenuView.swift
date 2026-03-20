@@ -67,40 +67,6 @@ public struct PlaybackMenuView: View {
                         }
                     }
 
-                    if let profile = videoViewModel.displayMediaProfile, profile.hdrType != .sdr {
-                        Divider().padding(.vertical, 6)
-
-                        sectionHeader("HDR Output")
-                        infoRow(title: "Content", value: PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))
-                        infoRow(
-                            title: "Current Output",
-                            value: PlaybackInfoFormatter.hdrOutputDescription(videoViewModel.hdrOutputMode))
-
-                        if videoViewModel.hdrOutputMode == .previewSDR {
-                            Text(
-                                "Current playback is running in SDR preview. Reopen on a verified native HDR surface to enable passthrough."
-                            )
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 8)
-                        } else {
-                            trackRow(
-                                title: "HDR Passthrough",
-                                lang: nil,
-                                isSelected: videoViewModel.isHDROutputEnabled
-                            ) {
-                                videoViewModel.setHDREnabled(true)
-                            }
-                            trackRow(
-                                title: "Tone-Mapped SDR",
-                                lang: nil,
-                                isSelected: videoViewModel.isHDROutputEnabled == false
-                            ) {
-                                videoViewModel.setHDREnabled(false)
-                            }
-                        }
-                    }
                 }
                 .padding(.bottom, 8)
             }
@@ -153,20 +119,6 @@ public struct PlaybackMenuView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-    }
-
-    @ViewBuilder
-    private func infoRow(title: String, value: String) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            Text(value)
-                .font(.body.monospacedDigit())
-                .foregroundStyle(.primary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
     }
 
     private func dismissPanel() {

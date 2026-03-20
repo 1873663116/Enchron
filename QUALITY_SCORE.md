@@ -1,6 +1,6 @@
 # Enchron 质量评分
 
-更新时间：2026-03-14
+更新时间：2026-03-20
 
 
 ## 评分标准
@@ -21,12 +21,12 @@
 |------|------|---------|---------|
 | 二级进度条 | 3 | G2 | 几何计算有测试覆盖；缩放交互真机体验需打磨 |
 | 播放控件反馈 | 3 | G3 | 窗口模式下控件可用，hover/focus 反馈存在；沉浸场景未实现 |
-| 冷启动性能 | 2 | G4/G5 | KI-007: 首播黑屏 ~5 秒；"i"面板首次打开卡顿 |
-| HDR 可信度 | 2 | G7/G8/G9 | KI-010: 识别已准确，但真实输出仍 SDR Preview；切换按钮不具备真正 HDR 能力 |
-| 远程浏览(SMB) | 2 | G13 | KI-011: 连接和 share 枚举正常，子文件夹无法展开 |
+| 冷启动性能 | 2 | G4/G5 | KI-007: 首次构建后首启首播一次性冷卡顿（GPU 管线建链成本）；"i"面板卡顿已修复 |
+| HDR 可信度 | 2 | G7/G8/G9 | KI-010: gpu-next 已正确渲染 HDR，但缺少 CAEDRMetadata 导致系统 EDR tone mapping 不精确；切换按钮能改变 target-trc/prim 但未同步 edrMetadata |
+| 远程浏览(SMB) | 3 | G13 | KI-011 已修复；连接、枚举、子目录浏览和播放均正常 |
 | 远程浏览(WebDAV) | 3 | G13 | 基本可用，连接稳定 |
-| 沉浸场景 | 0 | G10/G11 | v0.4 尚未开始；SceneSelectorView 已存在但场景渲染未实现 |
-| 全景模式 | 0 | G10 | v0.5 尚未开始 |
+| 沉浸场景 | 2 | G10/G11 | ImmersiveSpace 可打开/关闭；PanoramaLayerBridge Blit 管线已连通；球体渲染可工作；播放模式切换菜单已实现；app 退出时全景未清理的 bug 已修复 |
+| 全景模式 | 2 | G10 | PanoramaSphereEntity + LowLevelTexture 管线已连通真机验证；自动检测全景视频投影类型尚未实现（硬编码 .flat）；手动切换可用 |
 | 模块边界 | 4 | G12/G17 | SwiftLint 自动守卫运行中；Domain 层 import 限制有效 |
 | 前后端契约 | 3 | G13 | OpenAPI spec + mock 数据已就位；validate-contract.sh 可用 |
 | 测试覆盖 | 2 | G14 | 仅 DetailedTimelineGeometry 有充分数据驱动测试；其余模块缺乏单元测试 |
