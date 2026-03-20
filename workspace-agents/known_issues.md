@@ -1,6 +1,6 @@
 # Enchron 已知问题
 
-更新时间：2026-03-17
+更新时间：2026-03-20
 
 已归档并标记为已解决：
 
@@ -137,4 +137,61 @@ libmpv gpu-next 路径内部已经正确完成了 HDR 渲染——它读取内�
 
 1. 先不要再把这个问题笼统叫做“首播慢”，而要按“首次构建后首启首播的一次性冷建链成本”来调查。
 2. 继续补足 warmup 前态与首次真实播放后热态之间的状态证据，回答“为什么只会一次”。
-3. 如果后续要优化，重点应放在“能否把第一次真实 GPU 管线建链成本提前或平滑”，而不是继续在已经收缩过的普通播放逻辑上盲改。
+3. 如果后续要优化，重点应放在”能否把第一次真实 GPU 管线建链成本提前或平滑”，而不是继续在已经收缩过的普通播放逻辑上盲改。
+
+---
+
+## KI-012：全景视频投影类型自动检测未实现
+
+### 优先级
+
+中等。当前可通过手动切换播放模式使用全景功能。
+
+### 现象
+
+所有视频的 `projectionType` 被硬编码为 `.flat`（`MPVPlayerAdapter.swift` 第 1172 行）。全景视频（360°/180°/鱼眼）不会被自动识别并切换到全景模式。
+
+### 根本原因
+
+mpv 本身不通过 `video-params` 提供视频投影类型的元数据。需要通过其他策略检测：文件名模式匹配、视频宽高比（2:1 → 360°）、或读取 MP4 spherical metadata tag。
+
+### 修正方向
+
+1. 实现基于文件名和宽高比的启发式检测
+2. 研究通过 FFmpeg/AVFoundation 读取 spherical metadata 的可行性
+3. 在 `MediaProfile` 构建时注入检测结果
+
+---
+
+## KI-013：MoltenVK 线程安全警告（非功能性）
+
+### 优先级
+
+低。不影响功能，属于 MoltenVK 已知行为。
+
+### 现象
+
+真机日志中反复出现 “Modifying properties of a view's layer off the main thread” 警告，来源于 `MVKSwapchain.initCAMetalLayer`。
+
+### 根本原因
+
+MoltenVK 的 Vulkan swapchain 创建代码在非主线程操作 `CAMetalLayer` 属性。这是 MoltenVK 的已知行为，不会导致功能性问题，但会产生大量日志噪声。
+
+---
+
+## KI-014：饱和度增强需要自定义 RealityKit Compute Shader
+
+### 优先级
+
+中等。属于未来细节迭代。
+
+### 现象
+
+用户期望的饱和度增强不是简单的全局饱和度拉升（mpv `saturation` 属性），而是类似 YouTube 的选择性增强算法——只增强鲜艳颜色的饱和度，可能还涉及色相微调，场景中的中性色不变。
+
+### 修正方向
+
+1. 已移除 mpv `saturation` 属性调节路径
+2. 未来需走统一 RealityKit 路径：在 PanoramaLayerBridge 的 Blit 之后插入 Metal Compute Shader
+3. Shader 应实现：RGB→HSV 转换 → 基于饱和度阈值的选择性增强 → 可能的色相微调 → HSV→RGB 写回
+4. Metal 4 的 `MTL4ComputeCommandEncoder` 可在同一 pass 中混合 blit 和 compute，简化管线

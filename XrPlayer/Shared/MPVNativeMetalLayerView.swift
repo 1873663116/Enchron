@@ -3,6 +3,11 @@ import QuartzCore
 import UIKit
 
 final class MPVNativeMetalLayer: CAMetalLayer {
+    /// The most recently vended drawable. The bridge reads the rendered
+    /// texture from this drawable instead of calling `nextDrawable()` itself,
+    /// which would steal a blank drawable from the pool.
+    private(set) var lastVendedDrawable: (any CAMetalDrawable)?
+
     // Work around MoltenVK temporary 1x1 drawable resizing.
     override var drawableSize: CGSize {
         get { super.drawableSize }
@@ -27,6 +32,14 @@ final class MPVNativeMetalLayer: CAMetalLayer {
             }
         }
     }
+
+    #if !targetEnvironment(simulator)
+    override func nextDrawable() -> (any CAMetalDrawable)? {
+        let drawable = super.nextDrawable()
+        lastVendedDrawable = drawable
+        return drawable
+    }
+    #endif
 }
 
 final class MPVNativeMetalLayerView: UIView {
@@ -65,7 +78,8 @@ final class MPVNativeMetalLayerView: UIView {
         // Use rgba16Float for HDR passthrough capability.
         // Falls back gracefully on devices that don't support EDR.
         metalLayer.pixelFormat = .rgba16Float
-        metalLayer.framebufferOnly = true
+        // Allow reading from drawable textures for panorama bridge Blit copy.
+        metalLayer.framebufferOnly = false
         metalLayer.contentsScale = traitCollection.displayScale
         metalLayer.wantsExtendedDynamicRangeContent = true
     }

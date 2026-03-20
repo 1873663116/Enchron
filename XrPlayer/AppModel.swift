@@ -26,6 +26,9 @@ public final class AppModel {
     public var smokePanelRequest: String?
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
+
+    // MARK: - Debug Controls
+    public var showDebugPanel: Bool = false
     
     // MARK: - Current Media
     public var currentMedia: PlaybackCoreDomain.MediaFile?

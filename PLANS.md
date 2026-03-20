@@ -244,6 +244,6 @@ ExecPlan 标记为 done 后：
 
 ## 历史里程碑
 
-v0.1 技术验证 → v0.2 播放体验完善 → v0.3 远程文件访问（功能迭代中） → v0.4 沉浸空间（规划中）
+v0.1 技术验证 → v0.2 播放体验完善 → v0.3 远程文件访问（功能迭代中） → v0.4 沉浸空间（大部分功能完成，细节迭代中）
 
 详见 workspace-agents/design_docs/phase4_implementation_roadmap.md
