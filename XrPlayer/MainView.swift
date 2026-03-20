@@ -201,4 +201,5 @@ public struct MainView: View {
         .environment(windowVideoViewModel)
         .environment(fileBrowsingViewModel)
         .environment(launcher)
+        .environment(PanoramaLayerBridge())
 }
