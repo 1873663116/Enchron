@@ -11,22 +11,50 @@ public struct ImmersiveSpaceView: View {
 
     public var body: some View {
         RealityView { content in
-            let entity = PanoramaSphereEntity.makeEntity(
-                textureResource: panoramaBridge.textureResource
-            )
-            content.add(entity)
-            sphereEntity = entity
-        } update: { _ in
-            // Update the sphere texture when the bridge produces a new resource.
-            guard let sphereEntity,
-                  let textureResource = panoramaBridge.textureResource
-            else {
-                return
+            if appModel.playbackMode == .panorama {
+                let entity = PanoramaSphereEntity.makeEntity(
+                    textureResource: panoramaBridge.textureResource
+                )
+                content.add(entity)
+                sphereEntity = entity
             }
-            PanoramaSphereEntity.updateTexture(
-                on: sphereEntity,
-                textureResource: textureResource
-            )
+            // .immersive mode: space is open but no custom entity needed yet.
+            // Future: add a flat virtual-screen entity for cinema-style immersive playback.
+        } update: { content in
+            switch appModel.playbackMode {
+            case .panorama:
+                // Ensure sphere exists.
+                if sphereEntity == nil {
+                    let entity = PanoramaSphereEntity.makeEntity(
+                        textureResource: panoramaBridge.textureResource
+                    )
+                    content.add(entity)
+                    sphereEntity = entity
+                }
+                // Update texture when bridge produces new frames.
+                if let sphereEntity,
+                   let textureResource = panoramaBridge.textureResource {
+                    PanoramaSphereEntity.updateTexture(
+                        on: sphereEntity,
+                        textureResource: textureResource
+                    )
+                }
+
+            case .immersive:
+                // Remove panorama sphere if we switched away from panorama.
+                if let entity = sphereEntity {
+                    content.remove(entity)
+                    sphereEntity = nil
+                }
+
+            case .window:
+                // Should not happen (space dismissed before reaching window mode),
+                // but clean up defensively.
+                if let entity = sphereEntity {
+                    content.remove(entity)
+                    sphereEntity = nil
+                }
+            }
         }
     }
 }
