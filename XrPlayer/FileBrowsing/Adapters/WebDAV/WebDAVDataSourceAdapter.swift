@@ -140,7 +140,7 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         sortBy: FileBrowsingDomain.SortCriteria
     ) async throws -> [FileBrowsingDomain.MediaFile] {
         let files = try await listContents(at: folder.path)
-        return sort(files: files, by: sortBy)
+        return sortBy.sorted(files)
     }
 
     public func resolveURL(for item: FileBrowsingDomain.MediaFile) async throws -> URL {
@@ -409,29 +409,6 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
         print("[WebDAV] PROPFIND responses=\(result.responses.count) hrefs=[\(hrefs)]")
         if result.responses.count <= 1 {
             print("[WebDAV] PROPFIND xml=\(result.xml)")
-        }
-    }
-
-    private func sort(
-        files: [FileBrowsingDomain.MediaFile],
-        by criteria: FileBrowsingDomain.SortCriteria
-    ) -> [FileBrowsingDomain.MediaFile] {
-        let sorted: [FileBrowsingDomain.MediaFile]
-
-        switch criteria.key {
-        case .name:
-            sorted = files.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        case .modifiedDate:
-            sorted = files.sorted { $0.modifiedAt < $1.modifiedAt }
-        case .size:
-            sorted = files.sorted { $0.sizeInBytes < $1.sizeInBytes }
-        }
-
-        switch criteria.order {
-        case .ascending:
-            return sorted
-        case .descending:
-            return sorted.reversed()
         }
     }
 
