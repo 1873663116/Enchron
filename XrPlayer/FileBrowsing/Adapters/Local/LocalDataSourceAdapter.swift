@@ -97,7 +97,7 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
             ioQueue.async { [self] in
                 do {
                     let files = try loadMediaFiles(in: folder.url)
-                    continuation.resume(returning: sort(files: files, by: sortBy))
+                    continuation.resume(returning: sortBy.sorted(files))
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -141,26 +141,4 @@ public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
         }
     }
 
-    private func sort(
-        files: [FileBrowsingDomain.MediaFile],
-        by criteria: FileBrowsingDomain.SortCriteria
-    ) -> [FileBrowsingDomain.MediaFile] {
-        let sorted: [FileBrowsingDomain.MediaFile]
-
-        switch criteria.key {
-        case .name:
-            sorted = files.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        case .modifiedDate:
-            sorted = files.sorted { $0.modifiedAt < $1.modifiedAt }
-        case .size:
-            sorted = files.sorted { $0.sizeInBytes < $1.sizeInBytes }
-        }
-
-        switch criteria.order {
-        case .ascending:
-            return sorted
-        case .descending:
-            return sorted.reversed()
-        }
-    }
 }
