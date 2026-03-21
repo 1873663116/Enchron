@@ -7,6 +7,20 @@ final class FolderListMetadataFormatterTests: XCTestCase {
         XCTAssertEqual(normalizedWhitespace(FolderListMetadataFormatter.fileSize(1024)), "1 KB")
     }
 
+    func testByteCountFormatterReusesSameLocaleCacheKey() {
+        let first = FolderListMetadataFormatter.byteCountFormatter(localeIdentifier: "en_US")
+        let second = FolderListMetadataFormatter.byteCountFormatter(localeIdentifier: "en_US")
+
+        XCTAssertTrue(first === second)
+    }
+
+    func testByteCountFormatterRecreatesFormatterWhenLocaleKeyChanges() {
+        let first = FolderListMetadataFormatter.byteCountFormatter(localeIdentifier: "en_US")
+        let second = FolderListMetadataFormatter.byteCountFormatter(localeIdentifier: "fr_FR")
+
+        XCTAssertFalse(first === second)
+    }
+
     func testModifiedDateRespectsSuppliedTimeZone() {
         let date = Date(timeIntervalSince1970: 0)
         let locale = Locale(identifier: "en_US_POSIX")
@@ -30,16 +44,52 @@ final class FolderListMetadataFormatterTests: XCTestCase {
     func testSubtitleCombinesSizeAndModifiedDate() {
         let subtitle = normalizedWhitespace(
             FolderListMetadataFormatter.subtitle(
-            sizeInBytes: 1024,
-            modifiedAt: Date(timeIntervalSince1970: 0),
-            locale: Locale(identifier: "en_US_POSIX"),
-            timeZone: TimeZone(secondsFromGMT: 0)!
-        )
+                sizeInBytes: 1024,
+                modifiedAt: Date(timeIntervalSince1970: 0),
+                locale: Locale(identifier: "en_US_POSIX"),
+                timeZone: TimeZone(secondsFromGMT: 0)!
+            )
         )
 
         XCTAssertTrue(subtitle.contains("1 KB"))
         XCTAssertTrue(subtitle.contains("Jan 1, 1970"))
         XCTAssertTrue(subtitle.contains("•"))
+    }
+
+    func testDateFormatterReusesSameTimeFormatSignature() {
+        let locale = Locale(identifier: "en_US")
+        let timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let first = FolderListMetadataFormatter.dateFormatter(
+            locale: locale,
+            timeZone: timeZone,
+            timeFormatSignature: "h:mm a"
+        )
+        let second = FolderListMetadataFormatter.dateFormatter(
+            locale: locale,
+            timeZone: timeZone,
+            timeFormatSignature: "h:mm a"
+        )
+
+        XCTAssertTrue(first === second)
+    }
+
+    func testDateFormatterRecreatesFormatterWhenTimeFormatSignatureChanges() {
+        let locale = Locale(identifier: "en_US")
+        let timeZone = TimeZone(secondsFromGMT: 0)!
+
+        let first = FolderListMetadataFormatter.dateFormatter(
+            locale: locale,
+            timeZone: timeZone,
+            timeFormatSignature: "h:mm a"
+        )
+        let second = FolderListMetadataFormatter.dateFormatter(
+            locale: locale,
+            timeZone: timeZone,
+            timeFormatSignature: "HH:mm"
+        )
+
+        XCTAssertFalse(first === second)
     }
 
     private func normalizedWhitespace(_ value: String) -> String {

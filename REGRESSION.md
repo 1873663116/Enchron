@@ -26,9 +26,10 @@
 | PlayerUI/Domain/* | REG-010, REG-012, REG-015, REG-016 |
 | FileBrowsing/Adapters/SMB/* | REG-020, REG-021, REG-023 |
 | FileBrowsing/Adapters/WebDAV/* | REG-022 |
+| FileBrowsing/UseCases/FolderListMetadataFormatter.swift | REG-020, REG-024 |
 | FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023 |
 | FileBrowsing/Domain/* | REG-020, REG-022 |
-| FileBrowsing/Views/* | REG-020 |
+| FileBrowsing/Views/* | REG-020, REG-024 |
 | Persistence/Adapters/SwiftDataStore.swift | REG-030 |
 | Persistence/Adapters/UserDefaultsStore.swift | REG-031 |
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
@@ -231,6 +232,17 @@
 - **退化信号**: 子目录能打开但播放 URL 指向 share 根、点击子目录文件后打开了错误视频、子目录文件无法播放
 - **状态**: active
 - **创建日期**: 2026-03-15
+
+
+### REG-024: 文件列表元数据副标题跟随系统时间格式刷新
+
+- **来源**: 2026-03-22 FolderListMetadataFormatter locale/time-format cache 修复
+- **触发条件**: 改动 FileBrowsing/UseCases/FolderListMetadataFormatter.swift、FileBrowsing/Views/*
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter FolderListMetadataFormatterTests` 通过
+- **真机验证**: 打开任意含视频文件的目录并记住副标题格式 → 将系统切到另一种语言/地区、24 小时制或时区后恢复/重开 app → 返回同一目录 → 副标题中的文件大小与修改时间按新的系统格式显示
+- **退化信号**: 恢复后仍显示旧语言、旧 12/24 小时制或旧时区时间；必须完全重启设备/应用后才更新
+- **状态**: active
+- **创建日期**: 2026-03-22
 
 
 ---

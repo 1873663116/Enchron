@@ -15,12 +15,18 @@ Outcomes & Retrospective 四个章节必须在工作进行中保持更新。
 - [x] (2026-03-19 01:10) 恢复自动化记忆，排除已在 PR #7 和 PR #8 处理过的清理主题，锁定新主题为 `FolderListView` 元数据格式化收口。
 - [x] (2026-03-19 01:14) 抽出 `FileBrowsing` formatter，替换 `FolderListView` 内联格式化，并补 `FolderListMetadataFormatterTests`。
 - [x] (2026-03-19 01:19) 完成仓库要求的验证：`swift build` 通过，`swift test` 186 通过 / 1 跳过，`swiftlint lint` 无 error 级别违规，`scripts/check-workaround.sh XrPlayer/` 通过。
-- [ ] (2026-03-19 01:19) 提交、推送、创建中文 PR，并评论 `@CodeX Review`。
+- [x] (2026-03-22 01:00) 将 `automation/clearer-folder-list-metadata-format` rebase 到最新 `origin/main`，并把冲突的 exec plan 编号顺延为 `EP-005`，避免覆盖已合并的排序清理计划。
+- [x] (2026-03-22 01:06) 根据 PR #9 的剩余 review finding 调整 formatter 缓存 key：文件大小 formatter 改为随 locale key 重建，日期 formatter 额外随时间制式签名重建，并补针对缓存复用/失效的测试。
+- [x] (2026-03-22 01:07) 补 `REG-024` 回归项，覆盖系统语言/地区、24 小时制或时区变化后文件列表副标题刷新。
+- [ ] (2026-03-22 01:07) 提交、推送、创建中文 PR，并评论 `@CodeX Review`。
 
 ## Surprises & Discoveries
 
 - Observation: `Package.swift` 仍使用显式 `sources` 列表管理 `XrPlayerCore` 测试目标可见文件。
   Evidence: `Package.swift` 里 `XrPlayerCore` target 逐条枚举了 `PlayerUI/UseCases/PlaybackTimeFormatter.swift` 等文件路径。
+
+- Observation: 第二轮 review 指出的真实风险，是 thread-local cache 生命周期长于系统格式偏好，而不是 formatter 抽象本身。
+  Evidence: PR #9 的 review comment 明确指出语言/地区、24 小时制变化后会继续渲染旧格式。
 
 ## Decision Log
 
@@ -32,9 +38,13 @@ Outcomes & Retrospective 四个章节必须在工作进行中保持更新。
   Rationale: `ARCHITECTURE.md` 明确要求有业务归属的逻辑不要沉到 `Shared`；文件列表元数据文案只服务 `FileBrowsing`。
   Date: 2026-03-19
 
+- Decision: 保留 thread-local cache，但让 cache key 显式绑定 locale identifier 与时间制式签名，而不是回退到“每次调用都新建 formatter”。
+  Rationale: 这样既保留了避免行级热路径重复分配的收益，也让系统格式变化时可以自然 miss cache 并重建 formatter。
+  Date: 2026-03-22
+
 ## Outcomes & Retrospective
 
-当前实现与验证已完成。剩余动作只剩提交、推送、创建 PR 和触发云端审查；没有新的实现缺口。
+当前实现、返工验证和回归集更新都已完成。剩余动作只剩提交、推送、创建 PR 和触发云端审查；没有新的实现缺口。
 
 ## Context and Orientation
 
@@ -44,7 +54,7 @@ Outcomes & Retrospective 四个章节必须在工作进行中保持更新。
 
 ## Plan of Work
 
-先在 `XrPlayer/FileBrowsing/UseCases/` 新增 `FolderListMetadataFormatter.swift`，提供独立的文件大小、修改时间和组合 subtitle 格式化方法。然后修改 `FolderListView.swift`，删除视图私有 formatter 属性，改为在 cell 文案处调用共享 formatter。接着修改 `Package.swift` 让测试目标能看到新文件，并在 `Tests/XrPlayerCoreTests/` 新增 formatter 测试，覆盖“字节数转人类可读文案”“时区影响修改时间输出”“组合文案包含两个片段”三个场景。
+先在 `XrPlayer/FileBrowsing/UseCases/` 新增 `FolderListMetadataFormatter.swift`，提供独立的文件大小、修改时间和组合 subtitle 格式化方法。然后修改 `FolderListView.swift`，删除视图私有 formatter 属性，改为在 cell 文案处调用共享 formatter。接着修改 `Package.swift` 让测试目标能看到新文件，并在 `Tests/XrPlayerCoreTests/` 新增 formatter 测试，覆盖“字节数转人类可读文案”“时区影响修改时间输出”“组合文案包含两个片段”三个场景。如果云端 review 再指出缓存策略问题，则优先在同一 formatter 内调整 cache key，而不是把格式化逻辑重新塞回 `FolderListView`。
 
 ## Milestones
 
@@ -102,4 +112,4 @@ Agent 自检：
 
 不会新增或修改跨模块 protocol。新增的稳定接口仅限 `XrPlayer/FileBrowsing/UseCases/FolderListMetadataFormatter.swift` 中的静态 formatter 方法，供 `FolderListView` 调用。测试依赖仍保留在 `XrPlayerCore` target 内，不引入新的外部库。
 
-Updated on 2026-03-19。完成实现与验证，待提交并创建 PR。
+Updated on 2026-03-22。已完成返工实现、验证与回归集更新，待提交并创建 PR。
