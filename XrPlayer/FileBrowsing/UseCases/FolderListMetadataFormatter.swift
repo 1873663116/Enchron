@@ -44,9 +44,9 @@ enum FolderListMetadataFormatter {
     static func dateFormatter(
         locale: Locale,
         timeZone: TimeZone,
-        timeFormatSignature: String? = nil
+        formatPreferenceSignature: String? = nil
     ) -> DateFormatter {
-        let signature = timeFormatSignature ?? timeFormatPreferenceSignature(for: locale)
+        let signature = formatPreferenceSignature ?? computedFormatPreferenceSignature(for: locale)
         let cacheKey = "FileBrowsing.FolderListMetadataFormatter.date.\(locale.identifier).\(timeZone.identifier).\(signature)"
         let threadDictionary = Thread.current.threadDictionary
         if let formatter = threadDictionary[cacheKey] as? DateFormatter {
@@ -62,7 +62,13 @@ enum FolderListMetadataFormatter {
         return formatter
     }
 
-    static func timeFormatPreferenceSignature(for locale: Locale) -> String {
-        DateFormatter.dateFormat(fromTemplate: "j", options: 0, locale: locale) ?? "default"
+    static func computedFormatPreferenceSignature(for locale: Locale) -> String {
+        let calendarIdentifier = locale.calendar.identifier
+        let dateTimeFormat = DateFormatter.dateFormat(
+            fromTemplate: "yMMMdj",
+            options: 0,
+            locale: locale
+        ) ?? "default"
+        return "\(calendarIdentifier).\(dateTimeFormat)"
     }
 }

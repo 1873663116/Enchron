@@ -18,7 +18,8 @@ Outcomes & Retrospective 四个章节必须在工作进行中保持更新。
 - [x] (2026-03-22 01:00) 将 `automation/clearer-folder-list-metadata-format` rebase 到最新 `origin/main`，并把冲突的 exec plan 编号顺延为 `EP-005`，避免覆盖已合并的排序清理计划。
 - [x] (2026-03-22 01:06) 根据 PR #9 的剩余 review finding 调整 formatter 缓存 key：文件大小 formatter 改为随 locale key 重建，日期 formatter 额外随时间制式签名重建，并补针对缓存复用/失效的测试。
 - [x] (2026-03-22 01:07) 补 `REG-024` 回归项，覆盖系统语言/地区、24 小时制或时区变化后文件列表副标题刷新。
-- [ ] (2026-03-22 01:07) 提交、推送、创建中文 PR，并评论 `@CodeX Review`。
+- [x] (2026-03-23 01:04) 根据 PR #12 的 Codex finding 把日期 cache key 提升为 `calendar + yMMMdj` 格式偏好签名，覆盖同 locale identifier 下的 calendar / 自定义日期时间格式变化，并补 focused tests。
+- [ ] (2026-03-23 01:04) 提交、推送、更新 PR #12，并评论 `@CodeX Review`。
 
 ## Surprises & Discoveries
 
@@ -27,6 +28,9 @@ Outcomes & Retrospective 四个章节必须在工作进行中保持更新。
 
 - Observation: 第二轮 review 指出的真实风险，是 thread-local cache 生命周期长于系统格式偏好，而不是 formatter 抽象本身。
   Evidence: PR #9 的 review comment 明确指出语言/地区、24 小时制变化后会继续渲染旧格式。
+
+- Observation: 只用 `DateFormatter.dateFormat(fromTemplate: "j", ...)` 只能覆盖 12/24 小时制，不足以区分同 locale identifier 下的 calendar override 或自定义日期格式。
+  Evidence: PR #12 的 Codex review 明确点名 `en_GB` 这类 locale 在 identifier 不变时仍可能改变 date/time preferences。
 
 ## Decision Log
 
@@ -42,9 +46,13 @@ Outcomes & Retrospective 四个章节必须在工作进行中保持更新。
   Rationale: 这样既保留了避免行级热路径重复分配的收益，也让系统格式变化时可以自然 miss cache 并重建 formatter。
   Date: 2026-03-22
 
+- Decision: 日期 cache key 改为绑定 `locale.calendar.identifier + DateFormatter.dateFormat(fromTemplate: "yMMMdj", ...)`，而不是继续只看时间制式签名。
+  Rationale: `yMMMdj` 能同时反映当前 medium-date + short-time 组合下的日期、时间与日历偏好，足以覆盖 review 提到的“locale identifier 不变但格式偏好改变”的场景。
+  Date: 2026-03-23
+
 ## Outcomes & Retrospective
 
-当前实现、返工验证和回归集更新都已完成。剩余动作只剩提交、推送、创建 PR 和触发云端审查；没有新的实现缺口。
+当前实现已经完成第三轮返工，并通过 `swift build`、`swift test --filter FolderListMetadataFormatterTests`、`swift test`、`swiftlint lint`、`scripts/check-workaround.sh XrPlayer/` 与 `git diff --check`。剩余动作只剩提交、推送、更新 PR #12 和再次触发云端审查。
 
 ## Context and Orientation
 
@@ -54,7 +62,7 @@ Outcomes & Retrospective 四个章节必须在工作进行中保持更新。
 
 ## Plan of Work
 
-先在 `XrPlayer/FileBrowsing/UseCases/` 新增 `FolderListMetadataFormatter.swift`，提供独立的文件大小、修改时间和组合 subtitle 格式化方法。然后修改 `FolderListView.swift`，删除视图私有 formatter 属性，改为在 cell 文案处调用共享 formatter。接着修改 `Package.swift` 让测试目标能看到新文件，并在 `Tests/XrPlayerCoreTests/` 新增 formatter 测试，覆盖“字节数转人类可读文案”“时区影响修改时间输出”“组合文案包含两个片段”三个场景。如果云端 review 再指出缓存策略问题，则优先在同一 formatter 内调整 cache key，而不是把格式化逻辑重新塞回 `FolderListView`。
+先在 `XrPlayer/FileBrowsing/UseCases/` 新增 `FolderListMetadataFormatter.swift`，提供独立的文件大小、修改时间和组合 subtitle 格式化方法。然后修改 `FolderListView.swift`，删除视图私有 formatter 属性，改为在 cell 文案处调用共享 formatter。接着修改 `Package.swift` 让测试目标能看到新文件，并在 `Tests/XrPlayerCoreTests/` 新增 formatter 测试，覆盖“字节数转人类可读文案”“时区影响修改时间输出”“组合文案包含两个片段”三个场景。如果云端 review 再指出缓存策略问题，则继续优先在同一 formatter 内调整 cache key，而不是把格式化逻辑重新塞回 `FolderListView`。本轮返工已经把日期 cache key 从“时间制式签名”扩展到“calendar + medium-date/short-time 实际格式签名”，不再只依赖 locale identifier。
 
 ## Milestones
 
@@ -112,4 +120,4 @@ Agent 自检：
 
 不会新增或修改跨模块 protocol。新增的稳定接口仅限 `XrPlayer/FileBrowsing/UseCases/FolderListMetadataFormatter.swift` 中的静态 formatter 方法，供 `FolderListView` 调用。测试依赖仍保留在 `XrPlayerCore` target 内，不引入新的外部库。
 
-Updated on 2026-03-22。已完成返工实现、验证与回归集更新，待提交并创建 PR。
+Updated on 2026-03-23。已完成 review finding 返工与验证，待提交、推送、更新 PR #12 并再次请求云端审查。

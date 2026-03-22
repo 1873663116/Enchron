@@ -56,40 +56,53 @@ final class FolderListMetadataFormatterTests: XCTestCase {
         XCTAssertTrue(subtitle.contains("•"))
     }
 
-    func testDateFormatterReusesSameTimeFormatSignature() {
+    func testDateFormatterReusesSameFormatPreferenceSignature() {
         let locale = Locale(identifier: "en_US")
         let timeZone = TimeZone(secondsFromGMT: 0)!
 
         let first = FolderListMetadataFormatter.dateFormatter(
             locale: locale,
             timeZone: timeZone,
-            timeFormatSignature: "h:mm a"
+            formatPreferenceSignature: "gregorian.MMM d, y 'at' h:mm a"
         )
         let second = FolderListMetadataFormatter.dateFormatter(
             locale: locale,
             timeZone: timeZone,
-            timeFormatSignature: "h:mm a"
+            formatPreferenceSignature: "gregorian.MMM d, y 'at' h:mm a"
         )
 
         XCTAssertTrue(first === second)
     }
 
-    func testDateFormatterRecreatesFormatterWhenTimeFormatSignatureChanges() {
+    func testDateFormatterRecreatesFormatterWhenFormatPreferenceSignatureChanges() {
         let locale = Locale(identifier: "en_US")
         let timeZone = TimeZone(secondsFromGMT: 0)!
 
         let first = FolderListMetadataFormatter.dateFormatter(
             locale: locale,
             timeZone: timeZone,
-            timeFormatSignature: "h:mm a"
+            formatPreferenceSignature: "gregorian.MMM d, y 'at' h:mm a"
         )
         let second = FolderListMetadataFormatter.dateFormatter(
             locale: locale,
             timeZone: timeZone,
-            timeFormatSignature: "HH:mm"
+            formatPreferenceSignature: "buddhist.d MMM y 'at' HH:mm"
         )
 
         XCTAssertFalse(first === second)
+    }
+
+    func testFormatPreferenceSignatureIncludesCalendarAndDateFormat() {
+        let locale = Locale(identifier: "en_GB")
+        let expectedDateFormat = DateFormatter.dateFormat(
+            fromTemplate: "yMMMdj",
+            options: 0,
+            locale: locale
+        ) ?? "default"
+
+        let signature = FolderListMetadataFormatter.computedFormatPreferenceSignature(for: locale)
+
+        XCTAssertEqual(signature, "gregorian.\(expectedDateFormat)")
     }
 
     private func normalizedWhitespace(_ value: String) -> String {
