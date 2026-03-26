@@ -126,6 +126,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
     private var activeNativeGPUOutput: Bool = false
     private var didLogPipelineForCurrentFile = false
+    // Protected by stateQueue — written from event thread, read from public setHDREnabled.
     private var cachedHDRType: PlaybackCoreDomain.HDRType = .sdr
     private var cachedSignalPeak: Double?
 
@@ -1166,8 +1167,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private func detectAndNotifyMediaProfile() {
         let hdrMetadata = currentHDRMetadata()
         let hdrType = Self.inferHDRType(from: hdrMetadata)
-        cachedHDRType = hdrType
-        cachedSignalPeak = hdrMetadata.signalPeak
+        stateQueue.sync {
+            cachedHDRType = hdrType
+            cachedSignalPeak = hdrMetadata.signalPeak
+        }
         isHDRContent = hdrType != .sdr
         if isHDRContent {
             isHDROutputEnabled = true
@@ -1187,12 +1190,9 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                 ?? "",
             gSphericalSpherical: stringProperty("metadata/by-key/GSpherical:Spherical"),
             gSphericalProjectionType: stringProperty("metadata/by-key/GSpherical:ProjectionType"),
-            horizontalFOVDegrees: doubleProperty("metadata/by-key/GSpherical:CroppedAreaLeft")
-                .flatMap { _ in
-                    // If cropped area metadata exists, try to compute FOV from it.
-                    // For now, rely on GSpherical:FullPanoWidthPixels vs CroppedAreaImageWidthPixels.
-                    nil as Double?
-                },
+            // TODO: Wire up FOV computation from GSpherical CroppedArea / FullPanoWidth
+            // to distinguish panorama180 vs panorama360. Currently always nil → defaults to 360.
+            horizontalFOVDegrees: nil,
             aspectRatio: (width > 0 && height > 0) ? Double(width) / Double(height) : nil
         )
         let projectionType = ProjectionDetection.detect(from: projectionInput)
@@ -1318,13 +1318,17 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     private func applyEDRMetadataToLayer() {
-        let descriptor = EDRMetadataSelection.descriptor(
-            for: cachedHDRType,
-            signalPeak: cachedSignalPeak
-        )
-        stateQueue.sync {
-            guard let layer = videoLayer else { return }
-            switch descriptor {
+        // Read cached values and apply to layer atomically under stateQueue
+        let (descriptor, logType, logPeak): (EDRMetadataDescriptor?, String, String) = stateQueue.sync {
+            let desc = EDRMetadataSelection.descriptor(
+                for: cachedHDRType,
+                signalPeak: cachedSignalPeak
+            )
+            let typeStr = cachedHDRType.rawValue
+            let peakStr = cachedSignalPeak.map { String(format: "%.2f", $0) } ?? "nil"
+
+            guard let layer = videoLayer else { return (desc, typeStr, peakStr) }
+            switch desc {
             case .hdr10(let minLuminance, let maxLuminance, let opticalOutputScale):
                 if #available(visionOS 1.0, *) {
                     layer.edrMetadata = CAEDRMetadata.hdr10(
@@ -1342,8 +1346,9 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                     layer.edrMetadata = nil
                 }
             }
+            return (desc, typeStr, peakStr)
         }
-        print("[MPV] edr_metadata applied type=\(cachedHDRType.rawValue) sig-peak=\(cachedSignalPeak.map { String(format: "%.2f", $0) } ?? "nil") descriptor=\(descriptor.map { "\($0)" } ?? "nil")")
+        print("[MPV] edr_metadata applied type=\(logType) sig-peak=\(logPeak) descriptor=\(descriptor.map { "\($0)" } ?? "nil")")
     }
 
     private func manualHDROutputCommands(enabled: Bool) -> [[String]] {
