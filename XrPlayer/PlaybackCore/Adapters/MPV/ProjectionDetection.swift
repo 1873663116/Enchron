@@ -36,8 +36,11 @@ enum ProjectionDetection {
         if stereo.contains("sbs") || stereo == "side_by_side_left" || stereo == "side_by_side_right" {
             return .stereoscopicSBS
         }
-        if stereo.contains("ab") || stereo.contains("ou") || stereo.contains("top_bottom")
-            || stereo == "over_under_left" || stereo == "over_under_right" {
+        // mpv stereo3d over-under tags: "ab2l", "ab2r", "abl", "abr",
+        // "over_under_left", "over_under_right", "top_bottom" variants.
+        // Match only known mpv tag prefixes to avoid false positives on unrelated strings.
+        if stereo.hasPrefix("ab") || stereo.hasPrefix("ou")
+            || stereo.contains("top_bottom") || stereo.contains("over_under") {
             return .stereoscopicOU
         }
 

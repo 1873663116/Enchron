@@ -23,6 +23,8 @@ enum EDRMetadataSelection {
             return nil
         case .hlg:
             return .hlg
+        // WORKAROUND: DoVI mapped to hdr10 — Apple has no public CAEDRMetadata.dolbyVision API.
+        // Remove when/if Apple adds dedicated DoVI EDR metadata support.
         case .hdr10, .hdr10Plus, .dolbyVision:
             let peak = signalPeak ?? 1.0
             let maxLuminance = Float(peak * referenceWhiteNits)
