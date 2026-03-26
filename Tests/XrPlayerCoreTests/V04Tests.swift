@@ -997,3 +997,131 @@ final class EDRMetadataDescriptorTests: XCTestCase {
         }
     }
 }
+
+// MARK: - Projection Detection Tests
+
+final class ProjectionDetectionTests: XCTestCase {
+
+    /// Data-driven test matching TESTING.md projection type detection table
+    func testProjectionDetectionFromMetadata() {
+        struct TestCase {
+            let stereo3dIn: String
+            let gSphericalSpherical: String?
+            let gSphericalProjectionType: String?
+            let horizontalFOVDegrees: Double?
+            let aspectRatio: Double?
+            let expected: PlaybackCoreDomain.ProjectionType
+            let label: String
+        }
+
+        let cases: [TestCase] = [
+            TestCase(
+                stereo3dIn: "", gSphericalSpherical: nil,
+                gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
+                aspectRatio: 16.0 / 9.0, expected: .flat,
+                label: "Normal 16:9 video → flat"
+            ),
+            TestCase(
+                stereo3dIn: "sbs2l", gSphericalSpherical: nil,
+                gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
+                aspectRatio: 2.0, expected: .stereoscopicSBS,
+                label: "stereo3d sbs2l → stereoscopicSBS"
+            ),
+            TestCase(
+                stereo3dIn: "ab2t", gSphericalSpherical: nil,
+                gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
+                aspectRatio: 1.0, expected: .stereoscopicOU,
+                label: "stereo3d ab2t → stereoscopicOU"
+            ),
+            TestCase(
+                stereo3dIn: "", gSphericalSpherical: "true",
+                gSphericalProjectionType: "equirectangular", horizontalFOVDegrees: nil,
+                aspectRatio: 2.0, expected: .panorama360,
+                label: "GSpherical equirectangular → panorama360"
+            ),
+            TestCase(
+                stereo3dIn: "", gSphericalSpherical: "true",
+                gSphericalProjectionType: "equirectangular", horizontalFOVDegrees: 180.0,
+                aspectRatio: 1.0, expected: .panorama180,
+                label: "GSpherical equirectangular with 180° FOV → panorama180"
+            ),
+            TestCase(
+                stereo3dIn: "", gSphericalSpherical: nil,
+                gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
+                aspectRatio: 2.0, expected: .flat,
+                label: "2:1 aspect ratio but no spherical metadata → flat (no auto-guess)"
+            ),
+            TestCase(
+                stereo3dIn: "", gSphericalSpherical: nil,
+                gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
+                aspectRatio: nil, expected: .flat,
+                label: "No metadata at all → flat"
+            ),
+            TestCase(
+                stereo3dIn: "top_bottom", gSphericalSpherical: nil,
+                gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
+                aspectRatio: 1.0, expected: .stereoscopicOU,
+                label: "stereo3d top_bottom → stereoscopicOU"
+            ),
+            TestCase(
+                stereo3dIn: "side_by_side_left", gSphericalSpherical: nil,
+                gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
+                aspectRatio: 2.0, expected: .stereoscopicSBS,
+                label: "stereo3d side_by_side_left → stereoscopicSBS"
+            ),
+            TestCase(
+                stereo3dIn: "", gSphericalSpherical: "true",
+                gSphericalProjectionType: "cubemap", horizontalFOVDegrees: nil,
+                aspectRatio: nil, expected: .panorama360,
+                label: "GSpherical cubemap → panorama360"
+            ),
+        ]
+
+        for tc in cases {
+            let input = ProjectionDetectionInput(
+                stereo3dIn: tc.stereo3dIn,
+                gSphericalSpherical: tc.gSphericalSpherical,
+                gSphericalProjectionType: tc.gSphericalProjectionType,
+                horizontalFOVDegrees: tc.horizontalFOVDegrees,
+                aspectRatio: tc.aspectRatio
+            )
+            let result = ProjectionDetection.detect(from: input)
+            XCTAssertEqual(result, tc.expected, "Failed: \(tc.label)")
+        }
+    }
+
+    func testStereo3dTakesPriorityOverGSpherical() {
+        // If both stereo3d and GSpherical are present, stereo3d wins
+        let input = ProjectionDetectionInput(
+            stereo3dIn: "sbs2l",
+            gSphericalSpherical: "true",
+            gSphericalProjectionType: "equirectangular",
+            horizontalFOVDegrees: nil,
+            aspectRatio: 2.0
+        )
+        XCTAssertEqual(
+            ProjectionDetection.detect(from: input),
+            .stereoscopicSBS,
+            "Stereo3d should take priority over GSpherical"
+        )
+    }
+
+    func testNoAutoGuessFromAspectRatioAlone() {
+        // Explicitly verify the TESTING.md requirement:
+        // "2:1 长宽比但无球形元数据标记的视频不应自动判定为全景"
+        for ratio in [2.0, 1.0, 0.5] {
+            let input = ProjectionDetectionInput(
+                stereo3dIn: "",
+                gSphericalSpherical: nil,
+                gSphericalProjectionType: nil,
+                horizontalFOVDegrees: nil,
+                aspectRatio: ratio
+            )
+            XCTAssertEqual(
+                ProjectionDetection.detect(from: input),
+                .flat,
+                "Aspect ratio \(ratio) without metadata should remain flat"
+            )
+        }
+    }
+}

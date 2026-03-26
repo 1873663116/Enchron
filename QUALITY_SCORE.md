@@ -26,7 +26,7 @@
 | 远程浏览(SMB) | 3 | G13 | KI-011 已修复；连接、枚举、子目录浏览和播放均正常 |
 | 远程浏览(WebDAV) | 3 | G13 | 基本可用，连接稳定 |
 | 沉浸场景 | 2 | G10/G11 | ImmersiveSpace 可打开/关闭；PanoramaLayerBridge Blit 管线已连通；球体渲染可工作；播放模式切换菜单已实现；app 退出时全景未清理的 bug 已修复 |
-| 全景模式 | 2 | G10 | PanoramaSphereEntity + LowLevelTexture 管线已连通真机验证；自动检测全景视频投影类型尚未实现（硬编码 .flat）；手动切换可用 |
+| 全景模式 | 3 | G10 | PanoramaSphereEntity + LowLevelTexture 管线已连通真机验证；投影类型自动检测已实现（stereo3d + GSpherical 元数据）；有数据驱动单元测试覆盖；需真机验证自动进入全景模式 |
 | 模块边界 | 4 | G12/G17 | SwiftLint 自动守卫运行中；Domain 层 import 限制有效 |
 | 前后端契约 | 3 | G13 | OpenAPI spec + mock 数据已就位；validate-contract.sh 可用 |
 | 测试覆盖 | 2 | G14 | 仅 DetailedTimelineGeometry 有充分数据驱动测试；其余模块缺乏单元测试 |

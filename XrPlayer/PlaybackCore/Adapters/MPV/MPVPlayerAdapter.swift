@@ -1181,13 +1181,29 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let height = Int(int64Property("video-params/h") ?? 0)
         let frameRate = max(0, doubleProperty("container-fps") ?? 0)
 
+        let projectionInput = ProjectionDetectionInput(
+            stereo3dIn: stringProperty("video-params/stereo-in")
+                ?? stringProperty("video-params/stereo3d-in")
+                ?? "",
+            gSphericalSpherical: stringProperty("metadata/by-key/GSpherical:Spherical"),
+            gSphericalProjectionType: stringProperty("metadata/by-key/GSpherical:ProjectionType"),
+            horizontalFOVDegrees: doubleProperty("metadata/by-key/GSpherical:CroppedAreaLeft")
+                .flatMap { _ in
+                    // If cropped area metadata exists, try to compute FOV from it.
+                    // For now, rely on GSpherical:FullPanoWidthPixels vs CroppedAreaImageWidthPixels.
+                    nil as Double?
+                },
+            aspectRatio: (width > 0 && height > 0) ? Double(width) / Double(height) : nil
+        )
+        let projectionType = ProjectionDetection.detect(from: projectionInput)
+
         print(
-            "[MPV] media-profile hdr=\(hdrType.rawValue) dovi=\(hdrMetadata.dolbyVisionProfile.map(String.init) ?? "nil") hdr-format=\(hdrMetadata.hdrFormat.ifEmpty("nil")) colormatrix=\(hdrMetadata.colormatrix.ifEmpty("nil")) gamma=\(hdrMetadata.gamma.ifEmpty("nil")) primaries=\(hdrMetadata.primaries.ifEmpty("nil")) colorlevels=\(hdrMetadata.colorlevels.ifEmpty("nil")) sig-peak=\(hdrMetadata.signalPeak.map { String(format: "%.2f", $0) } ?? "nil") scene-max=\(hdrMetadata.sceneMaxR.map { String(format: "%.2f", $0) } ?? "nil")/\(hdrMetadata.sceneMaxG.map { String(format: "%.2f", $0) } ?? "nil")/\(hdrMetadata.sceneMaxB.map { String(format: "%.2f", $0) } ?? "nil")"
+            "[MPV] media-profile hdr=\(hdrType.rawValue) projection=\(projectionType.rawValue) dovi=\(hdrMetadata.dolbyVisionProfile.map(String.init) ?? "nil") hdr-format=\(hdrMetadata.hdrFormat.ifEmpty("nil")) colormatrix=\(hdrMetadata.colormatrix.ifEmpty("nil")) gamma=\(hdrMetadata.gamma.ifEmpty("nil")) primaries=\(hdrMetadata.primaries.ifEmpty("nil")) colorlevels=\(hdrMetadata.colorlevels.ifEmpty("nil")) sig-peak=\(hdrMetadata.signalPeak.map { String(format: "%.2f", $0) } ?? "nil") stereo3d=\(projectionInput.stereo3dIn.ifEmpty("nil")) gspherical=\(projectionInput.gSphericalSpherical ?? "nil")"
         )
         logHDRPipelineState(reason: "media_profile_detected")
 
         let profile = PlaybackCoreDomain.MediaProfile(
-            projectionType: .flat,
+            projectionType: projectionType,
             hdrType: hdrType,
             resolution: .init(width: width, height: height),
             frameRate: frameRate
