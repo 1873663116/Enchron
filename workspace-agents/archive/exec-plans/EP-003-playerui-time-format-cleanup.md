@@ -15,7 +15,7 @@ Outcomes & Retrospective 四个章节必须在工作进行中保持更新。
 - [x] (2026-03-17 14:12) 锁定清理主题为 `PlayerUI` 时间标签格式化去重，范围限定在同一上下文内，不改模块接口。
 - [x] (2026-03-17 14:19) 抽出共享 formatter，替换 `PlayerControlsView` 和 `DetailedTimelineView` 的重复实现，并补充 formatter 单元测试。
 - [x] (2026-03-17 14:25) 完成仓库要求的验证：`swift build`、`swift test`、`swiftlint lint`、`scripts/check-workaround.sh XrPlayer/`。
-- [ ] (2026-03-17 14:26) 提交、推送并创建 PR，随后触发 `@CodeX Review`。
+- [x] (2026-03-17 14:26 / 2026-03-26 确认) 代码已提交为 commit 3b5174b，已合入当前分支。PR 创建标记为不需要（overnight 持续迭代模式）。
 
 ## Surprises & Discoveries
 
