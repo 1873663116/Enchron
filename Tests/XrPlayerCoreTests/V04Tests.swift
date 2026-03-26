@@ -888,3 +888,112 @@ final class GestureTypeTests: XCTestCase {
         XCTAssertEqual(GestureType.drag.rawValue, "drag")
     }
 }
+
+// MARK: - EDR Metadata Descriptor Tests
+
+final class EDRMetadataDescriptorTests: XCTestCase {
+
+    // Data-driven test table matching TESTING.md HDR test design
+    func testEDRMetadataDescriptorSelection() {
+        struct TestCase {
+            let hdrType: PlaybackCoreDomain.HDRType
+            let signalPeak: Double?
+            let expectedDescriptor: EDRMetadataDescriptor?
+            let expectedMaxLuminance: Float?
+            let label: String
+        }
+
+        let cases: [TestCase] = [
+            TestCase(
+                hdrType: .sdr, signalPeak: nil,
+                expectedDescriptor: nil, expectedMaxLuminance: nil,
+                label: "SDR returns nil"
+            ),
+            TestCase(
+                hdrType: .sdr, signalPeak: 5.0,
+                expectedDescriptor: nil, expectedMaxLuminance: nil,
+                label: "SDR with spurious peak still returns nil"
+            ),
+            TestCase(
+                hdrType: .hdr10, signalPeak: 5.0,
+                expectedDescriptor: .hdr10(minLuminance: 0.0, maxLuminance: 1015.0, opticalOutputScale: 100.0),
+                expectedMaxLuminance: 1015.0,
+                label: "HDR10 sig-peak=5.0 → maxLuminance=1015"
+            ),
+            TestCase(
+                hdrType: .hdr10, signalPeak: nil,
+                expectedDescriptor: .hdr10(minLuminance: 0.0, maxLuminance: 203.0, opticalOutputScale: 100.0),
+                expectedMaxLuminance: 203.0,
+                label: "HDR10 sig-peak=nil defaults to 1.0 → maxLuminance=203"
+            ),
+            TestCase(
+                hdrType: .hdr10, signalPeak: 1.0,
+                expectedDescriptor: .hdr10(minLuminance: 0.0, maxLuminance: 203.0, opticalOutputScale: 100.0),
+                expectedMaxLuminance: 203.0,
+                label: "HDR10 sig-peak=1.0 → maxLuminance=203"
+            ),
+            TestCase(
+                hdrType: .hdr10Plus, signalPeak: 10.0,
+                expectedDescriptor: .hdr10(minLuminance: 0.0, maxLuminance: 2030.0, opticalOutputScale: 100.0),
+                expectedMaxLuminance: 2030.0,
+                label: "HDR10+ sig-peak=10.0 → maxLuminance=2030"
+            ),
+            TestCase(
+                hdrType: .dolbyVision, signalPeak: 5.0,
+                expectedDescriptor: .hdr10(minLuminance: 0.0, maxLuminance: 1015.0, opticalOutputScale: 100.0),
+                expectedMaxLuminance: 1015.0,
+                label: "DoVI uses hdr10 metadata (no public DoVI CAEDRMetadata API)"
+            ),
+            TestCase(
+                hdrType: .hlg, signalPeak: nil,
+                expectedDescriptor: .hlg, expectedMaxLuminance: nil,
+                label: "HLG returns .hlg descriptor"
+            ),
+            TestCase(
+                hdrType: .hlg, signalPeak: 3.0,
+                expectedDescriptor: .hlg, expectedMaxLuminance: nil,
+                label: "HLG ignores signal peak"
+            ),
+        ]
+
+        for tc in cases {
+            let result = EDRMetadataSelection.descriptor(
+                for: tc.hdrType,
+                signalPeak: tc.signalPeak
+            )
+            XCTAssertEqual(result, tc.expectedDescriptor, "Failed: \(tc.label)")
+
+            // Verify maxLuminance specifically for hdr10 cases
+            if let expectedMax = tc.expectedMaxLuminance,
+               case .hdr10(_, let actualMax, _) = result {
+                XCTAssertEqual(actualMax, expectedMax, accuracy: 0.01, "maxLuminance mismatch: \(tc.label)")
+            }
+        }
+    }
+
+    func testSDRAlwaysReturnsNil() {
+        // Exhaustive: SDR must never produce a descriptor regardless of signal peak
+        for peak in [nil, Optional(0.0), 1.0, 5.0, 100.0] {
+            let result = EDRMetadataSelection.descriptor(for: .sdr, signalPeak: peak)
+            XCTAssertNil(result, "SDR with peak=\(String(describing: peak)) should return nil")
+        }
+    }
+
+    func testHDR10MinLuminanceIsAlwaysZero() {
+        for type in [PlaybackCoreDomain.HDRType.hdr10, .hdr10Plus, .dolbyVision] {
+            if case .hdr10(let minLum, _, _) = EDRMetadataSelection.descriptor(for: type, signalPeak: 5.0) {
+                XCTAssertEqual(minLum, 0.0, "\(type) should have minLuminance=0")
+            } else {
+                XCTFail("\(type) should produce .hdr10 descriptor")
+            }
+        }
+    }
+
+    func testOpticalOutputScaleIsAlways100() {
+        for type in [PlaybackCoreDomain.HDRType.hdr10, .hdr10Plus, .dolbyVision] {
+            if case .hdr10(_, _, let scale) = EDRMetadataSelection.descriptor(for: type, signalPeak: 5.0) {
+                XCTAssertEqual(scale, 100.0, "\(type) should have opticalOutputScale=100")
+            }
+        }
+    }
+}

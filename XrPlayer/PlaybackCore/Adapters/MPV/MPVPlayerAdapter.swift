@@ -126,6 +126,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
     private var activeNativeGPUOutput: Bool = false
     private var didLogPipelineForCurrentFile = false
+    private var cachedHDRType: PlaybackCoreDomain.HDRType = .sdr
+    private var cachedSignalPeak: Double?
 
     // Used to signal waitForVideoLayerIfNeeded() without polling.
     // Protected by stateQueue.
@@ -324,6 +326,17 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             videoLayer?.wantsExtendedDynamicRangeContent = enabled
         }
         isHDROutputEnabled = enabled
+        if enabled && isHDRContent {
+            applyEDRMetadataToLayer()
+        } else {
+            stateQueue.sync {
+                guard let layer = videoLayer else { return }
+                if #available(visionOS 1.0, *) {
+                    layer.edrMetadata = nil
+                }
+            }
+            print("[MPV] edr_metadata cleared reason=hdr_disabled")
+        }
         logHDRPipelineState(reason: "manual_toggle")
     }
 
@@ -1153,10 +1166,15 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private func detectAndNotifyMediaProfile() {
         let hdrMetadata = currentHDRMetadata()
         let hdrType = Self.inferHDRType(from: hdrMetadata)
+        cachedHDRType = hdrType
+        cachedSignalPeak = hdrMetadata.signalPeak
         isHDRContent = hdrType != .sdr
         if isHDRContent {
             isHDROutputEnabled = true
             applyHDRRuntimeConfiguration()
+        } else {
+            // SDR content: clear any leftover EDR metadata from previous HDR content
+            applyEDRMetadataToLayer()
         }
 
         let width = Int(int64Property("video-params/w") ?? 0)
@@ -1279,7 +1297,37 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         stateQueue.sync {
             videoLayer?.wantsExtendedDynamicRangeContent = true
         }
+        applyEDRMetadataToLayer()
         logHDRPipelineState(reason: "auto_runtime_config")
+    }
+
+    private func applyEDRMetadataToLayer() {
+        let descriptor = EDRMetadataSelection.descriptor(
+            for: cachedHDRType,
+            signalPeak: cachedSignalPeak
+        )
+        stateQueue.sync {
+            guard let layer = videoLayer else { return }
+            switch descriptor {
+            case .hdr10(let minLuminance, let maxLuminance, let opticalOutputScale):
+                if #available(visionOS 1.0, *) {
+                    layer.edrMetadata = CAEDRMetadata.hdr10(
+                        minLuminance: minLuminance,
+                        maxLuminance: maxLuminance,
+                        opticalOutputScale: opticalOutputScale
+                    )
+                }
+            case .hlg:
+                if #available(visionOS 1.0, *) {
+                    layer.edrMetadata = CAEDRMetadata.hlg
+                }
+            case nil:
+                if #available(visionOS 1.0, *) {
+                    layer.edrMetadata = nil
+                }
+            }
+        }
+        print("[MPV] edr_metadata applied type=\(cachedHDRType.rawValue) sig-peak=\(cachedSignalPeak.map { String(format: "%.2f", $0) } ?? "nil") descriptor=\(descriptor.map { "\($0)" } ?? "nil")")
     }
 
     private func manualHDROutputCommands(enabled: Bool) -> [[String]] {

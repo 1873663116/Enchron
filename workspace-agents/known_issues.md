@@ -1,6 +1,6 @@
 # Enchron 已知问题
 
-更新时间：2026-03-20
+更新时间：2026-03-26
 
 已归档并标记为已解决：
 
@@ -13,53 +13,11 @@
 2026-03-15 已确认关闭：
 
 - KI-011：SMB 子目录浏览与子目录视频播放已修复。
-- KI-007 的 `i` 信息面板容器与首次弹出问题已修复；该编号当前仅保留“首次构建后首启首播的一次性冷卡顿”子问题。
+- KI-007 的 `i` 信息面板容器与首次弹出问题已修复；该编号当前仅保留”首次构建后首启首播的一次性冷卡顿”子问题。
 
----
+2026-03-26 已确认关闭：
 
-## KI-010：Window 模式 HDR 缺少 CAEDRMetadata，系统无法做精确 EDR tone mapping
-
-### 优先级
-
-当前最高优先级问题。
-
-### 现象
-
-- HDR10/HLG/DoVI 内容能被正确识别，UI 中的 HDR/SDR 信息能正确显示。
-- libmpv gpu-next 路径已能正确渲染 HDR 内容（tone-mapping=auto + target-trc=auto）。
-- Metal Layer 已配置为 rgba16Float + wantsExtendedDynamicRangeContent。
-- 但显示效果仍不够精确——HDR 高光区域未被正确呈现。
-
-### 调查结论（2026-03-17，修正 2026-03-15 的错误分析）
-
-> **重要修正**：2026-03-15 的根因分析（根因 A~D）存在重大误判，已废止。当时把问题归因于 `verified_surface=false`、MoltenVK 线程违规、HDR surface 未建立等底层渲染路径问题。经过对 libmpv 渲染管线的重新调研，发现这些都不是真正的根因。
-
-**真正的根因是：从未设置 `CAEDRMetadata`。**
-
-libmpv gpu-next 路径内部已经正确完成了 HDR 渲染——它读取内容的 HDR 元数据，执行 tone mapping，将结果输出到 rgba16Float 的 Metal Layer。Metal Layer 也已经通过 `wantsExtendedDynamicRangeContent = true` 告知系统自己能承载 EDR 内容。
-
-但是，Apple 显示系统需要通过 `CAEDRMetadata` 知道内容的 mastering 亮度范围（maxLuminance / minLuminance），才能做精确的 system-level EDR tone mapping。没有 CAEDRMetadata 时，系统只能以保守策略处理 EDR 内容，导致高光被压缩、亮度表现不准确。
-
-### 根本原因
-
-#### 唯一根因：MPVPlayerAdapter 未在 HDR 内容检测后设置 `layer.edrMetadata`
-
-`applyHDRRuntimeConfiguration()` 中设置了 `wantsExtendedDynamicRangeContent = true`，但没有后续调用来设置 `CAEDRMetadata`。Apple 的 EDR 管线需要两个条件同时满足：
-
-1. `wantsExtendedDynamicRangeContent = true` — 已满足
-2. `layer.edrMetadata = CAEDRMetadata.hdr10(...)` 或 `.hlg(...)` — **缺失**
-
-### 修正方向
-
-1. 在 `applyHDRRuntimeConfiguration()` 中追加调用 `applyEDRMetadataToLayer()`，根据 HDR 类型设置对应的 CAEDRMetadata。
-2. HDR10/HDR10+/DoVI：使用 `CAEDRMetadata.hdr10(minLuminance:maxLuminance:opticalOutputScale:)`，从 sig-peak 推算 maxLuminance（sig-peak * 203 nits），opticalOutputScale = 100.0。
-3. HLG：使用 `CAEDRMetadata.hlg(ambientViewingEnvironment:)`。
-4. SDR：设置 `edrMetadata = nil`。
-5. `setHDREnabled(_:)` 中同步更新 edrMetadata（关闭时清除，开启时重设）。
-
-### 关于之前的 `verified_surface` 和线程违规
-
-这些日志信号仍然存在，但它们不是 HDR 显示效果不佳的根因。`verified_surface` 是 `MPVPlayerAdapter` 内部的验证逻辑，它反映的是内部状态模型的设计，而不是 Apple 显示系统是否收到了正确的 HDR 元数据。MoltenVK 的线程警告需要独立处理，但不阻塞 HDR 效果的修复。
+- KI-010：CAEDRMetadata 已实现。`applyEDRMetadataToLayer()` 根据 HDR 类型自动设置（HDR10/HDR10+/DoVI→hdr10 metadata, HLG→hlg, SDR→nil）。`setHDREnabled()` 同步 edrMetadata。EDR metadata 选择逻辑有数据驱动单元测试覆盖。需真机验证视觉效果。
 
 ---
 

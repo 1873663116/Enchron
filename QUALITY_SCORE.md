@@ -1,6 +1,6 @@
 # Enchron 质量评分
 
-更新时间：2026-03-20
+更新时间：2026-03-26
 
 
 ## 评分标准
@@ -22,7 +22,7 @@
 | 二级进度条 | 3 | G2 | 几何计算有测试覆盖；缩放交互真机体验需打磨 |
 | 播放控件反馈 | 3 | G3 | 窗口模式下控件可用，hover/focus 反馈存在；沉浸场景未实现 |
 | 冷启动性能 | 2 | G4/G5 | KI-007: 首次构建后首启首播一次性冷卡顿（GPU 管线建链成本）；"i"面板卡顿已修复 |
-| HDR 可信度 | 2 | G7/G8/G9 | KI-010: gpu-next 已正确渲染 HDR，但缺少 CAEDRMetadata 导致系统 EDR tone mapping 不精确；切换按钮能改变 target-trc/prim 但未同步 edrMetadata |
+| HDR 可信度 | 3 | G7/G8/G9 | KI-010 已修复：CAEDRMetadata 根据 HDR 类型自动设置（HDR10/DoVI→hdr10 metadata, HLG→hlg, SDR→nil）；setHDREnabled 同步 edrMetadata；EDR metadata 选择逻辑有数据驱动单元测试覆盖；需真机验证视觉效果 |
 | 远程浏览(SMB) | 3 | G13 | KI-011 已修复；连接、枚举、子目录浏览和播放均正常 |
 | 远程浏览(WebDAV) | 3 | G13 | 基本可用，连接稳定 |
 | 沉浸场景 | 2 | G10/G11 | ImmersiveSpace 可打开/关闭；PanoramaLayerBridge Blit 管线已连通；球体渲染可工作；播放模式切换菜单已实现；app 退出时全景未清理的 bug 已修复 |
