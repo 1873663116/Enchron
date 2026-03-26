@@ -18,6 +18,7 @@
 2026-03-26 已确认关闭：
 
 - KI-010：CAEDRMetadata 已实现。`applyEDRMetadataToLayer()` 根据 HDR 类型自动设置（HDR10/HDR10+/DoVI→hdr10 metadata, HLG→hlg, SDR→nil）。`setHDREnabled()` 同步 edrMetadata。EDR metadata 选择逻辑有数据驱动单元测试覆盖。需真机验证视觉效果。
+- KI-012：全景视频投影类型自动检测已实现。基于 mpv `stereo3d-in` 和 GSpherical 容器元数据的启发式检测，替换了硬编码的 `.flat`。纯逻辑有数据驱动单元测试覆盖。需真机验证自动进入全景模式。
 
 ---
 
@@ -96,28 +97,6 @@
 1. 先不要再把这个问题笼统叫做“首播慢”，而要按“首次构建后首启首播的一次性冷建链成本”来调查。
 2. 继续补足 warmup 前态与首次真实播放后热态之间的状态证据，回答“为什么只会一次”。
 3. 如果后续要优化，重点应放在”能否把第一次真实 GPU 管线建链成本提前或平滑”，而不是继续在已经收缩过的普通播放逻辑上盲改。
-
----
-
-## KI-012：全景视频投影类型自动检测未实现
-
-### 优先级
-
-中等。当前可通过手动切换播放模式使用全景功能。
-
-### 现象
-
-所有视频的 `projectionType` 被硬编码为 `.flat`（`MPVPlayerAdapter.swift` 第 1172 行）。全景视频（360°/180°/鱼眼）不会被自动识别并切换到全景模式。
-
-### 根本原因
-
-mpv 本身不通过 `video-params` 提供视频投影类型的元数据。需要通过其他策略检测：文件名模式匹配、视频宽高比（2:1 → 360°）、或读取 MP4 spherical metadata tag。
-
-### 修正方向
-
-1. 实现基于文件名和宽高比的启发式检测
-2. 研究通过 FFmpeg/AVFoundation 读取 spherical metadata 的可行性
-3. 在 `MediaProfile` 构建时注入检测结果
 
 ---
 

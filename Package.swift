@@ -55,7 +55,8 @@ let package = Package(
                 "XrPlayer/PlayerUI/UseCases/PlaybackTimeFormatter.swift",
                 "XrPlayer/PlaybackCore/Adapters/MPV/MPVConfiguration.swift",
                 "XrPlayer/PlaybackCore/Adapters/MPV/VideoToolboxBridge.swift",
-                "XrPlayer/PlaybackCore/Adapters/MPV/EDRMetadataDescriptor.swift"
+                "XrPlayer/PlaybackCore/Adapters/MPV/EDRMetadataDescriptor.swift",
+                "XrPlayer/PlaybackCore/Adapters/MPV/ProjectionDetection.swift"
             ],
             linkerSettings: [
                 .linkedFramework("Security"),

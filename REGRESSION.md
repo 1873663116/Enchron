@@ -1,6 +1,6 @@
 # Enchron 回归集
 
-更新时间：2026-03-17
+更新时间：2026-03-26
 
 
 ## 使用方式
@@ -14,7 +14,7 @@
 
 | 改动路径 | 关联回归项 |
 |---------|-----------|
-| PlaybackCore/Adapters/MPV/* | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063 |
+| PlaybackCore/Adapters/MPV/* | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063, REG-070 |
 | PlaybackCore/Domain/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlaybackCore/UseCases/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlayerUI/Views/DetailedTimelineView.swift | REG-010, REG-011, REG-014, REG-017 |
