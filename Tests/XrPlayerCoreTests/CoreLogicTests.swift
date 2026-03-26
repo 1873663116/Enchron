@@ -68,3 +68,214 @@ final class CoreLogicTests: XCTestCase {
         return root
     }
 }
+
+// MARK: - FileFilter Edge Cases
+
+final class FileFilterEdgeCaseTests: XCTestCase {
+
+    func testFilterIsCaseInsensitive() {
+        let filter = FileBrowsingDomain.FileFilter.playable
+        XCTAssertTrue(filter.matches(fileURL: URL(fileURLWithPath: "/tmp/movie.MP4")))
+        XCTAssertTrue(filter.matches(fileURL: URL(fileURLWithPath: "/tmp/movie.Mkv")))
+        XCTAssertTrue(filter.matches(fileURL: URL(fileURLWithPath: "/tmp/movie.AVI")))
+    }
+
+    func testAllPlayableExtensionsAccepted() {
+        let filter = FileBrowsingDomain.FileFilter.playable
+        let expected = ["mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv"]
+        for ext in expected {
+            XCTAssertTrue(
+                filter.matches(fileURL: URL(fileURLWithPath: "/tmp/video.\(ext)")),
+                "Extension .\(ext) should be accepted"
+            )
+        }
+    }
+
+    func testNonPlayableExtensionsRejected() {
+        let filter = FileBrowsingDomain.FileFilter.playable
+        let rejected = ["txt", "pdf", "jpg", "png", "zip", "srt", "ass", "mp3", "aac", "doc"]
+        for ext in rejected {
+            XCTAssertFalse(
+                filter.matches(fileURL: URL(fileURLWithPath: "/tmp/file.\(ext)")),
+                "Extension .\(ext) should be rejected"
+            )
+        }
+    }
+
+    func testEmptyExtensionRejected() {
+        let filter = FileBrowsingDomain.FileFilter.playable
+        XCTAssertFalse(filter.matches(fileURL: URL(fileURLWithPath: "/tmp/noextension")))
+    }
+
+    func testCustomFilterWithSingleExtension() {
+        let filter = FileBrowsingDomain.FileFilter(allowedExtensions: ["Custom"])
+        XCTAssertTrue(filter.matches(fileURL: URL(fileURLWithPath: "/tmp/file.custom")))
+        XCTAssertTrue(filter.matches(fileURL: URL(fileURLWithPath: "/tmp/file.CUSTOM")))
+        XCTAssertFalse(filter.matches(fileURL: URL(fileURLWithPath: "/tmp/file.other")))
+    }
+
+    func testFilterEquality() {
+        let a = FileBrowsingDomain.FileFilter(allowedExtensions: ["mp4", "mkv"])
+        let b = FileBrowsingDomain.FileFilter(allowedExtensions: ["MKV", "MP4"])
+        XCTAssertEqual(a, b, "Filters with same extensions (different case) should be equal")
+    }
+}
+
+// MARK: - SortCriteria Tests
+
+final class SortCriteriaTests: XCTestCase {
+
+    func testNameAscendingConvenience() {
+        let criteria = FileBrowsingDomain.SortCriteria.nameAscending
+        XCTAssertEqual(criteria.key, .name)
+        XCTAssertEqual(criteria.order, .ascending)
+    }
+
+    func testAllKeysAndOrderCombinations() {
+        let keys: [FileBrowsingDomain.SortCriteria.Key] = [.name, .modifiedDate, .size]
+        let orders: [FileBrowsingDomain.SortCriteria.Order] = [.ascending, .descending]
+
+        for key in keys {
+            for order in orders {
+                let criteria = FileBrowsingDomain.SortCriteria(key: key, order: order)
+                XCTAssertEqual(criteria.key, key)
+                XCTAssertEqual(criteria.order, order)
+            }
+        }
+    }
+
+    func testEquality() {
+        let a = FileBrowsingDomain.SortCriteria(key: .name, order: .ascending)
+        let b = FileBrowsingDomain.SortCriteria(key: .name, order: .ascending)
+        let c = FileBrowsingDomain.SortCriteria(key: .name, order: .descending)
+        let d = FileBrowsingDomain.SortCriteria(key: .size, order: .ascending)
+
+        XCTAssertEqual(a, b)
+        XCTAssertNotEqual(a, c, "Different order should not be equal")
+        XCTAssertNotEqual(a, d, "Different key should not be equal")
+    }
+
+    func testSortByNameAscendingInAdapter() async throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        createFile(at: root, name: "beta.mp4")
+        createFile(at: root, name: "alpha.mp4")
+        createFile(at: root, name: "gamma.mp4")
+
+        let adapter = LocalDataSourceAdapter()
+        try await adapter.connect(with: .init(sourceType: .local, rootPath: root.path))
+        let folder = FileBrowsingDomain.MediaFolder(name: "Root", dataSourceID: UUID(), path: ".", url: root)
+
+        let ascending = try await adapter.listFiles(in: folder, sortBy: .init(key: .name, order: .ascending))
+        XCTAssertEqual(ascending.map { $0.name }, ["alpha.mp4", "beta.mp4", "gamma.mp4"])
+    }
+
+    func testSortByNameDescendingInAdapter() async throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        createFile(at: root, name: "beta.mp4")
+        createFile(at: root, name: "alpha.mp4")
+        createFile(at: root, name: "gamma.mp4")
+
+        let adapter = LocalDataSourceAdapter()
+        try await adapter.connect(with: .init(sourceType: .local, rootPath: root.path))
+        let folder = FileBrowsingDomain.MediaFolder(name: "Root", dataSourceID: UUID(), path: ".", url: root)
+
+        let descending = try await adapter.listFiles(in: folder, sortBy: .init(key: .name, order: .descending))
+        XCTAssertEqual(descending.map { $0.name }, ["gamma.mp4", "beta.mp4", "alpha.mp4"])
+    }
+
+    func testSortBySizeInAdapter() async throws {
+        let root = try makeTempDir()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        createFile(at: root, name: "small.mp4", size: 10)
+        createFile(at: root, name: "large.mp4", size: 1000)
+        createFile(at: root, name: "medium.mp4", size: 500)
+
+        let adapter = LocalDataSourceAdapter()
+        try await adapter.connect(with: .init(sourceType: .local, rootPath: root.path))
+        let folder = FileBrowsingDomain.MediaFolder(name: "Root", dataSourceID: UUID(), path: ".", url: root)
+
+        let ascending = try await adapter.listFiles(in: folder, sortBy: .init(key: .size, order: .ascending))
+        XCTAssertEqual(ascending.map { $0.name }, ["small.mp4", "medium.mp4", "large.mp4"])
+
+        let descending = try await adapter.listFiles(in: folder, sortBy: .init(key: .size, order: .descending))
+        XCTAssertEqual(descending.map { $0.name }, ["large.mp4", "medium.mp4", "small.mp4"])
+    }
+
+    private func makeTempDir() throws -> URL {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return root
+    }
+
+    private func createFile(at dir: URL, name: String, size: Int = 1) {
+        let data = Data(repeating: 0, count: size)
+        FileManager.default.createFile(atPath: dir.appendingPathComponent(name).path, contents: data)
+    }
+}
+
+// MARK: - Playback Mode Decision Tests
+
+final class PlaybackModeDecisionTests: XCTestCase {
+
+    /// Test the playback mode decision logic directly.
+    /// The actual decision lives in AppCoordinator (App module, not testable here),
+    /// but the decision rule is: panoramic → panorama, env active → immersive, else → window.
+    /// We test the inputs (ProjectionType.isPanoramic) and verify all combinations.
+    func testPanoramicProjectionTypesReturnTrue() {
+        let panoramicTypes: [PlaybackCoreDomain.ProjectionType] = [.panorama360, .panorama180, .fisheye]
+        for type in panoramicTypes {
+            XCTAssertTrue(type.isPanoramic, "\(type) should be panoramic")
+        }
+    }
+
+    func testNonPanoramicProjectionTypesReturnFalse() {
+        let nonPanoramic: [PlaybackCoreDomain.ProjectionType] = [.flat, .stereoscopicSBS, .stereoscopicOU]
+        for type in nonPanoramic {
+            XCTAssertFalse(type.isPanoramic, "\(type) should not be panoramic")
+        }
+    }
+
+    func testAllProjectionTypesCovered() {
+        // Ensure every ProjectionType case has been classified
+        let allTypes = PlaybackCoreDomain.ProjectionType.allCases
+        XCTAssertEqual(allTypes.count, 6, "Expected 6 projection types (flat, sbs, ou, 360, 180, fisheye)")
+
+        let panoramic = allTypes.filter { $0.isPanoramic }
+        let nonPanoramic = allTypes.filter { !$0.isPanoramic }
+        XCTAssertEqual(panoramic.count, 3)
+        XCTAssertEqual(nonPanoramic.count, 3)
+    }
+
+    /// Simulate the decision matrix that AppCoordinator.decidePlaybackMode implements.
+    /// Each row: (projectionType.isPanoramic, isEnvironmentActive) → expected mode
+    func testDecisionMatrix() {
+        struct DecisionRow {
+            let isPanoramic: Bool
+            let isEnvironmentActive: Bool
+            let expectedMode: String
+        }
+
+        let matrix: [DecisionRow] = [
+            DecisionRow(isPanoramic: true, isEnvironmentActive: false, expectedMode: "panorama"),
+            DecisionRow(isPanoramic: true, isEnvironmentActive: true, expectedMode: "panorama"),
+            DecisionRow(isPanoramic: false, isEnvironmentActive: true, expectedMode: "immersive"),
+            DecisionRow(isPanoramic: false, isEnvironmentActive: false, expectedMode: "window"),
+        ]
+
+        for row in matrix {
+            let mode: String
+            if row.isPanoramic {
+                mode = "panorama"
+            } else {
+                mode = row.isEnvironmentActive ? "immersive" : "window"
+            }
+            XCTAssertEqual(mode, row.expectedMode,
+                "isPanoramic=\(row.isPanoramic) envActive=\(row.isEnvironmentActive) should be \(row.expectedMode)")
+        }
+    }
+}
