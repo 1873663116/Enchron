@@ -29,7 +29,7 @@
 | 全景模式 | 3 | G10 | PanoramaSphereEntity + LowLevelTexture 管线已连通真机验证；投影类型自动检测已实现（stereo3d + GSpherical 元数据）；有数据驱动单元测试覆盖；需真机验证自动进入全景模式 |
 | 模块边界 | 4 | G12/G17 | SwiftLint 自动守卫运行中；Domain 层 import 限制有效 |
 | 前后端契约 | 3 | G13 | OpenAPI spec + mock 数据已就位；validate-contract.sh 可用 |
-| 测试覆盖 | 2 | G14 | 仅 DetailedTimelineGeometry 有充分数据驱动测试；其余模块缺乏单元测试 |
+| 测试覆盖 | 3 | G14 | 205 个单元测试覆盖：DetailedTimelineGeometry、EDR metadata 选择、投影类型检测、FileFilter 边界、SortCriteria 排序、PlaybackMode 决策、GestureDisambiguator 状态机、MPV 配置安全 |
 | 播放进度恢复 | 3 | — | RES-003 修复后 SwiftDataStore 可用；真机验证通过 |
 | 凭证管理 | 3 | — | RES-005 修复后凭证 key 稳定；KeychainStore 可用 |
 
