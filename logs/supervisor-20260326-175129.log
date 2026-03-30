@@ -1,0 +1,23 @@
+Overnight 自主执行已完成。以下是本轮总结：
+
+## Overnight Round 1 — 完成报告
+
+**5 个 TODOS 全部完成，共 5 个 commits**：
+
+| Commit | 内容 |
+|--------|------|
+| `1764175` | KI-010: HDR CAEDRMetadata 设置 |
+| `e41e647` | KI-012: 全景投影类型自动检测 |
+| `2d728b5` | 补齐测试覆盖 (186→205 tests) |
+| `be71c55` | EP-003 归档 |
+| `ac81842` | Review 修复：P0 数据竞争 + P1 改进 |
+
+**Review 修复**（本次 context 恢复后完成）：
+- **P0**: `cachedHDRType`/`cachedSignalPeak` 数据竞争 — 读写均用 `stateQueue.sync` 保护
+- **P1**: stereo3d over-under 匹配收紧（`hasPrefix` 替代 `contains`）
+- **P1**: DoVI→hdr10 映射添加 WORKAROUND 注释
+- **P1**: `horizontalFOVDegrees` 死代码替换为清晰 TODO
+
+**最终状态**: 205 tests, 0 failures ✅ | 质量评分 HDR/全景/测试覆盖均 2→3
+
+**需要你真机验证的项目** 见 `overnight-log.md` 底部的验证清单。
