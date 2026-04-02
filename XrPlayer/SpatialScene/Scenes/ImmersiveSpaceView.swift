@@ -29,6 +29,8 @@ public struct ImmersiveSpaceView: View {
                 } else {
                     panoramaBridge.fisheyeRemapConfig = nil
                 }
+                // Configure stereo crop for SBS/OU panorama content
+                panoramaBridge.stereoCropMode = stereoModeForCurrentProjection()
 
             case .immersive:
                 let dome = EnvironmentDomeEntity.makeEntity(
@@ -48,6 +50,8 @@ public struct ImmersiveSpaceView: View {
                 )
                 content.add(entity)
                 virtualScreenEntity = entity
+                // Configure stereo crop for SBS/OU cinema content
+                panoramaBridge.stereoCropMode = stereoModeForCurrentProjection()
 
             case .window:
                 break
@@ -91,6 +95,8 @@ public struct ImmersiveSpaceView: View {
                 } else {
                     panoramaBridge.fisheyeRemapConfig = nil
                 }
+                // Configure stereo crop for SBS/OU panorama content
+                panoramaBridge.stereoCropMode = stereoModeForCurrentProjection()
 
             case .immersive:
                 if let entity = sphereEntity {
@@ -138,6 +144,8 @@ public struct ImmersiveSpaceView: View {
                     )
                 }
                 panoramaBridge.fisheyeRemapConfig = nil
+                // Configure stereo crop for SBS/OU cinema content
+                panoramaBridge.stereoCropMode = stereoModeForCurrentProjection()
 
             case .window:
                 if let entity = sphereEntity {
@@ -153,7 +161,16 @@ public struct ImmersiveSpaceView: View {
                     environmentDomeEntity = nil
                 }
                 panoramaBridge.fisheyeRemapConfig = nil
+                panoramaBridge.stereoCropMode = nil
             }
+        }
+    }
+
+    private func stereoModeForCurrentProjection() -> PlaybackCoreDomain.StereoMode? {
+        switch appModel.effectiveProjectionType {
+        case .stereoscopicSBS: return .sideBySide
+        case .stereoscopicOU: return .overUnder
+        default: return nil
         }
     }
 }

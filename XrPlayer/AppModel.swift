@@ -80,6 +80,22 @@ public final class AppModel {
         detectedProjectionType = type
         // Clear override when new media detected
         projectionOverride = nil
+        // Auto-route playback mode based on detected content type
+        autoRoutePlaybackMode()
+    }
+
+    private static let modeDecider = DecidePlaybackModeUseCase()
+
+    private func autoRoutePlaybackMode() {
+        guard let profile = mediaProfile else { return }
+        let decidedMode = Self.modeDecider.decideMode(
+            for: profile,
+            isEnvironmentActive: immersiveSpaceState == .open,
+            manualOverride: nil
+        )
+        if decidedMode != playbackMode {
+            playbackMode = decidedMode
+        }
     }
 
     public func setProjectionOverride(_ type: PlaybackCoreDomain.ProjectionType?) {
