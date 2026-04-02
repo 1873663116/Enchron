@@ -187,3 +187,30 @@
 **测试状态**: swift test: 248 total | 218 passed | 30 failed (test cases) | 1 skipped | T1.1 目标 13 tests 全部 PASS
 **下轮应做**: T1.2 — 屏幕位置控制（SavedScreenPosition clamping + ScreenPositionStoring 环境独立记忆 + Settings 屏幕形状选择）
 **Status**: IN_PROGRESS
+
+---
+## Round 7 — 2026-04-02T14:30:00+08:00
+
+**Pipeline State**: EXECUTING → EXECUTING
+**本轮目标**: T1.2 — 沉浸影院模式：屏幕位置控制
+**完成情况**:
+- SavedScreenPosition.init 添加 clamping: distance [2.0, 20.0], verticalOffset [-5.0, 5.0], viewAngle [-45.0, 45.0] → 5 ScreenPositionValidationTests PASS
+- AppModel: 新增 currentCinemaEnvironment + screenShape 属性，save/load 改用环境键
+- AppModel: 新增 switchEnvironment(to:) → save old env position → switch → load new env position
+- SettingsView: "Immersive Space" section 新增 Screen Shape Picker (Flat/Curved) + Cinema Environment Picker (3 环境)
+- ImmersiveSpaceView: .immersive 分支传入 appModel.screenShape，运行时 switchGeometry
+- git commit: 68ec753
+
+**核心实现决策**:
+- 环境 Picker 使用 @State selectedEnvironment 中转，避免 Binding 直接绕过 switchEnvironment 的 save/load 逻辑
+- ScreenPositionStoring 已由 SwiftDataStore 实现（UserDefaults JSON 编码），无需新增适配器
+- ScreenPositionControlView 的 onChange 调用 appModel.saveScreenPosition() 自动使用当前环境键
+
+**Decision Log**:
+- [AUTO] Clamping 策略 | init 内 min/max | P5+P3 | 最简洁，与 VirtualScreenConfiguration 风格一致
+- [AUTO] 环境 Picker 绑定 | local @State + onChange switchEnvironment | P5 | 避免 Binding 直接变更跳过 save/load
+- [AUTO] 屏幕形状默认值 | flat(2.4, 1.35) + curved(radius: 3.0, height: 1.35) | P3 | 16:9 比例 + 合理曲率
+
+**测试状态**: swift test: 248 total | 223 passed | 25 failed (test cases) | 1 skipped | T1.2 目标 5 tests 全部 PASS
+**下轮应做**: T1.3 — 3 个沉浸式环境（Sky dome Entity + 材质参数替换 + SceneSelectorView 功能化）
+**Status**: IN_PROGRESS

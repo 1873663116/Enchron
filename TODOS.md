@@ -59,13 +59,13 @@
   - 驳回的挑战 → 记录理由
 
 ### T0.5 — 测试代码落地
-- [ ] 将裁决后的测试计划转为 Swift 测试代码
-- [ ] 放入 Tests/XrPlayerCoreTests/ 目录
-- [ ] `swift test` 执行，确认：
+- [x] 将裁决后的测试计划转为 Swift 测试代码
+- [x] 放入 Tests/XrPlayerCoreTests/ 目录
+- [x] `swift test` 执行，确认：
   - 新增测试 ≥ 40
   - 旧 205 个测试仍然全部 PASS
   - 新增测试全部 FAIL（证明功能未实现）
-- [ ] git commit 测试代码（此时功能代码尚未写）
+- [x] git commit 测试代码（此时功能代码尚未写）
 
 ---
 
@@ -83,13 +83,13 @@
 - [ ] `swift test` 对应测试变绿
 
 ### T1.2 — 沉浸影院模式：屏幕位置控制
-- [ ] 远近距离调节（2m ~ 20m 连续，Slider）
-- [ ] 垂直高度调节（Slider）
-- [ ] X 轴旋转调节（±45°，Slider）
-- [ ] ScreenPositionStoring Protocol 实现（SwiftData/UserDefaults 持久化）
-- [ ] 每个环境独立的位置记忆（SavedScreenPosition + EnvironmentIdentifier 键）
-- [ ] 位置恢复：切换环境时自动加载该环境的记忆位置
-- [ ] `swift test` 对应测试变绿
+- [x] 远近距离调节（2m ~ 20m 连续，Slider）
+- [x] 垂直高度调节（Slider）
+- [x] X 轴旋转调节（±45°，Slider）
+- [x] ScreenPositionStoring Protocol 实现（SwiftData/UserDefaults 持久化）
+- [x] 每个环境独立的位置记忆（SavedScreenPosition + EnvironmentIdentifier 键）
+- [x] 位置恢复：切换环境时自动加载该环境的记忆位置
+- [x] `swift test` 对应测试变绿
 
 ### T1.3 — 3 个沉浸式环境
 - [ ] 环境 1: 暗黑影院（纯黑 Skybox + 虚拟屏幕，最简环境）
