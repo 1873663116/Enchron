@@ -68,3 +68,40 @@
 **测试状态**: swift test: 未执行（本轮纯文档/审计） | 新增: 0 | FAIL: none
 **下轮应做**: T0.3 — 测试素材清单与获取（盘点现有素材 + ffmpeg 转制/合成缺失素材）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 3 — 2026-04-02T02:00:00+08:00
+
+**Pipeline State**: PLANNING → PLANNING（继续 T0.3）
+**本轮目标**: T0.3 — 测试素材清单与获取（盘点现有 + ffmpeg 转制/合成缺失素材）
+**完成情况**:
+- ffprobe 盘点现有 5 个测试视频的容器/编码/色彩元数据
+- ffmpeg 并行生成 7 个缺失素材（MOV/AVI/SBS/OU/鱼眼/HLG/HDR10+）
+- HLG 首次生成 color_transfer 错误（bt709），通过 x265-params 显式设置 transfer=arib-std-b67 修复
+- SBS/OU 首次生成缺少音频流（-map "[v]" 排除了音频），补加 -map 0:a 修复
+- ffprobe 验证全部 12 个素材元数据正确（12/12 通过）
+
+**素材清单（12 个文件，覆盖 14 种格式类别）**:
+| 文件 | 容器 | 编码 | 色彩/投影 | 来源 |
+|------|------|------|-----------|------|
+| SDR-test.mkv | MKV | HEVC | BT.709 SDR | 已有 |
+| HDR10-test.MP4 | MP4 | HEVC | BT.2020/PQ | 已有 |
+| dolby-vision-test.mp4 | MP4 | HEVC+DV | DV | 已有 |
+| 180-vr-test.mp4 | MP4 | HEVC | 180° VR | 已有 |
+| 360-test-nasa-wind-tunnel.webm | WebM | VP9 | 360° | 已有 |
+| SDR-test-sample.mov | MOV | HEVC | BT.709 SDR | 新建(remux) |
+| SDR-test-sample.avi | AVI | H.264 | BT.709 SDR | 新建(transcode) |
+| SBS-stereo3d-test.mp4 | MP4 | H.264 | SBS 立体 | 新建(hstack) |
+| OU-stereo3d-test.mp4 | MP4 | H.264 | OU 立体 | 新建(vstack) |
+| fisheye-test.mp4 | MP4 | H.264 | 鱼眼投影 | 新建(v360) |
+| HLG-test.mp4 | MP4 | HEVC | BT.2020/HLG | 新建(transcode) |
+| HDR10plus-test.mp4 | MP4 | HEVC | BT.2020/PQ+MDM | 新建(transcode) |
+
+**Decision Log**:
+- [AUTO] HDR10+ 素材 | 使用静态 mastering display metadata 近似，无真正动态 SEI | P3 | ffmpeg 无法生成真 HDR10+ 动态元数据，静态 MDM 足够测试检测管线
+- [AUTO] 素材时长 | 全部 15s | P3 | 足够验证格式检测/播放启动，无需长视频
+
+**测试状态**: swift test: 未执行（本轮纯素材生成） | 新增: 0 | FAIL: none
+**下轮应做**: T0.4 — E2E QA 测试路径设计（为每个 🟡/🔴 功能设计端到端测试路径）
+**Status**: IN_PROGRESS
