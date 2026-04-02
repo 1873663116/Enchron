@@ -411,8 +411,8 @@ public struct PlayerControlsView: View {
         let currentMode = appModel.playbackMode
         guard mode != currentMode else { return }
 
-        // Step 1: stop bridge if leaving panorama
-        if currentMode == .panorama {
+        // Step 1: stop bridge if leaving panorama or immersive
+        if currentMode == .panorama || currentMode == .immersive {
             panoramaBridge.attachVideoLayer(nil)
         }
 
@@ -444,9 +444,8 @@ public struct PlayerControlsView: View {
         // Step 4: update the mode
         appModel.updatePlaybackMode(mode)
 
-        // Step 5: start bridge if entering panorama
-        if mode == .panorama {
-            // Grab the CAMetalLayer from the video view model
+        // Step 5: start bridge if entering panorama or immersive
+        if mode == .panorama || mode == .immersive {
             let layer = videoViewModel.nativeVideoLayer
             panoramaBridge.attachVideoLayer(layer)
         }
