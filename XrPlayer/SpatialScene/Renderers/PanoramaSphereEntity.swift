@@ -106,7 +106,9 @@ enum PanoramaSphereEntity {
 
                 positions.append(SIMD3(x, y, z))
                 normals.append(normalize(SIMD3(x, y, z)))
-                uvs.append(SIMD2(u, 1.0 - v))  // flip V for correct orientation
+                // Map UV to front-half of equirectangular texture: U=[0.25,0.75]
+                let textureU = 0.25 + u * 0.5
+                uvs.append(SIMD2(textureU, 1.0 - v))
             }
         }
 
