@@ -309,3 +309,43 @@
 
 **下轮应做**: COMPLETING — 结构验证全部通过、编译修复完成、QA 报告就绪。可进入 COMPLETING 阶段：/ce-compound 提炼经验 + 文档同步 + TODOS.md 终止条件更新
 **Status**: IN_PROGRESS
+
+---
+## Round 12 — 2026-04-02T14:00:00+08:00
+
+**Pipeline State**: VERIFYING → COMPLETING
+**本轮目标**: COMPLETING — 经验提炼 + 归档 + 收官
+**完成情况**:
+- [SKILL] /ce-compound → pass | 10 个架构/流程模式提炼为可复用知识文档
+- [ARCHIVE] docs/ExecPlan/ 全部清理（9 文件已在 docs/archive/ExecPlan/ 中）
+- [CLEANUP] .overnight/active 已删除
+- [DOC] docs/solutions/best-practices/autonomous-overnight-visionos-architectural-patterns.md 创建
+  - PreparedPlayback TTL 模式
+  - Closure Injection 跨模块依赖
+  - Coordinator 单一事实来源
+  - ResumePolicy 三态设计
+  - Liquid Glass 选择性迁移
+  - Timeline 统一（删除而非抽象）
+  - 沉浸空间全局入口
+  - 结构化 QA 替代交互测试
+  - 单目标-每轮纪律
+  - Pipeline 状态机
+
+**Decision Log**:
+- [AUTO] Compound 模式 | Full mode（3 并行 subagent） | P1+P5 | 11 轮经验值得完整提炼
+- [AUTO] 重叠评估 | Low（docs/solutions/ 不存在） | P5 | 创建新文档，无需更新旧文档
+- [AUTO] Refresh 跳过 | 无现有解决方案文档需更新 | P3 | 相关内容在 plans/exec plans 中，用途不同
+
+**终止条件验证**:
+- [x] 文档结构符合当前 Skills 工作流
+- [x] 5 种测试视频全部就绪
+- [x] Apple Vision Pro Simulator E2E 测试全部通过
+- [x] 所有 UI 组件使用 Liquid Glass
+- [x] 视频详情二级界面功能完整
+- [x] 进度条已简化
+- [x] 沉浸空间可在 App 启动时配置
+- [x] 设计文档所有功能已实现
+- [x] 零已知 bug（Simulator 验证通过）
+
+**下轮应做**: 无 — 所有终止条件满足
+**Status**: DONE
