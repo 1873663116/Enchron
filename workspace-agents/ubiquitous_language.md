@@ -9,7 +9,6 @@
 | 文件夹 | 文件的组织容器，可以来自本地或远程数据源 | `MediaFolder` | 已实现 |
 | 数据源 | 文件的来源，包括本地文件系统、Apple 相册、SMB 服务器、WebDAV 服务器 | `DataSource` | 已实现 |
 | 连接信息 | 远程服务器的连接参数（地址、端口、协议类型） | `ConnectionInfo` | 已实现 |
-| ~~存储连接~~ | ~~已弃用，实际代码使用 `ConnectionInfo`~~ | ~~`StorageConnection`~~ | 已弃用 |
 | 播放进度 | 某个媒体文件的播放位置记录（分:秒） | `PlaybackProgress` | 已实现 |
 | 播放会话 | 从用户选择一个媒体文件开始播放到播放结束/退出的完整生命周期 | `PlaybackSession` | 已实现 |
 

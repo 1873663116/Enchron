@@ -17,7 +17,7 @@ XrPlayer/
   PlaybackCore/   — 视频加载、解码、播放控制（mpv 封装）
   PlayerUI/       — 播放界面与播放模式决策
   FileBrowsing/   — 多数据源文件浏览（本地/SMB/WebDAV）
-  SpatialScene/   — 空间场景管理与帧渲染（大部分 v0.4 规划中）
+  SpatialScene/   — 空间场景管理与帧渲染
   Persistence/    — 持久化服务（SwiftData/UserDefaults/Keychain）
   App/            — 启动入口 + 依赖注入组装
 ```
@@ -31,7 +31,7 @@ XrPlayer/
 ### 改动代码前
 1. 读 ARCHITECTURE.md 确认涉及的模块和 Architecture Invariants
 2. 读 REGRESSION.md 代码路径映射索引，预判改动触发哪些回归项
-3. 任务 >3 文件或跨模块 → 写 Exec Plan（规则见 PLANS.md）
+3. 任务 >3 文件或跨模块 → 写 Exec Plan（存放于 docs/ExecPlan/，完成后归档至 docs/archive/ExecPlan/）
 
 ### 改动代码后
 1. 执行 agent 自检六件套（详见 TESTING.md）
@@ -65,7 +65,6 @@ XrPlayer/
 | 文档                                              | 是什么                                    | 何时查阅              |
 | ----------------------------------------------- | -------------------------------------- | ----------------- |
 | **ARCHITECTURE.md**                             | 模块职责、数据流、Architecture Invariants、跨模块通信 | 任何代码改动前           |
-| **PLANS.md**                                    | 何时写 Exec Plan、怎么写、活跃计划索引               | 准备执行 复杂任务时        |
 | **TESTING.md**                                  | 双轨验证体系、agent 自检命令、人类验证清单格式             | 改动代码后验证时          |
 | **QUALITY_SCORE.md**                            | 各领域当前质量评分、差距                           | 评估改动优先级时          |
 | **REGRESSION.md**                               | 代码路径 → 回归项映射、回归集维护规则                   | 改动代码前后（必读）        |
