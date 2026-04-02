@@ -17,3 +17,10 @@ XrPlayer/86ForTest.mkv
 
 # Local backup project
 XrPlayer/XrPlayer.xcodeproj.bak/
+
+# Overnight runtime artifacts
+morning-report.md
+overnight-log.md
+TODOS.md
+.overnight-supervisor/
+logs/
