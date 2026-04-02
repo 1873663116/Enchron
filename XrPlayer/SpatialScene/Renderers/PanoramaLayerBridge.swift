@@ -176,70 +176,20 @@ private extension PanoramaLayerBridge {
             let destinationTexture = lowLevelTexture.replace(using: commandBuffer)
 
             if let fisheyeRemapConfig {
-                // Compute shader: fisheye → equirectangular remap
-                let pipeline = try getOrCreateFisheyeComputePipeline()
-                guard let computeEncoder = commandBuffer.makeComputeCommandEncoder() else {
-                    recordCopyFailure("missing_compute_encoder")
-                    return
-                }
-
-                computeEncoder.setComputePipelineState(pipeline)
-                computeEncoder.setTexture(sourceTexture, index: 0)
-                computeEncoder.setTexture(destinationTexture, index: 1)
-
-                var uniforms = FisheyeRemapUniforms(
-                    fovRadiusRadians: fisheyeRemapConfig.fovRadiusRadians
+                try encodeFisheyeRemap(
+                    commandBuffer: commandBuffer,
+                    source: sourceTexture,
+                    destination: destinationTexture,
+                    config: fisheyeRemapConfig,
+                    outputWidth: outputWidth,
+                    outputHeight: outputHeight
                 )
-                computeEncoder.setBytes(&uniforms, length: MemoryLayout<FisheyeRemapUniforms>.size, index: 0)
-
-                let threadgroupSize = MTLSize(width: 16, height: 16, depth: 1)
-                let threadgroupCount = MTLSize(
-                    width: (outputWidth + 15) / 16,
-                    height: (outputHeight + 15) / 16,
-                    depth: 1
-                )
-                computeEncoder.dispatchThreadgroups(threadgroupCount, threadsPerThreadgroup: threadgroupSize)
-                computeEncoder.endEncoding()
             } else {
-                // Blit path (existing logic): optional stereo crop
-                let sourceOrigin: MTLOrigin
-                let copyWidth: Int
-                let copyHeight: Int
-
-                if let stereoCropMode {
-                    let uvRect = stereoCropMode.leftEyeUVRect
-                    let srcX = Int(Float(sourceTexture.width) * uvRect.originX)
-                    let srcY = Int(Float(sourceTexture.height) * uvRect.originY)
-                    copyWidth = Int(Float(sourceTexture.width) * uvRect.width)
-                    copyHeight = Int(Float(sourceTexture.height) * uvRect.height)
-                    sourceOrigin = MTLOrigin(x: srcX, y: srcY, z: 0)
-                } else {
-                    copyWidth = sourceTexture.width
-                    copyHeight = sourceTexture.height
-                    sourceOrigin = MTLOrigin(x: 0, y: 0, z: 0)
-                }
-
-                guard let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
-                    recordCopyFailure("missing_blit_encoder")
-                    return
-                }
-
-                blitEncoder.copy(
-                    from: sourceTexture,
-                    sourceSlice: 0,
-                    sourceLevel: 0,
-                    sourceOrigin: sourceOrigin,
-                    sourceSize: .init(
-                        width: copyWidth,
-                        height: copyHeight,
-                        depth: 1
-                    ),
-                    to: destinationTexture,
-                    destinationSlice: 0,
-                    destinationLevel: 0,
-                    destinationOrigin: .init(x: 0, y: 0, z: 0)
+                encodeBlitCopy(
+                    commandBuffer: commandBuffer,
+                    source: sourceTexture,
+                    destination: destinationTexture
                 )
-                blitEncoder.endEncoding()
             }
 
             commandBuffer.commit()
@@ -249,6 +199,72 @@ private extension PanoramaLayerBridge {
         } catch {
             recordCopyFailure("copy_error=\(error.localizedDescription)")
         }
+    }
+
+    func encodeFisheyeRemap(
+        commandBuffer: MTLCommandBuffer,
+        source: MTLTexture,
+        destination: MTLTexture,
+        config: SpatialSceneDomain.FisheyeRemapConfiguration,
+        outputWidth: Int,
+        outputHeight: Int
+    ) throws {
+        let pipeline = try getOrCreateFisheyeComputePipeline()
+        guard let computeEncoder = commandBuffer.makeComputeCommandEncoder() else {
+            recordCopyFailure("missing_compute_encoder")
+            return
+        }
+        computeEncoder.setComputePipelineState(pipeline)
+        computeEncoder.setTexture(source, index: 0)
+        computeEncoder.setTexture(destination, index: 1)
+        var uniforms = FisheyeRemapUniforms(fovRadiusRadians: config.fovRadiusRadians)
+        computeEncoder.setBytes(&uniforms, length: MemoryLayout<FisheyeRemapUniforms>.size, index: 0)
+        let threadgroupSize = MTLSize(width: 16, height: 16, depth: 1)
+        let threadgroupCount = MTLSize(
+            width: (outputWidth + 15) / 16,
+            height: (outputHeight + 15) / 16,
+            depth: 1
+        )
+        computeEncoder.dispatchThreadgroups(threadgroupCount, threadsPerThreadgroup: threadgroupSize)
+        computeEncoder.endEncoding()
+    }
+
+    func encodeBlitCopy(
+        commandBuffer: MTLCommandBuffer,
+        source: MTLTexture,
+        destination: MTLTexture
+    ) {
+        let sourceOrigin: MTLOrigin
+        let copyWidth: Int
+        let copyHeight: Int
+
+        if let stereoCropMode {
+            let uvRect = stereoCropMode.leftEyeUVRect
+            sourceOrigin = MTLOrigin(
+                x: Int(Float(source.width) * uvRect.originX),
+                y: Int(Float(source.height) * uvRect.originY),
+                z: 0
+            )
+            copyWidth = Int(Float(source.width) * uvRect.width)
+            copyHeight = Int(Float(source.height) * uvRect.height)
+        } else {
+            sourceOrigin = MTLOrigin(x: 0, y: 0, z: 0)
+            copyWidth = source.width
+            copyHeight = source.height
+        }
+
+        guard let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
+            recordCopyFailure("missing_blit_encoder")
+            return
+        }
+        blitEncoder.copy(
+            from: source, sourceSlice: 0, sourceLevel: 0,
+            sourceOrigin: sourceOrigin,
+            sourceSize: .init(width: copyWidth, height: copyHeight, depth: 1),
+            to: destination, destinationSlice: 0, destinationLevel: 0,
+            destinationOrigin: .init(x: 0, y: 0, z: 0)
+        )
+        blitEncoder.endEncoding()
     }
 
     func configureLowLevelTexture(_ descriptor: TextureDescriptor) throws {

@@ -42,11 +42,16 @@ enum PanoramaSphereEntity {
             mesh = MeshResource.generateSphere(radius: radius)
         case .front180:
             let config = SpatialSceneDomain.HemisphereMeshConfiguration(radius: radius)
-            mesh = try! generateHemisphereMesh(
-                radius: config.radius,
-                stacks: config.stacks,
-                slices: config.slices
-            )
+            do {
+                mesh = try generateHemisphereMesh(
+                    radius: config.radius,
+                    stacks: config.stacks,
+                    slices: config.slices
+                )
+            } catch {
+                print("[PanoramaSphere] hemisphere_mesh_failed error=\(error), falling back to full sphere")
+                mesh = MeshResource.generateSphere(radius: radius)
+            }
         }
 
         var material = UnlitMaterial(applyPostProcessToneMap: false)

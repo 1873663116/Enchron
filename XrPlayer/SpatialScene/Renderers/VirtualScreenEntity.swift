@@ -1,4 +1,5 @@
 import RealityKit
+import UIKit
 
 enum VirtualScreenEntity {
 
