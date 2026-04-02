@@ -62,20 +62,31 @@ public struct VideoDetailView: View {
         request: PlaybackLaunchRequest,
         metadata: PlaybackMediaMetadata?
     ) -> some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                headerSection(displayName: request.displayName)
-
-                if let metadata {
-                    metadataSection(metadata: metadata)
+        GeometryReader { proxy in
+            let leftWidth = min(max(proxy.size.width * 0.40, 280), 400)
+            HStack(alignment: .top, spacing: 60) {
+                // Left column: title + metadata
+                VStack(alignment: .leading, spacing: 20) {
+                    headerSection(displayName: request.displayName)
+                    if let metadata {
+                        metadataSection(metadata: metadata)
+                    }
+                    Spacer(minLength: 0)
                 }
+                .frame(width: leftWidth, alignment: .leading)
 
-                ProgressView("Loading media information...")
-                    .padding(.top, 20)
-
-                playButton(enabled: false)
+                // Right column: loading indicator + disabled play
+                VStack(alignment: .leading, spacing: 20) {
+                    ProgressView("Loading media information...")
+                        .padding(.top, 20)
+                    playButton(enabled: false)
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding()
+            .padding(.horizontal, 60)
+            .padding(.vertical, 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
 
@@ -83,33 +94,46 @@ public struct VideoDetailView: View {
 
     @ViewBuilder
     private func readyContent(prepared: PreparedPlayback) -> some View {
-        ScrollView {
-            VStack(spacing: 24) {
-                headerSection(displayName: prepared.request.displayName)
-
-                if let metadata = prepared.metadata {
-                    metadataSection(metadata: metadata)
+        GeometryReader { proxy in
+            let leftWidth = min(max(proxy.size.width * 0.40, 280), 400)
+            HStack(alignment: .top, spacing: 60) {
+                // Left column: title + metadata
+                VStack(alignment: .leading, spacing: 20) {
+                    headerSection(displayName: prepared.request.displayName)
+                    if let metadata = prepared.metadata {
+                        metadataSection(metadata: metadata)
+                    }
+                    Spacer(minLength: 0)
                 }
+                .frame(width: leftWidth, alignment: .leading)
 
-                if !prepared.audioTracks.isEmpty {
-                    trackSection(
-                        title: "Audio Tracks",
-                        icon: "speaker.wave.2",
-                        tracks: prepared.audioTracks
-                    )
+                // Right column: tracks + play buttons (scrollable to protect against overflow)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        if !prepared.audioTracks.isEmpty {
+                            trackSection(
+                                title: "Audio Tracks",
+                                icon: "speaker.wave.2",
+                                tracks: prepared.audioTracks
+                            )
+                        }
+
+                        if !prepared.subtitleTracks.isEmpty {
+                            trackSection(
+                                title: "Subtitles",
+                                icon: "captions.bubble",
+                                tracks: prepared.subtitleTracks
+                            )
+                        }
+
+                        playbackButtons(prepared: prepared)
+                    }
                 }
-
-                if !prepared.subtitleTracks.isEmpty {
-                    trackSection(
-                        title: "Subtitles",
-                        icon: "captions.bubble",
-                        tracks: prepared.subtitleTracks
-                    )
-                }
-
-                playbackButtons(prepared: prepared)
+                .frame(maxWidth: .infinity)
             }
-            .padding()
+            .padding(.horizontal, 60)
+            .padding(.vertical, 24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .task {
             guard let fileID = prepared.request.fileIdentifier else { return }
