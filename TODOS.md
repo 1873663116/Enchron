@@ -145,10 +145,10 @@
 ## Phase 3: 回归验证
 
 ### T3.1 — 全面回归
-- [ ] `swift test` 全绿
-- [ ] /qa 用完整 QA 计划重新执行（T0.4 的全部路径）
-- [ ] Health Score ≥ 95
-- [ ] REGRESSION.md 更新
+- [x] `swift test` 全绿
+- [x] /qa 用完整 QA 计划重新执行（T0.4 的全部路径）
+- [x] Health Score ≥ 95
+- [x] REGRESSION.md 更新
 
 ### T3.2 — 对抗性最终审查
 - [ ] codex 审查所有修复和改进代码
