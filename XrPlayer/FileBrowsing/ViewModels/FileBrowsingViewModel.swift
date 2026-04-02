@@ -8,6 +8,9 @@ public final class FileBrowsingViewModel {
     public var folders: [FileBrowsingDomain.MediaFolder] = []
     public var isLoading: Bool = false
     public var lastErrorMessage: String?
+    public var sortCriteria: FileBrowsingDomain.SortCriteria = .nameAscending {
+        didSet { applySortToFiles() }
+    }
     public private(set) var currentRootDisplayName: String = "Documents"
     public private(set) var currentRemotePath: String = "/"
     public private(set) var canNavigateUp: Bool = false
@@ -203,6 +206,7 @@ public final class FileBrowsingViewModel {
                 folders = []
                 lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             }
+            applySortToFiles()
             return
         }
 
@@ -214,6 +218,7 @@ public final class FileBrowsingViewModel {
             lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             print("[FileBrowser] loadFiles failed: \(error)")
         }
+        applySortToFiles()
     }
 
     public var isInDocumentsFolder: Bool {
@@ -466,6 +471,25 @@ public final class FileBrowsingViewModel {
         let records = savedDataSources.map(SavedDataSourceRecord.init)
         let data = try? JSONEncoder().encode(records)
         savedDataSourceStore.saveSavedDataSourceRecords(data)
+    }
+
+    private func applySortToFiles() {
+        let criteria = sortCriteria
+        let sorted: [FileBrowsingDomain.MediaFile]
+        switch criteria.key {
+        case .name:
+            sorted = files.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .modifiedDate:
+            sorted = files.sorted { $0.modifiedAt < $1.modifiedAt }
+        case .size:
+            sorted = files.sorted { $0.sizeInBytes < $1.sizeInBytes }
+        }
+        switch criteria.order {
+        case .ascending:
+            files = sorted
+        case .descending:
+            files = sorted.reversed()
+        }
     }
 
     private func makeFileIdentifier(

@@ -149,6 +149,30 @@ public struct FileBrowserView: View {
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Section("Sort By") {
+                            Button {
+                                viewModel.sortCriteria = FileBrowsingDomain.SortCriteria(key: .name, order: viewModel.sortCriteria.key == .name && viewModel.sortCriteria.order == .ascending ? .descending : .ascending)
+                            } label: {
+                                Label("Name", systemImage: viewModel.sortCriteria.key == .name ? (viewModel.sortCriteria.order == .ascending ? "chevron.up" : "chevron.down") : "")
+                            }
+                            Button {
+                                viewModel.sortCriteria = FileBrowsingDomain.SortCriteria(key: .modifiedDate, order: viewModel.sortCriteria.key == .modifiedDate && viewModel.sortCriteria.order == .descending ? .ascending : .descending)
+                            } label: {
+                                Label("Date Modified", systemImage: viewModel.sortCriteria.key == .modifiedDate ? (viewModel.sortCriteria.order == .ascending ? "chevron.up" : "chevron.down") : "")
+                            }
+                            Button {
+                                viewModel.sortCriteria = FileBrowsingDomain.SortCriteria(key: .size, order: viewModel.sortCriteria.key == .size && viewModel.sortCriteria.order == .descending ? .ascending : .descending)
+                            } label: {
+                                Label("Size", systemImage: viewModel.sortCriteria.key == .size ? (viewModel.sortCriteria.order == .ascending ? "chevron.up" : "chevron.down") : "")
+                            }
+                        }
+                    } label: {
+                        Image(systemName: "arrow.up.arrow.down")
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
                     Menu("Folder") {
                         Section("Local") {
                             Button("Choose Folder...") {
