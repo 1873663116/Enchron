@@ -44,16 +44,16 @@
 - [x] 将 E2E 测试路径写入文档，供 /qa 使用
 
 ### T0.4 — 对抗性审查（三阶段裁决）
-- [ ] **阶段 1 — Codex 挑战**：将完整功能清单 + 测试计划发给 codex（adversarial-review 模式），要求：
+- [x] **阶段 1 — Codex 挑战**：将完整功能清单 + 测试计划发给 codex（adversarial-review 模式），要求：
   - 找出测试覆盖的漏洞（哪些功能没有测试？）
   - 找出断言过于宽松的测试（会假性通过的）
   - 找出文档中描述但测试未覆盖的边缘情况
   - 检查是否有"占位测试"（永远通过的空断言）
-- [ ] **阶段 2 — Counter-Agent 反驳**：另一个 Agent 评估 codex 的每条挑战，推翻不合理的部分：
+- [x] **阶段 2 — Counter-Agent 反驳**：另一个 Agent 评估 codex 的每条挑战，推翻不合理的部分：
   - visionOS Simulator 确实无法测试的功能（如真实手势）不算漏洞
   - 超出 MVP v1.0 范围的功能不强制要求
   - 但沉浸空间、全景视频、3D 立体相关挑战必须认真对待
-- [ ] **阶段 3 — Opus 裁决**：Supervisor 根据 Requirements.md + 调研结果做最终裁决
+- [x] **阶段 3 — Opus 裁决**：Supervisor 根据 Requirements.md + 调研结果做最终裁决
   - 裁决结果写入 EP 的 Decision Log
   - 采纳的挑战 → 补充测试
   - 驳回的挑战 → 记录理由
