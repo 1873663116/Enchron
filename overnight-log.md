@@ -214,3 +214,33 @@
 **测试状态**: swift test: 248 total | 223 passed | 25 failed (test cases) | 1 skipped | T1.2 目标 5 tests 全部 PASS
 **下轮应做**: T1.3 — 3 个沉浸式环境（Sky dome Entity + 材质参数替换 + SceneSelectorView 功能化）
 **Status**: IN_PROGRESS
+
+---
+## Round 8 — 2026-04-02T14:45:00+08:00
+
+**Pipeline State**: EXECUTING → EXECUTING
+**本轮目标**: T1.3 — 3 个沉浸式环境
+**完成情况**:
+- [NEW FILE] EnvironmentDomeEntity.swift — 50m 半径反转球体，UnlitMaterial 纯色渲染，3 种环境颜色映射
+  - darkTheatre: 近黑 (0.02 white)
+  - starryNight: 深海军蓝 (0.01, 0.01, 0.06)
+  - sunsetNature: 暗琥珀 (0.15, 0.08, 0.03)
+- [MODIFIED] ImmersiveSpaceView.swift — 新增 @State environmentDomeEntity, .immersive case 创建 dome + screen, 环境切换走 switchEnvironment 材质替换, .panorama/.window 清理 dome
+- [MODIFIED] SceneSelectorView.swift — ForEach CinemaEnvironment.allCases 替代 4 个占位按钮, 绑定 appModel.switchEnvironment(to:), 环境专属 SF Symbol (moon.fill/star.fill/sun.horizon.fill)
+- git commit: 8828ff2
+
+**核心实现决策**:
+- Sky dome 半径 50m（虚拟屏幕最远 20m，dome 在屏幕外侧）
+- 一个 dome entity 复用，切换环境只替换材质（D4 决策执行）
+- 暗黑影院纯色无纹理（D5 决策执行）
+- 星空/日落暂用纯色（无 skybox 纹理资产），后期可替换为真实纹理
+- 环境切换不中断播放：dome 材质替换 + 位置自动恢复（T1.2 的 switchEnvironment 逻辑）
+
+**Decision Log**:
+- [AUTO] Sky dome 半径 | 50m | P3 | 虚拟屏幕最远 20m，dome 必须在外侧
+- [AUTO] 环境颜色 | 纯色 UnlitMaterial | P3+P6 | 无纹理资产，纯色足以验证切换功能
+- [AUTO] SceneSelectorView 按钮数 | 3（from 4 占位）| P5 | 与 CinemaEnvironment.allCases 精确匹配
+
+**测试状态**: swift test: 248 total | 223 passed | 25 failed (test cases) | 1 skipped | T1.3 无专属 failing test（CinemaEnvironment 6 tests 已在 R6 通过）
+**下轮应做**: T1.4 — 全景视频完善（180° 半球裁剪 + Stereo 3D SBS/OU + 鱼眼重映射 + 投影覆盖 UI）
+**Status**: IN_PROGRESS
