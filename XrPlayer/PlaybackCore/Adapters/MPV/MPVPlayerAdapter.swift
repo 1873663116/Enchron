@@ -1202,15 +1202,30 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let height = Int(int64Property("video-params/h") ?? 0)
         let frameRate = max(0, doubleProperty("container-fps") ?? 0)
 
+        // Compute horizontal FOV to distinguish panorama180 vs panorama360.
+        // Priority: direct HFOV tag → CroppedAreaImageWidthPixels / FullPanoWidthPixels × 360.
+        let gSphericalDirectFOV = stringProperty("metadata/by-key/GSpherical:InitialHorizontalFOVDegrees")
+            .flatMap { Double($0) }
+        let gSphericalFullPanoWidth = stringProperty("metadata/by-key/GSpherical:FullPanoWidthPixels")
+            .flatMap { Double($0) }
+        let gSphericalCroppedWidth = stringProperty("metadata/by-key/GSpherical:CroppedAreaImageWidthPixels")
+            .flatMap { Double($0) }
+        let computedFOV: Double?
+        if let directFOV = gSphericalDirectFOV, directFOV > 0 {
+            computedFOV = directFOV
+        } else if let fullW = gSphericalFullPanoWidth, let croppedW = gSphericalCroppedWidth, fullW > 0 {
+            computedFOV = (croppedW / fullW) * 360.0
+        } else {
+            computedFOV = nil
+        }
+
         let projectionInput = ProjectionDetectionInput(
             stereo3dIn: stringProperty("video-params/stereo-in")
                 ?? stringProperty("video-params/stereo3d-in")
                 ?? "",
             gSphericalSpherical: stringProperty("metadata/by-key/GSpherical:Spherical"),
             gSphericalProjectionType: stringProperty("metadata/by-key/GSpherical:ProjectionType"),
-            // TODO: Wire up FOV computation from GSpherical CroppedArea / FullPanoWidth
-            // to distinguish panorama180 vs panorama360. Currently always nil → defaults to 360.
-            horizontalFOVDegrees: nil,
+            horizontalFOVDegrees: computedFOV,
             aspectRatio: (width > 0 && height > 0) ? Double(width) / Double(height) : nil
         )
         let projectionType = ProjectionDetection.detect(from: projectionInput)
