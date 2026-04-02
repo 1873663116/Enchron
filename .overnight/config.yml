@@ -1,7 +1,7 @@
 # overnight 配置
 # 预算控制由云端 API 的限额管理，不在本地重复实现
 
-max_hours: 5              # 最大运行时长（小时）
+max_hours: 12             # 最大运行时长（小时）— 全功能迭代需要更长时间
 risk_tolerance: cautious  # cautious | balanced | aggressive
 review_policy: always     # always | on-major-change | skip
 
@@ -10,18 +10,19 @@ pipeline:
   # 完整阶段序列（不可新增，但可通过 skip_phases 跳过）
   phases: [planning, review, execution, verification, completion]
 
-  # 起始阶段（持续迭代：直接进入执行）
-  start_phase: execution
+  # 起始阶段（全流程：从 planning 开始）
+  start_phase: planning
 
-  # 跳过的阶段（持续迭代：跳过 planning 和 review）
-  skip_phases: [planning, review]
+  # 跳过的阶段（全流程：不跳过任何阶段）
+  skip_phases: []
 
   # verification → execution 回退最大次数，超出则 BLOCKED
-  verification_max_retries: 2
+  verification_max_retries: 5
 
   # 文档归档策略
   archive_on_transition: true
 
 # 前端检测
-# false: 这是 visionOS 原生 Swift 项目，不是 web 前端
-has_frontend: false
+# true: 虽然是 visionOS 原生项目，但本轮 overnight 涉及大量 UI/UX 重构（Liquid Glass）
+# 需要启用 design-consultation, design-review 等设计技能
+has_frontend: true
