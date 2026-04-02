@@ -868,3 +868,33 @@ F3.9/H04 (捏合拖拽):
 **测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
 **下轮应做**: Phase 2 T2.2 — 继续 HelloWorld UX 改进 (UX-02 VideoDetailView 分栏布局 / UX-06 Drag+Magnify 同时手势 / UX-07 openWindow/dismissWindow)
 **Status**: IN_PROGRESS
+
+---
+
+## Round 21 — 2026-04-02T21:30:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.2 — HelloWorld UX 改进 #3）
+**本轮目标**: UX-06 Drag+Magnify 同时手势 — DragRotationModifier 添加 MagnifyGesture
+**完成情况**:
+- [READ] HelloWorld PlacementGesturesModifier.swift → 提取 `.simultaneousGesture(MagnifyGesture()...)` 模式
+- [EDIT] `DragRotationModifier.swift` — 新增 `@State scale/startScale`；`.scaleEffect(scale)` 应用到 content；`.simultaneousGesture(MagnifyGesture()...)` 与 DragGesture 同时激活；缩放范围 0.5x–2.0x；`.interactiveSpring` 动画
+- [BUILD] swift build → Build complete ✅
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures ✅
+- [COMMIT] b9d5da7 feat(SpatialScene): add simultaneous MagnifyGesture to DragRotationModifier
+
+**修复细节**:
+- DragGesture（旋转）和 MagnifyGesture（缩放）通过 `.simultaneousGesture` 同时激活，不互斥
+- 缩放 clamp 0.5–2.0，`startScale` 在 onChanged 首次调用时记录基准，onEnded 清理（保留 scale 状态）
+- `.scaleEffect(scale)` 置于 rotation3DEffect 之前，先缩放再旋转
+
+**影响范围**:
+- UX-06 (Drag+Magnify 同时手势): 完成 ✅
+- ImmersiveSpaceView 全景/沉浸模式现在支持同时拖转和捏合缩放
+
+**Decision Log**:
+- [AUTO] scaleEffect vs entity scale | 使用 `.scaleEffect` 作用于整个 RealityView | P3 | visionOS ImmersiveSpace 中 SwiftUI scaleEffect 会均匀缩放 3D 场景，无需直接修改 entity transform
+- [AUTO] 缩放范围 | 0.5x–2.0x | P3 | 全景 0.5x = 小视角感，2.0x = 放大裁剪感，超出范围无实际收益
+
+**测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.2 — UX-02 VideoDetailView 分栏响应式布局（P1，改动范围较大，独立一轮）
+**Status**: IN_PROGRESS
