@@ -7,6 +7,7 @@ public struct ImmersiveSpaceView: View {
 
     @State private var sphereEntity: Entity?
     @State private var virtualScreenEntity: Entity?
+    @State private var environmentDomeEntity: Entity?
 
     public init() {}
 
@@ -21,6 +22,12 @@ public struct ImmersiveSpaceView: View {
                 sphereEntity = entity
 
             case .immersive:
+                let dome = EnvironmentDomeEntity.makeEntity(
+                    environment: appModel.currentCinemaEnvironment
+                )
+                content.add(dome)
+                environmentDomeEntity = dome
+
                 let entity = VirtualScreenEntity.makeEntity(
                     textureResource: panoramaBridge.textureResource
                 )
@@ -43,6 +50,10 @@ public struct ImmersiveSpaceView: View {
                     content.remove(entity)
                     virtualScreenEntity = nil
                 }
+                if let entity = environmentDomeEntity {
+                    content.remove(entity)
+                    environmentDomeEntity = nil
+                }
                 if sphereEntity == nil {
                     let entity = PanoramaSphereEntity.makeEntity(
                         textureResource: panoramaBridge.textureResource
@@ -62,6 +73,19 @@ public struct ImmersiveSpaceView: View {
                 if let entity = sphereEntity {
                     content.remove(entity)
                     sphereEntity = nil
+                }
+                if environmentDomeEntity == nil {
+                    let dome = EnvironmentDomeEntity.makeEntity(
+                        environment: appModel.currentCinemaEnvironment
+                    )
+                    content.add(dome)
+                    environmentDomeEntity = dome
+                }
+                if let dome = environmentDomeEntity {
+                    EnvironmentDomeEntity.switchEnvironment(
+                        on: dome,
+                        to: appModel.currentCinemaEnvironment
+                    )
                 }
                 if virtualScreenEntity == nil {
                     let entity = VirtualScreenEntity.makeEntity(
@@ -99,6 +123,10 @@ public struct ImmersiveSpaceView: View {
                 if let entity = virtualScreenEntity {
                     content.remove(entity)
                     virtualScreenEntity = nil
+                }
+                if let entity = environmentDomeEntity {
+                    content.remove(entity)
+                    environmentDomeEntity = nil
                 }
             }
         }
