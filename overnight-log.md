@@ -187,3 +187,46 @@
 **测试状态**: swift test: 未执行（本轮纯审查/文档） | 新增: 0 | FAIL: none
 **下轮应做**: T0.6 — 验证所有功能是否真正实现（代码审查，非测试运行）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 6 — 2026-04-02T05:00:00+08:00
+
+**Pipeline State**: PLANNING → PLANNING（完成 T0.6，Phase 0 全部完成）
+**本轮目标**: T0.6 — 验证所有功能是否真正实现（代码审查，非测试运行）
+**完成情况**:
+- [AGENT] audit-playback (Sonnet) → PlaybackCore + PlayerUI 审计（F1.5-F1.22, F3.1-F3.21, F4.x, F5.x）
+- [AGENT] audit-filebrowsing (Sonnet) → FileBrowsing + App 导航审计（F1.1-F1.4, F2.x）
+- [AGENT] audit-spatial (Sonnet) → SpatialScene 审计（F3.2-F3.3, F6.x）
+- [AGENT] audit-settings (Sonnet) → Settings + Persistence + 辅助功能审计（F7.x, F8.x, F9.x）
+- 4 agent 并行执行，合成输出：`docs/qa-plans/code-audit-v3.md`
+
+**关键发现 — 名义实现但实际断联（7 个）**:
+
+| # | 功能 | 严重度 | 问题 |
+|---|------|--------|------|
+| 1 | F3.2 沉浸场景 VirtualScreenEntity | **P0** | `panoramaBridge.attachVideoLayer()` 仅在 `.panorama` 模式调用，`.immersive` 模式虚拟屏幕无视频纹理 |
+| 2 | F4.1 网络缓冲指示器 | **P0** | PlaybackState.buffering 定义但从未触发（MPVPlayerAdapter 中无 updateState(.buffering)） |
+| 3 | F5.2 HDR/SDR 切换 | **P0** | 后端 setHDREnabled 完整，但 PlayerUI 中无任何 Toggle/Button 调用 |
+| 4 | F3.9 捏合拖拽进度条 | P1 | DisambiguateGestureUseCase 检测到 .drag 但 MainView 执行 break（空操作） |
+| 5 | F6.2/F6.3 环境 skybox | P1 | skyboxAssetName 是死代码，所有环境仅纯色 |
+| 6 | F6.6 屏幕形状持久化 | P1 | appModel.screenShape 纯内存，无持久化路径 |
+| 7 | F3.10 二级时间轴 | P2 | DetailedTimelineGeometry 模型完整但无 View 消费 |
+
+**Inventory 修正**:
+- F4.7（文件列表进度）：🔴→✅ 存在为文字标记（"Watched HH:MM:SS"），非进度条
+- F7.6（About 页面）：🔴→⚠️ 存在但版本号硬编码 "0.1"
+- F3.2（沉浸场景）：🟡→🔴 bridge 断联，升级为 P0
+
+**新发现问题**:
+- F8.1 交互目标违规：关闭按钮 48pt、数据源删除按钮 24pt（低于 60pt 最低标准）
+- ImmersionStyle 硬编码 `.constant(.full)`，无法动态切换
+
+**Decision Log**:
+- [AUTO] Phase 0 完成评估 | T0.1-T0.6 全部完成 | P6 | 下轮进入 Phase 1 QA 执行
+- [AUTO] F3.2 沉浸 bridge 断联 | 升级为 P0 修复项 | P1 | 影响沉浸影院核心体验
+- [AUTO] F4.7 形态判定修正 | 文字标记可接受 | P3 | Requirements 未指定必须是进度条形态
+
+**测试状态**: swift test: 未执行（本轮纯代码审计） | 新增: 0 | FAIL: none
+**下轮应做**: Phase 0 完成 → 进入 REVIEWING（/plan-ceo-review 或 /plan-eng-review 审查 QA 计划 + 代码审计结果）
+**Status**: IN_PROGRESS
