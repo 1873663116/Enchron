@@ -373,3 +373,84 @@
 **测试状态**: swift test: 未执行（本轮 QA 测试） | 新增: 0 | FAIL: none
 **下轮应做**: T1.1 批次 3 — G 播放控件 + H 手势 + I 状态管理 + J 错误处理 + K HDR色彩 + L 设置 + M 辅助功能
 **Status**: IN_PROGRESS
+
+---
+
+## Round 10 — 2026-04-02T12:00:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 1 T1.1 批次 3 — 最终批次）
+**本轮目标**: T1.1 QA 执行 — 批次 3 (G 播放控件 + H 手势 + I 状态管理 + J 错误处理 + K HDR色彩 + L 设置 + M 辅助功能，33 条路径)
+**完成情况**:
+- [AGENT] audit-GH (Sonnet) → G01-G07 + H01-H04 结构审计 (11 paths)
+- [AGENT] audit-IJK (Sonnet) → I01-I05 + J01-J03 + K01-K04 结构审计 (12 paths)
+- [AGENT] audit-LM (Sonnet) → L01-L06 + M01-M04 结构审计 (10 paths)
+- 3 agents 并行执行，合计审计 33 条路径
+- 产出：`docs/qa-reports/qa-report-v3-batch3-GHIJKLM.md`
+
+**QA 批次 3 结果**:
+
+| QA Path | Verdict | Key Finding |
+|---------|---------|-------------|
+| QA-G01 可变播放速度 | PASS | PlaybackSpeed.allCases 10档 + speedMenu + mpv speed |
+| QA-G02 音轨选择 | PASS | PlaybackMenuView "Audio Tracks" + mpv aid 切换 |
+| QA-G03 字幕+CJK | PASS | sid切换 + blend-subtitles=yes + Noto Sans SC |
+| QA-G04 二级时间轴 | FAIL | DetailedTimelineGeometry 孤立, 无View消费 (KNOWN) |
+| QA-G05 逐帧步进 | PASS | frame-step + UI按钮完整 |
+| QA-G06 选集列表 | PASS | playlistMenu + 切换播放完整 |
+| QA-G07 进度条拖拽 | PASS | Slider + seek 接线完整 |
+| QA-H01 单次捏合 | PASS | 400ms消歧 → showControls 切换 |
+| QA-H02 双次捏合 | PASS | doublePinch → pause/resume/replay |
+| QA-H03 捏合长按 | PARTIAL | 长按2.0x可用, 松开硬编码恢复1.0x(不保留原速) |
+| QA-H04 捏合拖拽 | FAIL | .drag case break 空操作 (KNOWN) |
+| QA-I01 进度记忆 | PASS | persist→SwiftDataStore→Resume按钮全链路 |
+| QA-I02 记住选择 | PASS | Picker 3选项 + UserDefaultsStore |
+| QA-I03 播放结束 | PASS | keep-open=yes + .ended + 重播图标 |
+| QA-I04 自动下一集 | PASS | .playNext → nextFileProvider |
+| QA-I05 文件列表进度 | PASS | 橙色圆点 + "Watched XX:XX" |
+| QA-J01 网络缓冲 | PARTIAL | .buffering 枚举存在, MPVAdapter从未触发 (KNOWN升级) |
+| QA-J02 错误提示 | PASS | onRuntimeError → Alert 完整 |
+| QA-J03 后台重连 | FAIL | 无NWPathMonitor/retry/backoff (KNOWN) |
+| QA-K01 HLG检测 | PASS | arib-std-b67→.hlg+CAEDRMetadata.hlg |
+| QA-K02 HDR10+检测 | PARTIAL | 检测存在, EDR降级到HDR10路径 |
+| QA-K03 HDR/SDR切换 | FAIL | setHDREnabled后端完整, UI零调用 (KNOWN) |
+| QA-K04 SDR无误标 | PASS | hdrTypeLabel(.sdr)="SDR" |
+| QA-L01 恢复策略 | PASS | Picker+UserDefaultsStore全链路 |
+| QA-L02 结束行为 | PASS | stop/repeatOne/playNext持久化 |
+| QA-L03 默认速度 | PASS | Picker+启动应用默认速度 |
+| QA-L04 服务器删除 | PASS | removeDataSource+Keychain删除(按钮24pt) |
+| QA-L05 缓存清理 | FAIL | 零缓存清理UI (KNOWN) |
+| QA-L06 关于页面 | PARTIAL | About section存在, Version硬编码"0.1" (KNOWN升级) |
+| QA-M01 ≥60pt | PARTIAL | 主按钮72pt✅, 关闭48pt❌/删除24pt❌ |
+| QA-M02 Ornament | PASS | .scene(.bottom)合规 |
+| QA-M03 VoiceOver | FAIL | 全项目零accessibilityLabel (新发现) |
+| QA-M04 WorldTracking | FAIL | 零WorldTrackingProvider/ARKitSession (新发现) |
+
+**Health Score**: 71.2 (PASS=21, PARTIAL=5, FAIL=7)
+
+**新发现问题 (4)**:
+
+| # | 严重度 | 问题 |
+|---|--------|------|
+| ISSUE-010 | Medium | H03 longPress 松开硬编码恢复1.0x, 不保留用户原速度 |
+| ISSUE-011 | **High** | M03 全项目零 VoiceOver accessibilityLabel 覆盖 |
+| ISSUE-012 | **High** | M04 无 WorldTrackingProvider/ARKitSession, 沉浸模式无世界空间锚定 |
+| ISSUE-013 | Low | L06 About 版本号硬编码 "0.1", 未读 CFBundleShortVersionString |
+
+**T1.1 全批次汇总**:
+
+| 批次 | 路径 | PASS | PARTIAL | FAIL | DEFERRED | Health |
+|------|------|------|---------|------|----------|--------|
+| 1 (ABC) | 12 | 7 | 4 | 0 | 1 | 81.8 |
+| 2 (DEF) | 14 | 6 | 5 | 3 | 0 | 60.7 |
+| 3 (G-M) | 33 | 21 | 5 | 7 | 0 | 71.2 |
+| **合计** | **59** | **34** | **14** | **10** | **1** | **70.7** |
+
+**Decision Log**:
+- [AUTO] T1.1 完成评估 | 59条路径全部执行完毕 | P6 | 三批次覆盖 QA 计划 A-M 全部类别
+- [AUTO] M04 WorldTrackingProvider | 标记为 Phase 2 修复项但降级为 P2 | P3 | visionOS RealityView 在 ImmersiveSpace 中默认固定在世界空间, WorldTrackingProvider 仅在需要 device anchor/head pose 时才必须
+- [AUTO] M03 VoiceOver | 标记为 Phase 2 P1 | P1 | 辅助功能合规是 App Store 审核要求
+- [AUTO] KNOWN_FAIL 升级 | J01 PARTIAL(枚举存在), L06 PARTIAL(About存在) | P5 | 比预期好, 但仍有缺陷
+
+**测试状态**: swift test: 未执行（本轮 QA 结构审计） | 新增: 0 | FAIL: none
+**下轮应做**: T1.1 完成 → T1.2 HelloWorld 对照验证，然后 Phase Transition → Phase 2 EXECUTING (缺陷修复)
+**Status**: IN_PROGRESS
