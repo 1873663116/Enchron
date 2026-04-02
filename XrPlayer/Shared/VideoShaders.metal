@@ -49,3 +49,49 @@ fragment float4 video_fragment_bgra(VertexOut in [[stage_in]],
     constexpr sampler s(address::clamp_to_edge, filter::linear);
     return texture.sample(s, in.texCoord);
 }
+
+// --- Fisheye → Equirectangular Remap ---
+
+struct FisheyeUniforms {
+    float fovRadiusRadians;
+};
+
+kernel void fisheye_remap(
+    texture2d<float, access::sample> inTexture [[texture(0)]],
+    texture2d<float, access::write> outTexture [[texture(1)]],
+    constant FisheyeUniforms &uniforms [[buffer(0)]],
+    uint2 gid [[thread_position_in_grid]]
+) {
+    if (gid.x >= outTexture.get_width() || gid.y >= outTexture.get_height()) return;
+
+    float outU = (float(gid.x) + 0.5) / float(outTexture.get_width());
+    float outV = (float(gid.y) + 0.5) / float(outTexture.get_height());
+
+    // Equirectangular UV → spherical coordinates
+    float longitude = (outU - 0.5) * 2.0 * M_PI_F;
+    float latitude = (0.5 - outV) * M_PI_F;
+
+    float cosLat = cos(latitude);
+    float x = cosLat * sin(longitude);
+    float y = sin(latitude);
+    float z = cosLat * cos(longitude);
+
+    // Angle from optical axis (+Z)
+    float theta = acos(clamp(z, -1.0f, 1.0f));
+
+    if (theta > uniforms.fovRadiusRadians) {
+        outTexture.write(float4(0, 0, 0, 1), gid);
+        return;
+    }
+
+    // Equidistant fisheye projection: r proportional to theta
+    float r = (theta / uniforms.fovRadiusRadians) * 0.5;
+    float phi = atan2(y, x);
+
+    float fishU = 0.5 + r * cos(phi);
+    float fishV = 0.5 + r * sin(phi);
+
+    constexpr sampler s(address::clamp_to_edge, filter::linear);
+    float4 color = inTexture.sample(s, float2(fishU, fishV));
+    outTexture.write(color, gid);
+}

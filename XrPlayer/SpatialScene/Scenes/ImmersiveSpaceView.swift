@@ -23,6 +23,12 @@ public struct ImmersiveSpaceView: View {
                 )
                 content.add(entity)
                 sphereEntity = entity
+                // Configure fisheye remap when projection requires it
+                if appModel.effectiveProjectionType.requiresFisheyeRemap {
+                    panoramaBridge.fisheyeRemapConfig = SpatialSceneDomain.FisheyeRemapConfiguration()
+                } else {
+                    panoramaBridge.fisheyeRemapConfig = nil
+                }
 
             case .immersive:
                 let dome = EnvironmentDomeEntity.makeEntity(
@@ -79,6 +85,12 @@ public struct ImmersiveSpaceView: View {
                         textureResource: textureResource
                     )
                 }
+                // Configure fisheye remap when projection requires it
+                if appModel.effectiveProjectionType.requiresFisheyeRemap {
+                    panoramaBridge.fisheyeRemapConfig = SpatialSceneDomain.FisheyeRemapConfiguration()
+                } else {
+                    panoramaBridge.fisheyeRemapConfig = nil
+                }
 
             case .immersive:
                 if let entity = sphereEntity {
@@ -125,6 +137,7 @@ public struct ImmersiveSpaceView: View {
                         viewAngle: Float(appModel.screenViewAngle)
                     )
                 }
+                panoramaBridge.fisheyeRemapConfig = nil
 
             case .window:
                 if let entity = sphereEntity {
@@ -139,6 +152,7 @@ public struct ImmersiveSpaceView: View {
                     content.remove(entity)
                     environmentDomeEntity = nil
                 }
+                panoramaBridge.fisheyeRemapConfig = nil
             }
         }
     }

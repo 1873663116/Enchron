@@ -74,13 +74,13 @@
 **每完成一个子任务，运行 `swift test` 确认对应测试变绿。不变绿不 commit。**
 
 ### T1.1 — 沉浸影院模式：虚拟屏幕实体
-- [ ] 创建 VirtualScreenEntity（ModelEntity 子类或组合）
-- [ ] 平面屏幕 mesh（plane geometry，尺寸可配置）
-- [ ] 曲面屏幕 mesh（curved geometry，曲率可配置）
-- [ ] 平面/曲面切换逻辑（运行时切换 mesh，不重建 Entity）
-- [ ] Settings 中新增屏幕形状选择（Flat / Curved）
-- [ ] Metal 纹理桥接复用：CVPixelBuffer → TextureResource → Material（与全景管线共用）
-- [ ] `swift test` 对应测试变绿
+- [x] 创建 VirtualScreenEntity（ModelEntity 子类或组合）
+- [x] 平面屏幕 mesh（plane geometry，尺寸可配置）
+- [x] 曲面屏幕 mesh（curved geometry，曲率可配置）
+- [x] 平面/曲面切换逻辑（运行时切换 mesh，不重建 Entity）
+- [x] Settings 中新增屏幕形状选择（Flat / Curved）
+- [x] Metal 纹理桥接复用：CVPixelBuffer → TextureResource → Material（与全景管线共用）
+- [x] `swift test` 对应测试变绿
 
 ### T1.2 — 沉浸影院模式：屏幕位置控制
 - [x] 远近距离调节（2m ~ 20m 连续，Slider）
@@ -104,7 +104,7 @@
 - [x] 180° 半球裁剪：纹理坐标限制前半球，背面不渲染
 - [x] Stereo 3D SBS 渲染：Metal shader 将宽帧左右分离 → 双眼各投射一半
 - [x] Stereo 3D OU 渲染：Metal shader 将高帧上下分离 → 双眼各投射一半
-- [ ] 鱼眼投影重映射：equidistant fisheye → equirectangular 变换
+- [x] 鱼眼投影重映射：equidistant fisheye → equirectangular 变换
 - [x] 投影类型手动覆盖 UI：PlayerControlsView 中新增 Picker，允许用户覆盖自动检测结果
 - [x] `swift test` 对应测试变绿
 
@@ -116,15 +116,15 @@
   - panorama360/180/fisheye → 全景模式（自动进入沉浸空间）
   - stereoscopic + 非沉浸 → 窗口模式（SBS/OU 渲染）
   - stereoscopic + 沉浸 → 沉浸影院模式（SBS/OU 虚拟屏幕渲染）
-- [ ] 模式切换 UI：允许用户手动覆盖自动决策
-- [ ] 模式间切换不需要退出重进（graceful transition）
+- [x] 模式切换 UI：允许用户手动覆盖自动决策
+- [x] 模式间切换不需要退出重进（graceful transition）
 - [x] `swift test` 决策矩阵全部测试变绿
 
 ### T1.6 — 占位代码清除
-- [ ] 审计所有 UI 组件：每个按钮、每个 Picker、每个 Toggle 都必须有真实功能
-- [ ] SceneSelectorView 的 4 个按钮 → 3 个真实环境 + 布局调整
-- [ ] 消灭所有 `// TODO`、`// PLACEHOLDER`、`fatalError("Not implemented")` 
-- [ ] 消灭所有 `.disabled(true)` 占位按钮
+- [x] 审计所有 UI 组件：每个按钮、每个 Picker、每个 Toggle 都必须有真实功能
+- [x] SceneSelectorView 的 4 个按钮 → 3 个真实环境 + 布局调整
+- [x] 消灭所有 `// TODO`、`// PLACEHOLDER`、`fatalError("Not implemented")` 
+- [x] 消灭所有 `.disabled(true)` 占位按钮
 
 ---
 

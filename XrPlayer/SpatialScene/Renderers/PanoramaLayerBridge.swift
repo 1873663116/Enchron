@@ -36,6 +36,11 @@ public final class PanoramaLayerBridge {
     /// stereo 3D video by extracting a single eye's content (MVP: left eye).
     public var stereoCropMode: PlaybackCoreDomain.StereoMode?
 
+    /// When set, the bridge applies a fisheye-to-equirectangular remap
+    /// via a Metal compute shader before copying to the `LowLevelTexture`.
+    /// Fisheye remap takes precedence over stereo crop.
+    public var fisheyeRemapConfig: SpatialSceneDomain.FisheyeRemapConfiguration?
+
     private var displayLink: CADisplayLink?
     private var commandQueue: MTLCommandQueue?
     private var lowLevelTexture: LowLevelTexture?
@@ -43,6 +48,7 @@ public final class PanoramaLayerBridge {
 
     /// Track the last drawable ID we copied to avoid re-copying the same frame.
     private var lastCopiedDrawableID: Int = -1
+    private var fisheyeComputePipeline: MTLComputePipelineState?
 
     public init() {}
 
@@ -132,28 +138,26 @@ private extension PanoramaLayerBridge {
             return
         }
 
-        // When stereo crop is active, use the left-eye sub-region as source
-        // and create a destination texture sized to the cropped region.
-        let sourceOrigin: MTLOrigin
-        let copyWidth: Int
-        let copyHeight: Int
+        // Determine output dimensions
+        let outputWidth: Int
+        let outputHeight: Int
 
-        if let stereoCropMode {
+        if fisheyeRemapConfig != nil {
+            // Fisheye remap outputs to equirectangular at source dimensions
+            outputWidth = sourceTexture.width
+            outputHeight = sourceTexture.height
+        } else if let stereoCropMode {
             let uvRect = stereoCropMode.leftEyeUVRect
-            let srcX = Int(Float(sourceTexture.width) * uvRect.originX)
-            let srcY = Int(Float(sourceTexture.height) * uvRect.originY)
-            copyWidth = Int(Float(sourceTexture.width) * uvRect.width)
-            copyHeight = Int(Float(sourceTexture.height) * uvRect.height)
-            sourceOrigin = MTLOrigin(x: srcX, y: srcY, z: 0)
+            outputWidth = Int(Float(sourceTexture.width) * uvRect.width)
+            outputHeight = Int(Float(sourceTexture.height) * uvRect.height)
         } else {
-            copyWidth = sourceTexture.width
-            copyHeight = sourceTexture.height
-            sourceOrigin = MTLOrigin(x: 0, y: 0, z: 0)
+            outputWidth = sourceTexture.width
+            outputHeight = sourceTexture.height
         }
 
         let descriptor = TextureDescriptor(
-            width: copyWidth,
-            height: copyHeight,
+            width: outputWidth,
+            height: outputHeight,
             pixelFormat: sourceTexture.pixelFormat
         )
 
@@ -170,32 +174,78 @@ private extension PanoramaLayerBridge {
             }
 
             let destinationTexture = lowLevelTexture.replace(using: commandBuffer)
-            guard let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
-                recordCopyFailure("missing_blit_encoder")
-                return
+
+            if let fisheyeRemapConfig {
+                // Compute shader: fisheye → equirectangular remap
+                let pipeline = try getOrCreateFisheyeComputePipeline()
+                guard let computeEncoder = commandBuffer.makeComputeCommandEncoder() else {
+                    recordCopyFailure("missing_compute_encoder")
+                    return
+                }
+
+                computeEncoder.setComputePipelineState(pipeline)
+                computeEncoder.setTexture(sourceTexture, index: 0)
+                computeEncoder.setTexture(destinationTexture, index: 1)
+
+                var uniforms = FisheyeRemapUniforms(
+                    fovRadiusRadians: fisheyeRemapConfig.fovRadiusRadians
+                )
+                computeEncoder.setBytes(&uniforms, length: MemoryLayout<FisheyeRemapUniforms>.size, index: 0)
+
+                let threadgroupSize = MTLSize(width: 16, height: 16, depth: 1)
+                let threadgroupCount = MTLSize(
+                    width: (outputWidth + 15) / 16,
+                    height: (outputHeight + 15) / 16,
+                    depth: 1
+                )
+                computeEncoder.dispatchThreadgroups(threadgroupCount, threadsPerThreadgroup: threadgroupSize)
+                computeEncoder.endEncoding()
+            } else {
+                // Blit path (existing logic): optional stereo crop
+                let sourceOrigin: MTLOrigin
+                let copyWidth: Int
+                let copyHeight: Int
+
+                if let stereoCropMode {
+                    let uvRect = stereoCropMode.leftEyeUVRect
+                    let srcX = Int(Float(sourceTexture.width) * uvRect.originX)
+                    let srcY = Int(Float(sourceTexture.height) * uvRect.originY)
+                    copyWidth = Int(Float(sourceTexture.width) * uvRect.width)
+                    copyHeight = Int(Float(sourceTexture.height) * uvRect.height)
+                    sourceOrigin = MTLOrigin(x: srcX, y: srcY, z: 0)
+                } else {
+                    copyWidth = sourceTexture.width
+                    copyHeight = sourceTexture.height
+                    sourceOrigin = MTLOrigin(x: 0, y: 0, z: 0)
+                }
+
+                guard let blitEncoder = commandBuffer.makeBlitCommandEncoder() else {
+                    recordCopyFailure("missing_blit_encoder")
+                    return
+                }
+
+                blitEncoder.copy(
+                    from: sourceTexture,
+                    sourceSlice: 0,
+                    sourceLevel: 0,
+                    sourceOrigin: sourceOrigin,
+                    sourceSize: .init(
+                        width: copyWidth,
+                        height: copyHeight,
+                        depth: 1
+                    ),
+                    to: destinationTexture,
+                    destinationSlice: 0,
+                    destinationLevel: 0,
+                    destinationOrigin: .init(x: 0, y: 0, z: 0)
+                )
+                blitEncoder.endEncoding()
             }
 
-            blitEncoder.copy(
-                from: sourceTexture,
-                sourceSlice: 0,
-                sourceLevel: 0,
-                sourceOrigin: sourceOrigin,
-                sourceSize: .init(
-                    width: copyWidth,
-                    height: copyHeight,
-                    depth: 1
-                ),
-                to: destinationTexture,
-                destinationSlice: 0,
-                destinationLevel: 0,
-                destinationOrigin: .init(x: 0, y: 0, z: 0)
-            )
-            blitEncoder.endEncoding()
             commandBuffer.commit()
-
             lastCopiedDrawableID = drawableID
             lastCopyFailure = nil
-            noteCopyTick(reason: "display_link")
+            noteCopyTick(reason: fisheyeRemapConfig != nil ? "fisheye_remap" : "display_link")
         } catch {
             recordCopyFailure("copy_error=\(error.localizedDescription)")
         }
@@ -209,7 +259,7 @@ private extension PanoramaLayerBridge {
             height: descriptor.height,
             depth: 1,
             mipmapLevelCount: 1,
-            textureUsage: [.shaderRead]
+            textureUsage: [.shaderRead, .shaderWrite]
         )
         let texture = try LowLevelTexture(descriptor: lowLevelDescriptor)
         lowLevelTexture = texture
@@ -226,5 +276,25 @@ private extension PanoramaLayerBridge {
         guard lastCopyFailure != reason else { return }
         lastCopyFailure = reason
         print("[PanoramaBridge] \(reason)")
+    }
+
+    struct FisheyeRemapUniforms {
+        var fovRadiusRadians: Float
+    }
+
+    func getOrCreateFisheyeComputePipeline() throws -> MTLComputePipelineState {
+        if let pipeline = fisheyeComputePipeline { return pipeline }
+        guard let device = videoLayer?.device,
+              let library = device.makeDefaultLibrary(),
+              let function = library.makeFunction(name: "fisheye_remap")
+        else {
+            throw NSError(domain: "PanoramaBridge", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "fisheye_remap kernel not found"
+            ])
+        }
+        let pipeline = try device.makeComputePipelineState(function: function)
+        fisheyeComputePipeline = pipeline
+        print("[PanoramaBridge] fisheye_compute_pipeline_ready")
+        return pipeline
     }
 }
