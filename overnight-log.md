@@ -302,3 +302,31 @@
 **测试状态**: swift test: 248 total | 248 passed | 0 failed | 1 skipped | 无新增测试（渲染层适配器无对应单元测试）
 **下轮应做**: T1.4 鱼眼重映射 Metal compute shader + T1.5 模式切换 UI / graceful transition + T1.6 占位清除
 **Status**: IN_PROGRESS
+
+---
+## Round 11 — 2026-04-02T15:12:00+08:00
+
+**Pipeline State**: EXECUTING → EXECUTING
+**本轮目标**: T1.4 鱼眼重映射 Metal compute shader + T1.5/T1.6 状态审计 + TODOS.md 标记更新
+**完成情况**:
+- [AGENT] Explore → 审计 T1.5/T1.6 现有代码状态 | 发现 T1.5 模式切换 UI 已完整实现（PlayerControlsView playbackModeMenu + switchPlaybackMode 5 步协调）| T1.6 无 .disabled(true)/TODO/PLACEHOLDER
+- [AGENT] Sonnet → 创建 fisheye_remap Metal compute kernel + PanoramaLayerBridge 集成 + ImmersiveSpaceView 接线
+- VideoShaders.metal: 新增 fisheye_remap 计算核心（equidistant fisheye → equirectangular，bilinear 采样，FOV 裁剪）
+- PanoramaLayerBridge.swift: 新增 fisheyeRemapConfig 属性 + compute/blit 双路径分支 + 懒加载 compute pipeline + textureUsage 升级为 [.shaderRead, .shaderWrite]
+- ImmersiveSpaceView.swift: .panorama case 根据 requiresFisheyeRemap 设置/清除 fisheyeRemapConfig，.immersive/.window 清除
+- TODOS.md: 标记 T1.1(7 项)、T1.4 鱼眼(1 项)、T1.5(2 项)、T1.6(4 项) 共 14 项为 [x]
+
+**核心实现决策**:
+- Fisheye remap 算法与域层 FisheyeRemapConfiguration.sampleCoordinate 完全一致（output UV → spherical → 3D direction → equidistant fisheye → sample）
+- Compute shader 16x16 threadgroup，每个线程处理一个输出像素
+- Fisheye remap 优先于 stereo crop（互斥，鱼眼视频极少为立体格式）
+- 输出尺寸 = 源纹理尺寸（fisheye 圆形 → equirectangular 矩形，保持分辨率）
+
+**Decision Log**:
+- [AUTO] Fisheye 实现位置 | 追加到 VideoShaders.metal | P3 | 避免修改 Xcode project.pbxproj
+- [AUTO] T1.5/T1.6 审计结果 | 已完成标记 [x] | P5 | 代码审计确认功能齐全
+- [AUTO] textureUsage 升级 | 始终 [.shaderRead, .shaderWrite] | P3 | 避免模式切换时重建 LowLevelTexture
+
+**测试状态**: swift test: 248 total | 248 passed | 0 failed | 1 skipped | 无新增测试（Metal compute 无法在 SPM 上下文测试）
+**下轮应做**: T1.3 最后一项 Simulator 验证 → Phase 1 所有 task 完成 → Phase Transition to VERIFYING (T2.1 swift test 全绿 + T2.2 /qa E2E)
+**Status**: IN_PROGRESS
