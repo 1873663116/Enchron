@@ -537,3 +537,175 @@
 **测试状态**: swift test: 248 passed / 0 failures | 新增: 0 | FAIL: none
 **下轮应做**: Phase 2 T2.1 — 修复 QA P0 #2: F4.1 网络缓冲指示器（MPVPlayerAdapter 从未触发 .buffering 状态）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 13 — 2026-04-02T19:15:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.1 — P0 缺陷修复 #2）
+**本轮目标**: F4.1 网络缓冲指示器修复 — MPVPlayerAdapter 从未触发 `.buffering` 状态
+**完成情况**:
+- [AGENT] Explore → 全链路审计: PlaybackState.buffering 定义但零触发，mpv paused-for-cache 未观察，UI 无消费
+- [EDIT] `MPVPlayerAdapter.swift:531` observeCoreProperties: +mpv_observe_property(handle, 9, "paused-for-cache", MPV_FORMAT_FLAG)
+- [EDIT] `MPVPlayerAdapter.swift:729` 新方法 handlePausedForCacheChange(): flag=true→.buffering, flag=false→恢复.playing/.paused
+- [EDIT] `MainView.swift:56` 新增 ProgressView("Buffering…") 叠加层，条件: playbackState == .buffering
+- [BUILD] xcodebuild → BUILD SUCCEEDED (exit 0, warnings only, SwiftLint cyclomatic_complexity 通过方法提取解决)
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures
+- [COMMIT] 2ff5026 fix(PlaybackCore): wire up mpv paused-for-cache to PlaybackState.buffering
+
+**修复细节**:
+- 根因: observeCoreProperties() 未观察 mpv `paused-for-cache` 属性 → internalState 永远不会变为 .buffering
+- 修复三层: (1) 观察属性 (2) 处理变更转换状态 (3) UI 可视指示器
+- SwiftLint 触发 cyclomatic_complexity (22>10)，通过提取 handlePausedForCacheChange() 解决
+- flagProperty("pause") 返回 Bool?，用 ?? false 安全解包
+
+**影响范围**:
+- QA-J01 (网络缓冲): PARTIAL → 预期升级为 PASS（.buffering 触发路径完整 + UI 指示器就绪）
+- 所有网络流播放（SMB/WebDAV/HTTP）受益
+
+**P0 #3 — F5.2 HDR/SDR 切换按钮**:
+- [AGENT] Explore → 全链路审计: setHDREnabled 后端完整 (mpv target-colorspace-hint + CAMetalLayer EDR), WindowVideoViewModel 已转发, UI 零调用
+- [EDIT] `PlaybackMenuView.swift:70-90` 添加 "Video Output" section + HDR Toggle (仅 isHDRContent 时显示)
+- [BUILD] BUILD SUCCEEDED
+- [TEST] 248 passed, 0 failures
+- [COMMIT] d6df1c4 feat(PlayerUI): add HDR/SDR output toggle in PlaybackMenuView
+
+**P0 #4 — F4.3 自动重连**:
+- [AGENT] Explore → 网络处理全审计: 零 NWPathMonitor, MPV_END_FILE_REASON_ERROR 未区分网络/解码错误, PlaybackLaunchCoordinator catch 块直接放弃
+- [WRITE] `NetworkMonitor.swift` — NWPathMonitor 封装, isConnected + waitForConnection(timeout:)
+- [EDIT] `PlaybackLaunchCoordinator.swift` — +networkMonitor 依赖, +retryPlayback() 指数退避 (2s/4s/8s, 最多3次), 仅网络 URL 重试
+- [BUILD] BUILD SUCCEEDED (修复 @MainActor init 隔离问题)
+- [TEST] 248 passed, 0 failures
+- [COMMIT] 4e8aaf0 feat(App): add network auto-reconnect with exponential backoff
+
+**Decision Log**:
+- [AUTO] 缓冲恢复状态 | 读 mpv pause flag 决定恢复 .playing/.paused | P5 | 用户手动暂停 + 缓冲恢复不应自动播放
+- [AUTO] UI 样式 | ProgressView + ultraThinMaterial 圆角背景 | P3 | 与已有 .placeholder spinner 风格一致
+- [AUTO] HDR Toggle 位置 | PlaybackMenuView Subtitles 后 | P3 | 与 Audio/Subtitle 选择统一交互模式
+- [AUTO] 重连范围 | 仅 network URL (smb/http/https/ftp) | P5 | 本地文件失败不应重试
+- [AUTO] NetworkMonitor 设计 | 非 @MainActor plain class | P5 | 避免 init 隔离问题, isConnected 从 pathUpdateHandler 线程写入对 Bool 安全
+
+**测试状态**: swift test: 248 passed / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.1 — 全部 4 个 P0 已修复, 继续 P1 缺陷修复 (F3.9 捏合拖拽 / F6.2 skybox / F6.6 屏幕形状持久化 / ISSUE-004 本地文件夹导航 / M03 VoiceOver / M04 WorldTracking)
+**Status**: IN_PROGRESS
+
+---
+
+## Round 14 — 2026-04-02T19:30:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.1 — P1 缺陷修复 #1 + #2）
+**本轮目标**: ISSUE-004 本地子文件夹导航修复 + F6.6 屏幕形状持久化
+**完成情况**:
+- [AGENT] issue004-explorer (Explore) → 根因确认: navigateToFolder/navigateUp 被 guard activeRemoteAdapter 阻塞 + loadFiles() 本地分支 hardcoded "." 且不加载 folders
+- [AGENT] f66-explorer (Explore) → 根因确认: screenShape 纯内存属性, UserPreferences/UserDefaultsStore 无对应字段
+- [EDIT] `FileBrowsingViewModel.swift:302-309` navigateToFolder: 移除 guard, 改为 remotePathStack.isEmpty 时 push 根路径
+- [EDIT] `FileBrowsingViewModel.swift:311-325` navigateUp: 移除 activeRemoteAdapter guard, 增加本地根名称恢复
+- [EDIT] `FileBrowsingViewModel.swift:229-238` loadFiles() 本地分支: 用 remotePathStack.isEmpty ? "." : currentRemotePath, 添加 listFolders 调用
+- [EDIT] `UserPreferences.swift` 新增 isScreenCurved: Bool 字段
+- [EDIT] `UserDefaultsStore.swift` 新增 screenShapeKey + load/save 逻辑
+- [EDIT] `SettingsView.swift` onChange 中持久化 + onAppear 从 prefs 恢复
+- [EDIT] `XrPlayerApp.swift:39-43` init 中从 UserDefaultsStore 恢复 screenShape
+- [BUILD] xcodebuild → BUILD SUCCEEDED
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures
+- [COMMIT] de58526 fix(FileBrowsing+Persistence): enable local subfolder navigation and persist screen shape
+
+**修复细节**:
+
+ISSUE-004:
+- 根因: navigateToFolder() 第 303 行 `guard activeRemoteAdapter != nil` 直接 return, 本地模式永远不触发子文件夹导航
+- loadFiles() 本地分支 hardcoded `"."` 且无 listFolders() 调用, 即使放开 guard 也不加载子目录
+- 修复: (1) 移除两个 guard (2) navigateToFolder 首次导航时 push 根路径到 stack (3) loadFiles 本地分支计算正确路径并加载 folders
+
+F6.6:
+- 根因: appModel.screenShape 初始化为 .flat(), 无持久化路径
+- 修复: UserPreferences + isScreenCurved + UserDefaultsStore + SettingsView onChange 保存 + App init 恢复
+
+**影响范围**:
+- QA-A03 (文件导航): PARTIAL → 预期 PASS（本地子文件夹可导航）
+- QA-B01 (本地浏览): PARTIAL → 预期改善（子文件夹可见）
+- QA-D05 (平面/曲面切换): PARTIAL → 预期 PASS（screenShape 持久化）
+
+**Decision Log**:
+- [AUTO] 路径栈初始化策略 | 首次导航时 push rootURL.path | P5 | 复用现有 remotePathStack 机制，无需新增 localPathStack
+- [AUTO] isScreenCurved vs ScreenGeometry | 存 Bool 不存 enum | P3 | UserDefaults 存标量更简单，宽高/半径值固定无需持久化
+
+**测试状态**: swift test: 248 passed / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.1 — 继续 P1 缺陷修复 (F3.9 捏合拖拽进度条 / F6.2 skybox 纹理 / M03 VoiceOver / H03 长按速度恢复)
+**Status**: IN_PROGRESS
+
+---
+
+## Round 15 — 2026-04-02T19:40:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.1 — P1 缺陷修复 #3 + #4）
+**本轮目标**: H03 长按速度恢复 + F3.9/H04 捏合拖拽 — 两个手势相关 P1 缺陷
+**完成情况**:
+- [AGENT] gesture-explorer (Explore) → 全链路追踪: DisambiguateGestureUseCase → MainView onGestureResolved/onLongPress*/onDragUpdate*
+- [EDIT] `DisambiguateGestureUseCase.swift` 新增 onDragUpdate/onDragEnded 回调; handlePinchChanged 在 isDragging=true 时转发 translation; handlePinchEnded 新增 drag 结束处理路径
+- [EDIT] `MainView.swift` 新增 @State speedBeforeLongPress/seekStartSeconds; onLongPressBegan 保存当前速度; onLongPressEnded 恢复原速; .drag case 记录起始位置+显示控件; onDragUpdate 水平拖拽映射到 seek (1pt≈0.15s); onDragEnded 清理状态
+- [BUILD] xcodebuild → BUILD SUCCEEDED (warnings only)
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures
+- [COMMIT] b43ed30 fix(PlayerUI): implement drag-to-seek and preserve speed on long press release
+
+**修复细节**:
+
+H03 (长按速度恢复):
+- 根因: onLongPressEnded 硬编码 `PlaybackSpeed(1.0)` 恢复
+- 修复: onLongPressBegan 前保存 `appModel.playbackSpeed` 到 @State, onLongPressEnded 恢复保存的速度
+
+F3.9/H04 (捏合拖拽):
+- 根因: .drag case `break` 空操作; DisambiguateGestureUseCase 在 isDragging=true 后 guard return 丢弃后续 translation; activePinchStartTime 在 drag 开始时被 nil → handlePinchEnded 无法清理
+- 修复三层: (1) 新增 onDragUpdate/onDragEnded 回调 (2) isDragging 时转发 translation 而非 return (3) handlePinchEnded 中 isDragging 路径提前到 activePinchStartTime guard 之前
+- 拖拽映射: 水平方向 1pt = 0.15s seek, 相对于拖拽开始时的播放位置
+
+**影响范围**:
+- QA-H03 (长按速度): PARTIAL → 预期 PASS（恢复用户原速度）
+- QA-H04 (捏合拖拽): FAIL → 预期 PASS（drag-to-seek 完整实现）
+
+**Decision Log**:
+- [AUTO] 拖拽 seek 比例 | 1pt = 0.15s (100pt ≈ 15s) | P3 | 在 visionOS 手部追踪精度下提供可控的 scrub 体验
+- [AUTO] 拖拽时显示控件 | 显示 controls + 注册交互 | P5 | 拖拽 seek 时用户需要看到时间轴
+- [AUTO] DisambiguateGestureUseCase drag 清理 | handlePinchEnded 中 isDragging 提前检查 | P5 | 修复原有 activePinchStartTime=nil 导致的清理路径断裂
+
+**测试状态**: swift test: 248 passed / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.1 — 继续 P1 缺陷修复 (F6.2 skybox 纹理加载 / M03 VoiceOver accessibilityLabel / G04 二级时间轴接线 / 素材元数据补充)
+**Status**: IN_PROGRESS
+
+---
+
+## Round 16 — 2026-04-02T19:50:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.3 — 测试素材元数据修复）
+**本轮目标**: 修复 4 个测试素材缺少投影/立体元数据，解除 4 条 QA 路径阻塞
+**完成情况**:
+- [AGENT] Explore → ProjectionDetection 代码全链路分析：stereo3d 从 mpv `video-params/stereo-in` 读取，GSpherical 从 `metadata/by-key/GSpherical:*` 读取
+- [BASH] ffprobe 确认 4 个素材全部缺少检测所需元数据（Round 3 仅验证容器/编码/色彩，未验证投影/立体标签）
+- [BASH] git clone google/spatial-media → 用其 API 注入 st3d + sv3d + UUID(XMP) 元数据
+- [BASH] SBS: `-s left-right` → Stereo 3D: side by side ✅
+- [BASH] OU: `-s top-bottom` → Stereo 3D: top and bottom ✅
+- [BASH] 180° VR: `-p equirectangular` → Spherical Mapping: equirectangular ✅
+- [BASH] 鱼眼: Python 修改 spatial-media 常量注入 `ProjectionType=fisheye` XMP ✅
+- [BASH] ffprobe 验证全部 12 个素材元数据正确（12/12）
+- 产出：`docs/ExecPlan/ExecPlan035.md`
+
+**修复详情**:
+
+| 素材 | 修复前 | 修复后 side_data | 预期检测 |
+|------|--------|------------------|----------|
+| SBS-stereo3d-test.mp4 | 无 | Stereo 3D + Spherical Mapping | `.stereoscopicSBS` |
+| OU-stereo3d-test.mp4 | 无 | Stereo 3D + Spherical Mapping | `.stereoscopicOU` |
+| 180-vr-test.mp4 | 无 | Spherical Mapping | `.panorama360` (FOV TODO) |
+| fisheye-test.mp4 | 无 | XMP GSpherical:ProjectionType=fisheye | `.fisheye` |
+
+**备注**:
+- SBS/OU 素材额外获得了 Spherical Mapping（spatial-media 工具设计如此），但 ProjectionDetection 优先检查 stereo3d，不影响检测结果
+- 180° VR 将被检测为 panorama360（因 FOV hardcoded nil），这是已知代码 TODO（ISSUE-009）
+- 鱼眼使用纯 XMP 注入（无 sv3d box），mpv 从 UUID box 读取 GSpherical:* 标签
+
+**Decision Log**:
+- [AUTO] SBS/OU 额外 Spherical 标记 | 接受，不影响检测优先级 | P5 | stereo3d 优先于 GSpherical，不会误判
+- [AUTO] 180° 检测为 360° | 接受，已知 TODO | P3 | FOV 消歧是独立代码修复项（ISSUE-009），不是素材问题
+
+**测试状态**: swift test: 247 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.1 — 继续 P1 缺陷修复 (F6.2 skybox 纹理加载 / M03 VoiceOver accessibilityLabel / G04 二级时间轴接线)
+**Status**: IN_PROGRESS
