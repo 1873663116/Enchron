@@ -1195,3 +1195,41 @@ REG-119 (时间轴) / REG-120 (VoiceOver) / REG-121 (拖拽旋转) / REG-122 (FO
 **测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
 **下轮应做**: COMPLETING — /ce-compound 经验提炼 + 删除 .overnight/active → DONE
 **Status**: IN_PROGRESS
+
+---
+
+## Round 28 — 2026-04-02T23:20:00+08:00
+
+**Pipeline State**: COMPLETING → DONE
+**本轮目标**: COMPLETING — /ce-compound 提炼经验 + 删除 .overnight/active → DONE
+
+**完成情况**:
+- [SKILL] /ce-compound → 提炼 5 项可复用工程经验
+  - 产出：`docs/solutions/best-practices/overnight-qa-plan-first-visionos-2026-04-02.md`
+  - 覆盖：QA-Plan-First 模式 / 代码健康≠用户健康 / 测试素材元数据验证 / ImmersiveSpace 正确绑定层 / mpv SwiftUI 状态传播 200ms 轮询
+- [ACTION] 删除 `.overnight/active` → overnight 标记为完成
+- [VERIFY] TODOS.md 终止条件 12/12 全部 [x]
+
+**终止条件最终状态**:
+
+| 条件 | 状态 |
+|------|------|
+| 全覆盖 QA 计划已设计并通过对抗性审查 | ✅ |
+| 测试素材覆盖所有宣称支持的格式 | ✅ |
+| /qa E2E 测试覆盖三种播放模式完整路径 | ✅ |
+| /qa Health Score ≥ 95 | ✅ 95.69% |
+| 每个 QA FAIL 项已修复并重新验证 | ✅ |
+| HelloWorld 参考审计完成，改进项已实施 | ✅ |
+| swift test 全绿（≥248 tests, 0 FAIL） | ✅ 248 passed |
+| swift build 零 error | ✅ |
+| 零占位按钮、零断联功能、零 stub | ✅ |
+| REGRESSION.md 已更新 | ✅ REG-110~122 |
+| 对抗性最终审查通过 | ✅ T3.2 完成 |
+| 所有降级项标注 "human-only verification required" | ✅ 12条 |
+
+**Decision Log**:
+- [AUTO] ce-compound 提炼经验 | 创建新文档 (distinct from existing best-practices docs) | P6 | 3 existing docs overlap LOW-MOD on QA-Plan-First + code/user health distinction combination
+- [AUTO] COMPLETING 阶段完成 | overnight DONE | P6 | 12/12 终止条件满足
+
+**测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**Status**: DONE
