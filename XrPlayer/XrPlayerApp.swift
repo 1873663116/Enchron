@@ -130,6 +130,13 @@ struct XrPlayerApp: App {
                 .environment(panoramaBridge)
         }
 
+        WindowGroup(id: "settings") {
+            NavigationStack {
+                SettingsView()
+            }
+            .environment(appModel)
+        }
+
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
             ImmersiveSpaceView()
                 .environment(appModel)

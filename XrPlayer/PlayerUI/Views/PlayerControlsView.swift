@@ -8,6 +8,7 @@ public struct PlayerControlsView: View {
     @Environment(PanoramaLayerBridge.self) private var panoramaBridge
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+    @Environment(\.openWindow) private var openWindow
 
     @State private var isDraggingSlider = false
     @State private var dragValue: Double = 0
@@ -286,7 +287,22 @@ public struct PlayerControlsView: View {
             .buttonStyle(PlayerControlSurfaceStyle(size: 60))
             .help("Frame Step Forward")
             .accessibilityLabel("Frame step forward")
+
+            settingsWindowButton
         }
+    }
+
+    private var settingsWindowButton: some View {
+        Button {
+            openWindow(id: "settings")
+        } label: {
+            Image(systemName: "gearshape")
+                .font(.title3)
+                .foregroundStyle(.primary)
+        }
+        .buttonStyle(PlayerControlSurfaceStyle(size: 60))
+        .help("Open Settings")
+        .accessibilityLabel("Open Settings")
     }
 
     private var playbackSettingsButton: some View {
