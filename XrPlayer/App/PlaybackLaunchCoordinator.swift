@@ -12,7 +12,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private let appModel: AppModel
     private let windowVideoViewModel: WindowVideoViewModel
     private let progressStore: ProgressStoring
+    private let preferencesStore: PreferencesStoring
     private let metadataService: PlaybackMediaMetadataService
+
+    /// Closure that returns the next file's playback request for auto-next-episode.
+    /// Set by the app layer after constructing the file browsing view model.
+    public var nextFileProvider: (@MainActor @Sendable () async -> PlaybackLaunchRequest?)?
 
     private var activeTask: Task<Void, Never>?
     private var metadataTask: Task<Void, Never>?
@@ -28,11 +33,13 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         appModel: AppModel,
         windowVideoViewModel: WindowVideoViewModel,
         progressStore: ProgressStoring = SwiftDataStore(),
+        preferencesStore: PreferencesStoring = UserDefaultsStore(),
         metadataService: PlaybackMediaMetadataService = PlaybackMediaMetadataService()
     ) {
         self.appModel = appModel
         self.windowVideoViewModel = windowVideoViewModel
         self.progressStore = progressStore
+        self.preferencesStore = preferencesStore
         self.metadataService = metadataService
 
         self.windowVideoViewModel.onMediaProfileResolved = { [weak self] request, profile in
@@ -131,6 +138,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
             do {
                 try await self.windowVideoViewModel.play(url: preparedRequest.url)
+
+                // Apply default speed preference
+                let defaultSpeed = self.preferencesStore.loadPreferences().defaultPlaybackSpeed
+                if defaultSpeed != 1.0 {
+                    self.windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(defaultSpeed))
+                }
             } catch {
                 guard self.generation == currentGeneration else { return }
                 self.windowVideoViewModel.clearPresentation()
@@ -242,7 +255,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     ///
     /// Validates that `prepared.generation` matches the coordinator's current
     /// generation to reject stale confirmations.
-    public func confirmPlayback(_ prepared: PreparedPlayback) {
+    public func confirmPlayback(_ prepared: PreparedPlayback, resumePosition: Double? = nil) {
         guard prepared.generation == generation else {
             print("[Playback] confirm_rejected reason=stale_generation expected=\(generation) got=\(prepared.generation)")
             return
@@ -258,7 +271,21 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         }
         windowVideoViewModel.resume()
 
-        print("[Playback] confirm_resumed name=\(prepared.request.displayName)")
+        // Apply default speed preference
+        let defaultSpeed = preferencesStore.loadPreferences().defaultPlaybackSpeed
+        if defaultSpeed != 1.0 {
+            windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(defaultSpeed))
+        }
+
+        // Seek to resume position if provided
+        if let pos = resumePosition, pos > 0 {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(100))
+                self?.windowVideoViewModel.seek(to: pos)
+            }
+        }
+
+        print("[Playback] confirm_resumed name=\(prepared.request.displayName) resume=\(resumePosition ?? 0)")
 
         // Start metadata profile detection callback (same as beginPlayback)
         let currentGeneration = generation
@@ -287,6 +314,36 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         // Clean up the preloaded mpv state
         windowVideoViewModel.clearPresentation()
         tearDownPlaybackEngine()
+    }
+
+    // MARK: - Playback End Handling
+
+    /// Handles playback-ended event based on user preferences.
+    /// Returns true if UI should show controls (playback stopped), false if auto-continuing.
+    public func handlePlaybackEnded() -> Bool {
+        let prefs = preferencesStore.loadPreferences()
+        switch prefs.playbackEndBehavior {
+        case .stop:
+            return true
+        case .repeatOne:
+            windowVideoViewModel.replay()
+            return false
+        case .playNext:
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if let next = await self.nextFileProvider?() {
+                    self.beginPlayback(next)
+                }
+            }
+            return false
+        }
+    }
+
+    // MARK: - Progress Access
+
+    /// Loads saved playback progress for a file. Used by VideoDetailView for resume prompts.
+    public func loadProgress(for fileID: PersistenceDomain.FileIdentifier) async -> PersistenceDomain.PlaybackProgress? {
+        await progressStore.loadProgress(for: fileID)
     }
 
     // MARK: - Preparation Helpers

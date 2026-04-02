@@ -59,6 +59,21 @@ struct XrPlayerApp: App {
             }
         )
 
+        // Wire auto-next-episode: find the next file after the current one in the sorted file list
+        launcher.nextFileProvider = { [weak fileBrowsingViewModel, weak windowVideoViewModel] in
+            guard let vm = fileBrowsingViewModel,
+                  let currentRequest = windowVideoViewModel?.currentLaunchRequest else { return nil }
+
+            guard let currentIndex = vm.files.firstIndex(where: {
+                $0.name == currentRequest.displayName
+            }) else { return nil }
+
+            let nextIndex = currentIndex + 1
+            guard nextIndex < vm.files.count else { return nil }
+
+            return try? await vm.playbackRequest(for: vm.files[nextIndex])
+        }
+
         _appModel = State(initialValue: appModel)
         _windowVideoViewModel = State(initialValue: windowVideoViewModel)
         _fileBrowsingViewModel = State(initialValue: fileBrowsingViewModel)
