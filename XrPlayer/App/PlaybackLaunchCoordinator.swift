@@ -14,6 +14,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private let progressStore: ProgressStoring
     private let preferencesStore: PreferencesStoring
     private let metadataService: PlaybackMediaMetadataService
+    private let networkMonitor: NetworkMonitor
+
+    private static let maxRetries = 3
+    private static let retryBaseDelay: Duration = .seconds(2)
 
     /// Closure that returns the next file's playback request for auto-next-episode.
     /// Set by the app layer after constructing the file browsing view model.
@@ -34,13 +38,15 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         windowVideoViewModel: WindowVideoViewModel,
         progressStore: ProgressStoring = SwiftDataStore(),
         preferencesStore: PreferencesStoring = UserDefaultsStore(),
-        metadataService: PlaybackMediaMetadataService = PlaybackMediaMetadataService()
+        metadataService: PlaybackMediaMetadataService = PlaybackMediaMetadataService(),
+        networkMonitor: NetworkMonitor = NetworkMonitor()
     ) {
         self.appModel = appModel
         self.windowVideoViewModel = windowVideoViewModel
         self.progressStore = progressStore
         self.preferencesStore = preferencesStore
         self.metadataService = metadataService
+        self.networkMonitor = networkMonitor
 
         self.windowVideoViewModel.onMediaProfileResolved = { [weak self] request, profile in
             guard let self else { return }
@@ -148,6 +154,15 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 }
             } catch {
                 guard self.generation == currentGeneration else { return }
+
+                if Self.isNetworkURL(preparedRequest.url) {
+                    let recovered = await self.retryPlayback(
+                        request: preparedRequest,
+                        generation: currentGeneration
+                    )
+                    if recovered { return }
+                }
+
                 self.windowVideoViewModel.clearPresentation()
                 self.appModel.stopPlayback()
             }
@@ -440,6 +455,57 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 await metadataService.persist(metadata, for: snapshot.request)
             }
         }
+    }
+
+    // MARK: - Network Retry
+
+    private static func isNetworkURL(_ url: URL) -> Bool {
+        let scheme = url.scheme?.lowercased() ?? ""
+        return ["smb", "http", "https", "ftp"].contains(scheme)
+    }
+
+    /// Retries playback with exponential backoff, waiting for network to recover.
+    /// Returns `true` if playback eventually succeeds.
+    private func retryPlayback(
+        request: PlaybackLaunchRequest,
+        generation: Int
+    ) async -> Bool {
+        for attempt in 1...Self.maxRetries {
+            guard self.generation == generation else { return false }
+            guard !Task.isCancelled else { return false }
+
+            let delay = Self.retryBaseDelay * Int(pow(2.0, Double(attempt - 1)))
+            print("[Playback] retry_waiting attempt=\(attempt)/\(Self.maxRetries) delay=\(delay)")
+
+            // Show buffering state while waiting
+            windowVideoViewModel.playbackState = .buffering
+
+            // Wait for delay, then check network
+            try? await Task.sleep(for: delay)
+            guard self.generation == generation else { return false }
+
+            let networkReady = await networkMonitor.waitForConnection(timeout: .seconds(10))
+            guard self.generation == generation else { return false }
+            guard networkReady else {
+                print("[Playback] retry_no_network attempt=\(attempt)")
+                continue
+            }
+
+            print("[Playback] retry_attempting attempt=\(attempt)")
+            do {
+                try await windowVideoViewModel.play(url: request.url)
+                let defaultSpeed = preferencesStore.loadPreferences().defaultPlaybackSpeed
+                if defaultSpeed != 1.0 {
+                    windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(defaultSpeed))
+                }
+                print("[Playback] retry_succeeded attempt=\(attempt)")
+                return true
+            } catch {
+                print("[Playback] retry_failed attempt=\(attempt) error=\(error.localizedDescription)")
+            }
+        }
+        print("[Playback] retry_exhausted max=\(Self.maxRetries)")
+        return false
     }
 }
 
