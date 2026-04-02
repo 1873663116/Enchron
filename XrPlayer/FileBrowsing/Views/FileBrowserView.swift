@@ -234,6 +234,18 @@ public struct FileBrowserView: View {
                     print("[FileBrowser] video import failed: \(error)")
                 }
             }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { viewModel.detailNavigationRequest != nil },
+                    set: { isPresented in
+                        if !isPresented {
+                            viewModel.detailNavigationRequest = nil
+                        }
+                    }
+                )
+            ) {
+                VideoDetailView()
+            }
             .alert(
                 "File Browser Error",
                 isPresented: Binding(
