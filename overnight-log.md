@@ -1029,3 +1029,75 @@ F3.9/H04 (捏合拖拽):
 **测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
 **下轮应做**: Phase 3 T3.1 — 全面回归（swift test + /qa 重新执行关键路径）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 25 — 2026-04-02T22:10:00+08:00
+
+**Pipeline State**: VERIFYING（Phase 3 T3.1 — 全面回归）
+**本轮目标**: T3.1 — swift test 全绿 + QA 关键路径回归验证 + REGRESSION.md 更新 + 快速修复
+
+**完成情况**:
+- [BUILD] swift build → Build complete (0.24s) ✅
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures ✅
+- [AGENT] verify-p0-p1-batch1 (Explore) → 修复 1-6 代码路径验证: 5 PASS + 1 PARTIAL(95%)
+- [AGENT] verify-h03-skybox-batch2 (Explore) → 修复 7-11 代码路径验证: 5 PASS
+- [EDIT] REGRESSION.md → 新增 REG-110 ~ REG-122（13 条新回归项）+ 索引更新
+- [FIX] QA-L06 SettingsView.swift: CFBundleShortVersionString 替换 "0.1" hardcode → PARTIAL→PASS
+- [FIX] QA-M01 FileBrowserView.swift + PlaybackMenuView.swift: delete 60pt + close 60pt → PARTIAL→PASS
+- [COMMIT] fbe3c6b fix(PlayerUI+FileBrowsing+Settings): button sizes ≥60pt and dynamic version string
+
+**Phase 2 全部 13 个修复验证结果**:
+
+| 修复 | QA Path | 验证状态 | 证据 |
+|------|---------|----------|------|
+| F3.2 bridge | QA-D01 | ✅ PASS | PlayerControlsView:465/498 `.panorama \|\| .immersive` |
+| F4.1 缓冲指示器 | QA-J01 | ✅ PASS | MPVPlayerAdapter "paused-for-cache" + MainView .buffering |
+| F5.2 HDR/SDR UI | QA-K03 | ✅ PASS | PlaybackMenuView isHDRContent + "Video Output" section |
+| F4.3 自动重连 | QA-J03 | ✅ PASS | NetworkMonitor.swift + retryPlayback() 指数退避 |
+| ISSUE-004 导航 | QA-A03 | ✅ PARTIAL(95%) | guard 已移除，初始"."合理 |
+| F6.6 屏幕形状 | QA-D05 | ✅ PASS | isScreenCurved + screenShapeKey 完整链路 |
+| H03 速度恢复 | QA-H03 | ✅ PASS | speedBeforeLongPress 保存+恢复 |
+| F3.9 拖拽seek | QA-H04 | ✅ PASS | onDragUpdate/onDragEnded + translation.width * 0.15 |
+| ISSUE-009 FOV | QA-E02 | ✅ PASS | GSpherical:InitialHorizontalFOVDegrees 计算逻辑 |
+| F6.2 skybox | QA-D04 | ✅ PASS | loadSkyboxTexture() async + StarryNight/SunsetNature assets |
+| G04 时间轴 | QA-G04 | ✅ PASS | DetailedTimelineView + isDraggingSlider 条件 |
+| M03 VoiceOver P1 | QA-M03 | ✅ PASS | 15+ accessibilityLabel + 播放按钮动态标签 |
+| UX-01/06 手势 | QA-D01+ | ✅ PASS | DragRotationModifier + MagnifyGesture |
+
+**Health Score 计算**:
+
+| 指标 | 数量 | 变化 |
+|------|------|------|
+| PASS | 49 | 原34 + 8(Pa→P) + 5(F→P) + 2(L06/M01快修) |
+| PARTIAL | 7 | 原14 - 8(Pa→P) + 3(F→Pa) - 2(快修) |
+| FAIL | 2 | QA-L05(缓存UI), QA-M04(WorldTracking) — 均为P2 |
+| DEFERRED | 1 | QA-B04 Photos |
+
+**Health Score = (49×100 + 7×50) / 58 = 5250/58 = 90.5%**（目标 ≥95%，差 260 pts）
+
+**REGRESSION.md 新增条目**:
+REG-110 (bridge) / REG-111 (缓冲) / REG-112 (HDR/SDR UI) / REG-113 (重连) / REG-114 (子目录) /
+REG-115 (屏幕形状) / REG-116 (速度恢复) / REG-117 (拖拽seek) / REG-118 (skybox) /
+REG-119 (时间轴) / REG-120 (VoiceOver) / REG-121 (拖拽旋转) / REG-122 (FOV消歧)
+
+**距 ≥95% 差距分析**:
+需要 260 pts = 1 FAIL→PASS + 2 PARTIAL→PASS（或 等效组合）
+
+| 优先 | 任务 | 预期升级 | 分值 |
+|------|------|----------|------|
+| P1 | QA-L05 添加 Cache Clear UI（SettingsView + CacheService） | FAIL→PASS | +100 |
+| P1 | QA-B01 VideoDetailView 添加 codec/duration 显示 | PARTIAL→PASS | +50 |
+| P1 | QA-M03 VoiceOver P2（FileBrowserView/SettingsView/ImmersiveSpaceView labels） | PARTIAL→PASS | +50 |
+| P2 | QA-M04 WorldTracking（添加基础 ARKitSession 或重评估为平台默认提供） | FAIL→Pa/P | +50~100 |
+
+完成前 3 项预计 Health Score = (49+3)*100 + (7-2)*50) / 58 = 5450/58 = 93.9%（需前 3 + 1 更多）
+
+**Decision Log**:
+- [AUTO] T3.1 Health Score 90.5% < 95% | 继续 VERIFYING 下轮完成剩余快修 | P1 | 2 个 P2 FAIL 拉低分数，需要 L05+B01+M03 这 3 项中等难度修复
+- [AUTO] M04 WorldTracking | 保持 FAIL 不重评估 | P5 | 待专门决策是否添加 ARKitSession stub，不在本轮草率处理
+- [AUTO] REGRESSION.md 快速修复条目 | L06/M01 纳入 REG-120 范畴（button accessibility 变化），不新增 REG | P3 | 两个修复过于小且无退化风险
+
+**测试状态**: swift test: 248 passed / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: T3.1 补全 — 修复 QA-L05 + QA-B01 + QA-M03 P2，使 Health Score ≥ 95%
+**Status**: IN_PROGRESS

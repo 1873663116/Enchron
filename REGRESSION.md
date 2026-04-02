@@ -18,41 +18,47 @@
 | PlaybackCore/Domain/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlaybackCore/UseCases/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlayerUI/UseCases/DetailedTimelineGeometry.swift | REG-080 |
-| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081, REG-108, REG-109 |
-| PlayerUI/Views/VideoDetailView.swift | REG-082, REG-088 |
+| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081, REG-108, REG-109, REG-110, REG-116, REG-117, REG-119, REG-120 |
+| PlayerUI/Views/VideoDetailView.swift | REG-082, REG-088, REG-120 |
 | PlayerUI/Views/PlayerControlSurface.swift | REG-012, REG-013, REG-015, REG-016, REG-019 |
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
-| PlayerUI/Views/PlaybackMenuView.swift | REG-018 |
+| PlayerUI/Views/PlaybackMenuView.swift | REG-018, REG-112, REG-120 |
 | PlayerUI/Domain/* | REG-012, REG-015, REG-016 |
 | FileBrowsing/Adapters/SMB/* | REG-020, REG-021, REG-023, REG-092 |
 | FileBrowsing/Adapters/WebDAV/* | REG-022, REG-092 |
 | FileBrowsing/Adapters/PhotoLibrary/* | REG-090, REG-096 |
-| FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023, REG-090, REG-092 |
+| FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023, REG-090, REG-092, REG-114 |
 | FileBrowsing/Domain/* | REG-020, REG-022 |
 | FileBrowsing/Views/* | REG-020, REG-089, REG-090, REG-092 |
 | Persistence/Adapters/SwiftDataStore.swift | REG-030, REG-091 |
-| Persistence/Adapters/UserDefaultsStore.swift | REG-031, REG-085 |
+| Persistence/Adapters/UserDefaultsStore.swift | REG-031, REG-085, REG-115 |
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
 | Persistence/Domain/* | REG-030, REG-031 |
 | App/XrPlayerApp.swift | REG-091, REG-094 |
 | App/PlaybackLaunching.swift | REG-095 |
-| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087, REG-093, REG-095, REG-109 |
+| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087, REG-093, REG-095, REG-109, REG-113 |
+| App/NetworkMonitor.swift | REG-113 |
 | App/PreparedPlayback.swift | REG-082, REG-083 |
 | App/AppCoordinator.swift | REG-040, REG-041 |
-| App/MainView.swift | REG-041, REG-087, REG-093 |
 | App/Navigation/* | REG-041, REG-084 |
 | SpatialScene/* | REG-050, REG-070, REG-071, REG-100, REG-101, REG-102, REG-103, REG-104, REG-105, REG-106, REG-107, REG-108, REG-109 |
 | SpatialScene/Domain/* | REG-100, REG-101, REG-102, REG-103, REG-104, REG-105, REG-106, REG-107 |
-| SpatialScene/Renderers/VirtualScreenEntity.swift | REG-100, REG-101 |
-| SpatialScene/Renderers/EnvironmentDomeEntity.swift | REG-104 |
+| SpatialScene/Renderers/VirtualScreenEntity.swift | REG-100, REG-101, REG-121 |
+| SpatialScene/Renderers/EnvironmentDomeEntity.swift | REG-104, REG-118 |
 | SpatialScene/Renderers/PanoramaLayerBridge.swift | REG-070, REG-071, REG-106, REG-107 |
-| SpatialScene/Renderers/PanoramaSphereEntity.swift | REG-070, REG-071, REG-105 |
-| SpatialScene/Scenes/ImmersiveSpaceView.swift | REG-070, REG-071, REG-100, REG-101, REG-104, REG-105, REG-106, REG-107, REG-109 |
-| SpatialScene/Views/SceneSelectorView.swift | REG-050, REG-104 |
+| SpatialScene/Renderers/PanoramaSphereEntity.swift | REG-070, REG-071, REG-105, REG-121 |
 | SpatialScene/Renderers/* | REG-070, REG-071, REG-100, REG-101, REG-105, REG-106, REG-107 |
+| SpatialScene/Scenes/ImmersiveSpaceView.swift | REG-070, REG-071, REG-100, REG-101, REG-104, REG-105, REG-106, REG-107, REG-109, REG-118, REG-121 |
+| SpatialScene/Modifiers/DragRotationModifier.swift | REG-121 |
+| SpatialScene/Views/SceneSelectorView.swift | REG-050, REG-104 |
 | PlayerUI/UseCases/DecidePlaybackModeUseCase.swift | REG-109 |
+| PlayerUI/UseCases/DisambiguateGestureUseCase.swift | REG-117 |
+| PlayerUI/Views/DetailedTimelineView.swift | REG-119 |
+| PlayerUI/Views/ScreenPositionControlView.swift | REG-115, REG-120 |
+| PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063, REG-070, REG-111, REG-122 |
 | PlaybackCore/Domain/ValueObjects/StereoMode.swift | REG-106 |
-| Settings/Views/SettingsView.swift | REG-031, REG-085, REG-101, REG-103, REG-104 |
+| Persistence/Domain/Entities/UserPreferences.swift | REG-115 |
+| Settings/Views/SettingsView.swift | REG-031, REG-085, REG-101, REG-103, REG-104, REG-115 |
 | Shared/VideoShaders.metal | REG-107 |
 
 路径粒度说明：默认为目录级（如 `PlaybackCore/Domain/*`）。对于高风险的关键文件使用文件级（如 `PlaybackLaunchCoordinator.swift`）。
@@ -705,6 +711,149 @@
 - **Agent 自检**: `swift build` 编译通过；`swift test --filter PlaybackModeRoutingTests` 通过
 - **真机验证**: 播放 flat 视频 → 窗口模式 → 进入沉浸空间 → 自动切换为沉浸影院 → 播放 360° 视频 → 自动全景模式 → 手动覆盖为窗口模式 → 模式正确切换 → 切换另一视频 → 覆盖清除，重新自动路由
 - **退化信号**: 视频类型与模式不匹配、手动覆盖不生效、新视频继承旧覆盖、模式切换导致崩溃或画面丢失
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-110: 沉浸影院模式视频 Bridge 接通
+
+- **来源**: v3 overnight Phase 2 — F3.2 bridge 断联修复（Round 12）
+- **触发条件**: 改动 PlayerUI/Views/PlayerControlsView.swift 中 switchPlaybackMode() 逻辑
+- **Agent 自检**: `swift build` 编译通过；grep PlayerControlsView.swift 确认 `.panorama || .immersive` 条件
+- **真机验证**: 进入沉浸影院模式播放视频 → VirtualScreenEntity 显示视频纹理（非黑屏）→ 返回窗口模式 → 视频继续正常播放
+- **退化信号**: 沉浸模式虚拟屏幕黑屏、bridge attachVideoLayer 未在 .immersive 触发、仅 .panorama 可见视频
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-111: 网络缓冲 ProgressView 指示器
+
+- **来源**: v3 overnight Phase 2 — F4.1 缓冲指示器修复（Round 13）
+- **触发条件**: 改动 PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift observeCoreProperties、App/MainView.swift
+- **Agent 自检**: `swift build` 编译通过；grep MPVPlayerAdapter.swift 确认 "paused-for-cache" 被观察；grep MainView.swift 确认 .buffering 分支
+- **真机验证**: 播放网络视频（SMB/WebDAV）且网络变慢时 → UI 中央出现 "Buffering…" 旋转指示器 → 网络恢复后指示器消失并自动继续播放
+- **退化信号**: 缓冲时无 UI 反馈、PlaybackState.buffering 永远不触发、指示器出现后不消失
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-112: HDR/SDR 输出切换 UI
+
+- **来源**: v3 overnight Phase 2 — F5.2 HDR/SDR 切换 UI（Round 13）
+- **触发条件**: 改动 PlayerUI/Views/PlaybackMenuView.swift
+- **Agent 自检**: `swift build` 编译通过；grep PlaybackMenuView.swift 确认 "Video Output" section 和 isHDRContent 条件
+- **真机验证**: 播放 HDR10 视频 → 播放菜单中出现 "Video Output" section + HDR Toggle → 关闭 HDR → 视频以 SDR 输出 → 再次打开 HDR → 恢复
+- **退化信号**: HDR 内容播放时菜单无 Video Output 选项、SDR 内容时误显示 Toggle、Toggle 改变无效果
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-113: 网络断线自动重连指数退避
+
+- **来源**: v3 overnight Phase 2 — F4.3 自动重连（Round 13）
+- **触发条件**: 改动 App/PlaybackLaunchCoordinator.swift、新建 App/NetworkMonitor.swift
+- **Agent 自检**: `swift build` 编译通过；NetworkMonitor.swift 存在；PlaybackLaunchCoordinator 有 retryPlayback() 方法
+- **真机验证**: 播放网络视频时断网 → App 自动重试 2s/4s/8s（最多 3 次）→ 断网时不对本地文件重试 → 重连后恢复播放
+- **退化信号**: 断网后 App 立即放弃不重试、本地文件错误时也触发重试、重试超过 3 次、重试间隔不是指数增长
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-114: 本地子文件夹导航
+
+- **来源**: v3 overnight Phase 2 — ISSUE-004 本地导航修复（Round 14）
+- **触发条件**: 改动 FileBrowsing/ViewModels/FileBrowsingViewModel.swift navigateToFolder/navigateUp/loadFiles
+- **Agent 自检**: `swift build` 编译通过；grep FileBrowsingViewModel.swift 确认 navigateToFolder 无 guard activeRemoteAdapter 阻断
+- **真机验证**: 打开本地文件浏览 → 点击子文件夹 → 进入子目录（文件列表更新）→ 点击返回 → 回到上层目录 → 文件列表正确
+- **退化信号**: 点击本地子文件夹无反应、navigateToFolder 被 guard 阻断、loadFiles 仍 hardcoded "." 忽略路径栈
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-115: 屏幕形状（平面/曲面）跨会话持久化
+
+- **来源**: v3 overnight Phase 2 — F6.6 屏幕形状持久化（Round 14）
+- **触发条件**: 改动 Persistence/Domain/Entities/UserPreferences.swift、Persistence/Adapters/UserDefaultsStore.swift、Settings/Views/SettingsView.swift、App/XrPlayerApp.swift
+- **Agent 自检**: `swift build` 编译通过；UserPreferences 有 isScreenCurved 字段；UserDefaultsStore 有 screenShapeKey
+- **真机验证**: 设置屏幕为曲面 → 退出 App → 重新进入沉浸空间 → 屏幕仍为曲面（非默认平面）
+- **退化信号**: 重启后屏幕总是重置为平面、UserDefaults 未写入屏幕形状、SettingsView onChange 未触发持久化
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-116: 长按预览松开后恢复原速度
+
+- **来源**: v3 overnight Phase 2 — H03 长按速度恢复（Round 15）
+- **触发条件**: 改动 App/MainView.swift onLongPressBegan/onLongPressEnded 逻辑
+- **Agent 自检**: `swift build` 编译通过；grep MainView.swift 确认 speedBeforeLongPress @State 变量
+- **真机验证**: 设置播放速度为 0.5x → 长按捏合手势（预览变为 2x）→ 松开 → 速度恢复 0.5x（而非 1.0x）
+- **退化信号**: 松开后速度总是重置为 1.0x、speedBeforeLongPress 未保存当前速度、速度显示与实际不符
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-117: 捏合拖拽 Seek
+
+- **来源**: v3 overnight Phase 2 — F3.9/H04 捏合拖拽（Round 15）
+- **触发条件**: 改动 PlayerUI/UseCases/DisambiguateGestureUseCase.swift、App/MainView.swift .drag 处理
+- **Agent 自检**: `swift build` 编译通过；DisambiguateGestureUseCase 有 onDragUpdate/onDragEnded 回调；MainView .drag case 有 seek 逻辑
+- **真机验证**: 捏合手势识别后水平拖动 → 播放进度随拖拽变化（左移后退，右移前进）→ 松开手势后保持 seek 位置
+- **退化信号**: .drag case 执行 break（空操作）、拖拽无 seek 效果、onDragUpdate 未触发
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-118: 沉浸环境 Skybox 纹理加载
+
+- **来源**: v3 overnight Phase 2 — F6.2/F6.3 skybox 纹理（Round 17）
+- **触发条件**: 改动 SpatialScene/Renderers/EnvironmentDomeEntity.swift、SpatialScene/Scenes/ImmersiveSpaceView.swift
+- **Agent 自检**: `swift build` 编译通过；EnvironmentDomeEntity 有 loadSkyboxTexture() 异步方法；Assets.xcassets 含 StarryNight/SunsetNature
+- **真机验证**: 进入沉浸空间 → 切换到 "Starry Night" 环境 → dome 显示星空纹理（非纯色）→ 切换到 "Sunset Nature" → dome 显示日落纹理
+- **退化信号**: dome 仍为纯色、TextureResource 加载失败后无 fallback、skyboxAssetName 返回 nil 时崩溃
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-119: 拖拽进度条时显示二级时间轴
+
+- **来源**: v3 overnight Phase 2 — G04 DetailedTimelineView 接线（Round 18）
+- **触发条件**: 改动 PlayerUI/Views/PlayerControlsView.swift sliderSection、新建 PlayerUI/Views/DetailedTimelineView.swift
+- **Agent 自检**: `swift build` 编译通过；DetailedTimelineView.swift 存在；PlayerControlsView 有 isDraggingSlider 条件
+- **真机验证**: 播放视频 → 开始拖拽进度 Slider → 出现带刻度线和时间标签的详细时间轴 → 松开后时间轴消失
+- **退化信号**: DetailedTimelineGeometry 存在但无 View 消费（孤立）、拖拽时无时间轴出现、Slider 区域崩溃
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-120: VoiceOver 播放控件 AccessibilityLabel
+
+- **来源**: v3 overnight Phase 2 — M03 VoiceOver P1 播放控件（Round 18）
+- **触发条件**: 改动 PlayerUI/Views/PlayerControlsView.swift、PlayerUI/Views/PlaybackMenuView.swift、PlayerUI/Views/VideoDetailView.swift、PlayerUI/Views/ScreenPositionControlView.swift
+- **Agent 自检**: `swift build` 编译通过；grep -r "accessibilityLabel" XrPlayer/PlayerUI 输出 ≥ 10 行
+- **真机验证**: 开启 VoiceOver → 播放视频 → 点击播放按钮时 VoiceOver 朗读 "Play"/"Pause"/"Replay" → 跳过按钮朗读 "Skip forward 10 seconds"/"Skip backward 10 seconds"
+- **退化信号**: VoiceOver 朗读无意义文字（如按钮索引）、动态标签不随播放状态更新、播放控件无标注
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-121: 沉浸/全景空间拖拽旋转 + 捏合缩放
+
+- **来源**: v3 overnight Phase 2 — UX-01 DragRotationModifier + UX-06 MagnifyGesture（Rounds 19-21）
+- **触发条件**: 改动 SpatialScene/Modifiers/DragRotationModifier.swift、SpatialScene/Renderers/PanoramaSphereEntity.swift、SpatialScene/Renderers/VirtualScreenEntity.swift、SpatialScene/Scenes/ImmersiveSpaceView.swift
+- **Agent 自检**: `swift build` 编译通过；DragRotationModifier.swift 存在；PanoramaSphereEntity 有 InputTargetComponent
+- **真机验证**: 进入沉浸空间 → 拖拽手势旋转全景球/虚拟屏幕 → 旋转带弹性动画和惯性 → Pitch 不超过 ±30° → 捏合手势缩放（0.5x~2.0x）
+- **退化信号**: 拖拽无效果（缺 InputTargetComponent）、旋转无弹性动画、Pitch 无限制导致倒立视角、缩放 > 2x 或 < 0.5x
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-122: GSpherical HFOV 计算区分 180°/360° 全景
+
+- **来源**: v3 overnight Phase 2 — ISSUE-009 FOV hardcoded nil 修复（Round 24）
+- **触发条件**: 改动 PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift GSpherical 读取逻辑
+- **Agent 自检**: `swift build` 编译通过；grep MPVPlayerAdapter.swift 确认 "GSpherical:InitialHorizontalFOVDegrees" 被读取
+- **真机验证**: 播放 180-vr-test.mp4 → 检测为 panorama180（半球渲染）→ 播放 360-test-nasa.webm → 检测为 panorama360（全球渲染）→ 两者渲染范围明显不同
+- **退化信号**: 180° VR 被误判为 360°（全球渲染导致内容拉伸）、HFOV 始终为 nil、FOV 计算返回负值或超过 360°
 - **状态**: active
 - **创建日期**: 2026-04-02
 
