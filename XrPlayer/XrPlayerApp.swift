@@ -49,9 +49,15 @@ struct XrPlayerApp: App {
         // Pre-warm MPV in the background to reduce first-play black-screen latency.
         player.warmup()
         let localDataSource = LocalDataSourceAdapter()
-        let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: localDataSource) { request in
-            launcher.beginPlayback(request)
-        }
+        let fileBrowsingViewModel = FileBrowsingViewModel(
+            localDataSource: localDataSource,
+            onPlayFile: { request in
+                launcher.beginPlayback(request)
+            },
+            onPrepareFile: { request in
+                launcher.preparePlayback(request)
+            }
+        )
 
         _appModel = State(initialValue: appModel)
         _windowVideoViewModel = State(initialValue: windowVideoViewModel)

@@ -15,6 +15,10 @@ public final class FileBrowsingViewModel {
     public var savedDataSources: [FileBrowsingDomain.DataSource] = []
     public var activeDataSource: FileBrowsingDomain.DataSource?
 
+    /// Set by the app layer when navigating to the detail page for a file.
+    /// The detail view reads this to know which file is being inspected.
+    public var detailNavigationRequest: PlaybackLaunchRequest?
+
     private let localDataSource: LocalDataSourceAdapter
     private let fileManager: FileManager
     public let credentialStoreForConfig: CredentialStoring
@@ -22,6 +26,7 @@ public final class FileBrowsingViewModel {
     private var credentialStore: CredentialStoring { credentialStoreForConfig }
     private let importQueue = DispatchQueue(label: "xrplayer.fileimport.io", qos: .utility)
     private let onPlayFile: @MainActor (PlaybackLaunchRequest) -> Void
+    private let onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)?
     private let defaultRootURL: URL
     private let localDataSourceID = UUID()
     private var rootURL: URL
@@ -34,13 +39,15 @@ public final class FileBrowsingViewModel {
         fileManager: FileManager = .default,
         credentialStore: CredentialStoring = KeychainStore(),
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
-        onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void
+        onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void,
+        onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)? = nil
     ) {
         self.localDataSource = localDataSource
         self.fileManager = fileManager
         self.credentialStoreForConfig = credentialStore
         self.savedDataSourceStore = savedDataSourceStore
         self.onPlayFile = onPlayFile
+        self.onPrepareFile = onPrepareFile
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
         self.defaultRootURL = documentsURL
@@ -236,7 +243,12 @@ public final class FileBrowsingViewModel {
             do {
                 let request = try await playbackRequest(for: file)
                 print("[FileBrowser] selected file: \(request.url.path)")
-                onPlayFile(request)
+                if let onPrepareFile {
+                    self.detailNavigationRequest = request
+                    onPrepareFile(request)
+                } else {
+                    onPlayFile(request)
+                }
             } catch {
                 lastErrorMessage = "Failed to open \"\(file.name)\": \(error.localizedDescription)"
                 print("[FileBrowser] selectFile failed for \(file.name): \(error)")
