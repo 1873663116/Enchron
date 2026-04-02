@@ -22,8 +22,9 @@ public struct SceneSelectorView: View {
                         } label: {
                             VStack(alignment: .leading, spacing: 12) {
                                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .fill(.ultraThinMaterial)
+                                    .fill(.clear)
                                     .aspectRatio(16/9, contentMode: .fill)
+                                    .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                                     .overlay {
                                         ZStack {
                                             if selectedEnvironmentIndex == index {

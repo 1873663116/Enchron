@@ -56,6 +56,8 @@ public struct FolderListView: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+            .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         } else {
             List {
                 if folders.isEmpty == false {
