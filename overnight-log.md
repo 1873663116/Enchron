@@ -239,3 +239,41 @@
 
 **下轮应做**: VERIFYING — Phase 4 功能全部实现，进入验证阶段（/ce-review + REGRESSION.md 更新 + E2E 测试）
 **Status**: IN_PROGRESS
+
+---
+## Round 10 — 2026-04-02T12:00:00+08:00
+
+**Pipeline State**: EXECUTING → VERIFYING
+**本轮目标**: /ce-review 综合代码审查 + P1 修复
+**完成情况**:
+- [SKILL] /ce-review → pass | 4 审查者并行（correctness, security, maintainability, testing）
+- [REVIEW] 审查范围：35 files, +2549/-681 lines（Round 6-9 全部变更）
+- [FINDINGS] P1 x3 / P2 x8 / P3 x4
+- [FIX] P1-1: handlePlaybackEnded().playNext 无下一集时恢复控件（onFallbackShowControls 回调）
+- [FIX] P1-2: Photo Library 临时文件清理（5 天过期策略，XrPlayerApp 启动时执行）
+- [FIX] P1-3: VideoDetailView DI 违规修复（coordinator.currentResumePolicy() 替代直接创建 UserDefaultsStore）
+- [COMMIT] 6bcf0ea fix: address 3 P1 issues from ce-review Round 10
+- [REGRESSION] +REG-093 自动下一集回退, +REG-094 Photo Library 清理
+- [BUILD] `swift build` → Build complete ✅
+- [TEST] `swift test` → 205 tests, 0 failures ✅
+
+**P2 残留（下轮处理）**:
+- nextFileProvider displayName 匹配脆弱
+- confirmPlayback seek 100ms 时序
+- assetCache 线程安全
+- Continuation 无超时保护
+- PlayerControlsView panel 3 Bool → enum
+- 排序逻辑重复 5 处
+- 时间格式化重复 2 处
+- ScreenPosition onChange 过度 I/O
+
+**Testing Gaps（下轮处理）**:
+- handlePlaybackEnded 三分支、PhotoLibraryAdapter、PreparedPlayback generation
+
+**Decision Log**:
+- [AUTO] P1 修复策略 | 就地修复 3 个 P1，P2 记录到下轮 | P6+P5 | P1 修复量小（<30 行），可在验证阶段内闭环
+- [AUTO] DI 修复方案 | coordinator 暴露 currentResumePolicy() | P5+P3 | 最小侵入，不改 Environment 链
+- [AUTO] 回退策略 | VERIFYING 停留，不回退 EXECUTING | P6 | P1 已修复，P2 不阻塞 Pipeline
+
+**下轮应做**: VERIFYING 继续 — E2E Simulator 测试（/qa skill）+ P2 safe_auto 修复
+**Status**: IN_PROGRESS
