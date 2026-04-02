@@ -35,13 +35,13 @@
 - [x] 调研结果写入当轮 EP，包含代码示例和 API 签名
 
 ### T0.3 — 综合测试计划设计
-- [ ] 为 T0.1 功能清单中每个功能设计对应测试
-- [ ] **单元测试**：domain logic、value objects、state machines、projection detection、mode routing
-- [ ] **结构测试**：UI 组件存在性、View body 中的绑定验证、Protocol 实现完整性
-- [ ] **E2E 测试路径**：为 /qa 技能设计完整的功能验证路径，覆盖三种播放模式的每一条操作路径
-- [ ] 测试数量要求：新增 ≥ 40 个测试用例
-- [ ] 每个测试必须在当前代码上 FAIL（证明功能未实现）
-- [ ] 将 E2E 测试路径写入文档，供 /qa 使用
+- [x] 为 T0.1 功能清单中每个功能设计对应测试
+- [x] **单元测试**：domain logic、value objects、state machines、projection detection、mode routing
+- [x] **结构测试**：UI 组件存在性、View body 中的绑定验证、Protocol 实现完整性
+- [x] **E2E 测试路径**：为 /qa 技能设计完整的功能验证路径，覆盖三种播放模式的每一条操作路径
+- [x] 测试数量要求：新增 ≥ 40 个测试用例
+- [x] 每个测试必须在当前代码上 FAIL（证明功能未实现）
+- [x] 将 E2E 测试路径写入文档，供 /qa 使用
 
 ### T0.4 — 对抗性审查（三阶段裁决）
 - [ ] **阶段 1 — Codex 挑战**：将完整功能清单 + 测试计划发给 codex（adversarial-review 模式），要求：

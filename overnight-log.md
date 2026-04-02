@@ -57,3 +57,39 @@
 **测试状态**: swift test: 未执行（本轮为调研轮）| 基线: 205 passed
 **下轮应做**: T0.3 — 综合测试计划设计（基于功能清单 + 调研结果，为每个功能设计测试用例 ≥ 40）
 **Status**: IN_PROGRESS
+
+---
+## Round 3 — 2026-04-02T16:10:00+08:00
+
+**Pipeline State**: PLANNING → PLANNING
+**本轮目标**: T0.3 — 综合测试计划设计
+**完成情况**:
+- 审查现有测试结构（6 个测试文件，205 tests，全部 import XrPlayerCore）
+- 审查 Package.swift 的 XrPlayerCore target sources（59 个源文件）
+- 审查 SavedScreenPosition/ScreenPositionStoring/ProjectionDetection/AppCoordinator 当前实现状态
+- 设计 43 个新测试用例（超过 40 最低要求），覆盖 8 个测试文件
+- 设计 8 条 E2E 测试路径（供 /qa Simulator 测试），覆盖全部三种播放模式
+- 建立功能 → 测试覆盖矩阵（42 功能中 37 个有测试覆盖，5 个为已完成功能已有测试）
+- 完整产出写入 ExecPlan012
+
+**测试计划摘要（43 tests × 8 files）**:
+- CinemaEnvironmentTests (6): 环境枚举 3 case + skybox 映射 + Codable
+- VirtualScreenConfigTests (7): 屏幕形状 + 尺寸校验 + 切换逻辑
+- ScreenPositionValidationTests (5): distance/angle/offset clamping + 默认工厂
+- StereoFrameSplitTests (7): SBS/OU UV 区域 + 输出尺寸计算
+- HemisphereMeshConfigTests (4): 180° UV 范围 + 经度范围 + 顶点数
+- FisheyeRemapConfigTests (3): FOV 默认值 + 中心映射 + 越界处理
+- PlaybackModeRoutingTests (6): UseCase + 手动覆盖 + 决策矩阵扩展
+- ProjectionDetectionExtendedTests (5): fisheye 检测 + ProjectionType 计算属性
+
+**FAIL 分类**: 33 新类型 stub / 4 缺少校验 / 3 缺少计算属性 / 2 缺少分支 / 1 协议不存在
+
+**Decision Log**:
+- [AUTO] 测试策略 | stub + FAIL 而非编译错误 | P1+P5 | 编译通过才能运行旧测试
+- [AUTO] Stub 位置 | 域层而非测试层 | P4+P5 | Stub 就是最终类型骨架，Phase 1 直接填充
+- [AUTO] E2E 路径数 | 8 条路径 | P1+P2 | 覆盖三种播放模式 + 交叉验证 + 手动覆盖
+- [AUTO] 测试文件拆分 | 每个域一个文件 | P3 | 清晰映射，独立运行
+
+**测试状态**: swift test: 未执行（本轮为计划设计轮）| 基线: 205 passed
+**下轮应做**: T0.4 — 对抗性审查（三阶段裁决：Codex 挑战 → Counter-Agent 反驳 → Opus 裁决）
+**Status**: IN_PROGRESS
