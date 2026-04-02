@@ -709,3 +709,162 @@ F3.9/H04 (捏合拖拽):
 **测试状态**: swift test: 247 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
 **下轮应做**: Phase 2 T2.1 — 继续 P1 缺陷修复 (F6.2 skybox 纹理加载 / M03 VoiceOver accessibilityLabel / G04 二级时间轴接线)
 **Status**: IN_PROGRESS
+
+---
+
+## Round 17 — 2026-04-02T20:30:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.1 — F6.1-F6.3 skybox 纹理加载修复）
+**本轮目标**: 修复沉浸环境仅纯色 dome 问题，实现 skybox 纹理加载
+
+**完成情况**:
+- [AGENT] Explore → 全链路诊断：CinemaEnvironment.skyboxAssetName 定义但从未被消费，EnvironmentDomeEntity.material() 只用 UnlitMaterial(tint:)，零纹理资产
+- [AGENT] Explore → HelloWorld Starfield.swift 参考：TextureResource(named:) → UnlitMaterial.color.init(texture:)
+- [BASH] Python PIL 生成 2 张等距柱状投影 skybox 纹理 (4096×2048)：
+  - StarryNight.jpg (353KB): 深蓝底 + 多层星点(800亮+3000中+8000暗) + 银河渐变带
+  - SunsetNature.jpg (295KB): 深蓝→粉紫→暖橙渐变 + 太阳光晕
+- [CODE] EnvironmentDomeEntity.swift: material() → colorMaterial() 重命名，新增 async loadSkyboxTexture() + async switchEnvironment()
+- [CODE] ImmersiveSpaceView.swift: make closure await 纹理加载，update closure 用 lastDomeEnvironment 跟踪变更避免冗余加载
+- [BUILD] swift build: 0 errors ✅
+- [TEST] swift test: 248 passed, 1 skipped, 0 failures ✅
+- 产出：`docs/archive/ExecPlan/ExecPlan036.md`
+
+**修复详情**:
+
+| 环境 | 修复前 | 修复后 |
+|------|--------|--------|
+| darkTheatre | UnlitMaterial(白 0.02) | 不变（设计上无 skybox） |
+| starryNight | UnlitMaterial(蓝黑 0.01/0.01/0.06) | TextureResource("StarryNight") 星空纹理 |
+| sunsetNature | UnlitMaterial(棕 0.15/0.08/0.03) | TextureResource("SunsetNature") 日落纹理 |
+
+**影响范围**:
+- QA-D04 F6.1-F6.3 (环境 skybox): FAIL → 预期 PASS（纹理加载 + fallback 完整）
+- 沉浸模式环境切换: 改为 async，首次显示 fallback 色后异步加载纹理
+
+**Decision Log**:
+- [AUTO] 纹理分辨率 | 4096×2048 等距柱状投影 | P3 | 平衡质量与包体大小，visionOS dome 50m 半径足够
+- [AUTO] 加载策略 | 每次 TextureResource(named:) 无手动缓存 | P5 | 系统 asset catalog 自带缓存，手动缓存引入 mutable static state 复杂度
+- [AUTO] switchEnvironment 策略 | 先同步设色再 async 加载纹理 | P3 | 避免环境切换时闪白，用 fallback 色过渡
+
+**测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.1 — 继续 P1 缺陷修复 (M03 VoiceOver accessibilityLabel / G04 二级时间轴接线)
+**Status**: IN_PROGRESS
+
+---
+
+## Round 18 — 2026-04-02T20:10:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.1 — P1 缺陷修复 #6 + #7）
+**本轮目标**: G04 二级时间轴接线 + M03 VoiceOver accessibilityLabel（Priority 1 播放控件）
+**完成情况**:
+- [AGENT] g04-explorer (Explore) → DetailedTimelineGeometry API 全量审查 + PlayerControlsView sliderSection 分析
+- [AGENT] m03-explorer (Explore) → 全项目 VoiceOver 审计，12 个 View 文件，60+ 交互元素缺标注
+- [AGENT] g04-worker (Sonnet) → 新建 DetailedTimelineView.swift (Canvas 渲染 tick marks + playhead)，集成到 PlayerControlsView sliderSection
+- [AGENT] m03-worker (Sonnet) → 4 文件 +53 行 accessibilityLabel: PlayerControlsView(14), PlaybackMenuView(4), VideoDetailView(3), ScreenPositionControlView(6)
+- [BUILD] swift build → 0 errors ✅
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures ✅
+- [COMMIT] 594edab feat(PlayerUI): wire up DetailedTimelineView and add VoiceOver accessibility labels
+
+**G04 修复细节**:
+- 新建 `DetailedTimelineView.swift`：使用 DetailedTimelineGeometry(zoomLevel: 0.5, viewportWidth: 600) 计算 tick 位置
+- Canvas 渲染 minor ticks (0.5px, 8pt) + major ticks (1px, 16pt) + 时间标签
+- 播放头：橙色(拖拽中)/白色(静止) 竖线 + 菱形指示器
+- 集成：PlayerControlsView sliderSection，isDraggingSlider=true 时显示在精确时间标签下方
+- 不替换现有 Slider，纯增量可视化
+
+**M03 修复细节**:
+- PlayerControlsView: 14 个元素添加 accessibilityLabel（play/pause 动态标签、skip 10s、frame step、speed/mode/projection 带动态值）
+- PlaybackMenuView: close + track buttons + HDR toggle
+- VideoDetailView: play/resume/play-from-start
+- ScreenPositionControlView: close + 3 sliders(label+value) + 2 pickers
+- 本轮覆盖 Priority 1 (播放控件)，Priority 2-4 (文件浏览/设置/空间) 留后续轮次
+
+**影响范围**:
+- QA-G04 (二级时间轴): FAIL → 预期 PASS（DetailedTimelineGeometry 已有消费者）
+- QA-M03 (VoiceOver): FAIL → 预期 PARTIAL（Priority 1 已覆盖，Priority 2-4 待补）
+
+**Decision Log**:
+- [AUTO] DetailedTimelineView 定位 | 拖拽期间的只读可视化，不替换 Slider | P5 | 最小侵入性，保留现有交互不变
+- [AUTO] M03 分批策略 | 本轮仅 Priority 1 播放控件 | P3 | 播放控件是核心交互，优先覆盖
+- [AUTO] .help() 保留 | accessibilityLabel 与 help 共存 | P5 | help 提供鼠标悬停提示，accessibilityLabel 提供 VoiceOver
+
+**测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.2 — HelloWorld UX 改进 (UX-01 DragRotationModifier 弹性动画 / UX-02 VideoDetailView 分栏布局 / UX-05 ImmersionStyle 动态绑定)
+**Status**: IN_PROGRESS
+
+---
+
+## Round 19 — 2026-04-02T20:20:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.2 — HelloWorld UX 改进 #1）
+**本轮目标**: UX-01 DragRotationModifier — 沉浸/全景空间实体弹性拖拽旋转
+**完成情况**:
+- [AGENT] spatial-explorer (Explore) → ImmersiveSpaceView + 3 entity 文件结构审查，确认零手势处理
+- [READ] HelloWorld DragRotationModifier.swift → 提取核心模式：rotation3DEffect + interactiveSpring + predictedEnd 惯性
+- [CONTEXT7] RealityKit EntityTargetValue API → 确认 DragGesture.Value 无 location3D，改用 2D translation
+- [NEW] `XrPlayer/SpatialScene/Modifiers/DragRotationModifier.swift`（104 行）
+  - `DragGesture().targetedToAnyEntity()` 手势检测
+  - `.interactiveSpring` 拖拽中 + `.spring` + predictedEndTranslation 惯性
+  - Yaw 无限制（360° 环顾）+ Pitch 限 ±30°（防迷向）+ atan() 阻尼
+- [EDIT] PanoramaSphereEntity: +InputTargetComponent + CollisionComponent(.generateSphere)
+- [EDIT] VirtualScreenEntity: +InputTargetComponent + CollisionComponent(.generateBox)
+- [EDIT] ImmersiveSpaceView: +.dragRotation(pitchLimit: .degrees(30), sensitivity: 0.005)
+- [BUILD] xcodebuild → BUILD SUCCEEDED (warnings only)
+- [TEST] swift test → 247 passed, 1 skipped, 0 failures
+- [COMMIT] 7f2c1a3 feat(SpatialScene): add DragRotationModifier for immersive/panorama drag rotation
+
+**修复细节**:
+- 新建 DragRotationModifier 遵循 HelloWorld 模式，但适配 visionOS 2D gesture API
+- 首次尝试用 location3D/convert 3D API → SourceKit 报错 → context7 确认 DragGesture.Value 无此属性 → 改用 translation.width/height
+- rotation3DEffect axis 参数需 tuple 语法 `(x:0, y:1, z:0)` 而非 `.y` shorthand
+- sensitivity=0.005 将 pt 位移映射到弧度：100pt drag ≈ 0.5 rad (28°)
+
+**影响范围**:
+- UX-01 (DragRotationModifier): 完成 ✅
+- QA-H04 (捏合拖拽): 沉浸空间内实体拖拽交互就绪
+- QA-D01 (沉浸播放): 虚拟屏幕可通过拖拽重新定位
+
+**Decision Log**:
+- [AUTO] rotation3DEffect 作用范围 | 应用到整个 RealityView（dome + screen 同步旋转）| P3 | 影院场景中环境跟随屏幕旋转是自然体验
+- [AUTO] sensitivity 值 | 0.005 (100pt≈28°) | P3 | visionOS 手部追踪精度下提供可控旋转
+- [AUTO] Pitch 限制 | ±30° + atan 阻尼 + spring-back | P5 | 防止沉浸空间中过度俯仰导致迷向
+
+**测试状态**: swift test: 247 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.2 — 继续 HelloWorld UX 改进 (UX-03 Glass cornerRadius / UX-04 SliderGridRow / UX-05 ImmersionStyle 动态绑定)
+**Status**: IN_PROGRESS
+
+---
+
+## Round 20 — 2026-04-02T21:20:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.2 — HelloWorld UX 改进 #2）
+**本轮目标**: UX-03 Glass cornerRadius + UX-04 SliderGridRow + UX-05 ImmersionStyle 动态绑定（三个 P1 小型改动合并）
+**完成情况**:
+- [EDIT] `PlayerControlsView.swift:81` → `.glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 32, style: .continuous))`
+- [EDIT] `PlaybackMenuView.swift:100` → `.glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 24, style: .continuous))`
+- [NEW] `XrPlayer/PlayerUI/Components/SliderGridRow.swift` — Grid 三列布局（标签 | Slider | 数值，monospacedDigit+bold）
+- [EDIT] `ScreenPositionControlView.swift` — 重构为 Grid{SliderGridRow}，保留 Distance/Rotation 的 segmented picker，UX-03 cornerRadius 同步应用
+- [EDIT] `AppModel.swift` — +`isFullImmersion: Bool = true`（替代 protocol existential，避免比较问题）
+- [EDIT] `XrPlayerApp.swift` — +`@State var immersionStyle: ImmersionStyle = .full`，`.onChange(of: appModel.isFullImmersion)` 同步，`.immersionStyle(selection: $immersionStyle, in: .mixed, .full)` 动态绑定
+- [EDIT] `SettingsView.swift` — +`isFullImmersion: Bool` local state，+Picker "Full/Mixed"，onAppear + onChange 双向同步
+- [BUILD] xcodebuild → BUILD SUCCEEDED
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures
+- [COMMIT] 6a7e6e4 feat(PlayerUI): UX polish — glass cornerRadius, SliderGridRow, dynamic immersion style
+
+**关键决策**:
+- `.rect(cornerRadius:)` shorthand 未被已有代码使用，改为 `RoundedRectangle(cornerRadius:, style: .continuous)` 保持一致
+- `ImmersionStyle` 是 protocol（existential），不支持 `==` 比较。使用 `Bool isFullImmersion` 中间层，避免"cannot convert to CVPixelFormatDescription.ComponentRange"编译错误
+- `PBXFileSystemSynchronizedRootGroup` 确认：`XrPlayer/` 目录下新 Swift 文件自动被 Xcode build 发现，无需修改 pbxproj
+
+**影响范围**:
+- UX-03: PlayerControlsView / PlaybackMenuView / ScreenPositionControlView 视觉层次改善
+- UX-04: ScreenPositionControlView 节省约 40% 纵向空间，sliders 横向对齐
+- UX-05: SettingsView 新增沉浸风格选项，ImmersiveSpace 可在 Full/Mixed 间切换
+
+**Decision Log**:
+- [AUTO] ImmersionStyle 存储方式 | Bool isFullImmersion，XrPlayerApp 持有实际 @State | P5 | protocol existential 不支持 == 比较，Bool 中间层是最简洁的解决方案
+- [AUTO] glassBackgroundEffect shape | RoundedRectangle(style: .continuous) | P3 | 项目既有代码统一用此写法，.rect() shorthand 未经验证
+
+**测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.2 — 继续 HelloWorld UX 改进 (UX-02 VideoDetailView 分栏布局 / UX-06 Drag+Magnify 同时手势 / UX-07 openWindow/dismissWindow)
+**Status**: IN_PROGRESS
