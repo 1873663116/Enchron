@@ -144,7 +144,12 @@ public struct MainView: View {
             }
 
             windowVideoViewModel.onPlaybackEnded = {
-                let shouldShowControls = playbackLauncher.handlePlaybackEnded()
+                let shouldShowControls = playbackLauncher.handlePlaybackEnded(
+                    onFallbackShowControls: {
+                        withAnimation { appModel.showControls = true }
+                        controlsTimerTask?.cancel()
+                    }
+                )
                 if shouldShowControls {
                     withAnimation { appModel.showControls = true }
                     controlsTimerTask?.cancel()

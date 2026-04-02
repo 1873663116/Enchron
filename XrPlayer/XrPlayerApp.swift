@@ -51,6 +51,23 @@ struct XrPlayerApp: App {
             await SwiftDataStore().cleanExpiredProgress(olderThan: 5)
         }
 
+        // Clean up Photo Library temp exports older than 5 days.
+        Task.detached(priority: .background) {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("xrplayer-photos", isDirectory: true)
+            guard let files = try? FileManager.default.contentsOfDirectory(
+                at: tempDir, includingPropertiesForKeys: [.contentModificationDateKey]
+            ) else { return }
+            let cutoff = Date().addingTimeInterval(-5 * 24 * 3600)
+            for file in files {
+                if let attrs = try? file.resourceValues(forKeys: [.contentModificationDateKey]),
+                   let modified = attrs.contentModificationDate,
+                   modified < cutoff {
+                    try? FileManager.default.removeItem(at: file)
+                }
+            }
+        }
+
         // Pre-warm MPV in the background to reduce first-play black-screen latency.
         player.warmup()
         let localDataSource = LocalDataSourceAdapter()

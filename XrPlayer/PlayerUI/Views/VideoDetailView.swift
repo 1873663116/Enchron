@@ -114,7 +114,7 @@ public struct VideoDetailView: View {
         .task {
             guard let fileID = prepared.request.fileIdentifier else { return }
             savedProgress = await coordinator.loadProgress(for: fileID)
-            resumePolicy = UserDefaultsStore().loadPreferences().resumePolicy
+            resumePolicy = coordinator.currentResumePolicy()
         }
     }
 
