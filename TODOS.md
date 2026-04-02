@@ -91,12 +91,12 @@
   - [x] C2: 恢复播放提示 UX（VideoDetailView 双按钮 Resume/Start Over，遵循 ResumePolicy）
   - [x] C3: 文件列表进度指示（橙色圆点 + Watched X:XX）
   - [x] E2: 播放结束后自动下一集（handlePlaybackEnded + nextFileProvider）
-- **剩余待实现**:
-  - C4: 屏幕位置控件（自主设计，实现）
-  - C5: X 轴旋转控件
-  - E1: Photo Library 源
-  - E3: 缓存清理策略（5天过期）
-  - E4: 网络中断重连机制
+- **Round 9 完成**:
+  - [x] C4: 屏幕位置控件（AppModel state + PlayerControlsView panel）
+  - [x] C5: X 轴旋转控件（rotation slider ±45°）
+  - [x] E1: Photo Library 源（PhotoLibraryDataSourceAdapter + FileBrowserView 连线）
+  - [x] E3: 缓存清理策略（5天过期，启动时自动清理）
+  - [x] E4: 网络中断重连机制（自动重连 + Retry 按钮）
 - **原则**: 遇到 UX 决策时自主判断，参考 Apple HIG 和 visionOS 设计规范，不要等人类
 
 ---
@@ -110,5 +110,5 @@
 - [x] 视频详情二级界面功能完整
 - [x] 进度条已简化（无二级展开）
 - [x] 沉浸空间可在 App 启动时配置
-- [ ] 设计文档所有功能已实现（B2/B3/C2-C5/E1-E4 全部完成）
+- [x] 设计文档所有功能已实现（B2/B3/C2-C5/E1-E4 全部完成）
 - [ ] 零已知 bug（Simulator 验证通过）

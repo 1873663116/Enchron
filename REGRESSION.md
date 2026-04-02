@@ -24,15 +24,17 @@
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
 | PlayerUI/Views/PlaybackMenuView.swift | REG-018 |
 | PlayerUI/Domain/* | REG-012, REG-015, REG-016 |
-| FileBrowsing/Adapters/SMB/* | REG-020, REG-021, REG-023 |
-| FileBrowsing/Adapters/WebDAV/* | REG-022 |
-| FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023 |
+| FileBrowsing/Adapters/SMB/* | REG-020, REG-021, REG-023, REG-092 |
+| FileBrowsing/Adapters/WebDAV/* | REG-022, REG-092 |
+| FileBrowsing/Adapters/PhotoLibrary/* | REG-090 |
+| FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023, REG-090, REG-092 |
 | FileBrowsing/Domain/* | REG-020, REG-022 |
-| FileBrowsing/Views/* | REG-020, REG-089 |
-| Persistence/Adapters/SwiftDataStore.swift | REG-030 |
+| FileBrowsing/Views/* | REG-020, REG-089, REG-090, REG-092 |
+| Persistence/Adapters/SwiftDataStore.swift | REG-030, REG-091 |
 | Persistence/Adapters/UserDefaultsStore.swift | REG-031, REG-085 |
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
 | Persistence/Domain/* | REG-030, REG-031 |
+| App/XrPlayerApp.swift | REG-091 |
 | App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087 |
 | App/PreparedPlayback.swift | REG-082, REG-083 |
 | App/AppCoordinator.swift | REG-040, REG-041 |
@@ -501,6 +503,37 @@
 - **Agent 自检**: `swift build` 编译通过
 - **真机验证**: 播放视频到中间 → 返回文件列表 → 该文件显示橙色圆点和"Watched X:XX" → 未播放过的文件无进度指示 → 刷新文件列表后进度指示保持
 - **退化信号**: 进度指示不显示、时间格式错误、已播放文件无标记、刷新后丢失
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-090: Photo Library 数据源
+
+- **来源**: T4.2 E1 Photo Library 源（新功能）
+- **触发条件**: 改动 FileBrowsing/Adapters/PhotoLibrary/*、FileBrowsing/ViewModels/*、FileBrowsing/Views/*
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 文件浏览器 → Folder → Photo Library... → 授权弹窗出现 → 授权后显示视频列表 → 视频文件名和大小正确 → 进入相册文件夹浏览 → 选择视频可正常播放 → 拒绝授权时显示错误提示
+- **退化信号**: Photo Library 按钮不出现、授权弹窗不触发、视频列表为空、视频无法播放、相册不显示
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+### REG-091: 缓存清理策略
+
+- **来源**: T4.2 E3 缓存清理（新功能）
+- **触发条件**: 改动 App/XrPlayerApp.swift、Persistence/Adapters/SwiftDataStore.swift
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 创建 >5 天前的播放进度记录 → 重启 App → 过期进度记录被清除 → 未过期记录保留
+- **退化信号**: 过期记录未清除、所有记录被清除、启动崩溃
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+### REG-092: 网络中断重连
+
+- **来源**: T4.2 E4 网络重连（新功能）
+- **触发条件**: 改动 FileBrowsing/ViewModels/*、FileBrowsing/Views/*、FileBrowsing/Adapters/SMB/*、FileBrowsing/Adapters/WebDAV/*
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 连接 SMB/WebDAV 服务器 → 断开网络 → 浏览文件触发错误 → 恢复网络 → 点击 Retry 按钮 → 文件列表恢复 → 自动重连失败时显示错误弹窗
+- **退化信号**: Retry 按钮不出现、自动重连无限循环、重连后路径丢失、错误信息不显示
 - **状态**: active
 - **创建日期**: 2026-04-02
 
