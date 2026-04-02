@@ -9,10 +9,23 @@ import SwiftUI
 
 public struct ToggleImmersiveSpaceButton: View {
 
+    public enum Style {
+        /// Full-width text button (default, used in SceneSelectorView).
+        case standard
+        /// Icon-only button suitable for toolbar placement.
+        case compact
+    }
+
+    private let style: Style
+
     @Environment(AppModel.self) private var appModel
 
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
+
+    public init(style: Style = .standard) {
+        self.style = style
+    }
 
     public var body: some View {
         Button {
@@ -49,7 +62,14 @@ public struct ToggleImmersiveSpaceButton: View {
                 }
             }
         } label: {
-            Text(appModel.immersiveSpaceState == .open ? "Hide Immersive Space" : "Show Immersive Space")
+            switch style {
+            case .standard:
+                Text(appModel.immersiveSpaceState == .open ? "Hide Immersive Space" : "Show Immersive Space")
+            case .compact:
+                Image(systemName: appModel.immersiveSpaceState == .open
+                      ? "visionpro.fill"
+                      : "visionpro")
+            }
         }
         .disabled(appModel.immersiveSpaceState == .inTransition)
         .animation(.none, value: 0)
