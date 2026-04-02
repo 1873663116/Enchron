@@ -123,3 +123,67 @@
 **测试状态**: swift test: 未执行（本轮为审查轮）| 基线: 205 passed
 **下轮应做**: T0.5 — 测试代码落地（创建 stub 类型 + 编写 43 个测试 + swift test 确认红色 + git commit）
 **Status**: IN_PROGRESS
+
+---
+## Round 5 — 2026-04-02T18:15:00+08:00
+
+**Pipeline State**: PLANNING → EXECUTING
+**本轮目标**: T0.5 — 测试代码落地
+**完成情况**:
+- [AGENT] stub-creator (Sonnet) → 创建 9 个 stub 源文件 + 更新 Package.swift（12 新 source entries）
+- [AGENT] test-creator (Sonnet) → 创建 8 个测试文件（43 tests） + 修改 ProjectionType.swift（+3 stub 计算属性）
+- `swift test`: 248 tests executed, 1 skipped, 43 FAILED (all new), 205 PASSED (all old)
+- git commit: bb83631
+
+**新增文件 (20 files changed, 696 insertions)**:
+- 9 stub 源文件: SpatialSceneDomain + CinemaEnvironment + ScreenGeometry + VirtualScreenConfiguration + HemisphereMeshConfiguration + FisheyeRemapConfiguration + StereoMode + PlaybackModeManaging + DecidePlaybackModeUseCase
+- 8 测试文件: CinemaEnvironmentTests(6) + VirtualScreenConfigTests(7) + ScreenPositionValidationTests(5) + StereoFrameSplitTests(7) + HemisphereMeshConfigTests(4) + FisheyeRemapConfigTests(3) + PlaybackModeRoutingTests(6) + ProjectionDetectionExtendedTests(5)
+- Package.swift: +12 source paths (9 new stubs + 3 existing deps)
+- ProjectionType.swift: +3 stub computed properties (isStereo3D, requiresHemisphereMesh, requiresFisheyeRemap)
+
+**Phase 0 退出条件验证**:
+- ✅ T0.1 全文档审计 (Round 1)
+- ✅ T0.2 API 调研 (Round 2)
+- ✅ T0.3 测试计划设计 (Round 3)
+- ✅ T0.4 对抗性审查三阶段裁决 (Round 4)
+- ✅ T0.5 测试代码落地: 43 新测试全 FAIL, 205 旧测试全 PASS
+- → **Phase Transition: PLANNING → EXECUTING**
+
+**Decision Log**:
+- [AUTO] Stub 设计 | displayName 属性拦截纯结构测试 | P1+P5 | 确保 43/43 全 FAIL
+- [AUTO] Package.swift | 同时加入 3 个已有但未列入的文件 | P4 | SavedScreenPosition/FileIdentifier/PlaybackMode 为测试编译依赖
+- [AUTO] Phase Transition | PLANNING 5 项全部完成 | P6 | 退出条件明确满足
+
+**测试状态**: swift test: 248 total | 205 passed | 43 failed | 1 skipped | 新增: 43 | FAIL: all 43 new tests
+**下轮应做**: T1.1 — 沉浸影院模式：虚拟屏幕实体（VirtualScreenEntity + 平面/曲面 mesh + 纹理桥接）
+**Status**: IN_PROGRESS
+
+---
+## Round 6 — 2026-04-02T22:20:00+08:00
+
+**Pipeline State**: EXECUTING → EXECUTING
+**本轮目标**: T1.1 — 沉浸影院模式：虚拟屏幕实体
+**完成情况**:
+- 填充 CinemaEnvironment stub: displayName（暗黑影院/星空夜景/自然日落）+ skyboxAssetName（nil/StarryNight/SunsetNature）→ 6 tests PASS
+- 填充 VirtualScreenConfiguration stub: aspectRatio（flat=w/h, curved=arcWidth/h）+ init width clamping [1.0,10.0] + switchToCurved 保持高度 → 7 tests PASS
+- [AGENT] Sonnet subagent → 创建 VirtualScreenEntity.swift（enum + 4 static methods）+ 更新 ImmersiveSpaceView（.immersive 分支接入虚拟屏幕）
+- VirtualScreenEntity: makeEntity / updateTexture / switchGeometry / updatePosition
+- ImmersiveSpaceView: @State virtualScreenEntity 管理生命周期，.panorama/.immersive/.window 三态互斥清理
+- git commit: 848f8a2
+
+**核心实现决策**:
+- VirtualScreenEntity 遵循 PanoramaSphereEntity 的 enum+static 模式
+- Flat: MeshResource.generatePlane(width:height:) xy-plane
+- Curved: MeshResource.generateCylinder + scale.x *= -1（内侧渲染）
+- switchGeometry: 先 abs(scale.x) 重置再按需翻转，确保 curved→flat→curved 正确
+- 纹理复用: PanoramaLayerBridge.textureResource 共享（播放模式互斥）
+- 位置: SIMD3(0, verticalOffset, -distance) + simd_quatf X轴旋转
+
+**Decision Log**:
+- [AUTO] VirtualScreenEntity 模式 | enum+static 与 PanoramaSphereEntity 一致 | P4+P5 | 复用已验证模式
+- [AUTO] 曲面法线翻转 | scale.x *= -1 | P3 | 与 PanoramaSphereEntity 同一技巧
+- [AUTO] Settings 屏幕形状 UI | 推迟到 T1.2 一起做 | P3 | 位置控制 + 形状选择天然一组
+
+**测试状态**: swift test: 248 total | 218 passed | 30 failed (test cases) | 1 skipped | T1.1 目标 13 tests 全部 PASS
+**下轮应做**: T1.2 — 屏幕位置控制（SavedScreenPosition clamping + ScreenPositionStoring 环境独立记忆 + Settings 屏幕形状选择）
+**Status**: IN_PROGRESS
