@@ -135,6 +135,7 @@ public struct VideoDetailView: View {
                     }
                     .buttonStyle(.borderedProminent)
                     .tint(.accentColor)
+                    .accessibilityLabel("Resume from \(Self.formatTime(progress.position.seconds))")
 
                     Button {
                         coordinator.confirmPlayback(prepared)
@@ -146,6 +147,7 @@ public struct VideoDetailView: View {
                             .padding(.vertical, 10)
                     }
                     .buttonStyle(.bordered)
+                    .accessibilityLabel("Play from start")
                 }
                 .padding(.top, 8)
 
@@ -320,6 +322,7 @@ public struct VideoDetailView: View {
         .buttonStyle(.borderedProminent)
         .tint(.accentColor)
         .disabled(!enabled)
+        .accessibilityLabel("Play")
         .padding(.top, 8)
     }
 
