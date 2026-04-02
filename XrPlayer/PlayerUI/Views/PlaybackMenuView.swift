@@ -67,6 +67,28 @@ public struct PlaybackMenuView: View {
                         }
                     }
 
+                    if videoViewModel.isHDRContent {
+                        Divider().padding(.vertical, 6)
+
+                        sectionHeader("Video Output")
+                        Toggle(isOn: Binding(
+                            get: { videoViewModel.isHDROutputEnabled },
+                            set: { videoViewModel.setHDREnabled($0) }
+                        )) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("HDR Output")
+                                    .font(.body)
+                                Text(PlaybackInfoFormatter.hdrTypeLabel(
+                                    videoViewModel.displayMediaProfile?.hdrType ?? .sdr))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 10)
+                    }
+
                 }
                 .padding(.bottom, 8)
             }
