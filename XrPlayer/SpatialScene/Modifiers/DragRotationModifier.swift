@@ -22,7 +22,8 @@ extension View {
     }
 }
 
-/// Converts drag gestures on RealityKit entities into scene rotation.
+/// Converts drag gestures on RealityKit entities into scene rotation,
+/// and pinch-to-zoom into scene scale. Drag and Magnify run simultaneously.
 private struct DragRotationModifier: ViewModifier {
     var pitchLimit: Angle?
     var sensitivity: Double
@@ -31,9 +32,12 @@ private struct DragRotationModifier: ViewModifier {
     @State private var yaw: Double = 0
     @State private var basePitch: Double = 0
     @State private var pitch: Double = 0
+    @State private var scale: Double = 1.0
+    @State private var startScale: Double?
 
     func body(content: Content) -> some View {
         content
+            .scaleEffect(scale)
             .rotation3DEffect(.radians(yaw == 0 ? 0.01 : yaw), axis: (x: 0, y: 1, z: 0))
             .rotation3DEffect(.radians(pitch == 0 ? 0.01 : pitch), axis: (x: 1, y: 0, z: 0))
             .gesture(DragGesture(minimumDistance: 0.0)
@@ -68,6 +72,18 @@ private struct DragRotationModifier: ViewModifier {
 
                     baseYaw = yaw
                     basePitch = pitch
+                }
+            )
+            .simultaneousGesture(MagnifyGesture()
+                .onChanged { value in
+                    let base = startScale ?? scale
+                    if startScale == nil { startScale = scale }
+                    withAnimation(.interactiveSpring) {
+                        scale = max(0.5, min(2.0, value.magnification * base))
+                    }
+                }
+                .onEnded { _ in
+                    startScale = nil
                 }
             )
     }
