@@ -46,6 +46,11 @@ struct XrPlayerApp: App {
             windowVideoViewModel: windowVideoViewModel
         )
 
+        // Clean up expired playback progress entries (older than 5 days).
+        Task.detached(priority: .background) {
+            await SwiftDataStore().cleanExpiredProgress(olderThan: 5)
+        }
+
         // Pre-warm MPV in the background to reduce first-play black-screen latency.
         player.warmup()
         let localDataSource = LocalDataSourceAdapter()

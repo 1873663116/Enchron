@@ -182,6 +182,15 @@ public struct FileBrowserView: View {
                             Button("Import Video...") {
                                 isVideoPickerPresented = true
                             }
+                            Button("Photo Library...") {
+                                let ds = FileBrowsingDomain.DataSource(
+                                    id: UUID(),
+                                    name: "Photo Library",
+                                    sourceType: .photoLibrary,
+                                    connectionInfo: .init(sourceType: .photoLibrary)
+                                )
+                                Task { await viewModel.connectToDataSource(ds) }
+                            }
                             Button("Use App Documents") {
                                 Task {
                                     await viewModel.useDefaultFolder()
@@ -282,6 +291,10 @@ public struct FileBrowserView: View {
                     }
                 )
             ) {
+                Button("Retry") {
+                    viewModel.lastErrorMessage = nil
+                    Task { await viewModel.loadFiles() }
+                }
                 Button("OK", role: .cancel) {
                     viewModel.lastErrorMessage = nil
                 }
