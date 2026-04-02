@@ -929,3 +929,47 @@ F3.9/H04 (捏合拖拽):
 **测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
 **下轮应做**: Phase 2 T2.2 — UX-07 Window Management (openWindow/dismissWindow) + T2.3 测试素材播放验证
 **Status**: IN_PROGRESS
+
+---
+
+## Round 23 — 2026-04-02T21:40:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.2 — HelloWorld UX 改进 #5）
+**本轮目标**: UX-07 openWindow/dismissWindow 窗口管理
+**完成情况**:
+- [READ] XrPlayerApp.swift + SettingsView.swift + AppTabView.swift + PlayerControlsView.swift → 确认 Settings 已在 Tab 中，但无独立窗口能力
+- [EDIT] `XrPlayerApp.swift` — 新增 `WindowGroup(id: "settings")` 注册独立设置窗口，注入 `.environment(appModel)`
+- [EDIT] `PlayerControlsView.swift` — 新增 `@Environment(\.openWindow)` + `settingsWindowButton`（gearshape），播放时可直接打开 Settings 独立窗口
+- [BUILD] swift build → Build complete ✅
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures ✅
+- [COMMIT] 9637792 feat(PlayerUI): add Settings window via openWindow/dismissWindow (UX-07)
+
+**实现细节**:
+- SettingsView 已通过 Tab 可达，openWindow 补充"播放时不中断访问设置"能力
+- WindowGroup(id: "settings") 注入 appModel（SettingsView 唯一环境依赖）
+- settingsWindowButton 位于 secondaryControlRow 末尾，gearshape 图标 + 60pt 尺寸
+- 参考 HelloWorld GlobeToggle.swift 模式，用 @Environment(\.openWindow) 程序化开窗
+
+**影响范围**:
+- UX-07 (openWindow/dismissWindow): 完成 ✅
+- 播放时 PlayerControlsView 新增 Settings 入口，无需中断播放
+
+**T2.2 UX 改进完成状态**:
+| UX 项 | 状态 |
+|-------|------|
+| UX-01 DragRotationModifier | ✅ Round 19 |
+| UX-02 VideoDetailView 分栏 | ✅ Round 22 |
+| UX-03 Glass cornerRadius | ✅ Round 20 |
+| UX-04 SliderGridRow | ✅ Round 20 |
+| UX-05 ImmersionStyle 动态绑定 | ✅ Round 20 |
+| UX-06 Drag+Magnify 同时手势 | ✅ Round 21 |
+| UX-07 openWindow/dismissWindow | ✅ Round 23 |
+| UX-08 FileCard/FolderCard | P2（推迟，非 MVP 必需） |
+
+**Decision Log**:
+- [AUTO] openWindow 入口位置 | secondaryControlRow 末尾 | P3 | 播放控件是访问 Settings 的自然场景；Tab 设置不受影响
+- [AUTO] UX-08 FileCard/FolderCard | 推迟 P2 | P3 | 现有 FolderListView 可用，无阻塞性问题
+
+**测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.3 — 测试素材播放验证（12 种格式逐一验证自动检测与渲染管线）
+**Status**: IN_PROGRESS
