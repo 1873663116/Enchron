@@ -18,7 +18,7 @@
 | PlaybackCore/Domain/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlaybackCore/UseCases/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlayerUI/UseCases/DetailedTimelineGeometry.swift | REG-080 |
-| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081 |
+| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081, REG-108, REG-109 |
 | PlayerUI/Views/VideoDetailView.swift | REG-082, REG-088 |
 | PlayerUI/Views/PlayerControlSurface.swift | REG-012, REG-013, REG-015, REG-016, REG-019 |
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
@@ -36,13 +36,24 @@
 | Persistence/Domain/* | REG-030, REG-031 |
 | App/XrPlayerApp.swift | REG-091, REG-094 |
 | App/PlaybackLaunching.swift | REG-095 |
-| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087, REG-093, REG-095 |
+| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087, REG-093, REG-095, REG-109 |
 | App/PreparedPlayback.swift | REG-082, REG-083 |
 | App/AppCoordinator.swift | REG-040, REG-041 |
 | App/MainView.swift | REG-041, REG-087, REG-093 |
 | App/Navigation/* | REG-041, REG-084 |
-| SpatialScene/* | REG-050, REG-070, REG-071 |
-| SpatialScene/Renderers/* | REG-070, REG-071 |
+| SpatialScene/* | REG-050, REG-070, REG-071, REG-100, REG-101, REG-102, REG-103, REG-104, REG-105, REG-106, REG-107, REG-108, REG-109 |
+| SpatialScene/Domain/* | REG-100, REG-101, REG-102, REG-103, REG-104, REG-105, REG-106, REG-107 |
+| SpatialScene/Renderers/VirtualScreenEntity.swift | REG-100, REG-101 |
+| SpatialScene/Renderers/EnvironmentDomeEntity.swift | REG-104 |
+| SpatialScene/Renderers/PanoramaLayerBridge.swift | REG-070, REG-071, REG-106, REG-107 |
+| SpatialScene/Renderers/PanoramaSphereEntity.swift | REG-070, REG-071, REG-105 |
+| SpatialScene/Scenes/ImmersiveSpaceView.swift | REG-070, REG-071, REG-100, REG-101, REG-104, REG-105, REG-106, REG-107, REG-109 |
+| SpatialScene/Views/SceneSelectorView.swift | REG-050, REG-104 |
+| SpatialScene/Renderers/* | REG-070, REG-071, REG-100, REG-101, REG-105, REG-106, REG-107 |
+| PlayerUI/UseCases/DecidePlaybackModeUseCase.swift | REG-109 |
+| PlaybackCore/Domain/ValueObjects/StereoMode.swift | REG-106 |
+| Settings/Views/SettingsView.swift | REG-031, REG-085, REG-101, REG-103, REG-104 |
+| Shared/VideoShaders.metal | REG-107 |
 
 路径粒度说明：默认为目录级（如 `PlaybackCore/Domain/*`）。对于高风险的关键文件使用文件级（如 `PlaybackLaunchCoordinator.swift`）。
 
@@ -578,6 +589,122 @@
 - **Agent 自检**: `xcodebuild build` 编译通过
 - **真机验证**: Photo Library → 进入相册文件夹 → 视频列表正确显示
 - **退化信号**: 相册内无视频、编译失败、fetchAssets 调用错误
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+---
+
+
+## 沉浸影院 / 全景 / 播放路由回归项（v2 overnight）
+
+
+### REG-100: 虚拟屏幕实体创建与渲染
+
+- **来源**: T1.1 沉浸影院模式 — 虚拟屏幕实体
+- **触发条件**: 改动 SpatialScene/Renderers/VirtualScreenEntity.swift、SpatialScene/Scenes/ImmersiveSpaceView.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter VirtualScreenConfigTests` 通过
+- **真机验证**: 进入沉浸影院模式 → 虚拟屏幕出现在正前方 → 视频正常渲染到屏幕上 → 画面清晰无闪烁
+- **退化信号**: 虚拟屏幕不出现、画面黑屏、纹理拉伸/翻转、进入沉浸空间后崩溃
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-101: 虚拟屏幕平面/曲面切换
+
+- **来源**: T1.1 屏幕形状切换逻辑
+- **触发条件**: 改动 SpatialScene/Renderers/VirtualScreenEntity.swift、SpatialScene/Domain/VirtualScreenConfiguration.swift、Settings/Views/SettingsView.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter VirtualScreenConfigTests` 通过
+- **真机验证**: 沉浸影院模式播放中 → Settings 切换 Screen Shape 为 Curved → 屏幕变为曲面 → 切回 Flat → 恢复平面 → 播放不中断
+- **退化信号**: 切换后屏幕消失、形状未变化、切换后法线翻转（从外侧看到画面）、切换导致崩溃
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-102: 屏幕位置调节可用
+
+- **来源**: T1.2 屏幕位置控制
+- **触发条件**: 改动 SpatialScene/Scenes/ImmersiveSpaceView.swift、Persistence/Domain/Entities/SavedScreenPosition.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter ScreenPositionValidationTests` 通过
+- **真机验证**: 沉浸影院模式 → 调节距离 Slider（2m-20m）→ 屏幕前后移动 → 调节高度 Slider → 屏幕上下移动 → 调节旋转 Slider（±45°）→ 屏幕倾斜
+- **退化信号**: Slider 拖动无反应、屏幕位置不变、超出边界值（<2m 或 >20m）
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-103: 环境独立位置记忆
+
+- **来源**: T1.2 每个环境独立的位置记忆
+- **触发条件**: 改动 AppModel.swift、Persistence/Domain/Entities/SavedScreenPosition.swift、Settings/Views/SettingsView.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter ScreenPositionValidationTests` 通过
+- **真机验证**: 暗黑影院环境中调整距离为 5m → 切换到星空夜景 → 距离恢复为该环境记忆值 → 切回暗黑影院 → 距离恢复为 5m
+- **退化信号**: 切换环境后位置未恢复、所有环境共享同一位置、位置记忆丢失
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-104: 沉浸影院环境切换
+
+- **来源**: T1.3 三个沉浸式环境
+- **触发条件**: 改动 SpatialScene/Renderers/EnvironmentDomeEntity.swift、SpatialScene/Views/SceneSelectorView.swift、SpatialScene/Scenes/ImmersiveSpaceView.swift、Settings/Views/SettingsView.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter CinemaEnvironmentTests` 通过
+- **真机验证**: SceneSelectorView → 点击暗黑影院按钮 → 背景变为近黑色 → 点击星空夜景 → 背景变为深蓝色 → 点击自然日落 → 背景变为暖琥珀色 → 播放不中断
+- **退化信号**: 环境按钮无响应、背景颜色不变、切换导致播放中断或崩溃、dome entity 未创建
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-105: 180° 半球裁剪渲染
+
+- **来源**: T1.4 全景视频完善 — 半球裁剪
+- **触发条件**: 改动 SpatialScene/Renderers/PanoramaSphereEntity.swift、SpatialScene/Domain/HemisphereMeshConfiguration.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter HemisphereMeshConfigTests` 通过
+- **真机验证**: 打开 180° 全景视频 → 前半球正确显示内容 → 后半球无内容（黑色或透明）→ 内容居中于视野正前方 → 无拉伸或扭曲
+- **退化信号**: 180° 视频被拉伸到 360°、后半球出现重复内容、UV 映射错误导致画面错位
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-106: Stereo 3D SBS/OU 帧分离渲染
+
+- **来源**: T1.4 全景视频完善 — 立体 3D
+- **触发条件**: 改动 SpatialScene/Renderers/PanoramaLayerBridge.swift、PlaybackCore/Domain/ValueObjects/StereoMode.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter StereoFrameSplitTests` 通过
+- **真机验证**: 打开 SBS 立体视频 → 画面只显示左半帧（非左右并排）→ 打开 OU 立体视频 → 画面只显示上半帧（非上下堆叠）→ 画面比例正确（无水平/垂直拉伸）
+- **退化信号**: SBS 视频仍显示左右并排画面、OU 视频仍显示上下堆叠、裁剪区域错误、输出尺寸不正确
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-107: 鱼眼投影重映射
+
+- **来源**: T1.4 全景视频完善 — 鱼眼重映射
+- **触发条件**: 改动 Shared/VideoShaders.metal、SpatialScene/Renderers/PanoramaLayerBridge.swift、SpatialScene/Domain/FisheyeRemapConfiguration.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter FisheyeRemapConfigTests` 通过
+- **真机验证**: 打开鱼眼投影视频 → Metal compute shader 将鱼眼映射为等距矩形 → 全景球体中画面无桶形畸变 → 中心和边缘区域均无明显失真
+- **退化信号**: 鱼眼视频未被重映射（圆形画面仍可见）、重映射后画面严重失真、compute shader 崩溃
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-108: 投影类型手动覆盖
+
+- **来源**: T1.4 投影类型手动覆盖 UI
+- **触发条件**: 改动 PlayerUI/Views/PlayerControlsView.swift、AppModel.swift
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 播放视频 → PlayerControlsView 中投影 Picker 显示当前检测结果 → 手动选择 panorama360 → 视频以全景球体渲染 → 手动选回 Auto → 恢复自动检测
+- **退化信号**: Picker 不显示、选择后无效果、切换新视频时旧覆盖残留
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-109: 播放模式自动路由
+
+- **来源**: T1.5 播放模式自动路由
+- **触发条件**: 改动 PlayerUI/UseCases/DecidePlaybackModeUseCase.swift、PlayerUI/Views/PlayerControlsView.swift、App/PlaybackLaunchCoordinator.swift、SpatialScene/Scenes/ImmersiveSpaceView.swift
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter PlaybackModeRoutingTests` 通过
+- **真机验证**: 播放 flat 视频 → 窗口模式 → 进入沉浸空间 → 自动切换为沉浸影院 → 播放 360° 视频 → 自动全景模式 → 手动覆盖为窗口模式 → 模式正确切换 → 切换另一视频 → 覆盖清除，重新自动路由
+- **退化信号**: 视频类型与模式不匹配、手动覆盖不生效、新视频继承旧覆盖、模式切换导致崩溃或画面丢失
 - **状态**: active
 - **创建日期**: 2026-04-02
 

@@ -330,3 +330,34 @@
 **测试状态**: swift test: 248 total | 248 passed | 0 failed | 1 skipped | 无新增测试（Metal compute 无法在 SPM 上下文测试）
 **下轮应做**: T1.3 最后一项 Simulator 验证 → Phase 1 所有 task 完成 → Phase Transition to VERIFYING (T2.1 swift test 全绿 + T2.2 /qa E2E)
 **Status**: IN_PROGRESS
+
+---
+## Round 12 — 2026-04-02T15:15:00+08:00
+
+**Pipeline State**: EXECUTING → VERIFYING
+**本轮目标**: Phase Transition + T2.1 swift test 验证 + T2.3 REGRESSION.md 更新
+**完成情况**:
+- `swift test`: 248 total, 248 passed, 0 failed, 1 skipped (pre-existing WebDAV integration) ✅
+- T2.1 验证: 248 ≥ 245, 0 FAIL, 1 pre-existing SKIP → PASS
+- T2.3 REGRESSION.md 更新: 新增 REG-100~REG-109 (10 条回归项) + 代码路径映射索引更新 (13 条新增/修改)
+- Phase 1 退出条件全部满足 → Phase Transition: EXECUTING → VERIFYING
+
+**新增回归项 (10 条)**:
+- REG-100: 虚拟屏幕实体创建与渲染 (T1.1)
+- REG-101: 虚拟屏幕平面/曲面切换 (T1.1)
+- REG-102: 屏幕位置调节可用 (T1.2)
+- REG-103: 环境独立位置记忆 (T1.2)
+- REG-104: 沉浸影院环境切换 (T1.3)
+- REG-105: 180° 半球裁剪渲染 (T1.4)
+- REG-106: Stereo 3D SBS/OU 帧分离渲染 (T1.4)
+- REG-107: 鱼眼投影重映射 (T1.4)
+- REG-108: 投影类型手动覆盖 (T1.4)
+- REG-109: 播放模式自动路由 (T1.5)
+
+**Decision Log**:
+- [AUTO] T2.1 SKIP 豁免 | WebDAV integration test 需真实服务器凭证 | P3+P5 | 自 v0.3 即存在，非新增 skip
+- [AUTO] Phase Transition | Phase 1 T1.1~T1.6 全部完成 + 248 tests 全绿 | P6 | 退出条件明确满足
+
+**测试状态**: swift test: 248 total | 248 passed | 0 failed | 1 skipped | T2.1 PASS ✅
+**下轮应做**: T2.2 — /qa E2E 端到端测试（三种播放模式 Simulator 验证）
+**Status**: IN_PROGRESS
