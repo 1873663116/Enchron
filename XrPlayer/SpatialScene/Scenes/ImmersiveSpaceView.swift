@@ -9,6 +9,7 @@ public struct ImmersiveSpaceView: View {
     @State private var virtualScreenEntity: Entity?
     @State private var environmentDomeEntity: Entity?
     @State private var lastProjection: PanoramaProjection = .full360
+    @State private var lastDomeEnvironment: SpatialSceneDomain.CinemaEnvironment?
 
     public init() {}
 
@@ -38,6 +39,11 @@ public struct ImmersiveSpaceView: View {
                 )
                 content.add(dome)
                 environmentDomeEntity = dome
+                lastDomeEnvironment = appModel.currentCinemaEnvironment
+                await EnvironmentDomeEntity.loadSkyboxTexture(
+                    on: dome,
+                    environment: appModel.currentCinemaEnvironment
+                )
 
                 let entity = VirtualScreenEntity.makeEntity(
                     textureResource: panoramaBridge.textureResource
@@ -66,6 +72,7 @@ public struct ImmersiveSpaceView: View {
                 if let entity = environmentDomeEntity {
                     content.remove(entity)
                     environmentDomeEntity = nil
+                    lastDomeEnvironment = nil
                 }
                 let currentProjection: PanoramaProjection = appModel.effectiveProjectionType.requiresHemisphereMesh ? .front180 : .full360
                 if currentProjection != lastProjection, let oldSphere = sphereEntity {
@@ -109,12 +116,23 @@ public struct ImmersiveSpaceView: View {
                     )
                     content.add(dome)
                     environmentDomeEntity = dome
+                    lastDomeEnvironment = appModel.currentCinemaEnvironment
+                    Task {
+                        await EnvironmentDomeEntity.loadSkyboxTexture(
+                            on: dome,
+                            environment: appModel.currentCinemaEnvironment
+                        )
+                    }
                 }
-                if let dome = environmentDomeEntity {
-                    EnvironmentDomeEntity.switchEnvironment(
-                        on: dome,
-                        to: appModel.currentCinemaEnvironment
-                    )
+                if let dome = environmentDomeEntity,
+                   appModel.currentCinemaEnvironment != lastDomeEnvironment {
+                    lastDomeEnvironment = appModel.currentCinemaEnvironment
+                    Task {
+                        await EnvironmentDomeEntity.switchEnvironment(
+                            on: dome,
+                            to: appModel.currentCinemaEnvironment
+                        )
+                    }
                 }
                 if virtualScreenEntity == nil {
                     let entity = VirtualScreenEntity.makeEntity(
@@ -159,6 +177,7 @@ public struct ImmersiveSpaceView: View {
                 if let entity = environmentDomeEntity {
                     content.remove(entity)
                     environmentDomeEntity = nil
+                    lastDomeEnvironment = nil
                 }
                 panoramaBridge.fisheyeRemapConfig = nil
                 panoramaBridge.stereoCropMode = nil
