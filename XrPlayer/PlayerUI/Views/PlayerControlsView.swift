@@ -78,7 +78,7 @@ public struct PlayerControlsView: View {
         .padding(.horizontal, 32)
         .padding(.vertical, 28)
         .frame(width: 720)
-        .glassBackgroundEffect()  // Base spatial material
+        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 32, style: .continuous))  // Base spatial material
         .background(
             .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous)
         )  // Nested glass layering

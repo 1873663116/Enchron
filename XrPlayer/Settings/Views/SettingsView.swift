@@ -6,6 +6,7 @@ public struct SettingsView: View {
     @State private var playbackEndBehavior: PersistenceDomain.PlaybackEndBehavior = .stop
     @State private var defaultPlaybackSpeed: Double = 1.0
     @State private var isCurvedScreen: Bool = false
+    @State private var isFullImmersion: Bool = true
     @State private var selectedEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
     private let preferencesStore: PreferencesStoring
 
@@ -38,6 +39,11 @@ public struct SettingsView: View {
             Section("Immersive Space") {
                 ToggleImmersiveSpaceButton()
 
+                Picker("Immersion Style", selection: $isFullImmersion) {
+                    Text("Full").tag(true)
+                    Text("Mixed").tag(false)
+                }
+
                 Picker("Screen Shape", selection: $isCurvedScreen) {
                     Text("Flat").tag(false)
                     Text("Curved").tag(true)
@@ -62,6 +68,7 @@ public struct SettingsView: View {
             playbackEndBehavior = prefs.playbackEndBehavior
             defaultPlaybackSpeed = prefs.defaultPlaybackSpeed
             isCurvedScreen = prefs.isScreenCurved
+            isFullImmersion = appModel.isFullImmersion
             selectedEnvironment = appModel.currentCinemaEnvironment
         }
         .onChange(of: resumePolicy) { _, newValue in
@@ -78,6 +85,9 @@ public struct SettingsView: View {
             var prefs = preferencesStore.loadPreferences()
             prefs.defaultPlaybackSpeed = newValue
             preferencesStore.savePreferences(prefs)
+        }
+        .onChange(of: isFullImmersion) { _, full in
+            appModel.isFullImmersion = full
         }
         .onChange(of: isCurvedScreen) { _, curved in
             if curved {

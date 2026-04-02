@@ -48,6 +48,7 @@ public final class AppModel {
     // MARK: - Immersive Cinema State
     public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
     public var screenShape: SpatialSceneDomain.ScreenGeometry = .flat(width: 2.4, height: 1.35)
+    public var isFullImmersion: Bool = true
 
     private let screenPositionStore: ScreenPositionStoring
 
