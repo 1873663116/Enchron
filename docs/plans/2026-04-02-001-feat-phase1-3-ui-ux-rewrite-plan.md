@@ -234,10 +234,11 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 - Test: `XrPlayerTests/PlaybackLaunchCoordinatorTests.swift`
 
 **Approach:**
-- Add `PreparedPlayback` struct holding: `PlaybackLaunchRequest`, resolved `PlaybackMediaMetadata?`, preheat `Task`, generation stamp
-- Add `preparePlayback(_ request:) -> PreparedPlayback` — starts metadata prefetch and pipeline warmup but does NOT call `play(url:)`
-- Add `confirmPlayback(_ prepared:)` — validates generation, calls existing play logic
-- Add `cancelPreparedPlayback(_ prepared:)` — cancels preheat task, cleans up
+- Add `PreparedPlayback` struct holding: `PlaybackLaunchRequest`, resolved `PlaybackMediaMetadata?`, resolved track lists (`[AudioTrack]`, `[SubtitleTrack]`), preheat `Task`, generation stamp, error state
+- Add `preparePlayback(_ request:) -> PreparedPlayback` — starts metadata prefetch AND mpv `loadfile` with `pause=yes` to enumerate tracks without starting playback. This is necessary because track information (audio/subtitle lists) requires mpv to actually parse the container.
+- Add `confirmPlayback(_ prepared:)` — validates generation, resumes paused mpv (or calls play if warmup path differs)
+- Add `cancelPreparedPlayback(_ prepared:)` — cancels preheat task, stops mpv preload, cleans up. Includes TTL auto-cancel (60s timeout) for abandoned preparations.
+- Error handling: `PreparedPlayback` has optional `error: Error?` field. Remote file failures during prepare surface to VideoDetailView, not FileBrowserView.
 - Existing `beginPlayback()` remains for direct-play callers (playlist, smoke test)
 - `FileBrowsingViewModel.selectFile()` switches from `onPlayFile(request)` to `onPrepareFile(request)` callback
 
@@ -493,3 +494,36 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 - Implementation roadmap: `workspace-agents/design_docs/phase4_implementation_roadmap.md`
 - Known issues: `workspace-agents/known_issues.md`
 - HelloWorld reference: `/Users/xiongzhipeng/Movies/HelloWorld`
+
+## CEO Review Findings (2026-04-02)
+
+### P1 Issues (Must Address Before Execution)
+
+1. **Track 信息获取时机** — 音轨/字幕列表需要 mpv 实际加载文件才能获取（来自 `WindowVideoViewModel.availableAudioTracks`）。当前 `PlaybackMediaMetadataService.prepareMetadata()` 只获取 mediaProfile（分辨率、HDR），不含 track 列表。`preparePlayback` 必须执行 `mpv loadfile` + `pause=yes` 模式以获取 track 信息，否则 VideoDetailView 无法展示字幕/音轨选择。这需要在 Unit 3 方案中增加 mpv 预加载逻辑。
+
+2. **Remote file prepare 错误路径** — 网络断开时 `preparePlayback` 的 `resolvePlayableURL` 会抛异常。当前 `selectFile` 在 FileBrowsingViewModel 中有 catch 并设 `lastErrorMessage`，但新流程需要将错误传播到 VideoDetailView（而非 FileBrowserView）。Unit 3 和 Unit 4 需要定义 `PreparedPlayback` 的错误状态和 UI 展示。
+
+### P2 Issues (Address During Implementation)
+
+3. **网络中断 prepare→confirm 间隙** — 用户在 VideoDetailView 已看到完整元数据，但点击 Play 时 SMB 连接已断。`confirmPlayback` 会尝试播放不可达 URL。缓解：依赖 mpv 自身错误处理 + 现有 `PlaybackError` 传播路径。
+
+4. **Immersive toggle 附着点** — MainView 是 ZStack（非 NavigationStack），`.toolbar` 修饰符需附着在 AppTabView 内部或使用 `.safeAreaInset`。实现时需确认正确宿主。
+
+5. **PreparedPlayback 生命周期泄漏** — 用户 prepare 后既不 confirm 也不 cancel（如 App 进入后台），preheat task 和 mpv 预加载需有超时或自动清理机制。建议在 `PreparedPlayback` 中加入 TTL（如 60s）超时自动 cancel。
+
+### Strategic Assessment
+
+- **方向**：正确。Phase 3 UX 重构是产品从"技术 demo"到"可用产品"的关键一步。
+- **优先级**：T3.2（视频详情）影响最大，应优先。T3.4（沉浸入口）最低风险，可并行。
+- **12 个月轨迹**：计划正确地不触碰沉浸场景核心架构，保持了向终极形态演进的空间。
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | DONE | mode: HOLD_SCOPE, 2 P1 + 3 P2 issues |
+| Codex Review | `/codex:rescue` | Independent 2nd opinion | 0 | — | — |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 0 | — | — |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+
+**VERDICT:** CEO REVIEW PASSED — 5 issues found (2 P1, 3 P2), all actionable during implementation. Eng review required next.
