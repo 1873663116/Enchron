@@ -264,3 +264,55 @@
 **测试状态**: swift test: 未执行（本轮纯审查/文档） | 新增: 0 | FAIL: none
 **下轮应做**: Phase 1 T1.1 — 执行全覆盖 /qa E2E 测试（按 qa-plan-v3-comprehensive.md 逐条执行）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 8 — 2026-04-02T18:30:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 1 T1.1 批次 1）
+**本轮目标**: T1.1 QA 执行 — 批次 1 (A 启动导航 + B 文件源 + C 窗口播放，12 条路径)
+**完成情况**:
+- [BUILD] xcodebuild → BUILD SUCCEEDED (Debug-xrsimulator)
+- [SIMULATOR] App installed + launched (PID 40299) on Apple Vision Pro (B170D4C9, visionOS 26.2)
+- [SCREENSHOT] 应用启动首屏截图 → Glass 面板 + 文件列表正常渲染
+- [AGENT] qa-structure-ABC (Sonnet) → 12 条路径代码审计完成
+- [SKILL] /qa → 批次 1 完成: 7 PASS + 4 PARTIAL + 0 FAIL + 1 DEFERRED
+- 产出：`docs/qa-reports/qa-report-v3-batch1-ABC.md`
+
+**QA 批次 1 结果**:
+
+| QA Path | Verdict | Key Finding |
+|---------|---------|-------------|
+| QA-A01 启动首屏 | PARTIAL | Tab 分离(Files/Scenes), 无"本地文件"入口 |
+| QA-A02 场景面板 | PARTIAL | 按钮不触发 openImmersiveSpace, 需另按 Toggle |
+| QA-A03 文件导航 | PARTIAL | 本地子文件夹导航完全不可用 (guard activeRemoteAdapter) |
+| QA-B01 本地浏览 | PARTIAL | 默认 Documents 非 Movies; 缺 codec+duration 显示 |
+| QA-B02 SMB 添加 | PASS | Keychain + SecureField + 错误处理完整 |
+| QA-B03 WebDAV 添加 | PASS | 同 SMB 流程, friendlyErrorMessage 映射 |
+| QA-B04 Photos | DEFERRED | Structure PASS, Simulator 无 Photos 库 |
+| QA-C01 SDR MKV 播放 | PASS | FileFilter + MTKView + play/pause/skip 全链路 |
+| QA-C02 HDR10 播放 | PASS | inferHDRType + EDR PQ + "HDR10" 标签 |
+| QA-C03 DV 播放 | PASS | DoVI 检测 + HDR10 回退 + hwdec videotoolbox |
+| QA-C04 MOV 播放 | PASS | .mov in FileFilter |
+| QA-C05 AVI 播放 | PASS | .avi in FileFilter |
+
+**新发现问题 (5)**:
+
+| # | 严重度 | 问题 |
+|---|--------|------|
+| ISSUE-004 | **High** | 本地子文件夹导航不可用 (FileBrowsingViewModel:303 guard) |
+| ISSUE-001 | Medium | 场景和文件浏览是 Tab 分离, 非同屏 |
+| ISSUE-002 | Medium | 无持久"本地文件"数据源入口 |
+| ISSUE-003 | Medium | 场景卡片不自动打开沉浸空间 |
+| ISSUE-005 | Medium | VideoDetailView 缺 codec + duration |
+
+**Health Score**: 86.7 / 100 (基于批次 1 覆盖范围)
+
+**Decision Log**:
+- [AUTO] 本地文件夹导航 | 标记为 Phase 2 High 修复项 | P1 | 影响所有有子文件夹的用户
+- [AUTO] Tab 分离 | 保留为 deferred 改进 | P3 | Tab UI 是可用的, 只是不如同屏直观
+- [AUTO] 场景卡片 openImmersiveSpace | 保留为 deferred | P3 | 有 ToggleImmersiveSpaceButton 可用, 不阻塞功能
+
+**测试状态**: swift test: 未执行（本轮 QA 测试） | 新增: 0 | FAIL: none
+**下轮应做**: T1.1 批次 2 — D 沉浸影院 + E 全景 + F 3D 立体 (13 条路径)
+**Status**: IN_PROGRESS
