@@ -53,6 +53,14 @@ public struct MainView: View {
                         .transition(.opacity)
                 }
 
+                if windowVideoViewModel.playbackState == .buffering {
+                    ProgressView("Buffering…")
+                        .progressViewStyle(.circular)
+                        .padding(20)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .transition(.opacity)
+                }
+
                 if appModel.showControls && appModel.isPlaying {
                     Button {
                         playbackLauncher.stopPlayback()

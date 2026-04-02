@@ -528,6 +528,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         _ = mpv_observe_property(handle, 6, "dwidth", MPV_FORMAT_INT64)
         _ = mpv_observe_property(handle, 7, "dheight", MPV_FORMAT_INT64)
         _ = mpv_observe_property(handle, 8, "playback-time", MPV_FORMAT_DOUBLE)
+        _ = mpv_observe_property(handle, 9, "paused-for-cache", MPV_FORMAT_FLAG)
     }
 
     private func setWindowLayerOption(on handle: OpaquePointer) throws {
@@ -717,8 +718,25 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         case "track-list":
             refreshTrackCache()
 
+        case "paused-for-cache":
+            handlePausedForCacheChange(property)
+
         default:
             break
+        }
+    }
+
+    private func handlePausedForCacheChange(_ property: mpv_event_property) {
+        guard property.format == MPV_FORMAT_FLAG,
+            let data = property.data?.assumingMemoryBound(to: Int32.self)
+        else { return }
+        let shouldIgnore = stateQueue.sync { isAwaitingVisualPlaybackStart }
+        if shouldIgnore { return }
+        if data.pointee != 0 {
+            updateState(.buffering)
+        } else {
+            let isPaused = flagProperty("pause") ?? false
+            updateState(isPaused ? .paused : .playing)
         }
     }
 
