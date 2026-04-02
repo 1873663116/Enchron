@@ -23,6 +23,7 @@ public struct PlaybackMenuView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .frame(minWidth: 60, minHeight: 60)
                 .accessibilityLabel("Close Playback Settings")
             }
             .padding(.horizontal, 16)
