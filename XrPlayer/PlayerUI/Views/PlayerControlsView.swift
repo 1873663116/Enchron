@@ -144,6 +144,10 @@ public struct PlayerControlsView: View {
                 )
                 .tint(.white)
                 .frame(minHeight: 44)
+                .accessibilityLabel("Playback position")
+                .accessibilityValue(
+                    "\(PlaybackTimeFormatter.clock(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)) of \(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))"
+                )
 
                 Text(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))
                     .font(.caption2.monospacedDigit())
@@ -151,7 +155,7 @@ public struct PlayerControlsView: View {
             }
             .padding(.vertical, 8)
 
-            // Precision time label — visible during drag
+            // Precision time label and detailed timeline — visible during drag
             if isDraggingSlider {
                 Text(
                     PlaybackTimeFormatter.preciseClock(
@@ -162,6 +166,14 @@ public struct PlayerControlsView: View {
                 .font(.system(.caption, design: .monospaced))
                 .foregroundStyle(.orange)
                 .transition(.opacity)
+
+                DetailedTimelineView(
+                    duration: videoViewModel.playbackPosition.duration,
+                    currentTime: videoViewModel.playbackPosition.seconds,
+                    isDragging: isDraggingSlider,
+                    dragTime: dragValue
+                )
+                .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
         .animation(.easeInOut(duration: 0.15), value: isDraggingSlider)
@@ -180,6 +192,7 @@ public struct PlayerControlsView: View {
             }
             .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
             .help("Backward 10s")
+            .accessibilityLabel("Skip backward 10 seconds")
 
             Button {
                 if videoViewModel.playbackState == .ended {
@@ -201,6 +214,7 @@ public struct PlayerControlsView: View {
                     prominence: .primary
                 )
             )
+            .accessibilityLabel(playButtonAccessibilityLabel)
 
             Button {
                 videoViewModel.skip(by: 10)
@@ -211,6 +225,7 @@ public struct PlayerControlsView: View {
             }
             .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
             .help("Forward 10s")
+            .accessibilityLabel("Skip forward 10 seconds")
         }
     }
 
@@ -222,6 +237,17 @@ public struct PlayerControlsView: View {
             return "arrow.counterclockwise"
         default:
             return "play.fill"
+        }
+    }
+
+    private var playButtonAccessibilityLabel: String {
+        switch videoViewModel.playbackState {
+        case .playing:
+            return "Pause"
+        case .ended:
+            return "Replay"
+        default:
+            return "Play"
         }
     }
 
@@ -248,6 +274,7 @@ public struct PlayerControlsView: View {
             }
             .buttonStyle(PlayerControlSurfaceStyle(size: 60))
             .help("Frame Step Backward")
+            .accessibilityLabel("Frame step backward")
 
             Button {
                 videoViewModel.frameStepForward()
@@ -258,6 +285,7 @@ public struct PlayerControlsView: View {
             }
             .buttonStyle(PlayerControlSurfaceStyle(size: 60))
             .help("Frame Step Forward")
+            .accessibilityLabel("Frame step forward")
         }
     }
 
@@ -276,6 +304,7 @@ public struct PlayerControlsView: View {
         }
         .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showPlaybackSettingsPanel))
         .help("Playback Settings")
+        .accessibilityLabel("Playback Settings")
     }
 
     private var screenPositionButton: some View {
@@ -293,6 +322,7 @@ public struct PlayerControlsView: View {
         }
         .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showScreenPositionPanel))
         .help("Screen Position")
+        .accessibilityLabel("Screen Position")
     }
 
     private var infoMenu: some View {
@@ -316,6 +346,7 @@ public struct PlayerControlsView: View {
         }
         .buttonStyle(.plain)
         .help("Media Info")
+        .accessibilityLabel("Media Info")
     }
 
     private var speedMenu: some View {
@@ -339,6 +370,7 @@ public struct PlayerControlsView: View {
                 .playerControlSurface(size: 60)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("Playback speed, \(String(format: "%.1f", appModel.playbackSpeed.value)) times")
     }
 
     private var playlistMenu: some View {
@@ -379,6 +411,7 @@ public struct PlayerControlsView: View {
         }
         .buttonStyle(.plain)
         .help("Playlist")
+        .accessibilityLabel("Playlist")
     }
 
     private var playbackModeMenu: some View {
@@ -405,6 +438,7 @@ public struct PlayerControlsView: View {
         }
         .buttonStyle(.plain)
         .help("Playback Mode: \(appModel.playbackMode.rawValue)")
+        .accessibilityLabel("Playback Mode, \(playbackModeLabel(appModel.playbackMode))")
     }
 
     private func switchPlaybackMode(to mode: PlaybackMode) async {
@@ -500,6 +534,7 @@ public struct PlayerControlsView: View {
         }
         .buttonStyle(.plain)
         .help("Projection: \(projectionLabel(appModel.effectiveProjectionType))")
+        .accessibilityLabel("Projection, \(projectionLabel(appModel.effectiveProjectionType))")
     }
 
     private func projectionLabel(_ type: PlaybackCoreDomain.ProjectionType) -> String {
@@ -539,6 +574,7 @@ public struct PlayerControlsView: View {
         }
         .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showDebugPanel))
         .help("Debug Controls")
+        .accessibilityLabel("Debug Controls")
     }
 
     @MainActor

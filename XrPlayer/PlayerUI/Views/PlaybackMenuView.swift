@@ -23,6 +23,7 @@ public struct PlaybackMenuView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Close Playback Settings")
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -85,6 +86,8 @@ public struct PlaybackMenuView: View {
                             }
                         }
                         .toggleStyle(.switch)
+                        .accessibilityLabel("HDR Output")
+                        .accessibilityValue(videoViewModel.isHDROutputEnabled ? "Enabled" : "Disabled")
                         .padding(.horizontal, 16)
                         .padding(.vertical, 10)
                     }
@@ -141,6 +144,7 @@ public struct PlaybackMenuView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel("\(title)\(isSelected ? ", selected" : "")")
     }
 
     private func dismissPanel() {
