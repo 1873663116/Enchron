@@ -106,11 +106,11 @@
 - [ ] Stereo 3D OU 渲染：Metal shader 将高帧上下分离 → 双眼各投射一半
 - [ ] 鱼眼投影重映射：equidistant fisheye → equirectangular 变换
 - [ ] 投影类型手动覆盖 UI：PlayerControlsView 中新增 Picker，允许用户覆盖自动检测结果
-- [ ] `swift test` 对应测试变绿
+- [x] `swift test` 对应测试变绿
 
 ### T1.5 — 播放模式自动路由
-- [ ] MediaProfile 统一结构（HDR 类型 + 投影类型 + 立体格式）
-- [ ] PlaybackMode 决策矩阵：投影类型 × 沉浸状态 → 自动选择模式
+- [x] MediaProfile 统一结构（HDR 类型 + 投影类型 + 立体格式）
+- [x] PlaybackMode 决策矩阵：投影类型 × 沉浸状态 → 自动选择模式
   - flat + 非沉浸 → 窗口模式
   - flat + 沉浸 → 沉浸影院模式
   - panorama360/180/fisheye → 全景模式（自动进入沉浸空间）
@@ -118,7 +118,7 @@
   - stereoscopic + 沉浸 → 沉浸影院模式（SBS/OU 虚拟屏幕渲染）
 - [ ] 模式切换 UI：允许用户手动覆盖自动决策
 - [ ] 模式间切换不需要退出重进（graceful transition）
-- [ ] `swift test` 决策矩阵全部测试变绿
+- [x] `swift test` 决策矩阵全部测试变绿
 
 ### T1.6 — 占位代码清除
 - [ ] 审计所有 UI 组件：每个按钮、每个 Picker、每个 Toggle 都必须有真实功能
