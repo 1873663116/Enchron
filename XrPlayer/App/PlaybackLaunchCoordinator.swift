@@ -51,6 +51,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     guard self.windowVideoViewModel.currentLaunchRequest == request else { return }
                     self.windowVideoViewModel.applyPrefetchedMetadata(metadata)
                     self.appModel.updateMediaProfile(profile)
+                    self.appModel.updateDetectedProjection(profile.projectionType)
                 }
             }
         }
@@ -109,6 +110,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     self.windowVideoViewModel.applyPrefetchedMetadata(resolvedMetadata)
                     if let mediaProfile = resolvedMetadata.mediaProfile {
                         self.appModel.updateMediaProfile(mediaProfile)
+                        self.appModel.updateDetectedProjection(mediaProfile.projectionType)
                     }
                 } else {
                     print("[Playback] metadata_prefetch_empty name=\(preparedRequest.displayName)")
@@ -268,6 +270,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         appModel.startPlayback(url: prepared.request.url)
         if let mediaProfile = prepared.metadata?.mediaProfile {
             appModel.updateMediaProfile(mediaProfile)
+            appModel.updateDetectedProjection(mediaProfile.projectionType)
         }
         windowVideoViewModel.resume()
 
@@ -297,6 +300,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     self.windowVideoViewModel.applyPrefetchedMetadata(metadata)
                     if let mediaProfile = metadata.mediaProfile {
                         self.appModel.updateMediaProfile(mediaProfile)
+                        self.appModel.updateDetectedProjection(mediaProfile.projectionType)
                     }
                 }
             }

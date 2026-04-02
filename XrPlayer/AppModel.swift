@@ -20,6 +20,13 @@ public final class AppModel {
     public var playbackSpeed: PlaybackCoreDomain.PlaybackSpeed = .default
     public var mediaProfile: PlaybackCoreDomain.MediaProfile?
     public var playbackMode: PlaybackMode = .window
+    public var detectedProjectionType: PlaybackCoreDomain.ProjectionType = .flat
+    public var projectionOverride: PlaybackCoreDomain.ProjectionType? = nil
+
+    public var effectiveProjectionType: PlaybackCoreDomain.ProjectionType {
+        projectionOverride ?? detectedProjectionType
+    }
+
     public var isPlaying: Bool = false
     public var currentPlaybackURL: URL?
     public var showControls: Bool = true
@@ -69,12 +76,23 @@ public final class AppModel {
         playbackMode = mode
     }
 
+    public func updateDetectedProjection(_ type: PlaybackCoreDomain.ProjectionType) {
+        detectedProjectionType = type
+        // Clear override when new media detected
+        projectionOverride = nil
+    }
+
+    public func setProjectionOverride(_ type: PlaybackCoreDomain.ProjectionType?) {
+        projectionOverride = type
+    }
+
     public func startPlayback(url: URL) {
         currentPlaybackURL = url
         isPlaying = true
         playbackState = .loading
         playbackPosition = .init(seconds: 0, duration: 0)
         mediaProfile = nil
+        projectionOverride = nil
         showControls = true
         registerControlsInteraction()
     }

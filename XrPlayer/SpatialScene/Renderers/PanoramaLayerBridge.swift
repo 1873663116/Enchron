@@ -31,6 +31,11 @@ public final class PanoramaLayerBridge {
     public private(set) var lastCopyTickReason: String?
     public private(set) var lastCopyFailure: String?
 
+    /// When set, the bridge crops the source frame to the left-eye region
+    /// before copying to the `LowLevelTexture`. This supports SBS and OU
+    /// stereo 3D video by extracting a single eye's content (MVP: left eye).
+    public var stereoCropMode: PlaybackCoreDomain.StereoMode?
+
     private var displayLink: CADisplayLink?
     private var commandQueue: MTLCommandQueue?
     private var lowLevelTexture: LowLevelTexture?
@@ -127,9 +132,28 @@ private extension PanoramaLayerBridge {
             return
         }
 
+        // When stereo crop is active, use the left-eye sub-region as source
+        // and create a destination texture sized to the cropped region.
+        let sourceOrigin: MTLOrigin
+        let copyWidth: Int
+        let copyHeight: Int
+
+        if let stereoCropMode {
+            let uvRect = stereoCropMode.leftEyeUVRect
+            let srcX = Int(Float(sourceTexture.width) * uvRect.originX)
+            let srcY = Int(Float(sourceTexture.height) * uvRect.originY)
+            copyWidth = Int(Float(sourceTexture.width) * uvRect.width)
+            copyHeight = Int(Float(sourceTexture.height) * uvRect.height)
+            sourceOrigin = MTLOrigin(x: srcX, y: srcY, z: 0)
+        } else {
+            copyWidth = sourceTexture.width
+            copyHeight = sourceTexture.height
+            sourceOrigin = MTLOrigin(x: 0, y: 0, z: 0)
+        }
+
         let descriptor = TextureDescriptor(
-            width: sourceTexture.width,
-            height: sourceTexture.height,
+            width: copyWidth,
+            height: copyHeight,
             pixelFormat: sourceTexture.pixelFormat
         )
 
@@ -155,10 +179,10 @@ private extension PanoramaLayerBridge {
                 from: sourceTexture,
                 sourceSlice: 0,
                 sourceLevel: 0,
-                sourceOrigin: .init(x: 0, y: 0, z: 0),
+                sourceOrigin: sourceOrigin,
                 sourceSize: .init(
-                    width: sourceTexture.width,
-                    height: sourceTexture.height,
+                    width: copyWidth,
+                    height: copyHeight,
                     depth: 1
                 ),
                 to: destinationTexture,
