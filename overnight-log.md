@@ -99,3 +99,34 @@
 
 **下轮应做**: REVIEWING — 使用 /plan-eng-review 做工程审查（必需关卡）
 **Status**: IN_PROGRESS
+
+---
+## Round 5 — 2026-04-02T04:00:00+08:00
+
+**Pipeline State**: REVIEWING → EXECUTING
+**本轮目标**: /plan-eng-review 工程架构评审（必需关卡）
+**完成情况**:
+- [SKILL] /plan-eng-review → pass | 完整工程评审已完成
+- 读取全部关键源码：PlaybackLaunchCoordinator、PlayerControlsView、DetailedTimelineView、FileBrowserView、FileBrowsingViewModel、MainView、AppModel、ToggleImmersiveSpaceButton、DetailedTimelineGeometry、PlaybackLaunchRequest、PlaybackMediaMetadataService
+- 完成 Step 0 范围挑战 + 4 部分评审（架构/代码质量/测试/性能）
+- 生成完整测试覆盖图表：14/22 路径已覆盖，8 gaps 需补充
+- 生成失败模式分析：0 critical gap，2 non-critical gaps
+- 生成并行化策略：3 lanes（Unit 2/3/5 并行，合并后 Unit 4→6→7→8 顺序）
+
+**发现摘要**:
+- P1-1: PreparedPlayback 观察模型未明确 → 决议：coordinator 发布 `currentPreparation` 状态，VideoDetailView 通过 @Environment 观察
+- P1-2: FileBrowserView → VideoDetailView 导航机制未定义 → 决议：FileBrowsingViewModel 添加 `detailNavigationRequest` 驱动 navigationDestination
+- P2-3: 文件路径错误 → 已修正 UseCases/DetailedTimelineGeometry.swift
+- P2-4: 逐帧步进和缩放控件归属 → 决议：逐帧步进移入 secondaryControlRow，缩放自动化
+- P2-5: REGRESSION.md 更新 → 决议：实现时退役 REG-010/011/014/017，新增统一时间轴+视频详情+沉浸入口回归项
+- P2-6: Track 选择 UX → 决议：VideoDetailView 支持预选音轨/字幕，传递给 confirmPlayback
+
+**Decision Log**:
+- [AUTO] 观察模型 | coordinator.currentPreparation 发布模式 | P5+P3 | 保持 coordinator 为唯一事实来源
+- [AUTO] 导航机制 | detailNavigationRequest state-driven | P5+P3 | SwiftUI 标准导航模式
+- [AUTO] 文件路径 | 已修正 | P5 | 实际路径是 UseCases/ 不是 Geometry/
+- [AUTO] 逐帧步进 | 移入 secondaryControlRow | P3+P5 | 统一时间轴不需要独立面板
+- [AUTO] Pipeline Transition | REVIEWING → EXECUTING | P6 | CEO + Eng 评审均通过，方案已锁定
+
+**下轮应做**: EXECUTING — 开始实施 Unit 1（测试视频验证与获取），同时并行 Unit 2 + Unit 3 + Unit 5
+**Status**: IN_PROGRESS

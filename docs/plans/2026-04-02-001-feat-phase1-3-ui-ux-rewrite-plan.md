@@ -318,7 +318,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 **Files:**
 - Modify: `XrPlayer/PlayerUI/Views/PlayerControlsView.swift` (remove toggle, inline precision features)
 - Modify or remove: `XrPlayer/PlayerUI/Views/DetailedTimelineView.swift`
-- Modify: `XrPlayer/PlayerUI/Geometry/DetailedTimelineGeometry.swift` (adapt for inline use)
+- Modify: `XrPlayer/PlayerUI/UseCases/DetailedTimelineGeometry.swift` (adapt for inline use)
 - Test: `XrPlayerTests/PlayerUI/` (timeline behavior tests)
 
 **Approach:**
@@ -523,7 +523,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | DONE | mode: HOLD_SCOPE, 2 P1 + 3 P2 issues |
 | Codex Review | `/codex:rescue` | Independent 2nd opinion | 0 | — | — |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 0 | — | — |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | DONE | 2 P1 + 4 P2 issues, 8 test gaps, 0 critical failure gaps |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
 
-**VERDICT:** CEO REVIEW PASSED — 5 issues found (2 P1, 3 P2), all actionable during implementation. Eng review required next.
+**VERDICT:** CEO + ENG CLEARED — ready to implement. Design review optional (recommended for UI-heavy Units 4, 6, 7).
