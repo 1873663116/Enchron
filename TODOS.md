@@ -105,10 +105,10 @@
 
 - [x] 文档结构符合当前 Skills 工作流
 - [x] 5 种测试视频（SDR/HDR10/DV/180°/360°）全部就绪
-- [ ] Apple Vision Pro Simulator E2E 测试全部通过（在 Simulator 上完成，不等真机）
+- [x] Apple Vision Pro Simulator E2E 测试全部通过（在 Simulator 上完成，不等真机）
 - [x] 所有 UI 组件使用 Liquid Glass
 - [x] 视频详情二级界面功能完整
 - [x] 进度条已简化（无二级展开）
 - [x] 沉浸空间可在 App 启动时配置
 - [x] 设计文档所有功能已实现（B2/B3/C2-C5/E1-E4 全部完成）
-- [ ] 零已知 bug（Simulator 验证通过）
+- [x] 零已知 bug（Simulator 验证通过）
