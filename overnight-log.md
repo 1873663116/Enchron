@@ -93,3 +93,33 @@
 **测试状态**: swift test: 未执行（本轮为计划设计轮）| 基线: 205 passed
 **下轮应做**: T0.4 — 对抗性审查（三阶段裁决：Codex 挑战 → Counter-Agent 反驳 → Opus 裁决）
 **Status**: IN_PROGRESS
+
+---
+## Round 4 — 2026-04-02T17:30:00+08:00
+
+**Pipeline State**: PLANNING → PLANNING
+**本轮目标**: T0.4 — 对抗性审查（三阶段裁决）
+**完成情况**:
+- [SKILL] /codex:adversarial-review → 5 条挑战（3 HIGH, 0 MEDIUM→1 MEDIUM, 1 process）
+- [AGENT] Counter-Agent (Sonnet) → 逐条评估 | REJECT×3, PARTIAL ACCEPT×2
+- [OPUS] Supervisor 裁决 → 驳回×3, 部分采纳×1, 采纳降级×1
+
+**Codex 挑战 → 裁决摘要**:
+1. EP013 执行记录为空 → **驳回**（自指问题，文档正在执行中）
+2. C1 MediaProfile 零覆盖 → **驳回**（Codex 事实错误，V02Tests.swift 有 4 个 MediaProfileTests）
+3. A15 SceneSelector 代理测试 → **部分采纳**（补覆盖矩阵注释，E2E 已覆盖接线）
+4. GPU 渲染无确定性检查 → **驳回**（visionOS Simulator 无 Metal GPU 是硬约束，域层数学已测）
+5. E2E 断言主观 → **采纳降级**（状态转换步骤量化，渲染质量标注 HUMAN VISUAL）
+
+**测试计划影响**: 43 单元测试 + 8 E2E 路径不变。变更仅为文档修订（覆盖矩阵注释 + E2E 描述改进 + 已知局限节）
+
+**Decision Log**:
+- [AUTO] C1 驳回 | 自指问题 | P5 | EP013 正在执行中
+- [AUTO] C2 驳回 | Codex 事实错误 | P5 | V02Tests.swift:7 有 MediaProfileTests
+- [AUTO] C3 部分采纳 | 补注释不加测试 | P1+P5 | E2E P2-S3/S10/S11 覆盖选择器
+- [AUTO] C4 驳回 | Simulator 硬约束 | P3 | 域层数学已有确定性测试
+- [AUTO] C5 采纳降级 | E2E 描述分类 | P1+P5 | 状态量化 + 渲染标注人工
+
+**测试状态**: swift test: 未执行（本轮为审查轮）| 基线: 205 passed
+**下轮应做**: T0.5 — 测试代码落地（创建 stub 类型 + 编写 43 个测试 + swift test 确认红色 + git commit）
+**Status**: IN_PROGRESS
