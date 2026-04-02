@@ -17,5 +17,14 @@ extension PlaybackCoreDomain {
                 return false
             }
         }
+
+        /// Stub: always false → stereo tests FAIL
+        public var isStereo3D: Bool { false }
+
+        /// Stub: always false → hemisphere tests FAIL
+        public var requiresHemisphereMesh: Bool { false }
+
+        /// Stub: always false → fisheye tests FAIL
+        public var requiresFisheyeRemap: Bool { false }
     }
 }
