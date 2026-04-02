@@ -244,3 +244,30 @@
 **测试状态**: swift test: 248 total | 223 passed | 25 failed (test cases) | 1 skipped | T1.3 无专属 failing test（CinemaEnvironment 6 tests 已在 R6 通过）
 **下轮应做**: T1.4 — 全景视频完善（180° 半球裁剪 + Stereo 3D SBS/OU + 鱼眼重映射 + 投影覆盖 UI）
 **Status**: IN_PROGRESS
+
+---
+## Round 9 — 2026-04-02T14:46:00+08:00
+
+**Pipeline State**: EXECUTING → EXECUTING
+**本轮目标**: T1.4 域层 stub 填充 + T1.5 播放模式路由决策矩阵
+**完成情况**:
+- StereoMode.swift: leftEyeUVRect/rightEyeUVRect(SBS/OU) + outputDimensions → 7 tests PASS
+- HemisphereMeshConfiguration.swift: uRange(0.25...0.75) + longitudeRange(-π/2...π/2) + vertexCount + vRange → 4 tests PASS
+- FisheyeRemapConfiguration.swift: 默认 FOV=π/2 + sampleCoordinate(equidistant fisheye→equirect 3D 投影算法) → 3 tests PASS
+- ProjectionType.swift: isStereo3D + requiresHemisphereMesh + requiresFisheyeRemap → 5 tests PASS (via ProjectionDetectionExtendedTests)
+- ProjectionDetection.swift: 增加 fisheye/equidistant_fisheye 检测分支 → 2 tests PASS (testFisheyeDetection*)
+- DecidePlaybackModeUseCase.swift: 完整决策矩阵（override > panoramic > env active > window） → 6 tests PASS
+- git commit: 8006770 (T1.4 domain), 6f53101 (T1.5 routing)
+
+**核心实现决策**:
+- FisheyeRemap 算法：output UV → spherical(lon,lat) → 3D direction(x,y,z) → equidistant fisheye(r,φ) → input UV
+- 决策矩阵：manualOverride 最高优先 → isPanoramic → isEnvironmentActive → 默认 window
+- T1.4 域层全部完成，但渲染层适配器（Metal shader, mesh generation）和投影覆盖 UI 未做
+
+**Decision Log**:
+- [AUTO] 合并 T1.4+T1.5 域层 | 两者都是 stub 填充 | P3+P6 | 25→0 failing 一轮完成效率最高
+- [AUTO] FisheyeRemap 使用 3D→2D 投影 | P5 | 标准等距鱼眼算法，center→center 和 OOF→nil 测试验证
+
+**测试状态**: swift test: 248 total | 248 passed | 0 failed | 1 skipped | 新增 PASS: 25 | FAIL: none 🎉
+**下轮应做**: T1.4 渲染层实现（Metal SBS/OU shader + hemisphere mesh + fisheye compute）+ T1.4 投影覆盖 UI + T1.5 模式切换 UI
+**Status**: IN_PROGRESS
