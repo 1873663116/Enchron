@@ -64,6 +64,8 @@ enum PanoramaSphereEntity {
 
         let entity = Entity()
         entity.components.set(ModelComponent(mesh: mesh, materials: [material]))
+        entity.components.set(InputTargetComponent(allowedInputTypes: .indirect))
+        entity.components.set(CollisionComponent(shapes: [.generateSphere(radius: radius)]))
 
         // Flip X scale to invert normals → texture renders on the inside.
         entity.scale.x *= -1
