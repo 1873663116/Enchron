@@ -183,6 +183,7 @@ public struct ImmersiveSpaceView: View {
                 panoramaBridge.stereoCropMode = nil
             }
         }
+        .dragRotation(pitchLimit: .degrees(30), sensitivity: 10)
     }
 
     private func stereoModeForCurrentProjection() -> PlaybackCoreDomain.StereoMode? {

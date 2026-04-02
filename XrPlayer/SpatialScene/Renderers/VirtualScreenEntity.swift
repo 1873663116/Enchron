@@ -14,6 +14,8 @@ enum VirtualScreenEntity {
                 materials: [material(textureResource: textureResource)]
             )
         )
+        entity.components.set(InputTargetComponent(allowedInputTypes: .indirect))
+        entity.components.set(CollisionComponent(shapes: [.generateBox(width: 3.0, height: 2.0, depth: 0.1)]))
         applyNormalFlip(to: entity, geometry: geometry)
         entity.position = SIMD3<Float>(0, 0, -8)
         return entity
