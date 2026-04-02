@@ -56,7 +56,19 @@ let package = Package(
                 "XrPlayer/PlaybackCore/Adapters/MPV/MPVConfiguration.swift",
                 "XrPlayer/PlaybackCore/Adapters/MPV/VideoToolboxBridge.swift",
                 "XrPlayer/PlaybackCore/Adapters/MPV/EDRMetadataDescriptor.swift",
-                "XrPlayer/PlaybackCore/Adapters/MPV/ProjectionDetection.swift"
+                "XrPlayer/PlaybackCore/Adapters/MPV/ProjectionDetection.swift",
+                "XrPlayer/SpatialScene/Domain/SpatialSceneDomain.swift",
+                "XrPlayer/SpatialScene/Domain/CinemaEnvironment.swift",
+                "XrPlayer/SpatialScene/Domain/ScreenGeometry.swift",
+                "XrPlayer/SpatialScene/Domain/VirtualScreenConfiguration.swift",
+                "XrPlayer/SpatialScene/Domain/HemisphereMeshConfiguration.swift",
+                "XrPlayer/SpatialScene/Domain/FisheyeRemapConfiguration.swift",
+                "XrPlayer/PlaybackCore/Domain/ValueObjects/StereoMode.swift",
+                "XrPlayer/PlayerUI/Domain/Ports/PlaybackModeManaging.swift",
+                "XrPlayer/PlayerUI/UseCases/DecidePlaybackModeUseCase.swift",
+                "XrPlayer/Persistence/Domain/ValueObjects/FileIdentifier.swift",
+                "XrPlayer/Persistence/Domain/Entities/SavedScreenPosition.swift",
+                "XrPlayer/PlayerUI/Domain/ValueObjects/PlaybackMode.swift"
             ],
             linkerSettings: [
                 .linkedFramework("Security"),
