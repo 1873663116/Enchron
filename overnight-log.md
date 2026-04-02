@@ -454,3 +454,53 @@
 **测试状态**: swift test: 未执行（本轮 QA 结构审计） | 新增: 0 | FAIL: none
 **下轮应做**: T1.1 完成 → T1.2 HelloWorld 对照验证，然后 Phase Transition → Phase 2 EXECUTING (缺陷修复)
 **Status**: IN_PROGRESS
+
+---
+
+## Round 11 — 2026-04-02T13:00:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 1 T1.2 → Phase 1 完成 → Phase 2 Transition）
+**本轮目标**: T1.2 — HelloWorld 对照验证（12 项 UX 改进清单 vs 当前代码状态）
+**完成情况**:
+- [AGENT] ux-verifier (Sonnet) → 12 项 UX 改进逐项代码验证
+- 产出：`docs/qa-reports/helloworld-comparison-v3.md`
+- Phase 1 (T1.1 + T1.2) 全部完成，准备 Phase Transition → Phase 2
+
+**T1.2 验证结果**:
+
+| 状态 | 数量 | 项目 |
+|------|------|------|
+| 需改进 | 8 | UX-01~08 |
+| 已符合 | 3 | UX-10, REJECT-01, REJECT-02 |
+| 不适用 | 1 | UX-09 |
+
+**需改进项 Phase 2 排序**:
+
+| 优先级 | UX 项 | 改动 | QA 关联 |
+|--------|-------|------|---------|
+| P0 | UX-01 | DragRotationModifier + 弹性动画 + 惯性 | QA-H04 FAIL |
+| P1 | UX-02 | VideoDetailView 分栏响应式布局 | — |
+| P1 | UX-03 | Glass cornerRadius 定制 | — |
+| P1 | UX-04 | SliderGridRow 可复用组件 | — |
+| P1 | UX-05 | ImmersionStyle 动态绑定 | QA-D05 PARTIAL |
+| P1 | UX-06 | Drag+Magnify 同时手势 | QA-H04 关联 |
+| P1 | UX-07 | openWindow/dismissWindow 窗口管理 | — |
+| P2 | UX-08 | FileCard/FolderCard 组件 | — |
+
+**Phase 1 → Phase 2 Transition 评估**:
+- T1.1 ✅ 59 条 QA 路径全部执行（34 PASS / 14 PARTIAL / 10 FAIL / 1 DEFERRED，Health 70.7）
+- T1.2 ✅ 12 项 HelloWorld 对照验证完成
+- Phase 2 修复清单合并：
+  - QA 缺陷 (T2.1): 4 P0 + 6 P1 + 3 P2 = 13 项
+  - UX 改进 (T2.2): 1 P0 + 6 P1 + 1 P2 = 8 项
+  - 测试素材 (T2.3): 4 素材需补元数据
+- **Transition 通过** → Phase 2 EXECUTING
+
+**Decision Log**:
+- [AUTO] Phase Transition Phase 1→Phase 2 | T1.1+T1.2 全部完成 | P6 | QA 和 HelloWorld 对照验证产出完整的修复清单
+- [AUTO] UX-09 不适用 | 单一使用点不需要 ViewModifier 抽象 | P5 | 奥卡姆剃刀
+- [AUTO] Phase 2 修复排序 | QA 缺陷 P0 先于 UX 改进 P0 | P1 | 功能断联比体验缺失更紧急
+
+**测试状态**: swift test: 未执行（本轮验证+文档） | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.1 — 修复 QA P0 缺陷（F3.2 bridge 断联 / F4.1 缓冲指示器 / F5.2 HDR切换 / F4.3 自动重连）
+**Status**: IN_PROGRESS

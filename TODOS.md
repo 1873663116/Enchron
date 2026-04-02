@@ -105,14 +105,14 @@
 ## Phase 1: QA 执行
 
 ### T1.1 — 执行全覆盖 /qa E2E 测试
-- [ ] 按 T0.4 的 QA 计划，使用 /qa skill 逐条执行
-- [ ] 每条路径记录：PASS / FAIL / PARTIAL / BLOCKED（附具体原因和证据）
-- [ ] FAIL/PARTIAL 项自动生成修复任务清单
-- [ ] 生成 QA 报告到 docs/qa-reports/qa-report-v3-comprehensive.md
+- [x] 按 T0.4 的 QA 计划，使用 /qa skill 逐条执行
+- [x] 每条路径记录：PASS / FAIL / PARTIAL / BLOCKED（附具体原因和证据）
+- [x] FAIL/PARTIAL 项自动生成修复任务清单
+- [x] 生成 QA 报告到 docs/qa-reports/qa-report-v3-comprehensive.md
 
 ### T1.2 — HelloWorld 对照验证
-- [ ] 按 T0.2 的 UX 改进清单，逐项检查 Enchron 需改进的程度
-- [ ] 标注：已符合 / 需改进（附改进方案）/ 不适用（附理由）
+- [x] 按 T0.2 的 UX 改进清单，逐项检查 Enchron 需改进的程度
+- [x] 标注：已符合 / 需改进（附改进方案）/ 不适用（附理由）
 
 ---
 
