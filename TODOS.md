@@ -24,15 +24,15 @@
 - [x] 特别关注：沉浸影院模式、全景视频、3D 立体视频、投影类型路由、屏幕位置控制、环境切换
 
 ### T0.2 — API 调研（使用 context7 MCP）
-- [ ] RealityKit: 虚拟屏幕渲染方案（VideoMaterial vs ShaderGraphMaterial vs UnlitMaterial）
-- [ ] RealityKit: ModelEntity 平面 mesh 与曲面 mesh 的创建和动态切换
-- [ ] RealityKit: ImmersiveSpace 多环境加载与切换 API
-- [ ] RealityKit: Entity 位置/旋转/缩放的持久化与恢复
-- [ ] Metal: Stereo 3D SBS 左右帧分离 shader 实现方案
-- [ ] Metal: Stereo 3D OU 上下帧分离 shader 实现方案
-- [ ] Metal: 180° 半球纹理坐标裁剪方案
-- [ ] Metal: 鱼眼投影重映射算法（equidistant fisheye → equirectangular）
-- [ ] 调研结果写入当轮 EP，包含代码示例和 API 签名
+- [x] RealityKit: 虚拟屏幕渲染方案（VideoMaterial vs ShaderGraphMaterial vs UnlitMaterial）
+- [x] RealityKit: ModelEntity 平面 mesh 与曲面 mesh 的创建和动态切换
+- [x] RealityKit: ImmersiveSpace 多环境加载与切换 API
+- [x] RealityKit: Entity 位置/旋转/缩放的持久化与恢复
+- [x] Metal: Stereo 3D SBS 左右帧分离 shader 实现方案
+- [x] Metal: Stereo 3D OU 上下帧分离 shader 实现方案
+- [x] Metal: 180° 半球纹理坐标裁剪方案
+- [x] Metal: 鱼眼投影重映射算法（equidistant fisheye → equirectangular）
+- [x] 调研结果写入当轮 EP，包含代码示例和 API 签名
 
 ### T0.3 — 综合测试计划设计
 - [ ] 为 T0.1 功能清单中每个功能设计对应测试
