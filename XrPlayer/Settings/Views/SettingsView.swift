@@ -57,7 +57,7 @@ public struct SettingsView: View {
             }
 
             Section("About") {
-                LabeledContent("Version", value: "0.1")
+                LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")
                 LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—")
             }
         }

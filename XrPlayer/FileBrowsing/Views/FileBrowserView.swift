@@ -89,7 +89,7 @@ public struct FileBrowserView: View {
                                         Image(systemName: "xmark.circle.fill")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
-                                            .frame(width: 24, height: 24)
+                                            .frame(width: 60, height: 60)
                                     }
                                     .buttonStyle(.plain)
                                     .help("Delete \(ds.name)")
