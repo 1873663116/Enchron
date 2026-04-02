@@ -898,3 +898,34 @@ F3.9/H04 (捏合拖拽):
 **测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
 **下轮应做**: Phase 2 T2.2 — UX-02 VideoDetailView 分栏响应式布局（P1，改动范围较大，独立一轮）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 22 — 2026-04-02T21:33:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.2 — HelloWorld UX 改进 #4）
+**本轮目标**: UX-02 VideoDetailView 分栏响应式布局
+**完成情况**:
+- [READ] HelloWorld ModuleDetail.swift → 提取 GeometryReader + HStack 分栏模式
+- [READ] VideoDetailView.swift → 确认现有 ScrollView > VStack 纯纵向布局
+- [EDIT] `VideoDetailView.swift` — `preparingContent` + `readyContent` 改为 GeometryReader 分栏：
+  - 左栏(40%, max 400pt): headerSection + metadataSection
+  - 右栏(剩余): 轨道选择 + 播放按钮（ScrollView 保护溢出）
+  - HStack(spacing: 60) + padding(.horizontal, 60) + .topLeading 对齐
+  - failedContent 保持不变（ContentUnavailableView 自带布局）
+- [BUILD] swift build → Build complete ✅
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures ✅
+- [COMMIT] 3771098 feat(PlayerUI): VideoDetailView 分栏响应式布局 (UX-02)
+
+**修复细节**:
+- 左栏宽度公式：`min(max(proxy.size.width * 0.40, 280), 400)` — 窗口缩小时保底 280pt，超大窗口封顶 400pt
+- 右栏用 ScrollView 保护多音轨/字幕时的垂直溢出
+- .task{} 修饰符从 ScrollView 迁移到 GeometryReader，功能不变
+
+**Decision Log**:
+- [AUTO] 右栏是否加 ScrollView | 是 | P3 | 多音轨场景右栏可能溢出，ScrollView 是最小侵入性解法
+- [AUTO] 左栏宽度封顶 | 400pt | P5 | 对齐 HelloWorld textWidth max=500，略小因元数据内容比文字短
+
+**测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.2 — UX-07 Window Management (openWindow/dismissWindow) + T2.3 测试素材播放验证
+**Status**: IN_PROGRESS
