@@ -16,17 +16,23 @@ extension PlaybackCoreDomain {
         public let hdrType: HDRType
         public let resolution: Resolution
         public let frameRate: Double
+        public let videoCodec: String?
+        public let durationSeconds: Double?
 
         public init(
             projectionType: ProjectionType,
             hdrType: HDRType,
             resolution: Resolution,
-            frameRate: Double = 0
+            frameRate: Double = 0,
+            videoCodec: String? = nil,
+            durationSeconds: Double? = nil
         ) {
             self.projectionType = projectionType
             self.hdrType = hdrType
             self.resolution = resolution
             self.frameRate = max(0, frameRate)
+            self.videoCodec = videoCodec
+            self.durationSeconds = durationSeconds
         }
     }
 }
