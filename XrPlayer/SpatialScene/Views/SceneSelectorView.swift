@@ -1,24 +1,25 @@
 import SwiftUI
 
 public struct SceneSelectorView: View {
-    @State private var selectedEnvironmentIndex: Int?
+    @Environment(AppModel.self) var appModel
 
     let columns = [
         GridItem(.adaptive(minimum: 200))
     ]
-    
+
     public init() {}
-    
+
     public var body: some View {
         VStack {
             ToggleImmersiveSpaceButton()
                 .padding(.vertical, 24)
-            
+
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 32) { // Increased breathing room
-                    ForEach(0..<4) { index in
+                LazyVGrid(columns: columns, spacing: 32) {
+                    ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { environment in
+                        let isSelected = appModel.currentCinemaEnvironment == environment
                         Button {
-                            selectedEnvironmentIndex = index
+                            Task { await appModel.switchEnvironment(to: environment) }
                         } label: {
                             VStack(alignment: .leading, spacing: 12) {
                                 RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -27,41 +28,49 @@ public struct SceneSelectorView: View {
                                     .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
                                     .overlay {
                                         ZStack {
-                                            if selectedEnvironmentIndex == index {
+                                            if isSelected {
                                                 RoundedRectangle(cornerRadius: 24, style: .continuous)
                                                     .stroke(Color.accentColor, lineWidth: 3)
                                                     .blur(radius: 2)
                                             }
-                                            
-                                            Image(systemName: "moon.stars")
+
+                                            Image(systemName: iconName(for: environment))
                                                 .font(.system(size: 44))
-                                                .foregroundStyle(selectedEnvironmentIndex == index ? Color.accentColor : .primary)
+                                                .foregroundStyle(isSelected ? Color.accentColor : .primary)
                                         }
                                     }
                                     .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                                     .hoverEffect()
-                                
-                                Text("Environment \(index + 1)")
+
+                                Text(environment.displayName)
                                     .font(.headline)
                                     .padding(.leading, 8)
-                                    .foregroundStyle(selectedEnvironmentIndex == index ? Color.accentColor : .primary)
+                                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
                             }
                         }
                         .buttonStyle(.plain)
-                        .scaleEffect(selectedEnvironmentIndex == index ? 1.02 : 1.0)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedEnvironmentIndex)
+                        .scaleEffect(isSelected ? 1.02 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appModel.currentCinemaEnvironment)
                     }
                 }
                 .padding(32)
             }
 
-            if let selectedEnvironmentIndex {
-                Text("Selected Environment \(selectedEnvironmentIndex + 1)")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 20)
-            }
+            Text(appModel.currentCinemaEnvironment.displayName)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 20)
         }
         .navigationTitle("Scenes")
+    }
+
+    private func iconName(
+        for environment: SpatialSceneDomain.CinemaEnvironment
+    ) -> String {
+        switch environment {
+        case .darkTheatre: return "moon.fill"
+        case .starryNight: return "star.fill"
+        case .sunsetNature: return "sun.horizon.fill"
+        }
     }
 }
