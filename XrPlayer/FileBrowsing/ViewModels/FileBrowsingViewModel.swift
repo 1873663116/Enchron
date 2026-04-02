@@ -40,6 +40,7 @@ public final class FileBrowsingViewModel {
     private var securityScopedRootURL: URL?
     private var activeRemoteAdapter: (any DataSourceConnecting & FileProviding)?
     private var remotePathStack: [String] = []
+    private var reconnectAttempted: Bool = false
 
     public init(
         localDataSource: LocalDataSourceAdapter,
@@ -139,9 +140,9 @@ public final class FileBrowsingViewModel {
             await useDefaultFolder()
             return
         case .photoLibrary:
-            activeDataSource = nil
-            lastErrorMessage = "Photo Library source is not implemented yet."
-            return
+            let photos = PhotoLibraryDataSourceAdapter()
+            photos.ownerDataSourceID = ds.id
+            adapter = photos
         }
 
         activeRemoteAdapter?.disconnect()
@@ -208,6 +209,14 @@ public final class FileBrowsingViewModel {
                 folders = try await remoteAdapter.listFolders(at: currentRemotePath)
                 lastErrorMessage = nil
             } catch {
+                if !reconnectAttempted,
+                   Self.isNetworkRecoverableError(error),
+                   let ds = activeDataSource {
+                    reconnectAttempted = true
+                    await connectToDataSource(ds)
+                    reconnectAttempted = false
+                    return
+                }
                 files = []
                 folders = []
                 lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
@@ -565,6 +574,23 @@ public final class FileBrowsingViewModel {
             }
             self.fileWatchedSeconds = map
         }
+    }
+
+    private static func isNetworkRecoverableError(_ error: Error) -> Bool {
+        if let smbError = error as? SMBError {
+            switch smbError {
+            case .networkFailed, .notConnected: return true
+            default: return false
+            }
+        }
+        if let webDAVError = error as? WebDAVError {
+            switch webDAVError {
+            case .notConnected: return true
+            case .requestFailed(let code) where code >= 500: return true
+            default: return false
+            }
+        }
+        return (error as NSError).domain == NSURLErrorDomain
     }
 }
 
