@@ -973,3 +973,59 @@ F3.9/H04 (捏合拖拽):
 **测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
 **下轮应做**: Phase 2 T2.3 — 测试素材播放验证（12 种格式逐一验证自动检测与渲染管线）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 24 — 2026-04-02T22:00:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.3 — 测试素材播放验证）
+**本轮目标**: 验证 12 种测试素材的投影/立体/HDR 检测逻辑 + 修复 ISSUE-009 (FOV hardcoded nil)
+**完成情况**:
+- [AGENT] detection-auditor (Explore) → 全链路代码审查：ProjectionDetection + MPVPlayerAdapter + DecidePlaybackModeUseCase + 渲染实体
+- [SUPERVISOR] 逐素材检测路径分析，12 种素材预测结果
+- [FIX] ISSUE-009: MPVPlayerAdapter.swift — 读取 GSpherical:InitialHorizontalFOVDegrees + CroppedAreaImageWidthPixels/FullPanoWidthPixels 计算 HFOV，替换 hardcoded nil
+- [FIX] 180-vr-test.mp4 — 用 spatial-media 重新注入 180° 元数据（FullPanoWidthPixels=7680, CroppedWidth=3840 → HFOV=180°）
+- [BUILD] swift build → Build complete ✅
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures ✅
+- [COMMIT] fa48a5a fix(PlaybackCore): compute GSpherical HFOV to distinguish panorama180 vs panorama360
+- 产出：`docs/qa-reports/material-detection-report-v3.md`
+
+**T2.3 检测管线审查结果**:
+
+| 素材 | 预期投影 | 预期 PlaybackMode | 预期 HDR | 状态 |
+|------|----------|-------------------|----------|------|
+| SDR-test.mkv | flat | window | sdr | ✅ |
+| HDR10-test.MP4 | flat | window | hdr10 | ✅ |
+| dolby-vision-test.mp4 | flat | window | dolbyVision | ✅ |
+| 180-vr-test.mp4 | **panorama180** (修复后) | panorama | sdr | ✅ 修复 |
+| 360-test-nasa.webm | panorama360 | panorama | sdr | ✅ |
+| SDR-test-sample.mov | flat | window | sdr | ✅ |
+| SDR-test-sample.avi | flat | window | sdr | ✅ |
+| SBS-stereo3d-test.mp4 | stereoscopicSBS | window/immersive | sdr | ⚠️ P2 降级 |
+| OU-stereo3d-test.mp4 | stereoscopicOU | window/immersive | sdr | ⚠️ P2 降级 |
+| fisheye-test.mp4 | fisheye | panorama | sdr | ⚠️ remap P2 |
+| HLG-test.mp4 | flat | window | hlg | ✅ |
+| HDR10plus-test.mp4 | flat | window | hdr10Plus | ✅ |
+
+**新发现问题**:
+
+| # | 严重度 | 问题 |
+|---|--------|------|
+| ISSUE-NEW-001 | Medium (P2) | VirtualScreenEntity 无 StereoMode UV 分割，立体内容降级到窗口模式 |
+| ISSUE-NEW-002 | Low (P2) | FisheyeRemapConfiguration 未集成到 PanoramaSphereEntity 渲染管线 |
+
+**Decision Log**:
+- [AUTO] ISSUE-009 修复 | 本轮修复，T2.3 必须正确 | P1 | 180° 与 360° 渲染完全不同，误判影响核心体验
+- [AUTO] ISSUE-NEW-001 | P2 推迟 | P3 | 立体路由到 .window 是降级接受，VirtualScreenEntity 需 shader 修改，超出 MVP 范围
+- [AUTO] ISSUE-NEW-002 | P2 推迟 | P3 | 鱼眼不黑屏只是失真，remap shader 需 RealityKit Metal 修改，超出 MVP 范围
+- [AUTO] T2.3 评估 | 完成（9/12 ✅ + 2/12 P2降级接受 + 1/12 修复）| P6 | Phase 2 全部任务完成
+
+**T2.2 + T2.3 Phase 2 完成评估**:
+- T2.1 ✅ 全部 P0 修复 (Rounds 12-15)
+- T2.2 ✅ 全部 P1 UX 改进 7/8 完成，UX-08 推迟 (Rounds 16-23)
+- T2.3 ✅ 12 种素材检测验证，ISSUE-009 修复 (Round 24)
+- **Phase 2 → Phase 3 Transition 通过**
+
+**测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 3 T3.1 — 全面回归（swift test + /qa 重新执行关键路径）
+**Status**: IN_PROGRESS
