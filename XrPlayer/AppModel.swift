@@ -29,11 +29,20 @@ public final class AppModel {
 
     // MARK: - Debug Controls
     public var showDebugPanel: Bool = false
-    
+
     // MARK: - Current Media
     public var currentMedia: PlaybackCoreDomain.MediaFile?
-    
-    public init() {}
+
+    // MARK: - Screen Position State (Immersive Mode)
+    public var screenDistance: Double = 8.0
+    public var screenVerticalOffset: Double = 0.0
+    public var screenViewAngle: Double = 0.0
+
+    private let screenPositionStore: ScreenPositionStoring
+
+    public init(screenPositionStore: ScreenPositionStoring = SwiftDataStore()) {
+        self.screenPositionStore = screenPositionStore
+    }
     
     // MARK: - Actions
     public func updatePlaybackState(_ state: PlaybackCoreDomain.PlaybackState) {
@@ -88,5 +97,30 @@ public final class AppModel {
 
     public var canAutoHideControls: Bool {
         showControls && isControlsFocused == false
+    }
+
+    // MARK: - Screen Position Persistence
+
+    public func loadScreenPosition(for environmentID: String = "virtual-screen") async {
+        if let saved = await screenPositionStore.loadPosition(for: environmentID) {
+            screenDistance = saved.distanceMeters
+            screenVerticalOffset = saved.verticalOffsetMeters
+            screenViewAngle = saved.viewAngleDegrees
+        }
+    }
+
+    public func saveScreenPosition(for environmentID: String = "virtual-screen") {
+        let store = screenPositionStore
+        let distance = screenDistance
+        let verticalOffset = screenVerticalOffset
+        let viewAngle = screenViewAngle
+        Task.detached(priority: .utility) {
+            await store.savePosition(
+                for: environmentID,
+                distanceMeters: distance,
+                verticalOffsetMeters: verticalOffset,
+                angleDegrees: viewAngle
+            )
+        }
     }
 }
