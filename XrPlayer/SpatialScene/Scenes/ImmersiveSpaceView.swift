@@ -6,24 +6,43 @@ public struct ImmersiveSpaceView: View {
     @Environment(PanoramaLayerBridge.self) var panoramaBridge
 
     @State private var sphereEntity: Entity?
+    @State private var virtualScreenEntity: Entity?
 
     public init() {}
 
     public var body: some View {
         RealityView { content in
-            if appModel.playbackMode == .panorama {
+            switch appModel.playbackMode {
+            case .panorama:
                 let entity = PanoramaSphereEntity.makeEntity(
                     textureResource: panoramaBridge.textureResource
                 )
                 content.add(entity)
                 sphereEntity = entity
+
+            case .immersive:
+                let entity = VirtualScreenEntity.makeEntity(
+                    textureResource: panoramaBridge.textureResource
+                )
+                VirtualScreenEntity.updatePosition(
+                    on: entity,
+                    distance: Float(appModel.screenDistance),
+                    verticalOffset: Float(appModel.screenVerticalOffset),
+                    viewAngle: Float(appModel.screenViewAngle)
+                )
+                content.add(entity)
+                virtualScreenEntity = entity
+
+            case .window:
+                break
             }
-            // .immersive mode: space is open but no custom entity needed yet.
-            // Future: add a flat virtual-screen entity for cinema-style immersive playback.
         } update: { content in
             switch appModel.playbackMode {
             case .panorama:
-                // Ensure sphere exists.
+                if let entity = virtualScreenEntity {
+                    content.remove(entity)
+                    virtualScreenEntity = nil
+                }
                 if sphereEntity == nil {
                     let entity = PanoramaSphereEntity.makeEntity(
                         textureResource: panoramaBridge.textureResource
@@ -31,7 +50,6 @@ public struct ImmersiveSpaceView: View {
                     content.add(entity)
                     sphereEntity = entity
                 }
-                // Update texture when bridge produces new frames.
                 if let sphereEntity,
                    let textureResource = panoramaBridge.textureResource {
                     PanoramaSphereEntity.updateTexture(
@@ -41,18 +59,40 @@ public struct ImmersiveSpaceView: View {
                 }
 
             case .immersive:
-                // Remove panorama sphere if we switched away from panorama.
                 if let entity = sphereEntity {
                     content.remove(entity)
                     sphereEntity = nil
                 }
+                if virtualScreenEntity == nil {
+                    let entity = VirtualScreenEntity.makeEntity(
+                        textureResource: panoramaBridge.textureResource
+                    )
+                    content.add(entity)
+                    virtualScreenEntity = entity
+                }
+                if let virtualScreenEntity {
+                    if let textureResource = panoramaBridge.textureResource {
+                        VirtualScreenEntity.updateTexture(
+                            on: virtualScreenEntity,
+                            textureResource: textureResource
+                        )
+                    }
+                    VirtualScreenEntity.updatePosition(
+                        on: virtualScreenEntity,
+                        distance: Float(appModel.screenDistance),
+                        verticalOffset: Float(appModel.screenVerticalOffset),
+                        viewAngle: Float(appModel.screenViewAngle)
+                    )
+                }
 
             case .window:
-                // Should not happen (space dismissed before reaching window mode),
-                // but clean up defensively.
                 if let entity = sphereEntity {
                     content.remove(entity)
                     sphereEntity = nil
+                }
+                if let entity = virtualScreenEntity {
+                    content.remove(entity)
+                    virtualScreenEntity = nil
                 }
             }
         }

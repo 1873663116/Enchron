@@ -6,12 +6,20 @@ extension SpatialSceneDomain {
         case starryNight
         case sunsetNature
 
-        /// Human-readable name for UI display.
-        /// Stub: returns empty string → display name tests FAIL.
-        public var displayName: String { "" }
+        public var displayName: String {
+            switch self {
+            case .darkTheatre: return "暗黑影院"
+            case .starryNight: return "星空夜景"
+            case .sunsetNature: return "自然日落"
+            }
+        }
 
-        /// Skybox asset name. nil = no external asset needed (pure dark environment).
-        /// Stub: always nil → starryNight/sunsetNature tests FAIL.
-        public var skyboxAssetName: String? { nil }
+        public var skyboxAssetName: String? {
+            switch self {
+            case .darkTheatre: return nil
+            case .starryNight: return "StarryNight"
+            case .sunsetNature: return "SunsetNature"
+            }
+        }
     }
 }
