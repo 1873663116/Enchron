@@ -1,185 +1,180 @@
-# Enchron Overnight 任务队列 — 三种播放路径完整实现
+# Enchron Overnight 任务队列 — 全覆盖 QA 驱动迭代 (v3)
 
-> 生成时间: 2026-04-02 (v2)
-> 模式: Test-First 驱动 + 对抗性审查 + 全功能 E2E 验证
-> 核心目标: 完成三种播放路径（窗口/沉浸影院/全景）的完整实现，消灭所有占位/空壳代码
-> 前置成果: v1 overnight 已完成窗口模式 UI 重构、Liquid Glass 迁移、视频详情界面、基础功能补齐
-> 终止条件: 见底部（全部机器可验证，不接受主观判断）
-
----
-
-## Phase 0: 困住自己（Test-First 陷阱设计）
-
-**这是 overnight 的第一个动作。在写任何功能代码之前，必须先完成本阶段全部任务。**
-**本阶段的产出是一套会全部失败的测试。这些红色测试就是你的枷锁——它们不变绿，你不能标 DONE。**
-
-### T0.1 — 全文档审计与功能清单提取
-- [x] 读取 workspace-agents/product_philosophy.md
-- [x] 读取 workspace-agents/Requirements.md（逐节、逐行）
-- [x] 读取 workspace-agents/design_docs/ 全部 6 个文件
-- [x] 读取 workspace-agents/contracts/ 全部文件
-- [x] 读取 ARCHITECTURE.md
-- [x] 读取 REGRESSION.md
-- [x] 输出：**完整功能清单**（每个功能一行，标注：已实现/部分实现/未实现/占位）
-- [x] 特别关注：沉浸影院模式、全景视频、3D 立体视频、投影类型路由、屏幕位置控制、环境切换
-
-### T0.2 — API 调研（使用 context7 MCP）
-- [x] RealityKit: 虚拟屏幕渲染方案（VideoMaterial vs ShaderGraphMaterial vs UnlitMaterial）
-- [x] RealityKit: ModelEntity 平面 mesh 与曲面 mesh 的创建和动态切换
-- [x] RealityKit: ImmersiveSpace 多环境加载与切换 API
-- [x] RealityKit: Entity 位置/旋转/缩放的持久化与恢复
-- [x] Metal: Stereo 3D SBS 左右帧分离 shader 实现方案
-- [x] Metal: Stereo 3D OU 上下帧分离 shader 实现方案
-- [x] Metal: 180° 半球纹理坐标裁剪方案
-- [x] Metal: 鱼眼投影重映射算法（equidistant fisheye → equirectangular）
-- [x] 调研结果写入当轮 EP，包含代码示例和 API 签名
-
-### T0.3 — 综合测试计划设计
-- [x] 为 T0.1 功能清单中每个功能设计对应测试
-- [x] **单元测试**：domain logic、value objects、state machines、projection detection、mode routing
-- [x] **结构测试**：UI 组件存在性、View body 中的绑定验证、Protocol 实现完整性
-- [x] **E2E 测试路径**：为 /qa 技能设计完整的功能验证路径，覆盖三种播放模式的每一条操作路径
-- [x] 测试数量要求：新增 ≥ 40 个测试用例
-- [x] 每个测试必须在当前代码上 FAIL（证明功能未实现）
-- [x] 将 E2E 测试路径写入文档，供 /qa 使用
-
-### T0.4 — 对抗性审查（三阶段裁决）
-- [x] **阶段 1 — Codex 挑战**：将完整功能清单 + 测试计划发给 codex（adversarial-review 模式），要求：
-  - 找出测试覆盖的漏洞（哪些功能没有测试？）
-  - 找出断言过于宽松的测试（会假性通过的）
-  - 找出文档中描述但测试未覆盖的边缘情况
-  - 检查是否有"占位测试"（永远通过的空断言）
-- [x] **阶段 2 — Counter-Agent 反驳**：另一个 Agent 评估 codex 的每条挑战，推翻不合理的部分：
-  - visionOS Simulator 确实无法测试的功能（如真实手势）不算漏洞
-  - 超出 MVP v1.0 范围的功能不强制要求
-  - 但沉浸空间、全景视频、3D 立体相关挑战必须认真对待
-- [x] **阶段 3 — Opus 裁决**：Supervisor 根据 Requirements.md + 调研结果做最终裁决
-  - 裁决结果写入 EP 的 Decision Log
-  - 采纳的挑战 → 补充测试
-  - 驳回的挑战 → 记录理由
-
-### T0.5 — 测试代码落地
-- [x] 将裁决后的测试计划转为 Swift 测试代码
-- [x] 放入 Tests/XrPlayerCoreTests/ 目录
-- [x] `swift test` 执行，确认：
-  - 新增测试 ≥ 40
-  - 旧 205 个测试仍然全部 PASS
-  - 新增测试全部 FAIL（证明功能未实现）
-- [x] git commit 测试代码（此时功能代码尚未写）
+> 生成时间: 2026-04-02 (v3)
+> 模式: QA-Plan-First + 对抗性验证 + HelloWorld 参考审计
+> 核心目标: 设计并执行覆盖所有用户可感知场景的 E2E QA 计划，然后修复发现的缺陷
+> 前置成果: v2 overnight 完成了三种播放路径的代码实现（248 tests, QA 97.75），但 QA 覆盖面不足
+> 关键缺陷: 上两轮 QA 是"代码通过测试"而非"用户觉得好用"，大量人类重要场景被跳过
+> 终止条件: 见底部（全部机器可验证）
 
 ---
 
-## Phase 1: 功能实现（让红色测试逐个变绿）
+## Phase 0: 全覆盖 QA 计划设计（最重要阶段）
 
-**每完成一个子任务，运行 `swift test` 确认对应测试变绿。不变绿不 commit。**
+**这是 overnight 的第一个动作。在修复任何代码之前，必须先完成本阶段。**
+**本阶段产出一份覆盖每一个用户可感知功能的 QA 测试计划。**
 
-### T1.1 — 沉浸影院模式：虚拟屏幕实体
-- [x] 创建 VirtualScreenEntity（ModelEntity 子类或组合）
-- [x] 平面屏幕 mesh（plane geometry，尺寸可配置）
-- [x] 曲面屏幕 mesh（curved geometry，曲率可配置）
-- [x] 平面/曲面切换逻辑（运行时切换 mesh，不重建 Entity）
-- [x] Settings 中新增屏幕形状选择（Flat / Curved）
-- [x] Metal 纹理桥接复用：CVPixelBuffer → TextureResource → Material（与全景管线共用）
-- [x] `swift test` 对应测试变绿
+### T0.1 — 功能全清单提取（从用户视角）
+- [ ] 逐行读取 Requirements.md 2.1-2.5 每一节
+- [ ] 读取 product_philosophy.md 的体验愿景
+- [ ] 读取 workspace-agents/design_docs/ 全部文件
+- [ ] 提取每一个**用户可感知的功能**（不是代码路径，而是"用户能看到/触摸到/感受到的东西"）
+- [ ] 分类标注：
+  - 🟢 已实现且已验证
+  - 🟡 已实现但未在设备/模拟器上验证
+  - 🔴 未实现或缺测试素材
+  - ⚪ MVP 外推迟
+- [ ] 特别关注 Requirements.md 中以下被忽略的领域：
+  - 2.3 空间手势（单次捏合/双击/长按/拖拽）的 200ms 消歧机制
+  - 2.3 播放模式自动切换的用户体验（不只是代码逻辑）
+  - 2.4 网络异常的用户可见行为（转圈/错误框/后台重连）
+  - 2.4 播放记忆恢复弹窗的实际交互
+  - 2.4 播放结束行为（停留最后帧/重播图标/自动下一集）
+  - 2.4 缓存清理策略的用户可见效果
+  - 2.1 所有宣称支持的视频格式是否有测试素材
 
-### T1.2 — 沉浸影院模式：屏幕位置控制
-- [x] 远近距离调节（2m ~ 20m 连续，Slider）
-- [x] 垂直高度调节（Slider）
-- [x] X 轴旋转调节（±45°，Slider）
-- [x] ScreenPositionStoring Protocol 实现（SwiftData/UserDefaults 持久化）
-- [x] 每个环境独立的位置记忆（SavedScreenPosition + EnvironmentIdentifier 键）
-- [x] 位置恢复：切换环境时自动加载该环境的记忆位置
-- [x] `swift test` 对应测试变绿
+### T0.2 — HelloWorld 参考审计
+- [x] 读取 /Users/xiongzhipeng/Movies/HelloWorld 的关键文件：
+  - WorldApp.swift（Scene 定义、ImmersiveSpace 设置）
+  - ViewModel.swift（Observable 状态管理）
+  - Modules/（NavigationStack、Card UI、Detail View 布局）
+  - Globe/GlobeControls.swift（Glass 控制面板）
+  - Settings/SliderGridRow.swift（Settings UI 模式）
+  - Modifiers/（手势 Modifier、动画）
+  - Solar System/SolarSystemControls.swift（控制面板 + 翻页）
+- [x] 对照 Enchron 当前实现，逐项对比以下 UX 模式：
+  - NavigationStack 路径路由 vs Enchron 的导航方式
+  - Glass Background Effect 使用方式
+  - Detail View 分栏布局（文字左 + 交互预览右）
+  - Control Panel ornament 锚定到场景边缘
+  - Slider Grid 布局（标签 + 滑条 + 数值显示）
+  - 手势 Modifier 的 spring 动画
+  - ImmersiveSpace 开关的 Toggle + environment 变量模式
+- [x] 输出：Enchron 应采纳的 UX 改进清单（标注优先级和具体改动位置）
 
-### T1.3 — 3 个沉浸式环境
-- [x] 环境 1: 暗黑影院（纯黑 Skybox + 虚拟屏幕，最简环境）
-- [x] 环境 2: 星空夜景（星空 Skybox/程序化生成 + 虚拟屏幕）
-- [x] 环境 3: 自然日落（暖色调 Skybox + 柔和环境光 + 虚拟屏幕）
-- [x] SceneSelectorView 功能化：每个按钮对应一个真实环境，切换时实际加载
-- [x] 播放中环境切换：不中断播放，平滑过渡
-- [x] 环境切换后自动恢复该环境的屏幕位置记忆
-- [x] `swift test` + Simulator 可加载验证
+### T0.3 — 测试素材清单与获取
+- [ ] 盘点现有测试视频：/Users/xiongzhipeng/Movies/
+- [ ] 标注缺失并获取（下载公开测试素材或 ffmpeg 转制）：
+  - SBS 立体 3D 视频（必须获取）
+  - OU 立体 3D 视频（必须获取）
+  - 鱼眼投影视频（必须获取）
+  - MOV 容器格式样本（必须获取）
+  - AVI 容器格式样本（必须获取）
+  - HLG 色彩空间样本（应获取）
+  - HDR10+ 样本（应获取）
+- [ ] 每个素材用 ffprobe 验证元数据正确
+- [ ] 所有素材放入 /Users/xiongzhipeng/Movies/
 
-### T1.4 — 全景视频完善
-- [x] 180° 半球裁剪：纹理坐标限制前半球，背面不渲染
-- [x] Stereo 3D SBS 渲染：Metal shader 将宽帧左右分离 → 双眼各投射一半
-- [x] Stereo 3D OU 渲染：Metal shader 将高帧上下分离 → 双眼各投射一半
-- [x] 鱼眼投影重映射：equidistant fisheye → equirectangular 变换
-- [x] 投影类型手动覆盖 UI：PlayerControlsView 中新增 Picker，允许用户覆盖自动检测结果
-- [x] `swift test` 对应测试变绿
+### T0.4 — E2E QA 测试路径设计
+- [ ] 为 T0.1 清单中每个 🟡/🔴 项设计端到端测试路径
+- [ ] 路径模拟**真实用户操作序列**（不是代码调用）：
+  - 启动 App → 浏览文件 → 选择视频 → 查看详情 → 播放 → 控件交互 → 返回
+- [ ] 路径覆盖要求（至少）：
+  - 窗口模式：SDR/HDR10/DV 各一条完整路径
+  - 沉浸影院模式：进入/屏幕调节/环境切换/平面曲面切换 各一条
+  - 全景模式：360°/180°/SBS/OU/鱼眼 各一条
+  - 播放控件：倍速/音轨/字幕/进度条/快进快退 各一条
+  - 错误处理：网络断开/恢复播放提示/播放结束行为 各一条
+  - 手势：单捏合/双击/长按/拖拽（结构验证 + 代码路径确认）
+  - 设置：所有 Settings 项的修改和持久化验证
+  - 文件源：本地/SMB/WebDAV/Photo Library 各一条
+- [ ] 每条路径包含**具体预期结果**（不接受"检查是否正常"）
+- [ ] 写入 docs/qa-plans/qa-plan-v3-comprehensive.md
 
-### T1.5 — 播放模式自动路由
-- [x] MediaProfile 统一结构（HDR 类型 + 投影类型 + 立体格式）
-- [x] PlaybackMode 决策矩阵：投影类型 × 沉浸状态 → 自动选择模式
-  - flat + 非沉浸 → 窗口模式
-  - flat + 沉浸 → 沉浸影院模式
-  - panorama360/180/fisheye → 全景模式（自动进入沉浸空间）
-  - stereoscopic + 非沉浸 → 窗口模式（SBS/OU 渲染）
-  - stereoscopic + 沉浸 → 沉浸影院模式（SBS/OU 虚拟屏幕渲染）
-- [x] 模式切换 UI：允许用户手动覆盖自动决策
-- [x] 模式间切换不需要退出重进（graceful transition）
-- [x] `swift test` 决策矩阵全部测试变绿
+### T0.5 — 对抗性审查 QA 计划（三阶段裁决）
+- [ ] **阶段 1 — Codex 挑战**：将 QA 计划 + 功能全清单发给 codex，要求找出：
+  - 功能清单中有但 QA 路径未覆盖的功能
+  - 验证步骤过于模糊的（"检查是否正常" 不可接受，必须有具体预期结果）
+  - Requirements.md 中的边缘情况未覆盖的
+  - 用户常见操作序列未覆盖的（播放中切换数据源、连续播放不同格式视频等）
+- [ ] **阶段 2 — Counter-Agent 反驳**：
+  - Simulator CLI 无法执行的操作 → 降级为代码路径 + 结构验证，但标注 "human-only"
+  - 不可降级的：视频能否播放、UI 渲染是否正确、导航路径是否通畅
+- [ ] **阶段 3 — Opus 裁决**：对照 Requirements.md 做最终决定
+- [ ] 修订后的 QA 计划更新到 docs/qa-plans/
 
-### T1.6 — 占位代码清除
-- [x] 审计所有 UI 组件：每个按钮、每个 Picker、每个 Toggle 都必须有真实功能
-- [x] SceneSelectorView 的 4 个按钮 → 3 个真实环境 + 布局调整
-- [x] 消灭所有 `// TODO`、`// PLACEHOLDER`、`fatalError("Not implemented")` 
-- [x] 消灭所有 `.disabled(true)` 占位按钮
-
----
-
-## Phase 2: 全面测试（最重要阶段，不可压缩）
-
-### T2.1 — swift test 全绿
-- [x] `swift test` 全部通过
-- [x] 总测试数 ≥ 245（205 旧 + ≥ 40 新）
-- [x] 零 FAIL、零 SKIP（1 pre-existing WebDAV integration skip exempt）
-
-### T2.2 — /qa E2E 端到端测试
-- [x] 使用 /qa skill 在 Apple Vision Pro Simulator 上执行
-- [x] 三种播放模式全部验证：
-  - 窗口模式：SDR/HDR10/DV 视频播放、控件交互、音轨字幕切换
-  - 沉浸影院模式：虚拟屏幕渲染、平面/曲面切换、位置调节、3 个环境切换
-  - 全景模式：360° 球体、180° 半球、投影类型切换
-- [x] 每个 UI 按钮功能验证（无空按钮/无占位）
-- [x] 播放模式自动路由验证（不同视频类型 → 正确模式）
-- [x] Health Score ≥ 90
-
-### T2.3 — 回归测试
-- [x] REGRESSION.md 新增所有空间/全景回归项
-- [x] 现有回归项无退化
-- [x] 代码路径映射索引更新
-
-### T2.4 — 对抗性结果审查
-- [x] codex 审查最终实现代码（adversarial-review）
-- [x] 对照 Requirements.md 2.3 节逐条核实三种播放模式
-- [x] 对照 MVP 范围速查表（4 节）逐条核实
-- [x] 发现的问题修复后重新验证
-
----
-
-## 人类已确认的设计决策（不可推翻）
-
-1. **虚拟屏幕形状**: 平面 + 曲面，运行时可切换。渲染管线保持一致（仅 mesh 不同）
-2. **沉浸式环境数量**: 3 个（暗黑影院、星空夜景、自然日落），用于验证切换功能
-3. **API 调研工具**: 使用 context7 MCP 调研 Apple 框架文档，不使用离线 DocSet
-4. **测试优先级**: 计划和测试计划是重中之重 > 执行 > 测试验证（更重要）
-5. **文档可修改**: 如果调研发现文档描述不合理，可以修改文档（记录在 Decision Log 中）
+### T0.6 — 验证所有功能是否真正实现
+- [ ] 对照 T0.1 功能全清单，逐项检查代码（不依赖测试结果，直接审查代码）：
+  - 功能入口是否可达（UI 按钮存在且不是 disabled）
+  - 核心逻辑是否完整（不是 stub/TODO/fatalError）
+  - 数据流是否通畅（UI → UseCase → Domain → 持久化 全链路）
+- [ ] 发现"名义上实现但断联"的功能 → 标记为 Phase 2 修复项
 
 ---
 
-## 终止条件（必须 13/13 全部满足才可标 DONE）
+## Phase 1: QA 执行
 
-- [x] `swift test` 全部通过，总测试数 ≥ 245（其中 ≥ 40 为新增空间/全景测试）
-- [x] `swift build` 零 error
-- [x] /qa Health Score ≥ 90，覆盖窗口/沉浸影院/全景三种播放模式
-- [x] 虚拟屏幕实体可创建、可渲染（平面 + 曲面，Settings 中可切换）
-- [x] 3 个沉浸式环境可加载且可切换（SceneSelectorView 功能化，非占位）
-- [x] 屏幕位置调节可用（距离/高度/旋转），且每个环境有独立记忆
-- [x] 180° 半球裁剪正确（纹理坐标限制前半球）
-- [x] Stereo 3D SBS + OU 渲染管线实现（Metal shader 帧分离）
-- [x] 鱼眼投影重映射实现
-- [x] 投影类型手动覆盖 UI 可用（Picker 在 PlayerControlsView 中）
-- [x] 播放模式自动路由正确（投影类型 × 沉浸状态 → 模式决策矩阵全覆盖）
-- [x] 零占位按钮（每个 UI 交互元素都有真实功能对应）
-- [x] REGRESSION.md 已更新所有空间/全景回归项
+### T1.1 — 执行全覆盖 /qa E2E 测试
+- [ ] 按 T0.4 的 QA 计划，使用 /qa skill 逐条执行
+- [ ] 每条路径记录：PASS / FAIL / PARTIAL / BLOCKED（附具体原因和证据）
+- [ ] FAIL/PARTIAL 项自动生成修复任务清单
+- [ ] 生成 QA 报告到 docs/qa-reports/qa-report-v3-comprehensive.md
+
+### T1.2 — HelloWorld 对照验证
+- [ ] 按 T0.2 的 UX 改进清单，逐项检查 Enchron 需改进的程度
+- [ ] 标注：已符合 / 需改进（附改进方案）/ 不适用（附理由）
+
+---
+
+## Phase 2: 缺陷修复与 UX 改进
+
+### T2.1 — 修复 QA 发现的功能缺陷
+- [ ] 按优先级修复 T1.1 中 FAIL 项（P0 先于 P1 先于 P2）
+- [ ] 每修复一项，运行对应 QA 路径确认 PASS
+- [ ] `swift test` 保持全绿
+
+### T2.2 — HelloWorld 启发的 UX 改进
+- [ ] 按改进清单实施，优先级：
+  1. ImmersiveSpace 管理模式（Toggle + environment 变量，参考 HelloWorld 的 OrbitToggle/SolarSystemToggle）
+  2. Detail View 布局优化（分栏 + 响应式 GeometryReader，参考 ModuleDetail）
+  3. Control Panel 样式（Glass + ornament 锚定，参考 GlobeControls）
+  4. Settings Slider 布局（Grid: 标签 + 滑条 + 数值，参考 SliderGridRow）
+  5. 动画与过渡（spring 动画、opacity 协调，参考 DragRotationModifier）
+- [ ] 每项改动后验证不破坏现有功能
+
+### T2.3 — 测试素材播放验证
+- [ ] 用所有测试素材执行播放测试（每种格式至少播放一次）
+- [ ] 验证投影类型自动检测正确性
+- [ ] 验证渲染管线输出正确性
+
+---
+
+## Phase 3: 回归验证
+
+### T3.1 — 全面回归
+- [ ] `swift test` 全绿
+- [ ] /qa 用完整 QA 计划重新执行（T0.4 的全部路径）
+- [ ] Health Score ≥ 95
+- [ ] REGRESSION.md 更新
+
+### T3.2 — 对抗性最终审查
+- [ ] codex 审查所有修复和改进代码
+- [ ] 对照 Requirements.md 逐条核实
+- [ ] 对照 HelloWorld 参考模式核实 UX 改进效果
+
+---
+
+## 人类已确认的设计决策
+
+1. **QA 计划是第一优先级** — 在修复任何代码之前，必须先有覆盖全部用户场景的 QA 计划
+2. **HelloWorld 必须实际参考** — 不能只在文档里提一句，要真正读代码、对比、学习
+3. **测试素材必须齐全** — 每种宣称支持的格式都要有可播放的测试文件
+4. **结构验证 ≠ 用户验证** — "代码路径正确"不等于"用户体验正常"
+5. **QA 计划也要对抗性审查** — 确保计划本身没有遗漏
+
+---
+
+## 终止条件（必须 12/12 全部满足才可标 DONE）
+
+- [ ] 全覆盖 QA 计划已设计并通过对抗性审查（docs/qa-plans/ 存在且经审查）
+- [ ] 测试素材覆盖所有宣称支持的格式（SDR/HDR10/DV/HLG/180°/360°/SBS/OU/鱼眼/MKV/MP4/MOV/AVI）
+- [ ] /qa E2E 测试覆盖所有三种播放模式的完整用户操作路径
+- [ ] /qa Health Score ≥ 95
+- [ ] 每个 QA FAIL 项已修复并重新验证
+- [ ] HelloWorld 参考审计完成，改进项已实施或标注理由
+- [ ] `swift test` 全绿（≥ 248 tests, 0 FAIL）
+- [ ] `swift build` 零 error
+- [ ] 零占位按钮、零断联功能、零 stub 代码
+- [ ] REGRESSION.md 已更新
+- [ ] 对抗性最终审查通过
+- [ ] 所有"降级为结构验证"的项明确标注 "human-only verification required"
