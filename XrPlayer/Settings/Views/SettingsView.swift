@@ -86,16 +86,24 @@ public struct SettingsView: View {
         .navigationTitle("Settings")
         .alert("Clear Cache", isPresented: $showClearCacheAlert) {
             Button("Clear", role: .destructive) {
-                Self.clearAppCache()
-                cacheSizeBytes = Self.appCacheSizeBytes()
-                cacheCleared = true
+                Task.detached(priority: .utility) {
+                    Self.clearAppCache()
+                    let newSize = Self.appCacheSizeBytes()
+                    await MainActor.run {
+                        cacheSizeBytes = newSize
+                        cacheCleared = true
+                    }
+                }
             }
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will delete all cached data (\(Self.formatBytes(cacheSizeBytes))). Downloaded content will need to be reloaded.")
         }
         .onAppear {
-            cacheSizeBytes = Self.appCacheSizeBytes()
+            Task.detached(priority: .utility) {
+                let size = Self.appCacheSizeBytes()
+                await MainActor.run { cacheSizeBytes = size }
+            }
             cacheCleared = false
             let prefs = preferencesStore.loadPreferences()
             resumePolicy = prefs.resumePolicy
