@@ -124,13 +124,16 @@
 - [ ] `swift test` 保持全绿
 
 ### T2.2 — HelloWorld 启发的 UX 改进
-- [ ] 按改进清单实施，优先级：
-  1. ImmersiveSpace 管理模式（Toggle + environment 变量，参考 HelloWorld 的 OrbitToggle/SolarSystemToggle）
-  2. Detail View 布局优化（分栏 + 响应式 GeometryReader，参考 ModuleDetail）
-  3. Control Panel 样式（Glass + ornament 锚定，参考 GlobeControls）
-  4. Settings Slider 布局（Grid: 标签 + 滑条 + 数值，参考 SliderGridRow）
-  5. 动画与过渡（spring 动画、opacity 协调，参考 DragRotationModifier）
-- [ ] 每项改动后验证不破坏现有功能
+- [x] 按改进清单实施，优先级：
+  1. UX-01 DragRotationModifier ✅ Round 19
+  2. UX-02 VideoDetailView 分栏布局 ✅ Round 22
+  3. UX-03 Glass cornerRadius ✅ Round 20
+  4. UX-04 SliderGridRow ✅ Round 20
+  5. UX-05 ImmersionStyle 动态绑定 ✅ Round 20
+  6. UX-06 Drag+Magnify 同时手势 ✅ Round 21
+  7. UX-07 openWindow/dismissWindow ✅ Round 23
+  8. UX-08 FileCard/FolderCard → P2 推迟
+- [x] 每项改动后验证不破坏现有功能
 
 ### T2.3 — 测试素材播放验证
 - [ ] 用所有测试素材执行播放测试（每种格式至少播放一次）
