@@ -48,6 +48,11 @@ enum ProjectionDetection {
         let isSpherical = input.gSphericalSpherical?.lowercased() == "true"
         let projType = input.gSphericalProjectionType?.lowercased() ?? ""
 
+        // Fisheye projection detection (before general spherical)
+        if projType.contains("fisheye") || projType.contains("equidistant") {
+            return .fisheye
+        }
+
         if isSpherical || projType.contains("equirectangular") || projType.contains("cubemap") {
             // Check FOV to distinguish 180 vs 360
             if let fov = input.horizontalFOVDegrees, fov > 0, fov <= 180 {
