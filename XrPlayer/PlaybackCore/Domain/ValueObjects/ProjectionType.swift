@@ -18,13 +18,19 @@ extension PlaybackCoreDomain {
             }
         }
 
-        /// Stub: always false → stereo tests FAIL
-        public var isStereo3D: Bool { false }
+        public var isStereo3D: Bool {
+            switch self {
+            case .stereoscopicSBS, .stereoscopicOU: true
+            default: false
+            }
+        }
 
-        /// Stub: always false → hemisphere tests FAIL
-        public var requiresHemisphereMesh: Bool { false }
+        public var requiresHemisphereMesh: Bool {
+            self == .panorama180
+        }
 
-        /// Stub: always false → fisheye tests FAIL
-        public var requiresFisheyeRemap: Bool { false }
+        public var requiresFisheyeRemap: Bool {
+            self == .fisheye
+        }
     }
 }

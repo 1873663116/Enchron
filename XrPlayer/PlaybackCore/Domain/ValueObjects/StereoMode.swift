@@ -19,19 +19,31 @@ extension PlaybackCoreDomain {
             }
         }
 
-        /// Stub: returns zero rect → left eye UV tests FAIL.
         public var leftEyeUVRect: UVRect {
-            UVRect(originX: 0, originY: 0, width: 0, height: 0)
+            switch self {
+            case .sideBySide:
+                UVRect(originX: 0, originY: 0, width: 0.5, height: 1.0)
+            case .overUnder:
+                UVRect(originX: 0, originY: 0, width: 1.0, height: 0.5)
+            }
         }
 
-        /// Stub: returns zero rect → right eye UV tests FAIL.
         public var rightEyeUVRect: UVRect {
-            UVRect(originX: 0, originY: 0, width: 0, height: 0)
+            switch self {
+            case .sideBySide:
+                UVRect(originX: 0.5, originY: 0, width: 0.5, height: 1.0)
+            case .overUnder:
+                UVRect(originX: 0, originY: 0.5, width: 1.0, height: 0.5)
+            }
         }
 
-        /// Stub: returns (0, 0) → output dimensions tests FAIL.
         public func outputDimensions(inputWidth: Int, inputHeight: Int) -> (width: Int, height: Int) {
-            (0, 0)
+            switch self {
+            case .sideBySide:
+                (inputWidth / 2, inputHeight)
+            case .overUnder:
+                (inputWidth, inputHeight / 2)
+            }
         }
     }
 }

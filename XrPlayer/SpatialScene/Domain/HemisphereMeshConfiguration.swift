@@ -12,16 +12,15 @@ extension SpatialSceneDomain {
             self.radius = radius
         }
 
-        /// Stub: returns 0...0 → U range test FAIL.
-        public var uRange: ClosedRange<Float> { 0...0 }
+        /// Front hemisphere UV range: U spans [0.25, 0.75] of equirectangular texture.
+        public var uRange: ClosedRange<Float> { 0.25...0.75 }
 
-        /// Stub: returns 0...0 → longitude range test FAIL.
-        public var longitudeRange: ClosedRange<Float> { 0...0 }
+        /// Front hemisphere longitude: -π/2 to π/2.
+        public var longitudeRange: ClosedRange<Float> { (-Float.pi / 2)...(Float.pi / 2) }
 
-        /// Stub: returns 0 → vertex count test FAIL.
-        public var vertexCount: Int { 0 }
+        public var vertexCount: Int { (stacks + 1) * (slices + 1) }
 
-        /// Stub: returns 0...0 → V range test FAIL.
-        public var vRange: ClosedRange<Float> { 0...0 }
+        /// Full latitude range: V spans [0.0, 1.0] (pole to pole).
+        public var vRange: ClosedRange<Float> { 0.0...1.0 }
     }
 }
