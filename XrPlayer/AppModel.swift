@@ -38,6 +38,10 @@ public final class AppModel {
     public var screenVerticalOffset: Double = 0.0
     public var screenViewAngle: Double = 0.0
 
+    // MARK: - Immersive Cinema State
+    public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
+    public var screenShape: SpatialSceneDomain.ScreenGeometry = .flat(width: 2.4, height: 1.35)
+
     private let screenPositionStore: ScreenPositionStoring
 
     public init(screenPositionStore: ScreenPositionStoring = SwiftDataStore()) {
@@ -101,26 +105,35 @@ public final class AppModel {
 
     // MARK: - Screen Position Persistence
 
-    public func loadScreenPosition(for environmentID: String = "virtual-screen") async {
-        if let saved = await screenPositionStore.loadPosition(for: environmentID) {
+    public func loadScreenPosition() async {
+        let envID = currentCinemaEnvironment.rawValue
+        if let saved = await screenPositionStore.loadPosition(for: envID) {
             screenDistance = saved.distanceMeters
             screenVerticalOffset = saved.verticalOffsetMeters
             screenViewAngle = saved.viewAngleDegrees
         }
     }
 
-    public func saveScreenPosition(for environmentID: String = "virtual-screen") {
+    public func saveScreenPosition() {
+        let envID = currentCinemaEnvironment.rawValue
         let store = screenPositionStore
         let distance = screenDistance
         let verticalOffset = screenVerticalOffset
         let viewAngle = screenViewAngle
         Task.detached(priority: .utility) {
             await store.savePosition(
-                for: environmentID,
+                for: envID,
                 distanceMeters: distance,
                 verticalOffsetMeters: verticalOffset,
                 angleDegrees: viewAngle
             )
         }
+    }
+
+    public func switchEnvironment(to environment: SpatialSceneDomain.CinemaEnvironment) async {
+        guard environment != currentCinemaEnvironment else { return }
+        saveScreenPosition()
+        currentCinemaEnvironment = environment
+        await loadScreenPosition()
     }
 }

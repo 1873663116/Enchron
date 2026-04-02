@@ -1,9 +1,12 @@
 import SwiftUI
 
 public struct SettingsView: View {
+    @Environment(AppModel.self) private var appModel
     @State private var resumePolicy: PersistenceDomain.ResumePolicy = .askEveryTime
     @State private var playbackEndBehavior: PersistenceDomain.PlaybackEndBehavior = .stop
     @State private var defaultPlaybackSpeed: Double = 1.0
+    @State private var isCurvedScreen: Bool = false
+    @State private var selectedEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
     private let preferencesStore: PreferencesStoring
 
     public init(preferencesStore: PreferencesStoring = UserDefaultsStore()) {
@@ -34,6 +37,17 @@ public struct SettingsView: View {
 
             Section("Immersive Space") {
                 ToggleImmersiveSpaceButton()
+
+                Picker("Screen Shape", selection: $isCurvedScreen) {
+                    Text("Flat").tag(false)
+                    Text("Curved").tag(true)
+                }
+
+                Picker("Environment", selection: $selectedEnvironment) {
+                    ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { env in
+                        Text(env.displayName).tag(env)
+                    }
+                }
             }
 
             Section("About") {
@@ -47,6 +61,10 @@ public struct SettingsView: View {
             resumePolicy = prefs.resumePolicy
             playbackEndBehavior = prefs.playbackEndBehavior
             defaultPlaybackSpeed = prefs.defaultPlaybackSpeed
+            if case .curved = appModel.screenShape {
+                isCurvedScreen = true
+            }
+            selectedEnvironment = appModel.currentCinemaEnvironment
         }
         .onChange(of: resumePolicy) { _, newValue in
             var prefs = preferencesStore.loadPreferences()
@@ -62,6 +80,18 @@ public struct SettingsView: View {
             var prefs = preferencesStore.loadPreferences()
             prefs.defaultPlaybackSpeed = newValue
             preferencesStore.savePreferences(prefs)
+        }
+        .onChange(of: isCurvedScreen) { _, curved in
+            if curved {
+                appModel.screenShape = .curved(radius: 3.0, height: 1.35)
+            } else {
+                appModel.screenShape = .flat(width: 2.4, height: 1.35)
+            }
+        }
+        .onChange(of: selectedEnvironment) { _, newEnv in
+            Task {
+                await appModel.switchEnvironment(to: newEnv)
+            }
         }
     }
 
