@@ -53,17 +53,17 @@
 - [x] 输出：Enchron 应采纳的 UX 改进清单（标注优先级和具体改动位置）
 
 ### T0.3 — 测试素材清单与获取
-- [ ] 盘点现有测试视频：/Users/xiongzhipeng/Movies/
-- [ ] 标注缺失并获取（下载公开测试素材或 ffmpeg 转制）：
-  - SBS 立体 3D 视频（必须获取）
-  - OU 立体 3D 视频（必须获取）
-  - 鱼眼投影视频（必须获取）
-  - MOV 容器格式样本（必须获取）
-  - AVI 容器格式样本（必须获取）
-  - HLG 色彩空间样本（应获取）
-  - HDR10+ 样本（应获取）
-- [ ] 每个素材用 ffprobe 验证元数据正确
-- [ ] 所有素材放入 /Users/xiongzhipeng/Movies/
+- [x] 盘点现有测试视频：/Users/xiongzhipeng/Movies/（5 个已有素材）
+- [x] 标注缺失并获取（ffmpeg 转制/合成 7 个新素材）：
+  - SBS 立体 3D 视频（SBS-stereo3d-test.mp4, 3840x1080, H.264）
+  - OU 立体 3D 视频（OU-stereo3d-test.mp4, 1920x2160, H.264）
+  - 鱼眼投影视频（fisheye-test.mp4, 1920x1920, H.264, v360 equirect→fisheye）
+  - MOV 容器格式样本（SDR-test-sample.mov, HEVC, 4K SDR）
+  - AVI 容器格式样本（SDR-test-sample.avi, H.264, 4K SDR）
+  - HLG 色彩空间样本（HLG-test.mp4, HEVC, BT.2020/arib-std-b67）
+  - HDR10+ 样本（HDR10plus-test.mp4, HEVC, BT.2020/PQ + mastering display metadata）
+- [x] 每个素材用 ffprobe 验证元数据正确（12/12 通过）
+- [x] 所有素材放入 /Users/xiongzhipeng/Movies/
 
 ### T0.4 — E2E QA 测试路径设计
 - [ ] 为 T0.1 清单中每个 🟡/🔴 项设计端到端测试路径
