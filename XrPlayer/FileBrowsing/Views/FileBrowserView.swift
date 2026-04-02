@@ -53,7 +53,7 @@ public struct FileBrowserView: View {
                         .controlSize(.small)
                     }
                     .padding()
-                    .background(.secondary.opacity(0.1))
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
                 }
                 
                 if !viewModel.savedDataSources.isEmpty {
@@ -79,8 +79,7 @@ public struct FileBrowserView: View {
                                         }
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 8)
-                                        .background(Color.secondary.opacity(0.2))
-                                        .clipShape(Capsule())
+                                        .glassBackgroundEffect(in: Capsule())
                                     }
                                     .buttonStyle(.plain)
 
@@ -120,6 +119,7 @@ public struct FileBrowserView: View {
                     }
                     .padding(.horizontal)
                     .padding(.top, 8)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
 
                 FolderListView(
