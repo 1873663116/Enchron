@@ -244,7 +244,7 @@
   - Step 1: openImmersiveSpace 调用触发，.immersionStyle 为预设值（.full 或 .mixed）
   - Step 2: ImmersiveSpace 打开成功；EnvironmentDomeEntity 加载暗黑影院环境。**已知缺陷 F6.1-F6.3**: 环境为纯色 UnlitMaterial（白 0.02），非 Skybox 纹理，视觉效果低于设计目标。CinemaEnvironment.skyboxAssetName 定义了纹理名但从未加载
   - Step 3: DecidePlaybackModeUseCase 检测到已在沉浸空间 → 选择 .immersive 模式；VirtualScreenEntity 实例化
-  - Step 4: 视频帧通过 Metal 纹理桥接渲染到虚拟屏幕上；屏幕位置为默认值（distance/height/angle 初始值）
+  - Step 4: 视频帧通过 Metal 纹理桥接渲染到虚拟屏幕上；屏幕位置为默认值（distance/height/angle 初始值）。**已知缺陷 F3.2 (P0)**: `PanoramaLayerBridge.attachVideoLayer()` 仅在 `.panorama` 模式调用，`.immersive` 模式未接入 bridge，虚拟屏幕 textureResource 为 nil — **预期 FAIL（无视频画面）**
 - **Verification**: Simulator + Structure（Simulator 沉浸空间渲染效果受限）
 
 ### QA-D02: 虚拟屏幕距离和高度调节
@@ -445,7 +445,7 @@
   2. 观察渲染到虚拟屏幕
 - **Expected Results**:
   - Step 1: DecidePlaybackModeUseCase 检测 SBS + 已在沉浸空间 → 选择 .immersive 模式
-  - Step 2: VirtualScreenEntity 上渲染左眼裁剪后的画面；Metal 纹理桥接正常工作；画面不拉伸
+  - Step 2: VirtualScreenEntity 上渲染左眼裁剪后的画面；Metal 纹理桥接正常工作；画面不拉伸。**已知缺陷 F3.2 (P0)**: 同 QA-D01，`.immersive` 模式 bridge 未接入 — **预期 FAIL（虚拟屏幕无画面）**
 - **Verification**: Structure
 
 ---
@@ -515,7 +515,8 @@
   - Step 2: 标准播放控件隐藏，DetailedTimeline 出现；时间轴展示更精细的时间刻度；固定中心指针显示当前播放位置
   - Step 3: 时间轴可左右平移，播放位置随之变化；时间精度更高（秒级或帧级）
   - Step 4: 退出二级进度条模式；所有播放器 UI 隐藏（全屏呈现视频）
-- **Verification**: Simulator
+- **已知缺陷 F3.10 (P2)**: DetailedTimelineGeometry 计算模型完整（196行），但**无任何 SwiftUI View 消费它**。DetailedTimelineView 不存在 — **预期 FAIL（二级时间轴无法触发）**
+- **Verification**: Structure（已知 FAIL）
 
 ### QA-G05: 逐帧步进
 - **Features**: F3.21
@@ -621,7 +622,8 @@
   - Step 1: DisambiguateGestureUseCase 识别为 drag（dragDistanceThreshold = 8pt）
   - Step 2: 视频进度随拖拽方向实时变化（向右 = 快进，向左 = 快退）
   - Step 3: 释放后从当前位置继续播放
-- **Verification**: Structure + Human-only
+- **已知缺陷 F3.9 (P1)**: MainView.swift:136 对 `.drag` case 执行 `break`（空操作），手势检测到但未接线到进度条 — **预期 FAIL（拖拽无效果）**
+- **Verification**: Structure + Human-only（已知 FAIL）
 - **Human-only reason**: 拖拽距离计算需真实手势
 
 ---
@@ -1060,15 +1062,18 @@
 
 | QA 路径 | 功能 | 已知缺陷 | 优先级 |
 |---------|------|---------|--------|
+| QA-D01, QA-F03 | F3.2 | 沉浸 bridge 断联 — `.immersive` 模式 VirtualScreenEntity 无视频纹理（**T0.6 代码审计升级**） | **P0** |
 | QA-J01 | F4.1 | 无网络缓冲指示器 | P0 |
 | QA-J03 | F4.3 | 无自动重连逻辑 | P0 |
 | QA-K03 | F5.2 | 无 HDR/SDR 实时切换按钮 | P0 |
-| QA-I05 | F4.7 | 文件列表进度提示 UI 缺失 | P0 |
+| QA-I05 | F4.7 | 文件列表进度提示形态为文字标记非进度条（**T0.6 修正：非缺失，形态不同**） | P2 |
+| QA-H04 | F3.9 | 捏合拖拽进度条 — `.drag` case 执行 break 未接线（**T0.6 代码审计新增**） | P1 |
 | QA-D05 | F6.6 | 屏幕形状不持久化 | P1 |
 | QA-E02 | F1.21 | FOV 180/360 消歧 hardcoded nil（**对抗性审查升级为 FAIL**） | P1 |
 | QA-M03 | F8.4 | VoiceOver 标签未审计 | P1 |
 | QA-L05 | F7.5 | 远程缓存清理 UI 缺失（**对抗性审查新增路径**） | P1 |
 | QA-L06 | F7.6 | About 页面缺失（**对抗性审查新增路径**） | P1 |
+| QA-G04 | F3.10 | 二级时间轴 — 计算模型无 View 消费（**T0.6 代码审计新增**） | P2 |
 
 ---
 
