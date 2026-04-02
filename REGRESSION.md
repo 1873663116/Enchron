@@ -26,7 +26,7 @@
 | PlayerUI/Domain/* | REG-012, REG-015, REG-016 |
 | FileBrowsing/Adapters/SMB/* | REG-020, REG-021, REG-023, REG-092 |
 | FileBrowsing/Adapters/WebDAV/* | REG-022, REG-092 |
-| FileBrowsing/Adapters/PhotoLibrary/* | REG-090 |
+| FileBrowsing/Adapters/PhotoLibrary/* | REG-090, REG-096 |
 | FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023, REG-090, REG-092 |
 | FileBrowsing/Domain/* | REG-020, REG-022 |
 | FileBrowsing/Views/* | REG-020, REG-089, REG-090, REG-092 |
@@ -35,7 +35,8 @@
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
 | Persistence/Domain/* | REG-030, REG-031 |
 | App/XrPlayerApp.swift | REG-091, REG-094 |
-| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087, REG-093 |
+| App/PlaybackLaunching.swift | REG-095 |
+| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087, REG-093, REG-095 |
 | App/PreparedPlayback.swift | REG-082, REG-083 |
 | App/AppCoordinator.swift | REG-040, REG-041 |
 | App/MainView.swift | REG-041, REG-087, REG-093 |
@@ -556,6 +557,27 @@
 - **Agent 自检**: `swift build` 编译通过
 - **真机验证**: 使用 Photo Library 播放视频 → 5 天后检查 tmp/xrplayer-photos/ → 过期文件已被清理
 - **退化信号**: 临时文件持续增长、清理删除了活跃文件
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-095: PlaybackLaunching 协议签名一致性
+
+- **来源**: QA Round 11 — confirmPlayback 签名与协议不匹配导致编译失败
+- **触发条件**: 改动 App/PlaybackLaunching.swift、App/PlaybackLaunchCoordinator.swift
+- **Agent 自检**: `xcodebuild build` 编译通过（visionOS Simulator target）
+- **真机验证**: 编译通过即验证 — 协议一致性是编译期保证
+- **退化信号**: PlaybackLaunchCoordinator 不再遵循 PlaybackLaunching 协议
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+### REG-096: PhotoLibraryDataSourceAdapter 相册内视频列表
+
+- **来源**: QA Round 11 — PHAsset.fetchAssetsIn API 调用错误导致编译失败
+- **触发条件**: 改动 FileBrowsing/Adapters/PhotoLibrary/PhotoLibraryDataSourceAdapter.swift
+- **Agent 自检**: `xcodebuild build` 编译通过
+- **真机验证**: Photo Library → 进入相册文件夹 → 视频列表正确显示
+- **退化信号**: 相册内无视频、编译失败、fetchAssets 调用错误
 - **状态**: active
 - **创建日期**: 2026-04-02
 
