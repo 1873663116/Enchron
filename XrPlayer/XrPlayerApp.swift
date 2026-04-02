@@ -37,6 +37,10 @@ struct XrPlayerApp: App {
         }
 
         let appModel = AppModel()
+        let savedPrefs = UserDefaultsStore().loadPreferences()
+        if savedPrefs.isScreenCurved {
+            appModel.screenShape = .curved(radius: 3.0, height: 1.35)
+        }
         let player = MPVPlayerAdapter()
         let windowVideoViewModel = WindowVideoViewModel(player: player)
         let smokeLaunch = SmokeLaunchConfiguration(environment: ProcessInfo.processInfo.environment)

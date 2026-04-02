@@ -6,6 +6,7 @@ public final class UserDefaultsStore: PreferencesStoring {
     private static let defaultEnvironmentKey = "xrplayer.preferences.defaultEnvironment"
     private static let endBehaviorKey = "xrplayer.preferences.endBehavior"
     private static let defaultSpeedKey = "xrplayer.preferences.defaultSpeed"
+    private static let screenShapeKey = "xrplayer.preferences.screenShape"
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -36,12 +37,14 @@ public final class UserDefaultsStore: PreferencesStoring {
 
         let defaultSpeed = defaults.object(forKey: Self.defaultSpeedKey) as? Double ?? 1.0
         let envID = defaults.string(forKey: Self.defaultEnvironmentKey)
+        let isScreenCurved = defaults.bool(forKey: Self.screenShapeKey)
 
         return PersistenceDomain.UserPreferences(
             resumePolicy: policy,
             playbackEndBehavior: endBehavior,
             defaultPlaybackSpeed: defaultSpeed,
-            defaultEnvironmentID: envID
+            defaultEnvironmentID: envID,
+            isScreenCurved: isScreenCurved
         )
     }
 
@@ -69,5 +72,6 @@ public final class UserDefaultsStore: PreferencesStoring {
         defaults.set(endBehaviorString, forKey: Self.endBehaviorKey)
         defaults.set(preferences.defaultPlaybackSpeed, forKey: Self.defaultSpeedKey)
         defaults.set(preferences.defaultEnvironmentID, forKey: Self.defaultEnvironmentKey)
+        defaults.set(preferences.isScreenCurved, forKey: Self.screenShapeKey)
     }
 }

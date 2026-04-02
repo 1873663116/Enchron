@@ -226,11 +226,14 @@ public final class FileBrowsingViewModel {
             return
         }
 
+        let localPath = remotePathStack.isEmpty ? "." : currentRemotePath
         do {
-            files = try await localDataSource.listContents(at: ".")
+            files = try await localDataSource.listContents(at: localPath)
+            folders = try await localDataSource.listFolders(at: localPath)
             lastErrorMessage = nil
         } catch {
             files = []
+            folders = []
             lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             print("[FileBrowser] loadFiles failed: \(error)")
         }
@@ -300,7 +303,10 @@ public final class FileBrowsingViewModel {
     }
 
     public func navigateToFolder(_ folder: FileBrowsingDomain.MediaFolder) async {
-        guard activeRemoteAdapter != nil else { return }
+        if remotePathStack.isEmpty {
+            // First navigation: push current root as initial stack entry
+            remotePathStack.append(activeRemoteAdapter != nil ? currentRemotePath : rootURL.path)
+        }
         remotePathStack.append(folder.path)
         currentRemotePath = folder.path
         canNavigateUp = remotePathStack.count > 1
@@ -309,7 +315,7 @@ public final class FileBrowsingViewModel {
     }
 
     public func navigateUp() async {
-        guard activeRemoteAdapter != nil, remotePathStack.count > 1 else { return }
+        guard remotePathStack.count > 1 else { return }
         remotePathStack.removeLast()
         let previousPath = remotePathStack.last ?? "/"
         currentRemotePath = previousPath
@@ -317,6 +323,9 @@ public final class FileBrowsingViewModel {
 
         if let ds = activeDataSource, remotePathStack.count == 1 {
             currentRootDisplayName = ds.name
+        } else if activeRemoteAdapter == nil, remotePathStack.count == 1 {
+            let name = rootURL.lastPathComponent
+            currentRootDisplayName = name.isEmpty ? rootURL.path : name
         } else {
             let name = (previousPath as NSString).lastPathComponent
             currentRootDisplayName = name.removingPercentEncoding ?? name

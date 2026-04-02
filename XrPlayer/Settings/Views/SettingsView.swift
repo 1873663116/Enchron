@@ -61,9 +61,7 @@ public struct SettingsView: View {
             resumePolicy = prefs.resumePolicy
             playbackEndBehavior = prefs.playbackEndBehavior
             defaultPlaybackSpeed = prefs.defaultPlaybackSpeed
-            if case .curved = appModel.screenShape {
-                isCurvedScreen = true
-            }
+            isCurvedScreen = prefs.isScreenCurved
             selectedEnvironment = appModel.currentCinemaEnvironment
         }
         .onChange(of: resumePolicy) { _, newValue in
@@ -87,6 +85,9 @@ public struct SettingsView: View {
             } else {
                 appModel.screenShape = .flat(width: 2.4, height: 1.35)
             }
+            var prefs = preferencesStore.loadPreferences()
+            prefs.isScreenCurved = curved
+            preferencesStore.savePreferences(prefs)
         }
         .onChange(of: selectedEnvironment) { _, newEnv in
             Task {
