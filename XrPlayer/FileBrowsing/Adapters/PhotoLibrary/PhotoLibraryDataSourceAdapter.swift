@@ -79,7 +79,7 @@ public final class PhotoLibraryDataSourceAdapter: DataSourceConnecting, FileProv
             let options = PHFetchOptions()
             options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.video.rawValue)
             options.sortDescriptors = [NSSortDescriptor(key: "modificationDate", ascending: false)]
-            assets = PHAsset.fetchAssetsIn(collection, options: options)
+            assets = PHAsset.fetchAssets(in: collection, options: options)
         }
 
         var mediaFiles: [FileBrowsingDomain.MediaFile] = []
