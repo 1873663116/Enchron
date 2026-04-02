@@ -16,6 +16,8 @@ public final class DisambiguateGestureUseCase {
     public var onGestureResolved: ((GestureType) -> Void)?
     public var onLongPressBegan: (() -> Void)?
     public var onLongPressEnded: (() -> Void)?
+    public var onDragUpdate: ((CGSize) -> Void)?
+    public var onDragEnded: (() -> Void)?
     private var isLongPressing = false
 
     private let observationWindow: TimeInterval = 0.4 // 400ms
@@ -53,8 +55,11 @@ public final class DisambiguateGestureUseCase {
     }
 
     public func handlePinchChanged(translation: CGSize, at time: Date = Date()) {
+        if isDragging {
+            onDragUpdate?(translation)
+            return
+        }
         guard activePinchStartTime != nil else { return }
-        guard isDragging == false else { return }
         let distance = hypot(translation.width, translation.height)
         guard distance >= dragDistanceThreshold else { return }
 
@@ -62,7 +67,6 @@ public final class DisambiguateGestureUseCase {
         cancelLongPressTask()
         cancelSinglePinchTask()
         emit(.drag)
-        activePinchStartTime = nil
     }
 
     public func handlePinchEnded(at time: Date = Date()) {
@@ -76,15 +80,18 @@ public final class DisambiguateGestureUseCase {
             return
         }
 
-        guard let startTime = activePinchStartTime else { return }
-        activePinchStartTime = nil
-        cancelLongPressTask()
-
         if isDragging {
             isDragging = false
+            activePinchStartTime = nil
+            cancelLongPressTask()
+            onDragEnded?()
             state = .idle
             return
         }
+
+        guard let startTime = activePinchStartTime else { return }
+        activePinchStartTime = nil
+        cancelLongPressTask()
 
         let duration = time.timeIntervalSince(startTime)
         if duration >= longPressThreshold {
