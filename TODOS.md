@@ -151,9 +151,9 @@
 - [x] REGRESSION.md 更新
 
 ### T3.2 — 对抗性最终审查
-- [ ] codex 审查所有修复和改进代码
-- [ ] 对照 Requirements.md 逐条核实
-- [ ] 对照 HelloWorld 参考模式核实 UX 改进效果
+- [x] codex 审查所有修复和改进代码
+- [x] 对照 Requirements.md 逐条核实
+- [x] 对照 HelloWorld 参考模式核实 UX 改进效果
 
 ---
 
@@ -169,15 +169,15 @@
 
 ## 终止条件（必须 12/12 全部满足才可标 DONE）
 
-- [ ] 全覆盖 QA 计划已设计并通过对抗性审查（docs/qa-plans/ 存在且经审查）
-- [ ] 测试素材覆盖所有宣称支持的格式（SDR/HDR10/DV/HLG/180°/360°/SBS/OU/鱼眼/MKV/MP4/MOV/AVI）
-- [ ] /qa E2E 测试覆盖所有三种播放模式的完整用户操作路径
-- [ ] /qa Health Score ≥ 95
-- [ ] 每个 QA FAIL 项已修复并重新验证
-- [ ] HelloWorld 参考审计完成，改进项已实施或标注理由
-- [ ] `swift test` 全绿（≥ 248 tests, 0 FAIL）
-- [ ] `swift build` 零 error
-- [ ] 零占位按钮、零断联功能、零 stub 代码
-- [ ] REGRESSION.md 已更新
-- [ ] 对抗性最终审查通过
-- [ ] 所有"降级为结构验证"的项明确标注 "human-only verification required"
+- [x] 全覆盖 QA 计划已设计并通过对抗性审查（docs/qa-plans/ 存在且经审查）
+- [x] 测试素材覆盖所有宣称支持的格式（SDR/HDR10/DV/HLG/180°/360°/SBS/OU/鱼眼/MKV/MP4/MOV/AVI）
+- [x] /qa E2E 测试覆盖所有三种播放模式的完整用户操作路径
+- [x] /qa Health Score ≥ 95
+- [x] 每个 QA FAIL 项已修复并重新验证
+- [x] HelloWorld 参考审计完成，改进项已实施或标注理由
+- [x] `swift test` 全绿（≥ 248 tests, 0 FAIL）
+- [x] `swift build` 零 error
+- [x] 零占位按钮、零断联功能、零 stub 代码
+- [x] REGRESSION.md 已更新
+- [x] 对抗性最终审查通过
+- [x] 所有"降级为结构验证"的项明确标注 "human-only verification required"

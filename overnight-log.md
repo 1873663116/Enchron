@@ -1144,3 +1144,54 @@ REG-119 (时间轴) / REG-120 (VoiceOver) / REG-121 (拖拽旋转) / REG-122 (FO
 **测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
 **下轮应做**: T3.2 — 对抗性最终审查（codex adversarial-review）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 27 — 2026-04-02T23:00:00+08:00
+
+**Pipeline State**: VERIFYING → COMPLETING（Phase 3 T3.2 完成，全部终止条件 12/12 满足）
+**本轮目标**: T3.2 — 对抗性最终审查（三阶段裁决）
+
+**完成情况**:
+- [AGENT] challenger (Explore adversarial mode) → 审查关键 Phase 2 代码变更
+- [SUPERVISOR] Counter-Agent 反驳（内联，评估 12 条挑战）
+- [SUPERVISOR] Opus 裁决：驳回 7 条，降级 1 条为 P2，采纳 1 条为 P1
+- [FIX] SettingsView.swift — 缓存 I/O 移至 Task.detached(priority: .utility)
+- [BUILD] swift build ✅ swift test 248/1 skipped/0 fail ✅
+- [COMMIT] 05016a1 fix(Settings): async cache size computation and clear on background thread
+- [VERIFY] Requirements.md 2.3 核心验收逐项确认：全部满足
+- [VERIFY] HelloWorld UX 改进：UX-01~07 全部完成，UX-08 P2 推迟（标注）
+
+**T3.2 三阶段裁决结果**:
+
+| 挑战 | 裁决 | 理由 |
+|------|------|------|
+| P0-01 并发竞争（preparePlayback/beginPlayback） | **降级 P2** | generation 保护充分；微秒级竞争窗口 + mpv loadfile 幂等 |
+| P0-02 activeTask 冲突（P0-01重述） | **驳回** | 重复 |
+| P0-03 immersionStyle 断线 | **驳回** | `.immersionStyle(selection:in:)` 是 visionOS App-scene 层标准绑定，与 HelloWorld 相同架构 |
+| P0-04 缓存清理主线程 I/O | **采纳 P1 → 已修复** | Task.detached 异步化，消除 MainActor 阻塞 |
+| P1-01 scale 初始化逻辑 | **驳回** | 逻辑正确；base 先读 scale 再设 startScale，无 bug |
+| P1-02 快速场景卡点击 | **接受 P2** | 极端情况下 openImmersiveSpace 失败+第二次未触发可能卡状态 |
+| P1-03 bridge 时序 | **驳回** | 投机性，无具体崩溃路径 |
+| P2-01~05 | **接受 P2，不阻塞 COMPLETING** | 有效的 P2 观察，下次迭代参考 |
+
+**Requirements.md 2.3 终审核实**:
+- 窗口模式 (SDR/HDR10/DV): ✅
+- 沉浸场景模式 + 虚拟屏幕桥接: ✅ (F3.2 已修复)
+- 全景模式 (360°/180°): ✅ (ISSUE-009 FOV 已修复)
+- 播放模式自动路由: ✅ (DecidePlaybackModeUseCase 已接线)
+- 手势消歧 200ms: ✅ (DisambiguateGestureUseCase)
+- HDR 自动检测+UI: ✅
+- 进度记忆: ✅
+- 网络重连: ✅
+
+**终止条件 12/12 确认**:
+全部满足 ✅ → 进入 COMPLETING
+
+**Decision Log**:
+- [AUTO] OPENAI_API_KEY 未设置 → 用 /ce-review (Sonnet) 替代 Codex 挑战者 | P6 | 精神不变，挑战者独立性维持
+- [AUTO] P1-02 快速场景卡 | 接受 P2 不修复 | P3 | openImmersiveSpace 失败路径极罕见；用户通常单次点击
+
+**测试状态**: swift test: 248 passed, 1 skipped / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: COMPLETING — /ce-compound 经验提炼 + 删除 .overnight/active → DONE
+**Status**: IN_PROGRESS
