@@ -11,8 +11,6 @@ public struct PlayerControlsView: View {
 
     @State private var isDraggingSlider = false
     @State private var dragValue: Double = 0
-    @State private var showDetailedTimeline = false
-    @State private var pausedForTimeline = false
     @State private var showPlaybackSettingsPanel = false
     @State private var showDebugPanel = false
     @State private var hasAppliedSmokePanelRequest = false
@@ -22,28 +20,7 @@ public struct PlayerControlsView: View {
     public var body: some View {
         ZStack(alignment: .topTrailing) {
             VStack(spacing: 24) {  // Increased vertical rhythm
-                if showDetailedTimeline {
-                    DetailedTimelineView(
-                        onClose: {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                showDetailedTimeline = false
-                                if pausedForTimeline {
-                                    pausedForTimeline = false
-                                    videoViewModel.resume()
-                                }
-                            }
-                        }
-                    )
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(
-                                with: .offset(y: 10)),
-                            removal: .opacity.combined(with: .scale(scale: 0.98))
-                        ))
-                } else {
-                    sliderSection
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                }
+                sliderSection
 
                 VStack(spacing: 28) {  // More space between controls for clarity
                     primaryControlRow
@@ -84,14 +61,14 @@ public struct PlayerControlsView: View {
         }
         .padding(.horizontal, 32)
         .padding(.vertical, 28)
-        .frame(width: showDetailedTimeline ? 860 : 720)
+        .frame(width: 720)
         .glassBackgroundEffect()  // Base spatial material
         .background(
             .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous)
         )  // Nested glass layering
         .onHover { isHovering in
             appModel.setControlsFocused(
-                isHovering || showDetailedTimeline || showPlaybackSettingsPanel || showDebugPanel)
+                isHovering || showPlaybackSettingsPanel || showDebugPanel)
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
@@ -102,16 +79,12 @@ public struct PlayerControlsView: View {
                     }
                 }
         )
-        .onChange(of: showDetailedTimeline) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel || showDebugPanel)
-            appModel.registerControlsInteraction()
-        }
         .onChange(of: showPlaybackSettingsPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showDetailedTimeline || showDebugPanel)
+            appModel.setControlsFocused(isVisible || showDebugPanel)
             appModel.registerControlsInteraction()
         }
         .onChange(of: showDebugPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showDetailedTimeline || showPlaybackSettingsPanel)
+            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel)
             appModel.registerControlsInteraction()
         }
         .onChange(of: appModel.currentPlaybackURL) { _, _ in
@@ -125,7 +98,7 @@ public struct PlayerControlsView: View {
 
     @ViewBuilder
     private var sliderSection: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 6) {
             HStack(spacing: 12) {
                 Text(
                     PlaybackTimeFormatter.clock(
@@ -157,7 +130,21 @@ public struct PlayerControlsView: View {
                     .frame(width: 60, alignment: .trailing)
             }
             .padding(.vertical, 8)
+
+            // Precision time label — visible during drag
+            if isDraggingSlider {
+                Text(
+                    PlaybackTimeFormatter.preciseClock(
+                        dragValue,
+                        framesPerSecond: videoViewModel.displayMediaProfile?.frameRate ?? 0
+                    )
+                )
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.orange)
+                .transition(.opacity)
+            }
         }
+        .animation(.easeInOut(duration: 0.15), value: isDraggingSlider)
         .frame(maxWidth: .infinity)
     }
 
@@ -229,30 +216,24 @@ public struct PlayerControlsView: View {
             debugButton
 
             Button {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                    if showDetailedTimeline {
-                        showDetailedTimeline = false
-                        if pausedForTimeline {
-                            pausedForTimeline = false
-                            videoViewModel.resume()
-                        }
-                    } else {
-                        closePlaybackSettingsPanel()
-                        closeDebugPanel()
-                        showDetailedTimeline = true
-                        if videoViewModel.playbackState == .playing {
-                            pausedForTimeline = true
-                            videoViewModel.pause()
-                        }
-                    }
-                }
+                videoViewModel.frameStepBackward()
             } label: {
-                Image(systemName: "waveform.path")
+                Image(systemName: "backward.frame.fill")
                     .font(.title3)
-                    .foregroundStyle(showDetailedTimeline ? Color.accentColor : Color.primary)
+                    .foregroundStyle(.primary)
             }
-            .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showDetailedTimeline))
-            .help("Toggle Detailed Timeline")
+            .buttonStyle(PlayerControlSurfaceStyle(size: 60))
+            .help("Frame Step Backward")
+
+            Button {
+                videoViewModel.frameStepForward()
+            } label: {
+                Image(systemName: "forward.frame.fill")
+                    .font(.title3)
+                    .foregroundStyle(.primary)
+            }
+            .buttonStyle(PlayerControlSurfaceStyle(size: 60))
+            .help("Frame Step Forward")
         }
     }
 
@@ -260,7 +241,6 @@ public struct PlayerControlsView: View {
         Button {
             appModel.registerControlsInteraction()
             withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
-                closeDetailedTimelineIfNeeded()
                 closeDebugPanel()
                 showPlaybackSettingsPanel.toggle()
             }
@@ -451,7 +431,6 @@ public struct PlayerControlsView: View {
             appModel.registerControlsInteraction()
             withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
                 closePlaybackSettingsPanel()
-                closeDetailedTimelineIfNeeded()
                 showDebugPanel.toggle()
             }
         } label: {
@@ -466,25 +445,13 @@ public struct PlayerControlsView: View {
     @MainActor
     private func applySmokePanelRequestIfNeeded() async {
         guard hasAppliedSmokePanelRequest == false,
-            let request = appModel.smokePanelRequest
+            appModel.smokePanelRequest != nil
         else {
             return
         }
 
         hasAppliedSmokePanelRequest = true
         appModel.showControls = true
-        try? await Task.sleep(for: .seconds(1))
-
-        if request == "timeline" {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                closePlaybackSettingsPanel()
-                showDetailedTimeline = true
-                if videoViewModel.playbackState == .playing {
-                    pausedForTimeline = true
-                    videoViewModel.pause()
-                }
-            }
-        }
     }
 
     private func speedLabel(_ speed: PlaybackCoreDomain.PlaybackSpeed) -> String {
@@ -502,16 +469,6 @@ public struct PlayerControlsView: View {
     private func resetTransientPanelsForMediaSwitch() {
         showPlaybackSettingsPanel = false
         showDebugPanel = false
-        closeDetailedTimelineIfNeeded()
-    }
-
-    private func closeDetailedTimelineIfNeeded() {
-        guard showDetailedTimeline else { return }
-        showDetailedTimeline = false
-        if pausedForTimeline {
-            pausedForTimeline = false
-            videoViewModel.resume()
-        }
     }
 }
 
