@@ -1,6 +1,6 @@
 # Enchron 回归集
 
-更新时间：2026-03-26
+更新时间：2026-04-02
 
 
 ## 使用方式
@@ -17,9 +17,9 @@
 | PlaybackCore/Adapters/MPV/* | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063, REG-070 |
 | PlaybackCore/Domain/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlaybackCore/UseCases/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
-| PlayerUI/Views/DetailedTimelineView.swift | REG-010, REG-011, REG-014, REG-017 |
-| PlayerUI/UseCases/DetailedTimelineGeometry.swift | REG-010, REG-014, REG-017 |
-| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019 |
+| PlayerUI/UseCases/DetailedTimelineGeometry.swift | REG-080 |
+| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081 |
+| PlayerUI/Views/VideoDetailView.swift | REG-082 |
 | PlayerUI/Views/PlayerControlSurface.swift | REG-012, REG-013, REG-015, REG-016, REG-019 |
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
 | PlayerUI/Views/PlaybackMenuView.swift | REG-018 |
@@ -33,10 +33,11 @@
 | Persistence/Adapters/UserDefaultsStore.swift | REG-031 |
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
 | Persistence/Domain/* | REG-030, REG-031 |
-| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040 |
+| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083 |
+| App/PreparedPlayback.swift | REG-082, REG-083 |
 | App/AppCoordinator.swift | REG-040, REG-041 |
 | App/MainView.swift | REG-041 |
-| App/Navigation/* | REG-041 |
+| App/Navigation/* | REG-041, REG-084 |
 | SpatialScene/* | REG-050, REG-070, REG-071 |
 | SpatialScene/Renderers/* | REG-070, REG-071 |
 
@@ -80,7 +81,9 @@
 - **Agent 自检**: `swift test --filter DetailedTimelineGeometry` 全部通过
 - **真机验证**: 进入二级进度条 → 捏合缩放时间轴 → 时间刻度变化合理且无跳跃 → 拖动跟手
 - **退化信号**: 时间轴显示异常、拖动不跟手、缩放后刻度消失或重叠
-- **状态**: active
+- **状态**: retired
+- **退役日期**: 2026-04-02
+- **退役原因**: DetailedTimelineView 已删除，二级进度条模式被统一时间轴替代（T3.3）。几何计算由 REG-080 覆盖。
 - **创建日期**: 2026-03-14
 
 
@@ -91,7 +94,9 @@
 - **Agent 自检**: `swift build` 编译通过
 - **真机验证**: 点击进度条区域 → 平滑切换到二级进度条模式 → 点击空白区域退出 → 恢复正常播放 UI，无残留元素
 - **退化信号**: 切换时明显卡顿、退出后 UI 元素残留、进入/退出动画不平滑
-- **状态**: active
+- **状态**: retired
+- **退役日期**: 2026-04-02
+- **退役原因**: 二级进度条模式已删除，统一时间轴始终可见（T3.3），不存在进入退出切换。
 - **创建日期**: 2026-03-14
 
 
@@ -124,7 +129,9 @@
 - **Agent 自检**: `swift test --filter DetailedTimelinePreviewSeekPolicyTests` 全部通过
 - **真机验证**: 进入二级进度条 → 拖动到最左侧边界时预览 seek 到 00:00 → 拖动到最右侧边界时预览 seek 到视频末尾帧
 - **退化信号**: 到达首尾边界后仍停在边界前一小段、无法精确回到 00:00、末尾一小段无法命中
-- **状态**: active
+- **状态**: retired
+- **退役日期**: 2026-04-02
+- **退役原因**: DetailedTimelineView 已删除。统一时间轴使用标准 Slider，首尾边界由 Slider 原生行为保证。
 - **创建日期**: 2026-03-14
 
 
@@ -157,7 +164,9 @@
 - **Agent 自检**: `swift build` 编译通过；`swift test --filter V04Tests` 通过
 - **真机验证**: 进入二级进度条 → 点击前一帧 / 后一帧 → 画面逐帧移动，方向正确，不会直接跳成多秒 seek
 - **退化信号**: 按钮无响应、方向反了、一次点击跨越多帧、退出二级进度条后控件残留异常
-- **状态**: active
+- **状态**: retired
+- **退役日期**: 2026-04-02
+- **退役原因**: 逐帧步进已移至 PlayerControlsView 的 secondaryControlRow（T3.3），由 REG-081 覆盖。
 - **创建日期**: 2026-03-14
 
 
@@ -382,6 +391,67 @@
 - **退化信号**: 内容未居中到前方、180 度视频被拉伸到 360 度、后半球出现重复内容
 - **状态**: active
 - **创建日期**: 2026-03-17
+
+
+---
+
+
+## Phase 3 UI/UX 重构回归项
+
+
+### REG-080: 统一时间轴拖动 seek 与精确时间显示
+
+- **来源**: T3.3 进度条统一（替代 REG-010/011/014）
+- **触发条件**: 改动 PlayerUI/Views/PlayerControlsView.swift、PlayerUI/UseCases/DetailedTimelineGeometry.swift
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 播放视频 → 拖动进度条 → 拖动期间显示精确时间标签（橙色，含帧号） → 松手后跳转到对应位置 → 时间标签与实际位置一致
+- **退化信号**: 拖动时无精确时间标签、seek 位置不准、松手后 snap-back
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-081: 逐帧步进按钮在播放控件中可用
+
+- **来源**: T3.3 进度条统一（替代 REG-017）
+- **触发条件**: 改动 PlayerUI/Views/PlayerControlsView.swift、PlaybackCore/*
+- **Agent 自检**: `swift build` 编译通过；`swift test --filter V04Tests` 通过
+- **真机验证**: 播放视频 → secondaryControlRow 中可见前一帧/后一帧按钮 → 点击前一帧画面后退一帧 → 点击后一帧画面前进一帧
+- **退化信号**: 按钮不可见、点击无响应、方向反了、一次点击跨越多帧
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-082: 视频详情页展示元数据并确认播放
+
+- **来源**: T3.2b 视频详情界面（新功能）
+- **触发条件**: 改动 PlayerUI/Views/VideoDetailView.swift、App/PlaybackLaunchCoordinator.swift、App/PreparedPlayback.swift、FileBrowsing/ViewModels/*
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 文件浏览器中选择视频 → 推入详情页 → 显示文件名、分辨率、HDR 类型、帧率、文件大小 → 音频轨道和字幕轨道列表正确 → 点击 Play → 正常播放
+- **退化信号**: 详情页无法打开、元数据不显示、音轨列表为空（有多音轨文件时）、Play 按钮无响应、播放未通过 coordinator
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-083: 详情页返回正确取消预热
+
+- **来源**: T3.2a 准备/确认拆分（新功能）
+- **触发条件**: 改动 App/PlaybackLaunchCoordinator.swift、App/PreparedPlayback.swift、PlayerUI/Views/VideoDetailView.swift
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 选择视频 → 进入详情页 → 不点 Play，点返回 → 回到文件列表 → 无残留播放状态、无视频画面闪现
+- **退化信号**: 返回后残留播放状态、mpv 未停止预加载、内存泄漏（反复进出详情页后内存持续增长）
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-084: 沉浸空间全局入口可用
+
+- **来源**: T3.4 沉浸空间全局入口（新功能）
+- **触发条件**: 改动 App/Navigation/*、ToggleImmersiveSpaceButton.swift
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 应用启动 → 工具栏右上角可见沉浸空间 toggle → 点击打开沉浸空间 → 再次点击关闭 → 切换标签页后 toggle 状态保持一致
+- **退化信号**: toggle 不可见、打开后无法关闭、切换标签页后状态不同步、播放中仍显示 toggle（应隐藏）
+- **状态**: active
+- **创建日期**: 2026-04-02
 
 
 ---

@@ -129,4 +129,28 @@
 - [AUTO] Pipeline Transition | REVIEWING → EXECUTING | P6 | CEO + Eng 评审均通过，方案已锁定
 
 **下轮应做**: EXECUTING — 开始实施 Unit 1（测试视频验证与获取），同时并行 Unit 2 + Unit 3 + Unit 5
+**Status**: DONE
+
+---
+## Round 6 — 2026-04-02T05:00:00+08:00
+
+**Pipeline State**: EXECUTING
+**本轮目标**: 并行实施 Unit 1-5，然后 Unit 4（依赖 Unit 3），然后 Unit 6+7
+**完成情况**:
+- [COMMIT] 7a7b55b feat(T3.4): Unit 2 沉浸空间全局入口 — ToggleImmersiveSpaceButton.Style + AppTabView toolbar
+- [AGENT] Unit 1 测试视频验证 — 5 文件全通过（3 现有 + 2 新获取）
+- [COMMIT] ed6c31f feat(T3.2a): Unit 3 prepare/confirm 拆分 — PreparedPlayback.swift 新建, PlaybackLaunchCoordinator 添加 preparePlayback/confirmPlayback/cancelPreparedPlayback + 60s TTL
+- [COMMIT] 1a5e1e0 feat(T3.3): Unit 5 统一时间轴 — 删除 DetailedTimelineView，移除二级进度条切换，精确时间标签内联显示，逐帧步进移入 secondaryControlRow
+- [COMMIT] 05ed4a7 feat(T3.2b): Unit 4 视频详情页 — VideoDetailView 新建，FileBrowserView 添加 navigationDestination
+- [UPDATE] REGRESSION.md 退役 REG-010/011/014/017 + 新增 REG-080-084
+- [IN_PROGRESS] Unit 6 FileBrowsing Glass + Unit 7 App Glass — agents 运行中
+
+**Decision Log**:
+- [AUTO] Unit 3 架构 | coordinator 发布 currentPreparation + 60s TTL | P5+P3 | 保持 coordinator 为唯一事实来源
+- [AUTO] Unit 4 导航 | isPresented binding 驱动 | P5 | 避免 PlaybackLaunchRequest Hashable 要求
+- [AUTO] Unit 5 精简 | 删除 DetailedTimelineView 文件 | P3+P5 | 统一时间轴完全替代
+- [AUTO] Unit 6/7 API | .glassBackgroundEffect() 保持 | P5 | HelloWorld 参考项目使用相同 API
+- [AUTO] 回归集 | 4 项退役 + 5 项新增 | P5 | 覆盖统一时间轴 + 详情页 + 沉浸入口
+
+**下轮应做**: 提交 Unit 6+7，执行 Unit 8 E2E QA，更新 TODOS.md
 **Status**: IN_PROGRESS
