@@ -141,16 +141,38 @@ public struct MainView: View {
                     } else {
                         windowVideoViewModel.resume()
                     }
-                case .longPress, .drag:
+                case .drag:
+                    seekStartSeconds = windowVideoViewModel.playbackPosition.seconds
+                    if !appModel.showControls {
+                        withAnimation { appModel.showControls = true }
+                        appModel.registerControlsInteraction()
+                        startControlsTimer()
+                    }
+                case .longPress:
                     break
                 }
             }
 
             windowVideoViewModel.gestureUseCase.onLongPressBegan = {
+                speedBeforeLongPress = appModel.playbackSpeed
                 windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(2.0))
             }
             windowVideoViewModel.gestureUseCase.onLongPressEnded = {
-                windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(1.0))
+                windowVideoViewModel.setSpeed(speedBeforeLongPress ?? .default)
+                speedBeforeLongPress = nil
+            }
+
+            windowVideoViewModel.gestureUseCase.onDragUpdate = { translation in
+                guard let startPos = seekStartSeconds else { return }
+                let duration = windowVideoViewModel.playbackPosition.duration
+                guard duration > 0 else { return }
+                let seekDelta = Double(translation.width) * 0.15
+                let target = max(0, min(duration, startPos + seekDelta))
+                windowVideoViewModel.seek(to: target)
+                appModel.registerControlsInteraction()
+            }
+            windowVideoViewModel.gestureUseCase.onDragEnded = {
+                seekStartSeconds = nil
             }
 
             windowVideoViewModel.onPlaybackEnded = {
@@ -205,6 +227,8 @@ public struct MainView: View {
 
     @State private var controlsTimerTask: Task<Void, Never>?
     @State private var pinchBegan = false
+    @State private var speedBeforeLongPress: PlaybackCoreDomain.PlaybackSpeed?
+    @State private var seekStartSeconds: Double?
 
     private func startControlsTimer() {
         controlsTimerTask?.cancel()
