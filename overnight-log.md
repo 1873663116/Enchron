@@ -316,3 +316,60 @@
 **测试状态**: swift test: 未执行（本轮 QA 测试） | 新增: 0 | FAIL: none
 **下轮应做**: T1.1 批次 2 — D 沉浸影院 + E 全景 + F 3D 立体 (13 条路径)
 **Status**: IN_PROGRESS
+
+---
+
+## Round 9 — 2026-04-02T10:30:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 1 T1.1 批次 2）
+**本轮目标**: T1.1 QA 执行 — 批次 2 (D 沉浸影院 + E 全景 + F 3D立体，14 条路径)
+**完成情况**:
+- [SIMULATOR] App confirmed running (PID 40299, visionOS 26.2, Files tab visible)
+- [SUPERVISOR] 直接代码审查: ImmersiveSpaceView, PlayerControlsView, AppModel, VirtualScreenEntity, PanoramaSphereEntity, EnvironmentDomeEntity, ProjectionDetection, DecidePlaybackModeUseCase, StereoMode
+- [AGENT] audit-D (Sonnet) → D01-D05 结构审计
+- [AGENT] audit-E (Sonnet) → E01-E06 结构审计
+- [AGENT] audit-F (Sonnet) → F01-F03 结构审计
+- [BASH] ffprobe 验证 4 个测试素材元数据: 360°✅有球形映射, 180°❌无元数据, SBS❌无stereo3d, OU❌无stereo3d, 鱼眼❌无投影标签
+- 产出：`docs/qa-reports/qa-report-v3-batch2-DEF.md`
+
+**QA 批次 2 结果**:
+
+| QA Path | Verdict | Key Finding |
+|---------|---------|-------------|
+| QA-D01 进入沉浸播放 | PARTIAL | F3.2 P0: bridge 仅 .panorama 接入, .immersive 虚拟屏幕无视频 |
+| QA-D02 屏幕距离高度 | PASS | distance→z, verticalOffset→y, per-env save/load 完整 |
+| QA-D03 X轴视角旋转 | PASS | simd_quatf X轴旋转, 度→弧度转换正确 |
+| QA-D04 环境切换 | PARTIAL | 材质替换不退出空间✅, 但全部纯色无skybox |
+| QA-D05 平面/曲面切换 | PARTIAL | flat→plane, curved→cylinder✅, 但 screenShape 不持久化 |
+| QA-E01 360°全景 | PASS | 素材有 Spherical Mapping, 检测→panorama360→full sphere✅ |
+| QA-E02 180° VR | FAIL | 双重失败: 素材无球形元数据 + FOV hardcoded nil |
+| QA-E03 鱼眼投影 | FAIL | 素材无 GSpherical 元数据, 代码路径存在但无法触发 |
+| QA-E04 投影手动覆盖 | PASS | Menu 列出全部类型, setProjectionOverride→autoRoute 完整 |
+| QA-E05 全景无虚拟场景 | PASS | update块移除 dome+virtualScreen, 创建 PanoramaSphere |
+| QA-E06 沉浸中投影覆盖 | PASS | 双向切换 .immersive↔.panorama, 无残留 entity |
+| QA-F01 SBS 3D | PARTIAL | 代码正确(依赖 stereo3d 标签), 但素材无标签 |
+| QA-F02 OU 3D | PARTIAL | 同 SBS, 素材无 stereo3d 标签 |
+| QA-F03 SBS 沉浸屏幕 | FAIL | F3.2 P0: bridge 断联 + 素材检测失败 |
+
+**新发现问题 (4)**:
+
+| # | 严重度 | 问题 |
+|---|--------|------|
+| ISSUE-006 | High | SBS/OU 素材缺 stereo3d 元数据 → 自动检测失败 |
+| ISSUE-007 | High | 鱼眼素材缺 GSpherical 元数据 → 自动检测失败 |
+| ISSUE-008 | High | 180° VR 素材缺球形映射元数据 → 检测为 flat |
+| ISSUE-009 | Medium | F1.21 FOV hardcoded nil, 180° 始终误判 360° |
+
+**关键发现**:
+- **测试素材大面积缺陷**: R3 ffmpeg 生成的 7 个素材中，4 个缺少自动检测所需元数据。ffprobe 元数据验证通过是因为验证的是容器/编码/色彩属性，未验证投影/立体元数据
+- **代码设计正确**: ProjectionDetection 不从宽高比猜测投影类型是正确设计决策
+- **F3.2 是沉浸影院的系统性阻塞**: 所有 `.immersive` 模式的视频渲染均不工作
+
+**Decision Log**:
+- [AUTO] 素材缺陷分类 | 标记为素材修复项而非代码缺陷 | P3 | 代码检测逻辑设计正确
+- [AUTO] QA-E02 双重失败处理 | 素材补元数据 + 代码补 FOV 消歧 独立修复 | P1 | 180° VR 是核心全景功能
+- [AUTO] 批次 2 与 3 分界 | DEF 完成, 下轮继续 G-M 路径 | P6 | 按字母序分批
+
+**测试状态**: swift test: 未执行（本轮 QA 测试） | 新增: 0 | FAIL: none
+**下轮应做**: T1.1 批次 3 — G 播放控件 + H 手势 + I 状态管理 + J 错误处理 + K HDR色彩 + L 设置 + M 辅助功能
+**Status**: IN_PROGRESS
