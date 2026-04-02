@@ -504,3 +504,36 @@
 **测试状态**: swift test: 未执行（本轮验证+文档） | 新增: 0 | FAIL: none
 **下轮应做**: Phase 2 T2.1 — 修复 QA P0 缺陷（F3.2 bridge 断联 / F4.1 缓冲指示器 / F5.2 HDR切换 / F4.3 自动重连）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 12 — 2026-04-02T19:08:00+08:00
+
+**Pipeline State**: EXECUTING（Phase 2 T2.1 — P0 缺陷修复 #1）
+**本轮目标**: F3.2 bridge 断联修复 — `.immersive` 模式虚拟屏幕无视频纹理
+**完成情况**:
+- [AGENT] bridge-explorer (Explore) → 全链路追踪: PlayerControlsView → PanoramaBridge → VirtualScreenEntity → ImmersiveSpaceView
+- [SUPERVISOR] 根因确认: `switchPlaybackMode()` Step 1 和 Step 5 仅处理 `.panorama`，`.immersive` 被遗漏
+- [EDIT] `PlayerControlsView.swift:414-417` Step 1: 条件扩展为 `.panorama || .immersive`
+- [EDIT] `PlayerControlsView.swift:447-452` Step 5: 条件扩展为 `.panorama || .immersive`
+- [BUILD] xcodebuild → BUILD SUCCEEDED (exit 0, warnings only)
+- [TEST] swift test → 248 passed, 1 skipped, 0 failures
+- [COMMIT] 5ed1ebe fix(SpatialScene): attach PanoramaBridge video layer in immersive mode
+
+**修复细节**:
+- 根因: `switchPlaybackMode()` 的 Step 5 仅在 `mode == .panorama` 时调用 `panoramaBridge.attachVideoLayer(layer)`
+- `.immersive` 模式下 bridge 从未收到 CAMetalLayer → `textureResource` 为 nil → VirtualScreenEntity 黑屏
+- 修复: Step 1 (detach) 和 Step 5 (attach) 的条件都扩展为包含 `.immersive`
+- XrPlayerApp.onDisappear 已正确处理清理（line 141），无需修改
+
+**影响范围**:
+- QA-D01 (进入沉浸播放): PARTIAL → 预期升级为 PASS（bridge 接通）
+- QA-F03 (SBS 沉浸屏幕): FAIL → 预期升级为 PARTIAL（bridge 接通，但素材元数据仍缺失）
+- 所有 `.immersive` 模式 QA 路径受益
+
+**Decision Log**:
+- [AUTO] 修复范围 | 仅改 PlayerControlsView，不动 MainView/XrPlayerApp | P5 | MainView.onChange 仅管 open/dismiss，bridge 生命周期正确归属于 PlayerControlsView
+
+**测试状态**: swift test: 248 passed / 0 failures | 新增: 0 | FAIL: none
+**下轮应做**: Phase 2 T2.1 — 修复 QA P0 #2: F4.1 网络缓冲指示器（MPVPlayerAdapter 从未触发 .buffering 状态）
+**Status**: IN_PROGRESS
