@@ -157,7 +157,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 
 ## Implementation Units
 
-- [ ] **Unit 1: Phase 1 — Test Video Validation & Acquisition**
+- [x] **Unit 1: Phase 1 — Test Video Validation & Acquisition**
 
 **Goal:** Verify existing test videos work with mpv and acquire 180°/360° panoramic test videos.
 
@@ -183,7 +183,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 
 ---
 
-- [ ] **Unit 2: T3.4 — Immersive Space Global Entry**
+- [x] **Unit 2: T3.4 — Immersive Space Global Entry**
 
 **Goal:** Surface immersive space toggle at app level, accessible from any state without navigating to Scenes tab.
 
@@ -219,7 +219,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 
 ---
 
-- [ ] **Unit 3: T3.2a — PlaybackLaunchCoordinator Prepare/Confirm Split**
+- [x] **Unit 3: T3.2a — PlaybackLaunchCoordinator Prepare/Confirm Split**
 
 **Goal:** Extend PlaybackLaunchCoordinator to support prepare-then-confirm flow for video details page.
 
@@ -261,7 +261,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 
 ---
 
-- [ ] **Unit 4: T3.2b — Video Detail View**
+- [x] **Unit 4: T3.2b — Video Detail View**
 
 **Goal:** Create VideoDetailView showing media metadata, track selection, and play confirmation.
 
@@ -307,7 +307,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 
 ---
 
-- [ ] **Unit 5: T3.3 — Progress Bar Unification**
+- [x] **Unit 5: T3.3 — Progress Bar Unification**
 
 **Goal:** Merge DetailedTimelineView functionality into the primary slider, eliminating the two-level toggle.
 
@@ -349,7 +349,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 
 ---
 
-- [ ] **Unit 6: T3.1a — FileBrowsing Liquid Glass Redesign**
+- [x] **Unit 6: T3.1a — FileBrowsing Liquid Glass Redesign**
 
 **Goal:** Redesign FileBrowsing UI with Liquid Glass components for a premium browsing experience.
 
@@ -390,7 +390,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 
 ---
 
-- [ ] **Unit 7: T3.1b — PlayerUI & App-Level Liquid Glass Migration**
+- [x] **Unit 7: T3.1b — PlayerUI & App-Level Liquid Glass Migration**
 
 **Goal:** Migrate remaining UI components to Liquid Glass — player controls, settings, menus, overlays.
 
@@ -435,7 +435,7 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 
 ---
 
-- [ ] **Unit 8: Phase 2 — E2E QA Testing**
+- [x] **Unit 8: Phase 2 — E2E QA Testing** (agent-level: build + 205 tests pass + structural QA 6/6; simulator QA pending human)
 
 **Goal:** Systematic end-to-end testing of the complete app in Apple Vision Pro Simulator.
 

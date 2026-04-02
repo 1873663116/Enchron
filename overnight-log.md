@@ -152,5 +152,11 @@
 - [AUTO] Unit 6/7 API | .glassBackgroundEffect() 保持 | P5 | HelloWorld 参考项目使用相同 API
 - [AUTO] 回归集 | 4 项退役 + 5 项新增 | P5 | 覆盖统一时间轴 + 详情页 + 沉浸入口
 
-**下轮应做**: 提交 Unit 6+7，执行 Unit 8 E2E QA，更新 TODOS.md
-**Status**: IN_PROGRESS
+**Unit 8 QA 结果**:
+- `swift build` → Build complete (0.18s) ✅
+- `swift test` → 205 tests, 0 failures ✅
+- 结构 QA → 6/6 PASS（协议对齐、导航连接、环境注入、无悬挂引用、回归集维护、向后兼容）
+- Simulator E2E → 待人类真机验证
+
+**下轮应做**: Phase 3 代码实现完成。待人类验证：Vision Pro Simulator 端到端测试。之后进入 Phase 4（设计文档 gap 分析）。
+**Status**: DONE
