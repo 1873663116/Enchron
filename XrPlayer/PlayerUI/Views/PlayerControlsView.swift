@@ -12,6 +12,7 @@ public struct PlayerControlsView: View {
     @State private var isDraggingSlider = false
     @State private var dragValue: Double = 0
     @State private var showPlaybackSettingsPanel = false
+    @State private var showScreenPositionPanel = false
     @State private var showDebugPanel = false
     @State private var hasAppliedSmokePanelRequest = false
 
@@ -44,6 +45,21 @@ public struct PlayerControlsView: View {
                 .zIndex(2)
             }
 
+            if showScreenPositionPanel {
+                ScreenPositionControlView {
+                    closeScreenPositionPanel()
+                }
+                .frame(width: 340, height: 420, alignment: .topLeading)
+                .padding(.top, 12)
+                .padding(.trailing, 12)
+                .transition(
+                    .opacity
+                        .combined(with: .scale(scale: 0.96, anchor: .topTrailing))
+                        .combined(with: .offset(y: -8))
+                )
+                .zIndex(3)
+            }
+
             if showDebugPanel {
                 DebugOverlayView {
                     closeDebugPanel()
@@ -56,7 +72,7 @@ public struct PlayerControlsView: View {
                         .combined(with: .scale(scale: 0.96, anchor: .topTrailing))
                         .combined(with: .offset(y: -8))
                 )
-                .zIndex(3)
+                .zIndex(4)
             }
         }
         .padding(.horizontal, 32)
@@ -68,7 +84,7 @@ public struct PlayerControlsView: View {
         )  // Nested glass layering
         .onHover { isHovering in
             appModel.setControlsFocused(
-                isHovering || showPlaybackSettingsPanel || showDebugPanel)
+                isHovering || showPlaybackSettingsPanel || showScreenPositionPanel || showDebugPanel)
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
@@ -80,11 +96,15 @@ public struct PlayerControlsView: View {
                 }
         )
         .onChange(of: showPlaybackSettingsPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showDebugPanel)
+            appModel.setControlsFocused(isVisible || showScreenPositionPanel || showDebugPanel)
+            appModel.registerControlsInteraction()
+        }
+        .onChange(of: showScreenPositionPanel) { _, isVisible in
+            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel || showDebugPanel)
             appModel.registerControlsInteraction()
         }
         .onChange(of: showDebugPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel)
+            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel || showScreenPositionPanel)
             appModel.registerControlsInteraction()
         }
         .onChange(of: appModel.currentPlaybackURL) { _, _ in
@@ -211,6 +231,9 @@ public struct PlayerControlsView: View {
             speedMenu
             playbackSettingsButton
             playbackModeMenu
+            if appModel.immersiveSpaceState == .open {
+                screenPositionButton
+            }
             playlistMenu
             infoMenu
             debugButton
@@ -241,6 +264,7 @@ public struct PlayerControlsView: View {
         Button {
             appModel.registerControlsInteraction()
             withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
+                closeScreenPositionPanel()
                 closeDebugPanel()
                 showPlaybackSettingsPanel.toggle()
             }
@@ -251,6 +275,23 @@ public struct PlayerControlsView: View {
         }
         .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showPlaybackSettingsPanel))
         .help("Playback Settings")
+    }
+
+    private var screenPositionButton: some View {
+        Button {
+            appModel.registerControlsInteraction()
+            withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
+                closePlaybackSettingsPanel()
+                closeDebugPanel()
+                showScreenPositionPanel.toggle()
+            }
+        } label: {
+            Image(systemName: "move.3d")
+                .font(.title3)
+                .foregroundStyle(showScreenPositionPanel ? Color.accentColor : Color.primary)
+        }
+        .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showScreenPositionPanel))
+        .help("Screen Position")
     }
 
     private var infoMenu: some View {
@@ -431,6 +472,7 @@ public struct PlayerControlsView: View {
             appModel.registerControlsInteraction()
             withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
                 closePlaybackSettingsPanel()
+                closeScreenPositionPanel()
                 showDebugPanel.toggle()
             }
         } label: {
@@ -462,12 +504,17 @@ public struct PlayerControlsView: View {
         showPlaybackSettingsPanel = false
     }
 
+    private func closeScreenPositionPanel() {
+        showScreenPositionPanel = false
+    }
+
     private func closeDebugPanel() {
         showDebugPanel = false
     }
 
     private func resetTransientPanelsForMediaSwitch() {
         showPlaybackSettingsPanel = false
+        showScreenPositionPanel = false
         showDebugPanel = false
     }
 }

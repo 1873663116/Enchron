@@ -109,6 +109,9 @@ struct XrPlayerApp: App {
                 .environment(panoramaBridge)
                 .onAppear {
                     appModel.immersiveSpaceState = .open
+                    Task {
+                        await appModel.loadScreenPosition()
+                    }
                 }
                 .onDisappear {
                     appModel.immersiveSpaceState = .closed
