@@ -19,7 +19,7 @@
 | PlaybackCore/UseCases/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlayerUI/UseCases/DetailedTimelineGeometry.swift | REG-080 |
 | PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081 |
-| PlayerUI/Views/VideoDetailView.swift | REG-082 |
+| PlayerUI/Views/VideoDetailView.swift | REG-082, REG-088 |
 | PlayerUI/Views/PlayerControlSurface.swift | REG-012, REG-013, REG-015, REG-016, REG-019 |
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
 | PlayerUI/Views/PlaybackMenuView.swift | REG-018 |
@@ -28,15 +28,15 @@
 | FileBrowsing/Adapters/WebDAV/* | REG-022 |
 | FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023 |
 | FileBrowsing/Domain/* | REG-020, REG-022 |
-| FileBrowsing/Views/* | REG-020 |
+| FileBrowsing/Views/* | REG-020, REG-089 |
 | Persistence/Adapters/SwiftDataStore.swift | REG-030 |
-| Persistence/Adapters/UserDefaultsStore.swift | REG-031 |
+| Persistence/Adapters/UserDefaultsStore.swift | REG-031, REG-085 |
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
 | Persistence/Domain/* | REG-030, REG-031 |
-| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083 |
+| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087 |
 | App/PreparedPlayback.swift | REG-082, REG-083 |
 | App/AppCoordinator.swift | REG-040, REG-041 |
-| App/MainView.swift | REG-041 |
+| App/MainView.swift | REG-041, REG-087 |
 | App/Navigation/* | REG-041, REG-084 |
 | SpatialScene/* | REG-050, REG-070, REG-071 |
 | SpatialScene/Renderers/* | REG-070, REG-071 |
@@ -450,6 +450,57 @@
 - **Agent 自检**: `swift build` 编译通过
 - **真机验证**: 应用启动 → 工具栏右上角可见沉浸空间 toggle → 点击打开沉浸空间 → 再次点击关闭 → 切换标签页后 toggle 状态保持一致
 - **退化信号**: toggle 不可见、打开后无法关闭、切换标签页后状态不同步、播放中仍显示 toggle（应隐藏）
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-085: Settings 播放结束行为和默认倍速持久化
+
+- **来源**: T4.2 B2/B3 播放行为设置（新功能）
+- **触发条件**: 改动 Settings/Views/*、Persistence/Adapters/UserDefaultsStore.swift、Persistence/Domain/Entities/UserPreferences.swift、App/PlaybackLaunchCoordinator.swift
+- **Agent 自检**: `swift build` 编译通过 + `swift test` 测试通过
+- **真机验证**: Settings → 修改"When Video Ends"为 Repeat → 修改"Default Speed"为 1.5x → 退出并重启 App → 设置保持 → 播放视频确认以 1.5x 速度开始
+- **退化信号**: 设置不显示、选择不保存、重启丢失、默认速度不生效
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+### REG-086: 默认播放速度生效
+
+- **来源**: T4.2 B3 默认倍速（新功能）
+- **触发条件**: 改动 App/PlaybackLaunchCoordinator.swift、PlaybackCore/Domain/ValueObjects/PlaybackSpeed.swift
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: Settings 设置默认倍速为 2.0x → 播放视频 → 确认起始速度为 2.0x → 通过详情页确认播放也以 2.0x 开始
+- **退化信号**: 播放以 1.0x 开始而非设置的默认值
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+### REG-087: 播放结束自动下一集
+
+- **来源**: T4.2 E2 自动下一集（新功能）
+- **触发条件**: 改动 App/PlaybackLaunchCoordinator.swift、App/MainView.swift、XrPlayerApp.swift
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: Settings 设为"Play Next" → 播放文件列表中的非末尾文件 → 播放结束后自动开始下一个文件 → 播放末尾文件时结束后停止（无下一个）→ 设为"Repeat"时循环当前文件 → 设为"Stop"时正常停止
+- **退化信号**: 播放结束后无反应、跳到错误文件、Repeat 不循环、nextFileProvider 闭包泄漏
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+### REG-088: 视频详情页恢复播放提示
+
+- **来源**: T4.2 C2 恢复播放 UX（新功能）
+- **触发条件**: 改动 PlayerUI/Views/VideoDetailView.swift、App/PlaybackLaunchCoordinator.swift
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 播放视频到中间 → 停止 → 重新选择同一视频 → 详情页显示"Resume from X:XX"和"Play from Start" → Resume 按钮从上次位置恢复 → Play from Start 从头开始 → 首次播放的视频只显示 Play 按钮
+- **退化信号**: 恢复按钮不出现、恢复位置错误、首次播放出现恢复提示、alwaysResume 模式不自动恢复
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+### REG-089: 文件列表进度指示
+
+- **来源**: T4.2 C3 进度指示 UX（新功能）
+- **触发条件**: 改动 FileBrowsing/Views/*、FileBrowsing/ViewModels/*
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 播放视频到中间 → 返回文件列表 → 该文件显示橙色圆点和"Watched X:XX" → 未播放过的文件无进度指示 → 刷新文件列表后进度指示保持
+- **退化信号**: 进度指示不显示、时间格式错误、已播放文件无标记、刷新后丢失
 - **状态**: active
 - **创建日期**: 2026-04-02
 

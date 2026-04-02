@@ -32,17 +32,18 @@
 
 ## Phase 2: 端到端 QA 测试
 
-### T2.1 — Apple Vision Pro Simulator E2E 测试
-- **工具**: Apple Vision Pro Simulator
-- **范围**: 每个按钮、每个交互路径的详细测试
-- **方法**: 使用 QA skill 执行系统化测试
+### T2.1 — Apple Vision Pro Simulator E2E 测试（必须完成，不可跳过）
+- **工具**: Apple Vision Pro Simulator（不是真机，就是 Simulator）
+- **强制要求**: 这不是"待真机验证"，这是 overnight 必须自主完成的任务
+- **方法**: 使用 /qa skill + xcodebuild + simctl 在 Simulator 上执行系统化测试
 - **迭代**: 发现问题 → 修复 → 回归测试，循环直到全部通过
+- **测试文件**: 使用 /Users/xiongzhipeng/Movies/ 下的 5 个测试视频文件
 - **覆盖**:
   - 文件浏览（本地/SMB/WebDAV）
-  - 视频播放启动流程
+  - 视频播放启动流程（包括新的视频详情二级界面）
   - 播放控件交互
-  - 进度条操作
-  - 沉浸空间开关
+  - 统一进度条操作
+  - 沉浸空间开关（全局入口 + 播放内）
   - 所有测试视频格式（SDR/HDR10/Dolby Vision/180°/360°）
 
 ---
@@ -82,9 +83,21 @@
 - D 类：播放速度缺失 1 项 → 已修复
 - E 类：未实现功能 4 项 → 待人类决策
 
-### T4.2 — 补齐所有未实现功能（部分完成）
+### T4.2 — 补齐所有未实现功能（必须全部完成）
 - **已完成**: 文档更新 6 项 + Settings 持久化 + 播放速度 10 档 + 文件排序 UI
-- **待人类决策**: 恢复提示 UX / 进度指示 UX / 屏幕位置控件(v0.4) / Photo Library / 自动下一集 / 缓存清理 / 网络重连
+- **Round 8 完成**:
+  - [x] B2: 播放结束行为设置（Stop / Repeat / Play Next）
+  - [x] B3: 默认倍速设置（10 档 Picker）
+  - [x] C2: 恢复播放提示 UX（VideoDetailView 双按钮 Resume/Start Over，遵循 ResumePolicy）
+  - [x] C3: 文件列表进度指示（橙色圆点 + Watched X:XX）
+  - [x] E2: 播放结束后自动下一集（handlePlaybackEnded + nextFileProvider）
+- **剩余待实现**:
+  - C4: 屏幕位置控件（自主设计，实现）
+  - C5: X 轴旋转控件
+  - E1: Photo Library 源
+  - E3: 缓存清理策略（5天过期）
+  - E4: 网络中断重连机制
+- **原则**: 遇到 UX 决策时自主判断，参考 Apple HIG 和 visionOS 设计规范，不要等人类
 
 ---
 
@@ -92,10 +105,10 @@
 
 - [x] 文档结构符合当前 Skills 工作流
 - [x] 5 种测试视频（SDR/HDR10/DV/180°/360°）全部就绪
-- [ ] Apple Vision Pro Simulator E2E 测试全部通过（需真机/模拟器验证）
+- [ ] Apple Vision Pro Simulator E2E 测试全部通过（在 Simulator 上完成，不等真机）
 - [x] 所有 UI 组件使用 Liquid Glass
 - [x] 视频详情二级界面功能完整
 - [x] 进度条已简化（无二级展开）
 - [x] 沉浸空间可在 App 启动时配置
-- [x] 设计文档 gap 分析完成 + 安全项全部实现（Phase 4 T4.1 + T4.2 部分）
-- [ ] 零已知 bug（需真机验证）
+- [ ] 设计文档所有功能已实现（B2/B3/C2-C5/E1-E4 全部完成）
+- [ ] 零已知 bug（Simulator 验证通过）

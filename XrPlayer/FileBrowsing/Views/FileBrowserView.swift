@@ -126,6 +126,7 @@ public struct FileBrowserView: View {
                     folders: viewModel.folders,
                     files: viewModel.files,
                     isLoading: viewModel.isLoading,
+                    fileWatchedSeconds: viewModel.fileWatchedSeconds,
                     onFolderSelected: { folder in
                         Task {
                             await viewModel.navigateToFolder(folder)

@@ -182,5 +182,32 @@
 - [AUTO] 排序实现层级 | ViewModel 层排序（非 adapter 层） | P5+P3 | 三个 adapter 已有排序但接口不同，ViewModel 层统一最简
 - [AUTO] 待人类决策项 | C2/C3/C4/C5/E1-E4 标记不执行 | P6 | 涉及 UX 设计选择或 v0.4 功能范围
 
-**下轮应做**: Phase 4 安全项全部完成。剩余 T4.2 项需人类 UX 决策（恢复提示/进度指示/屏幕位置控件/新功能开发）。Pipeline 可暂停等待人类指令。
-**Status**: DONE
+**下轮应做**: T4.2 剩余项（B2/B3/C2-C5/E1-E4）全部自主实现 + T2.1 Simulator E2E 测试。不等人类决策，UX 问题自主判断。
+**Status**: IN_PROGRESS
+
+---
+## Round 8 — 2026-04-02T08:00:00+08:00
+
+**Pipeline State**: EXECUTING → EXECUTING
+**本轮目标**: T4.2 实施 B2/B3/E2/C2/C3 — 播放行为设置 + 自动下一集 + 恢复提示 + 进度指示
+**完成情况**:
+- [EXECPLAN] ExecPlan005.md 创建 — 5 Unit 实施方案
+- [IMPL] Unit 1: Domain + Persistence — PlaybackEndBehavior enum 新建, UserPreferences +2 字段, UserDefaultsStore 完整持久化
+- [IMPL] Unit 2: SettingsView — +2 Picker（When Video Ends 三态 + Default Speed 10 档）
+- [IMPL] Unit 3: Auto-Next Episode — PlaybackLaunchCoordinator +handlePlaybackEnded() +nextFileProvider 闭包, MainView 条件控制显示, XrPlayerApp 连线
+- [IMPL] Unit 4: Resume Prompt — confirmPlayback +resumePosition 参数, VideoDetailView 双按钮（Resume from X:XX / Play from Start），遵循 ResumePolicy 三态
+- [IMPL] Unit 5: Progress Indicator — FileBrowsingViewModel +progressStore +fileWatchedSeconds, FolderListView 橙色圆点 + Watched X:XX
+- [IMPL] Default Speed — beginPlayback 和 confirmPlayback 路径均应用默认倍速
+- [BUILD] `swift build` → Build complete (0.93s) ✅
+- [TEST] `swift test` → 205 tests, 0 failures ✅
+- [REGRESSION] +5 新项 REG-085~089, 代码路径索引更新
+
+**Decision Log**:
+- [AUTO] PlaybackEndBehavior 设计 | 三态 stop/repeatOne/playNext | P5+P3 | 覆盖常见用例，不过度设计
+- [AUTO] Resume 阈值 | 5 秒 | P3+P5 | < 5 秒进度无恢复意义，避免噪声
+- [AUTO] nextFileProvider 架构 | 闭包注入而非直接依赖 FileBrowsingVM | P5+P3 | 保持 coordinator 不依赖 FileBrowsing 模块
+- [AUTO] 进度查询 | makeFileIdentifierForLookup non-async | P3+P5 | 避免为每个文件调用 resolvePlayableURL
+- [AUTO] 默认倍速 | 双路径应用（beginPlayback + confirmPlayback） | P1+P5 | 确保所有播放入口一致
+
+**下轮应做**: T4.2 剩余项（C4/C5/E1/E3/E4）实现 — 屏幕位置控件、Photo Library、缓存清理、网络重连
+**Status**: IN_PROGRESS

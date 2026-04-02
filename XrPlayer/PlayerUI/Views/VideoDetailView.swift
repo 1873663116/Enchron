@@ -10,6 +10,9 @@ public struct VideoDetailView: View {
     @Environment(FileBrowsingViewModel.self) private var fileBrowsingViewModel
     @Environment(AppModel.self) private var appModel
 
+    @State private var savedProgress: PersistenceDomain.PlaybackProgress?
+    @State private var resumePolicy: PersistenceDomain.ResumePolicy = .askEveryTime
+
     public init() {}
 
     public var body: some View {
@@ -104,13 +107,77 @@ public struct VideoDetailView: View {
                     )
                 }
 
+                playbackButtons(prepared: prepared)
+            }
+            .padding()
+        }
+        .task {
+            guard let fileID = prepared.request.fileIdentifier else { return }
+            savedProgress = await coordinator.loadProgress(for: fileID)
+            resumePolicy = UserDefaultsStore().loadPreferences().resumePolicy
+        }
+    }
+
+    @ViewBuilder
+    private func playbackButtons(prepared: PreparedPlayback) -> some View {
+        if let progress = savedProgress, progress.position.seconds > 5 {
+            switch resumePolicy {
+            case .askEveryTime:
+                VStack(spacing: 12) {
+                    Button {
+                        coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
+                        fileBrowsingViewModel.detailNavigationRequest = nil
+                    } label: {
+                        Label("Resume from \(Self.formatTime(progress.position.seconds))", systemImage: "play.fill")
+                            .font(.title3.weight(.semibold))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.accentColor)
+
+                    Button {
+                        coordinator.confirmPlayback(prepared)
+                        fileBrowsingViewModel.detailNavigationRequest = nil
+                    } label: {
+                        Label("Play from Start", systemImage: "arrow.counterclockwise")
+                            .font(.body)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.bordered)
+                }
+                .padding(.top, 8)
+
+            case .alwaysResume:
+                playButton(enabled: true) {
+                    coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
+                    fileBrowsingViewModel.detailNavigationRequest = nil
+                }
+
+            case .alwaysStartFromBeginning:
                 playButton(enabled: true) {
                     coordinator.confirmPlayback(prepared)
                     fileBrowsingViewModel.detailNavigationRequest = nil
                 }
             }
-            .padding()
+        } else {
+            playButton(enabled: true) {
+                coordinator.confirmPlayback(prepared)
+                fileBrowsingViewModel.detailNavigationRequest = nil
+            }
         }
+    }
+
+    private static func formatTime(_ totalSeconds: Double) -> String {
+        let seconds = Int(totalSeconds)
+        let h = seconds / 3600
+        let m = (seconds % 3600) / 60
+        let s = seconds % 60
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        }
+        return String(format: "%d:%02d", m, s)
     }
 
     // MARK: - Failed State

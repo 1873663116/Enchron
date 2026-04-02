@@ -22,10 +22,14 @@ public final class FileBrowsingViewModel {
     /// The detail view reads this to know which file is being inspected.
     public var detailNavigationRequest: PlaybackLaunchRequest?
 
+    /// Watched seconds keyed by MediaFile.id (UUID) for progress indicators in file list.
+    public var fileWatchedSeconds: [UUID: Double] = [:]
+
     private let localDataSource: LocalDataSourceAdapter
     private let fileManager: FileManager
     public let credentialStoreForConfig: CredentialStoring
     private let savedDataSourceStore: SavedDataSourceRecordStoring
+    private let progressStore: ProgressStoring
     private var credentialStore: CredentialStoring { credentialStoreForConfig }
     private let importQueue = DispatchQueue(label: "xrplayer.fileimport.io", qos: .utility)
     private let onPlayFile: @MainActor (PlaybackLaunchRequest) -> Void
@@ -42,6 +46,7 @@ public final class FileBrowsingViewModel {
         fileManager: FileManager = .default,
         credentialStore: CredentialStoring = KeychainStore(),
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
+        progressStore: ProgressStoring = SwiftDataStore(),
         onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void,
         onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)? = nil
     ) {
@@ -49,6 +54,7 @@ public final class FileBrowsingViewModel {
         self.fileManager = fileManager
         self.credentialStoreForConfig = credentialStore
         self.savedDataSourceStore = savedDataSourceStore
+        self.progressStore = progressStore
         self.onPlayFile = onPlayFile
         self.onPrepareFile = onPrepareFile
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
@@ -207,6 +213,7 @@ public final class FileBrowsingViewModel {
                 lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             }
             applySortToFiles()
+            loadProgressForFiles()
             return
         }
 
@@ -219,6 +226,7 @@ public final class FileBrowsingViewModel {
             print("[FileBrowser] loadFiles failed: \(error)")
         }
         applySortToFiles()
+        loadProgressForFiles()
     }
 
     public var isInDocumentsFolder: Bool {
@@ -515,6 +523,48 @@ public final class FileBrowsingViewModel {
             sizeInBytes: file.sizeInBytes,
             serverFingerprint: serverFingerprint
         )
+    }
+
+    /// Non-async file identifier construction for progress lookups.
+    /// Uses `file.url.path` for local files (same as `resolvePlayableURL` returns).
+    private func makeFileIdentifierForLookup(
+        for file: FileBrowsingDomain.MediaFile
+    ) -> PersistenceDomain.FileIdentifier {
+        let path: String
+        let serverFingerprint: String?
+
+        if let dataSource = activeDataSource {
+            let logicalDirectory = currentRemotePath == "/" ? "" : currentRemotePath
+            path = "\(logicalDirectory)/\(file.name)"
+            let host = dataSource.connectionInfo.host ?? dataSource.name
+            let port = dataSource.connectionInfo.port.map(String.init) ?? "-"
+            serverFingerprint = "\(dataSource.sourceType.rawValue):\(host):\(port)"
+        } else {
+            path = file.url.path
+            serverFingerprint = nil
+        }
+
+        return PersistenceDomain.FileIdentifier.make(
+            path: path,
+            sizeInBytes: file.sizeInBytes,
+            serverFingerprint: serverFingerprint
+        )
+    }
+
+    private func loadProgressForFiles() {
+        let currentFiles = files
+        Task { [weak self] in
+            guard let self else { return }
+            var map: [UUID: Double] = [:]
+            for file in currentFiles {
+                let fileID = self.makeFileIdentifierForLookup(for: file)
+                if let progress = await self.progressStore.loadProgress(for: fileID),
+                   progress.position.seconds > 5 {
+                    map[file.id] = progress.position.seconds
+                }
+            }
+            self.fileWatchedSeconds = map
+        }
     }
 }
 
