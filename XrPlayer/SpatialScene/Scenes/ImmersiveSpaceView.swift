@@ -65,7 +65,8 @@ public struct ImmersiveSpaceView: View {
                 }
                 if virtualScreenEntity == nil {
                     let entity = VirtualScreenEntity.makeEntity(
-                        textureResource: panoramaBridge.textureResource
+                        textureResource: panoramaBridge.textureResource,
+                        geometry: appModel.screenShape
                     )
                     content.add(entity)
                     virtualScreenEntity = entity
@@ -77,6 +78,11 @@ public struct ImmersiveSpaceView: View {
                             textureResource: textureResource
                         )
                     }
+                    VirtualScreenEntity.switchGeometry(
+                        on: virtualScreenEntity,
+                        to: appModel.screenShape,
+                        textureResource: panoramaBridge.textureResource
+                    )
                     VirtualScreenEntity.updatePosition(
                         on: virtualScreenEntity,
                         distance: Float(appModel.screenDistance),
