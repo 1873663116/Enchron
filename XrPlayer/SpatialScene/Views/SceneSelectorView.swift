@@ -2,6 +2,7 @@ import SwiftUI
 
 public struct SceneSelectorView: View {
     @Environment(AppModel.self) var appModel
+    @Environment(\.openImmersiveSpace) private var openImmersiveSpace
 
     let columns = [
         GridItem(.adaptive(minimum: 200))
@@ -19,7 +20,20 @@ public struct SceneSelectorView: View {
                     ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { environment in
                         let isSelected = appModel.currentCinemaEnvironment == environment
                         Button {
-                            Task { await appModel.switchEnvironment(to: environment) }
+                            Task {
+                                await appModel.switchEnvironment(to: environment)
+                                if appModel.immersiveSpaceState == .closed {
+                                    appModel.immersiveSpaceState = .inTransition
+                                    switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
+                                    case .opened:
+                                        break
+                                    case .userCancelled, .error:
+                                        appModel.immersiveSpaceState = .closed
+                                    @unknown default:
+                                        appModel.immersiveSpaceState = .closed
+                                    }
+                                }
+                            }
                         } label: {
                             VStack(alignment: .leading, spacing: 12) {
                                 RoundedRectangle(cornerRadius: 24, style: .continuous)
