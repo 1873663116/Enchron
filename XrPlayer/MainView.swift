@@ -5,6 +5,8 @@ public struct MainView: View {
     @Environment(AppModel.self) var appModel
     @Environment(WindowVideoViewModel.self) var windowVideoViewModel
     @Environment(PlaybackLaunchCoordinator.self) var playbackLauncher
+    @Environment(\.openImmersiveSpace) private var openImmersiveSpace
+    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
 
     public init() {}
 
@@ -165,6 +167,30 @@ public struct MainView: View {
                 appModel.registerControlsInteraction()
                 appModel.showControls = true
                 startControlsTimer()
+            }
+        }
+        .onChange(of: appModel.playbackMode) { oldMode, newMode in
+            guard appModel.isPlaying else { return }
+            let needsImmersive = newMode == .panorama || newMode == .immersive
+            let oldNeedsImmersive = oldMode == .panorama || oldMode == .immersive
+            // Only transition when immersive requirement actually changes
+            guard needsImmersive != oldNeedsImmersive else { return }
+            Task { @MainActor in
+                if needsImmersive && appModel.immersiveSpaceState == .closed {
+                    appModel.immersiveSpaceState = .inTransition
+                    switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
+                    case .opened:
+                        break
+                    case .userCancelled, .error:
+                        fallthrough
+                    @unknown default:
+                        appModel.immersiveSpaceState = .closed
+                        appModel.updatePlaybackMode(.window)
+                    }
+                } else if !needsImmersive && appModel.immersiveSpaceState == .open {
+                    appModel.immersiveSpaceState = .inTransition
+                    await dismissImmersiveSpace()
+                }
             }
         }
     }

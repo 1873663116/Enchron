@@ -88,8 +88,15 @@ public final class AppModel {
 
     private func autoRoutePlaybackMode() {
         guard let profile = mediaProfile else { return }
+        // Use effectiveProjectionType (respects user override) for routing
+        let routingProfile = PlaybackCoreDomain.MediaProfile(
+            projectionType: effectiveProjectionType,
+            hdrType: profile.hdrType,
+            resolution: profile.resolution,
+            frameRate: profile.frameRate
+        )
         let decidedMode = Self.modeDecider.decideMode(
-            for: profile,
+            for: routingProfile,
             isEnvironmentActive: immersiveSpaceState == .open,
             manualOverride: nil
         )
@@ -100,6 +107,7 @@ public final class AppModel {
 
     public func setProjectionOverride(_ type: PlaybackCoreDomain.ProjectionType?) {
         projectionOverride = type
+        autoRoutePlaybackMode()
     }
 
     public func startPlayback(url: URL) {
@@ -145,6 +153,11 @@ public final class AppModel {
             screenDistance = saved.distanceMeters
             screenVerticalOffset = saved.verticalOffsetMeters
             screenViewAngle = saved.viewAngleDegrees
+        } else {
+            // Reset to defaults when no saved position exists for this environment
+            screenDistance = 8.0
+            screenVerticalOffset = 0.0
+            screenViewAngle = 0.0
         }
     }
 
