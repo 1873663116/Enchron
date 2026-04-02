@@ -105,3 +105,40 @@
 **测试状态**: swift test: 未执行（本轮纯素材生成） | 新增: 0 | FAIL: none
 **下轮应做**: T0.4 — E2E QA 测试路径设计（为每个 🟡/🔴 功能设计端到端测试路径）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 4 — 2026-04-02T03:00:00+08:00
+
+**Pipeline State**: PLANNING → PLANNING（继续 T0.4）
+**本轮目标**: T0.4 — E2E QA 测试路径设计（55 条完整用户操作路径）
+**完成情况**:
+- Supervisor 直接设计 55 条 E2E QA 测试路径，覆盖 78/82 功能点
+- 13 个类别：启动导航(3) + 文件源(4) + 窗口播放(5) + 沉浸影院(5) + 全景(5) + 3D立体(3) + 播放控件(7) + 手势(4) + 状态管理(5) + 错误处理(3) + HDR色彩(4) + 设置(4) + 辅助功能(3)
+- 每条路径含具体预期结果（铁律 #8 合规）
+- 标注 9 个已知缺陷预期 FAIL 项（4 P0 + 5 P1）
+- 标注 11 条 Human-only 验证项（附原因）
+- 产出：`docs/qa-plans/qa-plan-v3-comprehensive.md`
+
+**QA 路径统计**:
+| 验证类型 | 路径数 |
+|----------|--------|
+| Simulator 可执行 | 36 (65%) |
+| Structure 结构验证 | 31 |
+| Human-only 需真机 | 11 |
+| 已知缺陷预期 FAIL | 9 |
+
+**已知缺陷 P0（Phase 2 必修）**:
+1. F4.1 无网络缓冲指示器
+2. F4.3 无自动重连逻辑
+3. F5.2 无 HDR/SDR 实时切换按钮
+4. F4.7 文件列表进度提示 UI 缺失
+
+**Decision Log**:
+- [AUTO] QA 路径数量 55 条 vs TODOS 要求的最低覆盖 | 选择全覆盖 | P1 | 覆盖 78/82 功能点，排除 4 个 ⚪ MVP 外
+- [AUTO] F1.14 (4K/8K 压力测试) 和 F1.23 (图片浏览) 不设路径 | 推迟 | P3 | 缺 8K 素材 + 图片浏览非 MVP
+- [AUTO] 手势路径 (H01-H04) 标注 Human-only | 接受 | P5 | Simulator 手势模拟不等同真实 Hand Tracking，但保留 Structure 验证确认代码接线
+
+**测试状态**: swift test: 未执行（本轮纯 QA 设计） | 新增: 0 | FAIL: none
+**下轮应做**: T0.5 — 对抗性审查 QA 计划（三阶段裁决：Codex 挑战 → Counter-Agent 反驳 → Opus 裁决）
+**Status**: IN_PROGRESS
