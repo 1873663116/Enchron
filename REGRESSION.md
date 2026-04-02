@@ -23,7 +23,7 @@
 | PlayerUI/Views/PlayerControlSurface.swift | REG-012, REG-013, REG-015, REG-016, REG-019 |
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
 | PlayerUI/Views/PlaybackMenuView.swift | REG-018 |
-| PlayerUI/Domain/* | REG-010, REG-012, REG-015, REG-016 |
+| PlayerUI/Domain/* | REG-012, REG-015, REG-016 |
 | FileBrowsing/Adapters/SMB/* | REG-020, REG-021, REG-023 |
 | FileBrowsing/Adapters/WebDAV/* | REG-022 |
 | FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023 |

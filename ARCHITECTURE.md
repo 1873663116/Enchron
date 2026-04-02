@@ -59,12 +59,12 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 这里包含：
 
-- 播放控件，如 `PlayerControlsView`
-- 详细时间轴，如 `DetailedTimelineView`
+- 播放控件，如 `PlayerControlsView`（含统一时间轴、精确时间标签、逐帧步进）
+- 视频详情页，如 `VideoDetailView`（元数据展示、轨道选择、播放确认）
 - 纯界面侧计算，如 `DetailedTimelineGeometry`
 - 手势消歧与模式决策值对象
 
-如果问题是“控件表现不对”“时间轴交互退化”“窗口/沉浸/全景切换规则有误”，先看这里
+如果问题是”控件表现不对””时间轴交互退化””窗口/沉浸/全景切换规则有误”，先看这里
 
 ### `FileBrowsing`
 
@@ -162,7 +162,7 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 - `PlayerUI` 具备播放模式决策入口；`PlaybackCore` 和 `SpatialScene` 不具备这个入口
 - `PlayerUI` 不具备直接控制 mpv 或远程协议 adapter 的功能
-- 二级进度条是核心交互资产，为了高性能地实现这个功能，可以在一定程度上突破架构限制
+- 统一时间轴（含精确时间标签和逐帧步进）是核心交互资产，为了高性能地实现这个功能，可以在一定程度上突破架构限制
 
 ### FileBrowsing
 
