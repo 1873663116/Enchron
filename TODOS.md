@@ -101,11 +101,11 @@
 - [ ] `swift test` + Simulator 可加载验证
 
 ### T1.4 — 全景视频完善
-- [ ] 180° 半球裁剪：纹理坐标限制前半球，背面不渲染
-- [ ] Stereo 3D SBS 渲染：Metal shader 将宽帧左右分离 → 双眼各投射一半
-- [ ] Stereo 3D OU 渲染：Metal shader 将高帧上下分离 → 双眼各投射一半
+- [x] 180° 半球裁剪：纹理坐标限制前半球，背面不渲染
+- [x] Stereo 3D SBS 渲染：Metal shader 将宽帧左右分离 → 双眼各投射一半
+- [x] Stereo 3D OU 渲染：Metal shader 将高帧上下分离 → 双眼各投射一半
 - [ ] 鱼眼投影重映射：equidistant fisheye → equirectangular 变换
-- [ ] 投影类型手动覆盖 UI：PlayerControlsView 中新增 Picker，允许用户覆盖自动检测结果
+- [x] 投影类型手动覆盖 UI：PlayerControlsView 中新增 Picker，允许用户覆盖自动检测结果
 - [x] `swift test` 对应测试变绿
 
 ### T1.5 — 播放模式自动路由

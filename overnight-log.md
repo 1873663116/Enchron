@@ -271,3 +271,34 @@
 **测试状态**: swift test: 248 total | 248 passed | 0 failed | 1 skipped | 新增 PASS: 25 | FAIL: none 🎉
 **下轮应做**: T1.4 渲染层实现（Metal SBS/OU shader + hemisphere mesh + fisheye compute）+ T1.4 投影覆盖 UI + T1.5 模式切换 UI
 **Status**: IN_PROGRESS
+
+---
+## Round 10 — 2026-04-02T15:00:00+08:00
+
+**Pipeline State**: EXECUTING → EXECUTING
+**本轮目标**: T1.4 渲染层适配器 — hemisphere mesh + SBS/OU blit crop + projection override UI
+**完成情况**:
+- [AGENT] renderer-agent (Sonnet) → PanoramaSphereEntity hemisphere mesh + PanoramaLayerBridge stereo crop
+- [AGENT] appmodel-ui-agent (Sonnet) → AppModel projection state + PlayerControlsView picker + ImmersiveSpaceView wiring + PlaybackLaunchCoordinator bridging
+- PanoramaSphereEntity: 新增 generateHemisphereMesh(radius:stacks:slices:) — MeshDescriptor 程序化生成前半球 (lon -π/2..π/2, lat -π/2..π/2, UV 0..1)
+- PanoramaLayerBridge: 新增 stereoCropMode 属性，blit 根据 StereoMode.leftEyeUVRect 裁剪源区域 + 调整 LowLevelTexture 尺寸
+- AppModel: 新增 detectedProjectionType / projectionOverride / effectiveProjectionType
+- PlayerControlsView: 新增 projectionMenu (Auto + 6 ProjectionType cases，SF Symbol 图标)
+- ImmersiveSpaceView: projection-aware sphere creation + @State lastProjection 追踪重建
+- PlaybackLaunchCoordinator: 4 处 updateMediaProfile 调用点都已桥接 updateDetectedProjection
+- git commit: ef675b9
+
+**核心实现决策**:
+- 半球 mesh 使用 MeshDescriptor + generateSphere 替代（不用 LowLevelMesh，API 更简洁）
+- SBS/OU 采用 blit crop 而非 compute shader（MVP: 左眼单目渲染，避免 CompositorServices 复杂度）
+- 投影覆盖 UI 放在 playbackModeMenu 之后（操作关联性强）
+- startPlayback 时清除 projectionOverride（新媒体应重新检测）
+
+**Decision Log**:
+- [AUTO] SBS/OU 渲染策略 | blit crop 左眼单目 | P3+P5 | RealityKit 无原生 per-eye Entity 控制，CompositorServices 改造成本过高，左眼 mono 是正确 MVP
+- [AUTO] 半球 mesh | MeshDescriptor over LowLevelMesh | P3 | MeshDescriptor 更简洁，64x64 精度足够
+- [AUTO] 投影覆盖 reset | startPlayback 清除 | P5 | 新媒体应依赖自动检测，旧覆盖不应残留
+
+**测试状态**: swift test: 248 total | 248 passed | 0 failed | 1 skipped | 无新增测试（渲染层适配器无对应单元测试）
+**下轮应做**: T1.4 鱼眼重映射 Metal compute shader + T1.5 模式切换 UI / graceful transition + T1.6 占位清除
+**Status**: IN_PROGRESS
