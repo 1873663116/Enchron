@@ -361,3 +361,40 @@
 **测试状态**: swift test: 248 total | 248 passed | 0 failed | 1 skipped | T2.1 PASS ✅
 **下轮应做**: T2.2 — /qa E2E 端到端测试（三种播放模式 Simulator 验证）
 **Status**: IN_PROGRESS
+
+---
+## Round 13 — 2026-04-02T15:30:00+08:00
+
+**Pipeline State**: VERIFYING → VERIFYING
+**本轮目标**: T2.2 — /qa E2E 端到端测试（Simulator + 结构审计 + P0 修复）
+**完成情况**:
+- xcodebuild build → 4 个编译错误发现并修复（UIKit import, SwiftLint function_body_length, force_try）
+- App 安装并启动在 Apple Vision Pro Simulator (PID 12380/13205)
+- [AGENT] ui-audit (Explore) → 82 个 UI 交互元素全部 PASS，零占位/零 no-op
+- [AGENT] routing-audit (Explore) → DecidePlaybackModeUseCase 存在但未接入发射流 | 手动模式切换 OK | 投影覆盖 OK
+- [AGENT] cinema-audit (Explore) → VirtualScreenEntity/EnvironmentDomeEntity/SceneSelectorView/位置控制 全部 PASS
+- [AGENT] panorama-audit (Explore) → 360°/180°/fisheye PASS | stereoCropMode 未接线 (P0)
+
+**P0 修复 (2 项)**:
+- auto-routing 断联 → AppModel.updateDetectedProjection 新增 autoRoutePlaybackMode()
+- stereoCropMode 死代码 → ImmersiveSpaceView 新增 stereoModeForCurrentProjection() 接线
+
+**P1 修复 (2 项)**:
+- PanoramaLayerBridge handleDisplayLink 111 行 → 提取 encodeFisheyeRemap/encodeBlitCopy
+- PanoramaSphereEntity try! → do/catch + full sphere fallback
+- VirtualScreenEntity 缺少 import UIKit
+
+**修复后验证**:
+- xcodebuild build → BUILD SUCCEEDED
+- swift test → 248 passed, 0 failed, 1 skipped
+- App 重新安装并启动 → 正常
+
+**Decision Log**:
+- [AUTO] auto-routing 位置 | AppModel.updateDetectedProjection | P5+P3 | 所有 4 个调用点自动继承
+- [AUTO] stereoCropMode 双模式 | .panorama + .immersive 都需要 | P1+P2 | SBS/OU 内容可能在两种模式播放
+- [AUTO] 函数提取 | encodeFisheyeRemap + encodeBlitCopy | P3 | SwiftLint 规则合理，函数职责明确
+- [AUTO] force_try → do/catch | fallback full sphere | P1 | 运行时安全 > 编译时便捷
+
+**测试状态**: swift test: 248 total | 248 passed | 0 failed | 1 skipped | Health Score: 97.75 ≥ 90 ✅
+**下轮应做**: T2.4 — 对抗性结果审查（codex adversarial-review 最终实现代码 + Requirements.md 核实）
+**Status**: IN_PROGRESS

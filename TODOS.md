@@ -136,14 +136,14 @@
 - [x] 零 FAIL、零 SKIP（1 pre-existing WebDAV integration skip exempt）
 
 ### T2.2 — /qa E2E 端到端测试
-- [ ] 使用 /qa skill 在 Apple Vision Pro Simulator 上执行
-- [ ] 三种播放模式全部验证：
+- [x] 使用 /qa skill 在 Apple Vision Pro Simulator 上执行
+- [x] 三种播放模式全部验证：
   - 窗口模式：SDR/HDR10/DV 视频播放、控件交互、音轨字幕切换
   - 沉浸影院模式：虚拟屏幕渲染、平面/曲面切换、位置调节、3 个环境切换
   - 全景模式：360° 球体、180° 半球、投影类型切换
-- [ ] 每个 UI 按钮功能验证（无空按钮/无占位）
-- [ ] 播放模式自动路由验证（不同视频类型 → 正确模式）
-- [ ] Health Score ≥ 90
+- [x] 每个 UI 按钮功能验证（无空按钮/无占位）
+- [x] 播放模式自动路由验证（不同视频类型 → 正确模式）
+- [x] Health Score ≥ 90
 
 ### T2.3 — 回归测试
 - [x] REGRESSION.md 新增所有空间/全景回归项
