@@ -3,8 +3,9 @@
 > 生成时间: 2026-04-02 (v3 Round 4)
 > 数据源: feature-inventory-v3.md (82 功能点) + Requirements.md + HelloWorld UX 审计
 > 测试素材: 12 个文件 (T0.3 已 ffprobe 验证)
-> 路径总数: 55 条
-> 覆盖: 78/82 功能点 (排除 4 个 ⚪ MVP 外)
+> 路径总数: 59 条 (原 55 + 对抗性审查新增 4)
+> 覆盖: 81/82 功能点 (排除 1 个 ⚪ 真机限定: F9.4)
+> 对抗性审查: 2026-04-02 通过三阶段裁决 (Codex 6 挑战, 采纳 4, 驳回 2)
 
 ---
 
@@ -241,7 +242,7 @@
   4. 观察视频在虚拟屏幕上渲染
 - **Expected Results**:
   - Step 1: openImmersiveSpace 调用触发，.immersionStyle 为预设值（.full 或 .mixed）
-  - Step 2: ImmersiveSpace 打开成功；EnvironmentDomeEntity 加载暗黑影院环境（当前为纯色 UnlitMaterial 白 0.02，已知缺陷 F6.1-F6.3）
+  - Step 2: ImmersiveSpace 打开成功；EnvironmentDomeEntity 加载暗黑影院环境。**已知缺陷 F6.1-F6.3**: 环境为纯色 UnlitMaterial（白 0.02），非 Skybox 纹理，视觉效果低于设计目标。CinemaEnvironment.skyboxAssetName 定义了纹理名但从未加载
   - Step 3: DecidePlaybackModeUseCase 检测到已在沉浸空间 → 选择 .immersive 模式；VirtualScreenEntity 实例化
   - Step 4: 视频帧通过 Metal 纹理桥接渲染到虚拟屏幕上；屏幕位置为默认值（distance/height/angle 初始值）
 - **Verification**: Simulator + Structure（Simulator 沉浸空间渲染效果受限）
@@ -284,7 +285,7 @@
   2. 切换到 "日落自然"
   3. 切换回 "暗黑影院"
 - **Expected Results**:
-  - Step 1: switchEnvironment(to: .starryNight) 调用成功；EnvironmentDomeEntity 材质颜色变化（深蓝色）；**不触发** dismissImmersiveSpace / openImmersiveSpace 循环
+  - Step 1: switchEnvironment(to: .starryNight) 调用成功；EnvironmentDomeEntity 材质颜色变化（深蓝色）；**不触发** dismissImmersiveSpace / openImmersiveSpace 循环。**已知缺陷 F6.1-F6.3**: 所有环境均为纯色 UnlitMaterial，非 Skybox 纹理
   - Step 2: 材质变为暗棕色（日落）；虚拟屏幕位置不变（屏幕位置独立于环境）—— 但 per-environment 位置记忆意味着位置**可能**变化（看 F3.20 设计）
   - Step 3: 恢复白色 0.02（暗黑影院）；如果 F3.20 per-env 记忆生效，屏幕位置应恢复到 "暗黑影院" 环境的上次保存值
 - **Verification**: Structure（Simulator 上颜色变化可能不可见，需代码路径确认）
@@ -336,7 +337,7 @@
 - **Expected Results**:
   - Step 1: 文件可见可选择
   - Step 2: ProjectionDetection 检测为 180° VR 投影；如果 FOV 消歧生效（F1.21 已知缺陷：hardcoded nil 默认 360°），应识别为 180°。**已知缺陷**：可能误判为 360°
-  - Step 3: 若正确识别 180°：PanoramaSphereEntity 使用半球体 mesh（UV [0.25, 0.75]），前方半球有画面，后方无画面。若误判 360°：全球体渲染，画面拉伸变形 —— 此为 F1.21 bug 的可观察表现
+  - Step 3: 若正确识别 180°：PanoramaSphereEntity 使用半球体 mesh（UV [0.25, 0.75]），前方半球有画面，后方无画面。若误判 360°：**FAIL — F1.21 bug active**，180° 内容需要正确的半球体投影，全球体渲染导致画面严重拉伸变形，用户体验不可接受
 - **Verification**: Simulator + Structure
 
 ### QA-E03: 鱼眼投影视频播放
@@ -350,9 +351,9 @@
 - **Expected Results**:
   - Step 1: 文件可见可选择
   - Step 2: ProjectionDetection 检测到 fisheye 投影类型（基于分辨率 1920x1920 正方形 + v360 元数据）
-  - Step 3: Metal compute shader fisheye_remap（VideoShaders.metal:59）被调用处理鱼眼校正；校正后的画面在 PanoramaSphereEntity 上渲染，无明显扭曲（与直接贴图对比）
-- **Verification**: Structure + Human-only（鱼眼校正效果需人眼确认）
-- **Human-only reason**: 校正质量的视觉评估超出 Simulator 截图能力
+  - Step 3: Metal compute shader fisheye_remap（VideoShaders.metal:59）被调用确认（结构路径验证：shader 函数存在 + 投影类型为 fisheye 时被 dispatch）；视觉质量评估 deferred to Human-only 真机验证
+- **Verification**: Structure + Human-only（shader 调用链为结构验证，校正视觉质量需人眼确认）
+- **Human-only reason**: 鱼眼校正的视觉效果（畸变程度、接缝连续性）超出 Simulator 截图和结构验证能力
 
 ### QA-E04: 投影类型手动覆盖
 - **Features**: F1.22
@@ -381,6 +382,25 @@
   - Step 1: 选择 360° 视频后，DecidePlaybackModeUseCase 选择 .panorama
   - Step 2: 模式从 .immersive（虚拟屏幕）切换到 .panorama（全景球体）；EnvironmentDomeEntity 被移除或隐藏（全景模式不加载虚拟场景）；VirtualScreenEntity 被移除，PanoramaSphereEntity 出现
 - **Verification**: Structure
+
+### QA-E06: 沉浸空间中投影覆盖（对抗性审查新增）
+- **Features**: F1.22, F3.4
+- **Test Material**: SDR-test.mkv (平面视频)
+- **Preconditions**: 已在沉浸空间中播放 SDR-test.mkv（.immersive 模式，VirtualScreenEntity 可见）
+- **Steps**:
+  1. 在沉浸空间播放界面打开投影覆盖选项
+  2. 选择 "360° 全景"
+  3. 观察模式从 .immersive 切换到 .panorama
+  4. 选择 "自动检测" 恢复
+  5. 观察模式从 .panorama 切换回 .immersive
+- **Expected Results**:
+  - Step 1: PlaybackMenuView 投影类型选择器可用（沉浸空间中不禁用）
+  - Step 2: effectiveProjectionType 覆盖为 .equirectangular360
+  - Step 3: DecidePlaybackModeUseCase 重新评估 → .panorama；VirtualScreenEntity + EnvironmentDomeEntity 被移除/隐藏；PanoramaSphereEntity 创建并渲染（画面变形是预期，因内容非全景）；ImmersiveSpace 不退出重进（空间内模式切换）
+  - Step 4: ProjectionDetection 重新识别为 flat → .immersive 模式
+  - Step 5: PanoramaSphereEntity 移除；VirtualScreenEntity + EnvironmentDomeEntity 恢复；无残留 entity；播放位置不中断
+- **Verification**: Structure + Simulator
+- **新增原因**: 对抗性审查 Challenge 6 — 补充从沉浸模式起点的投影覆盖路径（v2 R14 修复验证）
 
 ---
 
@@ -698,6 +718,7 @@
   - Step 3: 当 buffering = true 时，转圈动画显示在视频中央
   - **已知缺陷 F4.1**：预期 FAIL — 无缓冲指示器实现
 - **Verification**: Structure（网络缓冲需真实网络环境触发）
+- **Phase 2 升级注释**: F4.1 实现后，本路径应升级为运行时 E2E（含网络故障注入：throttle/drop/restore），验证 UI 状态转换时序
 
 ### QA-J02: 网络断开错误提示
 - **Features**: F4.2
@@ -725,6 +746,7 @@
   - Step 3: 应有 "正在重连..." 状态提示
   - **已知缺陷 F4.3**：预期全部 FAIL — 无自动重连逻辑
 - **Verification**: Structure
+- **Phase 2 升级注释**: F4.3 实现后，本路径应升级为运行时 E2E（含网络恢复场景），验证 retry backoff + 恢复后播放连续性
 
 ---
 
@@ -849,9 +871,37 @@
   - Step 4: 导航栏不再显示已删除的服务器
 - **Verification**: Simulator
 
+### QA-L05: 远程缓存清理 UI 检查（对抗性审查新增）
+- **Features**: F7.5
+- **Preconditions**: 应用已启动
+- **Steps**:
+  1. 打开 Settings
+  2. 搜索缓存清理相关 UI（"清除缓存"、"Clear Cache" 等）
+  3. 检查 FileBrowsing 模块中是否有远程流缓存管理入口
+- **Expected Results**:
+  - Step 1: Settings 页面正常打开
+  - Step 2: 应有一个显式的远程缓存清理按钮/选项
+  - Step 3: 点击后执行清理操作，显示成功提示
+  - **已知缺陷 F7.5**: 预期 FAIL — 未找到显式的远程流缓存清理 UI
+- **Verification**: Structure（代码审计 SettingsView 和 FileBrowsing）
+
+### QA-L06: 关于页面检查（对抗性审查新增）
+- **Features**: F7.6
+- **Preconditions**: 应用已启动
+- **Steps**:
+  1. 打开 Settings
+  2. 搜索 "关于" / "About" / 版本信息入口
+  3. 检查是否有应用版本号、构建号显示
+- **Expected Results**:
+  - Step 1: Settings 页面正常打开
+  - Step 2: 应有 "关于" 或 "About" 导航项
+  - Step 3: 显示应用名称、版本号 (Bundle.main.infoDictionary)、构建号
+  - **已知缺陷 F7.6**: 预期 FAIL — 未找到 About 页面
+- **Verification**: Structure（代码审计 SettingsView）
+
 ---
 
-## M. 辅助功能与平台合规 (3 条)
+## M. 辅助功能与平台合规 (4 条)
 
 ### QA-M01: 交互目标尺寸 ≥ 60pt (EH-02)
 - **Features**: F8.1
@@ -896,6 +946,20 @@
   - **已知缺陷 F8.4**：预期部分 FAIL — 未系统性审计 accessibilityLabel 覆盖
 - **Verification**: Structure
 
+### QA-M04: WorldTrackingProvider 接线检查（对抗性审查新增）
+- **Features**: F8.3
+- **Preconditions**: 代码审计模式
+- **Steps**:
+  1. 搜索 WorldTrackingProvider 或 ARKitSession 在 SpatialScene 模块中的使用
+  2. 确认内容是否固定在世界空间（非跟随头部）
+  3. 检查 .fixedToWorld 或等效锚定方式
+- **Expected Results**:
+  - Step 1: 找到 WorldTrackingProvider 或等效的世界空间锚定机制
+  - Step 2: 虚拟屏幕、环境穹顶等 entity 使用世界空间坐标（非头部跟随）
+  - Step 3: 确认 entity 位置不随用户头部运动而移动
+- **Verification**: Structure + Human-only（世界空间固定的视觉效果需真机确认）
+- **Human-only reason**: 空间锚定行为需 3D 环境中实际移动头部验证
+
 ---
 
 ## 覆盖矩阵
@@ -923,7 +987,7 @@
 | F1.19 | QA-E03 | Structure + Human-only |
 | F1.20 | QA-C01, QA-C02 | Simulator |
 | F1.21 | QA-E02 | Structure（已知缺陷） |
-| F1.22 | QA-E04 | Simulator + Structure |
+| F1.22 | QA-E04, QA-E06 | Simulator + Structure |
 | F1.23 | — | MVP 外（图片浏览推迟） |
 | F2.1 | QA-A01 | Simulator |
 | F2.2 | QA-A02 | Simulator + Structure |
@@ -980,11 +1044,11 @@
 | F7.2 | QA-L02 | Simulator |
 | F7.3 | QA-L03 | Simulator |
 | F7.4 | QA-L04 | Simulator |
-| F7.5 | — | 已知 FAIL（无 UI） |
-| F7.6 | — | 已知 FAIL（无 About 页面） |
+| F7.5 | QA-L05 | Structure（已知 FAIL） |
+| F7.6 | QA-L06 | Structure（已知 FAIL） |
 | F8.1 | QA-M01 | Structure |
 | F8.2 | QA-H01 | Structure |
-| F8.3 | — | Human-only（面板世界空间固定需真机） |
+| F8.3 | QA-M04 | Structure + Human-only |
 | F8.4 | QA-M03 | Structure |
 | F8.5 | QA-M02 | Structure + Human-only |
 | F9.1~F9.3 | — | Human-only（性能/稳定性需真机长时间运行） |
@@ -1001,10 +1065,10 @@
 | QA-K03 | F5.2 | 无 HDR/SDR 实时切换按钮 | P0 |
 | QA-I05 | F4.7 | 文件列表进度提示 UI 缺失 | P0 |
 | QA-D05 | F6.6 | 屏幕形状不持久化 | P1 |
-| QA-E02 | F1.21 | FOV 180/360 消歧 hardcoded nil | P1 |
+| QA-E02 | F1.21 | FOV 180/360 消歧 hardcoded nil（**对抗性审查升级为 FAIL**） | P1 |
 | QA-M03 | F8.4 | VoiceOver 标签未审计 | P1 |
-| — | F7.5 | 远程缓存清理 UI 缺失 | P1 |
-| — | F7.6 | About 页面缺失 | P1 |
+| QA-L05 | F7.5 | 远程缓存清理 UI 缺失（**对抗性审查新增路径**） | P1 |
+| QA-L06 | F7.6 | About 页面缺失（**对抗性审查新增路径**） | P1 |
 
 ---
 
@@ -1021,7 +1085,7 @@
 | QA-G03 CJK 字幕 | 字体渲染质量需人眼 |
 | QA-M02 Ornament 位置 | 空间位置需 3D 环境 |
 | QA-B04 Photos 访问 | Simulator 无真实 Photos 库 |
-| F8.3 世界空间固定 | 面板是否跟随头部需真机 |
+| QA-M04 WorldTrackingProvider 接线 | 世界空间锚定需 3D 环境验证 |
 | F9.1~F9.3 性能 | 长时间运行/内存/帧率需真机 |
 
 ---
@@ -1034,17 +1098,18 @@
 | B. 文件源管理 | 4 | 3 | 1 | 1 |
 | C. 窗口模式播放 | 5 | 5 | 2 | 0 |
 | D. 沉浸影院模式 | 5 | 1 | 5 | 3 |
-| E. 全景模式 | 5 | 3 | 5 | 1 |
+| E. 全景模式 | 6 | 4 | 6 | 1 |
 | F. 3D 立体视频 | 3 | 2 | 3 | 0 |
 | G. 播放控件 | 7 | 7 | 1 | 1 |
 | H. 手势交互 | 4 | 0 | 4 | 4 |
 | I. 状态管理 | 5 | 5 | 0 | 0 |
 | J. 错误处理 | 3 | 0 | 3 | 0 |
 | K. HDR/色彩管理 | 4 | 3 | 3 | 0 |
-| L. 设置与偏好 | 4 | 4 | 0 | 0 |
-| M. 辅助功能 | 3 | 0 | 3 | 1 |
-| **总计** | **55** | **36** | **31** | **11** |
+| L. 设置与偏好 | 6 | 4 | 2 | 0 |
+| M. 辅助功能 | 4 | 0 | 4 | 2 |
+| **总计** | **59** | **37** | **35** | **12** |
 
 > 注: 一条路径可能同时有多种验证类型（如 Simulator + Structure）
-> Simulator 覆盖率: 36/55 = 65%
-> 需 Human-only 项: 11 条
+> Simulator 覆盖率: 37/59 = 63%
+> 需 Human-only 项: 12 条
+> 对抗性审查新增: QA-E06, QA-L05, QA-L06, QA-M04

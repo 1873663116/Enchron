@@ -142,3 +142,48 @@
 **测试状态**: swift test: 未执行（本轮纯 QA 设计） | 新增: 0 | FAIL: none
 **下轮应做**: T0.5 — 对抗性审查 QA 计划（三阶段裁决：Codex 挑战 → Counter-Agent 反驳 → Opus 裁决）
 **Status**: IN_PROGRESS
+
+---
+
+## Round 5 — 2026-04-02T04:00:00+08:00
+
+**Pipeline State**: PLANNING → PLANNING（继续 T0.5）
+**本轮目标**: T0.5 — 对抗性审查 QA 计划（三阶段裁决）
+**完成情况**:
+- [SKILL] /codex:adversarial-review → needs-attention | 6 条挑战 (1 critical + 5 high)
+- [AGENT] Counter-Agent (Sonnet) → 逐条评估 6 条挑战 | 2 ACCEPT + 2 PARTIALLY ACCEPT + 2 REBUT
+- [SUPERVISOR] Opus 裁决 → 采纳 4 条（含 3 条采纳 Counter-Agent 修订版），驳回 2 条
+- 产出：`docs/qa-plans/adversarial-review-v3.md`（完整裁决报告）
+- QA 计划更新：+4 新路径 (QA-E06/L05/L06/M04)，修改 4 条路径，加 2 条升级注释
+
+**三阶段裁决结果**:
+
+| # | 挑战 | 严重度 | 裁决 | 行动 |
+|---|------|--------|------|------|
+| 1 | 沉浸环境纯色 dome 作为 PASS | critical | 采纳(CA版) | QA-D01/D04 加 KNOWN_FAIL 注释 |
+| 2 | F7.5/F7.6/F8.3/F9.x 无 QA 路径 | high | 采纳(CA版) | +3 新路径 (QA-L05/L06/M04) |
+| 3 | 时间轴 zoom 未测 | high | 驳回 | DetailedTimeline 是 scrubber 非 zoom |
+| 4 | 网络异常仅结构验证 | high | 驳回+注释 | 功能不存在，加 Phase 2 升级注释 |
+| 5 | 全景 180° 误判被接受 | high | 采纳 | QA-E02 误判→FAIL，QA-E03 定量化 |
+| 6 | 跨模式状态机测试不足 | high | 采纳(CA版) | +1 新路径 (QA-E06) |
+
+**QA 路径统计更新**:
+| 指标 | 修改前 | 修改后 |
+|------|--------|--------|
+| 路径总数 | 55 | 59 (+4) |
+| 覆盖功能 | 78/82 | 81/82 (+F7.5/F7.6/F8.3) |
+| Simulator 可执行 | 36 | 37 |
+| Structure 验证 | 31 | 35 |
+| Human-only | 11 | 12 |
+| 已知缺陷 FAIL | 9 | 9（E02 从描述升级为 FAIL） |
+
+**Decision Log**:
+- [AUTO] Challenge 1 (skybox) | 采纳 CA 版本（加注释不硬失败）| P3 | skybox 不在 P0/P1 列表，硬失败阻塞所有沉浸 QA 不成比例
+- [AUTO] Challenge 3 (zoom) | 驳回 | P5 | DetailedTimeline 设计为固定中心指针 scrubber，Codex 误读功能
+- [AUTO] Challenge 4 (网络) | 驳回+注释 | P4 | 功能🔴不存在，Simulator 无网络故障注入，结构验证是正确策略
+- [AUTO] Challenge 5 (全景) | 全部采纳 | P1 | 全景领域不可降级，180° VR 误判直接影响核心用户体验
+- [AUTO] Challenge 6 (跨模式) | 采纳 CA 版本（+1 路径不做压力测试）| P3 | 补充沉浸模式起点覆盖，快速切换压力测试超 MVP
+
+**测试状态**: swift test: 未执行（本轮纯审查/文档） | 新增: 0 | FAIL: none
+**下轮应做**: T0.6 — 验证所有功能是否真正实现（代码审查，非测试运行）
+**Status**: IN_PROGRESS
