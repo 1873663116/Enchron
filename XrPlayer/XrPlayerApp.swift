@@ -30,6 +30,7 @@ struct XrPlayerApp: App {
     @State private var fileBrowsingViewModel: FileBrowsingViewModel
     @State private var playbackLauncher: PlaybackLaunchCoordinator
     @State private var panoramaBridge: PanoramaLayerBridge
+    @State private var immersionStyle: ImmersionStyle = .full
 
     init() {
         Task.detached(priority: .utility) {
@@ -148,7 +149,10 @@ struct XrPlayerApp: App {
                     }
                 }
         }
-        .immersionStyle(selection: .constant(.full), in: .full)
+        .immersionStyle(selection: $immersionStyle, in: .mixed, .full)
+        .onChange(of: appModel.isFullImmersion) { _, full in
+            immersionStyle = full ? .full : .mixed
+        }
     }
 
     nonisolated private static func copySampleVideoIfAvailable(fileManager: FileManager = .default) {
