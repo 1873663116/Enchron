@@ -95,6 +95,8 @@ public struct FolderListView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("\(folder.name), folder")
+                            .accessibilityHint("Opens folder contents")
                         }
                     }
                 }
@@ -139,6 +141,14 @@ public struct FolderListView: View {
                                 .padding(.vertical, 4)
                                 .contentShape(Rectangle())
                             }
+                            .accessibilityLabel({
+                                var label = file.name
+                                if let seconds = fileWatchedSeconds[file.id] {
+                                    label += ", watched \(Self.formatWatchedTime(seconds))"
+                                }
+                                return label
+                            }())
+                            .accessibilityHint("Opens video details")
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 if let onFileDeleted {
                                     Button(role: .destructive) {

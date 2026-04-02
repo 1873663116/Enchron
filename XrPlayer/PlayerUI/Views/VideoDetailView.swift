@@ -264,6 +264,16 @@ public struct VideoDetailView: View {
                     )
 
                     metadataRow(
+                        label: "Codec",
+                        value: PlaybackInfoFormatter.videoCodecLabel(profile.videoCodec)
+                    )
+
+                    metadataRow(
+                        label: "Duration",
+                        value: PlaybackInfoFormatter.duration(profile.durationSeconds)
+                    )
+
+                    metadataRow(
                         label: "Frame Rate",
                         value: PlaybackInfoFormatter.frameRate(profile.frameRate)
                     )

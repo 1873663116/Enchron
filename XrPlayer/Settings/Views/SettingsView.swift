@@ -8,6 +8,9 @@ public struct SettingsView: View {
     @State private var isCurvedScreen: Bool = false
     @State private var isFullImmersion: Bool = true
     @State private var selectedEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
+    @State private var cacheSizeBytes: Int64 = 0
+    @State private var showClearCacheAlert = false
+    @State private var cacheCleared = false
     private let preferencesStore: PreferencesStoring
 
     public init(preferencesStore: PreferencesStoring = UserDefaultsStore()) {
@@ -56,13 +59,44 @@ public struct SettingsView: View {
                 }
             }
 
+            Section("Storage") {
+                LabeledContent("Cache Size", value: Self.formatBytes(cacheSizeBytes))
+                    .accessibilityLabel("Cache size, \(Self.formatBytes(cacheSizeBytes))")
+
+                Button {
+                    showClearCacheAlert = true
+                } label: {
+                    if cacheCleared {
+                        Label("Cache Cleared", systemImage: "checkmark.circle")
+                            .foregroundStyle(.green)
+                    } else {
+                        Label("Clear Cache", systemImage: "trash")
+                            .foregroundStyle(.red)
+                    }
+                }
+                .accessibilityLabel("Clear application cache")
+                .disabled(cacheSizeBytes == 0)
+            }
+
             Section("About") {
                 LabeledContent("Version", value: Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.1")
                 LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—")
             }
         }
         .navigationTitle("Settings")
+        .alert("Clear Cache", isPresented: $showClearCacheAlert) {
+            Button("Clear", role: .destructive) {
+                Self.clearAppCache()
+                cacheSizeBytes = Self.appCacheSizeBytes()
+                cacheCleared = true
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will delete all cached data (\(Self.formatBytes(cacheSizeBytes))). Downloaded content will need to be reloaded.")
+        }
         .onAppear {
+            cacheSizeBytes = Self.appCacheSizeBytes()
+            cacheCleared = false
             let prefs = preferencesStore.loadPreferences()
             resumePolicy = prefs.resumePolicy
             playbackEndBehavior = prefs.playbackEndBehavior
@@ -111,5 +145,45 @@ public struct SettingsView: View {
             return "\(Int(value)).0x"
         }
         return "\(value)x"
+    }
+
+    private static func appCacheSizeBytes() -> Int64 {
+        guard let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return 0
+        }
+        return directorySize(at: cacheURL)
+    }
+
+    private static func directorySize(at url: URL) -> Int64 {
+        var total: Int64 = 0
+        guard let enumerator = FileManager.default.enumerator(
+            at: url,
+            includingPropertiesForKeys: [.fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+        for case let fileURL as URL in enumerator {
+            total += (try? fileURL.resourceValues(forKeys: [.fileSizeKey]).fileSize.map(Int64.init)) ?? 0
+        }
+        return total
+    }
+
+    private static func clearAppCache() {
+        guard let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
+            return
+        }
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: cacheURL, includingPropertiesForKeys: nil
+        ) else { return }
+        for url in contents {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    private static func formatBytes(_ bytes: Int64) -> String {
+        if bytes == 0 { return "Empty" }
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
     }
 }

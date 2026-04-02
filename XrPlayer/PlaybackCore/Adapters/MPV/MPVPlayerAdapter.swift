@@ -1235,11 +1235,16 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         )
         logHDRPipelineState(reason: "media_profile_detected")
 
+        let videoCodec = stringProperty("video-codec")
+        let durationSecs = doubleProperty("duration")
+
         let profile = PlaybackCoreDomain.MediaProfile(
             projectionType: projectionType,
             hdrType: hdrType,
             resolution: .init(width: width, height: height),
-            frameRate: frameRate
+            frameRate: frameRate,
+            videoCodec: videoCodec,
+            durationSeconds: durationSecs
         )
 
         DispatchQueue.main.async { [weak self] in

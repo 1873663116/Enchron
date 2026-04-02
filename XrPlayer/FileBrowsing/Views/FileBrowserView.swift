@@ -93,6 +93,7 @@ public struct FileBrowserView: View {
                                     }
                                     .buttonStyle(.plain)
                                     .help("Delete \(ds.name)")
+                                    .accessibilityLabel("Remove \(ds.name)")
                                 }
                                 .padding(.trailing, 4)
                             }
@@ -171,6 +172,7 @@ public struct FileBrowserView: View {
                     } label: {
                         Image(systemName: "arrow.up.arrow.down")
                     }
+                    .accessibilityLabel("Sort files")
                 }
 
                 ToolbarItem(placement: .topBarTrailing) {
