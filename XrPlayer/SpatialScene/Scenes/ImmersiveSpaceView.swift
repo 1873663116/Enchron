@@ -8,6 +8,7 @@ public struct ImmersiveSpaceView: View {
     @State private var sphereEntity: Entity?
     @State private var virtualScreenEntity: Entity?
     @State private var environmentDomeEntity: Entity?
+    @State private var lastProjection: PanoramaProjection = .full360
 
     public init() {}
 
@@ -15,8 +16,10 @@ public struct ImmersiveSpaceView: View {
         RealityView { content in
             switch appModel.playbackMode {
             case .panorama:
+                let projection: PanoramaProjection = appModel.effectiveProjectionType.requiresHemisphereMesh ? .front180 : .full360
                 let entity = PanoramaSphereEntity.makeEntity(
-                    textureResource: panoramaBridge.textureResource
+                    textureResource: panoramaBridge.textureResource,
+                    projection: projection
                 )
                 content.add(entity)
                 sphereEntity = entity
@@ -54,9 +57,17 @@ public struct ImmersiveSpaceView: View {
                     content.remove(entity)
                     environmentDomeEntity = nil
                 }
+                let currentProjection: PanoramaProjection = appModel.effectiveProjectionType.requiresHemisphereMesh ? .front180 : .full360
+                if currentProjection != lastProjection, let oldSphere = sphereEntity {
+                    content.remove(oldSphere)
+                    sphereEntity = nil
+                    lastProjection = currentProjection
+                }
                 if sphereEntity == nil {
+                    let projection: PanoramaProjection = appModel.effectiveProjectionType.requiresHemisphereMesh ? .front180 : .full360
                     let entity = PanoramaSphereEntity.makeEntity(
-                        textureResource: panoramaBridge.textureResource
+                        textureResource: panoramaBridge.textureResource,
+                        projection: projection
                     )
                     content.add(entity)
                     sphereEntity = entity

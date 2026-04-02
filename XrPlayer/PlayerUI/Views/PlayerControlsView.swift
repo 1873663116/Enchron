@@ -231,6 +231,7 @@ public struct PlayerControlsView: View {
             speedMenu
             playbackSettingsButton
             playbackModeMenu
+            projectionMenu
             if appModel.immersiveSpaceState == .open {
                 screenPositionButton
             }
@@ -464,6 +465,63 @@ public struct PlayerControlsView: View {
         case .window: return "rectangle.inset.filled"
         case .immersive: return "visionpro"
         case .panorama: return "pano"
+        }
+    }
+
+    private var projectionMenu: some View {
+        Menu {
+            Button {
+                appModel.setProjectionOverride(nil)
+            } label: {
+                if appModel.projectionOverride == nil {
+                    Label("Auto (\(projectionLabel(appModel.detectedProjectionType)))", systemImage: "checkmark")
+                } else {
+                    Text("Auto (\(projectionLabel(appModel.detectedProjectionType)))")
+                }
+            }
+
+            Divider()
+
+            ForEach(PlaybackCoreDomain.ProjectionType.allCases, id: \.self) { type in
+                Button {
+                    appModel.setProjectionOverride(type)
+                } label: {
+                    if appModel.projectionOverride == type {
+                        Label(projectionLabel(type), systemImage: "checkmark")
+                    } else {
+                        Text(projectionLabel(type))
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: projectionIcon(appModel.effectiveProjectionType))
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .playerControlSurface(size: 60)
+        }
+        .buttonStyle(.plain)
+        .help("Projection: \(projectionLabel(appModel.effectiveProjectionType))")
+    }
+
+    private func projectionLabel(_ type: PlaybackCoreDomain.ProjectionType) -> String {
+        switch type {
+        case .flat: return "Flat"
+        case .stereoscopicSBS: return "3D SBS"
+        case .stereoscopicOU: return "3D OU"
+        case .panorama360: return "360\u{00B0}"
+        case .panorama180: return "180\u{00B0}"
+        case .fisheye: return "Fisheye"
+        }
+    }
+
+    private func projectionIcon(_ type: PlaybackCoreDomain.ProjectionType) -> String {
+        switch type {
+        case .flat: return "rectangle"
+        case .stereoscopicSBS: return "rectangle.split.2x1"
+        case .stereoscopicOU: return "rectangle.split.1x2"
+        case .panorama360: return "pano"
+        case .panorama180: return "circle.lefthalf.filled"
+        case .fisheye: return "camera.filters"
         }
     }
 
