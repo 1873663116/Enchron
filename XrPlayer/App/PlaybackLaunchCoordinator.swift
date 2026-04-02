@@ -319,8 +319,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     // MARK: - Playback End Handling
 
     /// Handles playback-ended event based on user preferences.
-    /// Returns true if UI should show controls (playback stopped), false if auto-continuing.
-    public func handlePlaybackEnded() -> Bool {
+    ///
+    /// The `onFallbackShowControls` closure is called when auto-next-episode
+    /// fails to find a next file, so the UI can show controls as a fallback.
+    public func handlePlaybackEnded(onFallbackShowControls: (@MainActor () -> Void)? = nil) -> Bool {
         let prefs = preferencesStore.loadPreferences()
         switch prefs.playbackEndBehavior {
         case .stop:
@@ -333,6 +335,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 guard let self else { return }
                 if let next = await self.nextFileProvider?() {
                     self.beginPlayback(next)
+                } else {
+                    // No next file — show controls so user isn't stuck
+                    onFallbackShowControls?()
                 }
             }
             return false
@@ -344,6 +349,11 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     /// Loads saved playback progress for a file. Used by VideoDetailView for resume prompts.
     public func loadProgress(for fileID: PersistenceDomain.FileIdentifier) async -> PersistenceDomain.PlaybackProgress? {
         await progressStore.loadProgress(for: fileID)
+    }
+
+    /// Returns the current resume policy. Used by VideoDetailView to decide button layout.
+    public func currentResumePolicy() -> PersistenceDomain.ResumePolicy {
+        preferencesStore.loadPreferences().resumePolicy
     }
 
     // MARK: - Preparation Helpers

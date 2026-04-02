@@ -34,11 +34,11 @@
 | Persistence/Adapters/UserDefaultsStore.swift | REG-031, REG-085 |
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
 | Persistence/Domain/* | REG-030, REG-031 |
-| App/XrPlayerApp.swift | REG-091 |
-| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087 |
+| App/XrPlayerApp.swift | REG-091, REG-094 |
+| App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087, REG-093 |
 | App/PreparedPlayback.swift | REG-082, REG-083 |
 | App/AppCoordinator.swift | REG-040, REG-041 |
-| App/MainView.swift | REG-041, REG-087 |
+| App/MainView.swift | REG-041, REG-087, REG-093 |
 | App/Navigation/* | REG-041, REG-084 |
 | SpatialScene/* | REG-050, REG-070, REG-071 |
 | SpatialScene/Renderers/* | REG-070, REG-071 |
@@ -534,6 +534,28 @@
 - **Agent 自检**: `swift build` 编译通过
 - **真机验证**: 连接 SMB/WebDAV 服务器 → 断开网络 → 浏览文件触发错误 → 恢复网络 → 点击 Retry 按钮 → 文件列表恢复 → 自动重连失败时显示错误弹窗
 - **退化信号**: Retry 按钮不出现、自动重连无限循环、重连后路径丢失、错误信息不显示
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-093: 自动下一集无下一集时恢复控件
+
+- **来源**: ce-review P1-1 — handlePlaybackEnded().playNext 空结果修复
+- **触发条件**: 改动 App/PlaybackLaunchCoordinator.swift、MainView.swift
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: Settings 设置 When Video Ends = Play Next → 播放最后一个文件 → 播放结束 → 控件自动显示（不卡死）
+- **退化信号**: 控件不出现、界面冻结、需要手动点击才能恢复
+- **状态**: active
+- **创建日期**: 2026-04-02
+
+
+### REG-094: Photo Library 临时文件过期清理
+
+- **来源**: ce-review P1-2 — 导出视频临时文件无限累积修复
+- **触发条件**: 改动 XrPlayerApp.swift、FileBrowsing/Adapters/PhotoLibrary/*
+- **Agent 自检**: `swift build` 编译通过
+- **真机验证**: 使用 Photo Library 播放视频 → 5 天后检查 tmp/xrplayer-photos/ → 过期文件已被清理
+- **退化信号**: 临时文件持续增长、清理删除了活跃文件
 - **状态**: active
 - **创建日期**: 2026-04-02
 
