@@ -216,8 +216,8 @@ func onPlaybackFinished(currentFileID: String) {
 
 ## Related
 
-- `docs/plans/2026-04-02-001-feat-phase1-3-ui-ux-rewrite-plan.md` — Implementation plan for Phase 3
-- `docs/plans/2026-04-02-arch.md` — Architectural review of PreparedPlayback and coordinator patterns
+- `docs/plans/active/2026-04-02-001-feat-phase1-3-ui-ux-rewrite-plan.md` — Implementation plan for Phase 3
+- `docs/plans/active/2026-04-02-arch.md` — Architectural review of PreparedPlayback and coordinator patterns
 - `docs/qa-reports/qa-report-enchron-2026-04-02.md` — Structural QA report with 25+ checks
 - `REGRESSION.md` — REG-080-096 covering new patterns
 - `~/.claude/skills/liquid-glass-design/SKILL.md` — Liquid Glass API reference
