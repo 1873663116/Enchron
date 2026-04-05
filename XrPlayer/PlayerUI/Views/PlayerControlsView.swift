@@ -226,16 +226,7 @@ public struct PlayerControlsView: View {
 
     private var leftMenu: some View {
         Menu {
-            // Speed
-            Section("Speed") {
-                Picker("Speed", selection: speedBinding) {
-                    ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
-                        Text(speedLabel(speed)).tag(speed)
-                    }
-                }
-            }
-
-            // HDR toggle (only if content is HDR)
+            // HDR toggle (only if content is HDR) — matches HTML top position
             if videoViewModel.isHDRContent {
                 Section("Video Output") {
                     Toggle(
@@ -263,6 +254,15 @@ public struct PlayerControlsView: View {
                 Picker("Audio Track", selection: audioTrackBinding) {
                     ForEach(videoViewModel.availableAudioTracks) { track in
                         Text(track.displayName).tag(track.id)
+                    }
+                }
+            }
+
+            // Playback Speed
+            Section("Speed") {
+                Picker("Speed", selection: speedBinding) {
+                    ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
+                        Text(speedLabel(speed)).tag(speed)
                     }
                 }
             }

@@ -174,7 +174,7 @@ Mode constraint (geometric):
 
 ---
 
-- [ ] **Unit 2: Implement Menu and Settings popup menus**
+- [x] **Unit 2: Implement Menu and Settings popup menus**
 
 **Goal:** Add left-expanding Menu popup and right-expanding Settings popup matching HTML design.
 
