@@ -12,7 +12,9 @@ public struct MainView: View {
 
     public var body: some View {
         ZStack {
-            AppTabView()
+            // Content area — Unit 5 will add selectedTab routing;
+            // for now show FileBrowserView as default content.
+            FileBrowserView()
 
             // Always-mounted video surface — hidden when not playing,
             // so attachVideoLayer() and native warmup complete before first play.
@@ -116,6 +118,13 @@ public struct MainView: View {
                         )
                     )
             }
+        }
+        .ornament(
+            visibility: appModel.isPlaying ? .hidden : .visible,
+            attachmentAnchor: .scene(.leading),
+            contentAlignment: .center
+        ) {
+            NavigationOrnament()
         }
         .onAppear {
             windowVideoViewModel.gestureUseCase.onGestureResolved = { gesture in

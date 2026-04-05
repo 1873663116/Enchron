@@ -307,7 +307,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 4: Leading Ornament Navigation (R5, R6, R7, R8)**
+- [x] **Unit 4: Leading Ornament Navigation (R5, R6, R7, R8)**
 
   **Goal:** Replace TabView with ornament-based vertical pill navigation on window's leading edge
 
