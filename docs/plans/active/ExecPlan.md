@@ -585,7 +585,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 11: Data Source Config Styling (R18)**
+- [x] **Unit 11: Data Source Config Styling (R18)**
 
   **Goal:** Update DataSourceConfigView visual styling to match new design language
 
