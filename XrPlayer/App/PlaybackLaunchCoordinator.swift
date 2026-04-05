@@ -220,23 +220,20 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             // Update preparation state with resolved metadata
             self.currentPreparation = .preparing(request: request, metadata: mergedMetadata)
 
-            // Phase 2: Load file with pause=yes for track enumeration
-            // We prepare the view model to set up mpv, then call play() which
-            // sends loadfile. Immediately after, we pause so playback doesn't
-            // actually start — mpv will parse the container and populate tracks.
+            // Phase 2: Load file paused for track enumeration — no frames rendered.
+            // Uses mpv's pause=yes mode: container is parsed, tracks populated,
+            // but no video frames are decoded or presented.
             let preparedRequest = request.updating(metadata: mergedMetadata)
-            self.windowVideoViewModel.prepareForPlayback(preparedRequest)
+            // Store the request for tracking but do NOT change presentation state.
+            self.windowVideoViewModel.currentLaunchRequest = preparedRequest
 
             do {
-                try await self.windowVideoViewModel.play(url: preparedRequest.url)
+                try await self.windowVideoViewModel.loadPaused(url: preparedRequest.url)
                 guard !Task.isCancelled else { return }
                 guard self.generation == currentGeneration else { return }
 
-                // Pause immediately — we only wanted track enumeration
-                self.windowVideoViewModel.pause()
-
                 // Give mpv a moment to populate track lists
-                try? await Task.sleep(for: .milliseconds(200))
+                try? await Task.sleep(for: .milliseconds(300))
                 guard !Task.isCancelled else { return }
                 guard self.generation == currentGeneration else { return }
 
@@ -280,6 +277,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
         cancelPreparationTasks()
         currentPreparation = nil
+
+        // Set up ViewModel presentation state now that user has confirmed
+        windowVideoViewModel.prepareForPlayback(prepared.request)
 
         // Resume the already-loaded file
         appModel.startPlayback(url: prepared.request.url)

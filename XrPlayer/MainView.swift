@@ -13,17 +13,27 @@ public struct MainView: View {
 
     public init() {}
 
+    private var isWindowPlaybackActive: Bool {
+        appModel.isPlaying && appModel.playbackMode == .window
+    }
+
     public var body: some View {
         ZStack {
-            // Content area — routed by navigation state
-            switch appModel.selectedTab {
-            case .browse:
-                FileBrowserView()
-            case .recent:
-                RecentlyPlayedView()
-            case .settings:
-                SettingsView()
+            // Content area — routed by navigation state.
+            // Kept in tree (not removed via if/else) to preserve NavigationSplitView state.
+            Group {
+                switch appModel.selectedTab {
+                case .browse:
+                    FileBrowserView()
+                case .recent:
+                    RecentlyPlayedView()
+                case .settings:
+                    SettingsView()
+                }
             }
+            .opacity(isWindowPlaybackActive ? 0 : 1)
+            .allowsHitTesting(!isWindowPlaybackActive)
+            .accessibilityHidden(isWindowPlaybackActive)
 
             // Always-mounted video surface — hidden when not playing,
             // so attachVideoLayer() and native warmup complete before first play.
@@ -77,10 +87,10 @@ public struct MainView: View {
                         playbackLauncher.stopPlayback()
                     } label: {
                         Image(systemName: "xmark")
-                            .font(.title3.weight(.bold)) // Thicker icon for better clarity at smaller size
+                            .font(.title3.weight(.bold))
                             .foregroundStyle(.white)
                     }
-                    .buttonStyle(PlayerControlSurfaceStyle(size: 48)) // Refined, more elegant size
+                    .buttonStyle(PlayerControlSurfaceStyle(size: 48))
                     .padding(24)
                     .transition(.asymmetric(
                         insertion: .opacity.combined(with: .scale(scale: 0.8)).combined(with: .offset(y: -10)),
@@ -88,13 +98,12 @@ public struct MainView: View {
                     ))
                 }
             }
-            .padding()
-            .opacity(appModel.isPlaying && appModel.playbackMode == .window ? 1 : 0)
-            .scaleEffect(appModel.isPlaying && appModel.playbackMode == .window ? 1.0 : 0.98) // Added focus-in effect
-            .blur(radius: appModel.isPlaying && appModel.playbackMode == .window ? 0 : 4) // Added soft reveal
+            .opacity(isWindowPlaybackActive ? 1 : 0)
+            .scaleEffect(isWindowPlaybackActive ? 1.0 : 0.98)
+            .blur(radius: isWindowPlaybackActive ? 0 : 4)
             .animation(.spring(response: 0.45, dampingFraction: 0.85), value: appModel.isPlaying)
-            .allowsHitTesting(appModel.isPlaying && appModel.playbackMode == .window)
-            .accessibilityHidden(!(appModel.isPlaying && appModel.playbackMode == .window))
+            .allowsHitTesting(isWindowPlaybackActive)
+            .accessibilityHidden(!isWindowPlaybackActive)
         }
         .alert(
             "Playback Error",

@@ -135,6 +135,8 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var videoLayerContinuation: CheckedContinuation<Void, Never>?
     private var shouldWarmupWhenLayerArrives = false
     private var isAwaitingVisualPlaybackStart = false
+    /// When true, MPV_EVENT_FILE_LOADED will NOT unpause — used by loadPaused(url:) for track enumeration without rendering frames.
+    private var isPrepareOnlyLoad = false
 
     private var hasVerifiedHDRSurface: Bool {
         stateQueue.sync {
@@ -233,13 +235,34 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
     }
 
+    /// Loads a file into mpv without starting playback.
+    /// Used for track enumeration in the prepare/confirm flow.
+    /// mpv parses the container and populates track lists but never decodes or renders frames.
+    /// Call `resume()` after confirmation to begin actual playback.
+    public func loadPaused(url: URL) async throws {
+        do {
+            print("[MPV] load_paused_started url=\(url.lastPathComponent)")
+            stateQueue.sync { isPrepareOnlyLoad = true }
+            setFlagProperty(name: "pause", value: true)
+            await waitForVideoLayerIfNeeded()
+            try await performLoadStart(for: url)
+        } catch {
+            stateQueue.sync { isPrepareOnlyLoad = false }
+            print("[MPV] load_paused_failed url=\(url.lastPathComponent) error=\(error.localizedDescription)")
+            notifyRuntimeError(error.localizedDescription)
+            throw error
+        }
+    }
+
     public func pause() {
         setFlagProperty(name: "pause", value: true)
         updateState(.paused)
     }
 
     public func resume() {
+        stateQueue.sync { isPrepareOnlyLoad = false }
         setFlagProperty(name: "pause", value: false)
+        setFlagProperty(name: "mute", value: false)
         let shouldShowPlaying = stateQueue.sync { isAwaitingVisualPlaybackStart == false }
         if shouldShowPlaying {
             updateState(.playing)
@@ -248,7 +271,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
     public func stop() {
         _ = try? command(["stop"])
-        stateQueue.sync { isAwaitingVisualPlaybackStart = false }
+        stateQueue.sync {
+            isAwaitingVisualPlaybackStart = false
+            isPrepareOnlyLoad = false
+        }
         updateState(.stopped)
         releaseSecurityScopedAccess()
     }
@@ -615,11 +641,16 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             stateQueue.sync { isAwaitingVisualPlaybackStart = true }
             updateState(.loading)
         case MPV_EVENT_FILE_LOADED:
-            stateQueue.sync { isAwaitingVisualPlaybackStart = true }
-            updateState(.loading)
+            let prepareOnly = stateQueue.sync { isPrepareOnlyLoad }
+            stateQueue.sync { isAwaitingVisualPlaybackStart = !prepareOnly }
+            if !prepareOnly {
+                updateState(.loading)
+            }
             didLogPipelineForCurrentFile = false
-            setFlagProperty(name: "pause", value: false)
-            setFlagProperty(name: "mute", value: false)
+            if !prepareOnly {
+                setFlagProperty(name: "pause", value: false)
+                setFlagProperty(name: "mute", value: false)
+            }
             _ = try? command(["set", "vid", "auto"])
             _ = try? command(["set", "aid", "auto"])
             _ = try? command(["set", "sid", "no"])
