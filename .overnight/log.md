@@ -61,3 +61,67 @@ phase-exit-authorized: yes
 
 ### ce-compound
 本轮为纯验证 + 状态迁移，无非显而易见的技术发现，跳过。
+
+---
+
+## Round 3 — PLANNING: /ce-plan 产出 ExecPlan + TestPlan (2026-04-05)
+
+### 目标
+基于 42 条需求文档产出结构化实施计划和测试计划。
+
+### 执行摘要
+
+1. **上下文收集**：派遣 3 个并行 subagent
+   - repo-analyst：读取 16 个核心 UI 文件的完整 API 接口、状态管理、交互点
+   - tech-investigator：解决 6 个技术调研问题（ornament 兼容性、NavigationSplitView、SceneSelector 迁移方案、Asset Catalog、测试结构、glass 用法）
+   - learnings-researcher：提取机构知识（QA-Plan-First 方法论、断联检查、mpv 轮询、设计审查协议、PreparedPlayback TTL、回归映射 REG-080~122）
+
+2. **待解问题决议**：9 个 deferred questions 中 7 个在规划阶段解决
+   - Q1: ornament + .plain → 兼容（HelloWorld 确认）
+   - Q2: VideoDetailView sheet → .sheet(item:) + cancelPreparedPlayback on dismiss
+   - Q3: 伴随 WindowGroup → WindowGroup(id: "playerControls") + open/dismiss 协调
+   - Q4: SceneSelectorView → .sheet（内容太丰富不适合 popover）
+   - Q5: NavigationSplitView sidebar → 系统自动管理
+   - Q8: Asset Catalog → Any Appearance only
+   - Q9: ProgressStoring → loadRecentlyPlayed(limit:)
+   - Q6, Q7: 延迟到实施（运行时依赖）
+
+3. **ExecPlan 产出**：`docs/plans/active/ExecPlan.md`
+   - 18 个实施单元，6 个 Phase（A: 设计基础 → B: 导航 → C: 浏览器 → D: 控件 → E: 时间轴 → F: 无障碍）
+   - 每单元含：目标、需求、依赖、文件路径（创建/修改/测试）、方案、模式、测试场景、验证
+   - 高层技术设计：导航架构变换图、文件浏览器变换图、状态流图
+   - Mermaid 依赖图覆盖全部 18 单元
+
+4. **TestPlan 产出**：`docs/plans/active/TestPlan.md`
+   - 42 条验收标准（AC-A1~AC-F9），按 Phase 分组
+   - 10 个 E2E 测试场景（从关键路径到设计审计）
+   - 回归策略：248 现有测试 + REGRESSION.md REG-080~122 交叉引用
+   - 结构验证清单（grep 可自动化）
+   - QA 飞轮规则（优先级排序 + fix_max_retries: 6）
+
+5. **验证**：subagent 验证 42/42 需求全覆盖，覆盖率 100%
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| ornament 方案确认（不回退到 TabView） | HelloWorld 确认 .plain + ornament 兼容 |
+| SceneSelectorView → .sheet 而非 .popover | 3 个环境卡片 LazyVGrid 内容量不适合 popover |
+| PlaybackMenuView 删除，替换为系统 Menu | 符合系统原生优先原则 + design-to-swiftui.md ch.12 |
+| Phase D 与 Phase C 可并行（在 ExecPlan 中反映为依赖图） | PlayerUI 不依赖 FileBrowsing 重构 |
+| NLE 缩略图策略延迟到实施 | 依赖 mpv screenshot API 运行时行为 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| docs/plans/active/ExecPlan.md | 实施计划（18 units, 6 phases, 42 requirements） |
+| docs/plans/active/TestPlan.md | 测试计划（42 AC, 10 E2E, 回归策略） |
+
+### ce-compound
+本轮发现的非显而易见技术事实：
+1. visionOS .ornament() 与 .windowStyle(.plain) 完全兼容（Apple HelloWorld 项目确认）——这消除了设计回退方案的需要
+2. 当前项目 14 个测试文件全部在 Domain/Core 层，零 UI 测试——UI 重构不会直接破坏任何现有测试，但也意味着无法通过自动化测试验证 UI 正确性
+3. .glassBackgroundEffect 在 ZStack 中必须应用于容器而非子视图——这是一个渲染陷阱，需要在实施阶段特别注意
+
+→ 应调用 /ce-compound 归纳这些发现。但鉴于本轮已记录于 log 中且文档产出完整，判断无需独立写入 solutions/，经验已内化到 ExecPlan 的 Institutional Knowledge 节。
