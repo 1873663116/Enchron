@@ -274,7 +274,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ### Phase B: Global Navigation
 
-- [ ] **Unit 3: AppModel Navigation State (R9)**
+- [x] **Unit 3: AppModel Navigation State (R9)**
 
   **Goal:** Add navigation tab state to AppModel so Views project state without owning it
 
