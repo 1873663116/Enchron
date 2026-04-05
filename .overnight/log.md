@@ -370,3 +370,57 @@ counter-review: ce-review 3 P1 + adversarial 2 P1 + 3 P2 + 4 P3，全部 P1 已�
 verdict: P1 全部修复（2 commits），P2-B/P2-C 记录推迟，P1-B 接受
 phase-exit-authorized: yes
 
+## Round 11 — TESTING (QA 验收 + 对抗审查 + Pipeline DONE)
+
+**时间**: 2026-04-05
+**目标**: 运行 TestPlan 全部验收标准，标准档对抗审查，完成 Pipeline
+
+### QA 验收
+
+派遣 subagent 运行 AC1-AC6（文档任务，/qa 不适用，直接执行 TestPlan 验证命令）：
+
+| AC | 描述 | 结果 |
+|----|------|------|
+| AC1 | 无断裂 workspace-agents/ 引用 | **FAIL** → 修复后 PASS |
+| AC2 | CLAUDE.md 路由表可达 | PASS |
+| AC3 | 无 unstaged deletion | PASS |
+| AC4 | 无空格 docs/ 子目录 | PASS |
+| AC5 | kebab-case + ISO 日期 | PASS（macOS APFS false positive 已人工确认） |
+| AC6 | 无残留 DESIGN-TO-SWIFTUI 引用 | PASS |
+
+AC1 失败原因：`docs/solutions/best-practices/document-migration-verification-checklist-2026-04-05.md`（Round 10 ce-compound 产出）含 7 处 workspace-agents/ 示例引用。修复：加入 AC1 排除列表（commit `2364c1e`）。
+
+### 对抗审查（标准档）
+
+派遣 2 个并行 subagent：Sonnet adversarial reviewer + Sonnet data verifier
+
+**Adversarial 发现**：
+
+| 发现 | 级别 | 裁决 |
+|------|------|------|
+| AC5 find 命令在 APFS 上 case-insensitive，12 个 false positive | P1 | **必修** → 替换为 Python case-sensitive 方法 |
+| product_philosophy.md 术语差异（二级进度条→统一时间轴） | P1 | **接受** — git show HEAD: 提取最新版本，术语是产品演进非损坏 |
+| AC1 docs/solutions/ 排除范围过宽 | P2 | **必修** → 缩窄到具体文件路径 |
+| sync_workspace_agents.py 死代码 | P2 | **记录** — ExecPlan 已推迟 |
+| arch.md 未在 active/ | P3 | **记录** — 已推迟 |
+| supervisor-prompt.md 描述过时 | P3 | **记录** — 动态生成文件 |
+| quality_gates.md 绝对路径 | P3 | **记录** — 原始内容遗留 |
+
+**Data Verifier**：5/5 PASS（文件完整性、CLAUDE.md 一致性、ARCHITECTURE.md 一致性、git 状态、交叉引用）
+
+修复 commit `cadd6eb`：AC5 Python case-sensitive 命令 + AC1 排除范围缩窄
+
+### ce-compound
+
+跳过。APFS `find -name` 大小写不敏感是已知行为的直接推论，Python 变通已嵌入 TestPlan。
+
+[ADVERSARIAL-REVIEW] phase=TESTING tier=standard
+codex: N/A (Sonnet adversarial reviewer + Sonnet data verifier 独立审查)
+counter-review: 2 P1 + 2 P2 + 3 P3，P1-A 必修已修复，P1-B 接受，P2-A 必修已修复
+verdict: P1 全部处理，P2-A 修复，其余记录推迟
+phase-exit-authorized: yes
+
+### Pipeline 完成
+
+全部 4 阶段 INVESTIGATING → PLANNING → EXECUTING → TESTING 完成。
+11 轮执行，1 次迭代，0 次跨阶段回退。
