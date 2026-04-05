@@ -59,6 +59,7 @@ public struct NavigationOrnament: View {
             .enchronGlassControl()
             .accessibilityLabel("Scene Selector")
         }
+        .padding(.trailing, DesignTokens.Layout.ornamentGap)
     }
 }
 
