@@ -200,10 +200,21 @@ After all agent self-checks pass, verify on visionOS device:
 
 **STATUS: DONE_WITH_CONCERNS**
 
-All 40 agent-checkable acceptance criteria verified (38 PASS, 2 BLOCKED due to simulator launch failure). 292/292 unit tests pass. 5 regression items added. Code is structurally correct.
+**Verification breakdown:**
+- **28 criteria**: PASS (static analysis — code patterns confirmed present and correct)
+- **10 criteria**: PASS (static) / INCONCLUSIVE (runtime) — code is structurally correct but actual behavior depends on visionOS runtime, which cannot be verified without device. Key items: ornament transition override (R8-R10), hover shape matching (R6-R7), canvas resize chain (R15-R17), button interactivity (R21), mode menu live update (R12).
+- **2 criteria**: BLOCKED (simulator launch failure)
+- **292/292 unit tests pass** (domain logic fully verified)
+- **5 regression items added** (REG-123 to REG-127)
+
+**Device verification priority** (adversarial review finding — highest risk of code-present-but-broken):
+1. R8-R10: Does `.transition(.opacity)` actually override ornament's built-in transition?
+2. R15-R17: Does native GPU path resize via `autoresizingMask` + `layoutSubviews()` chain?
+3. R6-R7: Does `.hoverEffect(.lift)` produce correct shape on visionOS?
 
 **Concerns:**
 1. Simulator launch blocked — all visual/interaction verification requires real device
 2. SwiftLint script phase should be configured to warn-only (not fail build)
+3. View→UseCase integration test gap — domain logic tested but UI glue layer untested (P2, future improvement)
 
 **QA found 0 new issues, applied 0 fixes (all fixes from EXECUTING phase), added 5 regression items.**

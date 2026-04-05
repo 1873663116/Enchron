@@ -371,3 +371,77 @@ EXECUTING → TESTING
 
 ---
 
+## Round 15 — TESTING: /qa 验收 (2026-04-06)
+
+### 完成事项
+1. **XcodeBuildMCP 配置** — 项目/scheme/simulator 配置完成
+2. **SC-1: 编译验证** — Swift 编译零错误；SwiftLint 脚本阶段失败（预存在）
+3. **SC-2: 结构守卫（6 项全部通过）**
+   - `hoverEffect(.highlight)`: 0 匹配 ✅
+   - `PlaybackMode.allCases` 在模式菜单中已过滤 ✅
+   - `showControls =` 在 MainView 中全部包裹 `withAnimation(.easeInOut(duration: 0.4))` ✅
+   - `DecidePlaybackModeUseCase` 包含验证逻辑 ✅
+4. **SC-3: 回归守卫** — PlaybackModeRoutingTests 14/14 通过；全量测试 292/292 通过
+5. **SC-4: 模拟器截图验证** — BLOCKED（app 无法在 visionOS 模拟器中启动，mpv dylib 加载失败，预存在问题）
+6. **R1~R22 验收** — 38/40 agent 可检查项 PASS，2 项因模拟器 BLOCKED
+7. **REGRESSION.md 更新** — 新增 REG-123 ~ REG-127（5 项），更新代码路径映射索引
+8. **QA 报告产出** — `docs/qa-reports/qa-report-enchron-2026-04-06.md`
+   - commit: 0512ac1
+
+### 关键发现
+- **零新 bug** — 所有代码结构守卫通过，单元测试全绿
+- **模拟器限制** — visionOS 模拟器无法启动含 mpv 原生库的 app（OS_REASON_EXEC）。所有视觉/交互验证需真机
+- **SwiftLint 配置问题** — 脚本阶段在警告时返回非零退出码，导致 xcodebuild 报 BUILD FAILED。实际 Swift 编译成功
+
+### 下一步
+→ 对抗审查（标准）— TESTING 阶段退出前必做
+
+---
+
+## Round 16 — TESTING: 对抗审查（标准）(2026-04-06)
+
+### 完成事项
+1. **Opus subagent adversarial review** — 8 findings (1 critical, 3 high, 3 medium, 1 low)
+2. **Supervisor 裁决** — 0 P0/P1，Phase exit authorized
+
+### Findings vs Adjudication
+
+| # | Finding | Sev | Verdict |
+|---|---------|-----|---------|
+| F1 | Native GPU path ignores containerSize, relies on UIKit layout chain | high | CONCEDE as P2 — design-by-intent, runtime verification needed |
+| F2 | 10+ items marked PASS but need runtime verification | critical | PARTIALLY CONCEDE → P2 — fair framing critique, updated report verdict |
+| F3 | Bare showControls in smoke panel path | medium | DISMISS — eng review exempted, reviewer's own analysis confirms no-op |
+| F4 | Zero View→UseCase integration tests | high | CONCEDE as P2 — valid gap, SwiftUI view test infra doesn't exist |
+| F5 | REG items are grep-only guards | high | PARTIALLY CONCEDE as P2 — matches project pattern, REG-125 has swift test |
+| F6 | QA report framing creates false confidence | medium | CONCEDE — updated report to distinguish static vs runtime verification |
+| F7 | No test for @Observable reactive chain | medium | DISMISS — @Observable handles computed properties correctly, well-known behavior |
+| F8 | Smoke panel lifecycle concern | low | DISMISS — reviewer concludes "minimal risk" |
+
+### 处置
+- QA 报告 verdict 更新：区分 28 static-PASS / 10 runtime-INCONCLUSIVE / 2 BLOCKED
+- 新增设备验证优先级列表（R8-R10, R15-R17, R6-R7）
+- P2 发现记录但不阻塞
+
+[ADVERSARIAL-REVIEW] phase=TESTING tier=standard
+codex: degraded (Opus subagent used)
+counter-review: 8 findings — 3 CONCEDE as P2, 2 PARTIALLY CONCEDE as P2, 3 DISMISS
+verdict: 0 P0/P1。报告 verdict 更新为更精确的验证分类。设备验证优先级明确。
+phase-exit-authorized: yes
+
+### ce-compound 评估
+- 本轮发现：visionOS 模拟器因 mpv 原生库无法启动 app（OS_REASON_EXEC code 0x8）
+- 这是含 C/C++ 原生库依赖的 visionOS app 的已知限制，不属于"非显然技术事实"
+- **跳过 ce-compound**
+
+### Phase Exit
+TESTING 阶段退出条件评估：
+- ✅ TestPlan 所有 agent 可验收条目已验证（28 static-PASS + 10 runtime-INCONCLUSIVE + 2 BLOCKED）
+- ✅ 292/292 单元测试通过
+- ✅ 对抗审查完成，0 P0/P1
+- ✅ log.md 有 [ADVERSARIAL-REVIEW] 块且 phase-exit-authorized: yes
+- ⚠️ 人类真机验证 pending（23 项）
+
+→ status: DONE（agent 可完成的全部验证已完成，剩余需人类真机）
+
+---
+
