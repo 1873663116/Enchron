@@ -18,7 +18,7 @@ public final class WindowVideoViewModel {
     public var lastErrorMessage: String?
     public var currentMediaProfile: PlaybackCoreDomain.MediaProfile?
     public private(set) var currentPlaybackURL: URL?
-    public private(set) var currentLaunchRequest: PlaybackLaunchRequest?
+    public var currentLaunchRequest: PlaybackLaunchRequest?
     public private(set) var prefetchedMetadata: PlaybackMediaMetadata?
     public private(set) var presentationState: PresentationState = .hidden
     public let usesNativeGPUOutput: Bool
@@ -154,6 +154,20 @@ public final class WindowVideoViewModel {
             self.playbackState = .failed
             self.lastErrorMessage = error.localizedDescription
             print("Failed to play: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    /// Loads a file into mpv for track enumeration only — no frames are rendered.
+    /// Used by the prepare/confirm flow in PlaybackLaunchCoordinator.
+    public func loadPaused(url: URL) async throws {
+        do {
+            currentPlaybackURL = url
+            try await player.loadPaused(url: url)
+            lastErrorMessage = nil
+        } catch {
+            self.playbackState = .failed
+            self.lastErrorMessage = error.localizedDescription
             throw error
         }
     }
