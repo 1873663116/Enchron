@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 13: Immersive Mode Companion Window (R21) 完成 — git commit 8829988，WindowGroup(id: playerControls) + 5 环境注入 + 单条件生命周期管理 + ornament 窗口模式限定"
-next: "选取 Unit 14 → 调用 /ce-work 继续 Phase E (NLE Timeline)"
+last_done: "Unit 14: NLE Timeline Shell & Animation (R26) 完成 — git commit dcb6bb6，NLETimelineView expandable panel + NLETimelineToggleButton + PlayerControlsView 集成 + spring animation + placeholder slots for ruler/thumbstrip"
+next: "选取 Unit 15 → 调用 /ce-work 继续 Phase E (Time Ruler & Playhead)"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
