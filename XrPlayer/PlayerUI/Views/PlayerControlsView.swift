@@ -158,7 +158,7 @@ public struct PlayerControlsView: View {
                 registerInteraction()
             } label: {
                 Image(systemName: "gobackward.10")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(DesignTokens.SymbolSize.control)
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.automatic)
@@ -178,7 +178,7 @@ public struct PlayerControlsView: View {
                 registerInteraction()
             } label: {
                 Image(systemName: playButtonIcon)
-                    .font(.system(size: 36, weight: .medium))
+                    .font(DesignTokens.SymbolSize.action)
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.automatic)
@@ -191,7 +191,7 @@ public struct PlayerControlsView: View {
                 registerInteraction()
             } label: {
                 Image(systemName: "goforward.10")
-                    .font(.system(size: 24, weight: .semibold))
+                    .font(DesignTokens.SymbolSize.control)
                     .foregroundStyle(.primary)
             }
             .buttonStyle(.automatic)

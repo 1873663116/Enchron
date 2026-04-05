@@ -154,7 +154,7 @@ struct DetailedTimelineView: View {
 
                     if x >= 20, x <= viewportWidth - 20 {
                         Text(PlaybackTimeFormatter.clock(time))
-                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .font(DesignTokens.Typography.monospacedDetail)
                             .foregroundStyle(.white.opacity(0.55))
                             .position(x: x, y: timelineHeight + 8)
                     }
