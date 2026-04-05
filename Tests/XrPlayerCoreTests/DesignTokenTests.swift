@@ -1,4 +1,6 @@
 import XCTest
+import SwiftUI
+@testable import XrPlayerCore
 
 /// Verifies the Enchron semantic color palette design contract.
 ///
@@ -91,6 +93,58 @@ final class DesignTokenTests: XCTestCase {
             XCTAssertEqual(g, expected.g, accuracy: 0.002, "\(expected.name) green component")
             XCTAssertEqual(b, expected.b, accuracy: 0.002, "\(expected.name) blue component")
         }
+    }
+
+    // MARK: - Unit 2: Radius Tokens (R2)
+
+    func testRadiusCardValue() {
+        XCTAssertEqual(DesignTokens.Radius.card, 20,
+                       "Card radius must be 20pt (--radius-card: 1.25rem)")
+    }
+
+    func testRadiusWindowValue() {
+        XCTAssertEqual(DesignTokens.Radius.window, 40,
+                       "Window radius must be 40pt (--radius-window: 2.5rem)")
+    }
+
+    func testRadiusBadgeValue() {
+        XCTAssertEqual(DesignTokens.Radius.badge, 10,
+                       "Badge radius must be 10pt (--radius-badge: 0.625rem)")
+    }
+
+    func testConcentricRadiusRule() {
+        let outerRadius = DesignTokens.Radius.window
+        let padding: CGFloat = 16
+        let innerRadius = outerRadius - padding
+        XCTAssertEqual(innerRadius, 24,
+                       "Concentric inner radius = outer(40) - padding(16) = 24")
+    }
+
+    // MARK: - Unit 2: Typography Tokens (R3)
+
+    func testTypographyTitleIsTitle2() {
+        XCTAssertEqual(DesignTokens.Typography.title, .title2,
+                       "Title typography must map to .title2")
+    }
+
+    func testTypographyHeadlineIsHeadline() {
+        XCTAssertEqual(DesignTokens.Typography.headline, .headline,
+                       "Headline typography must map to .headline")
+    }
+
+    func testTypographyMetadataIsCaption() {
+        XCTAssertEqual(DesignTokens.Typography.metadata, .caption,
+                       "Metadata typography must map to .caption")
+    }
+
+    func testTypographySectionHeaderIsCaption2() {
+        XCTAssertEqual(DesignTokens.Typography.sectionHeader, .caption2,
+                       "Section header typography must map to .caption2")
+    }
+
+    func testTypographyBadgeIsCaption() {
+        XCTAssertEqual(DesignTokens.Typography.badge, .caption,
+                       "Badge typography must map to .caption")
     }
 
     // MARK: - Helpers

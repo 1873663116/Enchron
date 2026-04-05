@@ -239,7 +239,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 2: Design Tokens, Typography & Glass Variants (R2, R3, R4)**
+- [x] **Unit 2: Design Tokens, Typography & Glass Variants (R2, R3, R4)**
 
   **Goal:** Define reusable design constants for radius, typography, and glass effects
 
