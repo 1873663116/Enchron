@@ -363,6 +363,11 @@ final class MockPlaybackController: PlaybackControlling {
         currentState = .playing
     }
 
+    func loadPaused(url: URL) async throws {
+        playURL = url
+        currentState = .paused
+    }
+
     func pause() {
         pauseCalled = true
         currentState = .paused
