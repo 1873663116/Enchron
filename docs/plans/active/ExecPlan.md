@@ -453,7 +453,7 @@ Mode constraint (geometric):
 
 ### Phase 4: P0 — Browse & Detail Pages (Level 1 & 2) Alignment
 
-- [ ] **Unit 9: Level 1 & 2 layout alignment audit and fix**
+- [x] **Unit 9: Level 1 & 2 layout alignment audit and fix**
 
 **Goal:** Align browsing page (Level 1) and detail page (Level 2) with `variant-AB-combined.html`.
 

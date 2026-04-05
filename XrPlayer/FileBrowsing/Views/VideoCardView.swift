@@ -20,10 +20,16 @@ struct VideoCardView: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 0) {
                 thumbnailArea
                 metadataArea
             }
+            .background(Color.white.opacity(0.03))
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                    .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
+            )
         }
         .buttonStyle(.plain)
         .contentShape(.rect(cornerRadius: DesignTokens.Radius.card))
@@ -86,7 +92,7 @@ struct VideoCardView: View {
     // MARK: - Metadata
 
     private var metadataArea: some View {
-        VStack(alignment: .leading, spacing: 2) {
+        VStack(alignment: .leading, spacing: 4) {
             Text(file.name)
                 .font(DesignTokens.Typography.headline)
                 .lineLimit(2)
@@ -98,7 +104,7 @@ struct VideoCardView: View {
                 Text(formattedDate)
             }
             .font(DesignTokens.Typography.metadata)
-            .foregroundStyle(Color.enchronOnSurfaceVariant)
+            .foregroundStyle(Color.enchronOnSurfaceVariant.opacity(0.6))
 
             if let seconds = watchedSeconds, seconds > 0 {
                 HStack(spacing: 4) {
@@ -111,7 +117,8 @@ struct VideoCardView: View {
                 }
             }
         }
-        .padding(.horizontal, 4)
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
     }
 
     // MARK: - Badge
@@ -119,11 +126,13 @@ struct VideoCardView: View {
     private func badgeLabel(_ text: String) -> some View {
         Text(text)
             .font(DesignTokens.Typography.badge)
-            .fontWeight(.medium)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.enchronTertiary, in: Capsule())
-            .foregroundStyle(Color.enchronOnTertiary)
+            .fontWeight(.bold)
+            .textCase(.uppercase)
+            .tracking(0.5)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+            .foregroundStyle(Color.enchronTertiary)
     }
 
     // MARK: - Helpers

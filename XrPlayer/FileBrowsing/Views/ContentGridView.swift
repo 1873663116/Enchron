@@ -25,7 +25,9 @@ struct ContentGridView: View {
                     folderCards
                     fileCards
                 }
-                .padding()
+                .padding(.horizontal, 28)
+                .padding(.top, 8)
+                .padding(.bottom, 32)
             }
         }
     }
@@ -56,7 +58,7 @@ struct ContentGridView: View {
             Button {
                 onFolderSelected(folder)
             } label: {
-                VStack(alignment: .leading, spacing: 8) {
+                VStack(alignment: .leading, spacing: 0) {
                     RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                         .fill(Color.enchronSurfaceContainerHighest)
                         .aspectRatio(16.0 / 9.0, contentMode: .fit)
@@ -66,7 +68,7 @@ struct ContentGridView: View {
                                 .foregroundStyle(.yellow)
                         }
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(folder.name)
                             .font(DesignTokens.Typography.headline)
                             .lineLimit(2)
@@ -74,10 +76,17 @@ struct ContentGridView: View {
 
                         Text("Folder")
                             .font(DesignTokens.Typography.metadata)
-                            .foregroundStyle(Color.enchronOnSurfaceVariant)
+                            .foregroundStyle(Color.enchronOnSurfaceVariant.opacity(0.6))
                     }
-                    .padding(.horizontal, 4)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 14)
                 }
+                .background(Color.white.opacity(0.03))
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                        .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
+                )
             }
             .buttonStyle(.plain)
             .contentShape(.rect(cornerRadius: DesignTokens.Radius.card))
