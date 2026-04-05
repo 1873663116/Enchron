@@ -336,3 +336,38 @@ phase-exit-authorized: yes
 
 ---
 
+## Round 14 — EXECUTING: 对抗审查（标准）(2026-04-06)
+
+### 完成事项
+1. **Codex adversarial-review** — 4 findings (2 high, 2 medium)
+2. **Opus subagent 辩护** — 逐条反驳/承认
+3. **Supervisor 裁决** — 0 P0/P1，Phase exit authorized
+
+### Codex Findings vs Counter-Review
+
+| # | Finding | Codex Sev | Defense | Verdict |
+|---|---------|-----------|---------|---------|
+| F1 | 6th NLE button violates 5-button contract | high | DEFEND — eng review amendment 保留 6 按钮 | **DISMISS** — eng review 覆盖原始 R1 |
+| F2 | updatePlaybackMode 无验证 | high | PARTIALLY CONCEDE — 所有调用点已保护 | **CONCEDE as P2** — defense-in-depth，不阻塞 |
+| F3 | applySmokePanelRequestIfNeeded 跳过动画 | medium | DEFEND — setup 路径，plan 明确 leave as-is | **DISMISS** — ExecPlan Unit 5 已豁免 |
+| F4 | 设计稿路径 typo + 文件删除 | medium | PARTIALLY CONCEDE — typo 真实，canonical 文件在磁盘 | **CONCEDE as low** — typo 应修 |
+
+### P2 待办（传递到 TESTING）
+- F2: 可选 defense-in-depth guard in `AppModel.updatePlaybackMode`
+- F4: 修复 `docs/plans/active/2026-04-05-known-issues-handoff.md:33` 路径 typo
+
+### ce-compound 评估
+- 本轮是标准对抗审查流程，无新非显然技术发现
+- **跳过 ce-compound**
+
+[ADVERSARIAL-REVIEW] phase=EXECUTING tier=standard
+codex: 4 findings (2 high, 2 medium) — NLE 6th button, updatePlaybackMode no guard, animation bypass, doc path broken
+counter-review: 2 DEFEND (NLE button eng-reviewed, animation setup path exempted), 2 PARTIALLY CONCEDE (mode guard P2, path typo low)
+verdict: 0 P0/P1。F2 downgraded to P2 (defense-in-depth, all current paths protected). F4 downgraded to low (typo only, canonical files intact).
+phase-exit-authorized: yes
+
+### Phase Transition
+EXECUTING → TESTING
+
+---
+
