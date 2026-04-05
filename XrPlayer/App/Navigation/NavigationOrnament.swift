@@ -6,6 +6,7 @@ import SwiftUI
 /// an independent Scene Selector circle button. Designed per R5–R8.
 public struct NavigationOrnament: View {
     @Environment(AppModel.self) private var appModel
+    @AccessibilityFocusState private var focusedTab: AppModel.NavigationTab?
 
     public init() {}
 
@@ -16,6 +17,7 @@ public struct NavigationOrnament: View {
                 ForEach(AppModel.NavigationTab.allCases, id: \.self) { tab in
                     Button {
                         appModel.selectedTab = tab
+                        focusedTab = tab
                     } label: {
                         Image(systemName: tab.iconName)
                             .font(.title2)
@@ -29,6 +31,8 @@ public struct NavigationOrnament: View {
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel(tab.label)
+                    .accessibilityAddTraits(appModel.selectedTab == tab ? .isSelected : [])
+                    .accessibilityFocused($focusedTab, equals: tab)
                 }
             }
             .padding(.vertical, 12)

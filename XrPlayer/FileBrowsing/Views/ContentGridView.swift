@@ -52,7 +52,7 @@ struct ContentGridView: View {
     // MARK: - Folder Cards
 
     private var folderCards: some View {
-        ForEach(folders) { folder in
+        ForEach(Array(folders.enumerated()), id: \.element.id) { index, folder in
             Button {
                 onFolderSelected(folder)
             } label: {
@@ -84,13 +84,14 @@ struct ContentGridView: View {
             .hoverEffect(.lift)
             .accessibilityLabel("\(folder.name), folder")
             .accessibilityHint("Opens folder contents")
+            .accessibilitySortPriority(Double(1000 - index))
         }
     }
 
     // MARK: - File Cards
 
     private var fileCards: some View {
-        ForEach(files) { file in
+        ForEach(Array(files.enumerated()), id: \.element.id) { index, file in
             VideoCardView(
                 file: file,
                 watchedSeconds: fileWatchedSeconds[file.id],
@@ -105,6 +106,7 @@ struct ContentGridView: View {
                     }
                 }
             }
+            .accessibilitySortPriority(Double(500 - index))
         }
     }
 }

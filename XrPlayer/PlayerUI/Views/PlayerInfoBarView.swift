@@ -17,9 +17,10 @@ struct PlayerInfoBarView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .frame(minWidth: 44, minHeight: 44)
+            .frame(minWidth: 60, minHeight: 60)
             .contentShape(.rect)
             .accessibilityLabel("Back")
+            .accessibilityHint("Stops playback and returns to browser")
 
             Text(videoTitle)
                 .font(DesignTokens.Typography.headline)

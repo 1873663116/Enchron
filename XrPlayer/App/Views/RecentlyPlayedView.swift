@@ -62,7 +62,10 @@ public struct RecentlyPlayedView: View {
             Spacer()
         }
         .padding(.vertical, 4)
+        .frame(minHeight: 60)
         .contentShape(.rect)
+        .accessibilityLabel(displayName(for: item.fileID))
+        .accessibilityHint("Last played \(formattedPosition(item.position.seconds))")
     }
 
     /// Extracts a display name from the FileIdentifier rawValue.

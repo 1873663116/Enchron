@@ -11,6 +11,7 @@ public struct VideoDetailView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismiss) private var dismiss
 
+    @AccessibilityFocusState private var isTitleFocused: Bool
     @State private var savedProgress: PersistenceDomain.PlaybackProgress?
     @State private var resumePolicy: PersistenceDomain.ResumePolicy = .askEveryTime
 
@@ -35,6 +36,8 @@ public struct VideoDetailView: View {
             }
             .navigationTitle(currentDisplayName)
             .navigationBarTitleDisplayMode(.inline)
+            .accessibilityFocused($isTitleFocused)
+            .onAppear { isTitleFocused = true }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Close") {
