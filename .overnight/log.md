@@ -594,3 +594,33 @@ ExecPlan Unit 16: Thumb Strip with drag seek, pinch zoom, and frame step buttons
 
 ### ce-compound
 ce-review 过程本身是标准流程（8 并行子代理 + 合并去重），无非显而易见的技术发现，跳过。
+
+---
+
+## Round 19 — EXECUTING: P1 fix (2026-04-05)
+
+### 目标
+修复 ce-review 的 5 个 P1 发现项
+
+### 执行
+
+| P1 | 文件 | 修复方式 |
+|-----|------|---------|
+| #1 Window lifecycle race | MainView.swift | 添加 `playerControlsWindowTask` 防抖 Task，100ms debounce 序列化 openWindow/dismissWindow |
+| #2 Excessive env injection | MainView.swift, PlayerControlsView.swift, XrPlayerApp.swift | 将 panoramaBridge 管理集中到 MainView onChange，PlayerControlsView 移除 panoramaBridge/openImmersiveSpace/dismissImmersiveSpace 依赖，WindowGroup 环境注入 5→4 |
+| #3 Binding setter async lag | FileBrowserSidebar.swift | 替换 computed Binding 为 @State + .onChange 双向同步，List selection 立即更新 |
+| #4 Width duplication | DesignTokens.swift, PlayerControlsView.swift, NLETimelineView.swift | 新增 `DesignTokens.Layout.playerControlsWidth = 680`，替换两处硬编码 |
+| #5 cornerRadius inconsistency | 10 个文件 | 替换所有硬编码 cornerRadius (6/8/12/14/16/24) 为 `DesignTokens.Radius.card` (.card=20) 或 `.badge` (.badge=10) |
+
+### 验证
+
+- Build: ✅ visionOS Simulator（无新增 error，warnings 均为 pre-existing）
+- Tests: ✅ 284 passed, 0 failures, 1 skipped
+- Commit: f3aa757
+
+### 下一步
+
+重新运行 ce-review 确认 P1 全部解决，P2 无新增
+
+### ce-compound
+标准 SwiftUI 重构模式（@State 替代 computed Binding、环境注入减耦合、设计 token 统一），无非显而易见发现，跳过。
