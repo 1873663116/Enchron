@@ -1,6 +1,6 @@
-phase: INVESTIGATING
-last_done: "调查子流程完成 — 4 维度审计 + 对抗审查修正，产出 docs/reference/2026-04-05-document-audit-findings.md"
-next: "调用 /ce-brainstorm 基于审计发现产出需求文档"
+phase: PLANNING
+last_done: "INVESTIGATING 完成 — 需求文档产出 + 标准档对抗审查通过，3 项 P1 修正已应用"
+next: "调用 /ce-plan 基于需求文档制定实施计划"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
