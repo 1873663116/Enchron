@@ -143,7 +143,6 @@ struct XrPlayerApp: App {
                 .environment(windowVideoViewModel)
                 .environment(fileBrowsingViewModel)
                 .environment(playbackLauncher)
-                .environment(panoramaBridge)
         }
         .defaultSize(width: 600, height: 200)
 

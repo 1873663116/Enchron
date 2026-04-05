@@ -25,6 +25,14 @@ public enum DesignTokens {
         public static let badge: CGFloat = 10
     }
 
+    // MARK: - Layout
+
+    /// Shared layout dimension tokens.
+    public enum Layout {
+        /// Width shared by PlayerControlsView and NLETimelineView panels.
+        public static let playerControlsWidth: CGFloat = 680
+    }
+
     // MARK: - Typography (R3)
 
     /// Semantic font mapping — always use these instead of `.system(size:)`.

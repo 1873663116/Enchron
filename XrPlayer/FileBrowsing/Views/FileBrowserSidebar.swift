@@ -17,31 +17,10 @@ struct FileBrowserSidebar: View {
 
     @State private var localStorageUsed: Int64 = 0
     @State private var localStorageTotal: Int64 = 0
+    @State private var sidebarSelection: SidebarItem? = .local
 
     var body: some View {
-        @Bindable var viewModel = viewModel
-
-        let selection = Binding<SidebarItem?>(
-            get: {
-                if let active = viewModel.activeDataSource {
-                    return .remote(active.id)
-                }
-                return .local
-            },
-            set: { newValue in
-                guard let newValue else { return }
-                switch newValue {
-                case .local:
-                    Task { await viewModel.useDefaultFolder() }
-                case .remote(let id):
-                    if let ds = viewModel.savedDataSources.first(where: { $0.id == id }) {
-                        Task { await viewModel.connectToDataSource(ds) }
-                    }
-                }
-            }
-        )
-
-        List(selection: selection) {
+        List(selection: $sidebarSelection) {
             Section("Sources") {
                 localStorageRow
                     .tag(SidebarItem.local)
@@ -62,7 +41,29 @@ struct FileBrowserSidebar: View {
         }
         .navigationTitle("Sources")
         .task {
+            // Sync initial selection from ViewModel
+            if let active = viewModel.activeDataSource {
+                sidebarSelection = .remote(active.id)
+            }
             await loadLocalStorageCapacity()
+        }
+        .onChange(of: sidebarSelection) { _, newValue in
+            guard let newValue else { return }
+            switch newValue {
+            case .local:
+                Task { await viewModel.useDefaultFolder() }
+            case .remote(let id):
+                if let ds = viewModel.savedDataSources.first(where: { $0.id == id }) {
+                    Task { await viewModel.connectToDataSource(ds) }
+                }
+            }
+        }
+        .onChange(of: viewModel.activeDataSource?.id) { _, activeID in
+            if let activeID {
+                sidebarSelection = .remote(activeID)
+            } else {
+                sidebarSelection = .local
+            }
         }
     }
 

@@ -33,7 +33,7 @@ struct NLETimelineView: View {
     // MARK: - Layout constants
 
     private let expandedHeight: CGFloat = 160
-    private let panelWidth: CGFloat = 680
+    private let panelWidth: CGFloat = DesignTokens.Layout.playerControlsWidth
 
     /// Resolved zoom: explicit state or duration-based default.
     private var resolvedZoom: Double {
