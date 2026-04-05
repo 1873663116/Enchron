@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 3: AppModel Navigation State (R9) 完成 — NavigationTab enum + selectedTab + showSceneSelector + 5 contract tests + build 验证通过"
-next: "选取 Unit 4: Leading Ornament Navigation (R5, R6, R7, R8) → 调用 /ce-work"
+last_done: "Unit 6: NavigationSplitView Container (R10) 完成 — FileBrowserView 从 NavigationStack 重构为 NavigationSplitView 两栏布局，sidebar 显示数据源，detail 保留现有文件列表 + build 验证通过 + 284 tests passed"
+next: "选取 Unit 7: Sidebar with Data Sources & Storage (R11) → 调用 /ce-work"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0

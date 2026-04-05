@@ -288,3 +288,36 @@ Xcode 15+ Asset Catalog 自动符号生成与手动 Color extension 冲突 — �
 
 ### ce-compound
 纯附加枚举 + 属性添加，遵循已有模式，无非显而易见的技术发现，跳过。
+
+---
+
+## Round 8 — EXECUTING: Unit 6 NavigationSplitView Container (R10) (2026-04-05)
+
+### 目标
+执行 ExecPlan Unit 6：将 FileBrowserView 从 NavigationStack 重构为 NavigationSplitView 两栏布局。
+
+### 执行摘要
+
+1. **FileBrowserView 重构**：`NavigationStack { VStack { ... } }` → `NavigationSplitView { sidebar } detail: { content }`
+2. **Sidebar**：数据源列表（Local Storage + 已保存远程源），含选中高亮、连接状态指示器、swipe-to-delete
+3. **Detail**：保留现有 FolderListView + 连接横幅 + 导航上行按钮 + 排序/文件夹工具栏
+4. **移除**：`.navigationDestination` for VideoDetailView（迁移到 Unit 10 的 .sheet）
+5. **移动**：Add Source 菜单从 detail toolbar 移至 sidebar toolbar
+6. **验证**：visionOS Simulator build succeeded + SPM tests 284/284 passed
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| Sidebar 使用 List + Button 而非 selection binding | Unit 7 将实现完整的 selection binding，当前阶段保持功能可用即可 |
+| 保留 detail 内的 connected banner + navigate up | 这些是 Unit 7/8 的迁移目标，当前保持功能完整 |
+| .navigationDestination 直接移除 | ExecPlan 明确：Unit 10 将以 .sheet(item:) 替代 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| XrPlayer/FileBrowsing/Views/FileBrowserView.swift | NavigationSplitView 两栏重构 |
+
+### ce-compound
+直接的 NavigationStack → NavigationSplitView 重构，遵循标准 SwiftUI 模式和 design-to-swiftui.md 指南。无非显而易见的技术发现，跳过。
