@@ -292,3 +292,47 @@ phase-exit-authorized: yes
 
 ---
 
+## Round 13 — EXECUTING: /ce-review (2026-04-06)
+
+### 完成事项
+1. **ce-review 完成** — 7 reviewers（6 always + 3 conditional），20 Swift 文件 498+/245- 全覆盖
+   - 产出：`.context/ce-review/20260406-5163c71/review-report.md`
+
+### 审查结果
+
+| 严重性 | 数量 | 类别 |
+|--------|------|------|
+| P0 | 0 | — |
+| P1 | 0 | 所有候选项经验证后降级或驳回 |
+| P2 | 6 | 死代码、硬编码颜色、glass opacity 重复、卡片样式重复、缺少 ProjectionType 测试、NLE glass helper 绕过 |
+| P3 | 5 | 动画时长/按钮尺寸/padding/opacity 未 token 化，时间轴拖拽锚定 |
+| Pre-existing | 3 | NLE toggle 同 icon、MainView 拖拽系数、resume 5s 阈值 |
+
+### 驳回的发现项（6 项）
+- GeometryReader zero-size layout collapse — **错误**：GeometryReader 填充父级 ZStack 提供的空间，不会坍塌
+- MTKView guard `> 1` 过严 — **故意设计**：匹配 MoltenVK 1x1 workaround
+- Info bar 沉浸模式不可见 — **故意设计**：沉浸模式使用 companion window
+- Seek bar 缺少 glass — **故意设计**：HTML 设计 seek bar 与 pill 分离
+- Gesture hit-testing 在 GeometryReader 外失效 — **错误**：DragGesture 在 ZStack child 上正确放置
+- allowedModes 违反架构不变量 — **正确放置**：UseCase 层导入 PlaybackCoreDomain 是 eng review 已确认的
+
+### 已应用修复（safe_auto）
+1. **F1: VideoDetailView dead parameters** — 移除 `videoPreviewPlaceholder` 的未使用参数 `showPlayButton` 和 `displayName`
+   - 编译验证通过（零 Swift 编译错误）
+
+### 需求完整性
+22/22 requirements satisfied（R1-R22 全部在 diff 中有对应实现）
+
+### 裁决
+**Ready with fixes** — 无 P0/P1 阻塞项。6 个 P2 为代码质量改进，非功能缺陷。可进入阶段退出流程。
+
+### ce-compound 评估
+- 本轮发现：多个审查者错误地将 GeometryReader 判断为 zero-size collapse 风险 → 这是 SwiftUI 布局系统的常见误解
+- 但这已是广为人知的 SwiftUI 知识，不属于"非显然技术事实"
+- **跳过 ce-compound**
+
+### 下一步
+→ 对抗审查（标准）— EXECUTING 阶段退出前必做
+
+---
+
