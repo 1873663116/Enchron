@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 6: NavigationSplitView Container (R10) 完成 — FileBrowserView 从 NavigationStack 重构为 NavigationSplitView 两栏布局，sidebar 显示数据源，detail 保留现有文件列表 + build 验证通过 + 284 tests passed"
-next: "选取 Unit 7: Sidebar with Data Sources & Storage (R11) → 调用 /ce-work"
+last_done: "Unit 7: Sidebar with Data Sources & Storage (R11) 完成 — 从 FileBrowserView 提取 FileBrowserSidebar.swift，实现 List(selection:) + SidebarItem 桥接枚举 + 数据源分区 + 本地存储 ProgressView + build 验证通过 + 284 tests passed"
+next: "选取 Unit 8: Breadcrumb Navigation & Filter Pills (R13, R14) → 调用 /ce-work"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0

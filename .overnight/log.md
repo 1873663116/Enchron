@@ -321,3 +321,38 @@ Xcode 15+ Asset Catalog 自动符号生成与手动 Color extension 冲突 — �
 
 ### ce-compound
 直接的 NavigationStack → NavigationSplitView 重构，遵循标准 SwiftUI 模式和 design-to-swiftui.md 指南。无非显而易见的技术发现，跳过。
+
+---
+
+## Round 9 — EXECUTING: Unit 7 Sidebar with Data Sources & Storage (R11) (2026-04-05)
+
+### 目标
+执行 ExecPlan Unit 7：从 FileBrowserView 提取 Finder 风格侧栏到独立组件，实现数据源分区选择和本地存储容量指示器。
+
+### 执行摘要
+
+1. **创建 FileBrowserSidebar.swift**：从 FileBrowserView 的 placeholder sidebar 提取为独立视图
+2. **SidebarItem 桥接枚举**：`enum SidebarItem: Hashable { case local; case remote(UUID) }` — 桥接 `List(selection:)` 的 Hashable 要求与 ViewModel 的 `activeDataSource: DataSource?`（仅 Equatable）
+3. **选择绑定**：自定义 `Binding<SidebarItem?>` 双向同步 — get 从 activeDataSource 映射，set 触发 useDefaultFolder/connectToDataSource
+4. **数据源分区**：Section "Sources" 内 Local Storage 行 + ForEach 远程源行，含连接状态绿点指示器 + onDelete 滑动删除
+5. **存储容量条**：`URL.resourceValues` 获取卷容量 → ProgressView + ByteCountFormatter 显示已用/总容量，颜色按使用率分档（>90% 红，>75% 橙）
+6. **验证**：visionOS Simulator build succeeded + SPM tests 284/284 passed
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| SidebarItem 桥接枚举而非让 DataSource 遵循 Hashable | DataSource 是 Domain 实体（Equatable + Codable），不应为 View 层需求修改 Domain 层 — Clean Architecture 依赖方向 |
+| 存储容量在 View 层通过 FileManager 获取 | 一次性展示数据，无业务逻辑，不值得引入 ViewModel 方法或 Domain port |
+| Add Source 菜单保留在 FileBrowserView（非 FileBrowserSidebar） | 菜单触发 fileImporter/sheet 状态绑定，这些状态属于 FileBrowserView 的 @State，移到子视图会增加不必要的状态传递 |
+| onDelete 替代 swipeActions | List(selection:) 模式下 .onDelete 是 SwiftUI 标准 sidebar 删除方式，比 swipeActions 更符合系统惯例 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| XrPlayer/FileBrowsing/Views/FileBrowserSidebar.swift | 新建 — Finder 风格侧栏组件 |
+| XrPlayer/FileBrowsing/Views/FileBrowserView.swift | 修改 — 用 FileBrowserSidebar() 替换 placeholder sidebar |
+
+### ce-compound
+标准 SwiftUI List(selection:) + 视图提取 + FileManager 容量查询。无平台陷阱或非显而易见的技术发现，跳过。
