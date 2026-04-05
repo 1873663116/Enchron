@@ -13,8 +13,14 @@ public struct WindowVideoView: UIViewRepresentable {
 
     @Bindable var viewModel: WindowVideoViewModel
 
-    public init(viewModel: WindowVideoViewModel) {
+    /// Container size from GeometryReader. When the window resizes, this value
+    /// changes and SwiftUI calls `updateUIView`, ensuring the Metal layer /
+    /// MTKView drawable size stays in sync.
+    var containerSize: CGSize
+
+    public init(viewModel: WindowVideoViewModel, containerSize: CGSize = .zero) {
         self.viewModel = viewModel
+        self.containerSize = containerSize
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -52,8 +58,18 @@ public struct WindowVideoView: UIViewRepresentable {
         if viewModel.usesNativeGPUOutput, let nativeView = uiView as? MPVNativeMetalLayerView {
             viewModel.attachVideoLayer(nativeView.metalLayer)
             // Force layout update when SwiftUI resizes the container (e.g., window resize).
-            // UIViewRepresentable may not always trigger layoutSubviews on geometry changes.
+            // containerSize dependency ensures this fires on geometry changes.
             nativeView.setNeedsLayout()
+        } else if let mtkView = uiView as? MTKView {
+            // MTKView path: update drawableSize to match the new container size.
+            let scale = mtkView.contentScaleFactor
+            let newDrawableSize = CGSize(
+                width: containerSize.width * scale,
+                height: containerSize.height * scale
+            )
+            if newDrawableSize.width > 1, newDrawableSize.height > 1 {
+                mtkView.drawableSize = newDrawableSize
+            }
         }
     }
 

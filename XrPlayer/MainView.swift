@@ -38,10 +38,15 @@ public struct MainView: View {
             // Always-mounted video surface — hidden when not playing,
             // so attachVideoLayer() and native warmup complete before first play.
             ZStack(alignment: .topTrailing) {
-                WindowVideoView(viewModel: windowVideoViewModel)
-                    .glassBackgroundEffect()
-                    .contentShape(Rectangle())
-                    .gesture(
+                GeometryReader { geometry in
+                    WindowVideoView(
+                        viewModel: windowVideoViewModel,
+                        containerSize: geometry.size
+                    )
+                }
+                .glassBackgroundEffect()
+                .contentShape(Rectangle())
+                .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
                                 if !pinchBegan {
