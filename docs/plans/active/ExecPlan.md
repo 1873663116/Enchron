@@ -331,7 +331,7 @@ Mode constraint (geometric):
 
 ---
 
-- [ ] **Unit 6: Implement playback mode geometric constraint**
+- [x] **Unit 6: Implement playback mode geometric constraint**
 
 **Goal:** Prevent panorama mode for non-panoramic content. Allow immersive mode for all content.
 
