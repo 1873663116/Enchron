@@ -169,7 +169,8 @@ struct NLETimelineToggleButton: View {
                 .frame(width: 48, height: 48)
                 .contentShape(.circle)
         }
-        .buttonStyle(.automatic)
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .help(isExpanded ? "Collapse Timeline" : "Expand Timeline")
         .accessibilityLabel(isExpanded ? "Collapse timeline" : "Expand timeline")
         .accessibilityAddTraits(.isToggle)
