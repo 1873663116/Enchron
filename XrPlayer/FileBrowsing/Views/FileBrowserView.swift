@@ -46,6 +46,7 @@ public struct FileBrowserView: View {
             set: { viewModel.detailNavigationRequest = $0 }
         )) { _ in
             VideoDetailView()
+                .frame(minWidth: 900, idealWidth: 1100, minHeight: 600, idealHeight: 700)
         }
         .sheet(item: $remoteSourceDraft) { draft in
             DataSourceConfigView(sourceType: draft.sourceType)
@@ -103,7 +104,7 @@ public struct FileBrowserView: View {
                 Task { await viewModel.loadFiles() }
             }
             Button("OK", role: .cancel) {
-                viewModel.lastErrorMessage = nil
+                viewModel.disconnectAndResetToLocal()
             }
         } message: {
             Text(viewModel.lastErrorMessage ?? "Unknown error")
@@ -164,9 +165,9 @@ public struct FileBrowserView: View {
                     Text("Connected to \(active.name)")
                         .font(.subheadline)
                     Spacer()
-                    Button("Disconnect") {
-                        Task {
-                            await viewModel.useDefaultFolder()
+                    Button("Remove", role: .destructive) {
+                        if let id = active.id as UUID? {
+                            viewModel.removeDataSource(id: id)
                         }
                     }
                     .buttonStyle(.bordered)
@@ -177,7 +178,6 @@ public struct FileBrowserView: View {
             }
 
             BreadcrumbView()
-            FilterPillsView()
 
             ContentGridView(
                 folders: viewModel.folders,

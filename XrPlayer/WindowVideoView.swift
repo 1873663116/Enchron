@@ -12,7 +12,7 @@ public struct WindowVideoView: UIViewRepresentable {
     }
 
     @Bindable var viewModel: WindowVideoViewModel
-    
+
     public init(viewModel: WindowVideoViewModel) {
         self.viewModel = viewModel
     }
@@ -25,6 +25,8 @@ public struct WindowVideoView: UIViewRepresentable {
         if viewModel.usesNativeGPUOutput {
             let view = MPVNativeMetalLayerView()
             view.isUserInteractionEnabled = false
+            view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            view.contentMode = .scaleToFill
             viewModel.attachVideoLayer(view.metalLayer)
             return view
         } else {
@@ -36,6 +38,7 @@ public struct WindowVideoView: UIViewRepresentable {
             mtkView.enableSetNeedsDisplay = false
             mtkView.isPaused = false
             mtkView.isUserInteractionEnabled = false
+            mtkView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
             if let layer = mtkView.layer as? CAMetalLayer {
                 layer.wantsExtendedDynamicRangeContent = true
@@ -48,6 +51,9 @@ public struct WindowVideoView: UIViewRepresentable {
     public func updateUIView(_ uiView: UIView, context: Context) {
         if viewModel.usesNativeGPUOutput, let nativeView = uiView as? MPVNativeMetalLayerView {
             viewModel.attachVideoLayer(nativeView.metalLayer)
+            // Force layout update when SwiftUI resizes the container (e.g., window resize).
+            // UIViewRepresentable may not always trigger layoutSubviews on geometry changes.
+            nativeView.setNeedsLayout()
         }
     }
 
