@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "PLANNING 退出条件验证通过（ExecPlan 53KB + TestPlan 17KB + adversarial-review phase-exit-authorized），Phase Transition PLANNING → EXECUTING 完成"
-next: "读 ExecPlan → 选取 Unit 1: Semantic Color System (R1) → 调用 /ce-work"
+last_done: "Unit 1: Semantic Color System (R1) 完成 — 9 Color Sets + DesignTokenTests + Xcode build 验证通过"
+next: "选取 Unit 2: Design Tokens, Typography & Glass Variants (R2, R3, R4) → 调用 /ce-work"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
