@@ -232,21 +232,42 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 guard !Task.isCancelled else { return }
                 guard self.generation == currentGeneration else { return }
 
-                // Give mpv a moment to populate track lists
-                try? await Task.sleep(for: .milliseconds(300))
-                guard !Task.isCancelled else { return }
-                guard self.generation == currentGeneration else { return }
+                // Wait for mpv to parse container, detect profile, and populate track lists.
+                // Poll until tracks appear or timeout after ~2s.
+                var waitedMs = 0
+                let maxWaitMs = 2000
+                while waitedMs < maxWaitMs {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    guard !Task.isCancelled else { return }
+                    guard self.generation == currentGeneration else { return }
+                    waitedMs += 100
+                    // Break early once tracks and profile are available
+                    if !self.windowVideoViewModel.availableAudioTracks.isEmpty,
+                       self.windowVideoViewModel.displayMediaProfile != nil {
+                        break
+                    }
+                }
 
                 let audioTracks = self.windowVideoViewModel.availableAudioTracks
                 let subtitleTracks = self.windowVideoViewModel.availableSubtitleTracks
 
-                if let resolvedMetadata = mergedMetadata {
-                    self.windowVideoViewModel.applyPrefetchedMetadata(resolvedMetadata)
+                // Merge metadata from service prefetch AND mpv runtime detection
+                var finalMetadata = mergedMetadata
+                if let vmMetadata = self.windowVideoViewModel.prefetchedMetadata {
+                    finalMetadata = finalMetadata?.merging(with: vmMetadata) ?? vmMetadata
+                }
+                if let runtimeProfile = self.windowVideoViewModel.displayMediaProfile,
+                   finalMetadata?.mediaProfile == nil {
+                    let runtimeMeta = PlaybackMediaMetadata(
+                        mediaProfile: runtimeProfile,
+                        fileSizeInBytes: finalMetadata?.fileSizeInBytes ?? 0
+                    )
+                    finalMetadata = finalMetadata?.merging(with: runtimeMeta) ?? runtimeMeta
                 }
 
                 let prepared = PreparedPlayback(
-                    request: preparedRequest,
-                    metadata: mergedMetadata,
+                    request: preparedRequest.updating(metadata: finalMetadata),
+                    metadata: finalMetadata,
                     audioTracks: audioTracks,
                     subtitleTracks: subtitleTracks,
                     generation: currentGeneration

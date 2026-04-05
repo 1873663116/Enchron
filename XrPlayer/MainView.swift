@@ -126,20 +126,11 @@ public struct MainView: View {
             Group {
                 if appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls && appModel.playbackMode == .window {
                     PlayerControlsView()
-                        .transition(
-                            .asymmetric(
-                                insertion: .opacity
-                                    .combined(with: .scale(scale: 0.92, anchor: .bottom))
-                                    .combined(with: .offset(y: 20)),
-                                removal: .opacity
-                                    .combined(with: .scale(scale: 0.95, anchor: .bottom))
-                                    .combined(with: .offset(y: 10))
-                            )
-                        )
+                        .transition(.opacity)
                 }
             }
-            .animation(.easeInOut(duration: 0.35), value: appModel.showControls)
-            .animation(.easeInOut(duration: 0.35), value: appModel.isPlaying)
+            .animation(.easeInOut(duration: 0.4), value: appModel.showControls)
+            .animation(.easeInOut(duration: 0.4), value: appModel.isPlaying)
         }
         .ornament(
             visibility: appModel.isPlaying ? .hidden : .visible,
