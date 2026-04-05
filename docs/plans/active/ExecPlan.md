@@ -35,7 +35,7 @@ Enchron's current UI is a pragmatic assembly of visionOS 1.x stock controls (Tab
 | R10 | FileBrowserView → NavigationSplitView | C | 6 |
 | R11 | Sidebar with data sources + storage bar | C | 7 |
 | R12 | LazyVGrid content grid | C | 9 |
-| R13 | Breadcrumb path navigation | C | 8 |
+| R13 | Breadcrumb path navigation (search box deferred — see NOT in scope) | C | 8 |
 | R14 | Filter pills (All/4K/HDR/Spatial) | C | 8 |
 | R15 | VideoCardView custom component | C | 9 |
 | R16 | Video detail as .sheet() | C | 10 |
@@ -68,12 +68,13 @@ Enchron's current UI is a pragmatic assembly of visionOS 1.x stock controls (Tab
 ## Scope Boundaries
 
 **In scope:** View + ViewModel layers of FileBrowsing, PlayerUI, App, Settings, SpatialScene/Views
-**Out of scope:** PlaybackCore, SpatialScene/Renderers, SpatialScene/Domain, Persistence internals, new data source protocols, multi-session playback, iCloud sync
+**Out of scope:** PlaybackCore, SpatialScene/Renderers, SpatialScene/Domain, Persistence internals, new data source protocols, multi-session playback, iCloud sync, R13 search box (breadcrumb implemented; search requires new ViewModel state + filtering logic, deferred to follow-up iteration)
 
 - PlaybackLaunchCoordinator's preparePlayback/confirmPlayback flow is preserved
 - FileBrowsing Domain layer (BrowsingMediaFile, DataSource, Ports) is preserved
 - SpatialScene Renderers (EnvironmentDome, PanoramaSphere, VirtualScreen) are preserved
-- Existing custom panels (PlaybackMenuView floating panel, ScreenPositionControlView floating panel) are deleted and replaced by system Menu + Picker
+- PlaybackMenuView floating panel is deleted and replaced by system Menu + Picker
+- ScreenPositionControlView is preserved and restyled (continuous sliders cannot migrate to Menu)
 
 (see origin: requirements scope boundaries)
 
@@ -121,7 +122,7 @@ Current usage is split: 5 parameterless (full-area glass), 5 shaped (RoundedRect
 
 - **Companion WindowGroup for immersive controls**: Add `WindowGroup(id: "playerControls")` to XrPlayerApp. Open via `openWindow(id: "playerControls")` when entering immersive playback. Dismiss on immersive exit. Reuses PlayerControlsView. Window positioning follows system default (user movable). (Resolves deferred Q3)
 
-- **System Menu + Picker replaces PlaybackMenuView/ScreenPositionControlView**: Delete custom glass floating panels. Use `Menu { }` with nested `Picker` sections for HDR/Subtitles/Audio/Speed/Mode/Environment. Simpler code, native interaction. (see origin: R22, design-to-swiftui.md ch.12)
+- **System Menu + Picker replaces PlaybackMenuView**: Delete PlaybackMenuView custom glass panel. Use `Menu { }` with nested `Picker` sections for HDR/Subtitles/Audio/Speed/Mode/Environment. Simpler code, native interaction. ScreenPositionControlView is preserved (continuous sliders for distance/offset/angle cannot be expressed as discrete Menu items). (see origin: R22, design-to-swiftui.md ch.12)
 
 - **NLE thumbnail strategy**: Deferred to implementation. Approach: start with mpv screenshot API for on-demand thumbnails; evaluate AVAssetImageGenerator as alternative during Unit 16. (Deferred Q6)
 
@@ -352,7 +353,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
   **Files:**
   - Modify: `XrPlayer/MainView.swift` — conditional rendering based on selectedTab
-  - Create: `XrPlayer/PlayerUI/Views/RecentlyPlayedView.swift` — recent playback list
+  - Create: `XrPlayer/App/Views/RecentlyPlayedView.swift` — recent playback list (App module: navigation-level assembly, not PlayerUI — see ARCHITECTURE.md module boundaries)
   - Modify: `XrPlayer/Persistence/Domain/Ports/ProgressStoring.swift` — add loadRecentlyPlayed
   - Modify: `XrPlayer/Persistence/SwiftDataStore.swift` (or equivalent adapter) — implement new method
   - Modify: `XrPlayer/MainView.swift` — add .sheet for SceneSelectorView
@@ -372,6 +373,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
   - Empty state: guidance text encouraging browsing
   - SceneSelectorView presented via `.sheet(isPresented: $appModel.showSceneSelector)` on MainView
   - ProgressStoring protocol extension: `func loadRecentlyPlayed(limit: Int) async -> [PlaybackProgress]`
+  - **Mock impact:** All existing ProgressStoring conformers (SwiftDataStore + test mocks) must implement the new method. Provide protocol extension default `{ return [] }` for backward compatibility, or enumerate and update all conformers.
 
   **Patterns to follow:**
   - Existing `FileBrowsingViewModel.loadFiles()` async pattern
@@ -554,12 +556,14 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
   **Approach:**
   - FileBrowserView: replace `.navigationDestination(isPresented:)` with `.sheet(item: $viewModel.detailNavigationRequest)`
+  - **Prerequisite:** PlaybackLaunchRequest must conform to `Identifiable` for `.sheet(item:)` — add `id` property (e.g., UUID or derive from fileIdentifier)
+  - **Migration note:** Remove ALL manual `fileBrowsingViewModel.detailNavigationRequest = nil` assignments from VideoDetailView (currently ~6 sites). SwiftUI .sheet(item:) manages dismissal by nilling the binding automatically. Manual nil-setting races with SwiftUI's dismiss animation. Instead: confirmPlayback should nil detailNavigationRequest (triggers sheet dismiss), and .onDisappear handles the cancel/swipe-dismiss case only.
   - VideoDetailView layout (two columns in HStack):
     - Left: video preview area + environment selector carousel (ScrollView horizontal, scrollTargetBehavior(.viewAligned)) + "Start Playback" button
     - Right: metadata section + playback settings (Picker/Toggle for audio, subtitles, etc.)
   - Preserve coordinator.currentPreparation state machine (preparing/ready/failed)
   - On sheet dismiss: call `coordinator.cancelPreparedPlayback()` via `.onDisappear`
-  - Resume logic preserved: check savedProgress > 5s → ask/resume/restart
+  - Resume logic preserved: all 3 resumePolicy branches (askEveryTime, alwaysResume, alwaysStartFromBeginning) must survive layout rewrite. Resume buttons render in left column below environment selector, above "Start Playback". Check savedProgress > 5s → ask/resume/restart
   - "Start Playback" calls `coordinator.confirmPlayback(prepared, resumePosition:)`
   - Environment selector: carousel of CinemaEnvironment.allCases with preview thumbnails
 
@@ -621,7 +625,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
   **Files:**
   - Modify: `XrPlayer/PlayerUI/Views/PlayerControlsView.swift` — major layout refactor
   - Delete: `XrPlayer/PlayerUI/Views/PlaybackMenuView.swift` — replaced by system Menu
-  - Delete: `XrPlayer/PlayerUI/Views/ScreenPositionControlView.swift` — replaced by system Menu
+  - Restyle: `XrPlayer/PlayerUI/Views/ScreenPositionControlView.swift` — preserve (continuous sliders for distance/offset/angle cannot migrate to discrete Menu; update colors + glass tokens to match redesign)
   - Create: `XrPlayer/PlayerUI/Views/PlayerInfoBarView.swift` — top info bar
 
   **Approach:**
@@ -636,7 +640,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
   - Auto-hide: replace existing Timer with `@State lastInteractionTime` + `.task(id:)` + `Task.sleep(for: .seconds(5))`
   - Buttons use `.buttonStyle(.automatic)` for system press feedback
   - Delete PlaybackMenuView.swift (custom glass panel → system Menu)
-  - Delete ScreenPositionControlView.swift (position controls move to Settings menu)
+  - Restyle ScreenPositionControlView.swift with design tokens (continuous sliders preserved; cannot migrate to discrete Menu)
 
   **Patterns to follow:**
   - Existing `PlayerControlsView` environment injection pattern (AppModel, WindowVideoViewModel, etc.)
@@ -674,13 +678,20 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
   **Approach:**
   - Add `WindowGroup(id: "playerControls") { PlayerControlsView().environment(...) }` to XrPlayerApp
-  - Inject same environment objects (AppModel, WindowVideoViewModel, etc.)
+  - Inject ALL 5 required environment objects (PlayerControlsView uses all 5):
+    1. `.environment(appModel)` — AppModel
+    2. `.environment(windowVideoViewModel)` — WindowVideoViewModel
+    3. `.environment(fileBrowsingViewModel)` — FileBrowsingViewModel
+    4. `.environment(playbackLauncher)` — PlaybackLaunchCoordinator
+    5. `.environment(panoramaBridge)` — PanoramaLayerBridge
+  - Follow existing pattern from main WindowGroup (XrPlayerApp.swift:124-131)
   - Open: when `appModel.playbackMode != .window && appModel.isPlaying`, call `openWindow(id: "playerControls")`
   - Dismiss: when exiting immersive mode or stopping playback, call `dismissWindow(id: "playerControls")`
   - The existing bottom ornament hides when in immersive mode (already conditional on playbackMode)
   - Companion window shows same PlayerControlsView — code reuse
   - Window sizing: let system manage; apply `.defaultSize(width: 600, height: 200)` as hint
-  - Lifecycle coordination via `.onChange(of: appModel.playbackMode)` and `.onChange(of: appModel.isPlaying)`
+  - **ScreenPositionControlView in companion window:** The 340x420 overlay panel cannot fit in the 200pt-tall companion window. Strategy: present ScreenPositionControlView as `.sheet()` from the companion window (not as ZStack overlay). This lets visionOS size the sheet independently.
+  - **Lifecycle guard:** Use a single computed condition `shouldShowCompanion = (playbackMode != .window && isPlaying)` and one `.onChange(of: shouldShowCompanion)` observer. Avoid two independent `.onChange` observers that can race (double-open or double-dismiss).
 
   **Patterns to follow:**
   - Existing `WindowGroup(id: "settings")` pattern in XrPlayerApp
@@ -913,9 +924,9 @@ graph TB
 ## System-Wide Impact
 
 - **Navigation architecture**: AppTabView (TabView .sidebarAdaptable) is fully replaced by ornament + conditional rendering. All existing tab-based navigation tests or assumptions break.
-- **File browser data flow**: FolderListView is no longer the primary content display; ContentGridView replaces it for files. FolderListView may still be used for subfolder navigation within the grid.
+- **File browser data flow**: FolderListView is no longer the primary content display; ContentGridView replaces it for files. **Decision: Delete FolderListView.swift in Unit 9** — ContentGridView fully replaces its role. Subfolders render as folder-type cards in the grid (tap navigates into subfolder). Keeping FolderListView creates dead code and confusion.
 - **PlaybackMenuView deletion**: All consumers of PlaybackMenuView must be updated to use system Menu. PlayerControlsView is the only consumer.
-- **ScreenPositionControlView deletion**: Position controls move into Settings menu within PlayerControlsView.
+- **ScreenPositionControlView preserved**: Restyled with new design tokens; continuous sliders (distance/offset/angle) cannot migrate to discrete Menu. Panel still available in immersive mode.
 - **VideoDetailView lifecycle**: Changing from navigationDestination to .sheet changes dismiss semantics. Any code relying on NavigationStack path changes must be updated.
 - **WindowGroup registration**: Adding "playerControls" WindowGroup affects app scene declaration. Scene environment injection must cover this new window.
 - **Invariant preserved**: All playback still routes through PlaybackLaunchCoordinator. R16/R17 detail sheet calls coordinator.confirmPlayback — same as before.
@@ -952,3 +963,15 @@ graph TB
 - **QA methodology:** [docs/solutions/best-practices/overnight-qa-plan-first-visionos-2026-04-02.md](docs/solutions/best-practices/overnight-qa-plan-first-visionos-2026-04-02.md)
 - **HelloWorld reference:** ~/Movies/HelloWorld/ (Apple visionOS sample)
 - **Architecture:** [ARCHITECTURE.md](ARCHITECTURE.md)
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Codex Review | `/codex:rescue` | Independent 2nd opinion | 0 | — | — |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR (PLAN) | 7 issues, 1 critical gap, 4 P1 fixed |
+| Design Review | `/plan-design-review` | UI/UX gaps | 1 | issues_open | score: 5/10 → 5/10, 5 decisions (stale: prior pipeline) |
+
+**UNRESOLVED:** 0
+**VERDICT:** ENG CLEARED — ready to implement. Design Review is from prior pipeline (stale commit 117c3af, not current ExecPlan).

@@ -1,6 +1,6 @@
 phase: PLANNING
-last_done: "/ce-plan 产出 ExecPlan.md（18 units, 6 phases, 42/42 需求覆盖）+ TestPlan.md（10 E2E, 42 AC）"
-next: "调用 /plan-eng-review 审查 ExecPlan，锁定架构决策和实施顺序"
+last_done: "/plan-eng-review 完成（7 issues found, 4 P1 fixed + adversarial review 10 findings, 3 P1 fixed）→ ExecPlan + TestPlan 已修正"
+next: "对抗性审查已完成，验证 PLANNING 退出条件 → Phase Transition to EXECUTING"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0

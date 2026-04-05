@@ -125,3 +125,77 @@ phase-exit-authorized: yes
 3. .glassBackgroundEffect 在 ZStack 中必须应用于容器而非子视图——这是一个渲染陷阱，需要在实施阶段特别注意
 
 → 应调用 /ce-compound 归纳这些发现。但鉴于本轮已记录于 log 中且文档产出完整，判断无需独立写入 solutions/，经验已内化到 ExecPlan 的 Institutional Knowledge 节。
+
+---
+
+## Round 4 — PLANNING: /plan-eng-review + Adversarial Review (2026-04-05)
+
+### 目标
+工程审查 ExecPlan，锁定架构决策和实施顺序，对抗性审查验证。
+
+### 执行摘要
+
+1. **代码基调查**：派遣 Explore subagent 深度分析 17 个关键文件（AppTabView、MainView、FileBrowserView、PlayerControlsView、PlaybackMenuView、ScreenPositionControlView、VideoDetailView、AppModel、XrPlayerApp 等），验证 ExecPlan 假设
+2. **/plan-eng-review 工程审查**：完整 4 部分评审（架构 → 代码质量 → 测试 → 性能），Auto-Decision 裁决所有交互点
+3. **对抗性审查（标准）**：Opus subagent 独立挑战，10 findings
+
+### 工程审查发现（7 issues）
+
+| ID | 级别 | 问题 | 处置 |
+|---|---|---|---|
+| P1-1 | P1 | RecentlyPlayedView 放在 PlayerUI（违反模块边界） | 移至 App/Views/ |
+| P1-2 | P1 | ScreenPositionControlView 被删除（连续 slider 无法迁移到 Menu） | 改为 restyle |
+| P1-3 | P1 | Companion WindowGroup 未列出完整环境注入（5 个） | 显式列出全部 5 个 |
+| P1-4 | P1 | PlaybackLaunchRequest 缺少 Identifiable 适配 | 添加前置条件说明 |
+| P2-1 | P2 | Auto-hide 从 3s 改为 5s（行为变更） | 确认为设计意图 |
+| P2-2 | P2 | Precision timeline 需与 NLE 共存 | 记录到 ExecPlan |
+| P2-3 | P2 | Filter pills 数据可用性风险 | 记录回退策略 |
+
+### 对抗性审查发现（10 findings）
+
+| ID | 级别 | 问题 | 处置 |
+|---|---|---|---|
+| F1 | P1 | ExecPlan 3 处仍写"删除 ScreenPositionControlView" | 修复（漏改处） |
+| F2 | P1 | .sheet(item:) 双状态源 desync（6 处手动 nil 赋值竞争） | 修复（添加迁移注意事项） |
+| F3 | P1 | R13 搜索框被静默丢弃（只做了面包屑） | 修复（显式推迟到 NOT in scope） |
+| F4 | P1 | ScreenPositionControlView（340x420）无法适配 companion window（600x200） | 修复（改用 .sheet 呈现） |
+| F5 | P2 | ProgressStoring 新方法需更新所有 mock | 记录 |
+| F6 | P2 | Companion window 双 onChange 观察者竞争 | 合并为单一 computed condition |
+| F7 | P2 | Resume prompt 在新布局中位置未指定 | 明确：左列 env selector 下方 |
+| F8 | P2 | 关键路径（8 units 串行）未在并行分析中标识 | 记录 |
+| F9 | P2 | FolderListView 命运未定（死代码风险） | 决策：在 Unit 9 中删除 |
+| F10 | P3 | 无 AC 验证 companion window 环境注入 | 低优先级，编译验证覆盖 |
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| RecentlyPlayedView → App/Views/ 而非 PlayerUI/ | App 模块负责导航级组装；RecentlyPlayedView 是顶层导航目标 |
+| ScreenPositionControlView 保留（restyle） | 连续 slider（距离/偏移/角度）不可用 Menu 的离散 Picker 表达 |
+| R13 搜索框显式推迟 | 需要新 ViewModel 状态 + 过滤逻辑，超出 UI 重构范围 |
+| FolderListView 在 Unit 9 中删除 | ContentGridView 完全替代，保留会成为死代码 |
+| Companion window 内 ScreenPositionControlView 用 .sheet | 340x420 面板无法在 200pt 高度的 companion window 中作为 overlay |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| docs/plans/2026-04-05-arch.md | 架构评审文档（替换旧版文档清理的 arch） |
+| docs/plans/active/ExecPlan.md | 修正版（8 处 P1 修复 + P2 注释） |
+| docs/plans/active/TestPlan.md | 修正版（AC-D10 更新） |
+| docs/archive/arch-2026-04-02-iter0.md | 旧 arch 归档 |
+
+[ADVERSARIAL-REVIEW] phase=PLANNING tier=standard
+codex: degraded (Opus subagent 独立审查)
+counter-review: N/A (adversarial 审查直接由 Opus subagent 执行)
+verdict: 全部 P1 修复完成（工程审查 4 + 对抗审查 4 = 8 P1），P2 记录到计划
+phase-exit-authorized: yes
+
+### ce-compound
+本轮发现的非显而易见技术事实：
+1. visionOS `.sheet(item:)` 迁移时，必须清除所有手动 nil 赋值——SwiftUI 的 binding 管理和手动 nil 赋值会竞争，导致动画 glitch 或 crash
+2. ScreenPositionControlView 的连续 slider 是不可替代的——System Menu 只支持离散选项，这是 visionOS 沉浸模式核心交互
+3. 伴随窗口生命周期管理应使用单一 computed condition 而非多个独立 onChange 观察者——双观察者模式产生 open/dismiss 竞争
+4. R13 "面包屑和搜索框" 中的搜索框容易在实施计划中被静默丢弃——需求文档中的 "and" 连接词容易被拆解时遗漏
+
+→ 应调用 /ce-compound 归纳。判断：第 1、3 条是 visionOS/SwiftUI 平台陷阱，有普适价值。
