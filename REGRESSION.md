@@ -18,9 +18,9 @@
 | PlaybackCore/Domain/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlaybackCore/UseCases/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlayerUI/UseCases/DetailedTimelineGeometry.swift | REG-080 |
-| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081, REG-108, REG-109, REG-110, REG-116, REG-117, REG-119, REG-120 |
+| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081, REG-108, REG-109, REG-110, REG-116, REG-117, REG-119, REG-120, REG-123, REG-124, REG-125 |
 | PlayerUI/Views/VideoDetailView.swift | REG-082, REG-088, REG-120 |
-| PlayerUI/Views/PlayerControlSurface.swift | REG-012, REG-013, REG-015, REG-016, REG-019 |
+| PlayerUI/Views/PlayerControlSurface.swift | REG-012, REG-013, REG-015, REG-016, REG-019, REG-123 |
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
 | PlayerUI/Views/PlaybackMenuView.swift | REG-018, REG-112, REG-120 |
 | PlayerUI/Domain/* | REG-012, REG-015, REG-016 |
@@ -34,13 +34,16 @@
 | Persistence/Adapters/UserDefaultsStore.swift | REG-031, REG-085, REG-115 |
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
 | Persistence/Domain/* | REG-030, REG-031 |
+| App/MainView.swift | REG-041, REG-111, REG-116, REG-117, REG-124, REG-126 |
 | App/XrPlayerApp.swift | REG-091, REG-094 |
 | App/PlaybackLaunching.swift | REG-095 |
 | App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087, REG-093, REG-095, REG-109, REG-113 |
 | App/NetworkMonitor.swift | REG-113 |
 | App/PreparedPlayback.swift | REG-082, REG-083 |
 | App/AppCoordinator.swift | REG-040, REG-041 |
-| App/Navigation/* | REG-041, REG-084 |
+| App/Navigation/* | REG-041, REG-084, REG-123 |
+| WindowVideoView.swift | REG-126 |
+| Shared/MPVNativeMetalLayerView.swift | REG-126 |
 | SpatialScene/* | REG-050, REG-070, REG-071, REG-100, REG-101, REG-102, REG-103, REG-104, REG-105, REG-106, REG-107, REG-108, REG-109 |
 | SpatialScene/Domain/* | REG-100, REG-101, REG-102, REG-103, REG-104, REG-105, REG-106, REG-107 |
 | SpatialScene/Renderers/VirtualScreenEntity.swift | REG-100, REG-101, REG-121 |
@@ -50,10 +53,12 @@
 | SpatialScene/Renderers/* | REG-070, REG-071, REG-100, REG-101, REG-105, REG-106, REG-107 |
 | SpatialScene/Scenes/ImmersiveSpaceView.swift | REG-070, REG-071, REG-100, REG-101, REG-104, REG-105, REG-106, REG-107, REG-109, REG-118, REG-121 |
 | SpatialScene/Modifiers/DragRotationModifier.swift | REG-121 |
-| SpatialScene/Views/SceneSelectorView.swift | REG-050, REG-104 |
-| PlayerUI/UseCases/DecidePlaybackModeUseCase.swift | REG-109 |
+| SpatialScene/Views/SceneSelectorView.swift | REG-050, REG-104, REG-123 |
+| PlayerUI/UseCases/DecidePlaybackModeUseCase.swift | REG-109, REG-125 |
 | PlayerUI/UseCases/DisambiguateGestureUseCase.swift | REG-117 |
 | PlayerUI/Views/DetailedTimelineView.swift | REG-119 |
+| PlayerUI/Views/NLETimelineView.swift | REG-123, REG-127 |
+| PlayerUI/Views/TimelineRulerView.swift | REG-127 |
 | PlayerUI/Views/ScreenPositionControlView.swift | REG-115, REG-120 |
 | PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063, REG-070, REG-111, REG-122 |
 | PlaybackCore/Domain/ValueObjects/StereoMode.swift | REG-106 |
@@ -856,6 +861,61 @@
 - **退化信号**: 180° VR 被误判为 360°（全球渲染导致内容拉伸）、HFOV 始终为 nil、FOV 计算返回负值或超过 360°
 - **状态**: active
 - **创建日期**: 2026-04-02
+
+
+### REG-123: Hover 效果形状匹配按钮形状
+
+- **来源**: QA Round 2 — P1 Hover 形状不匹配修复
+- **触发条件**: 改动 PlayerUI/Views/ 或 FileBrowsing/Views/ 中任何含 `.hoverEffect` 的文件
+- **Agent 自检**: `grep -r "hoverEffect(.highlight)" XrPlayer/` 返回零匹配；`grep -rc "hoverEffect(.lift)" XrPlayer/` 返回 ≥ 21 处
+- **真机验证**: 注视圆形按钮 → 圆形 lift 效果；注视矩形按钮 → 矩形 lift 效果；无形状不匹配
+- **退化信号**: 圆形按钮显示方形 hover、矩形按钮显示圆形 hover、hover 效果完全不可见
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-124: 播放控件纯透明度渐显渐隐
+
+- **来源**: QA Round 2 — P1 控件动画修复
+- **触发条件**: 改动 MainView.swift 中 showControls 赋值站点、ornament 定义或 PlayerControlsView.swift 中 registerInteraction
+- **Agent 自检**: `grep "showControls = " XrPlayer/MainView.swift` — 每处(除初始化)都包裹在 `withAnimation(.easeInOut(duration: 0.4))` 中；MainView 中 `.transition(.opacity)` 存在
+- **真机验证**: 控件出现 → 纯 opacity 渐显，无位移/缩放；控件消失 → 纯 opacity 渐隐；8 秒自动隐藏同样平滑
+- **退化信号**: 控件出现伴随位移动画、缩放动画或突变（无渐变）
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-125: 播放模式几何约束
+
+- **来源**: QA Round 2 — P1 播放模式层级约束修复（修正为几何约束）
+- **触发条件**: 改动 PlayerUI/UseCases/DecidePlaybackModeUseCase.swift 或 PlayerUI/Views/PlayerControlsView.swift 中模式菜单
+- **Agent 自检**: `swift test --filter PlaybackModeRouting` 全部通过；grep 确认 `allowedModes(for:)` 存在于 DecidePlaybackModeUseCase 中
+- **真机验证**: 播放 2D 视频 → 设置菜单仅显示窗口+沉浸模式（无全景）；播放全景视频 → 显示全部三种模式；沉浸影院对所有内容可用
+- **退化信号**: 2D 视频可切换全景模式、全景视频缺少模式选项、沉浸影院对 2D 视频不可用
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-126: 视频画布跟随窗口缩放
+
+- **来源**: QA Round 2 — P2 视频画布不跟随缩放修复
+- **触发条件**: 改动 WindowVideoView.swift、MainView.swift 中 GeometryReader 包裹区域、MPVNativeMetalLayerView.swift
+- **Agent 自检**: grep 确认 MainView 中 `GeometryReader` 包裹 `WindowVideoView`；WindowVideoView 中 `containerSize` 参数存在；MPVNativeMetalLayerView 中 MoltenVK `> 1` workaround 保留
+- **真机验证**: 拖拽窗口边缘缩放 → 视频画布同步缩放，无黑边或比例失真
+- **退化信号**: 窗口缩放后视频不变大小、出现黑边、画面比例错误、缩放时崩溃
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-127: NLE 时间轴面板玻璃背景与按钮容纳
+
+- **来源**: QA Round 2 — P2 NLE 时间轴修复
+- **触发条件**: 改动 PlayerUI/Views/NLETimelineView.swift 或 PlayerUI/Views/TimelineRulerView.swift
+- **Agent 自检**: grep NLETimelineView 确认 `.enchronGlassPanel()` 或等效玻璃材质、`.clipped()` 存在；TimelineRulerView 中 `DragGesture` 存在
+- **真机验证**: NLE 面板可见玻璃背景 → 按钮不溢出面板边界 → 拖动尺标滚动时间轴
+- **退化信号**: 面板透明无背景、按钮溢出面板、拖拽尺标无响应
+- **状态**: active
+- **创建日期**: 2026-04-06
 
 
 ---
