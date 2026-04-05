@@ -103,13 +103,11 @@ Enchron/
     PlayerUI/           # controls and playback interactions
     Persistence/        # preferences, progress, and credential storage
   Tests/                # SwiftPM tests
-  workspace-agents/     # product, architecture, quality, and skill docs
 ```
 
 ## Documentation
 
-- Product philosophy: `workspace-agents/product_philosophy.md`
-- Requirements: `workspace-agents/Requirements.md`
-- Known issues: `workspace-agents/known_issues.md`
-- Quality gates: `workspace-agents/quality_gates.md`
-- Architecture docs: `workspace-agents/design_docs/`
+- Product philosophy: `docs/product_philosophy.md`
+- Requirements: `docs/Requirements.md`
+- Quality gates: `docs/quality_gates.md`
+- Architecture docs: `docs/design_docs/`

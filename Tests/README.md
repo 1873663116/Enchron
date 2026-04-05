@@ -2,7 +2,7 @@
 
 推荐先看：
 - [`TESTING.md`](../TESTING.md) — 双轨验证体系
-- [`workspace-agents/quality_gates.md`](../workspace-agents/quality_gates.md) — 质量门禁
+- [`docs/quality_gates.md`](../docs/quality_gates.md) — 质量门禁
 
 ## 运行方式
 

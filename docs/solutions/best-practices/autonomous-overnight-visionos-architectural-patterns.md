@@ -220,4 +220,4 @@ func onPlaybackFinished(currentFileID: String) {
 - `docs/plans/2026-04-02-arch.md` — Architectural review of PreparedPlayback and coordinator patterns
 - `docs/qa-reports/qa-report-enchron-2026-04-02.md` — Structural QA report with 25+ checks
 - `REGRESSION.md` — REG-080-096 covering new patterns
-- `workspace-agents/skills/liquid-glass-design/SKILL.md` — Liquid Glass API reference
+- `~/.claude/skills/liquid-glass-design/SKILL.md` — Liquid Glass API reference

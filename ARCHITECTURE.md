@@ -7,7 +7,7 @@
 2. 某类需求或 bug 应该先去哪个模块、哪个入口看
 3. 哪些边界是稳定的，不能因为一时方便被绕过
 
-它不是 phase1~4 设计文档的摘要，也不是实现细节手册这里只记录高层结构、稳定职责、跨模块边界和故意不存在的东西具体实现细节、回归项、测试步骤分别看： `workspace-agents/design_docs/`、`REGRESSION.md`、`TESTING.md`
+它不是 phase1~4 设计文档的摘要，也不是实现细节手册这里只记录高层结构、稳定职责、跨模块边界和故意不存在的东西具体实现细节、回归项、测试步骤分别看： `docs/design_docs/`、`REGRESSION.md`、`TESTING.md`
 
 
 ## Bird's Eye View
@@ -202,7 +202,7 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 ### 统一术语
 
-代码命名应与 `workspace-agents/ubiquitous_language.md` 对齐最容易混淆的是：
+代码命名应与 `docs/ubiquitous_language.md` 对齐最容易混淆的是：
 
 - `MediaFile` 在 `FileBrowsing` 和 `PlaybackCore` 中不是同一个概念
 - `DataSource` 是文件来源实体，`DataSourceConnecting` 是连接 port
@@ -211,11 +211,11 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 本项目需要持续维护“前端”和“后端”之间的契约文档与 API 参考。
 
-规范性边界、协作规则、变更策略看 `workspace-agents/contracts/frontend-backend-contract.md`。
+规范性边界、协作规则、变更策略看 `docs/contracts/frontend-backend-contract.md`。
 
-具体接口、schema、错误结构和样例看 `workspace-agents/contracts/`。
+具体接口、schema、错误结构和样例看 `docs/contracts/`。
 
-凡是远程数据模型、字段语义、错误结构或交互流程发生变化，都应同步更新并维护 `workspace-agents/contracts/`，使契约与实现保持长期一致，而不是只在某次改动时临时补写。
+凡是远程数据模型、字段语义、错误结构或交互流程发生变化，都应同步更新并维护 `docs/contracts/`，使契约与实现保持长期一致，而不是只在某次改动时临时补写。
 
 ### 测试与真机验证
 
@@ -240,9 +240,9 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 按下面顺序读最省时间：
 
 1. 先读本文，建立心智地图和边界感
-2. 再读 `workspace-agents/product_philosophy.md`，理解体验目标
+2. 再读 `docs/product_philosophy.md`，理解体验目标
 3. 改代码前读 `REGRESSION.md`，知道这次改动会触发哪些回归项
 4. 验证时读 `TESTING.md`，按双轨体系执行
-5. 需要深入某个设计背景时，再进入 `workspace-agents/design_docs/phase1~4`
+5. 需要深入某个设计背景时，再进入 `docs/design_docs/phase1~4`
 
 phase1~4 设计文档是历史设计与推演材料；本文是当前项目的高层事实表述两者冲突时，以本文和当前代码边界为准；如果本文失真，应先修本文，再继续扩展实现
