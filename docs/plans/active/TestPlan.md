@@ -43,7 +43,7 @@ Dual-track verification for the 6 known UI issues fix. Agent self-checks cover c
 
 ### R1: Player Control Bar Layout
 - [ ] **[Agent]** Control bar is pill-shaped (Capsule clip shape)
-- [ ] **[Agent]** 5 buttons in order: Menu, Rewind 10s, Play/Pause, Forward 10s, Settings
+- [ ] **[Agent]** 6 buttons in order: Menu, Rewind 10s, Play/Pause, Forward 10s, NLE Toggle, Settings
 - [ ] **[Human]** Visual layout matches `player.html` footer — pill shape, button sizes, spacing
 - [ ] **[Human]** Play/Pause button is visually larger (64pt) with gradient background
 

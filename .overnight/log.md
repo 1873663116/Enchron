@@ -115,5 +115,34 @@ phase-exit-authorized: yes
 ### 下一步
 → 对抗审查（标准）— 阶段退出前必做
 
+### 对抗审查（标准）
+
+Opus subagent adversarial review（codex degraded，使用 Opus subagent）。
+
+**14 findings:**
+
+| Sev | Finding | Verdict |
+|-----|---------|---------|
+| critical | R11 requirements 仍有旧层级模型 | CONCEDE — 加 SUPERSEDED 标注 |
+| high | showControls 有 14 处（非 7 处） | PARTIALLY CONCEDE — 审计全部，大部分为初始化无需动画 |
+| high | PiP 按钮被默默丢弃 | CONCEDE — 标注 visionOS 不适用，defer |
+| high | withAnimation 描述混淆（缺 vs 错曲线） | CONCEDE — 重写 amendment 区分两种问题 |
+| high | allowedModes 放 Domain 层引入新跨模块依赖 | CONCEDE — 移至 UseCase 层 |
+| medium | Unit 2 dependency 写错 Unit 7 应为 Unit 6 | CONCEDE — 修正 |
+| medium | MTKView 路径无 resize 处理 | CONCEDE — 加入 Unit 7 amendment |
+| medium | Seek bar 右标签 duration→remaining | CONCEDE — 加入 Unit 1 addendum |
+| medium | TestPlan R1 仍写 5 按钮 | CONCEDE — 改为 6 |
+| medium | HDR toggle 可能被裁剪 | PARTIALLY CONCEDE — 右菜单保留全部内容已解决 |
+| medium | 双重 auto-hide timer 竞争 | PARTIALLY CONCEDE — 预存在问题，留 P2 记录 |
+| low | Phase 4 P0 标签混乱 | DEFEND — 已有解释 |
+| low | HTML 文件 git status 显示删除 | DEFEND — 文件仍存在于磁盘 |
+| low | ornament anchor 无回归守卫 | PARTIALLY CONCEDE — 加入 TestPlan |
+
+[ADVERSARIAL-REVIEW] phase=PLANNING tier=standard
+codex: degraded (Opus subagent used)
+counter-review: 14 findings — 8 CONCEDE, 4 PARTIALLY CONCEDE, 2 DEFEND
+verdict: 所有 6 个阻塞条件已解决。Requirements doc R11 superseded, PiP deferred, allowedModes moved to UseCase, Unit 2 dep fixed, TestPlan R1 updated, MTKView path added.
+phase-exit-authorized: yes
+
 ---
 

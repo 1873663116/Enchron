@@ -180,7 +180,7 @@ Mode constraint (geometric):
 
 **Requirements:** R2, R3, R12 (mode menu filtered by constraint)
 
-**Dependencies:** Unit 1 (button layout), Unit 7 (mode constraint for Settings > Playback Mode)
+**Dependencies:** Unit 1 (button layout), Unit 6 (mode constraint for Settings > Playback Mode)
 
 **Files:**
 - Modify: `XrPlayer/PlayerUI/Views/PlayerControlsView.swift`
@@ -573,22 +573,44 @@ Original list (4 files) + 6 missing files:
 - `XrPlayer/PlayerUI/Views/PlaylistView.swift` (:28, :80)
 - `XrPlayer/App/Navigation/NavigationOrnament.swift` (:33, :57)
 
-### Unit 5: Fix all 7 withAnimation sites + close button
+### Unit 5: Fix all showControls sites + close button
 
-- Update ALL 7 `showControls` mutation sites in MainView to `withAnimation(.easeInOut(duration: 0.4))`, not just line 223. Lines: 154, 157, 172, 206, 211, 223, 290-291.
-- Change close button transition (MainView:95-98) from `.scale(0.8) + .offset(y: -10)` to `.transition(.opacity)`.
-- New info bar overlay (from Unit 1 amendment) also gets `.transition(.opacity)`.
+**MainView (7 sites):**
+- Line 223: **ADD** `withAnimation(.easeInOut(duration: 0.4))` wrapper (currently bare assignment)
+- Lines 154, 157, 172, 206, 211: **CHANGE** bare `withAnimation {}` to `withAnimation(.easeInOut(duration: 0.4)) {}`
+- Lines 290-291: **CHANGE** bare `withAnimation {}` to `withAnimation(.easeInOut(duration: 0.4)) {}`
 
-### Unit 6: Profile-pending safe default
+**Other files (audit, most intentional):**
+- `XrPlayerApp.swift:111` — initial state setup, no animation needed. Leave as-is.
+- `XrPlayerApp.swift:253` — cleanup/dismissal, no animation needed. Leave as-is.
+- `PlayerControlsView.swift:516` (registerInteraction) — wrap in `withAnimation(.easeInOut(duration: 0.4))`.
+- `PlayerControlsView.swift:529` (applySmokePanelRequestIfNeeded) — debug/setup path, leave as-is.
+- `AppModel.swift:128` (startPlayback) — wrap in `withAnimation(.easeInOut(duration: 0.4))`.
 
+**Close button (MainView:95-98):**
+- Change `.transition(.asymmetric(...scale...offset...))` to `.transition(.opacity)`.
+
+**Info bar overlay:**
+- New info bar overlay (from Unit 1 amendment) gets `.transition(.opacity)`.
+
+### Unit 6: Profile-pending safe default + dependency fix
+
+- **Move `allowedModes(for:)` from `PlaybackMode` (Domain) to `DecidePlaybackModeUseCase` (UseCase).** PlayerUI/Domain does NOT import PlaybackCoreDomain. The UseCase layer already has this dependency.
 - When `projectionType` is not yet detected (default/nil): `allowedModes` returns `[.window, .immersive]`.
 - Add test case to TestPlan SC-3.
+- **PiP button**: Explicitly deferred. Not applicable on visionOS. Annotated in requirements R1.
 
-### Unit 7: Verify-first approach
+### Unit 7: Verify-first approach + MTKView path
 
 - `setNeedsLayout()` already in `updateUIView` (commit f234be8). **Build and test in simulator first.**
 - Add GeometryReader ONLY if `setNeedsLayout()` proves insufficient.
 - If needed, use `onChange(of: geometry.size)` with delta threshold to prevent relayout spam.
+- **MTKView fallback**: `updateUIView` only handles native GPU path. If GeometryReader needed, also update `mtkView.drawableSize` for the MTKView case.
+
+### Unit 1 addendum: Seek bar remaining time
+
+- HTML right label shows remaining time (countdown). Current code shows total duration.
+- Change to `PlaybackTimeFormatter.clock(duration - currentTime)` with minus prefix.
 
 ## GSTACK REVIEW REPORT
 
@@ -596,7 +618,8 @@ Original list (4 files) + 6 missing files:
 |--------|---------|-----|------|--------|----------|
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | -- | -- |
 | Codex Review | `/codex:rescue` | Independent 2nd opinion | 0 | -- | -- |
-| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | ISSUES_OPEN | 7 P1 issues, 0 critical gaps, amendments applied |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 7 P1 issues found + amended. Adversarial: 14 findings, 6 conditions conceded and resolved. |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | -- | -- |
 
-**VERDICT:** ENG REVIEW COMPLETE with amendments. 7 P1 issues identified and resolved inline. Plan is implementable with amendments applied.
+**ADVERSARIAL:** 14 findings (1 critical, 4 high, 6 medium, 3 low). All 6 blocking conditions resolved: R11 superseded, PiP deferred, allowedModes moved to UseCase, Unit 2 dependency fixed, TestPlan R1 updated to 6 buttons, MTKView path added.
+**VERDICT:** ENG REVIEW + ADVERSARIAL CLEARED. Plan implementable with all amendments applied.

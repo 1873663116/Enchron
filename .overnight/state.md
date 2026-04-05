@@ -1,6 +1,6 @@
-phase: PLANNING
-last_done: "/plan-eng-review 完成 — 7 个 P1 issues 发现并内联修正。关键修正：info bar 保留并移至顶部 overlay、hover 文件列表扩展至 10 个文件、close button transition 改为纯 opacity、所有 withAnimation 站点统一为 easeInOut(0.4)、右菜单保留全部功能项、NLE toggle 保留在 pill、profile-pending 安全默认值"
-next: "对抗审查（标准）— 阶段退出前必做。codex:adversarial-review → Opus subagent 辩护 → Supervisor 裁决"
+phase: EXECUTING
+last_done: "PLANNING 完成 — ExecPlan + TestPlan 通过 eng review（7 P1 修正）+ adversarial review（14 findings, 6 blocking 条件全部解决）。Phase transition authorized."
+next: "读取 ExecPlan，选取第一个 [ ] 单元（Unit 1: 重构 PlayerControlsView 布局），调用 /ce-work 执行"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
