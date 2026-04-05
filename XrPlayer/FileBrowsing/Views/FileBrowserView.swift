@@ -41,6 +41,12 @@ public struct FileBrowserView: View {
         } detail: {
             detail
         }
+        .sheet(item: Binding(
+            get: { viewModel.detailNavigationRequest },
+            set: { viewModel.detailNavigationRequest = $0 }
+        )) { _ in
+            VideoDetailView()
+        }
         .sheet(item: $remoteSourceDraft) { draft in
             DataSourceConfigView(sourceType: draft.sourceType)
                 .environment(viewModel)
