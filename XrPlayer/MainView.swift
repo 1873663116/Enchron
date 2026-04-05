@@ -135,7 +135,7 @@ public struct MainView: View {
         .ornament(
             visibility: appModel.isPlaying ? .hidden : .visible,
             attachmentAnchor: .scene(.leading),
-            contentAlignment: .center
+            contentAlignment: .trailing
         ) {
             NavigationOrnament()
         }
@@ -286,7 +286,7 @@ public struct MainView: View {
                 guard appModel.canAutoHideControls else { continue }
 
                 let idleTime = Date().timeIntervalSince(appModel.lastControlsInteractionAt)
-                if idleTime >= 5 {
+                if idleTime >= 8 {
                     withAnimation {
                         appModel.showControls = false
                     }
