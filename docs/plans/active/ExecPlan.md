@@ -149,7 +149,7 @@ Unit 1 (恢复文件) ──→ Unit 2 (修复引用) ──→ Unit 4 (重命�
 
 - [ ] **Unit 2：修复全部 workspace-agents/ 断裂引用**
 
-**目标：** 将 9 个活跃文档中 39 处 workspace-agents/ 引用替换为正确的 docs/ 或 ~/.claude/skills/ 路径。
+**目标：** 将 8 个活跃文档中 37 处 workspace-agents/ 引用替换为正确的 docs/ 或 ~/.claude/skills/ 路径。
 
 **需求：** R6, R7, R8, R9, R10, R11
 
@@ -161,7 +161,7 @@ Unit 1 (恢复文件) ──→ Unit 2 (修复引用) ──→ Unit 4 (重命�
 - 修改：`README.md`（6 处：5 处 → docs/，1 行 known_issues 删除）
 - 修改：`README.en.md`（6 处：5 处 → docs/，1 行 known_issues 删除）
 - 修改：`docs/plans/2026-04-02-001-feat-phase1-3-ui-ux-rewrite-plan.md`（4 处：3 处 → docs/，1 处 known_issues → 删除或指向 docs/archive/）
-- 修改：`.overnight/supervisor-prompt.md`（2 处 → docs/）
+- ~~修改：`.overnight/supervisor-prompt.md`~~ — **移除**（2 处是场景描述性文字非路径引用，修改反而破坏历史准确性）
 - 修改：`docs/design_docs/README.md`（1 处 → docs/）
 - 修改：`Tests/README.md`（1 处 → docs/）
 - 修改：`docs/solutions/best-practices/autonomous-overnight-visionos-architectural-patterns.md`（1 处 → ~/.claude/skills/）
@@ -185,7 +185,7 @@ Unit 1 (恢复文件) ──→ Unit 2 (修复引用) ──→ Unit 4 (重命�
 - 正常路径：`grep -rn "workspace-agents" ARCHITECTURE.md` 返回 0 结果
 - 正常路径：`grep -rn "workspace-agents" README.md README.en.md` 返回 0 结果
 - 正常路径：CLAUDE.md 路由表每个路径指向磁盘上存在的文件（`test -f` 验证）
-- 正常路径：`grep -rn "workspace-agents" docs/plans/ docs/design_docs/ Tests/ docs/solutions/ .overnight/supervisor-prompt.md | grep -v "docs/archive/" | grep -v "docs/reference/" | grep -v ".overnight/log.md" | grep -v "docs/brainstorms/"` 返回 0 结果
+- 正常路径：`grep -rn "workspace-agents" docs/plans/ docs/design_docs/ Tests/ docs/solutions/ | grep -v "docs/archive/" | grep -v "docs/reference/" | grep -v ".overnight/log.md" | grep -v "docs/brainstorms/" | grep -v "docs/plans/active/"` 返回 0 结果
 - 边界情况：CLAUDE.md 行 86 的 skills 引用替换为 `~/.claude/skills/` 而非 `docs/`
 - 错误路径：Markdown 链接语法未被破坏（无悬挂括号或方括号）
 
@@ -207,7 +207,8 @@ Unit 1 (恢复文件) ──→ Unit 2 (修复引用) ──→ Unit 4 (重命�
 - 重命名：`docs/archive/issues archive/` → `docs/archive/issues-archive/`
 - 移动：`docs/plans/2026-04-02-001-feat-phase1-3-ui-ux-rewrite-plan.md` → `docs/plans/active/`
 - 移动：`docs/plans/2026-04-02-arch.md` → `docs/plans/active/`
-- 删除（git rm）：workspace-agents/ 全部 84 个文件
+- 修改：`docs/solutions/best-practices/autonomous-overnight-visionos-architectural-patterns.md`（:220 引用 `docs/plans/2026-04-02-arch.md` → `docs/plans/active/2026-04-02-arch.md`）
+- 删除（git rm）：workspace-agents/ 全部（`git rm -r` 覆盖，不依赖计数）
 - 删除（git rm）：docs/ExecPlan/ 4 个文件
 - 删除（git rm）：TODOS.md、morning-report.md、overnight-log.md、overnight-log-v1-archived.md、overnight-log-v2-archived.md
 - 删除（git rm）：logs/runner.log

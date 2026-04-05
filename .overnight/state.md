@@ -1,6 +1,6 @@
-phase: PLANNING
-last_done: "plan-eng-review 完成 — 5 issues (0 P0, 2 P1 已修正, 2 P2 已修正, 1 critical gap 已记录), CLEARED"
-next: "对抗审查（标准档）— PLANNING 阶段退出前必做"
+phase: EXECUTING
+last_done: "对抗审查（标准档）通过 — 3 P1 + 1 P2 已修正到计划，PLANNING 阶段退出授权"
+next: "Unit 1：恢复关键文件并迁移到 docs/"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0

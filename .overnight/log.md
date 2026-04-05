@@ -146,3 +146,46 @@ README 目录树行删除后无格式验证。已记入 arch.md，建议 Unit 2 
 
 跳过。发现均为数据精度校正和边界情况补充，无非显而易见的技术事实。
 
+## Round 5 — PLANNING (对抗审查 + Phase Transition → EXECUTING)
+
+**时间**: 2026-04-05
+**目标**: 标准档对抗审查，授权 PLANNING 阶段退出
+
+### 执行摘要
+
+派遣 2 个并行 subagent：
+- Sonnet adversarial reviewer: 深度审查 ExecPlan + TestPlan（完整性、依赖、数据精度、边界情况、遗漏风险、覆盖度）
+- Sonnet data verifier: 验证 ExecPlan 中 12 项关键数据声明 vs 当前 git 实际状态
+
+### 审查发现
+
+| 级别 | 数量 | 关键问题 |
+|------|------|---------|
+| P1 | 3 | AC1 排除列表缺失 docs/plans/active/ + supervisor-prompt.md；R13 arch.md 移动后 solutions 文件:220 引用断裂；AC5 对 ExecPlan/TestPlan/variant-AB 误报 |
+| P2 | 2 | R10 supervisor-prompt.md 两处是描述性文字非路径引用；2026-04-05-arch.md 也应移入 active/ |
+| P3 | 2 | Unit 3 计数描述可改进；design_docs/README.md 注释改写需注意语义 |
+
+数据验证：12 项中 11 项完全匹配。1 项误判（file-browser-redesign-20260405/ 是 untracked 目录，ls -d 确认存在）。
+
+### Supervisor 裁决
+
+**P1 必修（已应用到计划）**：
+1. TestPlan AC1: 排除列表增加 `docs/plans/active/` + `.overnight/supervisor-prompt.md`
+2. TestPlan AC5: 排除 ExecPlan.md、TestPlan.md、ResearchPlan.md、variant-* HTML
+3. ExecPlan Unit 3: 补入 `autonomous-overnight-...patterns.md:220` 路径更新（跟随 arch.md 移动）
+
+**P2 已修（应用到计划）**：
+4. ExecPlan Unit 2: 移除 R10 supervisor-prompt.md（描述性文字不修改），文件数 9→8，引用数 39→37
+
+**推迟**：2026-04-05-arch.md 移入 active/（overnight 工具产出，不在原始审计范围）
+
+### ce-compound
+
+跳过。发现均为验收命令结构性错误和引用连锁遗漏，属常规审查产出。
+
+[ADVERSARIAL-REVIEW] phase=PLANNING tier=standard
+codex: N/A (Sonnet adversarial reviewer + Sonnet data verifier 独立审查)
+counter-review: 3 P1 + 2 P2 + 2 P3，3 P1 + 1 P2 已修正到计划
+verdict: P1 全部修复，P2-1 修复，P2-2 推迟，P3 记录
+phase-exit-authorized: yes
+
