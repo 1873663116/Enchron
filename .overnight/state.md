@@ -1,6 +1,6 @@
-phase: INVESTIGATING
-last_done: "产出 UI/UX 重构需求文档（42 条需求），通过 document-review（7 auto-fix + 11 present findings 处理）+ Codex adversarial review（4 P0/P1 修复）+ Opus counter-review（5 处 NEEDS-FIX 修复）"
-next: "验证 INVESTIGATING 退出条件 → Phase Transition → PLANNING"
+phase: PLANNING
+last_done: "INVESTIGATING → PLANNING Phase Transition — 退出条件验证通过（需求文档 42 条 + 对抗审查 PASS）"
+next: "读需求文档 + 调查成果 + 设计指南，调用 /ce-plan 产出 ExecPlan + TestPlan"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
