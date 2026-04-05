@@ -32,7 +32,7 @@ struct NLETimelineView: View {
 
     // MARK: - Layout constants
 
-    private let expandedHeight: CGFloat = 160
+    private let expandedHeight: CGFloat = 180
     private let panelWidth: CGFloat = DesignTokens.Layout.playerControlsWidth
 
     /// Resolved zoom: explicit state or duration-based default.
@@ -52,13 +52,17 @@ struct NLETimelineView: View {
         .frame(width: panelWidth)
         .frame(height: isExpanded ? expandedHeight : 0, alignment: .top)
         .clipped()
-        .enchronGlassPanel()
-        .clipShape(
-            RoundedRectangle(
+        .glassBackgroundEffect(
+            in: RoundedRectangle(
                 cornerRadius: DesignTokens.Radius.card,
                 style: .continuous
             )
         )
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(.white.opacity(0.06))
+                .frame(height: 0.5)
+        }
         .animation(reduceMotion ? .easeInOut : .spring(), value: isExpanded)
         .gesture(zoomGesture)
         .accessibilityElement(children: .contain)
@@ -88,7 +92,8 @@ struct NLETimelineView: View {
                 duration: duration,
                 currentTime: currentTime,
                 isSeeking: false,
-                zoomLevel: resolvedZoom
+                zoomLevel: resolvedZoom,
+                onSeek: onSeek
             )
 
             ThumbStripView(
@@ -117,7 +122,7 @@ struct NLETimelineView: View {
             }
             .buttonStyle(.plain)
             .hoverEffect(.lift)
-            .frame(minWidth: 60, minHeight: 60)
+            .frame(minWidth: 44, minHeight: 36)
             .contentShape(.rect)
             .accessibilityLabel("Previous Frame")
             .accessibilityHint("Steps backward one frame")
@@ -133,7 +138,7 @@ struct NLETimelineView: View {
             }
             .buttonStyle(.plain)
             .hoverEffect(.lift)
-            .frame(minWidth: 60, minHeight: 60)
+            .frame(minWidth: 44, minHeight: 36)
             .contentShape(.rect)
             .accessibilityLabel("Next Frame")
             .accessibilityHint("Steps forward one frame")

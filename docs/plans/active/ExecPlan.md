@@ -413,7 +413,7 @@ Mode constraint (geometric):
 
 ---
 
-- [ ] **Unit 8: NLE timeline glass background and containment**
+- [x] **Unit 8: NLE timeline glass background and containment**
 
 **Goal:** Fix NLE timeline panel appearance and button overflow.
 

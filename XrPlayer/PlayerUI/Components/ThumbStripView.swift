@@ -28,6 +28,7 @@ struct ThumbStripView: View {
     // MARK: - Drag State
 
     @State private var isDragging = false
+    @State private var dragStartTime: Double = 0
 
     // MARK: - Body
 
@@ -55,17 +56,17 @@ struct ThumbStripView: View {
             .gesture(
                 DragGesture(minimumDistance: 1)
                     .onChanged { value in
-                        isDragging = true
+                        if !isDragging {
+                            isDragging = true
+                            dragStartTime = currentTime
+                        }
                         let geo = DetailedTimelineGeometry(
                             viewportWidth: viewportWidth,
                             duration: duration,
                             zoomLevel: zoomLevel
                         )
-                        let targetTime = timeFromDrag(
-                            location: value.location,
-                            viewportWidth: viewportWidth,
-                            geo: geo
-                        )
+                        let timeDelta = -Double(value.translation.width) * geo.secondsPerPoint
+                        let targetTime = max(0, min(duration, dragStartTime + timeDelta))
                         onSeek?(targetTime)
                     }
                     .onEnded { _ in
@@ -114,21 +115,6 @@ struct ThumbStripView: View {
             let highlightRect = CGRect(x: thumbX, y: 0, width: thumbWidth, height: 1)
             context.fill(Path(highlightRect), with: .color(.white.opacity(0.06)))
         }
-    }
-
-    // MARK: - Drag Calculation
-
-    private func timeFromDrag(
-        location: CGPoint,
-        viewportWidth: CGFloat,
-        geo: DetailedTimelineGeometry
-    ) -> Double {
-        // The playhead is at center; offset from center = time delta
-        let centerX = viewportWidth / 2
-        let deltaX = location.x - centerX
-        let deltaTime = Double(deltaX) * geo.secondsPerPoint
-        let targetTime = currentTime + deltaTime
-        return max(0, min(duration, targetTime))
     }
 
     // MARK: - Placeholder Hue
