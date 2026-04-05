@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 7: Sidebar with Data Sources & Storage (R11) 完成 — 从 FileBrowserView 提取 FileBrowserSidebar.swift，实现 List(selection:) + SidebarItem 桥接枚举 + 数据源分区 + 本地存储 ProgressView + build 验证通过 + 284 tests passed"
-next: "选取 Unit 8: Breadcrumb Navigation & Filter Pills (R13, R14) → 调用 /ce-work"
+last_done: "Unit 12: Window Mode Controls Upgrade (R19-R25) 完成 — git commit a731641，PlayerControlsView pill 重构 + 系统 Menu + PlaybackMenuView 删除"
+next: "选取 Unit 13 → 调用 /ce-work 继续 Phase D"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
