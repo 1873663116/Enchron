@@ -86,3 +86,34 @@ phase-exit-authorized: yes
 
 ---
 
+## Round 4 — PLANNING: /plan-eng-review (2026-04-05)
+
+### 完成事项
+1. **工程审查完成** — 对 ExecPlan 进行全面工程评审
+   - 产出：`docs/plans/active/2026-04-05-arch.md`
+   - 7 个 P1 issues 发现并内联修正到 ExecPlan
+
+### P1 Issues 发现与处置
+
+| # | Issue | 处置 |
+|---|-------|------|
+| 1 | Info bar 移除无目的地 | 保留并移至 MainView 视频区顶部 overlay |
+| 2 | Unit 4 文件列表不完整（4/10） | 扩展至 10 个文件 15 处 |
+| 3 | Close button 有 scale+offset transition | 改为 .transition(.opacity) |
+| 4 | withAnimation 仅修 line 223 | 扩展至全部 7 个 mutation 站点 |
+| 5 | 右菜单重构过度裁剪功能 | 保留全部现有功能项 |
+| 6 | NLE toggle 被移除无去处 | 保留在 pill 中作为第 6 个按钮 |
+| 7 | profile-pending 无测试 | 定义安全默认值 + 补充测试用例 |
+
+### 关键决策
+- **Info bar 位置**：匹配 HTML 顶部 header 设计，从 PlayerControlsView 移至 MainView 视频区 overlay
+- **NLE toggle 保留**：HTML 5-button 是视觉参考，NLE 是核心功能需一键触达
+- **Menu 保持原样**：系统 Menu{} 不支持方向控制，visionOS 由系统决定弹出方向
+- **GeometryReader verify-first**：setNeedsLayout() 可能已够用，先验证再加 GeometryReader
+- **ce-compound 跳过**：本轮发现属于计划审查常规纠偏，无非显然技术事实
+
+### 下一步
+→ 对抗审查（标准）— 阶段退出前必做
+
+---
+

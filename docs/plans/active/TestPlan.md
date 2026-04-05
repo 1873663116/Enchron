@@ -31,6 +31,7 @@ Dual-track verification for the 6 known UI issues fix. Agent self-checks cover c
 - [ ] Mode constraint: `PlaybackMode.allowedModes(for: .flat)` returns `[.window, .immersive]`
 - [ ] Mode constraint: `PlaybackMode.allowedModes(for: .panorama360)` returns `[.window, .immersive, .panorama]`
 - [ ] Mode constraint: `DecidePlaybackModeUseCase` with manualOverride `.panorama` + projectionType `.flat` returns `.window` (clamped)
+- [ ] Mode constraint: When projectionType is not yet detected (default), `allowedModes` returns `[.window, .immersive]` (safe default)
 
 ### SC-4: Snapshot UI Verification (Simulator)
 - [ ] `mcp__XcodeBuildMCP__screenshot` captures player controls in visible state

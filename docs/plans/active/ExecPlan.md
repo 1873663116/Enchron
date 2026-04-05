@@ -545,3 +545,58 @@ Unit 9 (L1/L2 Alignment)   — independent
 - **HTML design (player)**: [docs/designs/file-browser-redesign-2026-04-05/player.html](docs/designs/file-browser-redesign-2026-04-05/player.html)
 - **HTML design (browse/detail)**: [docs/designs/file-browser-redesign-2026-04-05/variant-AB-combined.html](docs/designs/file-browser-redesign-2026-04-05/variant-AB-combined.html)
 - **Architecture**: [ARCHITECTURE.md](ARCHITECTURE.md)
+- **Eng Review**: [docs/plans/active/2026-04-05-arch.md](docs/plans/active/2026-04-05-arch.md)
+
+## ENG REVIEW AMENDMENTS (2026-04-05)
+
+> Applied by /plan-eng-review. These amendments override the original unit descriptions where they conflict.
+
+### Unit 1: Keep info bar + NLE toggle
+
+- **Do NOT remove** `PlayerInfoBarView()` from `PlayerControlsView`. Instead, move it to a separate overlay in MainView's video ZStack (top-leading alignment), fading with `.transition(.opacity)` matched to controls animation. This matches HTML's separate top header design.
+- **Keep** `NLETimelineToggleButton` in the pill as 6th button. HTML 5-button spec is a design reference; NLE is a core feature needing one-tap access.
+- Revised pill: Menu, Rewind 10s, Play/Pause, Forward 10s, NLE Toggle, Settings
+
+### Unit 2: Retain all existing menu items
+
+- **Do NOT strip** Projection, Playlist, Screen Position, Settings, or Debug from the right menu.
+- Apply geometric constraint filtering to Mode section (per Unit 6).
+- Visual grouping may follow HTML styling, but content stays complete.
+
+### Unit 4: Expanded file list (10 files, 15 occurrences)
+
+Original list (4 files) + 6 missing files:
+- `XrPlayer/PlayerUI/Views/PlayerInfoBarView.swift` (:20)
+- `XrPlayer/FileBrowsing/Views/BreadcrumbView.swift` (:35)
+- `XrPlayer/FileBrowsing/Views/FilterPillsView.swift` (:31)
+- `XrPlayer/PlayerUI/Views/ScreenPositionControlView.swift` (:28)
+- `XrPlayer/PlayerUI/Views/PlaylistView.swift` (:28, :80)
+- `XrPlayer/App/Navigation/NavigationOrnament.swift` (:33, :57)
+
+### Unit 5: Fix all 7 withAnimation sites + close button
+
+- Update ALL 7 `showControls` mutation sites in MainView to `withAnimation(.easeInOut(duration: 0.4))`, not just line 223. Lines: 154, 157, 172, 206, 211, 223, 290-291.
+- Change close button transition (MainView:95-98) from `.scale(0.8) + .offset(y: -10)` to `.transition(.opacity)`.
+- New info bar overlay (from Unit 1 amendment) also gets `.transition(.opacity)`.
+
+### Unit 6: Profile-pending safe default
+
+- When `projectionType` is not yet detected (default/nil): `allowedModes` returns `[.window, .immersive]`.
+- Add test case to TestPlan SC-3.
+
+### Unit 7: Verify-first approach
+
+- `setNeedsLayout()` already in `updateUIView` (commit f234be8). **Build and test in simulator first.**
+- Add GeometryReader ONLY if `setNeedsLayout()` proves insufficient.
+- If needed, use `onChange(of: geometry.size)` with delta threshold to prevent relayout spam.
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | -- | -- |
+| Codex Review | `/codex:rescue` | Independent 2nd opinion | 0 | -- | -- |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | ISSUES_OPEN | 7 P1 issues, 0 critical gaps, amendments applied |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | -- | -- |
+
+**VERDICT:** ENG REVIEW COMPLETE with amendments. 7 P1 issues identified and resolved inline. Plan is implementable with amendments applied.
