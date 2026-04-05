@@ -299,6 +299,7 @@ public struct VideoDetailView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                        .hoverEffect(.lift)
                         .contentShape(.rect)
                         .accessibilityLabel(env.displayName)
                         .accessibilityAddTraits(isSelected ? .isSelected : [])

@@ -116,6 +116,7 @@ struct NLETimelineView: View {
                     .foregroundStyle(Color.enchronOnSurface.opacity(0.7))
             }
             .buttonStyle(.plain)
+            .hoverEffect(.highlight)
             .frame(minWidth: 60, minHeight: 60)
             .contentShape(.rect)
             .accessibilityLabel("Previous Frame")
@@ -131,6 +132,7 @@ struct NLETimelineView: View {
                     .foregroundStyle(Color.enchronOnSurface.opacity(0.7))
             }
             .buttonStyle(.plain)
+            .hoverEffect(.highlight)
             .frame(minWidth: 60, minHeight: 60)
             .contentShape(.rect)
             .accessibilityLabel("Next Frame")

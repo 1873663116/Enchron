@@ -25,6 +25,7 @@ public struct ScreenPositionControlView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .hoverEffect(.highlight)
                 .frame(minWidth: 60, minHeight: 60)
                 .contentShape(.rect)
                 .accessibilityLabel("Close Screen Position")

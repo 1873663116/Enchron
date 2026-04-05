@@ -858,7 +858,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 18: Animation & Interaction Unification (R36, R37, R38, R39)**
+- [x] **Unit 18: Animation & Interaction Unification (R36, R37, R38, R39)**
 
   **Goal:** Verify and enforce system-native animation and interaction patterns across all views
 
