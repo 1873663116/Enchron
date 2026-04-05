@@ -7,6 +7,8 @@ public struct MainView: View {
     @Environment(PlaybackLaunchCoordinator.self) var playbackLauncher
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     public init() {}
 
@@ -111,7 +113,7 @@ public struct MainView: View {
             Text(windowVideoViewModel.lastErrorMessage ?? "Unknown playback error")
         }
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
-            if appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls {
+            if appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls && appModel.playbackMode == .window {
                 PlayerControlsView()
                     .transition(
                         .asymmetric(
@@ -239,6 +241,13 @@ public struct MainView: View {
                     appModel.immersiveSpaceState = .inTransition
                     await dismissImmersiveSpace()
                 }
+            }
+        }
+        .onChange(of: appModel.playbackMode != .window && appModel.isPlaying) { _, shouldShow in
+            if shouldShow {
+                openWindow(id: "playerControls")
+            } else {
+                dismissWindow(id: "playerControls")
             }
         }
     }

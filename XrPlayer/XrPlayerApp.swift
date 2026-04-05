@@ -137,6 +137,16 @@ struct XrPlayerApp: App {
             .environment(appModel)
         }
 
+        WindowGroup(id: "playerControls") {
+            PlayerControlsView()
+                .environment(appModel)
+                .environment(windowVideoViewModel)
+                .environment(fileBrowsingViewModel)
+                .environment(playbackLauncher)
+                .environment(panoramaBridge)
+        }
+        .defaultSize(width: 600, height: 200)
+
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
             ImmersiveSpaceView()
                 .environment(appModel)
