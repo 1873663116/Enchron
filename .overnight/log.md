@@ -356,3 +356,73 @@ Xcode 15+ Asset Catalog 自动符号生成与手动 Color extension 冲突 — �
 
 ### ce-compound
 标准 SwiftUI List(selection:) + 视图提取 + FileManager 容量查询。无平台陷阱或非显而易见的技术发现，跳过。
+
+---
+
+## Rounds 10-13 — EXECUTING: Units 8-11 (2026-04-05) — Retroactive Sync
+
+> 以下四轮由前任 Supervisor 完成但未同步 log.md，现从 git history 和 ExecPlan 补记。
+
+### Round 10 — Unit 8: Breadcrumb Navigation & Filter Pills (R13, R14)
+- **Commit**: `09d912a` feat(file-browser): add breadcrumb navigation & filter pills
+- **产出**: 面包屑路径导航 + All/4K/HDR/Spatial 过滤标签
+
+### Round 11 — Unit 9: Video Card Grid (R12, R15)
+- **Commit**: `67a1c32` feat(file-browser): add video card grid with LazyVGrid layout
+- **产出**: VideoCardView 组件 + LazyVGrid 内容网格
+
+### Round 12 — Unit 10: Video Detail Sheet (R16, R17)
+- **Commit**: `efd32a4` feat(file-browser): migrate VideoDetailView to sheet with two-column layout
+- **产出**: VideoDetailView 迁移到 .sheet(item:)，双栏布局（预览 + 元数据）
+
+### Round 13 — Unit 11: Data Source Config Styling (R18)
+- **Commit**: `fca874c` feat(file-browser): update DataSourceConfigView styling to design tokens
+- **产出**: DataSourceConfigView 样式迁移到设计 token 体系
+
+> 注：Units 8-11 均通过 Xcode visionOS Simulator build 验证。Phase C 全部 6 个 Unit (6-11) 完成。
+
+---
+
+## Round 14 — EXECUTING: Unit 12 Window Mode Controls Upgrade (R19-R25) (2026-04-05)
+
+### 目标
+执行 ExecPlan Unit 12：将 PlayerControlsView 重构为 pill 形 glass 控制栏，用系统 Menu 替代自定义面板。
+
+### 执行摘要
+
+1. **创建 PlayerInfoBarView.swift**：顶部信息栏 — back button + 视频标题 + 格式元数据徽章（4K/HDR/HEVC 等）
+2. **重构 PlayerControlsView.swift**：
+   - 外形：`.enchronGlassControl()` capsule pill shape（替代 RoundedRectangle）
+   - 布局：VStack — PlayerInfoBarView → 拖动条 → 控制行
+   - 控制行：左 Menu | 后退 10s | 播放/暂停 | 前进 10s | 右 Menu
+   - 左 Menu 吸收 PlaybackMenuView 功能：Speed Picker + HDR Toggle + Subtitles Picker + Audio Track Picker
+   - 右 Menu 整合：Playback Mode + Projection + Cinema Environment + Screen Position + Playlist + Frame Step + Settings
+   - 自动隐藏：`.task(id: lastInteractionTime)` + `Task.sleep(for: .seconds(5))`
+   - ScreenPositionControlView + DebugOverlayView → `.sheet` 呈现（替代 ZStack overlay）
+3. **删除 PlaybackMenuView.swift**：被系统 Menu 完全替代
+4. **Restyle ScreenPositionControlView.swift**：`.enchronGlassPanel()` + `DesignTokens.Radius.card` + `.contentShape(.rect)` 60pt 注视目标
+5. **MainView auto-hide**：超时从 3s 更新为 5s
+6. **验证**：visionOS Simulator build succeeded + SPM tests 284/284 passed
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| 左 Menu 吸收 PlaybackMenuView 而非保留两者 | ExecPlan 明确要求删除 PlaybackMenuView，系统 Menu 替代 |
+| 右 Menu 用 ellipsis 图标而非 gearshape | gearshape 已用于独立 Settings 窗口，ellipsis 表达"更多选项" |
+| ScreenPositionControlView → .sheet 而非 ZStack overlay | 对抗审查 F4 确认 340x420 面板无法在 ornament 内叠加呈现 |
+| 保留 MainView 的 controlsTimer 与 PlayerControlsView 的 .task(id:) 共存 | 双重保障 — MainView timer 是全局兜底，PlayerControlsView .task 是局部精准控制 |
+| `.buttonStyle(.automatic)` 替代 PlayerControlSurfaceStyle | ExecPlan 要求系统按钮反馈，`.automatic` 提供 visionOS 原生注视交互 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| XrPlayer/PlayerUI/Views/PlayerInfoBarView.swift | 新建 — 播放器信息栏 |
+| XrPlayer/PlayerUI/Views/PlayerControlsView.swift | 重写 — pill 控制栏 + 系统 Menu |
+| XrPlayer/PlayerUI/Views/ScreenPositionControlView.swift | Restyle — 设计 token |
+| XrPlayer/MainView.swift | 修改 — auto-hide 5s |
+| XrPlayer/PlayerUI/Views/PlaybackMenuView.swift | 删除 |
+
+### ce-compound
+本轮改动虽大但模式成熟：系统 Menu 替代自定义面板是 visionOS 标准实践，.sheet 呈现是对抗审查已验证的方案，.task(id:) auto-hide 是 SwiftUI 惯用模式。无非显而易见的平台陷阱或技术发现，跳过。
