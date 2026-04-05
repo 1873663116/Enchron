@@ -12,110 +12,64 @@ public struct PlayerControlsView: View {
 
     @State private var isDraggingSlider = false
     @State private var dragValue: Double = 0
-    @State private var showPlaybackSettingsPanel = false
-    @State private var showScreenPositionPanel = false
-    @State private var showDebugPanel = false
+    @State private var showScreenPositionSheet = false
+    @State private var showDebugSheet = false
+    @State private var lastInteractionTime = Date()
     @State private var hasAppliedSmokePanelRequest = false
 
     public init() {}
 
     public var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 24) {  // Increased vertical rhythm
-                sliderSection
+        VStack(spacing: 16) {
+            PlayerInfoBarView()
 
-                VStack(spacing: 28) {  // More space between controls for clarity
-                    primaryControlRow
-                    secondaryControlRow
-                }
-                .padding(.bottom, 8)
-            }
+            sliderSection
 
-            if showPlaybackSettingsPanel {
-                PlaybackMenuView {
-                    closePlaybackSettingsPanel()
-                }
-                .frame(width: 340, height: 420, alignment: .topLeading)
-                .padding(.top, 12)
-                .padding(.trailing, 12)
-                .transition(
-                    .opacity
-                        .combined(with: .scale(scale: 0.96, anchor: .topTrailing))
-                        .combined(with: .offset(y: -8))
-                )
-                .zIndex(2)
-            }
-
-            if showScreenPositionPanel {
-                ScreenPositionControlView {
-                    closeScreenPositionPanel()
-                }
-                .frame(width: 340, height: 420, alignment: .topLeading)
-                .padding(.top, 12)
-                .padding(.trailing, 12)
-                .transition(
-                    .opacity
-                        .combined(with: .scale(scale: 0.96, anchor: .topTrailing))
-                        .combined(with: .offset(y: -8))
-                )
-                .zIndex(3)
-            }
-
-            if showDebugPanel {
-                DebugOverlayView {
-                    closeDebugPanel()
-                }
-                .frame(width: 340, height: 480, alignment: .topLeading)
-                .padding(.top, 12)
-                .padding(.trailing, 12)
-                .transition(
-                    .opacity
-                        .combined(with: .scale(scale: 0.96, anchor: .topTrailing))
-                        .combined(with: .offset(y: -8))
-                )
-                .zIndex(4)
-            }
+            controlRow
         }
-        .padding(.horizontal, 32)
-        .padding(.vertical, 28)
-        .frame(width: 720)
-        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 32, style: .continuous))  // Base spatial material
-        .background(
-            .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous)
-        )  // Nested glass layering
+        .padding(.horizontal, 28)
+        .padding(.vertical, 20)
+        .frame(width: 680)
+        .enchronGlassControl()
         .onHover { isHovering in
-            appModel.setControlsFocused(
-                isHovering || showPlaybackSettingsPanel || showScreenPositionPanel || showDebugPanel)
+            appModel.setControlsFocused(isHovering)
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
-                    appModel.registerControlsInteraction()
-                    if appModel.showControls == false {
-                        appModel.showControls = true
-                    }
+                    registerInteraction()
                 }
         )
-        .onChange(of: showPlaybackSettingsPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showScreenPositionPanel || showDebugPanel)
-            appModel.registerControlsInteraction()
-        }
-        .onChange(of: showScreenPositionPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel || showDebugPanel)
-            appModel.registerControlsInteraction()
-        }
-        .onChange(of: showDebugPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel || showScreenPositionPanel)
-            appModel.registerControlsInteraction()
-        }
         .onChange(of: appModel.currentPlaybackURL) { _, _ in
-            resetTransientPanelsForMediaSwitch()
-            appModel.registerControlsInteraction()
+            registerInteraction()
+        }
+        .task(id: lastInteractionTime) {
+            do {
+                try await Task.sleep(for: .seconds(5))
+                guard !appModel.isControlsFocused else { return }
+                withAnimation {
+                    appModel.showControls = false
+                }
+            } catch {}
         }
         .task(id: appModel.smokePanelRequest) {
             await applySmokePanelRequestIfNeeded()
         }
+        .sheet(isPresented: $showScreenPositionSheet) {
+            ScreenPositionControlView {
+                showScreenPositionSheet = false
+            }
+            .frame(width: 380, height: 420)
+        }
+        .sheet(isPresented: $showDebugSheet) {
+            DebugOverlayView {
+                showDebugSheet = false
+            }
+            .frame(width: 380, height: 480)
+        }
     }
+
+    // MARK: - Seek Bar
 
     @ViewBuilder
     private var sliderSection: some View {
@@ -138,6 +92,9 @@ public struct PlayerControlsView: View {
                     in: 0...max(videoViewModel.playbackPosition.duration, 1),
                     onEditingChanged: { editing in
                         isDraggingSlider = editing
+                        if editing {
+                            registerInteraction()
+                        }
                         if !editing {
                             videoViewModel.seek(to: dragValue)
                         }
@@ -154,9 +111,8 @@ public struct PlayerControlsView: View {
                     .font(.caption2.monospacedDigit())
                     .frame(width: 60, alignment: .trailing)
             }
-            .padding(.vertical, 8)
 
-            // Precision time label and detailed timeline — visible during drag
+            // Precision time label and detailed timeline during drag
             if isDraggingSlider {
                 Text(
                     PlaybackTimeFormatter.preciseClock(
@@ -181,17 +137,24 @@ public struct PlayerControlsView: View {
         .frame(maxWidth: .infinity)
     }
 
+    // MARK: - Control Row
+
     @ViewBuilder
-    private var primaryControlRow: some View {
-        HStack(spacing: 40) {
+    private var controlRow: some View {
+        HStack(spacing: 28) {
+            leftMenu
+
             Button {
                 videoViewModel.skip(by: -10)
+                registerInteraction()
             } label: {
                 Image(systemName: "gobackward.10")
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(.primary)
             }
-            .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
+            .buttonStyle(.automatic)
+            .frame(minWidth: 60, minHeight: 60)
+            .contentShape(.rect)
             .help("Backward 10s")
             .accessibilityLabel("Skip backward 10 seconds")
 
@@ -203,32 +166,288 @@ public struct PlayerControlsView: View {
                 } else {
                     videoViewModel.resume()
                 }
+                registerInteraction()
             } label: {
                 Image(systemName: playButtonIcon)
-                    .font(.system(size: 44, weight: .medium))
+                    .font(.system(size: 36, weight: .medium))
                     .foregroundStyle(.primary)
             }
-            .buttonStyle(
-                PlayerControlSurfaceStyle(
-                    size: 72,
-                    isSelected: videoViewModel.playbackState == .playing,
-                    prominence: .primary
-                )
-            )
+            .buttonStyle(.automatic)
+            .frame(minWidth: 72, minHeight: 72)
+            .contentShape(.rect)
             .accessibilityLabel(playButtonAccessibilityLabel)
 
             Button {
                 videoViewModel.skip(by: 10)
+                registerInteraction()
             } label: {
                 Image(systemName: "goforward.10")
-                    .font(.system(size: 28, weight: .semibold))
+                    .font(.system(size: 24, weight: .semibold))
                     .foregroundStyle(.primary)
             }
-            .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
+            .buttonStyle(.automatic)
+            .frame(minWidth: 60, minHeight: 60)
+            .contentShape(.rect)
             .help("Forward 10s")
             .accessibilityLabel("Skip forward 10 seconds")
+
+            rightMenu
         }
     }
+
+    // MARK: - Left Menu (Playback Options)
+
+    private var leftMenu: some View {
+        Menu {
+            // Speed
+            Section("Speed") {
+                Picker("Speed", selection: speedBinding) {
+                    ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
+                        Text(speedLabel(speed)).tag(speed)
+                    }
+                }
+            }
+
+            // HDR toggle (only if content is HDR)
+            if videoViewModel.isHDRContent {
+                Section("Video Output") {
+                    Toggle(
+                        "HDR Output",
+                        isOn: Binding(
+                            get: { videoViewModel.isHDROutputEnabled },
+                            set: { videoViewModel.setHDREnabled($0) }
+                        )
+                    )
+                }
+            }
+
+            // Subtitles
+            Section("Subtitles") {
+                Picker("Subtitles", selection: subtitleBinding) {
+                    Text("Off").tag("no" as String)
+                    ForEach(videoViewModel.availableSubtitleTracks) { track in
+                        Text(track.displayName).tag(track.id)
+                    }
+                }
+            }
+
+            // Audio tracks
+            Section("Audio") {
+                Picker("Audio Track", selection: audioTrackBinding) {
+                    ForEach(videoViewModel.availableAudioTracks) { track in
+                        Text(track.displayName).tag(track.id)
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "slider.horizontal.3")
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .frame(minWidth: 60, minHeight: 60)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.automatic)
+        .help("Playback Options")
+        .accessibilityLabel("Playback Options")
+    }
+
+    // MARK: - Right Menu (Settings)
+
+    private var rightMenu: some View {
+        Menu {
+            // Playback mode
+            Section("Mode") {
+                ForEach(PlaybackMode.allCases, id: \.self) { mode in
+                    Button {
+                        Task {
+                            await switchPlaybackMode(to: mode)
+                        }
+                    } label: {
+                        if appModel.playbackMode == mode {
+                            Label(playbackModeLabel(mode), systemImage: "checkmark")
+                        } else {
+                            Label(playbackModeLabel(mode), systemImage: playbackModeIcon(mode))
+                        }
+                    }
+                    .disabled(
+                        mode == appModel.playbackMode
+                            || appModel.immersiveSpaceState == .inTransition)
+                }
+            }
+
+            // Projection
+            Section("Projection") {
+                Button {
+                    appModel.setProjectionOverride(nil)
+                } label: {
+                    if appModel.projectionOverride == nil {
+                        Label(
+                            "Auto (\(projectionLabel(appModel.detectedProjectionType)))",
+                            systemImage: "checkmark")
+                    } else {
+                        Text("Auto (\(projectionLabel(appModel.detectedProjectionType)))")
+                    }
+                }
+
+                ForEach(PlaybackCoreDomain.ProjectionType.allCases, id: \.self) { type in
+                    Button {
+                        appModel.setProjectionOverride(type)
+                    } label: {
+                        if appModel.projectionOverride == type {
+                            Label(projectionLabel(type), systemImage: "checkmark")
+                        } else {
+                            Text(projectionLabel(type))
+                        }
+                    }
+                }
+            }
+
+            // Environment (cinema environment) — only in immersive
+            if appModel.immersiveSpaceState == .open {
+                Section("Environment") {
+                    ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) {
+                        environment in
+                        Button {
+                            Task {
+                                await appModel.switchEnvironment(to: environment)
+                            }
+                        } label: {
+                            if appModel.currentCinemaEnvironment == environment {
+                                Label(environment.displayName, systemImage: "checkmark")
+                            } else {
+                                Text(environment.displayName)
+                            }
+                        }
+                    }
+                }
+
+                Button {
+                    registerInteraction()
+                    showScreenPositionSheet = true
+                } label: {
+                    Label("Screen Position", systemImage: "move.3d")
+                }
+            }
+
+            Divider()
+
+            // Playlist
+            Section("Playlist") {
+                if fileBrowsingViewModel.files.isEmpty {
+                    Text("No playlist items")
+                } else {
+                    ForEach(fileBrowsingViewModel.files, id: \.id) { file in
+                        Button {
+                            Task {
+                                do {
+                                    let request = try await fileBrowsingViewModel.playbackRequest(
+                                        for: file)
+                                    await MainActor.run {
+                                        launcher.beginPlayback(request)
+                                    }
+                                } catch {
+                                    await MainActor.run {
+                                        fileBrowsingViewModel.lastErrorMessage =
+                                            "Failed to open \"\(file.name)\": \(error.localizedDescription)"
+                                    }
+                                }
+                            }
+                        } label: {
+                            if appModel.currentPlaybackURL?.lastPathComponent == file.name {
+                                Label(file.name, systemImage: "checkmark")
+                            } else {
+                                Text(file.name)
+                            }
+                        }
+                    }
+                }
+            }
+
+            Divider()
+
+            // Frame stepping
+            Button {
+                videoViewModel.frameStepBackward()
+            } label: {
+                Label("Frame Step Back", systemImage: "backward.frame.fill")
+            }
+            Button {
+                videoViewModel.frameStepForward()
+            } label: {
+                Label("Frame Step Forward", systemImage: "forward.frame.fill")
+            }
+
+            Divider()
+
+            Button {
+                openWindow(id: "settings")
+            } label: {
+                Label("Settings", systemImage: "gearshape")
+            }
+
+            #if DEBUG
+                Button {
+                    registerInteraction()
+                    showDebugSheet = true
+                } label: {
+                    Label("Debug", systemImage: "ladybug")
+                }
+            #endif
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.title3)
+                .foregroundStyle(.primary)
+                .frame(minWidth: 60, minHeight: 60)
+                .contentShape(.rect)
+        }
+        .buttonStyle(.automatic)
+        .help("Settings")
+        .accessibilityLabel("Settings")
+    }
+
+    // MARK: - Bindings for Pickers
+
+    private var speedBinding: Binding<PlaybackCoreDomain.PlaybackSpeed> {
+        Binding(
+            get: { appModel.playbackSpeed },
+            set: { speed in
+                videoViewModel.setSpeed(speed)
+                appModel.updatePlaybackSpeed(speed)
+            }
+        )
+    }
+
+    private var subtitleBinding: Binding<String> {
+        Binding(
+            get: {
+                videoViewModel.currentSubtitleTrackID ?? "no"
+            },
+            set: { trackID in
+                if trackID == "no" {
+                    videoViewModel.selectSubtitleTrack(nil)
+                } else {
+                    let track = videoViewModel.availableSubtitleTracks.first { $0.id == trackID }
+                    videoViewModel.selectSubtitleTrack(track)
+                }
+            }
+        )
+    }
+
+    private var audioTrackBinding: Binding<String> {
+        Binding(
+            get: {
+                videoViewModel.currentAudioTrackID ?? ""
+            },
+            set: { trackID in
+                let track = videoViewModel.availableAudioTracks.first { $0.id == trackID }
+                if let track {
+                    videoViewModel.selectAudioTrack(track)
+                }
+            }
+        )
+    }
+
+    // MARK: - Playback State Helpers
 
     private var playButtonIcon: String {
         switch videoViewModel.playbackState {
@@ -252,221 +471,16 @@ public struct PlayerControlsView: View {
         }
     }
 
-    @ViewBuilder
-    private var secondaryControlRow: some View {
-        HStack(spacing: 24) {
-            speedMenu
-            playbackSettingsButton
-            playbackModeMenu
-            projectionMenu
-            if appModel.immersiveSpaceState == .open {
-                screenPositionButton
-            }
-            playlistMenu
-            infoMenu
-            debugButton
-
-            Button {
-                videoViewModel.frameStepBackward()
-            } label: {
-                Image(systemName: "backward.frame.fill")
-                    .font(.title3)
-                    .foregroundStyle(.primary)
-            }
-            .buttonStyle(PlayerControlSurfaceStyle(size: 60))
-            .help("Frame Step Backward")
-            .accessibilityLabel("Frame step backward")
-
-            Button {
-                videoViewModel.frameStepForward()
-            } label: {
-                Image(systemName: "forward.frame.fill")
-                    .font(.title3)
-                    .foregroundStyle(.primary)
-            }
-            .buttonStyle(PlayerControlSurfaceStyle(size: 60))
-            .help("Frame Step Forward")
-            .accessibilityLabel("Frame step forward")
-
-            settingsWindowButton
-        }
-    }
-
-    private var settingsWindowButton: some View {
-        Button {
-            openWindow(id: "settings")
-        } label: {
-            Image(systemName: "gearshape")
-                .font(.title3)
-                .foregroundStyle(.primary)
-        }
-        .buttonStyle(PlayerControlSurfaceStyle(size: 60))
-        .help("Open Settings")
-        .accessibilityLabel("Open Settings")
-    }
-
-    private var playbackSettingsButton: some View {
-        Button {
-            appModel.registerControlsInteraction()
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
-                closeScreenPositionPanel()
-                closeDebugPanel()
-                showPlaybackSettingsPanel.toggle()
-            }
-        } label: {
-            Image(systemName: "slider.horizontal.3")
-                .font(.title3)
-                .foregroundStyle(showPlaybackSettingsPanel ? Color.accentColor : Color.primary)
-        }
-        .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showPlaybackSettingsPanel))
-        .help("Playback Settings")
-        .accessibilityLabel("Playback Settings")
-    }
-
-    private var screenPositionButton: some View {
-        Button {
-            appModel.registerControlsInteraction()
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
-                closePlaybackSettingsPanel()
-                closeDebugPanel()
-                showScreenPositionPanel.toggle()
-            }
-        } label: {
-            Image(systemName: "move.3d")
-                .font(.title3)
-                .foregroundStyle(showScreenPositionPanel ? Color.accentColor : Color.primary)
-        }
-        .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showScreenPositionPanel))
-        .help("Screen Position")
-        .accessibilityLabel("Screen Position")
-    }
-
-    private var infoMenu: some View {
-        Menu {
-            Section("Media Info") {
-                if let profile = videoViewModel.displayMediaProfile {
-                    Text(PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))
-                    Text("Resolution: \(profile.resolution.width)×\(profile.resolution.height)")
-                    Text("Frame Rate: \(PlaybackInfoFormatter.frameRate(profile.frameRate))")
-                } else {
-                    Text("Loading media profile…")
-                }
-
-                Text("File Size: \(PlaybackInfoFormatter.fileSize(videoViewModel.displayFileSizeInBytes))")
-            }
-        } label: {
-            Image(systemName: "info.circle")
-                .font(.title3)
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-        .help("Media Info")
-        .accessibilityLabel("Media Info")
-    }
-
-    private var speedMenu: some View {
-        Menu {
-            ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
-                Button {
-                    videoViewModel.setSpeed(speed)
-                    appModel.updatePlaybackSpeed(speed)
-                } label: {
-                    if appModel.playbackSpeed == speed {
-                        Label(speedLabel(speed), systemImage: "checkmark")
-                    } else {
-                        Text(speedLabel(speed))
-                    }
-                }
-            }
-        } label: {
-            Text(String(format: "%.1f\u{00D7}", appModel.playbackSpeed.value))
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("Playback speed, \(String(format: "%.1f", appModel.playbackSpeed.value)) times")
-    }
-
-    private var playlistMenu: some View {
-        Menu {
-            if fileBrowsingViewModel.files.isEmpty {
-                Text("No playlist items")
-            } else {
-                ForEach(fileBrowsingViewModel.files, id: \.id) { file in
-                    Button {
-                        Task {
-                            do {
-                                let request = try await fileBrowsingViewModel.playbackRequest(
-                                    for: file)
-                                await MainActor.run {
-                                    launcher.beginPlayback(request)
-                                }
-                            } catch {
-                                await MainActor.run {
-                                    fileBrowsingViewModel.lastErrorMessage =
-                                        "Failed to open \"\(file.name)\": \(error.localizedDescription)"
-                                }
-                            }
-                        }
-                    } label: {
-                        if appModel.currentPlaybackURL?.lastPathComponent == file.name {
-                            Label(file.name, systemImage: "checkmark")
-                        } else {
-                            Text(file.name)
-                        }
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "list.bullet")
-                .font(.title3)
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-        .help("Playlist")
-        .accessibilityLabel("Playlist")
-    }
-
-    private var playbackModeMenu: some View {
-        Menu {
-            ForEach(PlaybackMode.allCases, id: \.self) { mode in
-                Button {
-                    Task {
-                        await switchPlaybackMode(to: mode)
-                    }
-                } label: {
-                    if appModel.playbackMode == mode {
-                        Label(playbackModeLabel(mode), systemImage: "checkmark")
-                    } else {
-                        Label(playbackModeLabel(mode), systemImage: playbackModeIcon(mode))
-                    }
-                }
-                .disabled(mode == appModel.playbackMode || appModel.immersiveSpaceState == .inTransition)
-            }
-        } label: {
-            Image(systemName: playbackModeIcon(appModel.playbackMode))
-                .font(.title3)
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-        .help("Playback Mode: \(appModel.playbackMode.rawValue)")
-        .accessibilityLabel("Playback Mode, \(playbackModeLabel(appModel.playbackMode))")
-    }
+    // MARK: - Mode Switching
 
     private func switchPlaybackMode(to mode: PlaybackMode) async {
         let currentMode = appModel.playbackMode
         guard mode != currentMode else { return }
 
-        // Step 1: stop bridge if leaving panorama or immersive
         if currentMode == .panorama || currentMode == .immersive {
             panoramaBridge.attachVideoLayer(nil)
         }
 
-        // Step 2: close immersive space if we're leaving immersive/panorama
         if currentMode == .immersive || currentMode == .panorama {
             if appModel.immersiveSpaceState == .open {
                 appModel.immersiveSpaceState = .inTransition
@@ -474,7 +488,6 @@ public struct PlayerControlsView: View {
             }
         }
 
-        // Step 3: open immersive space if entering immersive/panorama
         if mode == .immersive || mode == .panorama {
             appModel.immersiveSpaceState = .inTransition
             switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
@@ -491,15 +504,15 @@ public struct PlayerControlsView: View {
             }
         }
 
-        // Step 4: update the mode
         appModel.updatePlaybackMode(mode)
 
-        // Step 5: start bridge if entering panorama or immersive
         if mode == .panorama || mode == .immersive {
             let layer = videoViewModel.nativeVideoLayer
             panoramaBridge.attachVideoLayer(layer)
         }
     }
+
+    // MARK: - Label Helpers
 
     private func playbackModeLabel(_ mode: PlaybackMode) -> String {
         switch mode {
@@ -517,42 +530,6 @@ public struct PlayerControlsView: View {
         }
     }
 
-    private var projectionMenu: some View {
-        Menu {
-            Button {
-                appModel.setProjectionOverride(nil)
-            } label: {
-                if appModel.projectionOverride == nil {
-                    Label("Auto (\(projectionLabel(appModel.detectedProjectionType)))", systemImage: "checkmark")
-                } else {
-                    Text("Auto (\(projectionLabel(appModel.detectedProjectionType)))")
-                }
-            }
-
-            Divider()
-
-            ForEach(PlaybackCoreDomain.ProjectionType.allCases, id: \.self) { type in
-                Button {
-                    appModel.setProjectionOverride(type)
-                } label: {
-                    if appModel.projectionOverride == type {
-                        Label(projectionLabel(type), systemImage: "checkmark")
-                    } else {
-                        Text(projectionLabel(type))
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: projectionIcon(appModel.effectiveProjectionType))
-                .font(.title3)
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-        .help("Projection: \(projectionLabel(appModel.effectiveProjectionType))")
-        .accessibilityLabel("Projection, \(projectionLabel(appModel.effectiveProjectionType))")
-    }
-
     private func projectionLabel(_ type: PlaybackCoreDomain.ProjectionType) -> String {
         switch type {
         case .flat: return "Flat"
@@ -564,33 +541,18 @@ public struct PlayerControlsView: View {
         }
     }
 
-    private func projectionIcon(_ type: PlaybackCoreDomain.ProjectionType) -> String {
-        switch type {
-        case .flat: return "rectangle"
-        case .stereoscopicSBS: return "rectangle.split.2x1"
-        case .stereoscopicOU: return "rectangle.split.1x2"
-        case .panorama360: return "pano"
-        case .panorama180: return "circle.lefthalf.filled"
-        case .fisheye: return "camera.filters"
-        }
+    private func speedLabel(_ speed: PlaybackCoreDomain.PlaybackSpeed) -> String {
+        String(format: "%.2f\u{00D7}", speed.value)
     }
 
-    private var debugButton: some View {
-        Button {
-            appModel.registerControlsInteraction()
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
-                closePlaybackSettingsPanel()
-                closeScreenPositionPanel()
-                showDebugPanel.toggle()
-            }
-        } label: {
-            Image(systemName: "ladybug")
-                .font(.title3)
-                .foregroundStyle(showDebugPanel ? Color.accentColor : Color.primary)
+    // MARK: - Interaction & Auto-Hide
+
+    private func registerInteraction() {
+        lastInteractionTime = Date()
+        appModel.registerControlsInteraction()
+        if appModel.showControls == false {
+            appModel.showControls = true
         }
-        .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showDebugPanel))
-        .help("Debug Controls")
-        .accessibilityLabel("Debug Controls")
     }
 
     @MainActor
@@ -603,28 +565,6 @@ public struct PlayerControlsView: View {
 
         hasAppliedSmokePanelRequest = true
         appModel.showControls = true
-    }
-
-    private func speedLabel(_ speed: PlaybackCoreDomain.PlaybackSpeed) -> String {
-        String(format: "%.2f\u{00D7}", speed.value)
-    }
-
-    private func closePlaybackSettingsPanel() {
-        showPlaybackSettingsPanel = false
-    }
-
-    private func closeScreenPositionPanel() {
-        showScreenPositionPanel = false
-    }
-
-    private func closeDebugPanel() {
-        showDebugPanel = false
-    }
-
-    private func resetTransientPanelsForMediaSwitch() {
-        showPlaybackSettingsPanel = false
-        showScreenPositionPanel = false
-        showDebugPanel = false
     }
 }
 

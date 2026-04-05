@@ -258,7 +258,7 @@ public struct MainView: View {
                 guard appModel.canAutoHideControls else { continue }
 
                 let idleTime = Date().timeIntervalSince(appModel.lastControlsInteractionAt)
-                if idleTime >= 3 {
+                if idleTime >= 5 {
                     withAnimation {
                         appModel.showControls = false
                     }
