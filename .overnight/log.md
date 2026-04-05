@@ -461,3 +461,37 @@ Xcode 15+ Asset Catalog 自动符号生成与手动 Color extension 冲突 — �
 
 ### ce-compound
 标准 SwiftUI WindowGroup + openWindow/dismissWindow 生命周期管理模式。单条件 onChange 避免竞争是已知最佳实践（R4 对抗审查已验证）。无非显而易见的技术发现，跳过。
+
+---
+
+## Round 15 — EXECUTING Unit 14 (2026-04-05)
+
+### 目标
+ExecPlan Unit 14: NLE Timeline Shell & Animation (R26) — 创建可展开的 NLE 时间轴面板框架
+
+### 执行摘要
+
+1. **读取上下文**：ARCHITECTURE.md、REGRESSION.md、PlayerControlsView.swift、DetailedTimelineView.swift、DetailedTimelineGeometry.swift、DesignTokens.swift、View+EnchronGlass.swift
+2. **创建 NLETimelineView.swift**：可展开面板，`.enchronGlassPanel()` 材质，`@Binding isExpanded` 驱动，`.spring()` 动画，`clipped()` 收起时零高度，placeholder 预留 ruler (Unit 15) 和 thumb strip (Unit 16) 位置
+3. **创建 NLETimelineToggleButton**：timeline.selection 图标，tertiary 激活色，60pt 注视目标，accessibilityAddTraits(.isToggle)
+4. **集成至 PlayerControlsView**：控制行添加 toggle 按钮，控制栏下方挂载 NLETimelineView，外层 VStack spacing 12
+5. **构建验证**：visionOS Simulator build 成功，284 existing tests 全部通过
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| Timeline 挂载在 pill 控制栏外部 VStack 下方 | 保持控制栏 capsule 形态完整，timeline 是独立面板 |
+| `frame(height: isExpanded ? 120 : 0) + clipped()` 而非 `if` 条件渲染 | 支持 spring 动画平滑展开，`if` 会导致突然出现 |
+| Placeholder 使用 design tokens (surfaceContainerLow, onSurface) | 即使占位也保持视觉一致性，Unit 15/16 替换时无缝衔接 |
+| `.spring()` 显式调用而非 `.spring` | Swift 类型推断在 Animation 上下文中无法推断 `.spring` 省略括号形式 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| XrPlayer/PlayerUI/Views/NLETimelineView.swift | 新建 — NLETimelineView + NLETimelineToggleButton |
+| XrPlayer/PlayerUI/Views/PlayerControlsView.swift | 修改 — 添加 isTimelineExpanded state + toggle 按钮 + timeline 面板挂载 |
+
+### ce-compound
+纯粹增量的 shell 组件，标准 SwiftUI 模式（@Binding + spring animation + clipped）。无非显而易见的技术发现，跳过。
