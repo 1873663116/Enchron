@@ -82,14 +82,16 @@ public struct DataSourceConfigView: View {
             if isSMB {
                 Section {
                     Text("Enter the server IP address only. You will select a shared folder after connecting.")
-                        .font(.caption)
+                        .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(.secondary)
                 }
             }
 
             if let error = validationError {
                 Section {
-                    Text(error).foregroundStyle(.red).font(.caption)
+                    Text(error)
+                        .foregroundStyle(.orange)
+                        .font(DesignTokens.Typography.metadata)
                 }
             }
 
@@ -101,6 +103,8 @@ public struct DataSourceConfigView: View {
                         Text("Connect")
                     }
                 }
+                .frame(minHeight: 60)
+                .contentShape(.rect)
                 .disabled(!isValid || isConnecting)
             }
         }
@@ -127,13 +131,15 @@ public struct DataSourceConfigView: View {
                     } label: {
                         HStack {
                             Image(systemName: "folder.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.enchronTertiary)
                             Text(shareName)
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .font(.caption)
+                                .font(DesignTokens.Typography.metadata)
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(minHeight: 60)
+                        .contentShape(.rect)
                     }
                 }
             }
