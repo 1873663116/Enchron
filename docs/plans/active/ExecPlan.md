@@ -614,7 +614,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ### Phase D: Player Controls
 
-- [ ] **Unit 12: Window Mode Controls Upgrade (R19, R20, R22, R23, R24, R25)**
+- [x] **Unit 12: Window Mode Controls Upgrade (R19, R20, R22, R23, R24, R25)**
 
   **Goal:** Redesign PlayerControlsView as pill-shaped glass control bar with system menus
 

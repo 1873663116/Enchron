@@ -15,7 +15,7 @@ public struct ScreenPositionControlView: View {
             // Header
             HStack {
                 Text("Screen Position")
-                    .font(.headline)
+                    .font(DesignTokens.Typography.headline)
                 Spacer()
                 Button {
                     onClose()
@@ -25,6 +25,8 @@ public struct ScreenPositionControlView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .frame(minWidth: 60, minHeight: 60)
+                .contentShape(.rect)
                 .accessibilityLabel("Close Screen Position")
             }
             .padding(.horizontal, 16)
@@ -55,7 +57,7 @@ public struct ScreenPositionControlView: View {
 
                     Divider()
 
-                    // Fine-tune sliders — Grid keeps columns aligned (HelloWorld SliderGridRow pattern)
+                    // Fine-tune sliders
                     Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 14) {
                         SliderGridRow(
                             label: "Distance",
@@ -73,7 +75,7 @@ public struct ScreenPositionControlView: View {
                             label: "Rotation",
                             value: $model.screenViewAngle,
                             range: -45...45,
-                            unit: "°",
+                            unit: "\u{00B0}",
                             format: "%.0f"
                         )
                     }
@@ -82,7 +84,8 @@ public struct ScreenPositionControlView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+        .enchronGlassPanel()
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
         .onChange(of: model.screenDistance) { _, _ in appModel.saveScreenPosition() }
         .onChange(of: model.screenVerticalOffset) { _, _ in appModel.saveScreenPosition() }
         .onChange(of: model.screenViewAngle) { _, _ in appModel.saveScreenPosition() }
