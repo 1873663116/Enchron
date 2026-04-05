@@ -209,7 +209,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ### Phase A: Design Foundation
 
-- [ ] **Unit 1: Semantic Color System (R1)**
+- [x] **Unit 1: Semantic Color System (R1)**
 
   **Goal:** Establish the 9-color design palette as first-class SwiftUI assets
 
