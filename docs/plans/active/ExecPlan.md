@@ -343,7 +343,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 5: Content Routing & Recent View (R9, R9a)**
+- [x] **Unit 5: Content Routing & Recent View (R9, R9a)**
 
   **Goal:** Wire navigation state to content area; implement Recent tab view
 

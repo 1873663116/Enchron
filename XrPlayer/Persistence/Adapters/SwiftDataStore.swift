@@ -55,6 +55,37 @@ public final class SwiftDataStore: ProgressStoring, ScreenPositionStoring {
         }
     }
 
+    public func loadRecentlyPlayed(limit: Int) async -> [PersistenceDomain.PlaybackProgress] {
+        guard limit > 0 else { return [] }
+        let allKeys = defaults.dictionaryRepresentation().keys.filter {
+            $0.hasPrefix(Self.progressPrefix)
+        }
+        var entries: [PersistenceDomain.PlaybackProgress] = []
+        for key in allKeys {
+            guard let data = defaults.data(forKey: key),
+                  let entry = try? JSONDecoder().decode(ProgressEntry.self, from: data) else {
+                continue
+            }
+            let rawValue = String(key.dropFirst(Self.progressPrefix.count))
+            let fileID = PersistenceDomain.FileIdentifier(rawValue: rawValue)
+            entries.append(PersistenceDomain.PlaybackProgress(
+                fileID: fileID,
+                position: PersistenceDomain.ProgressPosition(seconds: entry.seconds),
+                updatedAt: Date(timeIntervalSince1970: entry.updatedAt)
+            ))
+        }
+        // Sort by most recent first, dedup by FileIdentifier (keep newest)
+        entries.sort { $0.updatedAt > $1.updatedAt }
+        var seen = Set<PersistenceDomain.FileIdentifier>()
+        var result: [PersistenceDomain.PlaybackProgress] = []
+        for entry in entries {
+            guard seen.insert(entry.fileID).inserted else { continue }
+            result.append(entry)
+            if result.count >= limit { break }
+        }
+        return result
+    }
+
     // MARK: - ScreenPositionStoring
 
     public func savePosition(
