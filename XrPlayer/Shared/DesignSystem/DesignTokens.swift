@@ -31,6 +31,8 @@ public enum DesignTokens {
     public enum Layout {
         /// Width shared by PlayerControlsView and NLETimelineView panels.
         public static let playerControlsWidth: CGFloat = 680
+        /// Gap between navigation ornament and window edge.
+        public static let ornamentGap: CGFloat = 20
     }
 
     // MARK: - Typography (R3)

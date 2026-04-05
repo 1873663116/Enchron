@@ -30,6 +30,7 @@ public struct RecentlyPlayedView: View {
                 }
             }
         }
+        .contentMargins(.top, 20, for: .scrollContent)
         .navigationTitle("Recent")
         .task {
             recentItems = await progressStore.loadRecentlyPlayed(limit: 50)

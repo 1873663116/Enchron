@@ -83,6 +83,7 @@ public struct SettingsView: View {
                 LabeledContent("Build", value: Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—")
             }
         }
+        .contentMargins(.top, 20, for: .scrollContent)
         .navigationTitle("Settings")
         .alert("Clear Cache", isPresented: $showClearCacheAlert) {
             Button("Clear", role: .destructive) {
