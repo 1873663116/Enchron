@@ -4,9 +4,16 @@ import Observation
 @MainActor
 @Observable
 public final class AppModel {
-    // MARK: - Navigation & Space State
+    // MARK: - Navigation State
+    public enum NavigationTab: String, CaseIterable {
+        case browse, recent, settings
+    }
+    public var selectedTab: NavigationTab = .browse
+    public var showSceneSelector: Bool = false
+
+    // MARK: - Immersive Space State
     public let immersiveSpaceID = "ImmersiveSpace"
-    
+
     public enum ImmersiveSpaceState {
         case closed
         case inTransition
