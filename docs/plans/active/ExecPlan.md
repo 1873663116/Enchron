@@ -393,7 +393,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ### Phase C: File Browser
 
-- [ ] **Unit 6: NavigationSplitView Container (R10)**
+- [x] **Unit 6: NavigationSplitView Container (R10)**
 
   **Goal:** Refactor FileBrowserView from NavigationStack to NavigationSplitView two-column layout
 
