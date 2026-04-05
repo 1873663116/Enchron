@@ -1,6 +1,6 @@
 phase: PLANNING
-last_done: "INVESTIGATING 完成 — 需求文档产出 + 标准档对抗审查通过，3 项 P1 修正已应用"
-next: "调用 /ce-plan 基于需求文档制定实施计划"
+last_done: "ce-plan 完成 — ExecPlan + TestPlan 产出到 docs/plans/active/，4 个实施单元，3 个推迟问题已解决"
+next: "调用 /plan-eng-review 审查实施计划，锁定架构"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
