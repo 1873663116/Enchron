@@ -1,5 +1,12 @@
 import SwiftUI
 
+/// Player controls following the 3-tier layout from player.html:
+///
+/// Tier 1: Info bar (back + title + format metadata)
+/// Tier 2: Seek bar (time | progress track | remaining time)
+/// Tier 3: Control bar pill (Menu | Rew | Play | Fwd | NLE toggle | Settings)
+///
+/// Below: expandable NLE timeline panel
 public struct PlayerControlsView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(WindowVideoViewModel.self) private var videoViewModel
@@ -18,28 +25,21 @@ public struct PlayerControlsView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 12) {
-            VStack(spacing: 16) {
-                PlayerInfoBarView()
+        VStack(spacing: 16) {
+            // ── Tier 1: Info bar ──
+            PlayerInfoBarView()
+                .padding(.horizontal, 28)
 
-                sliderSection
+            // ── Tier 2: Seek bar ──
+            seekBar
+                .padding(.horizontal, 28)
 
-                controlRow
-            }
-            .padding(.horizontal, 28)
-            .padding(.vertical, 20)
-            .frame(width: DesignTokens.Layout.playerControlsWidth)
-            .enchronGlassControl()
-
-            NLETimelineView(
-                isExpanded: $isTimelineExpanded,
-                currentTime: videoViewModel.playbackPosition.seconds,
-                duration: videoViewModel.playbackPosition.duration,
-                onSeek: { videoViewModel.seek(to: $0) },
-                onFrameStepForward: { videoViewModel.frameStepForward() },
-                onFrameStepBackward: { videoViewModel.frameStepBackward() }
-            )
+            // ── Tier 3: Control bar pill ──
+            controlBarPill
         }
+        .padding(.vertical, 20)
+        .frame(width: DesignTokens.Layout.playerControlsWidth)
+        .enchronGlassControl()
         .onHover { isHovering in
             appModel.setControlsFocused(isHovering)
         }
@@ -54,9 +54,9 @@ public struct PlayerControlsView: View {
         }
         .task(id: lastInteractionTime) {
             do {
-                try await Task.sleep(for: .seconds(5))
+                try await Task.sleep(for: .seconds(8))
                 guard !appModel.isControlsFocused else { return }
-                withAnimation {
+                withAnimation(.easeInOut(duration: 0.4)) {
                     appModel.showControls = false
                 }
             } catch {}
@@ -78,95 +78,88 @@ public struct PlayerControlsView: View {
         }
     }
 
-    // MARK: - Seek Bar
+    // MARK: - Tier 2: Seek Bar
 
     @ViewBuilder
-    private var sliderSection: some View {
-        VStack(spacing: 6) {
-            HStack(spacing: 12) {
-                Text(
-                    PlaybackTimeFormatter.clock(
-                        isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)
-                )
-                .font(.caption2.monospacedDigit())
-                .frame(width: 60, alignment: .leading)
+    private var seekBar: some View {
+        HStack(spacing: 12) {
+            Text(
+                PlaybackTimeFormatter.clock(
+                    isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)
+            )
+            .font(.system(size: 11, weight: .medium, design: .monospaced))
+            .foregroundStyle(.secondary)
+            .frame(width: 56, alignment: .trailing)
 
-                Slider(
-                    value: Binding(
-                        get: {
-                            isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
-                        },
-                        set: { dragValue = $0 }
-                    ),
-                    in: 0...max(videoViewModel.playbackPosition.duration, 1),
-                    onEditingChanged: { editing in
-                        isDraggingSlider = editing
-                        if editing {
-                            registerInteraction()
-                        }
-                        if !editing {
-                            videoViewModel.seek(to: dragValue)
-                        }
+            Slider(
+                value: Binding(
+                    get: {
+                        isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
+                    },
+                    set: { dragValue = $0 }
+                ),
+                in: 0...max(videoViewModel.playbackPosition.duration, 1),
+                onEditingChanged: { editing in
+                    isDraggingSlider = editing
+                    if editing {
+                        registerInteraction()
                     }
-                )
-                .tint(.white)
-                .frame(minHeight: 44)
-                .accessibilityLabel("Playback position")
-                .accessibilityValue(
-                    "\(PlaybackTimeFormatter.clock(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)) of \(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))"
-                )
+                    if !editing {
+                        videoViewModel.seek(to: dragValue)
+                    }
+                }
+            )
+            .tint(.white)
+            .frame(minHeight: 44)
+            .accessibilityLabel("Playback position")
+            .accessibilityValue(
+                "\(PlaybackTimeFormatter.clock(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)) of \(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))"
+            )
 
-                Text(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))
-                    .font(.caption2.monospacedDigit())
-                    .frame(width: 60, alignment: .trailing)
-            }
-
-            // Precision time label and detailed timeline during drag
-            if isDraggingSlider {
-                Text(
-                    PlaybackTimeFormatter.preciseClock(
-                        dragValue,
-                        framesPerSecond: videoViewModel.displayMediaProfile?.frameRate ?? 0
-                    )
-                )
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.orange)
-                .transition(.opacity)
-
-                DetailedTimelineView(
-                    duration: videoViewModel.playbackPosition.duration,
-                    currentTime: videoViewModel.playbackPosition.seconds,
-                    isDragging: isDraggingSlider,
-                    dragTime: dragValue
-                )
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+            Text(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .foregroundStyle(.secondary)
+                .frame(width: 56, alignment: .leading)
         }
-        .animation(.easeInOut(duration: 0.15), value: isDraggingSlider)
-        .frame(maxWidth: .infinity)
+
+        // Precision time during drag
+        if isDraggingSlider {
+            Text(
+                PlaybackTimeFormatter.preciseClock(
+                    dragValue,
+                    framesPerSecond: videoViewModel.displayMediaProfile?.frameRate ?? 0
+                )
+            )
+            .font(.system(.caption, design: .monospaced))
+            .foregroundStyle(.orange)
+            .transition(.opacity)
+        }
     }
 
-    // MARK: - Control Row
+    // MARK: - Tier 3: Control Bar Pill
 
     @ViewBuilder
-    private var controlRow: some View {
-        HStack(spacing: 28) {
+    private var controlBarPill: some View {
+        HStack(spacing: 8) {
+            // ── Left: Menu (popup expands upward) ──
             leftMenu
 
+            // ── Rewind 10s ──
             Button {
                 videoViewModel.skip(by: -10)
                 registerInteraction()
             } label: {
                 Image(systemName: "gobackward.10")
                     .font(DesignTokens.SymbolSize.control)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.automatic)
-            .frame(minWidth: 60, minHeight: 60)
-            .contentShape(.rect)
+            .buttonStyle(.plain)
+            .hoverEffect(.highlight)
+            .frame(width: 60, height: 60)
+            .contentShape(.circle)
             .help("Backward 10s")
-            .accessibilityLabel("Skip backward 10 seconds")
 
+            // ── Play / Pause (larger, prominent) ──
             Button {
                 if videoViewModel.playbackState == .ended {
                     videoViewModel.replay()
@@ -178,32 +171,37 @@ public struct PlayerControlsView: View {
                 registerInteraction()
             } label: {
                 Image(systemName: playButtonIcon)
-                    .font(DesignTokens.SymbolSize.action)
+                    .font(.system(size: 32, weight: .medium))
                     .foregroundStyle(.primary)
             }
-            .buttonStyle(.automatic)
-            .frame(minWidth: 72, minHeight: 72)
-            .contentShape(.rect)
+            .buttonStyle(.plain)
+            .hoverEffect(.highlight)
+            .frame(width: 72, height: 72)
+            .contentShape(.circle)
             .accessibilityLabel(playButtonAccessibilityLabel)
 
+            // ── Forward 10s ──
             Button {
                 videoViewModel.skip(by: 10)
                 registerInteraction()
             } label: {
                 Image(systemName: "goforward.10")
                     .font(DesignTokens.SymbolSize.control)
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(.secondary)
             }
-            .buttonStyle(.automatic)
-            .frame(minWidth: 60, minHeight: 60)
-            .contentShape(.rect)
+            .buttonStyle(.plain)
+            .hoverEffect(.highlight)
+            .frame(width: 60, height: 60)
+            .contentShape(.circle)
             .help("Forward 10s")
-            .accessibilityLabel("Skip forward 10 seconds")
 
+            // ── NLE Timeline toggle ──
             NLETimelineToggleButton(isExpanded: $isTimelineExpanded)
 
+            // ── Right: Settings menu (popup expands upward) ──
             rightMenu
         }
+        .padding(.horizontal, 12)
     }
 
     // MARK: - Left Menu (Playback Options)
@@ -253,11 +251,12 @@ public struct PlayerControlsView: View {
         } label: {
             Image(systemName: "slider.horizontal.3")
                 .font(.title3)
-                .foregroundStyle(.primary)
-                .frame(minWidth: 60, minHeight: 60)
-                .contentShape(.rect)
+                .foregroundStyle(.secondary)
+                .frame(width: 60, height: 60)
+                .contentShape(.circle)
         }
-        .buttonStyle(.automatic)
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .help("Playback Options")
         .accessibilityLabel("Playback Options")
     }
@@ -374,20 +373,6 @@ public struct PlayerControlsView: View {
 
             Divider()
 
-            // Frame stepping
-            Button {
-                videoViewModel.frameStepBackward()
-            } label: {
-                Label("Frame Step Back", systemImage: "backward.frame.fill")
-            }
-            Button {
-                videoViewModel.frameStepForward()
-            } label: {
-                Label("Frame Step Forward", systemImage: "forward.frame.fill")
-            }
-
-            Divider()
-
             Button {
                 openWindow(id: "settings")
             } label: {
@@ -405,11 +390,12 @@ public struct PlayerControlsView: View {
         } label: {
             Image(systemName: "ellipsis")
                 .font(.title3)
-                .foregroundStyle(.primary)
-                .frame(minWidth: 60, minHeight: 60)
-                .contentShape(.rect)
+                .foregroundStyle(.secondary)
+                .frame(width: 60, height: 60)
+                .contentShape(.circle)
         }
-        .buttonStyle(.automatic)
+        .buttonStyle(.plain)
+        .hoverEffect(.highlight)
         .help("Settings")
         .accessibilityLabel("Settings")
     }
@@ -482,10 +468,6 @@ public struct PlayerControlsView: View {
 
     // MARK: - Mode Switching
 
-    /// Requests a playback mode change.
-    /// Immersive space transitions and panorama bridge lifecycle are handled
-    /// centrally by MainView's onChange(of: playbackMode), keeping this window
-    /// decoupled from PanoramaLayerBridge and immersive space APIs.
     private func switchPlaybackMode(to mode: PlaybackMode) {
         guard mode != appModel.playbackMode else { return }
         guard appModel.immersiveSpaceState != .inTransition else { return }
