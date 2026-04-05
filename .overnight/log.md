@@ -105,5 +105,44 @@ phase-exit-authorized: yes
 
 ### ce-compound
 
-跳过。发现（sync 脚本过时、APFS 大小写风险）已记入计划，属常规规划产物。
+跳过。发现（sync 脚本过时、APFS 大小写风险）已记入计���，属常规规���产物。
+
+## Round 4 — PLANNING (plan-eng-review 审查实施计划)
+
+**时间**: 2026-04-05
+**目标**: 审查 ExecPlan 的架构/数据流/边界情况/测试覆盖，锁定实施计划
+
+### 执行摘要
+
+对 ExecPlan 执行完整工程评审。验证了全部引用计数（grep 实测）、` D` 文件计数（git status 实测）、迁移目标路径存在性、依赖 DAG 正确性。
+
+### 数据精度修正
+
+| 项目 | 原值 | 实测值 | 已修正 |
+|------|------|--------|--------|
+| workspace-agents/ ` D` 文件 | 84 | 88 | ✓ |
+| 总 ` D` 文件 | 97 | 101 | ✓ |
+| 活跃引用总数 | ~45 | 39 | ✓ |
+| CLAUDE.md → docs/ | 10 | 9 | ✓ |
+| 根目录文件 | 7 (4恢复+3删) | 9 (3恢复+6删) | ✓ |
+
+### P1 修正（已应用到计划）
+
+1. ExecPlan Unit 2 新增 README 目录树条目（:106）特殊处理说明
+2. TestPlan 新增 AC6: DESIGN-TO-SWIFTUI 旧大写引用归零验证
+
+### Critical Gap
+
+README 目录树行删除后无格式验证。已记入 arch.md，建议 Unit 2 执行时人工检查。
+
+### 产出
+
+- `docs/plans/2026-04-05-arch.md` — 完整架构评审报告
+- ExecPlan 更新 — 计数修正 + Unit 2 特殊处理 + GSTACK REVIEW REPORT
+- TestPlan 更新 — AC6 新增
+- `.context/reviews/` — review log 条目
+
+### ce-compound
+
+跳过。发现均为数据精度校正和边界情况补充，无非显而易见的技术事实。
 

@@ -10,7 +10,7 @@ origin: docs/brainstorms/2026-04-05-doc-cleanup-and-path-normalization-requireme
 
 ## 概述
 
-恢复 7 个关键文件、修复 ~45 处断裂引用、规范化目录/文件命名、清理 93 个已删除但仍被 git 追踪的文件。为即将开始的 UI/UX 重构建立干净、一致的文档基础。
+恢复 7 个关键文件、修复 39 处断裂引用、规范化目录/文件命名、清理 98 个已删除但仍被 git 追踪的文件。为即将开始的 UI/UX 重构建立干净、一致的文档基础。
 
 ## 问题框架
 
@@ -70,12 +70,12 @@ workspace-agents/ → docs/ 迁移未完整收尾，7 个关键文件从磁盘�
 | docs/solutions/.../autonomous-overnight-...patterns.md | 1 | — |
 | docs/solutions/.../visionos-design-mockup-to-swiftui-pipeline-...md | — | 4× DESIGN-TO-SWIFTUI.md |
 
-**Git 清理范围（97 个 ` D` 文件）：**
-- workspace-agents/: 84 个（skills/ 63, archive/ 8, contracts/ 4, design_docs/ 11, 根级 8）
+**Git 清理范围（101 个 ` D` 文件）：**
+- workspace-agents/: 88 个（skills/ 60, archive/ 8, contracts/ 4, design_docs/ 10, 根级 6）
 - docs/ExecPlan/: 4 个
-- 根目录: 7 个（4 恢复 + 3 git rm）
+- 根目录: 8 个（3 恢复 + 5 git rm）
 - logs/: 1 个
-- 扣除 3 个恢复文件 = 94 个待 git rm（注意：TODOS.md 按需求不恢复，也 git rm）
+- 扣除 3 个恢复文件 = 98 个待 git rm（注意：TODOS.md 按需求不恢复，也 git rm）
 
 ### 机构知识
 
@@ -149,14 +149,14 @@ Unit 1 (恢复文件) ──→ Unit 2 (修复引用) ──→ Unit 4 (重命�
 
 - [ ] **Unit 2：修复全部 workspace-agents/ 断裂引用**
 
-**目标：** 将 9 个活跃文档中 ~45 处 workspace-agents/ 引用替换为正确的 docs/ 或 ~/.claude/skills/ 路径。
+**目标：** 将 9 个活跃文档中 39 处 workspace-agents/ 引用替换为正确的 docs/ 或 ~/.claude/skills/ 路径。
 
 **需求：** R6, R7, R8, R9, R10, R11
 
 **依赖：** Unit 1（引用目标路径必须存在）
 
 **文件：**
-- 修改：`CLAUDE.md`（11 处：10 处 → docs/，1 处 → ~/.claude/skills/，1 行删除）
+- 修改：`CLAUDE.md`（11 处：9 处 → docs/，1 处 → ~/.claude/skills/，1 行删除）
 - 修改：`ARCHITECTURE.md`（7 处 → docs/）
 - 修改：`README.md`（6 处：5 处 → docs/，1 行 known_issues 删除）
 - 修改：`README.en.md`（6 处：5 处 → docs/，1 行 known_issues 删除）
@@ -173,6 +173,7 @@ Unit 1 (恢复文件) ──→ Unit 2 (修复引用) ──→ Unit 4 (重命�
   - 行 86（skills/）→ ~/.claude/skills/（全局路径，非 docs/）
   - 其余 9 处 → docs/ 对应路径
 - README 两个文件结构对称，引用位置相同，并行处理
+- **README 目录树特殊处理：** README.md:106 和 README.en.md:106 的 `workspace-agents/` 行是目录结构展示，不是路径引用。workspace-agents/ 被 git rm 后此行应删除（docs/ 行已存在于树中）。删除后检查相邻行缩进连贯性。
 - 替换完成后 grep 验证无遗漏
 
 **要遵循的模式：**
@@ -295,3 +296,16 @@ Unit 1 (恢复文件) ──→ Unit 2 (修复引用) ──→ Unit 4 (重命�
 - **来源文档：** [docs/brainstorms/2026-04-05-doc-cleanup-and-path-normalization-requirements.md](docs/brainstorms/2026-04-05-doc-cleanup-and-path-normalization-requirements.md)
 - **审计报告：** [docs/reference/2026-04-05-document-audit-findings.md](docs/reference/2026-04-05-document-audit-findings.md)
 - **相关计划：** [docs/plans/2026-04-02-001-feat-phase1-3-ui-ux-rewrite-plan.md](docs/plans/2026-04-02-001-feat-phase1-3-ui-ux-rewrite-plan.md)（即将移入 active/）
+- **架构评审：** [docs/plans/2026-04-05-arch.md](docs/plans/2026-04-05-arch.md)
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 0 | — | — |
+| Codex Review | `/codex:rescue` | Independent 2nd opinion | 0 | — | — |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR (PLAN) | 5 issues, 1 critical gap |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+
+**UNRESOLVED:** 0 (overnight auto-decision applied to all findings)
+**VERDICT:** ENG CLEARED — 0 P0, 2 P1 已修正到计划, 1 critical gap (README 格式验证) 已记入 arch.md

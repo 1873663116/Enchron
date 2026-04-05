@@ -1,0 +1,2 @@
+{"skill":"plan-design-review","timestamp":"2026-04-04T23:28:53Z","status":"issues_open","initial_score":5,"overall_score":5,"unresolved":6,"decisions_made":5,"commit":"117c3af"}
+{"skill":"plan-eng-review","timestamp":"2026-04-05T18:00:00+08:00","status":"clean","unresolved":0,"critical_gaps":1,"issues_found":5,"mode":"FULL_REVIEW","commit":"aa0d45a"}

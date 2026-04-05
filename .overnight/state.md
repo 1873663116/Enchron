@@ -1,6 +1,6 @@
 phase: PLANNING
-last_done: "ce-plan 完成 — ExecPlan + TestPlan 产出到 docs/plans/active/，4 个实施单元，3 个推迟问题已解决"
-next: "调用 /plan-eng-review 审查实施计划，锁定架构"
+last_done: "plan-eng-review 完成 — 5 issues (0 P0, 2 P1 已修正, 2 P2 已修正, 1 critical gap 已记录), CLEARED"
+next: "对抗审查（标准档）— PLANNING 阶段退出前必做"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
