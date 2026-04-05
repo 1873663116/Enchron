@@ -18,6 +18,14 @@ struct TimelineRulerView: View {
     /// When `nil`, a sensible default is chosen based on `duration`.
     var zoomLevel: Double?
 
+    /// Called with target time when user drags on the ruler to scroll.
+    var onSeek: ((Double) -> Void)?
+
+    // MARK: - Drag State
+
+    @State private var isDragging = false
+    @State private var dragStartTime: Double = 0
+
     // MARK: - Layout
 
     private let rulerHeight: CGFloat = 40
@@ -76,6 +84,27 @@ struct TimelineRulerView: View {
                     majorInterval: intervals.major
                 )
             }
+            .contentShape(.rect)
+            .gesture(
+                DragGesture(minimumDistance: 1)
+                    .onChanged { value in
+                        if !isDragging {
+                            isDragging = true
+                            dragStartTime = currentTime
+                        }
+                        let geo = DetailedTimelineGeometry(
+                            viewportWidth: proxy.size.width,
+                            duration: duration,
+                            zoomLevel: resolvedZoom
+                        )
+                        let timeDelta = -Double(value.translation.width) * geo.secondsPerPoint
+                        let targetTime = max(0, min(duration, dragStartTime + timeDelta))
+                        onSeek?(targetTime)
+                    }
+                    .onEnded { _ in
+                        isDragging = false
+                    }
+            )
         }
         .frame(height: rulerHeight + labelAreaHeight)
     }
@@ -146,7 +175,7 @@ struct TimelineRulerView: View {
 
     private func drawPlayhead(context: inout GraphicsContext, size: CGSize) {
         let x = playheadX(in: size)
-        let color: Color = isSeeking ? .enchronTertiary : .white
+        let color: Color = (isSeeking || isDragging) ? .enchronTertiary : .white
 
         // Vertical line
         var line = Path()
