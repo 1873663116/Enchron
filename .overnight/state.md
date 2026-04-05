@@ -1,6 +1,6 @@
-phase: EXECUTING
-last_done: "P1 #1-#5 全部修复并验证 — build ✅, 284 tests ✅, commit f3aa757"
-next: "重新 ce-review 确认 P1 全部解决 → 对抗审查 → phase exit"
+phase: TESTING
+last_done: "EXECUTING phase exit — ce-review P1 revalidation (0 P0/P1) + adversarial review (3 findings all dismissed/advisory) → phase-exit-authorized"
+next: "调用 /qa 执行测试验收"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
