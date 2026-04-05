@@ -1,11 +1,11 @@
 import SwiftUI
 
-/// Player controls following the 3-tier layout from player.html:
+/// Player controls following the 2-tier layout from player.html footer:
 ///
-/// Tier 1: Info bar (back + title + format metadata)
-/// Tier 2: Seek bar (time | progress track | remaining time)
-/// Tier 3: Control bar pill (Menu | Rew | Play | Fwd | NLE toggle | Settings)
+/// Tier 1: Seek bar (current time | progress track | remaining time)
+/// Tier 2: Control bar pill (Menu | Rew | Play | Fwd | NLE toggle | Settings)
 ///
+/// Info bar (PlayerInfoBarView) lives in MainView's video ZStack overlay.
 /// Below: expandable NLE timeline panel
 public struct PlayerControlsView: View {
     @Environment(AppModel.self) private var appModel
@@ -25,21 +25,15 @@ public struct PlayerControlsView: View {
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 16) {
-            // ── Tier 1: Info bar ──
-            PlayerInfoBarView()
-                .padding(.horizontal, 28)
-
-            // ── Tier 2: Seek bar ──
+        VStack(spacing: 20) {
+            // ── Tier 1: Seek bar (above pill, no glass) ──
             seekBar
                 .padding(.horizontal, 28)
 
-            // ── Tier 3: Control bar pill ──
+            // ── Tier 2: Control bar pill (glass capsule) ──
             controlBarPill
         }
-        .padding(.vertical, 20)
         .frame(width: DesignTokens.Layout.playerControlsWidth)
-        .enchronGlassControl()
         .onHover { isHovering in
             appModel.setControlsFocused(isHovering)
         }
@@ -83,11 +77,13 @@ public struct PlayerControlsView: View {
     @ViewBuilder
     private var seekBar: some View {
         HStack(spacing: 12) {
+            // Current time (left)
             Text(
                 PlaybackTimeFormatter.clock(
                     isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)
             )
             .font(.system(size: 11, weight: .medium, design: .monospaced))
+            .monospacedDigit()
             .foregroundStyle(.secondary)
             .frame(width: 56, alignment: .trailing)
 
@@ -116,8 +112,10 @@ public struct PlayerControlsView: View {
                 "\(PlaybackTimeFormatter.clock(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)) of \(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))"
             )
 
-            Text(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))
+            // Remaining time (right, countdown with minus prefix)
+            Text(remainingTimeLabel)
                 .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .monospacedDigit()
                 .foregroundStyle(.secondary)
                 .frame(width: 56, alignment: .leading)
         }
@@ -134,6 +132,13 @@ public struct PlayerControlsView: View {
             .foregroundStyle(.orange)
             .transition(.opacity)
         }
+    }
+
+    private var remainingTimeLabel: String {
+        let duration = videoViewModel.playbackPosition.duration
+        let current = isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
+        let remaining = max(0, duration - current)
+        return "-" + PlaybackTimeFormatter.clock(remaining)
     }
 
     // MARK: - Tier 3: Control Bar Pill
@@ -155,11 +160,11 @@ public struct PlayerControlsView: View {
             }
             .buttonStyle(.plain)
             .hoverEffect(.highlight)
-            .frame(width: 60, height: 60)
+            .frame(width: 48, height: 48)
             .contentShape(.circle)
             .help("Backward 10s")
 
-            // ── Play / Pause (larger, prominent) ──
+            // ── Play / Pause (larger, gradient background per player.html) ──
             Button {
                 if videoViewModel.playbackState == .ended {
                     videoViewModel.replay()
@@ -172,12 +177,23 @@ public struct PlayerControlsView: View {
             } label: {
                 Image(systemName: playButtonIcon)
                     .font(.system(size: 32, weight: .medium))
-                    .foregroundStyle(.primary)
+                    .foregroundStyle(Color(red: 0.184, green: 0.192, blue: 0.192))
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
-            .frame(width: 72, height: 72)
+            .frame(width: 64, height: 64)
+            .background(
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.776, green: 0.776, blue: 0.780),  // #c6c6c7
+                        Color(red: 0.565, green: 0.569, blue: 0.569),  // #909191
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(.circle)
             .contentShape(.circle)
+            .hoverEffect(.highlight)
             .accessibilityLabel(playButtonAccessibilityLabel)
 
             // ── Forward 10s ──
@@ -191,7 +207,7 @@ public struct PlayerControlsView: View {
             }
             .buttonStyle(.plain)
             .hoverEffect(.highlight)
-            .frame(width: 60, height: 60)
+            .frame(width: 48, height: 48)
             .contentShape(.circle)
             .help("Forward 10s")
 
@@ -201,7 +217,9 @@ public struct PlayerControlsView: View {
             // ── Right: Settings menu (popup expands upward) ──
             rightMenu
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .enchronGlassControl()
     }
 
     // MARK: - Left Menu (Playback Options)
@@ -252,7 +270,7 @@ public struct PlayerControlsView: View {
             Image(systemName: "slider.horizontal.3")
                 .font(.title3)
                 .foregroundStyle(.secondary)
-                .frame(width: 60, height: 60)
+                .frame(width: 48, height: 48)
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
@@ -391,7 +409,7 @@ public struct PlayerControlsView: View {
             Image(systemName: "ellipsis")
                 .font(.title3)
                 .foregroundStyle(.secondary)
-                .frame(width: 60, height: 60)
+                .frame(width: 48, height: 48)
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)

@@ -92,12 +92,19 @@ public struct MainView: View {
                     }
                     .buttonStyle(PlayerControlSurfaceStyle(size: 48))
                     .padding(24)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.8)).combined(with: .offset(y: -10)),
-                        removal: .opacity.combined(with: .scale(scale: 0.8))
-                    ))
+                    .transition(.opacity)
                 }
             }
+            // Info bar overlay (top-leading) — moved from PlayerControlsView per HTML design
+            .overlay(alignment: .topLeading) {
+                if appModel.showControls && appModel.isPlaying && appModel.playbackMode == .window {
+                    PlayerInfoBarView()
+                        .padding(.horizontal, 28)
+                        .padding(.top, 20)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.4), value: appModel.showControls)
             .opacity(isWindowPlaybackActive ? 1 : 0)
             .scaleEffect(isWindowPlaybackActive ? 1.0 : 0.98)
             .blur(radius: isWindowPlaybackActive ? 0 : 4)

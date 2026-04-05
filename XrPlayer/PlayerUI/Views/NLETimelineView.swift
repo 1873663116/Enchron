@@ -166,8 +166,8 @@ struct NLETimelineToggleButton: View {
             Image(systemName: isExpanded ? "timeline.selection" : "timeline.selection")
                 .font(.title3)
                 .foregroundStyle(isExpanded ? Color.enchronTertiary : .primary)
-                .frame(minWidth: 60, minHeight: 60)
-                .contentShape(.rect)
+                .frame(width: 48, height: 48)
+                .contentShape(.circle)
         }
         .buttonStyle(.automatic)
         .help(isExpanded ? "Collapse Timeline" : "Expand Timeline")
