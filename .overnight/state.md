@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 1 完成 — 恢复 3 根目录文件 + 迁移 4 workspace-agents 文件到 docs/"
-next: "Unit 2：修复全部 workspace-agents/ 断裂引用"
+last_done: "Unit 2 完成 — 修复 8 文件 37 处 workspace-agents/ 断裂引用"
+next: "Unit 3：结构规范化 — 目录重组与 git 清理"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
