@@ -27,6 +27,7 @@ struct NLETimelineView: View {
 
     // MARK: - State
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomLevel: Double?
 
     // MARK: - Layout constants
@@ -58,8 +59,24 @@ struct NLETimelineView: View {
                 style: .continuous
             )
         )
-        .animation(.spring(), value: isExpanded)
+        .animation(reduceMotion ? .easeInOut : .spring(), value: isExpanded)
         .gesture(zoomGesture)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Timeline")
+        .accessibilityAction(named: "Seek Forward") {
+            let target = min(duration, currentTime + 10)
+            onSeek?(target)
+        }
+        .accessibilityAction(named: "Seek Backward") {
+            let target = max(0, currentTime - 10)
+            onSeek?(target)
+        }
+        .accessibilityAction(named: "Next Frame") {
+            onFrameStepForward?()
+        }
+        .accessibilityAction(named: "Previous Frame") {
+            onFrameStepBackward?()
+        }
     }
 
     // MARK: - Timeline Content
@@ -99,8 +116,10 @@ struct NLETimelineView: View {
                     .foregroundStyle(Color.enchronOnSurface.opacity(0.7))
             }
             .buttonStyle(.plain)
-            .frame(minWidth: 60, minHeight: 36)
+            .frame(minWidth: 60, minHeight: 60)
             .contentShape(.rect)
+            .accessibilityLabel("Previous Frame")
+            .accessibilityHint("Steps backward one frame")
 
             Spacer()
 
@@ -112,8 +131,10 @@ struct NLETimelineView: View {
                     .foregroundStyle(Color.enchronOnSurface.opacity(0.7))
             }
             .buttonStyle(.plain)
-            .frame(minWidth: 60, minHeight: 36)
+            .frame(minWidth: 60, minHeight: 60)
             .contentShape(.rect)
+            .accessibilityLabel("Next Frame")
+            .accessibilityHint("Steps forward one frame")
         }
     }
 

@@ -45,10 +45,12 @@ struct FileBrowserSidebar: View {
             Section("Sources") {
                 localStorageRow
                     .tag(SidebarItem.local)
+                    .accessibilitySortPriority(1000)
 
-                ForEach(viewModel.savedDataSources) { ds in
+                ForEach(Array(viewModel.savedDataSources.enumerated()), id: \.element.id) { index, ds in
                     remoteSourceRow(ds)
                         .tag(SidebarItem.remote(ds.id))
+                        .accessibilitySortPriority(Double(999 - index))
                 }
                 .onDelete { offsets in
                     let idsToRemove = offsets.map { viewModel.savedDataSources[$0].id }

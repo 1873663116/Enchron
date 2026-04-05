@@ -9,6 +9,8 @@ struct VideoCardView: View {
     let watchedSeconds: Double?
     let onTap: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     private let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useAll]
@@ -25,7 +27,7 @@ struct VideoCardView: View {
         }
         .buttonStyle(.plain)
         .contentShape(.rect(cornerRadius: DesignTokens.Radius.card))
-        .hoverEffect(.lift)
+        .hoverEffect(reduceMotion ? .highlight : .lift)
         .accessibilityLabel(accessibilityText)
         .accessibilityHint("Opens video details")
     }
@@ -156,11 +158,16 @@ struct VideoCardView: View {
     }
 
     private var accessibilityText: String {
-        var label = file.name
-        if let seconds = watchedSeconds, seconds > 0 {
-            label += ", watched \(Self.formatTime(seconds))"
+        var parts = ["Video: \(file.name)"]
+        parts.append(byteFormatter.string(fromByteCount: file.sizeInBytes))
+        parts.append(file.fileExtension.uppercased())
+        if let badge = formatBadgeText {
+            parts.append(badge)
         }
-        return label
+        if let seconds = watchedSeconds, seconds > 0 {
+            parts.append("watched \(Self.formatTime(seconds))")
+        }
+        return parts.joined(separator: ", ")
     }
 
     private static func formatTime(_ totalSeconds: Double) -> String {

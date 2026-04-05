@@ -823,7 +823,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ### Phase F: Accessibility & Animation (Cross-cutting)
 
-- [ ] **Unit 17: Accessibility Pass (R32, R33, R34, R35, R35a, R35b)**
+- [x] **Unit 17: Accessibility Pass (R32, R33, R34, R35, R35a, R35b)**
 
   **Goal:** Ensure all new and modified views meet visionOS accessibility requirements
 

@@ -32,6 +32,8 @@ struct BreadcrumbView: View {
                             .lineLimit(1)
                     }
                     .buttonStyle(.plain)
+                    .frame(minHeight: 60)
+                    .contentShape(.rect)
                     .disabled(isLast)
                     .accessibilityLabel(isLast ? "\(segment.name), current folder" : segment.name)
                     .accessibilityHint(isLast ? "" : "Navigates to \(segment.name)")

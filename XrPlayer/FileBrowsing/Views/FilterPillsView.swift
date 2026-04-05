@@ -28,6 +28,8 @@ struct FilterPillsView: View {
                             .foregroundStyle(isActive ? Color.enchronOnTertiary : .secondary)
                     }
                     .buttonStyle(.plain)
+                    .frame(minHeight: 60)
+                    .contentShape(.rect)
                     .accessibilityLabel("\(filter.displayName) filter")
                     .accessibilityAddTraits(isActive ? .isSelected : [])
                 }
