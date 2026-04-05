@@ -1,6 +1,6 @@
-phase: EXECUTING
-last_done: "Unit 4 完成 — DESIGN-TO-SWIFTUI → design-to-swiftui + 日期目录重命名 + 8 处引用更新"
-next: "ce-review — 全部 4 个 Unit 完成，进入代码审查"
+phase: TESTING
+last_done: "ce-review + adversarial review 通过，5 个 P1 全部修复，phase-exit-authorized"
+next: "/qa — 运行 TestPlan 全部验收标准 + 端到端验证"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
