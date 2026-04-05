@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html class="dark" lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Enchron — The Spatial Finder (Variant A)</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "surface": "#131313",
+        "surface-container-lowest": "#0e0e0e",
+        "surface-container-low": "#1c1b1b",
+        "surface-container": "#20201f",
+        "surface-container-high": "#2a2a2a",
+        "surface-container-highest": "#353535",
+        "surface-variant": "#353535",
+        "on-surface": "#e5e2e1",
+        "on-surface-variant": "#c1c6d7",
+        "tertiary": "#adc6ff",
+        "on-tertiary": "#002e6a",
+        "primary": "#c6c6c7",
+        "on-primary": "#2f3131",
+        "outline-variant": "#414755",
+        "secondary-container": "#454747",
+      },
+      borderRadius: {
+        DEFAULT: "1rem",
+        lg: "2rem",
+        xl: "3rem",
+        full: "9999px",
+      },
+    },
+  },
+}
+</script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    background-color: #131313;
+    overflow: hidden;
+    margin: 0;
+    padding: 0;
+  }
+  .material-symbols-outlined {
+    font-variation-settings: 'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24;
+    font-size: 24px;
+  }
+
+  /* Glass surfaces */
+  .glass-panel {
+    background: rgba(28, 27, 27, 0.6);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+  }
+  .glass-nav {
+    background: rgba(14, 14, 14, 0.7);
+    backdrop-filter: blur(40px);
+    -webkit-backdrop-filter: blur(40px);
+  }
+  .glass-search {
+    background: rgba(53, 53, 53, 0.4);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  /* Ghost border utility */
+  .ghost-border {
+    border: 0.5px solid rgba(65, 71, 85, 0.2);
+  }
+
+  /* No scrollbar */
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+  /* Active nav glow */
+  .nav-active-glow {
+    filter: drop-shadow(0 0 8px rgba(173, 198, 255, 0.4));
+  }
+
+  /* Card hover */
+  .video-card {
+    transition: transform 0.25s cubic-bezier(0.2, 0, 0, 1);
+  }
+  .video-card:hover {
+    transform: scale(1.02);
+  }
+
+  /* Sidebar item active state */
+  .sidebar-item-active {
+    background: rgba(173, 198, 255, 0.1);
+  }
+
+  /* Sort button active */
+  .sort-active {
+    color: #e5e2e1;
+  }
+
+  /* Breadcrumb hover */
+  .breadcrumb-segment:hover {
+    color: #e5e2e1;
+  }
+</style>
+</head>
+<body class="text-on-surface h-screen w-screen selection:bg-tertiary selection:text-on-tertiary">
+
+<!-- ============================================================ -->
+<!-- ATMOSPHERIC BACKGROUND                                        -->
+<!-- ============================================================ -->
+<div class="fixed inset-0 z-0">
+  <div class="absolute inset-0 bg-[#131313]"></div>
+  <div class="absolute top-[-10%] left-[-5%] w-[45%] h-[50%] rounded-full bg-tertiary/5 blur-[120px]"></div>
+  <div class="absolute bottom-[-8%] right-[-5%] w-[40%] h-[45%] rounded-full bg-primary/3 blur-[100px]"></div>
+</div>
+
+<!-- ============================================================ -->
+<!-- LAYOUT: NAV ORNAMENT + MAIN WINDOW                            -->
+<!-- ============================================================ -->
+<div class="relative z-10 h-screen w-screen flex items-center" style="padding: 32px 48px 32px 24px;">
+
+  <!-- ======================================================== -->
+  <!-- 1. NAVIGATION ORNAMENT (separate floating pill)           -->
+  <!-- ======================================================== -->
+  <nav class="glass-nav ghost-border flex-shrink-0 flex flex-col items-center py-6 rounded-[3rem] self-center"
+       style="width: 72px; margin-right: 16px;">
+
+    <!-- Browse (ACTIVE) -->
+    <button class="w-11 h-11 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors mb-1"
+            title="Browse">
+      <span class="material-symbols-outlined text-tertiary nav-active-glow" style="font-size: 22px;">folder_open</span>
+    </button>
+
+    <!-- Recent -->
+    <button class="w-11 h-11 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors mb-1"
+            title="Recent">
+      <span class="material-symbols-outlined text-on-surface-variant/50" style="font-size: 22px; opacity: 0.5;">schedule</span>
+    </button>
+
+    <!-- Settings -->
+    <button class="w-11 h-11 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors"
+            title="Settings">
+      <span class="material-symbols-outlined text-on-surface-variant/50" style="font-size: 22px; opacity: 0.5;">tune</span>
+    </button>
+
+    <!-- Separator -->
+    <div class="w-8 my-3" style="height: 0.5px; background: rgba(255,255,255,0.05);"></div>
+
+    <!-- Scene Selector -->
+    <button class="w-11 h-11 rounded-full flex items-center justify-center transition-colors"
+            style="background: rgba(42, 42, 42, 0.5);"
+            title="Scene Selector">
+      <span class="material-symbols-outlined text-on-surface-variant" style="font-size: 20px; opacity: 0.7;">public</span>
+    </button>
+  </nav>
+
+  <!-- ======================================================== -->
+  <!-- 2. MAIN WINDOW (file browser)                             -->
+  <!-- ======================================================== -->
+  <div class="glass-panel ghost-border rounded-xl flex-1 h-full flex flex-col overflow-hidden" style="border-radius: 3rem;">
+
+    <!-- ===================================================== -->
+    <!-- 2a. TOP BAR                                            -->
+    <!-- ===================================================== -->
+    <div class="flex-shrink-0 px-8 pt-7 pb-0">
+      <!-- Top row: Breadcrumbs + Search -->
+      <div class="flex items-center justify-between mb-4">
+        <!-- Breadcrumbs -->
+        <div class="flex items-center gap-1.5 text-xs uppercase tracking-widest text-on-surface-variant">
+          <button class="breadcrumb-segment transition-colors cursor-pointer hover:text-on-surface">NAS-01</button>
+          <span class="opacity-30 mx-0.5">/</span>
+          <button class="breadcrumb-segment transition-colors cursor-pointer hover:text-on-surface">Movies</button>
+          <span class="opacity-30 mx-0.5">/</span>
+          <span class="text-on-surface font-semibold">Sci-Fi</span>
+        </div>
+
+        <!-- Search -->
+        <div class="relative group">
+          <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-on-surface-variant/40 group-focus-within:text-tertiary transition-colors" style="font-size: 18px;">search</span>
+          <input class="glass-search border-none rounded-full py-2 pl-10 pr-5 w-72 text-xs text-on-surface focus:outline-none focus:ring-1 focus:ring-tertiary/30 transition-all placeholder:text-on-surface-variant/40"
+                 placeholder="Search files..." type="text"/>
+        </div>
+      </div>
+
+      <!-- Sort / View controls -->
+      <div class="flex items-center justify-between pb-5" style="border-bottom: 0.5px solid rgba(65, 71, 85, 0.12);">
+        <div class="flex items-center gap-4">
+          <button class="text-[10px] uppercase tracking-widest font-semibold sort-active flex items-center gap-0.5 transition-colors">
+            Name
+            <span class="material-symbols-outlined" style="font-size: 14px;">unfold_more</span>
+          </button>
+          <button class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 hover:text-on-surface-variant transition-colors">Date</button>
+          <button class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 hover:text-on-surface-variant transition-colors">Size</button>
+        </div>
+        <div class="flex items-center gap-1">
+          <button class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors" title="Grid view">
+            <span class="material-symbols-outlined text-on-surface" style="font-size: 18px;">grid_view</span>
+          </button>
+          <button class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-white/5 transition-colors" title="List view">
+            <span class="material-symbols-outlined text-on-surface-variant/40" style="font-size: 18px;">view_list</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- BODY: SIDEBAR + CONTENT                                -->
+    <!-- ===================================================== -->
+    <div class="flex flex-1 overflow-hidden">
+
+      <!-- ================================================== -->
+      <!-- 2b. LEFT SIDEBAR                                    -->
+      <!-- ================================================== -->
+      <aside class="flex-shrink-0 overflow-y-auto no-scrollbar py-5 px-4" style="width: 210px;">
+
+        <!-- SOURCES -->
+        <div class="mb-6">
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold px-4 mb-3">Sources</p>
+
+          <!-- Local Storage -->
+          <button class="w-full flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-white/5 transition-colors group">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-size: 20px;">hard_drive</span>
+            <span class="text-sm text-on-surface-variant group-hover:text-on-surface transition-colors flex-1 text-left truncate">Local Storage</span>
+            <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" style="box-shadow: 0 0 6px rgba(16,185,129,0.6);"></span>
+          </button>
+
+          <!-- NAS-01 (ACTIVE) -->
+          <button class="w-full flex items-center gap-3 py-3 px-4 rounded-lg sidebar-item-active transition-colors group">
+            <span class="material-symbols-outlined text-tertiary" style="font-size: 20px;">dns</span>
+            <span class="text-sm text-tertiary font-semibold flex-1 text-left truncate">NAS-01 (SMB)</span>
+            <span class="w-2 h-2 rounded-full bg-emerald-500 flex-shrink-0" style="box-shadow: 0 0 6px rgba(16,185,129,0.6);"></span>
+          </button>
+
+          <!-- WebDAV Server (offline) -->
+          <button class="w-full flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-white/5 transition-colors group" style="opacity: 0.5;">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-size: 20px;">cloud</span>
+            <span class="text-sm text-on-surface-variant flex-1 text-left truncate">WebDAV Server</span>
+            <span class="w-2 h-2 rounded-full bg-neutral-500 flex-shrink-0"></span>
+          </button>
+        </div>
+
+        <!-- FAVORITES -->
+        <div>
+          <p class="text-[10px] uppercase tracking-widest text-on-surface-variant/50 font-semibold px-4 mb-3">Favorites</p>
+          <button class="w-full flex items-center gap-3 py-3 px-4 rounded-lg hover:bg-white/5 transition-colors group">
+            <span class="material-symbols-outlined text-on-surface-variant" style="font-size: 20px;">star</span>
+            <span class="text-sm text-on-surface-variant group-hover:text-on-surface transition-colors flex-1 text-left truncate">Starred Videos</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- ================================================== -->
+      <!-- Subtle vertical divider between sidebar and content -->
+      <!-- ================================================== -->
+      <div class="flex-shrink-0" style="width: 0.5px; background: rgba(65, 71, 85, 0.12);"></div>
+
+      <!-- ================================================== -->
+      <!-- 2c. CONTENT AREA (video grid)                       -->
+      <!-- ================================================== -->
+      <section class="flex-1 overflow-y-auto no-scrollbar p-6 pb-10">
+        <div class="grid grid-cols-4 gap-5">
+
+          <!-- Card 1 -->
+          <div class="video-card group flex flex-col gap-3 cursor-pointer">
+            <div class="aspect-video rounded-lg overflow-hidden relative bg-gradient-to-br from-indigo-900 to-slate-800">
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white/10" style="font-size: 48px;">movie</span>
+              </div>
+              <div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white/90 font-medium">2:14:30</div>
+            </div>
+            <div class="px-0.5">
+              <h3 class="text-sm font-semibold text-on-surface truncate">Blade Runner 2049</h3>
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">4K · 42.1 GB · 2 days ago</p>
+            </div>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="video-card group flex flex-col gap-3 cursor-pointer">
+            <div class="aspect-video rounded-lg overflow-hidden relative bg-gradient-to-br from-emerald-900 to-slate-800">
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white/10" style="font-size: 48px;">movie</span>
+              </div>
+              <div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white/90 font-medium">2:28:00</div>
+            </div>
+            <div class="px-0.5">
+              <h3 class="text-sm font-semibold text-on-surface truncate">Interstellar</h3>
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">4K HDR · 58.3 GB · 5 days ago</p>
+            </div>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="video-card group flex flex-col gap-3 cursor-pointer">
+            <div class="aspect-video rounded-lg overflow-hidden relative bg-gradient-to-br from-amber-900 to-slate-800">
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white/10" style="font-size: 48px;">movie</span>
+              </div>
+              <div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white/90 font-medium">2:43:15</div>
+            </div>
+            <div class="px-0.5">
+              <h3 class="text-sm font-semibold text-on-surface truncate">Dune: Part Two</h3>
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">4K · 51.7 GB · 1 week ago</p>
+            </div>
+          </div>
+
+          <!-- Card 4 -->
+          <div class="video-card group flex flex-col gap-3 cursor-pointer">
+            <div class="aspect-video rounded-lg overflow-hidden relative bg-gradient-to-br from-rose-900 to-slate-800">
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white/10" style="font-size: 48px;">movie</span>
+              </div>
+              <div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white/90 font-medium">1:49:22</div>
+            </div>
+            <div class="px-0.5">
+              <h3 class="text-sm font-semibold text-on-surface truncate">Ex Machina</h3>
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">1080p · 8.4 GB · 1 week ago</p>
+            </div>
+          </div>
+
+          <!-- Card 5 -->
+          <div class="video-card group flex flex-col gap-3 cursor-pointer">
+            <div class="aspect-video rounded-lg overflow-hidden relative bg-gradient-to-br from-cyan-900 to-slate-800">
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white/10" style="font-size: 48px;">movie</span>
+              </div>
+              <div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white/90 font-medium">2:16:40</div>
+            </div>
+            <div class="px-0.5">
+              <h3 class="text-sm font-semibold text-on-surface truncate">Arrival</h3>
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">4K HDR · 44.2 GB · 2 weeks ago</p>
+            </div>
+          </div>
+
+          <!-- Card 6 -->
+          <div class="video-card group flex flex-col gap-3 cursor-pointer">
+            <div class="aspect-video rounded-lg overflow-hidden relative bg-gradient-to-br from-violet-900 to-slate-800">
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white/10" style="font-size: 48px;">movie</span>
+              </div>
+              <div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white/90 font-medium">2:29:10</div>
+            </div>
+            <div class="px-0.5">
+              <h3 class="text-sm font-semibold text-on-surface truncate">The Matrix Resurrections</h3>
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">4K · 48.9 GB · 3 weeks ago</p>
+            </div>
+          </div>
+
+          <!-- Card 7 -->
+          <div class="video-card group flex flex-col gap-3 cursor-pointer">
+            <div class="aspect-video rounded-lg overflow-hidden relative bg-gradient-to-br from-teal-900 to-slate-800">
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white/10" style="font-size: 48px;">movie</span>
+              </div>
+              <div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white/90 font-medium">1:55:48</div>
+            </div>
+            <div class="px-0.5">
+              <h3 class="text-sm font-semibold text-on-surface truncate">Annihilation</h3>
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">4K · 36.1 GB · 1 month ago</p>
+            </div>
+          </div>
+
+          <!-- Card 8 -->
+          <div class="video-card group flex flex-col gap-3 cursor-pointer">
+            <div class="aspect-video rounded-lg overflow-hidden relative bg-gradient-to-br from-orange-900 to-slate-800">
+              <div class="absolute inset-0 flex items-center justify-center">
+                <span class="material-symbols-outlined text-white/10" style="font-size: 48px;">movie</span>
+              </div>
+              <div class="absolute bottom-2 right-2 bg-black/50 backdrop-blur px-2 py-0.5 rounded text-[10px] text-white/90 font-medium">2:01:33</div>
+            </div>
+            <div class="px-0.5">
+              <h3 class="text-sm font-semibold text-on-surface truncate">Edge of Tomorrow</h3>
+              <p class="text-[10px] uppercase tracking-widest text-on-surface-variant mt-1">4K · 39.5 GB · 1 month ago</p>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>
