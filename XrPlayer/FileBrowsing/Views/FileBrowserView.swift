@@ -170,24 +170,8 @@ public struct FileBrowserView: View {
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
             }
 
-            if viewModel.canNavigateUp {
-                HStack {
-                    Button {
-                        Task {
-                            await viewModel.navigateUp()
-                        }
-                    } label: {
-                        Label("Up", systemImage: "chevron.up")
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-
-                    Spacer()
-                }
-                .padding(.horizontal)
-                .padding(.top, 8)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            }
+            BreadcrumbView()
+            FilterPillsView()
 
             FolderListView(
                 folders: viewModel.folders,
@@ -209,13 +193,6 @@ public struct FileBrowserView: View {
         }
         .navigationTitle("Files")
         .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                Text(viewModel.currentRootDisplayName)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Section("Sort By") {

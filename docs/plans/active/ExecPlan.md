@@ -463,7 +463,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 8: Breadcrumb Navigation & Filter Pills (R13, R14)**
+- [x] **Unit 8: Breadcrumb Navigation & Filter Pills (R13, R14)**
 
   **Goal:** Add path breadcrumb and content filter controls above the grid
 
