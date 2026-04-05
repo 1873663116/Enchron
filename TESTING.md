@@ -18,7 +18,7 @@
 | 单元测试 | `swift test` | 仓库根目录 | 任何 failure |
 | 架构守卫 | `swiftlint lint` | 仓库根目录 | error 级别违规 |
 | WORKAROUND 规范 | `scripts/check-workaround.sh XrPlayer/` | 仓库根目录 | 任何未标注移除条件的 WORKAROUND |
-| 契约验证 | 核对 `workspace-agents/contracts/` 是否与本次实现一致 | 仓库根目录 | 契约文档、OpenAPI 参考或 examples 与实现失配（仅在涉及远程数据流时） |
+| 契约验证 | 核对 `docs/contracts/` 是否与本次实现一致 | 仓库根目录 | 契约文档、OpenAPI 参考或 examples 与实现失配（仅在涉及远程数据流时） |
 | 回归关联 | 匹配 `git diff --name-only` vs REGRESSION.md 代码路径映射索引 | — | 产出人类验证清单 |
 
 
@@ -120,7 +120,7 @@ visionOS 的 UI 流畅度、视觉效果、真机交互无法通过自动化测�
 | Domain 层 import 限制 | SwiftLint `domain_no_ui_framework` | 每次编译 | G17 |
 | Domain 层禁 try! | SwiftLint `no_force_try_in_domain` | 每次编译 | G17 |
 | WORKAROUND 注释规范 | `scripts/check-workaround.sh` | 手动/CI | G18 |
-| OpenAPI / 契约一致性 | 手动核对 `workspace-agents/contracts/` | 手动/CI | G13 |
+| OpenAPI / 契约一致性 | 手动核对 `docs/contracts/` | 手动/CI | G13 |
 
 
 ### 顶层：真机验证

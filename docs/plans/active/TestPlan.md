@@ -20,12 +20,13 @@ grep -rn "workspace-agents" --include="*.md" . \
   | grep -v ".overnight/log.md" \
   | grep -v "docs/brainstorms/" \
   | grep -v "docs/plans/active/" \
-  | grep -v ".overnight/supervisor-prompt.md"
+  | grep -v ".overnight/supervisor-prompt.md" \
+  | grep -v "docs/plans/2026-04-05-arch.md"
 ```
 
 **期望结果：** 0 行输出
 
-**排除说明：** docs/archive/（归档保留原文）、docs/reference/（审计报告）、.overnight/log.md（历史日志）、docs/brainstorms/（需求文档本身）、docs/plans/active/（计划文档自身引用旧路径作为问题描述）、.overnight/supervisor-prompt.md（场景描述性文字非路径引用）不在修复范围内。
+**排除说明：** docs/archive/（归档保留原文）、docs/reference/（审计报告）、.overnight/log.md（历史日志）、docs/brainstorms/（需求文档本身）、docs/plans/active/（计划文档自身引用旧路径作为问题描述）、.overnight/supervisor-prompt.md（场景描述性文字非路径引用）、docs/plans/2026-04-05-arch.md（PLANNING 阶段架构评审报告，描述旧状态非路径引用）不在修复范围内。
 
 ---
 
