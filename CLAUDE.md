@@ -4,7 +4,7 @@
 技术栈：Swift 6 / SwiftUI / RealityKit / ARKit / Metal / mpv / SMB / WebDAV
 
 Enchron 的目标是 Apple 平台原生品质——高质量的窗口播放、低学习成本、强沉浸感的full space
-详见 `workspace-agents/product_philosophy.md`
+详见 `docs/product_philosophy.md`
 
 ---
 
@@ -40,7 +40,7 @@ XrPlayer/
 4. 产出三件交付物：自检报告、人类验证清单、回归集更新
 
 ### 改动模块接口时
-1. 先更新 `workspace-agents/contracts/`
+1. 先更新 `docs/contracts/`
 2. 先更新 ARCHITECTURE.md 的对应 Architecture Invariants
 3. 再改代码
 4. 对照是否一致
@@ -68,14 +68,13 @@ XrPlayer/
 | **TESTING.md**                                  | 双轨验证体系、agent 自检命令、人类验证清单格式             | 改动代码后验证时          |
 | **QUALITY_SCORE.md**                            | 各领域当前质量评分、差距                           | 评估改动优先级时          |
 | **REGRESSION.md**                               | 代码路径 → 回归项映射、回归集维护规则                   | 改动代码前后（必读）        |
-| `workspace-agents/product_philosophy.md`        | 产品灵魂、三种播放模式的体验愿景                       | 做设计决策时            |
-| `workspace-agents/Requirements.md`              | 功能范围、验收边界、里程碑                          | 接新需求、判断功能是否越界     |
-| `workspace-agents/quality_gates.md`             | 一个改动怎样才算"可接受"                          | 提交代码前自查           |
-| `workspace-agents/known_issues.md`              | 当前最痛的偏差、证据、根因分析                        | 修 bug 前了解上下文      |
-| `workspace-agents/ubiquitous_language.md`       | 项目统一术语表                                | 命名类、方法、变量时        |
-| `workspace-agents/contracts/frontend-backend-contract.md` | 前后端职责边界、协作规则                           | 涉及远程数据流时          |
-| `workspace-agents/design_docs/`                 | DDD 建模细节、完整接口签名（参考归档）                  | 需要深入设计背景时         |
-| `workspace-agents/contracts/`                   | 契约规范 + OpenAPI 参考 + Mock 数据                 | 改远程数据模型、接口或协作边界时 |
+| `docs/product_philosophy.md`                    | 产品灵魂、三种播放模式的体验愿景                       | 做设计决策时            |
+| `docs/Requirements.md`                          | 功能范围、验收边界、里程碑                          | 接新需求、判断功能是否越界     |
+| `docs/quality_gates.md`                         | 一个改动怎样才算"可接受"                          | 提交代码前自查           |
+| `docs/ubiquitous_language.md`                   | 项目统一术语表                                | 命名类、方法、变量时        |
+| `docs/contracts/frontend-backend-contract.md`   | 前后端职责边界、协作规则                           | 涉及远程数据流时          |
+| `docs/design_docs/`                             | DDD 建模细节、完整接口签名（参考归档）                  | 需要深入设计背景时         |
+| `docs/contracts/`                               | 契约规范 + OpenAPI 参考 + Mock 数据                 | 改远程数据模型、接口或协作边界时 |
 
 文档优先级（冲突时）：product_philosophy > Requirements > quality_gates > ARCHITECTURE > 其余。
 
@@ -83,7 +82,7 @@ XrPlayer/
 
 ## 技术 Skill
 
-`workspace-agents/skills/` 包含领域专用 skill。遇到领域问题时按需调用，不凭记忆推断。
+`~/.claude/skills/` 包含领域专用 skill。遇到领域问题时按需调用，不凭记忆推断。
 
 | 领域 | Skill |
 |------|-------|

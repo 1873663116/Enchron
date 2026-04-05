@@ -489,10 +489,9 @@ Proposed: UnifiedTimelineView (always visible, combines slider + precision featu
 ## Sources & References
 
 - Architecture: `ARCHITECTURE.md`
-- Interface contracts: `workspace-agents/design_docs/phase3_interface_contracts.md`
-- Product philosophy: `workspace-agents/product_philosophy.md`
-- Implementation roadmap: `workspace-agents/design_docs/phase4_implementation_roadmap.md`
-- Known issues: `workspace-agents/known_issues.md`
+- Interface contracts: `docs/design_docs/phase3_interface_contracts.md`
+- Product philosophy: `docs/product_philosophy.md`
+- Implementation roadmap: `docs/design_docs/phase4_implementation_roadmap.md`
 - HelloWorld reference: `/Users/xiongzhipeng/Movies/HelloWorld`
 
 ## CEO Review Findings (2026-04-02)

@@ -103,13 +103,11 @@ Enchron/
     PlayerUI/           # 控件与播放交互
     Persistence/        # 偏好、进度、凭证等持久化
   Tests/                # SwiftPM 测试
-  workspace-agents/     # 产品、架构、质量门禁与技能文档
 ```
 
 ## 文档入口
 
-- 产品哲学：`workspace-agents/product_philosophy.md`
-- 功能需求：`workspace-agents/Requirements.md`
-- 已知问题：`workspace-agents/known_issues.md`
-- 质量门禁：`workspace-agents/quality_gates.md`
-- 架构设计：`workspace-agents/design_docs/`
+- 产品哲学：`docs/product_philosophy.md`
+- 功能需求：`docs/Requirements.md`
+- 质量门禁：`docs/quality_gates.md`
+- 架构设计：`docs/design_docs/`
