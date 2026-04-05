@@ -258,3 +258,33 @@ phase-exit-authorized: yes
 
 ### ce-compound
 Xcode 15+ Asset Catalog 自动符号生成与手动 Color extension 冲突 — 平台陷阱，已归纳到 `docs/solutions/build-errors/`。
+
+---
+
+## Round 7 — EXECUTING: Unit 3 AppModel Navigation State (R9) (2026-04-05)
+
+### 目标
+执行 ExecPlan Unit 3：为 AppModel 添加导航状态（NavigationTab 枚举 + selectedTab + showSceneSelector）。
+
+### 执行摘要
+
+1. **AppModel 修改**：在 `XrPlayer/AppModel.swift` 添加 `NavigationTab` 枚举（browse/recent/settings，String RawValue + CaseIterable）、`selectedTab: NavigationTab = .browse`、`showSceneSelector: Bool = false`
+2. **测试创建**：`Tests/XrPlayerCoreTests/NavigationStateTests.swift` — 5 个合约测试（SPM 无法导入 AppModel 因 SwiftUI/@Observable 依赖，延续 Unit 1/2 的合约测试模式）
+3. **验证**：SPM tests 269/269 passed + Xcode visionOS Simulator build succeeded
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| NavigationTab 放在 AppModel 内部而非独立文件 | 遵循 ExecPlan 设计 + 与 ImmersiveSpaceState 模式一致 |
+| 合约测试而非直接测试 AppModel | AppModel 依赖 SwiftUI/@Observable，无法在 SPM macOS 测试中实例化，延续已建立的合约测试模式 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| XrPlayer/AppModel.swift | 添加 NavigationTab + selectedTab + showSceneSelector |
+| Tests/XrPlayerCoreTests/NavigationStateTests.swift | 5 个合约测试 |
+
+### ce-compound
+纯附加枚举 + 属性添加，遵循已有模式，无非显而易见的技术发现，跳过。

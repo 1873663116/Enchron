@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 1: Semantic Color System (R1) 完成 — 9 Color Sets + DesignTokenTests + Xcode build 验证通过"
-next: "选取 Unit 2: Design Tokens, Typography & Glass Variants (R2, R3, R4) → 调用 /ce-work"
+last_done: "Unit 3: AppModel Navigation State (R9) 完成 — NavigationTab enum + selectedTab + showSceneSelector + 5 contract tests + build 验证通过"
+next: "选取 Unit 4: Leading Ornament Navigation (R5, R6, R7, R8) → 调用 /ce-work"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
