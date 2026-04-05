@@ -107,7 +107,7 @@ UI changes trigger these regression item groups (must be verified after relevant
 | AC-D7 | Controls reappear on interaction | Simulator: tap after hide → controls show |
 | AC-D8 | Top info bar: back button + title + format metadata | Simulator visual check |
 | AC-D9 | PlaybackMenuView.swift deleted | File does not exist |
-| AC-D10 | ScreenPositionControlView.swift deleted | File does not exist |
+| AC-D10 | ScreenPositionControlView restyled with design tokens | Visual inspection: glass + colors match system |
 | AC-D11 | Companion window appears in immersive mode | Simulator: enter immersive → verify window |
 | AC-D12 | Companion window dismissed on immersive exit | Simulator: exit immersive → verify dismissed |
 | AC-D13 | Companion window shows same controls as window mode | Visual comparison |
@@ -307,7 +307,7 @@ xcodebuild test -scheme XrPlayer -destination 'platform=visionOS Simulator'
 | No hardcoded color hex | `grep -r 'Color(red:\|UIColor(' XrPlayer/ --include='*.swift'` | 0 matches in View files |
 | No AppTabView references | `grep -r 'AppTabView' XrPlayer/ --include='*.swift'` | 0 matches |
 | PlaybackMenuView deleted | `find XrPlayer -name 'PlaybackMenuView.swift'` | 0 results |
-| ScreenPositionControlView deleted | `find XrPlayer -name 'ScreenPositionControlView.swift'` | 0 results |
+| ScreenPositionControlView restyled | `grep -r 'enchronGlass' XrPlayer/PlayerUI/Views/ScreenPositionControlView.swift` | ≥1 match (uses design tokens) |
 | Navigation state in AppModel | `grep -r 'selectedTab' XrPlayer/ --include='*.swift'` | Only in AppModel + Views reading it |
 | Gaze targets | `grep -r 'contentShape' XrPlayer/ --include='*.swift'` | Present on small interactive elements |
 | Accessibility labels | `grep -r 'accessibilityLabel' XrPlayer/ --include='*.swift'` | Present on cards + controls |
