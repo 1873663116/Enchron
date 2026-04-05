@@ -67,7 +67,12 @@ let package = Package(
                 "XrPlayer/PlayerUI/Domain/Ports/PlaybackModeManaging.swift",
                 "XrPlayer/PlayerUI/UseCases/DecidePlaybackModeUseCase.swift",
                 "XrPlayer/Persistence/Domain/ValueObjects/FileIdentifier.swift",
+                "XrPlayer/Persistence/Domain/ValueObjects/ProgressPosition.swift",
+                "XrPlayer/Persistence/Domain/Entities/PlaybackProgress.swift",
                 "XrPlayer/Persistence/Domain/Entities/SavedScreenPosition.swift",
+                "XrPlayer/Persistence/Domain/Ports/ProgressStoring.swift",
+                "XrPlayer/Persistence/Domain/Ports/ScreenPositionStoring.swift",
+                "XrPlayer/Persistence/Adapters/SwiftDataStore.swift",
                 "XrPlayer/PlayerUI/Domain/ValueObjects/PlaybackMode.swift",
                 "XrPlayer/Shared/DesignSystem/DesignTokens.swift"
             ],
