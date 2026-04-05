@@ -54,3 +54,35 @@ phase-exit-authorized: yes
 
 ---
 
+## Round 3 — PLANNING: /ce-plan (2026-04-05)
+
+### 完成事项
+1. **并行代码库调研（4 个 subagent）**
+   - Player HTML 设计稿提取：5 按钮布局、菜单方向、seek bar 规格、全部 CSS 值
+   - Browse/Detail HTML 设计稿提取：3 列网格、双栏详情页、完整颜色/间距系统
+   - Swift 源码分析：7 个关键文件的当前结构、行号、模式
+   - Solutions/Patterns 梳理：7 个 best-practices + 1 build-error + 2 architectural reframes
+
+2. **ExecPlan 产出** — 9 个执行单元，4 个阶段
+   - Phase 1 (P0): Unit 1-3 — 播放页控件布局重写 + 菜单弹出 + 按钮可交互审计
+   - Phase 2 (P1): Unit 4-6 — Hover 形状修复 + 控件动画修复 + 几何模式约束
+   - Phase 3 (P2): Unit 7-8 — 画布缩放 + NLE 时间轴修复
+   - Phase 4 (P0): Unit 9 — L1/L2 布局对齐（标注 >10 文件可能需拆分 PR）
+   - 产出：`docs/plans/active/ExecPlan.md`
+
+3. **TestPlan 产出** — 22 条需求的双轨验收标准
+   - Agent 自检：编译、结构守卫（grep 验证）、回归守卫、快照 UI
+   - 人类真机验证：8 大验证区域
+   - 产出：`docs/plans/active/TestPlan.md`
+
+### 关键决策
+- **R11 正式修订为几何约束**：ExecPlan Unit 6 实现 `allowedModes(for:)` — panoramic→全部模式，其余→[window, immersive]
+- **HTML 设计 5 按钮 vs R1 列出 7 按钮**：以 HTML 为权威，NLE toggle 移至 Settings 菜单或面板自身的切换交互
+- **showControls 未包裹 withAnimation 的位置**：MainView.swift:223 确认为遗漏，Unit 5 修复
+- **ce-compound 跳过**：本轮无新非显然技术发现，几何约束已在 Round 1 记录
+
+### 下一步
+→ /plan-eng-review 对 ExecPlan 进行工程审查
+
+---
+
