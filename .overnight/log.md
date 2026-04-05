@@ -331,3 +331,42 @@ ExecPlan 未列出 `visionos-design-mockup-to-swiftui-pipeline` 文档中的 `fi
 
 ExecPlan 全部 4 个 Unit 标记 [x]。下一轮：ce-review 审查全部变更。
 
+## Round 10 — EXECUTING (ce-review + 对抗审查 + Phase Transition → TESTING)
+
+**时间**: 2026-04-05
+**目标**: 审查全部 EXECUTING 变更，修复发现，授权阶段退出
+
+### 执行摘要
+
+1. **ce-review**（结构化审查）：
+   - 运行 6 个 AC 验证 → 5 PASS, 1 FAIL (AC1)
+   - 发现 3 个 P1：TESTING.md 断裂引用、docs/contracts/ 未追踪、docs/design_docs/ 未追踪
+   - 修复 commit `cb01302`：修复 TESTING.md + git add 未追踪的 docs/ 迁移文件 + 更新 TestPlan AC1 排除列表
+
+2. **对抗审查（标准档）**：
+   - 派遣 2 个并行 subagent：Sonnet adversarial reviewer + Sonnet data verifier
+   - Adversarial 发现 2 P1 + 3 P2 + 4 P3
+   - Data verifier 5/5 tasks PASS（CLAUDE.md 路由表、内容迁移完整性、known_issues 处理、全局引用扫描、新增文件来源）
+
+### 对抗审查发现与裁决
+
+| 发现 | 级别 | 裁决 |
+|------|------|------|
+| KI-013/KI-014 从追踪系统消失 | P1 | **必修** → 创建 docs/known_issues.md 恢复追踪 |
+| supervisor-prompt.md 超范围重写 | P1 | **接受** — 文件是 overnight 动态生成的薄引导，简化正确 |
+| CLAUDE.md:34 ExecPlan 路径断裂 | P2 | **必修** → docs/ExecPlan/ → docs/plans/active/ |
+| design_docs 引用 known_issues.md 残留 | P2 | **记录** — 迁移原始内容，不在范围 |
+| quality_gates.md 绝对路径 | P2 | **记录** — 原始内容遗留，不在范围 |
+
+修复 commit `6f63427`：创建 docs/known_issues.md + 修复 CLAUDE.md ExecPlan 路径
+
+### ce-compound
+
+写入。发现：workspace-agents → docs/ 部分迁移中，文件可能在磁盘上存在但未被 git 追踪。git rm 旧路径后，fresh clone 将缺失这些文件。迁移操作后应始终执行 `git status` 验证 docs/ 下无 `??` 未追踪文件。此外，声明"所有条目已归档解决"前应逐项验证每个 KI 的关闭状态，而非信任文件头部声明。
+
+[ADVERSARIAL-REVIEW] phase=EXECUTING tier=standard
+codex: N/A (Sonnet adversarial reviewer + Sonnet data verifier 独立审查)
+counter-review: ce-review 3 P1 + adversarial 2 P1 + 3 P2 + 4 P3，全部 P1 已修复
+verdict: P1 全部修复（2 commits），P2-B/P2-C 记录推迟，P1-B 接受
+phase-exit-authorized: yes
+
