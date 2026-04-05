@@ -426,3 +426,38 @@ Xcode 15+ Asset Catalog 自动符号生成与手动 Color extension 冲突 — �
 
 ### ce-compound
 本轮改动虽大但模式成熟：系统 Menu 替代自定义面板是 visionOS 标准实践，.sheet 呈现是对抗审查已验证的方案，.task(id:) auto-hide 是 SwiftUI 惯用模式。无非显而易见的平台陷阱或技术发现，跳过。
+
+---
+
+## Round 15 — EXECUTING: Unit 13 Immersive Mode Companion Window (R21) (2026-04-05)
+
+### 目标
+执行 ExecPlan Unit 13：为沉浸模式播放添加独立 Companion WindowGroup，复用 PlayerControlsView。
+
+### 执行摘要
+
+1. **XrPlayerApp.swift**：添加 `WindowGroup(id: "playerControls")` — 注入全部 5 个环境对象（AppModel, WindowVideoViewModel, FileBrowsingViewModel, PlaybackLaunchCoordinator, PanoramaLayerBridge），`.defaultSize(width: 600, height: 200)`
+2. **MainView.swift**：
+   - 添加 `@Environment(\.openWindow)` 和 `@Environment(\.dismissWindow)`
+   - 底部 ornament 条件增加 `&& appModel.playbackMode == .window`（仅窗口模式显示）
+   - 添加单条件生命周期管理：`.onChange(of: appModel.playbackMode != .window && appModel.isPlaying)` — 切换为 true 时 `openWindow(id: "playerControls")`，false 时 `dismissWindow(id: "playerControls")`
+3. **验证**：visionOS Simulator build succeeded + SPM tests 284/284 passed
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| 单 `.onChange(of:)` 复合 Bool 条件替代双独立观察者 | ExecPlan 明确：双 onChange 观察者会产生 open/dismiss 竞争（R4 对抗审查 F6 已验证） |
+| WindowGroup 而非 Window | 遵循现有 `WindowGroup(id: "settings")` 模式，visionOS 上 Window 不可用 |
+| ornament 增加 playbackMode == .window 条件 | 沉浸模式下由 companion window 承接控件，ornament 不应同时显示 |
+| 不添加 .windowStyle(.plain) | ExecPlan 未指定，遵循保守原则与现有 settings WindowGroup 一致 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| XrPlayer/XrPlayerApp.swift | 修改 — 添加 `WindowGroup(id: "playerControls")` |
+| XrPlayer/MainView.swift | 修改 — openWindow/dismissWindow 环境 + 生命周期 onChange + ornament 条件收窄 |
+
+### ce-compound
+标准 SwiftUI WindowGroup + openWindow/dismissWindow 生命周期管理模式。单条件 onChange 避免竞争是已知最佳实践（R4 对抗审查已验证）。无非显而易见的技术发现，跳过。
