@@ -11,6 +11,7 @@ public final class FileBrowsingViewModel {
     public var sortCriteria: FileBrowsingDomain.SortCriteria = .nameAscending {
         didSet { applySortToFiles() }
     }
+    public var activeFilters: Set<FileBrowsingDomain.ContentFilter> = [.all]
     public private(set) var currentRootDisplayName: String = "Documents"
     public private(set) var currentRemotePath: String = "/"
     public private(set) var canNavigateUp: Bool = false
@@ -331,6 +332,81 @@ public final class FileBrowsingViewModel {
             currentRootDisplayName = name.removingPercentEncoding ?? name
         }
         await loadFiles()
+    }
+
+    // MARK: - Breadcrumb Path
+
+    /// Path segments for breadcrumb navigation.
+    /// Each segment is (displayName, stackIndex) where tapping navigates to that level.
+    public var breadcrumbSegments: [(name: String, index: Int)] {
+        guard !remotePathStack.isEmpty else {
+            // At root with no navigation history
+            return [(currentRootDisplayName, 0)]
+        }
+
+        var segments: [(name: String, index: Int)] = []
+
+        // Root segment (data source name or local folder name)
+        let rootName: String
+        if let ds = activeDataSource {
+            rootName = ds.name
+        } else {
+            let name = rootURL.lastPathComponent
+            rootName = name.isEmpty ? rootURL.path : name
+        }
+        segments.append((rootName, 0))
+
+        // Intermediate and current segments from path stack (skip index 0 = root)
+        for i in 1..<remotePathStack.count {
+            let path = remotePathStack[i]
+            let name = (path as NSString).lastPathComponent
+            segments.append((name.removingPercentEncoding ?? name, i))
+        }
+
+        return segments
+    }
+
+    /// Navigate to a specific breadcrumb level by stack index.
+    public func navigateToBreadcrumb(index: Int) async {
+        guard index >= 0, index < remotePathStack.count else { return }
+        // Pop all entries after the target index
+        remotePathStack = Array(remotePathStack.prefix(index + 1))
+        let targetPath = remotePathStack.last ?? "/"
+        currentRemotePath = targetPath
+        canNavigateUp = remotePathStack.count > 1
+
+        if let ds = activeDataSource, index == 0 {
+            currentRootDisplayName = ds.name
+        } else if activeRemoteAdapter == nil, index == 0 {
+            let name = rootURL.lastPathComponent
+            currentRootDisplayName = name.isEmpty ? rootURL.path : name
+        } else {
+            let name = (targetPath as NSString).lastPathComponent
+            currentRootDisplayName = name.removingPercentEncoding ?? name
+        }
+        await loadFiles()
+    }
+
+    // MARK: - Content Filters
+
+    /// Toggle a content filter. "All" clears other filters; selecting a specific
+    /// filter clears "All". Deselecting all reverts to "All".
+    public func toggleFilter(_ filter: FileBrowsingDomain.ContentFilter) {
+        if filter == .all {
+            activeFilters = [.all]
+        } else {
+            activeFilters.remove(.all)
+            if activeFilters.contains(filter) {
+                activeFilters.remove(filter)
+            } else {
+                activeFilters.insert(filter)
+            }
+            if activeFilters.isEmpty {
+                activeFilters = [.all]
+            }
+        }
+        // TODO: Wire to MediaProfile when available — currently MediaFile lacks
+        // resolution/HDR/spatial attributes, so non-All filters are visual-only.
     }
 
     public func selectLocalFolder(_ folderURL: URL) async {
