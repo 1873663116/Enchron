@@ -32,6 +32,16 @@ public struct PlayerControlsView: View {
 
             // ── Tier 2: Control bar pill (glass capsule) ──
             controlBarPill
+
+            // ── NLE Timeline panel (expands below pill) ──
+            NLETimelineView(
+                isExpanded: $isTimelineExpanded,
+                currentTime: videoViewModel.playbackPosition.seconds,
+                duration: videoViewModel.playbackPosition.duration,
+                onSeek: { videoViewModel.seek(to: $0) },
+                onFrameStepForward: { videoViewModel.frameStepForward() },
+                onFrameStepBackward: { videoViewModel.frameStepBackward() }
+            )
         }
         .frame(width: DesignTokens.Layout.playerControlsWidth)
         .onHover { isHovering in

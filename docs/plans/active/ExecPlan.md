@@ -220,7 +220,7 @@ Mode constraint (geometric):
 
 ---
 
-- [ ] **Unit 3: Button interactivity audit (Level 3)**
+- [x] **Unit 3: Button interactivity audit (Level 3)**
 
 **Goal:** Verify and fix all player page buttons to be interactive — clickable, focusable, triggering correct actions.
 
