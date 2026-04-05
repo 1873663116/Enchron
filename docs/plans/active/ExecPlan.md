@@ -147,7 +147,7 @@ Unit 1 (恢复文件) ──→ Unit 2 (修复引用) ──→ Unit 4 (重命�
 
 ---
 
-- [ ] **Unit 2：修复全部 workspace-agents/ 断裂引用**
+- [x] **Unit 2：修复全部 workspace-agents/ 断裂引用**
 
 **目标：** 将 8 个活跃文档中 37 处 workspace-agents/ 引用替换为正确的 docs/ 或 ~/.claude/skills/ 路径。
 
