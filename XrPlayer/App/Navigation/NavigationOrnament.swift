@@ -30,7 +30,7 @@ public struct NavigationOrnament: View {
                             .contentShape(.rect)
                     }
                     .buttonStyle(.plain)
-                    .hoverEffect(.highlight)
+                    .hoverEffect(.lift)
                     .accessibilityLabel(tab.label)
                     .accessibilityAddTraits(appModel.selectedTab == tab ? .isSelected : [])
                     .accessibilityFocused($focusedTab, equals: tab)
@@ -54,7 +54,7 @@ public struct NavigationOrnament: View {
                     .contentShape(.rect)
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffect(.lift)
             .clipShape(.circle)
             .enchronGlassControl()
             .accessibilityLabel("Scene Selector")

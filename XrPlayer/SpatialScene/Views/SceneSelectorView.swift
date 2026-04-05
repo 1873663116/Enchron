@@ -56,7 +56,7 @@ public struct SceneSelectorView: View {
                                         }
                                     }
                                     .contentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
-                                    .hoverEffect(.highlight)
+                                    .hoverEffect(.lift)
 
                                 Text(environment.displayName)
                                     .font(.headline)

@@ -17,7 +17,7 @@ struct PlayerInfoBarView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffect(.lift)
             .frame(minWidth: 60, minHeight: 60)
             .contentShape(.rect)
             .accessibilityLabel("Back")
