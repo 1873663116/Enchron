@@ -28,3 +28,29 @@ phase-exit-authorized: yes
 
 ---
 
+## Round 2 — INVESTIGATING 扩展 scope (2026-04-05)
+
+### Scope 变更
+前一轮仅覆盖 P1 播放模式层级约束。本轮 Supervisor 扩展到全部 6 个已知 UI 问题（P0~P2）。
+
+### 完成事项
+1. **技术调查（3 项并行）**
+   - Hover Effect: `.hoverEffect(.highlight)` 在 visionOS 忽略 contentShape → 用 `.lift` 替代
+   - Ornament Animation: 当前代码已实现纯 opacity fade，可能是 ornament 内置 transition 覆盖 → 需模拟器验证
+   - UIViewRepresentable Resize: `updateUIView` 不因窗口几何变化触发 → GeometryReader 包裹方案
+   - 产出：`docs/reference/2026-04-05-known-issues-technical-investigation.md`
+2. **需求文档产出** — 22 条需求覆盖 6 个问题
+   - 产出：`docs/brainstorms/2026-04-05-known-issues-fix-requirements.md`
+3. **对抗审查（标准）** — Codex 3 findings → Opus 辩护 → Supervisor 裁决
+   - F1 [critical] 设计稿不可用 → Dismissed（文件存在，Codex 误判删除范围）
+   - F2 [high] 按钮可交互性缺失 → Accepted (P2)，补充 R21-R22 到需求文档
+   - F3 [medium] 调查缺证据链 → Dismissed（流水线分工正确，PLANNING 阶段验证）
+
+[ADVERSARIAL-REVIEW] phase=INVESTIGATING tier=standard
+codex: 3 findings (1 critical, 1 high, 1 medium) — 设计稿不可用, 按钮可交互性缺失, 调查缺证据链
+counter-review: DISMISS F1 (files exist), PARTIALLY CONCEDE F2 (added R21-R22), DISMISS F3 (pipeline design correct)
+verdict: 补充 R21-R22，其余无阻塞。Phase exit authorized.
+phase-exit-authorized: yes
+
+---
+
