@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 14: NLE Timeline Shell & Animation (R26) 完成 — git commit dcb6bb6，NLETimelineView expandable panel + NLETimelineToggleButton + PlayerControlsView 集成 + spring animation + placeholder slots for ruler/thumbstrip"
-next: "选取 Unit 15 → 调用 /ce-work 继续 Phase E (Time Ruler & Playhead)"
+last_done: "Unit 15: Time Ruler & Playhead (R27, R29) 完成 — git commit f9e8817，TimelineRulerView Canvas ruler + playhead + TickStyle refactor + defaultZoom + NLETimelineView integration"
+next: "选取 Unit 16 → 调用 /ce-work 继续 Phase E (Thumb Strip & Gesture Controls)"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
