@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 7 完成 — GeometryReader 包裹 WindowVideoView，containerSize 属性注入使 updateUIView 响应窗口缩放，MTKView fallback 路径同步更新 drawableSize"
-next: "选取 Unit 8（NLE timeline glass background and containment）执行，调用 /ce-work"
+last_done: "Unit 9 完成 — L1/L2 布局对齐 HTML 设计：VideoCardView 卡片背景+边框+badge 形状+padding，ContentGridView 网格 padding，VideoDetailView 列比例 3:2+标题面板+play overlay+metadata 排版+环境选择器面板。全部 9 个 Unit [x] 完成"
+next: "调用 /ce-review 审查全部代码变更，EXECUTING 阶段退出前必做"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0

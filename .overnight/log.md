@@ -245,3 +245,50 @@ phase-exit-authorized: yes
 
 ---
 
+## Round 11 — EXECUTING: Unit 8 (2026-04-05)
+
+### 完成事项
+1. **Unit 8: NLE timeline glass background and containment**
+   - commit: be0c354（上一 session 完成，state.md 未同步）
+
+### 下一步
+→ Unit 9
+
+---
+
+## Round 12 — EXECUTING: Unit 9 (2026-04-06)
+
+### 完成事项
+1. **Unit 9: Level 1 & 2 layout alignment audit and fix**
+   - HTML 设计稿分析：提取 variant-AB-combined.html 完整布局规格
+   - **VideoCardView** 对齐：卡片背景 `white.opacity(0.03)` + ghost border `white.opacity(0.05)` + clipShape；badge 从 Capsule 改为 RoundedRectangle(radius: badge)；card info padding 从 4pt 改为 16pt horizontal + 14pt vertical；badge 排版加 bold + uppercase + tracking
+   - **ContentGridView** 对齐：网格 padding 从默认 16pt 改为 horizontal 28pt + top 8pt + bottom 32pt；folder card 同步添加背景/边框/padding
+   - **VideoDetailView** 重构：
+     - 列比例从 45% 改为 60%（3fr:2fr per HTML）
+     - 新增 `titleSection` glass-sub 面板（右列），含 tag badges + title + duration
+     - Play 按钮从独立区域移至视频预览 overlay（`videoPreviewWithPlay` + `playbackOverlay` + `overlayPlayButton`）
+     - Metadata section 改为 uppercase tracking labels + bold values + glass-sub 背景
+     - Track section badges 从 Capsule 改为 RoundedRectangle
+     - Environment selector 包裹 glass-sub 面板 + 居中标签
+     - 清除死代码（playbackButtons、playButton 方法被 playbackOverlay 替代）
+   - 编译验证通过（零 Swift 编译错误，SwiftLint 脚本阶段失败为预存在问题）
+   - commit: 8222c6e
+
+### Scope 评估
+- 改动 4 个文件（< 10 文件阈值），无需拆分 PR
+- 未新增文件，保持模块边界完整
+
+### 关键决策
+- **列比例遵循 HTML 3fr:2fr**：原 45% 偏小，右列内容（metadata、tracks）空间不足
+- **Play 按钮 overlay**：HTML 设计中 play 按钮居中覆盖在视频预览上，更符合视频播放器惯例
+- **glass-sub 统一使用 `Color.white.opacity(0.04)`**：匹配 HTML `rgba(255,255,255,0.04)`，不使用 `.regularMaterial`（太重）
+- **ce-compound 跳过**：本轮改动是布局对齐，无新非显然技术发现
+
+### ExecPlan 状态
+全部 9 个 Unit 已标记 `[x]`。下一步：调用 `/ce-review` 审查代码。
+
+### 下一步
+→ /ce-review（全部 Unit 完成后审查）→ 对抗审查（标准）→ 阶段退出
+
+---
+
