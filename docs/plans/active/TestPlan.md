@@ -80,6 +80,21 @@ find docs/ -name "*[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]*" -not -path "*/arch
 
 ---
 
+### AC6：无残留 DESIGN-TO-SWIFTUI 旧大写引用
+
+**条件：** 活跃文档中不存在 `DESIGN-TO-SWIFTUI`（大写）引用
+
+**验证命令：**
+```bash
+grep -rn "DESIGN-TO-SWIFTUI" .overnight/supervisor-prompt.md docs/solutions/ docs/designs/
+```
+
+**期望结果：** 0 行输出
+
+**说明：** R16 重命名为 `design-to-swiftui.md` 后，所有引用应同步更新为小写 kebab-case。
+
+---
+
 ## 单元级验证清单
 
 | Unit | 关键验证 | 阻塞下一 Unit |
@@ -87,4 +102,4 @@ find docs/ -name "*[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]*" -not -path "*/arch
 | 1 | 7 个文件存在且内容正确 | 是（Unit 2, 3 依赖） |
 | 2 | 活跃文档 0 处 workspace-agents/ 引用 | 是（Unit 4 依赖） |
 | 3 | 0 个 ` D` 文件，0 个空格目录名 | 否 |
-| 4 | 0 处 DESIGN-TO-SWIFTUI 旧引用 | 否（最终验收） |
+| 4 | 0 处 DESIGN-TO-SWIFTUI 旧引用 (AC5+AC6) | 否（最终验收） |
