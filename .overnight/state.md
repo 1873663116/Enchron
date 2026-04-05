@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 15: Time Ruler & Playhead (R27, R29) 完成 — git commit f9e8817，TimelineRulerView Canvas ruler + playhead + TickStyle refactor + defaultZoom + NLETimelineView integration"
-next: "选取 Unit 16 → 调用 /ce-work 继续 Phase E (Thumb Strip & Gesture Controls)"
+last_done: "ce-review 完成 — 8 审查者并行，5 P1 / 25 P2 / 5 P3 发现项。报告: .context/ce-review/run-2026-04-05-executing/review-report.md"
+next: "Fix P1 findings (#1-#5) via /ce-work → 重新 ce-review"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0

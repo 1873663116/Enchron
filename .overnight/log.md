@@ -529,3 +529,68 @@ ExecPlan Unit 14: NLE Timeline Shell & Animation (R26) — 创建可展开的 NL
 
 ### ce-compound
 标准 Canvas 渲染模式，复用已有 geometry + formatter。TickStyle 封装是对 SwiftLint 的务实回应，非架构发现。跳过。
+
+---
+
+## Round 17 — EXECUTING Unit 16: Thumb Strip & Gesture Controls (R28, R30, R31) (2026-04-05)
+
+### 目标
+ExecPlan Unit 16: Thumb Strip with drag seek, pinch zoom, and frame step buttons。
+
+### 执行摘要
+（由前一轮 Supervisor 完成但未写 log — git commit c7f8ddd 确认代码已提交，ExecPlan 标记 [x]）
+
+### 产出物
+| 文件 | 说明 |
+|------|------|
+| git commit c7f8ddd | feat(player-ui): add thumb strip with drag seek, pinch zoom, and frame step buttons — ExecPlan Unit 16 (R28, R30, R31) |
+
+### ce-compound
+前轮未记录，本轮补录。Phase E 全部完成（Units 14-16），NLE Timeline 三层架构（Shell → Ruler → ThumbStrip）已验证。
+
+---
+
+## Round 18 — EXECUTING: ce-review (全 18 Unit 完成后代码审查) (2026-04-05)
+
+### 目标
+对 EXECUTING 阶段全部代码变更（34 Swift 文件，2766+ insertions / 860 deletions）进行结构化代码审查。
+
+### 执行摘要
+
+1. **范围确定**：base a61c212 → HEAD，34 个 Swift 文件
+2. **审查团队**：8 个并行 Haiku 子代理
+   - 常驻：correctness, testing, maintainability, project-standards, agent-native, pattern-recognition
+   - 条件：architecture-strategist（跨模块变更）, adversarial-reviewer（2766+ 行大规模变更）
+3. **Stage 5 合并**：去重 + 置信门控 + 跨审查者一致性提升
+4. **结果**：5 P1 / 25 P2 / 5 P3，2 项抑制（<0.60），4 项排除（3 正面确认 + 1 验证为假阳性）
+
+### P1 发现项摘要
+
+| # | 文件 | 问题 | 审查者数 | 置信度 |
+|---|------|------|----------|--------|
+| 1 | MainView.swift:246 | 窗口生命周期竞争：compound onChange openWindow/dismissWindow | 4 | 0.98 |
+| 2 | XrPlayerApp.swift:140 | 伴随窗口 5 个环境注入过度耦合 + 共享突变风险 | 3 | 0.90 |
+| 3 | FileBrowserSidebar.swift:31 | Binding setter 异步 Task 无同步——List 选择立即提交，ViewModel 更新滞后 | 2 | 0.92 |
+| 4 | PlayerControlsView.swift:41 | 宽度 680 在 PlayerControlsView 和 NLETimelineView 间硬编码重复 | 1 | 0.95 |
+| 5 | 多文件 | cornerRadius 硬编码 12/16/6 而非 DesignTokens.Radius | 2 | 1.00 |
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| Task.sleep 自动隐藏降级为 P2 advisory | SwiftUI .task(id:) 在视图移除时自动取消，adversarial 担忧为假阳性 |
+| PlaybackMenuView 孤立引用排除 | grep 验证无 Swift 代码引用残留，仅文档/日志/存档 |
+| 测试覆盖缺口保持 P2 | 虽然 testing 审查者评 P1，综合判断为重要但非阻塞 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| .context/ce-review/run-2026-04-05-executing/review-report.md | 完整审查报告 |
+
+### 下一步
+
+按 EXECUTING 阶段流程：P1 发现 → ce-work 修复 → 重新 ce-review → 对抗审查 → phase exit
+
+### ce-compound
+ce-review 过程本身是标准流程（8 并行子代理 + 合并去重），无非显而易见的技术发现，跳过。
