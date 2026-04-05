@@ -72,21 +72,23 @@ public struct VideoDetailView: View {
         metadata: PlaybackMediaMetadata?
     ) -> some View {
         GeometryReader { proxy in
-            let leftWidth = min(max(proxy.size.width * 0.45, 300), 440)
-            HStack(alignment: .top, spacing: 40) {
-                // Left column: preview + environment selector + loading play
+            let totalWidth = proxy.size.width - 56 // account for padding (28 each side)
+            let leftWidth = max(totalWidth * 0.6, 300)
+            HStack(alignment: .top, spacing: 0) {
+                // Left column: preview with play overlay + environment selector
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        videoPreviewPlaceholder(displayName: request.displayName)
+                    VStack(alignment: .leading, spacing: 16) {
+                        videoPreviewPlaceholder(displayName: request.displayName, showPlayButton: false)
                         environmentSelector()
-                        playButton(enabled: false)
                     }
                 }
                 .frame(width: leftWidth)
+                .padding(.trailing, 14)
 
-                // Right column: metadata (partial) + loading indicator
+                // Right column: title & meta + metadata + loading indicator
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        titleSection(displayName: request.displayName, metadata: metadata)
                         if let metadata {
                             metadataSection(metadata: metadata)
                         }
@@ -96,9 +98,9 @@ public struct VideoDetailView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 14)
             }
-            .padding(.horizontal, 40)
-            .padding(.vertical, 24)
+            .padding(28)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
     }
@@ -108,21 +110,24 @@ public struct VideoDetailView: View {
     @ViewBuilder
     private func readyContent(prepared: PreparedPlayback) -> some View {
         GeometryReader { proxy in
-            let leftWidth = min(max(proxy.size.width * 0.45, 300), 440)
-            HStack(alignment: .top, spacing: 40) {
-                // Left column: preview + environment selector + resume/play
+            let totalWidth = proxy.size.width - 56
+            let leftWidth = max(totalWidth * 0.6, 300)
+            HStack(alignment: .top, spacing: 0) {
+                // Left column: preview with play overlay + environment selector
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        videoPreviewPlaceholder(displayName: prepared.request.displayName)
+                    VStack(alignment: .leading, spacing: 16) {
+                        videoPreviewWithPlay(displayName: prepared.request.displayName, prepared: prepared)
                         environmentSelector()
-                        playbackButtons(prepared: prepared)
                     }
                 }
                 .frame(width: leftWidth)
+                .padding(.trailing, 14)
 
-                // Right column: metadata + tracks
+                // Right column: title & meta + metadata + tracks
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 16) {
+                        titleSection(displayName: prepared.request.displayName, metadata: prepared.metadata)
+
                         if let metadata = prepared.metadata {
                             metadataSection(metadata: metadata)
                         }
@@ -145,69 +150,15 @@ public struct VideoDetailView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.leading, 14)
             }
-            .padding(.horizontal, 40)
-            .padding(.vertical, 24)
+            .padding(28)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .task {
             guard let fileID = prepared.request.fileIdentifier else { return }
             savedProgress = await coordinator.loadProgress(for: fileID)
             resumePolicy = coordinator.currentResumePolicy()
-        }
-    }
-
-    // MARK: - Playback Buttons
-
-    @ViewBuilder
-    private func playbackButtons(prepared: PreparedPlayback) -> some View {
-        if let progress = savedProgress, progress.position.seconds > 5 {
-            switch resumePolicy {
-            case .askEveryTime:
-                VStack(spacing: 12) {
-                    Button {
-                        coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
-                        dismiss()
-                    } label: {
-                        Label("Resume from \(Self.formatTime(progress.position.seconds))", systemImage: "play.fill")
-                            .font(.title3.weight(.semibold))
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 14)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.accentColor)
-                    .accessibilityLabel("Resume from \(Self.formatTime(progress.position.seconds))")
-
-                    Button {
-                        coordinator.confirmPlayback(prepared)
-                        dismiss()
-                    } label: {
-                        Label("Play from Start", systemImage: "arrow.counterclockwise")
-                            .font(.body)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                    }
-                    .buttonStyle(.bordered)
-                    .accessibilityLabel("Play from start")
-                }
-
-            case .alwaysResume:
-                playButton(enabled: true) {
-                    coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
-                    dismiss()
-                }
-
-            case .alwaysStartFromBeginning:
-                playButton(enabled: true) {
-                    coordinator.confirmPlayback(prepared)
-                    dismiss()
-                }
-            }
-        } else {
-            playButton(enabled: true) {
-                coordinator.confirmPlayback(prepared)
-                dismiss()
-            }
         }
     }
 
@@ -241,11 +192,70 @@ public struct VideoDetailView: View {
         }
     }
 
+    // MARK: - Title Section (glass-sub panel, right column)
+
+    @ViewBuilder
+    private func titleSection(displayName: String, metadata: PlaybackMediaMetadata?) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // Tag badges
+            HStack(spacing: 8) {
+                tagBadge("Local File", color: Color.enchronTertiary)
+                if let profile = metadata?.mediaProfile {
+                    tagBadge(
+                        PlaybackInfoFormatter.videoCodecLabel(profile.videoCodec),
+                        color: Color.enchronOnSurfaceVariant.opacity(0.7)
+                    )
+                }
+            }
+
+            Text(displayName)
+                .font(.title2.weight(.heavy))
+                .tracking(-0.3)
+                .lineLimit(2)
+
+            if let metadata, let profile = metadata.mediaProfile {
+                Text("Duration: \(PlaybackInfoFormatter.duration(profile.durationSeconds))")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func tagBadge(_ text: String, color: Color) -> some View {
+        Text(text)
+            .font(.caption2)
+            .fontWeight(.bold)
+            .textCase(.uppercase)
+            .tracking(1.5)
+            .foregroundStyle(color)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+    }
+
     // MARK: - Video Preview
 
     @ViewBuilder
-    private func videoPreviewPlaceholder(displayName: String) -> some View {
-        VStack(spacing: 12) {
+    private func videoPreviewPlaceholder(displayName: String, showPlayButton: Bool = true) -> some View {
+        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+            .fill(.quaternary)
+            .aspectRatio(16/9, contentMode: .fit)
+            .overlay {
+                Image(systemName: "film")
+                    .font(DesignTokens.SymbolSize.hero)
+                    .foregroundStyle(.secondary)
+            }
+    }
+
+    // MARK: - Video Preview with Play Overlay
+
+    @ViewBuilder
+    private func videoPreviewWithPlay(displayName: String, prepared: PreparedPlayback) -> some View {
+        ZStack {
             RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                 .fill(.quaternary)
                 .aspectRatio(16/9, contentMode: .fit)
@@ -255,21 +265,78 @@ public struct VideoDetailView: View {
                         .foregroundStyle(.secondary)
                 }
 
-            Text(displayName)
-                .font(.title3.weight(.semibold))
-                .lineLimit(2)
-                .multilineTextAlignment(.center)
+            // Play button overlay centered on preview
+            playbackOverlay(prepared: prepared)
         }
+    }
+
+    @ViewBuilder
+    private func playbackOverlay(prepared: PreparedPlayback) -> some View {
+        if let progress = savedProgress, progress.position.seconds > 5 {
+            switch resumePolicy {
+            case .askEveryTime:
+                VStack(spacing: 10) {
+                    overlayPlayButton(
+                        label: "Resume from \(Self.formatTime(progress.position.seconds))",
+                        icon: "play.fill"
+                    ) {
+                        coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
+                        dismiss()
+                    }
+                    Button {
+                        coordinator.confirmPlayback(prepared)
+                        dismiss()
+                    } label: {
+                        Text("Play from Start")
+                            .font(.caption)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                }
+            case .alwaysResume:
+                overlayPlayButton(label: "Resume", icon: "play.fill") {
+                    coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
+                    dismiss()
+                }
+            case .alwaysStartFromBeginning:
+                overlayPlayButton(label: "Play", icon: "play.fill") {
+                    coordinator.confirmPlayback(prepared)
+                    dismiss()
+                }
+            }
+        } else {
+            overlayPlayButton(label: "Start Playback", icon: "play.fill") {
+                coordinator.confirmPlayback(prepared)
+                dismiss()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func overlayPlayButton(label: String, icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.body.weight(.semibold))
+                Text(label)
+                    .font(.body.weight(.semibold))
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 14)
+            .background(Color.enchronPrimary.opacity(0.9))
+            .foregroundStyle(Color.enchronOnPrimary)
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+            .shadow(color: .white.opacity(0.15), radius: 20)
+        }
+        .buttonStyle(.plain)
+        .hoverEffect(.lift)
     }
 
     // MARK: - Environment Selector
 
     @ViewBuilder
     private func environmentSelector() -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Cinema Environment")
-                .font(.headline)
-
+        VStack(spacing: 12) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { env in
@@ -282,20 +349,18 @@ public struct VideoDetailView: View {
                             VStack(spacing: 6) {
                                 RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous)
                                     .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
-                                    .frame(width: 100, height: 64)
+                                    .frame(width: isSelected ? 100 : 72, height: isSelected ? 64 : 48)
                                     .overlay {
                                         Image(systemName: environmentIcon(env))
-                                            .font(.title2)
+                                            .font(isSelected ? .title2 : .title3)
                                             .foregroundStyle(isSelected ? .primary : .secondary)
                                     }
                                     .overlay(
                                         RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous)
-                                            .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 2)
+                                            .strokeBorder(isSelected ? Color.enchronPrimary.opacity(0.4) : .clear, lineWidth: 0.5)
                                     )
-
-                                Text(env.displayName)
-                                    .font(.caption)
-                                    .foregroundStyle(isSelected ? .primary : .secondary)
+                                    .opacity(isSelected ? 1 : 0.6)
+                                    .animation(.easeInOut(duration: 0.3), value: isSelected)
                             }
                         }
                         .buttonStyle(.plain)
@@ -308,7 +373,22 @@ public struct VideoDetailView: View {
                 .scrollTargetLayout()
             }
             .scrollTargetBehavior(.viewAligned)
+
+            VStack(spacing: 2) {
+                Text(appModel.currentCinemaEnvironment.displayName)
+                    .font(.subheadline.weight(.bold))
+                    .tracking(1)
+                    .textCase(.uppercase)
+                Text("Immersive Environment")
+                    .font(DesignTokens.Typography.sectionHeader)
+                    .textCase(.uppercase)
+                    .tracking(2)
+                    .foregroundStyle(.secondary)
+            }
         }
+        .padding(20)
+        .frame(maxWidth: .infinity)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
     }
 
     private func environmentIcon(_ env: SpatialSceneDomain.CinemaEnvironment) -> String {
@@ -323,16 +403,20 @@ public struct VideoDetailView: View {
 
     @ViewBuilder
     private func metadataSection(metadata: PlaybackMediaMetadata) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Media Info")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Video Metadata")
+                .font(DesignTokens.Typography.sectionHeader)
+                .fontWeight(.bold)
+                .textCase(.uppercase)
+                .tracking(1.5)
+                .foregroundStyle(.secondary)
 
             LazyVGrid(
                 columns: [
                     GridItem(.flexible(), alignment: .leading),
                     GridItem(.flexible(), alignment: .leading)
                 ],
-                spacing: 10
+                spacing: 16
             ) {
                 if let profile = metadata.mediaProfile {
                     metadataRow(
@@ -341,23 +425,23 @@ public struct VideoDetailView: View {
                     )
 
                     metadataRow(
-                        label: "HDR",
+                        label: "Dynamic Range",
                         value: PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType)
                     )
 
                     metadataRow(
-                        label: "Codec",
+                        label: "Video Codec",
                         value: PlaybackInfoFormatter.videoCodecLabel(profile.videoCodec)
-                    )
-
-                    metadataRow(
-                        label: "Duration",
-                        value: PlaybackInfoFormatter.duration(profile.durationSeconds)
                     )
 
                     metadataRow(
                         label: "Frame Rate",
                         value: PlaybackInfoFormatter.frameRate(profile.frameRate)
+                    )
+
+                    metadataRow(
+                        label: "Duration",
+                        value: PlaybackInfoFormatter.duration(profile.durationSeconds)
                     )
 
                     metadataRow(
@@ -372,18 +456,20 @@ public struct VideoDetailView: View {
                 )
             }
         }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .padding(20)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
     }
 
     @ViewBuilder
     private func metadataRow(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(DesignTokens.Typography.sectionHeader)
+                .textCase(.uppercase)
+                .tracking(1.5)
+                .foregroundStyle(.tertiary)
             Text(value)
-                .font(.body)
+                .font(.body.weight(.bold))
         }
     }
 
@@ -397,7 +483,11 @@ public struct VideoDetailView: View {
     ) -> some View where T: TrackDisplayable {
         VStack(alignment: .leading, spacing: 8) {
             Label(title, systemImage: icon)
-                .font(.headline)
+                .font(DesignTokens.Typography.sectionHeader)
+                .fontWeight(.bold)
+                .textCase(.uppercase)
+                .tracking(1.5)
+                .foregroundStyle(.secondary)
 
             ForEach(tracks) { track in
                 HStack {
@@ -411,7 +501,7 @@ public struct VideoDetailView: View {
                             .font(.caption.weight(.medium))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 2)
-                            .background(.quaternary, in: Capsule())
+                            .background(.quaternary, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
                     }
 
                     if track.isDefault {
@@ -423,26 +513,8 @@ public struct VideoDetailView: View {
                 .padding(.vertical, 4)
             }
         }
-        .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
-    }
-
-    // MARK: - Play Button
-
-    @ViewBuilder
-    private func playButton(enabled: Bool, action: (() -> Void)? = nil) -> some View {
-        Button {
-            action?()
-        } label: {
-            Label("Play", systemImage: "play.fill")
-                .font(.title3.weight(.semibold))
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 14)
-        }
-        .buttonStyle(.borderedProminent)
-        .tint(.accentColor)
-        .disabled(!enabled)
-        .accessibilityLabel("Play")
+        .padding(20)
+        .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
     }
 
     private func projectionLabel(_ type: PlaybackCoreDomain.ProjectionType) -> String {
