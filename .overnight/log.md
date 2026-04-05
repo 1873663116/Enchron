@@ -495,3 +495,37 @@ ExecPlan Unit 14: NLE Timeline Shell & Animation (R26) — 创建可展开的 NL
 
 ### ce-compound
 纯粹增量的 shell 组件，标准 SwiftUI 模式（@Binding + spring animation + clipped）。无非显而易见的技术发现，跳过。
+
+---
+
+## Round 16 — EXECUTING Unit 15: Time Ruler & Playhead (2026-04-05)
+
+### 目标
+实现 Canvas 绘制的时间标尺（tick marks + time labels）和固定居中 Playhead，集成到 NLE timeline。
+
+### 执行摘要
+
+1. **创建 TimelineRulerView.swift**：Canvas 绘制 major/minor ticks + 固定居中 playhead（白色常态 / enchronTertiary seeking）
+2. **复用 DetailedTimelineGeometry**：全部时间↔位置数学沿用已验证的 geometry 类
+3. **TickStyle 重构**：SwiftLint function_parameter_count 限制 5 参数，将 tick 渲染参数封装为 TickStyle 结构体
+4. **defaultZoom(for:)**：根据视频时长自动选择缩放级别（<30s → 0.8, <5min → 0.5, <1hr → 0.3, <3hr → 0.15, 3hr+ → 0.1）
+5. **NLETimelineView 集成**：ruler placeholder 替换为 TimelineRulerView
+6. **Build 通过**：无新增 error，仅 pre-existing warnings
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| Playhead 用三角 + 竖线而非菱形 | NLE 标准交互范式，视觉层级更清晰（DetailedTimelineView 用菱形是因为它是 inline 辅助视图） |
+| defaultZoom 分 5 档 | 覆盖从 <30s 到 3hr+ 的完整范围，确保 tick 密度始终可读 |
+| TickStyle 结构体而非 swiftlint:disable | 更清洁，也为 Unit 16 thumb strip 复用做准备 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| XrPlayer/PlayerUI/Views/TimelineRulerView.swift | 新建 — Canvas ruler + playhead + defaultZoom |
+| XrPlayer/PlayerUI/Views/NLETimelineView.swift | 修改 — ruler placeholder → TimelineRulerView |
+
+### ce-compound
+标准 Canvas 渲染模式，复用已有 geometry + formatter。TickStyle 封装是对 SwiftLint 的务实回应，非架构发现。跳过。
