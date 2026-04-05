@@ -745,7 +745,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 15: Time Ruler & Playhead (R27, R29)**
+- [x] **Unit 15: Time Ruler & Playhead (R27, R29)**
 
   **Goal:** Implement Canvas-drawn time ruler with tick marks, labels, and fixed-center playhead
 
