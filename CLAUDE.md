@@ -31,7 +31,7 @@ XrPlayer/
 ### 改动代码前
 1. 读 ARCHITECTURE.md 确认涉及的模块和 Architecture Invariants
 2. 读 REGRESSION.md 代码路径映射索引，预判改动触发哪些回归项
-3. 任务 >3 文件或跨模块 → 写 Exec Plan（存放于 docs/ExecPlan/，完成后归档至 docs/archive/ExecPlan/）
+3. 任务 >3 文件或跨模块 → 写 Exec Plan（存放于 docs/plans/active/，完成后归档至 docs/archive/ExecPlan/）
 
 ### 改动代码后
 1. 执行 agent 自检六件套（详见 TESTING.md）
