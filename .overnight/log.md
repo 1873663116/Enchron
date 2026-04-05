@@ -624,3 +624,52 @@ ce-review 过程本身是标准流程（8 并行子代理 + 合并去重），�
 
 ### ce-compound
 标准 SwiftUI 重构模式（@State 替代 computed Binding、环境注入减耦合、设计 token 统一），无非显而易见发现，跳过。
+
+---
+
+## Round 20 — EXECUTING: ce-review P1 Revalidation + Adversarial Review + Phase Exit (2026-04-05)
+
+### 目标
+重新 ce-review 确认 5 个 P1 修复生效，执行对抗性审查，完成 EXECUTING 阶段退出。
+
+### 执行摘要
+
+1. **ce-review P1 重验证**（headless 模式）：
+   - 范围：P1 fix commit f3aa757（14 files, ~170 lines）
+   - 审查团队：4 个并行子代理（correctness-architecture, pattern-maintainability, adversarial, testing-standards）
+   - P1 修复验证：5/5 全部 RESOLVED ✅
+   - 新发现：0 P0, 0 P1, 2 P2（Layout token 无测试 + Radius 语义丢失）, 2 P3（advisory）
+   - 预先存在：3 项（bridge 时序、sidebar 连接失败 UX、badge 命名碰撞）
+   - 抑制：2 项（confidence < 0.60）
+   - 裁决：**Ready to merge**
+   - 产物：`.context/ce-review/run-2026-04-05-p1-revalidation/review-report.md`
+
+2. **对抗性审查（标准）**：
+   - Codex adversarial-review：3 findings (2 high, 1 medium)
+   - Opus counter-review：逐项辩护 with 代码证据
+   - Supervisor 裁决：
+
+   | Finding | Codex | Counter | Verdict |
+   |---------|-------|---------|---------|
+   | Filter pills no-op | high | INVALID — 文档化 phasing，R14=UI组件，filtering 需 Domain 层 MediaProfile | **DISMISSED** |
+   | Bridge timing gap | high | INVALID — guard clause 使 detach+attach 不可能同次执行 | **DISMISSED** |
+   | No runtime UI tests | medium | PARTIALLY_VALID — SPM 限制下的有意双轨策略 | **ACCEPTED advisory** |
+
+3. **Phase Transition**：EXECUTING → TESTING
+
+### 退出条件验证
+
+| 条件 | 状态 |
+|------|------|
+| ExecPlan 所有条目 [x] | ✅ 18/18 完成 |
+| ce-review 无未修复 P0/P1 | ✅ 0 P0/P1（重验证确认） |
+| 对抗审查通过 | ✅ 3 findings 全部 dismissed/advisory |
+
+[ADVERSARIAL-REVIEW] phase=EXECUTING tier=standard
+codex: needs-attention — 3 findings (2 high: filter no-op, bridge gap; 1 medium: no UI tests)
+counter-review: Finding 1 INVALID (documented phasing), Finding 2 INVALID (guard clause misread), Finding 3 PARTIALLY_VALID (advisory)
+verdict: 全部 dismissed 或 advisory，无阻塞项
+phase-exit-authorized: yes
+
+### ce-compound
+本轮为验证 + 审查 + 状态迁移。Codex 对 onChange guard clause 的误读在审查方法论上有教训价值，但非技术发现。跳过。
