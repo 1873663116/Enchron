@@ -1,6 +1,6 @@
 phase: PLANNING
-last_done: "INVESTIGATING 完成（扩展 scope）— 3 项技术调查 + 22 条需求文档 + 对抗审查通过，覆盖全部 6 个已知 UI 问题"
-next: "调用 /ce-plan 基于需求文档制定 ExecPlan + TestPlan，覆盖 P0~P2 全部 6 项修复"
+last_done: "/ce-plan 完成 — 产出 ExecPlan.md（9 个执行单元，4 阶段）+ TestPlan.md（22 条需求的验收标准 + 人类验证清单）。关键修正：R11 从层级模型改为几何约束模型（Flat→Immersive 合法）"
+next: "调用 /plan-eng-review 对 ExecPlan 进行工程审查，锁定架构与实施路径"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
