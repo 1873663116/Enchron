@@ -45,32 +45,22 @@ struct NLETimelineView: View {
         .animation(.spring(), value: isExpanded)
     }
 
-    // MARK: - Timeline Content (placeholders for Unit 15 / 16)
+    // MARK: - Timeline Content
 
     @ViewBuilder
     private var timelineContent: some View {
         VStack(spacing: 8) {
-            // Ruler placeholder — will be replaced by TimelineRulerView (Unit 15)
-            rulerPlaceholder
+            TimelineRulerView(
+                duration: duration,
+                currentTime: currentTime,
+                isSeeking: false
+            )
 
             // Thumb strip placeholder — will be replaced by ThumbStripView (Unit 16)
             thumbStripPlaceholder
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
-    }
-
-    private var rulerPlaceholder: some View {
-        ZStack {
-            Rectangle()
-                .fill(Color.enchronSurfaceContainerLow.opacity(0.5))
-                .frame(height: 24)
-                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-
-            Text(PlaybackTimeFormatter.clock(currentTime))
-                .font(DesignTokens.Typography.metadata.monospacedDigit())
-                .foregroundStyle(Color.enchronOnSurface.opacity(0.6))
-        }
     }
 
     private var thumbStripPlaceholder: some View {
