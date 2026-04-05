@@ -293,9 +293,12 @@ public struct PlayerControlsView: View {
 
     private var rightMenu: some View {
         Menu {
-            // Playback mode
+            // Playback mode (filtered by geometric constraint)
             Section("Mode") {
-                ForEach(PlaybackMode.allCases, id: \.self) { mode in
+                let allowed = DecidePlaybackModeUseCase.allowedModes(
+                    for: appModel.effectiveProjectionType
+                )
+                ForEach(PlaybackMode.allCases.filter { allowed.contains($0) }, id: \.self) { mode in
                     Button {
                         switchPlaybackMode(to: mode)
                     } label: {

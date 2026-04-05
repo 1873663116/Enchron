@@ -81,4 +81,70 @@ final class PlaybackModeRoutingTests: XCTestCase {
         XCTAssertEqual(result, .panorama,
                        "Protocol conformance must correctly route panorama")
     }
+
+    // MARK: - Geometric Constraint: allowedModes(for:)
+
+    func testAllowedModesForFlatContent() {
+        let allowed = DecidePlaybackModeUseCase.allowedModes(for: .flat)
+        XCTAssertEqual(allowed, [.window, .immersive],
+                       "Flat content should allow window and immersive only")
+        XCTAssertFalse(allowed.contains(.panorama),
+                       "Flat content must not allow panorama mode")
+    }
+
+    func testAllowedModesForStereoContent() {
+        let allowed = DecidePlaybackModeUseCase.allowedModes(for: .stereoscopicSBS)
+        XCTAssertEqual(allowed, [.window, .immersive],
+                       "Stereo SBS content should allow window and immersive only")
+    }
+
+    func testAllowedModesForPanoramicContent() {
+        let allowed = DecidePlaybackModeUseCase.allowedModes(for: .panorama360)
+        XCTAssertEqual(allowed, [.window, .immersive, .panorama],
+                       "Panoramic content should allow all three modes")
+    }
+
+    func testAllowedModesForNilProjectionType() {
+        let allowed = DecidePlaybackModeUseCase.allowedModes(for: nil)
+        XCTAssertEqual(allowed, [.window, .immersive],
+                       "Nil projection (not yet detected) should default to window and immersive")
+    }
+
+    // MARK: - Geometric Constraint: Manual Override Clamping
+
+    func testManualOverrideToPanoramaForFlatContentIsClamped() {
+        let useCase = DecidePlaybackModeUseCase()
+        let profile = makeProfile(.flat)
+        let result = useCase.decideMode(for: profile, isEnvironmentActive: false,
+                                        manualOverride: .panorama)
+        XCTAssertEqual(result, .window,
+                       "Panorama override for flat content must be clamped to window")
+    }
+
+    func testManualOverrideToPanoramaForStereoContentIsClamped() {
+        let useCase = DecidePlaybackModeUseCase()
+        let profile = makeProfile(.stereoscopicOU)
+        let result = useCase.decideMode(for: profile, isEnvironmentActive: false,
+                                        manualOverride: .panorama)
+        XCTAssertEqual(result, .window,
+                       "Panorama override for stereo content must be clamped to window")
+    }
+
+    func testManualOverrideToPanoramaForPanoramicContentIsAllowed() {
+        let useCase = DecidePlaybackModeUseCase()
+        let profile = makeProfile(.panorama360)
+        let result = useCase.decideMode(for: profile, isEnvironmentActive: false,
+                                        manualOverride: .panorama)
+        XCTAssertEqual(result, .panorama,
+                       "Panorama override for panoramic content must be allowed")
+    }
+
+    func testManualOverrideToImmersiveForFlatContentIsAllowed() {
+        let useCase = DecidePlaybackModeUseCase()
+        let profile = makeProfile(.flat)
+        let result = useCase.decideMode(for: profile, isEnvironmentActive: false,
+                                        manualOverride: .immersive)
+        XCTAssertEqual(result, .immersive,
+                       "Immersive override for flat content must be allowed (virtual cinema)")
+    }
 }
