@@ -542,7 +542,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 10: Video Detail Sheet (R16, R17)**
+- [x] **Unit 10: Video Detail Sheet (R16, R17)**
 
   **Goal:** Migrate VideoDetailView from navigation push to sheet presentation with new layout
 

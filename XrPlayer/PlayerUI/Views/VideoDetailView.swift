@@ -1,14 +1,15 @@
 import SwiftUI
 
-/// Shows media metadata and track selection before the user confirms playback.
+/// Shows media metadata, environment selection, and track selection before the user confirms playback.
 ///
+/// Presented as a `.sheet(item:)` from FileBrowserView.
 /// Observes `PlaybackLaunchCoordinator.currentPreparation` to progressively
-/// reveal metadata as it resolves. The user can select audio/subtitle tracks
-/// and tap Play to confirm, or navigate back to cancel.
+/// reveal metadata as it resolves. The user can select audio/subtitle tracks,
+/// choose a cinema environment, and tap Play to confirm. Sheet dismiss cancels preparation.
 public struct VideoDetailView: View {
     @Environment(PlaybackLaunchCoordinator.self) private var coordinator
-    @Environment(FileBrowsingViewModel.self) private var fileBrowsingViewModel
     @Environment(AppModel.self) private var appModel
+    @Environment(\.dismiss) private var dismiss
 
     @State private var savedProgress: PersistenceDomain.PlaybackProgress?
     @State private var resumePolicy: PersistenceDomain.ResumePolicy = .askEveryTime
@@ -16,28 +17,33 @@ public struct VideoDetailView: View {
     public init() {}
 
     public var body: some View {
-        Group {
-            switch coordinator.currentPreparation {
-            case .preparing(let request, let metadata):
-                preparingContent(request: request, metadata: metadata)
+        NavigationStack {
+            Group {
+                switch coordinator.currentPreparation {
+                case .preparing(let request, let metadata):
+                    preparingContent(request: request, metadata: metadata)
 
-            case .ready(let prepared):
-                readyContent(prepared: prepared)
+                case .ready(let prepared):
+                    readyContent(prepared: prepared)
 
-            case .failed(let error):
-                failedContent(error: error)
+                case .failed(let error):
+                    failedContent(error: error)
 
-            case nil:
-                // Preparation was cancelled or confirmed externally
-                ContentUnavailableView("No Video Selected", systemImage: "film")
+                case nil:
+                    ContentUnavailableView("No Video Selected", systemImage: "film")
+                }
+            }
+            .navigationTitle(currentDisplayName)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Close") {
+                        dismiss()
+                    }
+                }
             }
         }
-        .navigationTitle(currentDisplayName)
-        .navigationBarTitleDisplayMode(.inline)
         .onDisappear {
-            // If preparation is still active when view disappears (back navigation),
-            // cancel it. confirmPlayback already clears currentPreparation before
-            // dismissal, so this only fires for back-navigation.
             if coordinator.currentPreparation != nil {
                 coordinator.cancelPreparedPlayback()
             }
@@ -63,28 +69,32 @@ public struct VideoDetailView: View {
         metadata: PlaybackMediaMetadata?
     ) -> some View {
         GeometryReader { proxy in
-            let leftWidth = min(max(proxy.size.width * 0.40, 280), 400)
-            HStack(alignment: .top, spacing: 60) {
-                // Left column: title + metadata
-                VStack(alignment: .leading, spacing: 20) {
-                    headerSection(displayName: request.displayName)
-                    if let metadata {
-                        metadataSection(metadata: metadata)
+            let leftWidth = min(max(proxy.size.width * 0.45, 300), 440)
+            HStack(alignment: .top, spacing: 40) {
+                // Left column: preview + environment selector + loading play
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        videoPreviewPlaceholder(displayName: request.displayName)
+                        environmentSelector()
+                        playButton(enabled: false)
                     }
-                    Spacer(minLength: 0)
                 }
-                .frame(width: leftWidth, alignment: .leading)
+                .frame(width: leftWidth)
 
-                // Right column: loading indicator + disabled play
-                VStack(alignment: .leading, spacing: 20) {
-                    ProgressView("Loading media information...")
-                        .padding(.top, 20)
-                    playButton(enabled: false)
-                    Spacer(minLength: 0)
+                // Right column: metadata (partial) + loading indicator
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        if let metadata {
+                            metadataSection(metadata: metadata)
+                        }
+                        ProgressView("Loading media information...")
+                            .padding(.top, 8)
+                        Spacer(minLength: 0)
+                    }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 60)
+            .padding(.horizontal, 40)
             .padding(.vertical, 24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -95,21 +105,25 @@ public struct VideoDetailView: View {
     @ViewBuilder
     private func readyContent(prepared: PreparedPlayback) -> some View {
         GeometryReader { proxy in
-            let leftWidth = min(max(proxy.size.width * 0.40, 280), 400)
-            HStack(alignment: .top, spacing: 60) {
-                // Left column: title + metadata
-                VStack(alignment: .leading, spacing: 20) {
-                    headerSection(displayName: prepared.request.displayName)
-                    if let metadata = prepared.metadata {
-                        metadataSection(metadata: metadata)
+            let leftWidth = min(max(proxy.size.width * 0.45, 300), 440)
+            HStack(alignment: .top, spacing: 40) {
+                // Left column: preview + environment selector + resume/play
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        videoPreviewPlaceholder(displayName: prepared.request.displayName)
+                        environmentSelector()
+                        playbackButtons(prepared: prepared)
                     }
-                    Spacer(minLength: 0)
                 }
-                .frame(width: leftWidth, alignment: .leading)
+                .frame(width: leftWidth)
 
-                // Right column: tracks + play buttons (scrollable to protect against overflow)
+                // Right column: metadata + tracks
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
+                        if let metadata = prepared.metadata {
+                            metadataSection(metadata: metadata)
+                        }
+
                         if !prepared.audioTracks.isEmpty {
                             trackSection(
                                 title: "Audio Tracks",
@@ -125,13 +139,11 @@ public struct VideoDetailView: View {
                                 tracks: prepared.subtitleTracks
                             )
                         }
-
-                        playbackButtons(prepared: prepared)
                     }
                 }
-                .frame(maxWidth: .infinity)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .padding(.horizontal, 60)
+            .padding(.horizontal, 40)
             .padding(.vertical, 24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
@@ -142,6 +154,8 @@ public struct VideoDetailView: View {
         }
     }
 
+    // MARK: - Playback Buttons
+
     @ViewBuilder
     private func playbackButtons(prepared: PreparedPlayback) -> some View {
         if let progress = savedProgress, progress.position.seconds > 5 {
@@ -150,7 +164,7 @@ public struct VideoDetailView: View {
                 VStack(spacing: 12) {
                     Button {
                         coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
-                        fileBrowsingViewModel.detailNavigationRequest = nil
+                        dismiss()
                     } label: {
                         Label("Resume from \(Self.formatTime(progress.position.seconds))", systemImage: "play.fill")
                             .font(.title3.weight(.semibold))
@@ -163,7 +177,7 @@ public struct VideoDetailView: View {
 
                     Button {
                         coordinator.confirmPlayback(prepared)
-                        fileBrowsingViewModel.detailNavigationRequest = nil
+                        dismiss()
                     } label: {
                         Label("Play from Start", systemImage: "arrow.counterclockwise")
                             .font(.body)
@@ -173,24 +187,23 @@ public struct VideoDetailView: View {
                     .buttonStyle(.bordered)
                     .accessibilityLabel("Play from start")
                 }
-                .padding(.top, 8)
 
             case .alwaysResume:
                 playButton(enabled: true) {
                     coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
-                    fileBrowsingViewModel.detailNavigationRequest = nil
+                    dismiss()
                 }
 
             case .alwaysStartFromBeginning:
                 playButton(enabled: true) {
                     coordinator.confirmPlayback(prepared)
-                    fileBrowsingViewModel.detailNavigationRequest = nil
+                    dismiss()
                 }
             }
         } else {
             playButton(enabled: true) {
                 coordinator.confirmPlayback(prepared)
-                fileBrowsingViewModel.detailNavigationRequest = nil
+                dismiss()
             }
         }
     }
@@ -215,29 +228,94 @@ public struct VideoDetailView: View {
         } description: {
             Text(error.localizedDescription)
         } actions: {
-            Button("Go Back") {
+            Button("Retry") {
                 coordinator.cancelPreparedPlayback()
-                fileBrowsingViewModel.detailNavigationRequest = nil
+            }
+            Button("Close") {
+                coordinator.cancelPreparedPlayback()
+                dismiss()
             }
         }
     }
 
-    // MARK: - Shared Components
+    // MARK: - Video Preview
 
     @ViewBuilder
-    private func headerSection(displayName: String) -> some View {
-        VStack(spacing: 8) {
-            Image(systemName: "film")
-                .font(.system(size: 48))
-                .foregroundStyle(.secondary)
+    private func videoPreviewPlaceholder(displayName: String) -> some View {
+        VStack(spacing: 12) {
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .fill(.quaternary)
+                .aspectRatio(16/9, contentMode: .fit)
+                .overlay {
+                    Image(systemName: "film")
+                        .font(.system(size: 48))
+                        .foregroundStyle(.secondary)
+                }
 
             Text(displayName)
-                .font(.title2.weight(.semibold))
+                .font(.title3.weight(.semibold))
+                .lineLimit(2)
                 .multilineTextAlignment(.center)
-                .lineLimit(3)
         }
-        .padding(.top, 12)
     }
+
+    // MARK: - Environment Selector
+
+    @ViewBuilder
+    private func environmentSelector() -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Cinema Environment")
+                .font(.headline)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 12) {
+                    ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { env in
+                        let isSelected = appModel.currentCinemaEnvironment == env
+                        Button {
+                            Task {
+                                await appModel.switchEnvironment(to: env)
+                            }
+                        } label: {
+                            VStack(spacing: 6) {
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
+                                    .frame(width: 100, height: 64)
+                                    .overlay {
+                                        Image(systemName: environmentIcon(env))
+                                            .font(.title2)
+                                            .foregroundStyle(isSelected ? .primary : .secondary)
+                                    }
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 2)
+                                    )
+
+                                Text(env.displayName)
+                                    .font(.caption)
+                                    .foregroundStyle(isSelected ? .primary : .secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .contentShape(.rect)
+                        .accessibilityLabel(env.displayName)
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    }
+                }
+                .scrollTargetLayout()
+            }
+            .scrollTargetBehavior(.viewAligned)
+        }
+    }
+
+    private func environmentIcon(_ env: SpatialSceneDomain.CinemaEnvironment) -> String {
+        switch env {
+        case .darkTheatre: return "theatermasks"
+        case .starryNight: return "moon.stars"
+        case .sunsetNature: return "sun.horizon"
+        }
+    }
+
+    // MARK: - Metadata Section
 
     @ViewBuilder
     private func metadataSection(metadata: PlaybackMediaMetadata) -> some View {
@@ -248,7 +326,7 @@ public struct VideoDetailView: View {
             LazyVGrid(
                 columns: [
                     GridItem(.flexible(), alignment: .leading),
-                    GridItem(.flexible(), alignment: .leading),
+                    GridItem(.flexible(), alignment: .leading)
                 ],
                 spacing: 10
             ) {
@@ -305,6 +383,8 @@ public struct VideoDetailView: View {
         }
     }
 
+    // MARK: - Track Section
+
     @ViewBuilder
     private func trackSection<T: Identifiable>(
         title: String,
@@ -343,6 +423,8 @@ public struct VideoDetailView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
     }
 
+    // MARK: - Play Button
+
     @ViewBuilder
     private func playButton(enabled: Bool, action: (() -> Void)? = nil) -> some View {
         Button {
@@ -357,7 +439,6 @@ public struct VideoDetailView: View {
         .tint(.accentColor)
         .disabled(!enabled)
         .accessibilityLabel("Play")
-        .padding(.top, 8)
     }
 
     private func projectionLabel(_ type: PlaybackCoreDomain.ProjectionType) -> String {
