@@ -25,6 +25,7 @@ public struct PlaylistView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .hoverEffect(.highlight)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -76,6 +77,7 @@ public struct PlaylistView: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        .hoverEffect(.highlight)
                     }
                 }
                 .padding(12)

@@ -28,6 +28,7 @@ struct FilterPillsView: View {
                             .foregroundStyle(isActive ? Color.enchronOnTertiary : .secondary)
                     }
                     .buttonStyle(.plain)
+                    .hoverEffect(.highlight)
                     .frame(minHeight: 60)
                     .contentShape(.rect)
                     .accessibilityLabel("\(filter.displayName) filter")
