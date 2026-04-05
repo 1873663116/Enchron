@@ -13,7 +13,7 @@ Enchron UI/UX 重构（QA Round 2）暴露了 6 个未解决的 UI 问题，涵�
 
 **布局对齐（P0）**
 
-- R1. 播放页控件栏严格按 `player.html` 的 footer 布局实现：药丸形 glass 容器（`border-radius: 9999px`），内部按钮从左到右为 Menu → 后退10s → 播放/暂停 → 前进10s → Settings → NLE切换 → PiP，间距、尺寸与设计稿一致
+- R1. 播放页控件栏严格按 `player.html` 的 footer 布局实现：药丸形 glass 容器（`border-radius: 9999px`），内部按钮从左到右为 Menu → 后退10s → 播放/暂停 → 前进10s → NLE切换 → Settings，间距、尺寸与设计稿一致。**[NOTE: PiP 在 visionOS 上不适用（窗口本身已是浮动的），已 defer]**
 - R2. Menu 按钮的弹出菜单向左展开（`bottom-full`），包含字幕、音轨、播放倍速三个子菜单（点击展开，非 hover）
 - R3. Settings 按钮的弹出菜单向右展开，包含播放模式、环境两个子菜单
 - R4. 一级浏览页和二级详情页的布局与 `variant-AB-combined.html` 对齐（导航、卡片网格、详情面板）
@@ -32,7 +32,7 @@ Enchron UI/UX 重构（QA Round 2）暴露了 6 个未解决的 UI 问题，涵�
 
 **播放模式层级约束（P1）**
 
-- R11. 播放模式基于视频内容类型实施层级约束：2D → 仅窗口；3D → 窗口+沉浸；全景 → 窗口+沉浸+全景。不允许从低层级升级到高层级
+- R11. **[SUPERSEDED by geometric model]** ~~播放模式基于视频内容类型实施层级约束：2D → 仅窗口；3D → 窗口+沉浸；全景 → 窗口+沉浸+全景。~~ **修正后**：几何约束模型 — 全景模式仅对全景内容开放，沉浸模式（虚拟影院）对所有内容类型开放。详见 `docs/solutions/playback-mode-constraint-is-geometric-not-hierarchical-2026-04-05.md`
 - R12. `PlayerControlsView` 的模式菜单仅显示当前视频允许的模式，禁用/隐藏不可用模式
 - R13. `DecidePlaybackModeUseCase` 的手动覆盖必须验证目标模式是否在允许范围内，不允许无验证直通
 - R14. 模式约束逻辑位于 PlayerUI 内（遵守 Architecture Invariants），事实来源于 PlaybackCore 的 `ProjectionType`
@@ -60,7 +60,7 @@ Enchron UI/UX 重构（QA Round 2）暴露了 6 个未解决的 UI 问题，涵�
 - 三级页面所有控件按钮可交互，二级页面按钮可交互性已诊断
 - 所有按钮的 hover effect 形状匹配其视觉形状
 - 控件显隐为纯 opacity fade，无位移
-- 2D 视频不能切换到沉浸/全景模式
+- 2D 视频不能切换到全景模式；沉浸模式（虚拟影院）对所有内容可用
 - 窗口缩放时视频画布跟随
 - NLE 时间轴面板有 glass 背景，无溢出
 
