@@ -73,3 +73,37 @@ counter-review: 3 P0 + 5 P1 + 4 P2 + 3 P3，其中 3 项 P1 必修已应用
 verdict: P1 必修项已修正到需求文档，其余推迟到 PLANNING 阶段细化
 phase-exit-authorized: yes
 
+## Round 3 — PLANNING (ce-plan 制定实施计划)
+
+**时间**: 2026-04-05
+**目标**: 基于需求文档和审计报告，制定文档清理与路径规范化的实施计划
+
+### 执行摘要
+
+读取 INVESTIGATING 产出（需求文档 + 审计报告 + solutions），派遣 3 个并行 subagent 调研：
+- Agent 1: CLAUDE.md known_issues 行处理 + 全部 11 处引用精确映射
+- Agent 2: git rm 清理策略（97 个 ` D` 文件分组分析）
+- Agent 3: 全项目 workspace-agents/ 引用扫描（9 个文件 ~45 处）+ 额外项验证
+
+### 推迟问题解决
+
+| 问题 | 决议 | 理由 |
+|------|------|------|
+| CLAUDE.md known_issues 行 | 删除整行 | HEAD 中所有条目已归档解决，无迁移目标 |
+| git rm 批次策略 | 分 2 批提交 | 恢复与删除分离，git 历史更清晰 |
+| R13 是否包含 arch.md | 是，一起移入 active/ | UI/UX 重构活跃文档 |
+
+### 新发现
+
+- `scripts/sync_workspace_agents.py` 已过时（专为 workspace-agents 同步设计），但删除超出本轮范围
+- DESIGN-TO-SWIFTUI.md 重命名 blast radius 精确确认：7 处引用（supervisor-prompt 3 + pipeline 文档 4）
+
+### 产出
+
+- `docs/plans/active/ExecPlan.md` — 4 个实施单元的结构化计划
+- `docs/plans/active/TestPlan.md` — 5 个验收标准 + 单元级验证清单
+
+### ce-compound
+
+跳过。发现（sync 脚本过时、APFS 大小写风险）已记入计划，属常规规划产物。
+
