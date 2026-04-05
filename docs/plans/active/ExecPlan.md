@@ -427,7 +427,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 7: Sidebar with Data Sources & Storage (R11)**
+- [x] **Unit 7: Sidebar with Data Sources & Storage (R11)**
 
   **Goal:** Implement Finder-style sidebar with data source sections and storage indicator
 

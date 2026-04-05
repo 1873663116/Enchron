@@ -104,97 +104,48 @@ public struct FileBrowserView: View {
         }
     }
 
-    // MARK: - Sidebar (placeholder — full implementation in Unit 7)
+    // MARK: - Sidebar
 
     private var sidebar: some View {
-        List {
-            Section("Sources") {
-                Button {
-                    Task { await viewModel.useDefaultFolder() }
-                } label: {
-                    Label("Local Storage", systemImage: "internaldrive")
-                }
-                .buttonStyle(.plain)
-                .listRowBackground(
-                    viewModel.activeDataSource == nil
-                        ? Color.accentColor.opacity(0.15)
-                        : Color.clear
-                )
-
-                ForEach(viewModel.savedDataSources) { ds in
-                    Button {
-                        Task { await viewModel.connectToDataSource(ds) }
-                    } label: {
-                        HStack {
-                            Label(
-                                ds.name,
-                                systemImage: ds.sourceType == .smb
-                                    ? "externaldrive.connected.to.line.below"
-                                    : "network"
-                            )
-                            Spacer()
-                            if viewModel.activeDataSource?.id == ds.id {
-                                Circle()
-                                    .fill(.green)
-                                    .frame(width: 8, height: 8)
+        FileBrowserSidebar()
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Menu("Add Source") {
+                        Section("Local") {
+                            Button("Choose Folder...") {
+                                isFolderPickerPresented = true
+                            }
+                            Button("Import Video...") {
+                                isVideoPickerPresented = true
+                            }
+                            Button("Photo Library...") {
+                                let ds = FileBrowsingDomain.DataSource(
+                                    id: UUID(),
+                                    name: "Photo Library",
+                                    sourceType: .photoLibrary,
+                                    connectionInfo: .init(sourceType: .photoLibrary)
+                                )
+                                Task { await viewModel.connectToDataSource(ds) }
+                            }
+                            Button("Use App Documents") {
+                                Task {
+                                    await viewModel.useDefaultFolder()
+                                }
                             }
                         }
-                    }
-                    .buttonStyle(.plain)
-                    .listRowBackground(
-                        viewModel.activeDataSource?.id == ds.id
-                            ? Color.accentColor.opacity(0.15)
-                            : Color.clear
-                    )
-                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                        Button(role: .destructive) {
-                            viewModel.removeDataSource(id: ds.id)
-                        } label: {
-                            Label("Delete", systemImage: "trash")
+
+                        Section("Remote") {
+                            Button("Add WebDAV Server...") {
+                                remoteSourceDraft = .webDAV
+                            }
+
+                            Button("Add SMB Server...") {
+                                remoteSourceDraft = .smb
+                            }
                         }
                     }
                 }
             }
-        }
-        .navigationTitle("Sources")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Menu("Add Source") {
-                    Section("Local") {
-                        Button("Choose Folder...") {
-                            isFolderPickerPresented = true
-                        }
-                        Button("Import Video...") {
-                            isVideoPickerPresented = true
-                        }
-                        Button("Photo Library...") {
-                            let ds = FileBrowsingDomain.DataSource(
-                                id: UUID(),
-                                name: "Photo Library",
-                                sourceType: .photoLibrary,
-                                connectionInfo: .init(sourceType: .photoLibrary)
-                            )
-                            Task { await viewModel.connectToDataSource(ds) }
-                        }
-                        Button("Use App Documents") {
-                            Task {
-                                await viewModel.useDefaultFolder()
-                            }
-                        }
-                    }
-
-                    Section("Remote") {
-                        Button("Add WebDAV Server...") {
-                            remoteSourceDraft = .webDAV
-                        }
-
-                        Button("Add SMB Server...") {
-                            remoteSourceDraft = .smb
-                        }
-                    }
-                }
-            }
-        }
     }
 
     // MARK: - Detail
