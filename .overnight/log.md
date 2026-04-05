@@ -292,3 +292,42 @@ subagent 发现 solutions 文档中 line 219 也有一处旧的 plan 路径引�
 
 跳过。纯结构性文件操作，无非显而易见的技术事实。
 
+## Round 9 — EXECUTING (Unit 4: 路径命名规范化)
+
+**时间**: 2026-04-05
+**目标**: 将不符合 kebab-case + ISO 日期规范的文件/目录重命名，同步更新所有引用
+
+### 执行摘要
+
+派遣 1 个 subagent 执行 5 步操作：
+
+1. **目录重命名** — `file-browser-redesign-20260405/` → `file-browser-redesign-2026-04-05/`（5 个 HTML 文件完整）
+2. **文件重命名** — `DESIGN-TO-SWIFTUI.md` → `design-to-swiftui.md`（两步 mv 规避 macOS APFS 大小写不敏感）
+3. **supervisor-prompt.md 引用更新** — 3 处 DESIGN-TO-SWIFTUI → design-to-swiftui
+4. **solutions 文档引用更新** — 4 处 DESIGN-TO-SWIFTUI + 1 处 file-browser-redesign 日期格式 = 5 处
+5. **验证全通过** — 新文件存在、旧文件不存在、旧引用归零
+
+### 额外发现
+
+ExecPlan 未列出 `visionos-design-mockup-to-swiftui-pipeline` 文档中的 `file-browser-redesign-20260405` 引用（line 131），全局 grep 发现后一并更新。
+
+### 验证结果
+
+- `docs/designs/design-to-swiftui.md` 存在 ✓
+- `docs/designs/DESIGN-TO-SWIFTUI.md` 不存在 ✓
+- `docs/designs/file-browser-redesign-2026-04-05/` 含 5 个 HTML 文件 ✓
+- `grep -rn "DESIGN-TO-SWIFTUI" .overnight/supervisor-prompt.md docs/solutions/` 返回 0 结果 ✓
+- `grep -rn "file-browser-redesign-20260405" docs/solutions/` 返回 0 结果 ✓
+
+### 提交
+
+- `936ca39` docs: normalize file/directory naming to kebab-case + ISO dates
+
+### ce-compound
+
+跳过。纯文件重命名 + 路径替换操作，无非显而易见的技术事实。macOS APFS 两步 mv 技巧已在 ExecPlan 风险表中记录。
+
+### 状态
+
+ExecPlan 全部 4 个 Unit 标记 [x]。下一轮：ce-review 审查全部变更。
+
