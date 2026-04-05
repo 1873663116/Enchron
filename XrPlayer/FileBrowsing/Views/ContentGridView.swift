@@ -35,7 +35,7 @@ struct ContentGridView: View {
     private var emptyState: some View {
         VStack(spacing: 20) {
             Image(systemName: "folder.badge.questionmark")
-                .font(.system(size: 60))
+                .font(DesignTokens.SymbolSize.giant)
                 .foregroundStyle(.secondary)
             Text("No folders or playable videos found.")
                 .font(.headline)
@@ -62,7 +62,7 @@ struct ContentGridView: View {
                         .aspectRatio(16.0 / 9.0, contentMode: .fit)
                         .overlay {
                             Image(systemName: "folder.fill")
-                                .font(.system(size: 36))
+                                .font(DesignTokens.SymbolSize.card)
                                 .foregroundStyle(.yellow)
                         }
 

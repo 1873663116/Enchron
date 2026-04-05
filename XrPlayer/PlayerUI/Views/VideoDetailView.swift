@@ -251,7 +251,7 @@ public struct VideoDetailView: View {
                 .aspectRatio(16/9, contentMode: .fit)
                 .overlay {
                     Image(systemName: "film")
-                        .font(.system(size: 48))
+                        .font(DesignTokens.SymbolSize.hero)
                         .foregroundStyle(.secondary)
                 }
 

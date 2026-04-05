@@ -49,7 +49,7 @@ public struct FolderListView: View {
         } else if folders.isEmpty && files.isEmpty {
             VStack(spacing: 20) {
                 Image(systemName: "folder.badge.questionmark")
-                    .font(.system(size: 60))
+                    .font(DesignTokens.SymbolSize.giant)
                     .foregroundStyle(.secondary)
                 Text("No folders or playable videos found.")
                     .font(.headline)

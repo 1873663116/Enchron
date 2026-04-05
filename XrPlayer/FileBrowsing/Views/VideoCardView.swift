@@ -42,7 +42,7 @@ struct VideoCardView: View {
                 .aspectRatio(16.0 / 9.0, contentMode: .fit)
                 .overlay {
                     Image(systemName: fileIcon)
-                        .font(.system(size: 36))
+                        .font(DesignTokens.SymbolSize.card)
                         .foregroundStyle(Color.enchronOnSurfaceVariant.opacity(0.5))
                 }
 

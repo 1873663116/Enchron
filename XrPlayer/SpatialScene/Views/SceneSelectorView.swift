@@ -49,7 +49,7 @@ public struct SceneSelectorView: View {
                                             }
 
                                             Image(systemName: iconName(for: environment))
-                                                .font(.system(size: 44))
+                                                .font(DesignTokens.SymbolSize.feature)
                                                 .foregroundStyle(isSelected ? Color.accentColor : .primary)
                                         }
                                     }

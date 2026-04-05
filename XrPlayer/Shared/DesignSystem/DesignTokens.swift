@@ -48,5 +48,25 @@ public enum DesignTokens {
         public static let sectionHeader: Font = .caption2
         /// Badge labels: MV-HEVC, HDR10+ (text-xs)
         public static let badge: Font = .caption
+        /// Monospaced timecode/ruler text (9pt medium monospaced)
+        public static let monospacedDetail: Font = .system(size: 9, weight: .medium, design: .monospaced)
+    }
+
+    // MARK: - Symbol Sizes
+
+    /// SF Symbol font tokens — centralized sizing for icon consistency.
+    public enum SymbolSize {
+        /// Control icons: skip, seek buttons (24pt semibold)
+        public static let control: Font = .system(size: 24, weight: .semibold)
+        /// Card and folder icons (36pt)
+        public static let card: Font = .system(size: 36)
+        /// Play/pause primary action (36pt medium)
+        public static let action: Font = .system(size: 36, weight: .medium)
+        /// Scene selector, large UI icons (44pt)
+        public static let feature: Font = .system(size: 44)
+        /// Hero detail view icons (48pt)
+        public static let hero: Font = .system(size: 48)
+        /// Empty state placeholder icons (60pt)
+        public static let giant: Font = .system(size: 60)
     }
 }
