@@ -252,7 +252,7 @@ Mode constraint (geometric):
 
 ### Phase 2: P1 — Interaction Fixes
 
-- [ ] **Unit 4: Replace `.hoverEffect(.highlight)` with `.hoverEffect(.lift)`**
+- [x] **Unit 4: Replace `.hoverEffect(.highlight)` with `.hoverEffect(.lift)`**
 
 **Goal:** Fix hover effect shape to match button shape on visionOS.
 

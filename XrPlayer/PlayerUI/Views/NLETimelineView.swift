@@ -116,7 +116,7 @@ struct NLETimelineView: View {
                     .foregroundStyle(Color.enchronOnSurface.opacity(0.7))
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffect(.lift)
             .frame(minWidth: 60, minHeight: 60)
             .contentShape(.rect)
             .accessibilityLabel("Previous Frame")
@@ -132,7 +132,7 @@ struct NLETimelineView: View {
                     .foregroundStyle(Color.enchronOnSurface.opacity(0.7))
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffect(.lift)
             .frame(minWidth: 60, minHeight: 60)
             .contentShape(.rect)
             .accessibilityLabel("Next Frame")
@@ -170,7 +170,7 @@ struct NLETimelineToggleButton: View {
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
-        .hoverEffect(.highlight)
+        .hoverEffect(.lift)
         .help(isExpanded ? "Collapse Timeline" : "Expand Timeline")
         .accessibilityLabel(isExpanded ? "Collapse timeline" : "Expand timeline")
         .accessibilityAddTraits(.isToggle)

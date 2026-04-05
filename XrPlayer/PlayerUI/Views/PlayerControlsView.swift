@@ -169,7 +169,7 @@ public struct PlayerControlsView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffect(.lift)
             .frame(width: 48, height: 48)
             .contentShape(.circle)
             .help("Backward 10s")
@@ -203,7 +203,7 @@ public struct PlayerControlsView: View {
             )
             .clipShape(.circle)
             .contentShape(.circle)
-            .hoverEffect(.highlight)
+            .hoverEffect(.lift)
             .accessibilityLabel(playButtonAccessibilityLabel)
 
             // ── Forward 10s ──
@@ -216,7 +216,7 @@ public struct PlayerControlsView: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .hoverEffect(.highlight)
+            .hoverEffect(.lift)
             .frame(width: 48, height: 48)
             .contentShape(.circle)
             .help("Forward 10s")
@@ -284,7 +284,7 @@ public struct PlayerControlsView: View {
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
-        .hoverEffect(.highlight)
+        .hoverEffect(.lift)
         .help("Playback Options")
         .accessibilityLabel("Playback Options")
     }
@@ -423,7 +423,7 @@ public struct PlayerControlsView: View {
                 .contentShape(.circle)
         }
         .buttonStyle(.plain)
-        .hoverEffect(.highlight)
+        .hoverEffect(.lift)
         .help("Settings")
         .accessibilityLabel("Settings")
     }

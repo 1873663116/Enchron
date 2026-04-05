@@ -44,7 +44,7 @@ private struct PlayerControlSurfaceModifier: ViewModifier {
                     )
             )
             .contentShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
-            .hoverEffect(.highlight)
+            .hoverEffect(.lift)
             .shadow(color: Color.black.opacity(shadowOpacity), radius: 15, x: 0, y: 8)
     }
 }

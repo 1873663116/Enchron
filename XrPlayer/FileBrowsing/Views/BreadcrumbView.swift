@@ -32,7 +32,7 @@ struct BreadcrumbView: View {
                             .lineLimit(1)
                     }
                     .buttonStyle(.plain)
-                    .hoverEffect(.highlight)
+                    .hoverEffect(.lift)
                     .frame(minHeight: 60)
                     .contentShape(.rect)
                     .disabled(isLast)
