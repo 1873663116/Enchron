@@ -146,3 +146,22 @@ phase-exit-authorized: yes
 
 ---
 
+## Round 5 — EXECUTING: Unit 2 (2026-04-05)
+
+### 完成事项
+1. **Unit 2: Implement Menu and Settings popup menus**
+   - 左菜单按 HTML 设计重排：Speed→HDR→Subtitles→Audio 改为 HDR→Subtitles→Audio→Speed
+   - 右菜单按 eng review 修正保留全部现有功能项（Projection, Playlist, Screen Position, Settings, Debug）
+   - SwiftUI `Menu {}` 由 visionOS 系统渲染，弹出方向由系统决定（eng review 已确认）
+   - 编译验证通过（零 Swift 编译错误，SwiftLint 脚本阶段失败为预存在问题）
+
+### 关键决策
+- **菜单已预实现**：Unit 1 和既有代码已包含完整的 Menu + Settings 菜单。Unit 2 实际工作是按 HTML 重排左菜单 section 顺序
+- **不裁剪功能**：严格遵循 eng review amendment，右菜单保留全部现有项
+- **ce-compound 跳过**：本轮无新非显然技术发现
+
+### 下一步
+→ 选取下一个 `[ ]` 单元执行（Unit 3 依赖 Unit 2 已完成；Unit 4/5/6/7/8 独立可并行）
+
+---
+

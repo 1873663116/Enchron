@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "PLANNING 完成 — ExecPlan + TestPlan 通过 eng review（7 P1 修正）+ adversarial review（14 findings, 6 blocking 条件全部解决）。Phase transition authorized."
-next: "读取 ExecPlan，选取第一个 [ ] 单元（Unit 1: 重构 PlayerControlsView 布局），调用 /ce-work 执行"
+last_done: "Unit 2 完成 — 左菜单按 HTML 设计重排（HDR→Subtitles→Audio→Speed），右菜单保留全部现有项"
+next: "选取 Unit 3（Button interactivity audit）或独立单元（Unit 4/5/6/7/8），调用 /ce-work 执行"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
