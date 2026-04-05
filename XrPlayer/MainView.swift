@@ -158,10 +158,10 @@ public struct MainView: View {
                             appModel.registerControlsInteraction()
                             break
                         }
-                        withAnimation { appModel.showControls = false }
+                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = false }
                         controlsTimerTask?.cancel()
                     } else {
-                        withAnimation { appModel.showControls = true }
+                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
                         appModel.registerControlsInteraction()
                         startControlsTimer()
                     }
@@ -176,7 +176,7 @@ public struct MainView: View {
                 case .drag:
                     seekStartSeconds = windowVideoViewModel.playbackPosition.seconds
                     if !appModel.showControls {
-                        withAnimation { appModel.showControls = true }
+                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
                         appModel.registerControlsInteraction()
                         startControlsTimer()
                     }
@@ -210,12 +210,12 @@ public struct MainView: View {
             windowVideoViewModel.onPlaybackEnded = {
                 let shouldShowControls = playbackLauncher.handlePlaybackEnded(
                     onFallbackShowControls: {
-                        withAnimation { appModel.showControls = true }
+                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
                         controlsTimerTask?.cancel()
                     }
                 )
                 if shouldShowControls {
-                    withAnimation { appModel.showControls = true }
+                    withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
                     controlsTimerTask?.cancel()
                 }
             }
@@ -227,7 +227,7 @@ public struct MainView: View {
         .onChange(of: appModel.isPlaying) { _, isPlaying in
             if isPlaying {
                 appModel.registerControlsInteraction()
-                appModel.showControls = true
+                withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
                 startControlsTimer()
             }
         }
@@ -294,7 +294,7 @@ public struct MainView: View {
 
                 let idleTime = Date().timeIntervalSince(appModel.lastControlsInteractionAt)
                 if idleTime >= 8 {
-                    withAnimation {
+                    withAnimation(.easeInOut(duration: 0.4)) {
                         appModel.showControls = false
                     }
                     return

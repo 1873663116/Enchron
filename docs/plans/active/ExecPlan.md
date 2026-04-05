@@ -287,7 +287,7 @@ Mode constraint (geometric):
 
 ---
 
-- [ ] **Unit 5: Fix controls show/hide to pure opacity fade**
+- [x] **Unit 5: Fix controls show/hide to pure opacity fade**
 
 **Goal:** Eliminate position shift animation on controls appear/disappear; ensure pure opacity 0.4s ease-in-out.
 
