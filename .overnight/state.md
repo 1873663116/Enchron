@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 2 完成 — 左菜单按 HTML 设计重排（HDR→Subtitles→Audio→Speed），右菜单保留全部现有项"
-next: "选取 Unit 3（Button interactivity audit）或独立单元（Unit 4/5/6/7/8），调用 /ce-work 执行"
+last_done: "Unit 5 完成 — 全部 showControls mutation sites 统一为 withAnimation(.easeInOut(duration: 0.4))，8 处修复（MainView 7处 + PlayerControlsView 1处 + AppModel 1处）"
+next: "选取 Unit 6（playback mode geometric constraint）执行，调用 /ce-work"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0

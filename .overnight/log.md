@@ -165,3 +165,46 @@ phase-exit-authorized: yes
 
 ---
 
+## Round 6 — EXECUTING: Unit 3 (2026-04-05)
+
+### 完成事项
+1. **Unit 3: Button interactivity audit (Level 3)**
+   - Wire NLE timeline toggle 并修复按钮可交互性
+   - commit: b6bda2a
+
+### 下一步
+→ Unit 4
+
+---
+
+## Round 7 — EXECUTING: Unit 4 (2026-04-05)
+
+### 完成事项
+1. **Unit 4: Replace .hoverEffect(.highlight) with .hoverEffect(.lift)**
+   - 全局替换 10 个文件 15 处 `.hoverEffect(.highlight)` → `.hoverEffect(.lift)`
+   - commit: b7802f1
+
+### 下一步
+→ Unit 5
+
+---
+
+## Round 8 — EXECUTING: Unit 5 (2026-04-05)
+
+### 完成事项
+1. **Unit 5: Fix controls show/hide to pure opacity fade**
+   - 审计全部 `showControls` mutation sites（3 个文件共 13 处赋值）
+   - 8 处需修复：MainView 6 处 bare `withAnimation{}` → `withAnimation(.easeInOut(duration: 0.4))`，1 处无 wrapper 的 bare 赋值添加 wrapper；PlayerControlsView registerInteraction() 1 处；AppModel startPlayback() 1 处
+   - 5 处保持 as-is：XrPlayerApp 2 处（init/cleanup）、PlayerControlsView 2 处（已正确/debug 路径）、AppModel 1 处（property decl）
+   - 编译验证通过（零 Swift 编译错误，SwiftLint 脚本阶段失败为预存在问题）
+   - commit: 29e11e0
+
+### 关键决策
+- **机械替换**：全部改动是 eng review amendment 中已明确的修复，无新技术判断
+- **ce-compound 跳过**：无新非显然技术发现
+
+### 下一步
+→ Unit 6（playback mode geometric constraint）
+
+---
+
