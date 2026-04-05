@@ -541,7 +541,7 @@ public struct PlayerControlsView: View {
         lastInteractionTime = Date()
         appModel.registerControlsInteraction()
         if appModel.showControls == false {
-            appModel.showControls = true
+            withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
         }
     }
 

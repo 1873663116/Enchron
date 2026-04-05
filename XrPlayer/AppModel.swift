@@ -125,7 +125,7 @@ public final class AppModel {
         playbackPosition = .init(seconds: 0, duration: 0)
         mediaProfile = nil
         projectionOverride = nil
-        showControls = true
+        withAnimation(.easeInOut(duration: 0.4)) { showControls = true }
         registerControlsInteraction()
     }
 
