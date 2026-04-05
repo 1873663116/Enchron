@@ -208,3 +208,40 @@ phase-exit-authorized: yes
 
 ---
 
+## Round 9 — EXECUTING: Unit 6 (2026-04-05)
+
+### 完成事项
+1. **Unit 6: Implement playback mode geometric constraint**
+   - `PlaybackMode.allowedModes(for:)` 实现为几何约束（非层级）
+   - `DecidePlaybackModeUseCase` 验证 manual override，超出范围 clamp 到 .window
+   - `PlayerControlsView` mode menu 按 allowedModes 过滤
+   - 新增 `PlaybackModeRoutingTests` 单元测试
+   - commit: 86a8bc1
+
+### 下一步
+→ Unit 7
+
+---
+
+## Round 10 — EXECUTING: Unit 7 (2026-04-05)
+
+### 完成事项
+1. **Unit 7: Video canvas resize with GeometryReader**
+   - `WindowVideoView` 新增 `containerSize: CGSize` 属性（默认 `.zero` 保持向后兼容）
+   - `MainView` 用 `GeometryReader` 包裹 `WindowVideoView`，传入 `geometry.size`
+   - Native GPU path: `setNeedsLayout()` 现在可靠触发（因 `updateUIView` 被 containerSize 变化驱动）
+   - MTKView fallback: 新增 `drawableSize` 更新，含 >1 guard 匹配 MoltenVK workaround
+   - `MPVNativeMetalLayerView.swift` 无需修改（MoltenVK workaround 正确放行合法 resize）
+   - 编译验证通过（零 Swift 编译错误）
+   - commit: 4e44575
+
+### 关键决策
+- **verify-first 结论**：`setNeedsLayout()` 已存在但不够——`updateUIView` 不因窗口几何变化触发，需 containerSize 属性作为 SwiftUI 依赖
+- **无需 delta threshold**：CGSize 是 Equatable，SwiftUI 自然去重相同值
+- **ce-compound 跳过**：UIViewRepresentable 不响应几何变化的行为已在 ExecPlan 技术调查中记录
+
+### 下一步
+→ Unit 8（NLE timeline glass background and containment）
+
+---
+

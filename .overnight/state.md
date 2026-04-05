@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 5 完成 — 全部 showControls mutation sites 统一为 withAnimation(.easeInOut(duration: 0.4))，8 处修复（MainView 7处 + PlayerControlsView 1处 + AppModel 1处）"
-next: "选取 Unit 6（playback mode geometric constraint）执行，调用 /ce-work"
+last_done: "Unit 7 完成 — GeometryReader 包裹 WindowVideoView，containerSize 属性注入使 updateUIView 响应窗口缩放，MTKView fallback 路径同步更新 drawableSize"
+next: "选取 Unit 8（NLE timeline glass background and containment）执行，调用 /ce-work"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
