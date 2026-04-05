@@ -217,3 +217,42 @@ phase-exit-authorized: yes
 
 跳过。纯文件恢复/迁移操作，无非显而易见的技术事实。
 
+## Round 7 — EXECUTING (Unit 2: 修复断裂引用)
+
+**时间**: 2026-04-05
+**目标**: 修复 8 个活跃文档中 37 处 workspace-agents/ 断裂引用
+
+### 执行摘要
+
+内联执行（纯路径替换 + 行删除，无行为变更）：
+
+1. **CLAUDE.md** — 11 处：9 处 workspace-agents/ → docs/，1 处 → ~/.claude/skills/，1 行 known_issues 删除（所有条目已归档）
+2. **ARCHITECTURE.md** — 7 处 → docs/（design_docs, ubiquitous_language, contracts, product_philosophy）
+3. **README.md** — 6 处：删除目录树 workspace-agents/ 行，4 处 → docs/，1 行 known_issues 删除
+4. **README.en.md** — 6 处：同 README.md 对称处理
+5. **docs/plans/2026-04-02-001-...plan.md** �� 4 处：3 处 → docs/，1 行 known_issues 删除
+6. **docs/design_docs/README.md** — 1 处 → docs/ubiquitous_language.md
+7. **Tests/README.md** — 1 处 → docs/quality_gates.md（含 markdown 链接更新）
+8. **docs/solutions/.../autonomous-overnight-...patterns.md** — 1 处 → ~/.claude/skills/
+
+### 验证结果
+
+- 4 核心文件（CLAUDE.md, ARCHITECTURE.md, README.md, README.en.md）workspace-agents 引用 = 0
+- docs/plans/、docs/design_docs/、Tests/���docs/solutions/ 中活跃文档 workspace-agents 引用 = 0
+- CLAUDE.md 路由表全部 11 个路径通过 `test -e` 验证
+- README 目录树删除后缩进连贯（Tests/ 紧接 code block 结束）
+- Markdown 链接语法完整（Tests/README.md 已验证）
+
+### 已知残留
+
+- `docs/plans/2026-04-05-arch.md` 含 ~11 处 workspace-agents 描述性文字（工程评审报告，非活跃路径引用，Round 5 adversarial review 明确"推迟"）
+
+### 提交
+
+- `8b2fedf` docs: fix 37 broken workspace-agents/ references across 8 active documents
+- `d219561` docs(overnight): mark ExecPlan Unit 2 complete
+
+### ce-compound
+
+跳过。纯路径替换操作，无非显而易见的技术事实。
+
