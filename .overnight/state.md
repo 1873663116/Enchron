@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 3 完成 — 目录重组 + git rm 98 个已删除文件"
-next: "Unit 4：路径命名规范化 — DESIGN-TO-SWIFTUI 重命名 + 日期目录"
+last_done: "Unit 4 完成 — DESIGN-TO-SWIFTUI → design-to-swiftui + 日期目录重命名 + 8 处引用更新"
+next: "ce-review — 全部 4 个 Unit 完成，进入代码审查"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
