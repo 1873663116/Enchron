@@ -189,3 +189,31 @@ counter-review: 3 P1 + 2 P2 + 2 P3，3 P1 + 1 P2 已修正到计划
 verdict: P1 全部修复，P2-1 修复，P2-2 推迟，P3 记录
 phase-exit-authorized: yes
 
+## Round 6 — EXECUTING (Unit 1: 恢复关键文件)
+
+**时间**: 2026-04-05
+**目标**: 执行 ExecPlan Unit 1 — 恢复 7 个关键文件并迁移到 docs/
+
+### 执行摘要
+
+内联执行（简单文件恢复/迁移，无行为变更）：
+
+1. `git checkout HEAD -- REGRESSION.md TESTING.md QUALITY_SCORE.md` — 恢复 3 个根目录文件
+2. `git show HEAD:<old-path> > <new-path>` — 提取 4 个 workspace-agents 文件到 docs/
+
+### 验证结果
+
+- 7 个文件全部存在且非空（REGRESSION.md 49KB, TESTING.md 11KB, QUALITY_SCORE.md 2.6KB, product_philosophy.md 5KB, Requirements.md 10.6KB, quality_gates.md 5.2KB, mpv-build-guide.md 4.4KB）
+- 4 个迁移文件 diff 验证：内容与 HEAD 版本完全一致
+- `git status` 中 REGRESSION.md/TESTING.md/QUALITY_SCORE.md 不再显示 ` D` 状态
+- 4 个新文件已 staged 并提交
+
+### 提交
+
+- `22a7260` docs: restore 7 critical files and migrate to docs/
+- `80e458b` docs(overnight): mark ExecPlan Unit 1 complete
+
+### ce-compound
+
+跳过。纯文件恢复/迁移操作，无非显而易见的技术事实。
+
