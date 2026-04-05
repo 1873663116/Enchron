@@ -3,6 +3,7 @@ import SwiftUI
 public struct SceneSelectorView: View {
     @Environment(AppModel.self) var appModel
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
+    @Environment(\.dismiss) private var dismiss
 
     let columns = [
         GridItem(.adaptive(minimum: 200))
@@ -11,6 +12,7 @@ public struct SceneSelectorView: View {
     public init() {}
 
     public var body: some View {
+        NavigationStack {
         VStack {
             ToggleImmersiveSpaceButton()
                 .padding(.vertical, 24)
@@ -54,7 +56,7 @@ public struct SceneSelectorView: View {
                                         }
                                     }
                                     .contentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
-                                    .hoverEffect()
+                                    .hoverEffect(.highlight)
 
                                 Text(environment.displayName)
                                     .font(.headline)
@@ -76,6 +78,12 @@ public struct SceneSelectorView: View {
                 .padding(.bottom, 20)
         }
         .navigationTitle("Scenes")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close") { dismiss() }
+            }
+        }
+        }
     }
 
     private func iconName(

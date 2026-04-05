@@ -93,6 +93,16 @@ public final class FileBrowsingViewModel {
         }
     }
 
+    public func disconnectAndResetToLocal() {
+        activeRemoteAdapter?.disconnect()
+        activeRemoteAdapter = nil
+        activeDataSource = nil
+        lastErrorMessage = nil
+        Task { [weak self] in
+            await self?.useDefaultFolder()
+        }
+    }
+
     public func addDataSource(_ ds: FileBrowsingDomain.DataSource) {
         if !savedDataSources.contains(where: { $0.id == ds.id }) {
             savedDataSources.append(ds)
