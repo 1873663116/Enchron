@@ -225,3 +225,36 @@ phase-exit-authorized: yes
 
 ### ce-compound
 本轮为纯验证 + 状态迁移，无非显而易见的技术发现，跳过。
+
+---
+
+## Round 6 — EXECUTING: Unit 1 Semantic Color System (R1) (2026-04-05)
+
+### 目标
+执行 ExecPlan Unit 1：建立 9 色语义调色板作为 SwiftUI 一等资产。
+
+### 执行摘要
+
+1. **Asset Catalog 创建**：9 个 Color Sets 在 `XrPlayer/Assets.xcassets/Colors/`，全部使用 "Any Appearance"（sRGB 浮点值）
+2. **Color extension 冲突发现**：手动创建 `Color+DesignTokens.swift` 导致 Xcode build 失败（"invalid redeclaration"），因 Xcode 15+ 自动从 Asset Catalog 生成同名 `Color.xxx` 访问器
+3. **修复**：删除手动 extension，依赖 Xcode Generated Asset Symbols
+4. **测试**：DesignTokenTests.swift（7 个测试）— 验证调色板完整性、命名规范、hex 有效性、RGB 转换精度
+5. **验证**：SPM tests 255/255 passed + Xcode visionOS Simulator build succeeded
+
+### 关键决策
+
+| 决策 | 理由 |
+|------|------|
+| 不写手动 Color extension | Xcode 15+ 自动从 Asset Catalog 生成 type-safe Color 访问器，手动定义会冲突 |
+| 测试作为 contract tests（非 Asset Catalog 直接测试） | SPM 测试无法访问 app bundle 的 xcassets，改为验证设计规范合约 |
+
+### 产出物
+
+| 文件 | 说明 |
+|------|------|
+| XrPlayer/Assets.xcassets/Colors/*.colorset | 9 个 Color Sets |
+| Tests/XrPlayerCoreTests/DesignTokenTests.swift | 7 个合约测试 |
+| docs/solutions/build-errors/xcode-asset-catalog-color-redeclaration-2026-04-05.md | ce-compound 经验归纳 |
+
+### ce-compound
+Xcode 15+ Asset Catalog 自动符号生成与手动 Color extension 冲突 — 平台陷阱，已归纳到 `docs/solutions/build-errors/`。
