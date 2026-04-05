@@ -16,21 +16,30 @@ public struct PlayerControlsView: View {
     @State private var showDebugSheet = false
     @State private var lastInteractionTime = Date()
     @State private var hasAppliedSmokePanelRequest = false
+    @State private var isTimelineExpanded = false
 
     public init() {}
 
     public var body: some View {
-        VStack(spacing: 16) {
-            PlayerInfoBarView()
+        VStack(spacing: 12) {
+            VStack(spacing: 16) {
+                PlayerInfoBarView()
 
-            sliderSection
+                sliderSection
 
-            controlRow
+                controlRow
+            }
+            .padding(.horizontal, 28)
+            .padding(.vertical, 20)
+            .frame(width: 680)
+            .enchronGlassControl()
+
+            NLETimelineView(
+                isExpanded: $isTimelineExpanded,
+                currentTime: videoViewModel.playbackPosition.seconds,
+                duration: videoViewModel.playbackPosition.duration
+            )
         }
-        .padding(.horizontal, 28)
-        .padding(.vertical, 20)
-        .frame(width: 680)
-        .enchronGlassControl()
         .onHover { isHovering in
             appModel.setControlsFocused(isHovering)
         }
@@ -190,6 +199,8 @@ public struct PlayerControlsView: View {
             .contentShape(.rect)
             .help("Forward 10s")
             .accessibilityLabel("Skip forward 10 seconds")
+
+            NLETimelineToggleButton(isExpanded: $isTimelineExpanded)
 
             rightMenu
         }
