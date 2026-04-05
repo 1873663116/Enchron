@@ -1,6 +1,6 @@
-phase: EXECUTING
-last_done: "ce-review 完成 — 7 reviewers, 0 P0/P1, 6 P2, 5 P3, 3 pre-existing. 1 safe_auto fix applied (dead parameters in VideoDetailView). 22/22 requirements satisfied. Verdict: Ready with fixes."
-next: "对抗审查（标准）— EXECUTING 阶段退出前必做"
+phase: TESTING
+last_done: "对抗审查（标准）通过 — Codex 4 findings (2 high, 2 medium), Opus 辩护后 2 DISMISS + 2 CONCEDE as P2/low。0 P0/P1。Phase exit authorized."
+next: "调用 /qa 执行测试验收"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
