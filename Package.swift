@@ -68,7 +68,8 @@ let package = Package(
                 "XrPlayer/PlayerUI/UseCases/DecidePlaybackModeUseCase.swift",
                 "XrPlayer/Persistence/Domain/ValueObjects/FileIdentifier.swift",
                 "XrPlayer/Persistence/Domain/Entities/SavedScreenPosition.swift",
-                "XrPlayer/PlayerUI/Domain/ValueObjects/PlaybackMode.swift"
+                "XrPlayer/PlayerUI/Domain/ValueObjects/PlaybackMode.swift",
+                "XrPlayer/Shared/DesignSystem/DesignTokens.swift"
             ],
             linkerSettings: [
                 .linkedFramework("Security"),
