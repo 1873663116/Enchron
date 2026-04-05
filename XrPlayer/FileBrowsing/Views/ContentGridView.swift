@@ -46,7 +46,7 @@ struct ContentGridView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding()
-        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
     }
 
     // MARK: - Folder Cards

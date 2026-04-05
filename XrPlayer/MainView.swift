@@ -9,6 +9,7 @@ public struct MainView: View {
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(PanoramaLayerBridge.self) var panoramaBridge
 
     public init() {}
 
@@ -49,7 +50,7 @@ public struct MainView: View {
                     )
 
                 if windowVideoViewModel.presentationState != .videoVisible {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                         .fill(.black)
                         .transition(.opacity)
                 }
@@ -59,7 +60,7 @@ public struct MainView: View {
                         .progressViewStyle(.circular)
                         .scaleEffect(1.5)
                         .padding(20)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge))
                         .transition(.opacity)
                 }
 
@@ -67,7 +68,7 @@ public struct MainView: View {
                     ProgressView("Buffering…")
                         .progressViewStyle(.circular)
                         .padding(20)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge))
                         .transition(.opacity)
                 }
 
@@ -226,11 +227,18 @@ public struct MainView: View {
             // Only transition when immersive requirement actually changes
             guard needsImmersive != oldNeedsImmersive else { return }
             Task { @MainActor in
+                // Detach panorama bridge before dismissing old immersive space
+                if oldNeedsImmersive {
+                    panoramaBridge.attachVideoLayer(nil)
+                }
+
                 if needsImmersive && appModel.immersiveSpaceState == .closed {
                     appModel.immersiveSpaceState = .inTransition
                     switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
                     case .opened:
-                        break
+                        // Attach video layer for panorama/immersive rendering
+                        let layer = windowVideoViewModel.nativeVideoLayer
+                        panoramaBridge.attachVideoLayer(layer)
                     case .userCancelled, .error:
                         fallthrough
                     @unknown default:
@@ -244,15 +252,22 @@ public struct MainView: View {
             }
         }
         .onChange(of: appModel.playbackMode != .window && appModel.isPlaying) { _, shouldShow in
-            if shouldShow {
-                openWindow(id: "playerControls")
-            } else {
-                dismissWindow(id: "playerControls")
+            // P1 #1 fix: serialize window operations to prevent race on rapid mode transitions
+            playerControlsWindowTask?.cancel()
+            playerControlsWindowTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                if shouldShow {
+                    openWindow(id: "playerControls")
+                } else {
+                    dismissWindow(id: "playerControls")
+                }
             }
         }
     }
 
     @State private var controlsTimerTask: Task<Void, Never>?
+    @State private var playerControlsWindowTask: Task<Void, Never>?
     @State private var pinchBegan = false
     @State private var speedBeforeLongPress: PlaybackCoreDomain.PlaybackSpeed?
     @State private var seekStartSeconds: Double?

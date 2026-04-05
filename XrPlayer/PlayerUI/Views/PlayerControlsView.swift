@@ -5,9 +5,6 @@ public struct PlayerControlsView: View {
     @Environment(WindowVideoViewModel.self) private var videoViewModel
     @Environment(FileBrowsingViewModel.self) private var fileBrowsingViewModel
     @Environment(PlaybackLaunchCoordinator.self) private var launcher
-    @Environment(PanoramaLayerBridge.self) private var panoramaBridge
-    @Environment(\.openImmersiveSpace) private var openImmersiveSpace
-    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openWindow) private var openWindow
 
     @State private var isDraggingSlider = false
@@ -31,7 +28,7 @@ public struct PlayerControlsView: View {
             }
             .padding(.horizontal, 28)
             .padding(.vertical, 20)
-            .frame(width: 680)
+            .frame(width: DesignTokens.Layout.playerControlsWidth)
             .enchronGlassControl()
 
             NLETimelineView(
@@ -273,9 +270,7 @@ public struct PlayerControlsView: View {
             Section("Mode") {
                 ForEach(PlaybackMode.allCases, id: \.self) { mode in
                     Button {
-                        Task {
-                            await switchPlaybackMode(to: mode)
-                        }
+                        switchPlaybackMode(to: mode)
                     } label: {
                         if appModel.playbackMode == mode {
                             Label(playbackModeLabel(mode), systemImage: "checkmark")
@@ -487,43 +482,14 @@ public struct PlayerControlsView: View {
 
     // MARK: - Mode Switching
 
-    private func switchPlaybackMode(to mode: PlaybackMode) async {
-        let currentMode = appModel.playbackMode
-        guard mode != currentMode else { return }
-
-        if currentMode == .panorama || currentMode == .immersive {
-            panoramaBridge.attachVideoLayer(nil)
-        }
-
-        if currentMode == .immersive || currentMode == .panorama {
-            if appModel.immersiveSpaceState == .open {
-                appModel.immersiveSpaceState = .inTransition
-                await dismissImmersiveSpace()
-            }
-        }
-
-        if mode == .immersive || mode == .panorama {
-            appModel.immersiveSpaceState = .inTransition
-            switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
-            case .opened:
-                break
-            case .userCancelled, .error:
-                appModel.immersiveSpaceState = .closed
-                appModel.updatePlaybackMode(.window)
-                return
-            @unknown default:
-                appModel.immersiveSpaceState = .closed
-                appModel.updatePlaybackMode(.window)
-                return
-            }
-        }
-
+    /// Requests a playback mode change.
+    /// Immersive space transitions and panorama bridge lifecycle are handled
+    /// centrally by MainView's onChange(of: playbackMode), keeping this window
+    /// decoupled from PanoramaLayerBridge and immersive space APIs.
+    private func switchPlaybackMode(to mode: PlaybackMode) {
+        guard mode != appModel.playbackMode else { return }
+        guard appModel.immersiveSpaceState != .inTransition else { return }
         appModel.updatePlaybackMode(mode)
-
-        if mode == .panorama || mode == .immersive {
-            let layer = videoViewModel.nativeVideoLayer
-            panoramaBridge.attachVideoLayer(layer)
-        }
     }
 
     // MARK: - Label Helpers
@@ -599,5 +565,4 @@ public struct PlayerControlsView: View {
         .environment(windowVideoViewModel)
         .environment(fileBrowsingViewModel)
         .environment(launcher)
-        .environment(PanoramaLayerBridge())
 }

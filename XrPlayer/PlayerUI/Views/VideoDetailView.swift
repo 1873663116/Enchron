@@ -246,7 +246,7 @@ public struct VideoDetailView: View {
     @ViewBuilder
     private func videoPreviewPlaceholder(displayName: String) -> some View {
         VStack(spacing: 12) {
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                 .fill(.quaternary)
                 .aspectRatio(16/9, contentMode: .fit)
                 .overlay {
@@ -280,7 +280,7 @@ public struct VideoDetailView: View {
                             }
                         } label: {
                             VStack(spacing: 6) {
-                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous)
                                     .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                                     .frame(width: 100, height: 64)
                                     .overlay {
@@ -289,7 +289,7 @@ public struct VideoDetailView: View {
                                             .foregroundStyle(isSelected ? .primary : .secondary)
                                     }
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                        RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous)
                                             .strokeBorder(isSelected ? Color.accentColor : .clear, lineWidth: 2)
                                     )
 
@@ -373,7 +373,7 @@ public struct VideoDetailView: View {
             }
         }
         .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
     }
 
     @ViewBuilder
@@ -424,7 +424,7 @@ public struct VideoDetailView: View {
             }
         }
         .padding()
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
     }
 
     // MARK: - Play Button

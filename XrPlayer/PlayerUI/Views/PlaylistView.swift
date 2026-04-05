@@ -72,7 +72,7 @@ public struct PlaylistView: View {
                             .padding(.vertical, 12)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
-                                RoundedRectangle(cornerRadius: 14)
+                                RoundedRectangle(cornerRadius: DesignTokens.Radius.badge)
                                     .fill(isCurrent ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.04))
                             )
                         }

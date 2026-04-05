@@ -173,7 +173,7 @@ public struct FileBrowserView: View {
                     .controlSize(.small)
                 }
                 .padding()
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
             }
 
             BreadcrumbView()

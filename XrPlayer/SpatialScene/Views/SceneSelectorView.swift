@@ -36,14 +36,14 @@ public struct SceneSelectorView: View {
                             }
                         } label: {
                             VStack(alignment: .leading, spacing: 12) {
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                                     .fill(.clear)
                                     .aspectRatio(16/9, contentMode: .fill)
-                                    .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+                                    .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
                                     .overlay {
                                         ZStack {
                                             if isSelected {
-                                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                                                     .stroke(Color.accentColor, lineWidth: 3)
                                                     .blur(radius: 2)
                                             }
@@ -53,7 +53,7 @@ public struct SceneSelectorView: View {
                                                 .foregroundStyle(isSelected ? Color.accentColor : .primary)
                                         }
                                     }
-                                    .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                                    .contentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
                                     .hoverEffect()
 
                                 Text(environment.displayName)
