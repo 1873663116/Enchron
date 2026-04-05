@@ -256,3 +256,39 @@ phase-exit-authorized: yes
 
 跳过。纯路径替换操作，无非显而易见的技术事实。
 
+## Round 8 — EXECUTING (Unit 3: 结构规范化)
+
+**时间**: 2026-04-05
+**目标**: 目录重组、移动活跃计划文件、批量 git rm 98 个已删除但仍被追踪的文件
+
+### 执行摘要
+
+派遣 1 个 subagent 执行 6 步操作：
+
+1. **目录重命名** — `docs/archive/issues archive/` → `docs/archive/issues-archive/`（3 个归档文件保留）
+2. **计划文件移动** — 2 个活跃计划文件 git mv 到 `docs/plans/active/`
+3. **引用更新** — `docs/solutions/.../autonomous-overnight-...patterns.md` 中 2 处 arch.md 路径更新
+4. **批量 git rm** — workspace-agents/ 88 文件 + docs/ExecPlan/ 4 文件 + 根目录 5 临时文件 + logs/runner.log = 98 文件
+5. **验证全通过** — 无 ` D` 文件、无空格目录、活跃文件就位、旧引用清零
+6. **提交** — `a264581`，101 files changed
+
+### 验证结果
+
+- `docs/archive/issues archive/` 不存在 ✓
+- `docs/archive/issues-archive/` 含 3 个文件 ✓
+- `docs/plans/active/` 含 4 个文件（ExecPlan + TestPlan + 2 个迁移文件）✓
+- `git status --porcelain | grep "^ D"` 返回 0 行 ✓
+- `find docs/ -type d -name "* *"` 返回 0 结果 ✓
+
+### 额外发现
+
+subagent 发现 solutions 文档中 line 219 也有一处旧的 plan 路径引用（`docs/plans/2026-04-02-001-feat-phase1-3-ui-ux-rewrite-plan.md`），一并更新。
+
+### 提交
+
+- `a264581` docs: normalize directory structure and git-rm 98 deleted tracked files
+
+### ce-compound
+
+跳过。纯结构性文件操作，无非显而易见的技术事实。
+
