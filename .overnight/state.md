@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 2 完成 — 修复 8 文件 37 处 workspace-agents/ 断裂引用"
-next: "Unit 3：结构规范化 — 目录重组与 git 清理"
+last_done: "Unit 3 完成 — 目录重组 + git rm 98 个已删除文件"
+next: "Unit 4：路径命名规范化 — DESIGN-TO-SWIFTUI 重命名 + 日期目录"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
