@@ -780,7 +780,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 16: Thumb Strip & Gesture Controls (R28, R30, R31)**
+- [x] **Unit 16: Thumb Strip & Gesture Controls (R28, R30, R31)**
 
   **Goal:** Add thumbnail track with drag scrolling, pinch zoom, and frame stepping
 
