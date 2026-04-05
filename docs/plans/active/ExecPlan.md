@@ -502,7 +502,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 9: Video Card Grid (R12, R15)**
+- [x] **Unit 9: Video Card Grid (R12, R15)**
 
   **Goal:** Replace list-based file display with visual card grid including thumbnails and badges
 

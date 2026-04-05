@@ -173,7 +173,7 @@ public struct FileBrowserView: View {
             BreadcrumbView()
             FilterPillsView()
 
-            FolderListView(
+            ContentGridView(
                 folders: viewModel.folders,
                 files: viewModel.files,
                 isLoading: viewModel.isLoading,
