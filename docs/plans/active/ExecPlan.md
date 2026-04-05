@@ -376,7 +376,7 @@ Mode constraint (geometric):
 
 ### Phase 3: P2 — Rendering & Timeline Fixes
 
-- [ ] **Unit 7: Video canvas resize with GeometryReader**
+- [x] **Unit 7: Video canvas resize with GeometryReader**
 
 **Goal:** Video canvas updates when visionOS window is resized.
 
