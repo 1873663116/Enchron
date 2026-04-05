@@ -129,7 +129,7 @@ Mode constraint (geometric):
 
 ### Phase 1: P0 — Player Page (Level 3) Layout Alignment
 
-- [ ] **Unit 1: Restructure PlayerControlsView layout to match player.html**
+- [x] **Unit 1: Restructure PlayerControlsView layout to match player.html**
 
 **Goal:** Rewrite the control bar to match the HTML footer: seek bar on top, pill-shaped button bar below with 5 buttons in correct order and sizes.
 
