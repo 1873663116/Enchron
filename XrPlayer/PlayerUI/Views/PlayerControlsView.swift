@@ -37,7 +37,10 @@ public struct PlayerControlsView: View {
             NLETimelineView(
                 isExpanded: $isTimelineExpanded,
                 currentTime: videoViewModel.playbackPosition.seconds,
-                duration: videoViewModel.playbackPosition.duration
+                duration: videoViewModel.playbackPosition.duration,
+                onSeek: { videoViewModel.seek(to: $0) },
+                onFrameStepForward: { videoViewModel.frameStepForward() },
+                onFrameStepBackward: { videoViewModel.frameStepBackward() }
             )
         }
         .onHover { isHovering in

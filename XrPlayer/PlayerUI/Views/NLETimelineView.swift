@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Expandable NLE (non-linear editing) timeline panel that slides below the
-/// player control bar.  Currently hosts placeholder content for the ruler
-/// (Unit 15) and thumb strip (Unit 16) — those will replace the placeholders.
+/// player control bar.  Hosts the time ruler (Unit 15), thumb strip (Unit 16),
+/// frame step buttons, and zoom gesture.
 ///
 /// Toggle behaviour:
 ///   - Collapsed: panel is hidden via `clipped()` + zero height.
@@ -18,10 +18,26 @@ struct NLETimelineView: View {
     /// Total media duration in seconds.
     let duration: Double
 
+    /// Called with target time when user drags on the thumb strip.
+    var onSeek: ((Double) -> Void)?
+    /// Called when user taps frame-step-forward button.
+    var onFrameStepForward: (() -> Void)?
+    /// Called when user taps frame-step-backward button.
+    var onFrameStepBackward: (() -> Void)?
+
+    // MARK: - State
+
+    @State private var zoomLevel: Double?
+
     // MARK: - Layout constants
 
-    private let expandedHeight: CGFloat = 120
+    private let expandedHeight: CGFloat = 160
     private let panelWidth: CGFloat = 680
+
+    /// Resolved zoom: explicit state or duration-based default.
+    private var resolvedZoom: Double {
+        zoomLevel ?? TimelineRulerView.defaultZoom(for: duration)
+    }
 
     // MARK: - Body
 
@@ -43,6 +59,7 @@ struct NLETimelineView: View {
             )
         )
         .animation(.spring(), value: isExpanded)
+        .gesture(zoomGesture)
     }
 
     // MARK: - Timeline Content
@@ -53,26 +70,61 @@ struct NLETimelineView: View {
             TimelineRulerView(
                 duration: duration,
                 currentTime: currentTime,
-                isSeeking: false
+                isSeeking: false,
+                zoomLevel: resolvedZoom
             )
 
-            // Thumb strip placeholder — will be replaced by ThumbStripView (Unit 16)
-            thumbStripPlaceholder
+            ThumbStripView(
+                duration: duration,
+                currentTime: currentTime,
+                zoomLevel: resolvedZoom,
+                onSeek: onSeek
+            )
+
+            frameStepRow
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 12)
+        .padding(.vertical, 10)
     }
 
-    private var thumbStripPlaceholder: some View {
-        Rectangle()
-            .fill(Color.enchronSurfaceContainerLow.opacity(0.3))
-            .frame(height: 48)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-            .overlay {
-                Text("Timeline")
-                    .font(DesignTokens.Typography.sectionHeader)
-                    .foregroundStyle(Color.enchronOnSurface.opacity(0.35))
-                    .textCase(.uppercase)
+    // MARK: - Frame Step Buttons
+
+    private var frameStepRow: some View {
+        HStack {
+            Button {
+                onFrameStepBackward?()
+            } label: {
+                Label("Previous Frame", systemImage: "backward.frame")
+                    .font(.caption)
+                    .foregroundStyle(Color.enchronOnSurface.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .frame(minWidth: 60, minHeight: 36)
+            .contentShape(.rect)
+
+            Spacer()
+
+            Button {
+                onFrameStepForward?()
+            } label: {
+                Label("Next Frame", systemImage: "forward.frame")
+                    .font(.caption)
+                    .foregroundStyle(Color.enchronOnSurface.opacity(0.7))
+            }
+            .buttonStyle(.plain)
+            .frame(minWidth: 60, minHeight: 36)
+            .contentShape(.rect)
+        }
+    }
+
+    // MARK: - Zoom Gesture
+
+    private var zoomGesture: some Gesture {
+        MagnifyGesture()
+            .onChanged { value in
+                let baseZoom = zoomLevel ?? TimelineRulerView.defaultZoom(for: duration)
+                let newZoom = baseZoom * value.magnification
+                zoomLevel = max(0, min(1, newZoom))
             }
     }
 }
