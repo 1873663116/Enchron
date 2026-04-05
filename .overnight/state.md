@@ -1,6 +1,6 @@
 phase: PLANNING
-last_done: "/ce-plan 完成 — 产出 ExecPlan.md（9 个执行单元，4 阶段）+ TestPlan.md（22 条需求的验收标准 + 人类验证清单）。关键修正：R11 从层级模型改为几何约束模型（Flat→Immersive 合法）"
-next: "调用 /plan-eng-review 对 ExecPlan 进行工程审查，锁定架构与实施路径"
+last_done: "/plan-eng-review 完成 — 7 个 P1 issues 发现并内联修正。关键修正：info bar 保留并移至顶部 overlay、hover 文件列表扩展至 10 个文件、close button transition 改为纯 opacity、所有 withAnimation 站点统一为 easeInOut(0.4)、右菜单保留全部功能项、NLE toggle 保留在 pill、profile-pending 安全默认值"
+next: "对抗审查（标准）— 阶段退出前必做。codex:adversarial-review → Opus subagent 辩护 → Supervisor 裁决"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
