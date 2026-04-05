@@ -78,7 +78,7 @@ public struct VideoDetailView: View {
                 // Left column: preview with play overlay + environment selector
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        videoPreviewPlaceholder(displayName: request.displayName, showPlayButton: false)
+                        videoPreviewPlaceholder()
                         environmentSelector()
                     }
                 }
@@ -240,7 +240,7 @@ public struct VideoDetailView: View {
     // MARK: - Video Preview
 
     @ViewBuilder
-    private func videoPreviewPlaceholder(displayName: String, showPlayButton: Bool = true) -> some View {
+    private func videoPreviewPlaceholder() -> some View {
         RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
             .fill(.quaternary)
             .aspectRatio(16/9, contentMode: .fit)

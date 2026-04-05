@@ -1,6 +1,6 @@
 phase: EXECUTING
-last_done: "Unit 9 完成 — L1/L2 布局对齐 HTML 设计：VideoCardView 卡片背景+边框+badge 形状+padding，ContentGridView 网格 padding，VideoDetailView 列比例 3:2+标题面板+play overlay+metadata 排版+环境选择器面板。全部 9 个 Unit [x] 完成"
-next: "调用 /ce-review 审查全部代码变更，EXECUTING 阶段退出前必做"
+last_done: "ce-review 完成 — 7 reviewers, 0 P0/P1, 6 P2, 5 P3, 3 pre-existing. 1 safe_auto fix applied (dead parameters in VideoDetailView). 22/22 requirements satisfied. Verdict: Ready with fixes."
+next: "对抗审查（标准）— EXECUTING 阶段退出前必做"
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
