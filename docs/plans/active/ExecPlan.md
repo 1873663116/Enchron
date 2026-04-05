@@ -712,7 +712,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ### Phase E: NLE Timeline
 
-- [ ] **Unit 14: Timeline Shell & Animation (R26)**
+- [x] **Unit 14: Timeline Shell & Animation (R26)**
 
   **Goal:** Create expandable NLE timeline panel with spring animation
 
