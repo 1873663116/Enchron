@@ -664,7 +664,7 @@ MainView .sheet(isPresented: showSceneSelector) → SceneSelectorView
 
 ---
 
-- [ ] **Unit 13: Immersive Mode Companion Window (R21)**
+- [x] **Unit 13: Immersive Mode Companion Window (R21)**
 
   **Goal:** Add a dedicated WindowGroup for player controls during immersive playback
 
