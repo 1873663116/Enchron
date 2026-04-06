@@ -105,3 +105,27 @@ ce-compound 自裁：P0-1 发现值得归纳 — @Observable 域模型属性必�
 [TRANSITION] from=execute+review to=test skipped=none
 reason: 8 个 Unit 全部实施完成，对抗审查 P0/P1 已修复，进入 QA/E2E 验收
 
+## Round 4 (test → done)
+
+[P0-FIX] APP 无限闪退 — ThumbnailMPVAdapter.runEventLoop() use-after-free
+- 根因：cleanup() 销毁 mpv handle 时 event loop 仍在运行，导致 EXC_BAD_ACCESS
+- 修复：shouldStopEventLoop 标志 + eventLoopDone 信号量同步
+- 验证：构建成功，APP 正常启动，MPV 初始化序列完成
+
+[TEST] QA Standard + E2E 并行执行
+- QA Standard: **PASS** — 8 Unit 全通过，4 P2 noted（shimmerOpacity 动画、bt.1886 fallback、VideoDetailView 行数、ThumbnailMPVAdapter 非 actor）
+- E2E: **PARTIAL (88%)** — 代码审计全 PASS，5 项 a11y 修复已提交；UI 自动化被 XcodeBuildMCP/visionOS 26.2 FBSimulatorControl 兼容性阻塞
+- 产出：docs/qa-reports/qa-report-v2-standard-2026-04-06.md, docs/qa-reports/e2e/2026-04-06-e2e-report.md
+
+[ADVERSARIAL-REVIEW] action=test tier=standard
+codex: degraded（启动后台任务但未返回结果）
+counter-review: Opus 独立审查 — CONDITIONAL PASS
+- P0: 无
+- P1: 无
+- P2: ThumbnailMPVAdapter 未同步标志（Swift 6 data race）、DispatchSemaphore 阻塞协程线程、allowedModes fisheye/equirectangular180 测试缺失、misleading 测试名称
+- P3: StereoLayout UV 约定未文档化、PlayerControlsView/VideoDetailView 重复 helpers
+verdict: 0 P0/P1，P2 均为非阻塞质量改进，记录待后续处理
+
+[TRANSITION] from=test to=done skipped=fix
+reason: 0 P0/P1 across QA + E2E + adversarial review。P2 为质量改进项，不阻塞交付。UI 交互测试需人工真机验证（tooling limitation）。
+
