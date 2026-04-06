@@ -300,6 +300,8 @@ public struct PlayerControlsView: View {
                                 Text(environment.displayName)
                             }
                         }
+                        .accessibilityIdentifier("settings-environment-\(environment.rawValue)")
+                        .accessibilityLabel(environment.displayName)
                     }
                 }
             }

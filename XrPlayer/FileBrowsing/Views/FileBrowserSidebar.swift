@@ -24,11 +24,15 @@ struct FileBrowserSidebar: View {
             Section("Sources") {
                 localStorageRow
                     .tag(SidebarItem.local)
+                    .accessibilityIdentifier("FileBrowsing-Sidebar-row-local")
+                    .accessibilityLabel("Local Storage")
                     .accessibilitySortPriority(1000)
 
                 ForEach(Array(viewModel.savedDataSources.enumerated()), id: \.element.id) { index, ds in
                     remoteSourceRow(ds)
                         .tag(SidebarItem.remote(ds.id))
+                        .accessibilityIdentifier("FileBrowsing-Sidebar-row-\(ds.id)")
+                        .accessibilityLabel(ds.name)
                         .accessibilitySortPriority(Double(999 - index))
                 }
                 .onDelete { offsets in
