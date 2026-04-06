@@ -52,3 +52,46 @@ reason: plan 三件套完成 + 审查通过，进入执行阶段。并行组 Uni
 
 [TRANSITION] from=execute to=review skipped=none
 reason: 8 Units 全部 PASS，无升级项。进入代码审查 + VerifyList 标注。
+
+## Round 3: review (2026-04-06)
+
+**动作**: review — ce-review + adversarial review + VerifyList 标注
+
+**Agent dispatched**:
+1. ce-review (sonnet) → PARTIAL, 0 P0 / 2 P1 / 3 P2 / 2 P3
+2. codex:adversarial-review → degraded (不可用)
+3. adversarial-review (opus, 降级替代) → PASS, 0 new P0/P1, 2 new P2, 3 P3
+
+[ADVERSARIAL-REVIEW] action=review tier=standard
+codex: degraded
+counter-review: Opus 独立审查 — 4 挑战点全部通过，2 新 P2 (Dictionary crash + AVURLAsset leak)，3 P3 (cache 无上限、group.next()! 风格、spatialAudio 重复)
+verdict: P2-6/P2-7 采纳加入修复清单。P3 记录不修（影响低、风险可控）。
+
+**审查结果汇总**:
+| 严重性 | ce-review | adversarial | 合计 |
+|--------|-----------|-------------|------|
+| P0 | 0 | 0 | 0 |
+| P1 | 2 | 0 | 2 |
+| P2 | 3 | 2 | 5 |
+| P3 | 2 | 3 | 5 |
+
+**P1 必修**:
+- P1-1: playerControls 窗口在 requestDismissImmersiveSpace 路径残留（MainView.swift onChange race）
+- P1-2: REGRESSION.md 未新增回归项（CLAUDE.md 强制要求）
+
+**P2 修复**:
+- P2-1: SMB URL 过滤
+- P2-2: Dolby Vision 公开常量
+- P2-6: Dictionary(uniqueKeysWithValues:) 改 uniquingKeysWith
+- P2-7: AVURLAsset.cancelLoading() on Task cancellation
+
+**VerifyList 进度**: 46/51 [x]
+- 2 文档同步待完成（ARCHITECTURE.md + REGRESSION.md）
+- 3 Review 发现项待修复
+
+**产出**:
+- `docs/qa-reports/e2e/2026-04-06-v2-code-review.md` — ce-review 报告
+- `docs/plans/active/VerifyList.md` — 更新标注
+
+[TRANSITION] from=review to=execute skipped=none
+reason: 2 P1 必修 + 4 P2 修复 + 2 文档同步。下轮 execute 一次性处理全部修复项和文档更新。
