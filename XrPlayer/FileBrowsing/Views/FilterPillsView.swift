@@ -31,6 +31,7 @@ struct FilterPillsView: View {
                     .hoverEffect(.lift)
                     .frame(minHeight: 60)
                     .contentShape(.rect)
+                    .accessibilityIdentifier("FileBrowsing-Filter-button-\(filter.rawValue)")
                     .accessibilityLabel("\(filter.displayName) filter")
                     .accessibilityAddTraits(isActive ? .isSelected : [])
                 }

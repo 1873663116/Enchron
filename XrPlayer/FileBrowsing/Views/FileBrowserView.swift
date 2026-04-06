@@ -221,6 +221,7 @@ public struct FileBrowserView: View {
                 } label: {
                     Image(systemName: "arrow.up.arrow.down")
                 }
+                .accessibilityIdentifier("FileBrowsing-Toolbar-button-sort")
                 .accessibilityLabel("Sort files")
             }
         }

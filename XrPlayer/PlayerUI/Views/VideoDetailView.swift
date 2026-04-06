@@ -655,6 +655,7 @@ public struct VideoDetailView: View {
                 }
             }
             .accessibilityIdentifier("videoDetail.playbackModePicker")
+            .accessibilityLabel("Playback Mode")
         }
         .padding(12)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
