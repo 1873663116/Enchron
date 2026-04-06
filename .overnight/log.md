@@ -95,3 +95,28 @@ verdict: P2-6/P2-7 采纳加入修复清单。P3 记录不修（影响低、风�
 
 [TRANSITION] from=review to=execute skipped=none
 reason: 2 P1 必修 + 4 P2 修复 + 2 文档同步。下轮 execute 一次性处理全部修复项和文档更新。
+
+## Round 3: execute — review 发现项修复 (2026-04-06)
+
+**动作**: execute — 修复 review 发现的 2 P1 + 4 P2 + 2 文档同步
+
+**执行**:
+- 并行 dispatch 2 Agent：代码修复 Agent（5 项）+ 文档同步 Agent（2 项）
+- 代码修复：P1-1 playerControls dismiss、P2-1 SMB 过滤、P2-2 DV key、P2-6 uniquingKeysWith、P2-7 cancelLoading
+- 文档同步：ARCHITECTURE.md Invariant 新增、REGRESSION.md REG-134~140
+- P2-2 修复方向调整：review 建议的 `kCMFormatDescriptionExtension_DolbyVisionConfiguration` 在 visionOS SDK 不可用，回退字符串字面量
+- 构建验证：xcodebuild build_sim PASS
+
+**VerifyList**: 51/51 全部 [x]
+
+**产出**:
+- 7 git commits（5 代码修复 + 1 DV key 修正 + 1 文档同步）
+- VerifyList 更新为全部完成
+
+[ADVERSARIAL-REVIEW] action=execute tier=lightweight
+codex: degraded (not invoked for incremental fixes)
+counter-review: Supervisor 自审 — P2-2 修复方案与 review 建议不同但符合平台限制
+verdict: 接受，构建验证通过
+
+[TRANSITION] from=execute to=test skipped=none
+reason: VerifyList 51/51 全部 [x]，代码层面完成，需 test 验证运行时行为。
