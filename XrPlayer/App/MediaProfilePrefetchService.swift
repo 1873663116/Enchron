@@ -137,12 +137,11 @@ public actor MediaProfilePrefetchService {
     private static func detectProfile(url: URL) async throws -> PlaybackCoreDomain.MediaProfile {
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: false])
 
-        // Cancel AVURLAsset loading if the enclosing Task is cancelled to release
-        // network/IO resources promptly instead of waiting for the I/O to finish.
+        // Always cancel AVURLAsset loading on exit to release HTTP connections promptly.
+        // cancelLoading() is safe to call on a completed asset (Apple-documented).
+        // Without this, ARC-delayed release causes connections to accumulate.
         defer {
-            if Task.isCancelled {
-                asset.cancelLoading()
-            }
+            asset.cancelLoading()
         }
 
         // Load essential properties concurrently
