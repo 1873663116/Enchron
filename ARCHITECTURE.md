@@ -186,6 +186,7 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 - 系统中不存在绕开 `PlaybackLaunchCoordinator` 的合法播放启动路径
 - `App` 负责组装，不具备承载各业务上下文内部长期规则的职责
+- 系统中不存在绕开 `appModel.immersiveSpaceRequest` + MainView 处理器直接调用 `openImmersiveSpace` / `dismissImmersiveSpace` 的合法路径。`SceneSelectorView`、`ToggleImmersiveSpaceButton` 已迁移为 request 路由。所有沉浸空间生命周期管理统一在 MainView 的 `onChange(of: appModel.immersiveSpaceRequest)` 中处理。
 
 
 ## Cross-Cutting Concerns
