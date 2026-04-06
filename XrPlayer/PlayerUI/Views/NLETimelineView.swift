@@ -53,7 +53,7 @@ struct NLETimelineView: View {
         VStack(spacing: 0) {
             if isExpanded {
                 timelineContent
-                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .transition(.opacity.combined(with: .move(edge: .bottom)))
             }
         }
         .frame(width: panelWidth)
