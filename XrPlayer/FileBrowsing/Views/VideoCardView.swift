@@ -10,6 +10,9 @@ struct VideoCardView: View {
     let onTap: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(ThumbnailService.self) private var thumbnailService
+
+    @State private var thumbnail: CGImage?
 
     private let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
@@ -26,6 +29,8 @@ struct VideoCardView: View {
             }
             .background(Color.white.opacity(0.03))
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+            .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+            .hoverEffect(reduceMotion ? .highlight : .lift)
             .overlay(
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                     .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
@@ -33,24 +38,35 @@ struct VideoCardView: View {
         }
         .buttonStyle(.plain)
         .contentShape(.rect(cornerRadius: DesignTokens.Radius.card))
-        .hoverEffect(reduceMotion ? .highlight : .lift)
         .accessibilityLabel(accessibilityText)
         .accessibilityHint("Opens video details")
+        .task(id: file.id) {
+            thumbnail = await thumbnailService.thumbnail(for: file)
+        }
     }
 
     // MARK: - Thumbnail
 
     private var thumbnailArea: some View {
         ZStack {
-            // Placeholder thumbnail (16:9 aspect)
+            // Placeholder or loaded thumbnail (16:9 aspect)
             RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                 .fill(Color.enchronSurfaceContainerHighest)
                 .aspectRatio(16.0 / 9.0, contentMode: .fit)
                 .overlay {
-                    Image(systemName: fileIcon)
-                        .font(DesignTokens.SymbolSize.card)
-                        .foregroundStyle(Color.enchronOnSurfaceVariant.opacity(0.5))
+                    if let cgImage = thumbnail {
+                        Image(cgImage, scale: 1.0, label: Text(""))
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .clipped()
+                            .transition(.opacity.animation(.easeIn(duration: 0.25)))
+                    } else {
+                        Image(systemName: fileIcon)
+                            .font(DesignTokens.SymbolSize.card)
+                            .foregroundStyle(Color.enchronOnSurfaceVariant.opacity(0.5))
+                    }
                 }
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
 
             // Format badge (top-left)
             if let formatText = formatBadgeText {
@@ -119,6 +135,7 @@ struct VideoCardView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
+        .frame(minHeight: 80, alignment: .top)
     }
 
     // MARK: - Badge

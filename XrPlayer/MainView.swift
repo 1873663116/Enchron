@@ -17,6 +17,10 @@ public struct MainView: View {
         appModel.isPlaying && appModel.playbackMode == .window
     }
 
+    private var shouldShowPlayerControls: Bool {
+        appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls && appModel.playbackMode == .window
+    }
+
     public var body: some View {
         ZStack {
             // Content area — routed by navigation state.
@@ -87,18 +91,6 @@ public struct MainView: View {
                         .transition(.opacity)
                 }
 
-                if appModel.showControls && appModel.isPlaying {
-                    Button {
-                        playbackLauncher.stopPlayback()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.title3.weight(.bold))
-                            .foregroundStyle(.white)
-                    }
-                    .buttonStyle(PlayerControlSurfaceStyle(size: 48))
-                    .padding(24)
-                    .transition(.opacity)
-                }
             }
             // Info bar overlay (top-leading) — moved from PlayerControlsView per HTML design
             .overlay(alignment: .topLeading) {
@@ -135,14 +127,11 @@ public struct MainView: View {
             Text(windowVideoViewModel.lastErrorMessage ?? "Unknown playback error")
         }
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
-            Group {
-                if appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls && appModel.playbackMode == .window {
-                    PlayerControlsView()
-                        .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.4), value: appModel.showControls)
-            .animation(.easeInOut(duration: 0.4), value: appModel.isPlaying)
+            PlayerControlsView()
+                .opacity(shouldShowPlayerControls ? 1 : 0)
+                .allowsHitTesting(shouldShowPlayerControls)
+                .animation(.easeInOut(duration: 0.4), value: appModel.showControls)
+                .animation(.easeInOut(duration: 0.4), value: appModel.isPlaying)
         }
         .ornament(
             visibility: appModel.isPlaying ? .hidden : .visible,
@@ -326,4 +315,5 @@ public struct MainView: View {
         .environment(fileBrowsingViewModel)
         .environment(launcher)
         .environment(PanoramaLayerBridge())
+        .environment(ThumbnailService.shared)
 }

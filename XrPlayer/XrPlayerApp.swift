@@ -30,6 +30,7 @@ struct XrPlayerApp: App {
     @State private var fileBrowsingViewModel: FileBrowsingViewModel
     @State private var playbackLauncher: PlaybackLaunchCoordinator
     @State private var panoramaBridge: PanoramaLayerBridge
+    @State private var thumbnailService: ThumbnailService
     @State private var immersionStyle: ImmersionStyle = .full
 
     init() {
@@ -106,6 +107,7 @@ struct XrPlayerApp: App {
         _fileBrowsingViewModel = State(initialValue: fileBrowsingViewModel)
         _playbackLauncher = State(initialValue: launcher)
         _panoramaBridge = State(initialValue: PanoramaLayerBridge())
+        _thumbnailService = State(initialValue: ThumbnailService.shared)
 
         if let smokeLaunch {
             appModel.showControls = true
@@ -128,6 +130,7 @@ struct XrPlayerApp: App {
                 .environment(fileBrowsingViewModel)
                 .environment(playbackLauncher)
                 .environment(panoramaBridge)
+                .environment(thumbnailService)
         }
 
         WindowGroup(id: "settings") {
@@ -143,6 +146,7 @@ struct XrPlayerApp: App {
                 .environment(windowVideoViewModel)
                 .environment(fileBrowsingViewModel)
                 .environment(playbackLauncher)
+                .environment(thumbnailService)
         }
         .defaultSize(width: 600, height: 200)
 
