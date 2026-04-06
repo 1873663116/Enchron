@@ -187,7 +187,8 @@ public struct ImmersiveSpaceView: View {
     }
 
     private func stereoModeForCurrentProjection() -> PlaybackCoreDomain.StereoLayout? {
-        let layout = appModel.detectedStereoLayout
+        // effectiveStereoLayout respects user's 3D override (.mono = Off, nil auto-follows detected)
+        let layout = appModel.effectiveStereoLayout
         return layout == .mono ? nil : layout
     }
 }
