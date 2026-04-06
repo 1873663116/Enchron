@@ -43,12 +43,17 @@ public final class FileBrowsingViewModel {
     private var remotePathStack: [String] = []
     private var reconnectAttempted: Bool = false
 
+    // §5.6 Background profile prefetch service — warms the metadata cache for
+    // all files in the current folder so detail-page opens see instant metadata.
+    private let prefetchService: MediaProfilePrefetchService?
+
     public init(
         localDataSource: LocalDataSourceAdapter,
         fileManager: FileManager = .default,
         credentialStore: CredentialStoring = KeychainStore(),
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
         progressStore: ProgressStoring = SwiftDataStore(),
+        prefetchService: MediaProfilePrefetchService? = nil,
         onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void,
         onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)? = nil
     ) {
@@ -57,6 +62,7 @@ public final class FileBrowsingViewModel {
         self.credentialStoreForConfig = credentialStore
         self.savedDataSourceStore = savedDataSourceStore
         self.progressStore = progressStore
+        self.prefetchService = prefetchService
         self.onPlayFile = onPlayFile
         self.onPrepareFile = onPrepareFile
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
@@ -244,6 +250,8 @@ public final class FileBrowsingViewModel {
             }
             applySortToFiles()
             loadProgressForFiles()
+            // §5.6: Warm metadata cache for all video files in this remote folder.
+            triggerPrefetch()
             return
         }
 
@@ -262,6 +270,8 @@ public final class FileBrowsingViewModel {
         }
         applySortToFiles()
         loadProgressForFiles()
+        // §5.6: Warm metadata cache for all video files in this local folder.
+        triggerPrefetch()
     }
 
     /// §5.7c: Diff-update the files array in-place.
@@ -719,6 +729,42 @@ public final class FileBrowsingViewModel {
                 }
             }
             self.fileWatchedSeconds = map
+        }
+    }
+
+    // §5.6 Background metadata prefetch
+
+    /// Queues all currently loaded video files for background MediaProfile detection.
+    /// Called after every successful file list load. The prefetch service deduplicates
+    /// by (fileIdentifier, modifiedAt) so files already in cache are skipped cheaply.
+    private func triggerPrefetch() {
+        guard let service = prefetchService else { return }
+
+        // Build prefetch requests using the sync identifier (no async URL resolution needed
+        // for local files; remote files use their already-resolved URL from the file list).
+        let requests = buildPrefetchRequests()
+        guard !requests.isEmpty else { return }
+
+        Task { [weak service] in
+            await service?.prefetchProfiles(for: requests)
+        }
+    }
+
+    /// Builds (PlaybackLaunchRequest, modifiedAt) pairs for all loaded video files.
+    /// Uses the local file URL for local sources, and the file's stored URL for remote sources.
+    /// Note: For remote sources the URL is the file's base URL, not a resolved stream URL.
+    /// AVFoundation will handle remote URLs (HTTP/WebDAV) natively.
+    private func buildPrefetchRequests() -> [(request: PlaybackLaunchRequest, modifiedAt: Date)] {
+        files.compactMap { file -> (request: PlaybackLaunchRequest, modifiedAt: Date)? in
+            let fileIdentifier = makeFileIdentifierForLookup(for: file)
+            let metadata = PlaybackMediaMetadata(fileSizeInBytes: file.sizeInBytes)
+            let request = PlaybackLaunchRequest(
+                url: file.url,
+                displayName: file.name,
+                fileIdentifier: fileIdentifier,
+                initialMetadata: metadata
+            )
+            return (request: request, modifiedAt: file.modifiedAt)
         }
     }
 

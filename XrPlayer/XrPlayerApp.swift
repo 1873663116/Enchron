@@ -47,9 +47,15 @@ struct XrPlayerApp: App {
         let windowVideoViewModel = WindowVideoViewModel(player: player)
         let smokeLaunch = SmokeLaunchConfiguration(environment: ProcessInfo.processInfo.environment)
 
+        // §5.6: Shared metadata service — used by both the prefetch service and the
+        // launcher so cache writes from background prefetch are immediately visible
+        // to preparePlayback without a shared-state race.
+        let sharedMetadataService = PlaybackMediaMetadataService()
+
         let launcher = PlaybackLaunchCoordinator(
             appModel: appModel,
-            windowVideoViewModel: windowVideoViewModel
+            windowVideoViewModel: windowVideoViewModel,
+            metadataService: sharedMetadataService
         )
 
         // Clean up expired playback progress entries (older than 5 days).
@@ -77,8 +83,10 @@ struct XrPlayerApp: App {
         // Pre-warm MPV in the background to reduce first-play black-screen latency.
         player.warmup()
         let localDataSource = LocalDataSourceAdapter()
+        let prefetchService = MediaProfilePrefetchService(metadataService: sharedMetadataService)
         let fileBrowsingViewModel = FileBrowsingViewModel(
             localDataSource: localDataSource,
+            prefetchService: prefetchService,
             onPlayFile: { request in
                 launcher.beginPlayback(request)
             },
