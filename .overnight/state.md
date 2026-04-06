@@ -23,9 +23,14 @@ context: |
   - P1-2: startPlayback() 未重置检测状态 → 新增 detectedProjectionType/detectedStereoLayout 重置
   P2-1: REGRESSION.md StereoMode.swift 引用 → 已更新为 StereoLayout.swift
   
-  ce-review agent 在轮次交接时仍在运行（已耗时较长），其发现不影响 test 阶段启动。
+  ce-review 最终完成：0 P0 / 0 P1 / 4 P2 / 3 P3，确认修复后无阻塞。
+  ce-review 新增 P2 发现：
+  - P2-ce1: ThumbnailMPVAdapter.extractFrame() seek 前未重置 renderUpdateAvailable（可能捕获旧帧）
+  - P2-ce3: EDRMetadataDescriptor WORKAROUND 注释用英文，CI check-workaround.sh 检查中文"移除条件"关键词，可能导致 CI 失败
+  - P3-ce1: hdrToggleLabel .hdr10Plus 映射为 "HDR10" 而非 "HDR10+"
+  - P3-ce2: hasCoverArt 字段永远为 false（ThumbnailMPVAdapter 独立检测封面，不影响功能）
   
-  next=test 原因：8 个 Unit 全部实施完成，对抗审查 P0/P1 已修复，进入 QA/E2E 验收。
+  next=test 原因：8 个 Unit 全部实施完成，两轮审查 P0/P1 已修复，进入 QA/E2E 验收。
   
   test 阶段注意事项：
   - 执行 /qa Standard + /e2e（TestPlan 在 docs/plans/active/TestPlan.md）
