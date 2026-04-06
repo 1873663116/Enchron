@@ -57,6 +57,10 @@ public struct SceneSelectorView: View {
                         .buttonStyle(.plain)
                         .scaleEffect(isSelected ? 1.02 : 1.0)
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appModel.currentCinemaEnvironment)
+                        .accessibilityIdentifier("SpatialScene-Selector-button-\(environment.rawValue)")
+                        .accessibilityLabel(environment.displayName)
+                        .accessibilityHint(isSelected ? "Currently selected" : "Selects this cinema environment")
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
                 .padding(32)
