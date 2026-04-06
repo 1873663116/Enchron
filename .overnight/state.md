@@ -1,21 +1,29 @@
-next: review
+next: execute
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
 goal: "修复 Enchron V2 全部已知 Bug（§5.4-§5.11）并严格对齐 player.html 播放控件设计，通过 VerifyList 闭环验证所有需求"
-round: 2
+round: 3
 context: |
-  execute 轮完成。8 个 Unit 全部 PASS，无升级项。
+  review 轮完成。ce-review + adversarial review (codex: degraded, Opus 替代)。
 
-  Unit 执行摘要：
-  - Unit 1 §5.4 (P0): 移除 ornament 宽域 .animation() 修复菜单闪烁。决策门控：Menu-native
-  - Unit 2 §5.5 (P0): 3s 超时 + fallback SDR profile + Task.isCancelled 检查
-  - Unit 3 §5.6 (P0): 新建 MediaProfilePrefetchService（actor, 3并发, 3s超时），文件夹级别后台预读
-  - Unit 4 §5.9 (P0): 统一入口(immersiveSpaceRequest) + dismissWindow(id:"main") + .full独占 + SpatialTapGesture控件召唤。结构守卫通过
-  - Unit 5 §5.10 (P0): 图标对调、Play间距、SeekBar内边距、Spatial Audio标签对齐player.html
-  - Unit 6 §5.7 (P1): skeleton .id(isLoading) + mergeFiles/mergeFolders增量刷新
-  - Unit 7 §5.11 (P1): .move(edge:.bottom) 一行修复
-  - Unit 8 §5.8 (P2): updateUIView 中显式设 nativeView.frame + layoutIfNeeded() 修复画布缩放
+  审查结果：0 P0 / 2 P1 / 5 P2 / 5 P3
+  VerifyList 进度：46/51 [x]，5 条待完成
 
-  ExecPlan 已归档至 docs/plans/complete/ExecPlan-2026-04-06-final.md
-  下一轮：review — 代码审查 + VerifyList 标注 + 文档同步区补全 + 对抗审查
+  P1 必修项（下轮 execute 目标）：
+  - P1-1: MainView.swift — requestDismissImmersiveSpace 路径补 dismissWindow(id: "playerControls")
+    根因：isTransitioningPlaybackMode flag 阻断 onChange 二次触发，playerControls 窗口残留
+  - P1-2: REGRESSION.md — 补充 7+ 条回归项（§5.4/§5.5/§5.6/§5.9/§5.11/§5.8）
+
+  P2 修复项（同轮处理）：
+  - P2-1: MediaProfilePrefetchService 过滤 SMB URL（smb:// 不走 AVFoundation 预读）
+  - P2-2: Dolby Vision key 改用 kCMFormatDescriptionExtension_DolbyVisionConfiguration
+  - P2-6: mergeFiles/mergeFolders Dictionary(uniqueKeysWithValues:) → uniquingKeysWith 防 crash
+  - P2-7: detectProfile AVURLAsset 取消时 asset.cancelLoading()
+
+  文档同步项：
+  - ARCHITECTURE.md 补充沉浸空间入口统一路径约束
+  - REGRESSION.md 新增回归项
+
+  审查报告：docs/qa-reports/e2e/2026-04-06-v2-code-review.md
+  VerifyList：docs/plans/active/VerifyList.md（已更新）
