@@ -290,7 +290,7 @@ flowchart TB
 
 ---
 
-- [ ] **Unit 5: §5.10 — 播放控件严格对齐 player.html (P0)**
+- [x] **Unit 5: §5.10 — 播放控件严格对齐 player.html (P0)**
 
 **目标：** 将播放控件的布局、间距、菜单展开方向、面板对齐逐元素复刻 player.html。
 

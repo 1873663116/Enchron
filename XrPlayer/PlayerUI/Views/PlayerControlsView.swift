@@ -25,8 +25,9 @@ public struct PlayerControlsView: View {
             // ── Tier 1: Seek bar (above pill, no glass) ──
             // Isolated into SeekBarView so that 200ms playbackPosition polling
             // only invalidates SeekBarView — not controlBarPill (leftMenu/rightMenu).
+            // player.html uses `px-12` (48pt) horizontal inset for the seek bar container.
             SeekBarView(onInteraction: registerInteraction)
-                .padding(.horizontal, 28)
+                .padding(.horizontal, 48)
 
             // ── Tier 2: Control bar pill (glass capsule) ──
             controlBarPill
@@ -106,6 +107,7 @@ public struct PlayerControlsView: View {
             .accessibilityLabel("Rewind 10 seconds")
 
             // ── Play / Pause (larger, gradient background per player.html) ──
+            // player.html wraps the play button in `<div class="mx-2">` for extra lateral spacing
             Button {
                 if videoViewModel.playbackState == .ended {
                     videoViewModel.replay()
@@ -135,6 +137,7 @@ public struct PlayerControlsView: View {
             .clipShape(.circle)
             .contentShape(.circle)
             .hoverEffect(.lift)
+            .padding(.horizontal, 8)  // mx-2: extra 8pt lateral breathing room around play button
             .accessibilityIdentifier("play-pause-button")
             .accessibilityLabel(playButtonAccessibilityLabel)
 
@@ -171,6 +174,7 @@ public struct PlayerControlsView: View {
     private var leftMenu: some View {
         Menu {
             // HDR toggle — only shown for HDR content, label tracks the specific HDR format
+            // Mirrors player.html: HDR badge shown at the top of the menu panel
             if videoViewModel.isHDRContent {
                 Section("Video Output") {
                     Toggle(
@@ -185,7 +189,7 @@ public struct PlayerControlsView: View {
                 }
             }
 
-            // Subtitles
+            // Subtitles — sub-menu expanding left per player.html
             Section("Subtitles") {
                 Picker("Subtitles", selection: subtitleBinding) {
                     Text("Off").tag("no" as String)
@@ -197,7 +201,7 @@ public struct PlayerControlsView: View {
                 .accessibilityLabel("Subtitles")
             }
 
-            // Audio tracks
+            // Audio tracks — sub-menu expanding left per player.html
             Section("Audio") {
                 Picker("Audio Track", selection: audioTrackBinding) {
                     ForEach(videoViewModel.availableAudioTracks) { track in
@@ -208,7 +212,7 @@ public struct PlayerControlsView: View {
                 .accessibilityLabel("Audio Track")
             }
 
-            // Playback Speed
+            // Playback Speed — sub-menu expanding left per player.html
             Section("Speed") {
                 Picker("Speed", selection: speedBinding) {
                     ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
@@ -219,7 +223,8 @@ public struct PlayerControlsView: View {
                 .accessibilityLabel("Playback Speed")
             }
         } label: {
-            Image(systemName: "slider.horizontal.3")
+            // player.html uses "menu" (hamburger) icon for the left menu button
+            Image(systemName: "line.3.horizontal")
                 .font(.title3)
                 .foregroundStyle(.secondary)
                 .frame(width: 48, height: 48)
@@ -326,7 +331,8 @@ public struct PlayerControlsView: View {
                 }
             #endif
         } label: {
-            Image(systemName: "ellipsis")
+            // player.html uses "tune" icon for the right settings button
+            Image(systemName: "slider.horizontal.3")
                 .font(.title3)
                 .foregroundStyle(.secondary)
                 .frame(width: 48, height: 48)
