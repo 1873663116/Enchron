@@ -30,9 +30,17 @@ public final class AppModel {
     public var detectedProjectionType: PlaybackCoreDomain.ProjectionType = .flat
     public var projectionOverride: PlaybackCoreDomain.ProjectionType? = nil
     public var detectedStereoLayout: PlaybackCoreDomain.StereoLayout = .mono
+    /// User-selected 3D mode override. nil = Auto (follows detectedStereoLayout).
+    /// .mono = 3D Off (stereoCropMode = nil). .sideBySide/.topBottom = force that layout.
+    public var stereoLayoutOverride: PlaybackCoreDomain.StereoLayout? = nil
 
     public var effectiveProjectionType: PlaybackCoreDomain.ProjectionType {
         projectionOverride ?? detectedProjectionType
+    }
+
+    /// The stereo layout that should drive the render pipeline (override takes precedence).
+    public var effectiveStereoLayout: PlaybackCoreDomain.StereoLayout {
+        stereoLayoutOverride ?? detectedStereoLayout
     }
 
     public var isStereoContent: Bool {
@@ -125,6 +133,10 @@ public final class AppModel {
         autoRoutePlaybackMode()
     }
 
+    public func setStereoLayoutOverride(_ layout: PlaybackCoreDomain.StereoLayout?) {
+        stereoLayoutOverride = layout
+    }
+
     public func startPlayback(url: URL) {
         currentPlaybackURL = url
         isPlaying = true
@@ -132,6 +144,7 @@ public final class AppModel {
         playbackPosition = .init(seconds: 0, duration: 0)
         mediaProfile = nil
         projectionOverride = nil
+        stereoLayoutOverride = nil
         withAnimation(.easeInOut(duration: 0.4)) { showControls = true }
         registerControlsInteraction()
     }

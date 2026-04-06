@@ -10,8 +10,6 @@ import SwiftUI
 public struct PlayerControlsView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(WindowVideoViewModel.self) private var videoViewModel
-    @Environment(FileBrowsingViewModel.self) private var fileBrowsingViewModel
-    @Environment(PlaybackLaunchCoordinator.self) private var launcher
     @Environment(\.openWindow) private var openWindow
 
     @State private var showScreenPositionSheet = false
@@ -104,6 +102,8 @@ public struct PlayerControlsView: View {
             .frame(width: 48, height: 48)
             .contentShape(.circle)
             .help("Backward 10s")
+            .accessibilityIdentifier("rewind-button")
+            .accessibilityLabel("Rewind 10 seconds")
 
             // ── Play / Pause (larger, gradient background per player.html) ──
             Button {
@@ -135,6 +135,7 @@ public struct PlayerControlsView: View {
             .clipShape(.circle)
             .contentShape(.circle)
             .hoverEffect(.lift)
+            .accessibilityIdentifier("play-pause-button")
             .accessibilityLabel(playButtonAccessibilityLabel)
 
             // ── Forward 10s ──
@@ -151,6 +152,8 @@ public struct PlayerControlsView: View {
             .frame(width: 48, height: 48)
             .contentShape(.circle)
             .help("Forward 10s")
+            .accessibilityIdentifier("forward-button")
+            .accessibilityLabel("Forward 10 seconds")
 
             // ── NLE Timeline toggle ──
             NLETimelineToggleButton(isExpanded: $isTimelineExpanded)
@@ -167,16 +170,18 @@ public struct PlayerControlsView: View {
 
     private var leftMenu: some View {
         Menu {
-            // HDR toggle (only if content is HDR) — matches HTML top position
+            // HDR toggle — only shown for HDR content, label tracks the specific HDR format
             if videoViewModel.isHDRContent {
                 Section("Video Output") {
                     Toggle(
-                        "HDR Output",
+                        hdrToggleLabel,
                         isOn: Binding(
                             get: { videoViewModel.isHDROutputEnabled },
                             set: { videoViewModel.setHDREnabled($0) }
                         )
                     )
+                    .accessibilityIdentifier("hdr-toggle")
+                    .accessibilityLabel(hdrToggleLabel)
                 }
             }
 
@@ -188,6 +193,8 @@ public struct PlayerControlsView: View {
                         Text(track.displayName).tag(track.id)
                     }
                 }
+                .accessibilityIdentifier("subtitles-picker")
+                .accessibilityLabel("Subtitles")
             }
 
             // Audio tracks
@@ -197,6 +204,8 @@ public struct PlayerControlsView: View {
                         Text(track.displayName).tag(track.id)
                     }
                 }
+                .accessibilityIdentifier("audio-track-picker")
+                .accessibilityLabel("Audio Track")
             }
 
             // Playback Speed
@@ -206,6 +215,8 @@ public struct PlayerControlsView: View {
                         Text(speedLabel(speed)).tag(speed)
                     }
                 }
+                .accessibilityIdentifier("speed-picker")
+                .accessibilityLabel("Playback Speed")
             }
         } label: {
             Image(systemName: "slider.horizontal.3")
@@ -217,19 +228,30 @@ public struct PlayerControlsView: View {
         .buttonStyle(.plain)
         .hoverEffect(.lift)
         .help("Playback Options")
+        .accessibilityIdentifier("left-menu-button")
         .accessibilityLabel("Playback Options")
+    }
+
+    /// Dynamic label that matches detected HDR format ("Dolby Vision", "HDR10", "HLG", "HDR Output").
+    private var hdrToggleLabel: String {
+        switch videoViewModel.displayMediaProfile?.hdrType {
+        case .dolbyVision: return "Dolby Vision"
+        case .hdr10, .hdr10Plus: return "HDR10"
+        case .hlg: return "HLG"
+        default: return "HDR Output"
+        }
     }
 
     // MARK: - Right Menu (Settings)
 
     private var rightMenu: some View {
         Menu {
-            // Playback mode (filtered by geometric constraint)
-            Section("Mode") {
+            // Section "Playback Mode": all cases shown, unavailable ones disabled
+            Section("Playback Mode") {
                 let allowed = DecidePlaybackModeUseCase.allowedModes(
                     for: appModel.effectiveProjectionType
                 )
-                ForEach(PlaybackMode.allCases.filter { allowed.contains($0) }, id: \.self) { mode in
+                ForEach(PlaybackMode.allCases, id: \.self) { mode in
                     Button {
                         switchPlaybackMode(to: mode)
                     } label: {
@@ -239,40 +261,30 @@ public struct PlayerControlsView: View {
                             Label(playbackModeLabel(mode), systemImage: playbackModeIcon(mode))
                         }
                     }
+                    .accessibilityIdentifier("playback-mode-\(mode.rawValue)")
+                    .accessibilityLabel(playbackModeLabel(mode))
                     .disabled(
-                        mode == appModel.playbackMode
-                            || appModel.immersiveSpaceState == .inTransition)
+                        !allowed.contains(mode)
+                            || mode == appModel.playbackMode
+                            || appModel.immersiveSpaceState == .inTransition
+                    )
                 }
             }
 
-            // Projection
-            Section("Projection") {
-                Button {
-                    appModel.setProjectionOverride(nil)
-                } label: {
-                    if appModel.projectionOverride == nil {
-                        Label(
-                            "Auto (\(projectionLabel(appModel.detectedProjectionType)))",
-                            systemImage: "checkmark")
-                    } else {
-                        Text("Auto (\(projectionLabel(appModel.detectedProjectionType)))")
-                    }
+            // Section "3D": Off / Side-by-Side / Top-Bottom
+            // Whole section is disabled when content is mono (no 3D data detected)
+            Section("3D") {
+                Picker("3D Mode", selection: stereoLayoutBinding) {
+                    Text("Off").tag(PlaybackCoreDomain.StereoLayout.mono)
+                    Text("Side-by-Side").tag(PlaybackCoreDomain.StereoLayout.sideBySide)
+                    Text("Top-Bottom").tag(PlaybackCoreDomain.StereoLayout.topBottom)
                 }
-
-                ForEach(PlaybackCoreDomain.ProjectionType.allCases, id: \.self) { type in
-                    Button {
-                        appModel.setProjectionOverride(type)
-                    } label: {
-                        if appModel.projectionOverride == type {
-                            Label(projectionLabel(type), systemImage: "checkmark")
-                        } else {
-                            Text(projectionLabel(type))
-                        }
-                    }
-                }
+                .accessibilityIdentifier("3d-mode-picker")
+                .accessibilityLabel("3D Mode")
+                .disabled(appModel.detectedStereoLayout == .mono)
             }
 
-            // Environment (cinema environment) — only in immersive
+            // Section "Environment" — only in immersive space
             if appModel.immersiveSpaceState == .open {
                 Section("Environment") {
                     ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) {
@@ -290,56 +302,18 @@ public struct PlayerControlsView: View {
                         }
                     }
                 }
-
-                Button {
-                    registerInteraction()
-                    showScreenPositionSheet = true
-                } label: {
-                    Label("Screen Position", systemImage: "move.3d")
-                }
             }
 
             Divider()
 
-            // Playlist
-            Section("Playlist") {
-                if fileBrowsingViewModel.files.isEmpty {
-                    Text("No playlist items")
-                } else {
-                    ForEach(fileBrowsingViewModel.files, id: \.id) { file in
-                        Button {
-                            Task {
-                                do {
-                                    let request = try await fileBrowsingViewModel.playbackRequest(
-                                        for: file)
-                                    await MainActor.run {
-                                        launcher.beginPlayback(request)
-                                    }
-                                } catch {
-                                    await MainActor.run {
-                                        fileBrowsingViewModel.lastErrorMessage =
-                                            "Failed to open \"\(file.name)\": \(error.localizedDescription)"
-                                    }
-                                }
-                            }
-                        } label: {
-                            if appModel.currentPlaybackURL?.lastPathComponent == file.name {
-                                Label(file.name, systemImage: "checkmark")
-                            } else {
-                                Text(file.name)
-                            }
-                        }
-                    }
-                }
-            }
-
-            Divider()
-
+            // "More Settings..." opens the dedicated Settings window
             Button {
                 openWindow(id: "settings")
             } label: {
-                Label("Settings", systemImage: "gearshape")
+                Label("More Settings...", systemImage: "gearshape")
             }
+            .accessibilityIdentifier("more-settings-button")
+            .accessibilityLabel("More Settings")
 
             #if DEBUG
                 Button {
@@ -359,7 +333,29 @@ public struct PlayerControlsView: View {
         .buttonStyle(.plain)
         .hoverEffect(.lift)
         .help("Settings")
+        .accessibilityIdentifier("right-menu-button")
         .accessibilityLabel("Settings")
+    }
+
+    // MARK: - 3D Mode Binding
+
+    /// Binding for the 3D Picker.
+    /// - Reads: stereoLayoutOverride if set, otherwise detectedStereoLayout (auto).
+    /// - Writes: sets override (.mono = Off, .sideBySide/.topBottom = force that mode).
+    private var stereoLayoutBinding: Binding<PlaybackCoreDomain.StereoLayout> {
+        Binding(
+            get: {
+                appModel.stereoLayoutOverride ?? appModel.detectedStereoLayout
+            },
+            set: { newLayout in
+                // .mono means "Off" — clear override so pipeline stops applying stereo crop
+                if newLayout == .mono {
+                    appModel.setStereoLayoutOverride(.mono)
+                } else {
+                    appModel.setStereoLayoutOverride(newLayout)
+                }
+            }
+        )
     }
 
     // MARK: - Bindings for Pickers
@@ -451,15 +447,6 @@ public struct PlayerControlsView: View {
         case .window: return "rectangle.inset.filled"
         case .immersive: return "visionpro"
         case .panorama: return "pano"
-        }
-    }
-
-    private func projectionLabel(_ type: PlaybackCoreDomain.ProjectionType) -> String {
-        switch type {
-        case .flat: return "Flat"
-        case .equirectangular360: return "360\u{00B0}"
-        case .equirectangular180: return "180\u{00B0}"
-        case .fisheye: return "Fisheye"
         }
     }
 
@@ -575,18 +562,8 @@ private struct SeekBarView: View {
 #Preview {
     let appModel = AppModel()
     let windowVideoViewModel = WindowVideoViewModel(player: MPVPlayerAdapter())
-    let launcher = PlaybackLaunchCoordinator(
-        appModel: appModel,
-        windowVideoViewModel: windowVideoViewModel
-    )
-    let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: LocalDataSourceAdapter()) {
-        request in
-        launcher.beginPlayback(request)
-    }
 
     PlayerControlsView()
         .environment(appModel)
         .environment(windowVideoViewModel)
-        .environment(fileBrowsingViewModel)
-        .environment(launcher)
 }
