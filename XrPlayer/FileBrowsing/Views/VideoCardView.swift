@@ -38,6 +38,7 @@ struct VideoCardView: View {
         }
         .buttonStyle(.plain)
         .contentShape(.rect(cornerRadius: DesignTokens.Radius.card))
+        .accessibilityIdentifier("FileBrowsing-VideoCard-button-\(file.id)")
         .accessibilityLabel(accessibilityText)
         .accessibilityHint("Opens video details")
         .task(id: file.id) {

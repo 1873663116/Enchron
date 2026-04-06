@@ -365,6 +365,8 @@ public struct VideoDetailView: View {
         }
         .buttonStyle(.plain)
         .hoverEffect(.lift)
+        .accessibilityIdentifier("videoDetail.playButton")
+        .accessibilityLabel(label)
     }
 
     // MARK: - Environment Selector
@@ -401,6 +403,7 @@ public struct VideoDetailView: View {
                         .buttonStyle(.plain)
                         .hoverEffect(.lift)
                         .contentShape(.rect)
+                        .accessibilityIdentifier("videoDetail.environment-\(env.rawValue)")
                         .accessibilityLabel(env.displayName)
                         .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
@@ -576,6 +579,8 @@ public struct VideoDetailView: View {
                 settingsPickerLabel(subtitleDisplayLabel(tracks: tracks))
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("videoDetail.subtitlePicker")
+            .accessibilityLabel("Subtitles")
         }
     }
 
@@ -604,6 +609,8 @@ public struct VideoDetailView: View {
                 settingsPickerLabel(audioDisplayLabel(tracks: tracks))
             }
             .buttonStyle(.plain)
+            .accessibilityIdentifier("videoDetail.audioTrackPicker")
+            .accessibilityLabel("Audio Track")
         }
     }
 
