@@ -754,8 +754,15 @@ public final class FileBrowsingViewModel {
     /// Uses the local file URL for local sources, and the file's stored URL for remote sources.
     /// Note: For remote sources the URL is the file's base URL, not a resolved stream URL.
     /// AVFoundation will handle remote URLs (HTTP/WebDAV) natively.
+    ///
+    /// SMB URLs (smb://) are excluded because AVURLAsset does not support the SMB scheme.
     private func buildPrefetchRequests() -> [(request: PlaybackLaunchRequest, modifiedAt: Date)] {
         files.compactMap { file -> (request: PlaybackLaunchRequest, modifiedAt: Date)? in
+            // AVFoundation only supports file://, http://, and https:// schemes.
+            // Filtering out smb:// prevents silent failures and wasted network probes.
+            let scheme = file.url.scheme?.lowercased() ?? ""
+            guard scheme == "file" || scheme == "http" || scheme == "https" else { return nil }
+
             let fileIdentifier = makeFileIdentifierForLookup(for: file)
             let metadata = PlaybackMediaMetadata(fileSizeInBytes: file.sizeInBytes)
             let request = PlaybackLaunchRequest(
