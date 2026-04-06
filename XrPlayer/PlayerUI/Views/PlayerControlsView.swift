@@ -523,6 +523,7 @@ private struct SeekBarView: View {
                 )
                 .tint(.white)
                 .frame(minHeight: 44)
+                .accessibilityIdentifier("PlayerUI-SeekBar-slider-position")
                 .accessibilityLabel("Playback position")
                 .accessibilityValue(
                     "\(PlaybackTimeFormatter.clock(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)) of \(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))"

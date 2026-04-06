@@ -54,6 +54,7 @@ struct ContentGridView: View {
         .onAppear {
             shimmerOpacity = 0.9
         }
+        .accessibilityIdentifier("FileBrowsing-ContentGrid-skeleton")
         .accessibilityLabel("Loading content")
     }
 
@@ -118,6 +119,7 @@ struct ContentGridView: View {
             }
             .buttonStyle(.plain)
             .contentShape(.rect(cornerRadius: DesignTokens.Radius.card))
+            .accessibilityIdentifier("FileBrowsing-ContentGrid-button-folder-\(folder.id)")
             .accessibilityLabel("\(folder.name), folder")
             .accessibilityHint("Opens folder contents")
             .accessibilitySortPriority(Double(1000 - index))
