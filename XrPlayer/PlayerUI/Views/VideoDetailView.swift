@@ -9,6 +9,7 @@ import SwiftUI
 public struct VideoDetailView: View {
     @Environment(PlaybackLaunchCoordinator.self) private var coordinator
     @Environment(AppModel.self) private var appModel
+    @Environment(ThumbnailService.self) private var thumbnailService
     @Environment(\.dismiss) private var dismiss
 
     @AccessibilityFocusState private var isTitleFocused: Bool
@@ -18,6 +19,8 @@ public struct VideoDetailView: View {
     @State private var selectedSubtitleTrackID: String?
     @State private var subtitlesOff: Bool = false
     @State private var hdrOutputEnabled: Bool = true
+    @State private var thumbnail: CGImage?
+    @State private var selectedPlaybackMode: PlaybackMode = .window
 
     public init() {}
 
@@ -42,6 +45,21 @@ public struct VideoDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .accessibilityFocused($isTitleFocused)
             .onAppear { isTitleFocused = true }
+            .task(id: currentRequestURL) {
+                guard let file = currentMediaFileForThumbnail else { return }
+                thumbnail = await thumbnailService.thumbnail(for: file)
+            }
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                    }
+                    .accessibilityIdentifier("videoDetail.backButton")
+                    .accessibilityLabel("Back")
+                }
+            }
         }
         .onDisappear {
             if coordinator.currentPreparation != nil {
@@ -59,6 +77,29 @@ public struct VideoDetailView: View {
         case .failed, nil:
             return "Video Details"
         }
+    }
+
+    /// Stable identity for the `.task(id:)` thumbnail loader.
+    private var currentRequestURL: URL? {
+        switch coordinator.currentPreparation {
+        case .preparing(let request, _): return request.url
+        case .ready(let prepared): return prepared.request.url
+        case .failed, nil: return nil
+        }
+    }
+
+    /// Minimal MediaFile constructed from the current request for thumbnail lookup.
+    private var currentMediaFileForThumbnail: FileBrowsingDomain.MediaFile? {
+        guard let url = currentRequestURL else { return nil }
+        let name = url.lastPathComponent
+        let ext = url.pathExtension.lowercased()
+        return FileBrowsingDomain.MediaFile(
+            name: name,
+            sizeInBytes: 0,
+            modifiedAt: Date(timeIntervalSince1970: 0),
+            fileExtension: ext,
+            url: url
+        )
     }
 
     // MARK: - Preparing State
@@ -228,10 +269,18 @@ public struct VideoDetailView: View {
             .fill(.quaternary)
             .aspectRatio(16/9, contentMode: .fit)
             .overlay {
-                Image(systemName: "film")
-                    .font(DesignTokens.SymbolSize.hero)
-                    .foregroundStyle(.secondary)
+                if let cgImage = thumbnail {
+                    Image(cgImage, scale: 1.0, label: Text(""))
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .clipped()
+                } else {
+                    Image(systemName: "film")
+                        .font(DesignTokens.SymbolSize.hero)
+                        .foregroundStyle(.secondary)
+                }
             }
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
     }
 
     // MARK: - Video Preview with Play Overlay
@@ -243,10 +292,18 @@ public struct VideoDetailView: View {
                 .fill(.quaternary)
                 .aspectRatio(16/9, contentMode: .fit)
                 .overlay {
-                    Image(systemName: "film")
-                        .font(DesignTokens.SymbolSize.hero)
-                        .foregroundStyle(.secondary)
+                    if let cgImage = thumbnail {
+                        Image(cgImage, scale: 1.0, label: Text(""))
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .clipped()
+                    } else {
+                        Image(systemName: "film")
+                            .font(DesignTokens.SymbolSize.hero)
+                            .foregroundStyle(.secondary)
+                    }
                 }
+                .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
 
             // Play button overlay centered on preview
             playbackOverlay(prepared: prepared)
@@ -471,8 +528,9 @@ public struct VideoDetailView: View {
             }
             if let profile = prepared.metadata?.mediaProfile,
                profile.hdrType != .sdr {
-                hdrOutputToggle()
+                hdrOutputToggle(hdrType: profile.hdrType)
             }
+            playbackModePickerSection(prepared: prepared)
         }
         .padding(20)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
@@ -550,7 +608,8 @@ public struct VideoDetailView: View {
     }
 
     @ViewBuilder
-    private func hdrOutputToggle() -> some View {
+    private func hdrOutputToggle(hdrType: PlaybackCoreDomain.HDRType) -> some View {
+        let hdrLabel = PlaybackInfoFormatter.hdrTypeLabel(hdrType)
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 Text("HDR Output")
@@ -562,9 +621,89 @@ public struct VideoDetailView: View {
             Spacer()
             Toggle("", isOn: $hdrOutputEnabled)
                 .labelsHidden()
+                .accessibilityIdentifier("videoDetail.hdrToggle")
+                .accessibilityLabel("\(hdrLabel) Output")
         }
         .padding(12)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+    }
+
+    // MARK: - Playback Mode Picker
+
+    @ViewBuilder
+    private func playbackModePickerSection(prepared: PreparedPlayback) -> some View {
+        let projectionType = prepared.metadata?.mediaProfile?.projectionType
+        let allowedModes = DecidePlaybackModeUseCase.allowedModes(for: projectionType)
+
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Playback Mode")
+                .font(DesignTokens.Typography.sectionHeader)
+                .textCase(.uppercase)
+                .tracking(1.5)
+                .foregroundStyle(.tertiary)
+
+            HStack(spacing: 8) {
+                ForEach(PlaybackMode.allCases, id: \.self) { mode in
+                    playbackModeButton(mode: mode, allowedModes: allowedModes)
+                }
+            }
+            .accessibilityIdentifier("videoDetail.playbackModePicker")
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+        .onAppear {
+            selectedPlaybackMode = appModel.playbackMode
+        }
+    }
+
+    @ViewBuilder
+    private func playbackModeButton(mode: PlaybackMode, allowedModes: Set<PlaybackMode>) -> some View {
+        let isAllowed = allowedModes.contains(mode)
+        let isSelected = selectedPlaybackMode == mode
+        let bgColor: Color = isSelected ? Color.enchronPrimary.opacity(0.25) : Color.white.opacity(0.04)
+        let borderColor: Color = isSelected ? Color.enchronPrimary.opacity(0.5) : Color.clear
+        let fgStyle: Color = isAllowed ? (isSelected ? Color.enchronPrimary : Color.primary) : Color.secondary
+
+        Button {
+            selectedPlaybackMode = mode
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: playbackModeIcon(mode))
+                    .font(.caption)
+                Text(playbackModeLabel(mode))
+                    .font(.caption.weight(.semibold))
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity)
+            .background(bgColor, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous)
+                    .strokeBorder(borderColor, lineWidth: 0.5)
+            )
+            .foregroundStyle(fgStyle)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isAllowed)
+        .accessibilityIdentifier("videoDetail.playbackModePicker.\(mode.rawValue)")
+        .accessibilityLabel(playbackModeLabel(mode))
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+    }
+
+    private func playbackModeLabel(_ mode: PlaybackMode) -> String {
+        switch mode {
+        case .window: return "Window"
+        case .immersive: return "Immersive"
+        case .panorama: return "Panorama"
+        }
+    }
+
+    private func playbackModeIcon(_ mode: PlaybackMode) -> String {
+        switch mode {
+        case .window: return "rectangle.inset.filled"
+        case .immersive: return "visionpro"
+        case .panorama: return "pano"
+        }
     }
 
     @ViewBuilder
@@ -621,6 +760,14 @@ public struct VideoDetailView: View {
             subtitlesOff: subtitlesOff,
             hdrEnabled: hdrOutputEnabled
         )
+        // Apply user's playback mode selection after confirmation
+        // (set after confirmPlayback to override autoRoutePlaybackMode)
+        let chosenMode = selectedPlaybackMode
+        let projectionType = prepared.metadata?.mediaProfile?.projectionType
+        let allowedModes = DecidePlaybackModeUseCase.allowedModes(for: projectionType)
+        if allowedModes.contains(chosenMode) {
+            appModel.updatePlaybackMode(chosenMode)
+        }
         dismiss()
     }
 
