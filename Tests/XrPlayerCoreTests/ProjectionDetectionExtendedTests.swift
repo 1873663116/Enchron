@@ -12,8 +12,6 @@ final class ProjectionDetectionExtendedTests: XCTestCase {
             aspectRatio: 1.0
         )
         let result = ProjectionDetection.detect(from: input)
-        // Current impl: "fisheye" doesn't match "equirectangular" or "cubemap"
-        // but isSpherical=true → falls through to panorama360 → FAIL (expected .fisheye)
         XCTAssertEqual(result, .fisheye,
                        "GSpherical projectionType 'fisheye' must detect as .fisheye")
     }
@@ -27,30 +25,15 @@ final class ProjectionDetectionExtendedTests: XCTestCase {
             aspectRatio: 1.0
         )
         let result = ProjectionDetection.detect(from: input)
-        // Current impl: doesn't match → returns .panorama360 → FAIL
         XCTAssertEqual(result, .fisheye,
                        "GSpherical 'equidistant_fisheye' must detect as .fisheye")
     }
 
-    func testProjectionTypeIsStereo3D() {
-        // These computed properties don't exist yet → need to add stubs
-        // For now test that the cases we expect to be stereo are correct
-        let stereoTypes: [PlaybackCoreDomain.ProjectionType] = [.stereoscopicSBS, .stereoscopicOU]
-        let nonStereoTypes: [PlaybackCoreDomain.ProjectionType] = [.flat, .panorama360, .panorama180, .fisheye]
-
-        for t in stereoTypes {
-            XCTAssertTrue(t.isStereo3D, "\(t) must be stereo 3D")
-        }
-        for t in nonStereoTypes {
-            XCTAssertFalse(t.isStereo3D, "\(t) must not be stereo 3D")
-        }
-    }
-
     func testProjectionTypeRequiresHemisphereMesh() {
-        XCTAssertTrue(PlaybackCoreDomain.ProjectionType.panorama180.requiresHemisphereMesh,
-                      "panorama180 must require hemisphere mesh")
-        XCTAssertFalse(PlaybackCoreDomain.ProjectionType.panorama360.requiresHemisphereMesh,
-                       "panorama360 must not require hemisphere mesh")
+        XCTAssertTrue(PlaybackCoreDomain.ProjectionType.equirectangular180.requiresHemisphereMesh,
+                      "equirectangular180 must require hemisphere mesh")
+        XCTAssertFalse(PlaybackCoreDomain.ProjectionType.equirectangular360.requiresHemisphereMesh,
+                       "equirectangular360 must not require hemisphere mesh")
         XCTAssertFalse(PlaybackCoreDomain.ProjectionType.flat.requiresHemisphereMesh,
                        "flat must not require hemisphere mesh")
     }
@@ -58,9 +41,48 @@ final class ProjectionDetectionExtendedTests: XCTestCase {
     func testProjectionTypeRequiresFisheyeRemap() {
         XCTAssertTrue(PlaybackCoreDomain.ProjectionType.fisheye.requiresFisheyeRemap,
                       "fisheye must require remap")
-        XCTAssertFalse(PlaybackCoreDomain.ProjectionType.panorama360.requiresFisheyeRemap,
-                       "panorama360 must not require remap")
+        XCTAssertFalse(PlaybackCoreDomain.ProjectionType.equirectangular360.requiresFisheyeRemap,
+                       "equirectangular360 must not require remap")
         XCTAssertFalse(PlaybackCoreDomain.ProjectionType.flat.requiresFisheyeRemap,
                        "flat must not require remap")
+    }
+
+    func testEquirectangular360Detection() {
+        let input = ProjectionDetectionInput(
+            stereo3dIn: "",
+            gSphericalSpherical: "true",
+            gSphericalProjectionType: "equirectangular",
+            horizontalFOVDegrees: nil,
+            aspectRatio: 2.0
+        )
+        let result = ProjectionDetection.detect(from: input)
+        XCTAssertEqual(result, .equirectangular360,
+                       "GSpherical equirectangular without FOV limit should detect as .equirectangular360")
+    }
+
+    func testEquirectangular180DetectionFrom180FOV() {
+        let input = ProjectionDetectionInput(
+            stereo3dIn: "",
+            gSphericalSpherical: "true",
+            gSphericalProjectionType: "equirectangular",
+            horizontalFOVDegrees: 180,
+            aspectRatio: 1.0
+        )
+        let result = ProjectionDetection.detect(from: input)
+        XCTAssertEqual(result, .equirectangular180,
+                       "GSpherical equirectangular with 180° FOV must detect as .equirectangular180")
+    }
+
+    func testFlatDetectionWithNoMetadata() {
+        let input = ProjectionDetectionInput(
+            stereo3dIn: "",
+            gSphericalSpherical: nil,
+            gSphericalProjectionType: nil,
+            horizontalFOVDegrees: nil,
+            aspectRatio: 1.78
+        )
+        let result = ProjectionDetection.detect(from: input)
+        XCTAssertEqual(result, .flat,
+                       "No metadata markers must detect as .flat")
     }
 }

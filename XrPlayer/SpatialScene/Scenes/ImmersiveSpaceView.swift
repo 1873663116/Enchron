@@ -186,11 +186,8 @@ public struct ImmersiveSpaceView: View {
         .dragRotation(pitchLimit: .degrees(30), sensitivity: 10)
     }
 
-    private func stereoModeForCurrentProjection() -> PlaybackCoreDomain.StereoMode? {
-        switch appModel.effectiveProjectionType {
-        case .stereoscopicSBS: return .sideBySide
-        case .stereoscopicOU: return .overUnder
-        default: return nil
-        }
+    private func stereoModeForCurrentProjection() -> PlaybackCoreDomain.StereoLayout? {
+        let layout = appModel.detectedStereoLayout
+        return layout == .mono ? nil : layout
     }
 }

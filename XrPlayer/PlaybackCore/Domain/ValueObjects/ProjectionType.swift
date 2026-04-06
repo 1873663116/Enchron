@@ -3,30 +3,21 @@ import Foundation
 extension PlaybackCoreDomain {
     public enum ProjectionType: String, Sendable, CaseIterable, Codable {
         case flat
-        case stereoscopicSBS
-        case stereoscopicOU
-        case panorama360
-        case panorama180
+        case equirectangular360
+        case equirectangular180
         case fisheye
 
         public var isPanoramic: Bool {
             switch self {
-            case .panorama360, .panorama180, .fisheye:
+            case .equirectangular360, .equirectangular180, .fisheye:
                 return true
-            case .flat, .stereoscopicSBS, .stereoscopicOU:
+            case .flat:
                 return false
             }
         }
 
-        public var isStereo3D: Bool {
-            switch self {
-            case .stereoscopicSBS, .stereoscopicOU: true
-            default: false
-            }
-        }
-
         public var requiresHemisphereMesh: Bool {
-            self == .panorama180
+            self == .equirectangular180
         }
 
         public var requiresFisheyeRemap: Bool {

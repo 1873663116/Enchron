@@ -31,10 +31,11 @@ public final class PanoramaLayerBridge {
     public private(set) var lastCopyTickReason: String?
     public private(set) var lastCopyFailure: String?
 
-    /// When set, the bridge crops the source frame to the left-eye region
-    /// before copying to the `LowLevelTexture`. This supports SBS and OU
-    /// stereo 3D video by extracting a single eye's content (MVP: left eye).
-    public var stereoCropMode: PlaybackCoreDomain.StereoMode?
+    /// When set to a non-mono layout, the bridge crops the source frame to the
+    /// left-eye region before copying to the `LowLevelTexture`. This supports
+    /// SBS and TopBottom stereo 3D video by extracting a single eye's content
+    /// (MVP: left eye). `.mono` is treated as no-crop (same as nil).
+    public var stereoCropMode: PlaybackCoreDomain.StereoLayout?
 
     /// When set, the bridge applies a fisheye-to-equirectangular remap
     /// via a Metal compute shader before copying to the `LowLevelTexture`.
@@ -146,7 +147,7 @@ private extension PanoramaLayerBridge {
             // Fisheye remap outputs to equirectangular at source dimensions
             outputWidth = sourceTexture.width
             outputHeight = sourceTexture.height
-        } else if let stereoCropMode {
+        } else if let stereoCropMode, stereoCropMode != .mono {
             let uvRect = stereoCropMode.leftEyeUVRect
             outputWidth = Int(Float(sourceTexture.width) * uvRect.width)
             outputHeight = Int(Float(sourceTexture.height) * uvRect.height)
@@ -238,7 +239,7 @@ private extension PanoramaLayerBridge {
         let copyWidth: Int
         let copyHeight: Int
 
-        if let stereoCropMode {
+        if let stereoCropMode, stereoCropMode != .mono {
             let uvRect = stereoCropMode.leftEyeUVRect
             sourceOrigin = MTLOrigin(
                 x: Int(Float(source.width) * uvRect.originX),

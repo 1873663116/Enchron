@@ -27,23 +27,13 @@ struct ProjectionDetectionInput: Equatable {
 
 enum ProjectionDetection {
     /// Pure function: infer projection type from mpv metadata.
-    /// Priority: stereo3d tags > GSpherical metadata > fallback to flat.
+    /// Priority: GSpherical metadata > fisheye > fallback to flat.
+    /// Stereoscopic layout (SBS/OU) is expressed via StereoLayout axis, not ProjectionType.
     /// Aspect ratio alone is NOT sufficient to infer panoramic content (per TESTING.md).
+    ///
+    /// NOTE: Stereo detection (SBS/OU → StereoLayout) is implemented in Unit 3.
+    /// This function returns .flat for stereo-flagged content until Unit 3 lands.
     static func detect(from input: ProjectionDetectionInput) -> PlaybackCoreDomain.ProjectionType {
-        let stereo = input.stereo3dIn.lowercased().trimmingCharacters(in: .whitespaces)
-
-        // 1. Stereoscopic layout detection (highest priority)
-        if stereo.contains("sbs") || stereo == "side_by_side_left" || stereo == "side_by_side_right" {
-            return .stereoscopicSBS
-        }
-        // mpv stereo3d over-under tags: "ab2l", "ab2r", "abl", "abr",
-        // "over_under_left", "over_under_right", "top_bottom" variants.
-        // Match only known mpv tag prefixes to avoid false positives on unrelated strings.
-        if stereo.hasPrefix("ab") || stereo.hasPrefix("ou")
-            || stereo.contains("top_bottom") || stereo.contains("over_under") {
-            return .stereoscopicOU
-        }
-
         // 2. GSpherical metadata detection
         let isSpherical = input.gSphericalSpherical?.lowercased() == "true"
         let projType = input.gSphericalProjectionType?.lowercased() ?? ""
@@ -56,16 +46,17 @@ enum ProjectionDetection {
         if isSpherical || projType.contains("equirectangular") || projType.contains("cubemap") {
             // Check FOV to distinguish 180 vs 360
             if let fov = input.horizontalFOVDegrees, fov > 0, fov <= 180 {
-                return .panorama180
+                return .equirectangular180
             }
             if projType.contains("cubemap") {
-                return .panorama360
+                return .equirectangular360
             }
             // Default spherical = 360
-            return .panorama360
+            return .equirectangular360
         }
 
         // 3. No metadata markers → flat (do not guess from aspect ratio alone)
+        // NOTE: stereo3dIn tags (sbs/ou) will be handled by StereoLayout detection in Unit 3.
         return .flat
     }
 }

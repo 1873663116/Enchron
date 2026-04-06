@@ -457,10 +457,8 @@ public struct PlayerControlsView: View {
     private func projectionLabel(_ type: PlaybackCoreDomain.ProjectionType) -> String {
         switch type {
         case .flat: return "Flat"
-        case .stereoscopicSBS: return "3D SBS"
-        case .stereoscopicOU: return "3D OU"
-        case .panorama360: return "360\u{00B0}"
-        case .panorama180: return "180\u{00B0}"
+        case .equirectangular360: return "360\u{00B0}"
+        case .equirectangular180: return "180\u{00B0}"
         case .fisheye: return "Fisheye"
         }
     }

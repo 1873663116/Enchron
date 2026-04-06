@@ -1233,7 +1233,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let height = Int(int64Property("video-params/h") ?? 0)
         let frameRate = max(0, doubleProperty("container-fps") ?? 0)
 
-        // Compute horizontal FOV to distinguish panorama180 vs panorama360.
+        // Compute horizontal FOV to distinguish equirectangular180 vs equirectangular360.
         // Priority: direct HFOV tag → CroppedAreaImageWidthPixels / FullPanoWidthPixels × 360.
         let gSphericalDirectFOV = stringProperty("metadata/by-key/GSpherical:InitialHorizontalFOVDegrees")
             .flatMap { Double($0) }

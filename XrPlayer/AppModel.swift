@@ -29,9 +29,14 @@ public final class AppModel {
     public var playbackMode: PlaybackMode = .window
     public var detectedProjectionType: PlaybackCoreDomain.ProjectionType = .flat
     public var projectionOverride: PlaybackCoreDomain.ProjectionType? = nil
+    public var detectedStereoLayout: PlaybackCoreDomain.StereoLayout = .mono
 
     public var effectiveProjectionType: PlaybackCoreDomain.ProjectionType {
         projectionOverride ?? detectedProjectionType
+    }
+
+    public var isStereoContent: Bool {
+        detectedStereoLayout != .mono
     }
 
     public var isPlaying: Bool = false
