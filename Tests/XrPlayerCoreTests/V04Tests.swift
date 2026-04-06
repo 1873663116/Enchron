@@ -1005,7 +1005,8 @@ final class EDRMetadataDescriptorTests: XCTestCase {
 
 final class ProjectionDetectionTests: XCTestCase {
 
-    /// Data-driven test matching TESTING.md projection type detection table
+    /// Data-driven test matching TESTING.md projection type detection table.
+    /// detect(from:) now returns (ProjectionType, StereoLayout); we test only the projection axis here.
     func testProjectionDetectionFromMetadata() {
         struct TestCase {
             let stereo3dIn: String
@@ -1013,7 +1014,7 @@ final class ProjectionDetectionTests: XCTestCase {
             let gSphericalProjectionType: String?
             let horizontalFOVDegrees: Double?
             let aspectRatio: Double?
-            let expected: PlaybackCoreDomain.ProjectionType
+            let expectedProjection: PlaybackCoreDomain.ProjectionType
             let label: String
         }
 
@@ -1021,62 +1022,61 @@ final class ProjectionDetectionTests: XCTestCase {
             TestCase(
                 stereo3dIn: "", gSphericalSpherical: nil,
                 gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
-                aspectRatio: 16.0 / 9.0, expected: .flat,
+                aspectRatio: 16.0 / 9.0, expectedProjection: .flat,
                 label: "Normal 16:9 video → flat"
             ),
-            // NOTE: stereo3d tags (sbs/ou) now return .flat; StereoLayout detection is Unit 3
             TestCase(
                 stereo3dIn: "sbs2l", gSphericalSpherical: nil,
                 gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
-                aspectRatio: 2.0, expected: .flat,
-                label: "stereo3d sbs2l → flat (StereoLayout detection deferred to Unit 3)"
+                aspectRatio: 2.0, expectedProjection: .flat,
+                label: "stereo3d sbs2l without spherical metadata → flat projection"
             ),
             TestCase(
                 stereo3dIn: "ab2t", gSphericalSpherical: nil,
                 gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
-                aspectRatio: 1.0, expected: .flat,
-                label: "stereo3d ab2t → flat (StereoLayout detection deferred to Unit 3)"
+                aspectRatio: 1.0, expectedProjection: .flat,
+                label: "stereo3d ab2t (unsupported mpv value) → flat projection"
             ),
             TestCase(
                 stereo3dIn: "", gSphericalSpherical: "true",
                 gSphericalProjectionType: "equirectangular", horizontalFOVDegrees: nil,
-                aspectRatio: 2.0, expected: .equirectangular360,
+                aspectRatio: 2.0, expectedProjection: .equirectangular360,
                 label: "GSpherical equirectangular → equirectangular360"
             ),
             TestCase(
                 stereo3dIn: "", gSphericalSpherical: "true",
                 gSphericalProjectionType: "equirectangular", horizontalFOVDegrees: 180.0,
-                aspectRatio: 1.0, expected: .equirectangular180,
+                aspectRatio: 1.0, expectedProjection: .equirectangular180,
                 label: "GSpherical equirectangular with 180° FOV → equirectangular180"
             ),
             TestCase(
                 stereo3dIn: "", gSphericalSpherical: nil,
                 gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
-                aspectRatio: 2.0, expected: .flat,
+                aspectRatio: 2.0, expectedProjection: .flat,
                 label: "2:1 aspect ratio but no spherical metadata → flat (no auto-guess)"
             ),
             TestCase(
                 stereo3dIn: "", gSphericalSpherical: nil,
                 gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
-                aspectRatio: nil, expected: .flat,
+                aspectRatio: nil, expectedProjection: .flat,
                 label: "No metadata at all → flat"
             ),
             TestCase(
                 stereo3dIn: "top_bottom", gSphericalSpherical: nil,
                 gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
-                aspectRatio: 1.0, expected: .flat,
-                label: "stereo3d top_bottom → flat (StereoLayout detection deferred to Unit 3)"
+                aspectRatio: 1.0, expectedProjection: .flat,
+                label: "Dead-code value 'top_bottom' (mpv never outputs this) → flat projection"
             ),
             TestCase(
                 stereo3dIn: "side_by_side_left", gSphericalSpherical: nil,
                 gSphericalProjectionType: nil, horizontalFOVDegrees: nil,
-                aspectRatio: 2.0, expected: .flat,
-                label: "stereo3d side_by_side_left → flat (StereoLayout detection deferred to Unit 3)"
+                aspectRatio: 2.0, expectedProjection: .flat,
+                label: "Dead-code value 'side_by_side_left' (mpv never outputs this) → flat projection"
             ),
             TestCase(
                 stereo3dIn: "", gSphericalSpherical: "true",
                 gSphericalProjectionType: "cubemap", horizontalFOVDegrees: nil,
-                aspectRatio: nil, expected: .equirectangular360,
+                aspectRatio: nil, expectedProjection: .equirectangular360,
                 label: "GSpherical cubemap → equirectangular360"
             ),
         ]
@@ -1089,13 +1089,13 @@ final class ProjectionDetectionTests: XCTestCase {
                 horizontalFOVDegrees: tc.horizontalFOVDegrees,
                 aspectRatio: tc.aspectRatio
             )
-            let result = ProjectionDetection.detect(from: input)
-            XCTAssertEqual(result, tc.expected, "Failed: \(tc.label)")
+            let (projection, _) = ProjectionDetection.detect(from: input)
+            XCTAssertEqual(projection, tc.expectedProjection, "Failed: \(tc.label)")
         }
     }
 
     func testGSphericalEquirectangularTakesPriorityForProjection() {
-        // GSpherical determines projection geometry; stereo3d determines StereoLayout (Unit 3).
+        // GSpherical determines projection geometry; stereo3d determines StereoLayout.
         // When both are present, projection type comes from GSpherical.
         let input = ProjectionDetectionInput(
             stereo3dIn: "sbs2l",
@@ -1104,10 +1104,16 @@ final class ProjectionDetectionTests: XCTestCase {
             horizontalFOVDegrees: nil,
             aspectRatio: 2.0
         )
+        let (projection, stereo) = ProjectionDetection.detect(from: input)
         XCTAssertEqual(
-            ProjectionDetection.detect(from: input),
+            projection,
             .equirectangular360,
             "GSpherical equirectangular should determine projection even when stereo3d is present"
+        )
+        XCTAssertEqual(
+            stereo,
+            .sideBySide,
+            "sbs2l stereo tag should still propagate to StereoLayout even with GSpherical"
         )
     }
 
@@ -1122,8 +1128,9 @@ final class ProjectionDetectionTests: XCTestCase {
                 horizontalFOVDegrees: nil,
                 aspectRatio: ratio
             )
+            let (projection, _) = ProjectionDetection.detect(from: input)
             XCTAssertEqual(
-                ProjectionDetection.detect(from: input),
+                projection,
                 .flat,
                 "Aspect ratio \(ratio) without metadata should remain flat"
             )

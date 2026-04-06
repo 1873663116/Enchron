@@ -26,37 +26,58 @@ struct ProjectionDetectionInput: Equatable {
 }
 
 enum ProjectionDetection {
-    /// Pure function: infer projection type from mpv metadata.
-    /// Priority: GSpherical metadata > fisheye > fallback to flat.
-    /// Stereoscopic layout (SBS/OU) is expressed via StereoLayout axis, not ProjectionType.
-    /// Aspect ratio alone is NOT sufficient to infer panoramic content (per TESTING.md).
+    /// Pure function: infer projection type and stereo layout from mpv metadata.
     ///
-    /// NOTE: Stereo detection (SBS/OU → StereoLayout) is implemented in Unit 3.
-    /// This function returns .flat for stereo-flagged content until Unit 3 lands.
-    static func detect(from input: ProjectionDetectionInput) -> PlaybackCoreDomain.ProjectionType {
-        // 2. GSpherical metadata detection
+    /// Returns a tuple `(ProjectionType, StereoLayout)`.
+    ///
+    /// Detection order:
+    /// 1. Stereo layout from `stereo3dIn` (exact mpv value matching only).
+    /// 2. GSpherical metadata → overrides projectionType (fisheye forces stereoLayout = .mono).
+    /// 3. No metadata markers → (.flat, derived stereoLayout).
+    ///
+    /// Stereo exact values (from mpv `mp_stereo3d_names[]`):
+    ///   - `"sbs2l"` / `"sbs2r"` → .sideBySide
+    ///   - `"ab2l"`  / `"ab2r"`  → .topBottom
+    ///   - All others (`"mono"`, `""`, `"no"`, unsupported formats) → .mono
+    ///
+    /// Aspect ratio alone is NOT sufficient to infer panoramic content (per TESTING.md).
+    static func detect(from input: ProjectionDetectionInput) -> (
+        PlaybackCoreDomain.ProjectionType, PlaybackCoreDomain.StereoLayout
+    ) {
+        // 1. Stereo layout detection — exact mpv value matching only.
+        let stereo = input.stereo3dIn.lowercased().trimmingCharacters(in: .whitespaces)
+        let stereoLayout: PlaybackCoreDomain.StereoLayout
+        if stereo == "sbs2l" || stereo == "sbs2r" {
+            stereoLayout = .sideBySide
+        } else if stereo == "ab2l" || stereo == "ab2r" {
+            stereoLayout = .topBottom
+        } else {
+            // Covers "mono", "", "no", and any unsupported mpv stereo3d format.
+            stereoLayout = .mono
+        }
+
+        // 2. GSpherical metadata detection — overrides projectionType.
         let isSpherical = input.gSphericalSpherical?.lowercased() == "true"
         let projType = input.gSphericalProjectionType?.lowercased() ?? ""
 
-        // Fisheye projection detection (before general spherical)
+        // Fisheye projection forces stereoLayout = .mono (fisheye is always mono).
         if projType.contains("fisheye") || projType.contains("equidistant") {
-            return .fisheye
+            return (.fisheye, .mono)
         }
 
         if isSpherical || projType.contains("equirectangular") || projType.contains("cubemap") {
-            // Check FOV to distinguish 180 vs 360
+            // Check FOV to distinguish 180 vs 360.
             if let fov = input.horizontalFOVDegrees, fov > 0, fov <= 180 {
-                return .equirectangular180
+                return (.equirectangular180, stereoLayout)
             }
             if projType.contains("cubemap") {
-                return .equirectangular360
+                return (.equirectangular360, stereoLayout)
             }
-            // Default spherical = 360
-            return .equirectangular360
+            // Default spherical = 360.
+            return (.equirectangular360, stereoLayout)
         }
 
-        // 3. No metadata markers → flat (do not guess from aspect ratio alone)
-        // NOTE: stereo3dIn tags (sbs/ou) will be handled by StereoLayout detection in Unit 3.
-        return .flat
+        // 3. No metadata markers → flat (do not guess from aspect ratio alone).
+        return (.flat, stereoLayout)
     }
 }
