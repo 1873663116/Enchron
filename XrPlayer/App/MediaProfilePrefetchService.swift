@@ -192,9 +192,9 @@ public actor MediaProfilePrefetchService {
     ) -> PlaybackCoreDomain.HDRType {
         guard let desc = formatDescriptions.first else { return .sdr }
 
-        // Check Dolby Vision
+        // Check Dolby Vision using the public CoreMedia constant instead of a string literal.
         if let extensions = CMFormatDescriptionGetExtensions(desc) as? [String: Any] {
-            if let dvInfo = extensions["DolbyVisionConfiguration" as CFString as String] {
+            if let dvInfo = extensions[kCMFormatDescriptionExtension_DolbyVisionConfiguration as String] {
                 _ = dvInfo
                 return .dolbyVision
             }
