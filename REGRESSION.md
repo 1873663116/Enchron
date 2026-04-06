@@ -14,11 +14,11 @@
 
 | 改动路径 | 关联回归项 |
 |---------|-----------|
-| PlaybackCore/Adapters/MPV/* | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063, REG-070 |
+| PlaybackCore/Adapters/MPV/* | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063, REG-070, REG-135 |
 | PlaybackCore/Domain/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlaybackCore/UseCases/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlayerUI/UseCases/DetailedTimelineGeometry.swift | REG-080 |
-| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081, REG-108, REG-109, REG-110, REG-116, REG-117, REG-119, REG-120, REG-123, REG-124, REG-125, REG-128, REG-129, REG-130 |
+| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081, REG-108, REG-109, REG-110, REG-116, REG-117, REG-119, REG-120, REG-123, REG-124, REG-125, REG-128, REG-129, REG-130, REG-134 |
 | PlayerUI/Views/VideoDetailView.swift | REG-082, REG-088, REG-120 |
 | PlayerUI/Views/PlayerControlSurface.swift | REG-012, REG-013, REG-015, REG-016, REG-019, REG-123 |
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
@@ -36,7 +36,7 @@
 | Persistence/Adapters/UserDefaultsStore.swift | REG-031, REG-085, REG-115 |
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
 | Persistence/Domain/* | REG-030, REG-031 |
-| App/MainView.swift | REG-041, REG-111, REG-116, REG-117, REG-124, REG-126 |
+| App/MainView.swift | REG-041, REG-111, REG-116, REG-117, REG-124, REG-126, REG-137, REG-138 |
 | App/XrPlayerApp.swift | REG-091, REG-094 |
 | App/PlaybackLaunching.swift | REG-095 |
 | App/PlaybackLaunchCoordinator.swift | REG-001, REG-019, REG-040, REG-082, REG-083, REG-085, REG-086, REG-087, REG-093, REG-095, REG-109, REG-113 |
@@ -46,7 +46,7 @@
 | App/Navigation/* | REG-041, REG-084, REG-123 |
 | WindowVideoView.swift | REG-126 |
 | Shared/MPVNativeMetalLayerView.swift | REG-126 |
-| SpatialScene/* | REG-050, REG-070, REG-071, REG-100, REG-101, REG-102, REG-103, REG-104, REG-105, REG-106, REG-107, REG-108, REG-109 |
+| SpatialScene/* | REG-050, REG-070, REG-071, REG-100, REG-101, REG-102, REG-103, REG-104, REG-105, REG-106, REG-107, REG-108, REG-109, REG-140 |
 | SpatialScene/Domain/* | REG-100, REG-101, REG-102, REG-103, REG-104, REG-105, REG-106, REG-107 |
 | SpatialScene/Renderers/VirtualScreenEntity.swift | REG-100, REG-101, REG-121 |
 | SpatialScene/Renderers/EnvironmentDomeEntity.swift | REG-104, REG-118 |
@@ -67,6 +67,8 @@
 | Persistence/Domain/Entities/UserPreferences.swift | REG-115 |
 | Settings/Views/SettingsView.swift | REG-031, REG-085, REG-101, REG-103, REG-104, REG-115 |
 | Shared/VideoShaders.metal | REG-107 |
+| App/MediaProfilePrefetchService.swift | REG-136 |
+| PlayerUI/Views/NLETimelineView.swift | REG-123, REG-127, REG-139 |
 
 路径粒度说明：默认为目录级（如 `PlaybackCore/Domain/*`）。对于高风险的关键文件使用文件级（如 `PlaybackLaunchCoordinator.swift`）。
 
@@ -982,6 +984,83 @@
 - **Agent 自检**: `swift build` 编译通过；`grep -rn "accessibilityIdentifier" XrPlayer/FileBrowsing/Views/VideoCardView.swift` 输出包含 `FileBrowsing-VideoCard-button-`；`grep -rn "accessibilityIdentifier" XrPlayer/App/Navigation/NavigationOrnament.swift` 输出包含 `Navigation-Ornament-tab-` 和 `Navigation-Ornament-button-sceneSelector`；`grep -rn "accessibilityIdentifier" XrPlayer/PlayerUI/Views/VideoDetailView.swift` 输出包含 `videoDetail.playButton`、`videoDetail.environment-`、`videoDetail.subtitlePicker`、`videoDetail.audioTrackPicker`
 - **真机验证**: 开启 VoiceOver → 浏览 FileBrowsing 视频卡片，每张卡片可被独立聚焦；导航 Ornament Tab 按钮可独立聚焦；VideoDetailView 中字幕/音轨 Picker 可通过辅助功能访问；PlayButton 在覆盖层上可独立聚焦
 - **退化信号**: VoiceOver 无法区分同类型的多个卡片、Picker 在无障碍树中缺失、Tab 按钮无法通过 UI 自动化测试定位
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-134: ornament 不挂宽域 `.animation()` 修饰符 — 菜单闪烁防御（§5.4）
+
+- **来源**: V2 overnight §5.4 — ornament 宽域 animation 修饰符导致菜单内容闪烁
+- **触发条件**: 改动 XrPlayer/PlayerUI/Views/PlayerControlsView.swift ornament 声明区域
+- **Agent 自检**: `swift build` 编译通过；`grep -n "\.animation(" XrPlayer/PlayerUI/Views/PlayerControlsView.swift` 输出中 ornament 修饰符链上不含宽域 `.animation()` 调用（局部动画 withAnimation 调用允许存在）
+- **真机验证**: 播放视频 → 点击左侧 Menu → 菜单展开无闪烁 → 播放进度推进时菜单内容不因动画扩散而抖动
+- **退化信号**: 菜单内容在播放进度更新时出现闪烁或重绘、ornament 整体有不必要的动画抖动
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-135: HDR 元数据检测 3s 超时 + fallback SDR profile（§5.5）
+
+- **来源**: V2 overnight §5.5 — HDR 检测无超时导致首帧延迟
+- **触发条件**: 改动 XrPlayer/PlaybackCore/ 中 HDR 检测相关逻辑（MPVPlayerAdapter.swift 或 MediaProfileDetecting）
+- **Agent 自检**: `swift build` 编译通过；grep PlaybackCore HDR 检测路径确认存在超时机制（Task.sleep 或 withTimeout）；超时后返回 SDR profile 而非挂起
+- **真机验证**: 播放无 HDR 元数据的视频 → 3s 内自动以 SDR 模式开始播放，无卡顿等待；播放 HDR10 视频 → 检测成功后以 HDR 模式播放
+- **退化信号**: 无 HDR 元数据时播放卡在检测阶段超过 3s、超时后崩溃而非降级为 SDR、HDR 内容误判为 SDR
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-136: MediaProfilePrefetchService 并发限制 + Task 取消传播（§5.6）
+
+- **来源**: V2 overnight §5.6 — 文件夹级别元数据预读缓存，并发无上限导致资源竞争
+- **触发条件**: 改动 XrPlayer/App/MediaProfilePrefetchService.swift
+- **Agent 自检**: `swift build` 编译通过；grep MediaProfilePrefetchService 确认并发限制机制（AsyncSemaphore 或 actor 串行队列）存在；grep 确认 Task 取消检查（`try Task.checkCancellation()` 或 `isCancelled`）在循环内存在
+- **真机验证**: 进入含大量视频的文件夹 → 后台预读触发但不影响 UI 响应 → 离开文件夹时预读 Task 被取消，不继续消耗资源
+- **退化信号**: 进入大型文件夹后 UI 卡顿（并发无上限）、离开页面后仍有大量后台请求、Task 取消后仍继续执行预读
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-137: 沉浸空间统一入口 — 所有请求经 `appModel.immersiveSpaceRequest`（§5.9a）
+
+- **来源**: V2 overnight §5.9a — 沉浸空间入口统一路由，消除直接调用 openImmersiveSpace
+- **触发条件**: 改动 XrPlayer/MainView.swift onChange handler 或任何触发沉浸空间的视图
+- **Agent 自检**: `swift build` 编译通过；`grep -rn "openImmersiveSpace\|dismissImmersiveSpace" XrPlayer/` 输出仅在 MainView.swift 的 onChange handler 内出现，SceneSelectorView 和 ToggleImmersiveSpaceButton 中不含直接调用
+- **真机验证**: 通过 SceneSelectorView 进入沉浸空间 → 正常进入；通过播放全景视频自动触发 → 正常进入；两条路径均通过 MainView onChange 统一处理，无重复开关调用
+- **退化信号**: SceneSelectorView 或其他视图直接调用 openImmersiveSpace 导致生命周期冲突、重复开关沉浸空间崩溃
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-138: 沉浸退出时主窗口恢复 + playerControls 窗口关闭（§5.9b/§5.9d）
+
+- **来源**: V2 overnight §5.9b/§5.9d — 沉浸退出时主窗口未恢复、playerControls 残留
+- **触发条件**: 改动 XrPlayer/MainView.swift dismiss 路径（immersiveSpaceRequest = .dismiss 分支）
+- **Agent 自检**: `swift build` 编译通过；grep MainView.swift 确认 dismiss 分支中存在 `openWindow` 或 `restoreMainWindow` 调用以及 `dismissWindow` 关闭 playerControls 的逻辑
+- **真机验证**: 进入沉浸空间 → 退出沉浸空间 → 主窗口重新出现可交互 → playerControls 浮窗已关闭不残留 → 再次进入沉浸空间流程正常
+- **退化信号**: 退出沉浸后主窗口消失无法操作、playerControls 浮窗在窗口模式下残留、连续进退沉浸导致窗口状态混乱
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-139: NLE 时间轴关闭动效 `.move(edge: .bottom)` 与打开对称（§5.11）
+
+- **来源**: V2 overnight §5.11 — NLE 时间轴关闭时动效缺失，与打开动效不对称
+- **触发条件**: 改动 XrPlayer/PlayerUI/Views/ 中 NLE 相关视图（NLETimelineView.swift 或触发其显示隐藏的父视图）
+- **Agent 自检**: `swift build` 编译通过；grep NLETimelineView 相关视图确认 `.transition(.move(edge: .bottom))` 或对称的 asymmetric transition 存在于显示/隐藏条件处
+- **真机验证**: 打开 NLE 时间轴 → 面板从底部滑入；关闭 NLE 时间轴 → 面板向底部滑出（与打开方向对称）；无突变消失
+- **退化信号**: 关闭时面板突变消失（无动画）、关闭方向与打开方向不对称、动画与其他面板动效风格不一致
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-140: Metal layer frame 在 `updateUIView` 中显式同步 `nativeView.frame`（§5.8）
+
+- **来源**: V2 overnight §5.8 — Metal layer frame 未在 updateUIView 同步导致窗口缩放后渲染区域错位
+- **触发条件**: 改动 XrPlayer/SpatialScene/ 或 XrPlayer/Shared/ 中 Metal 渲染视图代理（UIViewRepresentable/NSViewRepresentable）
+- **Agent 自检**: `swift build` 编译通过；grep SpatialScene + Shared Metal 视图代理确认 `updateUIView`/`updateNSView` 中存在显式 `metalLayer.frame = nativeView.bounds` 或等效帧同步调用
+- **真机验证**: 拖拽窗口边缘调整大小 → Metal 渲染区域立即跟随窗口大小更新，无黑边或渲染区域偏移 → 与 REG-126（视频画布跟随窗口缩放）配合验证
+- **退化信号**: 窗口缩放后 Metal 渲染区域不更新（仍为旧尺寸）、出现黑边或渲染内容偏移、frame 同步仅在下一帧生效导致闪烁
 - **状态**: active
 - **创建日期**: 2026-04-06
 
