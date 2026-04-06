@@ -61,7 +61,7 @@
 | PlayerUI/Views/TimelineRulerView.swift | REG-127 |
 | PlayerUI/Views/ScreenPositionControlView.swift | REG-115, REG-120 |
 | PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063, REG-070, REG-111, REG-122 |
-| PlaybackCore/Domain/ValueObjects/StereoMode.swift | REG-106 |
+| PlaybackCore/Domain/ValueObjects/StereoLayout.swift | REG-106 |
 | Persistence/Domain/Entities/UserPreferences.swift | REG-115 |
 | Settings/Views/SettingsView.swift | REG-031, REG-085, REG-101, REG-103, REG-104, REG-115 |
 | Shared/VideoShaders.metal | REG-107 |
@@ -679,7 +679,7 @@
 ### REG-106: Stereo 3D SBS/OU 帧分离渲染
 
 - **来源**: T1.4 全景视频完善 — 立体 3D
-- **触发条件**: 改动 SpatialScene/Renderers/PanoramaLayerBridge.swift、PlaybackCore/Domain/ValueObjects/StereoMode.swift
+- **触发条件**: 改动 SpatialScene/Renderers/PanoramaLayerBridge.swift、PlaybackCore/Domain/ValueObjects/StereoLayout.swift
 - **Agent 自检**: `swift build` 编译通过；`swift test --filter StereoFrameSplitTests` 通过
 - **真机验证**: 打开 SBS 立体视频 → 画面只显示左半帧（非左右并排）→ 打开 OU 立体视频 → 画面只显示上半帧（非上下堆叠）→ 画面比例正确（无水平/垂直拉伸）
 - **退化信号**: SBS 视频仍显示左右并排画面、OU 视频仍显示上下堆叠、裁剪区域错误、输出尺寸不正确

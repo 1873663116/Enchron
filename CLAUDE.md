@@ -62,21 +62,40 @@ XrPlayer/
 
 ## 文档路由表
 
-| 文档                                              | 是什么                                    | 何时查阅              |
-| ----------------------------------------------- | -------------------------------------- | ----------------- |
-| **ARCHITECTURE.md**                             | 模块职责、数据流、Architecture Invariants、跨模块通信 | 任何代码改动前           |
-| **TESTING.md**                                  | 双轨验证体系、agent 自检命令、人类验证清单格式             | 改动代码后验证时          |
-| **QUALITY_SCORE.md**                            | 各领域当前质量评分、差距                           | 评估改动优先级时          |
-| **REGRESSION.md**                               | 代码路径 → 回归项映射、回归集维护规则                   | 改动代码前后（必读）        |
-| `docs/product_philosophy.md`                    | 产品灵魂、三种播放模式的体验愿景                       | 做设计决策时            |
-| `docs/Requirements.md`                          | 功能范围、验收边界、里程碑                          | 接新需求、判断功能是否越界     |
-| `docs/quality_gates.md`                         | 一个改动怎样才算"可接受"                          | 提交代码前自查           |
-| `docs/ubiquitous_language.md`                   | 项目统一术语表                                | 命名类、方法、变量时        |
-| `docs/contracts/frontend-backend-contract.md`   | 前后端职责边界、协作规则                           | 涉及远程数据流时          |
-| `docs/design_docs/`                             | DDD 建模细节、完整接口签名（参考归档）                  | 需要深入设计背景时         |
-| `docs/contracts/`                               | 契约规范 + OpenAPI 参考 + Mock 数据                 | 改远程数据模型、接口或协作边界时 |
+### 核心文档（改动代码必读）
 
-文档优先级（冲突时）：product_philosophy > Requirements > quality_gates > ARCHITECTURE > 其余。
+| 文档 | 是什么 | 何时查阅 |
+|------|--------|----------|
+| **ARCHITECTURE.md** | 模块职责、数据流、Architecture Invariants、跨模块通信 | 任何代码改动前 |
+| **TESTING.md** | 双轨验证体系、agent 自检命令、人类验证清单格式 | 改动代码后验证时 |
+| **QUALITY_SCORE.md** | 各领域当前质量评分、差距 | 评估改动优先级时 |
+| **REGRESSION.md** | 代码路径 → 回归项映射、回归集维护规则 | 改动代码前后（必读） |
+
+### 产品与规范
+
+| 文档 | 是什么 | 何时查阅 |
+|------|--------|----------|
+| `docs/product_philosophy.md` | 产品灵魂、三种播放模式的体验愿景 | 做设计决策时 |
+| `docs/brainstorms/*-requirements.md` | 各功能的需求探索与验收边界 | 接新需求、判断功能是否越界 |
+| `docs/quality_gates.md` | 一个改动怎样才算"可接受" | 提交代码前自查 |
+| `docs/ubiquitous_language.md` | 项目统一术语表 | 命名类、方法、变量时 |
+| `docs/contracts/` | 契约规范 + OpenAPI + Mock 数据 | 改远程数据模型、接口或协作边界时 |
+
+### docs/ 子目录
+
+| 目录 | 是什么 | 何时查阅 |
+|------|--------|----------|
+| `docs/plans/active/` | 进行中的 ExecPlan、TestPlan、ResearchPlan、Arch Review | 接手任务或继续未完成工作时 |
+| `docs/plans/complete/` | 已完成的计划（待归档） | 需要了解近期已完成的迭代 |
+| `docs/brainstorms/` | 需求探索与头脑风暴（含 requirements） | 规划新功能、回溯需求来源时 |
+| `docs/designs/` | HTML 设计稿与视觉原型 | 实现 UI 时对照设计 |
+| `docs/reference/` | 技术调查报告（investigation）、构建指南 | 需要某领域的调查结论时 |
+| `docs/solutions/best-practices/` | 经验沉淀：踩坑记录、架构模式、流程最佳实践 | 遇到类似问题时避免重蹈覆辙 |
+| `docs/solutions/build-errors/` | 构建错误的诊断与修复方案 | 遇到构建报错时 |
+| `docs/qa-reports/` | QA 报告 + 截图证据 | 回顾测试结果、追溯 bug 修复 |
+| `docs/archive/` | 归档区：已完成的 ExecPlan、已解决的 issues、DDD 建模历史 | 需要历史上下文时 |
+
+文档优先级（冲突时）：product_philosophy > brainstorms/*-requirements > quality_gates > ARCHITECTURE > 其余。
 
 ---
 
@@ -94,6 +113,7 @@ XrPlayer/
 | visionOS | `arkit-visionos-developer`, `visionos-design-guidelines`, `visionos-widgets` |
 | Apple 设计 | `apple-hig`, `mobile-ios-design`, `liquid-glass-design` |
 | RealityKit | `axiom-realitykit-diag`, `axiom-scenekit` |
+| E2E 测试 | `e2e-test` |
 
 
 ## Review guidelines

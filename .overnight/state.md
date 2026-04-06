@@ -1,34 +1,38 @@
-next: execute
+next: test
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
 goal: "Enchron V2 综合迭代：三轴域模型重构 + UI 严格对齐 HTML 设计稿 + 视频格式自动识别 + 缩略图加载 + 播放场景切换 + Bug 修复 + QA/E2E 验收"
-round: 2
+round: 3
 context: |
-  plan 阶段完成。产出：
-  - docs/plans/active/ExecPlan.md — 9 个实施单元，覆盖 12 项需求
-  - docs/plans/active/TestPlan.md — 分三层验收（单元测试、结构审计、真机验证）
+  execute + review 阶段完成。ExecPlan 8/9 个实施 Unit 全部 PASS（Unit 9 QA/E2E 留给 test 阶段）。
   
-  ExecPlan 经过三轮审查：
-  1. ce-plan 内置 document review：6 auto-fixes 已应用
-  2. plan-eng-review：2 P1 + 4 P2，P1-1（PlaybackLaunchCoordinator 4 处传参）和 P1-2（Unit 6 传递路径）的修补方向已写入 ExecPlan
-  3. codex adversarial review → Opus counter-review → Supervisor 裁决：
-     - P0-1（球面检测）降级为 P2（范围边界排除，有 projectionOverride 回退）
-     - P0-2（stereoLayout 传播）P0 已处理（ExecPlan 已有修复指令）
-     - P1-3（Thumbnail sandbox）已修补到 ExecPlan Unit 7
-     - 最终：0 P0 阻塞，plan 通过
+  实施摘要：
+  - Unit 1: SeekBarView 属性隔离修复 P0 菜单闪烁 + playbackState 等值 guard
+  - Unit 2: ProjectionType 4-case 纯几何枚举 + StereoMode→StereoLayout 重命名（含 .mono）+ MediaProfile 新增 stereoLayout/hasCoverArt
+  - Unit 3: ProjectionDetection 返回 (ProjectionType, StereoLayout) 元组 + 精确 mpv stereo-in 匹配 + gamma-based HDR 决策树（删除 video-params/hdr-format 死代码）
+  - Unit 4: DecidePlaybackModeUseCase 三轴路由 + 约束矩阵（flat 禁 panorama，fisheye 强制 mono）+ 26 个路由测试
+  - Unit 5: PlayerControlsView HDR 动态标签 + 3D 开关 + Playback Mode disabled 项 + 移除 Projection Override/Playlist/Screen Position 入口
+  - Unit 6: VideoDetailView 返回按钮 + HDR 开关 + 沉浸模式选择器
+  - Unit 7: ThumbnailService actor + ThumbnailMPVAdapter (screenshot-to-file) + ThumbnailCache 两级缓存 + VideoCardView/VideoDetailView 接入
+  - Unit 8: connectToDataSource 立即清空 + SkeletonCardView shimmer 加载态
   
-  next=execute 原因：ExecPlan 和 TestPlan 就绪，三轮审查通过，无阻塞项。
+  对抗性审查发现 1 P0 + 2 P1，全部已修复：
+  - P0-1: detectedStereoLayout 传播断裂 → updateDetectedProjection 新增 stereoLayout 参数 + PlaybackLaunchCoordinator 4 处调用同步更新
+  - P1-1: NLETimelineView playbackPosition 读取泄漏 → NLETimelineView 改为 @Environment 自读
+  - P1-2: startPlayback() 未重置检测状态 → 新增 detectedProjectionType/detectedStereoLayout 重置
+  P2-1: REGRESSION.md StereoMode.swift 引用 → 已更新为 StereoLayout.swift
   
-  execute 阶段执行顺序（ExecPlan 依赖图）：
-  - 第一批：Unit 1（P0 Bug fix）+ Unit 8（数据源切换，独立无依赖）可并行
-  - 第二批：Unit 2（三轴域模型）依赖 Unit 1
-  - 第三批：Unit 3（ProjectionDetection）+ Unit 6（VideoDetailView）+ Unit 7（ThumbnailService）依赖 Unit 2，可并行
-  - 第四批：Unit 4（DecidePlaybackModeUseCase）依赖 Unit 3
-  - 第五批：Unit 5（PlayerControlsView）依赖 Unit 4
-  - 第六批：Unit 9（QA/E2E）依赖 Unit 5/6/7/8 全部完成
+  ce-review agent 在轮次交接时仍在运行（已耗时较长），其发现不影响 test 阶段启动。
   
-  注意事项：
-  - Unit 1 修复时对 playbackState 重复赋值加等值 guard（P1-2 防御性措施）
-  - Unit 7 Thumbnail 加载前须 startAccessingSecurityScopedResource（已补充到 ExecPlan）
-  - design-shotgun 已跳过（设计稿由用户提供，任务是对齐非探索）
+  next=test 原因：8 个 Unit 全部实施完成，对抗审查 P0/P1 已修复，进入 QA/E2E 验收。
+  
+  test 阶段注意事项：
+  - 执行 /qa Standard + /e2e（TestPlan 在 docs/plans/active/TestPlan.md）
+  - 验证三轴路由约束矩阵（12 种组合）
+  - 验证 P0 菜单交互回归
+  - 验证 ThumbnailService 缩略图加载
+  - 验证数据源切换骨架屏
+  - 补 accessibilityIdentifier（ExecPlan Unit 9）
+  - 更新 REGRESSION.md 新增回归项
+  - P2-2/P2-3/P2-4（ThumbnailMPVAdapter 线程安全）可在 test 后的 fix 阶段处理

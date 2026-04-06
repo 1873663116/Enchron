@@ -1,28 +1,18 @@
-# overnight 配置
-# 预算控制由云端 API 的限额管理，不在本地重复实现
+# overnight 配置 — Enchron V2 综合迭代
+max_hours: 7
+risk_tolerance: cautious
 
-max_hours: 12             # 最大运行时长（小时）— 全功能迭代需要更长时间
-risk_tolerance: cautious  # cautious | balanced | aggressive
-review_policy: always     # always | on-major-change | skip
+# 状态机起始动作
+start_next: investigate
 
-# Pipeline 阶段配置
-pipeline:
-  # 完整阶段序列（不可新增，但可通过 skip_phases 跳过）
-  phases: [planning, review, execution, verification, completion]
+# 跳过的技能
+# - 需求已由人类确认，跳过 brainstorm 相关审查
+# - 有前端，保留 design 相关技能
+skip_skills: [plan-ceo-review]
 
-  # 起始阶段（全流程：从 planning 开始）
-  start_phase: planning
-
-  # 跳过的阶段（全流程：不跳过任何阶段）
-  skip_phases: []
-
-  # verification → execution 回退最大次数，超出则 BLOCKED
-  verification_max_retries: 5
-
-  # 文档归档策略
-  archive_on_transition: true
+# 收敛边界
+fix_max_retries: 6
+max_iterations: 4
 
 # 前端检测
-# true: 虽然是 visionOS 原生项目，但本轮 overnight 涉及大量 UI/UX 重构（Liquid Glass）
-# 需要启用 design-consultation, design-review 等设计技能
 has_frontend: true

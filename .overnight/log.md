@@ -60,3 +60,48 @@ ce-compound 自裁：无新经验需归纳（审查发现均为已知模式的�
 [TRANSITION] from=plan to=execute skipped=design-shotgun
 reason: ExecPlan/TestPlan 就绪，三轮审查通过，0 P0 阻塞
 
+## Round 3 (execute + review)
+
+[EXECUTE] 8/9 Unit 全部 PASS，按依赖图 5 批次执行
+
+Batch 1（并行）：
+- Unit 1 (sonnet): P0 菜单闪烁 → SeekBarView 属性隔离 + playbackState 等值 guard — PASS
+- Unit 8 (sonnet): 数据源切换 → connectToDataSource 立即清空 + SkeletonCardView shimmer — PASS
+
+Batch 2：
+- Unit 2 (sonnet): 三轴域模型 → ProjectionType 4-case + StereoLayout(.mono) + MediaProfile 扩展 — PASS (294/295 tests, 1 pre-existing)
+
+Batch 3（并行）：
+- Unit 3 (sonnet): ProjectionDetection 元组返回 + gamma HDR 决策树 + 死代码删除 — PASS (305 tests)
+- Unit 6 (sonnet): VideoDetailView 返回按钮 + HDR 开关 + 沉浸模式选择器 — PASS
+- Unit 7 (sonnet): ThumbnailService actor + ThumbnailMPVAdapter + ThumbnailCache 两级缓存 — PASS (BUILD SUCCEEDED)
+
+Batch 4：
+- Unit 4 (sonnet): DecidePlaybackModeUseCase 三轴路由 + 约束矩阵 — PASS (317 tests, 26 新增路由测试)
+
+Batch 5：
+- Unit 5 (sonnet): PlayerControlsView HDR 标签 + 3D 开关 + Mode disabled + 移除旧入口 — PASS
+
+[REVIEW] 对抗性审查（opus）+ P0/P1 修复
+
+[ADVERSARIAL-REVIEW] action=execute tier=standard
+codex: degraded（skill 未正确执行）
+counter-review: Opus 独立审查 — 1 P0 + 2 P1 + 4 P2
+verdict: P0/P1 全部修复
+
+修复清单：
+- P0-1: detectedStereoLayout 传播断裂 → updateDetectedProjection 新增 stereoLayout 参数 + 4 处调用点同步 — FIXED
+- P1-1: NLETimelineView playbackPosition 泄漏 → 改为 @Environment 自读 — FIXED
+- P1-2: startPlayback() 未重置检测状态 → 新增 reset — FIXED
+- P2-1: REGRESSION.md StereoMode.swift 引用 → 更新为 StereoLayout.swift — FIXED
+- P2-2: ThumbnailMPVAdapter DispatchSemaphore 阻塞协程线程 — DEFERRED to fix phase
+- P2-3: ThumbnailService.inFlightTasks 无同步 — DEFERRED (ThumbnailService 是 actor，需验证)
+- P2-4: ThumbnailMPVAdapter timeout Task 强引用 self — DEFERRED to fix phase
+
+ce-review Agent 超时未返回（已运行 >10min），不阻塞 test 阶段。
+
+ce-compound 自裁：P0-1 发现值得归纳 — @Observable 域模型属性必须在检测回调中完整传播，遗漏单个字段可致整条管线失效。但该教训已直接体现在修复代码中，无需单独文档化。
+
+[TRANSITION] from=execute+review to=test skipped=none
+reason: 8 个 Unit 全部实施完成，对抗审查 P0/P1 已修复，进入 QA/E2E 验收
+

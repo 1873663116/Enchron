@@ -14,42 +14,37 @@
 
 - 每轮覆写 state.md + 追加 log.md + git commit
 - 不调用 AskUserQuestion
-- 连续失败 ≥ 3 → BLOCKED → 退出
+- 连续失败 >= 3 → BLOCKED → 退出
 - git push --force / git reset --hard / DROP TABLE / 修改 credentials → 立即 BLOCKED
 
 ---
 ## 场景指令
 
-目标：UI/UX 重构前的文档更新 + 文件命名/路径规范化
-起始阶段：INVESTIGATING
-跳过技能：design-shotgun, plan-ceo-review
-锚定文档：ARCHITECTURE.md, CLAUDE.md, docs/designs/design-to-swiftui.md
+目标：Enchron V2 综合迭代 — 三轴域模型重构 + UI 严格对齐 + 视频格式自动识别 + 缩略图 + 播放场景切换 + Bug 修复 + QA/E2E
+起始动作：investigate
+跳过技能：plan-ceo-review
+锚定文档：docs/brainstorms/2026-04-06-v2-comprehensive-requirements.md
 
-### 任务范围
+## 关键上下文
 
-本轮 overnight 聚焦于 UI/UX 重构的**准备工作**，不涉及代码实现：
+### 三轴正交模型
+- PlaybackMode: .window / .immersive / .panorama （呈现位置）
+- StereoLayout: .mono / .sideBySide / .topBottom （立体编排）
+- ProjectionType: .flat / .equirectangular180 / .equirectangular360 / .fisheye （几何拓扑）
 
-1. **文档审计与更新**
-   - 审查所有项目文档，找出过时、不一致或缺失的内容
-   - workspace-agents/ 目录文件在 git 中追踪但磁盘已删除，需要决定保留还是迁移
-   - docs/ 下的子目录结构是否符合当前 preamble 标准路径
-   - ARCHITECTURE.md、CLAUDE.md 等核心文档是否与代码实际状态一致
+### Investigate 阶段调查目标
+1. mpv 暴露哪些属性可检测 ProjectionType 和 StereoLayout
+2. MKV/MP4/MOV 容器的元数据字段映射（Projection element、sv3d/st3d box、StereoMode）
+3. 封面/缩略图提取的最佳路径（mpv API vs AVFoundation vs ffmpeg）
+4. 全场景组合矩阵（ProjectionType × StereoLayout 的所有合法组合）
 
-2. **文件命名与路径规范化**
-   - 检查文档和文件的命名是否符合项目约定（kebab-case、日期格式等）
-   - 重复内容（docs/contracts/ vs workspace-agents/contracts/）需要合并
-   - 旧格式产物（ExecPlan 编号命名等）是否需要迁移
+### 已知 P0 Bug
+- 播放中二级/三级菜单闪烁 + 不可交互（暂停后恢复）
 
-3. **为后续 UI/UX 重构铺路**
-   - 确保设计文档（design-to-swiftui.md、HTML mockups）路径正确且可引用
-   - 确保 docs/solutions/ 下的经验文档是最新的
-   - 清理不再需要的中间产物
+### UI 对齐
+- 播放控件对齐 docs/designs/player.html
+- 首页对齐 docs/designs/variant-AB-combined.html
+- HDR 标签动态识别（Dolby Vision / HDR10 / HLG，SDR 时不显示）
 
-### 项目上下文
-
-- 项目: Enchron (visionOS 视频播放器)
-- 分支: MinimaxTest (91 commits ahead of main)
-- 架构: Clean Architecture + DDD, 5 个限界上下文
-- 上一轮 overnight: 完成了全覆盖 QA (Health Score 95.69%, 248 tests)
-- 最近工作: HTML mockup 设计 + design-to-swiftui.md 对抗性审查（已完成 13 项修正）
-- HelloWorld 参考: ~/Movies/HelloWorld/
+### 执行顺序
+investigate → plan → execute（Bug fix → 域模型重构 → UI 对齐 → 功能实现）→ review → test → fix

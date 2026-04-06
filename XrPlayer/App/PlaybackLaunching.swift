@@ -15,6 +15,13 @@ public protocol PlaybackLaunching: AnyObject {
     // MARK: - Prepare-then-confirm flow (detail page)
     var currentPreparation: PreparationState? { get }
     func preparePlayback(_ request: PlaybackLaunchRequest)
-    func confirmPlayback(_ prepared: PreparedPlayback, resumePosition: Double?)
+    func confirmPlayback(
+        _ prepared: PreparedPlayback,
+        resumePosition: Double?,
+        selectedAudioTrackID: String?,
+        selectedSubtitleTrackID: String?,
+        subtitlesOff: Bool,
+        hdrEnabled: Bool
+    )
     func cancelPreparedPlayback()
 }

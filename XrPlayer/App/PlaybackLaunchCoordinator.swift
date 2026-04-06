@@ -57,7 +57,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     guard self.windowVideoViewModel.currentLaunchRequest == request else { return }
                     self.windowVideoViewModel.applyPrefetchedMetadata(metadata)
                     self.appModel.updateMediaProfile(profile)
-                    self.appModel.updateDetectedProjection(profile.projectionType)
+                    self.appModel.updateDetectedProjection(profile.projectionType, stereoLayout: profile.stereoLayout)
                 }
             }
         }
@@ -116,7 +116,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     self.windowVideoViewModel.applyPrefetchedMetadata(resolvedMetadata)
                     if let mediaProfile = resolvedMetadata.mediaProfile {
                         self.appModel.updateMediaProfile(mediaProfile)
-                        self.appModel.updateDetectedProjection(mediaProfile.projectionType)
+                        self.appModel.updateDetectedProjection(mediaProfile.projectionType, stereoLayout: mediaProfile.stereoLayout)
                     }
                 } else {
                     print("[Playback] metadata_prefetch_empty name=\(preparedRequest.displayName)")
@@ -290,7 +290,14 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     ///
     /// Validates that `prepared.generation` matches the coordinator's current
     /// generation to reject stale confirmations.
-    public func confirmPlayback(_ prepared: PreparedPlayback, resumePosition: Double? = nil) {
+    public func confirmPlayback(
+        _ prepared: PreparedPlayback,
+        resumePosition: Double? = nil,
+        selectedAudioTrackID: String? = nil,
+        selectedSubtitleTrackID: String? = nil,
+        subtitlesOff: Bool = false,
+        hdrEnabled: Bool = true
+    ) {
         guard prepared.generation == generation else {
             print("[Playback] confirm_rejected reason=stale_generation expected=\(generation) got=\(prepared.generation)")
             return
@@ -306,9 +313,22 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         appModel.startPlayback(url: prepared.request.url)
         if let mediaProfile = prepared.metadata?.mediaProfile {
             appModel.updateMediaProfile(mediaProfile)
-            appModel.updateDetectedProjection(mediaProfile.projectionType)
+            appModel.updateDetectedProjection(mediaProfile.projectionType, stereoLayout: mediaProfile.stereoLayout)
         }
         windowVideoViewModel.resume()
+
+        // Apply user's track selections from the detail page
+        if let audioID = selectedAudioTrackID,
+           let track = prepared.audioTracks.first(where: { $0.id == audioID }) {
+            windowVideoViewModel.selectAudioTrack(track)
+        }
+        if subtitlesOff {
+            windowVideoViewModel.selectSubtitleTrack(nil)
+        } else if let subID = selectedSubtitleTrackID,
+                  let track = prepared.subtitleTracks.first(where: { $0.id == subID }) {
+            windowVideoViewModel.selectSubtitleTrack(track)
+        }
+        windowVideoViewModel.setHDREnabled(hdrEnabled)
 
         // Apply default speed preference
         let defaultSpeed = preferencesStore.loadPreferences().defaultPlaybackSpeed
@@ -336,7 +356,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     self.windowVideoViewModel.applyPrefetchedMetadata(metadata)
                     if let mediaProfile = metadata.mediaProfile {
                         self.appModel.updateMediaProfile(mediaProfile)
-                        self.appModel.updateDetectedProjection(mediaProfile.projectionType)
+                        self.appModel.updateDetectedProjection(mediaProfile.projectionType, stereoLayout: mediaProfile.stereoLayout)
                     }
                 }
             }

@@ -97,8 +97,12 @@ public final class AppModel {
         playbackMode = mode
     }
 
-    public func updateDetectedProjection(_ type: PlaybackCoreDomain.ProjectionType) {
+    public func updateDetectedProjection(
+        _ type: PlaybackCoreDomain.ProjectionType,
+        stereoLayout: PlaybackCoreDomain.StereoLayout = .mono
+    ) {
         detectedProjectionType = type
+        detectedStereoLayout = stereoLayout
         // Clear override when new media detected
         projectionOverride = nil
         // Auto-route playback mode based on detected content type
@@ -145,6 +149,8 @@ public final class AppModel {
         mediaProfile = nil
         projectionOverride = nil
         stereoLayoutOverride = nil
+        detectedProjectionType = .flat
+        detectedStereoLayout = .mono
         withAnimation(.easeInOut(duration: 0.4)) { showControls = true }
         registerControlsInteraction()
     }
