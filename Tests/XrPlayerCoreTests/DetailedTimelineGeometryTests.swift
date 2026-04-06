@@ -10,9 +10,10 @@ final class DetailedTimelineGeometryTests: XCTestCase {
     }
 
     func testMaximumZoomExpandsTimelineWidth() {
+        // maximumWidthFactor = 16.0 → 600 × 16 = 9600
         let sut = DetailedTimelineGeometry(viewportWidth: 600, duration: 240, zoomLevel: 1)
 
-        XCTAssertEqual(sut.timelineWidth, 2400, accuracy: 0.001)
+        XCTAssertEqual(sut.timelineWidth, 9600, accuracy: 0.001)
     }
 
     func testOffsetForStartAlignsCenterAxisToFirstFrame() {
