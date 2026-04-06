@@ -123,7 +123,7 @@ struct XrPlayerApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             MainView()
                 .environment(appModel)
                 .environment(windowVideoViewModel)

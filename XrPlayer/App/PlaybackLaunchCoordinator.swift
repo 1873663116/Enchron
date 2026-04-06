@@ -51,8 +51,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         self.windowVideoViewModel.onMediaProfileResolved = { [weak self] request, profile in
             guard let self else { return }
             Task {
+                guard !Task.isCancelled else { return }
                 let metadata = await self.metadataService.recordDetectedProfile(
                     profile, for: request)
+                guard !Task.isCancelled else { return }
                 await MainActor.run {
                     guard self.windowVideoViewModel.currentLaunchRequest == request else { return }
                     self.windowVideoViewModel.applyPrefetchedMetadata(metadata)
@@ -227,21 +229,31 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             // Store the request for tracking but do NOT change presentation state.
             self.windowVideoViewModel.currentLaunchRequest = preparedRequest
 
+            // Pre-apply cached/prefetched metadata so the wait loop can break early
+            // when a profile is already available from cache (avoids the full 3 s wait
+            // for files that have been seen before, including HDR files).
+            if let prefetched = mergedMetadata {
+                self.windowVideoViewModel.applyPrefetchedMetadata(prefetched)
+            }
+
             do {
                 try await self.windowVideoViewModel.loadPaused(url: preparedRequest.url)
                 guard !Task.isCancelled else { return }
                 guard self.generation == currentGeneration else { return }
 
                 // Wait for mpv to parse container, detect profile, and populate track lists.
-                // Poll until tracks appear or timeout after ~2s.
+                // Poll until tracks+profile appear, or bail out after 3 s (P0 timeout guard).
+                // HDR videos can stall profile detection indefinitely on some codecs — the
+                // timeout unblocks the UI and surfaces a fallback profile; actual detection
+                // continues at runtime once the user confirms playback.
                 var waitedMs = 0
-                let maxWaitMs = 2000
+                let maxWaitMs = 3000
                 while waitedMs < maxWaitMs {
                     try? await Task.sleep(for: .milliseconds(100))
                     guard !Task.isCancelled else { return }
                     guard self.generation == currentGeneration else { return }
                     waitedMs += 100
-                    // Break early once tracks and profile are available
+                    // Break early once tracks and profile are both available
                     if !self.windowVideoViewModel.availableAudioTracks.isEmpty,
                        self.windowVideoViewModel.displayMediaProfile != nil {
                         break
@@ -265,15 +277,38 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     finalMetadata = finalMetadata?.merging(with: runtimeMeta) ?? runtimeMeta
                 }
 
+                // Fallback: if profile detection timed out, synthesise a conservative SDR
+                // profile so the UI can still render and the user can confirm playback.
+                // mpv will overwrite this via onMediaProfileResolved once it finishes.
+                let isMetadataPartial: Bool
+                if finalMetadata?.mediaProfile == nil {
+                    let fallbackProfile = PlaybackCoreDomain.MediaProfile(
+                        projectionType: .flat,
+                        stereoLayout: .mono,
+                        hdrType: .sdr,
+                        resolution: .init(width: 1920, height: 1080)
+                    )
+                    let fallbackMeta = PlaybackMediaMetadata(
+                        mediaProfile: fallbackProfile,
+                        fileSizeInBytes: finalMetadata?.fileSizeInBytes ?? 0
+                    )
+                    finalMetadata = finalMetadata?.merging(with: fallbackMeta) ?? fallbackMeta
+                    isMetadataPartial = true
+                    print("[Playback] prepare_timeout_fallback name=\(request.displayName) waited=\(waitedMs)ms")
+                } else {
+                    isMetadataPartial = false
+                }
+
                 let prepared = PreparedPlayback(
                     request: preparedRequest.updating(metadata: finalMetadata),
                     metadata: finalMetadata,
                     audioTracks: audioTracks,
                     subtitleTracks: subtitleTracks,
-                    generation: currentGeneration
+                    generation: currentGeneration,
+                    isMetadataPartial: isMetadataPartial
                 )
                 self.currentPreparation = .ready(prepared)
-                print("[Playback] prepare_ready name=\(request.displayName) audio=\(audioTracks.count) sub=\(subtitleTracks.count)")
+                print("[Playback] prepare_ready name=\(request.displayName) audio=\(audioTracks.count) sub=\(subtitleTracks.count) partial=\(isMetadataPartial)")
 
                 // Start TTL timer
                 self.startPreparationTTL(generation: currentGeneration)

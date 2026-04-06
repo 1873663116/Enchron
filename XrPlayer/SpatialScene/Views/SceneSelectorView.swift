@@ -2,7 +2,6 @@ import SwiftUI
 
 public struct SceneSelectorView: View {
     @Environment(AppModel.self) var appModel
-    @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismiss) private var dismiss
 
     let columns = [
@@ -24,17 +23,8 @@ public struct SceneSelectorView: View {
                         Button {
                             Task {
                                 await appModel.switchEnvironment(to: environment)
-                                if appModel.immersiveSpaceState == .closed {
-                                    appModel.immersiveSpaceState = .inTransition
-                                    switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
-                                    case .opened:
-                                        break
-                                    case .userCancelled, .error:
-                                        appModel.immersiveSpaceState = .closed
-                                    @unknown default:
-                                        appModel.immersiveSpaceState = .closed
-                                    }
-                                }
+                                // §5.9a: route through unified entry in MainView
+                                appModel.requestImmersiveSpace()
                             }
                         } label: {
                             VStack(alignment: .leading, spacing: 12) {
