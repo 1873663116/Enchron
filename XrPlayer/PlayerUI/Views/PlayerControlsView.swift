@@ -14,8 +14,6 @@ public struct PlayerControlsView: View {
     @Environment(PlaybackLaunchCoordinator.self) private var launcher
     @Environment(\.openWindow) private var openWindow
 
-    @State private var isDraggingSlider = false
-    @State private var dragValue: Double = 0
     @State private var showScreenPositionSheet = false
     @State private var showDebugSheet = false
     @State private var lastInteractionTime = Date()
@@ -27,7 +25,9 @@ public struct PlayerControlsView: View {
     public var body: some View {
         VStack(spacing: 20) {
             // ── Tier 1: Seek bar (above pill, no glass) ──
-            seekBar
+            // Isolated into SeekBarView so that 200ms playbackPosition polling
+            // only invalidates SeekBarView — not controlBarPill (leftMenu/rightMenu).
+            SeekBarView(onInteraction: registerInteraction)
                 .padding(.horizontal, 28)
 
             // ── Tier 2: Control bar pill (glass capsule) ──
@@ -80,75 +80,6 @@ public struct PlayerControlsView: View {
             }
             .frame(width: 380, height: 480)
         }
-    }
-
-    // MARK: - Tier 2: Seek Bar
-
-    @ViewBuilder
-    private var seekBar: some View {
-        HStack(spacing: 12) {
-            // Current time (left)
-            Text(
-                PlaybackTimeFormatter.clock(
-                    isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)
-            )
-            .font(.system(size: 11, weight: .medium, design: .monospaced))
-            .monospacedDigit()
-            .foregroundStyle(.secondary)
-            .frame(width: 56, alignment: .trailing)
-
-            Slider(
-                value: Binding(
-                    get: {
-                        isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
-                    },
-                    set: { dragValue = $0 }
-                ),
-                in: 0...max(videoViewModel.playbackPosition.duration, 1),
-                onEditingChanged: { editing in
-                    isDraggingSlider = editing
-                    if editing {
-                        registerInteraction()
-                    }
-                    if !editing {
-                        videoViewModel.seek(to: dragValue)
-                    }
-                }
-            )
-            .tint(.white)
-            .frame(minHeight: 44)
-            .accessibilityLabel("Playback position")
-            .accessibilityValue(
-                "\(PlaybackTimeFormatter.clock(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)) of \(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))"
-            )
-
-            // Remaining time (right, countdown with minus prefix)
-            Text(remainingTimeLabel)
-                .font(.system(size: 11, weight: .medium, design: .monospaced))
-                .monospacedDigit()
-                .foregroundStyle(.secondary)
-                .frame(width: 56, alignment: .leading)
-        }
-
-        // Precision time during drag
-        if isDraggingSlider {
-            Text(
-                PlaybackTimeFormatter.preciseClock(
-                    dragValue,
-                    framesPerSecond: videoViewModel.displayMediaProfile?.frameRate ?? 0
-                )
-            )
-            .font(.system(.caption, design: .monospaced))
-            .foregroundStyle(.orange)
-            .transition(.opacity)
-        }
-    }
-
-    private var remainingTimeLabel: String {
-        let duration = videoViewModel.playbackPosition.duration
-        let current = isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
-        let remaining = max(0, duration - current)
-        return "-" + PlaybackTimeFormatter.clock(remaining)
     }
 
     // MARK: - Tier 3: Control Bar Pill
@@ -558,6 +489,88 @@ public struct PlayerControlsView: View {
 
         hasAppliedSmokePanelRequest = true
         appModel.showControls = true
+    }
+}
+
+// MARK: - SeekBarView
+//
+// Isolated sub-view that owns all reads of `videoViewModel.playbackPosition`.
+// Because SwiftUI invalidates only the view that reads a changed @Observable
+// property, confining playbackPosition here prevents the 200ms polling loop
+// from re-evaluating PlayerControlsView.controlBarPill (and its menus).
+private struct SeekBarView: View {
+    @Environment(WindowVideoViewModel.self) private var videoViewModel
+    let onInteraction: () -> Void
+
+    @State private var isDraggingSlider = false
+    @State private var dragValue: Double = 0
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 12) {
+                // Current time (left)
+                Text(
+                    PlaybackTimeFormatter.clock(
+                        isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)
+                )
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 56, alignment: .trailing)
+
+                Slider(
+                    value: Binding(
+                        get: {
+                            isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
+                        },
+                        set: { dragValue = $0 }
+                    ),
+                    in: 0...max(videoViewModel.playbackPosition.duration, 1),
+                    onEditingChanged: { editing in
+                        isDraggingSlider = editing
+                        if editing {
+                            onInteraction()
+                        }
+                        if !editing {
+                            videoViewModel.seek(to: dragValue)
+                        }
+                    }
+                )
+                .tint(.white)
+                .frame(minHeight: 44)
+                .accessibilityLabel("Playback position")
+                .accessibilityValue(
+                    "\(PlaybackTimeFormatter.clock(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)) of \(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))"
+                )
+
+                // Remaining time (right, countdown with minus prefix)
+                Text(remainingTimeLabel)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 56, alignment: .leading)
+            }
+
+            // Precision time during drag
+            if isDraggingSlider {
+                Text(
+                    PlaybackTimeFormatter.preciseClock(
+                        dragValue,
+                        framesPerSecond: videoViewModel.displayMediaProfile?.frameRate ?? 0
+                    )
+                )
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.orange)
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private var remainingTimeLabel: String {
+        let duration = videoViewModel.playbackPosition.duration
+        let current = isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
+        let remaining = max(0, duration - current)
+        return "-" + PlaybackTimeFormatter.clock(remaining)
     }
 }
 
