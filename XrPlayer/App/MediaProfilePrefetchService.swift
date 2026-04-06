@@ -200,9 +200,11 @@ public actor MediaProfilePrefetchService {
     ) -> PlaybackCoreDomain.HDRType {
         guard let desc = formatDescriptions.first else { return .sdr }
 
-        // Check Dolby Vision using the public CoreMedia constant instead of a string literal.
+        // Check Dolby Vision via format description extensions.
+        // Note: kCMFormatDescriptionExtension_DolbyVisionConfiguration is not available on visionOS,
+        // so we use the raw string key which CoreMedia recognizes internally.
         if let extensions = CMFormatDescriptionGetExtensions(desc) as? [String: Any] {
-            if let dvInfo = extensions[kCMFormatDescriptionExtension_DolbyVisionConfiguration as String] {
+            if let dvInfo = extensions["DolbyVisionConfiguration"] {
                 _ = dvInfo
                 return .dolbyVision
             }
