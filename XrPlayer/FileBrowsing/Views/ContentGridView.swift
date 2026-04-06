@@ -11,12 +11,11 @@ struct ContentGridView: View {
     let onFileSelected: (FileBrowsingDomain.MediaFile) -> Void
     let onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)?
 
-    private let columns = [GridItem(.adaptive(minimum: 240), spacing: 20)]
+    private let columns = [GridItem(.adaptive(minimum: 240), spacing: 20, alignment: .top)]
 
     var body: some View {
         if isLoading {
-            ProgressView("Loading files...")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            skeletonGrid
         } else if folders.isEmpty && files.isEmpty {
             emptyState
         } else {
@@ -30,6 +29,32 @@ struct ContentGridView: View {
                 .padding(.bottom, 32)
             }
         }
+    }
+
+    // MARK: - Skeleton Loading State
+
+    @State private var shimmerOpacity: Double = 0.4
+
+    private var skeletonGrid: some View {
+        ScrollView {
+            LazyVGrid(columns: columns, spacing: 20) {
+                ForEach(0..<6, id: \.self) { _ in
+                    SkeletonCardView()
+                        .opacity(shimmerOpacity)
+                        .animation(
+                            .easeInOut(duration: 1.0).repeatForever(autoreverses: true),
+                            value: shimmerOpacity
+                        )
+                }
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 8)
+            .padding(.bottom, 32)
+        }
+        .onAppear {
+            shimmerOpacity = 0.9
+        }
+        .accessibilityLabel("Loading content")
     }
 
     // MARK: - Empty State
@@ -80,9 +105,12 @@ struct ContentGridView: View {
                     }
                     .padding(.horizontal, 16)
                     .padding(.vertical, 14)
+                    .frame(minHeight: 80, alignment: .top)
                 }
                 .background(Color.white.opacity(0.03))
                 .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+                .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+                .hoverEffect(.lift)
                 .overlay(
                     RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                         .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
@@ -90,7 +118,6 @@ struct ContentGridView: View {
             }
             .buttonStyle(.plain)
             .contentShape(.rect(cornerRadius: DesignTokens.Radius.card))
-            .hoverEffect(.lift)
             .accessibilityLabel("\(folder.name), folder")
             .accessibilityHint("Opens folder contents")
             .accessibilitySortPriority(Double(1000 - index))

@@ -499,7 +499,7 @@ stereoLayout == .topBottom  → 可选 [Off, Top-Bottom*]（默认选中 TB）
 
 ---
 
-- [ ] **Unit 8: 数据源切换立即跳转 + 骨架屏加载态**
+- [x] **Unit 8: 数据源切换立即跳转 + 骨架屏加载态**
 
 **目标：** 切换 WebDAV/SMB 数据源时立即切换页面，显示 skeleton shimmer 加载态，加载完成后替换为实际内容。不再停留在旧数据源页面。
 

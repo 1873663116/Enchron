@@ -135,7 +135,13 @@ public final class FileBrowsingViewModel {
     }
 
     public func connectToDataSource(_ ds: FileBrowsingDomain.DataSource) async {
+        // Immediately update UI state so the caller sees a skeleton screen
+        // rather than stale content from the previous data source.
         activeDataSource = ds
+        isLoading = true
+        files = []
+        folders = []
+        currentRootDisplayName = ds.name
 
         let adapter: any DataSourceConnecting & FileProviding
         switch ds.connectionInfo.sourceType {
@@ -164,8 +170,6 @@ public final class FileBrowsingViewModel {
             remotePathStack = [rootPath]
             currentRemotePath = rootPath
             canNavigateUp = false
-            isLoading = true
-            defer { isLoading = false }
 
             let remoteFiles = try await adapter.listContents(at: rootPath)
             let remoteFolders = try await adapter.listFolders(at: rootPath)
@@ -173,7 +177,9 @@ public final class FileBrowsingViewModel {
             folders = remoteFolders
             currentRootDisplayName = ds.name
             lastErrorMessage = nil
+            isLoading = false
         } catch {
+            isLoading = false
             activeRemoteAdapter = nil
             activeDataSource = nil
             lastErrorMessage = Self.friendlyErrorMessage(for: error)
