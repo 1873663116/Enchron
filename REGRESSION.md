@@ -1,6 +1,6 @@
 # Enchron 回归集
 
-更新时间：2026-04-02
+更新时间：2026-04-06
 
 
 ## 使用方式
@@ -18,7 +18,7 @@
 | PlaybackCore/Domain/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlaybackCore/UseCases/* | REG-001, REG-002, REG-015, REG-017, REG-018 |
 | PlayerUI/UseCases/DetailedTimelineGeometry.swift | REG-080 |
-| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081, REG-108, REG-109, REG-110, REG-116, REG-117, REG-119, REG-120, REG-123, REG-124, REG-125 |
+| PlayerUI/Views/PlayerControlsView.swift | REG-012, REG-013, REG-015, REG-016, REG-018, REG-019, REG-080, REG-081, REG-108, REG-109, REG-110, REG-116, REG-117, REG-119, REG-120, REG-123, REG-124, REG-125, REG-128, REG-129, REG-130 |
 | PlayerUI/Views/VideoDetailView.swift | REG-082, REG-088, REG-120 |
 | PlayerUI/Views/PlayerControlSurface.swift | REG-012, REG-013, REG-015, REG-016, REG-019, REG-123 |
 | PlayerUI/Views/PlaylistView.swift | REG-019 |
@@ -27,9 +27,11 @@
 | FileBrowsing/Adapters/SMB/* | REG-020, REG-021, REG-023, REG-092 |
 | FileBrowsing/Adapters/WebDAV/* | REG-022, REG-092 |
 | FileBrowsing/Adapters/PhotoLibrary/* | REG-090, REG-096 |
-| FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023, REG-090, REG-092, REG-114 |
+| FileBrowsing/ViewModels/* | REG-019, REG-020, REG-021, REG-022, REG-023, REG-090, REG-092, REG-114, REG-132 |
 | FileBrowsing/Domain/* | REG-020, REG-022 |
-| FileBrowsing/Views/* | REG-020, REG-089, REG-090, REG-092 |
+| FileBrowsing/Views/* | REG-020, REG-089, REG-090, REG-092, REG-131, REG-132 |
+| FileBrowsing/Services/ThumbnailService.swift | REG-131 |
+| FileBrowsing/Services/ThumbnailCache.swift | REG-131 |
 | Persistence/Adapters/SwiftDataStore.swift | REG-030, REG-091 |
 | Persistence/Adapters/UserDefaultsStore.swift | REG-031, REG-085, REG-115 |
 | Persistence/Adapters/KeychainStore.swift | REG-021 |
@@ -54,13 +56,13 @@
 | SpatialScene/Scenes/ImmersiveSpaceView.swift | REG-070, REG-071, REG-100, REG-101, REG-104, REG-105, REG-106, REG-107, REG-109, REG-118, REG-121 |
 | SpatialScene/Modifiers/DragRotationModifier.swift | REG-121 |
 | SpatialScene/Views/SceneSelectorView.swift | REG-050, REG-104, REG-123 |
-| PlayerUI/UseCases/DecidePlaybackModeUseCase.swift | REG-109, REG-125 |
+| PlayerUI/UseCases/DecidePlaybackModeUseCase.swift | REG-109, REG-125, REG-129 |
 | PlayerUI/UseCases/DisambiguateGestureUseCase.swift | REG-117 |
 | PlayerUI/Views/DetailedTimelineView.swift | REG-119 |
 | PlayerUI/Views/NLETimelineView.swift | REG-123, REG-127 |
 | PlayerUI/Views/TimelineRulerView.swift | REG-127 |
 | PlayerUI/Views/ScreenPositionControlView.swift | REG-115, REG-120 |
-| PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063, REG-070, REG-111, REG-122 |
+| PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift | REG-001, REG-002, REG-015, REG-017, REG-018, REG-060, REG-061, REG-062, REG-063, REG-070, REG-111, REG-122, REG-130 |
 | PlaybackCore/Domain/ValueObjects/StereoLayout.swift | REG-106 |
 | Persistence/Domain/Entities/UserPreferences.swift | REG-115 |
 | Settings/Views/SettingsView.swift | REG-031, REG-085, REG-101, REG-103, REG-104, REG-115 |
@@ -914,6 +916,72 @@
 - **Agent 自检**: grep NLETimelineView 确认 `.enchronGlassPanel()` 或等效玻璃材质、`.clipped()` 存在；TimelineRulerView 中 `DragGesture` 存在
 - **真机验证**: NLE 面板可见玻璃背景 → 按钮不溢出面板边界 → 拖动尺标滚动时间轴
 - **退化信号**: 面板透明无背景、按钮溢出面板、拖拽尺标无响应
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-128: 播放中菜单全程可交互（P0 回归）
+
+- **来源**: V2 综合验收 Unit 1 — SeekBarView 属性隔离修复
+- **触发条件**: 改动 PlayerUI/Views/PlayerControlsView.swift（controlBarPill / leftMenu / rightMenu）或 SeekBarView
+- **Agent 自检**: `swift build` 编译通过；grep 确认 `SeekBarView` 是独立私有 struct 且 `playbackPosition` 仅在 SeekBarView 中被读取；`grep -n "playbackPosition" XrPlayer/PlayerUI/Views/PlayerControlsView.swift` 输出不含 controlBarPill 或 leftMenu/rightMenu 函数体内的引用
+- **真机验证**: 播放视频时点击左侧 Menu → 二级菜单稳定展开可点击；点击右侧 Settings → 三级菜单不闪烁；播放开始后 <2s 内点菜单 → 菜单正常出现；快速连续点击 Menu 5 次 → 无闪烁或 UI 卡死
+- **退化信号**: 菜单点击后立即收起、菜单内容闪烁、子项不可点击、播放中菜单无响应
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-129: 三轴路由约束矩阵（flat 禁 panorama）
+
+- **来源**: V2 综合验收 Unit 4 — DecidePlaybackModeUseCase 三轴路由
+- **触发条件**: 改动 PlayerUI/UseCases/DecidePlaybackModeUseCase.swift 或 PlayerUI/Domain 中 PlaybackMode/ProjectionType 相关
+- **Agent 自检**: `swift test --filter PlaybackModeRouting` 26 个测试全部通过；grep 确认 `allowedModes(for:)` 存在；`swift test --filter PlaybackModeRouting` 中 `testUnit4_allowedModes_flat_doesNotContainPanorama` 通过
+- **真机验证**: 播放 flat 内容 → Settings 菜单中 Panorama 项 disabled；播放 equirectangular360 内容 → 三种模式均可点击；手动将 flat 内容尝试切换到 Panorama → 被拦截回退至 Window
+- **退化信号**: flat 内容可切换到 Panorama、全景内容缺少模式选项、约束矩阵测试失败
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-130: HDR 检测 gamma-based 决策树
+
+- **来源**: V2 综合验收 Unit 3 — ProjectionDetection + HDR gamma 决策树
+- **触发条件**: 改动 PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift 中 `inferHDRType` 或 `currentHDRMetadata`
+- **Agent 自检**: `swift build` 编译通过；grep 确认 `hdr-format` 字符串不出现在 MPVPlayerAdapter.swift 中（已删除旧路径）；grep 确认 `gamma == "pq"` 和 `gamma == "hlg"` 存在于 `inferHDRType` 函数中；V04 HDR 相关测试通过
+- **真机验证**: 播放 HDR10 内容（PQ gamma）→ PlayerControlsView 左菜单显示 "HDR10" Toggle；播放 HLG 内容 → 显示 "HLG"；播放 SDR 内容 → 无 HDR Toggle 显示
+- **退化信号**: SDR 内容显示 HDR Toggle、HDR 内容未检测为 HDR、gamma 变更后菜单标签不随之更新
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-131: 缩略图两级缓存（NSCache + 磁盘）
+
+- **来源**: V2 综合验收 Unit 7 — ThumbnailService actor + ThumbnailCache 两级缓存
+- **触发条件**: 改动 FileBrowsing/Services/ThumbnailService.swift 或 FileBrowsing/Services/ThumbnailCache.swift
+- **Agent 自检**: `swift build` 编译通过；grep 确认 `ThumbnailCache.shared` 在 ThumbnailService 中被使用；grep 确认 `memoryImage(forKey:)` 和 `diskImage(forKey:)` 调用顺序符合 hot→warm→cold；grep 确认 `AsyncSemaphore` 存在（并发限流）
+- **真机验证**: 首次进入视频列表 → 占位图先显示，缩略图异步加载；二次进入同一页面 → 缩略图立即显示无闪烁（命中内存缓存）；重启应用后进入同一页面 → 缩略图较快显示（命中磁盘缓存）；快速滚动 LazyVGrid → UI 不卡顿
+- **退化信号**: 缩略图每次重新加载闪烁、LazyVGrid 快速滚动卡顿、文件损坏时崩溃而非显示占位图
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-132: 数据源切换立即显示骨架屏
+
+- **来源**: V2 综合验收 Unit 8 — connectToDataSource 立即清空 + SkeletonCardView
+- **触发条件**: 改动 FileBrowsing/ViewModels/FileBrowsingViewModel.swift `connectToDataSource` 函数 或 FileBrowsing/Views/ContentGridView.swift skeleton 分支
+- **Agent 自检**: `swift build` 编译通过；grep FileBrowsingViewModel.swift 确认 `files = []` 和 `isLoading = true` 在 `connectToDataSource` 函数开头（连接前立即执行）；grep ContentGridView 确认 `if isLoading { skeletonGrid }` 分支存在；grep 确认 `SkeletonCardView` 在 skeletonGrid 中被使用
+- **真机验证**: 在 FileBrowsing 侧边栏切换到 WebDAV 数据源 → 立即看到骨架屏（旧内容消失），不停留旧内容 → 连接成功后骨架屏替换为实际内容；连接失败 → 显示错误态；快速连续切换两次 → 显示最后一次切换结果
+- **退化信号**: 切换数据源后仍短暂显示旧内容、骨架屏不出现、骨架屏动画不播放
+- **状态**: active
+- **创建日期**: 2026-04-06
+
+
+### REG-133: AccessibilityIdentifier 全量覆盖（Unit 9）
+
+- **来源**: V2 E2E 验收 Unit 9 — accessibilityIdentifier 补充
+- **触发条件**: 改动 FileBrowsing/Views/VideoCardView.swift、FileBrowsing/Views/ContentGridView.swift、App/Navigation/NavigationOrnament.swift、PlayerUI/Views/VideoDetailView.swift、PlayerUI/Views/PlayerControlsView.swift
+- **Agent 自检**: `swift build` 编译通过；`grep -rn "accessibilityIdentifier" XrPlayer/FileBrowsing/Views/VideoCardView.swift` 输出包含 `FileBrowsing-VideoCard-button-`；`grep -rn "accessibilityIdentifier" XrPlayer/App/Navigation/NavigationOrnament.swift` 输出包含 `Navigation-Ornament-tab-` 和 `Navigation-Ornament-button-sceneSelector`；`grep -rn "accessibilityIdentifier" XrPlayer/PlayerUI/Views/VideoDetailView.swift` 输出包含 `videoDetail.playButton`、`videoDetail.environment-`、`videoDetail.subtitlePicker`、`videoDetail.audioTrackPicker`
+- **真机验证**: 开启 VoiceOver → 浏览 FileBrowsing 视频卡片，每张卡片可被独立聚焦；导航 Ornament Tab 按钮可独立聚焦；VideoDetailView 中字幕/音轨 Picker 可通过辅助功能访问；PlayButton 在覆盖层上可独立聚焦
+- **退化信号**: VoiceOver 无法区分同类型的多个卡片、Picker 在无障碍树中缺失、Tab 按钮无法通过 UI 自动化测试定位
 - **状态**: active
 - **创建日期**: 2026-04-06
 
