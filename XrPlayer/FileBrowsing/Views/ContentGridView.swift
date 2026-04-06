@@ -51,6 +51,10 @@ struct ContentGridView: View {
             .padding(.top, 8)
             .padding(.bottom, 32)
         }
+        // §5.7b: Force view remount when isLoading changes so onAppear fires reliably.
+        // Without .id, SwiftUI may reuse the same view identity and skip onAppear
+        // when switching between data sources.
+        .id(isLoading)
         .onAppear {
             shimmerOpacity = 0.9
         }

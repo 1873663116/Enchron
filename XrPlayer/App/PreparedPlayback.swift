@@ -26,19 +26,25 @@ public struct PreparedPlayback: Sendable {
     /// Monotonic generation counter — `confirmPlayback` validates this
     /// matches the coordinator's current generation to reject stale confirmations.
     public let generation: Int
+    /// True when profile detection timed out and a fallback SDR profile was used.
+    /// The UI may surface a "partial metadata" notice; actual mpv detection
+    /// continues during playback and will correct the profile at runtime.
+    public let isMetadataPartial: Bool
 
     public init(
         request: PlaybackLaunchRequest,
         metadata: PlaybackMediaMetadata?,
         audioTracks: [PlaybackCoreDomain.AudioTrack],
         subtitleTracks: [PlaybackCoreDomain.SubtitleTrack],
-        generation: Int
+        generation: Int,
+        isMetadataPartial: Bool = false
     ) {
         self.request = request
         self.metadata = metadata
         self.audioTracks = audioTracks
         self.subtitleTracks = subtitleTracks
         self.generation = generation
+        self.isMetadataPartial = isMetadataPartial
     }
 }
 
@@ -68,5 +74,6 @@ extension PreparedPlayback: Equatable {
             && lhs.audioTracks == rhs.audioTracks
             && lhs.subtitleTracks == rhs.subtitleTracks
             && lhs.generation == rhs.generation
+            && lhs.isMetadataPartial == rhs.isMetadataPartial
     }
 }
