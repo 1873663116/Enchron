@@ -57,9 +57,15 @@ public struct WindowVideoView: UIViewRepresentable {
     public func updateUIView(_ uiView: UIView, context: Context) {
         if viewModel.usesNativeGPUOutput, let nativeView = uiView as? MPVNativeMetalLayerView {
             viewModel.attachVideoLayer(nativeView.metalLayer)
-            // Force layout update when SwiftUI resizes the container (e.g., window resize).
-            // containerSize dependency ensures this fires on geometry changes.
+            // Explicitly sync frame to containerSize so that window-resize events
+            // propagate to the Metal layer's drawableSize in layoutSubviews().
+            // autoresizingMask alone is not reliably triggered by SwiftUI geometry
+            // changes on visionOS — we must drive the frame update here.
+            if containerSize != .zero {
+                nativeView.frame = CGRect(origin: .zero, size: containerSize)
+            }
             nativeView.setNeedsLayout()
+            nativeView.layoutIfNeeded()
         } else if let mtkView = uiView as? MTKView {
             // MTKView path: update drawableSize to match the new container size.
             let scale = mtkView.contentScaleFactor
