@@ -271,6 +271,7 @@ public struct MainView: View {
                     appModel.immersiveSpaceState = .inTransition
                     await dismissImmersiveSpace()
                     openWindow(id: "main")
+                    dismissWindow(id: "playerControls")
                     appModel.isTransitioningPlaybackMode = false
                 }
             }
