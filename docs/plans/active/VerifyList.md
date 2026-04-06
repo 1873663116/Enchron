@@ -79,14 +79,14 @@ date: 2026-04-06
 
 ## 文档同步
 <!-- review 时根据实际代码变更补全 -->
-- [ ] ARCHITECTURE.md — 补充沉浸空间入口统一路径约束（§5.9a immersiveSpaceRequest + MainView 处理器）到 Architecture Invariants
-- [ ] REGRESSION.md — 新增 7+ 条回归项：菜单闪烁(§5.4)、HDR超时(§5.5)、元数据预读(§5.6)、沉浸入口统一(§5.9a)、主窗口隐藏/恢复(§5.9b)、NLE动效(§5.11)、画布缩放(§5.8)
+- [x] ARCHITECTURE.md — 补充沉浸空间入口统一路径约束（§5.9a immersiveSpaceRequest + MainView 处理器）到 Architecture Invariants
+- [x] REGRESSION.md — 新增 REG-134~REG-140 共 7 条回归项：菜单闪烁(§5.4)、HDR超时(§5.5)、元数据预读(§5.6)、沉浸入口统一(§5.9a)、主窗口隐藏/恢复(§5.9b)、NLE动效(§5.11)、画布缩放(§5.8)
 - [x] CLAUDE.md — 不涉及
 
-## Review 发现项（待修复）
-<!-- ce-review P1 findings，需在下一轮 execute 修复 -->
-- [ ] P1-1: MainView.swift dismiss 路径补 dismissWindow(id: "playerControls")，修复沉浸退出时控件窗口残留
-- [ ] P2-1: MediaProfilePrefetchService 过滤 SMB URL，避免无效 AVFoundation 请求
-- [ ] P2-2: Dolby Vision 检测改用 kCMFormatDescriptionExtension_DolbyVisionConfiguration 公开常量
-- [ ] P2-6: mergeFiles/mergeFolders 的 Dictionary(uniqueKeysWithValues:) 改用 uniquingKeysWith 防 crash
-- [ ] P2-7: detectProfile 中 AVURLAsset 在 Task 取消时调用 asset.cancelLoading()
+## Review 发现项（已修复）
+<!-- ce-review P1 findings，round 3 execute 已修复 -->
+- [x] P1-1: MainView.swift dismiss 路径补 dismissWindow(id: "playerControls")，修复沉浸退出时控件窗口残留
+- [x] P2-1: MediaProfilePrefetchService 过滤 SMB URL，避免无效 AVFoundation 请求
+- [x] P2-2: Dolby Vision 检测回退为字符串字面量（visionOS SDK 不含公开常量），加注释说明
+- [x] P2-6: mergeFiles/mergeFolders 的 Dictionary(uniqueKeysWithValues:) 改用 uniquingKeysWith 防 crash
+- [x] P2-7: detectProfile 中 AVURLAsset 在 Task 取消时调用 asset.cancelLoading()
