@@ -222,8 +222,12 @@ public final class FileBrowsingViewModel {
 
         if let remoteAdapter = activeRemoteAdapter {
             do {
-                files = try await remoteAdapter.listContents(at: currentRemotePath)
-                folders = try await remoteAdapter.listFolders(at: currentRemotePath)
+                let newFiles = try await remoteAdapter.listContents(at: currentRemotePath)
+                let newFolders = try await remoteAdapter.listFolders(at: currentRemotePath)
+                // §5.7c: Incremental update — replace with new data only on success,
+                // preserving stable UUIDs so SwiftUI diffs without rebuilding the whole list.
+                mergeFiles(newFiles)
+                mergeFolders(newFolders)
                 lastErrorMessage = nil
             } catch {
                 if !reconnectAttempted,
@@ -234,8 +238,8 @@ public final class FileBrowsingViewModel {
                     reconnectAttempted = false
                     return
                 }
-                files = []
-                folders = []
+                // §5.7c: On failure, keep existing files/folders visible so the list
+                // does not jump to empty. Only surface the error message.
                 lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             }
             applySortToFiles()
@@ -245,17 +249,58 @@ public final class FileBrowsingViewModel {
 
         let localPath = remotePathStack.isEmpty ? "." : currentRemotePath
         do {
-            files = try await localDataSource.listContents(at: localPath)
-            folders = try await localDataSource.listFolders(at: localPath)
+            let newFiles = try await localDataSource.listContents(at: localPath)
+            let newFolders = try await localDataSource.listFolders(at: localPath)
+            // §5.7c: Same incremental merge for local data source.
+            mergeFiles(newFiles)
+            mergeFolders(newFolders)
             lastErrorMessage = nil
         } catch {
-            files = []
-            folders = []
+            // §5.7c: On failure, preserve current list and surface the error.
             lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             print("[FileBrowser] loadFiles failed: \(error)")
         }
         applySortToFiles()
         loadProgressForFiles()
+    }
+
+    /// §5.7c: Diff-update the files array in-place.
+    /// - Removes entries no longer present in the new list.
+    /// - Appends new entries not already in the current list.
+    /// - Updates metadata (name, size, modifiedAt) for existing entries by UUID.
+    /// Preserves the UUID identity SwiftUI relies on for stable diffing.
+    private func mergeFiles(_ newFiles: [FileBrowsingDomain.MediaFile]) {
+        let newByID = Dictionary(uniqueKeysWithValues: newFiles.map { ($0.id, $0) })
+        let oldIDs = Set(files.map(\.id))
+        let newIDs = Set(newFiles.map(\.id))
+
+        // Remove stale entries
+        files.removeAll { !newIDs.contains($0.id) }
+
+        // Update existing entries in-place (metadata may have changed)
+        files = files.map { oldFile in
+            newByID[oldFile.id] ?? oldFile
+        }
+
+        // Append brand-new entries
+        for file in newFiles where !oldIDs.contains(file.id) {
+            files.append(file)
+        }
+    }
+
+    /// §5.7c: Diff-update the folders array in-place using the same strategy.
+    private func mergeFolders(_ newFolders: [FileBrowsingDomain.MediaFolder]) {
+        let newByID = Dictionary(uniqueKeysWithValues: newFolders.map { ($0.id, $0) })
+        let oldIDs = Set(folders.map(\.id))
+        let newIDs = Set(newFolders.map(\.id))
+
+        folders.removeAll { !newIDs.contains($0.id) }
+        folders = folders.map { oldFolder in
+            newByID[oldFolder.id] ?? oldFolder
+        }
+        for folder in newFolders where !oldIDs.contains(folder.id) {
+            folders.append(folder)
+        }
     }
 
     public var isInDocumentsFolder: Bool {
