@@ -26,11 +26,16 @@ public struct DecidePlaybackModeUseCase: PlaybackModeManaging, Sendable {
             if allowed.contains(override) {
                 return override
             }
-            return .window
+            // Illegal override (e.g. .panorama for flat content) — fall back to auto
         }
 
         if profile.projectionType.isPanoramic {
             return .panorama
+        }
+
+        // Flat stereo (SBS / TopBottom) — always route to immersive regardless of environment state
+        if profile.stereoLayout != .mono {
+            return .immersive
         }
 
         if isEnvironmentActive {

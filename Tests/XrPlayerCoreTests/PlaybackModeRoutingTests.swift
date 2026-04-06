@@ -144,4 +144,110 @@ final class PlaybackModeRoutingTests: XCTestCase {
         XCTAssertEqual(result, .immersive,
                        "Immersive override for flat content must be allowed (virtual cinema)")
     }
+
+    // MARK: - Unit 4: Three-axis routing + constraint matrix (StereoLayout awareness)
+
+    private func makeProfileWith(
+        _ projection: PlaybackCoreDomain.ProjectionType,
+        stereo: PlaybackCoreDomain.StereoLayout
+    ) -> MP {
+        MP(projectionType: projection, stereoLayout: stereo, hdrType: .sdr,
+           resolution: .init(width: 1920, height: 1080))
+    }
+
+    // --- Default routing for all 12 combination cells ---
+
+    func testUnit4_flatMono_routesToWindow() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.flat, stereo: .mono),
+            isEnvironmentActive: false, manualOverride: nil)
+        XCTAssertEqual(result, .window, "(.flat, .mono) must route to .window")
+    }
+
+    func testUnit4_flatSideBySide_routesToImmersive() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.flat, stereo: .sideBySide),
+            isEnvironmentActive: false, manualOverride: nil)
+        XCTAssertEqual(result, .immersive, "(.flat, .sideBySide) must route to .immersive")
+    }
+
+    func testUnit4_flatTopBottom_routesToImmersive() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.flat, stereo: .topBottom),
+            isEnvironmentActive: false, manualOverride: nil)
+        XCTAssertEqual(result, .immersive, "(.flat, .topBottom) must route to .immersive")
+    }
+
+    func testUnit4_equirectangular360_mono_routesToPanorama() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.equirectangular360, stereo: .mono),
+            isEnvironmentActive: false, manualOverride: nil)
+        XCTAssertEqual(result, .panorama, "(.equirectangular360, .mono) must route to .panorama")
+    }
+
+    func testUnit4_equirectangular180_sideBySide_routesToPanorama() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.equirectangular180, stereo: .sideBySide),
+            isEnvironmentActive: false, manualOverride: nil)
+        XCTAssertEqual(result, .panorama, "(.equirectangular180, .sideBySide) must route to .panorama")
+    }
+
+    func testUnit4_fisheye_mono_routesToPanorama() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.fisheye, stereo: .mono),
+            isEnvironmentActive: false, manualOverride: nil)
+        XCTAssertEqual(result, .panorama, "(.fisheye, .mono) must route to .panorama")
+    }
+
+    // --- Override constraint: panorama override + flat → intercepted, fall back to auto ---
+
+    func testUnit4_panoramaOverride_flatMono_intercepted_fallsBackToWindow() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.flat, stereo: .mono),
+            isEnvironmentActive: false, manualOverride: .panorama)
+        XCTAssertEqual(result, .window,
+                       "manualOverride=.panorama + flat/mono must be intercepted and fall back to .window")
+    }
+
+    func testUnit4_panoramaOverride_flatSideBySide_intercepted_fallsBackToImmersive() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.flat, stereo: .sideBySide),
+            isEnvironmentActive: false, manualOverride: .panorama)
+        XCTAssertEqual(result, .immersive,
+                       "manualOverride=.panorama + flat/SBS must be intercepted and fall back to auto (.immersive)")
+    }
+
+    // --- Legal override: immersive override + equirectangular360 ---
+
+    func testUnit4_immersiveOverride_equirectangular360_isAllowed() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.equirectangular360, stereo: .mono),
+            isEnvironmentActive: false, manualOverride: .immersive)
+        XCTAssertEqual(result, .immersive,
+                       "manualOverride=.immersive + .equirectangular360 must be honoured")
+    }
+
+    // --- Environment-active: flat/mono + isEnvironmentActive=true → immersive ---
+
+    func testUnit4_flatMono_environmentActive_routesToImmersive() {
+        let result = DecidePlaybackModeUseCase().decideMode(
+            for: makeProfileWith(.flat, stereo: .mono),
+            isEnvironmentActive: true, manualOverride: nil)
+        XCTAssertEqual(result, .immersive,
+                       "(.flat, .mono) + isEnvironmentActive=true must route to .immersive")
+    }
+
+    // --- allowedModes constraint ---
+
+    func testUnit4_allowedModes_flat_doesNotContainPanorama() {
+        let allowed = DecidePlaybackModeUseCase.allowedModes(for: .flat)
+        XCTAssertFalse(allowed.contains(.panorama),
+                       "allowedModes(.flat) must never include .panorama")
+    }
+
+    func testUnit4_allowedModes_equirectangular360_containsAllThree() {
+        let allowed = DecidePlaybackModeUseCase.allowedModes(for: .equirectangular360)
+        XCTAssertEqual(allowed, [.window, .immersive, .panorama],
+                       "allowedModes(.equirectangular360) must include all three modes")
+    }
 }

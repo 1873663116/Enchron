@@ -102,8 +102,10 @@ public final class AppModel {
     private func autoRoutePlaybackMode() {
         guard let profile = mediaProfile else { return }
         // Use effectiveProjectionType (respects user override) for routing
+        // Include detectedStereoLayout so flat-SBS/TopBottom content routes to immersive
         let routingProfile = PlaybackCoreDomain.MediaProfile(
             projectionType: effectiveProjectionType,
+            stereoLayout: detectedStereoLayout,
             hdrType: profile.hdrType,
             resolution: profile.resolution,
             frameRate: profile.frameRate
