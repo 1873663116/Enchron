@@ -31,3 +31,32 @@
 [TRANSITION] from=investigate to=plan skipped=none
 reason: 四大调查目标均有明确结论，信息充分进入规划
 
+## Round 2 (plan)
+
+[PLAN] ExecPlan + TestPlan 生成并通过三轮审查
+
+执行步骤：
+1. 跳过 design-shotgun — 设计稿由用户提供（player.html + variant-AB-combined.html），任务是对齐非探索
+2. ce-plan Agent (sonnet) → 产出 9 单元 ExecPlan + 内置 document review（6 auto-fixes）
+3. plan-eng-review Agent (sonnet) → 2 P1 + 4 P2，修补方向已写入 ExecPlan
+4. codex adversarial-review → Opus counter-review → Supervisor 裁决
+
+产出：
+- docs/plans/active/ExecPlan.md（9 实施单元，12 需求全覆盖）
+- docs/plans/active/TestPlan.md（三层验收矩阵）
+
+[ADVERSARIAL-REVIEW] action=plan tier=standard
+codex: FAIL — 2 P0 + 4 P1 + 3 P2
+counter-review: Opus 辩护 — P0-1 降级为 P2（范围边界排除+projectionOverride 回退），P0-2 已处理，P1-1/P1-4 降级
+verdict: 0 P0 阻塞。P1-3（Thumbnail security-scoped URL）已修补到 ExecPlan Unit 7。Plan 通过。
+
+关键决策：
+- P0-1 球面检测（MP4/MOV）降级为 P2：MKV 360 检测正常，MP4 360 是边缘场景，projectionOverride 手动回退可用
+- P1-2 @Observable 等值赋值不触发通知：接受但实施时加防御性 guard
+- isHDRContent 保留为计算属性（不在高频更新链上，与 P0 fix 不矛盾）
+
+ce-compound 自裁：无新经验需归纳（审查发现均为已知模式的具体化）
+
+[TRANSITION] from=plan to=execute skipped=design-shotgun
+reason: ExecPlan/TestPlan 就绪，三轮审查通过，0 P0 阻塞
+
