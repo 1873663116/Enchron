@@ -80,6 +80,21 @@ struct PlayerInfoBarView: View {
             parts.append(codec)
         }
 
+        // Spatial Audio — detected from audio track display names per player.html badge
+        // Mirrors "4K HDR · HEVC · Spatial Audio" format
+        if hasSpatialAudio {
+            parts.append("Spatial Audio")
+        }
+
         return parts
+    }
+
+    /// Heuristic: any audio track whose display name contains known spatial audio indicators.
+    private var hasSpatialAudio: Bool {
+        let spatialKeywords = ["atmos", "dts:x", "dts-x", "360", "spatial", "surround"]
+        return videoViewModel.availableAudioTracks.contains { track in
+            let lower = track.displayName.lowercased()
+            return spatialKeywords.contains { lower.contains($0) }
+        }
     }
 }
