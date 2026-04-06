@@ -32,10 +32,10 @@ public struct PlayerControlsView: View {
             controlBarPill
 
             // ── NLE Timeline panel (expands below pill) ──
+            // NLETimelineView reads playbackPosition from its own @Environment
+            // so the 200ms polling loop does not re-evaluate this parent body.
             NLETimelineView(
                 isExpanded: $isTimelineExpanded,
-                currentTime: videoViewModel.playbackPosition.seconds,
-                duration: videoViewModel.playbackPosition.duration,
                 onSeek: { videoViewModel.seek(to: $0) },
                 onFrameStepForward: { videoViewModel.frameStepForward() },
                 onFrameStepBackward: { videoViewModel.frameStepBackward() }

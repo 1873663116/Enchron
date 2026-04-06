@@ -33,7 +33,7 @@ struct BreadcrumbView: View {
                     }
                     .buttonStyle(.plain)
                     .hoverEffect(.lift)
-                    .frame(minHeight: 60)
+                    .frame(minWidth: 60, minHeight: 60)
                     .contentShape(.rect)
                     .disabled(isLast)
                     .accessibilityLabel(isLast ? "\(segment.name), current folder" : segment.name)

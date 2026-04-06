@@ -5,12 +5,13 @@ import SwiftUI
 struct PlayerInfoBarView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(WindowVideoViewModel.self) private var videoViewModel
+    @Environment(PlaybackLaunchCoordinator.self) private var launcher
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         HStack(spacing: 12) {
             Button {
-                appModel.stopPlayback()
+                launcher.stopPlayback()
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.body.weight(.semibold))

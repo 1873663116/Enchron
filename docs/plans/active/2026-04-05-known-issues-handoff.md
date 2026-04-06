@@ -21,37 +21,16 @@ date: 2026-04-05
 
 ## 未解决 — 需要下一轮修复
 
-### P0: 播放控件布局不匹配 HTML 设计
+### P0: 三级UI布局均未准确参考HTML复刻
 
-**现象：** 播放控件的按钮排布没有对齐 `docs/designs/file-browser-redesign-2026-04-05/player.html` 中的设计。
+App首页的整体风格漂移，没有完全参考variant-AB-combined.html
+播放前信息二级页面排布和UI同意没有完全参考designs/file-browser-redesign-2026-04-05/布局实现，大部分相关按钮也都不可选
+播放页面则几乎完全独立实现，根本没有参考player.html
 
-**根因：** 上一轮重写了 PlayerControlsView 的结构（三层），但仍然使用系统 `Menu` 作为弹出菜单、系统 `.buttonStyle(.automatic)` 或 `.buttonStyle(.plain)` 作为按钮样式。HTML 设计中的按钮是：
-- **圆形按钮** (`ctrl-btn`): 48×48 圆形，透明背景，hover 时抬升 -4px
-- **播放按钮** (`play-btn`): 64×64 圆形，渐变填充背景 (`linear-gradient(135deg, #c6c6c7, #909191)`)
-- **控制栏容器**: pill 形 (`border-radius: 9999px`)，glass-control 材质，`px-6 py-3`，`gap-2` (8px)
-
-**HTML 设计的精确布局 (player.html line 476-710)：**
-```
-[控制栏 pill 容器, glass-control, 圆角9999px]
-  Menu按钮(48×48圆) | 快退10s(48×48圆) | 播放/暂停(64×64圆,渐变bg) | 快进10s(48×48圆) | Settings按钮(48×48圆)
-```
-
-**Seek bar (player.html line 454-473):**
-```
-[独立行, max-w-4xl, px-12, gap-5]
-  时间标签(11px, monospace, 右对齐) | 进度条(4px高, hover 6px, 白色渐变进度) | 剩余时间标签
-```
-
-**需要做的：**
-1. 按钮尺寸统一为 48×48（普通）和 64×64（播放）
-2. 控制栏容器使用 `.enchronGlassControl()` (capsule 形)
-3. 按钮间距为 8px (`gap-2`)
-4. Seek bar 是独立一行，在控制栏上方
-5. Menu 和 Settings 继续使用系统 `Menu` — 这在 visionOS 上是正确的选择
+我们需要的只是用liquid grass和apple的自带容器等内容来取代HTML的UI容器和按钮等，但是没有说， Agent 可以自由调整布局。Agent 应该严格按照设计中的布局来进行排布。
 
 **相关文件：**
-- `XrPlayer/PlayerUI/Views/PlayerControlsView.swift`
-- 参考: `docs/designs/file-browser-redesign-2026-04-05/player.html` lines 450-710
+- 参考: `docsdesigns/file-browser-redesign-2026-04-05/`
 
 ---
 
@@ -125,6 +104,25 @@ date: 2026-04-05
 
 ---
 
+### P1: 播放模式切换缺少层级约束
+
+**现象：** 播放普通 2D 视频时，可以点击切换到沉浸播放或全景播放模式，导致视频仍在正常播放但空间场景错误切换。
+
+**期望行为：** 播放模式有能力层级，由视频内容本身决定：
+- **2D 视频（基础层）**: 只能窗口播放，沉浸/全景模式按钮应禁用
+- **3D 视频（中间层）**: 可沉浸播放 + 可降格到窗口 2D，但不可升级到全景
+- **全景视频（最高层）**: 可全景/沉浸/窗口，全部是降格或同级
+
+核心原则：**不可以从下级跃上上级，但可以从上级降级到下级**
+
+**相关文件：**
+- `XrPlayer/PlayerUI/Views/PlayerControlsView.swift` — 模式切换 UI 入口
+- `XrPlayer/SpatialScene/Views/SceneSelectorView.swift` — 场景选择器
+- `XrPlayer/PlaybackCore/` — MediaProfile / ProjectionType 定义
+- 参考 ARCHITECTURE.md: "PlayerUI 具备播放模式决策入口"
+
+---
+
 ## 代码变更摘要 (本轮所有 commits)
 
 ```
@@ -140,5 +138,5 @@ f234be8 fix(ui): controls pure opacity fade + detail view metadata loading
 ## 下一轮执行建议
 
 1. **先用 MCP 工具调查 API 行为**：用 `mcp__apple-docs` 查 hoverEffect、ornament animation、UIViewRepresentable resize。用 `mcp__XcodeBuildMCP` 在模拟器中验证视觉效果
-2. **播放控件布局对齐 HTML**：不需要自定义组件，只需要正确的尺寸、间距、按钮样式
+2. **播放控件按钮和布局完全对齐 HTML**：不需要自定义组件，只需要正确的尺寸、布局、间距、按钮样式多级菜单的展开容器所容纳的按钮，一比一复刻布局
 3. **每个修复都在模拟器中截图验证**，不要盲改

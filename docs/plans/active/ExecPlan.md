@@ -174,7 +174,7 @@ flowchart TB
 
 ---
 
-- [ ] **Unit 1: P0 菜单闪烁与不可交互 Bug 修复**
+- [x] **Unit 1: P0 菜单闪烁与不可交互 Bug 修复**
 
 **目标：** 消除播放状态下二级/三级菜单持续闪烁和 hit-testing 失效的 P0 Bug。暂停后恢复正常说明根因与播放刷新循环耦合。
 
@@ -217,7 +217,7 @@ flowchart TB
 
 ---
 
-- [ ] **Unit 2: 三轴域模型 — ProjectionType 拆分 + StereoLayout 重命名 + MediaProfile 扩展**
+- [x] **Unit 2: 三轴域模型 — ProjectionType 拆分 + StereoLayout 重命名 + MediaProfile 扩展**
 
 **目标：** 将 `ProjectionType` 拆分为纯几何枚举，将 `StereoMode` 重命名为 `StereoLayout`（含 `.mono`），`MediaProfile` 新增 `stereoLayout`、`hasCoverArt` 字段。同步更新所有调用侧。
 
@@ -273,7 +273,7 @@ flowchart TB
 
 ---
 
-- [ ] **Unit 3: ProjectionDetection 重构 + HDR 检测修正**
+- [x] **Unit 3: ProjectionDetection 重构 + HDR 检测修正**
 
 **目标：** `ProjectionDetection.detect()` 返回 `(ProjectionType, StereoLayout)` 元组，修正 stereo 字符串匹配为精确 mpv 值，移除 `video-params/hdr-format` 无效调用，实现 `gamma`-based HDR 决策树。
 
@@ -322,7 +322,7 @@ flowchart TB
 
 ---
 
-- [ ] **Unit 4: DecidePlaybackModeUseCase 三轴路由 + 约束矩阵**
+- [x] **Unit 4: DecidePlaybackModeUseCase 三轴路由 + 约束矩阵**
 
 **目标：** 扩展 `DecidePlaybackModeUseCase` 感知 `StereoLayout`：flat+stereo → `.immersive` 自动路由，flat+mono → `.window`，全景内容始终 → `.panorama`；更新 `allowedModes` 实现 flat 禁止 Panorama 的硬约束；更新 `AppModel.autoRoutePlaybackMode()` 传入新字段。
 
@@ -369,7 +369,7 @@ flowchart TB
 
 ---
 
-- [ ] **Unit 5: PlayerControlsView 重构 — Menu/Settings/3D 对齐 player.html**
+- [x] **Unit 5: PlayerControlsView 重构 — Menu/Settings/3D 对齐 player.html**
 
 **目标：** 按 player.html 重构 `leftMenu` 和 `rightMenu`：HDR 动态标签行（只在 HDR 内容时显示，标签跟随 hdrType）、3D 开关项（Settings 面板内，mono 时禁用）、Playback Mode 不可用项灰色禁用（不过滤，直接渲染为 disabled）。
 
@@ -422,7 +422,7 @@ stereoLayout == .topBottom  → 可选 [Off, Top-Bottom*]（默认选中 TB）
 
 ---
 
-- [ ] **Unit 6: VideoDetailView — 返回按钮 + HDR 开关 + 沉浸模式选择**
+- [x] **Unit 6: VideoDetailView — 返回按钮 + HDR 开关 + 沉浸模式选择**
 
 **目标：** 详情页顶部补返回按钮（点击 dismiss sheet），新增 HDR 开关，新增"以沉浸空间播放"选项。
 
@@ -454,7 +454,7 @@ stereoLayout == .topBottom  → 可选 [Off, Top-Bottom*]（默认选中 TB）
 
 ---
 
-- [ ] **Unit 7: ThumbnailService — 缩略图加载与缓存**
+- [x] **Unit 7: ThumbnailService — 缩略图加载与缓存**
 
 **目标：** 实现 `ThumbnailService` actor（属 FileBrowsing 上下文），独立 `ThumbnailMPVAdapter`（Phase A 帧提取 + Phase B 封面提取），两级缓存（NSCache + 磁盘 JPEG），接入 `VideoCardView` 和 `VideoDetailView`。
 
@@ -542,7 +542,7 @@ stereoLayout == .topBottom  → 可选 [Off, Top-Bottom*]（默认选中 TB）
 
 ---
 
-- [ ] **Unit 9: QA/E2E + Accessibility 体系**
+- [ ] **Unit 9: QA/E2E + Accessibility 体系** *(deferred to test phase)*
 
 **目标：** 执行 `/qa`（Standard 档位）和 `/e2e`，确保所有可交互元素有 `accessibilityIdentifier` 和 `accessibilityLabel`，验证 UI 形式对齐，验证状态机约束。
 

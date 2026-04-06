@@ -9,14 +9,17 @@ import SwiftUI
 ///   - Expanded: panel slides open with `.spring` animation.
 ///
 /// Glass material: `.enchronGlassPanel()` (regularMaterial).
+///
+/// Note: `currentTime` and `duration` are read from the `WindowVideoViewModel`
+/// environment directly so that the 200ms polling loop invalidates only this
+/// view — not the parent `PlayerControlsView` body.
 struct NLETimelineView: View {
 
     @Binding var isExpanded: Bool
 
-    /// Current playback position in seconds (drives ruler + playhead).
-    let currentTime: Double
-    /// Total media duration in seconds.
-    let duration: Double
+    // Read playbackPosition here so the 200ms update cycle only re-evaluates
+    // NLETimelineView, not the entire PlayerControlsView body.
+    @Environment(WindowVideoViewModel.self) private var videoViewModel
 
     /// Called with target time when user drags on the thumb strip.
     var onSeek: ((Double) -> Void)?
@@ -25,10 +28,14 @@ struct NLETimelineView: View {
     /// Called when user taps frame-step-backward button.
     var onFrameStepBackward: (() -> Void)?
 
+    private var currentTime: Double { videoViewModel.playbackPosition.seconds }
+    private var duration: Double { videoViewModel.playbackPosition.duration }
+
     // MARK: - State
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var zoomLevel: Double?
+    @GestureState private var gestureStartZoom: Double?
 
     // MARK: - Layout constants
 
@@ -107,6 +114,8 @@ struct NLETimelineView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
+        .contentShape(.rect)
+        .hoverEffect(.highlight)
     }
 
     // MARK: - Frame Step Buttons
@@ -149,9 +158,14 @@ struct NLETimelineView: View {
 
     private var zoomGesture: some Gesture {
         MagnifyGesture()
+            .updating($gestureStartZoom) { _, state, _ in
+                if state == nil {
+                    state = zoomLevel ?? TimelineRulerView.defaultZoom(for: duration)
+                }
+            }
             .onChanged { value in
-                let baseZoom = zoomLevel ?? TimelineRulerView.defaultZoom(for: duration)
-                let newZoom = baseZoom * value.magnification
+                let base = gestureStartZoom ?? zoomLevel ?? TimelineRulerView.defaultZoom(for: duration)
+                let newZoom = base * value.magnification
                 zoomLevel = max(0, min(1, newZoom))
             }
     }
@@ -183,25 +197,21 @@ struct NLETimelineToggleButton: View {
 }
 
 #Preview("Expanded") {
+    let vm = WindowVideoViewModel(player: MPVPlayerAdapter())
     VStack(spacing: 12) {
         NLETimelineToggleButton(isExpanded: .constant(true))
-        NLETimelineView(
-            isExpanded: .constant(true),
-            currentTime: 125.5,
-            duration: 3600
-        )
+        NLETimelineView(isExpanded: .constant(true))
     }
+    .environment(vm)
     .padding()
 }
 
 #Preview("Collapsed") {
+    let vm = WindowVideoViewModel(player: MPVPlayerAdapter())
     VStack(spacing: 12) {
         NLETimelineToggleButton(isExpanded: .constant(false))
-        NLETimelineView(
-            isExpanded: .constant(false),
-            currentTime: 0,
-            duration: 3600
-        )
+        NLETimelineView(isExpanded: .constant(false))
     }
+    .environment(vm)
     .padding()
 }

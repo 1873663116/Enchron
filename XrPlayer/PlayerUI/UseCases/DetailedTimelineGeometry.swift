@@ -18,7 +18,7 @@ struct DetailedTimelineGeometry: Sendable {
         duration: Double,
         timelineWidth: CGFloat,
         minimumWidthFactor: CGFloat = 0.5,
-        maximumWidthFactor: CGFloat = 4.0
+        maximumWidthFactor: CGFloat = 16.0
     ) {
         self.viewportWidth = max(viewportWidth, 1)
         self.duration = max(duration, 0.1)
@@ -37,7 +37,7 @@ struct DetailedTimelineGeometry: Sendable {
         duration: Double,
         zoomLevel: Double,
         minimumWidthFactor: CGFloat = 0.5,
-        maximumWidthFactor: CGFloat = 4.0
+        maximumWidthFactor: CGFloat = 16.0
     ) {
         let safeViewport = max(viewportWidth, 1)
         let minWidth = safeViewport * minimumWidthFactor
