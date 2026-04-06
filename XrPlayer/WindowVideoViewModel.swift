@@ -90,7 +90,11 @@ public final class WindowVideoViewModel {
 
     private func updateStatus() {
         let latestState = player.currentState
-        self.playbackState = latestState
+        // Guard against redundant state writes — avoids spurious @Observable notifications
+        // that would re-evaluate every view reading playbackState (play button, menus).
+        if self.playbackState != latestState {
+            self.playbackState = latestState
+        }
         self.playbackPosition = player.currentPosition
 
         if isAwaitingFirstFramePresentation {
