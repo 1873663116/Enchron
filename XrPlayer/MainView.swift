@@ -128,10 +128,18 @@ public struct MainView: View {
         }
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
             PlayerControlsView()
+                // IMPORTANT: Do NOT attach broad .animation() modifiers here.
+                // Doing so propagates the animation transaction into the entire
+                // PlayerControlsView subtree — including SwiftUI Menu popover layers.
+                // When `showControls` or `isPlaying` change, that causes Menu
+                // popover sublayers to be torn down and rebuilt, which manifests as
+                // flickering and broken hit-testing of sub-menus during playback.
+                //
+                // Opacity animations are already driven by withAnimation() at every
+                // call-site that mutates showControls / isPlaying — no redundant
+                // .animation() wrapper is needed here.
                 .opacity(shouldShowPlayerControls ? 1 : 0)
                 .allowsHitTesting(shouldShowPlayerControls)
-                .animation(.easeInOut(duration: 0.4), value: appModel.showControls)
-                .animation(.easeInOut(duration: 0.4), value: appModel.isPlaying)
         }
         .ornament(
             visibility: appModel.isPlaying ? .hidden : .visible,
