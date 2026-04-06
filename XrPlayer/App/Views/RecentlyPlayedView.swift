@@ -65,6 +65,7 @@ public struct RecentlyPlayedView: View {
         .padding(.vertical, 4)
         .frame(minHeight: 60)
         .contentShape(.rect)
+        .accessibilityIdentifier("App-RecentlyPlayed-row-\(item.fileID.rawValue.prefix(16))")
         .accessibilityLabel(displayName(for: item.fileID))
         .accessibilityHint("Last played \(formattedPosition(item.position.seconds))")
     }

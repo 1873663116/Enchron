@@ -50,5 +50,12 @@ public struct ToggleImmersiveSpaceButton: View {
         .disabled(appModel.immersiveSpaceState == .inTransition)
         .animation(.none, value: 0)
         .fontWeight(.semibold)
+        .accessibilityIdentifier("Settings-ImmersiveSpace-button-toggle")
+        .accessibilityLabel(appModel.immersiveSpaceState == .open
+            ? "Hide Immersive Space"
+            : "Show Immersive Space")
+        .accessibilityHint(appModel.immersiveSpaceState == .inTransition
+            ? "Transitioning, please wait"
+            : "")
     }
 }

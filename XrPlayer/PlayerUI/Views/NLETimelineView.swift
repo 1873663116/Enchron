@@ -73,6 +73,7 @@ struct NLETimelineView: View {
         .animation(reduceMotion ? .easeInOut : .spring(), value: isExpanded)
         .gesture(zoomGesture)
         .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-NLETimeline-container")
         .accessibilityLabel("Timeline")
         .accessibilityAction(named: "Seek Forward") {
             let target = min(duration, currentTime + 10)
@@ -135,6 +136,7 @@ struct NLETimelineView: View {
             .contentShape(.rect)
             .accessibilityLabel("Previous Frame")
             .accessibilityHint("Steps backward one frame")
+            .accessibilityIdentifier("PlayerUI-NLETimeline-button-prevFrame")
 
             Spacer()
 
@@ -151,6 +153,7 @@ struct NLETimelineView: View {
             .contentShape(.rect)
             .accessibilityLabel("Next Frame")
             .accessibilityHint("Steps forward one frame")
+            .accessibilityIdentifier("PlayerUI-NLETimeline-button-nextFrame")
         }
     }
 
@@ -193,6 +196,7 @@ struct NLETimelineToggleButton: View {
         .help(isExpanded ? "Collapse Timeline" : "Expand Timeline")
         .accessibilityLabel(isExpanded ? "Collapse timeline" : "Expand timeline")
         .accessibilityAddTraits(.isToggle)
+        .accessibilityIdentifier("PlayerUI-NLETimeline-button-toggle")
     }
 }
 

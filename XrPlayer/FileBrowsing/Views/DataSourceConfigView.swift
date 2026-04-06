@@ -58,6 +58,7 @@ public struct DataSourceConfigView: View {
                     .autocorrectionDisabled()
                     .textContentType(isSMB ? nil : .URL)
                     .keyboardType(isSMB ? .decimalPad : .URL)
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-textField-serverAddress")
                     .onChange(of: serverAddress) { _, newValue in
                         if isSMB {
                             // Only allow digits and dots for SMB IP input
@@ -72,11 +73,14 @@ public struct DataSourceConfigView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .textContentType(.username)
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-textField-username")
 
                 SecureField("Password (optional)", text: $password)
                     .textContentType(.password)
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-secureField-password")
 
                 TextField("Server Name (optional)", text: $displayName)
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-textField-displayName")
             }
 
             if isSMB {
@@ -106,12 +110,14 @@ public struct DataSourceConfigView: View {
                 .frame(minHeight: 60)
                 .contentShape(.rect)
                 .disabled(!isValid || isConnecting)
+                .accessibilityIdentifier("FileBrowsing-DataSourceConfig-button-connect")
             }
         }
         .navigationTitle(navigationTitle)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel") { dismiss() }
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-button-cancel")
             }
         }
     }
@@ -141,6 +147,9 @@ public struct DataSourceConfigView: View {
                         .frame(minHeight: 60)
                         .contentShape(.rect)
                     }
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-button-share-\(shareName)")
+                    .accessibilityLabel("\(shareName), shared folder")
+                    .accessibilityHint("Connects to this SMB share")
                 }
             }
         }
@@ -152,6 +161,7 @@ public struct DataSourceConfigView: View {
                     smbAdapter?.disconnect()
                     smbAdapter = nil
                 }
+                .accessibilityIdentifier("FileBrowsing-DataSourceConfig-button-backFromSharePicker")
             }
         }
     }
