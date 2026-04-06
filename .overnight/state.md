@@ -1,29 +1,21 @@
-next: execute
+next: review
 status: IN_PROGRESS
 iteration: 1
 consecutive_failures: 0
 goal: "修复 Enchron V2 全部已知 Bug（§5.4-§5.11）并严格对齐 player.html 播放控件设计，通过 VerifyList 闭环验证所有需求"
-round: 1
+round: 2
 context: |
-  plan 轮完成。产出三件套：
-  - ExecPlan.md: 8 Units（5 P0 + 2 P1 + 1 P2），依赖图已锁定
-  - TestPlan.md: 70 测试项（含对抗审查补充的 7 项）
-  - VerifyList.md: 51 条可验证需求
+  execute 轮完成。8 个 Unit 全部 PASS，无升级项。
 
-  plan-eng-review PASS（5 项发现已并入）：
-  - A-1: SceneSelectorView/ToggleImmersiveSpaceButton 补入 Unit 4 文件清单
-  - A-2: 窗口隐藏主路径定稿为 WindowGroup(id:"main") + dismissWindow
-  - A-3: ImmersiveSpaceView 手势需 InputTargetComponent + CollisionComponent
-  - A-4: openImmersiveSpace 返回 .opened 后才隐藏主窗口
-  - Q-1: Unit 1 决策门控已加入
+  Unit 执行摘要：
+  - Unit 1 §5.4 (P0): 移除 ornament 宽域 .animation() 修复菜单闪烁。决策门控：Menu-native
+  - Unit 2 §5.5 (P0): 3s 超时 + fallback SDR profile + Task.isCancelled 检查
+  - Unit 3 §5.6 (P0): 新建 MediaProfilePrefetchService（actor, 3并发, 3s超时），文件夹级别后台预读
+  - Unit 4 §5.9 (P0): 统一入口(immersiveSpaceRequest) + dismissWindow(id:"main") + .full独占 + SpatialTapGesture控件召唤。结构守卫通过
+  - Unit 5 §5.10 (P0): 图标对调、Play间距、SeekBar内边距、Spatial Audio标签对齐player.html
+  - Unit 6 §5.7 (P1): skeleton .id(isLoading) + mergeFiles/mergeFolders增量刷新
+  - Unit 7 §5.11 (P1): .move(edge:.bottom) 一行修复
+  - Unit 8 §5.8 (P2): updateUIView 中显式设 nativeView.frame + layoutIfNeeded() 修复画布缩放
 
-  对抗审查 REVISE→RESOLVED（2 P0 + 3 P1 + 1 P2 已修复）：
-  - P0-1: 窗口隐藏策略收敛 + inTransition 门控写入实施步骤
-  - P0-2: Unit 4 文件清单补充 + grep 结构守卫
-  - P1-1: Unit 1 决策门控（Menu-native vs Popover-custom → 影响 Unit 5）
-  - P1-2: TestPlan 补充 HLG + SBS/TB 测试
-  - P1-3: TestPlan 补充错误路径测试
-  - P2-1: 暂停态控件召唤
-
-  并行组：Unit 1/2/4/6/7 可并行启动。Unit 3 依赖 Unit 2。Unit 5 依赖 Unit 1+4。Unit 8 最后。
-  下一轮执行策略：dispatch 5 个并行 Agent（Unit 1/2/4/6/7），收结果后 dispatch Unit 3 和 Unit 5。
+  ExecPlan 已归档至 docs/plans/complete/ExecPlan-2026-04-06-final.md
+  下一轮：review — 代码审查 + VerifyList 标注 + 文档同步区补全 + 对抗审查
