@@ -184,6 +184,21 @@ public struct ImmersiveSpaceView: View {
             }
         }
         .dragRotation(pitchLimit: .degrees(30), sensitivity: 10)
+        // §5.9d: SpatialTapGesture to summon/dismiss player controls.
+        // Entities already carry InputTargetComponent + CollisionComponent,
+        // so the gesture is never silently dropped.
+        .gesture(
+            SpatialTapGesture()
+                .targetedToAnyEntity()
+                .onEnded { _ in
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        appModel.showControls.toggle()
+                    }
+                    if appModel.showControls {
+                        appModel.registerControlsInteraction()
+                    }
+                }
+        )
     }
 
     private func stereoModeForCurrentProjection() -> PlaybackCoreDomain.StereoLayout? {

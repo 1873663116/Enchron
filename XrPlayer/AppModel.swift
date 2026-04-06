@@ -20,6 +20,20 @@ public final class AppModel {
         case open
     }
     public var immersiveSpaceState: ImmersiveSpaceState = .closed
+
+    /// Pending immersive space action requested by sub-views.
+    /// MainView observes this and executes the actual open/dismiss call,
+    /// then resets it to nil. This ensures a single canonical entry point.
+    public enum ImmersiveSpaceRequest {
+        case open
+        case dismiss
+    }
+    public var immersiveSpaceRequest: ImmersiveSpaceRequest? = nil
+
+    /// True while a playback-mode transition is in progress (immersive space
+    /// opening or closing). Gates playerControls window open/close and
+    /// prevents concurrent menu operations.
+    public var isTransitioningPlaybackMode: Bool = false
     
     // MARK: - Playback State
     public var playbackState: PlaybackCoreDomain.PlaybackState = .idle
@@ -209,6 +223,18 @@ public final class AppModel {
                 angleDegrees: viewAngle
             )
         }
+    }
+
+    /// Request to open the immersive space via the unified MainView handler.
+    public func requestImmersiveSpace() {
+        guard immersiveSpaceState == .closed else { return }
+        immersiveSpaceRequest = .open
+    }
+
+    /// Request to dismiss the immersive space via the unified MainView handler.
+    public func requestDismissImmersiveSpace() {
+        guard immersiveSpaceState == .open else { return }
+        immersiveSpaceRequest = .dismiss
     }
 
     public func switchEnvironment(to environment: SpatialSceneDomain.CinemaEnvironment) async {

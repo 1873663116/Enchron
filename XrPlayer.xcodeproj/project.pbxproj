@@ -13,6 +13,16 @@
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		E2E0000800000000DEADBEEF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C3B0F9782F5726B30064596E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C3B0F97F2F5726B30064596E;
+			remoteInfo = XrPlayer;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXCopyFilesBuildPhase section */
 		A4C19FA12FD1000100AABBCC /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
@@ -30,12 +40,18 @@
 /* Begin PBXFileReference section */
 		C3B0F9802F5726B30064596E /* XrPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XrPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3B0F9842F5726B30064596E /* RealityKitContent */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = RealityKitContent; sourceTree = "<group>"; };
+		E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = XrPlayerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		C3B0F9822F5726B30064596E /* XrPlayer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = XrPlayer;
+			sourceTree = "<group>";
+		};
+		E2E0000300000000DEADBEEF /* XrPlayerUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = XrPlayerUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -51,6 +67,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E2E0000500000000DEADBEEF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -58,6 +81,7 @@
 			isa = PBXGroup;
 			children = (
 				C3B0F9822F5726B30064596E /* XrPlayer */,
+				E2E0000300000000DEADBEEF /* XrPlayerUITests */,
 				C3B0F9832F5726B30064596E /* Packages */,
 				C3B0F9812F5726B30064596E /* Products */,
 			);
@@ -67,6 +91,7 @@
 			isa = PBXGroup;
 			children = (
 				C3B0F9802F5726B30064596E /* XrPlayer.app */,
+				E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -109,6 +134,27 @@
 			productReference = C3B0F9802F5726B30064596E /* XrPlayer.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E2E0000100000000DEADBEEF /* XrPlayerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E2E0000B00000000DEADBEEF /* Build configuration list for PBXNativeTarget "XrPlayerUITests" */;
+			buildPhases = (
+				E2E0000400000000DEADBEEF /* Sources */,
+				E2E0000500000000DEADBEEF /* Frameworks */,
+				E2E0000600000000DEADBEEF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E2E0000700000000DEADBEEF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				E2E0000300000000DEADBEEF /* XrPlayerUITests */,
+			);
+			name = XrPlayerUITests;
+			productName = XrPlayerUITests;
+			productReference = E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -121,6 +167,10 @@
 				TargetAttributes = {
 					C3B0F97F2F5726B30064596E = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					E2E0000100000000DEADBEEF = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = C3B0F97F2F5726B30064596E;
 					};
 				};
 			};
@@ -143,12 +193,20 @@
 			projectRoot = "";
 			targets = (
 				C3B0F97F2F5726B30064596E /* XrPlayer */,
+				E2E0000100000000DEADBEEF /* XrPlayerUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		C3B0F97E2F5726B30064596E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2E0000600000000DEADBEEF /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -187,7 +245,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E2E0000400000000DEADBEEF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E2E0000700000000DEADBEEF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C3B0F97F2F5726B30064596E /* XrPlayer */;
+			targetProxy = E2E0000800000000DEADBEEF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		C3B0F99A2F5726B40064596E /* Debug */ = {
@@ -377,6 +450,48 @@
 			};
 			name = Release;
 		};
+		E2E0000900000000DEADBEEF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_TARGET_NAME = XrPlayer;
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		E2E0000A00000000DEADBEEF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_TARGET_NAME = XrPlayer;
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -394,6 +509,15 @@
 			buildConfigurations = (
 				C3B0F99A2F5726B40064596E /* Debug */,
 				C3B0F99B2F5726B40064596E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E2E0000B00000000DEADBEEF /* Build configuration list for PBXNativeTarget "XrPlayerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E2E0000900000000DEADBEEF /* Debug */,
+				E2E0000A00000000DEADBEEF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

@@ -246,26 +246,39 @@ public struct MainView: View {
                 }
 
                 if needsImmersive && appModel.immersiveSpaceState == .closed {
-                    appModel.immersiveSpaceState = .inTransition
-                    switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
-                    case .opened:
-                        // Attach video layer for panorama/immersive rendering
-                        let layer = windowVideoViewModel.nativeVideoLayer
-                        panoramaBridge.attachVideoLayer(layer)
-                    case .userCancelled, .error:
-                        fallthrough
-                    @unknown default:
-                        appModel.immersiveSpaceState = .closed
-                        appModel.updatePlaybackMode(.window)
-                    }
+                    await openImmersiveSpaceUnified()
                 } else if !needsImmersive && appModel.immersiveSpaceState == .open {
+                    appModel.isTransitioningPlaybackMode = true
                     appModel.immersiveSpaceState = .inTransition
                     await dismissImmersiveSpace()
+                    openWindow(id: "main")
+                    appModel.isTransitioningPlaybackMode = false
                 }
             }
         }
-        .onChange(of: appModel.playbackMode != .window && appModel.isPlaying) { _, shouldShow in
-            // P1 #1 fix: serialize window operations to prevent race on rapid mode transitions
+        .onChange(of: appModel.immersiveSpaceRequest) { _, request in
+            // Unified entry point for sub-views (SceneSelectorView, ToggleImmersiveSpaceButton)
+            // that cannot call openImmersiveSpace directly per Architecture Invariant.
+            guard let request else { return }
+            appModel.immersiveSpaceRequest = nil
+            Task { @MainActor in
+                switch request {
+                case .open:
+                    await openImmersiveSpaceUnified()
+                case .dismiss:
+                    guard appModel.immersiveSpaceState == .open else { return }
+                    appModel.isTransitioningPlaybackMode = true
+                    appModel.immersiveSpaceState = .inTransition
+                    await dismissImmersiveSpace()
+                    openWindow(id: "main")
+                    appModel.isTransitioningPlaybackMode = false
+                }
+            }
+        }
+        .onChange(of: appModel.playbackMode != .window) { _, shouldShow in
+            // P1 #1 fix: serialize window operations to prevent race on rapid mode transitions.
+            // §5.9d: removed isPlaying gate — paused state can also summon controls.
+            guard !appModel.isTransitioningPlaybackMode else { return }
             playerControlsWindowTask?.cancel()
             playerControlsWindowTask = Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(100))
@@ -277,6 +290,33 @@ public struct MainView: View {
                 }
             }
         }
+    }
+
+    // MARK: - Unified Immersive Space Entry (§5.9a)
+
+    /// Single canonical site where openImmersiveSpace is called.
+    /// All sub-views route through appModel.immersiveSpaceRequest,
+    /// which is observed here and dispatched to this function.
+    @MainActor
+    private func openImmersiveSpaceUnified() async {
+        appModel.isTransitioningPlaybackMode = true
+        appModel.immersiveSpaceState = .inTransition
+        appModel.isFullImmersion = true   // §5.9c: ensure full/exclusive immersion on every entry
+        switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
+        case .opened:
+            // Attach video layer for panorama/immersive rendering
+            let layer = windowVideoViewModel.nativeVideoLayer
+            panoramaBridge.attachVideoLayer(layer)
+            // §5.9b: hide main window only after space confirmed open
+            dismissWindow(id: "main")
+        case .userCancelled, .error:
+            fallthrough
+        @unknown default:
+            // §5.9b: keep main window visible on failure
+            appModel.immersiveSpaceState = .closed
+            appModel.updatePlaybackMode(.window)
+        }
+        appModel.isTransitioningPlaybackMode = false
     }
 
     @State private var controlsTimerTask: Task<Void, Never>?

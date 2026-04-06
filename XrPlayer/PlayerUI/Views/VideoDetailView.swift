@@ -166,6 +166,10 @@ public struct VideoDetailView: View {
                     VStack(alignment: .leading, spacing: 16) {
                         titleSection(displayName: prepared.request.displayName, metadata: prepared.metadata)
 
+                        if prepared.isMetadataPartial {
+                            partialMetadataNotice()
+                        }
+
                         if let metadata = prepared.metadata {
                             metadataSection(metadata: metadata)
                         }
@@ -435,6 +439,21 @@ public struct VideoDetailView: View {
         case .starryNight: return "moon.stars"
         case .sunsetNature: return "sun.horizon"
         }
+    }
+
+    // MARK: - Partial Metadata Notice
+
+    @ViewBuilder
+    private func partialMetadataNotice() -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
+            Text("Some metadata could not be loaded. Details may be incomplete.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
     }
 
     // MARK: - Metadata Section

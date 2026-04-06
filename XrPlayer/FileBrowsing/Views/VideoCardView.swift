@@ -14,7 +14,8 @@ struct VideoCardView: View {
 
     @State private var thumbnail: CGImage?
 
-    private let byteFormatter: ByteCountFormatter = {
+    // §5.7a: Static formatter avoids per-instance allocation on each view body rebuild.
+    private static let byteFormatter: ByteCountFormatter = {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useAll]
         formatter.countStyle = .file
@@ -87,7 +88,7 @@ struct VideoCardView: View {
                 Spacer()
                 HStack {
                     Spacer()
-                    badgeLabel(byteFormatter.string(fromByteCount: file.sizeInBytes))
+                    badgeLabel(Self.byteFormatter.string(fromByteCount: file.sizeInBytes))
                         .offset(z: 8)
                 }
             }
@@ -186,7 +187,7 @@ struct VideoCardView: View {
 
     private var accessibilityText: String {
         var parts = ["Video: \(file.name)"]
-        parts.append(byteFormatter.string(fromByteCount: file.sizeInBytes))
+        parts.append(Self.byteFormatter.string(fromByteCount: file.sizeInBytes))
         parts.append(file.fileExtension.uppercased())
         if let badge = formatBadgeText {
             parts.append(badge)
