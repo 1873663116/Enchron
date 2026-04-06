@@ -63,7 +63,7 @@ let package = Package(
                 "XrPlayer/SpatialScene/Domain/VirtualScreenConfiguration.swift",
                 "XrPlayer/SpatialScene/Domain/HemisphereMeshConfiguration.swift",
                 "XrPlayer/SpatialScene/Domain/FisheyeRemapConfiguration.swift",
-                "XrPlayer/PlaybackCore/Domain/ValueObjects/StereoMode.swift",
+                "XrPlayer/PlaybackCore/Domain/ValueObjects/StereoLayout.swift",
                 "XrPlayer/PlayerUI/Domain/Ports/PlaybackModeManaging.swift",
                 "XrPlayer/PlayerUI/UseCases/DecidePlaybackModeUseCase.swift",
                 "XrPlayer/Persistence/Domain/ValueObjects/FileIdentifier.swift",

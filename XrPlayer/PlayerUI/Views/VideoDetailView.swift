@@ -14,6 +14,10 @@ public struct VideoDetailView: View {
     @AccessibilityFocusState private var isTitleFocused: Bool
     @State private var savedProgress: PersistenceDomain.PlaybackProgress?
     @State private var resumePolicy: PersistenceDomain.ResumePolicy = .askEveryTime
+    @State private var selectedAudioTrackID: String?
+    @State private var selectedSubtitleTrackID: String?
+    @State private var subtitlesOff: Bool = false
+    @State private var hdrOutputEnabled: Bool = true
 
     public init() {}
 
@@ -38,13 +42,6 @@ public struct VideoDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .accessibilityFocused($isTitleFocused)
             .onAppear { isTitleFocused = true }
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Close") {
-                        dismiss()
-                    }
-                }
-            }
         }
         .onDisappear {
             if coordinator.currentPreparation != nil {
@@ -132,21 +129,7 @@ public struct VideoDetailView: View {
                             metadataSection(metadata: metadata)
                         }
 
-                        if !prepared.audioTracks.isEmpty {
-                            trackSection(
-                                title: "Audio Tracks",
-                                icon: "speaker.wave.2",
-                                tracks: prepared.audioTracks
-                            )
-                        }
-
-                        if !prepared.subtitleTracks.isEmpty {
-                            trackSection(
-                                title: "Subtitles",
-                                icon: "captions.bubble",
-                                tracks: prepared.subtitleTracks
-                            )
-                        }
+                        playbackSettingsSection(prepared: prepared)
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -280,12 +263,10 @@ public struct VideoDetailView: View {
                         label: "Resume from \(Self.formatTime(progress.position.seconds))",
                         icon: "play.fill"
                     ) {
-                        coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
-                        dismiss()
+                        confirmWithSelections(prepared, resumePosition: progress.position.seconds)
                     }
                     Button {
-                        coordinator.confirmPlayback(prepared)
-                        dismiss()
+                        confirmWithSelections(prepared)
                     } label: {
                         Text("Play from Start")
                             .font(.caption)
@@ -295,19 +276,16 @@ public struct VideoDetailView: View {
                 }
             case .alwaysResume:
                 overlayPlayButton(label: "Resume", icon: "play.fill") {
-                    coordinator.confirmPlayback(prepared, resumePosition: progress.position.seconds)
-                    dismiss()
+                    confirmWithSelections(prepared, resumePosition: progress.position.seconds)
                 }
             case .alwaysStartFromBeginning:
                 overlayPlayButton(label: "Play", icon: "play.fill") {
-                    coordinator.confirmPlayback(prepared)
-                    dismiss()
+                    confirmWithSelections(prepared)
                 }
             }
         } else {
             overlayPlayButton(label: "Start Playback", icon: "play.fill") {
-                coordinator.confirmPlayback(prepared)
-                dismiss()
+                confirmWithSelections(prepared)
             }
         }
     }
@@ -473,61 +451,186 @@ public struct VideoDetailView: View {
         }
     }
 
-    // MARK: - Track Section
+    // MARK: - Playback Settings Section (interactive)
 
     @ViewBuilder
-    private func trackSection<T: Identifiable>(
-        title: String,
-        icon: String,
-        tracks: [T]
-    ) -> some View where T: TrackDisplayable {
-        VStack(alignment: .leading, spacing: 8) {
-            Label(title, systemImage: icon)
+    private func playbackSettingsSection(prepared: PreparedPlayback) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Playback Settings")
                 .font(DesignTokens.Typography.sectionHeader)
                 .fontWeight(.bold)
                 .textCase(.uppercase)
                 .tracking(1.5)
                 .foregroundStyle(.secondary)
 
-            ForEach(tracks) { track in
-                HStack {
-                    Text(track.displayName)
-                        .font(.body)
-
-                    Spacer()
-
-                    if let lang = track.languageCode {
-                        Text(lang.uppercased())
-                            .font(.caption.weight(.medium))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(.quaternary, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
-                    }
-
-                    if track.isDefault {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .font(.caption)
-                    }
-                }
-                .padding(.vertical, 4)
+            if !prepared.subtitleTracks.isEmpty {
+                subtitlePicker(tracks: prepared.subtitleTracks)
+            }
+            if !prepared.audioTracks.isEmpty {
+                audioTrackPicker(tracks: prepared.audioTracks)
+            }
+            if let profile = prepared.metadata?.mediaProfile,
+               profile.hdrType != .sdr {
+                hdrOutputToggle()
             }
         }
         .padding(20)
         .background(Color.white.opacity(0.04), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .onAppear {
+            initializeTrackSelections(prepared: prepared)
+        }
+    }
+
+    @ViewBuilder
+    private func subtitlePicker(tracks: [PlaybackCoreDomain.SubtitleTrack]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Subtitles")
+                .font(DesignTokens.Typography.sectionHeader)
+                .textCase(.uppercase)
+                .tracking(1.5)
+                .foregroundStyle(.tertiary)
+
+            Menu {
+                ForEach(tracks) { track in
+                    Button {
+                        selectedSubtitleTrackID = track.id
+                        subtitlesOff = false
+                    } label: {
+                        if selectedSubtitleTrackID == track.id && !subtitlesOff {
+                            Label(track.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(track.displayName)
+                        }
+                    }
+                }
+                Divider()
+                Button {
+                    subtitlesOff = true
+                    selectedSubtitleTrackID = nil
+                } label: {
+                    if subtitlesOff {
+                        Label("Off", systemImage: "checkmark")
+                    } else {
+                        Text("Off")
+                    }
+                }
+            } label: {
+                settingsPickerLabel(subtitleDisplayLabel(tracks: tracks))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private func audioTrackPicker(tracks: [PlaybackCoreDomain.AudioTrack]) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Audio Track")
+                .font(DesignTokens.Typography.sectionHeader)
+                .textCase(.uppercase)
+                .tracking(1.5)
+                .foregroundStyle(.tertiary)
+
+            Menu {
+                ForEach(tracks) { track in
+                    Button {
+                        selectedAudioTrackID = track.id
+                    } label: {
+                        if selectedAudioTrackID == track.id {
+                            Label(track.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(track.displayName)
+                        }
+                    }
+                }
+            } label: {
+                settingsPickerLabel(audioDisplayLabel(tracks: tracks))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private func hdrOutputToggle() -> some View {
+        HStack {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("HDR Output")
+                    .font(.body)
+                Text("Enabled by default")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Toggle("", isOn: $hdrOutputEnabled)
+                .labelsHidden()
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+    }
+
+    @ViewBuilder
+    private func settingsPickerLabel(_ text: String) -> some View {
+        HStack {
+            Text(text)
+                .font(.body)
+            Spacer()
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding(12)
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+    }
+
+    // MARK: - Track Selection Helpers
+
+    private func initializeTrackSelections(prepared: PreparedPlayback) {
+        if selectedAudioTrackID == nil {
+            selectedAudioTrackID = prepared.audioTracks.first(where: { $0.isDefault })?.id
+                ?? prepared.audioTracks.first?.id
+        }
+        if selectedSubtitleTrackID == nil && !subtitlesOff {
+            if let defaultSub = prepared.subtitleTracks.first(where: { $0.isDefault }) {
+                selectedSubtitleTrackID = defaultSub.id
+            }
+        }
+    }
+
+    private func subtitleDisplayLabel(tracks: [PlaybackCoreDomain.SubtitleTrack]) -> String {
+        if subtitlesOff { return "Off" }
+        if let id = selectedSubtitleTrackID,
+           let track = tracks.first(where: { $0.id == id }) {
+            return track.displayName
+        }
+        return tracks.first(where: { $0.isDefault })?.displayName ?? tracks.first?.displayName ?? "None"
+    }
+
+    private func audioDisplayLabel(tracks: [PlaybackCoreDomain.AudioTrack]) -> String {
+        if let id = selectedAudioTrackID,
+           let track = tracks.first(where: { $0.id == id }) {
+            return track.displayName
+        }
+        return tracks.first(where: { $0.isDefault })?.displayName ?? tracks.first?.displayName ?? "None"
+    }
+
+    private func confirmWithSelections(_ prepared: PreparedPlayback, resumePosition: Double? = nil) {
+        coordinator.confirmPlayback(
+            prepared,
+            resumePosition: resumePosition,
+            selectedAudioTrackID: selectedAudioTrackID,
+            selectedSubtitleTrackID: selectedSubtitleTrackID,
+            subtitlesOff: subtitlesOff,
+            hdrEnabled: hdrOutputEnabled
+        )
+        dismiss()
     }
 
     private func projectionLabel(_ type: PlaybackCoreDomain.ProjectionType) -> String {
         switch type {
         case .flat:
             return "Flat"
-        case .stereoscopicSBS:
-            return "3D Side-by-Side"
-        case .stereoscopicOU:
-            return "3D Over-Under"
-        case .panorama360:
+        case .equirectangular360:
             return "360\u{00B0}"
-        case .panorama180:
+        case .equirectangular180:
             return "180\u{00B0} VR"
         case .fisheye:
             return "Fisheye"

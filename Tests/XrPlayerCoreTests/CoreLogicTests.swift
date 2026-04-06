@@ -52,11 +52,10 @@ final class CoreLogicTests: XCTestCase {
     }
 
     func testProjectionTypePanoramicClassification() {
-        XCTAssertTrue(PlaybackCoreDomain.ProjectionType.panorama360.isPanoramic)
-        XCTAssertTrue(PlaybackCoreDomain.ProjectionType.panorama180.isPanoramic)
+        XCTAssertTrue(PlaybackCoreDomain.ProjectionType.equirectangular360.isPanoramic)
+        XCTAssertTrue(PlaybackCoreDomain.ProjectionType.equirectangular180.isPanoramic)
         XCTAssertTrue(PlaybackCoreDomain.ProjectionType.fisheye.isPanoramic)
         XCTAssertFalse(PlaybackCoreDomain.ProjectionType.flat.isPanoramic)
-        XCTAssertFalse(PlaybackCoreDomain.ProjectionType.stereoscopicSBS.isPanoramic)
     }
 
     // PlaybackSpeed and PlaybackPosition clamping tests are in V02Tests.swift
@@ -227,14 +226,14 @@ final class PlaybackModeDecisionTests: XCTestCase {
     /// but the decision rule is: panoramic → panorama, env active → immersive, else → window.
     /// We test the inputs (ProjectionType.isPanoramic) and verify all combinations.
     func testPanoramicProjectionTypesReturnTrue() {
-        let panoramicTypes: [PlaybackCoreDomain.ProjectionType] = [.panorama360, .panorama180, .fisheye]
+        let panoramicTypes: [PlaybackCoreDomain.ProjectionType] = [.equirectangular360, .equirectangular180, .fisheye]
         for type in panoramicTypes {
             XCTAssertTrue(type.isPanoramic, "\(type) should be panoramic")
         }
     }
 
     func testNonPanoramicProjectionTypesReturnFalse() {
-        let nonPanoramic: [PlaybackCoreDomain.ProjectionType] = [.flat, .stereoscopicSBS, .stereoscopicOU]
+        let nonPanoramic: [PlaybackCoreDomain.ProjectionType] = [.flat]
         for type in nonPanoramic {
             XCTAssertFalse(type.isPanoramic, "\(type) should not be panoramic")
         }
@@ -242,13 +241,15 @@ final class PlaybackModeDecisionTests: XCTestCase {
 
     func testAllProjectionTypesCovered() {
         // Ensure every ProjectionType case has been classified
+        // New model: 4 pure-geometry cases (flat, equirectangular360, equirectangular180, fisheye)
+        // Stereo expressed via StereoLayout axis, not ProjectionType
         let allTypes = PlaybackCoreDomain.ProjectionType.allCases
-        XCTAssertEqual(allTypes.count, 6, "Expected 6 projection types (flat, sbs, ou, 360, 180, fisheye)")
+        XCTAssertEqual(allTypes.count, 4, "Expected 4 projection types (flat, equirectangular360, equirectangular180, fisheye)")
 
         let panoramic = allTypes.filter { $0.isPanoramic }
         let nonPanoramic = allTypes.filter { !$0.isPanoramic }
         XCTAssertEqual(panoramic.count, 3)
-        XCTAssertEqual(nonPanoramic.count, 3)
+        XCTAssertEqual(nonPanoramic.count, 1)
     }
 
     /// Simulate the decision matrix that AppCoordinator.decidePlaybackMode implements.
