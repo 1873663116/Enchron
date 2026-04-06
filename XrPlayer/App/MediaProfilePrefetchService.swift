@@ -137,6 +137,14 @@ public actor MediaProfilePrefetchService {
     private static func detectProfile(url: URL) async throws -> PlaybackCoreDomain.MediaProfile {
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: false])
 
+        // Cancel AVURLAsset loading if the enclosing Task is cancelled to release
+        // network/IO resources promptly instead of waiting for the I/O to finish.
+        defer {
+            if Task.isCancelled {
+                asset.cancelLoading()
+            }
+        }
+
         // Load essential properties concurrently
         async let tracksResult = asset.loadTracks(withMediaType: .video)
         async let durationResult = asset.load(.duration)
