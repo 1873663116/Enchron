@@ -280,7 +280,8 @@ public final class FileBrowsingViewModel {
     /// - Updates metadata (name, size, modifiedAt) for existing entries by UUID.
     /// Preserves the UUID identity SwiftUI relies on for stable diffing.
     private func mergeFiles(_ newFiles: [FileBrowsingDomain.MediaFile]) {
-        let newByID = Dictionary(uniqueKeysWithValues: newFiles.map { ($0.id, $0) })
+        // Use uniquingKeysWith to avoid a crash when the data source returns duplicate IDs.
+        let newByID = Dictionary(newFiles.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         let oldIDs = Set(files.map(\.id))
         let newIDs = Set(newFiles.map(\.id))
 
@@ -300,7 +301,8 @@ public final class FileBrowsingViewModel {
 
     /// §5.7c: Diff-update the folders array in-place using the same strategy.
     private func mergeFolders(_ newFolders: [FileBrowsingDomain.MediaFolder]) {
-        let newByID = Dictionary(uniqueKeysWithValues: newFolders.map { ($0.id, $0) })
+        // Use uniquingKeysWith to avoid a crash when the data source returns duplicate IDs.
+        let newByID = Dictionary(newFolders.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
         let oldIDs = Set(folders.map(\.id))
         let newIDs = Set(newFolders.map(\.id))
 
