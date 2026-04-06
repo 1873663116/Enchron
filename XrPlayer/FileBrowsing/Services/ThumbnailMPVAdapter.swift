@@ -38,6 +38,11 @@ final class ThumbnailMPVAdapter {
 
     private var activeSecurityScopedURL: URL?
 
+    /// Flag to signal the event loop to exit.
+    private var shouldStopEventLoop = false
+    /// Semaphore to wait for the event loop to finish draining.
+    private let eventLoopDone = DispatchSemaphore(value: 0)
+
     // MARK: - Init / Cleanup
 
     init() {}
@@ -48,6 +53,15 @@ final class ThumbnailMPVAdapter {
 
     func cleanup() {
         releaseSecurityScope()
+
+        // Signal the event loop to stop, then wait for it to exit
+        // before destroying the handle.
+        if isEventLoopRunning {
+            shouldStopEventLoop = true
+            eventLoopDone.wait()
+            isEventLoopRunning = false
+        }
+
         if let rc = renderContext {
             mpv_render_context_set_update_callback(rc, nil, nil)
             renderQueue.sync {}  // drain in-flight callbacks
@@ -297,14 +311,17 @@ final class ThumbnailMPVAdapter {
     private func startEventLoop() {
         guard !isEventLoopRunning else { return }
         isEventLoopRunning = true
-        eventQueue.async { [weak self] in
-            self?.runEventLoop()
+        eventQueue.async {
+            self.runEventLoop()
         }
     }
 
     private func runEventLoop() {
-        guard let h = handle else { return }
-        while true {
+        guard let h = handle else {
+            eventLoopDone.signal()
+            return
+        }
+        while !shouldStopEventLoop {
             guard let event = mpv_wait_event(h, 0.05) else { continue }
             let id = event.pointee.event_id
             if id == MPV_EVENT_SHUTDOWN { break }
@@ -316,6 +333,7 @@ final class ThumbnailMPVAdapter {
             }
             if id == MPV_EVENT_NONE { continue }
         }
+        eventLoopDone.signal()
     }
 
     private func waitForEvent(
