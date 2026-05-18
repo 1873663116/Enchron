@@ -26,6 +26,10 @@ public actor MediaProfilePrefetchService {
     /// Cancelling this cancels all in-flight sub-tasks for the previous folder.
     private var activeBatchTask: Task<Void, Never>?
 
+    /// In-flight per-file detection tasks. Callers can await a specific file's
+    /// result instead of polling the cache.
+    private var inflightTasks: [String: Task<PlaybackCoreDomain.MediaProfile?, Never>] = [:]
+
     public init(metadataService: PlaybackMediaMetadataService = PlaybackMediaMetadataService()) {
         self.metadataService = metadataService
     }
@@ -43,6 +47,27 @@ public actor MediaProfilePrefetchService {
             guard let self else { return }
             await self.runBatch(requests: requests)
         }
+    }
+
+    /// Awaits an in-flight prefetch for a specific file identifier.
+    /// Returns immediately if the file was already prefetched (cache hit)
+    /// or if no prefetch is in progress for this file.
+    public func awaitProfile(
+        for fileIdentifier: PersistenceDomain.FileIdentifier
+    ) async -> PlaybackCoreDomain.MediaProfile? {
+        let key = fileIdentifier.rawValue
+
+        // Check session cache first — if already done, read from persistent store
+        if sessionCache[key] != nil {
+            return await metadataService.cachedProfile(for: fileIdentifier)?.mediaProfile
+        }
+
+        // Await in-flight task if one exists
+        if let task = inflightTasks[key] {
+            return await task.value
+        }
+
+        return nil
     }
 
     // MARK: - Internal
@@ -75,12 +100,65 @@ public actor MediaProfilePrefetchService {
 
                 group.addTask { [weak self] in
                     guard let self else { return }
-                    await self.prefetchOne(request: request, modifiedAt: modifiedAt)
+                    await self.registerAndPrefetch(request: request, modifiedAt: modifiedAt)
                 }
             }
 
             // Wait for remaining tasks
             for await _ in group { }
+        }
+    }
+
+    /// Registers a tracked Task for this file so `awaitProfile` can join it,
+    /// then performs the actual detection.
+    private func registerAndPrefetch(request: PlaybackLaunchRequest, modifiedAt: Date) async {
+        guard let key = request.fileIdentifier?.rawValue else {
+            await prefetchOne(request: request, modifiedAt: modifiedAt)
+            return
+        }
+
+        let task = Task<PlaybackCoreDomain.MediaProfile?, Never> { [weak self] in
+            guard let self else { return nil }
+            return await self.detectAndCache(request: request, modifiedAt: modifiedAt)
+        }
+        inflightTasks[key] = task
+        _ = await task.value
+        inflightTasks[key] = nil
+    }
+
+    /// Performs detection and caching, returning the profile (or nil on failure).
+    private func detectAndCache(
+        request: PlaybackLaunchRequest, modifiedAt: Date
+    ) async -> PlaybackCoreDomain.MediaProfile? {
+        guard let fileIdentifier = request.fileIdentifier else { return nil }
+
+        // Check persistent cache
+        if let existing = await metadataService.cachedProfile(for: fileIdentifier),
+           existing.mediaProfile != nil {
+            sessionCache[fileIdentifier.rawValue] = modifiedAt
+            return existing.mediaProfile
+        }
+
+        do {
+            let profile = try await withThrowingTaskGroup(of: PlaybackCoreDomain.MediaProfile.self) { group in
+                group.addTask {
+                    try await Self.detectProfile(url: request.url)
+                }
+                group.addTask {
+                    try await Task.sleep(for: Self.timeoutSeconds)
+                    throw CancellationError()
+                }
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
+
+            guard !Task.isCancelled else { return nil }
+            _ = await metadataService.recordDetectedProfile(profile, for: request)
+            sessionCache[fileIdentifier.rawValue] = modifiedAt
+            return profile
+        } catch {
+            return nil
         }
     }
 

@@ -7,7 +7,7 @@
 2. 某类需求或 bug 应该先去哪个模块、哪个入口看
 3. 哪些边界是稳定的，不能因为一时方便被绕过
 
-它不是 phase1~4 设计文档的摘要，也不是实现细节手册这里只记录高层结构、稳定职责、跨模块边界和故意不存在的东西具体实现细节、回归项、测试步骤分别看： `docs/design_docs/`、`REGRESSION.md`、`TESTING.md`
+它不是 phase1~4 设计文档的摘要，也不是实现细节手册这里只记录高层结构、稳定职责、跨模块边界和故意不存在的东西。具体实现细节、UI 编码约束、体验验证记录分别看：`docs/designs/`、`docs/ui-coding-standards.md`、`docs/qa-reports/`
 
 
 ## Bird's Eye View
@@ -242,8 +242,8 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 1. 先读本文，建立心智地图和边界感
 2. 再读 `docs/product_philosophy.md`，理解体验目标
-3. 改代码前读 `REGRESSION.md`，知道这次改动会触发哪些回归项
-4. 验证时读 `TESTING.md`，按双轨体系执行
+3. UI / Design Preview 改动前读 `docs/ui-coding-standards.md` 和就近 `AGENTS.md`
+4. 验证时按改动范围选择自动构建、Simulator 检查或人类真机验证清单
 5. 需要深入某个设计背景时，再进入 `docs/design_docs/phase1~4`
 
 phase1~4 设计文档是历史设计与推演材料；本文是当前项目的高层事实表述两者冲突时，以本文和当前代码边界为准；如果本文失真，应先修本文，再继续扩展实现

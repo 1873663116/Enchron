@@ -9,7 +9,7 @@
         "mcp"
       ],
       "env": {
-        "XCODEBUILDMCP_ENABLED_WORKFLOWS": "simulator,ui-automation"
+        "XCODEBUILDMCP_ENABLED_WORKFLOWS": "project-discovery,simulator,ui-automation,xcode-ide"
       }
     }
   }

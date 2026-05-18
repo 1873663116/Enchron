@@ -52,10 +52,14 @@ struct XrPlayerApp: App {
         // to preparePlayback without a shared-state race.
         let sharedMetadataService = PlaybackMediaMetadataService()
 
+        // §5.6: Single shared prefetch service — the launcher awaits in-flight
+        // prefetch tasks started by FileBrowsingViewModel, eliminating race conditions.
+        let sharedPrefetchService = MediaProfilePrefetchService(metadataService: sharedMetadataService)
         let launcher = PlaybackLaunchCoordinator(
             appModel: appModel,
             windowVideoViewModel: windowVideoViewModel,
-            metadataService: sharedMetadataService
+            metadataService: sharedMetadataService,
+            prefetchService: sharedPrefetchService
         )
 
         // Clean up expired playback progress entries (older than 5 days).
@@ -83,10 +87,9 @@ struct XrPlayerApp: App {
         // Pre-warm MPV in the background to reduce first-play black-screen latency.
         player.warmup()
         let localDataSource = LocalDataSourceAdapter()
-        let prefetchService = MediaProfilePrefetchService(metadataService: sharedMetadataService)
         let fileBrowsingViewModel = FileBrowsingViewModel(
             localDataSource: localDataSource,
-            prefetchService: prefetchService,
+            prefetchService: sharedPrefetchService,
             onPlayFile: { request in
                 launcher.beginPlayback(request)
             },
@@ -140,6 +143,8 @@ struct XrPlayerApp: App {
                 .environment(panoramaBridge)
                 .environment(thumbnailService)
         }
+        .defaultSize(width: 1280, height: 720)
+        .windowResizability(.contentSize)
 
         WindowGroup(id: "settings") {
             NavigationStack {

@@ -150,7 +150,7 @@ struct VideoCardView: View {
             .tracking(0.5)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
             .foregroundStyle(Color.enchronTertiary)
     }
 

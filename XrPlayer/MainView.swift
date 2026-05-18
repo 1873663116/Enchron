@@ -1,5 +1,6 @@
 import SwiftUI
 import RealityKit
+import UIKit
 
 public struct MainView: View {
     @Environment(AppModel.self) var appModel
@@ -19,6 +20,54 @@ public struct MainView: View {
 
     private var shouldShowPlayerControls: Bool {
         appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls && appModel.playbackMode == .window
+    }
+
+    // MARK: - Player Menu Panels (window-space overlay)
+
+    /// Menu panels rendered in window space so they aren't clipped by the ornament.
+    /// Follows the same layout as player.html: left menu left-aligned, right settings right-aligned,
+    /// sub-menus extend sideways via padding in a ZStack.
+    @ViewBuilder
+    private var playerMenuPanelsOverlay: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // ── Left: Menu popup + sub-menus (sub extends LEFT) ──
+            if appModel.showPlayerMenuPopup {
+                ZStack(alignment: .topTrailing) {
+                    MenuPopoverContent(activeSubMenu: Bindable(appModel).playerMenuSubMenu)
+
+                    if appModel.playerMenuSubMenu != nil {
+                        MenuPopoverContent.SubMenuOnly(
+                            activeSubMenu: Bindable(appModel).playerMenuSubMenu,
+                            videoViewModel: windowVideoViewModel,
+                            appModel: appModel
+                        )
+                        .fixedSize()
+                        .padding(.trailing, 214)
+                        .transition(.scale(scale: 0.92, anchor: .trailing).combined(with: .opacity))
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            // ── Right: Settings popup + sub-menus (sub extends RIGHT) ──
+            if appModel.showPlayerSettingsPopup {
+                ZStack(alignment: .topLeading) {
+                    SettingsPopoverContent(activeSubMenu: Bindable(appModel).playerSettingsSubMenu)
+
+                    if appModel.playerSettingsSubMenu != nil {
+                        SettingsPopoverContent.SubMenuOnly(
+                            activeSubMenu: Bindable(appModel).playerSettingsSubMenu,
+                            appModel: appModel
+                        )
+                        .fixedSize()
+                        .padding(.leading, 224)
+                        .transition(.scale(scale: 0.92, anchor: .leading).combined(with: .opacity))
+                    }
+                }
+            }
+        }
+        .frame(width: DesignTokens.Layout.playerControlsWidth)
     }
 
     public var body: some View {
@@ -49,6 +98,30 @@ public struct MainView: View {
                     )
                 }
                 .glassBackgroundEffect()
+                // Edge vignette — darkens screen edges when controls are visible
+                // so labels remain readable against bright/white video content.
+                // Placed on GeometryReader (same frame as glass background) so it
+                // naturally clips to the window's rounded corners.
+                .overlay {
+                    VStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [.black.opacity(0.65), .clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 160)
+                        Spacer()
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.55)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 200)
+                    }
+                    .clipShape(DesignTokens.ShapeToken.panel)
+                    .opacity(appModel.showControls && appModel.isPlaying ? 1 : 0)
+                    .allowsHitTesting(false)
+                }
                 .contentShape(Rectangle())
                 .gesture(
                         DragGesture(minimumDistance: 0)
@@ -79,7 +152,7 @@ public struct MainView: View {
                         .progressViewStyle(.circular)
                         .scaleEffect(1.5)
                         .padding(20)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small))
                         .transition(.opacity)
                 }
 
@@ -87,18 +160,45 @@ public struct MainView: View {
                     ProgressView("Buffering…")
                         .progressViewStyle(.circular)
                         .padding(20)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small))
                         .transition(.opacity)
                 }
 
             }
-            // Info bar overlay (top-leading) — moved from PlayerControlsView per HTML design
+            // Info bar overlay (top-leading)
             .overlay(alignment: .topLeading) {
                 if appModel.showControls && appModel.isPlaying && appModel.playbackMode == .window {
                     PlayerInfoBarView()
                         .padding(.horizontal, 28)
                         .padding(.top, 20)
                         .transition(.opacity)
+                }
+            }
+            // Player menu panels — rendered in WINDOW space (not in ornament)
+            // so they aren't clipped by ornament bounds. Positioned at window bottom,
+            // visually above the pill ornament (matching player.html absolute positioning).
+            .overlay {
+                if shouldShowPlayerControls && (appModel.showPlayerMenuPopup || appModel.showPlayerSettingsPopup) {
+                    // Full-area tap catcher: blocks interaction with video/seek bar behind menus
+                    // and closes menus on tap-outside (matching player.html click-outside behavior).
+                    // Note: Color.clear doesn't intercept touches on visionOS; use near-invisible black.
+                    Color.black.opacity(0.001)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(MenuAnimation.spring) {
+                                appModel.closeAllPlayerMenus()
+                            }
+                        }
+
+                    VStack {
+                        Spacer()
+                        playerMenuPanelsOverlay
+                            .padding(.bottom, 20)
+                    }
+                    .animation(MenuAnimation.spring, value: appModel.showPlayerMenuPopup)
+                    .animation(MenuAnimation.spring, value: appModel.showPlayerSettingsPopup)
+                    .animation(MenuAnimation.spring, value: appModel.playerMenuSubMenu)
+                    .animation(MenuAnimation.spring, value: appModel.playerSettingsSubMenu)
                 }
             }
             .animation(.easeInOut(duration: 0.4), value: appModel.showControls)
@@ -232,6 +332,7 @@ public struct MainView: View {
                 withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
                 startControlsTimer()
             }
+            updateWindowResizingRestrictions(isPlaying: isPlaying)
         }
         .onChange(of: appModel.playbackMode) { oldMode, newMode in
             guard appModel.isPlaying else { return }
@@ -308,7 +409,8 @@ public struct MainView: View {
             // Attach video layer for panorama/immersive rendering
             let layer = windowVideoViewModel.nativeVideoLayer
             panoramaBridge.attachVideoLayer(layer)
-            // §5.9b: hide main window only after space confirmed open
+            // §5.9b: mark state as open before dismissing main window
+            appModel.immersiveSpaceState = .open
             dismissWindow(id: "main")
         case .userCancelled, .error:
             fallthrough
@@ -325,6 +427,19 @@ public struct MainView: View {
     @State private var pinchBegan = false
     @State private var speedBeforeLongPress: PlaybackCoreDomain.PlaybackSpeed?
     @State private var seekStartSeconds: Double?
+
+    /// Switches visionOS window resizing between uniform (aspect-ratio-locked)
+    /// during playback and freeform when browsing files.
+    /// Uses Apple's `UIWindowScene.GeometryPreferences.Vision` API.
+    private func updateWindowResizingRestrictions(isPlaying: Bool) {
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .first(where: { $0 is UIWindowScene }) as? UIWindowScene
+        else { return }
+        let restrictions: UIWindowScene.ResizingRestrictions = isPlaying ? .uniform : .freeform
+        windowScene.requestGeometryUpdate(
+            .Vision(resizingRestrictions: restrictions)
+        )
+    }
 
     private func startControlsTimer() {
         controlsTimerTask?.cancel()

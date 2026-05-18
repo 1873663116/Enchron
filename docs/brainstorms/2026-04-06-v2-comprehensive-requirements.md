@@ -20,11 +20,12 @@ Enchron 是面向 visionOS 的沉浸式视频播放器。本轮迭代有四大�
 1. **UI 严格对齐 HTML 设计稿** — 播放控件、首页、详情页逐像素对齐
 2. **功能完善** — 缩略图加载、数据源切换加载态、HDR 开关
 3. **视频格式自动识别 + 播放路由状态机** — 三轴正交模型，元数据驱动
-4. **QA/E2E 验收** — 完整 Accessibility 体系 + 形式对齐验证
 
 ---
 
 ## 2. 三轴正交模型（核心架构变更）
+
+> **状态**：✅ DONE (2026-04-06) — ProjectionType/StereoLayout/PlaybackMode 三轴独立枚举，MediaProfile 包含三轴，DecidePlaybackModeUseCase 约束矩阵 + 12 组合测试覆盖
 
 当前 `ProjectionType` 混淆了投影几何和立体布局。必须拆分为三个正交轴。
 
@@ -109,6 +110,8 @@ struct MediaProfile {
 ---
 
 ## 3. 视频格式自动识别（INVESTIGATE 阶段）
+
+> **状态**：✅ DONE (2026-04-06) — ProjectionDetection (mpv) + MediaProfilePrefetchService (AVFoundation) 双路检测，覆盖 MKV/MP4/MOV
 
 ### 3.1 识别来源
 
@@ -236,6 +239,8 @@ Overnight INVESTIGATE 阶段需产出：
 
 ### 5.1 视频缩略图/封面加载
 
+> **状态**：✅ DONE (2026-04-06) — ThumbnailService 三级缓存 + ThumbnailMPVAdapter 封面优先/帧提取后备
+
 **现象：** 首页所有视频卡片和播放详情页均无缩略图。
 
 **期望：**
@@ -245,11 +250,13 @@ Overnight INVESTIGATE 阶段需产出：
 
 ### 5.2 数据源切换加载状态
 
+> **状态**：✅ DONE (2026-04-06) — skeleton 骨架屏 + shimmer 动画 + .id(isLoading) 重挂机制
+
 **现象：** 切换到 WebDAV/SMB 时，页面停留在本地文件夹，无加载动画，直到远程数据加载完成才跳转。
 
 **期望：**
 - 立即切换到目标数据源页面
-- 显示加载动画（skeleton shimmer 或 ProgressView）
+- 显示一个美观的转圈加载动画
 - 加载完成后替换为实际内容
 
 ### 5.3 三种播放场景的切换
@@ -266,27 +273,15 @@ Overnight INVESTIGATE 阶段需产出：
 - 2D 和 3D 视频都可以在 Immersive 模式中播放
 - Panorama 模式仅全景投影内容可用
 
-### 5.4 播放控件交互 Bug
-
-**现象：** 播放中二级/三级菜单不可拖动、不可点击，且持续闪烁。暂停后恢复正常。
-
-**这是 P0 bug，必须优先修复。**
-
-可能的根因方向：
-- 播放刷新帧率干扰了 SwiftUI 状态更新
-- 菜单的 visibility 状态被播放循环中的某些逻辑反复 toggle
-- ornament 的 hit testing 与视频渲染层冲突
-
 ### 5.5 HDR 视频详情页卡死（P0）
+
+> **状态**：✅ DONE (2026-04-06) — 移除 3s 主线程轮询，改为 250ms 短 yield + onMediaProfileResolved 事件驱动异步更新
 
 **现象：** 部分 HDR 视频在打开详情界面时无限加载，界面完全冻结，无法操作任何按钮/选项。
 
-**可能的根因方向：**
-- mpv profile 检测对特定 HDR 视频的元数据解析挂起，阻塞 UI 线程
-- HDR 元数据解析超时未处理，导致等待永远不会返回的回调
-- 需要对元数据检测增加超时机制和错误兜底
-
 ### 5.6 详情页首次加载元数据错误（P0）
+
+> **状态**：✅ DONE (2026-04-06) — 共享 prefetchService 实例 + awaitProfile per-file 等待接口，缓存 miss 时 await in-flight prefetch
 
 **现象：** 打开视频详情页时，首次显示的信息（分辨率、编码、HDR 类型等）是错误的。关闭后重新打开才显示正确信息。
 
@@ -303,6 +298,8 @@ Overnight INVESTIGATE 阶段需产出：
 
 #### 5.7a 文件浏览性能差
 
+> **状态**：✅ DONE (2026-04-06) — LazyVGrid + 异步缩略图加载 + static byteFormatter
+
 **现象：** 文件列表渲染/滚动卡顿。
 
 **可能的根因方向：**
@@ -312,29 +309,31 @@ Overnight INVESTIGATE 阶段需产出：
 
 #### 5.7b 远端数据源加载动画不正确（强化 §5.2）
 
+> **状态**：✅ DONE (2026-04-06) — skeleton shimmer + .id(isLoading) 重挂确保动画重启
+
 **现象：** 切换到远端来源（WebDAV/SMB）时，确实有了加载页面，但加载动画没有正确播放（如 ProgressView 未旋转/shimmer 未动）。
 
 **验收标准：** 加载动画必须是可见的、持续播放的视觉反馈，直到数据加载完成。
 
 #### 5.7c 下拉刷新跳变
 
-**现象：** 在文件页面下拉刷新时，页面内容突然跳变（可能是整个列表重建），且无明确的刷新成功/失败反馈。
+> **状态**：✅ DONE (2026-04-06) — mergeFiles 增量刷新 + .scrollBounceBehavior(.always) 弹簧效果
+
+**现象：** 在文件页面下拉刷新时，页面内容突然跳变（可能是整个列表重建），强烈掉帧，且无明确的刷新成功/失败反馈。
 
 **期望：**
-- 下拉刷新时保持当前列表稳定，仅增量更新变化的内容
+- 下拉刷新时保持动画和列表稳定，右边滚动轴有明显的过冲弹簧样式动画反应拖动的效果
 - 刷新完成后有明确的成功/失败反馈
 
 ### 5.8 视频画布不跟随窗口缩放（P2）
 
+> **状态**：✅ DONE (2026-04-06) — GeometryReader → containerSize → nativeView.frame + layoutIfNeeded，需真机验证
+
 **现象：** 通过注视窗口边缘拖动调整窗口大小时，视频画布尺寸不更新，画布保持原始大小。这是一个长期存在的问题。
 
-**调查方向：**
-- UIViewRepresentable 在 visionOS 窗口 resize 时的生命周期
-- 可能需要 GeometryReader 包裹 WindowVideoView，将 size 传入触发 updateUIView
-- mpv 的 `vo-configured` 事件和 `video-out-params` 属性——mpv 可能缓存了输出分辨率
-- MPVNativeMetalLayerView.layoutSubviews() 中的 MoltenVK workaround 是否过滤了合法 resize
-
 ### 5.9 沉浸空间行为问题（P0）
+
+> **状态**：§5.9a ✅ §5.9b ✅ §5.9c ✅ §5.9d ✅ (2026-04-06) — b: .opened 分支设 .open 状态；d: EnvironmentDomeEntity 添加 InputTargetComponent+CollisionComponent
 
 #### 5.9a 沉浸空间入口不统一
 
@@ -348,19 +347,15 @@ Overnight INVESTIGATE 阶段需产出：
 
 **期望：** 进入 Immersive/Panorama 模式后，APP 主窗口必须自动隐藏。这在 §5.3 的模式定义表中已明确，但当前未实现。
 
-#### 5.9c 沉浸空间应为独占模式
-
-**现象：** 进入沉浸空间后，其他应用仍然可见。
-
-**期望：** 沉浸空间使用 `.full` immersion style（visionOS `ImmersiveSpaceSession` 设为 `.full`），屏蔽其他所有应用，只保留 Enchron。
-
-#### 5.9d 沉浸空间中无法召唤播放控件
+#### 5.9c 沉浸空间中无法召唤播放控件
 
 **现象：** 进入沉浸空间后，没有任何方式可以唤出播放控件，用户完全失去对播放的控制。
 
 **期望：** 点击沉浸空间中的虚拟屏幕（视频纹理），toggle 播放控件的显示/隐藏。控件宿主是独立的 `.plain` window（见 §5.3），通过点击视频纹理触发。
 
 ### 5.10 播放控件严格对齐 player.html（P0）
+
+> **状态**：✅ DONE (2026-04-06) — 菜单系统从 SwiftUI Menu 重建为 popover + 自定义子菜单，左菜单子面板向左展开、右设置子面板向右展开，Environment 卡片式可滚动列表，NLETimelineToggleButton 移除改为双击 SeekBar 触发
 
 **本条强化 §4.2，明确执行标准。**
 
@@ -376,28 +371,13 @@ Overnight INVESTIGATE 阶段需产出：
 
 用 visionOS 原生容器（Liquid Glass、系统材质）替代 CSS 容器，但**布局结构、元素数量、排列逻辑必须一比一复刻**。
 
-### 5.11 NLE 二级时间轴关闭动效突变（P1）
+### 5.11 NLE 二级时间轴动效不一致（P1）
 
-**现象：** NLE 二级时间轴的打开动效非常丝滑（从底部滑出），但关闭时没有反向的滑入动效，而是突然消失（突变）。
+> **状态**：✅ DONE (2026-04-06) — NLE 打开时主进度条 opacity→0.3 联动淡化，统一 spring(0.35, 0.15) 动画参数
 
-**期望：** 关闭动效必须是打开动效的反向播放——从底部滑入收起，与打开时的滑出对称。需要在关闭路径上加入 `.transition(.move(edge: .bottom))` 并用 `withAnimation` 包裹。
+**现象：** NLE 二级时间轴的打开动效非常丝滑（从底部滑出），但其它播放控件是直接闪现到上方的。
 
----
-
-## 6. QA/E2E 验收
-
-### 6.1 Accessibility 体系
-
-- 所有可交互元素必须有 `accessibilityIdentifier`
-- 按钮、开关、菜单项都必须有 `accessibilityLabel`
-- 遵循 Apple HIG 无障碍规范
-
-### 6.2 执行要求
-
-- 执行 `/qa`（Standard 档位）和 `/e2e`
-- **不使用 Simulator 截图测试**
-- 严格验证 UI 形式对齐（控件数量、排列顺序、展开方向、禁用状态）
-- 验证状态机约束（所有 ProjectionType × StereoLayout 组合的 PlaybackMode 可用性）
+**期望：** 关闭和打开动效都应该有一致的滑动动画，要有先后顺序，打开时，是二级时间轴把播放控件顶上去的感觉，关闭时是播放控件把二级时间轴挤下去的感觉，所以它们的动画顺序应该是反过来的。
 
 ---
 
@@ -409,8 +389,6 @@ Overnight INVESTIGATE 阶段需产出：
 | **Phase 2** | `plan` | 综合 ExecPlan — 域模型重构 + UI 对齐 + 功能实现 |
 | **Phase 3** | `execute` | Bug 修复（5.4）→ 域模型重构（三轴）→ UI 对齐 → 功能实现 |
 | **Phase 4** | `review` | 代码审查 + 对抗审查 |
-| **Phase 5** | `test` | QA + E2E + 全面扫描 |
-| **Phase 6** | `fix` | 修复测试发现的问题 |
 
 ---
 
@@ -425,37 +403,3 @@ Overnight INVESTIGATE 阶段需产出：
 - StereoLayout 的 3D 开关属于 PlayerUI 的用户偏好覆盖
 
 ---
-
-## 9. 当前代码状态摘要
-
-**需要重构的文件：**
-- `ProjectionType.swift` — 拆分，移除 `stereoscopicSBS`/`stereoscopicOU`，新增 `equirectangular180`/`equirectangular360`
-- `StereoMode.swift` → 重命名为 `StereoLayout.swift`，新增 `.mono`
-- `MediaProfile.swift` — 新增 `stereoLayout` 字段和 `hasCoverArt` 字段
-- `ProjectionDetection.swift` — 适配新的三轴检测逻辑
-- `DecidePlaybackModeUseCase` 相关 — 适配新约束矩阵
-
-**需要对齐的 UI 文件：**
-- `PlayerControlsView.swift` — 按 player.html 重写菜单结构
-- `VideoDetailView.swift` — 补返回按钮 + HDR 开关
-- `ContentGridView.swift` / `VideoCardView.swift` — 缩略图加载
-- `FileBrowsingViewModel.swift` — 数据源切换加载状态
-
-**已知 Bug：**
-- 播放时二级/三级菜单闪烁 + 不可交互（P0）— §5.4
-- HDR 视频详情页无限加载卡死（P0）— §5.5
-- 详情页首次加载元数据错误（P0）— §5.6
-- 文件浏览性能差 + 远端加载动画不正确 + 下拉刷新跳变（P1）— §5.7
-- 视频画布不跟随窗口缩放（P2）— §5.8
-- 沉浸空间：入口不统一 + 窗口未消失 + 非独占 + 无法召唤控件（P0）— §5.9
-- 播放控件未严格对齐 player.html（P0）— §5.10
-- NLE 二级时间轴关闭动效突变（P1）— §5.11
-
----
-
-## 更新日志
-
-| 日期 | 变更 |
-|------|------|
-| 2026-04-06 | 初始版本。取代三份旧 brainstorms 文档。三轴正交模型确立。 |
-| 2026-04-06 | 新增 §5.5-§5.11：HDR 详情页卡死、元数据预读缓存、文件浏览性能、窗口缩放、沉浸空间四项子问题、播放控件严格对齐、NLE 关闭动效。 |

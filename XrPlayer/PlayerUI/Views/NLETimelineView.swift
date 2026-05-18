@@ -53,24 +53,22 @@ struct NLETimelineView: View {
         VStack(spacing: 0) {
             if isExpanded {
                 timelineContent
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    .frame(width: panelWidth, height: expandedHeight)
+                    .glassBackgroundEffect(
+                        in: RoundedRectangle(
+                            cornerRadius: DesignTokens.Radius.card,
+                            style: .continuous
+                        )
+                    )
+                    .overlay(alignment: .top) {
+                        Rectangle()
+                            .fill(.white.opacity(0.06))
+                            .frame(height: 0.5)
+                    }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
-        .frame(width: panelWidth)
-        .frame(height: isExpanded ? expandedHeight : 0, alignment: .top)
-        .clipped()
-        .glassBackgroundEffect(
-            in: RoundedRectangle(
-                cornerRadius: DesignTokens.Radius.card,
-                style: .continuous
-            )
-        )
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(.white.opacity(0.06))
-                .frame(height: 0.5)
-        }
-        .animation(reduceMotion ? .easeInOut : .spring(), value: isExpanded)
+        .animation(reduceMotion ? .easeInOut : .spring(duration: 0.35, bounce: 0.15), value: isExpanded)
         .gesture(zoomGesture)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-NLETimeline-container")
@@ -174,36 +172,11 @@ struct NLETimelineView: View {
     }
 }
 
-// MARK: - Toggle Button
-
-/// A small button used in the control bar to expand/collapse the NLE timeline.
-struct NLETimelineToggleButton: View {
-
-    @Binding var isExpanded: Bool
-
-    var body: some View {
-        Button {
-            isExpanded.toggle()
-        } label: {
-            Image(systemName: isExpanded ? "timeline.selection" : "timeline.selection")
-                .font(.title3)
-                .foregroundStyle(isExpanded ? Color.enchronTertiary : .primary)
-                .frame(width: 48, height: 48)
-                .contentShape(.circle)
-        }
-        .buttonStyle(.plain)
-        .hoverEffect(.lift)
-        .help(isExpanded ? "Collapse Timeline" : "Expand Timeline")
-        .accessibilityLabel(isExpanded ? "Collapse timeline" : "Expand timeline")
-        .accessibilityAddTraits(.isToggle)
-        .accessibilityIdentifier("PlayerUI-NLETimeline-button-toggle")
-    }
-}
+// NLETimelineToggleButton removed — NLE is now triggered by double-tapping SeekBar (player.html:1183)
 
 #Preview("Expanded") {
     let vm = WindowVideoViewModel(player: MPVPlayerAdapter())
     VStack(spacing: 12) {
-        NLETimelineToggleButton(isExpanded: .constant(true))
         NLETimelineView(isExpanded: .constant(true))
     }
     .environment(vm)
@@ -213,7 +186,6 @@ struct NLETimelineToggleButton: View {
 #Preview("Collapsed") {
     let vm = WindowVideoViewModel(player: MPVPlayerAdapter())
     VStack(spacing: 12) {
-        NLETimelineToggleButton(isExpanded: .constant(false))
         NLETimelineView(isExpanded: .constant(false))
     }
     .environment(vm)

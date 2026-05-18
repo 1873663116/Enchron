@@ -45,7 +45,7 @@ struct DetailedTimelineView: View {
         }
         .frame(height: timelineHeight)
         .frame(maxWidth: .infinity)
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
         .overlay(alignment: .top) {
             tickLabelsOverlay(intervals: intervals, timelineWidth: timelineWidth)
         }

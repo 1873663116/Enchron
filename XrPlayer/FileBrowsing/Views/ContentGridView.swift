@@ -28,6 +28,8 @@ struct ContentGridView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 32)
             }
+            .defaultScrollAnchor(.top)
+            .scrollBounceBehavior(.always)
         }
     }
 
