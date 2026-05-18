@@ -1,179 +1,139 @@
 import SwiftUI
 
+/// Player controls following the 2-tier layout from player.html footer:
+///
+/// Tier 1: Seek bar (current time | progress track | remaining time)
+/// Tier 2: Control bar pill (Menu | Rew | Play | Fwd | Settings)
+///
+/// Info bar (PlayerInfoBarView) lives in MainView's video ZStack overlay.
+/// Below: expandable NLE timeline panel.
+///
+/// Menu panels are rendered in the WINDOW space (MainView overlay),
+/// not inside this ornament — visionOS ornaments clip content at their bounds.
+/// Button actions toggle AppModel menu state; MainView reads it for display.
 public struct PlayerControlsView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(WindowVideoViewModel.self) private var videoViewModel
-    @Environment(FileBrowsingViewModel.self) private var fileBrowsingViewModel
-    @Environment(PlaybackLaunchCoordinator.self) private var launcher
-    @Environment(PanoramaLayerBridge.self) private var panoramaBridge
-    @Environment(\.openImmersiveSpace) private var openImmersiveSpace
-    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+    @Environment(\.openWindow) private var openWindow
 
-    @State private var isDraggingSlider = false
-    @State private var dragValue: Double = 0
-    @State private var showDetailedTimeline = false
-    @State private var pausedForTimeline = false
-    @State private var showPlaybackSettingsPanel = false
-    @State private var showDebugPanel = false
+    @State private var showScreenPositionSheet = false
+    @State private var showDebugSheet = false
+    @State private var lastInteractionTime = Date()
     @State private var hasAppliedSmokePanelRequest = false
+    @State private var isTimelineExpanded = false
 
     public init() {}
 
     public var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(spacing: 24) {  // Increased vertical rhythm
-                if showDetailedTimeline {
-                    DetailedTimelineView(
-                        onClose: {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                showDetailedTimeline = false
-                                if pausedForTimeline {
-                                    pausedForTimeline = false
-                                    videoViewModel.resume()
-                                }
-                            }
-                        }
-                    )
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity.combined(with: .scale(scale: 0.96)).combined(
-                                with: .offset(y: 10)),
-                            removal: .opacity.combined(with: .scale(scale: 0.98))
-                        ))
-                } else {
-                    sliderSection
-                        .transition(.opacity.combined(with: .scale(scale: 0.98)))
-                }
+        VStack(spacing: 20) {
+            // ── Tier 1: Seek bar ──
+            SeekBarView(
+                isTimelineExpanded: $isTimelineExpanded,
+                onInteraction: registerInteraction
+            )
+            .padding(.horizontal, 48)
+            .opacity(isTimelineExpanded ? 0.3 : 1.0)
+            .animation(.spring(duration: 0.35, bounce: 0.15), value: isTimelineExpanded)
 
-                VStack(spacing: 28) {  // More space between controls for clarity
-                    primaryControlRow
-                    secondaryControlRow
-                }
-                .padding(.bottom, 8)
-            }
+            // ── Tier 2: Control bar pill (buttons only, no menu panels) ──
+            controlBarPill
 
-            if showPlaybackSettingsPanel {
-                PlaybackMenuView {
-                    closePlaybackSettingsPanel()
-                }
-                .frame(width: 340, height: 420, alignment: .topLeading)
-                .padding(.top, 12)
-                .padding(.trailing, 12)
-                .transition(
-                    .opacity
-                        .combined(with: .scale(scale: 0.96, anchor: .topTrailing))
-                        .combined(with: .offset(y: -8))
-                )
-                .zIndex(2)
-            }
-
-            if showDebugPanel {
-                DebugOverlayView {
-                    closeDebugPanel()
-                }
-                .frame(width: 340, height: 480, alignment: .topLeading)
-                .padding(.top, 12)
-                .padding(.trailing, 12)
-                .transition(
-                    .opacity
-                        .combined(with: .scale(scale: 0.96, anchor: .topTrailing))
-                        .combined(with: .offset(y: -8))
-                )
-                .zIndex(3)
-            }
+            // ── Tier 3: NLE Timeline ──
+            NLETimelineView(
+                isExpanded: $isTimelineExpanded,
+                onSeek: { videoViewModel.seek(to: $0) },
+                onFrameStepForward: { videoViewModel.frameStepForward() },
+                onFrameStepBackward: { videoViewModel.frameStepBackward() }
+            )
         }
-        .padding(.horizontal, 32)
-        .padding(.vertical, 28)
-        .frame(width: showDetailedTimeline ? 860 : 720)
-        .glassBackgroundEffect()  // Base spatial material
-        .background(
-            .ultraThinMaterial, in: RoundedRectangle(cornerRadius: 32, style: .continuous)
-        )  // Nested glass layering
+        .frame(width: DesignTokens.Layout.playerControlsWidth)
         .onHover { isHovering in
-            appModel.setControlsFocused(
-                isHovering || showDetailedTimeline || showPlaybackSettingsPanel || showDebugPanel)
+            appModel.setControlsFocused(isHovering)
         }
         .simultaneousGesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { _ in
-                    appModel.registerControlsInteraction()
-                    if appModel.showControls == false {
-                        appModel.showControls = true
-                    }
+                    registerInteraction()
                 }
         )
-        .onChange(of: showDetailedTimeline) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showPlaybackSettingsPanel || showDebugPanel)
-            appModel.registerControlsInteraction()
-        }
-        .onChange(of: showPlaybackSettingsPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showDetailedTimeline || showDebugPanel)
-            appModel.registerControlsInteraction()
-        }
-        .onChange(of: showDebugPanel) { _, isVisible in
-            appModel.setControlsFocused(isVisible || showDetailedTimeline || showPlaybackSettingsPanel)
-            appModel.registerControlsInteraction()
-        }
         .onChange(of: appModel.currentPlaybackURL) { _, _ in
-            resetTransientPanelsForMediaSwitch()
-            appModel.registerControlsInteraction()
+            registerInteraction()
+        }
+        .task(id: lastInteractionTime) {
+            do {
+                try await Task.sleep(for: .seconds(8))
+                guard !appModel.isControlsFocused else { return }
+                withAnimation(.easeInOut(duration: 0.4)) {
+                    appModel.showControls = false
+                }
+            } catch {}
         }
         .task(id: appModel.smokePanelRequest) {
             await applySmokePanelRequestIfNeeded()
         }
-    }
-
-    @ViewBuilder
-    private var sliderSection: some View {
-        VStack(spacing: 12) {
-            HStack(spacing: 12) {
-                Text(
-                    PlaybackTimeFormatter.clock(
-                        isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)
-                )
-                .font(.caption2.monospacedDigit())
-                .frame(width: 60, alignment: .leading)
-
-                Slider(
-                    value: Binding(
-                        get: {
-                            isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
-                        },
-                        set: { dragValue = $0 }
-                    ),
-                    in: 0...max(videoViewModel.playbackPosition.duration, 1),
-                    onEditingChanged: { editing in
-                        isDraggingSlider = editing
-                        if !editing {
-                            videoViewModel.seek(to: dragValue)
-                        }
-                    }
-                )
-                .tint(.white)
-                .frame(minHeight: 44)
-
-                Text(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))
-                    .font(.caption2.monospacedDigit())
-                    .frame(width: 60, alignment: .trailing)
+        // Close all menus when controls auto-hide
+        .onChange(of: appModel.showControls) { _, visible in
+            if !visible {
+                appModel.closeAllPlayerMenus()
             }
-            .padding(.vertical, 8)
         }
-        .frame(maxWidth: .infinity)
+        .sheet(isPresented: $showScreenPositionSheet) {
+            ScreenPositionControlView {
+                showScreenPositionSheet = false
+            }
+            .frame(width: 380, height: 420)
+        }
+        .sheet(isPresented: $showDebugSheet) {
+            DebugOverlayView {
+                showDebugSheet = false
+            }
+            .frame(width: 380, height: 480)
+        }
     }
 
+    // MARK: - Control Bar Pill (pure buttons, no menu panels)
+
     @ViewBuilder
-    private var primaryControlRow: some View {
-        HStack(spacing: 40) {
+    private var controlBarPill: some View {
+        HStack(spacing: 8) {
+            // ── Left: Menu button ──
+            Button {
+                registerInteraction()
+                appModel.showPlayerSettingsPopup = false
+                appModel.playerSettingsSubMenu = nil
+                appModel.playerMenuSubMenu = nil
+                appModel.showPlayerMenuPopup.toggle()
+            } label: {
+                Image(systemName: "line.3.horizontal")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.lift)
+            .help("Playback Options")
+            .accessibilityIdentifier("left-menu-button")
+            .accessibilityLabel("Playback Options")
+
+            // ── Rewind 10s ──
             Button {
                 videoViewModel.skip(by: -10)
+                registerInteraction()
             } label: {
                 Image(systemName: "gobackward.10")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .font(DesignTokens.SymbolSize.control)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.circle)
             }
-            .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
+            .buttonStyle(.plain)
+            .hoverEffect(.lift)
             .help("Backward 10s")
+            .accessibilityIdentifier("rewind-button")
+            .accessibilityLabel("Rewind 10 seconds")
 
+            // ── Play / Pause ──
             Button {
                 if videoViewModel.playbackState == .ended {
                     videoViewModel.replay()
@@ -182,30 +142,74 @@ public struct PlayerControlsView: View {
                 } else {
                     videoViewModel.resume()
                 }
+                registerInteraction()
             } label: {
                 Image(systemName: playButtonIcon)
-                    .font(.system(size: 44, weight: .medium))
-                    .foregroundStyle(.primary)
+                    .font(.system(size: 32, weight: .medium))
+                    .foregroundStyle(Color(red: 0.184, green: 0.192, blue: 0.192))
+                    .frame(width: 64, height: 64)
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.776, green: 0.776, blue: 0.780),
+                                Color(red: 0.565, green: 0.569, blue: 0.569),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .clipShape(.circle)
+                    .contentShape(.circle)
             }
-            .buttonStyle(
-                PlayerControlSurfaceStyle(
-                    size: 72,
-                    isSelected: videoViewModel.playbackState == .playing,
-                    prominence: .primary
-                )
-            )
+            .buttonStyle(.plain)
+            .hoverEffect(.lift)
+            .padding(.horizontal, 8)
+            .accessibilityIdentifier("play-pause-button")
+            .accessibilityLabel(playButtonAccessibilityLabel)
 
+            // ── Forward 10s ──
             Button {
                 videoViewModel.skip(by: 10)
+                registerInteraction()
             } label: {
                 Image(systemName: "goforward.10")
-                    .font(.system(size: 28, weight: .semibold))
-                    .foregroundStyle(.primary)
+                    .font(DesignTokens.SymbolSize.control)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.circle)
             }
-            .buttonStyle(PlayerControlSurfaceStyle(size: 72, prominence: .primary))
+            .buttonStyle(.plain)
+            .hoverEffect(.lift)
             .help("Forward 10s")
+            .accessibilityIdentifier("forward-button")
+            .accessibilityLabel("Forward 10 seconds")
+
+            // ── Right: Settings button ──
+            Button {
+                registerInteraction()
+                appModel.showPlayerMenuPopup = false
+                appModel.playerMenuSubMenu = nil
+                appModel.playerSettingsSubMenu = nil
+                appModel.showPlayerSettingsPopup.toggle()
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.lift)
+            .help("Settings")
+            .accessibilityIdentifier("right-menu-button")
+            .accessibilityLabel("Settings")
         }
+        .padding(.horizontal, 24)
+        .padding(.vertical, 12)
+        .enchronGlassControl()
     }
+
+    // MARK: - Playback State Helpers
 
     private var playButtonIcon: String {
         switch videoViewModel.playbackState {
@@ -218,319 +222,135 @@ public struct PlayerControlsView: View {
         }
     }
 
-    @ViewBuilder
-    private var secondaryControlRow: some View {
-        HStack(spacing: 24) {
-            speedMenu
-            playbackSettingsButton
-            playbackModeMenu
-            playlistMenu
-            infoMenu
-            debugButton
-
-            Button {
-                withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                    if showDetailedTimeline {
-                        showDetailedTimeline = false
-                        if pausedForTimeline {
-                            pausedForTimeline = false
-                            videoViewModel.resume()
-                        }
-                    } else {
-                        closePlaybackSettingsPanel()
-                        closeDebugPanel()
-                        showDetailedTimeline = true
-                        if videoViewModel.playbackState == .playing {
-                            pausedForTimeline = true
-                            videoViewModel.pause()
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "waveform.path")
-                    .font(.title3)
-                    .foregroundStyle(showDetailedTimeline ? Color.accentColor : Color.primary)
-            }
-            .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showDetailedTimeline))
-            .help("Toggle Detailed Timeline")
+    private var playButtonAccessibilityLabel: String {
+        switch videoViewModel.playbackState {
+        case .playing:
+            return "Pause"
+        case .ended:
+            return "Replay"
+        default:
+            return "Play"
         }
     }
 
-    private var playbackSettingsButton: some View {
-        Button {
-            appModel.registerControlsInteraction()
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
-                closeDetailedTimelineIfNeeded()
-                closeDebugPanel()
-                showPlaybackSettingsPanel.toggle()
-            }
-        } label: {
-            Image(systemName: "slider.horizontal.3")
-                .font(.title3)
-                .foregroundStyle(showPlaybackSettingsPanel ? Color.accentColor : Color.primary)
+    // MARK: - Interaction & Auto-Hide
+
+    private func registerInteraction() {
+        lastInteractionTime = Date()
+        appModel.registerControlsInteraction()
+        if appModel.showControls == false {
+            withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
         }
-        .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showPlaybackSettingsPanel))
-        .help("Playback Settings")
-    }
-
-    private var infoMenu: some View {
-        Menu {
-            Section("Media Info") {
-                if let profile = videoViewModel.displayMediaProfile {
-                    Text(PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))
-                    Text("Resolution: \(profile.resolution.width)×\(profile.resolution.height)")
-                    Text("Frame Rate: \(PlaybackInfoFormatter.frameRate(profile.frameRate))")
-                } else {
-                    Text("Loading media profile…")
-                }
-
-                Text("File Size: \(PlaybackInfoFormatter.fileSize(videoViewModel.displayFileSizeInBytes))")
-            }
-        } label: {
-            Image(systemName: "info.circle")
-                .font(.title3)
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-        .help("Media Info")
-    }
-
-    private var speedMenu: some View {
-        Menu {
-            ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
-                Button {
-                    videoViewModel.setSpeed(speed)
-                    appModel.updatePlaybackSpeed(speed)
-                } label: {
-                    if appModel.playbackSpeed == speed {
-                        Label(speedLabel(speed), systemImage: "checkmark")
-                    } else {
-                        Text(speedLabel(speed))
-                    }
-                }
-            }
-        } label: {
-            Text(String(format: "%.1f\u{00D7}", appModel.playbackSpeed.value))
-                .font(.system(.body, design: .monospaced))
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-    }
-
-    private var playlistMenu: some View {
-        Menu {
-            if fileBrowsingViewModel.files.isEmpty {
-                Text("No playlist items")
-            } else {
-                ForEach(fileBrowsingViewModel.files, id: \.id) { file in
-                    Button {
-                        Task {
-                            do {
-                                let request = try await fileBrowsingViewModel.playbackRequest(
-                                    for: file)
-                                await MainActor.run {
-                                    launcher.beginPlayback(request)
-                                }
-                            } catch {
-                                await MainActor.run {
-                                    fileBrowsingViewModel.lastErrorMessage =
-                                        "Failed to open \"\(file.name)\": \(error.localizedDescription)"
-                                }
-                            }
-                        }
-                    } label: {
-                        if appModel.currentPlaybackURL?.lastPathComponent == file.name {
-                            Label(file.name, systemImage: "checkmark")
-                        } else {
-                            Text(file.name)
-                        }
-                    }
-                }
-            }
-        } label: {
-            Image(systemName: "list.bullet")
-                .font(.title3)
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-        .help("Playlist")
-    }
-
-    private var playbackModeMenu: some View {
-        Menu {
-            ForEach(PlaybackMode.allCases, id: \.self) { mode in
-                Button {
-                    Task {
-                        await switchPlaybackMode(to: mode)
-                    }
-                } label: {
-                    if appModel.playbackMode == mode {
-                        Label(playbackModeLabel(mode), systemImage: "checkmark")
-                    } else {
-                        Label(playbackModeLabel(mode), systemImage: playbackModeIcon(mode))
-                    }
-                }
-                .disabled(mode == appModel.playbackMode || appModel.immersiveSpaceState == .inTransition)
-            }
-        } label: {
-            Image(systemName: playbackModeIcon(appModel.playbackMode))
-                .font(.title3)
-                .foregroundStyle(.primary)
-                .playerControlSurface(size: 60)
-        }
-        .buttonStyle(.plain)
-        .help("Playback Mode: \(appModel.playbackMode.rawValue)")
-    }
-
-    private func switchPlaybackMode(to mode: PlaybackMode) async {
-        let currentMode = appModel.playbackMode
-        guard mode != currentMode else { return }
-
-        // Step 1: stop bridge if leaving panorama
-        if currentMode == .panorama {
-            panoramaBridge.attachVideoLayer(nil)
-        }
-
-        // Step 2: close immersive space if we're leaving immersive/panorama
-        if currentMode == .immersive || currentMode == .panorama {
-            if appModel.immersiveSpaceState == .open {
-                appModel.immersiveSpaceState = .inTransition
-                await dismissImmersiveSpace()
-            }
-        }
-
-        // Step 3: open immersive space if entering immersive/panorama
-        if mode == .immersive || mode == .panorama {
-            appModel.immersiveSpaceState = .inTransition
-            switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
-            case .opened:
-                break
-            case .userCancelled, .error:
-                appModel.immersiveSpaceState = .closed
-                appModel.updatePlaybackMode(.window)
-                return
-            @unknown default:
-                appModel.immersiveSpaceState = .closed
-                appModel.updatePlaybackMode(.window)
-                return
-            }
-        }
-
-        // Step 4: update the mode
-        appModel.updatePlaybackMode(mode)
-
-        // Step 5: start bridge if entering panorama
-        if mode == .panorama {
-            // Grab the CAMetalLayer from the video view model
-            let layer = videoViewModel.nativeVideoLayer
-            panoramaBridge.attachVideoLayer(layer)
-        }
-    }
-
-    private func playbackModeLabel(_ mode: PlaybackMode) -> String {
-        switch mode {
-        case .window: return "Window"
-        case .immersive: return "Immersive"
-        case .panorama: return "Panorama"
-        }
-    }
-
-    private func playbackModeIcon(_ mode: PlaybackMode) -> String {
-        switch mode {
-        case .window: return "rectangle.inset.filled"
-        case .immersive: return "visionpro"
-        case .panorama: return "pano"
-        }
-    }
-
-    private var debugButton: some View {
-        Button {
-            appModel.registerControlsInteraction()
-            withAnimation(.spring(response: 0.26, dampingFraction: 0.9)) {
-                closePlaybackSettingsPanel()
-                closeDetailedTimelineIfNeeded()
-                showDebugPanel.toggle()
-            }
-        } label: {
-            Image(systemName: "ladybug")
-                .font(.title3)
-                .foregroundStyle(showDebugPanel ? Color.accentColor : Color.primary)
-        }
-        .buttonStyle(PlayerControlSurfaceStyle(size: 60, isSelected: showDebugPanel))
-        .help("Debug Controls")
     }
 
     @MainActor
     private func applySmokePanelRequestIfNeeded() async {
         guard hasAppliedSmokePanelRequest == false,
-            let request = appModel.smokePanelRequest
+            appModel.smokePanelRequest != nil
         else {
             return
         }
 
         hasAppliedSmokePanelRequest = true
         appModel.showControls = true
-        try? await Task.sleep(for: .seconds(1))
+    }
+}
 
-        if request == "timeline" {
-            withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
-                closePlaybackSettingsPanel()
-                showDetailedTimeline = true
-                if videoViewModel.playbackState == .playing {
-                    pausedForTimeline = true
-                    videoViewModel.pause()
+// MARK: - SeekBarView
+//
+// Isolated sub-view that owns all reads of `videoViewModel.playbackPosition`.
+// Because SwiftUI invalidates only the view that reads a changed @Observable
+// property, confining playbackPosition here prevents the 200ms polling loop
+// from re-evaluating PlayerControlsView.controlBarPill (and its menus).
+private struct SeekBarView: View {
+    @Environment(WindowVideoViewModel.self) private var videoViewModel
+    @Binding var isTimelineExpanded: Bool
+    let onInteraction: () -> Void
+
+    @State private var isDraggingSlider = false
+    @State private var dragValue: Double = 0
+
+    var body: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 12) {
+                // Current time (left)
+                Text(
+                    PlaybackTimeFormatter.clock(
+                        isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)
+                )
+                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 56, alignment: .trailing)
+
+                Slider(
+                    value: Binding(
+                        get: {
+                            isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
+                        },
+                        set: { dragValue = $0 }
+                    ),
+                    in: 0...max(videoViewModel.playbackPosition.duration, 1),
+                    onEditingChanged: { editing in
+                        isDraggingSlider = editing
+                        if editing {
+                            onInteraction()
+                        }
+                        if !editing {
+                            videoViewModel.seek(to: dragValue)
+                        }
+                    }
+                )
+                .tint(.white)
+                .frame(minHeight: 44)
+                // Double-tap on seek bar toggles NLE timeline (player.html:1183)
+                .onTapGesture(count: 2) {
+                    withAnimation(.spring(duration: 0.35, bounce: 0.15)) {
+                        isTimelineExpanded.toggle()
+                    }
                 }
+                .accessibilityIdentifier("PlayerUI-SeekBar-slider-position")
+                .accessibilityLabel("Playback position")
+                .accessibilityValue(
+                    "\(PlaybackTimeFormatter.clock(isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds)) of \(PlaybackTimeFormatter.clock(videoViewModel.playbackPosition.duration))"
+                )
+
+                // Remaining time (right, countdown with minus prefix)
+                Text(remainingTimeLabel)
+                    .font(.system(size: 11, weight: .medium, design: .monospaced))
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .frame(width: 56, alignment: .leading)
+            }
+
+            // Precision time during drag
+            if isDraggingSlider {
+                Text(
+                    PlaybackTimeFormatter.preciseClock(
+                        dragValue,
+                        framesPerSecond: videoViewModel.displayMediaProfile?.frameRate ?? 0
+                    )
+                )
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.orange)
+                .transition(.opacity)
             }
         }
     }
 
-    private func speedLabel(_ speed: PlaybackCoreDomain.PlaybackSpeed) -> String {
-        String(format: "%.2f\u{00D7}", speed.value)
-    }
-
-    private func closePlaybackSettingsPanel() {
-        showPlaybackSettingsPanel = false
-    }
-
-    private func closeDebugPanel() {
-        showDebugPanel = false
-    }
-
-    private func resetTransientPanelsForMediaSwitch() {
-        showPlaybackSettingsPanel = false
-        showDebugPanel = false
-        closeDetailedTimelineIfNeeded()
-    }
-
-    private func closeDetailedTimelineIfNeeded() {
-        guard showDetailedTimeline else { return }
-        showDetailedTimeline = false
-        if pausedForTimeline {
-            pausedForTimeline = false
-            videoViewModel.resume()
-        }
+    private var remainingTimeLabel: String {
+        let duration = videoViewModel.playbackPosition.duration
+        let current = isDraggingSlider ? dragValue : videoViewModel.playbackPosition.seconds
+        let remaining = max(0, duration - current)
+        return "-" + PlaybackTimeFormatter.clock(remaining)
     }
 }
 
 #Preview {
     let appModel = AppModel()
     let windowVideoViewModel = WindowVideoViewModel(player: MPVPlayerAdapter())
-    let launcher = PlaybackLaunchCoordinator(
-        appModel: appModel,
-        windowVideoViewModel: windowVideoViewModel
-    )
-    let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: LocalDataSourceAdapter()) {
-        request in
-        launcher.beginPlayback(request)
-    }
 
     PlayerControlsView()
         .environment(appModel)
         .environment(windowVideoViewModel)
-        .environment(fileBrowsingViewModel)
-        .environment(launcher)
-        .environment(PanoramaLayerBridge())
 }

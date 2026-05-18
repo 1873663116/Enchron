@@ -18,7 +18,7 @@ public final class WindowVideoViewModel {
     public var lastErrorMessage: String?
     public var currentMediaProfile: PlaybackCoreDomain.MediaProfile?
     public private(set) var currentPlaybackURL: URL?
-    public private(set) var currentLaunchRequest: PlaybackLaunchRequest?
+    public var currentLaunchRequest: PlaybackLaunchRequest?
     public private(set) var prefetchedMetadata: PlaybackMediaMetadata?
     public private(set) var presentationState: PresentationState = .hidden
     public let usesNativeGPUOutput: Bool
@@ -90,7 +90,11 @@ public final class WindowVideoViewModel {
 
     private func updateStatus() {
         let latestState = player.currentState
-        self.playbackState = latestState
+        // Guard against redundant state writes — avoids spurious @Observable notifications
+        // that would re-evaluate every view reading playbackState (play button, menus).
+        if self.playbackState != latestState {
+            self.playbackState = latestState
+        }
         self.playbackPosition = player.currentPosition
 
         if isAwaitingFirstFramePresentation {
@@ -132,6 +136,15 @@ public final class WindowVideoViewModel {
         player.hdrOutputMode
     }
 
+    /// The current video's display aspect ratio, derived from MediaProfile resolution.
+    /// Returns nil when no video is loaded or resolution is unknown.
+    public var videoAspectRatio: CGFloat? {
+        guard let resolution = currentMediaProfile?.resolution,
+              resolution.width > 0,
+              resolution.height > 0 else { return nil }
+        return CGFloat(resolution.width) / CGFloat(resolution.height)
+    }
+
     public var displayMediaProfile: PlaybackCoreDomain.MediaProfile? {
         currentMediaProfile ?? prefetchedMetadata?.mediaProfile
     }
@@ -154,6 +167,20 @@ public final class WindowVideoViewModel {
             self.playbackState = .failed
             self.lastErrorMessage = error.localizedDescription
             print("Failed to play: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    /// Loads a file into mpv for track enumeration only — no frames are rendered.
+    /// Used by the prepare/confirm flow in PlaybackLaunchCoordinator.
+    public func loadPaused(url: URL) async throws {
+        do {
+            currentPlaybackURL = url
+            try await player.loadPaused(url: url)
+            lastErrorMessage = nil
+        } catch {
+            self.playbackState = .failed
+            self.lastErrorMessage = error.localizedDescription
             throw error
         }
     }

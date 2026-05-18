@@ -12,9 +12,15 @@ public struct WindowVideoView: UIViewRepresentable {
     }
 
     @Bindable var viewModel: WindowVideoViewModel
-    
-    public init(viewModel: WindowVideoViewModel) {
+
+    /// Container size from GeometryReader. When the window resizes, this value
+    /// changes and SwiftUI calls `updateUIView`, ensuring the Metal layer /
+    /// MTKView drawable size stays in sync.
+    var containerSize: CGSize
+
+    public init(viewModel: WindowVideoViewModel, containerSize: CGSize = .zero) {
         self.viewModel = viewModel
+        self.containerSize = containerSize
     }
 
     public func makeCoordinator() -> Coordinator {
@@ -25,6 +31,8 @@ public struct WindowVideoView: UIViewRepresentable {
         if viewModel.usesNativeGPUOutput {
             let view = MPVNativeMetalLayerView()
             view.isUserInteractionEnabled = false
+            view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            view.contentMode = .scaleToFill
             viewModel.attachVideoLayer(view.metalLayer)
             return view
         } else {
@@ -36,6 +44,7 @@ public struct WindowVideoView: UIViewRepresentable {
             mtkView.enableSetNeedsDisplay = false
             mtkView.isPaused = false
             mtkView.isUserInteractionEnabled = false
+            mtkView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
 
             if let layer = mtkView.layer as? CAMetalLayer {
                 layer.wantsExtendedDynamicRangeContent = true
@@ -48,6 +57,25 @@ public struct WindowVideoView: UIViewRepresentable {
     public func updateUIView(_ uiView: UIView, context: Context) {
         if viewModel.usesNativeGPUOutput, let nativeView = uiView as? MPVNativeMetalLayerView {
             viewModel.attachVideoLayer(nativeView.metalLayer)
+            // Explicitly sync frame to containerSize so that window-resize events
+            // propagate to the Metal layer's drawableSize in layoutSubviews().
+            // autoresizingMask alone is not reliably triggered by SwiftUI geometry
+            // changes on visionOS — we must drive the frame update here.
+            if containerSize != .zero {
+                nativeView.frame = CGRect(origin: .zero, size: containerSize)
+            }
+            nativeView.setNeedsLayout()
+            nativeView.layoutIfNeeded()
+        } else if let mtkView = uiView as? MTKView {
+            // MTKView path: update drawableSize to match the new container size.
+            let scale = mtkView.contentScaleFactor
+            let newDrawableSize = CGSize(
+                width: containerSize.width * scale,
+                height: containerSize.height * scale
+            )
+            if newDrawableSize.width > 1, newDrawableSize.height > 1 {
+                mtkView.drawableSize = newDrawableSize
+            }
         }
     }
 

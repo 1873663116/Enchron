@@ -4,7 +4,17 @@
 技术栈：Swift 6 / SwiftUI / RealityKit / ARKit / Metal / mpv / SMB / WebDAV
 
 Enchron 的目标是 Apple 平台原生品质——高质量的窗口播放、低学习成本、强沉浸感的full space
-详见 `workspace-agents/product_philosophy.md`
+详见 `docs/product_philosophy.md`
+
+---
+
+## 审视产出
+
+编译通过不是完成。一个好的设计师看一眼就知道哪里不舒服——这种感受比任何检查清单都早到达。
+
+写完代码之后，你应该能在脑中看到它在屏幕上的样子。如果看不到，那不是该交付的时刻，而是该去理解的时刻——读上下文、读设计稿、读平台约束，直到你能感受到产出在完整系统中的位置。
+
+感受不到就不要动手。动完手感受不到对不对就不要交付。
 
 ---
 
@@ -17,7 +27,7 @@ XrPlayer/
   PlaybackCore/   — 视频加载、解码、播放控制（mpv 封装）
   PlayerUI/       — 播放界面与播放模式决策
   FileBrowsing/   — 多数据源文件浏览（本地/SMB/WebDAV）
-  SpatialScene/   — 空间场景管理与帧渲染（PanoramaLayerBridge Blit 管线 + PanoramaSphereEntity 球体渲染已实现）
+  SpatialScene/   — 空间场景管理与帧渲染
   Persistence/    — 持久化服务（SwiftData/UserDefaults/Keychain）
   App/            — 启动入口 + 依赖注入组装
 ```
@@ -30,20 +40,36 @@ XrPlayer/
 
 ### 改动代码前
 1. 读 ARCHITECTURE.md 确认涉及的模块和 Architecture Invariants
-2. 读 REGRESSION.md 代码路径映射索引，预判改动触发哪些回归项
-3. 任务 >3 文件或跨模块 → 写 Exec Plan（规则见 PLANS.md）
+2. UI / Design Preview 改动先读 `docs/ui-coding-standards.md` 和就近 `AGENTS.md`
+3. 产品体验判断先读 `docs/product_philosophy.md`，需求边界按需查 `docs/brainstorms/*-requirements.md`
+4. 任务 >3 文件或跨模块 → 写 Exec Plan（存放于 docs/plans/active/，完成后归档至 docs/archive/ExecPlan/）
 
 ### 改动代码后
-1. 执行 agent 自检六件套（详见 TESTING.md）
-2. `git diff --name-only` 匹配 REGRESSION.md 索引，生成人类真机验证清单
-3. 修复 bug → 必须在 REGRESSION.md 新增对应回归项
-4. 产出三件交付物：自检报告、人类验证清单、回归集更新
+1. 执行与改动范围匹配的自动验证；优先使用项目 Bun 脚本，缺失时退回 Xcode CLI
+2. UI / Design Preview 改动必须给出人类真机或 Simulator 验证清单
+3. 修复 bug 时，在对应 QA 报告、计划或专项文档中记录复现路径和回归验证方式
+4. 交付时说明：自动验证结果、需要人类确认的体验点、未覆盖风险
 
 ### 改动模块接口时
-1. 先更新 `workspace-agents/contracts/`
+1. 先更新 `docs/contracts/`
 2. 先更新 ARCHITECTURE.md 的对应 Architecture Invariants
 3. 再改代码
 4. 对照是否一致
+
+### CLI / MCP 选择规则
+
+默认优先级：
+
+1. 项目 Bun 脚本
+2. 原生 Xcode CLI
+3. 项目级 XcodeBuildMCP
+
+具体约定：
+
+- 高概率重复、参数稳定的动作优先走 Bun 脚本：`bun run build:visionos`、`bun run test:smoke`、`bun run verify:agent`
+- Bun 脚本缺失或不覆盖当前需求时，直接退回原生 CLI：`xcodebuild`、`xcrun simctl`、`xcrun xcresulttool`、`swift`、`swiftlint`
+- 涉及 simulator UI 交互、截图、手势、按 accessibility 元素定位、结构化调试时，优先使用项目级 XcodeBuildMCP
+- 项目级 MCP 配置位于仓库根目录 `.mcp.json`；它是 CLI 的补充层，不替代 CLI
 
 ---
 
@@ -51,7 +77,7 @@ XrPlayer/
 
 | 准则 | 说明 |
 |------|------|
-| 先读文档再动手 | 本文件 → ARCHITECTURE.md → REGRESSION.md → 相关专项文档 |
+| 先读文档再动手 | 本文件 → ARCHITECTURE.md → `docs/ui-coding-standards.md` → 相关专项文档 |
 | 系统原生优先 | 系统容器、材质、动效是第一选择，自定义须证明改善了核心体验 |
 | 聚焦单一目标 | 每次改动围绕一个明确目标，不顺手重构 |
 | 临时方案标注 | `// WORKAROUND:` + 移除条件，不让它悄悄变永久 |
@@ -60,42 +86,53 @@ XrPlayer/
 
 ---
 
-## 文档路由表
+## UI 编码约束
 
-| 文档                                              | 是什么                                    | 何时查阅              |
-| ----------------------------------------------- | -------------------------------------- | ----------------- |
-| **ARCHITECTURE.md**                             | 模块职责、数据流、Architecture Invariants、跨模块通信 | 任何代码改动前           |
-| **PLANS.md**                                    | 何时写 Exec Plan、怎么写、活跃计划索引               | 准备执行 复杂任务时        |
-| **TESTING.md**                                  | 双轨验证体系、agent 自检命令、人类验证清单格式             | 改动代码后验证时          |
-| **QUALITY_SCORE.md**                            | 各领域当前质量评分、差距                           | 评估改动优先级时          |
-| **REGRESSION.md**                               | 代码路径 → 回归项映射、回归集维护规则                   | 改动代码前后（必读）        |
-| `workspace-agents/product_philosophy.md`        | 产品灵魂、三种播放模式的体验愿景                       | 做设计决策时            |
-| `workspace-agents/Requirements.md`              | 功能范围、验收边界、里程碑                          | 接新需求、判断功能是否越界     |
-| `workspace-agents/quality_gates.md`             | 一个改动怎样才算"可接受"                          | 提交代码前自查           |
-| `workspace-agents/known_issues.md`              | 当前最痛的偏差、证据、根因分析                        | 修 bug 前了解上下文      |
-| `workspace-agents/ubiquitous_language.md`       | 项目统一术语表                                | 命名类、方法、变量时        |
-| `workspace-agents/contracts/frontend-backend-contract.md` | 前后端职责边界、协作规则                           | 涉及远程数据流时          |
-| `workspace-agents/design_docs/`                 | DDD 建模细节、完整接口签名（参考归档）                  | 需要深入设计背景时         |
-| `workspace-agents/contracts/`                   | 契约规范 + OpenAPI 参考 + Mock 数据                 | 改远程数据模型、接口或协作边界时 |
-
-文档优先级（冲突时）：product_philosophy > Requirements > quality_gates > ARCHITECTURE > 其余。
+- 所有 UI 样式值（圆角、间距、动画、颜色、材质）必须通过 Design Token 引用，禁止硬编码
+- 所有可交互组件必须有 `accessibilityIdentifier` + `accessibilityLabel`
+- Token 未覆盖时：有人值守上报询问；overnight 标记 BLOCKED
+- 涉及 UI 改动时，先读：**`docs/ui-coding-standards.md`**
 
 ---
 
-## 技术 Skill
+## 文档路由表
 
-`workspace-agents/skills/` 包含领域专用 skill。遇到领域问题时按需调用，不凭记忆推断。
+### 核心文档（改动代码必读）
 
-| 领域 | Skill |
-|------|-------|
-| Swift 并发 | `swift-concurrency-6-2` |
-| SwiftUI | `swiftui-patterns` |
-| 协议/DI/测试 | `swift-protocol-di-testing` |
-| Metal | `metal-shader-expert`, `metal-shaders`, `metal-gpu`, `metal-graphics` |
-| 着色器 | `shader-programming`, `axiom-metal-migration-ref` |
-| visionOS | `arkit-visionos-developer`, `visionos-design-guidelines`, `visionos-widgets` |
-| Apple 设计 | `apple-hig`, `mobile-ios-design`, `liquid-glass-design` |
-| RealityKit | `axiom-realitykit-diag`, `axiom-scenekit` |
+| 文档 | 是什么 | 何时查阅 |
+|------|--------|----------|
+| **ARCHITECTURE.md** | 模块职责、数据流、Architecture Invariants、跨模块通信 | 任何代码改动前 |
+| **docs/ui-coding-standards.md** | UI Token、玻璃形状、hover、accessibility 编码约束 | 任何 UI / Design Preview 改动前 |
+| **DesignPreview/AGENTS.md** | Fake UX 与 Design Preview 专项规范 | 修改 DesignPreview 目标时 |
+| **docs/quality_gates.md** | 一个改动怎样才算可接受 | 提交代码前自查 |
+
+### 产品与规范
+
+| 文档 | 是什么 | 何时查阅 |
+|------|--------|----------|
+| `docs/product_philosophy.md` | 产品灵魂、三种播放模式的体验愿景 | 做设计决策时 |
+| `docs/brainstorms/*-requirements.md` | 各功能的需求探索与验收边界 | 接新需求、判断功能是否越界 |
+| `docs/quality_gates.md` | 一个改动怎样才算"可接受" | 提交代码前自查 |
+| `docs/ubiquitous_language.md` | 项目统一术语表 | 命名类、方法、变量时 |
+| `docs/contracts/` | 契约规范 + OpenAPI + Mock 数据 | 改远程数据模型、接口或协作边界时 |
+
+### docs/ 子目录
+
+| 目录 | 是什么 | 何时查阅 |
+|------|--------|----------|
+| `docs/plans/active/` | 进行中的 ExecPlan、TestPlan、ResearchPlan、Arch Review | 接手任务或继续未完成工作时 |
+| `docs/plans/complete/` | 已完成的计划（待归档） | 需要了解近期已完成的迭代 |
+| `docs/brainstorms/` | 需求探索与头脑风暴（含 requirements） | 规划新功能、回溯需求来源时 |
+| `docs/designs/` | HTML 设计稿与视觉原型 | 实现 UI 时对照设计 |
+| `docs/reference/` | 技术调查报告（investigation）、构建指南 | 需要某领域的调查结论时 |
+| `docs/solutions/best-practices/` | 经验沉淀：踩坑记录、架构模式、流程最佳实践 | 遇到类似问题时避免重蹈覆辙 |
+| `docs/solutions/build-errors/` | 构建错误的诊断与修复方案 | 遇到构建报错时 |
+| `docs/qa-reports/` | QA 报告 + 截图证据 | 回顾测试结果、追溯 bug 修复 |
+| `docs/archive/` | 归档区：已完成的 ExecPlan、已解决的 issues、DDD 建模历史 | 需要历史上下文时 |
+
+文档优先级（冲突时）：product_philosophy > brainstorms/*-requirements > quality_gates > ARCHITECTURE > 其余。
+
+---
 
 
 ## Review guidelines

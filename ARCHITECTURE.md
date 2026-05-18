@@ -7,7 +7,7 @@
 2. 某类需求或 bug 应该先去哪个模块、哪个入口看
 3. 哪些边界是稳定的，不能因为一时方便被绕过
 
-它不是 phase1~4 设计文档的摘要，也不是实现细节手册这里只记录高层结构、稳定职责、跨模块边界和故意不存在的东西具体实现细节、回归项、测试步骤分别看： `workspace-agents/design_docs/`、`REGRESSION.md`、`TESTING.md`
+它不是 phase1~4 设计文档的摘要，也不是实现细节手册这里只记录高层结构、稳定职责、跨模块边界和故意不存在的东西。具体实现细节、UI 编码约束、体验验证记录分别看：`docs/designs/`、`docs/ui-coding-standards.md`、`docs/qa-reports/`
 
 
 ## Bird's Eye View
@@ -59,12 +59,12 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 这里包含：
 
-- 播放控件，如 `PlayerControlsView`
-- 详细时间轴，如 `DetailedTimelineView`
+- 播放控件，如 `PlayerControlsView`（含统一时间轴、精确时间标签、逐帧步进）
+- 视频详情页，如 `VideoDetailView`（元数据展示、轨道选择、播放确认）
 - 纯界面侧计算，如 `DetailedTimelineGeometry`
 - 手势消歧与模式决策值对象
 
-如果问题是“控件表现不对”“时间轴交互退化”“窗口/沉浸/全景切换规则有误”，先看这里
+如果问题是”控件表现不对””时间轴交互退化””窗口/沉浸/全景切换规则有误”，先看这里
 
 ### `FileBrowsing`
 
@@ -162,7 +162,7 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 - `PlayerUI` 具备播放模式决策入口；`PlaybackCore` 和 `SpatialScene` 不具备这个入口
 - `PlayerUI` 不具备直接控制 mpv 或远程协议 adapter 的功能
-- 二级进度条是核心交互资产，为了高性能地实现这个功能，可以在一定程度上突破架构限制
+- 统一时间轴（含精确时间标签和逐帧步进）是核心交互资产，为了高性能地实现这个功能，可以在一定程度上突破架构限制
 
 ### FileBrowsing
 
@@ -186,6 +186,7 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 - 系统中不存在绕开 `PlaybackLaunchCoordinator` 的合法播放启动路径
 - `App` 负责组装，不具备承载各业务上下文内部长期规则的职责
+- 系统中不存在绕开 `appModel.immersiveSpaceRequest` + MainView 处理器直接调用 `openImmersiveSpace` / `dismissImmersiveSpace` 的合法路径。`SceneSelectorView`、`ToggleImmersiveSpaceButton` 已迁移为 request 路由。所有沉浸空间生命周期管理统一在 MainView 的 `onChange(of: appModel.immersiveSpaceRequest)` 中处理。
 
 
 ## Cross-Cutting Concerns
@@ -202,7 +203,7 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 ### 统一术语
 
-代码命名应与 `workspace-agents/ubiquitous_language.md` 对齐最容易混淆的是：
+代码命名应与 `docs/ubiquitous_language.md` 对齐最容易混淆的是：
 
 - `MediaFile` 在 `FileBrowsing` 和 `PlaybackCore` 中不是同一个概念
 - `DataSource` 是文件来源实体，`DataSourceConnecting` 是连接 port
@@ -211,11 +212,11 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 
 本项目需要持续维护“前端”和“后端”之间的契约文档与 API 参考。
 
-规范性边界、协作规则、变更策略看 `workspace-agents/contracts/frontend-backend-contract.md`。
+规范性边界、协作规则、变更策略看 `docs/contracts/frontend-backend-contract.md`。
 
-具体接口、schema、错误结构和样例看 `workspace-agents/contracts/`。
+具体接口、schema、错误结构和样例看 `docs/contracts/`。
 
-凡是远程数据模型、字段语义、错误结构或交互流程发生变化，都应同步更新并维护 `workspace-agents/contracts/`，使契约与实现保持长期一致，而不是只在某次改动时临时补写。
+凡是远程数据模型、字段语义、错误结构或交互流程发生变化，都应同步更新并维护 `docs/contracts/`，使契约与实现保持长期一致，而不是只在某次改动时临时补写。
 
 ### 测试与真机验证
 
@@ -240,9 +241,9 @@ Enchron 是一个面向 visionOS 的原生沉浸式视频播放器用户从本�
 按下面顺序读最省时间：
 
 1. 先读本文，建立心智地图和边界感
-2. 再读 `workspace-agents/product_philosophy.md`，理解体验目标
-3. 改代码前读 `REGRESSION.md`，知道这次改动会触发哪些回归项
-4. 验证时读 `TESTING.md`，按双轨体系执行
-5. 需要深入某个设计背景时，再进入 `workspace-agents/design_docs/phase1~4`
+2. 再读 `docs/product_philosophy.md`，理解体验目标
+3. UI / Design Preview 改动前读 `docs/ui-coding-standards.md` 和就近 `AGENTS.md`
+4. 验证时按改动范围选择自动构建、Simulator 检查或人类真机验证清单
+5. 需要深入某个设计背景时，再进入 `docs/design_docs/phase1~4`
 
 phase1~4 设计文档是历史设计与推演材料；本文是当前项目的高层事实表述两者冲突时，以本文和当前代码边界为准；如果本文失真，应先修本文，再继续扩展实现

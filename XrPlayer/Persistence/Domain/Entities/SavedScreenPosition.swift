@@ -14,9 +14,9 @@ extension PersistenceDomain {
             viewAngleDegrees: Double
         ) {
             self.environmentID = environmentID
-            self.distanceMeters = distanceMeters
-            self.verticalOffsetMeters = verticalOffsetMeters
-            self.viewAngleDegrees = viewAngleDegrees
+            self.distanceMeters = min(max(distanceMeters, 2.0), 20.0)
+            self.verticalOffsetMeters = min(max(verticalOffsetMeters, -5.0), 5.0)
+            self.viewAngleDegrees = min(max(viewAngleDegrees, -45.0), 45.0)
         }
     }
 }

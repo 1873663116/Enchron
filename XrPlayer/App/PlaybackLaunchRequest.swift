@@ -33,7 +33,8 @@ public struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
     }
 }
 
-public struct PlaybackLaunchRequest: Sendable, Equatable {
+public struct PlaybackLaunchRequest: Sendable, Equatable, Identifiable {
+    public let id: URL
     public let url: URL
     public let displayName: String
     public let fileIdentifier: PersistenceDomain.FileIdentifier?
@@ -45,6 +46,7 @@ public struct PlaybackLaunchRequest: Sendable, Equatable {
         fileIdentifier: PersistenceDomain.FileIdentifier? = nil,
         initialMetadata: PlaybackMediaMetadata? = nil
     ) {
+        self.id = url
         self.url = url
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier

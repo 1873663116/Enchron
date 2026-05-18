@@ -4,6 +4,7 @@ public struct FolderListView: View {
     public let folders: [FileBrowsingDomain.MediaFolder]
     public let files: [FileBrowsingDomain.MediaFile]
     public let isLoading: Bool
+    public let fileWatchedSeconds: [UUID: Double]
     public let onFolderSelected: (FileBrowsingDomain.MediaFolder) -> Void
     public let onFileSelected: (FileBrowsingDomain.MediaFile) -> Void
     public let onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)?
@@ -26,6 +27,7 @@ public struct FolderListView: View {
         folders: [FileBrowsingDomain.MediaFolder] = [],
         files: [FileBrowsingDomain.MediaFile],
         isLoading: Bool = false,
+        fileWatchedSeconds: [UUID: Double] = [:],
         onFolderSelected: @escaping (FileBrowsingDomain.MediaFolder) -> Void = { _ in },
         onFileSelected: @escaping (FileBrowsingDomain.MediaFile) -> Void,
         onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)? = nil
@@ -33,6 +35,7 @@ public struct FolderListView: View {
         self.folders = folders
         self.files = files
         self.isLoading = isLoading
+        self.fileWatchedSeconds = fileWatchedSeconds
         self.onFolderSelected = onFolderSelected
         self.onFileSelected = onFileSelected
         self.onFileDeleted = onFileDeleted
@@ -46,7 +49,7 @@ public struct FolderListView: View {
         } else if folders.isEmpty && files.isEmpty {
             VStack(spacing: 20) {
                 Image(systemName: "folder.badge.questionmark")
-                    .font(.system(size: 60))
+                    .font(DesignTokens.SymbolSize.giant)
                     .foregroundStyle(.secondary)
                 Text("No folders or playable videos found.")
                     .font(.headline)
@@ -56,6 +59,8 @@ public struct FolderListView: View {
                     .multilineTextAlignment(.center)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding()
+            .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
         } else {
             List {
                 if folders.isEmpty == false {
@@ -90,6 +95,9 @@ public struct FolderListView: View {
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
+                            .accessibilityLabel("\(folder.name), folder")
+                            .accessibilityHint("Opens folder contents")
+                            .accessibilityIdentifier("FileBrowsing-FolderList-button-folder-\(folder.id)")
                         }
                     }
                 }
@@ -118,11 +126,31 @@ public struct FolderListView: View {
                                         }
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
+
+                                        if let seconds = fileWatchedSeconds[file.id] {
+                                            HStack(spacing: 4) {
+                                                Circle()
+                                                    .fill(.orange)
+                                                    .frame(width: 6, height: 6)
+                                                Text("Watched \(Self.formatWatchedTime(seconds))")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.orange)
+                                            }
+                                        }
                                     }
                                 }
                                 .padding(.vertical, 4)
                                 .contentShape(Rectangle())
                             }
+                            .accessibilityLabel({
+                                var label = file.name
+                                if let seconds = fileWatchedSeconds[file.id] {
+                                    label += ", watched \(Self.formatWatchedTime(seconds))"
+                                }
+                                return label
+                            }())
+                            .accessibilityHint("Opens video details")
+                            .accessibilityIdentifier("FileBrowsing-FolderList-button-file-\(file.id)")
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 if let onFileDeleted {
                                     Button(role: .destructive) {
@@ -140,6 +168,17 @@ public struct FolderListView: View {
         }
     }
     
+    private static func formatWatchedTime(_ totalSeconds: Double) -> String {
+        let seconds = Int(totalSeconds)
+        let h = seconds / 3600
+        let m = (seconds % 3600) / 60
+        let s = seconds % 60
+        if h > 0 {
+            return String(format: "%d:%02d:%02d", h, m, s)
+        }
+        return String(format: "%d:%02d", m, s)
+    }
+
     private func fileIcon(for extension: String) -> Image {
         switch `extension`.lowercased() {
         case "mp4", "mov", "m4v":

@@ -1,24 +1,129 @@
 import SwiftUI
 import RealityKit
+import UIKit
 
 public struct MainView: View {
     @Environment(AppModel.self) var appModel
     @Environment(WindowVideoViewModel.self) var windowVideoViewModel
     @Environment(PlaybackLaunchCoordinator.self) var playbackLauncher
+    @Environment(\.openImmersiveSpace) private var openImmersiveSpace
+    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
+    @Environment(PanoramaLayerBridge.self) var panoramaBridge
 
     public init() {}
 
+    private var isWindowPlaybackActive: Bool {
+        appModel.isPlaying && appModel.playbackMode == .window
+    }
+
+    private var shouldShowPlayerControls: Bool {
+        appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls && appModel.playbackMode == .window
+    }
+
+    // MARK: - Player Menu Panels (window-space overlay)
+
+    /// Menu panels rendered in window space so they aren't clipped by the ornament.
+    /// Follows the same layout as player.html: left menu left-aligned, right settings right-aligned,
+    /// sub-menus extend sideways via padding in a ZStack.
+    @ViewBuilder
+    private var playerMenuPanelsOverlay: some View {
+        HStack(alignment: .top, spacing: 0) {
+            // ── Left: Menu popup + sub-menus (sub extends LEFT) ──
+            if appModel.showPlayerMenuPopup {
+                ZStack(alignment: .topTrailing) {
+                    MenuPopoverContent(activeSubMenu: Bindable(appModel).playerMenuSubMenu)
+
+                    if appModel.playerMenuSubMenu != nil {
+                        MenuPopoverContent.SubMenuOnly(
+                            activeSubMenu: Bindable(appModel).playerMenuSubMenu,
+                            videoViewModel: windowVideoViewModel,
+                            appModel: appModel
+                        )
+                        .fixedSize()
+                        .padding(.trailing, 214)
+                        .transition(.scale(scale: 0.92, anchor: .trailing).combined(with: .opacity))
+                    }
+                }
+            }
+
+            Spacer(minLength: 0)
+
+            // ── Right: Settings popup + sub-menus (sub extends RIGHT) ──
+            if appModel.showPlayerSettingsPopup {
+                ZStack(alignment: .topLeading) {
+                    SettingsPopoverContent(activeSubMenu: Bindable(appModel).playerSettingsSubMenu)
+
+                    if appModel.playerSettingsSubMenu != nil {
+                        SettingsPopoverContent.SubMenuOnly(
+                            activeSubMenu: Bindable(appModel).playerSettingsSubMenu,
+                            appModel: appModel
+                        )
+                        .fixedSize()
+                        .padding(.leading, 224)
+                        .transition(.scale(scale: 0.92, anchor: .leading).combined(with: .opacity))
+                    }
+                }
+            }
+        }
+        .frame(width: DesignTokens.Layout.playerControlsWidth)
+    }
+
     public var body: some View {
         ZStack {
-            AppTabView()
+            // Content area — routed by navigation state.
+            // Kept in tree (not removed via if/else) to preserve NavigationSplitView state.
+            Group {
+                switch appModel.selectedTab {
+                case .browse:
+                    FileBrowserView()
+                case .recent:
+                    RecentlyPlayedView()
+                case .settings:
+                    SettingsView()
+                }
+            }
+            .opacity(isWindowPlaybackActive ? 0 : 1)
+            .allowsHitTesting(!isWindowPlaybackActive)
+            .accessibilityHidden(isWindowPlaybackActive)
 
             // Always-mounted video surface — hidden when not playing,
             // so attachVideoLayer() and native warmup complete before first play.
             ZStack(alignment: .topTrailing) {
-                WindowVideoView(viewModel: windowVideoViewModel)
-                    .glassBackgroundEffect()
-                    .contentShape(Rectangle())
-                    .gesture(
+                GeometryReader { geometry in
+                    WindowVideoView(
+                        viewModel: windowVideoViewModel,
+                        containerSize: geometry.size
+                    )
+                }
+                .glassBackgroundEffect()
+                // Edge vignette — darkens screen edges when controls are visible
+                // so labels remain readable against bright/white video content.
+                // Placed on GeometryReader (same frame as glass background) so it
+                // naturally clips to the window's rounded corners.
+                .overlay {
+                    VStack(spacing: 0) {
+                        LinearGradient(
+                            colors: [.black.opacity(0.65), .clear],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 160)
+                        Spacer()
+                        LinearGradient(
+                            colors: [.clear, .black.opacity(0.55)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .frame(height: 200)
+                    }
+                    .clipShape(DesignTokens.ShapeToken.panel)
+                    .opacity(appModel.showControls && appModel.isPlaying ? 1 : 0)
+                    .allowsHitTesting(false)
+                }
+                .contentShape(Rectangle())
+                .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
                                 if !pinchBegan {
@@ -37,7 +142,7 @@ public struct MainView: View {
                     )
 
                 if windowVideoViewModel.presentationState != .videoVisible {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                         .fill(.black)
                         .transition(.opacity)
                 }
@@ -47,33 +152,62 @@ public struct MainView: View {
                         .progressViewStyle(.circular)
                         .scaleEffect(1.5)
                         .padding(20)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small))
                         .transition(.opacity)
                 }
 
-                if appModel.showControls && appModel.isPlaying {
-                    Button {
-                        playbackLauncher.stopPlayback()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.title3.weight(.bold)) // Thicker icon for better clarity at smaller size
-                            .foregroundStyle(.white)
-                    }
-                    .buttonStyle(PlayerControlSurfaceStyle(size: 48)) // Refined, more elegant size
-                    .padding(24)
-                    .transition(.asymmetric(
-                        insertion: .opacity.combined(with: .scale(scale: 0.8)).combined(with: .offset(y: -10)),
-                        removal: .opacity.combined(with: .scale(scale: 0.8))
-                    ))
+                if windowVideoViewModel.playbackState == .buffering {
+                    ProgressView("Buffering…")
+                        .progressViewStyle(.circular)
+                        .padding(20)
+                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small))
+                        .transition(.opacity)
+                }
+
+            }
+            // Info bar overlay (top-leading)
+            .overlay(alignment: .topLeading) {
+                if appModel.showControls && appModel.isPlaying && appModel.playbackMode == .window {
+                    PlayerInfoBarView()
+                        .padding(.horizontal, 28)
+                        .padding(.top, 20)
+                        .transition(.opacity)
                 }
             }
-            .padding()
-            .opacity(appModel.isPlaying && appModel.playbackMode == .window ? 1 : 0)
-            .scaleEffect(appModel.isPlaying && appModel.playbackMode == .window ? 1.0 : 0.98) // Added focus-in effect
-            .blur(radius: appModel.isPlaying && appModel.playbackMode == .window ? 0 : 4) // Added soft reveal
+            // Player menu panels — rendered in WINDOW space (not in ornament)
+            // so they aren't clipped by ornament bounds. Positioned at window bottom,
+            // visually above the pill ornament (matching player.html absolute positioning).
+            .overlay {
+                if shouldShowPlayerControls && (appModel.showPlayerMenuPopup || appModel.showPlayerSettingsPopup) {
+                    // Full-area tap catcher: blocks interaction with video/seek bar behind menus
+                    // and closes menus on tap-outside (matching player.html click-outside behavior).
+                    // Note: Color.clear doesn't intercept touches on visionOS; use near-invisible black.
+                    Color.black.opacity(0.001)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            withAnimation(MenuAnimation.spring) {
+                                appModel.closeAllPlayerMenus()
+                            }
+                        }
+
+                    VStack {
+                        Spacer()
+                        playerMenuPanelsOverlay
+                            .padding(.bottom, 20)
+                    }
+                    .animation(MenuAnimation.spring, value: appModel.showPlayerMenuPopup)
+                    .animation(MenuAnimation.spring, value: appModel.showPlayerSettingsPopup)
+                    .animation(MenuAnimation.spring, value: appModel.playerMenuSubMenu)
+                    .animation(MenuAnimation.spring, value: appModel.playerSettingsSubMenu)
+                }
+            }
+            .animation(.easeInOut(duration: 0.4), value: appModel.showControls)
+            .opacity(isWindowPlaybackActive ? 1 : 0)
+            .scaleEffect(isWindowPlaybackActive ? 1.0 : 0.98)
+            .blur(radius: isWindowPlaybackActive ? 0 : 4)
             .animation(.spring(response: 0.45, dampingFraction: 0.85), value: appModel.isPlaying)
-            .allowsHitTesting(appModel.isPlaying && appModel.playbackMode == .window)
-            .accessibilityHidden(!(appModel.isPlaying && appModel.playbackMode == .window))
+            .allowsHitTesting(isWindowPlaybackActive)
+            .accessibilityHidden(!isWindowPlaybackActive)
         }
         .alert(
             "Playback Error",
@@ -93,19 +227,29 @@ public struct MainView: View {
             Text(windowVideoViewModel.lastErrorMessage ?? "Unknown playback error")
         }
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
-            if appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls {
-                PlayerControlsView()
-                    .transition(
-                        .asymmetric(
-                            insertion: .opacity
-                                .combined(with: .scale(scale: 0.92, anchor: .bottom))
-                                .combined(with: .offset(y: 20)),
-                            removal: .opacity
-                                .combined(with: .scale(scale: 0.95, anchor: .bottom))
-                                .combined(with: .offset(y: 10))
-                        )
-                    )
-            }
+            PlayerControlsView()
+                // IMPORTANT: Do NOT attach broad .animation() modifiers here.
+                // Doing so propagates the animation transaction into the entire
+                // PlayerControlsView subtree — including SwiftUI Menu popover layers.
+                // When `showControls` or `isPlaying` change, that causes Menu
+                // popover sublayers to be torn down and rebuilt, which manifests as
+                // flickering and broken hit-testing of sub-menus during playback.
+                //
+                // Opacity animations are already driven by withAnimation() at every
+                // call-site that mutates showControls / isPlaying — no redundant
+                // .animation() wrapper is needed here.
+                .opacity(shouldShowPlayerControls ? 1 : 0)
+                .allowsHitTesting(shouldShowPlayerControls)
+        }
+        .ornament(
+            visibility: appModel.isPlaying ? .hidden : .visible,
+            attachmentAnchor: .scene(.leading),
+            contentAlignment: .trailing
+        ) {
+            NavigationOrnament()
+        }
+        .sheet(isPresented: Bindable(appModel).showSceneSelector) {
+            SceneSelectorView()
         }
         .onAppear {
             windowVideoViewModel.gestureUseCase.onGestureResolved = { gesture in
@@ -116,10 +260,10 @@ public struct MainView: View {
                             appModel.registerControlsInteraction()
                             break
                         }
-                        withAnimation { appModel.showControls = false }
+                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = false }
                         controlsTimerTask?.cancel()
                     } else {
-                        withAnimation { appModel.showControls = true }
+                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
                         appModel.registerControlsInteraction()
                         startControlsTimer()
                     }
@@ -131,21 +275,51 @@ public struct MainView: View {
                     } else {
                         windowVideoViewModel.resume()
                     }
-                case .longPress, .drag:
+                case .drag:
+                    seekStartSeconds = windowVideoViewModel.playbackPosition.seconds
+                    if !appModel.showControls {
+                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
+                        appModel.registerControlsInteraction()
+                        startControlsTimer()
+                    }
+                case .longPress:
                     break
                 }
             }
 
             windowVideoViewModel.gestureUseCase.onLongPressBegan = {
+                speedBeforeLongPress = appModel.playbackSpeed
                 windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(2.0))
             }
             windowVideoViewModel.gestureUseCase.onLongPressEnded = {
-                windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(1.0))
+                windowVideoViewModel.setSpeed(speedBeforeLongPress ?? .default)
+                speedBeforeLongPress = nil
+            }
+
+            windowVideoViewModel.gestureUseCase.onDragUpdate = { translation in
+                guard let startPos = seekStartSeconds else { return }
+                let duration = windowVideoViewModel.playbackPosition.duration
+                guard duration > 0 else { return }
+                let seekDelta = Double(translation.width) * 0.15
+                let target = max(0, min(duration, startPos + seekDelta))
+                windowVideoViewModel.seek(to: target)
+                appModel.registerControlsInteraction()
+            }
+            windowVideoViewModel.gestureUseCase.onDragEnded = {
+                seekStartSeconds = nil
             }
 
             windowVideoViewModel.onPlaybackEnded = {
-                withAnimation { appModel.showControls = true }
-                controlsTimerTask?.cancel()
+                let shouldShowControls = playbackLauncher.handlePlaybackEnded(
+                    onFallbackShowControls: {
+                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
+                        controlsTimerTask?.cancel()
+                    }
+                )
+                if shouldShowControls {
+                    withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
+                    controlsTimerTask?.cancel()
+                }
             }
 
             if appModel.isPlaying {
@@ -155,14 +329,117 @@ public struct MainView: View {
         .onChange(of: appModel.isPlaying) { _, isPlaying in
             if isPlaying {
                 appModel.registerControlsInteraction()
-                appModel.showControls = true
+                withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
                 startControlsTimer()
+            }
+            updateWindowResizingRestrictions(isPlaying: isPlaying)
+        }
+        .onChange(of: appModel.playbackMode) { oldMode, newMode in
+            guard appModel.isPlaying else { return }
+            let needsImmersive = newMode == .panorama || newMode == .immersive
+            let oldNeedsImmersive = oldMode == .panorama || oldMode == .immersive
+            // Only transition when immersive requirement actually changes
+            guard needsImmersive != oldNeedsImmersive else { return }
+            Task { @MainActor in
+                // Detach panorama bridge before dismissing old immersive space
+                if oldNeedsImmersive {
+                    panoramaBridge.attachVideoLayer(nil)
+                }
+
+                if needsImmersive && appModel.immersiveSpaceState == .closed {
+                    await openImmersiveSpaceUnified()
+                } else if !needsImmersive && appModel.immersiveSpaceState == .open {
+                    appModel.isTransitioningPlaybackMode = true
+                    appModel.immersiveSpaceState = .inTransition
+                    await dismissImmersiveSpace()
+                    openWindow(id: "main")
+                    appModel.isTransitioningPlaybackMode = false
+                }
+            }
+        }
+        .onChange(of: appModel.immersiveSpaceRequest) { _, request in
+            // Unified entry point for sub-views (SceneSelectorView, ToggleImmersiveSpaceButton)
+            // that cannot call openImmersiveSpace directly per Architecture Invariant.
+            guard let request else { return }
+            appModel.immersiveSpaceRequest = nil
+            Task { @MainActor in
+                switch request {
+                case .open:
+                    await openImmersiveSpaceUnified()
+                case .dismiss:
+                    guard appModel.immersiveSpaceState == .open else { return }
+                    appModel.isTransitioningPlaybackMode = true
+                    appModel.immersiveSpaceState = .inTransition
+                    await dismissImmersiveSpace()
+                    openWindow(id: "main")
+                    dismissWindow(id: "playerControls")
+                    appModel.isTransitioningPlaybackMode = false
+                }
+            }
+        }
+        .onChange(of: appModel.playbackMode != .window) { _, shouldShow in
+            // P1 #1 fix: serialize window operations to prevent race on rapid mode transitions.
+            // §5.9d: removed isPlaying gate — paused state can also summon controls.
+            guard !appModel.isTransitioningPlaybackMode else { return }
+            playerControlsWindowTask?.cancel()
+            playerControlsWindowTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(100))
+                guard !Task.isCancelled else { return }
+                if shouldShow {
+                    openWindow(id: "playerControls")
+                } else {
+                    dismissWindow(id: "playerControls")
+                }
             }
         }
     }
 
+    // MARK: - Unified Immersive Space Entry (§5.9a)
+
+    /// Single canonical site where openImmersiveSpace is called.
+    /// All sub-views route through appModel.immersiveSpaceRequest,
+    /// which is observed here and dispatched to this function.
+    @MainActor
+    private func openImmersiveSpaceUnified() async {
+        appModel.isTransitioningPlaybackMode = true
+        appModel.immersiveSpaceState = .inTransition
+        appModel.isFullImmersion = true   // §5.9c: ensure full/exclusive immersion on every entry
+        switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
+        case .opened:
+            // Attach video layer for panorama/immersive rendering
+            let layer = windowVideoViewModel.nativeVideoLayer
+            panoramaBridge.attachVideoLayer(layer)
+            // §5.9b: mark state as open before dismissing main window
+            appModel.immersiveSpaceState = .open
+            dismissWindow(id: "main")
+        case .userCancelled, .error:
+            fallthrough
+        @unknown default:
+            // §5.9b: keep main window visible on failure
+            appModel.immersiveSpaceState = .closed
+            appModel.updatePlaybackMode(.window)
+        }
+        appModel.isTransitioningPlaybackMode = false
+    }
+
     @State private var controlsTimerTask: Task<Void, Never>?
+    @State private var playerControlsWindowTask: Task<Void, Never>?
     @State private var pinchBegan = false
+    @State private var speedBeforeLongPress: PlaybackCoreDomain.PlaybackSpeed?
+    @State private var seekStartSeconds: Double?
+
+    /// Switches visionOS window resizing between uniform (aspect-ratio-locked)
+    /// during playback and freeform when browsing files.
+    /// Uses Apple's `UIWindowScene.GeometryPreferences.Vision` API.
+    private func updateWindowResizingRestrictions(isPlaying: Bool) {
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .first(where: { $0 is UIWindowScene }) as? UIWindowScene
+        else { return }
+        let restrictions: UIWindowScene.ResizingRestrictions = isPlaying ? .uniform : .freeform
+        windowScene.requestGeometryUpdate(
+            .Vision(resizingRestrictions: restrictions)
+        )
+    }
 
     private func startControlsTimer() {
         controlsTimerTask?.cancel()
@@ -174,8 +451,8 @@ public struct MainView: View {
                 guard appModel.canAutoHideControls else { continue }
 
                 let idleTime = Date().timeIntervalSince(appModel.lastControlsInteractionAt)
-                if idleTime >= 3 {
-                    withAnimation {
+                if idleTime >= 8 {
+                    withAnimation(.easeInOut(duration: 0.4)) {
                         appModel.showControls = false
                     }
                     return
@@ -202,4 +479,5 @@ public struct MainView: View {
         .environment(fileBrowsingViewModel)
         .environment(launcher)
         .environment(PanoramaLayerBridge())
+        .environment(ThumbnailService.shared)
 }

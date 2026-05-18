@@ -2,6 +2,8 @@ import Foundation
 
 public protocol PlaybackControlling: AnyObject {
     func play(url: URL) async throws
+    /// Loads a file for track enumeration without starting playback.
+    func loadPaused(url: URL) async throws
     func pause()
     func resume()
     func stop()
