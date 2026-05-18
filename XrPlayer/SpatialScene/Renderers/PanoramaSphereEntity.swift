@@ -36,10 +36,23 @@ enum PanoramaSphereEntity {
         projection: PanoramaProjection = .full360,
         radius: Float = defaultRadius
     ) -> Entity {
-        // RealityKit's generateSphere always produces a full sphere.
-        // For 180° we still use the full sphere but clip via texture
-        // coordinates in a future iteration. The API is ready for it.
-        let mesh = MeshResource.generateSphere(radius: radius)
+        let mesh: MeshResource
+        switch projection {
+        case .full360:
+            mesh = MeshResource.generateSphere(radius: radius)
+        case .front180:
+            let config = SpatialSceneDomain.HemisphereMeshConfiguration(radius: radius)
+            do {
+                mesh = try generateHemisphereMesh(
+                    radius: config.radius,
+                    stacks: config.stacks,
+                    slices: config.slices
+                )
+            } catch {
+                print("[PanoramaSphere] hemisphere_mesh_failed error=\(error), falling back to full sphere")
+                mesh = MeshResource.generateSphere(radius: radius)
+            }
+        }
 
         var material = UnlitMaterial(applyPostProcessToneMap: false)
         if let textureResource {
@@ -51,11 +64,85 @@ enum PanoramaSphereEntity {
 
         let entity = Entity()
         entity.components.set(ModelComponent(mesh: mesh, materials: [material]))
+        entity.components.set(InputTargetComponent(allowedInputTypes: .indirect))
+        entity.components.set(CollisionComponent(shapes: [.generateSphere(radius: radius)]))
 
         // Flip X scale to invert normals → texture renders on the inside.
         entity.scale.x *= -1
 
         return entity
+    }
+
+    /// Generates a custom hemisphere mesh covering the front 180° field of view.
+    ///
+    /// - Parameters:
+    ///   - radius: Sphere radius in metres.
+    ///   - stacks: Number of vertical subdivisions (latitude).
+    ///   - slices: Number of horizontal subdivisions (longitude).
+    /// - Returns: A `MeshResource` representing the front hemisphere.
+    ///
+    /// Longitude spans -π/2 to π/2 (front hemisphere).
+    /// Latitude spans -π/2 to π/2 (full vertical range).
+    /// UV mapping covers 0...1 in both axes so the full texture maps
+    /// onto the hemisphere surface.
+    static func generateHemisphereMesh(
+        radius: Float,
+        stacks: Int = 64,
+        slices: Int = 64
+    ) throws -> MeshResource {
+        var positions: [SIMD3<Float>] = []
+        var normals: [SIMD3<Float>] = []
+        var uvs: [SIMD2<Float>] = []
+
+        for stack in 0...stacks {
+            let v = Float(stack) / Float(stacks)        // 0...1
+            let lat = Float.pi / 2 - v * Float.pi       // π/2 to -π/2 (top to bottom)
+
+            for slice in 0...slices {
+                let u = Float(slice) / Float(slices)     // 0...1
+                let lon = -Float.pi / 2 + u * Float.pi   // -π/2 to π/2 (front hemisphere)
+
+                let x = radius * cos(lat) * sin(lon)
+                let y = radius * sin(lat)
+                let z = radius * cos(lat) * cos(lon)
+
+                positions.append(SIMD3(x, y, z))
+                normals.append(normalize(SIMD3(x, y, z)))
+                // Map UV to front-half of equirectangular texture: U=[0.25,0.75]
+                let textureU = 0.25 + u * 0.5
+                uvs.append(SIMD2(textureU, 1.0 - v))
+            }
+        }
+
+        // Standard grid triangulation
+        var indices: [UInt32] = []
+        let vertsPerRow = UInt32(slices + 1)
+        for stack in 0..<UInt32(stacks) {
+            for slice in 0..<UInt32(slices) {
+                let topLeft = stack * vertsPerRow + slice
+                let topRight = topLeft + 1
+                let bottomLeft = (stack + 1) * vertsPerRow + slice
+                let bottomRight = bottomLeft + 1
+
+                // First triangle
+                indices.append(topLeft)
+                indices.append(bottomLeft)
+                indices.append(topRight)
+
+                // Second triangle
+                indices.append(topRight)
+                indices.append(bottomLeft)
+                indices.append(bottomRight)
+            }
+        }
+
+        var descriptor = MeshDescriptor(name: "hemisphere")
+        descriptor.positions = MeshBuffers.Positions(positions)
+        descriptor.normals = MeshBuffers.Normals(normals)
+        descriptor.textureCoordinates = MeshBuffers.TextureCoordinates(uvs)
+        descriptor.primitives = .triangles(indices)
+
+        return try MeshResource.generate(from: [descriptor])
     }
 
     /// Updates the material's base-colour texture on an existing sphere

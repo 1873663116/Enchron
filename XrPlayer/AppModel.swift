@@ -4,15 +4,36 @@ import Observation
 @MainActor
 @Observable
 public final class AppModel {
-    // MARK: - Navigation & Space State
+    // MARK: - Navigation State
+    public enum NavigationTab: String, CaseIterable {
+        case browse, recent, settings
+    }
+    public var selectedTab: NavigationTab = .browse
+    public var showSceneSelector: Bool = false
+
+    // MARK: - Immersive Space State
     public let immersiveSpaceID = "ImmersiveSpace"
-    
+
     public enum ImmersiveSpaceState {
         case closed
         case inTransition
         case open
     }
     public var immersiveSpaceState: ImmersiveSpaceState = .closed
+
+    /// Pending immersive space action requested by sub-views.
+    /// MainView observes this and executes the actual open/dismiss call,
+    /// then resets it to nil. This ensures a single canonical entry point.
+    public enum ImmersiveSpaceRequest {
+        case open
+        case dismiss
+    }
+    public var immersiveSpaceRequest: ImmersiveSpaceRequest? = nil
+
+    /// True while a playback-mode transition is in progress (immersive space
+    /// opening or closing). Gates playerControls window open/close and
+    /// prevents concurrent menu operations.
+    public var isTransitioningPlaybackMode: Bool = false
     
     // MARK: - Playback State
     public var playbackState: PlaybackCoreDomain.PlaybackState = .idle
@@ -20,6 +41,26 @@ public final class AppModel {
     public var playbackSpeed: PlaybackCoreDomain.PlaybackSpeed = .default
     public var mediaProfile: PlaybackCoreDomain.MediaProfile?
     public var playbackMode: PlaybackMode = .window
+    public var detectedProjectionType: PlaybackCoreDomain.ProjectionType = .flat
+    public var projectionOverride: PlaybackCoreDomain.ProjectionType? = nil
+    public var detectedStereoLayout: PlaybackCoreDomain.StereoLayout = .mono
+    /// User-selected 3D mode override. nil = Auto (follows detectedStereoLayout).
+    /// .mono = 3D Off (stereoCropMode = nil). .sideBySide/.topBottom = force that layout.
+    public var stereoLayoutOverride: PlaybackCoreDomain.StereoLayout? = nil
+
+    public var effectiveProjectionType: PlaybackCoreDomain.ProjectionType {
+        projectionOverride ?? detectedProjectionType
+    }
+
+    /// The stereo layout that should drive the render pipeline (override takes precedence).
+    public var effectiveStereoLayout: PlaybackCoreDomain.StereoLayout {
+        stereoLayoutOverride ?? detectedStereoLayout
+    }
+
+    public var isStereoContent: Bool {
+        detectedStereoLayout != .mono
+    }
+
     public var isPlaying: Bool = false
     public var currentPlaybackURL: URL?
     public var showControls: Bool = true
@@ -27,13 +68,40 @@ public final class AppModel {
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
 
+    // MARK: - Player Menu State (shared between ornament buttons + window overlay panels)
+    var showPlayerMenuPopup: Bool = false
+    var showPlayerSettingsPopup: Bool = false
+    var playerMenuSubMenu: MenuSubMenu? = nil
+    var playerSettingsSubMenu: SettingsSubMenu? = nil
+
+    func closeAllPlayerMenus() {
+        showPlayerMenuPopup = false
+        showPlayerSettingsPopup = false
+        playerMenuSubMenu = nil
+        playerSettingsSubMenu = nil
+    }
+
     // MARK: - Debug Controls
     public var showDebugPanel: Bool = false
-    
+
     // MARK: - Current Media
     public var currentMedia: PlaybackCoreDomain.MediaFile?
-    
-    public init() {}
+
+    // MARK: - Screen Position State (Immersive Mode)
+    public var screenDistance: Double = 8.0
+    public var screenVerticalOffset: Double = 0.0
+    public var screenViewAngle: Double = 0.0
+
+    // MARK: - Immersive Cinema State
+    public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
+    public var screenShape: SpatialSceneDomain.ScreenGeometry = .flat(width: 2.4, height: 1.35)
+    public var isFullImmersion: Bool = true
+
+    private let screenPositionStore: ScreenPositionStoring
+
+    public init(screenPositionStore: ScreenPositionStoring = SwiftDataStore()) {
+        self.screenPositionStore = screenPositionStore
+    }
     
     // MARK: - Actions
     public func updatePlaybackState(_ state: PlaybackCoreDomain.PlaybackState) {
@@ -56,13 +124,61 @@ public final class AppModel {
         playbackMode = mode
     }
 
+    public func updateDetectedProjection(
+        _ type: PlaybackCoreDomain.ProjectionType,
+        stereoLayout: PlaybackCoreDomain.StereoLayout = .mono
+    ) {
+        detectedProjectionType = type
+        detectedStereoLayout = stereoLayout
+        // Clear override when new media detected
+        projectionOverride = nil
+        // Auto-route playback mode based on detected content type
+        autoRoutePlaybackMode()
+    }
+
+    private static let modeDecider = DecidePlaybackModeUseCase()
+
+    private func autoRoutePlaybackMode() {
+        guard let profile = mediaProfile else { return }
+        // Use effectiveProjectionType (respects user override) for routing
+        // Include detectedStereoLayout so flat-SBS/TopBottom content routes to immersive
+        let routingProfile = PlaybackCoreDomain.MediaProfile(
+            projectionType: effectiveProjectionType,
+            stereoLayout: detectedStereoLayout,
+            hdrType: profile.hdrType,
+            resolution: profile.resolution,
+            frameRate: profile.frameRate
+        )
+        let decidedMode = Self.modeDecider.decideMode(
+            for: routingProfile,
+            isEnvironmentActive: immersiveSpaceState == .open,
+            manualOverride: nil
+        )
+        if decidedMode != playbackMode {
+            playbackMode = decidedMode
+        }
+    }
+
+    public func setProjectionOverride(_ type: PlaybackCoreDomain.ProjectionType?) {
+        projectionOverride = type
+        autoRoutePlaybackMode()
+    }
+
+    public func setStereoLayoutOverride(_ layout: PlaybackCoreDomain.StereoLayout?) {
+        stereoLayoutOverride = layout
+    }
+
     public func startPlayback(url: URL) {
         currentPlaybackURL = url
         isPlaying = true
         playbackState = .loading
         playbackPosition = .init(seconds: 0, duration: 0)
         mediaProfile = nil
-        showControls = true
+        projectionOverride = nil
+        stereoLayoutOverride = nil
+        detectedProjectionType = .flat
+        detectedStereoLayout = .mono
+        withAnimation(.easeInOut(duration: 0.4)) { showControls = true }
         registerControlsInteraction()
     }
 
@@ -88,5 +204,56 @@ public final class AppModel {
 
     public var canAutoHideControls: Bool {
         showControls && isControlsFocused == false
+    }
+
+    // MARK: - Screen Position Persistence
+
+    public func loadScreenPosition() async {
+        let envID = currentCinemaEnvironment.rawValue
+        if let saved = await screenPositionStore.loadPosition(for: envID) {
+            screenDistance = saved.distanceMeters
+            screenVerticalOffset = saved.verticalOffsetMeters
+            screenViewAngle = saved.viewAngleDegrees
+        } else {
+            // Reset to defaults when no saved position exists for this environment
+            screenDistance = 8.0
+            screenVerticalOffset = 0.0
+            screenViewAngle = 0.0
+        }
+    }
+
+    public func saveScreenPosition() {
+        let envID = currentCinemaEnvironment.rawValue
+        let store = screenPositionStore
+        let distance = screenDistance
+        let verticalOffset = screenVerticalOffset
+        let viewAngle = screenViewAngle
+        Task.detached(priority: .utility) {
+            await store.savePosition(
+                for: envID,
+                distanceMeters: distance,
+                verticalOffsetMeters: verticalOffset,
+                angleDegrees: viewAngle
+            )
+        }
+    }
+
+    /// Request to open the immersive space via the unified MainView handler.
+    public func requestImmersiveSpace() {
+        guard immersiveSpaceState == .closed else { return }
+        immersiveSpaceRequest = .open
+    }
+
+    /// Request to dismiss the immersive space via the unified MainView handler.
+    public func requestDismissImmersiveSpace() {
+        guard immersiveSpaceState == .open else { return }
+        immersiveSpaceRequest = .dismiss
+    }
+
+    public func switchEnvironment(to environment: SpatialSceneDomain.CinemaEnvironment) async {
+        guard environment != currentCinemaEnvironment else { return }
+        saveScreenPosition()
+        currentCinemaEnvironment = environment
+        await loadScreenPosition()
     }
 }

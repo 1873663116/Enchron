@@ -1,66 +1,92 @@
 import SwiftUI
 
 public struct SceneSelectorView: View {
-    @State private var selectedEnvironmentIndex: Int?
+    @Environment(AppModel.self) var appModel
+    @Environment(\.dismiss) private var dismiss
 
     let columns = [
         GridItem(.adaptive(minimum: 200))
     ]
-    
+
     public init() {}
-    
+
     public var body: some View {
+        NavigationStack {
         VStack {
             ToggleImmersiveSpaceButton()
                 .padding(.vertical, 24)
-            
+
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 32) { // Increased breathing room
-                    ForEach(0..<4) { index in
+                LazyVGrid(columns: columns, spacing: 32) {
+                    ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { environment in
+                        let isSelected = appModel.currentCinemaEnvironment == environment
                         Button {
-                            selectedEnvironmentIndex = index
+                            Task {
+                                await appModel.switchEnvironment(to: environment)
+                                // §5.9a: route through unified entry in MainView
+                                appModel.requestImmersiveSpace()
+                            }
                         } label: {
                             VStack(alignment: .leading, spacing: 12) {
-                                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                                    .fill(.ultraThinMaterial)
+                                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+                                    .fill(.clear)
                                     .aspectRatio(16/9, contentMode: .fill)
+                                    .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
                                     .overlay {
                                         ZStack {
-                                            if selectedEnvironmentIndex == index {
-                                                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                            if isSelected {
+                                                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                                                     .stroke(Color.accentColor, lineWidth: 3)
                                                     .blur(radius: 2)
                                             }
-                                            
-                                            Image(systemName: "moon.stars")
-                                                .font(.system(size: 44))
-                                                .foregroundStyle(selectedEnvironmentIndex == index ? Color.accentColor : .primary)
+
+                                            Image(systemName: iconName(for: environment))
+                                                .font(DesignTokens.SymbolSize.feature)
+                                                .foregroundStyle(isSelected ? Color.accentColor : .primary)
                                         }
                                     }
-                                    .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                                    .hoverEffect()
-                                
-                                Text("Environment \(index + 1)")
+                                    .contentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+                                    .hoverEffect(.lift)
+
+                                Text(environment.displayName)
                                     .font(.headline)
                                     .padding(.leading, 8)
-                                    .foregroundStyle(selectedEnvironmentIndex == index ? Color.accentColor : .primary)
+                                    .foregroundStyle(isSelected ? Color.accentColor : .primary)
                             }
                         }
                         .buttonStyle(.plain)
-                        .scaleEffect(selectedEnvironmentIndex == index ? 1.02 : 1.0)
-                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: selectedEnvironmentIndex)
+                        .scaleEffect(isSelected ? 1.02 : 1.0)
+                        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: appModel.currentCinemaEnvironment)
+                        .accessibilityIdentifier("SpatialScene-Selector-button-\(environment.rawValue)")
+                        .accessibilityLabel(environment.displayName)
+                        .accessibilityHint(isSelected ? "Currently selected" : "Selects this cinema environment")
+                        .accessibilityAddTraits(isSelected ? .isSelected : [])
                     }
                 }
                 .padding(32)
             }
 
-            if let selectedEnvironmentIndex {
-                Text("Selected Environment \(selectedEnvironmentIndex + 1)")
-                    .font(.footnote.weight(.medium))
-                    .foregroundStyle(.secondary)
-                    .padding(.bottom, 20)
-            }
+            Text(appModel.currentCinemaEnvironment.displayName)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.secondary)
+                .padding(.bottom, 20)
         }
         .navigationTitle("Scenes")
+        .toolbar {
+            ToolbarItem(placement: .cancellationAction) {
+                Button("Close") { dismiss() }
+            }
+        }
+        }
+    }
+
+    private func iconName(
+        for environment: SpatialSceneDomain.CinemaEnvironment
+    ) -> String {
+        switch environment {
+        case .darkTheatre: return "moon.fill"
+        case .starryNight: return "star.fill"
+        case .sunsetNature: return "sun.horizon.fill"
+        }
     }
 }

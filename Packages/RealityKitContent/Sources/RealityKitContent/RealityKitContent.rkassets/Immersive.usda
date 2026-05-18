@@ -26,7 +26,7 @@ def Xform "Root"
 
         def Xform "Player"
         {
-            double3 xformOp:translate = (0, 0.6, 0)
+            double3 xformOp:translate = (0, -0.14794665575027466, 0)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:orient", "xformOp:scale"]
 
             def RealityKitComponent "CustomDockingRegion"
@@ -39,12 +39,6 @@ def Xform "Root"
                     float3 min = (-1.2, -0.5, -0)
                 }
             }
-        }
-
-        def "Ground" (
-            prepend references = @Ground/Ground.usda@
-        )
-        {
         }
     }
 }

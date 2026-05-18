@@ -49,7 +49,6 @@ struct MPVLoadRequest: Equatable {
 
 struct MPVHDRMetadataSnapshot: Equatable {
     let dolbyVisionProfile: Int64?
-    let hdrFormat: String
     let primaries: String
     let gamma: String
     let colormatrix: String
@@ -126,12 +125,17 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
     private var activeNativeGPUOutput: Bool = false
     private var didLogPipelineForCurrentFile = false
+    // Protected by stateQueue — written from event thread, read from public setHDREnabled.
+    private var cachedHDRType: PlaybackCoreDomain.HDRType = .sdr
+    private var cachedSignalPeak: Double?
 
     // Used to signal waitForVideoLayerIfNeeded() without polling.
     // Protected by stateQueue.
     private var videoLayerContinuation: CheckedContinuation<Void, Never>?
     private var shouldWarmupWhenLayerArrives = false
     private var isAwaitingVisualPlaybackStart = false
+    /// When true, MPV_EVENT_FILE_LOADED will NOT unpause — used by loadPaused(url:) for track enumeration without rendering frames.
+    private var isPrepareOnlyLoad = false
 
     private var hasVerifiedHDRSurface: Bool {
         stateQueue.sync {
@@ -230,13 +234,34 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
     }
 
+    /// Loads a file into mpv without starting playback.
+    /// Used for track enumeration in the prepare/confirm flow.
+    /// mpv parses the container and populates track lists but never decodes or renders frames.
+    /// Call `resume()` after confirmation to begin actual playback.
+    public func loadPaused(url: URL) async throws {
+        do {
+            print("[MPV] load_paused_started url=\(url.lastPathComponent)")
+            stateQueue.sync { isPrepareOnlyLoad = true }
+            setFlagProperty(name: "pause", value: true)
+            await waitForVideoLayerIfNeeded()
+            try await performLoadStart(for: url)
+        } catch {
+            stateQueue.sync { isPrepareOnlyLoad = false }
+            print("[MPV] load_paused_failed url=\(url.lastPathComponent) error=\(error.localizedDescription)")
+            notifyRuntimeError(error.localizedDescription)
+            throw error
+        }
+    }
+
     public func pause() {
         setFlagProperty(name: "pause", value: true)
         updateState(.paused)
     }
 
     public func resume() {
+        stateQueue.sync { isPrepareOnlyLoad = false }
         setFlagProperty(name: "pause", value: false)
+        setFlagProperty(name: "mute", value: false)
         let shouldShowPlaying = stateQueue.sync { isAwaitingVisualPlaybackStart == false }
         if shouldShowPlaying {
             updateState(.playing)
@@ -245,7 +270,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
     public func stop() {
         _ = try? command(["stop"])
-        stateQueue.sync { isAwaitingVisualPlaybackStart = false }
+        stateQueue.sync {
+            isAwaitingVisualPlaybackStart = false
+            isPrepareOnlyLoad = false
+        }
         updateState(.stopped)
         releaseSecurityScopedAccess()
     }
@@ -324,6 +352,17 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             videoLayer?.wantsExtendedDynamicRangeContent = enabled
         }
         isHDROutputEnabled = enabled
+        if enabled && isHDRContent {
+            applyEDRMetadataToLayer()
+        } else {
+            stateQueue.sync {
+                guard let layer = videoLayer else { return }
+                if #available(visionOS 1.0, *) {
+                    layer.edrMetadata = nil
+                }
+            }
+            print("[MPV] edr_metadata cleared reason=hdr_disabled")
+        }
         logHDRPipelineState(reason: "manual_toggle")
     }
 
@@ -514,6 +553,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         _ = mpv_observe_property(handle, 6, "dwidth", MPV_FORMAT_INT64)
         _ = mpv_observe_property(handle, 7, "dheight", MPV_FORMAT_INT64)
         _ = mpv_observe_property(handle, 8, "playback-time", MPV_FORMAT_DOUBLE)
+        _ = mpv_observe_property(handle, 9, "paused-for-cache", MPV_FORMAT_FLAG)
     }
 
     private func setWindowLayerOption(on handle: OpaquePointer) throws {
@@ -600,11 +640,16 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             stateQueue.sync { isAwaitingVisualPlaybackStart = true }
             updateState(.loading)
         case MPV_EVENT_FILE_LOADED:
-            stateQueue.sync { isAwaitingVisualPlaybackStart = true }
-            updateState(.loading)
+            let prepareOnly = stateQueue.sync { isPrepareOnlyLoad }
+            stateQueue.sync { isAwaitingVisualPlaybackStart = !prepareOnly }
+            if !prepareOnly {
+                updateState(.loading)
+            }
             didLogPipelineForCurrentFile = false
-            setFlagProperty(name: "pause", value: false)
-            setFlagProperty(name: "mute", value: false)
+            if !prepareOnly {
+                setFlagProperty(name: "pause", value: false)
+                setFlagProperty(name: "mute", value: false)
+            }
             _ = try? command(["set", "vid", "auto"])
             _ = try? command(["set", "aid", "auto"])
             _ = try? command(["set", "sid", "no"])
@@ -703,8 +748,25 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         case "track-list":
             refreshTrackCache()
 
+        case "paused-for-cache":
+            handlePausedForCacheChange(property)
+
         default:
             break
+        }
+    }
+
+    private func handlePausedForCacheChange(_ property: mpv_event_property) {
+        guard property.format == MPV_FORMAT_FLAG,
+            let data = property.data?.assumingMemoryBound(to: Int32.self)
+        else { return }
+        let shouldIgnore = stateQueue.sync { isAwaitingVisualPlaybackStart }
+        if shouldIgnore { return }
+        if data.pointee != 0 {
+            updateState(.buffering)
+        } else {
+            let isPaused = flagProperty("pause") ?? false
+            updateState(isPaused ? .paused : .playing)
         }
     }
 
@@ -1153,26 +1215,67 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private func detectAndNotifyMediaProfile() {
         let hdrMetadata = currentHDRMetadata()
         let hdrType = Self.inferHDRType(from: hdrMetadata)
+        stateQueue.sync {
+            cachedHDRType = hdrType
+            cachedSignalPeak = hdrMetadata.signalPeak
+        }
         isHDRContent = hdrType != .sdr
         if isHDRContent {
             isHDROutputEnabled = true
             applyHDRRuntimeConfiguration()
+        } else {
+            // SDR content: clear any leftover EDR metadata from previous HDR content
+            applyEDRMetadataToLayer()
         }
 
         let width = Int(int64Property("video-params/w") ?? 0)
         let height = Int(int64Property("video-params/h") ?? 0)
         let frameRate = max(0, doubleProperty("container-fps") ?? 0)
 
+        // Compute horizontal FOV to distinguish equirectangular180 vs equirectangular360.
+        // Priority: direct HFOV tag → CroppedAreaImageWidthPixels / FullPanoWidthPixels × 360.
+        let gSphericalDirectFOV = stringProperty("metadata/by-key/GSpherical:InitialHorizontalFOVDegrees")
+            .flatMap { Double($0) }
+        let gSphericalFullPanoWidth = stringProperty("metadata/by-key/GSpherical:FullPanoWidthPixels")
+            .flatMap { Double($0) }
+        let gSphericalCroppedWidth = stringProperty("metadata/by-key/GSpherical:CroppedAreaImageWidthPixels")
+            .flatMap { Double($0) }
+        let computedFOV: Double?
+        if let directFOV = gSphericalDirectFOV, directFOV > 0 {
+            computedFOV = directFOV
+        } else if let fullW = gSphericalFullPanoWidth, let croppedW = gSphericalCroppedWidth, fullW > 0 {
+            computedFOV = (croppedW / fullW) * 360.0
+        } else {
+            computedFOV = nil
+        }
+
+        let projectionInput = ProjectionDetectionInput(
+            stereo3dIn: stringProperty("video-params/stereo-in")
+                ?? stringProperty("video-params/stereo3d-in")
+                ?? "",
+            gSphericalSpherical: stringProperty("metadata/by-key/GSpherical:Spherical"),
+            gSphericalProjectionType: stringProperty("metadata/by-key/GSpherical:ProjectionType"),
+            horizontalFOVDegrees: computedFOV,
+            aspectRatio: (width > 0 && height > 0) ? Double(width) / Double(height) : nil
+        )
+        let (projectionType, stereoLayout) = ProjectionDetection.detect(from: projectionInput)
+
         print(
-            "[MPV] media-profile hdr=\(hdrType.rawValue) dovi=\(hdrMetadata.dolbyVisionProfile.map(String.init) ?? "nil") hdr-format=\(hdrMetadata.hdrFormat.ifEmpty("nil")) colormatrix=\(hdrMetadata.colormatrix.ifEmpty("nil")) gamma=\(hdrMetadata.gamma.ifEmpty("nil")) primaries=\(hdrMetadata.primaries.ifEmpty("nil")) colorlevels=\(hdrMetadata.colorlevels.ifEmpty("nil")) sig-peak=\(hdrMetadata.signalPeak.map { String(format: "%.2f", $0) } ?? "nil") scene-max=\(hdrMetadata.sceneMaxR.map { String(format: "%.2f", $0) } ?? "nil")/\(hdrMetadata.sceneMaxG.map { String(format: "%.2f", $0) } ?? "nil")/\(hdrMetadata.sceneMaxB.map { String(format: "%.2f", $0) } ?? "nil")"
+            "[MPV] media-profile hdr=\(hdrType.rawValue) projection=\(projectionType.rawValue) stereo=\(stereoLayout.rawValue) dovi=\(hdrMetadata.dolbyVisionProfile.map(String.init) ?? "nil") colormatrix=\(hdrMetadata.colormatrix.ifEmpty("nil")) gamma=\(hdrMetadata.gamma.ifEmpty("nil")) primaries=\(hdrMetadata.primaries.ifEmpty("nil")) colorlevels=\(hdrMetadata.colorlevels.ifEmpty("nil")) sig-peak=\(hdrMetadata.signalPeak.map { String(format: "%.2f", $0) } ?? "nil") stereo3d=\(projectionInput.stereo3dIn.ifEmpty("nil")) gspherical=\(projectionInput.gSphericalSpherical ?? "nil")"
         )
         logHDRPipelineState(reason: "media_profile_detected")
 
+        let videoCodec = stringProperty("video-codec")
+        let durationSecs = doubleProperty("duration")
+
         let profile = PlaybackCoreDomain.MediaProfile(
-            projectionType: .flat,
+            projectionType: projectionType,
+            stereoLayout: stereoLayout,
             hdrType: hdrType,
             resolution: .init(width: width, height: height),
-            frameRate: frameRate
+            frameRate: frameRate,
+            videoCodec: videoCodec,
+            durationSeconds: durationSecs
         )
 
         DispatchQueue.main.async { [weak self] in
@@ -1185,7 +1288,6 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     static func inferHDRType(from metadata: MPVHDRMetadataSnapshot) -> PlaybackCoreDomain.HDRType {
-        let hdrFormat = metadata.hdrFormat.lowercased()
         let primaries = metadata.primaries.lowercased()
         let gamma = metadata.gamma.lowercased()
         let colormatrix = metadata.colormatrix.lowercased()
@@ -1200,42 +1302,42 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let hasBT2020Markers =
             primaries.contains("bt.2020") || primaries.contains("bt2020")
             || colormatrix.contains("bt.2020") || colormatrix.contains("bt2020")
-        let hasDolbyVisionMarkers =
-            metadata.dolbyVisionProfile != nil || hdrFormat.contains("dolby")
-            || hdrFormat.contains("dovi") || colormatrix.contains("dolby")
-            || colormatrix.contains("dovi")
 
+        // 1. Dolby Vision: track-list/N/dolby-vision-profile present, or colormatrix signals dovi.
+        let hasDolbyVisionMarkers =
+            metadata.dolbyVisionProfile != nil
+            || colormatrix.contains("dolby")
+            || colormatrix.contains("dovi")
         if hasDolbyVisionMarkers {
             return .dolbyVision
         }
-        if hdrFormat.contains("hdr10+") || hdrFormat.contains("hdr10plus") {
-            return .hdr10Plus
-        }
-        if gamma.contains("arib-std-b67") || gamma.contains("hlg") {
+
+        // 2. HLG: gamma transfer function is HLG (both libplacebo name aliases).
+        if gamma == "hlg" || gamma == "arib-std-b67" {
             return .hlg
         }
-        if hdrFormat.contains("hdr10") {
+
+        // 3. HDR10+: scene-max-r/g/b metadata available (dynamic metadata present).
+        if scenePeak > 0 {
+            return .hdr10Plus
+        }
+
+        // 4. HDR10: PQ transfer function, or max-luma static metadata present.
+        if gamma == "pq" || gamma == "smpte2084" {
             return .hdr10
         }
-        if gamma.contains("smpte2084") || gamma.contains("pq") {
+        if let maxLuma = metadata.signalPeak, maxLuma > 1.05, hasBT2020Markers {
+            // sig-peak > 1.05 with BT.2020 gamut is a conservative HDR10 indicator.
             return .hdr10
         }
-        // Trust peak-based fallback only when the stream also carries BT.2020-era gamut markers.
-        // Primaries alone are not a sufficient HDR signal, but combined with extended peak data
-        // they are a safer fallback than the previous "BT.2020 means HDR" heuristic.
-        if let signalPeak = metadata.signalPeak, signalPeak > 1.05, hasBT2020Markers {
-            return .hdr10
-        }
-        if scenePeak > 1.0, hasBT2020Markers {
-            return .hdr10
-        }
+
+        // 5. SDR fallback.
         return .sdr
     }
 
     private func currentHDRMetadata() -> MPVHDRMetadataSnapshot {
         MPVHDRMetadataSnapshot(
             dolbyVisionProfile: dolbyVisionProfile(),
-            hdrFormat: stringProperty("video-params/hdr-format") ?? "",
             primaries: stringProperty("video-params/primaries") ?? "",
             gamma: stringProperty("video-params/gamma")
                 ?? stringProperty("video-params/transfer-characteristics")
@@ -1279,7 +1381,42 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         stateQueue.sync {
             videoLayer?.wantsExtendedDynamicRangeContent = true
         }
+        applyEDRMetadataToLayer()
         logHDRPipelineState(reason: "auto_runtime_config")
+    }
+
+    private func applyEDRMetadataToLayer() {
+        // Read cached values and apply to layer atomically under stateQueue
+        let (descriptor, logType, logPeak): (EDRMetadataDescriptor?, String, String) = stateQueue.sync {
+            let desc = EDRMetadataSelection.descriptor(
+                for: cachedHDRType,
+                signalPeak: cachedSignalPeak
+            )
+            let typeStr = cachedHDRType.rawValue
+            let peakStr = cachedSignalPeak.map { String(format: "%.2f", $0) } ?? "nil"
+
+            guard let layer = videoLayer else { return (desc, typeStr, peakStr) }
+            switch desc {
+            case .hdr10(let minLuminance, let maxLuminance, let opticalOutputScale):
+                if #available(visionOS 1.0, *) {
+                    layer.edrMetadata = CAEDRMetadata.hdr10(
+                        minLuminance: minLuminance,
+                        maxLuminance: maxLuminance,
+                        opticalOutputScale: opticalOutputScale
+                    )
+                }
+            case .hlg:
+                if #available(visionOS 1.0, *) {
+                    layer.edrMetadata = CAEDRMetadata.hlg
+                }
+            case nil:
+                if #available(visionOS 1.0, *) {
+                    layer.edrMetadata = nil
+                }
+            }
+            return (desc, typeStr, peakStr)
+        }
+        print("[MPV] edr_metadata applied type=\(logType) sig-peak=\(logPeak) descriptor=\(descriptor.map { "\($0)" } ?? "nil")")
     }
 
     private func manualHDROutputCommands(enabled: Bool) -> [[String]] {

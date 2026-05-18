@@ -30,6 +30,8 @@ struct XrPlayerApp: App {
     @State private var fileBrowsingViewModel: FileBrowsingViewModel
     @State private var playbackLauncher: PlaybackLaunchCoordinator
     @State private var panoramaBridge: PanoramaLayerBridge
+    @State private var thumbnailService: ThumbnailService
+    @State private var immersionStyle: ImmersionStyle = .full
 
     init() {
         Task.detached(priority: .utility) {
@@ -37,20 +39,78 @@ struct XrPlayerApp: App {
         }
 
         let appModel = AppModel()
+        let savedPrefs = UserDefaultsStore().loadPreferences()
+        if savedPrefs.isScreenCurved {
+            appModel.screenShape = .curved(radius: 3.0, height: 1.35)
+        }
         let player = MPVPlayerAdapter()
         let windowVideoViewModel = WindowVideoViewModel(player: player)
         let smokeLaunch = SmokeLaunchConfiguration(environment: ProcessInfo.processInfo.environment)
 
+        // §5.6: Shared metadata service — used by both the prefetch service and the
+        // launcher so cache writes from background prefetch are immediately visible
+        // to preparePlayback without a shared-state race.
+        let sharedMetadataService = PlaybackMediaMetadataService()
+
+        // §5.6: Single shared prefetch service — the launcher awaits in-flight
+        // prefetch tasks started by FileBrowsingViewModel, eliminating race conditions.
+        let sharedPrefetchService = MediaProfilePrefetchService(metadataService: sharedMetadataService)
         let launcher = PlaybackLaunchCoordinator(
             appModel: appModel,
-            windowVideoViewModel: windowVideoViewModel
+            windowVideoViewModel: windowVideoViewModel,
+            metadataService: sharedMetadataService,
+            prefetchService: sharedPrefetchService
         )
+
+        // Clean up expired playback progress entries (older than 5 days).
+        Task.detached(priority: .background) {
+            await SwiftDataStore().cleanExpiredProgress(olderThan: 5)
+        }
+
+        // Clean up Photo Library temp exports older than 5 days.
+        Task.detached(priority: .background) {
+            let tempDir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("xrplayer-photos", isDirectory: true)
+            guard let files = try? FileManager.default.contentsOfDirectory(
+                at: tempDir, includingPropertiesForKeys: [.contentModificationDateKey]
+            ) else { return }
+            let cutoff = Date().addingTimeInterval(-5 * 24 * 3600)
+            for file in files {
+                if let attrs = try? file.resourceValues(forKeys: [.contentModificationDateKey]),
+                   let modified = attrs.contentModificationDate,
+                   modified < cutoff {
+                    try? FileManager.default.removeItem(at: file)
+                }
+            }
+        }
 
         // Pre-warm MPV in the background to reduce first-play black-screen latency.
         player.warmup()
         let localDataSource = LocalDataSourceAdapter()
-        let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: localDataSource) { request in
-            launcher.beginPlayback(request)
+        let fileBrowsingViewModel = FileBrowsingViewModel(
+            localDataSource: localDataSource,
+            prefetchService: sharedPrefetchService,
+            onPlayFile: { request in
+                launcher.beginPlayback(request)
+            },
+            onPrepareFile: { request in
+                launcher.preparePlayback(request)
+            }
+        )
+
+        // Wire auto-next-episode: find the next file after the current one in the sorted file list
+        launcher.nextFileProvider = { [weak fileBrowsingViewModel, weak windowVideoViewModel] in
+            guard let vm = fileBrowsingViewModel,
+                  let currentRequest = windowVideoViewModel?.currentLaunchRequest else { return nil }
+
+            guard let currentIndex = vm.files.firstIndex(where: {
+                $0.name == currentRequest.displayName
+            }) else { return nil }
+
+            let nextIndex = currentIndex + 1
+            guard nextIndex < vm.files.count else { return nil }
+
+            return try? await vm.playbackRequest(for: vm.files[nextIndex])
         }
 
         _appModel = State(initialValue: appModel)
@@ -58,6 +118,7 @@ struct XrPlayerApp: App {
         _fileBrowsingViewModel = State(initialValue: fileBrowsingViewModel)
         _playbackLauncher = State(initialValue: launcher)
         _panoramaBridge = State(initialValue: PanoramaLayerBridge())
+        _thumbnailService = State(initialValue: ThumbnailService.shared)
 
         if let smokeLaunch {
             appModel.showControls = true
@@ -73,14 +134,34 @@ struct XrPlayerApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: "main") {
             MainView()
                 .environment(appModel)
                 .environment(windowVideoViewModel)
                 .environment(fileBrowsingViewModel)
                 .environment(playbackLauncher)
                 .environment(panoramaBridge)
+                .environment(thumbnailService)
         }
+        .defaultSize(width: 1280, height: 720)
+        .windowResizability(.contentSize)
+
+        WindowGroup(id: "settings") {
+            NavigationStack {
+                SettingsView()
+            }
+            .environment(appModel)
+        }
+
+        WindowGroup(id: "playerControls") {
+            PlayerControlsView()
+                .environment(appModel)
+                .environment(windowVideoViewModel)
+                .environment(fileBrowsingViewModel)
+                .environment(playbackLauncher)
+                .environment(thumbnailService)
+        }
+        .defaultSize(width: 600, height: 200)
 
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
             ImmersiveSpaceView()
@@ -88,6 +169,9 @@ struct XrPlayerApp: App {
                 .environment(panoramaBridge)
                 .onAppear {
                     appModel.immersiveSpaceState = .open
+                    Task {
+                        await appModel.loadScreenPosition()
+                    }
                 }
                 .onDisappear {
                     appModel.immersiveSpaceState = .closed
@@ -98,7 +182,10 @@ struct XrPlayerApp: App {
                     }
                 }
         }
-        .immersionStyle(selection: .constant(.full), in: .full)
+        .immersionStyle(selection: $immersionStyle, in: .mixed, .full)
+        .onChange(of: appModel.isFullImmersion) { _, full in
+            immersionStyle = full ? .full : .mixed
+        }
     }
 
     nonisolated private static func copySampleVideoIfAvailable(fileManager: FileManager = .default) {

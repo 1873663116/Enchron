@@ -58,6 +58,7 @@ public struct DataSourceConfigView: View {
                     .autocorrectionDisabled()
                     .textContentType(isSMB ? nil : .URL)
                     .keyboardType(isSMB ? .decimalPad : .URL)
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-textField-serverAddress")
                     .onChange(of: serverAddress) { _, newValue in
                         if isSMB {
                             // Only allow digits and dots for SMB IP input
@@ -72,24 +73,29 @@ public struct DataSourceConfigView: View {
                     .textInputAutocapitalization(.never)
                     .autocorrectionDisabled()
                     .textContentType(.username)
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-textField-username")
 
                 SecureField("Password (optional)", text: $password)
                     .textContentType(.password)
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-secureField-password")
 
                 TextField("Server Name (optional)", text: $displayName)
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-textField-displayName")
             }
 
             if isSMB {
                 Section {
                     Text("Enter the server IP address only. You will select a shared folder after connecting.")
-                        .font(.caption)
+                        .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(.secondary)
                 }
             }
 
             if let error = validationError {
                 Section {
-                    Text(error).foregroundStyle(.red).font(.caption)
+                    Text(error)
+                        .foregroundStyle(.orange)
+                        .font(DesignTokens.Typography.metadata)
                 }
             }
 
@@ -101,13 +107,17 @@ public struct DataSourceConfigView: View {
                         Text("Connect")
                     }
                 }
+                .frame(minHeight: 60)
+                .contentShape(.rect)
                 .disabled(!isValid || isConnecting)
+                .accessibilityIdentifier("FileBrowsing-DataSourceConfig-button-connect")
             }
         }
         .navigationTitle(navigationTitle)
         .toolbar {
             ToolbarItem(placement: .topBarLeading) {
                 Button("Cancel") { dismiss() }
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-button-cancel")
             }
         }
     }
@@ -127,14 +137,19 @@ public struct DataSourceConfigView: View {
                     } label: {
                         HStack {
                             Image(systemName: "folder.fill")
-                                .foregroundStyle(.blue)
+                                .foregroundStyle(Color.enchronTertiary)
                             Text(shareName)
                             Spacer()
                             Image(systemName: "chevron.right")
-                                .font(.caption)
+                                .font(DesignTokens.Typography.metadata)
                                 .foregroundStyle(.secondary)
                         }
+                        .frame(minHeight: 60)
+                        .contentShape(.rect)
                     }
+                    .accessibilityIdentifier("FileBrowsing-DataSourceConfig-button-share-\(shareName)")
+                    .accessibilityLabel("\(shareName), shared folder")
+                    .accessibilityHint("Connects to this SMB share")
                 }
             }
         }
@@ -146,6 +161,7 @@ public struct DataSourceConfigView: View {
                     smbAdapter?.disconnect()
                     smbAdapter = nil
                 }
+                .accessibilityIdentifier("FileBrowsing-DataSourceConfig-button-backFromSharePicker")
             }
         }
     }

@@ -10,8 +10,19 @@
 		A4C19F9F2FD1000100AABBCC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
 		A4C19FA02FD1000100AABBCC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = C32D79C32F57A609002717FA /* MPVKit-GPL */; };
+		C3A35AB62F85429300DA0D16 /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3A35AB52F85429300DA0D16 /* RealityKitContent */; };
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		E2E0000800000000DEADBEEF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C3B0F9782F5726B30064596E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C3B0F97F2F5726B30064596E;
+			remoteInfo = XrPlayer;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		A4C19FA12FD1000100AABBCC /* Embed Frameworks */ = {
@@ -25,22 +36,83 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C3A35AAE2F85415E00DA0D16 /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+			);
+			name = "Embed ExtensionKit Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C3A35AB32F85429300DA0D16 /* DesignPreview.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DesignPreview.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3B0F9802F5726B30064596E /* XrPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XrPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3B0F9842F5726B30064596E /* RealityKitContent */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = RealityKitContent; sourceTree = "<group>"; };
+		E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = XrPlayerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		C3A35AC72F85434200DA0D16 /* Exceptions for "XrPlayer" folder in "DesignPreview" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Shared/DesignSystem/DesignSystemPreview.swift,
+				Shared/DesignSystem/DesignTokens.swift,
+				"Shared/DesignSystem/View+EnchronGlass.swift",
+			);
+			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
+		};
+		C3A35ACF2F85C29900DA0D16 /* Exceptions for "DesignPreview" folder in "DesignPreview" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				BrowseMockup.swift,
+				ComponentLibrary.swift,
+				ContentView.swift,
+				DesignPreviewApp.swift,
+				PlayerMockup.swift,
+				SharedComponents.swift,
+				TokenPreviews.swift,
+			);
+			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		C3A35AA12F85415E00DA0D16 /* DesignPreview */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C3A35ACF2F85C29900DA0D16 /* Exceptions for "DesignPreview" folder in "DesignPreview" target */,
+			);
+			path = DesignPreview;
+			sourceTree = "<group>";
+		};
 		C3B0F9822F5726B30064596E /* XrPlayer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				C3A35AC72F85434200DA0D16 /* Exceptions for "XrPlayer" folder in "DesignPreview" target */,
+			);
 			path = XrPlayer;
+			sourceTree = "<group>";
+		};
+		E2E0000300000000DEADBEEF /* XrPlayerUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = XrPlayerUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C3A35AB02F85429300DA0D16 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C3A35AB62F85429300DA0D16 /* RealityKitContent in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C3B0F97D2F5726B30064596E /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -51,6 +123,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E2E0000500000000DEADBEEF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -58,7 +137,9 @@
 			isa = PBXGroup;
 			children = (
 				C3B0F9822F5726B30064596E /* XrPlayer */,
+				E2E0000300000000DEADBEEF /* XrPlayerUITests */,
 				C3B0F9832F5726B30064596E /* Packages */,
+				C3A35AA12F85415E00DA0D16 /* DesignPreview */,
 				C3B0F9812F5726B30064596E /* Products */,
 			);
 			sourceTree = "<group>";
@@ -67,6 +148,8 @@
 			isa = PBXGroup;
 			children = (
 				C3B0F9802F5726B30064596E /* XrPlayer.app */,
+				E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */,
+				C3A35AB32F85429300DA0D16 /* DesignPreview.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -82,6 +165,26 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C3A35AB22F85429300DA0D16 /* DesignPreview */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C3A35ABF2F85429300DA0D16 /* Build configuration list for PBXNativeTarget "DesignPreview" */;
+			buildPhases = (
+				C3A35AAF2F85429300DA0D16 /* Sources */,
+				C3A35AB02F85429300DA0D16 /* Frameworks */,
+				C3A35AB12F85429300DA0D16 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = DesignPreview;
+			packageProductDependencies = (
+				C3A35AB52F85429300DA0D16 /* RealityKitContent */,
+			);
+			productName = DesignPreview;
+			productReference = C3A35AB32F85429300DA0D16 /* DesignPreview.app */;
+			productType = "com.apple.product-type.application";
+		};
 		C3B0F97F2F5726B30064596E /* XrPlayer */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C3B0F9992F5726B40064596E /* Build configuration list for PBXNativeTarget "XrPlayer" */;
@@ -91,6 +194,7 @@
 				A4C19FA12FD1000100AABBCC /* Embed Frameworks */,
 				C3B0F97E2F5726B30064596E /* Resources */,
 				A1B2C3D42F600000DEADBEEF /* SwiftLint */,
+				C3A35AAE2F85415E00DA0D16 /* Embed ExtensionKit Extensions */,
 			);
 			buildRules = (
 			);
@@ -109,6 +213,27 @@
 			productReference = C3B0F9802F5726B30064596E /* XrPlayer.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E2E0000100000000DEADBEEF /* XrPlayerUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E2E0000B00000000DEADBEEF /* Build configuration list for PBXNativeTarget "XrPlayerUITests" */;
+			buildPhases = (
+				E2E0000400000000DEADBEEF /* Sources */,
+				E2E0000500000000DEADBEEF /* Frameworks */,
+				E2E0000600000000DEADBEEF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E2E0000700000000DEADBEEF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				E2E0000300000000DEADBEEF /* XrPlayerUITests */,
+			);
+			name = XrPlayerUITests;
+			productName = XrPlayerUITests;
+			productReference = E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -119,8 +244,15 @@
 				LastSwiftUpdateCheck = 2620;
 				LastUpgradeCheck = 2620;
 				TargetAttributes = {
+					C3A35AB22F85429300DA0D16 = {
+						CreatedOnToolsVersion = 26.2;
+					};
 					C3B0F97F2F5726B30064596E = {
 						CreatedOnToolsVersion = 26.2;
+					};
+					E2E0000100000000DEADBEEF = {
+						CreatedOnToolsVersion = 26.2;
+						TestTargetID = C3B0F97F2F5726B30064596E;
 					};
 				};
 			};
@@ -143,12 +275,28 @@
 			projectRoot = "";
 			targets = (
 				C3B0F97F2F5726B30064596E /* XrPlayer */,
+				E2E0000100000000DEADBEEF /* XrPlayerUITests */,
+				C3A35AB22F85429300DA0D16 /* DesignPreview */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		C3A35AB12F85429300DA0D16 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C3B0F97E2F5726B30064596E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2E0000600000000DEADBEEF /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -180,7 +328,21 @@
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		C3A35AAF2F85429300DA0D16 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C3B0F97C2F5726B30064596E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E2E0000400000000DEADBEEF /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -189,7 +351,74 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		E2E0000700000000DEADBEEF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C3B0F97F2F5726B30064596E /* XrPlayer */;
+			targetProxy = E2E0000800000000DEADBEEF /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		C3A35AC02F85429300DA0D16 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "$(TARGET_NAME)/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayer.DesignPreview;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+			};
+			name = Debug;
+		};
+		C3A35AC12F85429300DA0D16 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = "$(TARGET_NAME)/Info.plist";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayer.DesignPreview;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+			};
+			name = Release;
+		};
 		C3B0F99A2F5726B40064596E /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -377,9 +606,60 @@
 			};
 			name = Release;
 		};
+		E2E0000900000000DEADBEEF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_TARGET_NAME = XrPlayer;
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Debug;
+		};
+		E2E0000A00000000DEADBEEF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayerUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_TARGET_NAME = XrPlayer;
+				XROS_DEPLOYMENT_TARGET = 26.2;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		C3A35ABF2F85429300DA0D16 /* Build configuration list for PBXNativeTarget "DesignPreview" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C3A35AC02F85429300DA0D16 /* Debug */,
+				C3A35AC12F85429300DA0D16 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		C3B0F97B2F5726B30064596E /* Build configuration list for PBXProject "XrPlayer" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -394,6 +674,15 @@
 			buildConfigurations = (
 				C3B0F99A2F5726B40064596E /* Debug */,
 				C3B0F99B2F5726B40064596E /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E2E0000B00000000DEADBEEF /* Build configuration list for PBXNativeTarget "XrPlayerUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E2E0000900000000DEADBEEF /* Debug */,
+				E2E0000A00000000DEADBEEF /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
@@ -429,6 +718,10 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */;
 			productName = "MPVKit-GPL";
+		};
+		C3A35AB52F85429300DA0D16 /* RealityKitContent */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = RealityKitContent;
 		};
 		C3B0F9852F5726B30064596E /* RealityKitContent */ = {
 			isa = XCSwiftPackageProductDependency;

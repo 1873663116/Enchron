@@ -25,6 +25,7 @@ public struct PlaylistView: View {
                         .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
+                .hoverEffect(.lift)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
@@ -71,11 +72,12 @@ public struct PlaylistView: View {
                             .padding(.vertical, 12)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(
-                                RoundedRectangle(cornerRadius: 14)
+                                RoundedRectangle(cornerRadius: DesignTokens.Radius.small)
                                     .fill(isCurrent ? Color.accentColor.opacity(0.18) : Color.white.opacity(0.04))
                             )
                         }
                         .buttonStyle(.plain)
+                        .hoverEffect(.lift)
                     }
                 }
                 .padding(12)

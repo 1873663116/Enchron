@@ -8,6 +8,10 @@ public final class FileBrowsingViewModel {
     public var folders: [FileBrowsingDomain.MediaFolder] = []
     public var isLoading: Bool = false
     public var lastErrorMessage: String?
+    public var sortCriteria: FileBrowsingDomain.SortCriteria = .nameAscending {
+        didSet { applySortToFiles() }
+    }
+    public var activeFilters: Set<FileBrowsingDomain.ContentFilter> = [.all]
     public private(set) var currentRootDisplayName: String = "Documents"
     public private(set) var currentRemotePath: String = "/"
     public private(set) var canNavigateUp: Bool = false
@@ -15,32 +19,52 @@ public final class FileBrowsingViewModel {
     public var savedDataSources: [FileBrowsingDomain.DataSource] = []
     public var activeDataSource: FileBrowsingDomain.DataSource?
 
+    /// Set by the app layer when navigating to the detail page for a file.
+    /// The detail view reads this to know which file is being inspected.
+    public var detailNavigationRequest: PlaybackLaunchRequest?
+
+    /// Watched seconds keyed by MediaFile.id (UUID) for progress indicators in file list.
+    public var fileWatchedSeconds: [UUID: Double] = [:]
+
     private let localDataSource: LocalDataSourceAdapter
     private let fileManager: FileManager
     public let credentialStoreForConfig: CredentialStoring
     private let savedDataSourceStore: SavedDataSourceRecordStoring
+    private let progressStore: ProgressStoring
     private var credentialStore: CredentialStoring { credentialStoreForConfig }
     private let importQueue = DispatchQueue(label: "xrplayer.fileimport.io", qos: .utility)
     private let onPlayFile: @MainActor (PlaybackLaunchRequest) -> Void
+    private let onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)?
     private let defaultRootURL: URL
     private let localDataSourceID = UUID()
     private var rootURL: URL
     private var securityScopedRootURL: URL?
     private var activeRemoteAdapter: (any DataSourceConnecting & FileProviding)?
     private var remotePathStack: [String] = []
+    private var reconnectAttempted: Bool = false
+
+    // §5.6 Background profile prefetch service — warms the metadata cache for
+    // all files in the current folder so detail-page opens see instant metadata.
+    private let prefetchService: MediaProfilePrefetchService?
 
     public init(
         localDataSource: LocalDataSourceAdapter,
         fileManager: FileManager = .default,
         credentialStore: CredentialStoring = KeychainStore(),
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
-        onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void
+        progressStore: ProgressStoring = SwiftDataStore(),
+        prefetchService: MediaProfilePrefetchService? = nil,
+        onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void,
+        onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)? = nil
     ) {
         self.localDataSource = localDataSource
         self.fileManager = fileManager
         self.credentialStoreForConfig = credentialStore
         self.savedDataSourceStore = savedDataSourceStore
+        self.progressStore = progressStore
+        self.prefetchService = prefetchService
         self.onPlayFile = onPlayFile
+        self.onPrepareFile = onPrepareFile
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
             ?? URL(fileURLWithPath: NSHomeDirectory(), isDirectory: true)
         self.defaultRootURL = documentsURL
@@ -72,6 +96,16 @@ public final class FileBrowsingViewModel {
             try credentialStore.deleteCredential(for: dataSource.credentialSourceID)
         } catch {
             print("[FileBrowser] Failed to delete credential for \(dataSource.credentialSourceID): \(error)")
+        }
+    }
+
+    public func disconnectAndResetToLocal() {
+        activeRemoteAdapter?.disconnect()
+        activeRemoteAdapter = nil
+        activeDataSource = nil
+        lastErrorMessage = nil
+        Task { [weak self] in
+            await self?.useDefaultFolder()
         }
     }
 
@@ -107,7 +141,13 @@ public final class FileBrowsingViewModel {
     }
 
     public func connectToDataSource(_ ds: FileBrowsingDomain.DataSource) async {
+        // Immediately update UI state so the caller sees a skeleton screen
+        // rather than stale content from the previous data source.
         activeDataSource = ds
+        isLoading = true
+        files = []
+        folders = []
+        currentRootDisplayName = ds.name
 
         let adapter: any DataSourceConnecting & FileProviding
         switch ds.connectionInfo.sourceType {
@@ -123,9 +163,9 @@ public final class FileBrowsingViewModel {
             await useDefaultFolder()
             return
         case .photoLibrary:
-            activeDataSource = nil
-            lastErrorMessage = "Photo Library source is not implemented yet."
-            return
+            let photos = PhotoLibraryDataSourceAdapter()
+            photos.ownerDataSourceID = ds.id
+            adapter = photos
         }
 
         activeRemoteAdapter?.disconnect()
@@ -136,8 +176,6 @@ public final class FileBrowsingViewModel {
             remotePathStack = [rootPath]
             currentRemotePath = rootPath
             canNavigateUp = false
-            isLoading = true
-            defer { isLoading = false }
 
             let remoteFiles = try await adapter.listContents(at: rootPath)
             let remoteFolders = try await adapter.listFolders(at: rootPath)
@@ -145,7 +183,9 @@ public final class FileBrowsingViewModel {
             folders = remoteFolders
             currentRootDisplayName = ds.name
             lastErrorMessage = nil
+            isLoading = false
         } catch {
+            isLoading = false
             activeRemoteAdapter = nil
             activeDataSource = nil
             lastErrorMessage = Self.friendlyErrorMessage(for: error)
@@ -188,24 +228,90 @@ public final class FileBrowsingViewModel {
 
         if let remoteAdapter = activeRemoteAdapter {
             do {
-                files = try await remoteAdapter.listContents(at: currentRemotePath)
-                folders = try await remoteAdapter.listFolders(at: currentRemotePath)
+                let newFiles = try await remoteAdapter.listContents(at: currentRemotePath)
+                let newFolders = try await remoteAdapter.listFolders(at: currentRemotePath)
+                // §5.7c: Incremental update — replace with new data only on success,
+                // preserving stable UUIDs so SwiftUI diffs without rebuilding the whole list.
+                mergeFiles(newFiles)
+                mergeFolders(newFolders)
                 lastErrorMessage = nil
             } catch {
-                files = []
-                folders = []
+                if !reconnectAttempted,
+                   Self.isNetworkRecoverableError(error),
+                   let ds = activeDataSource {
+                    reconnectAttempted = true
+                    await connectToDataSource(ds)
+                    reconnectAttempted = false
+                    return
+                }
+                // §5.7c: On failure, keep existing files/folders visible so the list
+                // does not jump to empty. Only surface the error message.
                 lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             }
+            applySortToFiles()
+            loadProgressForFiles()
+            // §5.6: Warm metadata cache for all video files in this remote folder.
+            triggerPrefetch()
             return
         }
 
+        let localPath = remotePathStack.isEmpty ? "." : currentRemotePath
         do {
-            files = try await localDataSource.listContents(at: ".")
+            let newFiles = try await localDataSource.listContents(at: localPath)
+            let newFolders = try await localDataSource.listFolders(at: localPath)
+            // §5.7c: Same incremental merge for local data source.
+            mergeFiles(newFiles)
+            mergeFolders(newFolders)
             lastErrorMessage = nil
         } catch {
-            files = []
+            // §5.7c: On failure, preserve current list and surface the error.
             lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             print("[FileBrowser] loadFiles failed: \(error)")
+        }
+        applySortToFiles()
+        loadProgressForFiles()
+        // §5.6: Warm metadata cache for all video files in this local folder.
+        triggerPrefetch()
+    }
+
+    /// §5.7c: Diff-update the files array in-place.
+    /// - Removes entries no longer present in the new list.
+    /// - Appends new entries not already in the current list.
+    /// - Updates metadata (name, size, modifiedAt) for existing entries by UUID.
+    /// Preserves the UUID identity SwiftUI relies on for stable diffing.
+    private func mergeFiles(_ newFiles: [FileBrowsingDomain.MediaFile]) {
+        // Use uniquingKeysWith to avoid a crash when the data source returns duplicate IDs.
+        let newByID = Dictionary(newFiles.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+        let oldIDs = Set(files.map(\.id))
+        let newIDs = Set(newFiles.map(\.id))
+
+        // Remove stale entries
+        files.removeAll { !newIDs.contains($0.id) }
+
+        // Update existing entries in-place (metadata may have changed)
+        files = files.map { oldFile in
+            newByID[oldFile.id] ?? oldFile
+        }
+
+        // Append brand-new entries
+        for file in newFiles where !oldIDs.contains(file.id) {
+            files.append(file)
+        }
+    }
+
+    /// §5.7c: Diff-update the folders array in-place using the same strategy.
+    private func mergeFolders(_ newFolders: [FileBrowsingDomain.MediaFolder]) {
+        // Use uniquingKeysWith to avoid a crash when the data source returns duplicate IDs.
+        let newByID = Dictionary(newFolders.map { ($0.id, $0) }, uniquingKeysWith: { _, new in new })
+        let oldIDs = Set(folders.map(\.id))
+        let newIDs = Set(newFolders.map(\.id))
+
+        folders.removeAll { !newIDs.contains($0.id) }
+        folders = folders.map { oldFolder in
+            newByID[oldFolder.id] ?? oldFolder
+        }
+        for folder in newFolders where !oldIDs.contains(folder.id) {
+            folders.append(folder)
         }
     }
 
@@ -236,7 +342,12 @@ public final class FileBrowsingViewModel {
             do {
                 let request = try await playbackRequest(for: file)
                 print("[FileBrowser] selected file: \(request.url.path)")
-                onPlayFile(request)
+                if let onPrepareFile {
+                    self.detailNavigationRequest = request
+                    onPrepareFile(request)
+                } else {
+                    onPlayFile(request)
+                }
             } catch {
                 lastErrorMessage = "Failed to open \"\(file.name)\": \(error.localizedDescription)"
                 print("[FileBrowser] selectFile failed for \(file.name): \(error)")
@@ -266,7 +377,10 @@ public final class FileBrowsingViewModel {
     }
 
     public func navigateToFolder(_ folder: FileBrowsingDomain.MediaFolder) async {
-        guard activeRemoteAdapter != nil else { return }
+        if remotePathStack.isEmpty {
+            // First navigation: push current root as initial stack entry
+            remotePathStack.append(activeRemoteAdapter != nil ? currentRemotePath : rootURL.path)
+        }
         remotePathStack.append(folder.path)
         currentRemotePath = folder.path
         canNavigateUp = remotePathStack.count > 1
@@ -275,7 +389,7 @@ public final class FileBrowsingViewModel {
     }
 
     public func navigateUp() async {
-        guard activeRemoteAdapter != nil, remotePathStack.count > 1 else { return }
+        guard remotePathStack.count > 1 else { return }
         remotePathStack.removeLast()
         let previousPath = remotePathStack.last ?? "/"
         currentRemotePath = previousPath
@@ -283,11 +397,89 @@ public final class FileBrowsingViewModel {
 
         if let ds = activeDataSource, remotePathStack.count == 1 {
             currentRootDisplayName = ds.name
+        } else if activeRemoteAdapter == nil, remotePathStack.count == 1 {
+            let name = rootURL.lastPathComponent
+            currentRootDisplayName = name.isEmpty ? rootURL.path : name
         } else {
             let name = (previousPath as NSString).lastPathComponent
             currentRootDisplayName = name.removingPercentEncoding ?? name
         }
         await loadFiles()
+    }
+
+    // MARK: - Breadcrumb Path
+
+    /// Path segments for breadcrumb navigation.
+    /// Each segment is (displayName, stackIndex) where tapping navigates to that level.
+    public var breadcrumbSegments: [(name: String, index: Int)] {
+        guard !remotePathStack.isEmpty else {
+            // At root with no navigation history
+            return [(currentRootDisplayName, 0)]
+        }
+
+        var segments: [(name: String, index: Int)] = []
+
+        // Root segment (data source name or local folder name)
+        let rootName: String
+        if let ds = activeDataSource {
+            rootName = ds.name
+        } else {
+            let name = rootURL.lastPathComponent
+            rootName = name.isEmpty ? rootURL.path : name
+        }
+        segments.append((rootName, 0))
+
+        // Intermediate and current segments from path stack (skip index 0 = root)
+        for i in 1..<remotePathStack.count {
+            let path = remotePathStack[i]
+            let name = (path as NSString).lastPathComponent
+            segments.append((name.removingPercentEncoding ?? name, i))
+        }
+
+        return segments
+    }
+
+    /// Navigate to a specific breadcrumb level by stack index.
+    public func navigateToBreadcrumb(index: Int) async {
+        guard index >= 0, index < remotePathStack.count else { return }
+        // Pop all entries after the target index
+        remotePathStack = Array(remotePathStack.prefix(index + 1))
+        let targetPath = remotePathStack.last ?? "/"
+        currentRemotePath = targetPath
+        canNavigateUp = remotePathStack.count > 1
+
+        if let ds = activeDataSource, index == 0 {
+            currentRootDisplayName = ds.name
+        } else if activeRemoteAdapter == nil, index == 0 {
+            let name = rootURL.lastPathComponent
+            currentRootDisplayName = name.isEmpty ? rootURL.path : name
+        } else {
+            let name = (targetPath as NSString).lastPathComponent
+            currentRootDisplayName = name.removingPercentEncoding ?? name
+        }
+        await loadFiles()
+    }
+
+    // MARK: - Content Filters
+
+    /// Toggle a content filter. "All" clears other filters; selecting a specific
+    /// filter clears "All". Deselecting all reverts to "All".
+    public func toggleFilter(_ filter: FileBrowsingDomain.ContentFilter) {
+        if filter == .all {
+            activeFilters = [.all]
+        } else {
+            activeFilters.remove(.all)
+            if activeFilters.contains(filter) {
+                activeFilters.remove(filter)
+            } else {
+                activeFilters.insert(filter)
+            }
+            if activeFilters.isEmpty {
+                activeFilters = [.all]
+            }
+        }
+        // TODO: Wire to MediaProfile when available — currently MediaFile lacks
+        // resolution/HDR/spatial attributes, so non-All filters are visual-only.
     }
 
     public func selectLocalFolder(_ folderURL: URL) async {
@@ -456,6 +648,25 @@ public final class FileBrowsingViewModel {
         savedDataSourceStore.saveSavedDataSourceRecords(data)
     }
 
+    private func applySortToFiles() {
+        let criteria = sortCriteria
+        let sorted: [FileBrowsingDomain.MediaFile]
+        switch criteria.key {
+        case .name:
+            sorted = files.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        case .modifiedDate:
+            sorted = files.sorted { $0.modifiedAt < $1.modifiedAt }
+        case .size:
+            sorted = files.sorted { $0.sizeInBytes < $1.sizeInBytes }
+        }
+        switch criteria.order {
+        case .ascending:
+            files = sorted
+        case .descending:
+            files = sorted.reversed()
+        }
+    }
+
     private func makeFileIdentifier(
         for file: FileBrowsingDomain.MediaFile,
         playableURL: URL
@@ -479,6 +690,108 @@ public final class FileBrowsingViewModel {
             sizeInBytes: file.sizeInBytes,
             serverFingerprint: serverFingerprint
         )
+    }
+
+    /// Non-async file identifier construction for progress lookups.
+    /// Uses `file.url.path` for local files (same as `resolvePlayableURL` returns).
+    private func makeFileIdentifierForLookup(
+        for file: FileBrowsingDomain.MediaFile
+    ) -> PersistenceDomain.FileIdentifier {
+        let path: String
+        let serverFingerprint: String?
+
+        if let dataSource = activeDataSource {
+            let logicalDirectory = currentRemotePath == "/" ? "" : currentRemotePath
+            path = "\(logicalDirectory)/\(file.name)"
+            let host = dataSource.connectionInfo.host ?? dataSource.name
+            let port = dataSource.connectionInfo.port.map(String.init) ?? "-"
+            serverFingerprint = "\(dataSource.sourceType.rawValue):\(host):\(port)"
+        } else {
+            path = file.url.path
+            serverFingerprint = nil
+        }
+
+        return PersistenceDomain.FileIdentifier.make(
+            path: path,
+            sizeInBytes: file.sizeInBytes,
+            serverFingerprint: serverFingerprint
+        )
+    }
+
+    private func loadProgressForFiles() {
+        let currentFiles = files
+        Task { [weak self] in
+            guard let self else { return }
+            var map: [UUID: Double] = [:]
+            for file in currentFiles {
+                let fileID = self.makeFileIdentifierForLookup(for: file)
+                if let progress = await self.progressStore.loadProgress(for: fileID),
+                   progress.position.seconds > 5 {
+                    map[file.id] = progress.position.seconds
+                }
+            }
+            self.fileWatchedSeconds = map
+        }
+    }
+
+    // §5.6 Background metadata prefetch
+
+    /// Queues all currently loaded video files for background MediaProfile detection.
+    /// Called after every successful file list load. The prefetch service deduplicates
+    /// by (fileIdentifier, modifiedAt) so files already in cache are skipped cheaply.
+    private func triggerPrefetch() {
+        guard let service = prefetchService else { return }
+
+        // Build prefetch requests using the sync identifier (no async URL resolution needed
+        // for local files; remote files use their already-resolved URL from the file list).
+        let requests = buildPrefetchRequests()
+        guard !requests.isEmpty else { return }
+
+        Task { [weak service] in
+            await service?.prefetchProfiles(for: requests)
+        }
+    }
+
+    /// Builds (PlaybackLaunchRequest, modifiedAt) pairs for all loaded video files.
+    /// Uses the local file URL for local sources, and the file's stored URL for remote sources.
+    /// Note: For remote sources the URL is the file's base URL, not a resolved stream URL.
+    /// AVFoundation will handle remote URLs (HTTP/WebDAV) natively.
+    ///
+    /// SMB URLs (smb://) are excluded because AVURLAsset does not support the SMB scheme.
+    private func buildPrefetchRequests() -> [(request: PlaybackLaunchRequest, modifiedAt: Date)] {
+        files.compactMap { file -> (request: PlaybackLaunchRequest, modifiedAt: Date)? in
+            // AVFoundation only supports file://, http://, and https:// schemes.
+            // Filtering out smb:// prevents silent failures and wasted network probes.
+            let scheme = file.url.scheme?.lowercased() ?? ""
+            guard scheme == "file" || scheme == "http" || scheme == "https" else { return nil }
+
+            let fileIdentifier = makeFileIdentifierForLookup(for: file)
+            let metadata = PlaybackMediaMetadata(fileSizeInBytes: file.sizeInBytes)
+            let request = PlaybackLaunchRequest(
+                url: file.url,
+                displayName: file.name,
+                fileIdentifier: fileIdentifier,
+                initialMetadata: metadata
+            )
+            return (request: request, modifiedAt: file.modifiedAt)
+        }
+    }
+
+    private static func isNetworkRecoverableError(_ error: Error) -> Bool {
+        if let smbError = error as? SMBError {
+            switch smbError {
+            case .networkFailed, .notConnected: return true
+            default: return false
+            }
+        }
+        if let webDAVError = error as? WebDAVError {
+            switch webDAVError {
+            case .notConnected: return true
+            case .requestFailed(let code) where code >= 500: return true
+            default: return false
+            }
+        }
+        return (error as NSError).domain == NSURLErrorDomain
     }
 }
 
