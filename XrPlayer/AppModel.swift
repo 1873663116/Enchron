@@ -68,6 +68,19 @@ public final class AppModel {
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
 
+    // MARK: - Player Menu State (shared between ornament buttons + window overlay panels)
+    var showPlayerMenuPopup: Bool = false
+    var showPlayerSettingsPopup: Bool = false
+    var playerMenuSubMenu: MenuSubMenu? = nil
+    var playerSettingsSubMenu: SettingsSubMenu? = nil
+
+    func closeAllPlayerMenus() {
+        showPlayerMenuPopup = false
+        showPlayerSettingsPopup = false
+        playerMenuSubMenu = nil
+        playerSettingsSubMenu = nil
+    }
+
     // MARK: - Debug Controls
     public var showDebugPanel: Bool = false
 

@@ -262,7 +262,7 @@ public struct VideoDetailView: View {
             .foregroundStyle(color)
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
-            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+            .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
     }
 
     // MARK: - Video Preview
@@ -388,7 +388,7 @@ public struct VideoDetailView: View {
                             }
                         } label: {
                             VStack(spacing: 6) {
-                                RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous)
+                                RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
                                     .fill(isSelected ? Color.accentColor.opacity(0.2) : Color.clear)
                                     .frame(width: isSelected ? 100 : 72, height: isSelected ? 64 : 48)
                                     .overlay {
@@ -397,7 +397,7 @@ public struct VideoDetailView: View {
                                             .foregroundStyle(isSelected ? .primary : .secondary)
                                     }
                                     .overlay(
-                                        RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous)
+                                        RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
                                             .strokeBorder(isSelected ? Color.enchronPrimary.opacity(0.4) : .clear, lineWidth: 0.5)
                                     )
                                     .opacity(isSelected ? 1 : 0.6)
@@ -453,7 +453,7 @@ public struct VideoDetailView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(12)
-        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
     }
 
     // MARK: - Metadata Section
@@ -651,7 +651,7 @@ public struct VideoDetailView: View {
                 .accessibilityLabel("\(hdrLabel) Output")
         }
         .padding(12)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
     }
 
     // MARK: - Playback Mode Picker
@@ -677,7 +677,7 @@ public struct VideoDetailView: View {
             .accessibilityLabel("Playback Mode")
         }
         .padding(12)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
         .onAppear {
             selectedPlaybackMode = appModel.playbackMode
         }
@@ -703,9 +703,9 @@ public struct VideoDetailView: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity)
-            .background(bgColor, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+            .background(bgColor, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous)
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
                     .strokeBorder(borderColor, lineWidth: 0.5)
             )
             .foregroundStyle(fgStyle)
@@ -744,7 +744,7 @@ public struct VideoDetailView: View {
                 .foregroundStyle(.secondary)
         }
         .padding(12)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
     }
 
     // MARK: - Track Selection Helpers

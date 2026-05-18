@@ -38,6 +38,7 @@ struct BreadcrumbView: View {
                     .disabled(isLast)
                     .accessibilityLabel(isLast ? "\(segment.name), current folder" : segment.name)
                     .accessibilityHint(isLast ? "" : "Navigates to \(segment.name)")
+                    .accessibilityIdentifier("FileBrowsing-Breadcrumb-button-\(segment.index)")
                 }
             }
             .padding(.horizontal)

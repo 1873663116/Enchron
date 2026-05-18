@@ -136,6 +136,15 @@ public final class WindowVideoViewModel {
         player.hdrOutputMode
     }
 
+    /// The current video's display aspect ratio, derived from MediaProfile resolution.
+    /// Returns nil when no video is loaded or resolution is unknown.
+    public var videoAspectRatio: CGFloat? {
+        guard let resolution = currentMediaProfile?.resolution,
+              resolution.width > 0,
+              resolution.height > 0 else { return nil }
+        return CGFloat(resolution.width) / CGFloat(resolution.height)
+    }
+
     public var displayMediaProfile: PlaybackCoreDomain.MediaProfile? {
         currentMediaProfile ?? prefetchedMetadata?.mediaProfile
     }

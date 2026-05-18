@@ -25,6 +25,14 @@ enum EnvironmentDomeEntity {
             )
         )
         entity.scale.x *= -1  // Invert normals → render on inside
+
+        // §5.9d: Enable spatial tap gesture on the dome so users can summon
+        // player controls by tapping anywhere in the immersive environment.
+        entity.components.set(InputTargetComponent(allowedInputTypes: .indirect))
+        entity.components.set(CollisionComponent(
+            shapes: [.generateSphere(radius: domeRadius)],
+            filter: .default
+        ))
         return entity
     }
 

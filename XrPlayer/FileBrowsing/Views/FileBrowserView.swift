@@ -159,24 +159,6 @@ public struct FileBrowserView: View {
 
     private var detail: some View {
         VStack(spacing: 0) {
-            if let active = viewModel.activeDataSource {
-                HStack {
-                    Image(systemName: "network")
-                    Text("Connected to \(active.name)")
-                        .font(.subheadline)
-                    Spacer()
-                    Button("Remove", role: .destructive) {
-                        if let id = active.id as UUID? {
-                            viewModel.removeDataSource(id: id)
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-                }
-                .padding()
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
-            }
-
             BreadcrumbView()
 
             ContentGridView(
@@ -197,7 +179,6 @@ public struct FileBrowserView: View {
                 } : nil
             )
         }
-        .navigationTitle("Files")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {

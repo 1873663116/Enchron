@@ -25,18 +25,21 @@ public struct SettingsView: View {
                     Text("Always Resume").tag(PersistenceDomain.ResumePolicy.alwaysResume)
                     Text("Always Start Over").tag(PersistenceDomain.ResumePolicy.alwaysStartFromBeginning)
                 }
+                .accessibilityIdentifier("Settings-Playback-picker-resumePolicy")
 
                 Picker("When Video Ends", selection: $playbackEndBehavior) {
                     Text("Stop").tag(PersistenceDomain.PlaybackEndBehavior.stop)
                     Text("Repeat").tag(PersistenceDomain.PlaybackEndBehavior.repeatOne)
                     Text("Play Next").tag(PersistenceDomain.PlaybackEndBehavior.playNext)
                 }
+                .accessibilityIdentifier("Settings-Playback-picker-endBehavior")
 
                 Picker("Default Speed", selection: $defaultPlaybackSpeed) {
                     ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.value) { speed in
                         Text(Self.speedLabel(speed.value)).tag(speed.value)
                     }
                 }
+                .accessibilityIdentifier("Settings-Playback-picker-defaultSpeed")
             }
 
             Section("Immersive Space") {
@@ -46,22 +49,26 @@ public struct SettingsView: View {
                     Text("Full").tag(true)
                     Text("Mixed").tag(false)
                 }
+                .accessibilityIdentifier("Settings-ImmersiveSpace-picker-immersionStyle")
 
                 Picker("Screen Shape", selection: $isCurvedScreen) {
                     Text("Flat").tag(false)
                     Text("Curved").tag(true)
                 }
+                .accessibilityIdentifier("Settings-ImmersiveSpace-picker-screenShape")
 
                 Picker("Environment", selection: $selectedEnvironment) {
                     ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { env in
                         Text(env.displayName).tag(env)
                     }
                 }
+                .accessibilityIdentifier("Settings-ImmersiveSpace-picker-environment")
             }
 
             Section("Storage") {
                 LabeledContent("Cache Size", value: Self.formatBytes(cacheSizeBytes))
                     .accessibilityLabel("Cache size, \(Self.formatBytes(cacheSizeBytes))")
+                    .accessibilityIdentifier("Settings-Storage-label-cacheSize")
 
                 Button {
                     showClearCacheAlert = true
@@ -75,6 +82,7 @@ public struct SettingsView: View {
                     }
                 }
                 .accessibilityLabel("Clear application cache")
+                .accessibilityIdentifier("Settings-Storage-button-clearCache")
                 .disabled(cacheSizeBytes == 0)
             }
 

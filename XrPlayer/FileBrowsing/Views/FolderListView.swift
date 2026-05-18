@@ -97,6 +97,7 @@ public struct FolderListView: View {
                             .buttonStyle(.plain)
                             .accessibilityLabel("\(folder.name), folder")
                             .accessibilityHint("Opens folder contents")
+                            .accessibilityIdentifier("FileBrowsing-FolderList-button-folder-\(folder.id)")
                         }
                     }
                 }
@@ -149,6 +150,7 @@ public struct FolderListView: View {
                                 return label
                             }())
                             .accessibilityHint("Opens video details")
+                            .accessibilityIdentifier("FileBrowsing-FolderList-button-file-\(file.id)")
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                                 if let onFileDeleted {
                                     Button(role: .destructive) {

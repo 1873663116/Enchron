@@ -3,10 +3,14 @@ import SwiftUI
 /// Player controls following the 2-tier layout from player.html footer:
 ///
 /// Tier 1: Seek bar (current time | progress track | remaining time)
-/// Tier 2: Control bar pill (Menu | Rew | Play | Fwd | NLE toggle | Settings)
+/// Tier 2: Control bar pill (Menu | Rew | Play | Fwd | Settings)
 ///
 /// Info bar (PlayerInfoBarView) lives in MainView's video ZStack overlay.
-/// Below: expandable NLE timeline panel
+/// Below: expandable NLE timeline panel.
+///
+/// Menu panels are rendered in the WINDOW space (MainView overlay),
+/// not inside this ornament — visionOS ornaments clip content at their bounds.
+/// Button actions toggle AppModel menu state; MainView reads it for display.
 public struct PlayerControlsView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(WindowVideoViewModel.self) private var videoViewModel
@@ -22,19 +26,19 @@ public struct PlayerControlsView: View {
 
     public var body: some View {
         VStack(spacing: 20) {
-            // ── Tier 1: Seek bar (above pill, no glass) ──
-            // Isolated into SeekBarView so that 200ms playbackPosition polling
-            // only invalidates SeekBarView — not controlBarPill (leftMenu/rightMenu).
-            // player.html uses `px-12` (48pt) horizontal inset for the seek bar container.
-            SeekBarView(onInteraction: registerInteraction)
-                .padding(.horizontal, 48)
+            // ── Tier 1: Seek bar ──
+            SeekBarView(
+                isTimelineExpanded: $isTimelineExpanded,
+                onInteraction: registerInteraction
+            )
+            .padding(.horizontal, 48)
+            .opacity(isTimelineExpanded ? 0.3 : 1.0)
+            .animation(.spring(duration: 0.35, bounce: 0.15), value: isTimelineExpanded)
 
-            // ── Tier 2: Control bar pill (glass capsule) ──
+            // ── Tier 2: Control bar pill (buttons only, no menu panels) ──
             controlBarPill
 
-            // ── NLE Timeline panel (expands below pill) ──
-            // NLETimelineView reads playbackPosition from its own @Environment
-            // so the 200ms polling loop does not re-evaluate this parent body.
+            // ── Tier 3: NLE Timeline ──
             NLETimelineView(
                 isExpanded: $isTimelineExpanded,
                 onSeek: { videoViewModel.seek(to: $0) },
@@ -67,6 +71,12 @@ public struct PlayerControlsView: View {
         .task(id: appModel.smokePanelRequest) {
             await applySmokePanelRequestIfNeeded()
         }
+        // Close all menus when controls auto-hide
+        .onChange(of: appModel.showControls) { _, visible in
+            if !visible {
+                appModel.closeAllPlayerMenus()
+            }
+        }
         .sheet(isPresented: $showScreenPositionSheet) {
             ScreenPositionControlView {
                 showScreenPositionSheet = false
@@ -81,13 +91,30 @@ public struct PlayerControlsView: View {
         }
     }
 
-    // MARK: - Tier 3: Control Bar Pill
+    // MARK: - Control Bar Pill (pure buttons, no menu panels)
 
     @ViewBuilder
     private var controlBarPill: some View {
         HStack(spacing: 8) {
-            // ── Left: Menu (popup expands upward) ──
-            leftMenu
+            // ── Left: Menu button ──
+            Button {
+                registerInteraction()
+                appModel.showPlayerSettingsPopup = false
+                appModel.playerSettingsSubMenu = nil
+                appModel.playerMenuSubMenu = nil
+                appModel.showPlayerMenuPopup.toggle()
+            } label: {
+                Image(systemName: "line.3.horizontal")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.lift)
+            .help("Playback Options")
+            .accessibilityIdentifier("left-menu-button")
+            .accessibilityLabel("Playback Options")
 
             // ── Rewind 10s ──
             Button {
@@ -97,17 +124,16 @@ public struct PlayerControlsView: View {
                 Image(systemName: "gobackward.10")
                     .font(DesignTokens.SymbolSize.control)
                     .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.circle)
             }
             .buttonStyle(.plain)
             .hoverEffect(.lift)
-            .frame(width: 48, height: 48)
-            .contentShape(.circle)
             .help("Backward 10s")
             .accessibilityIdentifier("rewind-button")
             .accessibilityLabel("Rewind 10 seconds")
 
-            // ── Play / Pause (larger, gradient background per player.html) ──
-            // player.html wraps the play button in `<div class="mx-2">` for extra lateral spacing
+            // ── Play / Pause ──
             Button {
                 if videoViewModel.playbackState == .ended {
                     videoViewModel.replay()
@@ -121,23 +147,23 @@ public struct PlayerControlsView: View {
                 Image(systemName: playButtonIcon)
                     .font(.system(size: 32, weight: .medium))
                     .foregroundStyle(Color(red: 0.184, green: 0.192, blue: 0.192))
+                    .frame(width: 64, height: 64)
+                    .background(
+                        LinearGradient(
+                            colors: [
+                                Color(red: 0.776, green: 0.776, blue: 0.780),
+                                Color(red: 0.565, green: 0.569, blue: 0.569),
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .clipShape(.circle)
+                    .contentShape(.circle)
             }
             .buttonStyle(.plain)
-            .frame(width: 64, height: 64)
-            .background(
-                LinearGradient(
-                    colors: [
-                        Color(red: 0.776, green: 0.776, blue: 0.780),  // #c6c6c7
-                        Color(red: 0.565, green: 0.569, blue: 0.569),  // #909191
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            )
-            .clipShape(.circle)
-            .contentShape(.circle)
             .hoverEffect(.lift)
-            .padding(.horizontal, 8)  // mx-2: extra 8pt lateral breathing room around play button
+            .padding(.horizontal, 8)
             .accessibilityIdentifier("play-pause-button")
             .accessibilityLabel(playButtonAccessibilityLabel)
 
@@ -149,263 +175,38 @@ public struct PlayerControlsView: View {
                 Image(systemName: "goforward.10")
                     .font(DesignTokens.SymbolSize.control)
                     .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.circle)
             }
             .buttonStyle(.plain)
             .hoverEffect(.lift)
-            .frame(width: 48, height: 48)
-            .contentShape(.circle)
             .help("Forward 10s")
             .accessibilityIdentifier("forward-button")
             .accessibilityLabel("Forward 10 seconds")
 
-            // ── NLE Timeline toggle ──
-            NLETimelineToggleButton(isExpanded: $isTimelineExpanded)
-
-            // ── Right: Settings menu (popup expands upward) ──
-            rightMenu
+            // ── Right: Settings button ──
+            Button {
+                registerInteraction()
+                appModel.showPlayerMenuPopup = false
+                appModel.playerMenuSubMenu = nil
+                appModel.playerSettingsSubMenu = nil
+                appModel.showPlayerSettingsPopup.toggle()
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.lift)
+            .help("Settings")
+            .accessibilityIdentifier("right-menu-button")
+            .accessibilityLabel("Settings")
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 12)
         .enchronGlassControl()
-    }
-
-    // MARK: - Left Menu (Playback Options)
-
-    private var leftMenu: some View {
-        Menu {
-            // HDR toggle — only shown for HDR content, label tracks the specific HDR format
-            // Mirrors player.html: HDR badge shown at the top of the menu panel
-            if videoViewModel.isHDRContent {
-                Section("Video Output") {
-                    Toggle(
-                        hdrToggleLabel,
-                        isOn: Binding(
-                            get: { videoViewModel.isHDROutputEnabled },
-                            set: { videoViewModel.setHDREnabled($0) }
-                        )
-                    )
-                    .accessibilityIdentifier("hdr-toggle")
-                    .accessibilityLabel(hdrToggleLabel)
-                }
-            }
-
-            // Subtitles — sub-menu expanding left per player.html
-            Section("Subtitles") {
-                Picker("Subtitles", selection: subtitleBinding) {
-                    Text("Off").tag("no" as String)
-                    ForEach(videoViewModel.availableSubtitleTracks) { track in
-                        Text(track.displayName).tag(track.id)
-                    }
-                }
-                .accessibilityIdentifier("subtitles-picker")
-                .accessibilityLabel("Subtitles")
-            }
-
-            // Audio tracks — sub-menu expanding left per player.html
-            Section("Audio") {
-                Picker("Audio Track", selection: audioTrackBinding) {
-                    ForEach(videoViewModel.availableAudioTracks) { track in
-                        Text(track.displayName).tag(track.id)
-                    }
-                }
-                .accessibilityIdentifier("audio-track-picker")
-                .accessibilityLabel("Audio Track")
-            }
-
-            // Playback Speed — sub-menu expanding left per player.html
-            Section("Speed") {
-                Picker("Speed", selection: speedBinding) {
-                    ForEach(PlaybackCoreDomain.PlaybackSpeed.allCases, id: \.self) { speed in
-                        Text(speedLabel(speed)).tag(speed)
-                    }
-                }
-                .accessibilityIdentifier("speed-picker")
-                .accessibilityLabel("Playback Speed")
-            }
-        } label: {
-            // player.html uses "menu" (hamburger) icon for the left menu button
-            Image(systemName: "line.3.horizontal")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 48, height: 48)
-                .contentShape(.circle)
-        }
-        .buttonStyle(.plain)
-        .hoverEffect(.lift)
-        .help("Playback Options")
-        .accessibilityIdentifier("left-menu-button")
-        .accessibilityLabel("Playback Options")
-    }
-
-    /// Dynamic label that matches detected HDR format ("Dolby Vision", "HDR10", "HLG", "HDR Output").
-    private var hdrToggleLabel: String {
-        switch videoViewModel.displayMediaProfile?.hdrType {
-        case .dolbyVision: return "Dolby Vision"
-        case .hdr10, .hdr10Plus: return "HDR10"
-        case .hlg: return "HLG"
-        default: return "HDR Output"
-        }
-    }
-
-    // MARK: - Right Menu (Settings)
-
-    private var rightMenu: some View {
-        Menu {
-            // Section "Playback Mode": all cases shown, unavailable ones disabled
-            Section("Playback Mode") {
-                let allowed = DecidePlaybackModeUseCase.allowedModes(
-                    for: appModel.effectiveProjectionType
-                )
-                ForEach(PlaybackMode.allCases, id: \.self) { mode in
-                    Button {
-                        switchPlaybackMode(to: mode)
-                    } label: {
-                        if appModel.playbackMode == mode {
-                            Label(playbackModeLabel(mode), systemImage: "checkmark")
-                        } else {
-                            Label(playbackModeLabel(mode), systemImage: playbackModeIcon(mode))
-                        }
-                    }
-                    .accessibilityIdentifier("playback-mode-\(mode.rawValue)")
-                    .accessibilityLabel(playbackModeLabel(mode))
-                    .disabled(
-                        !allowed.contains(mode)
-                            || mode == appModel.playbackMode
-                            || appModel.immersiveSpaceState == .inTransition
-                    )
-                }
-            }
-
-            // Section "3D": Off / Side-by-Side / Top-Bottom
-            // Whole section is disabled when content is mono (no 3D data detected)
-            Section("3D") {
-                Picker("3D Mode", selection: stereoLayoutBinding) {
-                    Text("Off").tag(PlaybackCoreDomain.StereoLayout.mono)
-                    Text("Side-by-Side").tag(PlaybackCoreDomain.StereoLayout.sideBySide)
-                    Text("Top-Bottom").tag(PlaybackCoreDomain.StereoLayout.topBottom)
-                }
-                .accessibilityIdentifier("3d-mode-picker")
-                .accessibilityLabel("3D Mode")
-                .disabled(appModel.detectedStereoLayout == .mono)
-            }
-
-            // Section "Environment" — only in immersive space
-            if appModel.immersiveSpaceState == .open {
-                Section("Environment") {
-                    ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) {
-                        environment in
-                        Button {
-                            Task {
-                                await appModel.switchEnvironment(to: environment)
-                            }
-                        } label: {
-                            if appModel.currentCinemaEnvironment == environment {
-                                Label(environment.displayName, systemImage: "checkmark")
-                            } else {
-                                Text(environment.displayName)
-                            }
-                        }
-                        .accessibilityIdentifier("settings-environment-\(environment.rawValue)")
-                        .accessibilityLabel(environment.displayName)
-                    }
-                }
-            }
-
-            Divider()
-
-            // "More Settings..." opens the dedicated Settings window
-            Button {
-                openWindow(id: "settings")
-            } label: {
-                Label("More Settings...", systemImage: "gearshape")
-            }
-            .accessibilityIdentifier("more-settings-button")
-            .accessibilityLabel("More Settings")
-
-            #if DEBUG
-                Button {
-                    registerInteraction()
-                    showDebugSheet = true
-                } label: {
-                    Label("Debug", systemImage: "ladybug")
-                }
-            #endif
-        } label: {
-            // player.html uses "tune" icon for the right settings button
-            Image(systemName: "slider.horizontal.3")
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 48, height: 48)
-                .contentShape(.circle)
-        }
-        .buttonStyle(.plain)
-        .hoverEffect(.lift)
-        .help("Settings")
-        .accessibilityIdentifier("right-menu-button")
-        .accessibilityLabel("Settings")
-    }
-
-    // MARK: - 3D Mode Binding
-
-    /// Binding for the 3D Picker.
-    /// - Reads: stereoLayoutOverride if set, otherwise detectedStereoLayout (auto).
-    /// - Writes: sets override (.mono = Off, .sideBySide/.topBottom = force that mode).
-    private var stereoLayoutBinding: Binding<PlaybackCoreDomain.StereoLayout> {
-        Binding(
-            get: {
-                appModel.stereoLayoutOverride ?? appModel.detectedStereoLayout
-            },
-            set: { newLayout in
-                // .mono means "Off" — clear override so pipeline stops applying stereo crop
-                if newLayout == .mono {
-                    appModel.setStereoLayoutOverride(.mono)
-                } else {
-                    appModel.setStereoLayoutOverride(newLayout)
-                }
-            }
-        )
-    }
-
-    // MARK: - Bindings for Pickers
-
-    private var speedBinding: Binding<PlaybackCoreDomain.PlaybackSpeed> {
-        Binding(
-            get: { appModel.playbackSpeed },
-            set: { speed in
-                videoViewModel.setSpeed(speed)
-                appModel.updatePlaybackSpeed(speed)
-            }
-        )
-    }
-
-    private var subtitleBinding: Binding<String> {
-        Binding(
-            get: {
-                videoViewModel.currentSubtitleTrackID ?? "no"
-            },
-            set: { trackID in
-                if trackID == "no" {
-                    videoViewModel.selectSubtitleTrack(nil)
-                } else {
-                    let track = videoViewModel.availableSubtitleTracks.first { $0.id == trackID }
-                    videoViewModel.selectSubtitleTrack(track)
-                }
-            }
-        )
-    }
-
-    private var audioTrackBinding: Binding<String> {
-        Binding(
-            get: {
-                videoViewModel.currentAudioTrackID ?? ""
-            },
-            set: { trackID in
-                let track = videoViewModel.availableAudioTracks.first { $0.id == trackID }
-                if let track {
-                    videoViewModel.selectAudioTrack(track)
-                }
-            }
-        )
     }
 
     // MARK: - Playback State Helpers
@@ -430,36 +231,6 @@ public struct PlayerControlsView: View {
         default:
             return "Play"
         }
-    }
-
-    // MARK: - Mode Switching
-
-    private func switchPlaybackMode(to mode: PlaybackMode) {
-        guard mode != appModel.playbackMode else { return }
-        guard appModel.immersiveSpaceState != .inTransition else { return }
-        appModel.updatePlaybackMode(mode)
-    }
-
-    // MARK: - Label Helpers
-
-    private func playbackModeLabel(_ mode: PlaybackMode) -> String {
-        switch mode {
-        case .window: return "Window"
-        case .immersive: return "Immersive"
-        case .panorama: return "Panorama"
-        }
-    }
-
-    private func playbackModeIcon(_ mode: PlaybackMode) -> String {
-        switch mode {
-        case .window: return "rectangle.inset.filled"
-        case .immersive: return "visionpro"
-        case .panorama: return "pano"
-        }
-    }
-
-    private func speedLabel(_ speed: PlaybackCoreDomain.PlaybackSpeed) -> String {
-        String(format: "%.2f\u{00D7}", speed.value)
     }
 
     // MARK: - Interaction & Auto-Hide
@@ -493,6 +264,7 @@ public struct PlayerControlsView: View {
 // from re-evaluating PlayerControlsView.controlBarPill (and its menus).
 private struct SeekBarView: View {
     @Environment(WindowVideoViewModel.self) private var videoViewModel
+    @Binding var isTimelineExpanded: Bool
     let onInteraction: () -> Void
 
     @State private var isDraggingSlider = false
@@ -531,6 +303,12 @@ private struct SeekBarView: View {
                 )
                 .tint(.white)
                 .frame(minHeight: 44)
+                // Double-tap on seek bar toggles NLE timeline (player.html:1183)
+                .onTapGesture(count: 2) {
+                    withAnimation(.spring(duration: 0.35, bounce: 0.15)) {
+                        isTimelineExpanded.toggle()
+                    }
+                }
                 .accessibilityIdentifier("PlayerUI-SeekBar-slider-position")
                 .accessibilityLabel("Playback position")
                 .accessibilityValue(

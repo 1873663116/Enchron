@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Finder-style sidebar for the file browser NavigationSplitView.
-/// Shows data source sections (Local + saved remotes) and a storage bar for local storage.
+/// Shows data sources (Local + saved remotes) with a storage bar pinned to the bottom.
 struct FileBrowserSidebar: View {
 
     /// Hashable selection model bridging List(selection:) with the existing
@@ -20,32 +20,41 @@ struct FileBrowserSidebar: View {
     @State private var sidebarSelection: SidebarItem? = .local
 
     var body: some View {
-        List(selection: $sidebarSelection) {
-            Section("Sources") {
-                localStorageRow
-                    .tag(SidebarItem.local)
-                    .accessibilityIdentifier("FileBrowsing-Sidebar-row-local")
-                    .accessibilityLabel("Local Storage")
-                    .accessibilitySortPriority(1000)
+        VStack(spacing: 0) {
+            List(selection: $sidebarSelection) {
+                // Single section, no header — the navigation title "Sources" serves as the header.
+                Section {
+                    localSourceRow
+                        .tag(SidebarItem.local)
+                        .accessibilityIdentifier("FileBrowsing-Sidebar-row-local")
+                        .accessibilityLabel("Local Storage")
+                        .accessibilitySortPriority(1000)
 
-                ForEach(Array(viewModel.savedDataSources.enumerated()), id: \.element.id) { index, ds in
-                    remoteSourceRow(ds)
-                        .tag(SidebarItem.remote(ds.id))
-                        .accessibilityIdentifier("FileBrowsing-Sidebar-row-\(ds.id)")
-                        .accessibilityLabel(ds.name)
-                        .accessibilitySortPriority(Double(999 - index))
-                }
-                .onDelete { offsets in
-                    let idsToRemove = offsets.map { viewModel.savedDataSources[$0].id }
-                    for id in idsToRemove {
-                        viewModel.removeDataSource(id: id)
+                    ForEach(Array(viewModel.savedDataSources.enumerated()), id: \.element.id) { index, ds in
+                        remoteSourceRow(ds)
+                            .tag(SidebarItem.remote(ds.id))
+                            .accessibilityIdentifier("FileBrowsing-Sidebar-row-\(ds.id)")
+                            .accessibilityLabel(ds.name)
+                            .accessibilitySortPriority(Double(999 - index))
+                    }
+                    .onDelete { offsets in
+                        let idsToRemove = offsets.map { viewModel.savedDataSources[$0].id }
+                        for id in idsToRemove {
+                            viewModel.removeDataSource(id: id)
+                        }
                     }
                 }
             }
+            .navigationTitle("Sources")
+
+            // Storage bar pinned to sidebar bottom
+            if localStorageTotal > 0 {
+                storageFooter
+                    .padding(.horizontal, 20)
+                    .padding(.vertical, 12)
+            }
         }
-        .navigationTitle("Sources")
         .task {
-            // Sync initial selection from ViewModel
             if let active = viewModel.activeDataSource {
                 sidebarSelection = .remote(active.id)
             }
@@ -71,52 +80,56 @@ struct FileBrowserSidebar: View {
         }
     }
 
-    // MARK: - Local Storage Row
+    // MARK: - Source Rows (compact, like HTML reference)
 
-    private var localStorageRow: some View {
-        VStack(alignment: .leading, spacing: 6) {
+    /// Local storage: icon + name + green dot when selected.
+    private var localSourceRow: some View {
+        HStack {
             Label("Local Storage", systemImage: "internaldrive")
-
-            if localStorageTotal > 0 {
-                storageBar
+            Spacer()
+            if sidebarSelection == .local {
+                Circle()
+                    .fill(.green)
+                    .frame(width: 8, height: 8)
             }
         }
-        .padding(.vertical, 4)
     }
 
-    // MARK: - Remote Source Row
-
+    /// Remote source: icon + name + status dot.
     private func remoteSourceRow(_ ds: FileBrowsingDomain.DataSource) -> some View {
         HStack {
             Label(
                 ds.name,
                 systemImage: iconName(for: ds.sourceType)
             )
-
             Spacer()
-
-            if viewModel.activeDataSource?.id == ds.id {
-                Circle()
-                    .fill(.green)
-                    .frame(width: 8, height: 8)
-                    .accessibilityLabel("Connected")
-            }
+            Circle()
+                .fill(viewModel.activeDataSource?.id == ds.id ? .green : .secondary.opacity(0.3))
+                .frame(width: 8, height: 8)
+                .accessibilityLabel(viewModel.activeDataSource?.id == ds.id ? "Connected" : "Disconnected")
         }
     }
 
-    // MARK: - Storage Bar
+    // MARK: - Storage Footer
 
-    private var storageBar: some View {
-        VStack(alignment: .leading, spacing: 2) {
+    /// Bottom-pinned storage indicator: "Storage    X.X GB / Y GB" + progress bar.
+    private var storageFooter: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Storage")
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Text("\(formattedBytes(localStorageUsed)) / \(formattedBytes(localStorageTotal))")
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(.secondary)
+            }
+
             ProgressView(
                 value: Double(localStorageUsed),
                 total: Double(localStorageTotal)
             )
             .tint(storageBarColor)
-
-            Text("\(formattedBytes(localStorageUsed)) of \(formattedBytes(localStorageTotal)) used")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
         }
     }
 

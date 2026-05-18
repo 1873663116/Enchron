@@ -16,13 +16,14 @@ struct PlayerInfoBarView: View {
                 Image(systemName: "chevron.left")
                     .font(.body.weight(.semibold))
                     .foregroundStyle(.secondary)
+                    .frame(width: 60, height: 60)
+                    .contentShape(.rect(cornerRadius: 12))
             }
-            .buttonStyle(.plain)
-            .hoverEffect(.lift)
-            .frame(minWidth: 60, minHeight: 60)
-            .contentShape(.rect)
+            .buttonStyle(.borderless)
+            .hoverEffect(.highlight)
             .accessibilityLabel("Back")
             .accessibilityHint("Stops playback and returns to browser")
+            .accessibilityIdentifier("PlayerUI-InfoBar-button-back")
 
             Text(videoTitle)
                 .font(DesignTokens.Typography.headline)

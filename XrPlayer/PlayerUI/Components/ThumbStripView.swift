@@ -51,7 +51,7 @@ struct ThumbStripView: View {
                 )
             }
             .frame(height: stripHeight)
-            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.badge, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
             .contentShape(.rect)
             .gesture(
                 DragGesture(minimumDistance: 1)
