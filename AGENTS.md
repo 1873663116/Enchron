@@ -102,41 +102,25 @@ XrPlayer/
 | 文档 | 是什么 | 何时查阅 |
 |------|--------|----------|
 | **ARCHITECTURE.md** | 模块职责、数据流、Architecture Invariants、跨模块通信 | 任何代码改动前 |
-| **docs/ui-coding-standards.md** | UI Token、玻璃形状、hover、accessibility 编码约束 | 任何 UI / Design Preview 改动前 |
-| **DesignPreview/AGENTS.md** | Fake UX 与 Design Preview 专项规范 | 修改 DesignPreview 目标时 |
-| **docs/quality_gates.md** | 一个改动怎样才算可接受 | 提交代码前自查 |
 
 ### 产品与规范
 
 | 文档 | 是什么 | 何时查阅 |
 |------|--------|----------|
 | `docs/product_philosophy.md` | 产品灵魂、三种播放模式的体验愿景 | 做设计决策时 |
-| `docs/brainstorms/*-requirements.md` | 各功能的需求探索与验收边界 | 接新需求、判断功能是否越界 |
 | `docs/quality_gates.md` | 一个改动怎样才算"可接受" | 提交代码前自查 |
 | `docs/ubiquitous_language.md` | 项目统一术语表 | 命名类、方法、变量时 |
-| `docs/contracts/` | 契约规范 + OpenAPI + Mock 数据 | 改远程数据模型、接口或协作边界时 |
 
 ### docs/ 子目录
 
 | 目录 | 是什么 | 何时查阅 |
 |------|--------|----------|
-| `docs/plans/active/` | 进行中的 ExecPlan、TestPlan、ResearchPlan、Arch Review | 接手任务或继续未完成工作时 |
-| `docs/plans/complete/` | 已完成的计划（待归档） | 需要了解近期已完成的迭代 |
-| `docs/brainstorms/` | 需求探索与头脑风暴（含 requirements） | 规划新功能、回溯需求来源时 |
 | `docs/designs/` | HTML 设计稿与视觉原型 | 实现 UI 时对照设计 |
 | `docs/reference/` | 技术调查报告（investigation）、构建指南 | 需要某领域的调查结论时 |
 | `docs/solutions/best-practices/` | 经验沉淀：踩坑记录、架构模式、流程最佳实践 | 遇到类似问题时避免重蹈覆辙 |
 | `docs/solutions/build-errors/` | 构建错误的诊断与修复方案 | 遇到构建报错时 |
-| `docs/qa-reports/` | QA 报告 + 截图证据 | 回顾测试结果、追溯 bug 修复 |
 | `docs/archive/` | 归档区：已完成的 ExecPlan、已解决的 issues、DDD 建模历史 | 需要历史上下文时 |
 
 文档优先级（冲突时）：product_philosophy > brainstorms/*-requirements > quality_gates > ARCHITECTURE > 其余。
 
 ---
-
-
-## Review guidelines
-*非review agent忽略*
-
-- Don't log PII.
-- Verify that authentication middleware wraps every route.

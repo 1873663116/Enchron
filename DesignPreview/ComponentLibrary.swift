@@ -18,6 +18,7 @@ struct ComponentLibraryView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+                PlayerSection()
                 CircleButtonsSection()
                 ToggleSection()
                 LoadingSection()
@@ -26,7 +27,6 @@ struct ComponentLibraryView: View {
                 ContainersSection()
                 InteractiveMenuSection()
                 SmallElementsSection()
-                PlayerSection()
             }
             .padding(DesignTokens.Spacing.xl)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -44,6 +44,7 @@ private struct CircleButtonsSection: View {
     @State private var sortKey: SortKey = .name
     @State private var sortOrder: SortOrder = .ascending
     @State private var searchText = ""
+    @State private var isSearchSelected = false
     @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
@@ -111,6 +112,7 @@ private struct CircleButtonsSection: View {
         .hoverEffect(.automatic)
         .padding((DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
         .contentShape(Circle())
+        .enchronPressFeedback(.icon)
     }
 
     @ViewBuilder
@@ -157,6 +159,7 @@ private struct CircleButtonsSection: View {
                 .contentShape(.hoverEffect, Circle())
                 .hoverEffect(.automatic)
                 .contentShape(Circle())
+                .enchronPressFeedback(.icon)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("DesignPreview-ComponentLibrary-menu-sort")
@@ -164,7 +167,9 @@ private struct CircleButtonsSection: View {
     }
 
     private var searchInputCapsule: some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
+        let isActive = isSearchSelected || isSearchFieldFocused
+
+        return HStack(spacing: DesignTokens.Spacing.xs) {
             Image(systemName: "magnifyingglass")
                 .font(.body)
                 .foregroundStyle(.tertiary)
@@ -176,6 +181,8 @@ private struct CircleButtonsSection: View {
                 .focused($isSearchFieldFocused)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
+                .hoverEffectDisabled()
+                .allowsHitTesting(false)
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
         .frame(width: 280, height: DesignTokens.Interactive.regular)
@@ -184,8 +191,25 @@ private struct CircleButtonsSection: View {
         .contentShape(.hoverEffect, Capsule())
         .hoverEffect(.automatic)
         .contentShape(Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(
+                    DesignTokens.Surface.focusBorder.opacity(isActive ? 1 : 0),
+                    lineWidth: DesignTokens.Stroke.bold
+                )
+                .animation(DesignTokens.AnimationToken.selection, value: isActive)
+        }
         .onTapGesture {
-            isSearchFieldFocused = true
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                isSearchSelected = true
+                isSearchFieldFocused = true
+            }
+        }
+        .onChange(of: isSearchFieldFocused) { _, isFocused in
+            guard !isFocused else { return }
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                isSearchSelected = false
+            }
         }
         .accessibilityIdentifier("DesignPreview-ComponentLibrary-input-search")
         .accessibilityLabel("Search")
@@ -219,6 +243,7 @@ private struct CircleButtonsSection: View {
                 .contentShape(.hoverEffect, Circle())
                 .hoverEffect(.automatic)
                 .contentShape(Circle())
+                .enchronPressFeedback(.icon)
         }
         .buttonStyle(.plain)
         .accessibilityIdentifier("DesignPreview-ComponentLibrary-menu-source")
@@ -314,22 +339,81 @@ private struct CardsSection: View {
 // MARK: - Rows
 
 private struct RowsSection: View {
+    @State private var selectedAudioTrack = "English 5.1"
+    @State private var selectedCaptions = "Off"
+
+    private let audioTracks = ["English 5.1", "Japanese 2.0", "Commentary"]
+    private let captionTracks = ["Off", "English (CC)", "中文简体"]
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("ROWS / LIST ITEMS")
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(.secondary).textCase(.uppercase)
 
-            VStack(spacing: DesignTokens.Spacing.xxs) {
-                FileListRow(icon: "film", title: "Blade Runner 2049", metadata: "4K · 5.3 GB")
-                MenuItemRow(title: "Audio Track", isExpanded: false)
-                SubMenuItemRow(title: "English 5.1", isChecked: true)
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                VStack(spacing: DesignTokens.Spacing.xxs) {
+                    FileListRow(icon: "folder", title: "Movies", metadata: "24 items")
+                    FileListRow(icon: "film", title: "Blade Runner 2049", metadata: "4K · 5.3 GB")
+                }
+                .frame(maxWidth: 600)
+
+                VStack(spacing: DesignTokens.Spacing.xxs) {
+                    NativeSelectionMenuRow(
+                        title: "Audio Track",
+                        selection: $selectedAudioTrack,
+                        options: audioTracks
+                    )
+                    NativeSelectionMenuRow(
+                        title: "Captions",
+                        selection: $selectedCaptions,
+                        options: captionTracks
+                    )
+                }
+                .frame(width: DesignTokens.Menu.panelWidth)
             }
-            .frame(maxWidth: 600)
 
             Text("element(24) + highlight hover · minHeight 60pt")
                 .font(.caption2).foregroundStyle(.tertiary)
         }
+    }
+}
+
+private struct NativeSelectionMenuRow: View {
+    let title: String
+    @Binding var selection: String
+    let options: [String]
+
+    var body: some View {
+        Menu {
+            ForEach(options, id: \.self) { option in
+                Button {
+                    selection = option
+                } label: {
+                    Label(option, systemImage: option == selection ? "checkmark" : "")
+                }
+            }
+        } label: {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                    Text(title)
+                        .font(.body)
+                    Text(selection)
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer(minLength: DesignTokens.Spacing.sm)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, DesignTokens.Spacing.md)
+            .frame(minHeight: DesignTokens.Interactive.rowHeight)
+            .enchronGlassMenuItem()
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("DesignPreview-ComponentLibrary-menu-\(title)")
+        .accessibilityLabel(title)
     }
 }
 
@@ -515,24 +599,12 @@ private struct PlayerSection: View {
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(.secondary).textCase(.uppercase)
 
-            labeledComponent("ProgressBar · Capsule") {
-                GeometryReader { geo in
-                    ZStack(alignment: .leading) {
-                        Capsule().fill(DesignTokens.Surface.elevated)
-                        Capsule().fill(Color(red: 0.224, green: 0.773, blue: 0.733))
-                            .frame(width: geo.size.width * 0.45)
-                    }
-                }
-                .frame(height: 6)
-                .frame(maxWidth: 600)
+            labeledComponent("ProgressBar · hover reveals scrubber · played / unplayed") {
+                PlayerProgressStrip()
+                    .frame(width: DesignTokens.ProgressBar.previewWidth)
             }
 
-            labeledComponent("TimelineStrip · element(24) glass") {
-                PlayerTimeline()
-                    .frame(maxWidth: 600)
-            }
-
-            labeledComponent("ControlBar · Capsule glass") {
+            labeledComponent("PlayerControlBar · SF Symbols · token layout") {
                 PlayerControlBar()
             }
         }

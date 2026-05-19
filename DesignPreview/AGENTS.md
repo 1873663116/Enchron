@@ -6,6 +6,14 @@ Enchron UI 参考。`ComponentLibrary.swift` 中的组件持续确认中，以�
 
 ---
 
+## Design Tokens 与动画裁决
+
+- 所有 UI 样式值和动效参数必须走 `DesignTokens`。包括颜色、描边、圆角、间距、尺寸、动画曲线、动画时长、press feedback、loading timing。
+- 不允许在 DesignPreview 组件或页面中写临时动画，例如裸 `.easeOut(...)`、`.spring(...)`、`.animation(.default...)`、临时 `Task.sleep(.milliseconds(...))`、临时 `scaleEffect` 参数。
+- 如果现有 token 无法表达目标效果，必须上报人类裁决：由人类决定新增 token、调整组件语义，或取消该动画。不得为了“先看效果”把临时动画留在组件里。
+
+---
+
 ## Hover
 
 **Hover 范围不能超过视觉形状。**
@@ -50,8 +58,9 @@ Capsule 内有多个点击区时，不用嵌套 Button（命中区互相干扰�
 `SpatialTapGesture` 无内置 press 动效，需手动实现。规则（经设备与系统 Button 对比确认）：
 
 - 只用 `scaleEffect`，不加 opacity
-- 幅度：**0.95**
-- 按下 `.easeOut(0.08s)` 缩小，150ms 后 `.spring(response:0.3, dampingFraction:0.6)` 弹回
+- 参数必须来自 `DesignTokens.PressFeedback`
+- 普通组件优先使用 `.enchronPressFeedback(...)`
+- 多分区胶囊保留 `SpatialTapGesture` 分区命中逻辑，但 press 参数仍必须读取 `DesignTokens.PressFeedback`
 
 > 参考实现：`NavBackForwardCapsuleControl.pressedSide`
 

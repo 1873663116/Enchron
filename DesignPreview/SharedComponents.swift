@@ -1,7 +1,6 @@
 import SwiftUI
 
-// MARK: - Shared components used across multiple mockup pages
-// These are NOT private — they're referenced by BrowseMockup, PlayerMockup, and ComponentLibrary.
+// MARK: - Shared components used by the Design System review pages
 
 // MARK: - Reusable controls
 
@@ -19,19 +18,20 @@ struct NavBackForwardCapsuleControl: View {
 
     var body: some View {
         let capsuleWidth = DesignTokens.Interactive.regular * 2
+        let press = DesignTokens.PressFeedback.icon
 
         ZStack {
             HStack(spacing: 0) {
                 Image(systemName: "chevron.left")
                     .font(DesignTokens.SymbolSize.control)
                     .foregroundStyle(iconColor)
-                    .scaleEffect(pressedSide == .back ? 0.95 : 1.0)
+                    .scaleEffect(pressedSide == .back ? press.pressedScale : 1.0)
                     .frame(width: DesignTokens.Interactive.regular,
                            height: DesignTokens.Interactive.regular)
                 Image(systemName: "chevron.right")
                     .font(DesignTokens.SymbolSize.control)
                     .foregroundStyle(iconColor.opacity(trailingOpacity))
-                    .scaleEffect(pressedSide == .forward ? 0.95 : 1.0)
+                    .scaleEffect(pressedSide == .forward ? press.pressedScale : 1.0)
                     .frame(width: DesignTokens.Interactive.regular,
                            height: DesignTokens.Interactive.regular)
             }
@@ -43,10 +43,10 @@ struct NavBackForwardCapsuleControl: View {
         .gesture(
             SpatialTapGesture().onEnded { value in
                 let tapped: NavSide = value.location.x < capsuleWidth / 2 ? .back : .forward
-                withAnimation(.easeOut(duration: 0.08)) { pressedSide = tapped }
+                withAnimation(press.pressAnimation) { pressedSide = tapped }
                 Task {
-                    try? await Task.sleep(for: .milliseconds(150))
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { pressedSide = nil }
+                    try? await Task.sleep(for: press.holdDuration)
+                    withAnimation(press.releaseAnimation) { pressedSide = nil }
                 }
                 if tapped == .back { onBack() } else { onForward() }
             }
@@ -70,6 +70,7 @@ struct ViewModeCapsuleControl: View {
 
     var body: some View {
         let capsuleWidth = DesignTokens.Interactive.regular * 2
+        let press = DesignTokens.PressFeedback.icon
 
         ZStack {
             HStack(spacing: 0) {
@@ -84,9 +85,9 @@ struct ViewModeCapsuleControl: View {
         .gesture(
             SpatialTapGesture().onEnded { value in
                 let tapped = value.location.x < capsuleWidth / 2 ? 0 : 1
-                withAnimation(.easeOut(duration: 0.08)) { pressedIndex = tapped }
+                withAnimation(press.pressAnimation) { pressedIndex = tapped }
                 Task {
-                    try? await Task.sleep(for: .milliseconds(150))
+                    try? await Task.sleep(for: press.holdDuration)
                     withAnimation(DesignTokens.AnimationToken.selection) {
                         selection = tapped
                         pressedIndex = nil
@@ -102,6 +103,8 @@ struct ViewModeCapsuleControl: View {
 
     @ViewBuilder
     private func viewModeIcon(_ icon: String, isSelected: Bool, isPressed: Bool) -> some View {
+        let press = DesignTokens.PressFeedback.icon
+
         ZStack {
             if isSelected {
                 Circle()
@@ -114,7 +117,7 @@ struct ViewModeCapsuleControl: View {
             Image(systemName: icon)
                 .font(DesignTokens.SymbolSize.control)
                 .foregroundStyle(isSelected ? iconColor : iconColor.opacity(unselectedOpacity))
-                .scaleEffect(isPressed ? 0.95 : 1.0)
+                .scaleEffect(isPressed ? press.pressedScale : 1.0)
                 .frame(width: DesignTokens.Interactive.regular,
                        height: DesignTokens.Interactive.regular)
         }
@@ -172,6 +175,7 @@ struct VideoCardLarge: View {
         }
         .frame(width: DesignTokens.Card.gridMin)
         .enchronGlassCard()
+        .enchronPressFeedback(.card)
     }
 }
 
@@ -189,11 +193,6 @@ struct FolderCard: View {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 54))
                         .foregroundStyle(.tertiary)
-                        .hoverEffect { effect, isActive, _ in
-                            effect.animation(.default.delay(isActive ? 0.15 : 0.05)) {
-                                $0.scaleEffect(isActive ? 1.1 : 1.0)
-                            }
-                        }
                 }
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                 Text(title).font(DesignTokens.Typography.headline)
@@ -212,6 +211,7 @@ struct FolderCard: View {
         .hoverEffect(.highlight)
         .contentShape(shape)
         .hoverEffectGroup()
+        .enchronPressFeedback(.card)
     }
 }
 
@@ -238,6 +238,7 @@ struct SceneCardMedium: View {
                 : nil
         )
         .enchronGlassCard()
+        .enchronPressFeedback(.card)
     }
 }
 
@@ -263,6 +264,7 @@ struct FileListRow: View {
         .padding(.horizontal, DesignTokens.Spacing.md)
         .frame(minHeight: DesignTokens.Interactive.rowHeight)
         .enchronGlassMenuItem()
+        .enchronPressFeedback(.row)
     }
 }
 
@@ -282,6 +284,7 @@ struct MenuItemRow: View {
         .padding(.horizontal, DesignTokens.Spacing.md)
         .frame(minHeight: DesignTokens.Interactive.rowHeight)
         .enchronGlassMenuItem()
+        .enchronPressFeedback(.row)
     }
 }
 
@@ -302,6 +305,7 @@ struct SubMenuItemRow: View {
         .padding(.horizontal, DesignTokens.Spacing.sm)
         .frame(minHeight: DesignTokens.Interactive.rowHeight)
         .enchronGlassMenuItem()
+        .enchronPressFeedback(.row)
     }
 }
 
@@ -317,7 +321,7 @@ struct MockToggle: View {
             }
         } label: {
             Capsule()
-                .fill(isOn ? Color(red: 0.224, green: 0.773, blue: 0.733) : DesignTokens.Surface.elevated)
+                .fill(isOn ? DesignTokens.Theme.accent : DesignTokens.Surface.elevated)
                 .frame(width: 50, height: 30)
                 .overlay(alignment: isOn ? .trailing : .leading) {
                     Circle()
@@ -334,6 +338,335 @@ struct MockToggle: View {
         .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
         .padding(.horizontal, (DesignTokens.Interactive.large - 50) / 2)
         .contentShape(Capsule())
+    }
+}
+
+struct MockBreadcrumb: View {
+    let path: [String]
+    let onSelectLevel: (Int) -> Void
+
+    init(
+        path: [String] = ["Local Storage", "Movies"],
+        onSelectLevel: @escaping (Int) -> Void = { _ in }
+    ) {
+        self.path = path
+        self.onSelectLevel = onSelectLevel
+    }
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.xxs) {
+            ForEach(Array(path.enumerated()), id: \.offset) { index, node in
+                Button(node) {
+                    onSelectLevel(index)
+                }
+                .buttonStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .contentShape(.hoverEffect, Capsule())
+                .hoverEffect(.lift)
+                .contentShape(Capsule())
+
+                if index < path.count - 1 {
+                    Image(systemName: "chevron.right")
+                        .font(.caption2)
+                        .foregroundStyle(Color.white.opacity(0.8))
+                }
+            }
+        }
+    }
+}
+
+struct PlayerProgressBar: View {
+    private enum InteractionState {
+        case normal
+        case hover
+        case active
+    }
+
+    @State private var progress: CGFloat = 0.45
+    @State private var isStripHovered = false
+    @State private var isThumbHovered = false
+    @State private var isDragging = false
+
+    private var interactionState: InteractionState {
+        if isDragging { return .active }
+        if isStripHovered || isThumbHovered { return .hover }
+        return .normal
+    }
+
+    private var isRevealed: Bool {
+        interactionState != .normal
+    }
+
+    private var trackHeight: CGFloat {
+        interactionState == .active
+            ? DesignTokens.ProgressBar.trackHeight
+            : DesignTokens.ProgressBar.inactiveTrackHeight
+    }
+
+    var body: some View {
+        GeometryReader { proxy in
+            let width = max(proxy.size.width - DesignTokens.ProgressBar.thumbDiameter, 0)
+            let clampedProgress = min(max(progress, 0), 1)
+            let thumbX = DesignTokens.ProgressBar.thumbDiameter / 2 + clampedProgress * width
+            let overlayWidth = width + DesignTokens.ProgressBar.thumbDiameter
+
+            ZStack(alignment: .leading) {
+                Color.clear
+                    .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
+                    .accessibilityHidden(true)
+
+                progressHub(
+                    width: width,
+                    progress: clampedProgress,
+                    overlayWidth: overlayWidth,
+                    playedColor: isRevealed
+                        ? DesignTokens.ProgressBar.playedHoverColor
+                        : DesignTokens.ProgressBar.playedColor,
+                    unplayedColor: isRevealed
+                        ? DesignTokens.ProgressBar.unplayedHoverColor
+                        : DesignTokens.ProgressBar.unplayedColor,
+                    height: trackHeight
+                )
+
+                timeBubble
+                    .position(
+                        x: thumbX,
+                        y: DesignTokens.ProgressBar.hitHeight / 2 - DesignTokens.ProgressBar.timeBubbleOffset
+                    )
+                    .opacity(isRevealed ? 1.0 : 0.0)
+                    .animation(DesignTokens.AnimationToken.selection, value: isRevealed)
+                    .allowsHitTesting(false)
+
+                scrubberControl(width: width)
+                    .position(
+                        x: thumbX,
+                        y: DesignTokens.ProgressBar.hitHeight / 2
+                    )
+                    .opacity(isRevealed ? 1.0 : 0.0)
+                    .animation(DesignTokens.AnimationToken.selection, value: isRevealed)
+            }
+            .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
+            .contentShape(.interaction, Capsule())
+            .onHover { isHovering in
+                setStripHovered(isHovering)
+            }
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
+                    setStripHovered(true)
+                case .ended:
+                    setStripHovered(false)
+                }
+            }
+            .gesture(dragGesture(width: width))
+        }
+        .frame(height: DesignTokens.ProgressBar.hitHeight)
+        .accessibilityIdentifier("DesignPreview-PlayerProgressBar")
+        .accessibilityLabel("Playback progress")
+    }
+
+    private func progressHub(
+        width: CGFloat,
+        progress: CGFloat,
+        overlayWidth: CGFloat,
+        playedColor: Color,
+        unplayedColor: Color,
+        height: CGFloat
+    ) -> some View {
+        ZStack(alignment: .leading) {
+            progressTrack(
+                width: width,
+                progress: progress,
+                playedColor: playedColor,
+                unplayedColor: unplayedColor,
+                height: height
+            )
+            .padding(.leading, DesignTokens.ProgressBar.thumbDiameter / 2)
+        }
+            .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
+    }
+
+    private func progressTrack(
+        width: CGFloat,
+        progress: CGFloat,
+        playedColor: Color,
+        unplayedColor: Color,
+        height: CGFloat
+    ) -> some View {
+        ZStack(alignment: .leading) {
+            Capsule()
+                .fill(unplayedColor)
+            Capsule()
+                .fill(playedColor)
+                .frame(width: width * progress)
+        }
+        .frame(width: width, height: height)
+        .animation(DesignTokens.AnimationToken.selection, value: height)
+        .animation(DesignTokens.AnimationToken.selection, value: playedColor)
+        .animation(DesignTokens.AnimationToken.selection, value: unplayedColor)
+    }
+
+    private var timeBubble: some View {
+        HStack(spacing: DesignTokens.Spacing.xs) {
+            Text("6:21")
+                .foregroundStyle(.primary)
+            Text("-7:54")
+                .foregroundStyle(.secondary)
+        }
+        .font(DesignTokens.Typography.monospacedDetail)
+        .monospacedDigit()
+        .padding(.horizontal, DesignTokens.ProgressBar.timeBubblePaddingH)
+        .padding(.vertical, DesignTokens.ProgressBar.timeBubblePaddingV)
+        .background(
+            RoundedRectangle(cornerRadius: DesignTokens.ProgressBar.timeBubbleRadius, style: .continuous)
+                .fill(DesignTokens.ProgressBar.timeBubbleFill)
+        )
+    }
+
+    private func scrubberThumbVisual() -> some View {
+        Circle()
+            .fill(.white)
+            .overlay {
+                Circle()
+                    .strokeBorder(
+                        DesignTokens.ProgressBar.thumbStroke,
+                        lineWidth: DesignTokens.ProgressBar.thumbStrokeWidth
+                    )
+            }
+            .frame(width: DesignTokens.ProgressBar.thumbDiameter,
+                   height: DesignTokens.ProgressBar.thumbDiameter)
+    }
+
+    private func scrubberThumb() -> some View {
+        scrubberThumbVisual()
+            .accessibilityIdentifier("DesignPreview-PlayerProgressBar-thumb")
+            .accessibilityLabel("Playback position thumb")
+    }
+
+    private func scrubberControl(width: CGFloat) -> some View {
+        scrubberThumb()
+            .contentShape(.hoverEffect, Circle())
+            .hoverEffect()
+            .onHover { isHovering in
+                isThumbHovered = isHovering
+            }
+            .onContinuousHover { phase in
+                switch phase {
+                case .active:
+                    isThumbHovered = true
+                case .ended:
+                    isThumbHovered = false
+                }
+            }
+            .frame(width: DesignTokens.ProgressBar.hitHeight,
+                   height: DesignTokens.ProgressBar.hitHeight)
+            .contentShape(Circle())
+            .allowsHitTesting(isRevealed || isDragging)
+    }
+
+    private func dragGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                if !isDragging {
+                    beginScrubbing()
+                }
+                isDragging = true
+                progress = progress(forLocation: value.location.x, width: width)
+            }
+            .onEnded { _ in
+                endScrubbing()
+            }
+    }
+
+    private func beginScrubbing() {
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            isDragging = true
+        }
+    }
+
+    private func endScrubbing() {
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            isDragging = false
+        }
+    }
+
+    private func setStripHovered(_ isHovered: Bool) {
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            isStripHovered = isHovered
+            if !isHovered {
+                isThumbHovered = false
+            }
+        }
+    }
+
+    private func progress(forLocation locationX: CGFloat, width: CGFloat) -> CGFloat {
+        guard width > 0 else { return progress }
+        let trackStartX = DesignTokens.ProgressBar.thumbDiameter / 2
+        return min(max((locationX - trackStartX) / width, 0), 1)
+    }
+}
+
+struct PlayerProgressStrip: View {
+    var body: some View {
+        PlayerProgressBar()
+        .frame(width: DesignTokens.ProgressBar.previewWidth)
+        .accessibilityIdentifier("DesignPreview-PlayerProgressStrip")
+        .accessibilityLabel("Playback progress")
+    }
+}
+
+struct PlayerControlBar: View {
+    var body: some View {
+        HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+            controlButton("line.3.horizontal", label: "Playlist")
+            controlButton("gobackward.10", label: "Rewind 10 seconds")
+            primaryPlayButton
+            controlButton("goforward.10", label: "Forward 10 seconds")
+            controlButton("slider.horizontal.3", label: "Playback settings")
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, DesignTokens.ControlBar.paddingH)
+        .padding(.vertical, DesignTokens.ControlBar.paddingV)
+        .clipShape(Capsule())
+        .glassBackgroundEffect(in: .capsule)
+        .contentShape(Capsule())
+    }
+
+    private var primaryPlayButton: some View {
+        Button {} label: {
+            Image(systemName: "play.fill")
+                .font(DesignTokens.SymbolSize.action)
+                .foregroundStyle(DesignTokens.ControlBar.primarySymbol)
+                .frame(width: DesignTokens.Interactive.xl,
+                       height: DesignTokens.Interactive.xl)
+                .background(DesignTokens.ControlBar.primaryFill, in: Circle())
+        }
+        .buttonStyle(.plain)
+        .enchronPressFeedback(.icon)
+        .clipShape(Circle())
+        .contentShape(.hoverEffect, Circle())
+        .hoverEffect(.lift)
+        .contentShape(Circle())
+        .accessibilityIdentifier("DesignPreview-PlayerControlBar-button-play")
+        .accessibilityLabel("Play")
+    }
+
+    private func controlButton(_ systemName: String, label: String) -> some View {
+        Button {} label: {
+            Image(systemName: systemName)
+                .font(DesignTokens.SymbolSize.control)
+                .frame(width: DesignTokens.Interactive.large,
+                       height: DesignTokens.Interactive.large)
+        }
+        .buttonStyle(.plain)
+        .enchronPressFeedback(.icon)
+        .clipShape(Circle())
+        .contentShape(.hoverEffect, Circle())
+        .hoverEffect(.lift)
+        .contentShape(Circle())
+        .accessibilityIdentifier("DesignPreview-PlayerControlBar-button-\(label)")
+        .accessibilityLabel(label)
     }
 }
 
@@ -369,8 +702,6 @@ struct LoadingSpinner: View {
     @State private var arcStart: CGFloat = 0
     @State private var arcEnd: CGFloat = 0
 
-    private static let themeColor = Color(red: 0.224, green: 0.773, blue: 0.733)
-
     var body: some View {
         let lineWidth = size * 0.06
         let inset = size * 0.16
@@ -379,7 +710,7 @@ struct LoadingSpinner: View {
             // Glow layer — theme-colored, screen blend, follows arc
             SpinnerArc(start: arcStart, end: arcEnd)
                 .stroke(
-                    Self.themeColor.opacity(0.15),
+                    DesignTokens.Theme.accent.opacity(0.15),
                     style: StrokeStyle(lineWidth: lineWidth * 4, lineCap: .round)
                 )
                 .blur(radius: lineWidth * 2)
@@ -398,7 +729,7 @@ struct LoadingSpinner: View {
         .overlay {
             if showBorder {
                 Circle()
-                    .strokeBorder(Self.themeColor.opacity(0.3), lineWidth: 1)
+                    .strokeBorder(DesignTokens.Theme.accent.opacity(0.3), lineWidth: 1)
             }
         }
         .clipShape(Circle())
@@ -410,16 +741,16 @@ struct LoadingSpinner: View {
         Task {
             while !Task.isCancelled {
                 // Head extends forward from gap
-                withAnimation(.easeOut(duration: 0.7)) {
+                withAnimation(DesignTokens.LoadingSpinner.headAnimation) {
                     arcEnd = 0.85
                 }
-                try? await Task.sleep(for: .milliseconds(700))
+                try? await Task.sleep(for: DesignTokens.LoadingSpinner.headDuration)
 
                 // Tail catches up to head
-                withAnimation(.easeOut(duration: 0.55)) {
+                withAnimation(DesignTokens.LoadingSpinner.tailAnimation) {
                     arcStart = 0.85
                 }
-                try? await Task.sleep(for: .milliseconds(550))
+                try? await Task.sleep(for: DesignTokens.LoadingSpinner.tailDuration)
 
                 // Instant reset to start position
                 arcStart = 0
