@@ -62,19 +62,17 @@
 				Shared/DesignSystem/DesignSystemPreview.swift,
 				Shared/DesignSystem/DesignTokens.swift,
 				"Shared/DesignSystem/View+EnchronGlass.swift",
+				"Shared/DesignSystem/View+PressFeedback.swift",
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};
 		C3A35ACF2F85C29900DA0D16 /* Exceptions for "DesignPreview" folder in "DesignPreview" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				BrowseMockup.swift,
 				ComponentLibrary.swift,
 				ContentView.swift,
 				DesignPreviewApp.swift,
-				PlayerMockup.swift,
 				SharedComponents.swift,
-				TokenPreviews.swift,
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};
@@ -95,11 +93,6 @@
 				C3A35AC72F85434200DA0D16 /* Exceptions for "XrPlayer" folder in "DesignPreview" target */,
 			);
 			path = XrPlayer;
-			sourceTree = "<group>";
-		};
-		E2E0000300000000DEADBEEF /* XrPlayerUITests */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			path = XrPlayerUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXFileSystemSynchronizedRootGroup section */
@@ -137,7 +130,6 @@
 			isa = PBXGroup;
 			children = (
 				C3B0F9822F5726B30064596E /* XrPlayer */,
-				E2E0000300000000DEADBEEF /* XrPlayerUITests */,
 				C3B0F9832F5726B30064596E /* Packages */,
 				C3A35AA12F85415E00DA0D16 /* DesignPreview */,
 				C3B0F9812F5726B30064596E /* Products */,
@@ -225,9 +217,6 @@
 			);
 			dependencies = (
 				E2E0000700000000DEADBEEF /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				E2E0000300000000DEADBEEF /* XrPlayerUITests */,
 			);
 			name = XrPlayerUITests;
 			productName = XrPlayerUITests;

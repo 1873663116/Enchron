@@ -95,6 +95,8 @@ public enum DesignTokens {
     public enum Interactive {
         /// 28 — disclosure, auxiliary controls (needs 60pt surrounding space)
         public static let mini: CGFloat = 28
+        /// 36 — compact scrubbers and dense icon controls (needs surrounding clearance)
+        public static let compact: CGFloat = 36
         /// 44 — standard buttons (needs ≥8pt clearance each side)
         public static let regular: CGFloat = 44
         /// 60 — navigation buttons, self-sufficient target
@@ -131,6 +133,120 @@ public enum DesignTokens {
         public static let skeleton: Animation = .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
     }
 
+    /// Loading spinner timing. Kept separate from generic animation tokens
+    /// because the paired head/tail phases must stay synchronized.
+    public enum LoadingSpinner {
+        public static let headAnimation: Animation = .easeOut(duration: 0.7)
+        public static let tailAnimation: Animation = .easeOut(duration: 0.55)
+        public static let headDuration: Duration = .milliseconds(700)
+        public static let tailDuration: Duration = .milliseconds(550)
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Theme
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /// Enchron's single theme accent, used for focused and active states.
+    public enum Theme {
+        public static let accent: Color = Color(red: 0.224, green: 0.773, blue: 0.733)
+    }
+
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    // MARK: - Press Feedback
+    // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+    /// Press feedback spec used by interactive surfaces that need explicit tap
+    /// response outside the system ButtonStyle pipeline.
+    public struct PressFeedbackSpec {
+        public let pressedScale: CGFloat
+        public let maximumVisualInset: CGFloat
+        public let pressAnimation: Animation
+        public let releaseAnimation: Animation
+        public let holdDuration: Duration
+        public let pressAnimationLabel: String
+        public let releaseAnimationLabel: String
+        public let holdDurationLabel: String
+
+        public init(
+            pressedScale: CGFloat,
+            maximumVisualInset: CGFloat,
+            pressAnimation: Animation,
+            releaseAnimation: Animation,
+            holdDuration: Duration,
+            pressAnimationLabel: String,
+            releaseAnimationLabel: String,
+            holdDurationLabel: String
+        ) {
+            self.pressedScale = pressedScale
+            self.maximumVisualInset = maximumVisualInset
+            self.pressAnimation = pressAnimation
+            self.releaseAnimation = releaseAnimation
+            self.holdDuration = holdDuration
+            self.pressAnimationLabel = pressAnimationLabel
+            self.releaseAnimationLabel = releaseAnimationLabel
+            self.holdDurationLabel = holdDurationLabel
+        }
+
+        public func effectivePressedScale(for size: CGSize) -> CGFloat {
+            let shortestSide = min(size.width, size.height)
+            guard shortestSide > 0 else { return pressedScale }
+
+            let insetLimitedScale = 1 - (maximumVisualInset * 2 / shortestSide)
+            return max(pressedScale, insetLimitedScale)
+        }
+    }
+
+    /// Explicit press feedback tiers for cards, rows, controls, and icons.
+    public enum PressFeedback {
+        /// Broad surfaces should move subtly so the card remains spatially stable.
+        public static let card = PressFeedbackSpec(
+            pressedScale: 0.97,
+            maximumVisualInset: 4,
+            pressAnimation: .easeOut(duration: 0.08),
+            releaseAnimation: .spring(response: 0.3, dampingFraction: 0.6),
+            holdDuration: .milliseconds(150),
+            pressAnimationLabel: "easeOut 0.08s",
+            releaseAnimationLabel: "spring r0.3 d0.6",
+            holdDurationLabel: "150ms"
+        )
+
+        /// Rows need a smaller movement to avoid making dense lists feel jumpy.
+        public static let row = PressFeedbackSpec(
+            pressedScale: 0.985,
+            maximumVisualInset: 2,
+            pressAnimation: .easeOut(duration: 0.06),
+            releaseAnimation: .spring(response: 0.24, dampingFraction: 0.72),
+            holdDuration: .milliseconds(110),
+            pressAnimationLabel: "easeOut 0.06s",
+            releaseAnimationLabel: "spring r0.24 d0.72",
+            holdDurationLabel: "110ms"
+        )
+
+        /// Control capsules can respond more clearly because they are isolated.
+        public static let control = PressFeedbackSpec(
+            pressedScale: 0.96,
+            maximumVisualInset: 3,
+            pressAnimation: .easeOut(duration: 0.08),
+            releaseAnimation: .spring(response: 0.28, dampingFraction: 0.65),
+            holdDuration: .milliseconds(140),
+            pressAnimationLabel: "easeOut 0.08s",
+            releaseAnimationLabel: "spring r0.28 d0.65",
+            holdDurationLabel: "140ms"
+        )
+
+        /// Individual icons use the strongest scale cue, matching spatial capsule controls.
+        public static let icon = PressFeedbackSpec(
+            pressedScale: 0.95,
+            maximumVisualInset: 2.5,
+            pressAnimation: .easeOut(duration: 0.08),
+            releaseAnimation: .spring(response: 0.3, dampingFraction: 0.6),
+            holdDuration: .milliseconds(150),
+            pressAnimationLabel: "easeOut 0.08s",
+            releaseAnimationLabel: "spring r0.3 d0.6",
+            holdDurationLabel: "150ms"
+        )
+    }
+
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
     // MARK: - Surface (translucent layers on glass)
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -147,6 +263,8 @@ public enum DesignTokens {
         public static let selected: Color = .white.opacity(0.08)
         /// Subtle border
         public static let border: Color = .white.opacity(0.05)
+        /// Focused input/control border, using Enchron's single theme accent.
+        public static let focusBorder: Color = Theme.accent
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -247,6 +365,52 @@ public enum DesignTokens {
         /// Panel width (matches Layout.playerControlsWidth)
         public static let width: CGFloat = Layout.playerControlsWidth
         /// Spacing between control buttons (≥16pt per Apple HIG)
-        public static let buttonSpacing: CGFloat = Interactive.buttonSpacing
+        public static let buttonSpacing: CGFloat = Spacing.xl
+        /// Horizontal padding inside player control capsule.
+        public static let paddingH: CGFloat = Spacing.xxl
+        /// Vertical padding inside player control capsule.
+        public static let paddingV: CGFloat = Spacing.sm
+        /// Primary play button fill.
+        public static let primaryFill: Color = .white.opacity(0.72)
+        /// Primary play symbol color.
+        public static let primarySymbol: Color = .black.opacity(0.78)
+    }
+
+    /// Playback progress bar dimensions.
+    public enum ProgressBar {
+        /// Standard draggable scrubber button.
+        public static let thumbDiameter: CGFloat = Interactive.mini - 4
+        /// Main progress track in active drag mode.
+        public static let trackHeight: CGFloat = thumbDiameter
+        /// Track scale before the scrubber is clicked into active drag mode.
+        public static let inactiveScale: CGFloat = 0.66
+        /// Track height before active drag mode.
+        public static let inactiveTrackHeight: CGFloat = trackHeight * inactiveScale
+        /// Interactive strip height that contains hover target, track, and scrubber.
+        public static let hitHeight: CGFloat = Interactive.large
+        /// Review/demo width for player progress components.
+        public static let previewWidth: CGFloat = Layout.playerControlsWidth
+        /// Height reserved above the track for hover time readout.
+        public static let timeBubbleOffset: CGFloat = Spacing.xl
+        /// Padding inside hover time readout.
+        public static let timeBubblePaddingH: CGFloat = Spacing.xs
+        /// Padding inside hover time readout.
+        public static let timeBubblePaddingV: CGFloat = Spacing.xxs
+        /// Corner radius for hover time readout.
+        public static let timeBubbleRadius: CGFloat = Radius.small
+        /// Hover time readout background.
+        public static let timeBubbleFill: Color = .white.opacity(0.16)
+        /// Scrubber thumb edge, separating the button from the bright track.
+        public static let thumbStroke: Color = .black.opacity(0.18)
+        /// Scrubber thumb edge width.
+        public static let thumbStrokeWidth: CGFloat = Stroke.regular
+        /// Played portion in normal state.
+        public static let playedColor: Color = .white.opacity(0.72)
+        /// Played portion in hover/drag state.
+        public static let playedHoverColor: Color = .white.opacity(0.95)
+        /// Unplayed portion in normal state.
+        public static let unplayedColor: Color = .white.opacity(0.16)
+        /// Unplayed portion in hover/drag state.
+        public static let unplayedHoverColor: Color = .white.opacity(0.24)
     }
 }
