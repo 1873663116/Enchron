@@ -382,6 +382,8 @@ struct PlayerProgressBar: View {
     @State private var isDragging = false
     @State private var isIgnoringDrag = false
     @State private var dragStartProgress: CGFloat = 0.45
+    @State private var isTimelineExpanded = false
+    @State private var timelinePixelsPerSecond = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
 
     private var trackHeight: CGFloat {
         isDragging
@@ -406,47 +408,88 @@ struct PlayerProgressBar: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let width = max(proxy.size.width - DesignTokens.ProgressBar.thumbDiameter, 0)
-            let clampedProgress = min(max(progress, 0), 1)
-            let thumbX = DesignTokens.ProgressBar.thumbDiameter / 2 + clampedProgress * width
-            let overlayWidth = width + DesignTokens.ProgressBar.thumbDiameter
+        let overlayWidth = DesignTokens.ProgressBar.previewWidth
+        let width = max(overlayWidth - DesignTokens.ProgressBar.thumbDiameter, 0)
+        let clampedProgress = min(max(progress, 0), 1)
+        let thumbX = DesignTokens.ProgressBar.thumbDiameter / 2 + clampedProgress * width
+        let containerWidth = currentContainerWidth
+        let containerHeight = currentContainerHeight
 
-            ZStack(alignment: .leading) {
-                hoverCarrier(width: overlayWidth)
+        ZStack(alignment: .bottomLeading) {
+            expandedTimelineDismissLayer(
+                containerWidth: containerWidth,
+                containerHeight: containerHeight
+            )
 
-                progressHub(
+            if !isTimelineExpanded {
+                progressBarBody(
                     width: width,
-                    progress: clampedProgress,
-                    overlayWidth: overlayWidth,
-                    height: trackHeight
+                    clampedProgress: clampedProgress,
+                    thumbX: thumbX,
+                    overlayWidth: overlayWidth
                 )
-
-                timeBubble
-                    .position(
-                        x: thumbX,
-                        y: DesignTokens.ProgressBar.hitHeight / 2 - DesignTokens.ProgressBar.timeBubbleOffset
-                    )
-                    .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-                        effect.animation(DesignTokens.AnimationToken.selection) {
-                            $0.opacity(isActive || isDragging ? 1.0 : 0.0)
-                        }
-                    }
-                    .allowsHitTesting(false)
-
-                scrubberControl(width: width)
-                    .position(
-                        x: thumbX,
-                        y: DesignTokens.ProgressBar.hitHeight / 2
-                    )
+                .offset(x: (containerWidth - overlayWidth) / 2)
+                .transition(.opacity)
             }
-            .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
-            .contentShape(.interaction, Capsule())
-            .gesture(dragGesture(width: width, thumbX: thumbX))
+
+            expandedTimeline(containerWidth: containerWidth)
+                .zIndex(2)
         }
-        .frame(height: DesignTokens.ProgressBar.hitHeight)
+        .frame(width: containerWidth, height: containerHeight, alignment: .bottomLeading)
+        .animation(DesignTokens.AnimationToken.panelSpring, value: isTimelineExpanded)
         .accessibilityIdentifier("DesignPreview-PlayerProgressBar")
         .accessibilityLabel("Playback progress")
+    }
+
+    private var currentContainerWidth: CGFloat {
+        isTimelineExpanded
+            ? max(DesignTokens.ProgressBar.previewWidth, DesignTokens.PrecisionTimeline.expandedWidth)
+            : DesignTokens.ProgressBar.previewWidth
+    }
+
+    private var currentContainerHeight: CGFloat {
+        isTimelineExpanded
+            ? DesignTokens.PrecisionTimeline.expandedHeight
+            : DesignTokens.ProgressBar.hitHeight
+    }
+
+    private func progressBarBody(
+        width: CGFloat,
+        clampedProgress: CGFloat,
+        thumbX: CGFloat,
+        overlayWidth: CGFloat
+    ) -> some View {
+        ZStack(alignment: .leading) {
+            hoverCarrier(width: overlayWidth)
+
+            progressHub(
+                width: width,
+                progress: clampedProgress,
+                overlayWidth: overlayWidth,
+                height: trackHeight
+            )
+
+            timeBubble
+                .position(
+                    x: thumbX,
+                    y: DesignTokens.ProgressBar.hitHeight / 2 - DesignTokens.ProgressBar.timeBubbleOffset
+                )
+                .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+                    effect.animation(DesignTokens.AnimationToken.selection) {
+                        $0.opacity(isActive || isDragging ? 1.0 : 0.0)
+                    }
+                }
+                .allowsHitTesting(false)
+
+            scrubberControl(width: width)
+                .position(
+                    x: thumbX,
+                    y: DesignTokens.ProgressBar.hitHeight / 2
+                )
+        }
+        .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
+        .contentShape(.interaction, Capsule())
+        .gesture(dragGesture(width: width, thumbX: thumbX))
     }
 
     private func hoverCarrier(width: CGFloat) -> some View {
@@ -567,6 +610,14 @@ struct PlayerProgressBar: View {
                 }
             }
             .contentShape(Circle())
+            .highPriorityGesture(
+                TapGesture(count: 2)
+                    .onEnded {
+                        withAnimation(DesignTokens.AnimationToken.panelSpring) {
+                            isTimelineExpanded = true
+                        }
+                    }
+            )
     }
 
     private func dragGesture(width: CGFloat, thumbX: CGFloat) -> some Gesture {
@@ -619,12 +670,687 @@ struct PlayerProgressBar: View {
         let dy = location.y - thumbCenter.y
         return (dx * dx + dy * dy) <= (hitRadius * hitRadius)
     }
+
+    @ViewBuilder
+    private func expandedTimelineDismissLayer(
+        containerWidth: CGFloat,
+        containerHeight: CGFloat
+    ) -> some View {
+        if isTimelineExpanded {
+            Rectangle()
+                .fill(.clear)
+                .frame(width: containerWidth, height: containerHeight)
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(DesignTokens.AnimationToken.panelSpring) {
+                        isTimelineExpanded = false
+                    }
+                }
+                .zIndex(1)
+        }
+    }
+
+    @ViewBuilder
+    private func expandedTimeline(containerWidth: CGFloat) -> some View {
+        if isTimelineExpanded {
+            PrecisionTimelineView(
+                currentTime: timelineCurrentTime,
+                pixelsPerSecond: $timelinePixelsPerSecond,
+                duration: DesignTokens.PrecisionTimeline.previewDuration,
+                framesPerSecond: DesignTokens.PrecisionTimeline.previewFrameRate
+            )
+            .frame(
+                width: DesignTokens.PrecisionTimeline.expandedWidth,
+                height: DesignTokens.PrecisionTimeline.expandedHeight
+            )
+            .scaleEffect(1.0, anchor: .bottom)
+            .transition(
+                .scale(
+                    scale: DesignTokens.PrecisionTimeline.collapsedScale,
+                    anchor: .bottom
+                )
+                .combined(with: .opacity)
+            )
+            .offset(x: (containerWidth - DesignTokens.PrecisionTimeline.expandedWidth) / 2)
+            .contentShape(Rectangle())
+            .onTapGesture {}
+        }
+    }
+
+    private var timelineCurrentTime: Binding<Double> {
+        Binding(
+            get: {
+                Double(progress) * DesignTokens.PrecisionTimeline.previewDuration
+            },
+            set: { newValue in
+                let duration = DesignTokens.PrecisionTimeline.previewDuration
+                guard duration > 0 else {
+                    progress = 0
+                    return
+                }
+                let clampedTime = min(max(newValue, 0), duration)
+                progress = CGFloat(clampedTime / duration)
+            }
+        )
+    }
+}
+
+private struct PrecisionTimelineView: View {
+    @Binding var currentTime: Double
+    @Binding var pixelsPerSecond: CGFloat
+
+    let duration: Double
+    let framesPerSecond: Double
+
+    @GestureState private var gestureStartPixelsPerSecond: CGFloat?
+    @State private var isDraggingTimeline = false
+    @State private var dragStartTime: Double = 0
+
+    var body: some View {
+        let shape = DesignTokens.ShapeToken.card
+
+        VStack(spacing: DesignTokens.Spacing.xxs) {
+            header
+            rulerAndFilmStrip
+        }
+        .padding(.horizontal, DesignTokens.PrecisionTimeline.panelPadding)
+        .padding(.vertical, DesignTokens.Spacing.sm)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.regularMaterial, in: shape)
+        .background(DesignTokens.PrecisionTimeline.panelFill, in: shape)
+        .overlay {
+            shape.strokeBorder(
+                DesignTokens.PrecisionTimeline.panelBorder,
+                lineWidth: DesignTokens.Stroke.regular
+            )
+        }
+        .contentShape(.hoverEffect, shape)
+        .hoverEffect(.automatic)
+        .contentShape(shape)
+        .gesture(zoomGesture)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("DesignPreview-PrecisionTimeline")
+        .accessibilityLabel("Precision timeline")
+    }
+
+    private var header: some View {
+        ZStack {
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                frameStepButton(
+                    systemName: "backward.frame",
+                    label: "Previous Frame",
+                    action: stepBackwardOneFrame
+                )
+
+                Text(PrecisionTimelineFormatter.timecode(currentTime, framesPerSecond: framesPerSecond))
+                    .font(DesignTokens.Typography.headline)
+                    .monospacedDigit()
+                    .foregroundStyle(DesignTokens.PrecisionTimeline.timecodeColor)
+
+                frameStepButton(
+                    systemName: "forward.frame",
+                    label: "Next Frame",
+                    action: stepForwardOneFrame
+                )
+            }
+            .accessibilityIdentifier("DesignPreview-PrecisionTimeline-timecode")
+
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                Spacer()
+                zoomButton(systemName: "minus", label: "Zoom Out") {
+                    adjustZoom(dividing: true)
+                }
+                zoomRail
+                zoomButton(systemName: "plus", label: "Zoom In") {
+                    adjustZoom(dividing: false)
+                }
+            }
+        }
+        .frame(height: DesignTokens.PrecisionTimeline.frameButtonHitSize)
+    }
+
+    private var zoomRail: some View {
+        GeometryReader { proxy in
+            let width = max(proxy.size.width, 1)
+            let progress = normalizedZoom
+            let thumbX = width * progress
+
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(DesignTokens.PrecisionTimeline.zoomRailFill)
+                    .frame(height: DesignTokens.PrecisionTimeline.zoomRailHeight)
+
+                Capsule()
+                    .fill(DesignTokens.PrecisionTimeline.zoomRailActiveFill)
+                    .frame(width: max(DesignTokens.PrecisionTimeline.zoomRailHeight, thumbX),
+                           height: DesignTokens.PrecisionTimeline.zoomRailHeight)
+
+                Circle()
+                    .fill(DesignTokens.PrecisionTimeline.timecodeColor)
+                    .frame(width: DesignTokens.PrecisionTimeline.zoomRailThumbSize,
+                           height: DesignTokens.PrecisionTimeline.zoomRailThumbSize)
+                    .position(x: thumbX, y: proxy.size.height / 2)
+            }
+            .contentShape(Rectangle())
+            .gesture(zoomRailGesture(width: width))
+        }
+        .frame(width: DesignTokens.PrecisionTimeline.zoomRailWidth,
+               height: DesignTokens.PrecisionTimeline.zoomButtonSize)
+        .accessibilityIdentifier("DesignPreview-PrecisionTimeline-zoom-rail")
+        .accessibilityLabel("Timeline zoom")
+    }
+
+    private var rulerAndFilmStrip: some View {
+        GeometryReader { proxy in
+            let viewportWidth = max(proxy.size.width, 1)
+            let safePixelsPerSecond = clampedPixelsPerSecond(pixelsPerSecond)
+            let leadingX = viewportWidth / 2 - CGFloat(currentTime) * safePixelsPerSecond
+
+            ZStack(alignment: .topLeading) {
+                Rectangle()
+                    .fill(DesignTokens.PrecisionTimeline.emptyAreaFill)
+
+                timelineRuler(
+                    viewportWidth: viewportWidth,
+                    leadingX: leadingX,
+                    pixelsPerSecond: safePixelsPerSecond
+                )
+                .frame(height: DesignTokens.PrecisionTimeline.rulerHeight)
+
+                filmStrip(
+                    viewportWidth: viewportWidth,
+                    leadingX: leadingX,
+                    pixelsPerSecond: safePixelsPerSecond,
+                    height: max(proxy.size.height - DesignTokens.PrecisionTimeline.rulerHeight, 1)
+                )
+                .offset(y: DesignTokens.PrecisionTimeline.rulerHeight)
+
+                playhead(
+                    x: viewportWidth / 2,
+                    height: proxy.size.height
+                )
+            }
+            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
+            .contentShape(Rectangle())
+            .gesture(timelineDragGesture(pixelsPerSecond: safePixelsPerSecond))
+        }
+    }
+
+    private func timelineRuler(
+        viewportWidth: CGFloat,
+        leadingX: CGFloat,
+        pixelsPerSecond: CGFloat
+    ) -> some View {
+        Canvas { context, size in
+            let intervals = tickIntervals(pixelsPerSecond: pixelsPerSecond)
+            drawTicks(
+                context: &context,
+                size: size,
+                leadingX: leadingX,
+                pixelsPerSecond: pixelsPerSecond,
+                interval: intervals.minor,
+                height: DesignTokens.PrecisionTimeline.minorTickHeight,
+                color: DesignTokens.PrecisionTimeline.minorTickColor,
+                lineWidth: DesignTokens.Stroke.subtle
+            )
+            drawTicks(
+                context: &context,
+                size: size,
+                leadingX: leadingX,
+                pixelsPerSecond: pixelsPerSecond,
+                interval: intervals.major,
+                height: DesignTokens.PrecisionTimeline.majorTickHeight,
+                color: DesignTokens.PrecisionTimeline.majorTickColor,
+                lineWidth: DesignTokens.Stroke.regular
+            )
+        }
+        .overlay(alignment: .topLeading) {
+            ZStack(alignment: .topLeading) {
+                ForEach(visibleTickTimes(
+                    viewportWidth: viewportWidth,
+                    leadingX: leadingX,
+                    pixelsPerSecond: pixelsPerSecond,
+                    interval: tickIntervals(pixelsPerSecond: pixelsPerSecond).major
+                ), id: \.self) { time in
+                    Text(PrecisionTimelineFormatter.clock(time))
+                        .font(DesignTokens.Typography.monospacedDetail)
+                        .monospacedDigit()
+                        .foregroundStyle(DesignTokens.PrecisionTimeline.secondaryTextColor)
+                        .position(
+                            x: leadingX + CGFloat(time) * pixelsPerSecond,
+                            y: DesignTokens.Spacing.sm
+                        )
+                }
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    private func filmStrip(
+        viewportWidth: CGFloat,
+        leadingX: CGFloat,
+        pixelsPerSecond: CGFloat,
+        height: CGFloat
+    ) -> some View {
+        Canvas { context, size in
+            drawFilmStrip(
+                context: &context,
+                size: size,
+                viewportWidth: viewportWidth,
+                leadingX: leadingX,
+                pixelsPerSecond: pixelsPerSecond
+            )
+        }
+        .frame(height: height)
+    }
+
+    private func playhead(x: CGFloat, height: CGFloat) -> some View {
+        Rectangle()
+            .fill(DesignTokens.PrecisionTimeline.playheadColor)
+            .frame(width: DesignTokens.PrecisionTimeline.playheadWidth)
+            .overlay(alignment: .top) {
+                Circle()
+                    .fill(DesignTokens.PrecisionTimeline.playheadAccent)
+                    .frame(
+                        width: DesignTokens.Spacing.sm,
+                        height: DesignTokens.Spacing.sm
+                    )
+                    .offset(y: -DesignTokens.Spacing.xs)
+            }
+            .frame(height: height)
+            .position(
+                x: x,
+                y: height / 2
+            )
+            .allowsHitTesting(false)
+    }
+
+    private func frameStepButton(
+        systemName: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(DesignTokens.SymbolSize.control)
+                .foregroundStyle(DesignTokens.PrecisionTimeline.timecodeColor)
+                .frame(
+                    width: DesignTokens.PrecisionTimeline.frameButtonSize,
+                    height: DesignTokens.PrecisionTimeline.frameButtonSize
+                )
+                .background(DesignTokens.PrecisionTimeline.controlFill, in: Circle())
+                .contentShape(.hoverEffect, Circle())
+                .hoverEffect(.lift)
+        }
+        .buttonStyle(.plain)
+        .frame(
+            width: DesignTokens.PrecisionTimeline.frameButtonHitSize,
+            height: DesignTokens.PrecisionTimeline.frameButtonHitSize
+        )
+        .contentShape(Circle())
+        .accessibilityIdentifier("DesignPreview-PrecisionTimeline-button-\(label)")
+        .accessibilityLabel(label)
+    }
+
+    private func zoomButton(
+        systemName: String,
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(DesignTokens.Typography.headline)
+                .foregroundStyle(DesignTokens.PrecisionTimeline.secondaryTextColor)
+                .frame(
+                    width: DesignTokens.PrecisionTimeline.zoomButtonSize,
+                    height: DesignTokens.PrecisionTimeline.zoomButtonSize
+                )
+                .background(DesignTokens.PrecisionTimeline.controlFill, in: Circle())
+                .contentShape(.hoverEffect, Circle())
+                .hoverEffect(.lift)
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .accessibilityIdentifier("DesignPreview-PrecisionTimeline-button-\(label)")
+        .accessibilityLabel(label)
+    }
+
+    private var zoomGesture: some Gesture {
+        MagnifyGesture()
+            .updating($gestureStartPixelsPerSecond) { _, state, _ in
+                if state == nil {
+                    state = pixelsPerSecond
+                }
+            }
+            .onChanged { value in
+                let start = gestureStartPixelsPerSecond ?? pixelsPerSecond
+                pixelsPerSecond = clampedPixelsPerSecond(start * value.magnification)
+            }
+    }
+
+    private func timelineDragGesture(pixelsPerSecond: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: DesignTokens.Stroke.regular)
+            .onChanged { value in
+                if !isDraggingTimeline {
+                    isDraggingTimeline = true
+                    dragStartTime = currentTime
+                }
+
+                let delta = Double(value.translation.width / pixelsPerSecond)
+                let targetTime = dragStartTime - delta
+                currentTime = quantizedIfNeeded(clampedTime(targetTime))
+            }
+            .onEnded { _ in
+                isDraggingTimeline = false
+            }
+    }
+
+    private func drawTicks(
+        context: inout GraphicsContext,
+        size: CGSize,
+        leadingX: CGFloat,
+        pixelsPerSecond: CGFloat,
+        interval: Double,
+        height: CGFloat,
+        color: Color,
+        lineWidth: CGFloat
+    ) {
+        guard interval > 0, duration > 0 else { return }
+
+        let visibleTimes = visibleTickTimes(
+            viewportWidth: size.width,
+            leadingX: leadingX,
+            pixelsPerSecond: pixelsPerSecond,
+            interval: interval
+        )
+        let centerY = size.height - DesignTokens.Spacing.xs
+
+        for time in visibleTimes {
+            let x = leadingX + CGFloat(time) * pixelsPerSecond
+            var path = Path()
+            path.move(to: CGPoint(x: x, y: centerY - height))
+            path.addLine(to: CGPoint(x: x, y: centerY))
+            context.stroke(path, with: .color(color), lineWidth: lineWidth)
+        }
+    }
+
+    private func drawFilmStrip(
+        context: inout GraphicsContext,
+        size: CGSize,
+        viewportWidth: CGFloat,
+        leadingX: CGFloat,
+        pixelsPerSecond: CGFloat
+    ) {
+        guard duration > 0 else { return }
+
+        let contentWidth = CGFloat(duration) * pixelsPerSecond
+        let visibleStart = max(-leadingX, 0)
+        let visibleEnd = min(viewportWidth - leadingX, contentWidth)
+        guard visibleStart <= visibleEnd else { return }
+
+        let visibleFilmRect = CGRect(
+            x: leadingX + visibleStart,
+            y: 0,
+            width: visibleEnd - visibleStart,
+            height: size.height
+        )
+        context.fill(
+            Path(visibleFilmRect),
+            with: .color(DesignTokens.PrecisionTimeline.filmStripBase)
+        )
+
+        let segmentWidth = max(
+            DesignTokens.PrecisionTimeline.thumbnailMinWidth,
+            pixelsPerSecond * DesignTokens.PrecisionTimeline.thumbnailSecondsScale
+        )
+        let startIndex = max(Int(floor(-leadingX / segmentWidth)), 0)
+        let endIndex = min(
+            Int(ceil((viewportWidth - leadingX) / segmentWidth)),
+            Int(ceil(CGFloat(duration) * pixelsPerSecond / segmentWidth))
+        )
+        guard startIndex <= endIndex else { return }
+
+        for index in startIndex...endIndex {
+            let x = leadingX + CGFloat(index) * segmentWidth
+            let rect = CGRect(
+                x: x,
+                y: DesignTokens.PrecisionTimeline.filmImageInset,
+                width: segmentWidth,
+                height: max(size.height - DesignTokens.PrecisionTimeline.filmImageInset * 2, 1)
+            )
+            let palette = DesignTokens.PrecisionTimeline.thumbnailPalette
+            let color = palette[index % palette.count]
+            let path = Path(rect.insetBy(dx: DesignTokens.Stroke.regular, dy: DesignTokens.Stroke.subtle))
+
+            context.fill(path, with: .color(color))
+            context.fill(
+                Path(CGRect(
+                    x: rect.minX + DesignTokens.Stroke.regular,
+                    y: rect.minY + DesignTokens.Stroke.regular,
+                    width: max(rect.width - DesignTokens.Stroke.bold, 0),
+                    height: rect.height * 0.34
+                )),
+                with: .color(DesignTokens.PrecisionTimeline.filmStripHighlight)
+            )
+            context.fill(
+                Path(CGRect(
+                    x: rect.minX + DesignTokens.Stroke.regular,
+                    y: rect.midY,
+                    width: max(rect.width - DesignTokens.Stroke.bold, 0),
+                    height: rect.height * 0.5
+                )),
+                with: .color(Color.black.opacity(0.12))
+            )
+            context.fill(
+                Path(CGRect(
+                    x: rect.maxX - DesignTokens.PrecisionTimeline.thumbnailSeparatorWidth,
+                    y: rect.minY,
+                    width: DesignTokens.PrecisionTimeline.thumbnailSeparatorWidth,
+                    height: rect.height
+                )),
+                with: .color(DesignTokens.PrecisionTimeline.filmStripSeparator)
+            )
+        }
+
+        drawSprockets(
+            context: &context,
+            size: size,
+            leadingX: leadingX,
+            visibleStart: visibleStart,
+            visibleEnd: visibleEnd
+        )
+    }
+
+    private func drawSprockets(
+        context: inout GraphicsContext,
+        size: CGSize,
+        leadingX: CGFloat,
+        visibleStart: CGFloat,
+        visibleEnd: CGFloat
+    ) {
+        let holeWidth = DesignTokens.PrecisionTimeline.sprocketWidth
+        let holeHeight = DesignTokens.PrecisionTimeline.sprocketHeight
+        let step = holeWidth + DesignTokens.PrecisionTimeline.sprocketSpacing
+        guard step > 0 else { return }
+
+        let startIndex = Int(floor(visibleStart / step))
+        let endIndex = Int(ceil(visibleEnd / step))
+        let topY = DesignTokens.Spacing.xxs
+        let bottomY = size.height - holeHeight - DesignTokens.Spacing.xxs
+
+        for index in startIndex...endIndex {
+            let x = leadingX + CGFloat(index) * step
+            let topRect = CGRect(x: x, y: topY, width: holeWidth, height: holeHeight)
+            let bottomRect = CGRect(x: x, y: bottomY, width: holeWidth, height: holeHeight)
+            let topPath = RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+                .path(in: topRect)
+            let bottomPath = RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+                .path(in: bottomRect)
+
+            context.fill(topPath, with: .color(DesignTokens.PrecisionTimeline.sprocketFill))
+            context.fill(bottomPath, with: .color(DesignTokens.PrecisionTimeline.sprocketFill))
+        }
+    }
+
+    private func visibleTickTimes(
+        viewportWidth: CGFloat,
+        leadingX: CGFloat,
+        pixelsPerSecond: CGFloat,
+        interval: Double
+    ) -> [Double] {
+        guard interval > 0, pixelsPerSecond > 0 else { return [] }
+
+        let startTime = max(0, Double((-leadingX - DesignTokens.Spacing.lg) / pixelsPerSecond))
+        let endTime = min(
+            duration,
+            Double((viewportWidth - leadingX + DesignTokens.Spacing.lg) / pixelsPerSecond)
+        )
+        guard startTime <= endTime else { return [] }
+
+        let firstTick = floor(startTime / interval) * interval
+        let tickCount = Int(ceil((endTime - firstTick) / interval))
+
+        return (0...max(tickCount, 0))
+            .map { firstTick + Double($0) * interval }
+            .filter { $0 >= 0 && $0 <= duration }
+    }
+
+    private func tickIntervals(pixelsPerSecond: CGFloat) -> (minor: Double, major: Double) {
+        let secondsPerPoint = 1 / Double(max(pixelsPerSecond, 0.001))
+        let frameInterval = 1 / max(framesPerSecond, 1)
+        let intervals = niceIntervals(frameInterval: frameInterval)
+        let minorTarget = secondsPerPoint * Double(DesignTokens.PrecisionTimeline.minorTickTargetSpacing)
+        let majorTarget = secondsPerPoint * Double(DesignTokens.PrecisionTimeline.majorTickTargetSpacing)
+        let minor = intervals.first { $0 >= minorTarget } ?? max(minorTarget, frameInterval)
+        let major = intervals.first { $0 >= max(majorTarget, minor * 2) } ?? max(majorTarget, minor * 2)
+
+        return (minor, major)
+    }
+
+    private func niceIntervals(frameInterval: Double) -> [Double] {
+        [
+            frameInterval,
+            frameInterval * 2,
+            frameInterval * 4,
+            0.25,
+            0.5,
+            1,
+            2,
+            5,
+            10,
+            15,
+            30,
+            60,
+            120,
+            300,
+            600,
+            1_200,
+            1_800,
+            3_600
+        ]
+    }
+
+    private var zoomLabel: String {
+        let secondsInView = Double(availableTimelineWidth / max(clampedPixelsPerSecond(pixelsPerSecond), 0.001))
+        return "\(PrecisionTimelineFormatter.clock(secondsInView)) visible"
+    }
+
+    private var availableTimelineWidth: CGFloat {
+        DesignTokens.PrecisionTimeline.expandedWidth - DesignTokens.PrecisionTimeline.panelPadding * 2
+    }
+
+    private func adjustZoom(dividing: Bool) {
+        let ratio = DesignTokens.PrecisionTimeline.zoomStepRatio
+        let next = dividing ? pixelsPerSecond / ratio : pixelsPerSecond * ratio
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            pixelsPerSecond = clampedPixelsPerSecond(next)
+        }
+    }
+
+    private var normalizedZoom: CGFloat {
+        let minValue = log(Double(DesignTokens.PrecisionTimeline.minPixelsPerSecond))
+        let maxValue = log(Double(DesignTokens.PrecisionTimeline.maxPixelsPerSecond))
+        let current = log(Double(clampedPixelsPerSecond(pixelsPerSecond)))
+        guard maxValue > minValue else { return 0 }
+        return CGFloat(min(max((current - minValue) / (maxValue - minValue), 0), 1))
+    }
+
+    private func zoomRailGesture(width: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { value in
+                let normalized = min(max(value.location.x / max(width, 1), 0), 1)
+                pixelsPerSecond = zoomValue(forNormalized: normalized)
+            }
+    }
+
+    private func zoomValue(forNormalized normalized: CGFloat) -> CGFloat {
+        let minValue = log(Double(DesignTokens.PrecisionTimeline.minPixelsPerSecond))
+        let maxValue = log(Double(DesignTokens.PrecisionTimeline.maxPixelsPerSecond))
+        let value = minValue + (maxValue - minValue) * Double(normalized)
+        return clampedPixelsPerSecond(CGFloat(exp(value)))
+    }
+
+    private func stepBackwardOneFrame() {
+        currentTime = clampedTime(currentTime - frameDuration)
+    }
+
+    private func stepForwardOneFrame() {
+        currentTime = clampedTime(currentTime + frameDuration)
+    }
+
+    private var frameDuration: Double {
+        1 / max(framesPerSecond, 1)
+    }
+
+    private func quantizedIfNeeded(_ time: Double) -> Double {
+        let pointsPerFrame = clampedPixelsPerSecond(pixelsPerSecond) * CGFloat(frameDuration)
+        guard pointsPerFrame >= DesignTokens.Spacing.xs else { return time }
+        return (time / frameDuration).rounded() * frameDuration
+    }
+
+    private func clampedTime(_ time: Double) -> Double {
+        min(max(time, 0), duration)
+    }
+
+    private func clampedPixelsPerSecond(_ value: CGFloat) -> CGFloat {
+        min(
+            max(value, DesignTokens.PrecisionTimeline.minPixelsPerSecond),
+            DesignTokens.PrecisionTimeline.maxPixelsPerSecond
+        )
+    }
+}
+
+private enum PrecisionTimelineFormatter {
+    static func clock(_ seconds: Double) -> String {
+        let clamped = max(seconds, 0)
+        let totalSeconds = Int(clamped.rounded(.down))
+        let hours = totalSeconds / 3_600
+        let minutes = (totalSeconds % 3_600) / 60
+        let secs = totalSeconds % 60
+
+        if hours > 0 {
+            return String(format: "%d:%02d:%02d", hours, minutes, secs)
+        }
+        return String(format: "%02d:%02d", minutes, secs)
+    }
+
+    static func timecode(_ seconds: Double, framesPerSecond: Double) -> String {
+        let frameRate = max(Int(framesPerSecond.rounded()), 1)
+        let totalFrames = max(Int((seconds * Double(frameRate)).rounded()), 0)
+        let framesPerHour = frameRate * 3_600
+        let framesPerMinute = frameRate * 60
+        let hours = totalFrames / framesPerHour
+        let minutes = (totalFrames % framesPerHour) / framesPerMinute
+        let secs = (totalFrames % framesPerMinute) / frameRate
+        let frame = totalFrames % frameRate
+
+        return String(format: "%02d:%02d:%02d:%02d", hours, minutes, secs, frame)
+    }
 }
 
 struct PlayerProgressStrip: View {
     var body: some View {
         PlayerProgressBar()
-        .frame(width: DesignTokens.ProgressBar.previewWidth)
         .accessibilityIdentifier("DesignPreview-PlayerProgressStrip")
         .accessibilityLabel("Playback progress")
     }
