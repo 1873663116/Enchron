@@ -413,7 +413,7 @@ struct PlayerProgressBar: View {
             let overlayWidth = width + DesignTokens.ProgressBar.thumbDiameter
 
             ZStack(alignment: .leading) {
-                hoverActivationZone(width: overlayWidth)
+                hoverCarrier(width: overlayWidth)
 
                 progressHub(
                     width: width,
@@ -421,7 +421,6 @@ struct PlayerProgressBar: View {
                     overlayWidth: overlayWidth,
                     height: trackHeight
                 )
-                .allowsHitTesting(false)
 
                 timeBubble
                     .position(
@@ -450,21 +449,14 @@ struct PlayerProgressBar: View {
         .accessibilityLabel("Playback progress")
     }
 
-    private func hoverActivationZone(width: CGFloat) -> some View {
+    private func hoverCarrier(width: CGFloat) -> some View {
         Capsule()
-            .fill(DesignTokens.ProgressBar.hoverActivationHoverFill)
+            .fill(DesignTokens.ProgressBar.hoverCarrierFill)
             .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
-            .overlay {
-                Capsule()
-                    .strokeBorder(
-                        DesignTokens.ProgressBar.hoverActivationHoverStroke,
-                        lineWidth: DesignTokens.ProgressBar.hoverActivationStrokeWidth
-                    )
-            }
             .contentShape(.hoverEffect, Capsule())
             .hoverEffect(in: hoverActivationGroup) { effect, isActive, _ in
                 effect.animation(DesignTokens.AnimationToken.selection) {
-                    $0.opacity(isActive ? 1.0 : DesignTokens.ProgressBar.hoverActivationIdleOpacity)
+                    $0.opacity(isActive ? 1.0 : DesignTokens.ProgressBar.hoverCarrierInactiveOpacity)
                 }
             }
             .contentShape(.interaction, Capsule())
@@ -502,6 +494,7 @@ struct PlayerProgressBar: View {
             }
         }
             .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
+            .allowsHitTesting(false)
     }
 
     private func progressTrack(

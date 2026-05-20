@@ -24,6 +24,12 @@ Enchron UI 参考。`ComponentLibrary.swift` 中的组件持续确认中，以�
 
 > 参考实现：`NavBackForwardCapsuleControl`
 
+### visionOS Gaze Hover
+
+visionOS 的 Hover 是 gaze / focus 语义，不等同于 iOS、iPadOS、macOS 的指针 hover。实现 hover 状态时，优先接入系统 hover effect 管线，并用明确的 hover shape 表达可注视区域。
+
+普通 `onHover` 不能作为 visionOS gaze 的默认可靠来源；只有在实测确认符合目标设备行为时才使用。
+
 **隐含假设**
 - padding 四边均匀；非均匀扩展时命中区尺寸需单独计算。
 - 形状为规则凸形（Circle / Capsule / RoundedRectangle）；异形组件另行处理。
