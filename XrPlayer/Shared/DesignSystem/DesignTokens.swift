@@ -388,6 +388,18 @@ public enum DesignTokens {
         public static let inactiveTrackHeight: CGFloat = trackHeight * inactiveScale
         /// Interactive strip height that contains hover target, track, and scrubber.
         public static let hitHeight: CGFloat = Interactive.large
+        /// Diagnostic fill for the 60pt gaze activation zone before hover.
+        public static let hoverActivationFill: Color = Theme.accent.opacity(0.08)
+        /// Diagnostic fill for the 60pt gaze activation zone while hovered.
+        public static let hoverActivationHoverFill: Color = Theme.accent.opacity(0.28)
+        /// Diagnostic edge for the 60pt gaze activation zone before hover.
+        public static let hoverActivationStroke: Color = Theme.accent.opacity(0.32)
+        /// Diagnostic edge for the 60pt gaze activation zone while hovered.
+        public static let hoverActivationHoverStroke: Color = Theme.accent.opacity(0.9)
+        /// Diagnostic edge width for the 60pt gaze activation zone.
+        public static let hoverActivationStrokeWidth: CGFloat = Stroke.regular
+        /// Diagnostic idle opacity for the 60pt gaze activation zone.
+        public static let hoverActivationIdleOpacity: CGFloat = 0.24
         /// Review/demo width for player progress components.
         public static let previewWidth: CGFloat = Layout.playerControlsWidth
         /// Height reserved above the track for hover time readout.

@@ -377,31 +377,32 @@ struct MockBreadcrumb: View {
 }
 
 struct PlayerProgressBar: View {
-    private enum InteractionState {
-        case normal
-        case hover
-        case active
-    }
-
+    @Namespace private var hoverNamespace
     @State private var progress: CGFloat = 0.45
-    @State private var isStripHovered = false
-    @State private var isThumbHovered = false
     @State private var isDragging = false
-
-    private var interactionState: InteractionState {
-        if isDragging { return .active }
-        if isStripHovered || isThumbHovered { return .hover }
-        return .normal
-    }
-
-    private var isRevealed: Bool {
-        interactionState != .normal
-    }
+    @State private var isIgnoringDrag = false
+    @State private var dragStartProgress: CGFloat = 0.45
 
     private var trackHeight: CGFloat {
-        interactionState == .active
+        isDragging
             ? DesignTokens.ProgressBar.trackHeight
             : DesignTokens.ProgressBar.inactiveTrackHeight
+    }
+
+    private var hoverActivationGroup: HoverEffectGroup {
+        HoverEffectGroup(
+            id: "progress-bar-reveal",
+            in: hoverNamespace,
+            behavior: .activatesGroup
+        )
+    }
+
+    private var hoverRevealGroup: HoverEffectGroup {
+        HoverEffectGroup(
+            id: "progress-bar-reveal",
+            in: hoverNamespace,
+            behavior: .followsGroup
+        )
     }
 
     var body: some View {
@@ -412,30 +413,26 @@ struct PlayerProgressBar: View {
             let overlayWidth = width + DesignTokens.ProgressBar.thumbDiameter
 
             ZStack(alignment: .leading) {
-                Color.clear
-                    .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
-                    .accessibilityHidden(true)
+                hoverActivationZone(width: overlayWidth)
 
                 progressHub(
                     width: width,
                     progress: clampedProgress,
                     overlayWidth: overlayWidth,
-                    playedColor: isRevealed
-                        ? DesignTokens.ProgressBar.playedHoverColor
-                        : DesignTokens.ProgressBar.playedColor,
-                    unplayedColor: isRevealed
-                        ? DesignTokens.ProgressBar.unplayedHoverColor
-                        : DesignTokens.ProgressBar.unplayedColor,
                     height: trackHeight
                 )
+                .allowsHitTesting(false)
 
                 timeBubble
                     .position(
                         x: thumbX,
                         y: DesignTokens.ProgressBar.hitHeight / 2 - DesignTokens.ProgressBar.timeBubbleOffset
                     )
-                    .opacity(isRevealed ? 1.0 : 0.0)
-                    .animation(DesignTokens.AnimationToken.selection, value: isRevealed)
+                    .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+                        effect.animation(DesignTokens.AnimationToken.selection) {
+                            $0.opacity(isActive || isDragging ? 1.0 : 0.0)
+                        }
+                    }
                     .allowsHitTesting(false)
 
                 scrubberControl(width: width)
@@ -443,46 +440,66 @@ struct PlayerProgressBar: View {
                         x: thumbX,
                         y: DesignTokens.ProgressBar.hitHeight / 2
                     )
-                    .opacity(isRevealed ? 1.0 : 0.0)
-                    .animation(DesignTokens.AnimationToken.selection, value: isRevealed)
             }
             .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
             .contentShape(.interaction, Capsule())
-            .onHover { isHovering in
-                setStripHovered(isHovering)
-            }
-            .onContinuousHover { phase in
-                switch phase {
-                case .active:
-                    setStripHovered(true)
-                case .ended:
-                    setStripHovered(false)
-                }
-            }
-            .gesture(dragGesture(width: width))
+            .gesture(dragGesture(width: width, thumbX: thumbX))
         }
         .frame(height: DesignTokens.ProgressBar.hitHeight)
         .accessibilityIdentifier("DesignPreview-PlayerProgressBar")
         .accessibilityLabel("Playback progress")
     }
 
+    private func hoverActivationZone(width: CGFloat) -> some View {
+        Capsule()
+            .fill(DesignTokens.ProgressBar.hoverActivationHoverFill)
+            .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
+            .overlay {
+                Capsule()
+                    .strokeBorder(
+                        DesignTokens.ProgressBar.hoverActivationHoverStroke,
+                        lineWidth: DesignTokens.ProgressBar.hoverActivationStrokeWidth
+                    )
+            }
+            .contentShape(.hoverEffect, Capsule())
+            .hoverEffect(in: hoverActivationGroup) { effect, isActive, _ in
+                effect.animation(DesignTokens.AnimationToken.selection) {
+                    $0.opacity(isActive ? 1.0 : DesignTokens.ProgressBar.hoverActivationIdleOpacity)
+                }
+            }
+            .contentShape(.interaction, Capsule())
+            .accessibilityHidden(true)
+    }
+
     private func progressHub(
         width: CGFloat,
         progress: CGFloat,
         overlayWidth: CGFloat,
-        playedColor: Color,
-        unplayedColor: Color,
         height: CGFloat
     ) -> some View {
         ZStack(alignment: .leading) {
             progressTrack(
                 width: width,
                 progress: progress,
-                playedColor: playedColor,
-                unplayedColor: unplayedColor,
+                playedColor: DesignTokens.ProgressBar.playedColor,
+                unplayedColor: DesignTokens.ProgressBar.unplayedColor,
                 height: height
             )
             .padding(.leading, DesignTokens.ProgressBar.thumbDiameter / 2)
+
+            progressTrack(
+                width: width,
+                progress: progress,
+                playedColor: DesignTokens.ProgressBar.playedHoverColor,
+                unplayedColor: DesignTokens.ProgressBar.unplayedHoverColor,
+                height: height
+            )
+            .padding(.leading, DesignTokens.ProgressBar.thumbDiameter / 2)
+            .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+                effect.animation(DesignTokens.AnimationToken.selection) {
+                    $0.opacity(isActive || isDragging ? 1.0 : 0.0)
+                }
+            }
         }
             .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
     }
@@ -548,34 +565,37 @@ struct PlayerProgressBar: View {
         scrubberThumb()
             .contentShape(.hoverEffect, Circle())
             .hoverEffect()
-            .onHover { isHovering in
-                isThumbHovered = isHovering
-            }
-            .onContinuousHover { phase in
-                switch phase {
-                case .active:
-                    isThumbHovered = true
-                case .ended:
-                    isThumbHovered = false
-                }
-            }
             .frame(width: DesignTokens.ProgressBar.hitHeight,
                    height: DesignTokens.ProgressBar.hitHeight)
+            .contentShape(.hoverEffect, Circle())
+            .hoverEffect(in: hoverActivationGroup) { effect, isActive, _ in
+                effect.animation(DesignTokens.AnimationToken.selection) {
+                    $0.opacity(isActive || isDragging ? 1.0 : 0.0)
+                }
+            }
             .contentShape(Circle())
-            .allowsHitTesting(isRevealed || isDragging)
     }
 
-    private func dragGesture(width: CGFloat) -> some Gesture {
+    private func dragGesture(width: CGFloat, thumbX: CGFloat) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
+                guard !isIgnoringDrag else { return }
                 if !isDragging {
+                    guard isThumbHit(value.startLocation, thumbX: thumbX) else {
+                        isIgnoringDrag = true
+                        return
+                    }
+                    dragStartProgress = progress
                     beginScrubbing()
                 }
                 isDragging = true
-                progress = progress(forLocation: value.location.x, width: width)
+                progress = progress(forTranslation: value.translation.width, width: width)
             }
             .onEnded { _ in
-                endScrubbing()
+                if isDragging {
+                    endScrubbing()
+                }
+                isIgnoringDrag = false
             }
     }
 
@@ -591,19 +611,20 @@ struct PlayerProgressBar: View {
         }
     }
 
-    private func setStripHovered(_ isHovered: Bool) {
-        withAnimation(DesignTokens.AnimationToken.selection) {
-            isStripHovered = isHovered
-            if !isHovered {
-                isThumbHovered = false
-            }
-        }
+    private func progress(forTranslation translationX: CGFloat, width: CGFloat) -> CGFloat {
+        guard width > 0 else { return progress }
+        return min(max(dragStartProgress + translationX / width, 0), 1)
     }
 
-    private func progress(forLocation locationX: CGFloat, width: CGFloat) -> CGFloat {
-        guard width > 0 else { return progress }
-        let trackStartX = DesignTokens.ProgressBar.thumbDiameter / 2
-        return min(max((locationX - trackStartX) / width, 0), 1)
+    private func isThumbHit(_ location: CGPoint, thumbX: CGFloat) -> Bool {
+        let thumbCenter = CGPoint(
+            x: thumbX,
+            y: DesignTokens.ProgressBar.hitHeight / 2
+        )
+        let hitRadius = DesignTokens.ProgressBar.hitHeight / 2
+        let dx = location.x - thumbCenter.x
+        let dy = location.y - thumbCenter.y
+        return (dx * dx + dy * dy) <= (hitRadius * hitRadius)
     }
 }
 
