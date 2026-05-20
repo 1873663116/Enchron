@@ -6,6 +6,17 @@ Enchron UI 参考。`ComponentLibrary.swift` 中的组件持续确认中，以�
 
 ---
 
+## DesignPreview 路由
+
+- `ContentView.swift` / `ComponentLibrary.swift` / `SharedComponents.swift` 是现有 Component Library / UI Kit 资产库。里面已确认的按钮、卡片、列表、菜单、时间轴、窗格、搜索栏等视觉效果不要顺手重做。
+- `DesignComps/` 放从 `docs/designs/` HTML 设计稿拆出的高保真页面稿。这里做的是 design comps / screen mockups，不是最终 Fake UX。
+- `DesignComps/Pages/` 放完整页面；`Sections/` 只在页面细节过多、需要分步校准时拆出大区域；`Overlays/` 放 sheet、popover、menu、share panel；`Assets/` 放图标等视觉资产；`Fixtures/` 放假数据。
+- 新建 DesignComp 前先读 `docs/designs/` 中对应 HTML，按真实设计稿决定页面数量和名称，不凭空发明页面数、窗口尺寸或最终流程。
+- DesignComp 可以有局部 hover、press、展开、菜单、sheet 等小交互；不要接真实业务逻辑，也不要把它提前串成 Fake UX。
+- 稳定组件优先引用现有资产库。只有当 HTML 中出现新的视觉形态且需要沉淀时，才在明确范围内新增组件或 token。
+
+---
+
 ## Design Tokens 与动画裁决
 
 - 所有 UI 样式值和动效参数必须走 `DesignTokens`。包括颜色、描边、圆角、间距、尺寸、动画曲线、动画时长、press feedback、loading timing。
