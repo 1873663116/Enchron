@@ -356,7 +356,6 @@ struct InteractionLayoutPreview: View {
             TokenSection(title: "Progress Bar", rows: progressBarRows) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                     PlayerProgressStrip()
-                        .frame(width: DesignTokens.ProgressBar.previewWidth)
                     HStack(alignment: .bottom, spacing: DesignTokens.Spacing.xl) {
                         progressBarDimension("thumb", DesignTokens.ProgressBar.thumbDiameter)
                         progressBarDimension("track", DesignTokens.ProgressBar.trackHeight)

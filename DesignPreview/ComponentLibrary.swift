@@ -601,7 +601,6 @@ private struct PlayerSection: View {
 
             labeledComponent("ProgressBar · hover reveals scrubber · played / unplayed") {
                 PlayerProgressStrip()
-                    .frame(width: DesignTokens.ProgressBar.previewWidth)
             }
 
             labeledComponent("PlayerControlBar · SF Symbols · token layout") {

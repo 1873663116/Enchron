@@ -417,4 +417,117 @@ public enum DesignTokens {
         /// Unplayed portion in hover/drag state.
         public static let unplayedHoverColor: Color = .white.opacity(0.24)
     }
+
+    /// DesignPreview precision timeline prototype.
+    public enum PrecisionTimeline {
+        /// Expanded precision timeline width.
+        public static let expandedWidth: CGFloat = 960
+        /// Expanded precision timeline height.
+        public static let expandedHeight: CGFloat = 220
+        /// Vertical gap between the primary progress bar and expanded timeline.
+        public static let expansionGap: CGFloat = Spacing.lg
+        /// Space outside the expanded panel that accepts dismiss taps in DesignPreview.
+        public static let dismissMargin: CGFloat = Spacing.xxxl
+        /// Panel inner padding.
+        public static let panelPadding: CGFloat = Spacing.lg
+        /// Height reserved for the timecode and frame controls.
+        public static let headerHeight: CGFloat = 64
+        /// Time ruler height.
+        public static let rulerHeight: CGFloat = 44
+        /// Film strip height.
+        public static let filmStripHeight: CGFloat = 72
+        /// Film strip sprocket hole width.
+        public static let sprocketWidth: CGFloat = Spacing.xs
+        /// Film strip sprocket hole height.
+        public static let sprocketHeight: CGFloat = Spacing.xxs
+        /// Film strip sprocket spacing.
+        public static let sprocketSpacing: CGFloat = Spacing.sm
+        /// Film strip image inset from sprocket rows.
+        public static let filmImageInset: CGFloat = Spacing.sm
+        /// Zoom rail width.
+        public static let zoomRailWidth: CGFloat = 148
+        /// Zoom rail height.
+        public static let zoomRailHeight: CGFloat = Spacing.xs
+        /// Zoom rail thumb size.
+        public static let zoomRailThumbSize: CGFloat = Spacing.sm
+        /// Zoom control button size.
+        public static let zoomButtonSize: CGFloat = Interactive.compact
+        /// Frame-step button visual size.
+        public static let frameButtonSize: CGFloat = Interactive.regular
+        /// Effective frame-step button hit target.
+        public static let frameButtonHitSize: CGFloat = Interactive.large
+        /// Horizontal space around the center playhead for frame-step buttons.
+        public static let frameButtonCenterGap: CGFloat = Spacing.xxl
+        /// Center playhead line width.
+        public static let playheadWidth: CGFloat = Stroke.bold
+        /// Major tick height.
+        public static let majorTickHeight: CGFloat = Spacing.lg
+        /// Minor tick height.
+        public static let minorTickHeight: CGFloat = Spacing.xs
+        /// Thumbnail segment height separator width.
+        public static let thumbnailSeparatorWidth: CGFloat = Stroke.subtle
+        /// Thumbnail segment minimum width.
+        public static let thumbnailMinWidth: CGFloat = Interactive.large
+        /// Thumbnail segment width at one second per 12pt.
+        public static let thumbnailSecondsScale: CGFloat = Spacing.sm
+        /// Ruler target spacing for major labels.
+        public static let majorTickTargetSpacing: CGFloat = 96
+        /// Ruler target spacing for minor ticks.
+        public static let minorTickTargetSpacing: CGFloat = 18
+        /// Minimum zoom scale in pixels per second.
+        public static let minPixelsPerSecond: CGFloat = 0.04
+        /// Maximum zoom scale in pixels per second, enough for frame-level dragging at 24fps.
+        public static let maxPixelsPerSecond: CGFloat = 288
+        /// Initial zoom scale in pixels per second for the DesignPreview fixture.
+        public static let initialPixelsPerSecond: CGFloat = 2.4
+        /// Increment ratio used by explicit zoom buttons.
+        public static let zoomStepRatio: CGFloat = 1.28
+        /// Initial DesignPreview fixture duration, in seconds.
+        public static let previewDuration: Double = 8_894
+        /// DesignPreview fixture frame rate.
+        public static let previewFrameRate: Double = 24
+        /// Scale used when the expanded timeline grows out of the progress bar.
+        public static let collapsedScale: CGFloat = 0.72
+        /// Expanded timeline panel fill.
+        public static let panelFill: Color = .black.opacity(0.22)
+        /// Expanded timeline border.
+        public static let panelBorder: Color = .white.opacity(0.08)
+        /// Timecode foreground.
+        public static let timecodeColor: Color = .white.opacity(0.92)
+        /// Secondary timeline text foreground.
+        public static let secondaryTextColor: Color = .white.opacity(0.46)
+        /// Minor tick color.
+        public static let minorTickColor: Color = .white.opacity(0.22)
+        /// Major tick color.
+        public static let majorTickColor: Color = .white.opacity(0.46)
+        /// Center playhead color.
+        public static let playheadColor: Color = .white.opacity(0.95)
+        /// Timeline center accent.
+        public static let playheadAccent: Color = Theme.accent
+        /// Empty timeline area.
+        public static let emptyAreaFill: Color = .white.opacity(0.025)
+        /// Film strip top highlight.
+        public static let filmStripHighlight: Color = .white.opacity(0.08)
+        /// Film strip body fill.
+        public static let filmStripBase: Color = .black.opacity(0.42)
+        /// Film strip sprocket fill.
+        public static let sprocketFill: Color = .black.opacity(0.58)
+        /// Film strip separator.
+        public static let filmStripSeparator: Color = .black.opacity(0.32)
+        /// Zoom rail fill.
+        public static let zoomRailFill: Color = .white.opacity(0.12)
+        /// Zoom rail active fill.
+        public static let zoomRailActiveFill: Color = Theme.accent.opacity(0.72)
+        /// Subtle overlay used for controls on the timeline panel.
+        public static let controlFill: Color = .white.opacity(0.08)
+        /// Simulated thumbnail palette.
+        public static let thumbnailPalette: [Color] = [
+            Color(red: 0.10, green: 0.20, blue: 0.26),
+            Color(red: 0.19, green: 0.16, blue: 0.25),
+            Color(red: 0.25, green: 0.18, blue: 0.12),
+            Color(red: 0.14, green: 0.24, blue: 0.18),
+            Color(red: 0.28, green: 0.23, blue: 0.12),
+            Color(red: 0.16, green: 0.14, blue: 0.28)
+        ]
+    }
 }
