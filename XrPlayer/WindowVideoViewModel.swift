@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreGraphics
 import Foundation
 import MetalKit
 import Observation
@@ -24,6 +25,7 @@ public final class WindowVideoViewModel {
         public var transferFunction: String?
         public var colorPrimaries: String?
         public var yCbCrMatrix: String?
+        public var itemStatus: String?
         public var status: String
 
         public static let idle = AVReferenceMetadata(
@@ -32,6 +34,7 @@ public final class WindowVideoViewModel {
             transferFunction: nil,
             colorPrimaries: nil,
             yCbCrMatrix: nil,
+            itemStatus: nil,
             status: "not loaded"
         )
     }
@@ -65,6 +68,8 @@ public final class WindowVideoViewModel {
     private let hdrProbeController = HDRProbeController()
     private nonisolated(unsafe) var _cancelStatus: (() -> Void)?
     private var isAwaitingFirstFramePresentation = false
+    private var hdrProbeSampleSequence = 0
+    private var avReferenceLoadID = UUID()
 
     public var onPlaybackEnded: (() -> Void)?
     public var onMediaProfileResolved:
@@ -183,10 +188,36 @@ public final class WindowVideoViewModel {
 
     public var hdrProbeDelta: PlaybackCoreDomain.HDRProbeDelta? {
         guard let latestHDRProbeOnSample, let latestHDRProbeOffSample else { return nil }
-        return PlaybackCoreDomain.HDRProbeDelta(
+        return PlaybackCoreDomain.HDRProbeDelta.matching(
             onSample: latestHDRProbeOnSample,
             offSample: latestHDRProbeOffSample
         )
+    }
+
+    public var isEDRLayerConfiguredForDiagnostics: Bool {
+        guard let layer = nativeVideoLayer else { return false }
+        return usesNativeGPUOutput
+            && layer.pixelFormat == .rgba16Float
+            && layer.framebufferOnly == false
+            && layer.wantsExtendedDynamicRangeContent
+            && layer.colorspace?.name as String? == CGColorSpace.extendedLinearDisplayP3Name
+    }
+
+    public var extendedGPUValuesStatus: String {
+        guard let sample = latestHDRProbeSample, sample.source == .mpvDrawable else {
+            return "not sampled"
+        }
+        guard sample.usesExtendedLinearDisplayP3Contract else {
+            return "inconclusive"
+        }
+        return sample.statistics.countAbove1 > 0 ? "yes" : "no"
+    }
+
+    public var hdrProbeDeltaStatus: String {
+        guard latestHDRProbeOnSample != nil, latestHDRProbeOffSample != nil else {
+            return "needs matching ON/OFF samples"
+        }
+        return hdrProbeDelta == nil ? "needs matching ON/OFF samples" : "matched"
     }
 
     /// The current video's display aspect ratio, derived from MediaProfile resolution.
@@ -216,6 +247,7 @@ public final class WindowVideoViewModel {
             currentPlaybackURL = url
             diagnosticRenderer = .mpv
             teardownAppleReferencePlayer()
+            resetHDRProbeSamples()
             try await player.play(url: url)
             lastErrorMessage = nil
         } catch {
@@ -231,6 +263,7 @@ public final class WindowVideoViewModel {
     public func loadPaused(url: URL) async throws {
         do {
             currentPlaybackURL = url
+            resetHDRProbeSamples()
             try await player.loadPaused(url: url)
             lastErrorMessage = nil
         } catch {
@@ -273,6 +306,7 @@ public final class WindowVideoViewModel {
     }
 
     public func seek(to seconds: Double) {
+        resetHDRProbeSamples()
         if diagnosticRenderer == .apple {
             appleReferencePlayer?.seek(
                 to: CMTime(seconds: seconds, preferredTimescale: 600),
@@ -317,6 +351,7 @@ public final class WindowVideoViewModel {
 
     public func setHDREnabled(_ enabled: Bool) {
         player.setHDREnabled(enabled)
+        guard DiagnosticsFeatureFlags.hdrLabEnabled else { return }
         Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(350))
             await self?.sampleCurrentHDRDrawable(trigger: "hdr_toggle")
@@ -349,7 +384,9 @@ public final class WindowVideoViewModel {
     }
 
     public func setDiagnosticRenderer(_ renderer: DiagnosticRenderer) {
+        guard DiagnosticsFeatureFlags.hdrLabEnabled else { return }
         guard renderer != diagnosticRenderer else { return }
+        resetHDRProbeSamples()
         switch renderer {
         case .mpv:
             switchBackToMPVRenderer()
@@ -359,7 +396,7 @@ public final class WindowVideoViewModel {
     }
 
     public func sampleSyntheticHDRProbe() {
-        let sample = hdrProbeController.sampleSyntheticEDR(
+        let sample = hdrProbeController.sampleSyntheticStats(
             hdrOutputEnabled: isHDROutputEnabled
         )
         syntheticHDRProbeSample = sample
@@ -368,12 +405,19 @@ public final class WindowVideoViewModel {
     }
 
     public func sampleCurrentHDRDrawable(trigger: String = "manual") async {
-        (player as? MPVPlayerAdapter)?.prepareForHDRDiagnosticProbe()
+        guard DiagnosticsFeatureFlags.hdrLabEnabled else { return }
+        guard diagnosticRenderer == .mpv else {
+            lastHDRProbeError = "MPV drawable probe unavailable while Apple reference is active."
+            return
+        }
         do {
+            hdrProbeSampleSequence += 1
             let sample = try hdrProbeController.sampleMPVDrawable(
                 from: nativeVideoLayer,
                 hdrOutputEnabled: isHDROutputEnabled,
-                videoTime: playbackPosition.seconds
+                videoTime: playbackPosition.seconds,
+                mediaFingerprint: currentPlaybackURL?.absoluteString,
+                sampleSequence: hdrProbeSampleSequence
             )
             latestHDRProbeSample = sample
             if sample.hdrOutputEnabled == true {
@@ -399,6 +443,7 @@ public final class WindowVideoViewModel {
         presentationState = .placeholder
         isAwaitingFirstFramePresentation = true
         lastErrorMessage = nil
+        resetHDRProbeSamples()
         print("[Playback] presentation_prepared name=\(request.displayName)")
     }
 
@@ -412,6 +457,7 @@ public final class WindowVideoViewModel {
         presentationState = .hidden
         isAwaitingFirstFramePresentation = false
         lastErrorMessage = nil
+        resetHDRProbeSamples()
     }
 
     public func clearPresentation() {
@@ -447,6 +493,7 @@ public final class WindowVideoViewModel {
     }
 
     private func switchToAppleReferenceRenderer() {
+        guard DiagnosticsFeatureFlags.hdrLabEnabled else { return }
         guard let url = currentPlaybackURL else { return }
         let time = playbackPosition.seconds
         let shouldResume = playbackState == .playing
@@ -454,9 +501,20 @@ public final class WindowVideoViewModel {
 
         let item = AVPlayerItem(url: url)
         let player = AVPlayer(playerItem: item)
+        let loadID = UUID()
+        avReferenceLoadID = loadID
         appleReferencePlayer = player
+        avReferenceMetadata = AVReferenceMetadata(
+            eligibleForHDRPlayback: AVPlayer.eligibleForHDRPlayback,
+            containsHDRVideo: nil,
+            transferFunction: nil,
+            colorPrimaries: nil,
+            yCbCrMatrix: nil,
+            itemStatus: Self.avItemStatusLabel(item.status),
+            status: "loading system reference"
+        )
         diagnosticRenderer = .apple
-        Task { await loadAVReferenceMetadata(for: url) }
+        Task { await loadAVReferenceMetadata(for: url, item: item, loadID: loadID) }
 
         let targetTime = CMTime(seconds: time, preferredTimescale: 600)
         let rate = Float(currentPlaybackSpeed.value)
@@ -470,6 +528,9 @@ public final class WindowVideoViewModel {
         let playerTime = appleReferencePlayer?.currentTime().seconds
         let shouldResume = (appleReferencePlayer?.rate ?? 0) != 0
         appleReferencePlayer?.pause()
+        appleReferencePlayer?.replaceCurrentItem(with: nil)
+        appleReferencePlayer = nil
+        avReferenceMetadata = .idle
         diagnosticRenderer = .mpv
         if let playerTime, playerTime.isFinite {
             seek(to: playerTime)
@@ -481,17 +542,20 @@ public final class WindowVideoViewModel {
 
     private func teardownAppleReferencePlayer() {
         appleReferencePlayer?.pause()
+        appleReferencePlayer?.replaceCurrentItem(with: nil)
         appleReferencePlayer = nil
         avReferenceMetadata = .idle
+        avReferenceLoadID = UUID()
         diagnosticRenderer = .mpv
     }
 
-    private func loadAVReferenceMetadata(for url: URL) async {
+    private func loadAVReferenceMetadata(for url: URL, item: AVPlayerItem, loadID: UUID) async {
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: false])
         defer { asset.cancelLoading() }
 
         do {
             let videoTracks = try await asset.loadTracks(withMediaType: .video)
+            guard isCurrentAVReference(url: url, loadID: loadID) else { return }
             guard let videoTrack = videoTracks.first else {
                 avReferenceMetadata = AVReferenceMetadata(
                     eligibleForHDRPlayback: AVPlayer.eligibleForHDRPlayback,
@@ -499,11 +563,13 @@ public final class WindowVideoViewModel {
                     transferFunction: nil,
                     colorPrimaries: nil,
                     yCbCrMatrix: nil,
+                    itemStatus: Self.avItemStatusLabel(item.status),
                     status: "unsupported by AVFoundation reference path"
                 )
                 return
             }
             let formatDescriptions = try await videoTrack.load(.formatDescriptions)
+            guard isCurrentAVReference(url: url, loadID: loadID) else { return }
             let description = formatDescriptions.first
             avReferenceMetadata = AVReferenceMetadata(
                 eligibleForHDRPlayback: AVPlayer.eligibleForHDRPlayback,
@@ -520,17 +586,43 @@ public final class WindowVideoViewModel {
                     description,
                     key: kCMFormatDescriptionExtension_YCbCrMatrix
                 ),
+                itemStatus: Self.avItemStatusLabel(item.status),
                 status: "system reference only"
             )
         } catch {
+            guard isCurrentAVReference(url: url, loadID: loadID) else { return }
             avReferenceMetadata = AVReferenceMetadata(
                 eligibleForHDRPlayback: AVPlayer.eligibleForHDRPlayback,
                 containsHDRVideo: nil,
                 transferFunction: nil,
                 colorPrimaries: nil,
                 yCbCrMatrix: nil,
+                itemStatus: Self.avItemStatusLabel(item.status),
                 status: "unsupported by AVFoundation reference path"
             )
+        }
+    }
+
+    private func resetHDRProbeSamples() {
+        syntheticHDRProbeSample = nil
+        latestHDRProbeSample = nil
+        latestHDRProbeOnSample = nil
+        latestHDRProbeOffSample = nil
+        lastHDRProbeError = nil
+    }
+
+    private func isCurrentAVReference(url: URL, loadID: UUID) -> Bool {
+        diagnosticRenderer == .apple
+            && currentPlaybackURL == url
+            && avReferenceLoadID == loadID
+    }
+
+    private static func avItemStatusLabel(_ status: AVPlayerItem.Status) -> String {
+        switch status {
+        case .unknown: return "unknown"
+        case .readyToPlay: return "ready"
+        case .failed: return "failed"
+        @unknown default: return "unknown"
         }
     }
 

@@ -10,6 +10,8 @@ enum HDRProbeError: LocalizedError {
     case allocationFailed
     case commandQueueFailed
     case commandBufferFailed
+    case blitEncoderFailed
+    case commandBufferExecutionFailed(String)
     case sampleTooLarge(Int)
 
     var errorDescription: String? {
@@ -26,6 +28,10 @@ enum HDRProbeError: LocalizedError {
             return "Failed to create Metal command queue for probe readback."
         case .commandBufferFailed:
             return "Failed to create Metal command buffer for probe readback."
+        case .blitEncoderFailed:
+            return "Failed to create Metal blit encoder for probe readback."
+        case .commandBufferExecutionFailed(let message):
+            return "Probe readback command buffer failed: \(message)."
         case .sampleTooLarge(let byteCount):
             return "Probe sample is too large for CPU readback (\(byteCount) bytes)."
         }
@@ -36,12 +42,14 @@ final class HDRProbeController {
     static let extendedLinearDisplayP3Contract = "extended-linear Display P3"
 
     private let maxReadbackBytes: Int
+    private let maxProbeDimension: Int
 
-    init(maxReadbackBytes: Int = 160 * 1024 * 1024) {
+    init(maxReadbackBytes: Int = 24 * 1024 * 1024, maxProbeDimension: Int = 640) {
         self.maxReadbackBytes = maxReadbackBytes
+        self.maxProbeDimension = maxProbeDimension
     }
 
-    func sampleSyntheticEDR(hdrOutputEnabled: Bool?) -> PlaybackCoreDomain.HDRProbeSample {
+    func sampleSyntheticStats(hdrOutputEnabled: Bool?) -> PlaybackCoreDomain.HDRProbeSample {
         let pixels: [PlaybackCoreDomain.HDRProbeCalculator.Pixel] = [
             .init(red: 0.5, green: 0.5, blue: 0.5),
             .init(red: 1.0, green: 1.0, blue: 1.0),
@@ -49,22 +57,26 @@ final class HDRProbeController {
             .init(red: 4.0, green: 4.0, blue: 4.0)
         ]
         return PlaybackCoreDomain.HDRProbeSample(
-            source: .syntheticEDR,
+            source: .syntheticStats,
             hdrOutputEnabled: hdrOutputEnabled,
             pixelFormat: MTLPixelFormat.rgba16Float.hdrProbeName,
-            colorspace: CGColorSpace.extendedLinearDisplayP3Name,
+            colorspace: "n/a",
             width: pixels.count,
             height: 1,
             statistics: PlaybackCoreDomain.HDRProbeCalculator.statistics(for: pixels),
             videoTime: nil,
-            contract: Self.extendedLinearDisplayP3Contract
+            contract: PlaybackCoreDomain.HDRProbeContract.calculatorOnly.rawValue,
+            renderer: "calculator",
+            probeRegion: "cpu synthetic"
         )
     }
 
     func sampleMPVDrawable(
         from layer: CAMetalLayer?,
         hdrOutputEnabled: Bool,
-        videoTime: Double?
+        videoTime: Double?,
+        mediaFingerprint: String?,
+        sampleSequence: Int
     ) throws -> PlaybackCoreDomain.HDRProbeSample {
         guard let layer else { throw HDRProbeError.noDrawable }
         guard let nativeLayer = layer as? MPVNativeMetalLayer,
@@ -80,9 +92,10 @@ final class HDRProbeController {
             throw HDRProbeError.unsupportedPixelFormat(texture.pixelFormat)
         }
 
-        let readback = try copyTextureToSharedBuffer(texture, layout: layout, device: device)
-        let width = texture.width
-        let height = texture.height
+        let region = ProbeReadbackRegion.centered(in: texture, maxDimension: maxProbeDimension)
+        let readback = try copyTextureToSharedBuffer(texture, region: region, layout: layout, device: device)
+        let width = region.width
+        let height = region.height
         let pixels = layout.pixels(readback.buffer.contents(), width, height, readback.bytesPerRow)
         return PlaybackCoreDomain.HDRProbeSample(
             source: .mpvDrawable,
@@ -93,17 +106,22 @@ final class HDRProbeController {
             height: height,
             statistics: PlaybackCoreDomain.HDRProbeCalculator.statistics(for: pixels),
             videoTime: videoTime,
-            contract: Self.extendedLinearDisplayP3Contract
+            contract: Self.probeContract(for: texture, layer: layer),
+            mediaFingerprint: mediaFingerprint,
+            renderer: "mpv",
+            probeRegion: region.description,
+            sampleSequence: sampleSequence
         )
     }
 
     private func copyTextureToSharedBuffer(
         _ texture: MTLTexture,
+        region: ProbeReadbackRegion,
         layout: TextureReadbackLayout,
         device: MTLDevice
     ) throws -> TextureReadbackResult {
-        let bytesPerRow = Self.alignedBytesPerRow(width: texture.width, bytesPerPixel: layout.bytesPerPixel)
-        let byteCount = bytesPerRow * texture.height
+        let bytesPerRow = Self.alignedBytesPerRow(width: region.width, bytesPerPixel: layout.bytesPerPixel)
+        let byteCount = bytesPerRow * region.height
         guard byteCount <= maxReadbackBytes else {
             throw HDRProbeError.sampleTooLarge(byteCount)
         }
@@ -117,23 +135,40 @@ final class HDRProbeController {
             throw HDRProbeError.commandBufferFailed
         }
 
-        let blit = commandBuffer.makeBlitCommandEncoder()
-        blit?.copy(
+        guard let blit = commandBuffer.makeBlitCommandEncoder() else {
+            throw HDRProbeError.blitEncoderFailed
+        }
+        blit.copy(
             from: texture,
             sourceSlice: 0,
             sourceLevel: 0,
-            sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
-            sourceSize: MTLSize(width: texture.width, height: texture.height, depth: 1),
+            sourceOrigin: MTLOrigin(x: region.x, y: region.y, z: 0),
+            sourceSize: MTLSize(width: region.width, height: region.height, depth: 1),
             to: buffer,
             destinationOffset: 0,
             destinationBytesPerRow: bytesPerRow,
-            destinationBytesPerImage: bytesPerRow * texture.height
+            destinationBytesPerImage: bytesPerRow * region.height
         )
-        blit?.endEncoding()
+        blit.endEncoding()
         commandBuffer.commit()
         commandBuffer.waitUntilCompleted()
+        if commandBuffer.status == .error {
+            throw HDRProbeError.commandBufferExecutionFailed(
+                commandBuffer.error?.localizedDescription ?? "unknown error"
+            )
+        }
 
         return TextureReadbackResult(buffer: buffer, bytesPerRow: bytesPerRow)
+    }
+
+    private static func probeContract(for texture: MTLTexture, layer: CAMetalLayer) -> String {
+        guard texture.pixelFormat == .rgba16Float else {
+            return PlaybackCoreDomain.HDRProbeContract.mismatch.rawValue
+        }
+        guard layer.hdrProbeColorspaceName == CGColorSpace.extendedLinearDisplayP3Name else {
+            return PlaybackCoreDomain.HDRProbeContract.mismatch.rawValue
+        }
+        return PlaybackCoreDomain.HDRProbeContract.extendedLinearDisplayP3.rawValue
     }
 
     private static func alignedBytesPerRow(width: Int, bytesPerPixel: Int) -> Int {
@@ -146,6 +181,28 @@ final class HDRProbeController {
 private struct TextureReadbackResult {
     let buffer: MTLBuffer
     let bytesPerRow: Int
+}
+
+private struct ProbeReadbackRegion {
+    let x: Int
+    let y: Int
+    let width: Int
+    let height: Int
+
+    var description: String {
+        "center \(width)x\(height) @ \(x),\(y)"
+    }
+
+    static func centered(in texture: MTLTexture, maxDimension: Int) -> ProbeReadbackRegion {
+        let width = min(texture.width, maxDimension)
+        let height = min(texture.height, maxDimension)
+        return ProbeReadbackRegion(
+            x: max((texture.width - width) / 2, 0),
+            y: max((texture.height - height) / 2, 0),
+            width: width,
+            height: height
+        )
+    }
 }
 
 private struct TextureReadbackLayout {

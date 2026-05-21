@@ -44,6 +44,9 @@ public struct DebugOverlayView: View {
                         .accessibilityLabel("Renderer")
 
                         infoRow("Role", rendererRole)
+                        if videoViewModel.diagnosticRenderer == .apple {
+                            infoRow("MPV Probe", "unavailable in Apple reference")
+                        }
                     }
                     .padding(.horizontal, 16)
 
@@ -53,6 +56,10 @@ public struct DebugOverlayView: View {
 
                     VStack(alignment: .leading, spacing: 6) {
                         infoRow("Source", sourceHDRLabel)
+                        infoRow(
+                            "EDR Layer",
+                            videoViewModel.isEDRLayerConfiguredForDiagnostics ? "yes" : "no"
+                        )
                         infoRow(
                             "Output",
                             PlaybackInfoFormatter.hdrOutputDescription(videoViewModel.hdrOutputMode)
@@ -75,23 +82,27 @@ public struct DebugOverlayView: View {
 
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(spacing: 10) {
-                            Button("Synthetic") {
+                            Button("Math Synthetic") {
                                 videoViewModel.sampleSyntheticHDRProbe()
                             }
                             .accessibilityIdentifier("HDRDiagnostics-SyntheticSample")
-                            .accessibilityLabel("Sample synthetic EDR pattern")
+                            .accessibilityLabel("Run synthetic statistics self-test")
 
-                            Button("Sample") {
+                            Button("MPV Drawable Sample") {
                                 Task { await videoViewModel.sampleCurrentHDRDrawable() }
                             }
+                            .disabled(videoViewModel.diagnosticRenderer != .mpv)
                             .accessibilityIdentifier("HDRDiagnostics-SampleDrawable")
                             .accessibilityLabel("Sample current MPV drawable")
                         }
                         .buttonStyle(.bordered)
 
                         if let sample = videoViewModel.latestHDRProbeSample {
+                            infoRow("Source", sample.source.rawValue)
                             infoRow("Format", sample.pixelFormat)
                             infoRow("Colorspace", sample.colorspace)
+                            infoRow("Contract", sample.contract)
+                            infoRow("Region", sample.probeRegion)
                             infoRow("maxRGB", format(sample.statistics.maxRGB.maxChannel))
                             infoRow("p99Y", format(sample.statistics.p99Luminance))
                             infoRow(">1", "\(sample.statistics.countAbove1)")
@@ -101,17 +112,22 @@ public struct DebugOverlayView: View {
                             infoRow("Status", "not sampled")
                         }
 
+                        infoRow("Extended", videoViewModel.extendedGPUValuesStatus)
+
                         if let delta = videoViewModel.hdrProbeDelta {
                             infoRow("Δ max", format(delta.maxRGBDelta))
                             infoRow("Δ p99Y", format(delta.p99LuminanceDelta))
                             infoRow("Δ >1", "\(delta.countAbove1Delta)")
                         } else {
-                            infoRow("Δ ON/OFF", "needs both samples")
+                            infoRow("Δ ON/OFF", videoViewModel.hdrProbeDeltaStatus)
                         }
 
                         if let error = videoViewModel.lastHDRProbeError {
                             infoRow("Probe", error)
                         }
+
+                        infoRow("RealityKit", "not tested")
+                        infoRow("Final Display", "measured: no")
                     }
                     .padding(.horizontal, 16)
 
@@ -125,6 +141,7 @@ public struct DebugOverlayView: View {
                         infoRow("Transfer", videoViewModel.avReferenceMetadata.transferFunction ?? "unknown")
                         infoRow("Primaries", videoViewModel.avReferenceMetadata.colorPrimaries ?? "unknown")
                         infoRow("Matrix", videoViewModel.avReferenceMetadata.yCbCrMatrix ?? "unknown")
+                        infoRow("Item", videoViewModel.avReferenceMetadata.itemStatus ?? "unknown")
                         infoRow("Status", videoViewModel.avReferenceMetadata.status)
                     }
                     .padding(.horizontal, 16)
@@ -168,7 +185,7 @@ public struct DebugOverlayView: View {
             Text(label)
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(width: 80, alignment: .leading)
+                .frame(width: 104, alignment: .leading)
             Text(value)
                 .font(.caption.monospaced())
                 .foregroundStyle(.primary)

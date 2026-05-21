@@ -1,3 +1,4 @@
+import CoreGraphics
 import CoreVideo
 import Foundation
 import Libmpv
@@ -70,9 +71,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
     public var hdrOutputMode: PlaybackCoreDomain.HDROutputMode {
         guard isHDRContent else { return .unsupported }
+        guard isHDROutputEnabled else { return .toneMappedSDR }
 
         if isWindowEDRLayerConfigured {
-            return isHDROutputEnabled ? .passthroughHDR : .toneMappedSDR
+            return .edrOutputPath
         }
 
         return .previewSDR
@@ -137,7 +139,9 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var isWindowEDRLayerConfigured: Bool {
         stateQueue.sync {
             activeNativeGPUOutput && videoLayer?.pixelFormat == .rgba16Float
-                && videoLayer?.wantsExtendedDynamicRangeContent == true && videoLayer?.colorspace?.name != nil
+                && videoLayer?.framebufferOnly == false
+                && videoLayer?.wantsExtendedDynamicRangeContent == true
+                && videoLayer?.colorspace?.name as String? == CGColorSpace.extendedLinearDisplayP3Name
         }
     }
 
@@ -334,7 +338,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     public func replay() {
-        guard let url = lastPlayedURL else { return }
+        guard lastPlayedURL != nil else { return }
         _ = try? command(["seek", "0", "absolute"])
         setFlagProperty(name: "pause", value: false)
         updateState(.playing)
@@ -361,11 +365,6 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             print("[MPV] edr_metadata cleared reason=hdr_disabled")
         }
         logHDRPipelineState(reason: "manual_toggle")
-    }
-
-    public func prepareForHDRDiagnosticProbe() {
-        _ = try? command(["set", "sid", "no"])
-        _ = try? command(["set", "osd-level", "0"])
     }
 
     public func frameStepForward() {

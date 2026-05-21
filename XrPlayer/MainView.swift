@@ -97,9 +97,9 @@ public struct MainView: View {
                             viewModel: windowVideoViewModel,
                             containerSize: geometry.size
                         )
-                        .opacity(windowVideoViewModel.diagnosticRenderer == .mpv ? 1 : 0)
+                        .opacity(shouldShowMPVSurface ? 1 : 0)
 
-                        if windowVideoViewModel.diagnosticRenderer == .apple {
+                        if shouldShowAppleReferenceSurface {
                             AppleReferenceVideoSurface(player: windowVideoViewModel.appleReferencePlayer)
                                 .background(.black)
                         }
@@ -400,6 +400,14 @@ public struct MainView: View {
                 }
             }
         }
+    }
+
+    private var shouldShowMPVSurface: Bool {
+        DiagnosticsFeatureFlags.hdrLabEnabled == false || windowVideoViewModel.diagnosticRenderer == .mpv
+    }
+
+    private var shouldShowAppleReferenceSurface: Bool {
+        DiagnosticsFeatureFlags.hdrLabEnabled && windowVideoViewModel.diagnosticRenderer == .apple
     }
 
     // MARK: - Unified Immersive Space Entry (§5.9a)
