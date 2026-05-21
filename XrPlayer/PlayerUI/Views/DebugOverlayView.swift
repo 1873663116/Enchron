@@ -60,6 +60,10 @@ public struct DebugOverlayView: View {
                             "EDR Layer",
                             videoViewModel.isEDRLayerConfiguredForDiagnostics ? "yes" : "no"
                         )
+                        infoRow("Layer Format", videoViewModel.diagnosticsLayerPixelFormat)
+                        infoRow("Layer Color", videoViewModel.diagnosticsLayerColorspace)
+                        infoRow("Layer EDR", videoViewModel.diagnosticsLayerWantsEDR)
+                        infoRow("Layer Readable", videoViewModel.diagnosticsLayerReadable)
                         infoRow(
                             "Output",
                             PlaybackInfoFormatter.hdrOutputDescription(videoViewModel.hdrOutputMode)
@@ -81,19 +85,28 @@ public struct DebugOverlayView: View {
                     sectionHeader("HDR Probe")
 
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 10) {
-                            Button("Math Synthetic") {
-                                videoViewModel.sampleSyntheticHDRProbe()
-                            }
-                            .accessibilityIdentifier("HDRDiagnostics-SyntheticSample")
-                            .accessibilityLabel("Run synthetic statistics self-test")
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 10) {
+                                Button("Math Synthetic") {
+                                    videoViewModel.sampleSyntheticHDRProbe()
+                                }
+                                .accessibilityIdentifier("HDRDiagnostics-SyntheticSample")
+                                .accessibilityLabel("Run synthetic statistics self-test")
 
-                            Button("MPV Drawable Sample") {
-                                Task { await videoViewModel.sampleCurrentHDRDrawable() }
+                                Button("MPV Drawable Sample") {
+                                    Task { await videoViewModel.sampleCurrentHDRDrawable() }
+                                }
+                                .disabled(videoViewModel.diagnosticRenderer != .mpv)
+                                .accessibilityIdentifier("HDRDiagnostics-SampleDrawable")
+                                .accessibilityLabel("Sample current MPV drawable")
+                            }
+
+                            Button("Full Frame Scan") {
+                                Task { await videoViewModel.sampleFullFrameHDRDrawable() }
                             }
                             .disabled(videoViewModel.diagnosticRenderer != .mpv)
-                            .accessibilityIdentifier("HDRDiagnostics-SampleDrawable")
-                            .accessibilityLabel("Sample current MPV drawable")
+                            .accessibilityIdentifier("HDRDiagnostics-FullFrameScan")
+                            .accessibilityLabel("Run intrusive full frame MPV drawable scan")
                         }
                         .buttonStyle(.bordered)
 
@@ -118,8 +131,6 @@ public struct DebugOverlayView: View {
                             infoRow("Δ max", format(delta.maxRGBDelta))
                             infoRow("Δ p99Y", format(delta.p99LuminanceDelta))
                             infoRow("Δ >1", "\(delta.countAbove1Delta)")
-                        } else {
-                            infoRow("Δ ON/OFF", videoViewModel.hdrProbeDeltaStatus)
                         }
 
                         if let error = videoViewModel.lastHDRProbeError {

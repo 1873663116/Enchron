@@ -203,6 +203,22 @@ public final class WindowVideoViewModel {
             && layer.colorspace?.name as String? == CGColorSpace.extendedLinearDisplayP3Name
     }
 
+    public var diagnosticsLayerPixelFormat: String {
+        nativeVideoLayer?.pixelFormat.hdrProbeName ?? "missing"
+    }
+
+    public var diagnosticsLayerColorspace: String {
+        nativeVideoLayer?.hdrProbeColorspaceName ?? "missing"
+    }
+
+    public var diagnosticsLayerWantsEDR: String {
+        nativeVideoLayer.map { String($0.wantsExtendedDynamicRangeContent) } ?? "missing"
+    }
+
+    public var diagnosticsLayerReadable: String {
+        nativeVideoLayer.map { String($0.framebufferOnly == false) } ?? "missing"
+    }
+
     public var extendedGPUValuesStatus: String {
         guard let sample = latestHDRProbeSample, sample.source == .mpvDrawable else {
             return "not sampled"
@@ -405,6 +421,17 @@ public final class WindowVideoViewModel {
     }
 
     public func sampleCurrentHDRDrawable(trigger: String = "manual") async {
+        await sampleCurrentHDRDrawable(trigger: trigger, readbackMode: .centeredROI)
+    }
+
+    public func sampleFullFrameHDRDrawable() async {
+        await sampleCurrentHDRDrawable(trigger: "full_frame_manual", readbackMode: .fullFrame)
+    }
+
+    private func sampleCurrentHDRDrawable(
+        trigger: String,
+        readbackMode: HDRProbeController.ReadbackMode
+    ) async {
         guard DiagnosticsFeatureFlags.hdrLabEnabled else { return }
         guard diagnosticRenderer == .mpv else {
             lastHDRProbeError = "MPV drawable probe unavailable while Apple reference is active."
@@ -412,12 +439,13 @@ public final class WindowVideoViewModel {
         }
         do {
             hdrProbeSampleSequence += 1
-            let sample = try hdrProbeController.sampleMPVDrawable(
+            let sample = try await hdrProbeController.sampleMPVDrawableAsync(
                 from: nativeVideoLayer,
                 hdrOutputEnabled: isHDROutputEnabled,
                 videoTime: playbackPosition.seconds,
                 mediaFingerprint: currentPlaybackURL?.absoluteString,
-                sampleSequence: hdrProbeSampleSequence
+                sampleSequence: hdrProbeSampleSequence,
+                readbackMode: readbackMode
             )
             latestHDRProbeSample = sample
             if sample.hdrOutputEnabled == true {
@@ -426,10 +454,14 @@ public final class WindowVideoViewModel {
                 latestHDRProbeOffSample = sample
             }
             lastHDRProbeError = nil
-            print("[HDRProbe] sample trigger=\(trigger) max=\(sample.statistics.maxRGB.maxChannel) p99=\(sample.statistics.p99Luminance) above1=\(sample.statistics.countAbove1)")
+            let line = hdrProbeLogLine(trigger: trigger, sample: sample)
+            print(line)
+            appendHDRProbeLog(line)
         } catch {
             lastHDRProbeError = error.localizedDescription
-            print("[HDRProbe] sample_failed trigger=\(trigger) error=\(error.localizedDescription)")
+            let line = hdrProbeFailureLogLine(trigger: trigger, error: error)
+            print(line)
+            appendHDRProbeLog(line)
         }
     }
 
@@ -609,6 +641,76 @@ public final class WindowVideoViewModel {
         latestHDRProbeOnSample = nil
         latestHDRProbeOffSample = nil
         lastHDRProbeError = nil
+    }
+
+    private func hdrProbeLogLine(trigger: String, sample: PlaybackCoreDomain.HDRProbeSample) -> String {
+        [
+            "[HDRProbe] sample",
+            "trigger=\(trigger)",
+            "hdr=\(sample.hdrOutputEnabled.map(String.init) ?? "unknown")",
+            "source=\(sample.source.rawValue)",
+            "region=\(sample.probeRegion)",
+            "format=\(sample.pixelFormat)",
+            "colorspace=\(sample.colorspace)",
+            "contract=\(sample.contract)",
+            "size=\(sample.width)x\(sample.height)",
+            "layer_format=\(diagnosticsLayerPixelFormat)",
+            "layer_colorspace=\(diagnosticsLayerColorspace)",
+            "layer_wants_edr=\(diagnosticsLayerWantsEDR)",
+            "layer_readable=\(diagnosticsLayerReadable)",
+            "max=\(sample.statistics.maxRGB.maxChannel)",
+            "p99=\(sample.statistics.p99Luminance)",
+            "above1=\(sample.statistics.countAbove1)",
+            "above2=\(sample.statistics.countAbove2)",
+            "pixels=\(sample.statistics.sampledPixelCount)"
+        ].joined(separator: " ")
+    }
+
+    private func hdrProbeFailureLogLine(trigger: String, error: Error) -> String {
+        [
+            "[HDRProbe] sample_failed",
+            "trigger=\(trigger)",
+            "hdr=\(isHDROutputEnabled)",
+            "renderer=\(diagnosticRenderer.rawValue)",
+            "layer_format=\(diagnosticsLayerPixelFormat)",
+            "layer_colorspace=\(diagnosticsLayerColorspace)",
+            "layer_wants_edr=\(diagnosticsLayerWantsEDR)",
+            "layer_readable=\(diagnosticsLayerReadable)",
+            "error=\(sanitizeHDRProbeLogValue(error.localizedDescription))"
+        ].joined(separator: " ")
+    }
+
+    private func appendHDRProbeLog(_ line: String) {
+        guard DiagnosticsFeatureFlags.hdrLabEnabled else { return }
+        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        let logURL = documentsURL.appendingPathComponent("hdr-probe-live.log")
+        let timestampedLine = "\(Self.hdrProbeTimestamp()) \(line)\n"
+        guard let data = timestampedLine.data(using: .utf8) else { return }
+
+        do {
+            if FileManager.default.fileExists(atPath: logURL.path) == false {
+                FileManager.default.createFile(atPath: logURL.path, contents: nil)
+            }
+            let handle = try FileHandle(forWritingTo: logURL)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
+        } catch {
+            print("[HDRProbe] log_write_failed path=\(logURL.path) error=\(error.localizedDescription)")
+        }
+    }
+
+    private func sanitizeHDRProbeLogValue(_ value: String) -> String {
+        value
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: " ", with: "_")
+    }
+
+    private static func hdrProbeTimestamp() -> String {
+        ISO8601DateFormatter().string(from: Date())
     }
 
     private func isCurrentAVReference(url: URL, loadID: UUID) -> Bool {

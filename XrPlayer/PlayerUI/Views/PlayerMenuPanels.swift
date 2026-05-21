@@ -41,9 +41,6 @@ struct MenuPopoverContent: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            if videoViewModel.isHDRContent {
-                hdrToggleRow
-            }
             menuRow(label: "Subtitles", isActive: activeSubMenu == .subtitles) {
                 toggleSub(.subtitles)
             }
@@ -62,36 +59,6 @@ struct MenuPopoverContent: View {
     private func toggleSub(_ sub: MenuSubMenu) {
         withAnimation(MenuAnimation.spring) {
             activeSubMenu = activeSubMenu == sub ? nil : sub
-        }
-    }
-
-    private var hdrToggleRow: some View {
-        Button {
-            videoViewModel.setHDREnabled(!videoViewModel.isHDROutputEnabled)
-        } label: {
-            HStack {
-                Text(videoViewModel.isHDROutputEnabled ? "ON" : "OFF")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(Color(red: 0.678, green: 0.776, blue: 1.0))
-                Spacer()
-                Text(hdrLabel)
-                    .font(.system(size: 12, weight: .medium))
-            }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 60)
-        }
-        .buttonStyle(NoSystemHoverButtonStyle())
-        .clipShape(itemShape)
-        .hoverEffect(.highlight)
-    }
-
-    private var hdrLabel: String {
-        switch videoViewModel.displayMediaProfile?.hdrType {
-        case .dolbyVision: return "DV Source"
-        case .hdr10: return "HDR10 EDR"
-        case .hdr10Plus: return "HDR10+ Source"
-        case .hlg: return "HLG"
-        default: return "HDR"
         }
     }
 

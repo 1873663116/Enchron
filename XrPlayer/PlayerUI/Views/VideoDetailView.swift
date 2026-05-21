@@ -18,7 +18,6 @@ public struct VideoDetailView: View {
     @State private var selectedAudioTrackID: String?
     @State private var selectedSubtitleTrackID: String?
     @State private var subtitlesOff: Bool = false
-    @State private var hdrOutputEnabled: Bool = true
     @State private var thumbnail: CGImage?
     @State private var selectedPlaybackMode: PlaybackMode = .window
 
@@ -548,10 +547,6 @@ public struct VideoDetailView: View {
             if !prepared.audioTracks.isEmpty {
                 audioTrackPicker(tracks: prepared.audioTracks)
             }
-            if let profile = prepared.metadata?.mediaProfile,
-               profile.hdrType != .sdr {
-                hdrOutputToggle(hdrType: profile.hdrType)
-            }
             playbackModePickerSection(prepared: prepared)
         }
         .padding(20)
@@ -631,27 +626,6 @@ public struct VideoDetailView: View {
             .accessibilityIdentifier("videoDetail.audioTrackPicker")
             .accessibilityLabel("Audio Track")
         }
-    }
-
-    @ViewBuilder
-    private func hdrOutputToggle(hdrType: PlaybackCoreDomain.HDRType) -> some View {
-        let hdrLabel = PlaybackInfoFormatter.hdrTypeLabel(hdrType)
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("EDR Output Path")
-                    .font(.body)
-                Text("Enabled by default")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Toggle("", isOn: $hdrOutputEnabled)
-                .labelsHidden()
-                .accessibilityIdentifier("videoDetail.hdrToggle")
-                .accessibilityLabel("\(hdrLabel) EDR output path")
-        }
-        .padding(12)
-        .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
     }
 
     // MARK: - Playback Mode Picker
@@ -784,8 +758,7 @@ public struct VideoDetailView: View {
             resumePosition: resumePosition,
             selectedAudioTrackID: selectedAudioTrackID,
             selectedSubtitleTrackID: selectedSubtitleTrackID,
-            subtitlesOff: subtitlesOff,
-            hdrEnabled: hdrOutputEnabled
+            subtitlesOff: subtitlesOff
         )
         // Apply user's playback mode selection after confirmation
         // (set after confirmPlayback to override autoRoutePlaybackMode)

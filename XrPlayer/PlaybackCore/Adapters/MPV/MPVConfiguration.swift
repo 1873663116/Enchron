@@ -36,11 +36,7 @@ public struct MPVConfiguration: Sendable {
     }
 
     private static let defaultUseNativeGPUOutput: Bool = {
-        #if targetEnvironment(simulator)
-            return false
-        #else
-            return true
-        #endif
+        true
     }()
 
     private static func defaultVO(useNativeGPUOutput: Bool) -> String {
@@ -48,19 +44,11 @@ public struct MPVConfiguration: Sendable {
     }
 
     private static let defaultGPUAPI: String = {
-        #if targetEnvironment(simulator)
-            return "auto"
-        #else
-            return "vulkan"
-        #endif
+        "vulkan"
     }()
 
     private static let defaultGPUContext: String = {
-        #if targetEnvironment(simulator)
-            return "auto"
-        #else
-            return "moltenvk"
-        #endif
+        "moltenvk"
     }()
 
     public init(

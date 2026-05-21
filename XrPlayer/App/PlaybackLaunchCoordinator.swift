@@ -119,9 +119,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         if previousSession != nil {
             print("[Playback] teardown_started reason=switch")
         }
+        tearDownPlaybackEngine()
         windowVideoViewModel.clearPresentationForTeardown()
         print("[Playback] surface_cleared reason=switch")
-        tearDownPlaybackEngine()
 
         if let previousSession {
             queuePersistence(for: previousSession)
@@ -213,10 +213,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         if previousSession != nil {
             print("[Playback] teardown_started reason=close")
         }
-        windowVideoViewModel.clearPresentation()
+        windowVideoViewModel.stop()
         appModel.stopPlayback()
         print("[Playback] surface_cleared reason=close")
-        tearDownPlaybackEngine()
 
         if let previousSession {
             queuePersistence(for: previousSession)
@@ -225,25 +224,28 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
     // MARK: - Prepare/Confirm Flow
 
-    /// Starts metadata prefetch and track enumeration without beginning playback.
+    // swiftlint:disable cyclomatic_complexity function_body_length
+    /// Starts metadata prefetch without beginning playback.
     ///
     /// The coordinator publishes progress through `currentPreparation`.
     /// Call `confirmPlayback(_:)` with the resulting `PreparedPlayback` to
     /// actually start playback, or `cancelPreparedPlayback()` to discard it.
-    // swiftlint:disable:next cyclomatic_complexity function_body_length
     public func preparePlayback(_ request: PlaybackLaunchRequest) {
         generation += 1
         let currentGeneration = generation
 
-        // Cancel any in-flight preparation AND tear down the previous mpv state.
-        // Without teardown, the old mpv instance continues running on controlQueue
-        // and conflicts with the new loadPaused() call on the same handle.
+        // Cancel any in-flight launch/preparation and tear down the previous
+        // mpv state before the detail page starts resolving metadata.
+        activeTask?.cancel()
+        metadataTask?.cancel()
+        activeTask = nil
+        metadataTask = nil
         cancelPreparationTasks()
-        windowVideoViewModel.clearPresentation()
         tearDownPlaybackEngine()
+        windowVideoViewModel.clearPresentation()
 
         // Check preparation cache — if we've already prepared this file,
-        // skip the expensive loadPaused and reuse cached tracks + metadata.
+        // skip metadata work and reuse the cached snapshot.
         if let cached = preparationCache[request.url] {
             let refreshed = PreparedPlayback(
                 request: request.updating(metadata: cached.metadata),
@@ -291,108 +293,65 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             // Update preparation state with resolved metadata
             self.currentPreparation = .preparing(request: request, metadata: mergedMetadata)
 
-            // Phase 2: Load file paused for track enumeration — no frames rendered.
-            // Uses mpv's pause=yes mode: container is parsed, tracks populated,
-            // but no video frames are decoded or presented.
+            // Phase 2: publish a ready snapshot without touching the production
+            // mpv session. The detail page must stay independent from the window
+            // playback layer; otherwise first-launch details can wait forever for
+            // a CAMetalLayer or leave paused mpv state behind the sheet.
             let preparedRequest = request.updating(metadata: mergedMetadata)
-            // Store the request for tracking but do NOT change presentation state.
-            self.windowVideoViewModel.currentLaunchRequest = preparedRequest
 
-            // Pre-apply cached/prefetched metadata so the wait loop can break early
-            // when a profile is already available from cache (avoids the full 3 s wait
-            // for files that have been seen before, including HDR files).
-            if let prefetched = mergedMetadata {
-                self.windowVideoViewModel.applyPrefetchedMetadata(prefetched)
-            }
+            // Merge metadata from service prefetch. Runtime mpv detection will
+            // still correct the profile after the user starts playback.
+            var finalMetadata = mergedMetadata
 
-            do {
-                try await self.windowVideoViewModel.loadPaused(url: preparedRequest.url)
-                guard !Task.isCancelled else { return }
-                guard self.generation == currentGeneration else { return }
-
-                // Yield briefly to let mpv populate track lists after container parse.
-                // Don't wait for profile — it arrives asynchronously via
-                // onMediaProfileResolved and will update the preparation state.
-                // 5 × 50ms = 250ms max, enough for track enumeration.
-                for _ in 0..<5 {
-                    try? await Task.sleep(for: .milliseconds(50))
-                    guard !Task.isCancelled else { return }
-                    guard self.generation == currentGeneration else { return }
-                    if !self.windowVideoViewModel.availableAudioTracks.isEmpty {
-                        break
-                    }
-                }
-
-                let audioTracks = self.windowVideoViewModel.availableAudioTracks
-                let subtitleTracks = self.windowVideoViewModel.availableSubtitleTracks
-
-                // Merge metadata from service prefetch AND mpv runtime detection
-                var finalMetadata = mergedMetadata
-                if let vmMetadata = self.windowVideoViewModel.prefetchedMetadata {
-                    finalMetadata = finalMetadata?.merging(with: vmMetadata) ?? vmMetadata
-                }
-                if let runtimeProfile = self.windowVideoViewModel.displayMediaProfile,
-                   finalMetadata?.mediaProfile == nil {
-                    let runtimeMeta = PlaybackMediaMetadata(
-                        mediaProfile: runtimeProfile,
-                        fileSizeInBytes: finalMetadata?.fileSizeInBytes ?? 0
-                    )
-                    finalMetadata = finalMetadata?.merging(with: runtimeMeta) ?? runtimeMeta
-                }
-
-                // If profile is not yet available, use a placeholder so the UI can
-                // render immediately. The real profile arrives asynchronously via
-                // onMediaProfileResolved and updates the preparation state in-place.
-                let isMetadataPartial: Bool
-                if finalMetadata?.mediaProfile == nil {
-                    let fallbackProfile = PlaybackCoreDomain.MediaProfile(
-                        projectionType: .flat,
-                        stereoLayout: .mono,
-                        hdrType: .sdr,
-                        resolution: .init(width: 1920, height: 1080)
-                    )
-                    let fallbackMeta = PlaybackMediaMetadata(
-                        mediaProfile: fallbackProfile,
-                        fileSizeInBytes: finalMetadata?.fileSizeInBytes ?? 0
-                    )
-                    finalMetadata = finalMetadata?.merging(with: fallbackMeta) ?? fallbackMeta
-                    isMetadataPartial = true
-                    print("[Playback] prepare_profile_pending name=\(request.displayName)")
-                } else {
-                    isMetadataPartial = false
-                }
-
-                let prepared = PreparedPlayback(
-                    request: preparedRequest.updating(metadata: finalMetadata),
-                    metadata: finalMetadata,
-                    audioTracks: audioTracks,
-                    subtitleTracks: subtitleTracks,
-                    generation: currentGeneration,
-                    isMetadataPartial: isMetadataPartial
+            // If profile is not yet available, use a placeholder so the UI can
+            // render immediately. The real profile arrives asynchronously during
+            // playback and updates the app state in-place.
+            let isMetadataPartial: Bool
+            if finalMetadata?.mediaProfile == nil {
+                let fallbackProfile = PlaybackCoreDomain.MediaProfile(
+                    projectionType: .flat,
+                    stereoLayout: .mono,
+                    hdrType: .sdr,
+                    resolution: .init(width: 1920, height: 1080)
                 )
-                self.currentPreparation = .ready(prepared)
-
-                // Cache for instant re-open when user navigates back
-                self.preparationCache[request.url] = prepared
-                if self.preparationCache.count > Self.maxCachedPreparations {
-                    // Evict oldest (arbitrary key — LRU would be better but not worth the complexity)
-                    if let firstKey = self.preparationCache.keys.first {
-                        self.preparationCache.removeValue(forKey: firstKey)
-                    }
-                }
-                print("[Playback] prepare_ready name=\(request.displayName) audio=\(audioTracks.count) sub=\(subtitleTracks.count) partial=\(isMetadataPartial)")
-
-                // Start TTL timer
-                self.startPreparationTTL(generation: currentGeneration)
-            } catch {
-                guard !Task.isCancelled else { return }
-                guard self.generation == currentGeneration else { return }
-                self.currentPreparation = .failed(error)
-                print("[Playback] prepare_failed name=\(request.displayName) error=\(error.localizedDescription)")
+                let fallbackMeta = PlaybackMediaMetadata(
+                    mediaProfile: fallbackProfile,
+                    fileSizeInBytes: finalMetadata?.fileSizeInBytes ?? 0
+                )
+                finalMetadata = finalMetadata?.merging(with: fallbackMeta) ?? fallbackMeta
+                isMetadataPartial = true
+                print("[Playback] prepare_profile_pending name=\(request.displayName)")
+            } else {
+                isMetadataPartial = false
             }
+
+            let prepared = PreparedPlayback(
+                request: preparedRequest.updating(metadata: finalMetadata),
+                metadata: finalMetadata,
+                audioTracks: [],
+                subtitleTracks: [],
+                generation: currentGeneration,
+                isMetadataPartial: isMetadataPartial
+            )
+            self.currentPreparation = .ready(prepared)
+
+            // Cache for instant re-open when user navigates back
+            self.preparationCache[request.url] = prepared
+            if self.preparationCache.count > Self.maxCachedPreparations {
+                // Evict oldest (arbitrary key — LRU would be better but not worth the complexity)
+                if let firstKey = self.preparationCache.keys.first {
+                    self.preparationCache.removeValue(forKey: firstKey)
+                }
+            }
+            print("[Playback] prepare_ready name=\(request.displayName) audio=0 sub=0 partial=\(isMetadataPartial)")
+
+            // Start TTL timer
+            self.startPreparationTTL(generation: currentGeneration)
         }
     }
+    // swiftlint:enable cyclomatic_complexity function_body_length
 
+    // swiftlint:disable cyclomatic_complexity function_body_length
     /// Resumes playback after the user confirms from the detail view.
     ///
     /// Validates that `prepared.generation` matches the coordinator's current
@@ -402,8 +361,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         resumePosition: Double? = nil,
         selectedAudioTrackID: String? = nil,
         selectedSubtitleTrackID: String? = nil,
-        subtitlesOff: Bool = false,
-        hdrEnabled: Bool = true
+        subtitlesOff: Bool = false
     ) {
         guard prepared.generation == generation else {
             print("[Playback] confirm_rejected reason=stale_generation expected=\(generation) got=\(prepared.generation)")
@@ -413,43 +371,14 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         cancelPreparationTasks()
         currentPreparation = nil
 
-        // Set up ViewModel presentation state now that user has confirmed
-        windowVideoViewModel.prepareForPlayback(prepared.request)
-
-        // Resume the already-loaded file
         appModel.startPlayback(url: prepared.request.url)
         if let mediaProfile = prepared.metadata?.mediaProfile {
             appModel.updateMediaProfile(mediaProfile)
             appModel.updateDetectedProjection(mediaProfile.projectionType, stereoLayout: mediaProfile.stereoLayout)
         }
-        windowVideoViewModel.resume()
+        windowVideoViewModel.prepareForPlayback(prepared.request)
 
-        // Apply user's track selections from the detail page
-        if let audioID = selectedAudioTrackID,
-           let track = prepared.audioTracks.first(where: { $0.id == audioID }) {
-            windowVideoViewModel.selectAudioTrack(track)
-        }
-        if subtitlesOff {
-            windowVideoViewModel.selectSubtitleTrack(nil)
-        } else if let subID = selectedSubtitleTrackID,
-                  let track = prepared.subtitleTracks.first(where: { $0.id == subID }) {
-            windowVideoViewModel.selectSubtitleTrack(track)
-        }
-        windowVideoViewModel.setHDREnabled(hdrEnabled)
-
-        // Apply default speed preference
-        let defaultSpeed = preferencesStore.loadPreferences().defaultPlaybackSpeed
-        if defaultSpeed != 1.0 {
-            windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(defaultSpeed))
-        }
-
-        // Seek to resume position if provided
-        if let pos = resumePosition, pos > 0 {
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(100))
-                self?.windowVideoViewModel.seek(to: pos)
-            }
-        }
+        let requestedResumePosition = resumePosition
 
         print("[Playback] confirm_resumed name=\(prepared.request.displayName) resume=\(resumePosition ?? 0)")
 
@@ -468,7 +397,59 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 }
             }
         }
+
+        activeTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer {
+                if self.generation == currentGeneration {
+                    self.activeTask = nil
+                }
+            }
+
+            for _ in 0..<8 {
+                guard !Task.isCancelled else { return }
+                await Task.yield()
+            }
+
+            guard !Task.isCancelled else { return }
+            guard self.generation == currentGeneration else { return }
+            guard self.appModel.currentPlaybackURL == prepared.request.url else { return }
+            print("[Playback] launch_gate_ready name=\(prepared.request.displayName)")
+
+            do {
+                try await self.windowVideoViewModel.play(url: prepared.request.url)
+
+                if let audioID = selectedAudioTrackID,
+                   let track = prepared.audioTracks.first(where: { $0.id == audioID }) {
+                    self.windowVideoViewModel.selectAudioTrack(track)
+                }
+                if subtitlesOff {
+                    self.windowVideoViewModel.selectSubtitleTrack(nil)
+                } else if let subID = selectedSubtitleTrackID,
+                          let track = prepared.subtitleTracks.first(where: { $0.id == subID }) {
+                    self.windowVideoViewModel.selectSubtitleTrack(track)
+                }
+                self.windowVideoViewModel.setHDREnabled(true)
+
+                let defaultSpeed = self.preferencesStore.loadPreferences().defaultPlaybackSpeed
+                if defaultSpeed != 1.0 {
+                    self.windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(defaultSpeed))
+                }
+
+                if let pos = requestedResumePosition, pos > 0 {
+                    try? await Task.sleep(for: .milliseconds(100))
+                    guard !Task.isCancelled else { return }
+                    guard self.generation == currentGeneration else { return }
+                    self.windowVideoViewModel.seek(to: pos)
+                }
+            } catch {
+                guard self.generation == currentGeneration else { return }
+                self.windowVideoViewModel.clearPresentation()
+                self.appModel.stopPlayback()
+            }
+        }
     }
+    // swiftlint:enable cyclomatic_complexity function_body_length
 
     /// Cancels an in-flight or ready preparation and tears down any preloaded state.
     public func cancelPreparedPlayback() {
@@ -478,9 +459,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         cancelPreparationTasks()
         currentPreparation = nil
 
-        // Clean up the preloaded mpv state
-        windowVideoViewModel.clearPresentation()
+        // Clean up any old mpv state that may have existed before preparation.
         tearDownPlaybackEngine()
+        windowVideoViewModel.clearPresentation()
     }
 
     // MARK: - Playback End Handling
@@ -552,7 +533,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         case .playing, .paused, .ended, .failed, .stopped:
             windowVideoViewModel.stopPlaybackEngine()
         case .idle:
-            break
+            if windowVideoViewModel.currentPlaybackURL != nil {
+                windowVideoViewModel.stopPlaybackEngine()
+            }
         }
     }
 

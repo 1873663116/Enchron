@@ -4,6 +4,8 @@ import Foundation
 import Libmpv
 import QuartzCore
 
+// swiftlint:disable file_length
+
 // Integration paths:
 // 1) Primary: Swift Package Manager dependency on MPVKit (module: Libmpv).
 // 2) Fallback: Manual libmpv integration using local stub headers/libs in Libraries/mpv.
@@ -60,6 +62,13 @@ struct MPVHDRMetadataSnapshot: Equatable {
     let sceneMaxB: Double?
 }
 
+private struct EDRMetadataApplication {
+    let layer: CAMetalLayer?
+    let descriptor: EDRMetadataDescriptor?
+    let logType: String
+    let logPeak: String
+}
+
 public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManaging {
     public weak var frameOutput: FrameOutput?
     public var onRuntimeError: ((String) -> Void)?
@@ -91,6 +100,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private let eventQueue = DispatchQueue(label: "xrplayer.mpv.events", qos: .userInitiated)
     private let controlQueue = DispatchQueue(label: "xrplayer.mpv.control", qos: .userInitiated)
     private let renderQueue = DispatchQueue(label: "xrplayer.mpv.render", qos: .userInitiated)
+    private let controlQueueKey = DispatchSpecificKey<Bool>()
     private let initializationLock = NSLock()
 
     private var isEventLoopRunning = false
@@ -135,6 +145,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     private var isAwaitingVisualPlaybackStart = false
     /// When true, MPV_EVENT_FILE_LOADED will NOT unpause — used by loadPaused(url:) for track enumeration without rendering frames.
     private var isPrepareOnlyLoad = false
+    /// Invalidates queued load work that was scheduled before a stop/cancel/switch.
+    /// `controlQueue` blocks cannot be cancelled once enqueued, so every load checks
+    /// this token before it creates or reuses an mpv context.
+    private var lifecycleGeneration = 0
 
     private var isWindowEDRLayerConfigured: Bool {
         stateQueue.sync {
@@ -154,6 +168,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     public init(configuration: MPVConfiguration = MPVConfiguration()) {
         self.configuration = configuration
         self.videoToolboxBridge = VideoToolboxBridge()
+        self.controlQueue.setSpecific(key: controlQueueKey, value: true)
     }
 
     public func attachVideoLayer(_ layer: CAMetalLayer?) {
@@ -221,11 +236,17 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     public func play(url: URL) async throws {
+        let lifecycleID = beginLifecycleIntent(prepareOnly: false)
         do {
             print("[MPV] request_started url=\(url.lastPathComponent)")
             await waitForVideoLayerIfNeeded()
+            try Task.checkCancellation()
+            try ensureLifecycleCurrent(lifecycleID)
             print("[MPV] layer_attached url=\(url.lastPathComponent)")
-            try await performLoadStart(for: url)
+            try await performLoadStart(for: url, lifecycleID: lifecycleID)
+        } catch let error as CancellationError {
+            print("[MPV] request_cancelled url=\(url.lastPathComponent)")
+            throw error
         } catch {
             print(
                 "[MPV] playback_failed url=\(url.lastPathComponent) error=\(error.localizedDescription)"
@@ -240,12 +261,16 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     /// mpv parses the container and populates track lists but never decodes or renders frames.
     /// Call `resume()` after confirmation to begin actual playback.
     public func loadPaused(url: URL) async throws {
+        let lifecycleID = beginLifecycleIntent(prepareOnly: true)
         do {
             print("[MPV] load_paused_started url=\(url.lastPathComponent)")
-            stateQueue.sync { isPrepareOnlyLoad = true }
-            setFlagProperty(name: "pause", value: true)
             await waitForVideoLayerIfNeeded()
-            try await performLoadStart(for: url)
+            try Task.checkCancellation()
+            try ensureLifecycleCurrent(lifecycleID)
+            try await performLoadStart(for: url, lifecycleID: lifecycleID)
+        } catch let error as CancellationError {
+            print("[MPV] load_paused_cancelled url=\(url.lastPathComponent)")
+            throw error
         } catch {
             stateQueue.sync { isPrepareOnlyLoad = false }
             print("[MPV] load_paused_failed url=\(url.lastPathComponent) error=\(error.localizedDescription)")
@@ -270,20 +295,13 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     public func stop() {
-        _ = try? command(["stop"])
-        stateQueue.sync {
-            isAwaitingVisualPlaybackStart = false
-            isPrepareOnlyLoad = false
-        }
-        updateState(.stopped)
-        releaseSecurityScopedAccess()
+        invalidateLifecycleForTeardown(finalState: .stopped)
+        scheduleTeardownMPV(finalState: .stopped)
     }
 
     public func cancelPendingLoad() {
-        _ = try? command(["stop"])
-        stateQueue.sync { isAwaitingVisualPlaybackStart = false }
-        updateState(.idle)
-        releaseSecurityScopedAccess()
+        invalidateLifecycleForTeardown(finalState: .idle)
+        scheduleTeardownMPV(finalState: .idle)
     }
 
     public func seek(to seconds: Double) {
@@ -349,15 +367,14 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         for args in commands {
             _ = try? command(args)
         }
-        stateQueue.sync {
-            videoLayer?.wantsExtendedDynamicRangeContent = enabled
-        }
         isHDROutputEnabled = enabled
+        updateVideoLayer { layer in
+            layer.wantsExtendedDynamicRangeContent = enabled
+        }
         if enabled && isHDRContent {
             applyEDRMetadataToLayer()
         } else {
-            stateQueue.sync {
-                guard let layer = videoLayer else { return }
+            updateVideoLayer { layer in
                 if #available(visionOS 1.0, *) {
                     layer.edrMetadata = nil
                 }
@@ -491,7 +508,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
     }
 
-    private func teardownMPV() {
+    private func teardownMPV(finalState: PlaybackCoreDomain.PlaybackState = .stopped) {
         initializationLock.lock()
         defer { initializationLock.unlock() }
 
@@ -528,8 +545,9 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             isEventLoopRunning = false
             shouldStopEventLoop = true
             internalQueueDepth = 0
-            internalState = .stopped
+            internalState = finalState
             isAwaitingVisualPlaybackStart = false
+            isPrepareOnlyLoad = false
             shouldWarmupWhenLayerArrives = false
         }
     }
@@ -1075,9 +1093,11 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         }
     }
 
-    private func performLoadStart(for url: URL) async throws {
+    private func performLoadStart(for url: URL, lifecycleID: Int) async throws {
         try await runOnControlQueue { [self] in
+            try ensureLifecycleCurrent(lifecycleID)
             try ensureMPVReady()
+            try ensureLifecycleCurrent(lifecycleID)
             print("[MPV] mpv_ready url=\(url.lastPathComponent)")
             logHDRPipelineState(reason: "mpv_ready")
             startEventLoop()
@@ -1094,9 +1114,12 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             }
 
             do {
+                try ensureLifecycleCurrent(lifecycleID)
                 updateState(.loading)
                 isHDRContent = false
                 isHDROutputEnabled = true
+                let prepareOnly = stateQueue.sync { isPrepareOnlyLoad }
+                setFlagProperty(name: "pause", value: prepareOnly)
                 if url.scheme == "smb" || url.scheme == "http" || url.scheme == "https" {
                     print("[MPV] remote_prepare_started url=\(url.lastPathComponent)")
                 }
@@ -1109,6 +1132,43 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                 }
                 throw error
             }
+        }
+    }
+
+    private func beginLifecycleIntent(prepareOnly: Bool) -> Int {
+        stateQueue.sync {
+            lifecycleGeneration += 1
+            isPrepareOnlyLoad = prepareOnly
+            isAwaitingVisualPlaybackStart = false
+            return lifecycleGeneration
+        }
+    }
+
+    private func invalidateLifecycleForTeardown(finalState: PlaybackCoreDomain.PlaybackState) {
+        stateQueue.sync {
+            lifecycleGeneration += 1
+            isAwaitingVisualPlaybackStart = false
+            isPrepareOnlyLoad = false
+            internalState = finalState
+            internalQueueDepth = 0
+        }
+    }
+
+    private func ensureLifecycleCurrent(_ lifecycleID: Int) throws {
+        let isCurrent = stateQueue.sync { lifecycleGeneration == lifecycleID }
+        guard isCurrent else {
+            throw CancellationError()
+        }
+    }
+
+    private func scheduleTeardownMPV(finalState: PlaybackCoreDomain.PlaybackState) {
+        if DispatchQueue.getSpecific(key: controlQueueKey) == true {
+            teardownMPV(finalState: finalState)
+            return
+        }
+
+        controlQueue.async { [weak self] in
+            self?.teardownMPV(finalState: finalState)
         }
     }
 
@@ -1379,25 +1439,31 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         for args in configuration.hdrRuntimeCommands() {
             _ = try? command(args)
         }
-        stateQueue.sync {
-            videoLayer?.wantsExtendedDynamicRangeContent = true
+        updateVideoLayer { layer in
+            layer.wantsExtendedDynamicRangeContent = true
         }
         applyEDRMetadataToLayer()
         logHDRPipelineState(reason: "auto_runtime_config")
     }
 
     private func applyEDRMetadataToLayer() {
-        // Read cached values and apply to layer atomically under stateQueue
-        let (descriptor, logType, logPeak): (EDRMetadataDescriptor?, String, String) = stateQueue.sync {
+        let application = stateQueue.sync {
             let desc = EDRMetadataSelection.descriptor(
                 for: cachedHDRType,
                 signalPeak: cachedSignalPeak
             )
             let typeStr = cachedHDRType.rawValue
             let peakStr = cachedSignalPeak.map { String(format: "%.2f", $0) } ?? "nil"
+            return EDRMetadataApplication(
+                layer: videoLayer,
+                descriptor: desc,
+                logType: typeStr,
+                logPeak: peakStr
+            )
+        }
 
-            guard let layer = videoLayer else { return (desc, typeStr, peakStr) }
-            switch desc {
+        updateVideoLayer(application.layer) { layer in
+            switch application.descriptor {
             case .hdr10(let minLuminance, let maxLuminance, let opticalOutputScale):
                 if #available(visionOS 1.0, *) {
                     layer.edrMetadata = CAEDRMetadata.hdr10(
@@ -1415,9 +1481,20 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                     layer.edrMetadata = nil
                 }
             }
-            return (desc, typeStr, peakStr)
         }
-        print("[MPV] edr_metadata applied type=\(logType) sig-peak=\(logPeak) descriptor=\(descriptor.map { "\($0)" } ?? "nil")")
+        print("[MPV] edr_metadata applied type=\(application.logType) sig-peak=\(application.logPeak) descriptor=\(application.descriptor.map { "\($0)" } ?? "nil")")
+    }
+
+    private func updateVideoLayer(
+        _ layer: CAMetalLayer? = nil,
+        _ update: @escaping @MainActor (CAMetalLayer) -> Void
+    ) {
+        let targetLayer = layer ?? stateQueue.sync { videoLayer }
+        guard let targetLayer else { return }
+
+        DispatchQueue.main.async {
+            update(targetLayer)
+        }
     }
 
     private func manualHDROutputCommands(enabled: Bool) -> [[String]] {

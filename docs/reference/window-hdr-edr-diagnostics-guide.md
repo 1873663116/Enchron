@@ -14,11 +14,11 @@ These checks do not require Vision Pro hardware:
 
 - Source metadata parsing: HDR10, HLG, Dolby Vision source labels, and unknown states.
 - Math Synthetic self-test: `maxRGB`, `p99Luminance`, `countAbove1`, `countAbove2`, and ON/OFF delta.
-- Playback page UI in debug builds: MPV / Apple switch, MPV drawable sample button, conservative labels, and debug overlay fields.
+- Playback page UI in debug builds: MPV / Apple switch, default MPV drawable ROI sample, conservative labels, and debug overlay fields.
 - AVFoundation metadata panel: `eligibleForHDRPlayback`, `containsHDRVideo`, transfer, primaries, matrix, and unsupported states.
 - Renderer switching state: same URL, same timecode, same play/pause/rate intent.
 
-Simulator and CI cannot validate onscreen EDR output, final headroom, Vision Pro brightness behavior, RealityKit compositor behavior, or final nits.
+Simulator and CI cannot validate onscreen EDR output, final headroom, Vision Pro brightness behavior, RealityKit compositor behavior, or final nits. Simulator MPV drawable readback is disabled by default because reading MPV `CAMetalDrawable` textures can stall the Simulator Metal stack. For low-level investigation only, set `XRPLAYER_ALLOW_SIMULATOR_DRAWABLE_READBACK=1`; do not treat that path as a stable E2E gate.
 
 ## Vision Pro Checks
 
@@ -26,11 +26,23 @@ Use Vision Pro hardware for these checks:
 
 - Confirm the MPV window layer reports `.rgba16Float`, `framebufferOnly = false`, `wantsEDR = true`, and extended linear Display P3.
 - Run Math Synthetic only as a calculator sanity check. It does not prove Metal, CAMetalLayer, or onscreen EDR.
-- Play a known HDR10 test pattern, pause on a high-light frame, and press `MPV Drawable Sample`.
-- Toggle HDR OFF/ON and confirm the latest matching ON/OFF samples produce a meaningful delta in high-light statistics.
+- Play a known HDR10 test pattern, pause on a high-light frame, and press `MPV Drawable Sample`. This is the default low-disturbance center ROI sample.
+- After sampling, pull `Documents/hdr-probe-live.log` from the app data container and compare it with the overlay. The log records both the layer configuration and the sampled drawable values.
+- Use `Full Frame Scan` only as a manual intrusive diagnostic when you need whole-drawable statistics. It may fail on very large textures if the readback exceeds the safety cap, and it should not replace known highlight ROI validation.
 - Compare Apple Reference only as a system reference. If MPV has extended values but looks less saturated, record `PASS_WITH_COLOR_RISK`.
 
 Do not use screenshots, screen recordings, AirPlay captures, or YouTube as HDR validation evidence.
+
+To retrieve the probe log from a connected Vision Pro:
+
+```bash
+xcrun devicectl device copy from \
+  --device <device-id> \
+  --domain-type appDataContainer \
+  --domain-identifier com.xiongzhipeng.XrPlayer \
+  --source Documents/hdr-probe-live.log \
+  --destination /tmp/enchr-device-hdr-logs/hdr-probe-live.log
+```
 
 ## Source File Checks
 
@@ -67,7 +79,7 @@ Self-created ffmpeg/x265 files can test parser and pipeline behavior, but they a
 
 ## Acceptance Labels
 
-- `PASS`: HDR10 source detected, EDR layer configured, probe contract is extended-linear Display P3, MPV HDR ON drawable sample shows extended values, and matching HDR ON/OFF delta is meaningful.
+- `PASS`: HDR10 source detected, EDR layer configured, probe contract is extended-linear Display P3, and MPV drawable ROI sample from a known highlight region shows extended values.
 - `PASS_WITH_COLOR_RISK`: numeric EDR chain passes, but Apple Reference appears more natural or MPV color/gamut mapping looks suspect.
 - `INCONCLUSIVE`: output contract, sync, source file, or environment is not reliable enough.
-- `FAIL`: extended-linear contract is confirmed, but MPV HDR ON never produces extended values and ON/OFF samples have no meaningful statistical difference.
+- `FAIL`: extended-linear contract is confirmed, but MPV samples from known highlight regions never produce extended values.

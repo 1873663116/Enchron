@@ -16,8 +16,9 @@ public enum PreparationState: Sendable {
 /// A snapshot of everything the detail page needs to render its UI
 /// before the user confirms playback.
 ///
-/// Created by `PlaybackLaunchCoordinator.preparePlayback` after mpv
-/// has loaded the file with `pause=yes` and enumerated tracks.
+/// Created by `PlaybackLaunchCoordinator.preparePlayback` after lightweight
+/// metadata has resolved. The production mpv session starts only after the
+/// user confirms playback.
 public struct PreparedPlayback: Sendable {
     public let request: PlaybackLaunchRequest
     public let metadata: PlaybackMediaMetadata?
