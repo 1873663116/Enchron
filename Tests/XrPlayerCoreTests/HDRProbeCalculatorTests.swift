@@ -54,6 +54,21 @@ struct HDRProbeCalculatorTests {
         #expect(PlaybackCoreDomain.HDRProbeDelta.matching(onSample: otherTime, offSample: off) == nil)
     }
 
+    @Test("rejects ON/OFF delta across different probe regions")
+    func rejectsRegionMismatchedDelta() {
+        let off = sample(max: 1.0, p99: 0.9, above1: 0, above2: 0, enabled: false)
+        let fullFrame = sample(
+            max: 4.0,
+            p99: 2.5,
+            above1: 20,
+            above2: 6,
+            enabled: true,
+            region: "full frame 3840x2160 @ 0,0"
+        )
+
+        #expect(PlaybackCoreDomain.HDRProbeDelta.matching(onSample: fullFrame, offSample: off) == nil)
+    }
+
     @Test("marks boundary values at one and two as not above threshold")
     func thresholdBoundariesAreExclusive() {
         let pixels: [PlaybackCoreDomain.HDRProbeCalculator.Pixel] = [
@@ -74,7 +89,8 @@ struct HDRProbeCalculatorTests {
         above2: Int,
         enabled: Bool,
         media: String = "file-a",
-        time: Double? = 12
+        time: Double? = 12,
+        region: String = "center ROI 640x640 @ 0,0"
     ) -> PlaybackCoreDomain.HDRProbeSample {
         PlaybackCoreDomain.HDRProbeSample(
             source: .mpvDrawable,
@@ -96,7 +112,7 @@ struct HDRProbeCalculatorTests {
             contract: PlaybackCoreDomain.HDRProbeContract.extendedLinearDisplayP3.rawValue,
             mediaFingerprint: media,
             renderer: "mpv",
-            probeRegion: "center 640x640 @ 0,0",
+            probeRegion: region,
             sampleSequence: 1
         )
     }

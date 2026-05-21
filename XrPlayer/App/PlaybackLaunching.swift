@@ -20,8 +20,7 @@ public protocol PlaybackLaunching: AnyObject {
         resumePosition: Double?,
         selectedAudioTrackID: String?,
         selectedSubtitleTrackID: String?,
-        subtitlesOff: Bool,
-        hdrEnabled: Bool
+        subtitlesOff: Bool
     )
     func cancelPreparedPlayback()
 }

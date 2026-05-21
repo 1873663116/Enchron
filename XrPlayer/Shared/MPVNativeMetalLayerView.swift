@@ -6,7 +6,24 @@ final class MPVNativeMetalLayer: CAMetalLayer {
     /// The most recently vended drawable. The bridge reads the rendered
     /// texture from this drawable instead of calling `nextDrawable()` itself,
     /// which would steal a blank drawable from the pool.
-    private(set) var lastVendedDrawable: (any CAMetalDrawable)?
+    var lastVendedDrawable: (any CAMetalDrawable)? {
+        drawableLock.lock()
+        defer { drawableLock.unlock() }
+        return storedLastVendedDrawable
+    }
+
+    /// A prior vended drawable reserved for diagnostics. HDR probe readback
+    /// uses this instead of the current vended drawable to avoid sampling an
+    /// in-flight render target.
+    var lastProbeDrawable: (any CAMetalDrawable)? {
+        drawableLock.lock()
+        defer { drawableLock.unlock() }
+        return storedLastProbeDrawable
+    }
+
+    private let drawableLock = NSLock()
+    private var storedLastVendedDrawable: (any CAMetalDrawable)?
+    private var storedLastProbeDrawable: (any CAMetalDrawable)?
 
     // Work around MoltenVK temporary 1x1 drawable resizing.
     override var drawableSize: CGSize {
@@ -33,13 +50,18 @@ final class MPVNativeMetalLayer: CAMetalLayer {
         }
     }
 
-    #if !targetEnvironment(simulator)
     override func nextDrawable() -> (any CAMetalDrawable)? {
         let drawable = super.nextDrawable()
-        lastVendedDrawable = drawable
+        recordVendedDrawable(drawable)
         return drawable
     }
-    #endif
+
+    private func recordVendedDrawable(_ drawable: (any CAMetalDrawable)?) {
+        drawableLock.lock()
+        storedLastProbeDrawable = storedLastVendedDrawable
+        storedLastVendedDrawable = drawable
+        drawableLock.unlock()
+    }
 }
 
 final class MPVNativeMetalLayerView: UIView {

@@ -12,6 +12,8 @@ struct XrPlayerApp: App {
         let panel: Panel?
         let enableFirstSubtitle: Bool
         let hideControlsAfterSetup: Bool
+        let runHDRProbe: Bool
+        let runFullFrameHDRProbe: Bool
 
         init?(environment: [String: String]) {
             guard environment["XRPLAYER_SMOKE_TEST"] == "1" else {
@@ -22,6 +24,8 @@ struct XrPlayerApp: App {
             self.panel = environment["XRPLAYER_SMOKE_PANEL"].flatMap(Panel.init(rawValue:))
             self.enableFirstSubtitle = environment["XRPLAYER_SMOKE_ENABLE_SUBTITLE"] == "1"
             self.hideControlsAfterSetup = environment["XRPLAYER_SMOKE_HIDE_CONTROLS"] == "1"
+            self.runHDRProbe = environment["XRPLAYER_SMOKE_HDR_PROBE"] == "1"
+            self.runFullFrameHDRProbe = environment["XRPLAYER_SMOKE_HDR_FULL_FRAME"] == "1"
         }
     }
 
@@ -249,7 +253,15 @@ struct XrPlayerApp: App {
         print(
             "[SmokeTest] autoplay \(videoURL.lastPathComponent) panel=\(configuration.panel?.rawValue ?? "none") subtitle=\(configuration.enableFirstSubtitle)"
         )
+        appendSmokeLog("autoplay video=\(videoURL.lastPathComponent)")
         launcher.beginPlayback(for: videoURL)
+
+        if configuration.runHDRProbe {
+            await runSmokeHDRProbe(
+                configuration,
+                windowVideoViewModel: windowVideoViewModel
+            )
+        }
 
         guard configuration.enableFirstSubtitle else {
             return
@@ -273,6 +285,105 @@ struct XrPlayerApp: App {
                 break
             }
             try? await Task.sleep(for: .milliseconds(250))
+        }
+    }
+
+    @MainActor
+    private static func runSmokeHDRProbe(
+        _ configuration: SmokeLaunchConfiguration,
+        windowVideoViewModel: WindowVideoViewModel
+    ) async {
+        for attempt in 1...12 {
+            try? await Task.sleep(for: .milliseconds(500))
+            appendSmokeLog("sample=on_attempt_\(attempt) start")
+            await windowVideoViewModel.sampleCurrentHDRDrawable(trigger: "smoke_probe_on_attempt_\(attempt)")
+            if let sample = windowVideoViewModel.latestHDRProbeSample, sample.source == .mpvDrawable {
+                print("[SmokeTest] hdr-probe-on-ready attempt=\(attempt)")
+                appendSmokeProbeLog("on_attempt_\(attempt)", sample: sample)
+                break
+            } else if let error = windowVideoViewModel.lastHDRProbeError {
+                appendSmokeLog("sample=on_attempt_\(attempt) failed error=\(error)")
+                if error.contains("disabled on Simulator") {
+                    break
+                }
+            }
+        }
+
+        if configuration.runFullFrameHDRProbe {
+            await windowVideoViewModel.sampleFullFrameHDRDrawable()
+            if let sample = windowVideoViewModel.latestHDRProbeSample {
+                appendSmokeProbeLog("full_frame", sample: sample)
+            }
+        }
+
+        windowVideoViewModel.setHDREnabled(false)
+        try? await Task.sleep(for: .milliseconds(700))
+        await windowVideoViewModel.sampleCurrentHDRDrawable(trigger: "smoke_probe_off")
+        if let sample = windowVideoViewModel.latestHDRProbeSample {
+            appendSmokeProbeLog("off", sample: sample)
+        } else if let error = windowVideoViewModel.lastHDRProbeError {
+            appendSmokeLog("sample=off failed error=\(error)")
+        }
+
+        windowVideoViewModel.setHDREnabled(true)
+        try? await Task.sleep(for: .milliseconds(700))
+        await windowVideoViewModel.sampleCurrentHDRDrawable(trigger: "smoke_probe_on_after_toggle")
+        if let sample = windowVideoViewModel.latestHDRProbeSample {
+            appendSmokeProbeLog("on_after_toggle", sample: sample)
+        } else if let error = windowVideoViewModel.lastHDRProbeError {
+            appendSmokeLog("sample=on_after_toggle failed error=\(error)")
+        }
+
+        if let delta = windowVideoViewModel.hdrProbeDelta {
+            print(
+                "[SmokeTest] hdr-probe-delta matched=true maxDelta=\(delta.maxRGBDelta) p99Delta=\(delta.p99LuminanceDelta) above1Delta=\(delta.countAbove1Delta) above2Delta=\(delta.countAbove2Delta)"
+            )
+            appendSmokeLog(
+                "delta matched=true maxDelta=\(delta.maxRGBDelta) p99Delta=\(delta.p99LuminanceDelta) above1Delta=\(delta.countAbove1Delta) above2Delta=\(delta.countAbove2Delta)"
+            )
+        } else {
+            print("[SmokeTest] hdr-probe-delta matched=false status=\(windowVideoViewModel.hdrProbeDeltaStatus)")
+            appendSmokeLog("delta matched=false status=\(windowVideoViewModel.hdrProbeDeltaStatus)")
+        }
+    }
+
+    private static func appendSmokeProbeLog(
+        _ label: String,
+        sample: PlaybackCoreDomain.HDRProbeSample
+    ) {
+        appendSmokeLog(
+            [
+                "sample=\(label)",
+                "hdr=\(sample.hdrOutputEnabled.map(String.init) ?? "unknown")",
+                "source=\(sample.source.rawValue)",
+                "region=\(sample.probeRegion)",
+                "format=\(sample.pixelFormat)",
+                "colorspace=\(sample.colorspace)",
+                "contract=\(sample.contract)",
+                "size=\(sample.width)x\(sample.height)",
+                "max=\(sample.statistics.maxRGB.maxChannel)",
+                "p99=\(sample.statistics.p99Luminance)",
+                "above1=\(sample.statistics.countAbove1)",
+                "above2=\(sample.statistics.countAbove2)",
+                "pixels=\(sample.statistics.sampledPixelCount)"
+            ].joined(separator: " ")
+        )
+    }
+
+    private static func appendSmokeLog(_ line: String) {
+        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
+            return
+        }
+        let url = documentsURL.appendingPathComponent("hdr-probe-smoke.log")
+        let payload = "\(Date().timeIntervalSince1970) \(line)\n"
+        guard let data = payload.data(using: .utf8) else { return }
+        if FileManager.default.fileExists(atPath: url.path),
+           let handle = try? FileHandle(forWritingTo: url) {
+            try? handle.seekToEnd()
+            try? handle.write(contentsOf: data)
+            try? handle.close()
+        } else {
+            try? data.write(to: url)
         }
     }
 }
