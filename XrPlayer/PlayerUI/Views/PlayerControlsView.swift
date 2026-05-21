@@ -152,7 +152,7 @@ public struct PlayerControlsView: View {
                         LinearGradient(
                             colors: [
                                 Color(red: 0.776, green: 0.776, blue: 0.780),
-                                Color(red: 0.565, green: 0.569, blue: 0.569),
+                                Color(red: 0.565, green: 0.569, blue: 0.569)
                             ],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
@@ -184,21 +184,23 @@ public struct PlayerControlsView: View {
             .accessibilityIdentifier("forward-button")
             .accessibilityLabel("Forward 10 seconds")
 
-            Button {
-                registerInteraction()
-                showDebugSheet = true
-            } label: {
-                Image(systemName: "waveform.path.ecg")
-                    .font(.title3)
-                    .foregroundStyle(.secondary)
-                    .frame(width: 48, height: 48)
-                    .contentShape(.circle)
+            if DiagnosticsFeatureFlags.hdrLabEnabled {
+                Button {
+                    registerInteraction()
+                    showDebugSheet = true
+                } label: {
+                    Image(systemName: "waveform.path.ecg")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 48, height: 48)
+                        .contentShape(.circle)
+                }
+                .buttonStyle(.plain)
+                .hoverEffect(.lift)
+                .help("HDR Diagnostics")
+                .accessibilityIdentifier("hdr-diagnostics-button")
+                .accessibilityLabel("HDR Diagnostics")
             }
-            .buttonStyle(.plain)
-            .hoverEffect(.lift)
-            .help("HDR Diagnostics")
-            .accessibilityIdentifier("hdr-diagnostics-button")
-            .accessibilityLabel("HDR Diagnostics")
 
             // ── Right: Settings button ──
             Button {

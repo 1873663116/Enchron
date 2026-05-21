@@ -13,7 +13,7 @@ extension PlaybackCoreDomain {
     /// This is a capability/configuration label, not final-display HDR verification.
     public enum HDROutputMode: String, Sendable {
         /// Content is routed through an HDR/EDR-capable renderer path.
-        case passthroughHDR
+        case edrOutputPath
         /// HDR content is tone-mapped to SDR for display.
         case toneMappedSDR
         /// Fallback: content is HDR but output is a best-effort SDR preview

@@ -43,7 +43,7 @@ final class MPVNativeMetalLayer: CAMetalLayer {
 }
 
 final class MPVNativeMetalLayerView: UIView {
-    override class var layerClass: AnyClass {
+    override static var layerClass: AnyClass {
         MPVNativeMetalLayer.self
     }
 

@@ -48,7 +48,7 @@ extension PlaybackCoreDomain {
 
     public struct HDRProbeSample: Equatable, Sendable {
         public enum Source: String, Equatable, Sendable {
-            case syntheticEDR
+            case syntheticStats
             case mpvDrawable
         }
 
@@ -62,6 +62,10 @@ extension PlaybackCoreDomain {
         public let hostTime: Date
         public let videoTime: Double?
         public let contract: String
+        public let mediaFingerprint: String?
+        public let renderer: String
+        public let probeRegion: String
+        public let sampleSequence: Int
 
         public init(
             source: Source,
@@ -73,7 +77,11 @@ extension PlaybackCoreDomain {
             statistics: HDRProbeStatistics,
             hostTime: Date = Date(),
             videoTime: Double?,
-            contract: String
+            contract: String,
+            mediaFingerprint: String? = nil,
+            renderer: String = "unknown",
+            probeRegion: String = "unknown",
+            sampleSequence: Int = 0
         ) {
             self.source = source
             self.hdrOutputEnabled = hdrOutputEnabled
@@ -85,7 +93,22 @@ extension PlaybackCoreDomain {
             self.hostTime = hostTime
             self.videoTime = videoTime
             self.contract = contract
+            self.mediaFingerprint = mediaFingerprint
+            self.renderer = renderer
+            self.probeRegion = probeRegion
+            self.sampleSequence = sampleSequence
         }
+
+        public var usesExtendedLinearDisplayP3Contract: Bool {
+            contract == HDRProbeContract.extendedLinearDisplayP3.rawValue
+        }
+    }
+
+    public enum HDRProbeContract: String, Equatable, Sendable {
+        case calculatorOnly = "calculator only"
+        case extendedLinearDisplayP3 = "extended-linear Display P3"
+        case mismatch = "mismatch"
+        case unknown = "unknown"
     }
 
     public struct HDRProbeDelta: Equatable, Sendable {
@@ -103,6 +126,29 @@ extension PlaybackCoreDomain {
                 - offSample.statistics.countAbove1
             self.countAbove2Delta = onSample.statistics.countAbove2
                 - offSample.statistics.countAbove2
+        }
+
+        public static func matching(
+            onSample: HDRProbeSample,
+            offSample: HDRProbeSample,
+            maximumTimeDrift: Double = 0.75
+        ) -> HDRProbeDelta? {
+            guard onSample.source == .mpvDrawable,
+                  offSample.source == .mpvDrawable,
+                  onSample.hdrOutputEnabled == true,
+                  offSample.hdrOutputEnabled == false,
+                  onSample.mediaFingerprint == offSample.mediaFingerprint,
+                  onSample.renderer == offSample.renderer,
+                  onSample.probeRegion == offSample.probeRegion,
+                  onSample.contract == offSample.contract,
+                  onSample.usesExtendedLinearDisplayP3Contract else {
+                return nil
+            }
+            if let onTime = onSample.videoTime, let offTime = offSample.videoTime,
+               abs(onTime - offTime) > maximumTimeDrift {
+                return nil
+            }
+            return HDRProbeDelta(onSample: onSample, offSample: offSample)
         }
     }
 

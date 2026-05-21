@@ -13,8 +13,8 @@ It does not prove final display nits, Dolby Vision passthrough, HDR10+ dynamic m
 These checks do not require Vision Pro hardware:
 
 - Source metadata parsing: HDR10, HLG, Dolby Vision source labels, and unknown states.
-- Synthetic probe math: `maxRGB`, `p99Luminance`, `countAbove1`, `countAbove2`, and ON/OFF delta.
-- Playback page UI: MPV / Apple switch, manual sample button, conservative labels, and debug overlay fields.
+- Math Synthetic self-test: `maxRGB`, `p99Luminance`, `countAbove1`, `countAbove2`, and ON/OFF delta.
+- Playback page UI in debug builds: MPV / Apple switch, MPV drawable sample button, conservative labels, and debug overlay fields.
 - AVFoundation metadata panel: `eligibleForHDRPlayback`, `containsHDRVideo`, transfer, primaries, matrix, and unsupported states.
 - Renderer switching state: same URL, same timecode, same play/pause/rate intent.
 
@@ -24,10 +24,10 @@ Simulator and CI cannot validate onscreen EDR output, final headroom, Vision Pro
 
 Use Vision Pro hardware for these checks:
 
-- Confirm the MPV window layer reports `.rgba16Float`, `wantsEDR = true`, and extended linear Display P3.
-- Run the synthetic EDR sample and confirm it reports values above `1.0`.
-- Play a known HDR10 test pattern, pause on a high-light frame, and press `Sample`.
-- Toggle HDR OFF/ON and confirm the latest ON/OFF samples produce a meaningful delta in high-light statistics.
+- Confirm the MPV window layer reports `.rgba16Float`, `framebufferOnly = false`, `wantsEDR = true`, and extended linear Display P3.
+- Run Math Synthetic only as a calculator sanity check. It does not prove Metal, CAMetalLayer, or onscreen EDR.
+- Play a known HDR10 test pattern, pause on a high-light frame, and press `MPV Drawable Sample`.
+- Toggle HDR OFF/ON and confirm the latest matching ON/OFF samples produce a meaningful delta in high-light statistics.
 - Compare Apple Reference only as a system reference. If MPV has extended values but looks less saturated, record `PASS_WITH_COLOR_RISK`.
 
 Do not use screenshots, screen recordings, AirPlay captures, or YouTube as HDR validation evidence.
@@ -67,7 +67,7 @@ Self-created ffmpeg/x265 files can test parser and pipeline behavior, but they a
 
 ## Acceptance Labels
 
-- `PASS`: HDR10 source detected, EDR layer configured, synthetic probe passes, MPV HDR ON sample shows extended values, and HDR ON/OFF delta is meaningful.
+- `PASS`: HDR10 source detected, EDR layer configured, probe contract is extended-linear Display P3, MPV HDR ON drawable sample shows extended values, and matching HDR ON/OFF delta is meaningful.
 - `PASS_WITH_COLOR_RISK`: numeric EDR chain passes, but Apple Reference appears more natural or MPV color/gamut mapping looks suspect.
 - `INCONCLUSIVE`: output contract, sync, source file, or environment is not reliable enough.
 - `FAIL`: extended-linear contract is confirmed, but MPV HDR ON never produces extended values and ON/OFF samples have no meaningful statistical difference.
