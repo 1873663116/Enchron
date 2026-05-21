@@ -22,7 +22,7 @@ enum PlaybackInfoFormatter {
     static func hdrOutputDescription(_ outputMode: PlaybackCoreDomain.HDROutputMode) -> String {
         switch outputMode {
         case .passthroughHDR:
-            return "HDR Passthrough"
+            return "EDR Output Path"
         case .toneMappedSDR:
             return "Tone-Mapped SDR"
         case .previewSDR:

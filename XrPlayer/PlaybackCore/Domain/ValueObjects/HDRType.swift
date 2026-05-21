@@ -9,9 +9,10 @@ extension PlaybackCoreDomain {
         case hlg
     }
 
-    /// Describes the actual HDR output pipeline state, independent of content detection.
+    /// Describes the renderer's selected HDR/SDR output path, independent of content detection.
+    /// This is a capability/configuration label, not final-display HDR verification.
     public enum HDROutputMode: String, Sendable {
-        /// Content is rendered through a verified HDR pipeline (native Metal HDR surface).
+        /// Content is routed through an HDR/EDR-capable renderer path.
         case passthroughHDR
         /// HDR content is tone-mapped to SDR for display.
         case toneMappedSDR

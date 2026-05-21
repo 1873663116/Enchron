@@ -87,8 +87,9 @@ struct MenuPopoverContent: View {
 
     private var hdrLabel: String {
         switch videoViewModel.displayMediaProfile?.hdrType {
-        case .dolbyVision: return "Dolby Vision"
-        case .hdr10, .hdr10Plus: return "HDR10"
+        case .dolbyVision: return "DV Source"
+        case .hdr10: return "HDR10 EDR"
+        case .hdr10Plus: return "HDR10+ Source"
         case .hlg: return "HLG"
         default: return "HDR"
         }

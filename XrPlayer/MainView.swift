@@ -92,10 +92,18 @@ public struct MainView: View {
             // so attachVideoLayer() and native warmup complete before first play.
             ZStack(alignment: .topTrailing) {
                 GeometryReader { geometry in
-                    WindowVideoView(
-                        viewModel: windowVideoViewModel,
-                        containerSize: geometry.size
-                    )
+                    ZStack {
+                        WindowVideoView(
+                            viewModel: windowVideoViewModel,
+                            containerSize: geometry.size
+                        )
+                        .opacity(windowVideoViewModel.diagnosticRenderer == .mpv ? 1 : 0)
+
+                        if windowVideoViewModel.diagnosticRenderer == .apple {
+                            AppleReferenceVideoSurface(player: windowVideoViewModel.appleReferencePlayer)
+                                .background(.black)
+                        }
+                    }
                 }
                 .glassBackgroundEffect()
                 // Edge vignette — darkens screen edges when controls are visible

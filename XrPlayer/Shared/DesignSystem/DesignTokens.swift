@@ -157,7 +157,7 @@ public enum DesignTokens {
 
     /// Press feedback spec used by interactive surfaces that need explicit tap
     /// response outside the system ButtonStyle pipeline.
-    public struct PressFeedbackSpec {
+    public struct PressFeedbackSpec: @unchecked Sendable {
         public let pressedScale: CGFloat
         public let maximumVisualInset: CGFloat
         public let pressAnimation: Animation

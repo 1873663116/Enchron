@@ -184,6 +184,22 @@ public struct PlayerControlsView: View {
             .accessibilityIdentifier("forward-button")
             .accessibilityLabel("Forward 10 seconds")
 
+            Button {
+                registerInteraction()
+                showDebugSheet = true
+            } label: {
+                Image(systemName: "waveform.path.ecg")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.plain)
+            .hoverEffect(.lift)
+            .help("HDR Diagnostics")
+            .accessibilityIdentifier("hdr-diagnostics-button")
+            .accessibilityLabel("HDR Diagnostics")
+
             // ── Right: Settings button ──
             Button {
                 registerInteraction()
