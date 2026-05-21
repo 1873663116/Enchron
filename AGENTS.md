@@ -40,9 +40,10 @@ XrPlayer/
 
 ### 改动代码前
 1. 读 ARCHITECTURE.md 确认涉及的模块和 Architecture Invariants
-2. UI / Design Preview 改动先读 `docs/ui-coding-standards.md` 和就近 `AGENTS.md`
-3. 产品体验判断先读 `docs/product_philosophy.md`，需求边界按需查 `docs/brainstorms/*-requirements.md`
-4. 任务 >3 文件或跨模块 → 写 Exec Plan（存放于 docs/plans/active/，完成后归档至 docs/archive/ExecPlan/）
+2. 涉及 Swift / SwiftUI / RealityKit / ARKit / Metal / AVKit / 文件网络 / 持久化 / 性能时，先读 `.agents/skills/visionos-platform/SKILL.md`，按其中路由打开对应 Apple 官方文档；iOS / macOS 技能只能作为语法或通用 Swift 辅助，不能替代 visionOS 裁决
+3. UI / Design Preview 改动先读存在的 UI 规范文件；当前 DesignPreview 规范入口是 `DesignPreview/AGENTS.md`
+4. 产品体验判断先读 `docs/product_philosophy.md`，需求边界按需查 `docs/brainstorms/*-requirements.md`
+5. 任务 >3 文件或跨模块 → 写 Exec Plan（存放于 docs/plans/active/，完成后归档至 docs/archive/ExecPlan/）
 
 ### 改动代码后
 1. 执行与改动范围匹配的自动验证；优先使用项目 Bun 脚本，缺失时退回 Xcode CLI
@@ -77,7 +78,7 @@ XrPlayer/
 
 | 准则 | 说明 |
 |------|------|
-| 先读文档再动手 | 本文件 → ARCHITECTURE.md → `docs/ui-coding-standards.md` → 相关专项文档 |
+| 先读文档再动手 | 本文件 → ARCHITECTURE.md → `.agents/skills/visionos-platform/SKILL.md` → 就近 `AGENTS.md` / 相关专项文档 |
 | 系统原生优先 | 系统容器、材质、动效是第一选择，自定义须证明改善了核心体验 |
 | 聚焦单一目标 | 每次改动围绕一个明确目标，不顺手重构 |
 | 临时方案标注 | `// WORKAROUND:` + 移除条件，不让它悄悄变永久 |
@@ -91,7 +92,7 @@ XrPlayer/
 - 所有 UI 样式值（圆角、间距、动画、颜色、材质）必须通过 Design Token 引用，禁止硬编码
 - 所有可交互组件必须有 `accessibilityIdentifier` + `accessibilityLabel`
 - Token 未覆盖时：有人值守上报询问；overnight 标记 BLOCKED
-- 涉及 UI 改动时，先读：**`docs/ui-coding-standards.md`**
+- 涉及 UI 改动时，先读：**`.agents/skills/visionos-platform/SKILL.md`** 和就近 `AGENTS.md`
 
 ---
 
