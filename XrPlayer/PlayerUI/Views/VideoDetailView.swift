@@ -638,7 +638,7 @@ public struct VideoDetailView: View {
         let hdrLabel = PlaybackInfoFormatter.hdrTypeLabel(hdrType)
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("HDR Output")
+                Text("EDR Output Path")
                     .font(.body)
                 Text("Enabled by default")
                     .font(.caption)
@@ -648,7 +648,7 @@ public struct VideoDetailView: View {
             Toggle("", isOn: $hdrOutputEnabled)
                 .labelsHidden()
                 .accessibilityIdentifier("videoDetail.hdrToggle")
-                .accessibilityLabel("\(hdrLabel) Output")
+                .accessibilityLabel("\(hdrLabel) EDR output path")
         }
         .padding(12)
         .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))

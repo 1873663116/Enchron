@@ -24,6 +24,7 @@ let package = Package(
                 "XrPlayer/PlaybackCore/Domain/ValueObjects/PlaybackPosition.swift",
                 "XrPlayer/PlaybackCore/Domain/ValueObjects/MediaProfile.swift",
                 "XrPlayer/PlaybackCore/Domain/ValueObjects/HDRType.swift",
+                "XrPlayer/PlaybackCore/Domain/ValueObjects/HDRProbeSample.swift",
                 "XrPlayer/PlaybackCore/Domain/ValueObjects/PlaybackSpeed.swift",
                 "XrPlayer/PlaybackCore/Domain/ValueObjects/ProjectionType.swift",
                 "XrPlayer/PlaybackCore/Domain/Entities/PlaybackMediaFile.swift",

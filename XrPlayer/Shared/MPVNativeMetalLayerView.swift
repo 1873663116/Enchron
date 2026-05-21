@@ -75,12 +75,13 @@ final class MPVNativeMetalLayerView: UIView {
     private func configureLayer() {
         backgroundColor = .black
         metalLayer.device = MTLCreateSystemDefaultDevice()
-        // Use rgba16Float for HDR passthrough capability.
-        // Falls back gracefully on devices that don't support EDR.
+        // Phase-1 HDR diagnostics use an extended-linear EDR contract:
+        // rgba16Float + extendedLinearDisplayP3 + wantsEDR.
         metalLayer.pixelFormat = .rgba16Float
         // Allow reading from drawable textures for panorama bridge Blit copy.
         metalLayer.framebufferOnly = false
         metalLayer.contentsScale = traitCollection.displayScale
         metalLayer.wantsExtendedDynamicRangeContent = true
+        metalLayer.colorspace = CGColorSpace(name: CGColorSpace.extendedLinearDisplayP3)
     }
 }

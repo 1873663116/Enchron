@@ -31,11 +31,32 @@ public struct DebugOverlayView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
+                    sectionHeader("Renderer")
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        Picker("Renderer", selection: rendererBinding) {
+                            ForEach(WindowVideoViewModel.DiagnosticRenderer.allCases, id: \.self) { renderer in
+                                Text(renderer.rawValue).tag(renderer)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .accessibilityIdentifier("HDRDiagnostics-RendererSwitch")
+                        .accessibilityLabel("Renderer")
+
+                        infoRow("Role", rendererRole)
+                    }
+                    .padding(.horizontal, 16)
+
+                    Divider().padding(.vertical, 4)
+
                     sectionHeader("HDR Pipeline")
 
                     VStack(alignment: .leading, spacing: 6) {
-                        infoRow("Content", videoViewModel.isHDRContent ? "HDR" : "SDR")
-                        infoRow("Output", videoViewModel.hdrOutputMode.rawValue)
+                        infoRow("Source", sourceHDRLabel)
+                        infoRow(
+                            "Output",
+                            PlaybackInfoFormatter.hdrOutputDescription(videoViewModel.hdrOutputMode)
+                        )
                         if let profile = videoViewModel.displayMediaProfile {
                             infoRow("HDR Type", profile.hdrType.rawValue)
                             infoRow(
@@ -45,6 +66,66 @@ public struct DebugOverlayView: View {
                             infoRow("Frame Rate", String(format: "%.2f", profile.frameRate))
                         }
                         infoRow("Mode", appModel.playbackMode.rawValue)
+                    }
+                    .padding(.horizontal, 16)
+
+                    Divider().padding(.vertical, 4)
+
+                    sectionHeader("HDR Probe")
+
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(spacing: 10) {
+                            Button("Synthetic") {
+                                videoViewModel.sampleSyntheticHDRProbe()
+                            }
+                            .accessibilityIdentifier("HDRDiagnostics-SyntheticSample")
+                            .accessibilityLabel("Sample synthetic EDR pattern")
+
+                            Button("Sample") {
+                                Task { await videoViewModel.sampleCurrentHDRDrawable() }
+                            }
+                            .accessibilityIdentifier("HDRDiagnostics-SampleDrawable")
+                            .accessibilityLabel("Sample current MPV drawable")
+                        }
+                        .buttonStyle(.bordered)
+
+                        if let sample = videoViewModel.latestHDRProbeSample {
+                            infoRow("Format", sample.pixelFormat)
+                            infoRow("Colorspace", sample.colorspace)
+                            infoRow("maxRGB", format(sample.statistics.maxRGB.maxChannel))
+                            infoRow("p99Y", format(sample.statistics.p99Luminance))
+                            infoRow(">1", "\(sample.statistics.countAbove1)")
+                            infoRow(">2", "\(sample.statistics.countAbove2)")
+                            infoRow("Pixels", "\(sample.statistics.sampledPixelCount)")
+                        } else {
+                            infoRow("Status", "not sampled")
+                        }
+
+                        if let delta = videoViewModel.hdrProbeDelta {
+                            infoRow("Δ max", format(delta.maxRGBDelta))
+                            infoRow("Δ p99Y", format(delta.p99LuminanceDelta))
+                            infoRow("Δ >1", "\(delta.countAbove1Delta)")
+                        } else {
+                            infoRow("Δ ON/OFF", "needs both samples")
+                        }
+
+                        if let error = videoViewModel.lastHDRProbeError {
+                            infoRow("Probe", error)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+
+                    Divider().padding(.vertical, 4)
+
+                    sectionHeader("Apple Reference")
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        infoRow("Eligible", boolLabel(videoViewModel.avReferenceMetadata.eligibleForHDRPlayback))
+                        infoRow("Track HDR", boolLabel(videoViewModel.avReferenceMetadata.containsHDRVideo))
+                        infoRow("Transfer", videoViewModel.avReferenceMetadata.transferFunction ?? "unknown")
+                        infoRow("Primaries", videoViewModel.avReferenceMetadata.colorPrimaries ?? "unknown")
+                        infoRow("Matrix", videoViewModel.avReferenceMetadata.yCbCrMatrix ?? "unknown")
+                        infoRow("Status", videoViewModel.avReferenceMetadata.status)
                     }
                     .padding(.horizontal, 16)
 
@@ -61,6 +142,7 @@ public struct DebugOverlayView: View {
                             "Immersive",
                             appModel.immersiveSpaceState == .open ? "open" : "closed"
                         )
+                        infoRow("Display", "measured: no")
                     }
                     .padding(.horizontal, 16)
                 }
@@ -91,5 +173,51 @@ public struct DebugOverlayView: View {
                 .font(.caption.monospaced())
                 .foregroundStyle(.primary)
         }
+    }
+
+    private var rendererBinding: Binding<WindowVideoViewModel.DiagnosticRenderer> {
+        Binding(
+            get: { videoViewModel.diagnosticRenderer },
+            set: { videoViewModel.setDiagnosticRenderer($0) }
+        )
+    }
+
+    private var rendererRole: String {
+        switch videoViewModel.diagnosticRenderer {
+        case .mpv:
+            return "primary output path"
+        case .apple:
+            return "system reference only"
+        }
+    }
+
+    private var sourceHDRLabel: String {
+        guard let hdrType = videoViewModel.displayMediaProfile?.hdrType else {
+            return videoViewModel.isHDRContent ? "detected" : "unknown"
+        }
+        switch hdrType {
+        case .sdr:
+            return "SDR"
+        case .hdr10:
+            return "HDR10 detected"
+        case .hdr10Plus:
+            return "HDR10+ source detected"
+        case .dolbyVision:
+            return "Dolby Vision source detected"
+        case .hlg:
+            return "HLG detected"
+        }
+    }
+
+    private func boolLabel(_ value: Bool?) -> String {
+        switch value {
+        case .some(true): return "yes"
+        case .some(false): return "no"
+        case .none: return "unknown"
+        }
+    }
+
+    private func format(_ value: Double) -> String {
+        String(format: "%.3f", value)
     }
 }

@@ -68,16 +68,13 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     public private(set) var isHDROutputEnabled: Bool = true
     public private(set) var isHDRContent: Bool = false
 
-    /// Computed HDR output mode based on content detection, native GPU path, and configuration.
     public var hdrOutputMode: PlaybackCoreDomain.HDROutputMode {
         guard isHDRContent else { return .unsupported }
 
-        if hasVerifiedHDRSurface {
+        if isWindowEDRLayerConfigured {
             return isHDROutputEnabled ? .passthroughHDR : .toneMappedSDR
         }
 
-        // Fallback renderer or a native route without a verified HDR surface:
-        // keep the UI honest and present it as an SDR preview only.
         return .previewSDR
     }
     private var lastPlayedURL: URL?
@@ -137,10 +134,10 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     /// When true, MPV_EVENT_FILE_LOADED will NOT unpause — used by loadPaused(url:) for track enumeration without rendering frames.
     private var isPrepareOnlyLoad = false
 
-    private var hasVerifiedHDRSurface: Bool {
+    private var isWindowEDRLayerConfigured: Bool {
         stateQueue.sync {
-            guard activeNativeGPUOutput, let videoLayer else { return false }
-            return videoLayer.wantsExtendedDynamicRangeContent
+            activeNativeGPUOutput && videoLayer?.pixelFormat == .rgba16Float
+                && videoLayer?.wantsExtendedDynamicRangeContent == true && videoLayer?.colorspace?.name != nil
         }
     }
 
@@ -364,6 +361,11 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             print("[MPV] edr_metadata cleared reason=hdr_disabled")
         }
         logHDRPipelineState(reason: "manual_toggle")
+    }
+
+    public func prepareForHDRDiagnosticProbe() {
+        _ = try? command(["set", "sid", "no"])
+        _ = try? command(["set", "osd-level", "0"])
     }
 
     public func frameStepForward() {
@@ -1448,9 +1450,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let targetPrimaries = stringProperty("target-prim") ?? "unknown"
         let colorspaceHint = stringProperty("target-colorspace-hint") ?? "unknown"
         let currentVO = stringProperty("current-vo") ?? "unknown"
-        print(
-            "[MPV] hdr_state reason=\(reason) content=\(isHDRContent) enabled=\(isHDROutputEnabled) verified_surface=\(hasVerifiedHDRSurface) output=\(outputMode) vo=\(currentVO) target-trc=\(targetTRC) target-prim=\(targetPrimaries) colorspace-hint=\(colorspaceHint)"
-        )
+        print("[MPV] hdr_state reason=\(reason) content=\(isHDRContent) enabled=\(isHDROutputEnabled) edr_layer_configured=\(isWindowEDRLayerConfigured) output=\(outputMode) vo=\(currentVO) target-trc=\(targetTRC) target-prim=\(targetPrimaries) colorspace-hint=\(colorspaceHint)")
     }
 
     private func makePooledPixelBuffer(width: Int, height: Int) -> CVPixelBuffer? {
