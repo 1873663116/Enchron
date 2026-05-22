@@ -12,6 +12,7 @@ or where real-world objects are.
 - Setting up access to ARKit data: https://developer.apple.com/documentation/visionos/setting-up-access-to-arkit-data
 - ARKit: https://developer.apple.com/documentation/arkit
 - ARKit in visionOS: https://developer.apple.com/documentation/arkit/arkit-in-visionos
+- SpatialTrackingSession: https://developer.apple.com/documentation/realitykit/spatialtrackingsession
 - Tracking accessories in volumetric windows: https://developer.apple.com/documentation/arkit/tracking-accessories-in-volumetric-windows
 - AccessoryTrackingProvider: https://developer.apple.com/documentation/arkit/accessorytrackingprovider
 
@@ -21,6 +22,7 @@ or where real-world objects are.
 - Incorporating surroundings: https://developer.apple.com/documentation/visionos/incorporating-real-world-surroundings-in-an-immersive-experience
 - Tracking points in world space: https://developer.apple.com/documentation/visionos/tracking-points-in-world-space
 - Accessing the main camera: https://developer.apple.com/documentation/visionos/accessing-the-main-camera
+- What is new in RealityKit: https://developer.apple.com/videos/play/wwdc2025/287/
 
 ## Correct Decisions
 
@@ -33,6 +35,12 @@ or where real-world objects are.
   presentation, but the rule is provider-specific. Verify each provider's
   presentation context, support checks, and authorization requirements in
   current Apple docs.
+- Use "Full Space", "presentation context", and exact provider names when
+  describing availability. Do not use "immersive space" as a loose synonym for
+  every sensing requirement.
+- RealityKit `SpatialTrackingSession` and high-level anchoring APIs can provide
+  a RealityKit-shaped path to ARKit data. They still require capability checks,
+  authorization handling, and a fallback story when sensitive data is involved.
 - Add provider-specific usage descriptions before requesting sensitive data.
 - Check provider-specific `requiredAuthorizations`; do not guess.
 - Handle denied and later-revoked authorization with a usable fallback.
@@ -47,6 +55,8 @@ or where real-world objects are.
 - Do not treat iOS ARKit as the display stack. visionOS ARKit is mainly for
   sensing/world data; presentation is SwiftUI, RealityKit, or Compositor
   Services.
+- Do not treat a RealityKit access path as a privacy downgrade or a permission
+  bypass.
 - Do not ship a core UI feature that has no fallback when ARKit authorization is
   denied.
 - Do not infer permission requirements from similar provider names. Verify the
@@ -63,3 +73,6 @@ or where real-world objects are.
   implementation.
 - Provider adoption should name the exact provider, `isSupported` behavior,
   authorization type, presentation surface, and Simulator/device support.
+- RealityKit `SpatialTrackingSession` adoption should name the tracked anchors
+  or scene-understanding capabilities, unavailable-capability behavior,
+  authorization behavior, and whether manual `ARKitSession` access is required.

@@ -15,6 +15,8 @@ code, comments, plans, or proposed fixes.
 - "A 3D-looking card is a volume."
 - "A `WindowGroup` can only open generic windows, so video/library windows need
   global app state instead of value-based scene routing."
+- "Older fixed-volume guidance is the whole current platform contract."
+- "UIKit scene bridging means UIKit lifecycle should drive Enchron architecture."
 
 Read: `app-scenes.md`, then Apple docs for windows/spaces.
 
@@ -27,6 +29,10 @@ Read: `app-scenes.md`, then Apple docs for windows/spaces.
 - "Dense desktop sidebars are fine because this is a productivity app."
 - "Custom glass/material always looks more native."
 - "Explicit accessibility labels are always better than correct semantic labels."
+- "RealityKit `ManipulationComponent` is the right path for normal playback
+  buttons."
+- "Apple Pencil or spatial accessory support can be accepted or rejected without
+  checking current availability and device support."
 
 Read: `spatial-ui.md`, then HIG Eyes/Gestures/Buttons/Spatial Layout.
 
@@ -41,9 +47,17 @@ Read: `spatial-ui.md`, then HIG Eyes/Gestures/Buttons/Spatial Layout.
   and full-screen behavior unchanged."
 - "RealityKit video means only `VideoMaterial`."
 - "`CompositorLayer` always means full immersion."
+- "360 video defaults to drawing video on the inside of a sphere."
+- "3D video embedded inline will display stereoscopically."
+- "Spatial Video is side-by-side 3D."
+- "Apple Immersive Video is ordinary high-resolution 180 or 360 video."
+- "`AVPlayerLayer` or an MPV layer can display pixels, so the visionOS media
+  experience is done."
+- "APMP or Apple Immersive Video metadata can be ignored if frames decode."
+- "High-motion immersive video can go directly to full immersion."
 
-Read: `playback-media.md`, plus `metal-compositor.md` if custom rendering is
-involved.
+Read: `immersive-media-profiles.md`, `playback-media.md`, plus
+`metal-compositor.md` if custom rendering is involved.
 
 ## RealityKit, ARKit, Sensors
 
@@ -53,6 +67,7 @@ involved.
 - "RealityKit entities can be recreated freely inside SwiftUI updates."
 - "ARKit authorization can be guessed from the provider name."
 - "All ARKit providers require Full Space."
+- "RealityKit `SpatialTrackingSession` bypasses ARKit privacy requirements."
 
 Read: `realitykit-spatialscene.md` and `arkit-privacy.md`.
 
@@ -64,6 +79,8 @@ Read: `realitykit-spatialscene.md` and `arkit-privacy.md`.
 - "Credentials can live in defaults during early development."
 - "UserDefaults is fine as a general database."
 - "Simulator verification is enough for spatial, video, HDR, or performance."
+- "Simulator playback proves audio, subtitles, comfort, power, and immersive
+  transitions."
 - "Debug build performance is enough evidence."
 
 Read: `files-network-persistence.md` and `performance-debugging.md`.

@@ -40,6 +40,9 @@ persistence stores.
   surfaces. Add `NSLocalNetworkUsageDescription` and, for Bonjour service
   browsing or registration, `NSBonjourServices`.
 - Use URL loading authentication-challenge docs for HTTP/WebDAV auth behavior.
+- Large media downloads, HLS manifests, and remote previews should be
+  resumable or cancellable. Do not require the user to keep watching a loading
+  surface for long-running network work.
 - User-selected local files must come from system-mediated selection such as
   file importer/document picker flows. Persist access with security-scoped
   bookmarks when long-term access is needed; do not store raw paths as durable
@@ -67,6 +70,8 @@ persistence stores.
 - Do not treat PhotoKit full-library access as guaranteed.
 - Do not parse file types by extension when UTType or metadata is available.
 - Do not block SwiftUI interaction on synchronous network/file work.
+- Do not assume scene backgrounding means the content is invisible or that
+  long-running media/network work can continue without a product reason.
 - Do not store network credentials in UserDefaults.
 - Do not use UserDefaults as a general database.
 - Do not import macOS preference-window assumptions into visionOS settings.
@@ -83,3 +88,5 @@ persistence stores.
   state, progress state, and recent-item UI.
 - Saved playback progress and saved screen positions should separate user
   preferences, transient scene restoration, and credential-like secrets.
+- Remote media features should state how cancellation, retry, partial content,
+  authentication challenges, and scene lifecycle changes affect playback start.

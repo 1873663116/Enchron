@@ -75,8 +75,22 @@ function checkReferenceSections(): void {
   }
 }
 
+function checkSkillReferenceLinks(): void {
+  const text = readFileSync(skillPath, "utf8");
+  const references = new Set(text.match(/references\/[A-Za-z0-9_.-]+\.md/g) ?? []);
+
+  for (const reference of references) {
+    const fileName = reference.replace("references/", "");
+    const path = join(referencesDir, fileName);
+    if (!existsSync(path)) {
+      errors.push(`${skillPath}: routed reference is missing: ${reference}`);
+    }
+  }
+}
+
 function main(): void {
   checkSkillFrontMatter();
+  checkSkillReferenceLinks();
   checkLineLengths("AGENTS.md");
   checkLineLengths(skillPath);
 

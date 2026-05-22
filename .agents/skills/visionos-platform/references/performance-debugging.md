@@ -28,6 +28,12 @@ QA evidence.
 - Profile on physical device for performance claims.
 - Track launch/load time, responsiveness/latency, render frame pacing, power,
   memory, network, and task efficiency.
+- Shared Space and Full Space have different performance and coexistence
+  profiles. Test both when a feature can run in both contexts.
+- Multi-app coexistence is part of the Shared Space performance model. Do not
+  assume Enchron owns the whole render or attention budget outside Full Space.
+- Background or inactive scene state does not always mean the user cannot see
+  or hear relevant app content. Save state and reduce work deliberately.
 - RealityKit render-server stalls and entity commits are first-class
   performance concerns.
 - Use the RealityKit Trace template for RealityKit/render-server bottlenecks,
@@ -38,6 +44,8 @@ QA evidence.
   compositor, or Metal/Compositor Services frame submission.
 - Debug immersive placement with visible axes, bounds, overlays, or temporary
   diagnostic entities when needed.
+- Immersive media profile claims need device checks for comfort mitigation,
+  spatial audio, captions/subtitles, power, and long-viewing behavior.
 - Use release-like configuration for performance claims; Debug builds are for
   functional diagnosis.
 
@@ -49,6 +57,8 @@ QA evidence.
 - Do not ignore thermal pressure; Apple documents user-visible impact when
   resource use pushes the device beyond limits.
 - Do not treat 2D layout inspection as sufficient for immersive content.
+- Do not treat APMP, Apple Immersive Video, Spatial Video, or high-motion
+  immersive playback as verified because a short Simulator playback starts.
 - Do not assume macOS desktop profiling signals map directly to Vision Pro
   comfort or spatial frame pacing.
 - Do not profile Compositor Services work only through RealityKit signals; Metal
@@ -59,4 +69,6 @@ QA evidence.
 - UI-only changes can usually be verified with build plus visual review.
 - HDR, MPV Metal output, RealityKit texture bridge, and immersive scene claims
   need explicit Simulator/device risk notes.
+- APMP, Apple Immersive Video, Spatial Video, and custom immersive video paths
+  need human headset verification notes even when docs and builds pass.
 - A QA report should separate automated verification from human headset checks.
