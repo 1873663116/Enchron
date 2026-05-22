@@ -52,6 +52,7 @@ chosen.
 | App scene lifecycle, windows, volumes, immersive spaces, launch/default size/restoration | `XrPlayer/App`, `MainView`, `AppModel`, `DesignPreviewApp` | `references/app-scenes.md` |
 | SwiftUI controls, DesignPreview, gaze hover, ornaments, spatial layout, accessibility | `PlayerUI`, `DesignPreview`, `Shared/DesignSystem`, `Settings` | `references/spatial-ui.md` |
 | Playback, AVFoundation/AVKit, MPV comparison, HDR/EDR, subtitles/tracks, video surfaces | `PlaybackCore`, `WindowVideoView`, `WindowVideoViewModel`, `PlayerUI/Views/*Video*` | `references/playback-media.md` |
+| Immersive media profiles, APMP, Spatial Video, Apple Immersive Video, AVExperienceController, RealityKit VideoPlayerComponent | `PlaybackCore`, `PlayerUI`, `SpatialScene`, media routing plans | `references/immersive-media-profiles.md` |
 | RealityKit scenes, `RealityView`, entities, attachments, panoramas, virtual screens, volumes | `SpatialScene`, RealityKit renderers, immersive views | `references/realitykit-spatialscene.md` |
 | ARKit data, world/hand/scene sensing, camera access, privacy permissions | `SpatialScene`, ARKit integration, privacy-sensitive features | `references/arkit-privacy.md` |
 | Custom Metal immersive rendering, Compositor Services, render loops, stereoscopic drawing | `Shared/Metal*`, `WindowVideoView`, future custom immersive renderer | `references/metal-compositor.md` |
@@ -67,8 +68,13 @@ chosen.
   DesignPreview work: read `spatial-ui.md`.
 - MPV `CAMetalLayer`, EDR/HDR, texture bridge, or renderer timing: read
   `playback-media.md`, `metal-compositor.md`, and `performance-debugging.md`.
-- Immersive video in RealityKit: read `playback-media.md` and
-  `realitykit-spatialscene.md`.
+- Spatial Video, 3D video, APMP, Apple Immersive Video, Quick Look immersive
+  preview, `AVExperienceController`, or RealityKit `VideoPlayerComponent` work:
+  read `immersive-media-profiles.md`, then `playback-media.md` only if baseline
+  playback or engine comparison is involved.
+- Immersive video in RealityKit: read `immersive-media-profiles.md` and
+  `realitykit-spatialscene.md`; add `playback-media.md` when baseline playback
+  or engine comparison matters.
 - Any ARKit provider, sensing permission, world/hand/scene/camera/accessory
   feature: read `arkit-privacy.md` even if the code lives in `SpatialScene`.
 - SMB, WebDAV, LAN discovery, arbitrary host entry, or local file selection:
@@ -83,15 +89,26 @@ For a broad Enchron platform audit, read:
 1. `references/app-scenes.md`
 2. `references/misconceptions.md`
 3. `references/playback-media.md`
-4. `references/metal-compositor.md`
-5. `references/realitykit-spatialscene.md`
-6. `references/arkit-privacy.md`
-7. `references/spatial-ui.md`
-8. `references/files-network-persistence.md`
-9. `references/performance-debugging.md`
+4. `references/immersive-media-profiles.md`
+5. `references/metal-compositor.md`
+6. `references/realitykit-spatialscene.md`
+7. `references/arkit-privacy.md`
+8. `references/spatial-ui.md`
+9. `references/files-network-persistence.md`
+10. `references/performance-debugging.md`
 
 For a small edit, read only one task reference plus `misconceptions.md` if the
 code smells like an iOS/macOS port.
+
+## Version Gate Rule
+
+Before choosing a visionOS 26 API, answer:
+
+1. What is the project minimum deployment target?
+2. Is the API available at that target?
+3. If not, where is the availability guard, runtime capability check, or
+   fallback?
+4. Does the fallback preserve product behavior, or is it intentionally degraded?
 
 ## Default Surface Question
 
@@ -105,9 +122,24 @@ What visionOS surface owns this behavior?
 - Custom immersive Metal renderer: `ImmersiveSpace` with `CompositorLayer`;
   check Compositor Services docs for full/mixed/progressive behavior.
 - Maximum system video integration: `AVPlayerViewController`.
-- Custom immersive video: RealityKit video APIs, with AVKit as baseline.
+- Media-profile immersive video: Quick Look, AVKit, or RealityKit
+  `VideoPlayerComponent`, chosen by media profile.
+- Custom immersive video: RealityKit video APIs first, with AVKit as baseline
+  and MPV/Metal/custom compositor paths requiring exception rationale.
 - Network/file/persistence: Foundation, Network, Security, SwiftData, plus
   visionOS privacy and lifecycle constraints.
+
+For video/media work, also answer:
+
+What media profile owns this content?
+
+- 2D flat video.
+- 3D flat or stereoscopic video.
+- Spatial Video / MV-HEVC with spatial metadata.
+- APMP 180.
+- APMP 360 / Wide FOV.
+- Apple Immersive Video.
+- Custom or unknown media.
 
 Do not start from "this is SwiftUI, so use iOS/macOS pattern X." Start from the
 visionOS surface and then choose the Swift API.

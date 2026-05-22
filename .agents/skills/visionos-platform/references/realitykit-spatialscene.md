@@ -23,6 +23,7 @@ presentation.
 - VideoMaterial: https://developer.apple.com/documentation/realitykit/videomaterial
 - Playing immersive media with RealityKit: https://developer.apple.com/documentation/visionos/playing-immersive-media-with-realitykit
 - Rendering stereoscopic video with RealityKit: https://developer.apple.com/documentation/visionos/rendering-stereoscopic-video-with-realitykit
+- What is new in RealityKit: https://developer.apple.com/videos/play/wwdc2025/287/
 - Spatial layout HIG: https://developer.apple.com/design/human-interface-guidelines/spatial-layout/
 - Immersive experiences HIG: https://developer.apple.com/design/human-interface-guidelines/immersive-experiences
 - Immersive spaces: https://developer.apple.com/documentation/swiftui/immersive-spaces
@@ -47,6 +48,13 @@ presentation.
   `VideoMaterial`. `VideoPlayerComponent` is the RealityKit path for immersive
   media controls, viewing modes, captions/subtitles, passthrough tinting, and
   transition events.
+- For APMP, Apple Immersive Video, and Spatial Video in RealityKit, read
+  `immersive-media-profiles.md`. `VideoPlayerComponent` is the core RealityKit
+  route for system-understood immersive media profiles, not a small replacement
+  trick for `VideoMaterial`.
+- `desiredImmersiveViewingMode` and SwiftUI `ImmersionStyle` must match for
+  progressive or full immersive playback. Treat portal, progressive, and full
+  as behavior and comfort choices, not just visual styles.
 - Attachments can be created through the `RealityView` attachments closure or
   component-based APIs such as `ViewAttachmentComponent`; choose the current API
   that matches the local code and OS target.
@@ -65,6 +73,11 @@ presentation.
 - Do not fill peripheral vision with bright motion or high-contrast animation.
 - Do not put RealityKit setup in SwiftUI body-driven code paths.
 - Do not assume "RealityKit video" means only `VideoMaterial`.
+- Do not render APMP, Apple Immersive Video, or Spatial Video as generic
+  textures unless the plan explains why `VideoPlayerComponent`, AVKit, and
+  Quick Look are insufficient.
+- Do not combine progressive RealityKit video with a non-progressive
+  `ImmersionStyle`.
 
 ## Enchron Checkpoints
 
@@ -76,3 +89,6 @@ presentation.
 - Immersive media work should state whether it uses AVKit, RealityKit
   `VideoPlayerComponent`, `VideoMaterial`, MPV texture bridging, or future
   Compositor Services.
+- If a task touches APMP, Apple Immersive Video, Spatial Video, or 3D media
+  playback, answer the media profile question before selecting RealityKit
+  APIs or reusing the existing panorama sphere path.

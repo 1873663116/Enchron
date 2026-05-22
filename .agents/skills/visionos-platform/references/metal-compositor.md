@@ -20,6 +20,9 @@ immersive Metal interaction.
 
 ## Correct Decisions
 
+- If the reason for custom rendering is 3D video, Spatial Video, APMP, or Apple
+  Immersive Video, read `immersive-media-profiles.md` first and record why
+  Quick Look, AVKit, and RealityKit do not satisfy the product behavior.
 - Use Compositor Services when drawing fully immersive content with a custom
   Metal renderer.
 - `CompositorLayer` is an `ImmersiveSpace` content path for custom Metal
@@ -46,6 +49,9 @@ immersive Metal interaction.
 - Do not use desktop Metal swapchain assumptions for visionOS compositor work.
 - Do not treat HDR layer configuration as enough evidence that immersive
   RealityKit or compositor output is correct.
+- Do not treat decoded APMP, AIV, or Spatial Video frames as format support if
+  projection metadata, spatial styling, audio, captions, and comfort behavior
+  are outside the custom renderer.
 
 ## Enchron Checkpoints
 
@@ -56,3 +62,5 @@ immersive Metal interaction.
   the claim.
 - Compute/copy paths between MPV output and RealityKit textures need explicit
   ownership of color space and timing.
+- Custom media renderers need an exception rationale tied to a named media
+  profile, not a generic desire for lower-level control.
