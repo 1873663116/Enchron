@@ -22,8 +22,10 @@ or where real-world objects are.
 - Use standard SwiftUI/UIKit event handling for ordinary interaction.
 - Request ARKit data only when the system interaction model cannot express the
   feature.
-- ARKit data access is tied to immersive-space / Full Space presentation, not a
-  normal shared-space window.
+- Most world, hand, and scene-sensing ARKit providers require Full Space
+  presentation, but the rule is provider-specific. Verify each provider's
+  presentation context, support checks, and authorization requirements in
+  current Apple docs.
 - Add provider-specific usage descriptions before requesting sensitive data.
 - Check provider-specific `requiredAuthorizations`; do not guess.
 - Handle denied and later-revoked authorization with a usable fallback.
@@ -42,6 +44,8 @@ or where real-world objects are.
   denied.
 - Do not infer permission requirements from similar provider names. Verify the
   current Apple docs for the exact provider.
+- Do not assume every ARKit provider is Full Space only. Accessory tracking and
+  future provider-specific APIs can have different presentation constraints.
 
 ## Enchron Checkpoints
 
@@ -50,3 +54,5 @@ or where real-world objects are.
   boundaries must be explicit before adding ARKit providers.
 - Any future world-aware scene feature needs a permission/fallback story before
   implementation.
+- Provider adoption should name the exact provider, `isSupported` behavior,
+  authorization type, presentation surface, and Simulator/device support.

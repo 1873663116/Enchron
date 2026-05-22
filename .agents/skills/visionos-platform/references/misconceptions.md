@@ -13,6 +13,8 @@ code, comments, plans, or proposed fixes.
 - "If `openImmersiveSpace` is called, it definitely opened."
 - "A volume is just a bigger window."
 - "A 3D-looking card is a volume."
+- "A `WindowGroup` can only open generic windows, so video/library windows need
+  global app state instead of value-based scene routing."
 
 Read: `app-scenes.md`, then Apple docs for windows/spaces.
 
@@ -24,6 +26,7 @@ Read: `app-scenes.md`, then Apple docs for windows/spaces.
 - "A `TapGesture` is equivalent to a `Button`."
 - "Dense desktop sidebars are fine because this is a productivity app."
 - "Custom glass/material always looks more native."
+- "Explicit accessibility labels are always better than correct semantic labels."
 
 Read: `spatial-ui.md`, then HIG Eyes/Gestures/Buttons/Spatial Layout.
 
@@ -34,6 +37,10 @@ Read: `spatial-ui.md`, then HIG Eyes/Gestures/Buttons/Spatial Layout.
 - "HDR labels can follow user toggles instead of media/display evidence."
 - "A 2D Metal layer is automatically compatible with immersive rendering."
 - "iOS full-screen playback is the model for Vision Pro playback."
+- "visionOS media playback inherits iOS Picture in Picture, background, routing,
+  and full-screen behavior unchanged."
+- "RealityKit video means only `VideoMaterial`."
+- "`CompositorLayer` always means full immersion."
 
 Read: `playback-media.md`, plus `metal-compositor.md` if custom rendering is
 involved.
@@ -45,12 +52,15 @@ involved.
 - "iOS ARKit display code ports directly."
 - "RealityKit entities can be recreated freely inside SwiftUI updates."
 - "ARKit authorization can be guessed from the provider name."
+- "All ARKit providers require Full Space."
 
 Read: `realitykit-spatialscene.md` and `arkit-privacy.md`.
 
 ## Files, Persistence, Performance
 
 - "Photo library or local file access behaves like desktop file access."
+- "SMB or WebDAV on the LAN does not need local-network privacy."
+- "A raw file path remains valid after document selection."
 - "Credentials can live in defaults during early development."
 - "UserDefaults is fine as a general database."
 - "Simulator verification is enough for spatial, video, HDR, or performance."

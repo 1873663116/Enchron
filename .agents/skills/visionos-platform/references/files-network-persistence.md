@@ -6,10 +6,16 @@ persistence stores.
 
 ## Apple Sources
 
+- Local network privacy technote: https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy
+- NSLocalNetworkUsageDescription: https://developer.apple.com/documentation/bundleresources/information-property-list/nslocalnetworkusagedescription
+- NSBonjourServices: https://developer.apple.com/documentation/bundleresources/information_property_list/nsbonjourservices
+- Connecting iPadOS and visionOS apps over the local network: https://developer.apple.com/documentation/visionos/connecting-ipados-and-visionos-apps-over-the-local-network
 - URL Loading System: https://developer.apple.com/documentation/foundation/url_loading_system
 - URLSession: https://developer.apple.com/documentation/foundation/urlsession
 - Authentication challenges: https://developer.apple.com/documentation/foundation/url_loading_system/handling_an_authentication_challenge
 - Network framework: https://developer.apple.com/documentation/network
+- Security-scoped resource access: https://developer.apple.com/documentation/foundation/url/startaccessingsecurityscopedresource()
+- DocumentGroup: https://developer.apple.com/documentation/swiftui/documentgroup
 - PhotoKit: https://developer.apple.com/documentation/photokit
 - Photos authorization: https://developer.apple.com/documentation/photokit/requesting_authorization_to_access_photos
 - Uniform Type Identifiers: https://developer.apple.com/documentation/uniformtypeidentifiers
@@ -24,7 +30,17 @@ persistence stores.
   protocol requirement demands Network framework.
 - Use Network framework for path monitoring, custom TCP/TLS/UDP/QUIC protocols,
   and transport-level diagnostics.
+- SMB discovery, LAN WebDAV, arbitrary local-host connections, Bonjour
+  browsing/registration, broadcast, and multicast are local-network privacy
+  surfaces. Add `NSLocalNetworkUsageDescription` and, for Bonjour service
+  browsing or registration, `NSBonjourServices`.
 - Use URL loading authentication-challenge docs for HTTP/WebDAV auth behavior.
+- User-selected local files must come from system-mediated selection such as
+  file importer/document picker flows. Persist access with security-scoped
+  bookmarks when long-term access is needed; do not store raw paths as durable
+  authority.
+- Balance every successful `startAccessingSecurityScopedResource()` call with
+  `stopAccessingSecurityScopedResource()`.
 - Prefer UTType over extension-only string guesses when the system can provide
   structured type information.
 - Photo library access is privacy-gated and can be limited; the app must work
@@ -40,6 +56,9 @@ persistence stores.
 
 - Do not assume desktop file-system freedom. visionOS app file access is
   sandboxed and privacy-mediated.
+- Do not assume SMB/WebDAV LAN access works without local-network privacy
+  strings and denial handling.
+- Do not assume a raw file path remains valid after a user selects a document.
 - Do not treat PhotoKit full-library access as guaranteed.
 - Do not parse file types by extension when UTType or metadata is available.
 - Do not block SwiftUI interaction on synchronous network/file work.
@@ -52,7 +71,10 @@ persistence stores.
 - WebDAV code should follow Foundation URL loading behavior for auth, redirects,
   errors, cancellation, and background responsiveness.
 - SMB library behavior comes from the third-party client, but credentials,
-  network status, file filtering, and UI behavior still follow Apple
-  Foundation/Security/privacy docs.
+  local-network permission state, Bonjour/service discovery, network status,
+  file filtering, and UI behavior still follow Apple Foundation/Security/privacy
+  docs.
+- Local-file playback must keep a scoped-access plan separate from playback
+  state, progress state, and recent-item UI.
 - Saved playback progress and saved screen positions should separate user
   preferences, transient scene restoration, and credential-like secrets.
