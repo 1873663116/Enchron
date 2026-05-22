@@ -1,6 +1,10 @@
 # Window HDR / EDR Diagnostics Guide
 
-This guide defines how to validate the phase-1 window HDR diagnostics without over-claiming what the evidence proves.
+Purpose: define how to validate window HDR diagnostics without over-claiming
+what the evidence proves.
+Status: Active diagnostic reference.
+Owner/scope: HDR/EDR evidence, probe interpretation, and device validation.
+This file is not a production playback-routing contract.
 
 ## What Phase 1 Can Prove
 
@@ -30,6 +34,14 @@ Use Vision Pro hardware for these checks:
 - After sampling, pull `Documents/hdr-probe-live.log` from the app data container and compare it with the overlay. The log records both the layer configuration and the sampled drawable values.
 - Use `Full Frame Scan` only as a manual intrusive diagnostic when you need whole-drawable statistics. It may fail on very large textures if the readback exceeds the safety cap, and it should not replace known highlight ROI validation.
 - Compare Apple Reference only as a system reference. If MPV has extended values but looks less saturated, record `PASS_WITH_COLOR_RISK`.
+
+Apple Reference remains a diagnostic comparison surface. Production Apple media
+routing is governed by `docs/contracts/playback-engine-routing.md`. Do not
+confuse diagnostic Apple playback evidence with a selected production
+`PlaybackEngineRoute`.
+
+A pass on Apple Reference does not prove mpv correctness. A pass on mpv HDR
+diagnostics does not prove Apple-native route behavior.
 
 Do not use screenshots, screen recordings, AirPlay captures, or YouTube as HDR validation evidence.
 
