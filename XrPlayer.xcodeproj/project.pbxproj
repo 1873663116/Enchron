@@ -71,7 +71,13 @@
 			membershipExceptions = (
 				ComponentLibrary.swift,
 				ContentView.swift,
+				"DesignComps/DesignCompsPreviewGallery.swift",
+				"DesignComps/Pages/Files/VideoDetailPage.swift",
+				"DesignComps/Pages/Home/HomeV1Page.swift",
+				"DesignComps/Pages/Player/PlayerControlPanelPage.swift",
+				"DesignComps/Windows/EmptyPanelWindowContent.swift",
 				DesignPreviewApp.swift,
+				DesignPreviewRoot.swift,
 				SharedComponents.swift,
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;

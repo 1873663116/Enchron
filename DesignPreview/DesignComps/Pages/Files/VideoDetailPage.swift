@@ -1,96 +1,118 @@
 import SwiftUI
 
 struct VideoDetailPage: View {
-    var artboardSize: CGSize = Self.defaultArtboardSize
-
-    private static var defaultArtboardSize: CGSize {
-        CGSize(
-            width: DesignTokens.Card.gridMin * 5 + DesignTokens.Card.gridSpacing * 7,
-            height: DesignTokens.Card.gridMin * 3 + DesignTokens.Card.gridSpacing * 3
-        )
-    }
-
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xl) {
+        HStack(spacing: DesignTokens.Spacing.xxl) {
             previewColumn
             detailColumn
         }
-        .padding(DesignTokens.Spacing.xxl)
-        .frame(width: artboardSize.width, height: artboardSize.height)
-        .background(.black.opacity(0.82))
+        .padding(DesignTokens.Spacing.xxxl)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("DesignComps-VideoDetailPage")
         .accessibilityLabel("Video detail page skeleton")
     }
 
     private var previewColumn: some View {
-        VStack(spacing: DesignTokens.Spacing.lg) {
-            labeledPanel("Video Preview / Poster")
-                .frame(maxHeight: .infinity)
+        VStack(spacing: DesignTokens.Spacing.xl) {
+            videoPreview
 
-            HStack(spacing: DesignTokens.Spacing.md) {
-                labeledPill("Scene")
-                labeledPill("Immersive")
-                labeledPill("Window")
+            HStack(spacing: DesignTokens.Card.gridSpacing) {
+                SceneCardMedium(icon: "rectangle.on.rectangle", title: "Window", isSelected: true)
+                SceneCardMedium(icon: "sparkles.tv", title: "Cinema", isSelected: false)
+                SceneCardMedium(icon: "mountain.2", title: "Space", isSelected: false)
             }
-            .frame(height: DesignTokens.Interactive.large)
+            .frame(height: DesignTokens.Card.gridMin * 0.64)
         }
-        .frame(maxWidth: .infinity)
-        .padding(DesignTokens.Spacing.xl)
-        .enchronGlassPanel()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityIdentifier("DesignComps-VideoDetailPage-previewColumn")
     }
 
-    private var detailColumn: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            titleRegion
+    private var videoPreview: some View {
+        ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                colors: DesignTokens.PrecisionTimeline.thumbnailPalette,
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
 
-            HStack(spacing: DesignTokens.Spacing.md) {
-                metadataBlock("Metadata")
-                metadataBlock("HDR / Codec")
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                Text("HDR10+")
+                    .font(DesignTokens.Typography.badge)
+                    .enchronGlassBadge()
+                Text("2:49:00")
+                    .font(DesignTokens.Typography.badge)
+                    .monospacedDigit()
+                    .enchronGlassBadge()
             }
-            .frame(height: DesignTokens.Card.gridMin * 0.72)
+            .padding(DesignTokens.Spacing.lg)
+        }
+        .overlay(alignment: .topLeading) {
+            Text("Video Preview")
+                .font(DesignTokens.Typography.headline)
+                .padding(DesignTokens.Spacing.lg)
+        }
+        .enchronGlassCard()
+    }
 
+    private var detailColumn: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+            titleRegion
+            metadataRegion
             configurationRegion
-
             Spacer()
-
             playEntry
         }
-        .frame(width: DesignTokens.Card.gridMin * 2)
-        .padding(DesignTokens.Spacing.xl)
-        .enchronGlassPanel()
+        .frame(width: DesignTokens.Card.gridMin * 2 + DesignTokens.Card.gridSpacing)
         .accessibilityIdentifier("DesignComps-VideoDetailPage-detailColumn")
     }
 
     private var titleRegion: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text("Video Detail Page")
+            Text("Interstellar")
                 .font(DesignTokens.Typography.title)
-            Text("Second-level playback preparation page")
+            Text("Modified 2h ago / second-level playback preparation")
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
         }
     }
 
+    private var metadataRegion: some View {
+        HStack(spacing: DesignTokens.Card.gridSpacing) {
+            metadataTile("File Size", "42.8 GB")
+            metadataTile("Dynamic Range", "HDR10+")
+        }
+        .frame(height: DesignTokens.Card.gridMin * 0.48)
+    }
+
     private var configurationRegion: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Text("Playback Configuration")
+            Text("Playback Settings")
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
 
-            configRow("Subtitles", "Selection region")
-            configRow("Audio Track", "Selection region")
-            configRow("Scene", "Environment region")
+            MenuItemRow(title: "Subtitles", isExpanded: false)
+            MenuItemRow(title: "Audio Track", isExpanded: false)
+
+            HStack {
+                Text("Auto Resume")
+                    .font(DesignTokens.Typography.headline)
+                Spacer()
+                MockToggle(isOn: true)
+            }
+            .padding(.horizontal, DesignTokens.Spacing.md)
+            .frame(minHeight: DesignTokens.Interactive.rowHeight)
+            .enchronGlassMenuItem()
         }
+        .padding(DesignTokens.Menu.glassPadding)
+        .enchronGlassMenu()
     }
 
     private var playEntry: some View {
-        HStack {
+        HStack(spacing: DesignTokens.Spacing.md) {
             Image(systemName: "play.fill")
                 .font(DesignTokens.SymbolSize.action)
-            Text("Play Entry")
+            Text("Play")
                 .font(DesignTokens.Typography.headline)
             Spacer()
         }
@@ -101,54 +123,27 @@ struct VideoDetailPage: View {
         .contentShape(.hoverEffect, Capsule())
         .hoverEffect(.lift)
         .contentShape(Capsule())
+        .accessibilityIdentifier("DesignComps-VideoDetailPage-playEntry")
+        .accessibilityLabel("Play")
     }
 
-    private func metadataBlock(_ title: String) -> some View {
-        labeledPanel(title)
-            .frame(maxWidth: .infinity)
-    }
-
-    private func configRow(_ title: String, _ detail: String) -> some View {
-        HStack {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                Text(title)
-                    .font(DesignTokens.Typography.headline)
-                Text(detail)
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(DesignTokens.SymbolSize.control)
+    private func metadataTile(_ label: String, _ value: String) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(label)
+                .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+            Text(value)
+                .font(DesignTokens.Typography.headline)
         }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .frame(height: DesignTokens.Interactive.rowHeight)
-        .enchronGlassMenuItem()
-    }
-
-    private func labeledPill(_ title: String) -> some View {
-        Text(title)
-            .font(DesignTokens.Typography.metadata)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .enchronGlassPill()
-    }
-
-    private func labeledPanel(_ title: String) -> some View {
-        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-            .fill(DesignTokens.Surface.elevated)
-            .overlay(alignment: .topLeading) {
-                Text(title)
-                    .font(DesignTokens.Typography.headline)
-                    .padding(DesignTokens.Spacing.lg)
-            }
-            .overlay {
-                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-                    .strokeBorder(DesignTokens.Surface.border, lineWidth: DesignTokens.Stroke.subtle)
-            }
+        .padding(DesignTokens.Spacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .enchronGlassPanel()
     }
 }
 
 #Preview(windowStyle: .automatic) {
-    VideoDetailPage()
+    DesignCompWindowPreviewStage(showsSidebar: true) {
+        VideoDetailPage()
+    }
 }
