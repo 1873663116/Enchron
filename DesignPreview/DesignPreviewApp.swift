@@ -11,7 +11,13 @@ import SwiftUI
 struct DesignPreviewApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            DesignPreviewRoot()
         }
+
+        WindowGroup("Empty Panel", id: "designComps-emptyPanel") {
+            EmptyPanelWindowContent()
+        }
+        .defaultSize(width: 1920, height: 1080)
+        .windowResizability(.contentSize)
     }
 }

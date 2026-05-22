@@ -1,15 +1,6 @@
 import SwiftUI
 
 struct PlayerControlPanelPage: View {
-    var artboardSize: CGSize = Self.defaultArtboardSize
-
-    private static var defaultArtboardSize: CGSize {
-        CGSize(
-            width: DesignTokens.Layout.playerControlsWidth * 2,
-            height: DesignTokens.Layout.playerControlsWidth * 0.72
-        )
-    }
-
     var body: some View {
         ZStack {
             PlayerPreviewVideoSurface()
@@ -21,8 +12,6 @@ struct PlayerControlPanelPage: View {
             }
             .padding(DesignTokens.Spacing.xxxl)
         }
-        .frame(width: artboardSize.width, height: artboardSize.height)
-        .background(.black)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("DesignComps-PlayerControlPanelPage")
         .accessibilityLabel("Player control panel page skeleton")
@@ -30,20 +19,12 @@ struct PlayerControlPanelPage: View {
 
     private var topControlRegion: some View {
         HStack(alignment: .top, spacing: DesignTokens.Spacing.xl) {
-            Circle()
-                .fill(DesignTokens.Surface.overlay)
-                .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)
-                .overlay {
-                    Image(systemName: "chevron.left")
-                        .font(DesignTokens.SymbolSize.control)
-                        .foregroundStyle(.white)
-                }
-                .enchronGlassControl()
+            circleControl("chevron.left", label: "Back")
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                Text("Title / Playback Context")
-                    .font(DesignTokens.Typography.headline)
-                Text("Top control region")
+                Text("Title")
+                    .font(DesignTokens.Typography.title)
+                Text("Playback Context")
                     .font(DesignTokens.Typography.metadata)
                     .foregroundStyle(.secondary)
             }
@@ -54,8 +35,8 @@ struct PlayerControlPanelPage: View {
             Spacer()
 
             HStack(spacing: DesignTokens.Spacing.sm) {
-                controlPlaceholder("square.dashed")
-                controlPlaceholder("ellipsis")
+                circleControl("rectangle.on.rectangle", label: "Window")
+                circleControl("ellipsis", label: "More")
             }
         }
     }
@@ -63,42 +44,21 @@ struct PlayerControlPanelPage: View {
     private var bottomControlRegion: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
             PlayerProgressStrip()
+            PlayerControlBar()
 
-            HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-                labeledControl("gobackward.10", "Back")
-                labeledControl("play.fill", "Primary")
-                    .frame(width: DesignTokens.Interactive.xl, height: DesignTokens.Interactive.xl)
-                labeledControl("goforward.10", "Forward")
-            }
-            .padding(.horizontal, DesignTokens.ControlBar.paddingH)
-            .padding(.vertical, DesignTokens.ControlBar.paddingV)
-            .frame(width: DesignTokens.ControlBar.width)
-            .enchronGlassControl()
-
-            Text("Bottom progress / transport region")
+            Text("Player Control Panel / base state")
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
         }
     }
 
-    private func controlPlaceholder(_ symbol: String) -> some View {
-        Image(systemName: symbol)
+    private func circleControl(_ systemName: String, label: String) -> some View {
+        Image(systemName: systemName)
             .font(DesignTokens.SymbolSize.control)
             .foregroundStyle(.white)
             .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)
             .enchronGlassControl()
-    }
-
-    private func labeledControl(_ symbol: String, _ label: String) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xxs) {
-            Image(systemName: symbol)
-                .font(DesignTokens.SymbolSize.control)
-                .foregroundStyle(.white)
-            Text(label)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
-        .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)
+            .accessibilityLabel(label)
     }
 }
 
@@ -108,8 +68,9 @@ private struct PlayerPreviewVideoSurface: View {
             LinearGradient(
                 colors: [
                     .black,
-                    DesignTokens.Theme.accent.opacity(0.18),
-                    .black.opacity(0.9)
+                    DesignTokens.PrecisionTimeline.thumbnailPalette[0].opacity(0.72),
+                    DesignTokens.PrecisionTimeline.thumbnailPalette[2].opacity(0.64),
+                    .black.opacity(0.92)
                 ],
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
@@ -118,7 +79,7 @@ private struct PlayerPreviewVideoSurface: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text("Video Surface")
                     .font(DesignTokens.Typography.title)
-                Text("Player background / content area")
+                Text("Window content behind player controls")
                     .font(DesignTokens.Typography.metadata)
                     .foregroundStyle(.secondary)
             }
@@ -128,5 +89,7 @@ private struct PlayerPreviewVideoSurface: View {
 }
 
 #Preview(windowStyle: .automatic) {
-    PlayerControlPanelPage()
+    DesignCompWindowPreviewStage {
+        PlayerControlPanelPage()
+    }
 }
