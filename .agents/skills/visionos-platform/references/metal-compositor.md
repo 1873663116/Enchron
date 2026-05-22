@@ -17,13 +17,16 @@ immersive Metal interaction.
 
 - Use Compositor Services when drawing fully immersive content with a custom
   Metal renderer.
-- A `CompositorLayer` immersive space is automatically fully immersive; style
-  modifiers on that space are ignored.
+- `CompositorLayer` is an `ImmersiveSpace` content path for custom Metal
+  rendering. Its supported immersion behavior is OS-version- and
+  configuration-specific; verify full, mixed, and progressive paths in current
+  Compositor Services docs before deciding.
 - Custom Metal immersive rendering means owning stereoscopic rendering, frame
   timing, and the compositor contract.
 - If RealityKit can express the scene, prefer RealityKit before dropping to
   Compositor Services.
-- Progressive Metal immersion requires explicit mask support.
+- Progressive Metal immersion requires explicit support for the current
+  Compositor Services progressive-immersion contract.
 - Keep render-loop work out of SwiftUI body/update churn.
 
 ## iOS/macOS Conflicts
@@ -32,8 +35,9 @@ immersive Metal interaction.
   fully-immersive renderer.
 - Do not launch directly into full immersion unless there is a deliberate
   product reason and the required scene-role configuration.
-- Do not add immersion style modifiers to `CompositorLayer` spaces expecting
-  them to control style.
+- Do not assume a `CompositorLayer` always means full immersion, or that SwiftUI
+  immersion style modifiers have the same effect for every Compositor Services
+  configuration.
 - Do not use desktop Metal swapchain assumptions for visionOS compositor work.
 - Do not treat HDR layer configuration as enough evidence that immersive
   RealityKit or compositor output is correct.

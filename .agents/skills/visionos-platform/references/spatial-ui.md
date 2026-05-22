@@ -26,6 +26,8 @@ accessibility, and component behavior.
 - GeometryReader3D: https://developer.apple.com/documentation/swiftui/geometryreader3d
 - Spatial framework: https://developer.apple.com/documentation/spatial
 - CoordinateSpace3D: https://developer.apple.com/documentation/spatial/coordinatespace3d
+- Improving accessibility support in your visionOS app: https://developer.apple.com/documentation/visionos/improving-accessibility-support-in-your-app
+- Accessibility: https://developer.apple.com/documentation/accessibility
 
 ## Correct Decisions
 
@@ -37,6 +39,9 @@ accessibility, and component behavior.
   spacing; do not inherit iOS-only target assumptions.
 - Use `hoverEffect` and `contentShape(.hoverEffect, shape)` to define gaze/focus
   affordance.
+- Keep controls semantic. Custom hover effects are allowed when implemented
+  through SwiftUI hover APIs or button styles and when they preserve hit region,
+  focus behavior, accessibility, and comfort.
 - Treat `onHover` as pointer-style behavior that needs device verification
   before it becomes product behavior.
 - Toolbars and tab bars can become ornaments in visionOS. Custom ornaments are
@@ -51,8 +56,8 @@ accessibility, and component behavior.
 - A 44 pt touch target is not enough as the default visionOS target.
 - `TapGesture` is not a semantic `Button`; use gestures for non-button
   interactions or when location data is essential.
-- Buttons in visionOS do not support arbitrary custom hover behavior in the
-  same way generic custom controls do; prefer system behavior first.
+- Do not replace a semantic `Button` with a raw gesture just to get a custom
+  hover look. Preserve system semantics first, then customize.
 - Do not add depth to text for decoration. Depth can reduce readability and
   comfort.
 - Do not import dense macOS sidebars/inspectors blindly. Spatial layout values
@@ -68,3 +73,9 @@ accessibility, and component behavior.
   and existing components before adding new shapes.
 - Controls shared by window and immersive playback should be designed for both
   surfaces, not optimized only for the window path.
+- Use `accessibilityIdentifier` for test targeting. Use explicit labels for
+  icon-only or custom controls, verify derived labels for text controls, and add
+  accessibility actions for nonstandard playback controls.
+- For RealityKit entities that can be discovered or activated, add appropriate
+  `AccessibilityComponent` metadata and test with VoiceOver or documented
+  assistive features.

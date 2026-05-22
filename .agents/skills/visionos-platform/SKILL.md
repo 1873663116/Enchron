@@ -50,17 +50,32 @@ media/HDR behavior, ARKit permissions, or performance claims.
 | Simulator/device gap, profiling, RealityKit render cost, thermal/power, visual debugging | Any performance or QA task | `references/performance-debugging.md` |
 | Suspicious platform assumptions or code review | Any module | `references/misconceptions.md` |
 
+## Cross-Read Rules
+
+- MPV `CAMetalLayer`, EDR/HDR, texture bridge, or renderer timing: read
+  `playback-media.md`, `metal-compositor.md`, and `performance-debugging.md`.
+- Immersive video in RealityKit: read `playback-media.md` and
+  `realitykit-spatialscene.md`.
+- Any ARKit provider, sensing permission, world/hand/scene/camera/accessory
+  feature: read `arkit-privacy.md` even if the code lives in `SpatialScene`.
+- SMB, WebDAV, LAN discovery, arbitrary host entry, or local file selection:
+  read `files-network-persistence.md`.
+- Custom spatial controls or RealityKit entities that can be activated: read
+  `spatial-ui.md` and the accessibility section in that file.
+
 ## Broad Task Reading Order
 
 For a broad Enchron platform audit, read:
 
 1. `references/app-scenes.md`
-2. `references/playback-media.md`
-3. `references/realitykit-spatialscene.md`
-4. `references/spatial-ui.md`
-5. `references/files-network-persistence.md`
-6. `references/performance-debugging.md`
-7. `references/misconceptions.md`
+2. `references/misconceptions.md`
+3. `references/playback-media.md`
+4. `references/metal-compositor.md`
+5. `references/realitykit-spatialscene.md`
+6. `references/arkit-privacy.md`
+7. `references/spatial-ui.md`
+8. `references/files-network-persistence.md`
+9. `references/performance-debugging.md`
 
 For a small edit, read only one task reference plus `misconceptions.md` if the
 code smells like an iOS/macOS port.

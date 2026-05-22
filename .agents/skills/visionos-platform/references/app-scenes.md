@@ -17,6 +17,7 @@ behavior, restoration, and placement.
 - Default volumetric size: https://developer.apple.com/documentation/swiftui/scene/defaultsize(width:height:depth:in:)
 - Window resizability: https://developer.apple.com/documentation/swiftui/scene/windowresizability(_:)
 - Default window placement: https://developer.apple.com/documentation/swiftui/scene/defaultwindowplacement(_:)
+- OpenWindowAction: https://developer.apple.com/documentation/swiftui/openwindowaction
 - Immersive spaces: https://developer.apple.com/documentation/swiftui/immersive-spaces
 - Open immersive space: https://developer.apple.com/documentation/swiftui/environmentvalues/openimmersivespace
 - Dismiss immersive space: https://developer.apple.com/documentation/swiftui/environmentvalues/dismissimmersivespace
@@ -42,6 +43,9 @@ behavior, restoration, and placement.
 - If an immersive style is not declared, mixed is the default style.
 - Scene restoration can reopen meaningful windows; suppress restoration for
   transient windows and restore only user-owned spatial context.
+- Use value-based `WindowGroup` and `openWindow(value:)` when a window is keyed
+  by user-owned data such as a library item, source, playlist, or preview
+  context. Do not centralize that identity in global app state by default.
 
 ## iOS/macOS Conflicts
 
@@ -54,6 +58,8 @@ behavior, restoration, and placement.
 - Do not model a volume as "a bigger window" or a 3D-looking card.
 - Do not use a volume for dense 2D settings or library navigation unless the
   content itself is spatial.
+- Do not invent manual scene identity/restoration when SwiftUI scene values fit
+  the problem.
 
 ## Enchron Checkpoints
 

@@ -40,7 +40,7 @@ XrPlayer/
 
 ### 改动代码前
 1. 读 ARCHITECTURE.md 确认涉及的模块和 Architecture Invariants
-2. 涉及 Swift / SwiftUI / RealityKit / ARKit / Metal / AVKit / 文件网络 / 持久化 / 性能时，先读 `.agents/skills/visionos-platform/SKILL.md`，按其中路由打开对应 Apple 官方文档；iOS / macOS 技能只能作为语法或通用 Swift 辅助，不能替代 visionOS 裁决
+2. Swift 改动触及平台表面、UI、播放、文件/网络/持久化、生命周期相关并发、性能，或任何 iOS/macOS 平台假设时，先读 `.agents/skills/visionos-platform/SKILL.md`，按其中路由打开对应 Apple 官方文档；纯 Domain / UseCase / 单元测试改动不强制读取。iOS / macOS 技能只能作为语法或通用 Swift 辅助，不能替代 visionOS 裁决
 3. UI / Design Preview 改动先读存在的 UI 规范文件；当前 DesignPreview 规范入口是 `DesignPreview/AGENTS.md`
 4. 产品体验判断先读 `docs/product_philosophy.md`，需求边界按需查 `docs/brainstorms/*-requirements.md`
 5. 任务 >3 文件或跨模块 → 写 Exec Plan（存放于 docs/plans/active/，完成后归档至 docs/archive/ExecPlan/）
@@ -122,6 +122,6 @@ XrPlayer/
 | `docs/solutions/build-errors/` | 构建错误的诊断与修复方案 | 遇到构建报错时 |
 | `docs/archive/` | 归档区：已完成的 ExecPlan、已解决的 issues、DDD 建模历史 | 需要历史上下文时 |
 
-文档优先级（冲突时）：product_philosophy > brainstorms/*-requirements > quality_gates > ARCHITECTURE > 其余。
+文档优先级（冲突时）：Apple 官方文档裁决 API 行为、隐私/安全、App Store 约束和平台可用性；本地文档在这些平台约束内裁决产品、架构和实现取舍。产品体验冲突按 product_philosophy > brainstorms/*-requirements > quality_gates > ARCHITECTURE > 其余。
 
 ---

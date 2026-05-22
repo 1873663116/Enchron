@@ -18,6 +18,10 @@ subtitles/tracks, video surfaces, playback diagnostics, and immersive media.
 - AVDisplayDynamicRange: https://developer.apple.com/documentation/avkit/avdisplaydynamicrange
 - preferredDisplayDynamicRange: https://developer.apple.com/documentation/avkit/avplayerviewcontroller/preferreddisplaydynamicrange
 - Destination Video sample: https://developer.apple.com/documentation/visionos/destination-video
+- Configuring your app for media playback: https://developer.apple.com/documentation/visionos/configuring-your-app-for-media-playback
+- Handling audio interruptions: https://developer.apple.com/documentation/avfaudio/handling-audio-interruptions
+- Responding to audio route changes: https://developer.apple.com/documentation/avfaudio/responding-to-audio-route-changes
+- AVPictureInPictureController support check: https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/ispictureinpicturesupported()
 - Apple movie profiles: https://developer.apple.com/av-foundation/Apple-Movie-Profiles.pdf
 - HDR content in Metal: https://developer.apple.com/documentation/metal/hdr-content
 - RealityKit videos: https://developer.apple.com/documentation/realitykit/scene-content-videos
@@ -28,6 +32,9 @@ subtitles/tracks, video surfaces, playback diagnostics, and immersive media.
 
 - Apple recommends `AVPlayerViewController` for system video playback
   integration in visionOS.
+- Open the Destination Video sample when changing presentation transitions,
+  system playback UI, or spatial-audio behavior; it is the concrete baseline,
+  not just a sample link.
 - Enchron's MPV path can still be valid, but AVKit is the baseline for system
   behavior, diagnostics, HDR comparison, tracks/subtitles affordance, and
   immersive playback expectations.
@@ -36,6 +43,9 @@ subtitles/tracks, video surfaces, playback diagnostics, and immersive media.
   accessibility, and transitions into immersive experiences.
 - `preferredDisplayDynamicRange` matters only when content and display support
   HDR. HDR labels must follow evidence, not toggles.
+- Audio session, interruptions, route changes, spatial-audio behavior,
+  captions/subtitles, external subtitle files, and remote-command expectations
+  are part of the media surface. Do not treat them as generic iOS details.
 - A UIKit `UIViewRepresentable` bridge can be appropriate for `AVPlayerLayer`,
   `CAMetalLayer`, or `MTKView`. It is an implementation bridge, not a license to
   make the app UIKit-shaped.
@@ -48,6 +58,9 @@ subtitles/tracks, video surfaces, playback diagnostics, and immersive media.
 - Do not assume macOS `AVPlayerView` patterns are the system answer on visionOS.
 - Do not subclass `AVPlayerViewController`; Apple documents unsupported
   subclassing behavior.
+- Do not assume iOS Picture in Picture, background playback, full-screen
+  transitions, or route-picker behavior transfers to visionOS unchanged. Check
+  API availability and runtime support such as `isPictureInPictureSupported()`.
 - Do not equate "AVPlayer can do this" with "MPV already does this." Use AVKit
   as evidence and comparison.
 - Do not treat a 2D `CAMetalLayer` or `MTKView` path as automatically correct

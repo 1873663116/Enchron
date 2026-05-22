@@ -12,8 +12,10 @@ presentation.
 - RealityViewContent: https://developer.apple.com/documentation/realitykit/realityviewcontent
 - Views and attachments: https://developer.apple.com/documentation/realitykit/presentation-views-and-attachments
 - Attachment: https://developer.apple.com/documentation/realitykit/attachment
+- ViewAttachmentComponent: https://developer.apple.com/documentation/realitykit/viewattachmentcomponent
 - RealityKit videos: https://developer.apple.com/documentation/realitykit/scene-content-videos
 - VideoMaterial: https://developer.apple.com/documentation/realitykit/videomaterial
+- VideoPlayerComponent: https://developer.apple.com/documentation/realitykit/videoplayercomponent
 - Playing immersive media with RealityKit: https://developer.apple.com/documentation/visionos/playing-immersive-media-with-realitykit
 - Rendering stereoscopic video with RealityKit: https://developer.apple.com/documentation/visionos/rendering-stereoscopic-video-with-realitykit
 - Spatial layout HIG: https://developer.apple.com/design/human-interface-guidelines/spatial-layout/
@@ -36,6 +38,13 @@ presentation.
 - RealityKit interaction needs the proper pieces: targeted SwiftUI gesture,
   `InputTargetComponent`, and collision shapes.
 - Use attachments for SwiftUI controls that belong with RealityKit content.
+- For current video work, consider `VideoPlayerComponent` as well as
+  `VideoMaterial`. `VideoPlayerComponent` is the RealityKit path for immersive
+  media controls, viewing modes, captions/subtitles, passthrough tinting, and
+  transition events.
+- Attachments can be created through the `RealityView` attachments closure or
+  component-based APIs such as `ViewAttachmentComponent`; choose the current API
+  that matches the local code and OS target.
 - Explicitly set transforms and positions in immersive spaces. Do not rely on
   an unexamined origin.
 
@@ -50,6 +59,7 @@ presentation.
   content can feel confining.
 - Do not fill peripheral vision with bright motion or high-contrast animation.
 - Do not put RealityKit setup in SwiftUI body-driven code paths.
+- Do not assume "RealityKit video" means only `VideoMaterial`.
 
 ## Enchron Checkpoints
 
@@ -58,3 +68,6 @@ presentation.
   not arbitrary 2D layout constants.
 - Panorama and virtual-screen paths should explicitly state their surface:
   RealityKit material/texture, volume, immersive space, or future compositor.
+- Immersive media work should state whether it uses AVKit, RealityKit
+  `VideoPlayerComponent`, `VideoMaterial`, MPV texture bridging, or future
+  Compositor Services.
