@@ -6,10 +6,15 @@ immersive Metal interaction.
 
 ## Apple Sources
 
+### Open first
+
 - Compositor Services: https://developer.apple.com/documentation/compositorservices
 - Drawing fully immersive content using Metal: https://developer.apple.com/documentation/compositorservices/drawing-fully-immersive-content-using-metal
 - Controlling Metal rendering immersion level: https://developer.apple.com/documentation/compositorservices/controlling-metal-rendering-immersion-level
 - Interacting with virtual content blended with passthrough: https://developer.apple.com/documentation/compositorservices/interacting-with-virtual-content-blended-with-passthrough
+
+### Open if
+
 - Metal: https://developer.apple.com/documentation/metal
 - HDR content in Metal: https://developer.apple.com/documentation/metal/hdr-content
 

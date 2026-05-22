@@ -6,15 +6,20 @@ persistence stores.
 
 ## Apple Sources
 
+### Open first
+
 - Local network privacy technote: https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy
 - NSLocalNetworkUsageDescription: https://developer.apple.com/documentation/bundleresources/information-property-list/nslocalnetworkusagedescription
-- NSBonjourServices: https://developer.apple.com/documentation/bundleresources/information_property_list/nsbonjourservices
+- NSBonjourServices: https://developer.apple.com/documentation/bundleresources/information-property-list/nsbonjourservices
+- Security-scoped resource access: https://developer.apple.com/documentation/foundation/url/startaccessingsecurityscopedresource()
+
+### Open if
+
 - Connecting iPadOS and visionOS apps over the local network: https://developer.apple.com/documentation/visionos/connecting-ipados-and-visionos-apps-over-the-local-network
 - URL Loading System: https://developer.apple.com/documentation/foundation/url_loading_system
 - URLSession: https://developer.apple.com/documentation/foundation/urlsession
 - Authentication challenges: https://developer.apple.com/documentation/foundation/url_loading_system/handling_an_authentication_challenge
 - Network framework: https://developer.apple.com/documentation/network
-- Security-scoped resource access: https://developer.apple.com/documentation/foundation/url/startaccessingsecurityscopedresource()
 - DocumentGroup: https://developer.apple.com/documentation/swiftui/documentgroup
 - PhotoKit: https://developer.apple.com/documentation/photokit
 - Photos authorization: https://developer.apple.com/documentation/photokit/requesting_authorization_to_access_photos

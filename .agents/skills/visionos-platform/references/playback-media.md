@@ -6,18 +6,24 @@ subtitles/tracks, video surfaces, playback diagnostics, and immersive media.
 
 ## Apple Sources
 
+### Open first
+
+- Adopting the system player interface in visionOS: https://developer.apple.com/documentation/avkit/adopting-the-system-player-interface-in-visionos
+- Destination Video sample: https://developer.apple.com/documentation/visionos/destination-video
+- Determining whether to bring your app to visionOS: https://developer.apple.com/documentation/visionos/determining-whether-to-bring-your-app-to-visionos
+- AVPlayerViewController: https://developer.apple.com/documentation/avkit/avplayerviewcontroller
+
+### Open if
+
 - AVFoundation overview: https://developer.apple.com/av-foundation/
 - AVFoundation docs: https://developer.apple.com/documentation/avfoundation/
 - AVPlayer: https://developer.apple.com/documentation/avfoundation/avplayer
 - AVKit: https://developer.apple.com/documentation/avkit
-- AVPlayerViewController: https://developer.apple.com/documentation/avkit/avplayerviewcontroller
-- Adopting the system player interface in visionOS: https://developer.apple.com/documentation/avkit/adopting-the-system-player-interface-in-visionos
 - Playing immersive media with AVKit: https://developer.apple.com/documentation/avkit/playing-immersive-media-with-avkit
 - AVExperienceController: https://developer.apple.com/documentation/avkit/avexperiencecontroller
 - AVExperienceController.Experience: https://developer.apple.com/documentation/avkit/avexperiencecontroller/experience-swift.enum
 - AVDisplayDynamicRange: https://developer.apple.com/documentation/avkit/avdisplaydynamicrange
 - preferredDisplayDynamicRange: https://developer.apple.com/documentation/avkit/avplayerviewcontroller/preferreddisplaydynamicrange
-- Destination Video sample: https://developer.apple.com/documentation/visionos/destination-video
 - Configuring your app for media playback: https://developer.apple.com/documentation/visionos/configuring-your-app-for-media-playback
 - Handling audio interruptions: https://developer.apple.com/documentation/avfaudio/handling-audio-interruptions
 - Responding to audio route changes: https://developer.apple.com/documentation/avfaudio/responding-to-audio-route-changes
@@ -58,9 +64,9 @@ subtitles/tracks, video surfaces, playback diagnostics, and immersive media.
 - Do not assume macOS `AVPlayerView` patterns are the system answer on visionOS.
 - Do not subclass `AVPlayerViewController`; Apple documents unsupported
   subclassing behavior.
-- Do not assume iOS Picture in Picture, background playback, full-screen
-  transitions, or route-picker behavior transfers to visionOS unchanged. Check
-  API availability and runtime support such as `isPictureInPictureSupported()`.
+- Apple migration docs list Picture in Picture and AV routing as unavailable on
+  visionOS. Do not design Enchron playback UX around those iOS affordances.
+  Check current API availability before adding conditional fallback behavior.
 - Do not equate "AVPlayer can do this" with "MPV already does this." Use AVKit
   as evidence and comparison.
 - Do not treat a 2D `CAMetalLayer` or `MTKView` path as automatically correct

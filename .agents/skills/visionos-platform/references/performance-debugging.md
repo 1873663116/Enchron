@@ -6,10 +6,15 @@ QA evidence.
 
 ## Apple Sources
 
+### Open first
+
 - Creating a performance plan: https://developer.apple.com/documentation/visionos/creating-a-performance-plan-for-visionos-app
 - Analyzing visionOS app performance: https://developer.apple.com/documentation/visionos/analyzing-the-performance-of-your-visionos-app
-- Reducing RealityKit rendering cost: https://developer.apple.com/documentation/visionos/reducing-the-rendering-cost-of-realitykit-content-on-visionos
 - Understanding the visionOS render pipeline: https://developer.apple.com/documentation/visionos/understanding-the-visionos-render-pipeline
+
+### Open if
+
+- Reducing RealityKit rendering cost: https://developer.apple.com/documentation/visionos/reducing-the-rendering-cost-of-realitykit-content-on-visionos
 - Diagnosing appearance issues: https://developer.apple.com/documentation/xcode/diagnosing-issues-in-the-appearance-of-your-running-app
 - Running in Simulator or on device: https://developer.apple.com/documentation/visionos/running-your-app-in-simulator-or-on-a-device
 - Interacting with the simulator: https://developer.apple.com/documentation/visionos/interacting-with-your-app-in-the-visionos-simulator

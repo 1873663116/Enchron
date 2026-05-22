@@ -6,10 +6,17 @@ or where real-world objects are.
 
 ## Apple Sources
 
+### Open first
+
 - Privacy and user preferences: https://developer.apple.com/documentation/visionos/adopting-best-practices-for-privacy
 - Setting up access to ARKit data: https://developer.apple.com/documentation/visionos/setting-up-access-to-arkit-data
 - ARKit: https://developer.apple.com/documentation/arkit
 - ARKit in visionOS: https://developer.apple.com/documentation/arkit/arkit-in-visionos
+- Tracking accessories in volumetric windows: https://developer.apple.com/documentation/arkit/tracking-accessories-in-volumetric-windows
+- AccessoryTrackingProvider: https://developer.apple.com/documentation/arkit/accessorytrackingprovider
+
+### Open if
+
 - Bringing your ARKit app to visionOS: https://developer.apple.com/documentation/visionos/bringing-your-arkit-app-to-visionos
 - Incorporating surroundings: https://developer.apple.com/documentation/visionos/incorporating-real-world-surroundings-in-an-immersive-experience
 - Tracking points in world space: https://developer.apple.com/documentation/visionos/tracking-points-in-world-space
