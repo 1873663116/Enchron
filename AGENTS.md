@@ -38,9 +38,16 @@ XrPlayer/
 
 ## Agent 标准动作序列
 
-### 改动代码前
+### Coding / Debug 前
 1. 读 ARCHITECTURE.md 确认涉及的模块和 Architecture Invariants
-2. Swift 改动触及平台表面、UI、播放、文件/网络/持久化、生命周期相关并发、性能，或任何 iOS/macOS 平台假设时，先读 `.agents/skills/visionos-platform/SKILL.md`，按其中路由打开对应 Apple 官方文档；纯 Domain / UseCase / 单元测试改动不强制读取。iOS / macOS 技能只能作为语法或通用 Swift 辅助，不能替代 visionOS 裁决
+2. Coding、debug、build/runtime triage 或 review 触及 SwiftUI、RealityKit、
+   ARKit、Metal、AVKit、scene/window lifecycle、spatial interaction、
+   文件/网络/持久化、性能，或任何 iOS/macOS 平台假设时，必须先读
+   `.agents/skills/visionos-platform/SKILL.md`，按其中路由打开对应
+   reference 和必要的 Apple 官方文档。Debug、review、API 替换、跨模块改动
+   必须同时读 `references/misconceptions.md`。纯 Domain / UseCase / 单元测试改动
+   不强制读取。iOS / macOS 技能只能作为语法或通用 Swift 辅助，不能替代
+   visionOS 裁决
 3. UI / Design Preview 改动先读存在的 UI 规范文件；当前 DesignPreview 规范入口是 `DesignPreview/AGENTS.md`
 4. 产品体验判断先读 `docs/product_philosophy.md`，需求边界按需查 `docs/brainstorms/*-requirements.md`
 5. 任务 >3 文件或跨模块 → 写 Exec Plan（存放于 docs/plans/active/，完成后归档至 docs/archive/ExecPlan/）
@@ -49,7 +56,7 @@ XrPlayer/
 1. 执行与改动范围匹配的自动验证；优先使用项目 Bun 脚本，缺失时退回 Xcode CLI
 2. UI / Design Preview 改动必须给出人类真机或 Simulator 验证清单
 3. 修复 bug 时，在对应 QA 报告、计划或专项文档中记录复现路径和回归验证方式
-4. 交付时说明：自动验证结果、需要人类确认的体验点、未覆盖风险
+4. 交付时说明：自动验证结果、已读的 visionOS reference / 已排除的平台误区（如适用）、需要人类确认的体验点、未覆盖风险
 
 ### 改动模块接口时
 1. 先更新 `docs/contracts/`
@@ -68,6 +75,8 @@ XrPlayer/
 具体约定：
 
 - 高概率重复、参数稳定的动作优先走 Bun 脚本：`bun run build:visionos`、`bun run test:smoke`、`bun run verify:agent`
+- visionOS skill / AGENTS 路由文档改动后，运行：
+  `bun .agents/skills/visionos-platform/scripts/verify-skill-docs.ts`
 - Bun 脚本缺失或不覆盖当前需求时，直接退回原生 CLI：`xcodebuild`、`xcrun simctl`、`xcrun xcresulttool`、`swift`、`swiftlint`
 - 涉及 simulator UI 交互、截图、手势、按 accessibility 元素定位、结构化调试时，优先使用项目级 XcodeBuildMCP
 - 项目级 MCP 配置位于仓库根目录 `.mcp.json`；它是 CLI 的补充层，不替代 CLI
@@ -90,7 +99,9 @@ XrPlayer/
 ## UI 编码约束
 
 - 所有 UI 样式值（圆角、间距、动画、颜色、材质）必须通过 Design Token 引用，禁止硬编码
-- 所有可交互组件必须有 `accessibilityIdentifier` + `accessibilityLabel`
+- 需要 UI 测试定位的交互控件必须有稳定 `accessibilityIdentifier`；
+  icon-only / custom controls 必须有明确 `accessibilityLabel`；标准文本控件应保留正确的系统派生语义；
+  非标准播放控件需要合适的 accessibility actions
 - Token 未覆盖时：有人值守上报询问；overnight 标记 BLOCKED
 - 涉及 UI 改动时，先读：**`.agents/skills/visionos-platform/SKILL.md`** 和就近 `AGENTS.md`
 

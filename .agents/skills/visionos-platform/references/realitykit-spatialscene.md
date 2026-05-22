@@ -6,16 +6,21 @@ presentation.
 
 ## Apple Sources
 
+### Open first
+
 - Adding 3D content to your app: https://developer.apple.com/documentation/visionos/adding-3d-content-to-your-app
 - RealityKit: https://developer.apple.com/documentation/realitykit
 - RealityView: https://developer.apple.com/documentation/realitykit/realityview
+- VideoPlayerComponent: https://developer.apple.com/documentation/realitykit/videoplayercomponent
+- ViewAttachmentComponent: https://developer.apple.com/documentation/realitykit/viewattachmentcomponent
+
+### Open if
+
 - RealityViewContent: https://developer.apple.com/documentation/realitykit/realityviewcontent
 - Views and attachments: https://developer.apple.com/documentation/realitykit/presentation-views-and-attachments
 - Attachment: https://developer.apple.com/documentation/realitykit/attachment
-- ViewAttachmentComponent: https://developer.apple.com/documentation/realitykit/viewattachmentcomponent
 - RealityKit videos: https://developer.apple.com/documentation/realitykit/scene-content-videos
 - VideoMaterial: https://developer.apple.com/documentation/realitykit/videomaterial
-- VideoPlayerComponent: https://developer.apple.com/documentation/realitykit/videoplayercomponent
 - Playing immersive media with RealityKit: https://developer.apple.com/documentation/visionos/playing-immersive-media-with-realitykit
 - Rendering stereoscopic video with RealityKit: https://developer.apple.com/documentation/visionos/rendering-stereoscopic-video-with-realitykit
 - Spatial layout HIG: https://developer.apple.com/design/human-interface-guidelines/spatial-layout/

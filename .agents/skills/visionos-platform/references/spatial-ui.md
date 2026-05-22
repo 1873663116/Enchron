@@ -6,13 +6,19 @@ accessibility, and component behavior.
 
 ## Apple Sources
 
+### Open first
+
 - Designing for visionOS: https://developer.apple.com/design/human-interface-guidelines/designing-for-visionos/
 - Spatial layout: https://developer.apple.com/design/human-interface-guidelines/spatial-layout/
-- Windows HIG: https://developer.apple.com/design/human-interface-guidelines/windows
-- Ornaments HIG: https://developer.apple.com/design/human-interface-guidelines/ornaments
 - Eyes HIG: https://developer.apple.com/design/human-interface-guidelines/eyes
 - Gestures HIG: https://developer.apple.com/design/human-interface-guidelines/gestures
 - Buttons HIG: https://developer.apple.com/design/human-interface-guidelines/buttons
+- Improving accessibility support in your visionOS app: https://developer.apple.com/documentation/visionos/improving-accessibility-support-in-your-app
+
+### Open if
+
+- Windows HIG: https://developer.apple.com/design/human-interface-guidelines/windows
+- Ornaments HIG: https://developer.apple.com/design/human-interface-guidelines/ornaments
 - Going full screen HIG: https://developer.apple.com/design/human-interface-guidelines/going-full-screen
 - Glass background effect: https://developer.apple.com/documentation/swiftui/glassbackgroundeffect
 - `glassBackgroundEffect(_:in:displayMode:)`: https://developer.apple.com/documentation/swiftui/view/glassbackgroundeffect(_:in:displaymode:)
@@ -26,7 +32,6 @@ accessibility, and component behavior.
 - GeometryReader3D: https://developer.apple.com/documentation/swiftui/geometryreader3d
 - Spatial framework: https://developer.apple.com/documentation/spatial
 - CoordinateSpace3D: https://developer.apple.com/documentation/spatial/coordinatespace3d
-- Improving accessibility support in your visionOS app: https://developer.apple.com/documentation/visionos/improving-accessibility-support-in-your-app
 - Accessibility: https://developer.apple.com/documentation/accessibility
 
 ## Correct Decisions

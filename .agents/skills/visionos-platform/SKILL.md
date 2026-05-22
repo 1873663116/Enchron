@@ -1,12 +1,12 @@
 ---
 name: visionos-platform
-description: Use for Enchron/XrPlayer work that touches visionOS-specific Swift, SwiftUI, RealityKit, ARKit, Metal, AVKit/video playback, scene/window lifecycle, spatial interaction, privacy, performance, networking, persistence, or any area where iOS/macOS Swift instincts might conflict with Apple Vision Pro behavior. This is an official-docs router; load only the matching reference file for the task.
+description: Use for Enchron/XrPlayer work that touches visionOS-specific Swift, SwiftUI, RealityKit, ARKit, Metal, AVKit/video playback, scene/window lifecycle, spatial interaction, privacy, performance, networking, persistence, or any area where iOS/macOS Swift instincts might conflict with Apple Vision Pro behavior. Do not use for pure Swift Domain, UseCase, or unit-test changes with no platform surface. This is an official-docs router; load only the matching reference file for the task.
 ---
 
 # visionOS Platform Router
 
-This skill prevents iOS/macOS Swift habits from silently becoming visionOS
-decisions in Enchron.
+This skill prevents iOS/macOS Swift and SwiftUI habits from silently becoming
+visionOS decisions in Enchron.
 
 The skill body is only an entry point. Do not read every reference by default.
 Pick the task area below, then load only the matching file in `references/`.
@@ -23,6 +23,15 @@ triggers, read this router, then the smallest relevant reference file.
 Use live Apple documentation when the answer depends on current API
 availability, OS-version behavior, privacy requirements, App Store constraints,
 media/HDR behavior, ARKit permissions, or performance claims.
+
+Coding, debugging, build triage, runtime triage, and code review all count as
+skill triggers when they touch a visionOS platform surface.
+
+When this skill and an iOS/macOS skill both appear relevant, this skill controls
+surface selection, lifecycle, privacy, media behavior, rendering, input, and
+verification. iOS/macOS skills may help with Swift syntax, general Foundation
+patterns, or cross-platform API mechanics only after the visionOS surface is
+chosen.
 
 ## Workflow
 
@@ -52,6 +61,10 @@ media/HDR behavior, ARKit permissions, or performance claims.
 
 ## Cross-Read Rules
 
+- SwiftUI window, scene, volume, immersive-space, presentation, or restoration
+  work: read `app-scenes.md`.
+- SwiftUI controls, layout, hover/focus, ornaments, accessibility, or
+  DesignPreview work: read `spatial-ui.md`.
 - MPV `CAMetalLayer`, EDR/HDR, texture bridge, or renderer timing: read
   `playback-media.md`, `metal-compositor.md`, and `performance-debugging.md`.
 - Immersive video in RealityKit: read `playback-media.md` and
@@ -89,8 +102,8 @@ What visionOS surface owns this behavior?
 - Bounded 2D UI: standard window.
 - Bounded 3D object/model: volume.
 - Unbounded spatial content controlled by the app: `ImmersiveSpace`.
-- Fully custom stereoscopic Metal renderer: `ImmersiveSpace` with
-  `CompositorLayer`.
+- Custom immersive Metal renderer: `ImmersiveSpace` with `CompositorLayer`;
+  check Compositor Services docs for full/mixed/progressive behavior.
 - Maximum system video integration: `AVPlayerViewController`.
 - Custom immersive video: RealityKit video APIs, with AVKit as baseline.
 - Network/file/persistence: Foundation, Network, Security, SwiftData, plus

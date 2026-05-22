@@ -6,19 +6,24 @@ behavior, restoration, and placement.
 
 ## Apple Sources
 
+### Open first
+
 - visionOS docs: https://developer.apple.com/documentation/visionos/
 - Presenting windows and spaces: https://developer.apple.com/documentation/visionos/presenting-windows-and-spaces
 - Positioning and sizing windows: https://developer.apple.com/documentation/visionos/positioning-and-sizing-windows
+- WindowGroup: https://developer.apple.com/documentation/swiftui/windowgroup
+- Immersive spaces: https://developer.apple.com/documentation/swiftui/immersive-spaces
+
+### Open if
+
 - Creating SwiftUI windows in visionOS: https://developer.apple.com/documentation/visionos/creating-a-new-swiftui-window-in-visionos
 - Scene restoration: https://developer.apple.com/documentation/visionos/adopting-best-practices-for-scene-restoration
-- WindowGroup: https://developer.apple.com/documentation/swiftui/windowgroup
 - Volumetric window style: https://developer.apple.com/documentation/swiftui/windowstyle/volumetric
 - World scaling behavior: https://developer.apple.com/documentation/swiftui/worldscalingbehavior
 - Default volumetric size: https://developer.apple.com/documentation/swiftui/scene/defaultsize(width:height:depth:in:)
 - Window resizability: https://developer.apple.com/documentation/swiftui/scene/windowresizability(_:)
 - Default window placement: https://developer.apple.com/documentation/swiftui/scene/defaultwindowplacement(_:)
 - OpenWindowAction: https://developer.apple.com/documentation/swiftui/openwindowaction
-- Immersive spaces: https://developer.apple.com/documentation/swiftui/immersive-spaces
 - Open immersive space: https://developer.apple.com/documentation/swiftui/environmentvalues/openimmersivespace
 - Dismiss immersive space: https://developer.apple.com/documentation/swiftui/environmentvalues/dismissimmersivespace
 - Immersion styles: https://developer.apple.com/documentation/swiftui/immersionstyle
