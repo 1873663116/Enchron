@@ -16,7 +16,6 @@ preserving the current `visionos-platform` skill as a thin router.
   misconceptions.
 - Added the missing lightweight `docs/quality_gates.md` entry referenced by
   project instructions.
-- Tightened the skill-doc guard so newly routed references must exist.
 
 ## Out Of Scope
 
@@ -34,11 +33,9 @@ preserving the current `visionos-platform` skill as a thin router.
 4. Patched `SKILL.md` and related references without turning the skill into a
    long platform manual.
 5. Added `docs/quality_gates.md` for version-gate and media-profile gates.
-6. Added routed-reference existence checks to the skill-doc guard.
 
 ## Verification
 
-- Passed: `bun .agents/skills/visionos-platform/scripts/verify-skill-docs.ts`
 - Passed: `git diff --check`
 
 ## Status

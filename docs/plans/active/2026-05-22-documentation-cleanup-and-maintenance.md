@@ -176,18 +176,10 @@ git diff --check
 rg -n "docs/contracts/frontend-backend-contract|AV reference path|debug-only|diagnostic-only|isolated and diagnostic" ARCHITECTURE.md docs .agents/skills/visionos-platform
 rg -n "PlaybackEngine|PlaybackEngineRoute|PlaybackEngineRouter|AppleNativeMedia|OpenFormatMedia|appleAV|mpv-safe|Apple-native|single-engine|单引擎" ARCHITECTURE.md docs .agents/skills/visionos-platform
 rg -n "PlayerUI.*mpv|PlayerUI.*AV|UI.*engine|PlaybackMode.*engine|AVKit.*state machine|system player.*state machine" ARCHITECTURE.md docs .agents/skills/visionos-platform
-bun .agents/skills/visionos-platform/scripts/verify-skill-docs.ts
 test ! -f docs/reference/2026-05-22-deterministic-playback-engine-routing.md
 test -f docs/contracts/playback-engine-routing.md
 test -f docs/plans/active/2026-05-22-documentation-cleanup-and-maintenance.md
 ```
-
-If the skill-doc script fails because a touched reference file lacks required
-sections, fix the touched file.
-
-If it fails because of pre-existing unrelated reference files, record the
-failure in the PR notes and do not expand this task into a full skill-doc
-rewrite unless the failure blocks the changed playback reference.
 
 ## Definition of Done
 

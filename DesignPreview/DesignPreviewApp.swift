@@ -13,11 +13,6 @@ struct DesignPreviewApp: App {
         WindowGroup {
             DesignPreviewRoot()
         }
-
-        WindowGroup("Empty Panel", id: "designComps-emptyPanel") {
-            EmptyPanelWindowContent()
-        }
-        .defaultSize(width: 1920, height: 1080)
-        .windowResizability(.contentSize)
+        .windowStyle(.plain)
     }
 }

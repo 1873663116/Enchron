@@ -55,7 +55,7 @@ import SwiftUI
             VStack(spacing: 0) {
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.card)
                     .fill(DesignTokens.Surface.elevated)
-                    .frame(height: 140)
+                    .frame(height: DesignTokens.Card.thumbnailHeight)
                     .overlay {
                         Image(systemName: "play.circle")
                             .font(DesignTokens.SymbolSize.hero)

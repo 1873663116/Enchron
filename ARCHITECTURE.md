@@ -1,10 +1,5 @@
 # Enchron 架构
 
-Purpose: 定义 Enchron 的稳定架构边界。
-Status: Active architecture constitution.
-Owner/scope: 模块职责、依赖方向、跨模块不变量、deliberate absences。
-This file is not a phase summary, changelog, issue archive, implementation guide, or UI spec.
-
 ## 产品形态
 
 Enchron 是面向 visionOS 的原生沉浸式视频播放器。用户从本地或远程来源选择媒体；应用把播放请求收敛到统一启动路径；`PlaybackCore` 报告媒体事实和播放状态；`PlayerUI` 决定呈现模式；`SpatialScene` 承担沉浸和全景呈现；`Persistence` 保存进度、偏好、凭证和场景状态。
@@ -174,7 +169,6 @@ Do not link to contract files that do not exist. Do not create contract document
 - 没有 UI-level adapter selection between mpv and Apple AV。
 - 没有把并行播放路线作为正常 session 模型。
 - 没有把 `Shared` 当成跨模块业务容器。
-- 没有可以替代 visionOS 人类/设备验证的自动化 UI 测试。
 - 没有为了窗口模式捷径而牺牲沉浸场景演进的架构决策。
 
 ## 阅读顺序
@@ -183,6 +177,5 @@ Do not link to contract files that do not exist. Do not create contract document
 2. 读 `docs/product_philosophy.md`，确认产品优先级。
 3. 读 `docs/ubiquitous_language.md`，确认共享术语。
 4. 变更受 contract 约束的边界时，读 `docs/contracts/` 下的 active contract。
-5. 根据触及表面读取就近 `AGENTS.md`、DesignPreview 文档和 visionOS reference。
 
 归档 phase、QA、investigation 文档是历史上下文。它们与本文、当前源码或 active contracts 冲突时，先修正 active source of truth。
