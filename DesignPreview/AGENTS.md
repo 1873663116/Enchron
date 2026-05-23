@@ -8,12 +8,13 @@ Enchron UI 参考。`ComponentLibrary.swift` 中的组件持续确认中，以�
 
 ## DesignPreview 路由
 
-- `ContentView.swift` / `ComponentLibrary.swift` / `SharedComponents.swift` 是现有 Component Library / UI Kit 资产库。里面已确认的按钮、卡片、列表、菜单、时间轴、窗格、搜索栏等视觉效果不要顺手重做。
+- `ContentView.swift` / `ComponentLibrary.swift` / `SharedComponents.swift` 是现有 Component Library / UI Kit 资产库。页面必须直接复用其中已确认的按钮、卡片、列表、菜单、时间轴、窗格、搜索栏等组件；不要在页面局部仿写一个“看起来相似”的版本。
 - `DesignComps/` 放从 `docs/designs/` HTML 设计稿拆出的高保真页面稿。这里做的是 design comps / screen mockups，不是最终 Fake UX。
-- `DesignComps/Pages/` 放完整页面；`Sections/` 只在页面细节过多、需要分步校准时拆出大区域；`Overlays/` 放 sheet、popover、menu、share panel；`Assets/` 放图标等视觉资产；`Fixtures/` 放假数据。
+- `DesignComps/Pages/` 目前只承载两个窗口化页面：文件页面与播放/窗口交互页面。页面内部可以呈现需要校准的窗口化交互状态；沉浸空间与全景模式不在当前 DesignPreview 页面范围内。`Sections/` 只在页面细节过多、需要分步校准时拆出大区域；`Overlays/` 放 sheet、popover、menu、share panel；`Assets/` 放图标等视觉资产；`Fixtures/` 放假数据。
 - 新建 DesignComp 前先读 `docs/designs/` 中对应 HTML，按真实设计稿决定页面数量和名称，不凭空发明页面数、窗口尺寸或最终流程。
 - DesignComp 可以有局部 hover、press、展开、菜单、sheet 等小交互；不要接真实业务逻辑，也不要把它提前串成 Fake UX。
-- 稳定组件优先引用现有资产库。只有当 HTML 中出现新的视觉形态且需要沉淀时，才在明确范围内新增组件或 token。
+- 稳定组件必须直接调用现有资产库。只有当 HTML 中出现新的视觉形态且组件库没有对应组件时，才在明确范围内新增组件或 token。
+- Xcode Canvas / Design Preview 已在运行时，视觉微调优先观察 Canvas 自动刷新；不要每次小改后都主动执行完整 build。只有遇到 Canvas 失败、资源未加载、编译错误不明确、或需要交付前自动化确认时，才单独运行 build。
 
 ---
 

@@ -4,6 +4,64 @@ import SwiftUI
 
 // MARK: - Reusable controls
 
+struct GlassCircleIconButton: View {
+    let systemName: String
+    let accessibilityLabel: String
+    var iconColor: Color = .white
+    var action: () -> Void = {}
+    var accessibilityIdentifier: String?
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(DesignTokens.SymbolSize.control)
+                .foregroundStyle(iconColor)
+                .frame(width: DesignTokens.Interactive.regular,
+                       height: DesignTokens.Interactive.regular)
+        }
+        .buttonStyle(.plain)
+        .clipShape(Circle())
+        .glassBackgroundEffect(in: Circle())
+        .contentShape(.hoverEffect, Circle())
+        .hoverEffect(.automatic)
+        .padding((DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
+        .contentShape(Circle())
+        .enchronPressFeedback(.icon)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(systemName)")
+    }
+}
+
+struct GlassCapsuleIconLabelButton: View {
+    let title: String
+    let systemName: String
+    let accessibilityLabel: String
+    var iconColor: Color = .white
+    var minWidth: CGFloat = DesignTokens.Interactive.regular * 2
+    var action: () -> Void = {}
+    var accessibilityIdentifier: String?
+
+    var body: some View {
+        Button(action: action) {
+            Label(title, systemImage: systemName)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(iconColor)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .frame(minWidth: minWidth, minHeight: DesignTokens.Interactive.regular)
+        }
+        .buttonStyle(.plain)
+        .clipShape(Capsule())
+        .glassBackgroundEffect(in: Capsule())
+        .contentShape(.hoverEffect, Capsule())
+        .hoverEffect(.automatic)
+        .padding(.vertical, (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
+        .contentShape(Capsule())
+        .enchronPressFeedback(.control)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(title)")
+    }
+}
+
 struct NavBackForwardCapsuleControl: View {
     var iconColor: Color = .white
     var trailingOpacity: Double = 0.65
@@ -131,6 +189,7 @@ struct VideoCardLarge: View {
     let fileSize: String
     let duration: String
     var badges: [String] = []
+    var width: CGFloat = DesignTokens.Card.gridMin
 
     var body: some View {
         VStack(spacing: 0) {
@@ -139,7 +198,7 @@ struct VideoCardLarge: View {
                 // Thumbnail placeholder — in real app this is the video frame
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                     .fill(DesignTokens.Surface.elevated)
-                    .frame(height: 140)
+                    .frame(height: DesignTokens.Card.thumbnailHeight)
 
                 // Badges (HDR, DV, etc.) — Capsule, top-right
                 if !badges.isEmpty {
@@ -173,7 +232,7 @@ struct VideoCardLarge: View {
             .padding(.horizontal, DesignTokens.Card.paddingH)
             .padding(.vertical, DesignTokens.Card.paddingV)
         }
-        .frame(width: DesignTokens.Card.gridMin)
+        .frame(width: width)
         .enchronGlassCard()
         .enchronPressFeedback(.card)
     }
@@ -182,13 +241,14 @@ struct VideoCardLarge: View {
 struct FolderCard: View {
     let title: String
     let count: Int
+    var width: CGFloat = DesignTokens.Card.gridMin
 
     var body: some View {
         let shape = DesignTokens.ShapeToken.card
         VStack(spacing: 0) {
             RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                 .fill(DesignTokens.Surface.elevated)
-                .frame(height: 140)
+                .frame(height: DesignTokens.Card.thumbnailHeight)
                 .overlay {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 54))
@@ -204,7 +264,7 @@ struct FolderCard: View {
             .padding(.vertical, DesignTokens.Card.paddingV)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: DesignTokens.Card.gridMin)
+        .frame(width: width)
         .clipShape(shape)
         .glassBackgroundEffect(in: shape)
         .contentShape(.hoverEffect, shape)
@@ -239,6 +299,158 @@ struct SceneCardMedium: View {
         )
         .enchronGlassCard()
         .enchronPressFeedback(.card)
+    }
+}
+
+struct FeaturedSceneCard: View {
+    var onPrevious: () -> Void = {}
+    var onExpand: () -> Void = {}
+    var onMore: () -> Void = {}
+
+    var body: some View {
+        let shape = RoundedRectangle(
+            cornerRadius: Metrics.cornerRadius,
+            style: .continuous
+        )
+
+        ZStack(alignment: .bottom) {
+            backgroundImage
+            topMultiplyOverlay
+            sceneInfoPanel
+            topControls
+        }
+        .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
+        .clipShape(shape)
+        .overlay {
+            shape.strokeBorder(DesignTokens.Surface.overlay, lineWidth: DesignTokens.Stroke.regular)
+        }
+        .contentShape(.hoverEffect, shape)
+        .contentShape(shape)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("DesignPreview-FeaturedSceneCard")
+        .accessibilityLabel("Featured scene card, Deep Space")
+    }
+
+    private var backgroundImage: some View {
+        Image("SceneFeatureCard")
+            .resizable()
+            .scaledToFill()
+            .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
+            .clipped()
+    }
+
+    private var topControls: some View {
+        VStack {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                GlassCircleIconButton(
+                    systemName: "chevron.left",
+                    accessibilityLabel: "Previous scene",
+                    action: onPrevious,
+                    accessibilityIdentifier: "DesignPreview-FeaturedSceneCard-button-previous"
+                )
+                Spacer()
+                GlassCircleIconButton(
+                    systemName: "arrow.up.left.and.arrow.down.right",
+                    accessibilityLabel: "Expand scene",
+                    action: onExpand,
+                    accessibilityIdentifier: "DesignPreview-FeaturedSceneCard-button-expand"
+                )
+            }
+            .padding(Metrics.chromePadding)
+            Spacer()
+        }
+    }
+
+    private var topMultiplyOverlay: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.black)
+                .blendMode(.multiply)
+                .mask(topMultiplyFadeMask)
+                .frame(height: Metrics.topMultiplyHeight)
+            Spacer(minLength: 0)
+        }
+        .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
+    }
+
+    private var sceneInfoPanel: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Deep Space")
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(.white)
+                Spacer(minLength: DesignTokens.Spacing.md)
+                Text("Scene 01")
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(.white.opacity(0.72))
+            }
+
+            Text("\"The room falls away, and the stars become the only screen.\"")
+                .font(.title3)
+                .foregroundStyle(.white)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                Text("Mode: Spatial cinema")
+                Text("Atmosphere: Nebula / quiet orbit")
+            }
+            .font(DesignTokens.Typography.metadata)
+            .foregroundStyle(.white.opacity(0.72))
+        }
+        .padding(.horizontal, Metrics.infoPaddingH)
+        .padding(.top, Metrics.infoPaddingTop)
+        .padding(.bottom, Metrics.infoPaddingBottom)
+        .frame(width: Metrics.cardWidth,
+               height: Metrics.infoHeight,
+               alignment: .topLeading)
+        .background {
+            Rectangle()
+                .fill(Color.black)
+                .blendMode(.multiply)
+                .mask(infoMaterialFadeMask)
+        }
+    }
+
+    private var infoMaterialFadeMask: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .white.opacity(Metrics.infoFadeMinOpacity), location: 0),
+                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.34), location: 0.08),
+                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.52), location: 0.18),
+                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.62), location: 0.42),
+                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.72), location: 0.68),
+                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.92), location: 0.88),
+                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity), location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private var topMultiplyFadeMask: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .white.opacity(Metrics.topFadeMaxOpacity), location: 0),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private enum Metrics {
+        static let cardWidth: CGFloat = 520
+        static let cardHeight: CGFloat = 548
+        static let infoHeight: CGFloat = 188
+        static let cornerRadius: CGFloat = DesignTokens.Radius.card
+        static let chromePadding: CGFloat = 18
+        static let infoPaddingH: CGFloat = 36
+        static let infoPaddingTop: CGFloat = 34
+        static let infoPaddingBottom: CGFloat = 14
+        static let infoFadeMinOpacity: CGFloat = 0
+        static let infoFadeMaxOpacity: CGFloat = 0.45
+        static let topMultiplyHeight: CGFloat = 160
+        static let topFadeMaxOpacity: CGFloat = 0.40
     }
 }
 
@@ -373,6 +585,163 @@ struct MockBreadcrumb: View {
                 }
             }
         }
+    }
+}
+
+struct PathBreadcrumbMenu: View {
+    let path: [String]
+    var onSelectLevel: (Int) -> Void = { _ in }
+
+    private var currentFolder: String {
+        path.last ?? ""
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(Array(path.enumerated()), id: \.offset) { index, _ in
+                Button {
+                    onSelectLevel(index)
+                } label: {
+                    Label(pathPrefix(through: index), systemImage: index == path.count - 1 ? "checkmark" : "")
+                }
+            }
+        } label: {
+            Text(currentFolder)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .padding(.horizontal, DesignTokens.Spacing.xs)
+                .padding(.vertical, DesignTokens.Spacing.xs)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(currentFolder)
+    }
+
+    private func pathPrefix(through index: Int) -> String {
+        path.prefix(index + 1).joined(separator: " / ")
+    }
+}
+
+struct SearchInputCapsule: View {
+    @Binding var text: String
+    var placeholder = "Search"
+    var width: CGFloat = DesignTokens.Card.gridMin
+    var accessibilityIdentifier = "DesignPreview-input-search"
+
+    @State private var isSelected = false
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        let isActive = isSelected || isFocused
+
+        HStack(spacing: DesignTokens.Spacing.xs) {
+            Image(systemName: "magnifyingglass")
+                .font(.body)
+                .foregroundStyle(.tertiary)
+
+            TextField(placeholder, text: $text)
+                .textFieldStyle(.plain)
+                .font(.body)
+                .foregroundStyle(.secondary)
+                .focused($isFocused)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled(true)
+                .hoverEffectDisabled()
+                .allowsHitTesting(false)
+        }
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .frame(width: width, height: DesignTokens.Interactive.regular)
+        .clipShape(Capsule())
+        .glassBackgroundEffect(in: Capsule())
+        .contentShape(.hoverEffect, Capsule())
+        .hoverEffect(.automatic)
+        .contentShape(Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(
+                    DesignTokens.Surface.focusBorder.opacity(isActive ? 1 : 0),
+                    lineWidth: DesignTokens.Stroke.bold
+                )
+                .animation(DesignTokens.AnimationToken.selection, value: isActive)
+        }
+        .onTapGesture {
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                isSelected = true
+                isFocused = true
+            }
+        }
+        .onChange(of: isFocused) { _, isFocused in
+            guard !isFocused else { return }
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                isSelected = false
+            }
+        }
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel(placeholder)
+    }
+}
+
+struct FilterPillBar: View {
+    let filters: [String]
+    @Binding var selection: String
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.xs) {
+            ForEach(filters, id: \.self) { filter in
+                Button {
+                    withAnimation(DesignTokens.AnimationToken.selection) {
+                        selection = filter
+                    }
+                } label: {
+                    Text(filter)
+                        .font(.body)
+                        .foregroundStyle(selection == filter ? .primary : .secondary)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                        .padding(.vertical, DesignTokens.Spacing.xs)
+                        .background(selection == filter ? DesignTokens.Surface.selected : .clear, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .enchronGlassPill()
+                .contentShape(.hoverEffect, Capsule())
+                .hoverEffect(.automatic)
+            }
+        }
+    }
+}
+
+struct SourcePaneRow: View {
+    let icon: String
+    let title: String
+    var isSelected = false
+    var isEnabled = true
+    var isOnline = false
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: icon)
+                .font(DesignTokens.Typography.headline)
+                .foregroundStyle(isSelected ? DesignTokens.Theme.accent : .secondary)
+                .frame(width: DesignTokens.Interactive.mini)
+
+            Text(title)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(isEnabled ? .primary : .tertiary)
+                .lineLimit(1)
+
+            Spacer(minLength: 0)
+
+            if isOnline {
+                Circle()
+                    .fill(isSelected ? DesignTokens.Theme.accent : .green)
+                    .frame(width: DesignTokens.Spacing.xs, height: DesignTokens.Spacing.xs)
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .frame(minHeight: DesignTokens.Interactive.rowHeight)
+        .background(isSelected ? DesignTokens.Surface.selected : .clear, in: DesignTokens.ShapeToken.element)
+        .opacity(isEnabled ? 1 : 0.42)
+        .accessibilityLabel(title)
     }
 }
 
