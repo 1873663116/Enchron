@@ -1,20 +1,47 @@
 import SwiftUI
 
 struct DesignPreviewRoot: View {
-    @Environment(\.openWindow) private var openWindow
+    @State private var selection: DesignPreviewTab = .files
 
     var body: some View {
-        ContentView()
-            .ornament(attachmentAnchor: .scene(.bottomTrailing)) {
-                Button {
-                    openWindow(id: "designComps-emptyPanel")
-                } label: {
-                    Label("Empty Panel", systemImage: "rectangle.roundedtop")
+        TabView(selection: $selection) {
+            HomeFirstLaunchPage()
+                .tabItem {
+                    Label("Files", systemImage: "folder.fill")
                 }
-                .buttonStyle(.borderless)
-                .glassBackgroundEffect(in: Capsule())
-                .accessibilityIdentifier("DesignPreview-openEmptyPanel")
-                .accessibilityLabel("Open Empty Panel")
-            }
+                .tag(DesignPreviewTab.files)
+
+            DesignPreviewPlaceholderPage(title: "Settings")
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape.fill")
+                }
+                .tag(DesignPreviewTab.settings)
+
+            CampScenePage()
+                .tabItem {
+                    Label("Scene", systemImage: "mountain.2")
+                }
+                .tag(DesignPreviewTab.scene)
+        }
+        .tabViewStyle(.sidebarAdaptable)
+        .accessibilityIdentifier("DesignPreview-rootTabView")
+    }
+}
+
+private enum DesignPreviewTab {
+    case files
+    case settings
+    case scene
+}
+
+private struct DesignPreviewPlaceholderPage: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .font(DesignTokens.Typography.title)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .accessibilityLabel(title)
     }
 }

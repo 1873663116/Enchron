@@ -1,20 +1,12 @@
 # Enchron — Agent 指令
 
 面向 visionOS 的高质感视频播放器
-技术栈：Swift 6 / SwiftUI / RealityKit / ARKit / Metal / mpv / SMB / WebDAV
+技术栈：Xcode visionOS app project / Swift toolchain / SwiftUI / RealityKit / ARKit / Metal / AVKit / mpv / SMB / WebDAV / SwiftData / Keychain
+
+`Package.swift` 使用 `swift-tools-version: 6.0`；Xcode targets 当前声明 `SWIFT_VERSION = 5.0`。不要把 tools version 当成 target language mode。
 
 Enchron 的目标是 Apple 平台原生品质——高质量的窗口播放、低学习成本、强沉浸感的full space
 详见 `docs/product_philosophy.md`
-
----
-
-## 审视产出
-
-编译通过不是完成。一个好的设计师看一眼就知道哪里不舒服——这种感受比任何检查清单都早到达。
-
-写完代码之后，你应该能在脑中看到它在屏幕上的样子。如果看不到，那不是该交付的时刻，而是该去理解的时刻——读上下文、读设计稿、读平台约束，直到你能感受到产出在完整系统中的位置。
-
-感受不到就不要动手。动完手感受不到对不对就不要交付。
 
 ---
 
@@ -36,73 +28,106 @@ XrPlayer/
 
 ---
 
-## Agent 标准动作序列
+## 仓库事实
 
-### Coding / Debug 前
-1. 读 ARCHITECTURE.md 确认涉及的模块和 Architecture Invariants
-2. Coding、debug、build/runtime triage 或 review 触及 SwiftUI、RealityKit、
-   ARKit、Metal、AVKit、scene/window lifecycle、spatial interaction、
-   文件/网络/持久化、性能，或任何 iOS/macOS 平台假设时，必须先读
-   `.agents/skills/visionos-platform/SKILL.md`，按其中路由打开对应
-   reference 和必要的 Apple 官方文档。Debug、review、API 替换、跨模块改动
-   必须同时读 `references/misconceptions.md`。纯 Domain / UseCase / 单元测试改动
-   不强制读取。iOS / macOS 技能只能作为语法或通用 Swift 辅助，不能替代
-   visionOS 裁决
-3. UI / Design Preview 改动先读存在的 UI 规范文件；当前 DesignPreview 规范入口是 `DesignPreview/AGENTS.md`
-4. 产品体验判断先读 `docs/product_philosophy.md`，需求边界按需查 `docs/brainstorms/*-requirements.md`
-5. 任务 >3 文件或跨模块 → 写 Exec Plan（存放于 docs/plans/active/，完成后归档至 docs/archive/ExecPlan/）
-
-### 改动代码后
-1. 执行与改动范围匹配的自动验证；优先使用项目 Bun 脚本，缺失时退回 Xcode CLI
-2. UI / Design Preview 改动必须给出人类真机或 Simulator 验证清单
-3. 修复 bug 时，在对应 QA 报告、计划或专项文档中记录复现路径和回归验证方式
-4. 交付时说明：自动验证结果、已读的 visionOS reference / 已排除的平台误区（如适用）、需要人类确认的体验点、未覆盖风险
-
-### 改动模块接口时
-1. 先更新 `docs/contracts/`
-2. 先更新 ARCHITECTURE.md 的对应 Architecture Invariants
-3. 再改代码
-4. 对照是否一致
-
-### CLI / MCP 选择规则
-
-默认优先级：
-
-1. 项目 Bun 脚本
-2. 原生 Xcode CLI
-3. 项目级 XcodeBuildMCP
-
-具体约定：
-
-- 高概率重复、参数稳定的动作优先走 Bun 脚本：`bun run build:visionos`、`bun run test:smoke`、`bun run verify:agent`
-- visionOS skill / AGENTS 路由文档改动后，运行：
-  `bun .agents/skills/visionos-platform/scripts/verify-skill-docs.ts`
-- Bun 脚本缺失或不覆盖当前需求时，直接退回原生 CLI：`xcodebuild`、`xcrun simctl`、`xcrun xcresulttool`、`swift`、`swiftlint`
-- 涉及 simulator UI 交互、截图、手势、按 accessibility 元素定位、结构化调试时，优先使用项目级 XcodeBuildMCP
-- 项目级 MCP 配置位于仓库根目录 `.mcp.json`；它是 CLI 的补充层，不替代 CLI
+- `XrPlayer.xcodeproj` 是完整 visionOS app 的 source of truth。
+- `Package.swift` 定义 `XrPlayerCoreTestsSupport`，覆盖部分 core/library 测试，不是完整 app manifest。
+- 根目录 `Package.resolved` 与 `XrPlayer.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` 不可互换。
+- `XrPlayer` target 依赖 AMSMB2、MPVKit-GPL 和 RealityKitContent。
+- `DesignPreview` 是独立 Xcode target，局部规范入口是 `DesignPreview/AGENTS.md`。
+- `.mcp.json` 配置 XcodeBuildMCP；MCP 是模拟器 UI、截图、accessibility、IDE 自动化补充层，不替代 CLI。
 
 ---
 
-## 行为准则
+## Apple 工具链公理
 
-| 准则 | 说明 |
-|------|------|
-| 先读文档再动手 | 本文件 → ARCHITECTURE.md → `.agents/skills/visionos-platform/SKILL.md` → 就近 `AGENTS.md` / 相关专项文档 |
-| 系统原生优先 | 系统容器、材质、动效是第一选择，自定义须证明改善了核心体验 |
-| 聚焦单一目标 | 每次改动围绕一个明确目标，不顺手重构 |
-| 临时方案标注 | `// WORKAROUND:` + 移除条件，不让它悄悄变永久 |
-| 改完可验证 | 至少补一项：自动化测试、结构守卫、smoke 检查步骤 |
-| 沉浸场景兼容 | 不为窗口模式的临时问题引入与沉浸场景冲突的架构决策 |
+- Apple 原生命令行是 Enchron 的构建、验证、分析和归档主线。
+- `xcodebuild` 用于 app build、test、analyze、archive，以及查询 scheme、destination 和 build settings。
+- `swift` / SwiftPM 只证明 `Package.swift` 覆盖的 package 逻辑。
+- `xcode-select --print-path` 用于检查当前 Xcode；`xcrun` 按当前 Xcode/SDK 调用 Apple 开发工具。
+- Simulator 与 destination 先用 `xcrun simctl` 和 `xcodebuild -showdestinations` 确认。
+- `swift format` / `swift-format` 只处理格式一致性；大规模格式化必须单独成事。
+- SwiftLint 是少量高信号架构守卫，不是架构设计器。
+- `xcodebuild analyze` 用于静态分析；播放器、Metal、CoreVideo、bridging、线程和 adapter 改动时优先级升高。
+- LLDB 用于运行时现场：断点、调用栈、线程、变量和崩溃。
+- Instruments / `xctrace` 用于性能事实：启动、掉帧、CPU/GPU、内存和泄漏。
+- Reality Composer Pro 属于空间内容生产链；RealityKit 问题同时检查资源、entity 层级、材质、坐标、scale、anchor、加载路径和 scene lifecycle。
+- 仓库脚本若存在，先读脚本再运行；脚本应包裹 Apple 原生工具，而不是替代 Apple 工具链。
+
+---
+
+## 工作方式
+
+把自己当作新加入项目的高级工程师：先理解系统边界，再选择工具和改动点。不要为了完成流程而忘记判断。
+
+开始前持续持有三个问题：
+
+- 这件事属于哪个限界上下文：PlaybackCore、PlayerUI、FileBrowsing、SpatialScene、Persistence、App、Settings、Shared、DesignPreview、docs / agents / contracts？
+- 它触及哪个 visionOS surface：window、volume、`ImmersiveSpace`、RealityKit scene、AVKit/system video、mpv/Metal texture、Compositor Services、file/network/persistence、Simulator/device/performance？
+- 什么证据能证明它真的变好了：`swift test`、`xcodebuild`、SwiftLint、`xcodebuild analyze`、Simulator、Vision Pro device、LLDB、Instruments / `xctrace`，还是人类体验判断？
+
+代码改动先读 `ARCHITECTURE.md`，确认职责归属和 Architecture Invariants。触及 SwiftUI、RealityKit、ARKit、Metal、AVKit、scene/window lifecycle、spatial interaction、文件/网络/持久化、性能，或任何 iOS/macOS 平台假设时，使用 `.agents/skills/visionos-platform/SKILL.md` 找到最小相关 reference；不要一次性吞下所有平台文档。
+
+UI / Design Preview 改动先读就近规范；当前入口是 `DesignPreview/AGENTS.md`。产品体验判断先读 `docs/product_philosophy.md`。
+
+跨模块、跨文档、风险较高或需要人类长期接力的任务，写短计划。计划的价值是保存判断和边界，不是制造审批表。
+
+改动模块接口时，先更新 `docs/contracts/` 和 `ARCHITECTURE.md` 的相关不变量，再改代码；接口和文档不同步时，后来的 agent 会在错误地图上工作。
+
+验证跟着风险走：纯 Domain / UseCase 改动通常从 `swift test` 开始；完整 app、UI、asset、target membership、RealityKitContent、signing、entitlement 或 bundle 改动用匹配 scheme 的 `xcodebuild`；播放器、Metal、CoreVideo、bridging、线程、HDR、远程 I/O 或持久化风险升高时考虑 `xcodebuild analyze`；性能和长时间观看问题进入 Instruments / `xctrace`。
+
+---
+
+## 判断提醒
+
+- 先读真实上下文再动手：本文件、`ARCHITECTURE.md`、相关 skill/reference、就近 `AGENTS.md` 或专项文档。
+- 系统原生优先：系统容器、材质、动效是第一选择；自定义需要改善核心体验。
+- 聚焦单一目标：不要把修 bug、换风格、重构和工具链清理混成一团。
+- 临时方案写清移除条件：`// WORKAROUND:` 后面要说明什么时候可以删。
+- 交付要有证据：自动检查、结构守卫、smoke、Simulator/Canvas 或人类体验边界，选能证明问题的那一个。
+- 沉浸场景持续在场：窗口模式下的临时正确，不能换来沉浸场景的长期错误。
+
+---
+
+## 需要人类裁决的边界
+
+这些动作改变开发身份、全局环境、发布资格或长期架构，不作为顺手修复：
+
+- 切换全局 Xcode：`sudo xcode-select -switch`
+- 清空所有模拟器：`xcrun simctl erase all`
+- 修改 signing、certificate、Keychain、provisioning profile、development team、bundle identifier 或 entitlements
+- 升级 Swift package 依赖或随意重写 `Package.resolved`
+- 顺手改变 Swift language mode、deployment target、license、隐私权限或发布身份
+- 在仓库根层引入跨生态 app build/test 工具链
+
+DerivedData、缓存和 Simulator 状态可以成为诊断对象；把它们当作第一反应通常是在逃避根因。
+
+---
+
+## 交付说明
+
+小改动在最终回复末尾用一小段说明：改了什么、验证了什么、什么还需要人类看。不要给普通改动套模板。
+
+重大、跨模块、高风险、发布相关或影响架构/合同/platform surface 的改动，需要结构化说明。重点不是字段齐全，而是让接手者知道：动了哪个 surface，读了哪些权威材料，证据到哪里为止，哪些体验、设备、HDR、性能、签名、隐私、license 或 fallback 风险还没有被证明。
+
+---
+
+## 文档语言
+
+- 写清 ownership：谁拥有事实，谁拥有决策，谁只是执行。
+- 分开事实、决策和理由；不要把调查材料写成项目规则。
+- 少写进度形容词，多写证据边界；build pass、Simulator 正确、HDR 标签正确、窗口模式正确都不是完整正确性证据。
+- 使用 `docs/ubiquitous_language.md` 术语：`PlaybackEngine` 不是 `PlaybackMode`；`PlaybackEngineRoute` 不是 presentation；`MediaProfile` 是共享事实层；`AppleNativeMedia` 需要证据；`OpenFormatMedia` 默认走 mpv-safe fallback。
 
 ---
 
 ## UI 编码约束
 
-- 所有 UI 样式值（圆角、间距、动画、颜色、材质）必须通过 Design Token 引用，禁止硬编码
-- 需要 UI 测试定位的交互控件必须有稳定 `accessibilityIdentifier`；
-  icon-only / custom controls 必须有明确 `accessibilityLabel`；标准文本控件应保留正确的系统派生语义；
-  非标准播放控件需要合适的 accessibility actions
-- Token 未覆盖时：有人值守上报询问；overnight 标记 BLOCKED
+- UI 样式值（圆角、间距、动画、颜色、材质）优先通过 Design Token 表达；局部例外要能解释为什么不提升为 token。
+- 需要 UI 测试定位的交互控件使用稳定 `accessibilityIdentifier`；
+  icon-only / custom controls 使用明确 `accessibilityLabel`；标准文本控件保留正确的系统派生语义；
+  非标准播放控件提供合适的 accessibility actions
+- Token 未覆盖时：有人值守上报询问；无人值守任务记录 BLOCKED
 - 涉及 UI 改动时，先读：**`.agents/skills/visionos-platform/SKILL.md`** 和就近 `AGENTS.md`
 
 ---
@@ -120,8 +145,9 @@ XrPlayer/
 | 文档 | 是什么 | 何时查阅 |
 |------|--------|----------|
 | `docs/product_philosophy.md` | 产品灵魂、三种播放模式的体验愿景 | 做设计决策时 |
-| `docs/quality_gates.md` | 一个改动怎样才算"可接受" | 提交代码前自查 |
+| `docs/quality_gates.md` | 改动可信度与风险信号 | 提交代码前自查 |
 | `docs/ubiquitous_language.md` | 项目统一术语表 | 命名类、方法、变量时 |
+| `docs/reference/apple-toolchain-guide.md` | Apple 工具链命令与验证提示 | 构建、测试、分析、归档、发布前检查时 |
 
 ### docs/ 子目录
 

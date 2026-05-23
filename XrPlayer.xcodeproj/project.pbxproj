@@ -9,10 +9,10 @@
 /* Begin PBXBuildFile section */
 		A4C19F9F2FD1000100AABBCC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
 		A4C19FA02FD1000100AABBCC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
-		C3D4A1012F90000100DA0D16 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C3D4A1002F90000100DA0D16 /* Assets.xcassets */; };
 		C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = C32D79C32F57A609002717FA /* MPVKit-GPL */; };
 		C3A35AB62F85429300DA0D16 /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3A35AB52F85429300DA0D16 /* RealityKitContent */; };
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
+		C3D4A1012F90000100DA0D16 /* DesignPreview/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C3D4A1002F90000100DA0D16 /* DesignPreview/Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,10 +50,10 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		C3D4A1002F90000100DA0D16 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = DesignPreview/Assets.xcassets; sourceTree = "<group>"; };
 		C3A35AB32F85429300DA0D16 /* DesignPreview.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DesignPreview.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3B0F9802F5726B30064596E /* XrPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XrPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3B0F9842F5726B30064596E /* RealityKitContent */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = RealityKitContent; sourceTree = "<group>"; };
+		C3D4A1002F90000100DA0D16 /* DesignPreview/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = DesignPreview/Assets.xcassets; sourceTree = "<group>"; };
 		E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = XrPlayerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -73,11 +73,13 @@
 			membershipExceptions = (
 				ComponentLibrary.swift,
 				ContentView.swift,
-				"DesignComps/DesignCompsPreviewGallery.swift",
-				"DesignComps/Pages/Files/VideoDetailPage.swift",
-				"DesignComps/Pages/Home/HomeV1Page.swift",
-				"DesignComps/Pages/Player/PlayerControlPanelPage.swift",
-				"DesignComps/Windows/EmptyPanelWindowContent.swift",
+				DesignComps/DesignCompsPreviewGallery.swift,
+				DesignComps/Pages/Files/VideoDetailPage.swift,
+				DesignComps/Pages/Home/HomeFirstLaunchPage.swift,
+				DesignComps/Pages/Home/HomeV1Page.swift,
+				DesignComps/Pages/Player/PlayerControlPanelPage.swift,
+				DesignComps/Pages/Scene/CampScenePage.swift,
+				DesignComps/Windows/EmptyPanelWindowContent.swift,
 				DesignPreviewApp.swift,
 				DesignPreviewRoot.swift,
 				SharedComponents.swift,
@@ -134,6 +136,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		C38F115C2FC16A0700843A5C /* Recovered References */ = {
+			isa = PBXGroup;
+			children = (
+				C3D4A1002F90000100DA0D16 /* DesignPreview/Assets.xcassets */,
+			);
+			name = "Recovered References";
+			sourceTree = "<group>";
+		};
 		C3B0F9772F5726B30064596E = {
 			isa = PBXGroup;
 			children = (
@@ -141,6 +151,7 @@
 				C3B0F9832F5726B30064596E /* Packages */,
 				C3A35AA12F85415E00DA0D16 /* DesignPreview */,
 				C3B0F9812F5726B30064596E /* Products */,
+				C38F115C2FC16A0700843A5C /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -283,7 +294,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				C3D4A1012F90000100DA0D16 /* Assets.xcassets in Resources */,
+				C3D4A1012F90000100DA0D16 /* DesignPreview/Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -25,7 +25,7 @@ struct EmptyPanelWindowContent<Content: View>: View {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text("Empty Panel")
                         .font(DesignTokens.Typography.title)
-                    Text("System WindowGroup shell / default 1920 x 1080")
+                    Text("System WindowGroup shell")
                         .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(.secondary)
                 }
@@ -49,20 +49,23 @@ extension EmptyPanelWindowContent where Content == EmptyView {
 
 struct DesignCompWindowPreviewStage<Content: View>: View {
     var showsSidebar = false
+    var sidebarSelection: DesignCompSidebarItem = .files
     private let content: Content
 
     init(
         showsSidebar: Bool = false,
+        sidebarSelection: DesignCompSidebarItem = .files,
         @ViewBuilder content: () -> Content
     ) {
         self.showsSidebar = showsSidebar
+        self.sidebarSelection = sidebarSelection
         self.content = content()
     }
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.xl) {
             if showsSidebar {
-                DesignCompSidebar()
+                DesignCompSidebar(selection: sidebarSelection)
             }
 
             EmptyPanelWindowContent(showsReviewLabel: false) {
@@ -77,14 +80,21 @@ struct DesignCompWindowPreviewStage<Content: View>: View {
     }
 }
 
-private struct DesignCompSidebar: View {
+enum DesignCompSidebarItem {
+    case files
+    case settings
+    case scene
+}
+
+struct DesignCompSidebar: View {
+    let selection: DesignCompSidebarItem
+
     var body: some View {
         VStack(spacing: DesignTokens.Spacing.md) {
-            sidebarButton("folder.fill", label: "Files", isSelected: true)
-            sidebarButton("clock.fill", label: "Recent")
-            sidebarButton("gearshape.fill", label: "Settings")
+            sidebarButton("folder.fill", label: "Files", item: .files)
+            sidebarButton("gearshape.fill", label: "Settings", item: .settings)
             Spacer(minLength: DesignTokens.Spacing.xl)
-            sidebarButton("sparkles", label: "Scene")
+            sidebarButton("mountain.2", label: "Scene", item: .scene)
         }
         .padding(.vertical, DesignTokens.Spacing.lg)
         .padding(.horizontal, DesignTokens.Spacing.xs)
@@ -98,9 +108,11 @@ private struct DesignCompSidebar: View {
     private func sidebarButton(
         _ systemName: String,
         label: String,
-        isSelected: Bool = false
+        item: DesignCompSidebarItem
     ) -> some View {
-        Image(systemName: systemName)
+        let isSelected = selection == item
+
+        return Image(systemName: systemName)
             .font(DesignTokens.SymbolSize.control)
             .foregroundStyle(isSelected ? DesignTokens.Theme.accent : .secondary)
             .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)

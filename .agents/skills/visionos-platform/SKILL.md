@@ -33,17 +33,19 @@ verification. iOS/macOS skills may help with Swift syntax, general Foundation
 patterns, or cross-platform API mechanics only after the visionOS surface is
 chosen.
 
-## Workflow
+## Working Shape
 
-1. Classify the touched Enchron module and visionOS surface.
-2. Open the matching reference file from the route table.
-3. Open the Apple docs linked by that reference when the behavior is not already
-   certain.
-4. Name the inherited iOS/macOS assumption that could be wrong.
-5. Inspect the local code before proposing or editing.
-6. Make the smallest change aligned with the visionOS source.
-7. Verify with the narrowest automated check and list any required Simulator or
-   device checks.
+Use this skill to keep the right question in view, not to fill a checklist.
+
+- Name the touched Enchron module and visionOS surface.
+- Open the smallest matching reference file from the route table.
+- Open linked Apple docs when the behavior depends on current API, privacy,
+  App Store, media/HDR, ARKit, or performance facts.
+- Notice the inherited iOS/macOS assumption that could be wrong.
+- Inspect local code before proposing or editing.
+- Keep the change small and aligned with the chosen visionOS surface.
+- Verify with evidence that can see the risk; name any Simulator or device check
+  that still matters.
 
 ## Route Table
 
@@ -100,9 +102,9 @@ For a broad Enchron platform audit, read:
 For a small edit, read only one task reference plus `misconceptions.md` if the
 code smells like an iOS/macOS port.
 
-## Version Gate Rule
+## Version Question
 
-Before choosing a visionOS 26 API, answer:
+Before choosing a visionOS 26 API, keep these facts visible:
 
 1. What is the project minimum deployment target?
 2. Is the API available at that target?

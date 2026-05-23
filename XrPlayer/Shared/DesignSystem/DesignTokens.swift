@@ -352,6 +352,33 @@ public enum DesignTokens {
         public static let gridSpacing: CGFloat = Spacing.lg     // 20
     }
 
+    /// Spatial card stack used by the Camp Scene preview.
+    public enum SceneCarousel {
+        public static let stageWidth: CGFloat = 1_140
+        public static let stageHeight: CGFloat = 640
+        public static let centerScale: CGFloat = 1.0
+        public static let sideScaleStep: CGFloat = 0.055
+        public static let minimumScale: CGFloat = 0.84
+        public static let cardOffsetStep: CGFloat = 170
+        public static let cardOffsetCompression: CGFloat = 20
+        public static let sideCardYOffset: CGFloat = 10
+        public static let centerDepthOffset: CGFloat = 96
+        public static let sideDepthOffset: CGFloat = 56
+        public static let sideOpacityStep: CGFloat = 0.16
+        public static let visibleCardLimit: CGFloat = 2.36
+        public static let edgeFadeMultiplier: CGFloat = 2.4
+        public static let rotationStepDegrees: CGFloat = 12.5
+        public static let dragDistance: CGFloat = 250
+        public static let snapThreshold: CGFloat = 0.32
+        public static let maximumDragProgress: CGFloat = 1.18
+        public static let detailFadeThreshold: CGFloat = 0.08
+    }
+
+    public enum SourcePane {
+        /// Files page source pane width
+        public static let width: CGFloat = 208
+    }
+
     /// Menu/popover panel standard dimensions.
     public enum Menu {
         /// Glass inset padding

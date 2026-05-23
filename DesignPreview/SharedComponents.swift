@@ -302,7 +302,85 @@ struct SceneCardMedium: View {
     }
 }
 
+struct FeaturedScene: Identifiable {
+    let id: String
+    let imageName: String
+    let title: String
+    let sceneNumber: String
+    let quote: String
+    let mode: String
+    let atmosphere: String
+
+    static let fixtures: [FeaturedScene] = [
+        .init(
+            id: "snow-village",
+            imageName: "SceneFeatureCard",
+            title: "Snow Village",
+            sceneNumber: "Scene 01",
+            quote: "\"A bright winter morning opens into a quiet alpine town.\"",
+            mode: "Spatial cinema",
+            atmosphere: "Snowfield / clear daylight"
+        ),
+        .init(
+            id: "dune-observatory",
+            imageName: "SceneFeatureDesert",
+            title: "Dune Observatory",
+            sceneNumber: "Scene 02",
+            quote: "\"A gold horizon turns the theatre into a quiet instrument.\"",
+            mode: "Observatory cinema",
+            atmosphere: "Desert / amber dusk"
+        ),
+        .init(
+            id: "neon-canopy",
+            imageName: "SceneFeatureNeonCity",
+            title: "Neon Canopy",
+            sceneNumber: "Scene 03",
+            quote: "\"Rain and city light fold into a private rooftop screen.\"",
+            mode: "Night lounge",
+            atmosphere: "Neon / reflective rain"
+        ),
+        .init(
+            id: "forest-shrine",
+            imageName: "SceneFeatureForestShrine",
+            title: "Forest Shrine",
+            sceneNumber: "Scene 04",
+            quote: "\"The woods dim the world without closing it in.\"",
+            mode: "Ambient cinema",
+            atmosphere: "Moss / morning mist"
+        ),
+        .init(
+            id: "ocean-temple",
+            imageName: "SceneFeatureOceanTemple",
+            title: "Ocean Temple",
+            sceneNumber: "Scene 05",
+            quote: "\"Light falls through water and softens every edge.\"",
+            mode: "Deep cinema",
+            atmosphere: "Coral / turquoise depth"
+        ),
+        .init(
+            id: "orbital-garden",
+            imageName: "SceneFeatureOrbitalGarden",
+            title: "Orbital Garden",
+            sceneNumber: "Scene 06",
+            quote: "\"A living station holds the planet in the corner of your eye.\"",
+            mode: "Spatial cinema",
+            atmosphere: "Orbit / luminous green"
+        ),
+        .init(
+            id: "dream-cinema",
+            imageName: "SceneFeatureCinema",
+            title: "Dream Cinema",
+            sceneNumber: "Scene 07",
+            quote: "\"Projector light turns the hall into a warm private ritual.\"",
+            mode: "Classic theatre",
+            atmosphere: "Velvet / brass glow"
+        )
+    ]
+}
+
 struct FeaturedSceneCard: View {
+    var scene: FeaturedScene = .fixtures[0]
+    var showsDetails: Bool = true
     var onPrevious: () -> Void = {}
     var onExpand: () -> Void = {}
     var onMore: () -> Void = {}
@@ -315,12 +393,15 @@ struct FeaturedSceneCard: View {
 
         ZStack(alignment: .bottom) {
             backgroundImage
-            topMultiplyOverlay
-            sceneInfoPanel
-            topControls
+            if showsDetails {
+                topMultiplyOverlay
+                sceneInfoPanel
+                topControls
+            }
         }
         .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
         .clipShape(shape)
+        .glassBackgroundEffect(in: shape)
         .overlay {
             shape.strokeBorder(DesignTokens.Surface.overlay, lineWidth: DesignTokens.Stroke.regular)
         }
@@ -328,11 +409,11 @@ struct FeaturedSceneCard: View {
         .contentShape(shape)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("DesignPreview-FeaturedSceneCard")
-        .accessibilityLabel("Featured scene card, Deep Space")
+        .accessibilityLabel("Featured scene card, \(scene.title)")
     }
 
     private var backgroundImage: some View {
-        Image("SceneFeatureCard")
+        Image(scene.imageName)
             .resizable()
             .scaledToFill()
             .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
@@ -376,23 +457,23 @@ struct FeaturedSceneCard: View {
     private var sceneInfoPanel: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Deep Space")
+                Text(scene.title)
                     .font(DesignTokens.Typography.title)
                     .foregroundStyle(.white)
                 Spacer(minLength: DesignTokens.Spacing.md)
-                Text("Scene 01")
+                Text(scene.sceneNumber)
                     .font(DesignTokens.Typography.metadata)
                     .foregroundStyle(.white.opacity(0.72))
             }
 
-            Text("\"The room falls away, and the stars become the only screen.\"")
+            Text(scene.quote)
                 .font(.title3)
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                Text("Mode: Spatial cinema")
-                Text("Atmosphere: Nebula / quiet orbit")
+                Text("Mode: \(scene.mode)")
+                Text("Atmosphere: \(scene.atmosphere)")
             }
             .font(DesignTokens.Typography.metadata)
             .foregroundStyle(.white.opacity(0.72))
@@ -439,7 +520,7 @@ struct FeaturedSceneCard: View {
     }
 
     private enum Metrics {
-        static let cardWidth: CGFloat = 520
+        static let cardWidth: CGFloat = 500
         static let cardHeight: CGFloat = 548
         static let infoHeight: CGFloat = 188
         static let cornerRadius: CGFloat = DesignTokens.Radius.card
@@ -451,6 +532,167 @@ struct FeaturedSceneCard: View {
         static let infoFadeMaxOpacity: CGFloat = 0.45
         static let topMultiplyHeight: CGFloat = 160
         static let topFadeMaxOpacity: CGFloat = 0.40
+    }
+}
+
+struct SceneCardCarousel: View {
+    var scenes: [FeaturedScene] = FeaturedScene.fixtures
+
+    @State private var activeIndex = 0
+    @State private var dragTranslation: CGFloat = 0
+    @State private var settleProgress: CGFloat = 0
+
+    var body: some View {
+        ZStack {
+            if scenes.isEmpty {
+                EmptyView()
+            } else {
+                ForEach(orderedRenderOffsets, id: \.self) { offset in
+                    let visualPosition = CGFloat(offset) - dragProgress
+                    let scene = scenes[wrappedIndex(activeIndex + offset)]
+
+                    FeaturedSceneCard(
+                        scene: scene,
+                        showsDetails: offset == 0 && abs(dragProgress) < Metrics.detailFadeThreshold,
+                        onPrevious: { move(by: -1) },
+                        onExpand: {},
+                        onMore: {}
+                    )
+                    .allowsHitTesting(offset == 0)
+                    .scaleEffect(scale(for: visualPosition))
+                    .rotation3DEffect(
+                        .degrees(rotation(for: visualPosition)),
+                        axis: (x: 0, y: 1, z: 0),
+                        anchor: visualPosition < 0 ? .leading : .trailing
+                    )
+                    .offset(z: zOffset(for: visualPosition))
+                    .offset(x: xOffset(for: visualPosition), y: yOffset(for: visualPosition))
+                    .opacity(opacity(for: visualPosition))
+                    .zIndex(zIndex(for: visualPosition))
+                    .accessibilityHidden(offset != 0)
+                }
+            }
+        }
+        .frame(width: Metrics.stageWidth, height: Metrics.stageHeight)
+        .contentShape(Rectangle())
+        .gesture(dragGesture)
+        .animation(DesignTokens.AnimationToken.scene, value: activeIndex)
+        .animation(DesignTokens.AnimationToken.scene, value: dragTranslation == 0)
+        .accessibilityIdentifier("DesignPreview-SceneCardCarousel")
+    }
+
+    private var orderedRenderOffsets: [Int] {
+        Metrics.renderOffsets.sorted {
+            abs(CGFloat($0) - dragProgress) > abs(CGFloat($1) - dragProgress)
+        }
+    }
+
+    private var dragProgress: CGFloat {
+        guard !scenes.isEmpty else { return 0 }
+        let gestureProgress = -dragTranslation / Metrics.dragDistance
+        return max(-Metrics.maximumDragProgress,
+                   min(Metrics.maximumDragProgress, settleProgress + gestureProgress))
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: DesignTokens.Stroke.regular)
+            .onChanged { value in
+                dragTranslation = value.translation.width
+            }
+            .onEnded { value in
+                let projectedProgress = -value.predictedEndTranslation.width / Metrics.dragDistance
+                let actualProgress = -value.translation.width / Metrics.dragDistance
+                let shouldAdvance = projectedProgress > Metrics.snapThreshold || actualProgress > Metrics.snapThreshold
+                let shouldRetreat = projectedProgress < -Metrics.snapThreshold || actualProgress < -Metrics.snapThreshold
+
+                let targetStep = shouldAdvance ? 1 : (shouldRetreat ? -1 : 0)
+
+                withAnimation(
+                    DesignTokens.AnimationToken.scene,
+                    completionCriteria: .logicallyComplete
+                ) {
+                    dragTranslation = 0
+                    settleProgress = CGFloat(targetStep)
+                } completion: {
+                    if targetStep != 0 {
+                        activeIndex = wrappedIndex(activeIndex + targetStep)
+                    }
+                    settleProgress = 0
+                }
+            }
+    }
+
+    private func move(by delta: Int) {
+        guard !scenes.isEmpty else { return }
+        withAnimation(DesignTokens.AnimationToken.scene) {
+            activeIndex = wrappedIndex(activeIndex + delta)
+        }
+    }
+
+    private func wrappedIndex(_ index: Int) -> Int {
+        guard !scenes.isEmpty else { return 0 }
+        return (index % scenes.count + scenes.count) % scenes.count
+    }
+
+    private func xOffset(for position: CGFloat) -> CGFloat {
+        let distance = abs(position)
+        let sign: CGFloat = position < 0 ? -1 : 1
+        let compressedDistance = distance * Metrics.cardOffsetStep
+            - distance * max(0, distance - 1) * Metrics.cardOffsetCompression
+        return sign * compressedDistance
+    }
+
+    private func yOffset(for position: CGFloat) -> CGFloat {
+        abs(position) * Metrics.sideCardYOffset
+    }
+
+    private func zOffset(for position: CGFloat) -> CGFloat {
+        Metrics.centerDepthOffset - abs(position) * Metrics.sideDepthOffset
+    }
+
+    private func scale(for position: CGFloat) -> CGFloat {
+        let distance = min(abs(position), 3)
+        return max(Metrics.minimumScale, Metrics.centerScale - distance * Metrics.scaleStep)
+    }
+
+    private func rotation(for position: CGFloat) -> Double {
+        let distance = min(abs(position), 2.5)
+        let sign: Double = position < 0 ? 1 : -1
+        return sign * Double(distance * Metrics.rotationStep)
+    }
+
+    private func opacity(for position: CGFloat) -> Double {
+        let distance = abs(position)
+        guard distance <= Metrics.visibleCardLimit else { return 0 }
+        let depthOpacity = 1 - min(distance, 2) * Metrics.sideOpacityStep
+        let edgeFade = 1 - max(0, distance - 2) * Metrics.edgeFadeMultiplier
+        return Double(max(0, min(depthOpacity, edgeFade)))
+    }
+
+    private func zIndex(for position: CGFloat) -> Double {
+        100 - Double(abs(position) * 10)
+    }
+
+    private enum Metrics {
+        static let stageWidth: CGFloat = DesignTokens.SceneCarousel.stageWidth
+        static let stageHeight: CGFloat = DesignTokens.SceneCarousel.stageHeight
+        static let dragDistance: CGFloat = DesignTokens.SceneCarousel.dragDistance
+        static let snapThreshold: CGFloat = DesignTokens.SceneCarousel.snapThreshold
+        static let maximumDragProgress: CGFloat = DesignTokens.SceneCarousel.maximumDragProgress
+        static let detailFadeThreshold: CGFloat = DesignTokens.SceneCarousel.detailFadeThreshold
+        static let visibleCardLimit: CGFloat = DesignTokens.SceneCarousel.visibleCardLimit
+        static let centerScale: CGFloat = DesignTokens.SceneCarousel.centerScale
+        static let minimumScale: CGFloat = DesignTokens.SceneCarousel.minimumScale
+        static let cardOffsetStep: CGFloat = DesignTokens.SceneCarousel.cardOffsetStep
+        static let cardOffsetCompression: CGFloat = DesignTokens.SceneCarousel.cardOffsetCompression
+        static let sideCardYOffset: CGFloat = DesignTokens.SceneCarousel.sideCardYOffset
+        static let centerDepthOffset: CGFloat = DesignTokens.SceneCarousel.centerDepthOffset
+        static let sideDepthOffset: CGFloat = DesignTokens.SceneCarousel.sideDepthOffset
+        static let sideOpacityStep: CGFloat = DesignTokens.SceneCarousel.sideOpacityStep
+        static let edgeFadeMultiplier: CGFloat = DesignTokens.SceneCarousel.edgeFadeMultiplier
+        static let scaleStep: CGFloat = DesignTokens.SceneCarousel.sideScaleStep
+        static let rotationStep: CGFloat = DesignTokens.SceneCarousel.rotationStepDegrees
+        static let renderOffsets = [-3, -2, -1, 0, 1, 2, 3]
     }
 }
 
