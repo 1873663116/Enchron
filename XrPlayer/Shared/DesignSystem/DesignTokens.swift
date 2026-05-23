@@ -236,13 +236,13 @@ public enum DesignTokens {
 
         /// Individual icons use the strongest scale cue, matching spatial capsule controls.
         public static let icon = PressFeedbackSpec(
-            pressedScale: 0.95,
-            maximumVisualInset: 2.5,
+            pressedScale: 0.90,
+            maximumVisualInset: 3.5,
             pressAnimation: .easeOut(duration: 0.08),
-            releaseAnimation: .spring(response: 0.3, dampingFraction: 0.6),
+            releaseAnimation: .spring(response: 0.26, dampingFraction: 0.48),
             holdDuration: .milliseconds(150),
             pressAnimationLabel: "easeOut 0.08s",
-            releaseAnimationLabel: "spring r0.3 d0.6",
+            releaseAnimationLabel: "spring r0.26 d0.48",
             holdDurationLabel: "150ms"
         )
     }
@@ -345,7 +345,9 @@ public enum DesignTokens {
         /// Vertical padding inside card text area (project-wide constant)
         public static let paddingV: CGFloat = 14
         /// Adaptive grid minimum card width
-        public static let gridMin: CGFloat = 240
+        public static let gridMin: CGFloat = 224
+        /// Thumbnail height for grid cards
+        public static let thumbnailHeight: CGFloat = 140
         /// Grid inter-item spacing
         public static let gridSpacing: CGFloat = Spacing.lg     // 20
     }

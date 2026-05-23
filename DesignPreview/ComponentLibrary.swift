@@ -44,8 +44,6 @@ private struct CircleButtonsSection: View {
     @State private var sortKey: SortKey = .name
     @State private var sortOrder: SortOrder = .ascending
     @State private var searchText = ""
-    @State private var isSearchSelected = false
-    @FocusState private var isSearchFieldFocused: Bool
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
@@ -53,36 +51,67 @@ private struct CircleButtonsSection: View {
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(.secondary).textCase(.uppercase)
 
-            HStack(spacing: DesignTokens.Spacing.xl) {
-                labeledComponent("Back") {
-                    interactiveCircle("chevron.left", id: "back")
-                }
-                labeledComponent("Forward") {
-                    interactiveCircle("chevron.right", id: "forward")
-                }
-                labeledComponent("Sort") {
-                    sortMenuButton
-                }
-                labeledComponent("Source Menu") {
-                    sourceMenuButton
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                HStack(spacing: DesignTokens.Spacing.xl) {
+                    labeledComponent("Back") {
+                        interactiveCircle("chevron.left", id: "back")
+                    }
+                    labeledComponent("Forward") {
+                        interactiveCircle("chevron.right", id: "forward")
+                    }
+                    labeledComponent("Sort") {
+                        sortMenuButton
+                    }
+                    labeledComponent("Source Menu") {
+                        sourceMenuButton
+                    }
+                    labeledComponent("Expand") {
+                        GlassCapsuleIconLabelButton(
+                            title: "Expand",
+                            systemName: "arrow.up.left.and.arrow.down.right",
+                            accessibilityLabel: "Expand",
+                            accessibilityIdentifier: "DesignPreview-ComponentLibrary-button-expand"
+                        )
+                    }
+                    labeledComponent("Expand Icon") {
+                        GlassCircleIconButton(
+                            systemName: "arrow.up.left.and.arrow.down.right",
+                            accessibilityLabel: "Expand",
+                            accessibilityIdentifier: "DesignPreview-ComponentLibrary-button-expand-icon"
+                        )
+                    }
+                    labeledComponent("More") {
+                        GlassCircleIconButton(
+                            systemName: "ellipsis",
+                            accessibilityLabel: "More",
+                            accessibilityIdentifier: "DesignPreview-ComponentLibrary-button-more"
+                        )
+                    }
                 }
 
-                labeledComponent("Nav Back/Forward") {
-                    NavBackForwardCapsuleControl(
-                        iconColor: .white,
-                        accessibilityIdentifier: "DesignPreview-ComponentLibrary-control-navBackForward"
-                    )
-                }
+                HStack(spacing: DesignTokens.Spacing.xl) {
+                    labeledComponent("Nav Back/Forward") {
+                        NavBackForwardCapsuleControl(
+                            iconColor: .white,
+                            accessibilityIdentifier: "DesignPreview-ComponentLibrary-control-navBackForward"
+                        )
+                    }
 
-                labeledComponent("View Mode (tap to switch)") {
-                    ViewModeCapsuleControl(
-                        selection: $viewMode,
-                        iconColor: .white,
-                        accessibilityIdentifier: "DesignPreview-ComponentLibrary-control-viewMode"
-                    )
-                }
-                labeledComponent("Search") {
-                    searchInputCapsule
+                    labeledComponent("View Mode (tap to switch)") {
+                        ViewModeCapsuleControl(
+                            selection: $viewMode,
+                            iconColor: .white,
+                            accessibilityIdentifier: "DesignPreview-ComponentLibrary-control-viewMode"
+                        )
+                    }
+                    labeledComponent("Search") {
+                        SearchInputCapsule(
+                            text: $searchText,
+                            placeholder: "搜索",
+                            width: DesignTokens.Card.gridMin + DesignTokens.Spacing.xxxl + DesignTokens.Spacing.md,
+                            accessibilityIdentifier: "DesignPreview-ComponentLibrary-input-search"
+                        )
+                    }
                 }
             }
 
@@ -164,55 +193,6 @@ private struct CircleButtonsSection: View {
         .buttonStyle(.plain)
         .accessibilityIdentifier("DesignPreview-ComponentLibrary-menu-sort")
         .accessibilityLabel("Sort Menu")
-    }
-
-    private var searchInputCapsule: some View {
-        let isActive = isSearchSelected || isSearchFieldFocused
-
-        return HStack(spacing: DesignTokens.Spacing.xs) {
-            Image(systemName: "magnifyingglass")
-                .font(.body)
-                .foregroundStyle(.tertiary)
-
-            TextField("搜索", text: $searchText)
-                .textFieldStyle(.plain)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .focused($isSearchFieldFocused)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled(true)
-                .hoverEffectDisabled()
-                .allowsHitTesting(false)
-        }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .frame(width: 280, height: DesignTokens.Interactive.regular)
-        .clipShape(Capsule())
-        .glassBackgroundEffect(in: Capsule())
-        .contentShape(.hoverEffect, Capsule())
-        .hoverEffect(.automatic)
-        .contentShape(Capsule())
-        .overlay {
-            Capsule()
-                .strokeBorder(
-                    DesignTokens.Surface.focusBorder.opacity(isActive ? 1 : 0),
-                    lineWidth: DesignTokens.Stroke.bold
-                )
-                .animation(DesignTokens.AnimationToken.selection, value: isActive)
-        }
-        .onTapGesture {
-            withAnimation(DesignTokens.AnimationToken.selection) {
-                isSearchSelected = true
-                isSearchFieldFocused = true
-            }
-        }
-        .onChange(of: isSearchFieldFocused) { _, isFocused in
-            guard !isFocused else { return }
-            withAnimation(DesignTokens.AnimationToken.selection) {
-                isSearchSelected = false
-            }
-        }
-        .accessibilityIdentifier("DesignPreview-ComponentLibrary-input-search")
-        .accessibilityLabel("Search")
     }
 
     private var sourceMenuButton: some View {
@@ -314,25 +294,98 @@ private struct ToggleSection: View {
 // MARK: - Cards
 
 private struct CardsSection: View {
+    private let folders: [FolderFixture] = [
+        .init(title: "Movies", count: 24),
+        .init(title: "Spatial", count: 12),
+        .init(title: "Downloads", count: 8),
+        .init(title: "Archive", count: 36)
+    ]
+
+    private let videos: [VideoFixture] = [
+        .init(title: "Interstellar", fileSize: "8.2 GB", duration: "2:49:00", badges: ["HDR10+"]),
+        .init(title: "Dune: Part Two", fileSize: "56.1 GB", duration: "2:44:31", badges: ["HDR"]),
+        .init(title: "Arrival", fileSize: "28.4 GB", duration: "1:49:22", badges: ["MV-HEVC"]),
+        .init(title: "Gravity", fileSize: "18.9 GB", duration: "1:31:07", badges: [])
+    ]
+
+    private let scenes: [SceneFixture] = [
+        .init(icon: "rectangle.on.rectangle", title: "Window", isSelected: true),
+        .init(icon: "sparkles.tv", title: "Cinema", isSelected: false),
+        .init(icon: "mountain.2", title: "Space", isSelected: false),
+        .init(icon: "moon.stars", title: "Night", isSelected: false)
+    ]
+
+    private var componentCardWidth: CGFloat {
+        DesignTokens.Card.gridMin - DesignTokens.Spacing.md
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("CARDS")
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(.secondary).textCase(.uppercase)
 
-            HStack(alignment: .top, spacing: DesignTokens.Card.gridSpacing) {
-                labeledComponent("VideoCardLarge\ncard(32) + lift") {
-                    VideoCardLarge(title: "Interstellar", fileSize: "8.2 GB",
-                                   duration: "2:49:00", badges: ["HDR10+"])
+            cardRow("FolderCard") {
+                ForEach(folders) { folder in
+                    FolderCard(title: folder.title, count: folder.count, width: componentCardWidth)
                 }
-                labeledComponent("SceneCardMedium\ncard(32) + lift") {
-                    SceneCardMedium(icon: "mountain.2", title: "Cinema", isSelected: false)
+            }
+
+            cardRow("VideoCardLarge") {
+                ForEach(videos) { video in
+                    VideoCardLarge(
+                        title: video.title,
+                        fileSize: video.fileSize,
+                        duration: video.duration,
+                        badges: video.badges,
+                        width: componentCardWidth
+                    )
                 }
-                labeledComponent("FolderCard\ncard(32) + lift") {
-                    FolderCard(title: "Movies", count: 24)
+            }
+
+            cardRow("SceneCardMedium") {
+                ForEach(scenes) { scene in
+                    SceneCardMedium(icon: scene.icon, title: scene.title, isSelected: scene.isSelected)
+                        .frame(width: componentCardWidth)
                 }
             }
         }
+    }
+
+    private func cardRow<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(title)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
+            HStack(alignment: .top, spacing: DesignTokens.Card.gridSpacing) {
+                content()
+            }
+        }
+    }
+
+    private struct FolderFixture: Identifiable {
+        let title: String
+        let count: Int
+        var id: String { title }
+    }
+
+    private struct VideoFixture: Identifiable {
+        let title: String
+        let fileSize: String
+        let duration: String
+        let badges: [String]
+        var id: String { title }
+    }
+
+    private struct SceneFixture: Identifiable {
+        let icon: String
+        let title: String
+        let isSelected: Bool
+        var id: String { title }
     }
 }
 
@@ -550,30 +603,15 @@ private struct SmallElementsSection: View {
                 }
 
                 labeledComponent("FilterPills · 点击切换") {
-                    HStack(spacing: DesignTokens.Spacing.xs) {
-                        ForEach(filters, id: \.self) { filter in
-                            Button {
-                                withAnimation(DesignTokens.AnimationToken.selection) {
-                                    selectedFilter = filter
-                                }
-                            } label: {
-                                Text(filter)
-                                    .font(.body)
-                                    .foregroundStyle(selectedFilter == filter ? .primary : .secondary)
-                                    .padding(.horizontal, DesignTokens.Spacing.md)
-                                    .padding(.vertical, DesignTokens.Spacing.xs)
-                                    .background(selectedFilter == filter ? DesignTokens.Surface.selected : .clear, in: Capsule())
-                            }
-                            .buttonStyle(.plain)
-                            .enchronGlassPill()
-                            .contentShape(.hoverEffect, Capsule())
-                            .hoverEffect(.automatic)
-                        }
-                    }
+                    FilterPillBar(filters: filters, selection: $selectedFilter)
                 }
 
                 labeledComponent("Breadcrumb") {
                     MockBreadcrumb()
+                }
+
+                labeledComponent("PathBreadcrumbMenu") {
+                    PathBreadcrumbMenu(path: ["Local Storage", "Movies"])
                 }
             }
         }

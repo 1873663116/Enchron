@@ -11,6 +11,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     case surfaceAndStroke
     case animation
     case pressFeedback
+    case sceneCard
     case componentStandards
 
     var id: String { rawValue }
@@ -25,6 +26,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
         case .surfaceAndStroke: "Surface & Stroke"
         case .animation: "Animation"
         case .pressFeedback: "Press Feedback"
+        case .sceneCard: "Scene Card"
         case .componentStandards: "Component Standards"
         }
     }
@@ -58,6 +60,8 @@ struct ContentView: View {
                 AnimationTokensPreview()
             case .pressFeedback:
                 PressFeedbackPreview()
+            case .sceneCard:
+                SceneCardPreview()
             case .componentStandards:
                 ComponentStandardsPreview()
             }
@@ -67,6 +71,21 @@ struct ContentView: View {
 
 #Preview(windowStyle: .automatic) {
     ContentView()
+}
+
+// MARK: - Scene card
+
+struct SceneCardPreview: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .center, spacing: DesignTokens.Spacing.xl) {
+                FeaturedSceneCard()
+            }
+            .padding(DesignTokens.Spacing.xxl)
+            .frame(maxWidth: .infinity, alignment: .center)
+        }
+        .navigationTitle("Scene Card")
+    }
 }
 
 // MARK: - Shared token table
@@ -687,7 +706,7 @@ struct PressFeedbackPreview: View {
         TokenRow(name: "DesignTokens.PressFeedback.card", value: "scale 0.97", note: "cards and broad spatial surfaces"),
         TokenRow(name: "DesignTokens.PressFeedback.row", value: "scale 0.985", note: "menu rows and list items"),
         TokenRow(name: "DesignTokens.PressFeedback.control", value: "scale 0.96", note: "control capsules and grouped controls"),
-        TokenRow(name: "DesignTokens.PressFeedback.icon", value: "scale 0.95", note: "individual icon targets"),
+        TokenRow(name: "DesignTokens.PressFeedback.icon", value: "scale 0.90", note: "individual icon targets, stronger return spring"),
     ]
 
     var body: some View {
@@ -864,7 +883,8 @@ struct ComponentStandardsPreview: View {
     private let cardRows = [
         TokenRow(name: "DesignTokens.Card.paddingH", value: "16pt", note: "horizontal padding inside card text area"),
         TokenRow(name: "DesignTokens.Card.paddingV", value: "14pt", note: "vertical padding inside card text area"),
-        TokenRow(name: "DesignTokens.Card.gridMin", value: "240pt", note: "adaptive grid minimum card width"),
+        TokenRow(name: "DesignTokens.Card.gridMin", value: "224pt", note: "adaptive grid minimum card width"),
+        TokenRow(name: "DesignTokens.Card.thumbnailHeight", value: "140pt", note: "thumbnail height for grid cards"),
         TokenRow(name: "DesignTokens.Card.gridSpacing", value: "20pt", note: "grid inter-item spacing"),
     ]
 
