@@ -1,6 +1,6 @@
 import Foundation
 
-extension PersistenceDomain {
+nonisolated extension PersistenceDomain {
     public struct SavedScreenPosition: Sendable, Equatable {
         public let environmentID: String
         public let distanceMeters: Double

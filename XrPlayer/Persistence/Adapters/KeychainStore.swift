@@ -1,7 +1,7 @@
 import Foundation
 import Security
 
-public enum KeychainError: LocalizedError {
+public nonisolated enum KeychainError: LocalizedError, Sendable {
     case saveFailed(OSStatus)
     case loadFailed(OSStatus)
 
@@ -15,7 +15,7 @@ public enum KeychainError: LocalizedError {
     }
 }
 
-public final class KeychainStore: CredentialStoring {
+public nonisolated final class KeychainStore: CredentialStoring, @unchecked Sendable {
     private struct CredentialPayload: Codable {
         let username: String
         let password: String

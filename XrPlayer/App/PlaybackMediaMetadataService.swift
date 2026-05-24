@@ -34,8 +34,7 @@ public actor PlaybackMediaMetadataService {
         var resolvedMetadata = request.initialMetadata
 
         if let key = request.fileIdentifier?.rawValue,
-            let cachedMetadata = await store.loadMetadata(for: key)
-        {
+            let cachedMetadata = await store.loadMetadata(for: key) {
             resolvedMetadata = resolvedMetadata?.merging(with: cachedMetadata) ?? cachedMetadata
         }
 

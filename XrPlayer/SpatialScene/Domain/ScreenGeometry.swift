@@ -1,6 +1,6 @@
 import Foundation
 
-extension SpatialSceneDomain {
+nonisolated extension SpatialSceneDomain {
     public enum ScreenGeometry: Sendable, Equatable, Codable {
         case flat(width: Float, height: Float)
         case curved(radius: Float, height: Float)

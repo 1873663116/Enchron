@@ -1,13 +1,13 @@
 import Foundation
 
-public enum LocalDataSourceError: Error {
+public nonisolated enum LocalDataSourceError: Error, Sendable {
     case notConnected
     case unsupportedSourceType
     case fileNotPlayable
     case itemNotReachable
 }
 
-public final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting {
+public nonisolated final class LocalDataSourceAdapter: FileProviding, DataSourceConnecting, @unchecked Sendable {
     private let fileManager: FileManager
     private let filter: FileBrowsingDomain.FileFilter
     private let ioQueue = DispatchQueue(label: "xrplayer.localdatasource.io", qos: .userInitiated)

@@ -3,12 +3,12 @@ import Foundation
 /// Testable value type describing the EDR metadata to apply to a CAMetalLayer.
 /// Decoupled from CAEDRMetadata so unit tests can verify the selection logic
 /// without requiring a real layer or QuartzCore availability check.
-enum EDRMetadataDescriptor: Equatable {
+nonisolated enum EDRMetadataDescriptor: Equatable, Sendable {
     case hdr10(minLuminance: Float, maxLuminance: Float, opticalOutputScale: Float)
     case hlg
 }
 
-enum EDRMetadataSelection {
+nonisolated enum EDRMetadataSelection {
     /// Reference white luminance in nits per ITU-R BT.2408.
     private static let referenceWhiteNits: Double = 203.0
 

@@ -1,8 +1,8 @@
 import Foundation
 
-public enum PlaybackCoreDomain {}
+public nonisolated enum PlaybackCoreDomain {}
 
-extension PlaybackCoreDomain {
+nonisolated extension PlaybackCoreDomain {
     public enum PlaybackState: Sendable {
         case idle
         case loading

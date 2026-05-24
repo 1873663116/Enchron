@@ -1,6 +1,6 @@
 import Foundation
 
-public enum WebDAVError: LocalizedError {
+public nonisolated enum WebDAVError: LocalizedError, Sendable {
     case invalidConnectionInfo
     case notConnected
     case invalidResponse
@@ -26,7 +26,7 @@ public enum WebDAVError: LocalizedError {
     }
 }
 
-public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding {
+public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
     /// Stable DataSource ID for folder identity pass-through.
     public var ownerDataSourceID: UUID = UUID()
     private var baseURL: URL?
@@ -433,15 +433,15 @@ public final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding 
     }()
 }
 
-private final class PROPFINDParserDelegate: NSObject, XMLParserDelegate {
-    struct ResponseItem {
+private nonisolated final class PROPFINDParserDelegate: NSObject, XMLParserDelegate {
+    nonisolated struct ResponseItem: Sendable {
         var href: String?
         var contentLength: String?
         var lastModified: String?
         var isCollection: Bool = false
     }
 
-    private struct Propstat {
+    private nonisolated struct Propstat: Sendable {
         var statusCode: Int?
         var contentLength: String?
         var lastModified: String?

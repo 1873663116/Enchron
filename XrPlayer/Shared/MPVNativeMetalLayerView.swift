@@ -2,23 +2,19 @@ import Metal
 import QuartzCore
 import UIKit
 
-final class MPVNativeMetalLayer: CAMetalLayer {
+nonisolated final class MPVNativeMetalLayer: CAMetalLayer {
     /// The most recently vended drawable. The bridge reads the rendered
     /// texture from this drawable instead of calling `nextDrawable()` itself,
     /// which would steal a blank drawable from the pool.
     var lastVendedDrawable: (any CAMetalDrawable)? {
-        drawableLock.lock()
-        defer { drawableLock.unlock() }
-        return storedLastVendedDrawable
+        drawableLock.withLock { storedLastVendedDrawable }
     }
 
     /// A prior vended drawable reserved for diagnostics. HDR probe readback
     /// uses this instead of the current vended drawable to avoid sampling an
     /// in-flight render target.
     var lastProbeDrawable: (any CAMetalDrawable)? {
-        drawableLock.lock()
-        defer { drawableLock.unlock() }
-        return storedLastProbeDrawable
+        drawableLock.withLock { storedLastProbeDrawable }
     }
 
     private let drawableLock = NSLock()
@@ -41,13 +37,23 @@ final class MPVNativeMetalLayer: CAMetalLayer {
         get { super.wantsExtendedDynamicRangeContent }
         set {
             if Thread.isMainThread {
-                super.wantsExtendedDynamicRangeContent = newValue
+                applyWantsExtendedDynamicRangeContent(newValue)
             } else {
-                DispatchQueue.main.sync {
-                    super.wantsExtendedDynamicRangeContent = newValue
-                }
+                performSelector(
+                    onMainThread: #selector(applyWantsExtendedDynamicRangeContentBoxed(_:)),
+                    with: NSNumber(value: newValue),
+                    waitUntilDone: true
+                )
             }
         }
+    }
+
+    private func applyWantsExtendedDynamicRangeContent(_ newValue: Bool) {
+        super.wantsExtendedDynamicRangeContent = newValue
+    }
+
+    @objc private func applyWantsExtendedDynamicRangeContentBoxed(_ value: NSNumber) {
+        applyWantsExtendedDynamicRangeContent(value.boolValue)
     }
 
     override func nextDrawable() -> (any CAMetalDrawable)? {
@@ -57,10 +63,10 @@ final class MPVNativeMetalLayer: CAMetalLayer {
     }
 
     private func recordVendedDrawable(_ drawable: (any CAMetalDrawable)?) {
-        drawableLock.lock()
-        storedLastProbeDrawable = storedLastVendedDrawable
-        storedLastVendedDrawable = drawable
-        drawableLock.unlock()
+        drawableLock.withLock {
+            storedLastProbeDrawable = storedLastVendedDrawable
+            storedLastVendedDrawable = drawable
+        }
     }
 }
 

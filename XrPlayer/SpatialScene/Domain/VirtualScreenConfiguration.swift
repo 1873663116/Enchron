@@ -1,6 +1,6 @@
 import Foundation
 
-extension SpatialSceneDomain {
+nonisolated extension SpatialSceneDomain {
     public struct VirtualScreenConfiguration: Sendable, Equatable {
         public var geometry: ScreenGeometry
 

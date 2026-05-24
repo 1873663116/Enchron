@@ -1,6 +1,6 @@
 import Foundation
 
-extension PlaybackCoreDomain {
+nonisolated extension PlaybackCoreDomain {
     public enum StereoLayout: String, Sendable, CaseIterable, Codable {
         case mono
         case sideBySide

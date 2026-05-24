@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol PlaybackEventListening: AnyObject {
+public nonisolated protocol PlaybackEventListening: AnyObject {
     func playbackDidStart()
     func playbackDidPause()
     func playbackDidResume()

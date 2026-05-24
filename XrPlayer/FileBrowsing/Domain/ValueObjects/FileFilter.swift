@@ -1,6 +1,6 @@
 import Foundation
 
-extension FileBrowsingDomain {
+nonisolated extension FileBrowsingDomain {
     public struct FileFilter: Sendable, Equatable {
         public let allowedExtensions: Set<String>
 

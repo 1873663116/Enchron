@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MPVConfiguration: Sendable {
+public nonisolated struct MPVConfiguration: Sendable {
     public var useNativeGPUOutput: Bool
     public var enableHardwareDecoding: Bool
     public var outputPixelFormat: String

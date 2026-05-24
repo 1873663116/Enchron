@@ -1,6 +1,6 @@
 import Foundation
 
-extension FileBrowsingDomain {
+nonisolated extension FileBrowsingDomain {
     public struct ConnectionInfo: Sendable, Equatable, Codable {
         public let sourceType: SourceType
         public let address: String?

@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol DataSourceConnecting {
+public nonisolated protocol DataSourceConnecting {
     func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws
     func disconnect()
 

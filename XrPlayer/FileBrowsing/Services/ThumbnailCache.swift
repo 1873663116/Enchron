@@ -7,7 +7,7 @@ import ImageIO
 /// Cache key: SHA256(standardizedPath + modifiedAt.timeIntervalSince1970) → first 16 bytes hex.
 /// Disk location: Library/Caches/thumbnails/<key>.jpg
 /// System may evict disk cache on low storage (Library/Caches is non-persistent).
-final class ThumbnailCache: @unchecked Sendable {
+nonisolated final class ThumbnailCache: @unchecked Sendable {
 
     // MARK: - Singleton
 
@@ -94,14 +94,14 @@ final class ThumbnailCache: @unchecked Sendable {
 
 // MARK: - CGImageWrapper (NSCache value must be class)
 
-private final class CGImageWrapper: NSObject {
+private nonisolated final class CGImageWrapper: NSObject {
     let image: CGImage
     init(_ image: CGImage) { self.image = image }
 }
 
 // MARK: - JPEG Encoding / Decoding
 
-private func jpegData(from image: CGImage, quality: Double) -> Data? {
+private nonisolated func jpegData(from image: CGImage, quality: Double) -> Data? {
     let mutableData = NSMutableData()
     guard let destination = CGImageDestinationCreateWithData(
         mutableData, "public.jpeg" as CFString, 1, nil)
@@ -112,7 +112,7 @@ private func jpegData(from image: CGImage, quality: Double) -> Data? {
     return mutableData as Data
 }
 
-private func cgImage(from data: Data) -> CGImage? {
+private nonisolated func cgImage(from data: Data) -> CGImage? {
     guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
     return CGImageSourceCreateImageAtIndex(source, 0, nil)
 }

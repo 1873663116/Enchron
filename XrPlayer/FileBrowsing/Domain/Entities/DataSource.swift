@@ -1,6 +1,6 @@
 import Foundation
 
-extension FileBrowsingDomain {
+nonisolated extension FileBrowsingDomain {
     public struct DataSource: Sendable, Equatable, Identifiable, Codable {
         public let id: UUID
         public let name: String

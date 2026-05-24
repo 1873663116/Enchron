@@ -4,7 +4,7 @@ import Foundation
 ///
 /// Uses JSON-encoded UserDefaults storage as a starting point.
 /// Can be migrated to SwiftData when the persistence layer matures.
-public final class SwiftDataStore: ProgressStoring, ScreenPositionStoring {
+public nonisolated final class SwiftDataStore: ProgressStoring, ScreenPositionStoring, @unchecked Sendable {
     private let defaults: UserDefaults
     private static let progressPrefix = "xrplayer.progress."
     private static let screenPositionPrefix = "xrplayer.screenPos."
@@ -122,12 +122,12 @@ public final class SwiftDataStore: ProgressStoring, ScreenPositionStoring {
 
 // MARK: - Internal Codable types
 
-private struct ProgressEntry: Codable {
+private nonisolated struct ProgressEntry: Codable, Sendable {
     let seconds: Double
     let updatedAt: Double
 }
 
-private struct ScreenPositionEntry: Codable {
+private nonisolated struct ScreenPositionEntry: Codable, Sendable {
     let distanceMeters: Double
     let verticalOffsetMeters: Double
     let angleDegrees: Double

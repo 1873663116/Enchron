@@ -1,6 +1,6 @@
 import Foundation
 
-extension PersistenceDomain {
+nonisolated extension PersistenceDomain {
     public enum ResumePolicy: Sendable, Hashable {
         case askEveryTime
         case alwaysResume

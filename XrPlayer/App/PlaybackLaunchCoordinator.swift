@@ -571,8 +571,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         print("[Playback] persist_queued name=\(snapshot.request.displayName)")
         Task.detached(priority: .utility) { [progressStore, metadataService] in
             if let fileIdentifier = snapshot.request.fileIdentifier,
-                snapshot.position.seconds > 0
-            {
+                snapshot.position.seconds > 0 {
                 await progressStore.saveProgress(
                     PersistenceDomain.PlaybackProgress(
                         fileID: fileIdentifier,
@@ -640,7 +639,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 }
 
-private struct PlaybackPersistenceSnapshot {
+private nonisolated struct PlaybackPersistenceSnapshot: Sendable {
     let request: PlaybackLaunchRequest
     let position: PlaybackCoreDomain.PlaybackPosition
     let metadata: PlaybackMediaMetadata?

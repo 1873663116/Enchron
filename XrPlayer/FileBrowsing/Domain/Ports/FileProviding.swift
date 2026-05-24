@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol FileProviding {
+public nonisolated protocol FileProviding {
     func listFiles(
         in folder: FileBrowsingDomain.MediaFolder,
         sortBy: FileBrowsingDomain.SortCriteria

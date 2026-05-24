@@ -1,6 +1,6 @@
 import Foundation
 
-extension PlaybackCoreDomain {
+nonisolated extension PlaybackCoreDomain {
     public struct PlaybackSpeed: Sendable, Equatable, Hashable {
         public let value: Double
 

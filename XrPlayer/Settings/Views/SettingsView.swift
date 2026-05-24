@@ -157,21 +157,21 @@ public struct SettingsView: View {
         }
     }
 
-    private static func speedLabel(_ value: Double) -> String {
+    private nonisolated static func speedLabel(_ value: Double) -> String {
         if value == Double(Int(value)) {
             return "\(Int(value)).0x"
         }
         return "\(value)x"
     }
 
-    private static func appCacheSizeBytes() -> Int64 {
+    private nonisolated static func appCacheSizeBytes() -> Int64 {
         guard let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
             return 0
         }
         return directorySize(at: cacheURL)
     }
 
-    private static func directorySize(at url: URL) -> Int64 {
+    private nonisolated static func directorySize(at url: URL) -> Int64 {
         var total: Int64 = 0
         guard let enumerator = FileManager.default.enumerator(
             at: url,
@@ -184,7 +184,7 @@ public struct SettingsView: View {
         return total
     }
 
-    private static func clearAppCache() {
+    private nonisolated static func clearAppCache() {
         guard let cacheURL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
             return
         }
@@ -196,7 +196,7 @@ public struct SettingsView: View {
         }
     }
 
-    private static func formatBytes(_ bytes: Int64) -> String {
+    private nonisolated static func formatBytes(_ bytes: Int64) -> String {
         if bytes == 0 { return "Empty" }
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useKB, .useMB, .useGB]

@@ -1,7 +1,7 @@
 import Foundation
 
 // swiftlint:disable nesting
-extension PlaybackCoreDomain {
+nonisolated extension PlaybackCoreDomain {
     public struct HDRProbeRGB: Equatable, Sendable {
         public let red: Double
         public let green: Double

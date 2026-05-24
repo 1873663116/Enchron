@@ -1,6 +1,6 @@
 import Foundation
 
-public struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
+public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
     public let mediaProfile: PlaybackCoreDomain.MediaProfile?
     public let fileSizeInBytes: Int64?
     public let lastUpdatedAt: Date
@@ -33,7 +33,7 @@ public struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
     }
 }
 
-public struct PlaybackLaunchRequest: Sendable, Equatable, Identifiable {
+public nonisolated struct PlaybackLaunchRequest: Sendable, Equatable, Identifiable {
     public let id: URL
     public let url: URL
     public let displayName: String

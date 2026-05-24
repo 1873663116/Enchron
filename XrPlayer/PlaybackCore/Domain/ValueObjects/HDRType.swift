@@ -1,6 +1,6 @@
 import Foundation
 
-extension PlaybackCoreDomain {
+nonisolated extension PlaybackCoreDomain {
     public enum HDRType: String, Sendable, CaseIterable, Codable {
         case sdr
         case hdr10

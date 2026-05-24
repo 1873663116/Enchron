@@ -1,6 +1,6 @@
 import Foundation
 
-public final class SavedDataSourceStore: SavedDataSourceRecordStoring {
+public nonisolated final class SavedDataSourceStore: SavedDataSourceRecordStoring, @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String
 

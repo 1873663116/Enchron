@@ -1,6 +1,6 @@
 import Foundation
 
-extension FileBrowsingDomain {
+nonisolated extension FileBrowsingDomain {
     public struct SortCriteria: Sendable, Equatable {
         public enum Key: Sendable {
             case name

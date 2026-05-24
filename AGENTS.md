@@ -3,7 +3,7 @@
 面向 visionOS 的高质感视频播放器
 技术栈：Xcode visionOS app project / Swift toolchain / SwiftUI / RealityKit / ARKit / Metal / AVKit / mpv / SMB / WebDAV / SwiftData / Keychain
 
-`Package.swift` 使用 `swift-tools-version: 6.0`；Xcode targets 当前声明 `SWIFT_VERSION = 5.0`。不要把 tools version 当成 target language mode。
+`SWIFT_VERSION = 6.0`
 
 Enchron 的目标是 Apple 平台原生品质——高质量的窗口播放、低学习成本、强沉浸感的full space
 详见 `docs/product_philosophy.md`
@@ -46,7 +46,7 @@ XrPlayer/
 - `swift` / SwiftPM 只证明 `Package.swift` 覆盖的 package 逻辑。
 - `xcode-select --print-path` 用于检查当前 Xcode；`xcrun` 按当前 Xcode/SDK 调用 Apple 开发工具。
 - Simulator 与 destination 先用 `xcrun simctl` 和 `xcodebuild -showdestinations` 确认。
-- `swift format` / `swift-format` 只处理格式一致性；大规模格式化必须单独成事。
+- `swift-format` 只处理格式一致性；大规模格式化必须单独成事。
 - SwiftLint 是少量高信号架构守卫，不是架构设计器。
 - `xcodebuild analyze` 用于静态分析；播放器、Metal、CoreVideo、bridging、线程和 adapter 改动时优先级升高。
 - LLDB 用于运行时现场：断点、调用栈、线程、变量和崩溃。
@@ -60,6 +60,8 @@ XrPlayer/
 
 把自己当作新加入项目的高级工程师：先理解系统边界，再选择工具和改动点。不要为了完成流程而忘记判断。
 
+Agent 的职责是做出可解释的工程判断，不是完成文档流程。先确认 ownership、visionOS surface、产品边界和证据路径；只读取能改变当前判断的最小文档集合。能清楚说明某文档与当前任务无关，就可以不读它。硬边界、人类裁决项和架构不变量不能被效率理由绕过。
+
 开始前持续持有三个问题：
 
 - 这件事属于哪个限界上下文：PlaybackCore、PlayerUI、FileBrowsing、SpatialScene、Persistence、App、Settings、Shared、DesignPreview、docs / agents / contracts？
@@ -70,9 +72,9 @@ XrPlayer/
 
 UI / Design Preview 改动先读就近规范；当前入口是 `DesignPreview/AGENTS.md`。产品体验判断先读 `docs/product_philosophy.md`。
 
-跨模块、跨文档、风险较高或需要人类长期接力的任务，写短计划。计划的价值是保存判断和边界，不是制造审批表。
+跨模块、跨文档、高风险、发布相关、架构 / contract / platform surface 变化，或需要多人、多轮接力的任务，写短计划。计划保存目标、边界、关键决策、未知项和当前有效证据；普通改动不写计划。
 
-改动模块接口时，先更新 `docs/contracts/` 和 `ARCHITECTURE.md` 的相关不变量，再改代码；接口和文档不同步时，后来的 agent 会在错误地图上工作。
+稳定接口、active contract 或跨模块边界发生变化时，先更新 `docs/contracts/` 和 `ARCHITECTURE.md` 的相关不变量，再改代码；接口和文档不同步时，后来的 agent 会在错误地图上工作。探索性 spike、局部 adapter 签名整理、方向尚未证明的改动，不先制造 contract 承诺；等边界成立后再文档化。
 
 验证跟着风险走：纯 Domain / UseCase 改动通常从 `swift test` 开始；完整 app、UI、asset、target membership、RealityKitContent、signing、entitlement 或 bundle 改动用匹配 scheme 的 `xcodebuild`；播放器、Metal、CoreVideo、bridging、线程、HDR、远程 I/O 或持久化风险升高时考虑 `xcodebuild analyze`；性能和长时间观看问题进入 Instruments / `xctrace`。
 
