@@ -1,7 +1,5 @@
 # DesignPreview — 设计规范
 
-Enchron UI 参考。`ComponentLibrary.swift` 中的组件持续确认中，以人工标注为准。
-
 规则针对 **visionOS**，其他平台不适用。
 
 ---
@@ -9,12 +7,14 @@ Enchron UI 参考。`ComponentLibrary.swift` 中的组件持续确认中，以�
 ## DesignPreview 路由
 
 - `ContentView.swift` / `ComponentLibrary.swift` / `SharedComponents.swift` 是现有 Component Library / UI Kit 资产库。页面必须直接复用其中已确认的按钮、卡片、列表、菜单、时间轴、窗格、搜索栏等组件；不要在页面局部仿写一个“看起来相似”的版本。
-- `DesignComps/` 放从 `docs/designs/` HTML 设计稿拆出的高保真页面稿。这里做的是 design comps / screen mockups，不是最终 Fake UX。
-- `DesignComps/Pages/` 目前只承载两个窗口化页面：文件页面与播放/窗口交互页面。页面内部可以呈现需要校准的窗口化交互状态；沉浸空间与全景模式不在当前 DesignPreview 页面范围内。`Sections/` 只在页面细节过多、需要分步校准时拆出大区域；`Overlays/` 放 sheet、popover、menu、share panel；`Assets/` 放图标等视觉资产；`Fixtures/` 放假数据。
-- 新建 DesignComp 前先读 `docs/designs/` 中对应 HTML，按真实设计稿决定页面数量和名称，不凭空发明页面数、窗口尺寸或最终流程。
-- DesignComp 可以有局部 hover、press、展开、菜单、sheet 等小交互；不要接真实业务逻辑，也不要把它提前串成 Fake UX。
-- 稳定组件必须直接调用现有资产库。只有当 HTML 中出现新的视觉形态且组件库没有对应组件时，才在明确范围内新增组件或 token。
-- Xcode Canvas / Design Preview 已在运行时，视觉微调优先观察 Canvas 自动刷新；不要每次小改后都主动执行完整 build。只有遇到 Canvas 失败、资源未加载、编译错误不明确、或需要交付前自动化确认时，才单独运行 build。
+- `DesignComps/` 放从 `docs/designs/` HTML 设计稿拆出的高保真可交互 Preview Canvas。这里做的是设计审查用的 screen mockups；跨 Preview 的产品流程、导航状态同步、返回链路和假业务生命周期属于未来 FakeApp 阶段。
+- 当前正式维护 3 个可交互 Preview Canvas：主窗口 Preview、视频详情 / 播放准备 Preview、窗口播放 Preview。沉浸空间 Preview 和全景模式 Preview 是未来预留边界，等明确启动时再纳入当前范围。
+- 主窗口 Preview 包含 Files / Scenes / Settings，并允许通过 visionOS 侧边 `Sidebar` 在内部切换。`Sidebar` 是窗口侧主导航，类似移动端底部 Tab Bar，不是 Files 页内部左列。
+- 视频详情 / 播放准备 Preview 承载视频信息、播放前设置和播放模式选择。窗口播放 Preview 承载普通窗口播放中的控件、时间轴、菜单、隐藏 / 显示等交互。
+- Preview 内部可以有局部 hover、press、展开、菜单、sheet、Sidebar 切换等小交互。Preview 之间保持并列审查关系；从文件进入详情、从详情进入播放、从窗口播放进入沉浸空间等跨 Preview 流程留到未来 FakeApp 阶段。
+- 新建 DesignComp 前先读 `docs/designs/` 中对应 HTML，参考设计稿决定页面数量、名称、窗口尺寸和交互范围。
+- 稳定组件必须直接调用现有 components，需要新的视觉形态且组件库没有对应组件时，上报需求要求人类裁决。
+- Xcode Canvas / Design Preview 已在运行，视觉微调优先观察 Canvas 自动刷新；不要每次小改后都主动执行 build。只有遇到 Canvas 失败、资源未加载、编译错误不明确、或需要交付前自动化确认时，才单独运行 build。
 
 ---
 
