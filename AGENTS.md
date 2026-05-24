@@ -34,7 +34,7 @@ XrPlayer/
 - `Package.swift` 定义 `XrPlayerCoreTestsSupport`，覆盖部分 core/library 测试，不是完整 app manifest。
 - 根目录 `Package.resolved` 与 `XrPlayer.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` 不可互换。
 - `XrPlayer` target 依赖 AMSMB2、MPVKit-GPL 和 RealityKitContent。
-- `DesignPreview` 是独立 Xcode target，局部规范入口是 `DesignPreview/AGENTS.md`。
+- `DesignPreview` 是独立 Xcode target。
 - `.mcp.json` 配置 XcodeBuildMCP；MCP 是模拟器 UI、截图、accessibility、IDE 自动化补充层，不替代 CLI。
 
 ---
@@ -60,7 +60,7 @@ XrPlayer/
 
 把自己当作新加入项目的高级工程师：先理解系统边界，再选择工具和改动点。不要为了完成流程而忘记判断。
 
-Agent 的职责是做出可解释的工程判断，不是完成文档流程。先确认 ownership、visionOS surface、产品边界和证据路径；只读取能改变当前判断的最小文档集合。能清楚说明某文档与当前任务无关，就可以不读它。硬边界、人类裁决项和架构不变量不能被效率理由绕过。
+Agent 的职责是做出可解释的工程判断，先确认 ownership、visionOS surface、产品边界和证据路径；硬边界、人类裁决项和架构不变量不能被绕过。
 
 开始前持续持有三个问题：
 
@@ -68,9 +68,10 @@ Agent 的职责是做出可解释的工程判断，不是完成文档流程。�
 - 它触及哪个 visionOS surface：window、volume、`ImmersiveSpace`、RealityKit scene、AVKit/system video、mpv/Metal texture、Compositor Services、file/network/persistence、Simulator/device/performance？
 - 什么证据能证明它真的变好了：`swift test`、`xcodebuild`、SwiftLint、`xcodebuild analyze`、Simulator、Vision Pro device、LLDB、Instruments / `xctrace`，还是人类体验判断？
 
-代码改动先读 `ARCHITECTURE.md`，确认职责归属和 Architecture Invariants。触及 SwiftUI、RealityKit、ARKit、Metal、AVKit、scene/window lifecycle、spatial interaction、文件/网络/持久化、性能，或任何 iOS/macOS 平台假设时，使用 `.agents/skills/visionos-platform/SKILL.md` 找到最小相关 reference；不要一次性吞下所有平台文档。
+代码改动先读 `ARCHITECTURE.md`，确认职责归属和 Architecture Invariants。触及 SwiftUI、RealityKit、ARKit、Metal、AVKit、scene/window lifecycle、spatial interaction、文件/网络/持久化、性能，或任何 iOS/macOS 平台假设时，使用 `.agents/skills/visionos-platform/SKILL.md` 找到相关 reference，不要一次性吞下所有平台文档。
 
-UI / Design Preview 改动先读就近规范；当前入口是 `DesignPreview/AGENTS.md`。产品体验判断先读 `docs/product_philosophy.md`。
+UI / Design Preview 改动先读就近规范；当前入口是 `DesignPreview/`
+产品体验判断先读 `docs/product_philosophy.md`
 
 跨模块、跨文档、高风险、发布相关、架构 / contract / platform surface 变化，或需要多人、多轮接力的任务，写短计划。计划保存目标、边界、关键决策、未知项和当前有效证据；普通改动不写计划。
 
@@ -82,7 +83,6 @@ UI / Design Preview 改动先读就近规范；当前入口是 `DesignPreview/AG
 
 ## 判断提醒
 
-- 先读真实上下文再动手：本文件、`ARCHITECTURE.md`、相关 skill/reference、就近 `AGENTS.md` 或专项文档。
 - 系统原生优先：系统容器、材质、动效是第一选择；自定义需要改善核心体验。
 - 聚焦单一目标：不要把修 bug、换风格、重构和工具链清理混成一团。
 - 临时方案写清移除条件：`// WORKAROUND:` 后面要说明什么时候可以删。
@@ -119,18 +119,18 @@ DerivedData、缓存和 Simulator 状态可以成为诊断对象；把它们当�
 - 写清 ownership：谁拥有事实，谁拥有决策，谁只是执行。
 - 分开事实、决策和理由；不要把调查材料写成项目规则。
 - 少写进度形容词，多写证据边界；build pass、Simulator 正确、HDR 标签正确、窗口模式正确都不是完整正确性证据。
-- 使用 `docs/ubiquitous_language.md` 术语：`PlaybackEngine` 不是 `PlaybackMode`；`PlaybackEngineRoute` 不是 presentation；`MediaProfile` 是共享事实层；`AppleNativeMedia` 需要证据；`OpenFormatMedia` 默认走 mpv-safe fallback。
+- 使用 `docs/ubiquitous_language.md` 术语：`PlaybackEngine` 不是 `PlaybackMode`；`PlaybackEngineRoute` 不是 presentation；`MediaProfile` 是共享事实层；`AppleNativeMedia` 需要证据；
 
 ---
 
 ## UI 编码约束
 
-- UI 样式值（圆角、间距、动画、颜色、材质）优先通过 Design Token 表达；局部例外要能解释为什么不提升为 token。
+- UI 完全复用已存在组件（组件的本质是design tokens的组合）；局部例外要能解释为什么不提升为 token。
 - 需要 UI 测试定位的交互控件使用稳定 `accessibilityIdentifier`；
   icon-only / custom controls 使用明确 `accessibilityLabel`；标准文本控件保留正确的系统派生语义；
   非标准播放控件提供合适的 accessibility actions
 - Token 未覆盖时：有人值守上报询问；无人值守任务记录 BLOCKED
-- 涉及 UI 改动时，先读：**`.agents/skills/visionos-platform/SKILL.md`** 和就近 `AGENTS.md`
+- 涉及 UI 改动时，先读：**`.agents/skills/visionos-platform/SKILL.md`**
 
 ---
 

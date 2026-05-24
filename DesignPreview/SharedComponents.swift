@@ -71,6 +71,7 @@ struct NavBackForwardCapsuleControl: View {
     var accessibilityLabel: String = "Back and Forward"
 
     @State private var pressedSide: NavSide? = nil
+    @State private var pressFeedbackTrigger = 0
 
     private enum NavSide { case back, forward }
 
@@ -101,6 +102,7 @@ struct NavBackForwardCapsuleControl: View {
         .gesture(
             SpatialTapGesture().onEnded { value in
                 let tapped: NavSide = value.location.x < capsuleWidth / 2 ? .back : .forward
+                pressFeedbackTrigger += 1
                 withAnimation(press.pressAnimation) { pressedSide = tapped }
                 Task {
                     try? await Task.sleep(for: press.holdDuration)
@@ -109,6 +111,7 @@ struct NavBackForwardCapsuleControl: View {
                 if tapped == .back { onBack() } else { onForward() }
             }
         )
+        .sensoryFeedback(.press(.buttonIconOnly), trigger: pressFeedbackTrigger)
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(accessibilityLabel)
@@ -125,6 +128,7 @@ struct ViewModeCapsuleControl: View {
 
     @Namespace private var indicatorNamespace
     @State private var pressedIndex: Int? = nil
+    @State private var pressFeedbackTrigger = 0
 
     var body: some View {
         let capsuleWidth = DesignTokens.Interactive.regular * 2
@@ -143,6 +147,7 @@ struct ViewModeCapsuleControl: View {
         .gesture(
             SpatialTapGesture().onEnded { value in
                 let tapped = value.location.x < capsuleWidth / 2 ? 0 : 1
+                pressFeedbackTrigger += 1
                 withAnimation(press.pressAnimation) { pressedIndex = tapped }
                 Task {
                     try? await Task.sleep(for: press.holdDuration)
@@ -153,6 +158,7 @@ struct ViewModeCapsuleControl: View {
                 }
             }
         )
+        .sensoryFeedback(.press(.buttonIconOnly), trigger: pressFeedbackTrigger)
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(accessibilityLabel)
@@ -381,7 +387,6 @@ struct FeaturedScene: Identifiable {
 struct FeaturedSceneCard: View {
     var scene: FeaturedScene = .fixtures[0]
     var showsDetails: Bool = true
-    var onPrevious: () -> Void = {}
     var onExpand: () -> Void = {}
     var onMore: () -> Void = {}
 
@@ -394,9 +399,8 @@ struct FeaturedSceneCard: View {
         ZStack(alignment: .bottom) {
             backgroundImage
             if showsDetails {
-                topMultiplyOverlay
                 sceneInfoPanel
-                topControls
+                expandControl
             }
         }
         .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
@@ -420,15 +424,10 @@ struct FeaturedSceneCard: View {
             .clipped()
     }
 
-    private var topControls: some View {
+    private var expandControl: some View {
         VStack {
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                GlassCircleIconButton(
-                    systemName: "chevron.left",
-                    accessibilityLabel: "Previous scene",
-                    action: onPrevious,
-                    accessibilityIdentifier: "DesignPreview-FeaturedSceneCard-button-previous"
-                )
+            Spacer()
+            HStack {
                 Spacer()
                 GlassCircleIconButton(
                     systemName: "arrow.up.left.and.arrow.down.right",
@@ -438,18 +437,6 @@ struct FeaturedSceneCard: View {
                 )
             }
             .padding(Metrics.chromePadding)
-            Spacer()
-        }
-    }
-
-    private var topMultiplyOverlay: some View {
-        VStack(spacing: 0) {
-            Rectangle()
-                .fill(Color.black)
-                .blendMode(.multiply)
-                .mask(topMultiplyFadeMask)
-                .frame(height: Metrics.topMultiplyHeight)
-            Spacer(minLength: 0)
         }
         .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
     }
@@ -508,17 +495,6 @@ struct FeaturedSceneCard: View {
         )
     }
 
-    private var topMultiplyFadeMask: some View {
-        LinearGradient(
-            stops: [
-                .init(color: .white.opacity(Metrics.topFadeMaxOpacity), location: 0),
-                .init(color: .clear, location: 1)
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-
     private enum Metrics {
         static let cardWidth: CGFloat = 500
         static let cardHeight: CGFloat = 548
@@ -530,8 +506,6 @@ struct FeaturedSceneCard: View {
         static let infoPaddingBottom: CGFloat = 14
         static let infoFadeMinOpacity: CGFloat = 0
         static let infoFadeMaxOpacity: CGFloat = 0.45
-        static let topMultiplyHeight: CGFloat = 160
-        static let topFadeMaxOpacity: CGFloat = 0.40
     }
 }
 
@@ -554,7 +528,6 @@ struct SceneCardCarousel: View {
                     FeaturedSceneCard(
                         scene: scene,
                         showsDetails: offset == 0 && abs(dragProgress) < Metrics.detailFadeThreshold,
-                        onPrevious: { move(by: -1) },
                         onExpand: {},
                         onMore: {}
                     )
@@ -871,18 +844,22 @@ struct SearchInputCapsule: View {
     var width: CGFloat = DesignTokens.Card.gridMin
     var accessibilityIdentifier = "DesignPreview-input-search"
 
-    @State private var isSelected = false
+    @State private var pressFeedbackTrigger = 0
+    @State private var isInputActive = false
     @FocusState private var isFocused: Bool
 
     var body: some View {
-        let isActive = isSelected || isFocused
-
         HStack(spacing: DesignTokens.Spacing.xs) {
             Image(systemName: "magnifyingglass")
                 .font(.body)
                 .foregroundStyle(.tertiary)
 
-            TextField(placeholder, text: $text)
+            TextField(
+                placeholder,
+                text: $text,
+                onEditingChanged: handleEditingChanged,
+                onCommit: deactivateInput
+            )
                 .textFieldStyle(.plain)
                 .font(.body)
                 .foregroundStyle(.secondary)
@@ -890,7 +867,7 @@ struct SearchInputCapsule: View {
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled(true)
                 .hoverEffectDisabled()
-                .allowsHitTesting(false)
+                .onTapGesture(perform: activateInput)
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
         .frame(width: width, height: DesignTokens.Interactive.regular)
@@ -902,25 +879,52 @@ struct SearchInputCapsule: View {
         .overlay {
             Capsule()
                 .strokeBorder(
-                    DesignTokens.Surface.focusBorder.opacity(isActive ? 1 : 0),
+                    DesignTokens.Surface.focusBorder.opacity(isInputActive ? 1 : 0),
                     lineWidth: DesignTokens.Stroke.bold
                 )
-                .animation(DesignTokens.AnimationToken.selection, value: isActive)
+                .animation(DesignTokens.AnimationToken.selection, value: isInputActive)
         }
-        .onTapGesture {
-            withAnimation(DesignTokens.AnimationToken.selection) {
-                isSelected = true
-                isFocused = true
+        .simultaneousGesture(
+            TapGesture().onEnded {
+                activateInput()
+            }
+        )
+        .sensoryFeedback(.press(.button), trigger: pressFeedbackTrigger)
+        .onChange(of: isFocused) { _, focused in
+            if !focused {
+                setInputActive(false)
             }
         }
-        .onChange(of: isFocused) { _, isFocused in
-            guard !isFocused else { return }
-            withAnimation(DesignTokens.AnimationToken.selection) {
-                isSelected = false
-            }
-        }
+        .onSubmit(deactivateInput)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(placeholder)
+    }
+
+    private func activateInput() {
+        if !isInputActive {
+            pressFeedbackTrigger += 1
+        }
+        setInputActive(true)
+        isFocused = true
+    }
+
+    private func handleEditingChanged(_ isEditing: Bool) {
+        if isEditing {
+            setInputActive(true)
+        } else {
+            deactivateInput()
+        }
+    }
+
+    private func deactivateInput() {
+        setInputActive(false)
+        isFocused = false
+    }
+
+    private func setInputActive(_ active: Bool) {
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            isInputActive = active
+        }
     }
 }
 
@@ -994,12 +998,22 @@ struct PlayerProgressBar: View {
     @State private var isIgnoringDrag = false
     @State private var dragStartProgress: CGFloat = 0.45
     @State private var isTimelineExpanded = false
+    @State private var scrubFeedbackTrigger = 0
+    @State private var minimumBoundaryFeedbackTrigger = 0
+    @State private var maximumBoundaryFeedbackTrigger = 0
+    @State private var timelineFeedbackTrigger = 0
+    @State private var announcedBoundary: ProgressBoundary? = nil
     @State private var timelinePixelsPerSecond = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
 
-    private var trackHeight: CGFloat {
+    private enum ProgressBoundary {
+        case minimum
+        case maximum
+    }
+
+    private var trackScale: CGFloat {
         isDragging
-            ? DesignTokens.ProgressBar.trackHeight
-            : DesignTokens.ProgressBar.inactiveTrackHeight
+            ? 1
+            : DesignTokens.ProgressBar.inactiveScale
     }
 
     private var hoverActivationGroup: HoverEffectGroup {
@@ -1048,6 +1062,10 @@ struct PlayerProgressBar: View {
         }
         .frame(width: containerWidth, height: containerHeight, alignment: .bottomLeading)
         .animation(DesignTokens.AnimationToken.panelSpring, value: isTimelineExpanded)
+        .sensoryFeedback(.press(.slider), trigger: scrubFeedbackTrigger)
+        .sensoryFeedback(.selection(.minimum), trigger: minimumBoundaryFeedbackTrigger)
+        .sensoryFeedback(.selection(.maximum), trigger: maximumBoundaryFeedbackTrigger)
+        .sensoryFeedback(.selection(.on), trigger: timelineFeedbackTrigger)
         .accessibilityIdentifier("DesignPreview-PlayerProgressBar")
         .accessibilityLabel("Playback progress")
     }
@@ -1077,7 +1095,7 @@ struct PlayerProgressBar: View {
                 width: width,
                 progress: clampedProgress,
                 overlayWidth: overlayWidth,
-                height: trackHeight
+                scale: trackScale
             )
 
             timeBubble
@@ -1121,54 +1139,68 @@ struct PlayerProgressBar: View {
         width: CGFloat,
         progress: CGFloat,
         overlayWidth: CGFloat,
-        height: CGFloat
+        scale: CGFloat
     ) -> some View {
         ZStack(alignment: .leading) {
-            progressTrack(
-                width: width,
-                progress: progress,
-                playedColor: DesignTokens.ProgressBar.playedColor,
-                unplayedColor: DesignTokens.ProgressBar.unplayedColor,
-                height: height
-            )
-            .padding(.leading, DesignTokens.ProgressBar.thumbDiameter / 2)
+            ZStack(alignment: .leading) {
+                progressTrackLayer(
+                    railWidth: overlayWidth,
+                    playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
+                    scale: scale,
+                    playedColor: DesignTokens.ProgressBar.playedColor,
+                    unplayedColor: DesignTokens.ProgressBar.unplayedColor
+                )
 
-            progressTrack(
-                width: width,
-                progress: progress,
-                playedColor: DesignTokens.ProgressBar.playedHoverColor,
-                unplayedColor: DesignTokens.ProgressBar.unplayedHoverColor,
-                height: height
-            )
-            .padding(.leading, DesignTokens.ProgressBar.thumbDiameter / 2)
-            .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-                effect.animation(DesignTokens.AnimationToken.selection) {
-                    $0.opacity(isActive || isDragging ? 1.0 : 0.0)
+                progressTrackLayer(
+                    railWidth: overlayWidth,
+                    playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
+                    scale: scale,
+                    playedColor: DesignTokens.ProgressBar.playedHoverColor,
+                    unplayedColor: DesignTokens.ProgressBar.unplayedHoverColor
+                )
+                .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+                    effect.animation(DesignTokens.AnimationToken.selection) {
+                        $0.opacity(isActive || isDragging ? 1.0 : 0.0)
+                    }
                 }
             }
+            .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
+            .scaleEffect(y: scale)
+            .animation(DesignTokens.PressFeedback.control.pressAnimation, value: scale)
         }
             .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
             .allowsHitTesting(false)
     }
 
-    private func progressTrack(
-        width: CGFloat,
-        progress: CGFloat,
+    private func progressTrackLayer(
+        railWidth: CGFloat,
+        playedWidth: CGFloat,
+        scale: CGFloat,
         playedColor: Color,
-        unplayedColor: Color,
-        height: CGFloat
+        unplayedColor: Color
     ) -> some View {
-        ZStack(alignment: .leading) {
-            Capsule()
+        let visualHeight = DesignTokens.ProgressBar.trackHeight * scale
+        let shape = RoundedRectangle(
+            cornerSize: CGSize(
+                width: visualHeight / 2,
+                height: DesignTokens.ProgressBar.trackHeight / 2
+            ),
+            style: .continuous
+        )
+
+        return ZStack(alignment: .leading) {
+            shape
                 .fill(unplayedColor)
-            Capsule()
+                .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
+            shape
                 .fill(playedColor)
-                .frame(width: width * progress)
+                .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
+                .mask(alignment: .leading) {
+                    Rectangle()
+                        .frame(width: playedWidth, height: DesignTokens.ProgressBar.trackHeight)
+                }
         }
-        .frame(width: width, height: height)
-        .animation(DesignTokens.AnimationToken.selection, value: height)
-        .animation(DesignTokens.AnimationToken.selection, value: playedColor)
-        .animation(DesignTokens.AnimationToken.selection, value: unplayedColor)
+        .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
     }
 
     private var timeBubble: some View {
@@ -1217,22 +1249,20 @@ struct PlayerProgressBar: View {
             .contentShape(.hoverEffect, Circle())
             .hoverEffect(in: hoverActivationGroup) { effect, isActive, _ in
                 effect.animation(DesignTokens.AnimationToken.selection) {
-                    $0.opacity(isActive || isDragging ? 1.0 : 0.0)
+                    $0.opacity(1.0)
                 }
             }
             .contentShape(Circle())
-            .highPriorityGesture(
+            .simultaneousGesture(
                 TapGesture(count: 2)
                     .onEnded {
-                        withAnimation(DesignTokens.AnimationToken.panelSpring) {
-                            isTimelineExpanded = true
-                        }
+                        openTimeline()
                     }
             )
     }
 
     private func dragGesture(width: CGFloat, thumbX: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 0)
+        DragGesture(minimumDistance: DesignTokens.Stroke.regular)
             .onChanged { value in
                 guard !isIgnoringDrag else { return }
                 if !isDragging {
@@ -1243,8 +1273,7 @@ struct PlayerProgressBar: View {
                     dragStartProgress = progress
                     beginScrubbing()
                 }
-                isDragging = true
-                progress = progress(forTranslation: value.translation.width, width: width)
+                updateProgress(forTranslation: value.translation.width, width: width)
             }
             .onEnded { _ in
                 if isDragging {
@@ -1255,20 +1284,70 @@ struct PlayerProgressBar: View {
     }
 
     private func beginScrubbing() {
-        withAnimation(DesignTokens.AnimationToken.selection) {
+        withAnimation(DesignTokens.PressFeedback.control.pressAnimation) {
             isDragging = true
         }
+        scrubFeedbackTrigger += 1
     }
 
     private func endScrubbing() {
         withAnimation(DesignTokens.AnimationToken.selection) {
             isDragging = false
         }
+        announcedBoundary = nil
     }
 
     private func progress(forTranslation translationX: CGFloat, width: CGFloat) -> CGFloat {
         guard width > 0 else { return progress }
         return min(max(dragStartProgress + translationX / width, 0), 1)
+    }
+
+    private func updateProgress(forTranslation translationX: CGFloat, width: CGFloat) {
+        let nextProgress = progress(forTranslation: translationX, width: width)
+        updateBoundaryFeedback(for: nextProgress)
+
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            progress = nextProgress
+        }
+    }
+
+    private func updateBoundaryFeedback(for nextProgress: CGFloat) {
+        let boundary: ProgressBoundary?
+        if nextProgress <= 0 {
+            boundary = .minimum
+        } else if nextProgress >= 1 {
+            boundary = .maximum
+        } else {
+            boundary = nil
+        }
+
+        guard boundary != announcedBoundary else { return }
+        announcedBoundary = boundary
+
+        switch boundary {
+        case .minimum:
+            minimumBoundaryFeedbackTrigger += 1
+        case .maximum:
+            maximumBoundaryFeedbackTrigger += 1
+        case nil:
+            break
+        }
+    }
+
+    private func openTimeline() {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            isDragging = false
+            announcedBoundary = nil
+        }
+
+        timelineFeedbackTrigger += 1
+        withAnimation(DesignTokens.AnimationToken.panelSpring) {
+            isTimelineExpanded = true
+        }
     }
 
     private func isThumbHit(_ location: CGPoint, thumbX: CGFloat) -> Bool {
@@ -1314,13 +1393,9 @@ struct PlayerProgressBar: View {
                 width: DesignTokens.PrecisionTimeline.expandedWidth,
                 height: DesignTokens.PrecisionTimeline.expandedHeight
             )
-            .scaleEffect(1.0, anchor: .bottom)
             .transition(
-                .scale(
-                    scale: DesignTokens.PrecisionTimeline.collapsedScale,
-                    anchor: .bottom
-                )
-                .combined(with: .opacity)
+                .opacity
+                    .combined(with: .offset(x: 0, y: DesignTokens.Spacing.sm))
             )
             .offset(x: (containerWidth - DesignTokens.PrecisionTimeline.expandedWidth) / 2)
             .contentShape(Rectangle())
