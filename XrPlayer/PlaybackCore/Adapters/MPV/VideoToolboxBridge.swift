@@ -1,14 +1,14 @@
 import CoreVideo
 import Foundation
 
-public enum VideoToolboxBridgeError: Error {
+public nonisolated enum VideoToolboxBridgeError: Error, Sendable {
     case invalidDimensions(width: Int, height: Int)
     case poolCreationFailed(OSStatus)
     case pixelBufferCreationFailed(OSStatus)
     case unsupportedPacketLayout
 }
 
-public final class VideoToolboxBridge {
+public nonisolated final class VideoToolboxBridge: @unchecked Sendable {
     public static let hwdecOptionValue = "videotoolbox"
     public static let hwdecCodecs = "all"
 

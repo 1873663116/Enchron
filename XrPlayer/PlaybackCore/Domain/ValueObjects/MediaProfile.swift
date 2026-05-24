@@ -1,6 +1,6 @@
 import Foundation
 
-extension PlaybackCoreDomain {
+nonisolated extension PlaybackCoreDomain {
     public struct MediaProfile: Sendable, Equatable, Codable {
         public struct Resolution: Sendable, Equatable, Codable {
             public let width: Int

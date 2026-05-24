@@ -1,5 +1,5 @@
 import Foundation
 
-public protocol MediaProfileDetecting: AnyObject {
+public nonisolated protocol MediaProfileDetecting: AnyObject {
     func didDetectMediaProfile(_ profile: PlaybackCoreDomain.MediaProfile)
 }

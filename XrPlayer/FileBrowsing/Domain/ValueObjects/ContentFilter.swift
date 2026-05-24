@@ -1,6 +1,6 @@
 import Foundation
 
-extension FileBrowsingDomain {
+nonisolated extension FileBrowsingDomain {
     /// Content filter categories for narrowing file listings.
     ///
     /// Currently UI-only: MediaFile does not carry resolution/HDR/spatial attributes.

@@ -10,7 +10,7 @@ import QuartzCore
 // 1) Primary: Swift Package Manager dependency on MPVKit (module: Libmpv).
 // 2) Fallback: Manual libmpv integration using local stub headers/libs in Libraries/mpv.
 
-public enum MPVPlayerAdapterError: Error {
+public nonisolated enum MPVPlayerAdapterError: Error, Sendable {
     case createFailed
     case optionFailed(name: String, code: Int32)
     case initializeFailed(Int32)
@@ -21,7 +21,7 @@ public enum MPVPlayerAdapterError: Error {
     case fileNotReadable(URL)
 }
 
-extension MPVPlayerAdapterError: LocalizedError {
+nonisolated extension MPVPlayerAdapterError: LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .createFailed:
@@ -44,13 +44,13 @@ extension MPVPlayerAdapterError: LocalizedError {
     }
 }
 
-struct MPVLoadRequest: Equatable {
+nonisolated struct MPVLoadRequest: Equatable, Sendable {
     let url: URL
     let loadArgument: String
     let requiresSecurityScopedAccess: Bool
 }
 
-struct MPVHDRMetadataSnapshot: Equatable {
+nonisolated struct MPVHDRMetadataSnapshot: Equatable, Sendable {
     let dolbyVisionProfile: Int64?
     let primaries: String
     let gamma: String
@@ -62,14 +62,18 @@ struct MPVHDRMetadataSnapshot: Equatable {
     let sceneMaxB: Double?
 }
 
-private struct EDRMetadataApplication {
+private nonisolated struct EDRMetadataApplication {
     let layer: CAMetalLayer?
     let descriptor: EDRMetadataDescriptor?
     let logType: String
     let logPeak: String
 }
 
-public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManaging {
+private nonisolated struct SendableMetalLayerTarget: @unchecked Sendable {
+    let layer: CAMetalLayer
+}
+
+public nonisolated final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManaging, @unchecked Sendable {
     public weak var frameOutput: FrameOutput?
     public var onRuntimeError: ((String) -> Void)?
     public var onMediaProfileDetected: ((PlaybackCoreDomain.MediaProfile) -> Void)?
@@ -1107,8 +1111,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
 
             var acquiredScope = false
             if loadRequest.requiresSecurityScopedAccess,
-                loadRequest.url.startAccessingSecurityScopedResource()
-            {
+                loadRequest.url.startAccessingSecurityScopedResource() {
                 acquiredScope = true
                 activeSecurityScopedURL = loadRequest.url
             }
@@ -1173,8 +1176,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 
     private func runOnControlQueue<T: Sendable>(_ work: @escaping @Sendable () throws -> T)
-        async throws -> T
-    {
+        async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
             controlQueue.async {
                 do {
@@ -1426,8 +1428,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             if let stringValue = stringProperty(propertyName)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
                 let parsedValue = Int64(stringValue),
-                parsedValue > 0
-            {
+                parsedValue > 0 {
                 return parsedValue
             }
         }
@@ -1462,8 +1463,11 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
             )
         }
 
+        let descriptor = application.descriptor
+        let logType = application.logType
+        let logPeak = application.logPeak
         updateVideoLayer(application.layer) { layer in
-            switch application.descriptor {
+            switch descriptor {
             case .hdr10(let minLuminance, let maxLuminance, let opticalOutputScale):
                 if #available(visionOS 1.0, *) {
                     layer.edrMetadata = CAEDRMetadata.hdr10(
@@ -1482,7 +1486,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
                 }
             }
         }
-        print("[MPV] edr_metadata applied type=\(application.logType) sig-peak=\(application.logPeak) descriptor=\(application.descriptor.map { "\($0)" } ?? "nil")")
+        print("[MPV] edr_metadata applied type=\(logType) sig-peak=\(logPeak) descriptor=\(descriptor.map { "\($0)" } ?? "nil")")
     }
 
     private func updateVideoLayer(
@@ -1492,8 +1496,9 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
         let targetLayer = layer ?? stateQueue.sync { videoLayer }
         guard let targetLayer else { return }
 
+        let target = SendableMetalLayerTarget(layer: targetLayer)
         DispatchQueue.main.async {
-            update(targetLayer)
+            update(target.layer)
         }
     }
 
@@ -1569,7 +1574,7 @@ public final class MPVPlayerAdapter: PlaybackControlling, PlaybackRuntimeManagin
     }
 }
 
-extension String {
+nonisolated extension String {
     fileprivate func ifEmpty(_ fallback: String) -> String {
         isEmpty ? fallback : self
     }

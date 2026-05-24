@@ -242,14 +242,10 @@ public actor MediaProfilePrefetchService {
             )
         }
 
-        // Load video track properties
-        async let naturalSizeResult = videoTrack.load(.naturalSize)
-        async let formatDescriptionsResult = videoTrack.load(.formatDescriptions)
-        async let nominalFrameRateResult = videoTrack.load(.nominalFrameRate)
-
-        let naturalSize = try await naturalSizeResult
-        let formatDescriptions = try await formatDescriptionsResult
-        let nominalFrameRate = try await nominalFrameRateResult
+        // AVAssetTrack is not Sendable; keep these loads sequential under Swift 6.
+        let naturalSize = try await videoTrack.load(.naturalSize)
+        let formatDescriptions = try await videoTrack.load(.formatDescriptions)
+        let nominalFrameRate = try await videoTrack.load(.nominalFrameRate)
 
         let width = Int(naturalSize.width)
         let height = Int(naturalSize.height)

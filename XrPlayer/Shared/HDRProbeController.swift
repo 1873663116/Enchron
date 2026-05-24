@@ -53,7 +53,7 @@ enum HDRProbeError: LocalizedError {
     }
 }
 
-final class HDRProbeController {
+nonisolated final class HDRProbeController: @unchecked Sendable {
     static let extendedLinearDisplayP3Contract = "extended-linear Display P3"
 
     enum ReadbackMode {
@@ -247,7 +247,7 @@ final class HDRProbeController {
     }
 }
 
-private final class ProbeContinuation: @unchecked Sendable {
+private nonisolated final class ProbeContinuation: @unchecked Sendable {
     private let lock = NSLock()
     private var continuation: CheckedContinuation<PlaybackCoreDomain.HDRProbeSample, Error>?
 
@@ -256,10 +256,11 @@ private final class ProbeContinuation: @unchecked Sendable {
     }
 
     func resume(with result: Result<PlaybackCoreDomain.HDRProbeSample, Error>) {
-        lock.lock()
-        let pending = continuation
-        continuation = nil
-        lock.unlock()
+        let pending = lock.withLock {
+            let pending = continuation
+            continuation = nil
+            return pending
+        }
         guard let pending else { return }
 
         switch result {
@@ -271,12 +272,12 @@ private final class ProbeContinuation: @unchecked Sendable {
     }
 }
 
-private struct TextureReadbackResult {
+private nonisolated struct TextureReadbackResult {
     let buffer: MTLBuffer
     let bytesPerRow: Int
 }
 
-private struct ProbeReadbackRegion {
+private nonisolated struct ProbeReadbackRegion {
     enum Kind: String {
         case centeredROI = "center ROI"
         case fullFrame = "full frame"
@@ -312,7 +313,7 @@ private struct ProbeReadbackRegion {
     }
 }
 
-private struct TextureReadbackLayout {
+private nonisolated struct TextureReadbackLayout {
     let bytesPerPixel: Int
     let pixels: (UnsafeMutableRawPointer, Int, Int, Int) -> [PlaybackCoreDomain.HDRProbeCalculator.Pixel]
 
@@ -415,7 +416,7 @@ private struct TextureReadbackLayout {
 }
 
 extension MTLPixelFormat {
-    var hdrProbeName: String {
+    nonisolated var hdrProbeName: String {
         switch self {
         case .rgba16Float: return "rgba16Float"
         case .rgba32Float: return "rgba32Float"
@@ -428,12 +429,12 @@ extension MTLPixelFormat {
 }
 
 extension CAMetalLayer {
-    var hdrProbeColorspaceName: String {
+    nonisolated var hdrProbeColorspaceName: String {
         guard let name = colorspace?.name else { return "missing" }
         return name as String
     }
 }
 
 extension CGColorSpace {
-    static let extendedLinearDisplayP3Name = "kCGColorSpaceExtendedLinearDisplayP3"
+    nonisolated static let extendedLinearDisplayP3Name = "kCGColorSpaceExtendedLinearDisplayP3"
 }

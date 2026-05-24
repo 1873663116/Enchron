@@ -1,6 +1,6 @@
 import Foundation
 
-extension FileBrowsingDomain {
+nonisolated extension FileBrowsingDomain {
     public struct MediaFile: Sendable, Equatable, Identifiable {
         public let id: UUID
         public let name: String

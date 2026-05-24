@@ -1,6 +1,6 @@
 import Foundation
 
-extension SpatialSceneDomain {
+nonisolated extension SpatialSceneDomain {
     public enum CinemaEnvironment: String, Sendable, CaseIterable, Codable {
         case darkTheatre
         case starryNight

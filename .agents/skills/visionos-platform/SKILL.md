@@ -19,13 +19,16 @@ specific reference path it should read.
 
 Codex keeps skill metadata in context, not this full body. After the skill
 triggers, read this router, then the smallest relevant reference file.
+Triggering this skill means the task has a visionOS boundary to keep visible; it
+does not mean every reference file should be read.
 
 Use live Apple documentation when the answer depends on current API
 availability, OS-version behavior, privacy requirements, App Store constraints,
 media/HDR behavior, ARKit permissions, or performance claims.
 
 Coding, debugging, build triage, runtime triage, and code review all count as
-skill triggers when they touch a visionOS platform surface.
+skill triggers when they touch a visionOS platform surface. A trigger asks for
+surface ownership and evidence discipline, not a full-document ritual.
 
 When this skill and an iOS/macOS skill both appear relevant, this skill controls
 surface selection, lifecycle, privacy, media behavior, rendering, input, and
@@ -44,8 +47,8 @@ Use this skill to keep the right question in view, not to fill a checklist.
 - Notice the inherited iOS/macOS assumption that could be wrong.
 - Inspect local code before proposing or editing.
 - Keep the change small and aligned with the chosen visionOS surface.
-- Verify with evidence that can see the risk; name any Simulator or device check
-  that still matters.
+- Verify with the smallest evidence that can see the risk; name Simulator or
+  device checks only when automation cannot answer them.
 
 ## Route Table
 

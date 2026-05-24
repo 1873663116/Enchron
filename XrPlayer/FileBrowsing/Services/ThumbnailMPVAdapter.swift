@@ -14,7 +14,7 @@ import Libmpv
 ///
 /// Security-scoped resource access mirrors MPVPlayerAdapter.performLoadStart().
 /// Call `extract(from:)` and then `cleanup()` when done with the instance.
-final class ThumbnailMPVAdapter {
+nonisolated final class ThumbnailMPVAdapter: @unchecked Sendable {
 
     // MARK: - Configuration
 
@@ -40,6 +40,7 @@ final class ThumbnailMPVAdapter {
 
     /// Flag to signal the event loop to exit.
     private var shouldStopEventLoop = false
+    private let eventStateLock = NSLock()
     /// Semaphore to wait for the event loop to finish draining.
     private let eventLoopDone = DispatchSemaphore(value: 0)
 
@@ -56,10 +57,10 @@ final class ThumbnailMPVAdapter {
 
         // Signal the event loop to stop, then wait for it to exit
         // before destroying the handle.
-        if isEventLoopRunning {
-            shouldStopEventLoop = true
+        if isEventLoopActive {
+            requestEventLoopStop()
             eventLoopDone.wait()
-            isEventLoopRunning = false
+            markEventLoopStopped()
         }
 
         if let rc = renderContext {
@@ -110,6 +111,7 @@ final class ThumbnailMPVAdapter {
             loadArg = url.absoluteString
         }
 
+        resetFileLoadedState()
         try command(["loadfile", loadArg, "replace"])
 
         // Wait for FILE_LOADED event
@@ -294,9 +296,7 @@ final class ThumbnailMPVAdapter {
             { ctx in
                 guard let ctx else { return }
                 let adapter = Unmanaged<ThumbnailMPVAdapter>.fromOpaque(ctx).takeUnretainedValue()
-                adapter.renderLock.lock()
-                adapter.renderUpdateAvailable = true
-                adapter.renderLock.unlock()
+                adapter.markRenderUpdateAvailable()
             },
             Unmanaged.passUnretained(self).toOpaque()
         )
@@ -309,8 +309,7 @@ final class ThumbnailMPVAdapter {
     private var isEventLoopRunning = false
 
     private func startEventLoop() {
-        guard !isEventLoopRunning else { return }
-        isEventLoopRunning = true
+        guard markEventLoopStarted() else { return }
         eventQueue.async {
             self.runEventLoop()
         }
@@ -321,15 +320,12 @@ final class ThumbnailMPVAdapter {
             eventLoopDone.signal()
             return
         }
-        while !shouldStopEventLoop {
+        while !isEventLoopStopRequested {
             guard let event = mpv_wait_event(h, 0.05) else { continue }
             let id = event.pointee.event_id
             if id == MPV_EVENT_SHUTDOWN { break }
             if id == MPV_EVENT_FILE_LOADED {
-                controlQueue.sync {
-                    fileLoadedContinuation?.resume(returning: true)
-                    fileLoadedContinuation = nil
-                }
+                completeFileLoaded()
             }
             if id == MPV_EVENT_NONE { continue }
         }
@@ -345,8 +341,12 @@ final class ThumbnailMPVAdapter {
             let deadline = Date().addingTimeInterval(timeout)
             controlQueue.async { [weak self] in
                 guard let self else { continuation.resume(returning: false); return }
-                // Store continuation — event loop will resume it
-                self.fileLoadedContinuation = continuation
+                if self.fileLoadedResult {
+                    continuation.resume(returning: true)
+                } else {
+                    // Store continuation — event loop will resume it
+                    self.fileLoadedContinuation = continuation
+                }
             }
 
             // Timeout watcher
@@ -369,13 +369,70 @@ final class ThumbnailMPVAdapter {
         let deadline = Date().addingTimeInterval(timeout)
         while Date() < deadline {
             try? await Task.sleep(for: .milliseconds(50))
-            renderLock.lock()
-            let available = renderUpdateAvailable
-            if available { renderUpdateAvailable = false }
-            renderLock.unlock()
-            if available { return true }
+            if takeRenderUpdateAvailable() { return true }
         }
         return false
+    }
+
+    private var isEventLoopActive: Bool {
+        eventStateLock.withLock { isEventLoopRunning }
+    }
+
+    private var isEventLoopStopRequested: Bool {
+        eventStateLock.withLock { shouldStopEventLoop }
+    }
+
+    private func markEventLoopStarted() -> Bool {
+        eventStateLock.withLock {
+            guard !isEventLoopRunning else { return false }
+            shouldStopEventLoop = false
+            isEventLoopRunning = true
+            return true
+        }
+    }
+
+    private func requestEventLoopStop() {
+        eventStateLock.withLock {
+            shouldStopEventLoop = true
+        }
+    }
+
+    private func markEventLoopStopped() {
+        eventStateLock.withLock {
+            shouldStopEventLoop = false
+            isEventLoopRunning = false
+        }
+    }
+
+    private func resetFileLoadedState() {
+        controlQueue.sync {
+            fileLoadedResult = false
+            fileLoadedContinuation = nil
+        }
+    }
+
+    private func completeFileLoaded() {
+        controlQueue.async {
+            self.fileLoadedResult = true
+            self.fileLoadedContinuation?.resume(returning: true)
+            self.fileLoadedContinuation = nil
+        }
+    }
+
+    private func markRenderUpdateAvailable() {
+        renderLock.withLock {
+            renderUpdateAvailable = true
+        }
+    }
+
+    private func takeRenderUpdateAvailable() -> Bool {
+        renderLock.withLock {
+            let available = renderUpdateAvailable
+            if available {
+                renderUpdateAvailable = false
+            }
+            return available
+        }
     }
 
     // MARK: - MPV Commands and Properties

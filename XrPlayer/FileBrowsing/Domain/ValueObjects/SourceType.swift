@@ -1,8 +1,8 @@
 import Foundation
 
-public enum FileBrowsingDomain {}
+public nonisolated enum FileBrowsingDomain {}
 
-extension FileBrowsingDomain {
+nonisolated extension FileBrowsingDomain {
     public enum SourceType: String, Sendable, CaseIterable, Codable {
         case local
         case photoLibrary

@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol ScreenPositionStoring {
+public nonisolated protocol ScreenPositionStoring: Sendable {
     func savePosition(
         for environmentID: String,
         distanceMeters: Double,

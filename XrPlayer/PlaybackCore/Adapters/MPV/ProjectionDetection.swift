@@ -3,7 +3,7 @@ import Foundation
 /// Input snapshot for projection type detection.
 /// All fields come from mpv properties and container metadata,
 /// captured once after media profile is detected.
-struct ProjectionDetectionInput: Equatable {
+nonisolated struct ProjectionDetectionInput: Equatable, Sendable {
     /// mpv `video-params/stereo-in` or `video-params/stereo3d-in` — stereoscopic layout tag.
     /// Empty string means mono (no stereo layout).
     let stereo3dIn: String
@@ -25,7 +25,7 @@ struct ProjectionDetectionInput: Equatable {
     let aspectRatio: Double?
 }
 
-enum ProjectionDetection {
+nonisolated enum ProjectionDetection {
     /// Pure function: infer projection type and stereo layout from mpv metadata.
     ///
     /// Returns a tuple `(ProjectionType, StereoLayout)`.

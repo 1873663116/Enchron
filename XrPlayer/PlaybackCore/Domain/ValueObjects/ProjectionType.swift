@@ -1,6 +1,6 @@
 import Foundation
 
-extension PlaybackCoreDomain {
+nonisolated extension PlaybackCoreDomain {
     public enum ProjectionType: String, Sendable, CaseIterable, Codable {
         case flat
         case equirectangular360

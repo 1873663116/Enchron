@@ -1,5 +1,5 @@
 import CoreVideo
 
-public protocol FrameOutput: AnyObject {
+public nonisolated protocol FrameOutput: AnyObject {
     func didOutputFrame(_ pixelBuffer: CVPixelBuffer)
 }

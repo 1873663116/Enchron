@@ -1,6 +1,6 @@
 import Foundation
 
-extension PersistenceDomain {
+nonisolated extension PersistenceDomain {
     public struct ProgressPosition: Sendable, Equatable {
         public let seconds: Double
 

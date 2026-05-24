@@ -1,6 +1,6 @@
 import Foundation
 
-extension PlaybackCoreDomain {
+nonisolated extension PlaybackCoreDomain {
     public struct MediaFile: Sendable, Equatable {
         public let url: URL
         public let containerFormat: String

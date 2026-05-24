@@ -1,6 +1,6 @@
 import Foundation
 
-extension PlaybackCoreDomain {
+nonisolated extension PlaybackCoreDomain {
     public struct SubtitleTrack: Sendable, Equatable, Identifiable {
         public let id: String
         public let languageCode: String?

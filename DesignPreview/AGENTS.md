@@ -20,9 +20,10 @@ Enchron UI 参考。`ComponentLibrary.swift` 中的组件持续确认中，以�
 
 ## Design Tokens 与动画裁决
 
-- 所有 UI 样式值和动效参数必须走 `DesignTokens`。包括颜色、描边、圆角、间距、尺寸、动画曲线、动画时长、press feedback、loading timing。
-- 不允许在 DesignPreview 组件或页面中写临时动画，例如裸 `.easeOut(...)`、`.spring(...)`、`.animation(.default...)`、临时 `Task.sleep(.milliseconds(...))`、临时 `scaleEffect` 参数。
-- 如果现有 token 无法表达目标效果，必须上报人类裁决：由人类决定新增 token、调整组件语义，或取消该动画。不得为了“先看效果”把临时动画留在组件里。
+- Confirmed / production component 的 UI 样式值和动效参数必须走 `DesignTokens`。包括颜色、描边、圆角、间距、尺寸、动画曲线、动画时长、press feedback、loading timing。
+- Design exploration 可以在局部页面稿里使用临时值，但要用 `// EXPLORATORY:` 标记目的和移除条件；这类值不能进入 `ComponentLibrary.swift`、`SharedComponents.swift` 或稳定组件库。
+- 从探索稿提升为稳定组件前，临时值要转成 token、共享组件参数，或记录明确例外。未确认的裸 `.easeOut(...)`、`.spring(...)`、`.animation(.default...)`、临时 `Task.sleep(.milliseconds(...))`、临时 `scaleEffect` 参数不能作为稳定实现留下。
+- 如果 confirmed component 的目标效果无法由现有 token 表达，上报人类裁决：新增 token、调整组件语义、记录例外，或取消该动画。
 
 ---
 

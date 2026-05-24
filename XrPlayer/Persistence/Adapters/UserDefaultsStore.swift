@@ -1,6 +1,6 @@
 import Foundation
 
-public final class UserDefaultsStore: PreferencesStoring {
+public nonisolated final class UserDefaultsStore: PreferencesStoring, @unchecked Sendable {
     private let defaults: UserDefaults
     private static let resumePolicyKey = "xrplayer.preferences.resumePolicy"
     private static let defaultEnvironmentKey = "xrplayer.preferences.defaultEnvironment"

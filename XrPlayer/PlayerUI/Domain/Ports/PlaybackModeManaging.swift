@@ -1,6 +1,6 @@
 import Foundation
 
-public protocol PlaybackModeManaging: Sendable {
+public nonisolated protocol PlaybackModeManaging: Sendable {
     func decideMode(
         for profile: PlaybackCoreDomain.MediaProfile,
         isEnvironmentActive: Bool,

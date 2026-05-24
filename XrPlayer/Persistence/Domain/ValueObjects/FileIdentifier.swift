@@ -1,8 +1,8 @@
 import Foundation
 
-public enum PersistenceDomain {}
+public nonisolated enum PersistenceDomain {}
 
-extension PersistenceDomain {
+nonisolated extension PersistenceDomain {
     public struct FileIdentifier: Sendable, Equatable, Hashable {
         public let rawValue: String
 

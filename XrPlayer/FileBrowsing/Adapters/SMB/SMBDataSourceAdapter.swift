@@ -3,7 +3,7 @@ import Foundation
 import AMSMB2
 #endif
 
-public enum SMBError: LocalizedError {
+public nonisolated enum SMBError: LocalizedError, Sendable {
     case libraryNotAvailable
     case notConnected
     case invalidConnectionInfo
@@ -34,7 +34,7 @@ public enum SMBError: LocalizedError {
 
 #if canImport(AMSMB2)
 
-public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
+public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     private let credentialStore: CredentialStoring?
     private let filter = FileBrowsingDomain.FileFilter.playable
@@ -338,7 +338,7 @@ public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
 #else
 
 // Stub implementation for platforms without AMSMB2 (e.g., Linux)
-public final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding {
+public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     public var ownerDataSourceID: UUID = UUID()
     public private(set) var currentConnectionInfo: FileBrowsingDomain.ConnectionInfo?

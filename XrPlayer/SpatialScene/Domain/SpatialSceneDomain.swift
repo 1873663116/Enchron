@@ -1,3 +1,3 @@
 import Foundation
 
-public enum SpatialSceneDomain {}
+public nonisolated enum SpatialSceneDomain {}

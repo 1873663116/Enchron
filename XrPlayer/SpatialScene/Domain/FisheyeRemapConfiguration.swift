@@ -1,6 +1,6 @@
 import Foundation
 
-extension SpatialSceneDomain {
+nonisolated extension SpatialSceneDomain {
     public struct FisheyeRemapConfiguration: Sendable, Equatable {
         public let fovRadiusRadians: Float
 

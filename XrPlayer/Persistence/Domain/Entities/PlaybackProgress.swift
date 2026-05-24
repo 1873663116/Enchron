@@ -1,6 +1,6 @@
 import Foundation
 
-extension PersistenceDomain {
+nonisolated extension PersistenceDomain {
     public struct PlaybackProgress: Sendable, Equatable {
         public let fileID: FileIdentifier
         public let position: ProgressPosition

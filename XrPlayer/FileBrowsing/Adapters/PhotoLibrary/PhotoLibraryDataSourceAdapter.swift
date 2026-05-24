@@ -1,7 +1,7 @@
 import Foundation
 @preconcurrency import Photos
 
-public enum PhotoLibraryError: LocalizedError {
+public nonisolated enum PhotoLibraryError: LocalizedError, Sendable {
     case notAuthorized
     case notConnected
     case assetNotFound
@@ -24,7 +24,7 @@ public enum PhotoLibraryError: LocalizedError {
     }
 }
 
-public final class PhotoLibraryDataSourceAdapter: DataSourceConnecting, FileProviding {
+public nonisolated final class PhotoLibraryDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     public var ownerDataSourceID: UUID = UUID()
     private let filter = FileBrowsingDomain.FileFilter.playable

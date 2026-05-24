@@ -1,6 +1,6 @@
 import Foundation
 
-extension FileBrowsingDomain {
+nonisolated extension FileBrowsingDomain {
     public struct MediaFolder: Sendable, Equatable, Identifiable {
         public let id: String
         public let name: String

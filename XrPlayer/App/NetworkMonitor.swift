@@ -2,15 +2,19 @@ import Foundation
 import Network
 
 /// Observes network connectivity via NWPathMonitor.
-public final class NetworkMonitor {
-    public private(set) var isConnected: Bool = true
+public nonisolated final class NetworkMonitor: @unchecked Sendable {
+    public var isConnected: Bool {
+        stateLock.withLock { _isConnected }
+    }
 
     private let monitor = NWPathMonitor()
     private let queue = DispatchQueue(label: "com.enchron.networkmonitor")
+    private let stateLock = NSLock()
+    private var _isConnected: Bool = true
 
     public init() {
         monitor.pathUpdateHandler = { [weak self] path in
-            self?.isConnected = path.status == .satisfied
+            self?.setIsConnected(path.status == .satisfied)
         }
         monitor.start(queue: queue)
     }
@@ -29,5 +33,11 @@ public final class NetworkMonitor {
             if isConnected { return true }
         }
         return false
+    }
+
+    private func setIsConnected(_ value: Bool) {
+        stateLock.withLock {
+            _isConnected = value
+        }
     }
 }

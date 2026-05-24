@@ -1,6 +1,6 @@
 import Foundation
 
-extension SpatialSceneDomain {
+nonisolated extension SpatialSceneDomain {
     public struct HemisphereMeshConfiguration: Sendable, Equatable {
         public let stacks: Int
         public let slices: Int

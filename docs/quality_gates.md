@@ -7,11 +7,13 @@ This file is not a feature spec, architecture contract, release checklist, or QA
 
 ## General Signals
 
-A good change preserves `ARCHITECTURE.md` invariants, uses project vocabulary from `docs/ubiquitous_language.md`, and chooses evidence that matches the surface it touched.
+A good change preserves `ARCHITECTURE.md` invariants, uses project vocabulary from `docs/ubiquitous_language.md`, and chooses the smallest evidence that can see the risk it touched.
 
 Automated checks and human Simulator/device checks answer different questions. Keep them separate in the handoff when both matter.
 
 A build or script pass is useful evidence. It is not evidence that spatial interaction, HDR, immersive video, comfort, audio, or performance is correct.
+
+Human verification notes should name only what automation cannot prove: device feel, comfort, spatial interaction, HDR/EDR credibility, long-viewing behavior, signing identity, compliance, or other judgment-heavy surfaces.
 
 ## Apple Toolchain Signals
 
@@ -29,7 +31,7 @@ For command examples, use `docs/reference/apple-toolchain-guide.md`.
 
 Before choosing an API, know which visionOS surface owns the behavior: window, volume, `ImmersiveSpace`, RealityKit scene, Compositor Services, AVKit system video, or file/network/persistence service.
 
-When API availability, privacy, App Store constraints, media/HDR behavior, ARKit permissions, or performance claims matter, route through `.agents/skills/visionos-platform/SKILL.md` and the smallest relevant reference file.
+When API availability, privacy, App Store constraints, media/HDR behavior, ARKit permissions, or performance claims matter, route through `.agents/skills/visionos-platform/SKILL.md` and the smallest relevant reference file. Skill routing confirms the platform boundary; it is not a request to read the full reference set.
 
 For visionOS 26 APIs, check the project deployment target and the fallback story. A degraded fallback is acceptable only when the product behavior is explicit.
 

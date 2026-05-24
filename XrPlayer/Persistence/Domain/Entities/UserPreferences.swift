@@ -1,6 +1,6 @@
 import Foundation
 
-extension PersistenceDomain {
+nonisolated extension PersistenceDomain {
     public struct UserPreferences: Sendable, Equatable {
         public var resumePolicy: ResumePolicy
         public var playbackEndBehavior: PlaybackEndBehavior
