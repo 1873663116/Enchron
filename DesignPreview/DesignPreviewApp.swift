@@ -9,10 +9,26 @@ import SwiftUI
 
 @main
 struct DesignPreviewApp: App {
+    @State private var navigationModel = DesignPreviewNavigationModel()
+
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: DesignPreviewNavigationModel.mainWindowID) {
             DesignPreviewRoot()
+                .environment(navigationModel)
         }
         .windowStyle(.plain)
+
+        WindowGroup(id: DesignPreviewNavigationModel.senseZoneVolumeID) {
+            SenseZoneVolumeRoot()
+                .environment(navigationModel)
+        }
+        .windowStyle(.volumetric)
+        .defaultSize(
+            width: DesignTokens.SceneCarousel.volumeWidthMeters,
+            height: DesignTokens.SceneCarousel.volumeHeightMeters,
+            depth: DesignTokens.SceneCarousel.volumeDepthMeters,
+            in: .meters
+        )
+        .windowResizability(.contentSize)
     }
 }

@@ -41,8 +41,8 @@ struct ComponentLibraryView: View {
 private struct CircleButtonsSection: View {
     @State private var selected: String?
     @State private var viewMode = 0
-    @State private var sortKey: SortKey = .name
-    @State private var sortOrder: SortOrder = .ascending
+    @State private var sortKey: SortMenuKey = .name
+    @State private var sortOrder: SortMenuOrder = .ascending
     @State private var searchText = ""
 
     var body: some View {
@@ -146,53 +146,11 @@ private struct CircleButtonsSection: View {
 
     @ViewBuilder
     private var sortMenuButton: some View {
-        Menu {
-            Section("Sort By") {
-                Button {
-                    sortKey = .name
-                } label: {
-                    Label("Name", systemImage: sortKey == .name ? "checkmark" : "")
-                }
-                Button {
-                    sortKey = .modifiedDate
-                } label: {
-                    Label("Date Modified", systemImage: sortKey == .modifiedDate ? "checkmark" : "")
-                }
-                Button {
-                    sortKey = .size
-                } label: {
-                    Label("Size", systemImage: sortKey == .size ? "checkmark" : "")
-                }
-            }
-
-            Menu("Order") {
-                Button {
-                    sortOrder = .ascending
-                } label: {
-                    Label("Ascending", systemImage: sortOrder == .ascending ? "checkmark" : "")
-                }
-                Button {
-                    sortOrder = .descending
-                } label: {
-                    Label("Descending", systemImage: sortOrder == .descending ? "checkmark" : "")
-                }
-            }
-        } label: {
-            Image(systemName: "arrow.up.arrow.down")
-                .font(DesignTokens.SymbolSize.control)
-                .foregroundStyle(.secondary)
-                .frame(width: DesignTokens.Interactive.regular,
-                       height: DesignTokens.Interactive.regular)
-                .clipShape(Circle())
-                .glassBackgroundEffect(in: Circle())
-                .contentShape(.hoverEffect, Circle())
-                .hoverEffect(.automatic)
-                .contentShape(Circle())
-                .enchronPressFeedback(.icon)
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("DesignPreview-ComponentLibrary-menu-sort")
-        .accessibilityLabel("Sort Menu")
+        SortMenuButton(
+            sortKey: $sortKey,
+            sortOrder: $sortOrder,
+            accessibilityIdentifier: "DesignPreview-ComponentLibrary-menu-sort"
+        )
     }
 
     private var sourceMenuButton: some View {
@@ -230,16 +188,6 @@ private struct CircleButtonsSection: View {
         .accessibilityLabel("Source Menu")
     }
 
-    private enum SortKey {
-        case name
-        case modifiedDate
-        case size
-    }
-
-    private enum SortOrder {
-        case ascending
-        case descending
-    }
 }
 
 

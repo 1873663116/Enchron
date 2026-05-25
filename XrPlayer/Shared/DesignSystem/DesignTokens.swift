@@ -123,6 +123,8 @@ public enum DesignTokens {
         public static let menuPopup: Animation = .spring(duration: 0.35, bounce: 0.15)
         /// Selection state change
         public static let selection: Animation = .spring(.bouncy(duration: 0.4, extraBounce: 0.1))
+        /// Insert/delete list row mutation.
+        public static let listMutation: Animation = .spring(response: 0.34, dampingFraction: 0.86)
         /// Play/pause state
         public static let playback: Animation = .spring(response: 0.45, dampingFraction: 0.85)
         /// Cinema environment switch
@@ -354,29 +356,80 @@ public enum DesignTokens {
 
     /// Spatial card stack used by the Camp Scene preview.
     public enum SceneCarousel {
-        public static let stageWidth: CGFloat = 1_140
+        public static let volumeWidthMeters: CGFloat = 2.05
+        public static let volumeHeightMeters: CGFloat = 0.115
+        public static let volumeDepthMeters: CGFloat = 0.18
+        public static let stageWidth: CGFloat = 1_680
         public static let stageHeight: CGFloat = 640
+        public static let stageDepth: CGFloat = 190
         public static let centerScale: CGFloat = 1.0
         public static let sideScaleStep: CGFloat = 0.055
         public static let minimumScale: CGFloat = 0.84
-        public static let cardOffsetStep: CGFloat = 170
-        public static let cardOffsetCompression: CGFloat = 20
+        public static let centerCardGap: CGFloat = 300
+        public static let outerCardGap: CGFloat = 160
         public static let sideCardYOffset: CGFloat = 10
         public static let centerDepthOffset: CGFloat = 96
-        public static let sideDepthOffset: CGFloat = 56
-        public static let sideOpacityStep: CGFloat = 0.16
-        public static let visibleCardLimit: CGFloat = 2.36
-        public static let edgeFadeMultiplier: CGFloat = 2.4
+        public static let sideDepthOffset: CGFloat = 72
+        public static let handoffDepthGap: CGFloat = 46
+        public static let atmosphericFadeStart: CGFloat = 0.18
+        public static let atmosphericFadeEnd: CGFloat = 1.85
+        public static let atmosphericFadeMaxOpacity: CGFloat = 0.24
         public static let rotationStepDegrees: CGFloat = 12.5
         public static let dragDistance: CGFloat = 250
         public static let snapThreshold: CGFloat = 0.32
-        public static let maximumDragProgress: CGFloat = 1.18
-        public static let detailFadeThreshold: CGFloat = 0.08
+        public static let detailRevealStart: CGFloat = 0.48
+        public static let detailRevealComplete: CGFloat = 0.10
     }
 
-    public enum SourcePane {
-        /// Files page source pane width
-        public static let width: CGFloat = 208
+    public enum SourceSidebar {
+        /// Files page source sidebar glass panel width.
+        public static let width: CGFloat = 224
+        /// Distance between the sidebar glass panel and the WindowGroup container edge.
+        public static let windowInset: CGFloat = Spacing.xs
+        /// Distance from the sidebar glass panel edge to the first content control.
+        public static let trailingContentGap: CGFloat = Spacing.lg
+        /// Inner horizontal padding between sidebar content and its glass panel.
+        public static let contentPaddingH: CGFloat = Spacing.lg
+        /// Horizontal inset for source and favorite row groups inside the glass panel.
+        public static let listPaddingH: CGFloat = Spacing.xs
+        /// Inner vertical padding between sidebar content and its glass panel.
+        public static let contentPaddingV: CGFloat = Spacing.lg
+        /// Compact visual height for source and favorite rows.
+        public static let rowHeight: CGFloat = 48
+        /// Vertical spacing between adjacent source rows.
+        public static let rowSpacing: CGFloat = 0
+        /// Inner horizontal padding for source rows.
+        public static let rowPaddingH: CGFloat = Spacing.xs
+        /// Compact source row shape.
+        public static let rowShape = RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+        /// Section labels inside the source sidebar.
+        public static let sectionTitleFont: Font = Typography.metadata
+        /// Unchecked selection indicator color inside the source sidebar.
+        public static let selectionIndicator: Color = .white.opacity(0.34)
+        /// Width of swipe action buttons revealed behind source rows.
+        public static let swipeActionWidth: CGFloat = 56
+        /// Movement needed before a source row commits to horizontal swipe.
+        public static let swipeActivationDistance: CGFloat = Spacing.xs
+        /// Movement tolerated while waiting for reorder long press activation.
+        public static let reorderPressSlop: CGFloat = Spacing.xs
+        /// Long press duration before source rows enter reorder mode.
+        public static let reorderLongPressDuration: Double = 0.35
+        /// Momentary scale cue when a source row enters reorder mode.
+        public static let reorderActivationScale: CGFloat = 1.045
+        /// Duration of the reorder activation cue before settling into the lifted drag scale.
+        public static let reorderActivationCueDuration: Duration = .milliseconds(160)
+        /// Delay before row hover returns after reorder settles.
+        public static let reorderHoverRestoreDelay: Duration = .milliseconds(420)
+        /// Vertical offset used while a newly inserted source row animates in.
+        public static let rowInsertionOffset: CGFloat = Spacing.sm
+        /// Fraction of a row a drag must cross before the reorder placeholder moves.
+        public static let reorderSwitchThreshold: CGFloat = 0.5
+        /// Fraction used when dragging back toward the original slot to avoid midpoint jitter.
+        public static let reorderReturnThreshold: CGFloat = 0.65
+        /// Subtle lift scale while a source row is being reordered.
+        public static let reorderLiftScale: CGFloat = 1.02
+        /// Files page source sidebar glass container shape.
+        public static let shape = ShapeToken.panel
     }
 
     /// Menu/popover panel standard dimensions.
