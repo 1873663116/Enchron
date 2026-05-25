@@ -4,6 +4,32 @@ import SwiftUI
 
 // MARK: - Reusable controls
 
+struct GlassCircleIconLabel: View {
+    let systemName: String
+    let accessibilityLabel: String
+    var iconColor: Color = .white
+    var visualSize: CGFloat = DesignTokens.Interactive.regular
+    var targetSize: CGFloat = DesignTokens.Interactive.large
+    var font: Font = DesignTokens.SymbolSize.control
+    var accessibilityIdentifier: String?
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(font)
+            .foregroundStyle(iconColor)
+            .frame(width: visualSize, height: visualSize)
+            .clipShape(Circle())
+            .glassBackgroundEffect(in: Circle())
+            .contentShape(.hoverEffect, Circle())
+            .hoverEffect(.automatic)
+            .padding(max((targetSize - visualSize) / 2, 0))
+            .contentShape(Circle())
+            .enchronPressFeedback(.icon)
+            .accessibilityLabel(accessibilityLabel)
+            .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-label-\(systemName)")
+    }
+}
+
 struct GlassCircleIconButton: View {
     let systemName: String
     let accessibilityLabel: String
@@ -13,22 +39,74 @@ struct GlassCircleIconButton: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(DesignTokens.SymbolSize.control)
-                .foregroundStyle(iconColor)
-                .frame(width: DesignTokens.Interactive.regular,
-                       height: DesignTokens.Interactive.regular)
+            GlassCircleIconLabel(
+                systemName: systemName,
+                accessibilityLabel: accessibilityLabel,
+                iconColor: iconColor,
+                accessibilityIdentifier: accessibilityIdentifier ?? "DesignPreview-button-\(systemName)"
+            )
         }
         .buttonStyle(.plain)
-        .clipShape(Circle())
-        .glassBackgroundEffect(in: Circle())
-        .contentShape(.hoverEffect, Circle())
-        .hoverEffect(.automatic)
-        .padding((DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
-        .contentShape(Circle())
-        .enchronPressFeedback(.icon)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(systemName)")
+    }
+}
+
+enum SortMenuKey {
+    case name
+    case modifiedDate
+    case size
+}
+
+enum SortMenuOrder {
+    case ascending
+    case descending
+}
+
+struct SortMenuButton: View {
+    @Binding var sortKey: SortMenuKey
+    @Binding var sortOrder: SortMenuOrder
+    var iconColor: Color = .secondary
+    var accessibilityIdentifier: String = "DesignPreview-menu-sort"
+
+    var body: some View {
+        Menu {
+            Section("Sort By") {
+                sortKeyButton(.name, title: "Name")
+                sortKeyButton(.modifiedDate, title: "Date Modified")
+                sortKeyButton(.size, title: "Size")
+            }
+
+            Menu("Order") {
+                sortOrderButton(.ascending, title: "Ascending")
+                sortOrderButton(.descending, title: "Descending")
+            }
+        } label: {
+            GlassCircleIconLabel(
+                systemName: "arrow.up.arrow.down",
+                accessibilityLabel: "Sort",
+                iconColor: iconColor
+            )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Sort")
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+
+    private func sortKeyButton(_ key: SortMenuKey, title: String) -> some View {
+        Button {
+            sortKey = key
+        } label: {
+            Label(title, systemImage: sortKey == key ? "checkmark" : "")
+        }
+    }
+
+    private func sortOrderButton(_ order: SortMenuOrder, title: String) -> some View {
+        Button {
+            sortOrder = order
+        } label: {
+            Label(title, systemImage: sortOrder == order ? "checkmark" : "")
+        }
     }
 }
 
@@ -191,93 +269,186 @@ struct ViewModeCapsuleControl: View {
 // MARK: - Cards
 
 struct VideoCardLarge: View {
+    @Namespace private var hoverNamespace
+
     let title: String
     let fileSize: String
     let duration: String
     var badges: [String] = []
     var width: CGFloat = DesignTokens.Card.gridMin
+    // Future Settings entry: false keeps the grid clean; true allows thumbnail info to appear on hover.
+    var showsSupplementaryInfo = true
 
-    var body: some View {
-        VStack(spacing: 0) {
-            // Thumbnail + badges
-            ZStack(alignment: .topTrailing) {
-                // Thumbnail placeholder — in real app this is the video frame
-                RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-                    .fill(DesignTokens.Surface.elevated)
-                    .frame(height: DesignTokens.Card.thumbnailHeight)
-
-                // Badges (HDR, DV, etc.) — Capsule, top-right
-                if !badges.isEmpty {
-                    HStack(spacing: DesignTokens.Spacing.xxs) {
-                        ForEach(badges, id: \.self) { badge in
-                            Text(badge)
-                                .font(DesignTokens.Typography.badge)
-                                .foregroundStyle(.secondary)
-                                .padding(.horizontal, DesignTokens.Spacing.xs)
-                                .padding(.vertical, DesignTokens.Spacing.xxs)
-                                .enchronGlassBadge()
-                        }
-                    }
-                    .padding(DesignTokens.Spacing.sm)
-                }
-            }
-
-            // Info: title, then fileSize left + duration right
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                Text(title).font(DesignTokens.Typography.headline)
-                HStack {
-                    Text(fileSize)
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(duration)
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, DesignTokens.Card.paddingH)
-            .padding(.vertical, DesignTokens.Card.paddingV)
-        }
-        .frame(width: width)
-        .enchronGlassCard()
-        .enchronPressFeedback(.card)
+    private var hoverActivationGroup: HoverEffectGroup {
+        HoverEffectGroup(
+            id: "video-card-thumbnail-info",
+            in: hoverNamespace,
+            behavior: .activatesGroup
+        )
     }
-}
 
-struct FolderCard: View {
-    let title: String
-    let count: Int
-    var width: CGFloat = DesignTokens.Card.gridMin
+    private var hoverRevealGroup: HoverEffectGroup {
+        HoverEffectGroup(
+            id: "video-card-thumbnail-info",
+            in: hoverNamespace,
+            behavior: .followsGroup
+        )
+    }
 
     var body: some View {
         let shape = DesignTokens.ShapeToken.card
         VStack(spacing: 0) {
-            RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+            ZStack(alignment: .topTrailing) {
+                // Thumbnail placeholder — in real app this is the video frame
+                shape
+                    .fill(DesignTokens.Surface.elevated)
+                    .frame(height: DesignTokens.Card.thumbnailHeight)
+
+                if showsSupplementaryInfo {
+                    videoThumbnailInfo
+                }
+            }
+            .frame(height: DesignTokens.Card.thumbnailHeight)
+            .clipShape(shape)
+            .glassBackgroundEffect(in: shape)
+            .contentShape(.hoverEffect, shape)
+            .hoverEffect(.highlight, in: hoverActivationGroup)
+
+            Text(title)
+                .font(DesignTokens.Typography.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DesignTokens.Card.paddingH)
+            .padding(.vertical, DesignTokens.Card.paddingV)
+        }
+        .frame(width: width)
+        .contentShape(shape)
+        .enchronPressFeedback(.card)
+    }
+
+    private var videoThumbnailInfo: some View {
+        VStack {
+            HStack {
+                Spacer(minLength: 0)
+
+                if !badges.isEmpty {
+                    HStack(spacing: DesignTokens.Spacing.xxs) {
+                        ForEach(badges, id: \.self) { badge in
+                            thumbnailBadge(badge)
+                        }
+                    }
+                }
+            }
+
+            Spacer()
+
+            HStack {
+                thumbnailMetadata(fileSize)
+                Spacer()
+                thumbnailMetadata(duration)
+            }
+        }
+        .padding(DesignTokens.Spacing.sm)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+            effect.animation(DesignTokens.AnimationToken.controlsTransition) {
+                $0.opacity(isActive ? 1 : 0)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func thumbnailBadge(_ text: String) -> some View {
+        Text(text)
+            .font(DesignTokens.Typography.badge)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, DesignTokens.Spacing.xs)
+            .padding(.vertical, DesignTokens.Spacing.xxs)
+            .enchronGlassBadge()
+    }
+
+    private func thumbnailMetadata(_ text: String) -> some View {
+        Text(text)
+            .font(DesignTokens.Typography.metadata)
+            .foregroundStyle(.secondary)
+    }
+}
+
+struct FolderCard: View {
+    @Namespace private var hoverNamespace
+
+    let title: String
+    let count: Int
+    var width: CGFloat = DesignTokens.Card.gridMin
+    // Future Settings entry: false keeps the grid clean; true allows thumbnail info to appear on hover.
+    var showsSupplementaryInfo = true
+
+    private var hoverActivationGroup: HoverEffectGroup {
+        HoverEffectGroup(
+            id: "folder-card-thumbnail-info",
+            in: hoverNamespace,
+            behavior: .activatesGroup
+        )
+    }
+
+    private var hoverRevealGroup: HoverEffectGroup {
+        HoverEffectGroup(
+            id: "folder-card-thumbnail-info",
+            in: hoverNamespace,
+            behavior: .followsGroup
+        )
+    }
+
+    var body: some View {
+        let shape = DesignTokens.ShapeToken.card
+        VStack(alignment: .leading, spacing: 0) {
+            shape
                 .fill(DesignTokens.Surface.elevated)
                 .frame(height: DesignTokens.Card.thumbnailHeight)
-                .overlay {
+                .overlay(alignment: .center) {
                     Image(systemName: "folder.fill")
                         .font(.system(size: 54))
                         .foregroundStyle(.tertiary)
                 }
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                Text(title).font(DesignTokens.Typography.headline)
-                Text("\(count) items")
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, DesignTokens.Card.paddingH)
-            .padding(.vertical, DesignTokens.Card.paddingV)
-            .frame(maxWidth: .infinity, alignment: .leading)
+                .overlay(alignment: .bottomLeading) {
+                    if showsSupplementaryInfo {
+                        folderThumbnailInfo
+                    }
+                }
+                .clipShape(shape)
+                .glassBackgroundEffect(in: shape)
+                .contentShape(.hoverEffect, shape)
+                .hoverEffect(.highlight, in: hoverActivationGroup)
+
+            Text(title)
+                .font(DesignTokens.Typography.headline)
+                .padding(.horizontal, DesignTokens.Card.paddingH)
+                .padding(.vertical, DesignTokens.Card.paddingV)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(width: width)
-        .clipShape(shape)
-        .glassBackgroundEffect(in: shape)
-        .contentShape(.hoverEffect, shape)
-        .hoverEffect(.highlight)
         .contentShape(shape)
-        .hoverEffectGroup()
         .enchronPressFeedback(.card)
+    }
+
+    private var folderThumbnailInfo: some View {
+        HStack {
+            thumbnailMetadata("\(count) items")
+            Spacer(minLength: 0)
+        }
+        .padding(DesignTokens.Spacing.sm)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+        .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+            effect.animation(DesignTokens.AnimationToken.controlsTransition) {
+                $0.opacity(isActive ? 1 : 0)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func thumbnailMetadata(_ text: String) -> some View {
+        Text(text)
+            .font(DesignTokens.Typography.metadata)
+            .foregroundStyle(.primary)
     }
 }
 
@@ -386,7 +557,9 @@ struct FeaturedScene: Identifiable {
 
 struct FeaturedSceneCard: View {
     var scene: FeaturedScene = .fixtures[0]
-    var showsDetails: Bool = true
+    var detailVisibility: CGFloat = 1
+    var atmosphericFade: CGFloat = 0
+    var onReturn: () -> Void = {}
     var onExpand: () -> Void = {}
     var onMore: () -> Void = {}
 
@@ -398,10 +571,9 @@ struct FeaturedSceneCard: View {
 
         ZStack(alignment: .bottom) {
             backgroundImage
-            if showsDetails {
-                sceneInfoPanel
-                expandControl
-            }
+            topMultiplyOverlay
+            sceneInfoPanel
+            topControls
         }
         .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
         .clipShape(shape)
@@ -416,18 +588,33 @@ struct FeaturedSceneCard: View {
         .accessibilityLabel("Featured scene card, \(scene.title)")
     }
 
+    private var clampedDetailVisibility: CGFloat {
+        max(0, min(1, detailVisibility))
+    }
+
+    private var clampedAtmosphericFade: CGFloat {
+        max(0, min(1, atmosphericFade))
+    }
+
     private var backgroundImage: some View {
         Image(scene.imageName)
             .resizable()
             .scaledToFill()
             .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
+            .saturation(Double(1 - clampedAtmosphericFade * Metrics.atmosphericDesaturation))
+            .contrast(Double(1 - clampedAtmosphericFade * Metrics.atmosphericContrastReduction))
             .clipped()
     }
 
-    private var expandControl: some View {
+    private var topControls: some View {
         VStack {
-            Spacer()
-            HStack {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                GlassCircleIconButton(
+                    systemName: "chevron.left",
+                    accessibilityLabel: "Return to window",
+                    action: onReturn,
+                    accessibilityIdentifier: "DesignPreview-FeaturedSceneCard-button-return"
+                )
                 Spacer()
                 GlassCircleIconButton(
                     systemName: "arrow.up.left.and.arrow.down.right",
@@ -437,8 +624,23 @@ struct FeaturedSceneCard: View {
                 )
             }
             .padding(Metrics.chromePadding)
+            Spacer()
         }
         .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
+        .opacity(Double(clampedDetailVisibility))
+    }
+
+    private var topMultiplyOverlay: some View {
+        VStack(spacing: 0) {
+            Rectangle()
+                .fill(Color.black)
+                .blendMode(.multiply)
+                .mask(topMultiplyFadeMask)
+                .frame(height: Metrics.topMultiplyHeight)
+            Spacer(minLength: 0)
+        }
+        .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
+        .opacity(Double(clampedDetailVisibility))
     }
 
     private var sceneInfoPanel: some View {
@@ -477,6 +679,7 @@ struct FeaturedSceneCard: View {
                 .blendMode(.multiply)
                 .mask(infoMaterialFadeMask)
         }
+        .opacity(Double(clampedDetailVisibility))
     }
 
     private var infoMaterialFadeMask: some View {
@@ -495,6 +698,17 @@ struct FeaturedSceneCard: View {
         )
     }
 
+    private var topMultiplyFadeMask: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .white.opacity(Metrics.topFadeMaxOpacity), location: 0),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
     private enum Metrics {
         static let cardWidth: CGFloat = 500
         static let cardHeight: CGFloat = 548
@@ -506,113 +720,155 @@ struct FeaturedSceneCard: View {
         static let infoPaddingBottom: CGFloat = 14
         static let infoFadeMinOpacity: CGFloat = 0
         static let infoFadeMaxOpacity: CGFloat = 0.45
+        static let topMultiplyHeight: CGFloat = 160
+        static let topFadeMaxOpacity: CGFloat = 0.40
+        static let atmosphericContrastReduction: CGFloat = 0.18
+        static let atmosphericDesaturation: CGFloat = 0.30
     }
 }
 
 struct SceneCardCarousel: View {
     var scenes: [FeaturedScene] = FeaturedScene.fixtures
+    var onReturn: () -> Void = {}
 
-    @State private var activeIndex = 0
+    @State private var scrollPosition: CGFloat = 0
     @State private var dragTranslation: CGFloat = 0
-    @State private var settleProgress: CGFloat = 0
+    @State private var isDragging = false
+    @State private var isSettling = false
+    @State private var detailsVisible = true
+    @State private var motionGeneration = 0
 
     var body: some View {
         ZStack {
             if scenes.isEmpty {
                 EmptyView()
             } else {
-                ForEach(orderedRenderOffsets, id: \.self) { offset in
-                    let visualPosition = CGFloat(offset) - dragProgress
-                    let scene = scenes[wrappedIndex(activeIndex + offset)]
-
+                ForEach(renderItems) { item in
                     FeaturedSceneCard(
-                        scene: scene,
-                        showsDetails: offset == 0 && abs(dragProgress) < Metrics.detailFadeThreshold,
+                        scene: item.scene,
+                        detailVisibility: interactionDetailVisibility(for: item.visualPosition),
+                        atmosphericFade: atmosphericFade(for: item.visualPosition),
+                        onReturn: onReturn,
                         onExpand: {},
                         onMore: {}
                     )
-                    .allowsHitTesting(offset == 0)
-                    .scaleEffect(scale(for: visualPosition))
+                    .allowsHitTesting(abs(item.visualPosition) < Metrics.centerHitTestingDistance)
+                    .scaleEffect(scale(for: item.visualPosition))
                     .rotation3DEffect(
-                        .degrees(rotation(for: visualPosition)),
+                        .degrees(rotation(for: item.visualPosition)),
                         axis: (x: 0, y: 1, z: 0),
-                        anchor: visualPosition < 0 ? .leading : .trailing
+                        anchor: item.visualPosition < 0 ? .leading : .trailing
                     )
-                    .offset(z: zOffset(for: visualPosition))
-                    .offset(x: xOffset(for: visualPosition), y: yOffset(for: visualPosition))
-                    .opacity(opacity(for: visualPosition))
-                    .zIndex(zIndex(for: visualPosition))
-                    .accessibilityHidden(offset != 0)
+                    .offset(z: zOffset(for: item.visualPosition))
+                    .offset(x: xOffset(for: item.visualPosition), y: yOffset(for: item.visualPosition))
+                    .zIndex(zIndex(for: item.visualPosition))
+                    .accessibilityHidden(abs(item.visualPosition) >= Metrics.centerHitTestingDistance)
                 }
             }
         }
         .frame(width: Metrics.stageWidth, height: Metrics.stageHeight)
+        .frame(depth: Metrics.stageDepth)
         .contentShape(Rectangle())
         .gesture(dragGesture)
-        .animation(DesignTokens.AnimationToken.scene, value: activeIndex)
-        .animation(DesignTokens.AnimationToken.scene, value: dragTranslation == 0)
         .accessibilityIdentifier("DesignPreview-SceneCardCarousel")
     }
 
-    private var orderedRenderOffsets: [Int] {
-        Metrics.renderOffsets.sorted {
-            abs(CGFloat($0) - dragProgress) > abs(CGFloat($1) - dragProgress)
+    private var renderItems: [RenderItem] {
+        scenes.indices.map { index in
+            return RenderItem(
+                visualPosition: visualPosition(for: index),
+                scene: scenes[index]
+            )
         }
     }
 
-    private var dragProgress: CGFloat {
+    private var currentScrollPosition: CGFloat {
         guard !scenes.isEmpty else { return 0 }
         let gestureProgress = -dragTranslation / Metrics.dragDistance
-        return max(-Metrics.maximumDragProgress,
-                   min(Metrics.maximumDragProgress, settleProgress + gestureProgress))
+        return scrollPosition + gestureProgress
+    }
+
+    private var interactionDetailScale: CGFloat {
+        detailsVisible && !isDragging && !isSettling ? 1 : 0
     }
 
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: DesignTokens.Stroke.regular)
             .onChanged { value in
+                if !isDragging {
+                    motionGeneration += 1
+                    isDragging = true
+                    isSettling = false
+                    detailsVisible = false
+                }
                 dragTranslation = value.translation.width
             }
             .onEnded { value in
-                let projectedProgress = -value.predictedEndTranslation.width / Metrics.dragDistance
                 let actualProgress = -value.translation.width / Metrics.dragDistance
-                let shouldAdvance = projectedProgress > Metrics.snapThreshold || actualProgress > Metrics.snapThreshold
-                let shouldRetreat = projectedProgress < -Metrics.snapThreshold || actualProgress < -Metrics.snapThreshold
+                let projectedProgress = -value.predictedEndTranslation.width / Metrics.dragDistance
+                let actualPosition = scrollPosition + actualProgress
+                let projectedPosition = scrollPosition + projectedProgress
+                let targetPosition = targetScrollPosition(
+                    actualPosition: actualPosition,
+                    projectedPosition: projectedPosition
+                )
+                let generation = motionGeneration
 
-                let targetStep = shouldAdvance ? 1 : (shouldRetreat ? -1 : 0)
-
+                isDragging = false
+                isSettling = true
                 withAnimation(
                     DesignTokens.AnimationToken.scene,
                     completionCriteria: .logicallyComplete
                 ) {
                     dragTranslation = 0
-                    settleProgress = CGFloat(targetStep)
+                    scrollPosition = targetPosition
                 } completion: {
-                    if targetStep != 0 {
-                        activeIndex = wrappedIndex(activeIndex + targetStep)
+                    guard generation == motionGeneration else {
+                        return
                     }
-                    settleProgress = 0
+                    scrollPosition = normalizedScrollPosition(targetPosition)
+                    isSettling = false
+                    withAnimation(DesignTokens.AnimationToken.fadeIn) {
+                        detailsVisible = true
+                    }
                 }
             }
     }
 
-    private func move(by delta: Int) {
-        guard !scenes.isEmpty else { return }
-        withAnimation(DesignTokens.AnimationToken.scene) {
-            activeIndex = wrappedIndex(activeIndex + delta)
-        }
+    private func visualPosition(for index: Int) -> CGFloat {
+        guard !scenes.isEmpty else { return 0 }
+        let sceneCount = CGFloat(scenes.count)
+        let rawPosition = CGFloat(index) - currentScrollPosition
+        return rawPosition - (rawPosition / sceneCount).rounded() * sceneCount
     }
 
-    private func wrappedIndex(_ index: Int) -> Int {
+    private func normalizedScrollPosition(_ position: CGFloat) -> CGFloat {
         guard !scenes.isEmpty else { return 0 }
-        return (index % scenes.count + scenes.count) % scenes.count
+        let sceneCount = CGFloat(scenes.count)
+        let remainder = position.truncatingRemainder(dividingBy: sceneCount)
+        return remainder >= 0 ? remainder : remainder + sceneCount
+    }
+
+    private func targetScrollPosition(actualPosition: CGFloat, projectedPosition: CGFloat) -> CGFloat {
+        let actualDelta = actualPosition - scrollPosition
+        let projectedDelta = projectedPosition - scrollPosition
+        let dominantDelta = abs(projectedDelta) > abs(actualDelta) ? projectedDelta : actualDelta
+        let roundedDelta = dominantDelta.rounded()
+
+        if roundedDelta == 0, abs(dominantDelta) > Metrics.snapThreshold {
+            return scrollPosition + (dominantDelta > 0 ? 1 : -1)
+        }
+
+        return scrollPosition + roundedDelta
     }
 
     private func xOffset(for position: CGFloat) -> CGFloat {
         let distance = abs(position)
         let sign: CGFloat = position < 0 ? -1 : 1
-        let compressedDistance = distance * Metrics.cardOffsetStep
-            - distance * max(0, distance - 1) * Metrics.cardOffsetCompression
-        return sign * compressedDistance
+        let offset = distance <= 1
+            ? distance * Metrics.centerCardGap
+            : Metrics.centerCardGap + (distance - 1) * Metrics.outerCardGap
+        return sign * offset
     }
 
     private func yOffset(for position: CGFloat) -> CGFloat {
@@ -620,7 +876,15 @@ struct SceneCardCarousel: View {
     }
 
     private func zOffset(for position: CGFloat) -> CGFloat {
-        Metrics.centerDepthOffset - abs(position) * Metrics.sideDepthOffset
+        let distance = abs(position)
+        let baseOffset = Metrics.centerDepthOffset - distance * Metrics.sideDepthOffset
+        guard distance > .ulpOfOne else {
+            return baseOffset
+        }
+
+        let handoffProgress = max(0, 1 - min(distance, 1))
+        let handoffOffset = handoffProgress * Metrics.handoffDepthGap
+        return baseOffset + (position < 0 ? -handoffOffset : handoffOffset)
     }
 
     private func scale(for position: CGFloat) -> CGFloat {
@@ -634,12 +898,29 @@ struct SceneCardCarousel: View {
         return sign * Double(distance * Metrics.rotationStep)
     }
 
-    private func opacity(for position: CGFloat) -> Double {
+    private func interactionDetailVisibility(for position: CGFloat) -> CGFloat {
+        detailVisibility(for: position) * interactionDetailScale
+    }
+
+    private func detailVisibility(for position: CGFloat) -> CGFloat {
         let distance = abs(position)
-        guard distance <= Metrics.visibleCardLimit else { return 0 }
-        let depthOpacity = 1 - min(distance, 2) * Metrics.sideOpacityStep
-        let edgeFade = 1 - max(0, distance - 2) * Metrics.edgeFadeMultiplier
-        return Double(max(0, min(depthOpacity, edgeFade)))
+        guard distance < Metrics.detailRevealStart else { return 0 }
+
+        let revealRange = Metrics.detailRevealStart - Metrics.detailRevealComplete
+        guard revealRange > 0 else { return 1 }
+
+        return max(0, min(1, (Metrics.detailRevealStart - distance) / revealRange))
+    }
+
+    private func atmosphericFade(for position: CGFloat) -> CGFloat {
+        let distance = abs(position)
+        guard distance > Metrics.atmosphericFadeStart else { return 0 }
+
+        let fadeRange = Metrics.atmosphericFadeEnd - Metrics.atmosphericFadeStart
+        guard fadeRange > 0 else { return Metrics.atmosphericFadeMaxOpacity }
+
+        let progress = max(0, min(1, (distance - Metrics.atmosphericFadeStart) / fadeRange))
+        return progress * Metrics.atmosphericFadeMaxOpacity
     }
 
     private func zIndex(for position: CGFloat) -> Double {
@@ -649,23 +930,34 @@ struct SceneCardCarousel: View {
     private enum Metrics {
         static let stageWidth: CGFloat = DesignTokens.SceneCarousel.stageWidth
         static let stageHeight: CGFloat = DesignTokens.SceneCarousel.stageHeight
+        static let stageDepth: CGFloat = DesignTokens.SceneCarousel.stageDepth
         static let dragDistance: CGFloat = DesignTokens.SceneCarousel.dragDistance
         static let snapThreshold: CGFloat = DesignTokens.SceneCarousel.snapThreshold
-        static let maximumDragProgress: CGFloat = DesignTokens.SceneCarousel.maximumDragProgress
-        static let detailFadeThreshold: CGFloat = DesignTokens.SceneCarousel.detailFadeThreshold
-        static let visibleCardLimit: CGFloat = DesignTokens.SceneCarousel.visibleCardLimit
+        static let centerHitTestingDistance: CGFloat = 0.12
         static let centerScale: CGFloat = DesignTokens.SceneCarousel.centerScale
         static let minimumScale: CGFloat = DesignTokens.SceneCarousel.minimumScale
-        static let cardOffsetStep: CGFloat = DesignTokens.SceneCarousel.cardOffsetStep
-        static let cardOffsetCompression: CGFloat = DesignTokens.SceneCarousel.cardOffsetCompression
+        static let centerCardGap: CGFloat = DesignTokens.SceneCarousel.centerCardGap
+        static let outerCardGap: CGFloat = DesignTokens.SceneCarousel.outerCardGap
         static let sideCardYOffset: CGFloat = DesignTokens.SceneCarousel.sideCardYOffset
         static let centerDepthOffset: CGFloat = DesignTokens.SceneCarousel.centerDepthOffset
         static let sideDepthOffset: CGFloat = DesignTokens.SceneCarousel.sideDepthOffset
-        static let sideOpacityStep: CGFloat = DesignTokens.SceneCarousel.sideOpacityStep
-        static let edgeFadeMultiplier: CGFloat = DesignTokens.SceneCarousel.edgeFadeMultiplier
+        static let handoffDepthGap: CGFloat = DesignTokens.SceneCarousel.handoffDepthGap
+        static let atmosphericFadeStart: CGFloat = DesignTokens.SceneCarousel.atmosphericFadeStart
+        static let atmosphericFadeEnd: CGFloat = DesignTokens.SceneCarousel.atmosphericFadeEnd
+        static let atmosphericFadeMaxOpacity: CGFloat = DesignTokens.SceneCarousel.atmosphericFadeMaxOpacity
+        static let detailRevealStart: CGFloat = DesignTokens.SceneCarousel.detailRevealStart
+        static let detailRevealComplete: CGFloat = DesignTokens.SceneCarousel.detailRevealComplete
         static let scaleStep: CGFloat = DesignTokens.SceneCarousel.sideScaleStep
         static let rotationStep: CGFloat = DesignTokens.SceneCarousel.rotationStepDegrees
-        static let renderOffsets = [-3, -2, -1, 0, 1, 2, 3]
+    }
+
+    private struct RenderItem: Identifiable {
+        let visualPosition: CGFloat
+        let scene: FeaturedScene
+
+        var id: String {
+            scene.id
+        }
     }
 }
 
@@ -692,6 +984,86 @@ struct FileListRow: View {
         .frame(minHeight: DesignTokens.Interactive.rowHeight)
         .enchronGlassMenuItem()
         .enchronPressFeedback(.row)
+    }
+}
+
+struct VideoListRow: View {
+    @Namespace private var hoverNamespace
+
+    let title: String
+    let fileSize: String
+    let duration: String
+    var badges: [String] = []
+    var showsAlternateBackground = false
+
+    private var hoverActivationGroup: HoverEffectGroup {
+        HoverEffectGroup(
+            id: "video-list-row-info",
+            in: hoverNamespace,
+            behavior: .activatesGroup
+        )
+    }
+
+    private var hoverRevealGroup: HoverEffectGroup {
+        HoverEffectGroup(
+            id: "video-list-row-info",
+            in: hoverNamespace,
+            behavior: .followsGroup
+        )
+    }
+
+    var body: some View {
+        let shape = DesignTokens.ShapeToken.element
+
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: "film")
+                .font(.body)
+                .frame(width: DesignTokens.Spacing.xl)
+                .foregroundStyle(.secondary)
+
+            Text(title)
+                .font(.body)
+                .foregroundStyle(.primary)
+
+            Spacer(minLength: DesignTokens.Spacing.lg)
+
+            metadataRegion
+        }
+        .padding(.horizontal, DesignTokens.Spacing.xs)
+        .frame(maxWidth: .infinity, minHeight: DesignTokens.Interactive.rowHeight)
+        .background(
+            showsAlternateBackground ? DesignTokens.Surface.card : .clear,
+            in: shape
+        )
+        .contentShape(.hoverEffect, shape)
+        .contentShape(shape)
+        .hoverEffect(.highlight, in: hoverActivationGroup)
+        .enchronPressFeedback(.row)
+        .accessibilityLabel(title)
+    }
+
+    private var metadataRegion: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            if !badges.isEmpty {
+                Text(badges.joined(separator: " · "))
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(fileSize)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+
+            Text(duration)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+        }
+        .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+            effect.animation(DesignTokens.AnimationToken.controlsTransition) {
+                $0.opacity(isActive ? 1 : 0)
+            }
+        }
+        .allowsHitTesting(false)
     }
 }
 
@@ -956,12 +1328,13 @@ struct FilterPillBar: View {
     }
 }
 
-struct SourcePaneRow: View {
+struct SourceSidebarRow: View {
     let icon: String
     let title: String
     var isSelected = false
     var isEnabled = true
     var isOnline = false
+    var showsSelectionBackground = true
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
@@ -983,9 +1356,12 @@ struct SourcePaneRow: View {
                     .frame(width: DesignTokens.Spacing.xs, height: DesignTokens.Spacing.xs)
             }
         }
-        .padding(.horizontal, DesignTokens.Spacing.sm)
-        .frame(minHeight: DesignTokens.Interactive.rowHeight)
-        .background(isSelected ? DesignTokens.Surface.selected : .clear, in: DesignTokens.ShapeToken.element)
+        .padding(.horizontal, DesignTokens.SourceSidebar.rowPaddingH)
+        .frame(minHeight: DesignTokens.SourceSidebar.rowHeight)
+        .background(
+            isSelected && showsSelectionBackground ? DesignTokens.Surface.selected : .clear,
+            in: DesignTokens.SourceSidebar.rowShape
+        )
         .opacity(isEnabled ? 1 : 0.42)
         .accessibilityLabel(title)
     }

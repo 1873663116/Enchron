@@ -48,78 +48,22 @@ extension EmptyPanelWindowContent where Content == EmptyView {
 }
 
 struct DesignCompWindowPreviewStage<Content: View>: View {
-    var showsSidebar = false
-    var sidebarSelection: DesignCompSidebarItem = .files
     private let content: Content
 
     init(
-        showsSidebar: Bool = false,
-        sidebarSelection: DesignCompSidebarItem = .files,
         @ViewBuilder content: () -> Content
     ) {
-        self.showsSidebar = showsSidebar
-        self.sidebarSelection = sidebarSelection
         self.content = content()
     }
 
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xl) {
-            if showsSidebar {
-                DesignCompSidebar(selection: sidebarSelection)
-            }
-
-            EmptyPanelWindowContent(showsReviewLabel: false) {
-                content
-            }
-            .frame(
-                width: EmptyPanelWindowContent<EmptyView>.defaultArtboardSize.width,
-                height: EmptyPanelWindowContent<EmptyView>.defaultArtboardSize.height
-            )
+        EmptyPanelWindowContent(showsReviewLabel: false) {
+            content
         }
+        .frame(
+            width: EmptyPanelWindowContent<EmptyView>.defaultArtboardSize.width,
+            height: EmptyPanelWindowContent<EmptyView>.defaultArtboardSize.height
+        )
         .padding(DesignTokens.Spacing.xxxl)
-    }
-}
-
-enum DesignCompSidebarItem {
-    case files
-    case settings
-    case scene
-}
-
-struct DesignCompSidebar: View {
-    let selection: DesignCompSidebarItem
-
-    var body: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            sidebarButton("folder.fill", label: "Files", item: .files)
-            sidebarButton("gearshape.fill", label: "Settings", item: .settings)
-            Spacer(minLength: DesignTokens.Spacing.xl)
-            sidebarButton("mountain.2", label: "Scene", item: .scene)
-        }
-        .padding(.vertical, DesignTokens.Spacing.lg)
-        .padding(.horizontal, DesignTokens.Spacing.xs)
-        .frame(width: DesignTokens.Interactive.large + DesignTokens.Spacing.sm)
-        .enchronGlassMenu()
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("DesignComps-windowSidebar")
-        .accessibilityLabel("Window sidebar")
-    }
-
-    private func sidebarButton(
-        _ systemName: String,
-        label: String,
-        item: DesignCompSidebarItem
-    ) -> some View {
-        let isSelected = selection == item
-
-        return Image(systemName: systemName)
-            .font(DesignTokens.SymbolSize.control)
-            .foregroundStyle(isSelected ? DesignTokens.Theme.accent : .secondary)
-            .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)
-            .background(isSelected ? DesignTokens.Surface.selected : .clear, in: Circle())
-            .contentShape(.hoverEffect, Circle())
-            .hoverEffect(.automatic)
-            .contentShape(Circle())
-            .accessibilityLabel(label)
     }
 }

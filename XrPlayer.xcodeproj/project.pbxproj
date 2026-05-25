@@ -79,8 +79,10 @@
 				DesignComps/Pages/Home/HomeV1Page.swift,
 				DesignComps/Pages/Player/PlayerControlPanelPage.swift,
 				DesignComps/Pages/Scene/CampScenePage.swift,
+				DesignComps/Pages/Scene/SenseZoneVolumeRoot.swift,
 				DesignComps/Windows/EmptyPanelWindowContent.swift,
 				DesignPreviewApp.swift,
+				DesignPreviewNavigationModel.swift,
 				DesignPreviewRoot.swift,
 				SharedComponents.swift,
 			);

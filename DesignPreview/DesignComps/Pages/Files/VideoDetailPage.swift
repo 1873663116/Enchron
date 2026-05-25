@@ -143,7 +143,7 @@ struct VideoDetailPage: View {
 }
 
 #Preview(windowStyle: .automatic) {
-    DesignCompWindowPreviewStage(showsSidebar: true) {
+    DesignCompWindowPreviewStage {
         VideoDetailPage()
     }
 }
