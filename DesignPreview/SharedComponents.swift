@@ -603,6 +603,7 @@ struct FeaturedSceneCard: View {
             .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
             .saturation(Double(1 - clampedAtmosphericFade * Metrics.atmosphericDesaturation))
             .contrast(Double(1 - clampedAtmosphericFade * Metrics.atmosphericContrastReduction))
+            .blur(radius: clampedAtmosphericFade * Metrics.atmosphericBlurRadius)
             .clipped()
     }
 
@@ -722,8 +723,9 @@ struct FeaturedSceneCard: View {
         static let infoFadeMaxOpacity: CGFloat = 0.45
         static let topMultiplyHeight: CGFloat = 160
         static let topFadeMaxOpacity: CGFloat = 0.40
-        static let atmosphericContrastReduction: CGFloat = 0.18
-        static let atmosphericDesaturation: CGFloat = 0.30
+        static let atmosphericContrastReduction: CGFloat = 0.68
+        static let atmosphericDesaturation: CGFloat = 0.38
+        static let atmosphericBlurRadius: CGFloat = 2.6
     }
 }
 
@@ -737,6 +739,7 @@ struct SceneCardCarousel: View {
     @State private var isSettling = false
     @State private var detailsVisible = true
     @State private var motionGeneration = 0
+    @State private var detailRevealTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
@@ -753,12 +756,7 @@ struct SceneCardCarousel: View {
                         onMore: {}
                     )
                     .allowsHitTesting(abs(item.visualPosition) < Metrics.centerHitTestingDistance)
-                    .scaleEffect(scale(for: item.visualPosition))
-                    .rotation3DEffect(
-                        .degrees(rotation(for: item.visualPosition)),
-                        axis: (x: 0, y: 1, z: 0),
-                        anchor: item.visualPosition < 0 ? .leading : .trailing
-                    )
+                    .opacity(Double(cardOpacity(for: item.visualPosition)))
                     .offset(z: zOffset(for: item.visualPosition))
                     .offset(x: xOffset(for: item.visualPosition), y: yOffset(for: item.visualPosition))
                     .zIndex(zIndex(for: item.visualPosition))
@@ -774,12 +772,21 @@ struct SceneCardCarousel: View {
     }
 
     private var renderItems: [RenderItem] {
-        scenes.indices.map { index in
+        scenes.indices.compactMap { index in
+            let visualPosition = visualPosition(for: index)
+            guard abs(visualPosition) <= activeRenderCardDistance else {
+                return nil
+            }
+
             return RenderItem(
-                visualPosition: visualPosition(for: index),
+                visualPosition: visualPosition,
                 scene: scenes[index]
             )
         }
+    }
+
+    private var activeRenderCardDistance: CGFloat {
+        isDragging || isSettling ? Metrics.motionRenderCardDistance : Metrics.stableRenderCardDistance
     }
 
     private var currentScrollPosition: CGFloat {
@@ -789,7 +796,7 @@ struct SceneCardCarousel: View {
     }
 
     private var interactionDetailScale: CGFloat {
-        detailsVisible && !isDragging && !isSettling ? 1 : 0
+        detailsVisible && !isDragging ? 1 : 0
     }
 
     private var dragGesture: some Gesture {
@@ -797,6 +804,7 @@ struct SceneCardCarousel: View {
             .onChanged { value in
                 if !isDragging {
                     motionGeneration += 1
+                    detailRevealTask?.cancel()
                     isDragging = true
                     isSettling = false
                     detailsVisible = false
@@ -812,12 +820,14 @@ struct SceneCardCarousel: View {
                     actualPosition: actualPosition,
                     projectedPosition: projectedPosition
                 )
+                let targetStepDistance = abs(targetPosition - scrollPosition)
                 let generation = motionGeneration
 
                 isDragging = false
                 isSettling = true
+                scheduleDetailReveal(for: generation, stepDistance: targetStepDistance)
                 withAnimation(
-                    DesignTokens.AnimationToken.scene,
+                    DesignTokens.AnimationToken.sceneCarouselSettle,
                     completionCriteria: .logicallyComplete
                 ) {
                     dragTranslation = 0
@@ -826,13 +836,36 @@ struct SceneCardCarousel: View {
                     guard generation == motionGeneration else {
                         return
                     }
-                    scrollPosition = normalizedScrollPosition(targetPosition)
-                    isSettling = false
-                    withAnimation(DesignTokens.AnimationToken.fadeIn) {
-                        detailsVisible = true
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        scrollPosition = normalizedScrollPosition(targetPosition)
+                        isSettling = false
                     }
                 }
             }
+    }
+
+    private func scheduleDetailReveal(for generation: Int, stepDistance: CGFloat) {
+        detailRevealTask?.cancel()
+        detailRevealTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: detailRevealDelay(for: stepDistance))
+            guard !Task.isCancelled,
+                  generation == motionGeneration,
+                  !isDragging
+            else {
+                return
+            }
+
+            withAnimation(DesignTokens.AnimationToken.fadeIn) {
+                detailsVisible = true
+            }
+        }
+    }
+
+    private func detailRevealDelay(for stepDistance: CGFloat) -> UInt64 {
+        Metrics.detailRevealDelayNanoseconds
+            + UInt64(max(0, stepDistance.rounded(.down))) * Metrics.detailRevealDelayPerStepNanoseconds
     }
 
     private func visualPosition(for index: Int) -> CGFloat {
@@ -851,24 +884,38 @@ struct SceneCardCarousel: View {
 
     private func targetScrollPosition(actualPosition: CGFloat, projectedPosition: CGFloat) -> CGFloat {
         let actualDelta = actualPosition - scrollPosition
-        let projectedDelta = projectedPosition - scrollPosition
+        let rawProjectedDelta = projectedPosition - scrollPosition
+        let projectedDelta = clamped(
+            rawProjectedDelta,
+            lowerBound: actualDelta - Metrics.maximumPredictedStepLead,
+            upperBound: actualDelta + Metrics.maximumPredictedStepLead
+        )
         let dominantDelta = abs(projectedDelta) > abs(actualDelta) ? projectedDelta : actualDelta
-        let roundedDelta = dominantDelta.rounded()
+        let boundedDelta = clamped(
+            dominantDelta,
+            lowerBound: -Metrics.maximumStepPerGesture,
+            upperBound: Metrics.maximumStepPerGesture
+        )
+        let roundedDelta = boundedDelta.rounded()
 
-        if roundedDelta == 0, abs(dominantDelta) > Metrics.snapThreshold {
-            return scrollPosition + (dominantDelta > 0 ? 1 : -1)
+        if roundedDelta == 0, abs(boundedDelta) > Metrics.snapThreshold {
+            return scrollPosition + (boundedDelta > 0 ? 1 : -1)
         }
 
         return scrollPosition + roundedDelta
     }
 
+    private func clamped(_ value: CGFloat, lowerBound: CGFloat, upperBound: CGFloat) -> CGFloat {
+        max(lowerBound, min(upperBound, value))
+    }
+
     private func xOffset(for position: CGFloat) -> CGFloat {
         let distance = abs(position)
         let sign: CGFloat = position < 0 ? -1 : 1
-        let offset = distance <= 1
+        let baseOffset = distance <= 1
             ? distance * Metrics.centerCardGap
             : Metrics.centerCardGap + (distance - 1) * Metrics.outerCardGap
-        return sign * offset
+        return sign * (baseOffset + edgeExitProgress(for: distance) * Metrics.edgeSlideOutDistance)
     }
 
     private func yOffset(for position: CGFloat) -> CGFloat {
@@ -878,24 +925,48 @@ struct SceneCardCarousel: View {
     private func zOffset(for position: CGFloat) -> CGFloat {
         let distance = abs(position)
         let baseOffset = Metrics.centerDepthOffset - distance * Metrics.sideDepthOffset
-        guard distance > .ulpOfOne else {
-            return baseOffset
+        let edgeExitOffset = edgeExitProgress(for: distance) * Metrics.edgeDepthRetreat
+        return baseOffset - edgeExitOffset
+    }
+
+    private func cardOpacity(for position: CGFloat) -> CGFloat {
+        let distance = abs(position)
+
+        if distance <= Metrics.fullOpacityDistance {
+            return 1
+        } else if distance <= Metrics.firstSideOpacityDistance {
+            return interpolatedOpacity(
+                from: 1,
+                to: Metrics.firstSideOpacity,
+                distance: distance,
+                start: Metrics.fullOpacityDistance,
+                end: Metrics.firstSideOpacityDistance
+            )
+        } else if distance <= Metrics.fullFadeDistance {
+            return interpolatedOpacity(
+                from: Metrics.firstSideOpacity,
+                to: 0,
+                distance: distance,
+                start: Metrics.firstSideOpacityDistance,
+                end: Metrics.fullFadeDistance
+            )
         }
 
-        let handoffProgress = max(0, 1 - min(distance, 1))
-        let handoffOffset = handoffProgress * Metrics.handoffDepthGap
-        return baseOffset + (position < 0 ? -handoffOffset : handoffOffset)
+        return 0
     }
 
-    private func scale(for position: CGFloat) -> CGFloat {
-        let distance = min(abs(position), 3)
-        return max(Metrics.minimumScale, Metrics.centerScale - distance * Metrics.scaleStep)
-    }
-
-    private func rotation(for position: CGFloat) -> Double {
-        let distance = min(abs(position), 2.5)
-        let sign: Double = position < 0 ? 1 : -1
-        return sign * Double(distance * Metrics.rotationStep)
+    private func interpolatedOpacity(
+        from startOpacity: CGFloat,
+        to endOpacity: CGFloat,
+        distance: CGFloat,
+        start: CGFloat,
+        end: CGFloat
+    ) -> CGFloat {
+        let range = end - start
+        guard range > 0 else { return endOpacity }
+        let progress = clamped((distance - start) / range, lowerBound: 0, upperBound: 1)
+        let easedProgress = progress * progress * (3 - 2 * progress)
+        return startOpacity + (endOpacity - startOpacity) * easedProgress
     }
 
     private func interactionDetailVisibility(for position: CGFloat) -> CGFloat {
@@ -920,7 +991,18 @@ struct SceneCardCarousel: View {
         guard fadeRange > 0 else { return Metrics.atmosphericFadeMaxOpacity }
 
         let progress = max(0, min(1, (distance - Metrics.atmosphericFadeStart) / fadeRange))
-        return progress * Metrics.atmosphericFadeMaxOpacity
+        let edgeBoost = edgeExitProgress(for: distance) * Metrics.edgeAtmosphericBoost
+        return min(1, progress * Metrics.atmosphericFadeMaxOpacity + edgeBoost)
+    }
+
+    private func edgeExitProgress(for distance: CGFloat) -> CGFloat {
+        guard distance > Metrics.edgeExitStart else { return 0 }
+
+        let exitRange = Metrics.edgeExitEnd - Metrics.edgeExitStart
+        guard exitRange > 0 else { return 1 }
+
+        let rawProgress = max(0, min(1, (distance - Metrics.edgeExitStart) / exitRange))
+        return rawProgress * rawProgress
     }
 
     private func zIndex(for position: CGFloat) -> Double {
@@ -933,22 +1015,33 @@ struct SceneCardCarousel: View {
         static let stageDepth: CGFloat = DesignTokens.SceneCarousel.stageDepth
         static let dragDistance: CGFloat = DesignTokens.SceneCarousel.dragDistance
         static let snapThreshold: CGFloat = DesignTokens.SceneCarousel.snapThreshold
+        static let maximumPredictedStepLead: CGFloat = DesignTokens.SceneCarousel.maximumPredictedStepLead
+        static let maximumStepPerGesture: CGFloat = DesignTokens.SceneCarousel.maximumStepPerGesture
+        static let detailRevealDelayNanoseconds = DesignTokens.SceneCarousel.detailRevealDelayNanoseconds
+        static let detailRevealDelayPerStepNanoseconds =
+            DesignTokens.SceneCarousel.detailRevealDelayPerStepNanoseconds
         static let centerHitTestingDistance: CGFloat = 0.12
-        static let centerScale: CGFloat = DesignTokens.SceneCarousel.centerScale
-        static let minimumScale: CGFloat = DesignTokens.SceneCarousel.minimumScale
+        static let stableRenderCardDistance: CGFloat = 1.55
+        static let motionRenderCardDistance: CGFloat = 2.18
+        static let fullOpacityDistance: CGFloat = 0.10
+        static let firstSideOpacityDistance: CGFloat = 1.00
+        static let fullFadeDistance: CGFloat = 2.18
+        static let firstSideOpacity: CGFloat = 0.85
+        static let edgeExitStart: CGFloat = 1.35
+        static let edgeExitEnd: CGFloat = 2.18
+        static let edgeSlideOutDistance: CGFloat = 300
+        static let edgeDepthRetreat: CGFloat = 42
+        static let edgeAtmosphericBoost: CGFloat = 0.42
         static let centerCardGap: CGFloat = DesignTokens.SceneCarousel.centerCardGap
         static let outerCardGap: CGFloat = DesignTokens.SceneCarousel.outerCardGap
         static let sideCardYOffset: CGFloat = DesignTokens.SceneCarousel.sideCardYOffset
         static let centerDepthOffset: CGFloat = DesignTokens.SceneCarousel.centerDepthOffset
         static let sideDepthOffset: CGFloat = DesignTokens.SceneCarousel.sideDepthOffset
-        static let handoffDepthGap: CGFloat = DesignTokens.SceneCarousel.handoffDepthGap
         static let atmosphericFadeStart: CGFloat = DesignTokens.SceneCarousel.atmosphericFadeStart
         static let atmosphericFadeEnd: CGFloat = DesignTokens.SceneCarousel.atmosphericFadeEnd
         static let atmosphericFadeMaxOpacity: CGFloat = DesignTokens.SceneCarousel.atmosphericFadeMaxOpacity
         static let detailRevealStart: CGFloat = DesignTokens.SceneCarousel.detailRevealStart
         static let detailRevealComplete: CGFloat = DesignTokens.SceneCarousel.detailRevealComplete
-        static let scaleStep: CGFloat = DesignTokens.SceneCarousel.sideScaleStep
-        static let rotationStep: CGFloat = DesignTokens.SceneCarousel.rotationStepDegrees
     }
 
     private struct RenderItem: Identifiable {

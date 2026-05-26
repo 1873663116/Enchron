@@ -129,6 +129,8 @@ public enum DesignTokens {
         public static let playback: Animation = .spring(response: 0.45, dampingFraction: 0.85)
         /// Cinema environment switch
         public static let scene: Animation = .spring(response: 0.3, dampingFraction: 0.7)
+        /// Spatial scene card stack settling.
+        public static let sceneCarouselSettle: Animation = .spring(response: 0.34, dampingFraction: 0.94)
         /// Content fade-in
         public static let fadeIn: Animation = .easeIn(duration: 0.25)
         /// Skeleton loading pulse
@@ -356,27 +358,26 @@ public enum DesignTokens {
 
     /// Spatial card stack used by the Camp Scene preview.
     public enum SceneCarousel {
-        public static let volumeWidthMeters: CGFloat = 2.05
+        public static let volumeWidthMeters: CGFloat = 2.20
         public static let volumeHeightMeters: CGFloat = 0.115
-        public static let volumeDepthMeters: CGFloat = 0.18
-        public static let stageWidth: CGFloat = 1_680
+        public static let volumeDepthMeters: CGFloat = 0.46
+        public static let stageWidth: CGFloat = 2_180
         public static let stageHeight: CGFloat = 640
-        public static let stageDepth: CGFloat = 190
-        public static let centerScale: CGFloat = 1.0
-        public static let sideScaleStep: CGFloat = 0.055
-        public static let minimumScale: CGFloat = 0.84
-        public static let centerCardGap: CGFloat = 300
-        public static let outerCardGap: CGFloat = 160
+        public static let stageDepth: CGFloat = 480
+        public static let centerCardGap: CGFloat = 560
+        public static let outerCardGap: CGFloat = 140
         public static let sideCardYOffset: CGFloat = 10
-        public static let centerDepthOffset: CGFloat = 96
-        public static let sideDepthOffset: CGFloat = 72
-        public static let handoffDepthGap: CGFloat = 46
+        public static let centerDepthOffset: CGFloat = 168
+        public static let sideDepthOffset: CGFloat = 208
         public static let atmosphericFadeStart: CGFloat = 0.18
         public static let atmosphericFadeEnd: CGFloat = 1.85
-        public static let atmosphericFadeMaxOpacity: CGFloat = 0.24
-        public static let rotationStepDegrees: CGFloat = 12.5
+        public static let atmosphericFadeMaxOpacity: CGFloat = 0.52
         public static let dragDistance: CGFloat = 250
         public static let snapThreshold: CGFloat = 0.32
+        public static let maximumPredictedStepLead: CGFloat = 1.15
+        public static let maximumStepPerGesture: CGFloat = 3
+        public static let detailRevealDelayNanoseconds: UInt64 = 120_000_000
+        public static let detailRevealDelayPerStepNanoseconds: UInt64 = 70_000_000
         public static let detailRevealStart: CGFloat = 0.48
         public static let detailRevealComplete: CGFloat = 0.10
     }
