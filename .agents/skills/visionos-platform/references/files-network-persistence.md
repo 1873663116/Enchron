@@ -4,30 +4,62 @@ Use for `FileBrowsing`, local files, PhotoKit, UTType filtering, WebDAV, SMB,
 URL loading, credentials, saved data sources, preferences, progress, and
 persistence stores.
 
-## Apple Sources
+## Evidence Handles
+
+Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
+Prefer the local DocSetQuery pages below before web search. They are generated
+from Apple API Reference `docset_version: 24703`.
 
 ### Open first
 
-- Local network privacy technote: https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy
-- NSLocalNetworkUsageDescription: https://developer.apple.com/documentation/bundleresources/information-property-list/nslocalnetworkusagedescription
-- NSBonjourServices: https://developer.apple.com/documentation/bundleresources/information-property-list/nsbonjourservices
-- Security-scoped resource access: https://developer.apple.com/documentation/foundation/url/startaccessingsecurityscopedresource()
+- `Apple-Data-State/bundleresources.md#documentation-bundleresources-information-property-list-nslocalnetworkusagedescription`
+  — local network usage description key.
+- `Apple-Data-State/bundleresources.md#documentation-bundleresources-information-property-list-nsbonjourservices`
+  — Bonjour services declaration key.
+- `Apple-System-Network/network.md#documentation-network`
+  — Network framework root for path, transport, and discovery work.
+- `Apple-Language-Foundation/uniformtypeidentifiers.md#documentation-uniformtypeidentifiers`
+  — Uniform Type Identifiers framework root.
+- `Apple-System-Network/security.md#documentation-security-keychain-services`
+  — Keychain Services.
 
 ### Open if
 
-- Connecting iPadOS and visionOS apps over the local network: https://developer.apple.com/documentation/visionos/connecting-ipados-and-visionos-apps-over-the-local-network
-- URL Loading System: https://developer.apple.com/documentation/foundation/url_loading_system
-- URLSession: https://developer.apple.com/documentation/foundation/urlsession
-- Authentication challenges: https://developer.apple.com/documentation/foundation/url_loading_system/handling_an_authentication_challenge
-- Network framework: https://developer.apple.com/documentation/network
-- DocumentGroup: https://developer.apple.com/documentation/swiftui/documentgroup
-- PhotoKit: https://developer.apple.com/documentation/photokit
-- Photos authorization: https://developer.apple.com/documentation/photokit/requesting_authorization_to_access_photos
-- Uniform Type Identifiers: https://developer.apple.com/documentation/uniformtypeidentifiers
-- System UTTypes: https://developer.apple.com/documentation/uniformtypeidentifiers/system-declared-uniform-type-identifiers
-- SwiftData: https://developer.apple.com/documentation/swiftdata
-- Keychain Services: https://developer.apple.com/documentation/security/keychain-services
-- visionOS privacy: https://developer.apple.com/documentation/visionos/adopting-best-practices-for-privacy
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-documentgroup`
+  — system document scene support.
+- `Apple-Media-Device/photos.md#documentation-photos`
+  — Photos/PhotoKit framework root for user photo and video assets.
+- `Apple-Media-Device/photos.md#documentation-photos-phphotolibrary`
+  — `PHPhotoLibrary` access surface.
+- `Apple-Language-Foundation/uniformtypeidentifiers.md#documentation-uniformtypeidentifiers-system-declared-uniform-type-identifiers`
+  — system-declared UTTypes.
+- `Apple-Data-State/swiftdata.md#documentation-swiftdata`
+  — SwiftData persistence framework root.
+
+### Search when DocSet lacks the article or Swift overlay page
+
+- Xcode Documentation Search:
+  `"TN3179" "local network privacy"`
+  for the local-network privacy technote.
+- Xcode Documentation Search:
+  `"Connecting iPadOS and visionOS apps over the local network"`
+  for visionOS local-network article guidance.
+- Xcode Documentation Search:
+  `"URL Loading System" "URLSession" "authentication challenge"`
+  for Foundation URL loading and WebDAV-style HTTP auth behavior.
+- Xcode Documentation Search:
+  `"startAccessingSecurityScopedResource" "URL"`
+  for Swift `URL` security-scoped resource access.
+- Xcode Documentation Search:
+  `"Requesting authorization to access photos" "PhotoKit"`
+  for PhotoKit authorization flow.
+- Xcode Documentation Search:
+  `"Adopting best practices for privacy" "visionOS"`
+  for platform privacy guidance.
+
+### Official web fallback
+
+- `https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy`
 
 ## Correct Decisions
 

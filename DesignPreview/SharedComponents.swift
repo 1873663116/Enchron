@@ -52,6 +52,17 @@ struct GlassCircleIconButton: View {
     }
 }
 
+extension View {
+    func enchronTranslucentListContainer() -> some View {
+        background(.regularMaterial, in: DesignTokens.ShapeToken.card)
+            .clipShape(DesignTokens.ShapeToken.card)
+            .overlay {
+                DesignTokens.ShapeToken.card
+                    .stroke(DesignTokens.Surface.divider, lineWidth: DesignTokens.Stroke.subtle)
+            }
+    }
+}
+
 enum SortMenuKey {
     case name
     case modifiedDate
@@ -1087,7 +1098,7 @@ struct VideoListRow: View {
     let fileSize: String
     let duration: String
     var badges: [String] = []
-    var showsAlternateBackground = false
+    var showsDivider = false
 
     private var hoverActivationGroup: HoverEffectGroup {
         HoverEffectGroup(
@@ -1124,10 +1135,14 @@ struct VideoListRow: View {
         }
         .padding(.horizontal, DesignTokens.Spacing.xs)
         .frame(maxWidth: .infinity, minHeight: DesignTokens.Interactive.rowHeight)
-        .background(
-            showsAlternateBackground ? DesignTokens.Surface.card : .clear,
-            in: shape
-        )
+        .overlay(alignment: .bottom) {
+            if showsDivider {
+                Rectangle()
+                    .fill(DesignTokens.Surface.divider)
+                    .frame(height: DesignTokens.Stroke.regular)
+                    .padding(.horizontal, DesignTokens.Spacing.xs)
+            }
+        }
         .contentShape(.hoverEffect, shape)
         .contentShape(shape)
         .hoverEffect(.highlight, in: hoverActivationGroup)
@@ -1140,16 +1155,16 @@ struct VideoListRow: View {
             if !badges.isEmpty {
                 Text(badges.joined(separator: " · "))
                     .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(DesignTokens.Surface.accessoryText)
             }
 
             Text(fileSize)
                 .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignTokens.Surface.accessoryText)
 
             Text(duration)
                 .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignTokens.Surface.accessoryText)
         }
         .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
             effect.animation(DesignTokens.AnimationToken.controlsTransition) {

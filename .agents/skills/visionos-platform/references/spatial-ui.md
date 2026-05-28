@@ -4,39 +4,68 @@ Use for `PlayerUI`, `DesignPreview`, `Shared/DesignSystem`, `Settings`, SwiftUI
 controls, gaze hover, ornaments, spatial layout, menus, buttons, sliders,
 accessibility, and component behavior.
 
-## Apple Sources
+## Evidence Handles
+
+Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
+Prefer the local DocSetQuery pages below before web search. They are generated
+from Apple API Reference `docset_version: 24703`.
 
 ### Open first
 
-- Designing for visionOS: https://developer.apple.com/design/human-interface-guidelines/designing-for-visionos/
-- Spatial layout: https://developer.apple.com/design/human-interface-guidelines/spatial-layout/
-- Eyes HIG: https://developer.apple.com/design/human-interface-guidelines/eyes
-- Gestures HIG: https://developer.apple.com/design/human-interface-guidelines/gestures
-- Buttons HIG: https://developer.apple.com/design/human-interface-guidelines/buttons
-- Improving accessibility support in your visionOS app: https://developer.apple.com/documentation/visionos/improving-accessibility-support-in-your-app
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-glassbackgroundeffect`
+  — SwiftUI glass background effect.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-view-glassbackgroundeffect-indisplaymode`
+  — `glassBackgroundEffect(_:in:displayMode:)` modifier.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-view-hovereffect`
+  — system hover effect modifier.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-view-hovereffectinisenabledbody`
+  — custom hover effect body.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-contentshapekinds-hovereffect`
+  — hover-specific content shape.
 
 ### Open if
 
-- Windows HIG: https://developer.apple.com/design/human-interface-guidelines/windows
-- Ornaments HIG: https://developer.apple.com/design/human-interface-guidelines/ornaments
-- Going full screen HIG: https://developer.apple.com/design/human-interface-guidelines/going-full-screen
-- Glass background effect: https://developer.apple.com/documentation/swiftui/glassbackgroundeffect
-- `glassBackgroundEffect(_:in:displayMode:)`: https://developer.apple.com/documentation/swiftui/view/glassbackgroundeffect(_:in:displaymode:)
-- Hover effect: https://developer.apple.com/documentation/swiftui/view/hovereffect(_:)
-- Custom hover effect: https://developer.apple.com/documentation/swiftui/view/hovereffect(in:isenabled:body:)
-- Hover content shape: https://developer.apple.com/documentation/swiftui/contentshapekinds/hovereffect
-- Content shape: https://developer.apple.com/documentation/swiftui/view/contentshape(_:_:eofill:)
-- SpatialTapGesture: https://developer.apple.com/documentation/swiftui/spatialtapgesture
-- 3D SpatialTapGesture initializer: https://developer.apple.com/documentation/swiftui/spatialtapgesture/init(count:coordinatespace3d:)
-- 3D DragGesture initializer: https://developer.apple.com/documentation/swiftui/draggesture/init(minimumdistance:coordinatespace3d:)
-- HoverEffectComponent: https://developer.apple.com/documentation/realitykit/hovereffectcomponent
-- InputTargetComponent: https://developer.apple.com/documentation/realitykit/inputtargetcomponent
-- GestureComponent: https://developer.apple.com/documentation/realitykit/gesturecomponent
-- ManipulationComponent: https://developer.apple.com/documentation/realitykit/manipulationcomponent
-- GeometryReader3D: https://developer.apple.com/documentation/swiftui/geometryreader3d
-- Spatial framework: https://developer.apple.com/documentation/spatial
-- CoordinateSpace3D: https://developer.apple.com/documentation/spatial/coordinatespace3d
-- Accessibility: https://developer.apple.com/documentation/accessibility
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-view-contentshape-eofill`
+  — content shape for interaction regions.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-spatialtapgesture`
+  — spatial tap gesture.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-spatialtapgesture-initcountcoordinatespace3d`
+  — 3D spatial tap initializer.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-draggesture-initminimumdistancecoordinatespace3d`
+  — 3D drag gesture initializer.
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-hovereffectcomponent`
+  — RealityKit entity hover effect component.
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-inputtargetcomponent`
+  — RealityKit entity input target.
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-gesturecomponent`
+  — RealityKit entity gesture component.
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-manipulationcomponent`
+  — RealityKit entity manipulation component.
+- `Apple-UI-Frameworks/swiftui-geometryreader3d.md#documentation-swiftui-geometryreader3d`
+  — container view that reads available 3D size and coordinate space.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-geometryproxy3d`
+  — proxy for access to a container view's 3D size and coordinate space.
+- `Apple-Media-Device/spatial-coordinatespace3d.md#documentation-spatial-coordinatespace3d`
+  — Spatial framework 3D coordinate space.
+- `Apple-UI-Frameworks/accessibility.md#documentation-accessibility`
+  — Accessibility framework root.
+
+### Search when DocSet lacks the article
+
+- Xcode Documentation Search:
+  `"Improving accessibility support in your visionOS app" "accessibilityLabel"`
+  for visionOS-specific accessibility article guidance.
+
+### Official web fallback
+
+- `https://developer.apple.com/design/human-interface-guidelines/designing-for-visionos/`
+- `https://developer.apple.com/design/human-interface-guidelines/spatial-layout/`
+- `https://developer.apple.com/design/human-interface-guidelines/eyes`
+- `https://developer.apple.com/design/human-interface-guidelines/gestures`
+- `https://developer.apple.com/design/human-interface-guidelines/buttons`
+- `https://developer.apple.com/design/human-interface-guidelines/windows`
+- `https://developer.apple.com/design/human-interface-guidelines/ornaments`
+- `https://developer.apple.com/design/human-interface-guidelines/going-full-screen`
 
 ## Correct Decisions
 

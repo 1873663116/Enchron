@@ -267,6 +267,12 @@ public enum DesignTokens {
         public static let selected: Color = .white.opacity(0.08)
         /// Subtle border
         public static let border: Color = .white.opacity(0.05)
+        /// Visible separators inside translucent list containers.
+        public static let divider: Color = .white.opacity(0.14)
+        /// Secondary explanatory text that must remain readable on material lists.
+        public static let supportingText: Color = .white.opacity(0.72)
+        /// Trailing values, chips, and metadata that should read above descriptions.
+        public static let accessoryText: Color = .white.opacity(0.88)
         /// Focused input/control border, using Enchron's single theme accent.
         public static let focusBorder: Color = Theme.accent
     }
@@ -295,6 +301,8 @@ public enum DesignTokens {
         public static let playerControlsWidth: CGFloat = 680
         /// Ornament overlap with window bottom edge (Apple HIG: 20pt).
         public static let ornamentGap: CGFloat = 20
+        /// Softens content clipping at the top and bottom of the main WindowGroup.
+        public static let windowEdgeFadeHeight: CGFloat = 64
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

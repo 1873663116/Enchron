@@ -5,25 +5,62 @@ APMP 180, APMP 360 or Wide FOV, Apple Immersive Video, Quick Look preview,
 AVKit immersive playback, RealityKit `VideoPlayerComponent`, and any proposed
 custom MPV, Metal, or compositor path for non-2D media profiles.
 
-## Apple Sources
+## Evidence Handles
+
+Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
+Prefer the local DocSetQuery pages below before web search. They are generated
+from Apple API Reference `docset_version: 24703`.
 
 ### Open first
 
-- Explore video experiences for visionOS: https://developer.apple.com/videos/play/wwdc2025/304/
-- Support immersive video playback in visionOS apps: https://developer.apple.com/videos/play/wwdc2025/296/
-- Learn about the Apple Projected Media Profile: https://developer.apple.com/videos/play/wwdc2025/297/
-- Playing immersive media with AVKit: https://developer.apple.com/documentation/avkit/playing-immersive-media-with-avkit
-- Playing immersive media with RealityKit: https://developer.apple.com/documentation/visionos/playing-immersive-media-with-realitykit
+- `Apple-Media-Device/avkit-playing-immersive-media-with-avkit.md#documentation-avkit-playing-immersive-media-with-avkit`
+  — AVKit immersive playback route and the WWDC25 296 sample entry point.
+- `Apple-Media-Device/avkit-avexperiencecontroller.md#documentation-avkit-avexperiencecontroller`
+  — `AVExperienceController`, visionOS 2.0, controls
+  `AVPlayerViewController` experiences and supersedes other presentation APIs
+  after attachment.
+- `Apple-Media-Device/realitykit-videoplayercomponent.md#documentation-realitykit-videoplayercomponent`
+  — RealityKit video component, captions/subtitles, passthrough tinting, light
+  spill, immersive viewing modes, and transition events.
+- `Apple-UI-Frameworks/swiftui-immersive-spaces.md#documentation-swiftui-immersive-spaces`
+  — mixed, full, and progressive `ImmersiveSpace` behavior for matching
+  RealityKit immersive video mode to SwiftUI scene style.
 
-### Open if
+### Open for media-profile evidence
 
-- AVExperienceController: https://developer.apple.com/documentation/avkit/avexperiencecontroller
-- VideoPlayerComponent: https://developer.apple.com/documentation/realitykit/videoplayercomponent
-- Learn about Apple Immersive Video technologies: https://developer.apple.com/videos/play/wwdc2025/403/
-- Creating spatial photos and videos with spatial metadata: https://developer.apple.com/documentation/imageio/creating-spatial-photos-and-videos-with-spatial-metadata
-- Apple Movie Profiles for Spatial and Immersive Media: https://developer.apple.com/av-foundation/Apple-Movie-Profiles.pdf
-- HTTP Live Streaming examples: https://developer.apple.com/streaming/examples/
-- AVFoundation: https://developer.apple.com/documentation/avfoundation
+- `Apple-Media-Device/imageio-creating-spatial-photos-and-videos-with-spatial-metadata.md#documentation-imageio-creating-spatial-photos-and-videos-with-spatial-metadata`
+  — Spatial photo/video metadata, MV-HEVC distinction, and Apple Vision Pro
+  presentation behavior.
+- `Apple-Media-Device/avfoundation-converting-side-by-side-3d-video-to-multiview-hevc-and-spatial-video.md#documentation-avfoundation-converting-side-by-side-3d-video-to-multiview-hevc-and-spatial-video`
+  — side-by-side 3D to MV-HEVC conversion and optional spatial metadata.
+- `Apple-Media-Device/avfoundation-converting-projected-video-to-apple-projected-media-profile.md#documentation-avfoundation-converting-projected-video-to-apple-projected-media-profile`
+  — equirectangular or half-equirectangular content conversion to APMP.
+- `Apple-Media-Device/immersivemediasupport-authoring-apple-immersive-video.md#documentation-immersivemediasupport-authoring-apple-immersive-video`
+  — Apple Immersive Video authoring workflow and AIV metadata context.
+- `Apple-Media-Device/immersivemediasupport-venuedescriptor.md#documentation-immersivemediasupport-venuedescriptor`
+  — `VenueDescriptor` metadata needed for Apple Immersive Video.
+- `Apple-Media-Device/avfoundation.md#documentation-avfoundation-avmetadataidentifier-quicktimemetadataaimedata`
+  — QuickTime AIME metadata identifier.
+- `Apple-Media-Device/avfoundation.md#documentation-avfoundation-avassetplaybackconfigurationoption-spatialvideo`
+  — AVFoundation playback configuration option for Spatial Video.
+- `Apple-Media-Device/avfoundation.md#documentation-avfoundation-avassetplaybackconfigurationoption-appleimmersivevideo`
+  — AVFoundation playback configuration option for Apple Immersive Video.
+
+### Search when DocSet lacks the article
+
+- Xcode Documentation Search:
+  `"Playing immersive media with RealityKit" "VideoPlayerComponent" "desiredImmersiveViewingMode"`
+  for the article-level RealityKit walkthrough, which is not present in the
+  Dash Apple API Reference docset.
+
+### Official web fallback
+
+- WWDC25 304 `Explore video experiences for visionOS`
+- WWDC25 296 `Support immersive video playback in visionOS apps`
+- WWDC25 297 `Learn about the Apple Projected Media Profile`
+- WWDC25 403 `Learn about Apple Immersive Video technologies`
+- `https://developer.apple.com/av-foundation/Apple-Movie-Profiles.pdf`
+- `https://developer.apple.com/streaming/examples/`
 
 ## Correct Decisions
 
@@ -43,8 +80,9 @@ custom MPV, Metal, or compositor path for non-2D media profiles.
   view packing, spatial audio, captions, and comfort behavior.
 - RealityKit progressive immersive playback must match
   `desiredImmersiveViewingMode` with the SwiftUI `ImmersionStyle`.
-- APMP high-motion playback should prefer portal or progressive behavior and
-  rely on system comfort mitigation before custom full immersion.
+- For APMP high-motion playback, consult the WWDC/APMP fallback evidence before
+  choosing full immersion; prefer portal or progressive behavior when current
+  evidence supports system comfort mitigation.
 - AVFoundation, Core Media, Video Toolbox, HLS tools, and Immersive Media
   Support are media creation, conversion, metadata, and distribution tools, not
   a reason to bypass system playback presentation by default.

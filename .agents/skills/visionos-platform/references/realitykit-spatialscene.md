@@ -4,31 +4,67 @@ Use for `SpatialScene`, `RealityView`, RealityKit entities, attachments,
 panoramas, virtual screens, environment domes, volumes, and immersive scene
 presentation.
 
-## Apple Sources
+## Evidence Handles
+
+Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
+Prefer the local DocSetQuery pages below before web search. They are generated
+from Apple API Reference `docset_version: 24703`.
 
 ### Open first
 
-- Adding 3D content to your app: https://developer.apple.com/documentation/visionos/adding-3d-content-to-your-app
-- RealityKit: https://developer.apple.com/documentation/realitykit
-- RealityView: https://developer.apple.com/documentation/realitykit/realityview
-- VideoPlayerComponent: https://developer.apple.com/documentation/realitykit/videoplayercomponent
-- ViewAttachmentComponent: https://developer.apple.com/documentation/realitykit/viewattachmentcomponent
+- `Apple-Media-Device/realitykit-realityview.md#documentation-realitykit-realityview`
+  — `RealityView` as the SwiftUI entry point for rich 3D RealityKit content.
+- `Apple-Media-Device/realitykit-realityviewcontent.md#documentation-realitykit-realityviewcontent`
+  — content value used to add and remove RealityKit entities.
+- `Apple-Media-Device/realitykit-presentation-views-and-attachments.md#documentation-realitykit-presentation-views-and-attachments`
+  — RealityKit views, attachments, environment, rendering effects, and related
+  presentation APIs.
+- `Apple-Media-Device/realitykit-viewattachmentcomponent.md#documentation-realitykit-viewattachmentcomponent`
+  — component-based SwiftUI attachment API for RealityKit entities.
+- `Apple-UI-Frameworks/swiftui-immersive-spaces.md#documentation-swiftui-immersive-spaces`
+  — mixed, full, and progressive immersive-space behavior.
 
 ### Open if
 
-- RealityViewContent: https://developer.apple.com/documentation/realitykit/realityviewcontent
-- Views and attachments: https://developer.apple.com/documentation/realitykit/presentation-views-and-attachments
-- Attachment: https://developer.apple.com/documentation/realitykit/attachment
-- RealityKit videos: https://developer.apple.com/documentation/realitykit/scene-content-videos
-- VideoMaterial: https://developer.apple.com/documentation/realitykit/videomaterial
-- Playing immersive media with RealityKit: https://developer.apple.com/documentation/visionos/playing-immersive-media-with-realitykit
-- Rendering stereoscopic video with RealityKit: https://developer.apple.com/documentation/visionos/rendering-stereoscopic-video-with-realitykit
-- What is new in RealityKit: https://developer.apple.com/videos/play/wwdc2025/287/
-- Spatial layout HIG: https://developer.apple.com/design/human-interface-guidelines/spatial-layout/
-- Immersive experiences HIG: https://developer.apple.com/design/human-interface-guidelines/immersive-experiences
-- Immersive spaces: https://developer.apple.com/documentation/swiftui/immersive-spaces
-- GeometryReader3D: https://developer.apple.com/documentation/swiftui/geometryreader3d
-- CoordinateSpace3D: https://developer.apple.com/documentation/spatial/coordinatespace3d
+- `Apple-Media-Device/realitykit-attachment.md#documentation-realitykit-attachment`
+  — `Attachment<Content>` for SwiftUI views that are presented with
+  RealityKit content.
+- `Apple-Media-Device/realitykit-scene-content-videos.md#documentation-realitykit-scene-content-videos`
+  — RealityKit video overview, `VideoPlayerComponent`, immersive viewing mode,
+  and `VideoMaterial`.
+- `Apple-Media-Device/realitykit-videoplayercomponent.md#documentation-realitykit-videoplayercomponent`
+  — immersive media playback in RealityKit, captions/subtitles, passthrough
+  tinting, viewing modes, and transition events.
+- `Apple-Media-Device/realitykit-videomaterial.md#documentation-realitykit-videomaterial`
+  — material-based video on 3D surfaces.
+- `Apple-Media-Device/realitykit-rendering-stereoscopic-video-with-realitykit.md#documentation-realitykit-rendering-stereoscopic-video-with-realitykit`
+  — sample code for side-by-side stereoscopic video rendering with
+  RealityKit, `VideoPlayerComponent`, and `AVSampleBufferVideoRenderer`.
+- `Apple-UI-Frameworks/swiftui-geometryreader3d.md#documentation-swiftui-geometryreader3d`
+  — container view that reads available 3D size and coordinate space.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-geometryproxy3d`
+  — proxy for access to a container view's 3D size and coordinate space.
+- `Apple-Media-Device/spatial-coordinatespace3d.md#documentation-spatial-coordinatespace3d`
+  — Spatial framework 3D coordinate-space conversion.
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-inputtargetcomponent`
+  — `InputTargetComponent` for targeted entity interaction.
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-collisioncomponent`
+  — collision shape/component evidence for RealityKit interactions.
+
+### Search when DocSet lacks the article
+
+- Xcode Documentation Search:
+  `"Adding 3D content to your app" "visionOS" "RealityView"`
+  for the article-level scene setup path.
+- Xcode Documentation Search:
+  `"Playing immersive media with RealityKit" "desiredImmersiveViewingMode"`
+  for the immersive-media walkthrough.
+
+### Official web fallback
+
+- WWDC25 287 `What is new in RealityKit`
+- `https://developer.apple.com/design/human-interface-guidelines/spatial-layout/`
+- `https://developer.apple.com/design/human-interface-guidelines/immersive-experiences`
 
 ## Correct Decisions
 
@@ -38,9 +74,10 @@ presentation.
 - Use immersive spaces for unbounded spatial experiences.
 - 3D content inside a 2D window can be clipped; if the content is primarily 3D,
   consider a volume.
-- `RealityView` creation work runs once. Update existing entities/components in
-  update paths instead of recreating expensive RealityKit state from SwiftUI
-  body churn.
+- Put initial RealityKit content creation in the `RealityView` make closure.
+  Use the optional update closure, RealityKit systems, or scene update events
+  for state-driven and per-frame changes instead of recreating expensive
+  RealityKit state from SwiftUI body churn.
 - RealityKit interaction needs the proper pieces: targeted SwiftUI gesture,
   `InputTargetComponent`, and collision shapes.
 - Use attachments for SwiftUI controls that belong with RealityKit content.

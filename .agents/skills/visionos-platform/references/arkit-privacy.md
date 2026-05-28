@@ -4,25 +4,49 @@ Use for ARKit data access, world/scene/hand tracking, real-world surroundings,
 camera access, sensor privacy, and any feature that asks what the user is doing
 or where real-world objects are.
 
-## Apple Sources
+## Evidence Handles
+
+Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
+Prefer the local DocSetQuery pages below before web search. They are generated
+from Apple API Reference `docset_version: 24703`.
 
 ### Open first
 
-- Privacy and user preferences: https://developer.apple.com/documentation/visionos/adopting-best-practices-for-privacy
-- Setting up access to ARKit data: https://developer.apple.com/documentation/visionos/setting-up-access-to-arkit-data
-- ARKit: https://developer.apple.com/documentation/arkit
-- ARKit in visionOS: https://developer.apple.com/documentation/arkit/arkit-in-visionos
-- SpatialTrackingSession: https://developer.apple.com/documentation/realitykit/spatialtrackingsession
-- Tracking accessories in volumetric windows: https://developer.apple.com/documentation/arkit/tracking-accessories-in-volumetric-windows
-- AccessoryTrackingProvider: https://developer.apple.com/documentation/arkit/accessorytrackingprovider
+- `Apple-Media-Device/arkit.md#documentation-arkit`
+  — ARKit framework root.
+- `Apple-Media-Device/arkit.md#documentation-arkit-arkit-in-visionos`
+  — ARKit in visionOS overview.
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-spatialtrackingsession`
+  — RealityKit `SpatialTrackingSession` high-level tracking path.
+- `Apple-Media-Device/arkit-tracking-accessories-in-volumetric-windows.md#documentation-arkit-tracking-accessories-in-volumetric-windows`
+  — accessory tracking in volumetric windows.
+- `Apple-Media-Device/arkit-accessorytrackingprovider.md#documentation-arkit-accessorytrackingprovider`
+  — ARKit `AccessoryTrackingProvider`.
 
-### Open if
+### Search when DocSet lacks the article
 
-- Bringing your ARKit app to visionOS: https://developer.apple.com/documentation/visionos/bringing-your-arkit-app-to-visionos
-- Incorporating surroundings: https://developer.apple.com/documentation/visionos/incorporating-real-world-surroundings-in-an-immersive-experience
-- Tracking points in world space: https://developer.apple.com/documentation/visionos/tracking-points-in-world-space
-- Accessing the main camera: https://developer.apple.com/documentation/visionos/accessing-the-main-camera
-- What is new in RealityKit: https://developer.apple.com/videos/play/wwdc2025/287/
+- Xcode Documentation Search:
+  `"Adopting best practices for privacy" "visionOS" "ARKit"`
+  for platform privacy and user-preference guidance.
+- Xcode Documentation Search:
+  `"Setting up access to ARKit data" "requiredAuthorizations"`
+  for provider authorization setup.
+- Xcode Documentation Search:
+  `"Bringing your ARKit app to visionOS" "Full Space"`
+  for migration guidance.
+- Xcode Documentation Search:
+  `"Incorporating real-world surroundings in an immersive experience" "visionOS"`
+  for surroundings and scene-sensing guidance.
+- Xcode Documentation Search:
+  `"Tracking points in world space" "visionOS"`
+  for world-space tracking guidance.
+- Xcode Documentation Search:
+  `"Accessing the main camera" "visionOS" "enterprise"`
+  for camera entitlement constraints.
+
+### Official web fallback
+
+- WWDC25 287 `What is new in RealityKit`
 
 ## Correct Decisions
 

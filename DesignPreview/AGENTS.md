@@ -8,13 +8,17 @@
 
 - `ContentView.swift` / `ComponentLibrary.swift` / `SharedComponents.swift` 是现有 Component Library / UI Kit 资产库。页面必须直接复用其中已确认的按钮、卡片、列表、菜单、时间轴、窗格、搜索栏等组件；不要在页面局部仿写一个“看起来相似”的版本。
 - `DesignComps/` 放从 `docs/designs/` HTML 设计稿拆出的高保真可交互 Preview Canvas。这里做的是设计审查用的 screen mockups；跨 Preview 的产品流程、导航状态同步、返回链路和假业务生命周期属于未来 FakeApp 阶段。
-- 当前正式维护 3 个可交互 Preview Canvas：主窗口 Preview、视频详情 / 播放准备 Preview、窗口播放 Preview。SenseZone 使用 volume surface 表达 Scenes 目的地；沉浸空间 Preview 和全景模式 Preview 是未来预留边界，等明确启动时再纳入当前范围。
+- 当前正式维护 3 个可交互 Preview Canvas：主窗口 Preview、SenseZone Volume Preview、窗口播放 Preview。沉浸空间 Preview 和全景模式 Preview 是未来预留边界，等明确启动时再纳入当前范围。
 - 主窗口 Preview 包含 Files / Settings，并允许通过系统 `TabView` 的 Scene 入口打开 SenseZone Volume。SenseZone Volume 不保留 `Tab Bar Ornament`，只显示 Scene Card 组件与卡片内返回控件；返回时回到进入前的主窗口目的地。
-- 视频详情 / 播放准备 Preview 承载视频信息、播放前设置和播放模式选择。窗口播放 Preview 承载普通窗口播放中的控件、时间轴、菜单、隐藏 / 显示等交互。
+- 当前不维护“点开播放卡片后的二级播放设置页面”。播放前配置、详情页和跨 Preview 启动链路留到未来 FakeApp 或产品流程明确后再裁决。
+- 窗口播放 Preview 承载独立 16:9 `WindowGroup` 中的播放画面、控件、时间轴、菜单、隐藏 / 显示等交互；它不沿用主窗口的 `TabView`。
+- 窗口播放 Preview 的视频区域应按真实播放窗口的 render surface 语义建模：当前可以用静态剧照作为 frame fixture，但层级上它代表未来 `CAMetalLayer` / `MTKView` 承载的播放纹理，不是页面背景或手画黑色窗口壳。
 - Preview 内部可以有局部 hover、press、展开、菜单、sheet、Scene volume 进入 / 返回等小交互。Preview 之间保持并列审查关系；从文件进入详情、从详情进入播放、从窗口播放进入沉浸空间等跨 Preview 流程留到未来 FakeApp 阶段。
 - 新建 DesignComp 前先读 `docs/designs/` 中对应 HTML，参考设计稿决定页面数量、名称、窗口尺寸和交互范围。
 - 稳定组件必须直接调用现有 components，需要新的视觉形态且组件库没有对应组件时，上报需求要求人类裁决。
-- Xcode Canvas / Design Preview 已在运行，视觉微调优先观察 Canvas 自动刷新；不要每次小改后都主动执行 build。用户明确说明正在用 Canvas 审查时，默认不执行 `xcodebuild`，只做静态检查；只有遇到 Canvas 失败、资源未加载、编译错误不明确、用户明确要求、或需要自动化确认时，才单独运行 build。Canvas 中的主窗口 Preview 不证明跨 `WindowGroup` open / dismiss；Scene Card 视觉审查使用具名 SenseZone Volume Preview。
+- DesignPreview 前端 / 视觉工作默认以 Xcode Canvas 为验证表面。Canvas 会自动刷新；普通布局、字号、padding、hover、列表和玻璃样式调整后，不主动运行 `xcodebuild`、`build_run_sim`、`Simulator`、`simctl screenshot` 或其他模拟器截图流程。
+- 用户正在用 Canvas 审查时，只做静态检查、diff 和代码级确认；需要截图或视觉确认时，优先让 Canvas 承担，不用 Simulator 代替 Canvas。只有 Canvas 中断、资源未加载、编译错误不明确、需要证明跨 `WindowGroup` / volume / runtime lifecycle 行为，或用户明确要求时，才升级到 build / Simulator，并先说明升级原因。
+- 如果误启动了普通 Simulator，任务结束前关闭该普通 Simulator 和对应 booted device；不要关闭 Xcode Canvas 自己的 Preview simulator / `PreviewShell` / `previewsd` 进程。Canvas 中的主窗口 Preview 不证明跨 `WindowGroup` open / dismiss；Scene Card 视觉审查使用具名 SenseZone Volume Preview。
 
 ---
 

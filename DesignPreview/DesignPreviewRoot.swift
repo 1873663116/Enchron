@@ -6,14 +6,25 @@ struct DesignPreviewRoot: View {
     @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
+        ZStack {
+            tabOrnamentHost
+
+            MainWindowPage(selectedTab: activeMainWindowTab)
+        }
+        .accessibilityIdentifier("DesignPreview-rootWindow")
+    }
+
+    private var tabOrnamentHost: some View {
         TabView(selection: tabSelection) {
-            HomeFirstLaunchPage()
+            Color.clear
+                .accessibilityHidden(true)
                 .tabItem {
                     Label("Files", systemImage: "folder.fill")
                 }
                 .tag(DesignPreviewTab.files)
 
-            DesignPreviewPlaceholderPage(title: "Settings")
+            Color.clear
+                .accessibilityHidden(true)
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
@@ -27,6 +38,10 @@ struct DesignPreviewRoot: View {
         }
         .tabViewStyle(.sidebarAdaptable)
         .accessibilityIdentifier("DesignPreview-rootTabView")
+    }
+
+    private var activeMainWindowTab: DesignPreviewTab {
+        navigationModel.selectedTab.restorableTab ?? navigationModel.returnRoute.tab
     }
 
     private var tabSelection: Binding<DesignPreviewTab> {
@@ -53,18 +68,6 @@ struct DesignPreviewRoot: View {
         openWindow(id: DesignPreviewNavigationModel.senseZoneVolumeID)
         dismissWindow(id: DesignPreviewNavigationModel.mainWindowID)
         navigationModel.isSceneTransitionInFlight = false
-    }
-}
-
-private struct DesignPreviewPlaceholderPage: View {
-    let title: String
-
-    var body: some View {
-        Text(title)
-            .font(DesignTokens.Typography.title)
-            .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .accessibilityLabel(title)
     }
 }
 
