@@ -18,9 +18,9 @@ These checks do not require Vision Pro hardware:
 
 - Source metadata parsing: HDR10, HLG, Dolby Vision source labels, and unknown states.
 - Math Synthetic self-test: `maxRGB`, `p99Luminance`, `countAbove1`, `countAbove2`, and ON/OFF delta.
-- Playback page UI in debug builds: MPV / Apple switch, default MPV drawable ROI sample, conservative labels, and debug overlay fields.
+- Playback page UI in debug builds: MPV / Apple diagnostic comparison switch, default MPV drawable ROI sample, conservative labels, and debug overlay fields.
 - AVFoundation metadata panel: `eligibleForHDRPlayback`, `containsHDRVideo`, transfer, primaries, matrix, and unsupported states.
-- Renderer switching state: same URL, same timecode, same play/pause/rate intent.
+- Diagnostic renderer comparison state: same URL, same timecode, same play/pause/rate intent.
 
 Simulator and CI cannot validate onscreen EDR output, final headroom, Vision Pro brightness behavior, RealityKit compositor behavior, or final nits. Simulator MPV drawable readback is disabled by default because reading MPV `CAMetalDrawable` textures can stall the Simulator Metal stack. For low-level investigation only, set `XRPLAYER_ALLOW_SIMULATOR_DRAWABLE_READBACK=1`; do not treat that path as a stable E2E gate.
 
@@ -35,13 +35,13 @@ Use Vision Pro hardware for these checks:
 - Use `Full Frame Scan` only as a manual intrusive diagnostic when you need whole-drawable statistics. It may fail on very large textures if the readback exceeds the safety cap, and it should not replace known highlight ROI validation.
 - Compare Apple Reference only as a system reference. If MPV has extended values but looks less saturated, record `PASS_WITH_COLOR_RISK`.
 
-Apple Reference remains a diagnostic comparison surface. Production Apple media
-routing is governed by `docs/contracts/playback-engine-routing.md`. Do not
-confuse diagnostic Apple playback evidence with a selected production
-`PlaybackEngineRoute`.
+Apple Reference remains a diagnostic comparison surface. Current production
+playback is mpv-first and is governed by
+`docs/contracts/playback-engine-routing.md`. Do not confuse diagnostic Apple
+playback evidence with a selected production `PlaybackEngineRoute`.
 
 A pass on Apple Reference does not prove mpv correctness. A pass on mpv HDR
-diagnostics does not prove Apple-native route behavior.
+diagnostics does not create Apple AV production route evidence.
 
 Do not use screenshots, screen recordings, AirPlay captures, or YouTube as HDR validation evidence.
 

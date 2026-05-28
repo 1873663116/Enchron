@@ -1,11 +1,15 @@
 # visionOS 26 Skill Crosswalk
 
-Status: Active audit crosswalk.
+Status: Historical audit crosswalk.
 Date: 2026-05-22.
 Source input: `docs/reference/2026-05-22-visionos26-migration-audit.md`.
 
 This crosswalk maps the external migration audit into the project-local
 `visionos-platform` skill. It is a change map, not a second rule system.
+
+Current Enchron production playback docs define the route as mpv-first. Any
+Apple-native-first or AVKit-default wording in this historical crosswalk is
+platform research context, not current production guidance.
 
 | Audit section | Current skill/reference | Action | Risk | Notes |
 | --- | --- | --- | --- | --- |
@@ -22,8 +26,8 @@ This crosswalk maps the external migration audit into the project-local
   to `26.2`.
 - Version gates remain required in the skill because target settings can change
   and references are reused by future tasks and subagents.
-- Enchron already has a product-level `Apple-native first, mpv-safe fallback`
-  strategy in `docs/product_philosophy.md`.
+- Enchron's active product docs now define a product-level mpv-first strategy
+  in `docs/product_philosophy.md`.
 - `MediaProfile` is already the shared fact layer in
   `docs/ubiquitous_language.md`; this update makes media-profile-first routing
   visible at the skill level.

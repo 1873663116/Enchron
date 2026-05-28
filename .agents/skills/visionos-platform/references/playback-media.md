@@ -1,11 +1,12 @@
-# Playback Baseline, AVKit, AVFoundation, MPV, HDR
+# MPV Production Playback, Apple AV Reference, HDR
 
 Purpose: route visionOS media decisions through Apple platform sources and
 Enchron playback boundaries.
 Status: Active visionOS reference.
-Owner/scope: playback, AVKit/AVFoundation, MPV comparison, HDR/EDR,
-subtitles/tracks, video surfaces, and playback diagnostics. Media-profile
-specific immersive playback lives in `immersive-media-profiles.md`.
+Owner/scope: mpv production playback, AVKit/AVFoundation reference behavior,
+MPV comparison, HDR/EDR, subtitles/tracks, video surfaces, and playback
+diagnostics. Media-profile specific immersive playback lives in
+`immersive-media-profiles.md`.
 This file is not a product contract; active Enchron contracts live in
 `docs/contracts/`.
 
@@ -74,28 +75,26 @@ from Apple API Reference `docset_version: 24703`.
 
 ## Correct Decisions
 
+- Enchron's current production playback direction is mpv-first. Production
+  playback work should converge around mpv.
+- mpv is the current production basis for playback, compatibility, open
+  formats, complex subtitles/tracks, remote I/O, HDR experiments, and future
+  immersive rendering exploration.
 - Apple recommends `AVPlayerViewController` for system video playback
-  integration in visionOS.
+  integration in visionOS. In Enchron, that fact is reference and diagnostics
+  evidence unless a future architecture decision promotes Apple AV into
+  production.
 - For Spatial Video, APMP, Apple Immersive Video, or immersive 3D playback
-  decisions, read `immersive-media-profiles.md` before choosing AVKit,
-  RealityKit, MPV, Metal, or custom compositor paths.
+  research, read `immersive-media-profiles.md` before making platform claims.
 - Open the Destination Video sample when changing presentation transitions,
-  system playback UI, or spatial-audio behavior; it is the concrete baseline,
-  not just a sample link.
-- Enchron's production media direction is Apple-native first, mpv-safe
-  fallback. AVKit and AVFoundation are the baseline for Apple-native media
-  behavior, system playback surfaces, HDR/EDR handling, Spatial Video, MV-HEVC,
-  Apple immersive media, and future visionOS media support.
-- Enchron's MPV path remains the open-format baseline for MKV, WebM, AVI,
-  TS/M2TS, FLV, complex subtitles, complex tracks, dirty inputs, and remote I/O
-  cases where Apple-native evidence is insufficient.
+  system playback UI, or spatial-audio behavior in reference/future research;
+  it is the concrete platform baseline, not just a sample link.
 - If using MPV + Metal, the app owns what the system player normally supplies:
   controls, readiness, errors, dynamic range behavior, subtitles/tracks,
   accessibility, and transitions into immersive experiences.
 - AVFoundation is the cross-Apple-platform media framework for time-based media,
-  but visionOS playback experience decisions still start from the owning
-  surface and media profile. Do not stop at `AVPlayerLayer` or an MPV layer when
-  the content profile requires spatial styling or immersive media behavior.
+  and can be useful for metadata, diagnostics, HDR/EDR observation, and future
+  Apple-native media research. It is not a current production playback route.
 - `preferredDisplayDynamicRange` matters only where the API is available and
   content and display support HDR. The local AVKit docset platform list does
   not include visionOS for this API; HDR labels must follow evidence, not
@@ -115,6 +114,7 @@ from Apple API Reference `docset_version: 24703`.
 - Do not assume macOS `AVPlayerView` patterns are the system answer on visionOS.
 - Do not assume an iOS/macOS `AVPlayer` pattern is correct on visionOS without
   checking the owning visionOS surface.
+- Do not turn AVKit reference behavior into Enchron's current production route.
 - Do not subclass `AVPlayerViewController`; Apple documents unsupported
   subclassing behavior.
 - Apple migration docs list Picture in Picture and AV routing as unavailable on
@@ -123,8 +123,8 @@ from Apple API Reference `docset_version: 24703`.
 - Do not equate "AVPlayer can do this" with "MPV already does this." Use AVKit
   as evidence and comparison.
 - Do not treat AVKit system UI as Enchron's product state machine.
-- Do not treat a working MPV surface as proof that Apple-native immersive media
-  obligations are satisfied.
+- Do not treat a working MPV surface as proof that future Apple-native
+  immersive media research is complete.
 - Do not use this baseline playback reference as the only source for APMP,
   Apple Immersive Video, Spatial Video, or immersive 3D decisions.
 - Do not treat a 2D `CAMetalLayer` or `MTKView` path as automatically correct
@@ -135,24 +135,24 @@ from Apple API Reference `docset_version: 24703`.
 ## Enchron Checkpoints
 
 - Keep playback mode decision in `PlayerUI`; `PlaybackCore` reports facts.
-- Enchron's production media direction is Apple-native first, mpv-safe
-  fallback.
-- Apple AV / AVKit is the platform baseline for Apple-native media behavior,
-  system playback surfaces, HDR/EDR handling, Spatial Video, MV-HEVC, Apple
-  immersive media, and future visionOS media support.
-- mpv remains the open-format baseline for MKV, WebM, AVI, TS/M2TS, FLV,
-  complex subtitles, complex tracks, dirty inputs, and remote I/O cases where
-  Apple-native evidence is insufficient.
+- Enchron's current production media direction is mpv-first.
+- Apple AV / AVFoundation / AVKit are reference, diagnostics, subjective visual
+  comparison, HDR/EDR observation, and future platform investigation surfaces.
+- Apple AV is not the current production `PlaybackEngine`, default fallback, or
+  current engine-routing target branch.
 - AVKit evidence does not prove mpv correctness.
-- mpv behavior does not replace AVKit or AVFoundation platform obligations.
+- mpv behavior does not prove future Apple-native media profile support.
 - APMP, Apple Immersive Video, Spatial Video, and immersive 3D playback require
-  the media-profile reference before a custom MPV or Metal plan is accepted.
+  the media-profile reference before claims about support or future direction.
 - Production engine routing is defined by
   `docs/contracts/playback-engine-routing.md`.
-- Diagnostic Apple reference playback is not the same thing as a selected
-  production `PlaybackEngineRoute`.
-- `PlayerUI` must not branch on mpv vs `appleAV`. It must use shared playback
-  and domain semantics.
+- Diagnostic Apple reference playback is not a selected production
+  `PlaybackEngineRoute`.
+- `PlayerUI` must not branch on mpv vs Apple reference playback. It must use
+  shared playback and domain semantics.
 - HDR/EDR changes should include an evidence path: metadata, AVKit comparison
   when useful, MPV output contract, layer/display configuration, and device
   verification when required.
+- If future Apple AV production playback is proposed, require a new explicit
+  architecture decision, capability boundary, tests, and doc updates before
+  treating it as implementation guidance.

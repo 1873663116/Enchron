@@ -33,13 +33,17 @@ SwiftUI 窗口内播放，它是用户最先接触的界面，也是验证基础
 
 ### 媒体引擎策略
 
-Enchron 的长期媒体策略是 **Apple-native first, mpv-safe fallback**。
+Enchron 当前媒体策略是 **mpv-first**。
 
-mpv 是开放格式和复杂媒体的兼容性基线。对于 MKV、WebM、AVI、TS/M2TS、FLV、复杂字幕、复杂音轨、脏输入、远程 I/O 不稳定或元数据不足的媒体，mpv 仍然是默认可信路线。
+mpv 是当前生产播放、兼容性、开放格式、复杂字幕/音轨、远程 I/O、HDR 实验和后续沉浸式渲染探索的主要基础。当前实现和后续生产改动应围绕 mpv 收敛。
 
-Apple AV / AVKit 是 Apple 原生媒体体验的上限。对于 Apple-native 容器、HLS、Photos asset、Spatial Video、MV-HEVC、Apple immersive media、系统 HDR/EDR 行为和未来 visionOS 媒体能力，Apple route 是优先方向。
+Apple AV / AVFoundation / AVKit 当前用于 reference、diagnostics、主观视觉对照、HDR/EDR 行为观察和平台能力研究。它们不构成当前生产 playback engine、默认 fallback、第二播放核心或当前 engine routing 目标分支。
+
+未来如果产品要支持 Dolby Vision、Apple-native immersive media、Spatial Video、MV-HEVC、APMP 或其他系统媒体能力，可以重新评估 Apple AV / AVKit / RealityKit 路线。该评估需要新的显式架构决策、能力边界、测试依据和文档更新。
 
 三种播放模式仍然共享一套语义播放模型。窗口、沉浸场景和全景模式的差异是呈现路径差异，不是播放引擎语义差异。
+
+当前代码中可能存在诊断开关、reference surface、历史残留或临时结构。它们是需要理解和评估的现状，不自动构成双引擎生产架构意图。
 
 ## 2. 具体设计取向
 

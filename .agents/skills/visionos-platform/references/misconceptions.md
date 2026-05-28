@@ -40,6 +40,8 @@ Read: `spatial-ui.md`, then HIG Eyes/Gestures/Buttons/Spatial Layout.
 
 - "AVKit docs are irrelevant because Enchron uses MPV."
 - "AVKit docs prove MPV already behaves correctly."
+- "AVKit docs define Enchron's current production playback route."
+- "Apple reference playback is a production fallback."
 - "HDR labels can follow user toggles instead of media/display evidence."
 - "A 2D Metal layer is automatically compatible with immersive rendering."
 - "iOS full-screen playback is the model for Vision Pro playback."

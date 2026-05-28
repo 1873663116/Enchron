@@ -9,44 +9,51 @@ This file is not a strategy essay, API contract, implementation plan, or changel
 
 后端执行引擎。它负责实际媒体加载、播放、解码、状态推进和能力报告。
 
-当前规划中的 engine 名称：
+当前生产 engine 名称：
 
 - `mpv`
-- `appleAV`
+
+`appleAV` 可以作为未来研究或诊断语境中的保留标签出现，但不是当前生产 `PlaybackEngine`，也不是当前 `PlaybackEngineRoute` 的目标分支。
 
 `PlaybackEngine` 不是播放模式，不等于窗口、沉浸场景或全景。
 
 ## PlaybackEngineRoute
 
-一次播放 session 启动前产生的确定性路由结果。它说明本 session 由哪个 `PlaybackEngine` 执行，以及该决策的依据、所需能力、fallback 策略和错误状态。
+一次播放 session 启动前产生的确定性执行结果。它说明本 session 是否由当前生产 `PlaybackEngine` 执行，以及该决策的依据、所需能力、fallback 策略和错误状态。
 
 一个 session 只能拥有一个 `PlaybackEngineRoute`。
 
 ## PlaybackEngineRouter
 
-能力路由器。它根据 source、metadata、session capability requirements 和用户未来可能的合法 override，选择一个且仅一个 engine。
+能力路由器。当前语境下，它根据 source、metadata 和 session capability requirements 决定是否进入 mpv 生产播放路径或返回 unsupported/error。它不是 mpv 与 Apple AV 之间的双引擎生产选择器。
 
 `PlaybackEngineRouter` 不启动播放，不拥有 UI 状态，不决定 `PlaybackMode`。
 
 ## AppleNativeMedia
 
-原始 source、container、timing model、codec、track model、HDR/color metadata、spatial metadata 可被 Apple 媒体框架按本 session 所需能力原生解释的媒体。
+原始 source、container、timing model、codec、track model、HDR/color metadata、spatial metadata 可被 Apple 媒体框架解释的媒体。
 
 典型例子包括 AV-compatible MP4/MOV/M4V、HLS、Photos assets、Spatial Video、MV-HEVC、Apple immersive media。
 
-扩展名不是充分证据。
+扩展名不是充分证据。该术语当前用于 reference、diagnostics、metadata research 和未来能力评估，不表示当前生产播放会路由到 Apple AV。
 
 ## OpenFormatMedia
 
 开放、复杂、历史遗留、元数据不完整或输入行为不稳定的媒体来源族。
 
-典型例子包括 MKV、WebM、AVI、TS、M2TS、FLV，以及 source ownership 或 remote I/O 不足以证明 Apple route 安全的输入。
+典型例子包括 MKV、WebM、AVI、TS、M2TS、FLV，以及 source ownership、remote I/O、字幕/音轨模型或输入质量需要 mpv 兼容性能力的来源。
+
+## AppleReferencePlayback
+
+使用 Apple AV / AVFoundation / AVKit 建立的参考、诊断或视觉对照播放路径。
+
+`AppleReferencePlayback` 不等于当前生产 `PlaybackEngine`，不拥有 production session，不作为默认 fallback，也不进入 UI 产品级分支。
 
 ## MediaProfile
 
-跨 engine 的媒体事实层。它描述 projection、stereo layout、HDR type、resolution 等 UI 与 `SpatialScene` 需要理解的媒体属性。
+跨 adapter、diagnostic evidence 和未来研究路径的媒体事实层。它描述 projection、stereo layout、HDR type、resolution 等 UI 与 `SpatialScene` 需要理解的媒体属性。
 
-任何 adapter 内部观察到的 engine-specific 信息，都必须先归一化为 `MediaProfile` 或共享 domain capability model，才能进入 `PlayerUI`、`SpatialScene` 或持久化层。
+任何 adapter 或 reference path 内部观察到的实现细节，都必须先归一化为 `MediaProfile` 或共享 domain capability model，才能进入 `PlayerUI`、`SpatialScene` 或持久化层。
 
 ## PlaybackMode
 

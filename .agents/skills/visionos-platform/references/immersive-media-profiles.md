@@ -1,9 +1,17 @@
 # Immersive Media Profiles, APMP, Spatial Video
 
-Use for media-profile-first decisions: 2D video, 3D video, Spatial Video,
-APMP 180, APMP 360 or Wide FOV, Apple Immersive Video, Quick Look preview,
-AVKit immersive playback, RealityKit `VideoPlayerComponent`, and any proposed
-custom MPV, Metal, or compositor path for non-2D media profiles.
+Purpose: keep media-profile facts separate from current production playback
+direction.
+Status: Active visionOS reference.
+Owner/scope: 2D video, 3D video, Spatial Video, APMP 180, APMP 360 or Wide
+FOV, Apple Immersive Video, Quick Look preview, AVKit immersive playback,
+RealityKit `VideoPlayerComponent`, and proposed custom MPV, Metal, or
+compositor paths for non-2D media profiles.
+This file is not a production playback-routing contract.
+
+Enchron's current production playback route is mpv-first. Apple system media
+APIs in this file are reference and future investigation surfaces unless a new
+architecture decision promotes them into production.
 
 ## Evidence Handles
 
@@ -64,18 +72,22 @@ from Apple API Reference `docset_version: 24703`.
 
 ## Correct Decisions
 
-- Classify the media profile before selecting a playback API.
+- Classify the media profile before selecting an API, declaring support, or
+  declaring a future research path.
 - Minimum profile set: 2D flat video, 3D flat or stereoscopic video,
   Spatial Video / MV-HEVC with spatial metadata, APMP 180, APMP 360 / Wide FOV,
   Apple Immersive Video, and custom or unknown media.
+- Current Enchron production playback remains mpv-first.
 - File preview and library preview default to Quick Look or `PreviewApplication`
   when product needs allow system preview.
-- Standard long-form video, movies, courses, sports, captions, audio behavior,
-  system controls, and HLS default to AVKit with `AVPlayerViewController`.
-- Expanded or immersive system video transitions use AVKit and
-  `AVExperienceController` when the content profile supports those experiences.
-- Video that belongs inside a 3D scene, game world, portal, or custom spatial UI
-  uses RealityKit `VideoPlayerComponent` before lower-level custom rendering.
+- For future Apple-native playback research, standard long-form video, movies,
+  courses, sports, captions, audio behavior, system controls, and HLS should be
+  compared against AVKit with `AVPlayerViewController`.
+- For future Apple-native expanded or immersive system video research, use
+  AVKit and `AVExperienceController` when the content profile supports those
+  experiences.
+- For future RealityKit-based immersive media research, evaluate RealityKit
+  `VideoPlayerComponent` before lower-level custom rendering.
 - APMP and Apple Immersive Video should preserve official projection metadata,
   view packing, spatial audio, captions, and comfort behavior.
 - RealityKit progressive immersive playback must match
@@ -87,8 +99,8 @@ from Apple API Reference `docset_version: 24703`.
   Support are media creation, conversion, metadata, and distribution tools, not
   a reason to bypass system playback presentation by default.
 - Custom Metal, Compositor Services, or MPV texture bridging for APMP, AIV,
-  Spatial Video, or 3D content requires an exception rationale explaining why
-  Quick Look, AVKit, and RealityKit do not satisfy the product behavior.
+  Spatial Video, or 3D content must name the current mpv capability being
+  exercised or the future Apple-native behavior being studied.
 
 ## iOS/macOS Conflicts
 
@@ -117,17 +129,21 @@ from Apple API Reference `docset_version: 24703`.
   presentation mode decisions.
 - Keep `PlayerUI` responsible for playback mode decisions using shared domain
   semantics, not concrete engine identity.
-- MPV window playback remains valid for 2D and open-format media where
-  Apple-native evidence is insufficient.
-- For 3D, Spatial Video, APMP, and Apple Immersive Video, start from Quick Look,
-  AVKit, or RealityKit. Enter MPV texture bridging only after an exception
-  rationale.
+- MPV is the current production basis for playback and future immersive
+  rendering exploration.
+- For 3D, Spatial Video, APMP, and Apple Immersive Video, separate current
+  mpv-first support from future Apple-native platform research. Quick Look,
+  AVKit, and RealityKit are comparison or future adoption candidates, not
+  current production routes.
 - A custom panorama sphere may remain an implementation path for legacy or
-  unsupported open-format inputs, but it is not the default policy for APMP or
-  Apple-native immersive profiles.
+  unsupported open-format inputs. Support claims for APMP or Apple-native
+  immersive profiles need explicit media-profile evidence.
 - Verification for immersive profiles needs device risk notes, especially for
   comfort mitigation, spatial audio, captions/subtitles, power, and long-viewing
   behavior.
+- If future Apple AV / AVKit / RealityKit production playback is proposed,
+  require an explicit architecture decision, capability boundary, tests, and
+  doc updates before treating it as Enchron implementation guidance.
 
 ## Version Gates
 

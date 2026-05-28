@@ -122,7 +122,7 @@ xcodebuild \
 | Docs / agents / contracts | `git diff --check` plus targeted `rg` |
 | Pure Domain / UseCase / ValueObject | `swift test`; SwiftLint when architecture guards are relevant |
 | Xcode target, asset, bundle, signing, entitlements, UI, scene, RealityKitContent | Matching `xcodebuild build` / `test` |
-| PlaybackCore, mpv, Apple AV, HDR, subtitles, audio tracks, Metal, CoreVideo, remote I/O | Xcode build plus relevant tests; add `xcodebuild analyze` when it can see the risk |
+| PlaybackCore, mpv, Apple AV reference/diagnostics, HDR, subtitles, audio tracks, Metal, CoreVideo, remote I/O | Xcode build plus relevant tests; add `xcodebuild analyze` when it can see the risk |
 | DesignPreview UI | DesignPreview build or Canvas/Simulator check, with the visual boundary named |
 | Performance, drops, memory, thermal, startup, long viewing | Instruments / `xctrace` evidence |
 | Release, TestFlight, App Store | Archive plus signing/license/privacy/export-compliance/test-feedback review |
