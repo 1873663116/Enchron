@@ -31,7 +31,8 @@
 - 主窗口 Preview：Files / Settings 留在主窗口；Scene 入口打开 SenseZone Volume。SenseZone Volume 只显示 Scene Card 组件，左上返回按钮回到进入前的主窗口目的地。
 - SenseZone Volume Preview：Scenes 目的地的 volumetric `WindowGroup`，直接显示 Scene Card 组件。
 - 窗口播放 Preview：显示独立 16:9 播放窗口中的视频画面、播放控件、时间轴、菜单、控件隐藏 / 显示等状态。
-- 窗口播放 Preview 的视频区域按真实播放窗口的 render surface 语义建模：当前可以用静态剧照作为 frame fixture，但层级上它代表未来 `CAMetalLayer` / `MTKView` 承载的播放纹理，不是页面背景或手画黑色窗口壳。
+- 窗口播放 Preview 的视频区域按真实播放窗口的 render surface 语义建模：使用跟随播放边界 resize 的播放 surface fixture；当前视觉阶段可以用静态图片作为视频帧内容，但不能把图片、`UIImageView`、手写像素尺寸或外层壳当作播放窗口 / 分辨率模型。
+- 修改窗口播放 Preview 前，先读 `../../docs/solutions/best-practices/window-playback-preview-fixture.md`。该文档是 Apple demo 对照、Canvas / Simulator / 生产管线边界、resize 调查和 fixture 验收清单的接力入口；新的调查结论必须持续回写。
 
 未来预留 2 个 Preview Canvas：
 
