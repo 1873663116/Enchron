@@ -4,14 +4,7 @@ import SwiftUI
     DesignPreviewRootPreviewHost()
 }
 
-#Preview(
-    "Window Playback",
-    windowStyle: .plain,
-    traits: .fixedLayout(
-        width: WindowPlaybackPage.defaultSize.width,
-        height: WindowPlaybackPage.defaultSize.height
-    )
-) {
+#Preview("Window Playback", windowStyle: .plain) {
     WindowPlaybackPreviewHost()
 }
 

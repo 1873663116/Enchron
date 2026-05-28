@@ -28,6 +28,9 @@ media/HDR behavior, ARKit permissions, or performance claims. Use Xcode
 Documentation Search for the listed article-level queries when DocSetQuery lacks
 that article. Use official web pages only for items marked as web fallbacks,
 such as HIG pages, WWDC videos, PDFs, streaming examples, or technotes.
+When current docs explain individual APIs but not complete project composition,
+consult `references/sample-code-corpus.md` for durable local Apple sample code
+and selected open-source comparison repositories.
 
 Coding, debugging, build triage, runtime triage, and code review all count as
 skill triggers when they touch a visionOS platform surface. A trigger asks for
@@ -47,6 +50,8 @@ Use this skill to keep the right question in view, not to fill a checklist.
 - Open the smallest matching reference file from the route table.
 - Open the reference file's DocSetQuery handles when the behavior depends on
   API, privacy, media/HDR, ARKit, or performance facts.
+- Use `references/sample-code-corpus.md` when the task needs complete-project
+  implementation examples, and prefer a subagent for broad sample exploration.
 - Notice the inherited iOS/macOS assumption that could be wrong.
 - Inspect local code before proposing or editing.
 - Keep the change small and aligned with the chosen visionOS surface.

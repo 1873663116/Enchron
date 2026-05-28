@@ -12,7 +12,8 @@
 - 主窗口 Preview 包含 Files / Settings，并允许通过系统 `TabView` 的 Scene 入口打开 SenseZone Volume。SenseZone Volume 不保留 `Tab Bar Ornament`，只显示 Scene Card 组件与卡片内返回控件；返回时回到进入前的主窗口目的地。
 - 当前不维护“点开播放卡片后的二级播放设置页面”。播放前配置、详情页和跨 Preview 启动链路留到未来 FakeApp 或产品流程明确后再裁决。
 - 窗口播放 Preview 承载独立 16:9 `WindowGroup` 中的播放画面、控件、时间轴、菜单、隐藏 / 显示等交互；它不沿用主窗口的 `TabView`。
-- 窗口播放 Preview 的视频区域应按真实播放窗口的 render surface 语义建模：当前可以用静态剧照作为 frame fixture，但层级上它代表未来 `CAMetalLayer` / `MTKView` 承载的播放纹理，不是页面背景或手画黑色窗口壳。
+- 窗口播放 Preview 的视频区域应按真实播放窗口的 render surface 语义建模：使用跟随播放边界 resize 的播放 surface fixture；当前视觉阶段可以用静态图片作为视频帧内容，但不能把图片、`UIImageView`、手写像素尺寸或外层壳当作播放窗口 / 分辨率模型。
+- 修改窗口播放 Preview 前，先读 `../docs/solutions/best-practices/window-playback-preview-fixture.md`；其中记录 Apple demo 对照、Canvas / Simulator / 生产管线边界、resize 调查和当前 fixture 验收清单。新的调查结论必须回写该文档。
 - Preview 内部可以有局部 hover、press、展开、菜单、sheet、Scene volume 进入 / 返回等小交互。Preview 之间保持并列审查关系；从文件进入详情、从详情进入播放、从窗口播放进入沉浸空间等跨 Preview 流程留到未来 FakeApp 阶段。
 - 新建 DesignComp 前先读 `docs/designs/` 中对应 HTML，参考设计稿决定页面数量、名称、窗口尺寸和交互范围。
 - 稳定组件必须直接调用现有 components，需要新的视觉形态且组件库没有对应组件时，上报需求要求人类裁决。
