@@ -98,4 +98,4 @@ if let dvInfo = extensions[kCMFormatDescriptionExtension_DolbyVisionConfiguratio
 
 ## 相关
 
-- `docs/solutions/best-practices/mpv-video-metadata-detection-2026-04-06.md` — mpv 路径的 HDR 检测实践（与本文档覆盖的 AVFoundation 路径互补）
+- `docs/solutions/best-practices/mpv-video-metadata-detection-2026-04-06.md` — mpv 路径的 HDR 检测实践（与本文档覆盖的 AVFoundation metadata/reference 路径互补）

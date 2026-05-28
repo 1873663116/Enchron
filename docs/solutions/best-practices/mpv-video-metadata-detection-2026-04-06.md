@@ -28,6 +28,8 @@ tags:
 
 在 Enchron 的 PlaybackCore 层，`ProjectionDetectionUseCase` 和 `HDRDetectionUseCase` 依赖 mpv 属性来判断视频的立体布局和 HDR 类型。调研（2026-04-06）发现代码中存在若干基于错误假设的死代码，以及 mpv 完全无法支持的检测路径。这些问题不会导致运行崩溃，但会让检测逻辑静默失效，且难以发现。
 
+当前生产播放路线是 mpv-first。本文涉及的 AVFoundation 路径用于 metadata/reference/future investigation，不表示当前已经存在或应默认实现 AVFoundation 生产播放路线。
+
 ---
 
 ## 指导原则
@@ -141,11 +143,11 @@ mpv 的标准属性列表（`player/command.c`）中**不存在** `video-params/
 
 ---
 
-### 4. Apple MV-HEVC 必须走 AVFoundation，mpv 无法处理
+### 4. Apple MV-HEVC 需要 Apple 平台能力研究，mpv 当前无法处理
 
 Apple Spatial Video（MV-HEVC 格式）使用 VEXU box 标识立体视图，FFmpeg 和 mpv 目前均不解析 VEXU，无法识别左右眼视图。
 
-**检测方式必须通过 AVFoundation：**
+**检测 / reference 研究应通过 AVFoundation：**
 
 ```swift
 // 检测是否为 Apple Spatial Video
@@ -163,7 +165,7 @@ for desc in formatDescriptions {
 **Apple MV-HEVC 特性：**
 - 投影类型固定为 flat（不是球面格式）
 - 立体布局通过 AVFoundation `AVVideoCompositionInstruction` 或 `AVSampleBufferDisplayLayer` 的立体配置读取
-- **mpv 路径完全不可用，必须使用独立的 AVFoundation 播放路径**
+- 当前 mpv 生产路径不能声明 MV-HEVC / Spatial Video 支持。未来如需 Apple AV 生产播放路径，必须先经过显式架构决策、能力边界、测试依据和文档更新。
 
 ---
 
@@ -173,7 +175,7 @@ for desc in formatDescriptions {
 - 死代码的匹配条件永远不触发，但不会报错，容易被忽视
 - `hdr-format` 属性返回空字符串会触发 fallthrough 到 gamma-based 检测（碰巧不总是错的，但逻辑是错的）
 - GSpherical metadata 始终为空会导致 MP4/MOV 360 视频永远被识别为普通视频
-- 走 mpv 路径尝试处理 MV-HEVC 会导致播放失败或无法识别空间视频
+- 走 mpv 路径尝试声明 MV-HEVC / Spatial Video 支持会导致播放失败或无法识别空间视频
 
 ---
 
@@ -182,7 +184,7 @@ for desc in formatDescriptions {
 - 实现或修改 `ProjectionDetectionUseCase`、`StereoLayoutDetectionUseCase`、`HDRDetectionUseCase` 时
 - 添加新的视频格式支持（360°、空间视频、HDR 格式）时
 - 调试"为何球面视频/HDR 视频没有被正确识别"时
-- 评估 mpv vs AVFoundation 路径的能力边界时
+- 评估 mpv 能力边界或未来 AVFoundation / AVKit 平台能力时
 
 ---
 
@@ -217,8 +219,8 @@ if gamma == "hlg" || gamma == "arib-std-b67" { hdrType = .hlg }
 // ✅ MP4/MOV 球面视频 → AVFoundation 预扫描路径
 // mpv 路径无法检测 MP4/MOV 球面投影
 
-// ✅ MV-HEVC → 必须 AVFoundation
-// 使用 CMFormatDescription + kCMFormatDescriptionExtension_StereoViewComponent
+// ✅ MV-HEVC → 当前 mpv 生产路径 unsupported；使用 AVFoundation 做检测 / reference 研究
+// 例如 CMFormatDescription + kCMFormatDescriptionExtension_StereoViewComponent
 ```
 
 ---

@@ -1,15 +1,20 @@
 # Documentation Cleanup and Maintenance Plan
 
-Status: Active plan.
+Status: Archived historical plan.
 Created: 2026-05-22.
 Scope: Documentation structure, stale document cleanup, routing-doc integration.
-Exit: Archive or delete this plan after completion.
+Archived: 2026-05-28 after the active playback docs were corrected to the
+mpv-first route.
+
+This plan records an earlier documentation cleanup pass. It is not current
+implementation guidance and must not be used to infer an Apple-native-first or
+dual-engine production route.
 
 ## Goal
 
 Reduce documentation maintenance debt.
 
-This pass updates the playback routing documentation while also cleaning stale
+This pass updated the playback routing documentation while also cleaning stale
 references, clarifying document ownership, and preventing duplicate normative
 sources.
 
@@ -178,7 +183,7 @@ rg -n "PlaybackEngine|PlaybackEngineRoute|PlaybackEngineRouter|AppleNativeMedia|
 rg -n "PlayerUI.*mpv|PlayerUI.*AV|UI.*engine|PlaybackMode.*engine|AVKit.*state machine|system player.*state machine" ARCHITECTURE.md docs .agents/skills/visionos-platform
 test ! -f docs/reference/2026-05-22-deterministic-playback-engine-routing.md
 test -f docs/contracts/playback-engine-routing.md
-test -f docs/plans/active/2026-05-22-documentation-cleanup-and-maintenance.md
+test -f docs/archive/plans/2026-05-22-documentation-cleanup-and-maintenance.md
 ```
 
 ## Definition of Done
@@ -190,7 +195,8 @@ test -f docs/plans/active/2026-05-22-documentation-cleanup-and-maintenance.md
 - The only normative routing contract is
   `docs/contracts/playback-engine-routing.md`.
 - No separate routing reference strategy doc is created.
-- The visionOS playback skill reference reflects the new production direction.
+- The visionOS playback skill reference reflected the production direction at
+  the time of the pass; current active docs now define the mpv-first route.
 - The HDR diagnostics guide still treats Apple reference playback as diagnostic
   evidence, not as the production route contract.
 - This cleanup plan has a clear archive/delete exit.

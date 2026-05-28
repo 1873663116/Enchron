@@ -4,7 +4,7 @@ date: 2026-05-22
 scope: visionOS 26 migration and media playback audit
 ---
 
-> This is external migration audit input, not Enchron final normative guidance. Final decisions remain governed by Apple official documentation, `ARCHITECTURE.md`, active contracts, project product philosophy, `.agents/skills/visionos-platform/` references, and project quality gates.
+> This is external migration audit input, not Enchron final normative guidance. Final decisions remain governed by Apple official documentation, `ARCHITECTURE.md`, active contracts, project product philosophy, `.agents/skills/visionos-platform/` references, and project quality gates. Enchron's current production playback route is mpv-first; this audit's generic AVKit / Quick Look / RealityKit recommendations are platform reference and future investigation context, not current production playback guidance.
 
 # visionOS 开发差异与视频播放审计报告（visionOS 26 可用版）
 
@@ -34,7 +34,7 @@ visionOS 不是“多了一个屏幕尺寸”的 iPadOS，也不是“把 macOS 
 
 第二，标准系统能力优先。窗口、工具栏、hover/focus、播放控件、HLS、字幕、音频路由、舒适度缓解、沉浸式切换，这些能力越靠近系统实现越可靠。
 
-第三，视频播放是 visionOS 的特殊高价值边界。传统 iOS/macOS 播放器仍可工作，但 visionOS 26 已经把沉浸式媒体扩展到 APMP、Apple Immersive Video、RealityKit `VideoPlayerComponent` 与 AVKit `AVExperienceController`。如果仍按“AVPlayerLayer + 自定义球面贴图”作为默认路线，会错过系统级字幕、音频、舒适度、投影元数据、转场和平台一致性。
+第三，视频播放是 visionOS 的特殊高价值边界。传统 iOS/macOS 播放器仍可工作，但 visionOS 26 已经把沉浸式媒体扩展到 APMP、Apple Immersive Video、RealityKit `VideoPlayerComponent` 与 AVKit `AVExperienceController`。对通用平台研究来说，如果仍按“AVPlayerLayer + 自定义球面贴图”作为默认路线，会错过系统级字幕、音频、舒适度、投影元数据、转场和平台一致性；Enchron 当前生产路线仍以 active docs 的 mpv-first 为准。
 
 ---
 
@@ -456,7 +456,7 @@ RealityKit 集成注意事项：
 
 审计建议：
 
-1. 如果目标是播放标准媒体，先走 Quick Look / AVKit。
+1. 通用平台研究如果目标是播放标准媒体，先评估 Quick Look / AVKit；Enchron 当前生产实现不从此自然推出 Apple AV route。
 2. 如果目标是“视频作为空间体验的一部分”，走 RealityKit `VideoPlayerComponent`。
 3. 如果目标是创建或转换媒体，使用 AVFoundation / Core Media / Video Toolbox / HLS tools / ImmersiveMediaSupport。
 4. 如果目标是完全自定义投影和渲染，先写明为什么 AVKit 和 RealityKit 不满足需求，再进入 Metal / Compositor Services。否则这是高风险路线。
@@ -479,7 +479,7 @@ RealityKit 集成注意事项：
 visionOS 差异：
 
 - 2D 视频可 inline、expanded、docked 到环境中。
-- 长视频体验应优先 AVKit，不要用自定义 SwiftUI overlay 替代系统播放器。
+- 通用平台长视频体验应优先评估 AVKit，不要用自定义 SwiftUI overlay 替代系统播放器；Enchron 当前生产路线由 mpv-first active docs 决定。
 - 沉浸环境中播放 2D 视频时，要考虑环境、窗口位置、字幕可读性、音频路由和休眠/恢复。
 - visionOS 26 支持 2D/3D 视频 per-frame dynamic mask，可让帧大小和纵横比按镜头变化，减少黑边叙事限制。依据：[Explore video experiences for visionOS](https://developer.apple.com/videos/play/wwdc2025/304/)。
 
@@ -658,7 +658,7 @@ flowchart TD
 | 空间量显式标注单位，跨 SwiftUI / RealityKit / ARKit 用官方转换。 | 高 | 真机 0.5m、1m、2m 位置验证。 |
 | 可交互 RealityKit 实体必须有输入目标、碰撞体和 gesture/ManipulationComponent。 | 高 | 真机 hover/命中测试。 |
 | ARKit 空间数据必须按 Full Space、权限、数据 provider 路径设计。 | 高 | Full Space 内 provider 数据测试。 |
-| 视频播放默认用 Quick Look / AVKit / RealityKit，而不是底层重写。 | 高 | 每种媒体 profile 对照测试。 |
+| 通用平台视频播放优先评估 Quick Look / AVKit / RealityKit，而不是直接底层重写；Enchron 当前生产路线仍是 mpv-first。 | 高 | 每种媒体 profile 对照测试。 |
 | 2D/3D/spatial/APMP/AIV 分开建模，不能用一个“video”字段概括。 | 高 | 内容元数据、HLS playlist、文件格式检查。 |
 | APMP 和 Apple Immersive Video 使用官方元数据/工具链。 | 高 | 用官方样例、validator、真机播放验证。 |
 | 高运动沉浸视频使用 portal/progressive 与系统 comfort mitigation。 | 高 | 长时间真机观看和用户舒适度记录。 |
@@ -710,4 +710,4 @@ ARKit、RealityKit、性能：
 
 ## 11. 本版结论
 
-这版可以作为 visionOS 迁移或新建项目的技术风险清单使用。若项目是普通业务/内容类 app，默认路线是 window-first，再按价值进入 volume 或 immersive space。若项目是视频/媒体类 app，默认路线应升级为 media-profile-first：先区分 2D、3D、spatial video、APMP、Apple Immersive Video，再选择 Quick Look、AVKit、RealityKit 或底层工具链。
+这版可以作为 visionOS 迁移或新建项目的技术风险清单使用。若项目是普通业务/内容类 app，默认路线是 window-first，再按价值进入 volume 或 immersive space。若项目是通用视频/媒体类 app，默认路线应升级为 media-profile-first：先区分 2D、3D、spatial video、APMP、Apple Immersive Video，再评估 Quick Look、AVKit、RealityKit 或底层工具链。Enchron 当前生产实现以 active docs 的 mpv-first 路线为准。

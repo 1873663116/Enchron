@@ -6,6 +6,8 @@ status: COMPLETE
 
 # mpv 元数据调研报告 — ProjectionType & StereoLayout 检测
 
+> 当前生产播放路线是 mpv-first。本文关于 AVFoundation 的内容用于 metadata/reference/future investigation，不表示当前已经存在或应默认实现 AVFoundation 生产播放路线。
+
 ## 1. mpv `video-params/stereo-in` 属性
 
 ### 1.1 数据来源
@@ -134,11 +136,11 @@ mono:       "mono"  | "" | "no"（或属性不可用）
 
 ### 4.3 Apple MV-HEVC（空间视频）
 
-mpv 无法处理 MV-HEVC 空间视频：
+mpv 当前无法处理 MV-HEVC 空间视频：
 
 - MV-HEVC 使用 VEXU box（View EXtension Unit）标识立体视图
 - ffmpeg/mpv 目前不解析 VEXU，无法识别左右眼视图
-- Apple MV-HEVC 空间视频**必须通过 AVFoundation API 处理**，不能走 mpv 路径
+- Apple MV-HEVC 空间视频需要通过 AVFoundation / AVKit 做 metadata、reference 或未来 Apple-native 生产路线研究；当前 mpv 生产路径不能声明支持
 
 ---
 
@@ -244,7 +246,7 @@ mpv 无法处理 MV-HEVC 空间视频：
 | 立体布局 | 固定为 MV-HEVC 编码（左眼 base view，右眼差分），通过 AVFoundation `AVVideoCompositionInstruction` 或 `AVSampleBufferDisplayLayer` 的立体配置读取 |
 | 投影类型 | 固定为平面（`flat`）；Apple MV-HEVC 不是球面格式 |
 
-**mpv 完全不支持 MV-HEVC**，必须通过 AVFoundation 路径处理。
+**mpv 当前不支持 MV-HEVC**。生产支持应保持 unsupported，除非未来 Apple-native 路线经过显式架构决策。
 
 ---
 
@@ -256,7 +258,7 @@ mpv 无法处理 MV-HEVC 空间视频：
 数据来源优先级：
 
 1. 容器格式判断（文件扩展名 / video-codec）：
-   - codec = "hevc" 且为 Apple MV-HEVC → flat（AVFoundation 路径）
+   - codec = "hevc" 且为 Apple MV-HEVC → flat（AVFoundation metadata/reference 路径；当前生产播放 unsupported）
    
 2. mpv 球面元数据（目前仅 WebM/MKV via st_metadata["stereo_mode"]）：
    - 当前 mpv 不暴露 MKV ProjectionType，无法可靠检测球面投影
@@ -317,7 +319,7 @@ static func detectStereoLayout(stereoIn: String) -> StereoLayout {
 | B2 | `stereo.contains("top_bottom")` 等匹配永远不命中 | 无实际影响（ab2l/ab2r 已被 `hasPrefix("ab")` 命中） | 清理死代码，改用 `"ab2l" / "ab2r"` 精确匹配 |
 | G1 | MP4/MOV 球面视频投影类型无法检测 | 360 等距 MP4 文件在 mpv 路径下无法被识别为球面 | 需要 AVFoundation 预扫描 |
 | G2 | MKV Projection element 类型不暴露 | MKV 球面视频只能靠 StereoMode，不能知道是等距还是立方体 | 上游 mpv 功能缺口 |
-| G3 | Apple MV-HEVC 完全不走 mpv | 空间视频 mpv 无法处理 | 使用 AVFoundation 单独路径 |
+| G3 | Apple MV-HEVC 当前不能走 mpv 生产路径 | 空间视频 mpv 无法处理 | 保持生产 unsupported；AVFoundation / AVKit 仅作 reference 或未来路线研究 |
 
 ---
 

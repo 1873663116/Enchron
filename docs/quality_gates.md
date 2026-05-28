@@ -23,13 +23,13 @@ Use `xcodebuild` when the change touches the app target, UI, scene lifecycle, as
 
 Discover local simulator destinations with `xcrun simctl` and `xcodebuild -showdestinations`; do not guess device names.
 
-Raise `xcodebuild analyze` when the touched surface involves playback, mpv, AVKit, Metal, CoreVideo, bridging, threading, remote I/O, or persistence risk.
+Raise `xcodebuild analyze` when the touched surface involves playback, mpv, Apple AV reference/diagnostics, Metal, CoreVideo, bridging, threading, remote I/O, or persistence risk.
 
 For command examples, use `docs/reference/apple-toolchain-guide.md`.
 
 ## visionOS Platform Signals
 
-Before choosing an API, know which visionOS surface owns the behavior: window, volume, `ImmersiveSpace`, RealityKit scene, Compositor Services, AVKit system video, or file/network/persistence service.
+Before choosing an API, know which visionOS surface owns the behavior: window, volume, `ImmersiveSpace`, RealityKit scene, Compositor Services, Apple AV reference/system video research, or file/network/persistence service.
 
 When API availability, privacy, App Store constraints, media/HDR behavior, ARKit permissions, or performance claims matter, route through `.agents/skills/visionos-platform/SKILL.md` and the smallest relevant reference file. Skill routing confirms the platform boundary; it is not a request to read the full reference set.
 
@@ -44,9 +44,9 @@ Video/media changes need two facts in view:
 
 The shared media profiles are 2D flat video, 3D flat or stereoscopic video, Spatial Video / MV-HEVC with spatial metadata, APMP 180, APMP 360 / Wide FOV, Apple Immersive Video, and custom or unknown media.
 
-For Spatial Video, APMP, Apple Immersive Video, or immersive 3D playback, consider Quick Look, AVKit, and RealityKit `VideoPlayerComponent` before MPV texture bridging, Metal, or custom compositor work.
+Current Enchron production playback is mpv-first. For Spatial Video, APMP, Apple Immersive Video, or immersive 3D work, separate current mpv production behavior from future Apple-native capability research. Quick Look, AVKit, and RealityKit `VideoPlayerComponent` are reference or future investigation candidates unless a new architecture decision promotes them into production.
 
-Custom media rendering needs a concrete reason: name the media profile and the system behavior being replaced.
+Custom media rendering needs a concrete reason: name the media profile, the mpv capability or experiment being exercised, and any system behavior being compared or deferred.
 
 Device risk notes are useful for immersive media comfort, spatial audio, captions/subtitles, power, and long-viewing behavior.
 

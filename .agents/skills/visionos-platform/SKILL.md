@@ -129,11 +129,15 @@ What visionOS surface owns this behavior?
 - Unbounded spatial content controlled by the app: `ImmersiveSpace`.
 - Custom immersive Metal renderer: `ImmersiveSpace` with `CompositorLayer`;
   check Compositor Services docs for full/mixed/progressive behavior.
-- Maximum system video integration: `AVPlayerViewController`.
-- Media-profile immersive video: Quick Look, AVKit, or RealityKit
-  `VideoPlayerComponent`, chosen by media profile.
-- Custom immersive video: RealityKit video APIs first, with AVKit as baseline
-  and MPV/Metal/custom compositor paths requiring exception rationale.
+- Maximum system video integration research: `AVPlayerViewController`; this is
+  a platform reference surface, not Enchron's current production route.
+- Media-profile immersive video research: Quick Look, AVKit, or RealityKit
+  `VideoPlayerComponent`, chosen by media profile only after the task is scoped
+  as Apple-native investigation.
+- Current Enchron production playback: mpv-first. Custom immersive video work
+  should state the mpv capability or experiment being exercised; future Apple
+  AV / AVKit / RealityKit production adoption requires an explicit architecture
+  decision.
 - Network/file/persistence: Foundation, Network, Security, SwiftData, plus
   visionOS privacy and lifecycle constraints.
 

@@ -2,7 +2,7 @@
 
 ## 产品形态
 
-Enchron 是面向 visionOS 的原生沉浸式视频播放器。用户从本地或远程来源选择媒体；应用把播放请求收敛到统一启动路径；`PlaybackCore` 报告媒体事实和播放状态；`PlayerUI` 决定呈现模式；`SpatialScene` 承担沉浸和全景呈现；`Persistence` 保存进度、偏好、凭证和场景状态。
+Enchron 是面向 visionOS 的原生沉浸式视频播放器。用户从本地或远程来源选择媒体；应用把播放请求收敛到统一启动路径；当前生产播放核心围绕 mpv 收敛；`PlaybackCore` 报告媒体事实和播放状态；`PlayerUI` 决定呈现模式；`SpatialScene` 承担沉浸和全景呈现；`Persistence` 保存进度、偏好、凭证和场景状态。
 
 主链路是：
 
@@ -25,7 +25,7 @@ Enchron 是面向 visionOS 的原生沉浸式视频播放器。用户从本地�
 
 负责用户可见的播放控件、播放模式决策、时间轴行为、手势消歧和面向用户的能力状态。
 
-`PlayerUI` 只消费共享播放语义和领域模型。它不能直接控制 mpv、Apple AV、SMB、WebDAV 或具体 adapter 生命周期。
+`PlayerUI` 只消费共享播放语义和领域模型。它不能直接控制 mpv、Apple AV reference surface、SMB、WebDAV 或具体 adapter 生命周期。
 
 ### FileBrowsing
 
@@ -84,15 +84,19 @@ Enchron 是面向 visionOS 的原生沉浸式视频播放器。用户从本地�
 - `PlaybackCore` 可以定义多个后端 adapter 实现。
 - Adapter 构造和 session 注入属于 `App` / composition code。
 - `PlaybackLaunchCoordinator` 仍然是 direct playback 和 prepare/confirm playback 的唯一启动协调路径。
-- 一个播放 session 只能拥有一个选定的 `PlaybackEngine`。
-- Engine selection 必须发生在用户可见播放开始前。
-- 一个 session 不允许并行播放引擎。
+- 当前生产播放核心是 mpv。播放、兼容性、开放格式、复杂字幕/音轨、远程 I/O、HDR 实验和后续沉浸式渲染探索都优先围绕 mpv 收敛。
+- Apple AV / AVFoundation / AVKit 当前只作为 reference、diagnostics、主观视觉对照、HDR/EDR 行为观察和未来平台能力研究。它们不是当前生产 `PlaybackEngine`，也不是默认 fallback。
+- 一个播放 session 只能拥有一个实际生产播放核心。
+- 当前生产 session 的实际播放核心是 mpv，除非未来显式架构决策引入新的生产路线。
+- 一个 session 不允许并行播放核心。
 - 不允许双产品状态机。
-- 不允许 session 运行中切换 engine。
-- `PlayerUI` 不能按 mpv vs `appleAV` 这种具体 engine identity 分支。
+- 不允许 session 运行中在 mpv 与 Apple AV 之间切换生产核心。
+- `PlayerUI` 不能按 mpv vs Apple AV reference path 这种具体 engine identity 分支。
 - `PlaybackEngineRoute` 不是 `PlaybackMode`。
 - `PlaybackMode` 仍然是呈现决策：窗口、沉浸场景或全景。
 - `MediaProfile` 和共享 domain capability models 仍然是 UI 可见真相层。
+- 诊断、lab、comparison 代码如果与 mpv-first 路线不一致，先视为需要理解和评估的现状，不自动当成架构意图。
+- 如果未来引入 Apple AV 生产路线，需要新的显式架构决策、能力边界、测试依据和文档更新。
 
 ### PlayerUI
 
@@ -167,6 +171,9 @@ Do not link to contract files that do not exist. Do not create contract document
 - 没有绕开 `PlaybackLaunchCoordinator` 的第二播放启动路径。
 - 没有藏在 SwiftUI `View` body 里的产品状态机。
 - 没有 UI-level adapter selection between mpv and Apple AV。
+- 没有当前生产路线中的 Apple AV playback engine。
+- 没有默认 Apple AV fallback。
+- 没有用双引擎理论合理化历史诊断代码的架构许可。
 - 没有把并行播放路线作为正常 session 模型。
 - 没有把 `Shared` 当成跨模块业务容器。
 - 没有为了窗口模式捷径而牺牲沉浸场景演进的架构决策。

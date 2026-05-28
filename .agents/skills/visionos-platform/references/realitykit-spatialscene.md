@@ -81,10 +81,10 @@ from Apple API Reference `docset_version: 24703`.
 - RealityKit interaction needs the proper pieces: targeted SwiftUI gesture,
   `InputTargetComponent`, and collision shapes.
 - Use attachments for SwiftUI controls that belong with RealityKit content.
-- For current video work, consider `VideoPlayerComponent` as well as
-  `VideoMaterial`. `VideoPlayerComponent` is the RealityKit path for immersive
-  media controls, viewing modes, captions/subtitles, passthrough tinting, and
-  transition events.
+- For future Apple-native immersive media research, consider
+  `VideoPlayerComponent` as well as `VideoMaterial`. `VideoPlayerComponent` is
+  the RealityKit path for immersive media controls, viewing modes,
+  captions/subtitles, passthrough tinting, and transition events.
 - For APMP, Apple Immersive Video, and Spatial Video in RealityKit, read
   `immersive-media-profiles.md`. `VideoPlayerComponent` is the core RealityKit
   route for system-understood immersive media profiles, not a small replacement
@@ -110,9 +110,9 @@ from Apple API Reference `docset_version: 24703`.
 - Do not fill peripheral vision with bright motion or high-contrast animation.
 - Do not put RealityKit setup in SwiftUI body-driven code paths.
 - Do not assume "RealityKit video" means only `VideoMaterial`.
-- Do not render APMP, Apple Immersive Video, or Spatial Video as generic
-  textures unless the plan explains why `VideoPlayerComponent`, AVKit, and
-  Quick Look are insufficient.
+- Do not claim APMP, Apple Immersive Video, or Spatial Video production support
+  from generic textures alone. Name whether the work is current mpv-first
+  rendering, diagnostics, or future Apple-native research.
 - Do not combine progressive RealityKit video with a non-progressive
   `ImmersionStyle`.
 
@@ -123,9 +123,9 @@ from Apple API Reference `docset_version: 24703`.
   not arbitrary 2D layout constants.
 - Panorama and virtual-screen paths should explicitly state their surface:
   RealityKit material/texture, volume, immersive space, or future compositor.
-- Immersive media work should state whether it uses AVKit, RealityKit
-  `VideoPlayerComponent`, `VideoMaterial`, MPV texture bridging, or future
-  Compositor Services.
+- Immersive media work should state whether it uses current mpv-first texture
+  bridging, diagnostics, future AVKit / RealityKit `VideoPlayerComponent`
+  research, `VideoMaterial`, or future Compositor Services.
 - If a task touches APMP, Apple Immersive Video, Spatial Video, or 3D media
   playback, answer the media profile question before selecting RealityKit
   APIs or reusing the existing panorama sphere path.

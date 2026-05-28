@@ -31,8 +31,9 @@ from Apple API Reference `docset_version: 24703`.
 ## Correct Decisions
 
 - If the reason for custom rendering is 3D video, Spatial Video, APMP, or Apple
-  Immersive Video, read `immersive-media-profiles.md` first and record why
-  Quick Look, AVKit, and RealityKit do not satisfy the product behavior.
+  Immersive Video, read `immersive-media-profiles.md` first and record whether
+  the work is current mpv-first rendering, diagnostics, or future Apple-native
+  research.
 - Use Compositor Services when drawing fully immersive content with a custom
   Metal renderer.
 - `CompositorLayer` is an `ImmersiveSpace` content path for custom Metal
@@ -72,5 +73,5 @@ from Apple API Reference `docset_version: 24703`.
   the claim.
 - Compute/copy paths between MPV output and RealityKit textures need explicit
   ownership of color space and timing.
-- Custom media renderers need an exception rationale tied to a named media
-  profile, not a generic desire for lower-level control.
+- Custom media renderers need a rationale tied to a named media profile and the
+  current mpv capability or future platform behavior being studied.
