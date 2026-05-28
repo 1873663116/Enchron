@@ -5,6 +5,17 @@ import SwiftUI
 }
 
 #Preview(
+    "Window Playback",
+    windowStyle: .plain,
+    traits: .fixedLayout(
+        width: WindowPlaybackPage.defaultSize.width,
+        height: WindowPlaybackPage.defaultSize.height
+    )
+) {
+    WindowPlaybackPreviewHost()
+}
+
+#Preview(
     "SenseZone Volume",
     windowStyle: .volumetric,
     traits: .fixedLayout(
@@ -21,6 +32,15 @@ private struct DesignPreviewRootPreviewHost: View {
 
     var body: some View {
         DesignPreviewRoot()
+            .environment(navigationModel)
+    }
+}
+
+private struct WindowPlaybackPreviewHost: View {
+    @State private var navigationModel = DesignPreviewNavigationModel()
+
+    var body: some View {
+        WindowPlaybackPage()
             .environment(navigationModel)
     }
 }

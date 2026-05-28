@@ -4,22 +4,55 @@ Use for performance planning, Simulator/device differences, RealityKit render
 cost, video/HDR validation, thermal/power, Instruments, visual debugging, and
 QA evidence.
 
-## Apple Sources
+## Evidence Handles
+
+Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
+Prefer the local DocSetQuery pages below before web search. They are generated
+from Apple API Reference `docset_version: 24703`.
 
 ### Open first
 
-- Creating a performance plan: https://developer.apple.com/documentation/visionos/creating-a-performance-plan-for-visionos-app
-- Analyzing visionOS app performance: https://developer.apple.com/documentation/visionos/analyzing-the-performance-of-your-visionos-app
-- Understanding the visionOS render pipeline: https://developer.apple.com/documentation/visionos/understanding-the-visionos-render-pipeline
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-ecs-scenes`
+  — RealityKit scene API surface.
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-ecs-events`
+  — RealityKit event API surface for subscriptions and diagnostics.
+- `Apple-Media-Device/metal.md#documentation-metal`
+  — Metal framework root for lower-level rendering and diagnostics.
+- `Apple-Tools-Misc/compositorservices.md#documentation-compositorservices`
+  — Compositor Services root for custom immersive render loops.
 
 ### Open if
 
-- Reducing RealityKit rendering cost: https://developer.apple.com/documentation/visionos/reducing-the-rendering-cost-of-realitykit-content-on-visionos
-- Diagnosing appearance issues: https://developer.apple.com/documentation/xcode/diagnosing-issues-in-the-appearance-of-your-running-app
-- Running in Simulator or on device: https://developer.apple.com/documentation/visionos/running-your-app-in-simulator-or-on-a-device
-- Interacting with the simulator: https://developer.apple.com/documentation/visionos/interacting-with-your-app-in-the-visionos-simulator
-- RealityKit: https://developer.apple.com/documentation/realitykit
-- Metal: https://developer.apple.com/documentation/metal
+- `Apple-Media-Device/realitykit.md#documentation-realitykit-ecs-systems`
+  — RealityKit systems API surface for per-frame scene work.
+- `Apple-Media-Device/metal-hdr-content.md#documentation-metal-hdr-content`
+  — HDR content checks for Metal paths.
+- `Apple-Tools-Misc/compositorservices-drawing-fully-immersive-content-using-metal.md#documentation-compositorservices-drawing-fully-immersive-content-using-metal`
+  — fully immersive Metal rendering contract.
+
+### Search when DocSet lacks the article
+
+- Xcode Documentation Search:
+  `"Creating a performance plan for visionOS app" "RealityKit Trace"`
+  for performance planning.
+- Xcode Documentation Search:
+  `"Analyzing the performance of your visionOS app" "Instruments"`
+  for profiling workflow.
+- Xcode Documentation Search:
+  `"Understanding the visionOS render pipeline" "render server" "compositor"`
+  for render-pipeline ownership.
+- Xcode Documentation Search:
+  `"Reducing the rendering cost of RealityKit content on visionOS"`
+  for RealityKit-specific render-cost guidance.
+- Xcode Documentation Search:
+  `"Diagnosing issues in the appearance of your running app" "Xcode"`
+  for visual debugging workflow.
+- Xcode Documentation Search:
+  `"Running your app in Simulator or on a device" "visionOS"`
+  for Simulator/device gaps.
+- Xcode Documentation Search:
+  `"Interacting with your app in the visionOS Simulator"`
+  for Simulator interaction workflow.
 
 ## Correct Decisions
 

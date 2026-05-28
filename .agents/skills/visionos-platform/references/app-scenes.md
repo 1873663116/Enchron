@@ -4,34 +4,67 @@ Use for `XrPlayer/App`, `MainView`, `AppModel`, `DesignPreviewApp`, scene
 declarations, window opening, immersive-space opening, default size, launch
 behavior, restoration, and placement.
 
-## Apple Sources
+## Evidence Handles
+
+Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
+Prefer the local DocSetQuery pages below before web search. They are generated
+from Apple API Reference `docset_version: 24703`.
 
 ### Open first
 
-- visionOS docs: https://developer.apple.com/documentation/visionos/
-- Presenting windows and spaces: https://developer.apple.com/documentation/visionos/presenting-windows-and-spaces
-- Positioning and sizing windows: https://developer.apple.com/documentation/visionos/positioning-and-sizing-windows
-- Set the scene with SwiftUI in visionOS: https://developer.apple.com/videos/play/wwdc2025/290/
-- WindowGroup: https://developer.apple.com/documentation/swiftui/windowgroup
-- Immersive spaces: https://developer.apple.com/documentation/swiftui/immersive-spaces
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-windowgroup`
+  — SwiftUI scene type for windows and value-based scene identity.
+- `Apple-UI-Frameworks/swiftui-immersive-spaces.md#documentation-swiftui-immersive-spaces`
+  — immersive-space overview, one-space-at-a-time behavior, and mixed/full/
+  progressive styles.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-environmentvalues-openimmersivespace`
+  — async open action and result handling for immersive spaces.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-environmentvalues-dismissimmersivespace`
+  — dismiss action for the currently open immersive space.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-windowstyle-volumetric`
+  — volumetric window style for bounded 3D content.
 
 ### Open if
 
-- Creating SwiftUI windows in visionOS: https://developer.apple.com/documentation/visionos/creating-a-new-swiftui-window-in-visionos
-- Persistent UI and scene restoration: https://developer.apple.com/documentation/visionos/adopting-best-practices-for-scene-restoration
-- UIHostingSceneDelegate: https://developer.apple.com/documentation/swiftui/uihostingscenedelegate
-- Volumetric window style: https://developer.apple.com/documentation/swiftui/windowstyle/volumetric
-- World scaling behavior: https://developer.apple.com/documentation/swiftui/worldscalingbehavior
-- Default volumetric size: https://developer.apple.com/documentation/swiftui/scene/defaultsize(width:height:depth:in:)
-- Window resizability: https://developer.apple.com/documentation/swiftui/scene/windowresizability(_:)
-- Default window placement: https://developer.apple.com/documentation/swiftui/scene/defaultwindowplacement(_:)
-- OpenWindowAction: https://developer.apple.com/documentation/swiftui/openwindowaction
-- Open immersive space: https://developer.apple.com/documentation/swiftui/environmentvalues/openimmersivespace
-- Dismiss immersive space: https://developer.apple.com/documentation/swiftui/environmentvalues/dismissimmersivespace
-- Immersion styles: https://developer.apple.com/documentation/swiftui/immersionstyle
-- Mixed: https://developer.apple.com/documentation/swiftui/immersionstyle/mixed
-- Full: https://developer.apple.com/documentation/swiftui/immersionstyle/full
-- Progressive: https://developer.apple.com/documentation/swiftui/immersionstyle/progressive
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-uihostingscenedelegate`
+  — scene delegate bridge for hosting SwiftUI scenes from UIKit lifecycle code.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-worldscalingbehavior`
+  — world-scaling behavior for spatial content.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-scene-defaultsizewidthheightdepthin`
+  — default volumetric scene size.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-scene-windowresizability`
+  — scene window resizability.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-scene-defaultwindowplacement`
+  — default placement for scene windows.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-openwindowaction`
+  — programmatic window opening.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-immersionstyle`
+  — declared immersion styles.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-immersionstyle-mixed`
+  — mixed immersive style.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-immersionstyle-full`
+  — full immersive style.
+- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-immersionstyle-progressive`
+  — progressive immersive style.
+
+### Search when DocSet lacks the article
+
+- Xcode Documentation Search:
+  `"Presenting windows and spaces" "visionOS" "WindowGroup" "ImmersiveSpace"`
+  for article-level window/space lifecycle guidance.
+- Xcode Documentation Search:
+  `"Positioning and sizing windows" "visionOS" "defaultWindowPlacement"`
+  for article-level placement and size guidance.
+- Xcode Documentation Search:
+  `"Creating SwiftUI windows in visionOS" "openWindow" "WindowGroup"`
+  for current visionOS window creation examples.
+- Xcode Documentation Search:
+  `"Adopting best practices for scene restoration" "visionOS"`
+  for persistent UI and restoration guidance.
+
+### Official web fallback
+
+- WWDC25 290 `Set the scene with SwiftUI in visionOS`
 
 ## Correct Decisions
 

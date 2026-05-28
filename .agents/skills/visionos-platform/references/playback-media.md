@@ -9,35 +9,68 @@ specific immersive playback lives in `immersive-media-profiles.md`.
 This file is not a product contract; active Enchron contracts live in
 `docs/contracts/`.
 
-## Apple Sources
+## Evidence Handles
+
+Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
+Prefer the local DocSetQuery pages below before web search. They are generated
+from Apple API Reference `docset_version: 24703`.
 
 ### Open first
 
-- Adopting the system player interface in visionOS: https://developer.apple.com/documentation/avkit/adopting-the-system-player-interface-in-visionos
-- Destination Video sample: https://developer.apple.com/documentation/visionos/destination-video
-- Determining whether to bring your app to visionOS: https://developer.apple.com/documentation/visionos/determining-whether-to-bring-your-app-to-visionos
-- AVPlayerViewController: https://developer.apple.com/documentation/avkit/avplayerviewcontroller
+- `Apple-Media-Device/avkit-adopting-the-system-player-interface-in-visionos.md#documentation-avkit-adopting-the-system-player-interface-in-visionos`
+  — AVKit system player interface baseline for visionOS.
+- `Apple-Media-Device/avkit-avplayerviewcontroller.md#documentation-avkit-avplayerviewcontroller`
+  — `AVPlayerViewController` platform player surface.
+- `Apple-Media-Device/avfoundation-avplayer.md#documentation-avfoundation-avplayer`
+  — `AVPlayer` time-based media control.
+- `Apple-Media-Device/avkit-playing-immersive-media-with-avkit.md#documentation-avkit-playing-immersive-media-with-avkit`
+  — AVKit immersive media playback.
+- `Apple-Media-Device/avfoundation-configuring-your-app-for-media-playback.md#documentation-avfoundation-configuring-your-app-for-media-playback`
+  — app-level media playback configuration for iOS, tvOS, and visionOS.
 
 ### Open if
 
-- AVFoundation overview: https://developer.apple.com/av-foundation/
-- AVFoundation docs: https://developer.apple.com/documentation/avfoundation/
-- AVPlayer: https://developer.apple.com/documentation/avfoundation/avplayer
-- AVKit: https://developer.apple.com/documentation/avkit
-- Playing immersive media with AVKit: https://developer.apple.com/documentation/avkit/playing-immersive-media-with-avkit
-- AVExperienceController: https://developer.apple.com/documentation/avkit/avexperiencecontroller
-- AVExperienceController.Experience: https://developer.apple.com/documentation/avkit/avexperiencecontroller/experience-swift.enum
-- AVDisplayDynamicRange: https://developer.apple.com/documentation/avkit/avdisplaydynamicrange
-- preferredDisplayDynamicRange: https://developer.apple.com/documentation/avkit/avplayerviewcontroller/preferreddisplaydynamicrange
-- Configuring your app for media playback: https://developer.apple.com/documentation/visionos/configuring-your-app-for-media-playback
-- Handling audio interruptions: https://developer.apple.com/documentation/avfaudio/handling-audio-interruptions
-- Responding to audio route changes: https://developer.apple.com/documentation/avfaudio/responding-to-audio-route-changes
-- AVPictureInPictureController support check: https://developer.apple.com/documentation/avkit/avpictureinpicturecontroller/ispictureinpicturesupported()
-- Apple movie profiles: https://developer.apple.com/av-foundation/Apple-Movie-Profiles.pdf
-- HDR content in Metal: https://developer.apple.com/documentation/metal/hdr-content
-- RealityKit videos: https://developer.apple.com/documentation/realitykit/scene-content-videos
-- Playing immersive media with RealityKit: https://developer.apple.com/documentation/visionos/playing-immersive-media-with-realitykit
-- Rendering stereoscopic video with RealityKit: https://developer.apple.com/documentation/visionos/rendering-stereoscopic-video-with-realitykit
+- `Apple-Media-Device/avkit-avexperiencecontroller.md#documentation-avkit-avexperiencecontroller`
+  — controls and observes `AVPlayerViewController` experience changes.
+- `Apple-Media-Device/avkit-avexperiencecontroller-experience-swift.enum.md#documentation-avkit-avexperiencecontroller-experience-swiftenum`
+  — AVKit experience enum.
+- `Apple-Media-Device/avkit-avdisplaydynamicrange.md#documentation-avkit-avdisplaydynamicrange`
+  — AVKit dynamic range values; local platform list excludes visionOS, so use
+  this as an availability check before adopting.
+- `Apple-Media-Device/avkit-avplayerviewcontroller-preferreddisplaydynamicrange.md#documentation-avkit-avplayerviewcontroller-preferreddisplaydynamicrange`
+  — preferred display dynamic range on `AVPlayerViewController`; local
+  platform list excludes visionOS, so do not assume Enchron can use it.
+- `Apple-Media-Device/avfaudio-handling-audio-interruptions.md#documentation-avfaudio-handling-audio-interruptions`
+  — AVFAudio interruption handling.
+- `Apple-Media-Device/avfaudio-responding-to-audio-route-changes.md#documentation-avfaudio-responding-to-audio-route-changes`
+  — AVFAudio route-change handling.
+- `Apple-Media-Device/avkit-avpictureinpicturecontroller-ispictureinpicturesupported.md#documentation-avkit-avpictureinpicturecontroller-ispictureinpicturesupported`
+  — Picture in Picture support check.
+- `Apple-Media-Device/metal-hdr-content.md#documentation-metal-hdr-content`
+  — HDR content handling in Metal.
+- `Apple-Media-Device/realitykit-scene-content-videos.md#documentation-realitykit-scene-content-videos`
+  — RealityKit video API overview.
+- `Apple-Media-Device/realitykit-videoplayercomponent.md#documentation-realitykit-videoplayercomponent`
+  — RealityKit video component for immersive media.
+- `Apple-Media-Device/realitykit-rendering-stereoscopic-video-with-realitykit.md#documentation-realitykit-rendering-stereoscopic-video-with-realitykit`
+  — side-by-side stereoscopic video sample using RealityKit.
+
+### Search when DocSet lacks the article
+
+- Xcode Documentation Search:
+  `"Destination Video" "visionOS" "AVPlayerViewController"`
+  for the sample app baseline.
+- Xcode Documentation Search:
+  `"Determining whether to bring your app to visionOS" "Picture in Picture"`
+  for migration constraints and unavailable iOS media affordances.
+- Xcode Documentation Search:
+  `"Playing immersive media with RealityKit" "VideoPlayerComponent"`
+  for article-level immersive RealityKit walkthrough.
+
+### Official web fallback
+
+- `https://developer.apple.com/av-foundation/`
+- `https://developer.apple.com/av-foundation/Apple-Movie-Profiles.pdf`
 
 ## Correct Decisions
 
@@ -63,8 +96,10 @@ This file is not a product contract; active Enchron contracts live in
   but visionOS playback experience decisions still start from the owning
   surface and media profile. Do not stop at `AVPlayerLayer` or an MPV layer when
   the content profile requires spatial styling or immersive media behavior.
-- `preferredDisplayDynamicRange` matters only when content and display support
-  HDR. HDR labels must follow evidence, not toggles.
+- `preferredDisplayDynamicRange` matters only where the API is available and
+  content and display support HDR. The local AVKit docset platform list does
+  not include visionOS for this API; HDR labels must follow evidence, not
+  toggles.
 - Audio session, interruptions, route changes, spatial-audio behavior,
   captions/subtitles, external subtitle files, and remote-command expectations
   are part of the media surface. Do not treat them as generic iOS details.

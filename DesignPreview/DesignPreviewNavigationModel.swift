@@ -5,6 +5,7 @@ import Observation
 final class DesignPreviewNavigationModel {
     nonisolated static let mainWindowID = "main"
     nonisolated static let senseZoneVolumeID = "sense-zone"
+    nonisolated static let windowPlaybackWindowID = "window-playback"
 
     var selectedTab: DesignPreviewTab = .files
     var returnRoute = DesignPreviewReturnRoute(tab: .files)

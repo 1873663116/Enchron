@@ -22,9 +22,12 @@ triggers, read this router, then the smallest relevant reference file.
 Triggering this skill means the task has a visionOS boundary to keep visible; it
 does not mean every reference file should be read.
 
-Use live Apple documentation when the answer depends on current API
-availability, OS-version behavior, privacy requirements, App Store constraints,
-media/HDR behavior, ARKit permissions, or performance claims.
+Use the reference file's local DocSetQuery evidence handles first when the
+answer depends on API availability, OS-version behavior, privacy requirements,
+media/HDR behavior, ARKit permissions, or performance claims. Use Xcode
+Documentation Search for the listed article-level queries when DocSetQuery lacks
+that article. Use official web pages only for items marked as web fallbacks,
+such as HIG pages, WWDC videos, PDFs, streaming examples, or technotes.
 
 Coding, debugging, build triage, runtime triage, and code review all count as
 skill triggers when they touch a visionOS platform surface. A trigger asks for
@@ -42,8 +45,8 @@ Use this skill to keep the right question in view, not to fill a checklist.
 
 - Name the touched Enchron module and visionOS surface.
 - Open the smallest matching reference file from the route table.
-- Open linked Apple docs when the behavior depends on current API, privacy,
-  App Store, media/HDR, ARKit, or performance facts.
+- Open the reference file's DocSetQuery handles when the behavior depends on
+  API, privacy, media/HDR, ARKit, or performance facts.
 - Notice the inherited iOS/macOS assumption that could be wrong.
 - Inspect local code before proposing or editing.
 - Keep the change small and aligned with the chosen visionOS surface.

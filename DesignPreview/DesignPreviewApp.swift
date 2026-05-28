@@ -30,5 +30,16 @@ struct DesignPreviewApp: App {
             in: .meters
         )
         .windowResizability(.contentSize)
+
+        WindowGroup(id: DesignPreviewNavigationModel.windowPlaybackWindowID) {
+            WindowPlaybackPage()
+                .environment(navigationModel)
+        }
+        .defaultSize(
+            width: WindowPlaybackPage.defaultSize.width,
+            height: WindowPlaybackPage.defaultSize.height
+        )
+        .windowResizability(.contentSize)
+        .windowStyle(.plain)
     }
 }

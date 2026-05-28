@@ -20,6 +20,7 @@ struct SenseZoneVolumeRoot: View {
     private func returnToMainWindow() {
         guard !navigationModel.isSceneTransitionInFlight else { return }
 
+        // TODO: Restore the main window when the system Window Bar closes this volume.
         navigationModel.isSceneTransitionInFlight = true
         navigationModel.restoreReturnRoute()
         openWindow(id: DesignPreviewNavigationModel.mainWindowID)

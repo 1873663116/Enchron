@@ -4,19 +4,29 @@ Use for custom Metal rendering, MPV layer output, future fully immersive
 renderer work, stereoscopic drawing, Compositor Services, frame timing, and
 immersive Metal interaction.
 
-## Apple Sources
+## Evidence Handles
+
+Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
+Prefer the local DocSetQuery pages below before web search. They are generated
+from Apple API Reference `docset_version: 24703`.
 
 ### Open first
 
-- Compositor Services: https://developer.apple.com/documentation/compositorservices
-- Drawing fully immersive content using Metal: https://developer.apple.com/documentation/compositorservices/drawing-fully-immersive-content-using-metal
-- Controlling Metal rendering immersion level: https://developer.apple.com/documentation/compositorservices/controlling-metal-rendering-immersion-level
-- Interacting with virtual content blended with passthrough: https://developer.apple.com/documentation/compositorservices/interacting-with-virtual-content-blended-with-passthrough
+- `Apple-Tools-Misc/compositorservices.md#documentation-compositorservices`
+  — Compositor Services framework root.
+- `Apple-Tools-Misc/compositorservices-drawing-fully-immersive-content-using-metal.md#documentation-compositorservices-drawing-fully-immersive-content-using-metal`
+  — fully immersive custom Metal rendering.
+- `Apple-Tools-Misc/compositorservices-controlling-metal-rendering-immersion-level.md#documentation-compositorservices-controlling-metal-rendering-immersion-level`
+  — Metal rendering immersion level behavior.
+- `Apple-Tools-Misc/compositorservices-interacting-with-virtual-content-blended-with-passthrough.md#documentation-compositorservices-interacting-with-virtual-content-blended-with-passthrough`
+  — virtual content interaction with passthrough blending.
 
 ### Open if
 
-- Metal: https://developer.apple.com/documentation/metal
-- HDR content in Metal: https://developer.apple.com/documentation/metal/hdr-content
+- `Apple-Media-Device/metal.md#documentation-metal`
+  — Metal framework root.
+- `Apple-Media-Device/metal-hdr-content.md#documentation-metal-hdr-content`
+  — HDR content in Metal.
 
 ## Correct Decisions
 

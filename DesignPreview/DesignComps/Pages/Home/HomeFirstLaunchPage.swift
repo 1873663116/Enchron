@@ -1,6 +1,9 @@
 import SwiftUI
 
-struct HomeFirstLaunchPage: View {
+struct MainWindowPage: View {
+    let selectedTab: DesignPreviewTab
+    @State private var selectedSettingCategoryID = SettingsCategory.playback.id
+
     @State private var searchText = ""
     @State private var sourceItems = SidebarSourceItem.defaultItems
     @State private var isSelectingSidebarItems = false
@@ -34,27 +37,26 @@ struct HomeFirstLaunchPage: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            sourceSidebar
-            contentArea
+            mainSidebar
+            mainContentArea
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("DesignComps-HomeFirstLaunchPage")
-        .accessibilityLabel("Files page")
+        .accessibilityIdentifier("DesignComps-MainWindowPage")
+        .accessibilityLabel("Main window page")
     }
 
-    private var sourceSidebar: some View {
+    private var mainSidebar: some View {
         let shape = DesignTokens.SourceSidebar.shape
 
         return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            sourcesSection
-
-            if isSelectingSidebarItems {
-                sidebarSelectionActions
-            }
+            sidebarContent
 
             Spacer(minLength: 0)
-            storageMeter
+
+            if selectedTab == .files {
+                storageMeter
+            }
         }
         .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
         .frame(width: DesignTokens.SourceSidebar.width)
@@ -68,10 +70,38 @@ struct HomeFirstLaunchPage: View {
                 collapseExpandedSource()
             }
         )
-        .accessibilityIdentifier("DesignComps-FilesPage-sourceSidebar")
+        .accessibilityIdentifier("DesignComps-MainWindowPage-sidebar")
     }
 
-    private var contentArea: some View {
+    @ViewBuilder
+    private var sidebarContent: some View {
+        switch selectedTab {
+        case .files:
+            sourcesSection
+
+            if isSelectingSidebarItems {
+                sidebarSelectionActions
+            }
+        case .settings:
+            settingsSidebarSection
+        case .scene:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private var mainContentArea: some View {
+        switch selectedTab {
+        case .files:
+            filesContentArea
+        case .settings:
+            settingsContentArea
+        case .scene:
+            EmptyView()
+        }
+    }
+
+    private var filesContentArea: some View {
         VStack(spacing: 0) {
             topBar
             itemCountBar
@@ -196,14 +226,115 @@ struct HomeFirstLaunchPage: View {
                         fileSize: video.fileSize,
                         duration: video.duration,
                         badges: video.badges,
-                        showsAlternateBackground: !index.isMultiple(of: 2)
+                        showsDivider: index < videos.count - 1
                     )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .enchronTranslucentListContainer()
         .scrollIndicators(.hidden)
         .transition(.opacity)
+    }
+
+    private var settingsSidebarSection: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                sidebarSectionTitle("Settings")
+                Spacer(minLength: 0)
+                sidebarHeaderTrailingPlaceholder
+            }
+            .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
+
+            VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
+                ForEach(SettingsCategory.allCases) { category in
+                    settingsCategoryRow(category)
+                }
+            }
+            .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
+        }
+    }
+
+    private var selectedSettingCategory: SettingsCategory {
+        SettingsCategory.allCases.first { $0.id == selectedSettingCategoryID } ?? .playback
+    }
+
+    private var settingsContentArea: some View {
+        GeometryReader { geometry in
+            ScrollView {
+                ZStack(alignment: .topLeading) {
+                    settingsDetailContent(for: selectedSettingCategory)
+                        .id(selectedSettingCategory.id)
+                        .transition(.opacity)
+                }
+                .frame(width: settingsDetailColumnWidth(for: geometry.size.width), alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
+                .padding(.vertical, DesignTokens.Spacing.xxxl)
+                .animation(DesignTokens.AnimationToken.fadeIn, value: selectedSettingCategoryID)
+            }
+            .scrollIndicators(.hidden)
+        }
+        .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
+        .padding(.trailing, DesignTokens.SourceSidebar.trailingContentGap)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .accessibilityIdentifier("DesignComps-SettingsPage-detailArea")
+    }
+
+    private func settingsDetailColumnWidth(for availableWidth: CGFloat) -> CGFloat {
+        let safeAvailableWidth = max(availableWidth, 0)
+        let idealWidth = min(max(safeAvailableWidth * 0.56, 720), 920)
+        return min(idealWidth, safeAvailableWidth)
+    }
+
+    private func settingsDetailContent(for category: SettingsCategory) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                Text(category.title)
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(.white)
+
+                Text(category.summary)
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.Surface.supportingText)
+            }
+
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+                ForEach(category.sections) { section in
+                    SettingsDetailSectionView(section: section)
+                }
+            }
+        }
+    }
+
+    private func settingsCategoryRow(_ category: SettingsCategory) -> some View {
+        EditableSourceSidebarRow(
+            icon: category.icon,
+            title: category.title,
+            isSelected: selectedSettingCategoryID == category.id,
+            isEnabled: true,
+            isOnline: false,
+            isDeletable: false,
+            isSelectionMode: false,
+            isChecked: false,
+            isAppearing: false,
+            isSwipeExpanded: false,
+            isDragging: false,
+            rowOffset: 0,
+            allowsReordering: false,
+            onTap: {
+                selectedSettingCategoryID = category.id
+            },
+            onToggleSelection: {},
+            onSwipeBegan: {},
+            onSwipeExpanded: {},
+            onSwipeCollapsed: {},
+            onDelete: {},
+            onReorderBegan: {},
+            onReorderChanged: { _ in },
+            onReorderEnded: {}
+        )
+        .accessibilityIdentifier("DesignComps-SettingsPage-category-\(category.id)")
     }
 
     private var sourcesSection: some View {
@@ -279,6 +410,12 @@ struct HomeFirstLaunchPage: View {
             .font(DesignTokens.SourceSidebar.sectionTitleFont)
             .foregroundStyle(.secondary)
             .textCase(.uppercase)
+    }
+
+    private var sidebarHeaderTrailingPlaceholder: some View {
+        Color.clear
+            .frame(width: DesignTokens.Interactive.compact, height: DesignTokens.Interactive.compact)
+            .accessibilityHidden(true)
     }
 
     private var sourceMoreMenu: some View {
@@ -613,6 +750,14 @@ struct HomeFirstLaunchPage: View {
 
 }
 
+struct HomeFirstLaunchPage: View {
+    var body: some View {
+        MainWindowPage(selectedTab: .files)
+            .accessibilityIdentifier("DesignComps-HomeFirstLaunchPage")
+            .accessibilityLabel("Files page")
+    }
+}
+
 private struct EditableSourceSidebarRow: View {
     let icon: String
     let title: String
@@ -626,6 +771,8 @@ private struct EditableSourceSidebarRow: View {
     let isSwipeExpanded: Bool
     let isDragging: Bool
     let rowOffset: CGFloat
+    var allowsReordering = true
+    var onTap: (() -> Void)?
     let onToggleSelection: () -> Void
     let onSwipeBegan: () -> Void
     let onSwipeExpanded: () -> Void
@@ -808,7 +955,9 @@ private struct EditableSourceSidebarRow: View {
 
                 switch activeInteraction {
                 case nil:
-                    beginPendingReorder()
+                    if allowsReordering {
+                        beginPendingReorder()
+                    }
                     if isDeletable,
                        horizontalDistance > DesignTokens.SourceSidebar.swipeActivationDistance,
                        horizontalDistance > verticalDistance {
@@ -858,7 +1007,7 @@ private struct EditableSourceSidebarRow: View {
     }
 
     private func beginPendingReorder() {
-        guard activeInteraction == nil else { return }
+        guard allowsReordering, activeInteraction == nil else { return }
 
         activeInteraction = .pendingReorder
         reorderActivationTask = Task {
@@ -899,8 +1048,7 @@ private struct EditableSourceSidebarRow: View {
             }
             resetSwipeDragOffset()
         case .reorder:
-            onReorderEnded()
-            activeInteraction = nil
+            break
         case .pendingReorder, nil:
             if max(abs(translation.width), abs(translation.height)) <= DesignTokens.SourceSidebar.reorderPressSlop {
                 handleTap()
@@ -931,6 +1079,8 @@ private struct EditableSourceSidebarRow: View {
             onToggleSelection()
         } else if isSwipeExpanded {
             onSwipeCollapsed()
+        } else {
+            onTap?()
         }
     }
 
