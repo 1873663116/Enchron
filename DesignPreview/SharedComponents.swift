@@ -63,6 +63,424 @@ extension View {
     }
 }
 
+struct SettingListGroup: View {
+    /// Where an expanding row's detail panel visually originates. A row near the
+    /// top of a container grows *downward* from its top edge; one near the bottom
+    /// grows *upward* from its bottom edge; a middle row scales out from its
+    /// centre. Only the disclosure motion differs — the panel always lays out
+    /// below the row header.
+    enum ExpansionOrigin {
+        case top
+        case bottom
+        case center
+
+        var anchor: UnitPoint {
+            switch self {
+            case .top: .top
+            case .bottom: .bottom
+            case .center: .center
+            }
+        }
+    }
+
+    enum ActionRole {
+        case normal
+        case destructive
+    }
+
+    struct MenuOption: Identifiable {
+        let id: String
+        let title: String
+        var role: ButtonRole?
+        var action: () -> Void
+
+        init(_ title: String, id: String? = nil, role: ButtonRole? = nil, action: @escaping () -> Void = {}) {
+            self.id = id ?? title
+            self.title = title
+            self.role = role
+            self.action = action
+        }
+    }
+
+    enum Accessory {
+        case automatic
+        case menu(title: String, options: [MenuOption])
+        case action(
+            title: String,
+            feedback: String?,
+            systemName: String?,
+            role: ActionRole,
+            action: () -> Void
+        )
+    }
+
+    struct Item: Identifiable {
+        let id: String
+        let title: String
+        let systemName: String
+        /// Descriptive copy revealed when the row expands. `nil` keeps the row a
+        /// plain tappable entry that fires `action` instead of disclosing.
+        var detail: String? = nil
+        var expansion: ExpansionOrigin = .top
+        var accessory: Accessory = .automatic
+        var action: () -> Void = {}
+
+        init(
+            id: String? = nil,
+            title: String,
+            systemName: String,
+            detail: String? = nil,
+            expansion: ExpansionOrigin = .top,
+            accessory: Accessory = .automatic,
+            action: @escaping () -> Void = {}
+        ) {
+            self.id = id ?? "\(systemName)-\(title)"
+            self.title = title
+            self.systemName = systemName
+            self.detail = detail
+            self.expansion = expansion
+            self.accessory = accessory
+            self.action = action
+        }
+    }
+
+    var accessibilityIdentifier: String = "DesignPreview-SettingListGroup"
+    let items: [Item]
+
+    private var cornerRadius: CGFloat {
+        DesignTokens.Radius.element
+    }
+
+    private var groupShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    // Shared across all rows so each separator can follow the gaze hover of
+    // *both* of its neighbouring rows (cross-row coordination needs a common
+    // namespace; visionOS does not expose gaze hover state to app code).
+    @Namespace private var hoverNamespace
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                SettingListGroupRow(
+                    title: item.title,
+                    systemName: item.systemName,
+                    detail: item.detail,
+                    expansion: item.expansion,
+                    accessory: item.accessory,
+                    cornerRadius: cornerRadius,
+                    index: index,
+                    count: items.count,
+                    hoverNamespace: hoverNamespace,
+                    action: item.action
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.regularMaterial, in: groupShape)
+        .clipShape(groupShape)
+        .overlay {
+            groupShape
+                .stroke(DesignTokens.Surface.divider, lineWidth: DesignTokens.Stroke.subtle)
+        }
+        .contentShape(groupShape)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(accessibilityIdentifier)
+    }
+}
+
+struct SettingListGroupRow: View {
+    let title: String
+    let systemName: String
+    var detail: String?
+    var expansion: SettingListGroup.ExpansionOrigin = .top
+    var accessory: SettingListGroup.Accessory = .automatic
+    let cornerRadius: CGFloat
+    let index: Int
+    let count: Int
+    var hoverNamespace: Namespace.ID?
+    var action: () -> Void = {}
+
+    @State private var isExpanded = false
+    @State private var selectedMenuTitle: String?
+    @State private var feedbackTitle: String?
+    @State private var feedbackResetID = UUID()
+
+    private var isFirst: Bool { index == 0 }
+    private var isLast: Bool { index == count - 1 }
+    private var isExpandable: Bool { detail != nil }
+    private var showsDivider: Bool { !isLast }
+    private var usesWholeRowButton: Bool {
+        if case .automatic = accessory {
+            return true
+        }
+        return false
+    }
+
+    // Concentric corner rounding: round only the outer corners (matching the
+    // container clip) so the highlight aligns with the group edge and sits
+    // square against the separators on its inner edges.
+    private var highlightShape: UnevenRoundedRectangle {
+        return UnevenRoundedRectangle(
+            topLeadingRadius: isFirst ? cornerRadius : 0,
+            bottomLeadingRadius: isLast ? cornerRadius : 0,
+            bottomTrailingRadius: isLast ? cornerRadius : 0,
+            topTrailingRadius: isFirst ? cornerRadius : 0,
+            style: .continuous
+        )
+    }
+
+    /// The hover-effect group owned by the row at `rowIndex`. A row *activates*
+    /// its own group when gazed; a separator *follows* the groups of the rows
+    /// above and below it, so it fades whenever either neighbour is highlighted.
+    private func rowGroup(_ rowIndex: Int, _ behavior: HoverEffectGroup.Behavior) -> HoverEffectGroup? {
+        guard let hoverNamespace else { return nil }
+        return HoverEffectGroup(id: "settingListRow\(rowIndex)", in: hoverNamespace, behavior: behavior)
+    }
+
+    @ViewBuilder
+    var body: some View {
+        // A real `Button` owns the tap — reliable on visionOS and carrying the
+        // system button trait — while `.buttonStyle(.plain)` leaves all visuals
+        // to the gaze hover stack below (the same plain-button + custom
+        // hoverEffect split the reference `SettingsAccessoryButton` uses). The
+        // whole row is the hit target; the chevron is a pure indicator.
+        if usesWholeRowButton {
+            Button(action: handleTap) {
+                rowSurface
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(title)
+            .accessibilityValue(isExpandable ? (isExpanded ? "Expanded" : "Collapsed") : "")
+        } else {
+            rowSurface
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(title)
+        }
+    }
+
+    private var rowSurface: some View {
+        VStack(spacing: 0) {
+            rowContent
+
+            if isExpanded, let detail {
+                expandedDetail(detail)
+                    .transition(expansionTransition)
+            }
+
+        }
+        .frame(maxWidth: .infinity)
+        .contentShape(.hoverEffect, highlightShape)
+        .contentShape(.interaction, highlightShape)
+        .hoverEffect(.highlight)
+        .hoverEffect { effect, isActive, _ in
+            effect.scaleEffect(isActive ? 1.006 : 1.0)
+        }
+        // No-op trigger: gazing this row activates its own group so the
+        // separators on both sides (which follow this group) fade in sync
+        // with the highlight — same system-composited phase, same timing.
+        .hoverEffect(in: rowGroup(index, .activatesGroup)) { effect, _, _ in effect }
+        .background(alignment: .bottom) {
+            if showsDivider {
+                SettingListGroupDivider()
+                    .padding(.leading, DesignTokens.Spacing.lg)
+                    .padding(.trailing, DesignTokens.Spacing.lg)
+                    // Follows both bordering rows: row `index` (above) and
+                    // row `index + 1` (below). Either one's hover fades it.
+                    .hoverEffect(in: rowGroup(index, .followsGroup)) { effect, isActive, _ in
+                        effect.opacity(isActive ? 0 : 1)
+                    }
+                    .hoverEffect(in: rowGroup(index + 1, .followsGroup)) { effect, isActive, _ in
+                        effect.opacity(isActive ? 0 : 1)
+                    }
+            }
+        }
+        // Drives the height change of this row and the rows it pushes down with
+        // the same bouncy spring the detail panel animates in on.
+        .animation(DesignTokens.AnimationToken.selection, value: isExpanded)
+    }
+
+    private var rowContent: some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            Image(systemName: systemName)
+                .font(DesignTokens.SymbolSize.selectionHeaderIcon)
+                .foregroundStyle(.secondary)
+                .frame(width: DesignTokens.Interactive.compact)
+
+            Text(title)
+                .font(DesignTokens.Typography.selectionHeader)
+                .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+
+            Spacer(minLength: DesignTokens.Spacing.lg)
+
+            trailingAccessory
+        }
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .frame(maxWidth: .infinity, minHeight: DesignTokens.Interactive.rowHeight)
+    }
+
+    @ViewBuilder
+    private var trailingAccessory: some View {
+        switch accessory {
+        case .automatic:
+            Image(systemName: "chevron.right")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.tertiary)
+                // Expandable rows rotate the chevron to point down when open;
+                // plain navigation rows keep it static as a forward affordance.
+                .rotationEffect(isExpandable && isExpanded ? .degrees(90) : .zero)
+
+        case .menu(let title, let options):
+            Menu {
+                if options.isEmpty {
+                    Text("No Options")
+                } else {
+                    ForEach(options) { option in
+                        Button(option.title, role: option.role) {
+                            selectedMenuTitle = option.title
+                            option.action()
+                        }
+                    }
+                }
+            } label: {
+                SettingListActionChip(
+                    title: selectedMenuTitle ?? title,
+                    systemName: "chevron.up.chevron.down"
+                )
+            }
+            .buttonStyle(.plain)
+            .frame(minHeight: DesignTokens.Interactive.large)
+            .accessibilityLabel(title)
+
+        case .action(let title, let feedback, let systemName, let role, let action):
+            SettingListAccessoryButton(accessibilityLabel: title) {
+                action()
+                showFeedback(feedback)
+            } label: {
+                SettingListActionChip(
+                    title: feedbackTitle ?? title,
+                    systemName: feedbackTitle == nil ? systemName : "checkmark",
+                    role: role
+                )
+            }
+
+        }
+    }
+
+    private func expandedDetail(_ text: String) -> some View {
+        Text(text)
+            .font(DesignTokens.Typography.sectionHeader)
+            .foregroundStyle(DesignTokens.Surface.supportingText)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, DesignTokens.Spacing.lg)
+            .padding(.bottom, DesignTokens.Spacing.md)
+    }
+
+    /// Mirrors the `SettingsDetailRow` disclosure motion: a small anchored scale
+    /// plus opacity and an edge slide on insertion, fading out on removal. The
+    /// anchor/edge follow `expansion`, so top rows grow down, bottom rows grow
+    /// up, and middle rows scale out from their centre.
+    private var expansionTransition: AnyTransition {
+        let scaled = AnyTransition
+            .scale(scale: 0.96, anchor: expansion.anchor)
+            .combined(with: .opacity)
+
+        switch expansion {
+        case .top:
+            return .asymmetric(insertion: scaled.combined(with: .move(edge: .top)), removal: .opacity)
+        case .bottom:
+            return .asymmetric(insertion: scaled.combined(with: .move(edge: .bottom)), removal: .opacity)
+        case .center:
+            return .asymmetric(insertion: scaled, removal: .opacity)
+        }
+    }
+
+    private func handleTap() {
+        guard isExpandable else {
+            action()
+            return
+        }
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            isExpanded.toggle()
+        }
+    }
+
+    private func showFeedback(_ feedback: String?) {
+        guard let feedback else { return }
+
+        let resetID = UUID()
+        feedbackResetID = resetID
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            feedbackTitle = feedback
+        }
+
+        Task {
+            try? await Task.sleep(for: .milliseconds(1200))
+            await MainActor.run {
+                guard feedbackResetID == resetID else { return }
+                withAnimation(DesignTokens.AnimationToken.selection) {
+                    feedbackTitle = nil
+                }
+            }
+        }
+    }
+}
+
+struct SettingListGroupDivider: View {
+    var body: some View {
+        Rectangle()
+            .fill(DesignTokens.Surface.divider)
+            .frame(height: DesignTokens.Stroke.regular)
+            .accessibilityHidden(true)
+    }
+}
+
+private struct SettingListActionChip: View {
+    let title: String
+    var systemName: String?
+    var role: SettingListGroup.ActionRole = .normal
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.xs) {
+            if let systemName {
+                Image(systemName: systemName)
+                    .font(DesignTokens.Typography.sectionHeader)
+            }
+
+            Text(title)
+                .id(title)
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
+        }
+        .font(DesignTokens.Typography.sectionHeader)
+        .foregroundStyle(role == .destructive ? .red : DesignTokens.Surface.accessoryText)
+        .lineLimit(1)
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .frame(minHeight: DesignTokens.Interactive.compact)
+        .background(DesignTokens.Surface.elevated, in: Capsule())
+        .contentShape(.hoverEffect, Capsule())
+        .hoverEffect(.highlight)
+        .contentShape(.interaction, Capsule())
+        .animation(DesignTokens.AnimationToken.selection, value: title)
+    }
+}
+
+private struct SettingListAccessoryButton<Label: View>: View {
+    let accessibilityLabel: String
+    let action: () -> Void
+    @ViewBuilder let label: () -> Label
+
+    var body: some View {
+        Button(action: action) {
+            label()
+        }
+        .buttonStyle(.plain)
+        .frame(minHeight: DesignTokens.Interactive.large)
+        .accessibilityLabel(accessibilityLabel)
+    }
+}
+
 enum SortMenuKey {
     case name
     case modifiedDate
@@ -1248,6 +1666,215 @@ struct MockToggle: View {
     }
 }
 
+// MARK: - Center slider (centered, detented, bidirectional value track)
+
+/// Keeps the end icons aligned to the *track's* centre while the detent dots
+/// hang below it. Without this the enclosing HStack would centre the icons on
+/// the track+dots midpoint and they'd sit too low.
+private extension VerticalAlignment {
+    enum TrackCenterID: AlignmentID {
+        static func defaultValue(in context: ViewDimensions) -> CGFloat {
+            context[VerticalAlignment.center]
+        }
+    }
+    static let trackCenter = VerticalAlignment(TrackCenterID.self)
+}
+
+/// A centered value track: the knob rests at the middle origin and can be
+/// dragged to symmetric notches on either side (e.g. exposure −5…+5). It reuses
+/// the toggle's white knob + glass capsule vocabulary; the track stays an empty
+/// grey capsule (no progress-style fill), with faint detent dots below it and a
+/// caller-supplied semantic icon at each end. No numeric readout — the knob
+/// position and the end icons carry the meaning. Snap-to-nearest on release.
+///
+/// `CenterSlider` is the macro component; a `CenterDetentSlider` specialization
+/// can be split out later if a non-detented (continuous) variant is needed.
+struct CenterSlider: View {
+    @Binding var value: Int
+    var range: ClosedRange<Int> = -5...5
+    let leadingSystemImage: String
+    let trailingSystemImage: String
+    var accessibilityLabel: String = "Center slider"
+    var accessibilityIdentifier: String = "DesignPreview-CenterSlider"
+
+    // Value at the moment the drag began; the live snap measures the finger's
+    // translation against this origin so the knob lands on whole detents only.
+    @State private var dragStartValue: Int?
+    @State private var isDragging = false
+
+    // EXPLORATORY: track-bar dimensions are not yet promoted to DesignTokens.
+    // Knob (26) and track height (30) mirror the existing toggle for reuse;
+    // promoting these to shared tokens needs a separate human decision.
+    private let trackWidth: CGFloat = 450
+    private let trackHeight: CGFloat = 30
+    private let knobSize: CGFloat = 26
+    private let dotSize: CGFloat = 4
+
+    private var detentCount: Int { range.count }
+    private var midValue: Double { Double(range.lowerBound + range.upperBound) / 2 }
+    private var travel: CGFloat { trackWidth - knobSize }
+    private var spacing: CGFloat { travel / CGFloat(detentCount - 1) }
+
+    /// Horizontal offset (from track centre) of a given detent value.
+    private func offset(for detent: Double) -> CGFloat {
+        CGFloat(detent - midValue) * spacing
+    }
+
+    // The knob is purely a function of the committed detent — it never sits
+    // between notches. Live snapping (below) keeps `value` quantised during the
+    // drag, so the knob and lit fill can never overshoot past the end value.
+    private var knobOffset: CGFloat {
+        offset(for: Double(value))
+    }
+
+    var body: some View {
+        HStack(alignment: .trackCenter, spacing: DesignTokens.Spacing.md) {
+            Image(systemName: leadingSystemImage)
+                .foregroundStyle(.secondary)
+
+            // Track + dots share a column so the dots get real layout space
+            // below the track. A bare `.offset` pushed them outside the bounds
+            // and they never composited. The `.trackCenter` guide keeps the end
+            // icons aligned to the track's centre, not the column's midpoint.
+            VStack(spacing: DesignTokens.Spacing.sm) {
+                track
+                    .alignmentGuide(.trackCenter) { $0[VerticalAlignment.center] }
+                detentDots
+            }
+
+            Image(systemName: trailingSystemImage)
+                .foregroundStyle(.secondary)
+        }
+        .font(.body)
+        .accessibilityElement()
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue("\(value)")
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: setValue(value + 1)
+            case .decrement: setValue(value - 1)
+            @unknown default: break
+            }
+        }
+    }
+
+    private var track: some View {
+        Capsule()
+            .fill(DesignTokens.Surface.elevated)
+            .frame(width: trackWidth, height: trackHeight)
+            .overlay(alignment: .center) { litSegment }
+            .overlay(alignment: .center) { knob.offset(x: knobOffset) }
+            .clipShape(Capsule())
+            .glassBackgroundEffect(in: Capsule())
+            // Gesture lives on the *static* track, never on the moving knob, so
+            // the drag coordinate space stays fixed and the offset can't feed
+            // back on itself (the source of the earlier jitter). Hover mirrors
+            // the toggle: the whole capsule highlights on gaze.
+            .contentShape(.hoverEffect, Capsule())
+            .hoverEffect(.highlight)
+            .gesture(dragGesture)
+    }
+
+    /// The accent fill running from the centre origin to the knob — gives the
+    /// drag a direction + magnitude cue. Uses the same accent as the toggle's
+    /// "on" capsule, and fills the *full* track height so the knob sits inside a
+    /// 2pt accent ring just like the toggle. Its knob-facing cap is extended by
+    /// the track radius so the cap shares the knob's centre, leaving no seam.
+    /// Hidden at the centre origin (no offset → nothing lit).
+    ///
+    /// The accent capsule carries its own `glassBackgroundEffect`, mirroring the
+    /// toggle's `fill(accent) + glassBackgroundEffect(in: Capsule())`: the glass
+    /// rim/specular then follows the lit shape itself, instead of the accent
+    /// reading as flat paint laid over the track's glass.
+    private var litSegment: some View {
+        let radius = trackHeight / 2
+        return Capsule()
+            .fill(DesignTokens.Theme.accent)
+            .frame(width: abs(knobOffset) + radius, height: trackHeight)
+            .glassBackgroundEffect(in: Capsule())
+            .offset(x: (knobOffset + (knobOffset >= 0 ? radius : -radius)) / 2)
+            .opacity(abs(knobOffset) > 0.5 ? 1 : 0)
+    }
+
+    private var knob: some View {
+        Circle()
+            .fill(.white)
+            .frame(width: knobSize, height: knobSize)
+            .scaleEffect(isDragging ? DesignTokens.PressFeedback.control.pressedScale : 1.0)
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture()
+            .onChanged { gesture in
+                let start = dragStartValue ?? value
+                if dragStartValue == nil {
+                    dragStartValue = start
+                    withAnimation(DesignTokens.PressFeedback.control.pressAnimation) {
+                        isDragging = true
+                    }
+                }
+                // Map the finger's position back to the nearest in-range detent
+                // and commit it live; the knob then glides notch-to-notch with the
+                // selection spring, reading as a magnetic snap rather than a free
+                // slide that has to be caught on release.
+                let landed = offset(for: Double(start)) + gesture.translation.width
+                let proposed = clamp(Int((midValue + Double(landed / spacing)).rounded()))
+                if proposed != value {
+                    withAnimation(snapAnimation(to: proposed)) {
+                        value = proposed
+                    }
+                }
+            }
+            .onEnded { _ in
+                dragStartValue = nil
+                withAnimation(DesignTokens.PressFeedback.control.releaseAnimation) {
+                    isDragging = false
+                }
+            }
+    }
+
+    private var detentDots: some View {
+        ZStack {
+            ForEach(Array(range), id: \.self) { detent in
+                let isCenter = Double(detent) == midValue
+                // All dots share the empty track's own tint so they read as quiet
+                // anchors, never competing with the knob or the lit fill for
+                // attention. The centre origin stands out only by its larger
+                // size, not by a brighter colour.
+                Circle()
+                    .fill(DesignTokens.Surface.divider)
+                    .frame(
+                        width: isCenter ? dotSize + 3 : dotSize,
+                        height: isCenter ? dotSize + 3 : dotSize
+                    )
+                    .offset(x: offset(for: Double(detent)))
+            }
+        }
+        .frame(width: trackWidth, height: dotSize + 3)
+    }
+
+    private func clamp(_ newValue: Int) -> Int {
+        min(max(newValue, range.lowerBound), range.upperBound)
+    }
+
+    // Mid-track snaps keep the bouncy `selection` spring for the magnetic Q feel;
+    // snaps onto the two end detents settle without overshoot, so the bounce
+    // can't drive the knob past the clipped capsule edge and spring back.
+    private func snapAnimation(to detent: Int) -> Animation {
+        detent == range.lowerBound || detent == range.upperBound
+            ? DesignTokens.AnimationToken.sceneCarouselSettle
+            : DesignTokens.AnimationToken.selection
+    }
+
+    private func setValue(_ newValue: Int) {
+        let clamped = clamp(newValue)
+        withAnimation(snapAnimation(to: clamped)) {
+            value = clamped
+        }
+    }
+}
+
 struct MockBreadcrumb: View {
     let path: [String]
     let onSelectLevel: (Int) -> Void
@@ -1476,6 +2103,8 @@ struct SourceSidebarRow: View {
 }
 
 struct PlayerProgressBar: View {
+    var timelineResetToken = 0
+
     @Namespace private var hoverNamespace
     @State private var progress: CGFloat = 0.45
     @State private var isDragging = false
@@ -1552,6 +2181,9 @@ struct PlayerProgressBar: View {
         .sensoryFeedback(.selection(.on), trigger: timelineFeedbackTrigger)
         .accessibilityIdentifier("DesignPreview-PlayerProgressBar")
         .accessibilityLabel("Playback progress")
+        .onChange(of: timelineResetToken) {
+            resetTimelinePresentation()
+        }
     }
 
     private var currentContainerWidth: CGFloat {
@@ -1627,6 +2259,11 @@ struct PlayerProgressBar: View {
     ) -> some View {
         ZStack(alignment: .leading) {
             ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.clear)
+                    .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
+                    .glassBackgroundEffect(in: Capsule())
+
                 progressTrackLayer(
                     railWidth: overlayWidth,
                     playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
@@ -1688,20 +2325,22 @@ struct PlayerProgressBar: View {
     }
 
     private var timeBubble: some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
+        let shape = RoundedRectangle(
+            cornerRadius: DesignTokens.ProgressBar.timeBubbleRadius,
+            style: .continuous
+        )
+
+        return HStack(spacing: DesignTokens.Spacing.xs) {
             Text("6:21")
                 .foregroundStyle(.primary)
             Text("-7:54")
                 .foregroundStyle(.secondary)
         }
-        .font(DesignTokens.Typography.monospacedDetail)
-        .monospacedDigit()
-        .padding(.horizontal, DesignTokens.ProgressBar.timeBubblePaddingH)
-        .padding(.vertical, DesignTokens.ProgressBar.timeBubblePaddingV)
-        .background(
-            RoundedRectangle(cornerRadius: DesignTokens.ProgressBar.timeBubbleRadius, style: .continuous)
-                .fill(DesignTokens.ProgressBar.timeBubbleFill)
-        )
+            .font(DesignTokens.Typography.monospacedDetail)
+            .monospacedDigit()
+            .padding(.horizontal, DesignTokens.ProgressBar.timeBubblePaddingH)
+            .padding(.vertical, DesignTokens.ProgressBar.timeBubblePaddingV)
+            .glassBackgroundEffect(in: shape)
     }
 
     private func scrubberThumbVisual() -> some View {
@@ -1834,6 +2473,17 @@ struct PlayerProgressBar: View {
         }
     }
 
+    private func resetTimelinePresentation() {
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            isTimelineExpanded = false
+            isDragging = false
+            isIgnoringDrag = false
+            announcedBoundary = nil
+        }
+    }
+
     private func isThumbHit(_ location: CGPoint, thumbX: CGFloat) -> Bool {
         let thumbCenter = CGPoint(
             x: thumbX,
@@ -1926,16 +2576,7 @@ private struct PrecisionTimelineView: View {
         .padding(.horizontal, DesignTokens.PrecisionTimeline.panelPadding)
         .padding(.vertical, DesignTokens.Spacing.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(.regularMaterial, in: shape)
-        .background(DesignTokens.PrecisionTimeline.panelFill, in: shape)
-        .overlay {
-            shape.strokeBorder(
-                DesignTokens.PrecisionTimeline.panelBorder,
-                lineWidth: DesignTokens.Stroke.regular
-            )
-        }
-        .contentShape(.hoverEffect, shape)
-        .hoverEffect(.automatic)
+        .glassBackgroundEffect(in: shape)
         .contentShape(shape)
         .gesture(zoomGesture)
         .accessibilityElement(children: .contain)
@@ -1987,6 +2628,11 @@ private struct PrecisionTimelineView: View {
 
             ZStack(alignment: .leading) {
                 Capsule()
+                    .fill(.clear)
+                    .frame(height: DesignTokens.PrecisionTimeline.zoomRailHeight)
+                    .glassBackgroundEffect(in: Capsule())
+
+                Capsule()
                     .fill(DesignTokens.PrecisionTimeline.zoomRailFill)
                     .frame(height: DesignTokens.PrecisionTimeline.zoomRailHeight)
 
@@ -2015,6 +2661,7 @@ private struct PrecisionTimelineView: View {
             let viewportWidth = max(proxy.size.width, 1)
             let safePixelsPerSecond = clampedPixelsPerSecond(pixelsPerSecond)
             let leadingX = viewportWidth / 2 - CGFloat(currentTime) * safePixelsPerSecond
+            let shape = RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous)
 
             ZStack(alignment: .topLeading) {
                 Rectangle()
@@ -2040,8 +2687,10 @@ private struct PrecisionTimelineView: View {
                     height: proxy.size.height
                 )
             }
-            .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
-            .contentShape(Rectangle())
+            .clipShape(shape)
+            .contentShape(.hoverEffect, shape)
+            .hoverEffect(.automatic)
+            .contentShape(shape)
             .gesture(timelineDragGesture(pixelsPerSecond: safePixelsPerSecond))
         }
     }
@@ -2148,7 +2797,8 @@ private struct PrecisionTimelineView: View {
                     width: DesignTokens.PrecisionTimeline.frameButtonSize,
                     height: DesignTokens.PrecisionTimeline.frameButtonSize
                 )
-                .background(DesignTokens.PrecisionTimeline.controlFill, in: Circle())
+                .clipShape(Circle())
+                .glassBackgroundEffect(in: Circle(), displayMode: .implicit)
                 .contentShape(.hoverEffect, Circle())
                 .hoverEffect(.lift)
         }
@@ -2175,7 +2825,8 @@ private struct PrecisionTimelineView: View {
                     width: DesignTokens.PrecisionTimeline.zoomButtonSize,
                     height: DesignTokens.PrecisionTimeline.zoomButtonSize
                 )
-                .background(DesignTokens.PrecisionTimeline.controlFill, in: Circle())
+                .clipShape(Circle())
+                .glassBackgroundEffect(in: Circle(), displayMode: .implicit)
                 .contentShape(.hoverEffect, Circle())
                 .hoverEffect(.lift)
         }
@@ -2519,8 +3170,10 @@ private enum PrecisionTimelineFormatter {
 }
 
 struct PlayerProgressStrip: View {
+    var timelineResetToken = 0
+
     var body: some View {
-        PlayerProgressBar()
+        PlayerProgressBar(timelineResetToken: timelineResetToken)
         .accessibilityIdentifier("DesignPreview-PlayerProgressStrip")
         .accessibilityLabel("Playback progress")
     }
@@ -2528,13 +3181,7 @@ struct PlayerProgressStrip: View {
 
 struct PlayerControlBar: View {
     var body: some View {
-        HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-            controlButton("line.3.horizontal", label: "Playlist")
-            controlButton("gobackward.10", label: "Rewind 10 seconds")
-            primaryPlayButton
-            controlButton("goforward.10", label: "Forward 10 seconds")
-            controlButton("slider.horizontal.3", label: "Playback settings")
-        }
+        controlRow
         .foregroundStyle(.secondary)
         .padding(.horizontal, DesignTokens.ControlBar.paddingH)
         .padding(.vertical, DesignTokens.ControlBar.paddingV)
@@ -2543,18 +3190,26 @@ struct PlayerControlBar: View {
         .contentShape(Capsule())
     }
 
+    private var controlRow: some View {
+        HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+            controlButton("gobackward.10", label: "Rewind 10 seconds")
+            primaryPlayButton
+            controlButton("goforward.10", label: "Forward 10 seconds")
+            moreMenu
+        }
+    }
+
     private var primaryPlayButton: some View {
         Button {} label: {
             Image(systemName: "play.fill")
                 .font(DesignTokens.SymbolSize.action)
-                .foregroundStyle(DesignTokens.ControlBar.primarySymbol)
+                .foregroundStyle(.white)
                 .frame(width: DesignTokens.Interactive.xl,
                        height: DesignTokens.Interactive.xl)
-                .background(DesignTokens.ControlBar.primaryFill, in: Circle())
+                .clipShape(Circle())
         }
         .buttonStyle(.plain)
         .enchronPressFeedback(.icon)
-        .clipShape(Circle())
         .contentShape(.hoverEffect, Circle())
         .hoverEffect(.lift)
         .contentShape(Circle())
@@ -2562,22 +3217,77 @@ struct PlayerControlBar: View {
         .accessibilityLabel("Play")
     }
 
-    private func controlButton(_ systemName: String, label: String) -> some View {
-        Button {} label: {
-            Image(systemName: systemName)
-                .font(DesignTokens.SymbolSize.control)
-                .frame(width: DesignTokens.Interactive.large,
-                       height: DesignTokens.Interactive.large)
+    private var moreMenu: some View {
+        Menu {
+            Section("Playback Settings") {
+                Menu("Subtitles") {
+                    menuOption("Off")
+                    menuOption("English CC")
+                    menuOption("中文简体")
+                    menuOption("Auto")
+                }
+
+                Menu("Audio Track") {
+                    menuOption("English 5.1")
+                    menuOption("Japanese 2.0")
+                    menuOption("Commentary")
+                }
+
+                Menu("Playback Speed") {
+                    menuOption("0.5x")
+                    menuOption("1x")
+                    menuOption("1.25x")
+                    menuOption("1.5x")
+                    menuOption("2x")
+                }
+
+                Menu("Episodes") {
+                    menuOption("Episode 1 · The Signal")
+                    menuOption("Episode 2 · Night Crossing")
+                    menuOption("Episode 3 · Glass Harbor")
+                    menuOption("Episode 4 · Quiet Orbit")
+                    menuOption("Episode 5 · Afterimage")
+                    menuOption("Episode 6 · The Long Return")
+                }
+            }
+        } label: {
+            controlIcon("ellipsis")
         }
         .buttonStyle(.plain)
         .enchronPressFeedback(.icon)
-        .clipShape(Circle())
+        .contentShape(.hoverEffect, Circle())
+        .hoverEffect(.lift)
+        .contentShape(Circle())
+        .accessibilityIdentifier("DesignPreview-PlayerControlBar-menu-more")
+        .accessibilityLabel("More playback settings")
+    }
+
+    private func controlButton(_ systemName: String, label: String) -> some View {
+        Button {} label: {
+            controlIcon(systemName)
+        }
+        .buttonStyle(.plain)
+        .enchronPressFeedback(.icon)
         .contentShape(.hoverEffect, Circle())
         .hoverEffect(.lift)
         .contentShape(Circle())
         .accessibilityIdentifier("DesignPreview-PlayerControlBar-button-\(label)")
         .accessibilityLabel(label)
     }
+
+    private func controlIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(DesignTokens.SymbolSize.control)
+            .frame(width: DesignTokens.Interactive.large,
+                   height: DesignTokens.Interactive.large)
+    }
+
+    private func menuOption(_ title: String) -> some View {
+        Button {} label: {
+            Text(title)
+        }
+    }
+
 }
 
 // MARK: - Loading spinner

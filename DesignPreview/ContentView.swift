@@ -11,6 +11,8 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     case surfaceAndStroke
     case animation
     case pressFeedback
+    case settingListGroup
+    case centerSlider
     case sceneCard
     case componentStandards
 
@@ -26,6 +28,8 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
         case .surfaceAndStroke: "Surface & Stroke"
         case .animation: "Animation"
         case .pressFeedback: "Press Feedback"
+        case .settingListGroup: "Setting List Group"
+        case .centerSlider: "Center Slider"
         case .sceneCard: "Scene Card"
         case .componentStandards: "Component Standards"
         }
@@ -60,6 +64,10 @@ struct ContentView: View {
                 AnimationTokensPreview()
             case .pressFeedback:
                 PressFeedbackPreview()
+            case .settingListGroup:
+                SettingListGroupPreview()
+            case .centerSlider:
+                CenterSliderPreview()
             case .sceneCard:
                 SceneCardPreview()
             case .componentStandards:
@@ -71,6 +79,161 @@ struct ContentView: View {
 
 #Preview(windowStyle: .automatic) {
     ContentView()
+}
+
+// MARK: - Setting list group
+
+struct SettingListGroupPreview: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                Text("Setting List Group")
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(.primary)
+
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                    SettingListGroup(items: [
+                        .init(
+                            title: "Display",
+                            systemName: "display",
+                            detail: "Tune brightness, colour profile, and how the playback window scales when you move it closer or further away.",
+                            expansion: .top
+                        ),
+                        .init(
+                            title: "Spatial Audio",
+                            systemName: "speaker.wave.3",
+                            detail: "Render sound that stays anchored to the screen as you look around, with head tracking applied to every channel.",
+                            expansion: .center
+                        ),
+                        .init(
+                            title: "Subtitles",
+                            systemName: "captions.bubble",
+                            detail: "Pick a default language, sizing, and background style for captions, applied across every video you open.",
+                            expansion: .bottom
+                        ),
+                    ])
+                    .frame(width: 580)
+
+                    SettingListGroup(items: [
+                        .init(
+                            title: "Copy Diagnostic Summary",
+                            systemName: "doc.on.doc",
+                            accessory: .action(
+                                title: "Copy",
+                                feedback: "Copied",
+                                systemName: "doc.on.doc",
+                                role: .normal,
+                                action: {}
+                            )
+                        ),
+                    ])
+                    .frame(width: 580)
+
+                    SettingListGroup(items: [
+                        .init(
+                            title: "Logging Level",
+                            systemName: "list.bullet.rectangle",
+                            accessory: .menu(
+                                title: "Info",
+                                options: [
+                                    .init("Off"),
+                                    .init("Info"),
+                                    .init("Debug"),
+                                    .init("Trace"),
+                                ]
+                            )
+                        ),
+                        .init(
+                            title: "Run Media Diagnostics",
+                            systemName: "waveform.path.ecg",
+                            accessory: .action(
+                                title: "Run",
+                                feedback: "Queued",
+                                systemName: "play.fill",
+                                role: .normal,
+                                action: {}
+                            )
+                        ),
+                        .init(
+                            title: "Clear App Cache",
+                            systemName: "trash",
+                            accessory: .action(
+                                title: "Clear",
+                                feedback: nil,
+                                systemName: nil,
+                                role: .destructive,
+                                action: {}
+                            )
+                        )
+                    ])
+                    .frame(width: 580)
+                }
+            }
+            .padding(DesignTokens.Spacing.xxl)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .navigationTitle("Setting List Group")
+    }
+}
+
+// MARK: - Center slider
+
+struct CenterSliderPreview: View {
+    @State private var exposure = 0
+    @State private var fineAdjust = -2
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+                Text("Center Slider")
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(.primary)
+
+                sliderRow(
+                    "Exposure",
+                    value: $exposure,
+                    leading: "sun.min",
+                    trailing: "sun.max"
+                )
+
+                sliderRow(
+                    "Fine Adjust",
+                    value: $fineAdjust,
+                    leading: "minus",
+                    trailing: "plus"
+                )
+            }
+            .padding(DesignTokens.Spacing.xxl)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .navigationTitle("Center Slider")
+    }
+
+    private func sliderRow(
+        _ title: String,
+        value: Binding<Int>,
+        leading: String,
+        trailing: String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            // Review-only readout; the component itself never shows a number.
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                Text(title)
+                    .font(DesignTokens.Typography.headline)
+                Text(value.wrappedValue > 0 ? "+\(value.wrappedValue)" : "\(value.wrappedValue)")
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+
+            CenterSlider(
+                value: value,
+                leadingSystemImage: leading,
+                trailingSystemImage: trailing,
+                accessibilityLabel: title,
+                accessibilityIdentifier: "DesignPreview-CenterSlider-\(title)"
+            )
+        }
+    }
 }
 
 // MARK: - Scene card
