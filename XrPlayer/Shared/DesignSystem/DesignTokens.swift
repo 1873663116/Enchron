@@ -273,6 +273,8 @@ public enum DesignTokens {
         public static let supportingText: Color = .white.opacity(0.72)
         /// Trailing values, chips, and metadata that should read above descriptions.
         public static let accessoryText: Color = .white.opacity(0.88)
+        /// Bright selection-row labels using the section header text scale.
+        public static let selectionHeaderText: Color = .white
         /// Focused input/control border, using Enchron's single theme accent.
         public static let focusBorder: Color = Theme.accent
     }
@@ -320,6 +322,8 @@ public enum DesignTokens {
         public static let metadata: Font = .caption
         /// Section headers like "SOURCES", "VIDEO METADATA"
         public static let sectionHeader: Font = .caption2
+        /// Selection-row labels for compact setting rows.
+        public static let selectionHeader: Font = .body
         /// Badge labels: MV-HEVC, HDR10+
         public static let badge: Font = .caption
         /// Monospaced timecode/ruler text (9pt medium monospaced)
@@ -334,6 +338,8 @@ public enum DesignTokens {
     public enum SymbolSize {
         /// Control icons: skip, seek buttons (24pt semibold)
         public static let control: Font = .system(size: 24, weight: .semibold)
+        /// Setting list row leading icons, slightly larger than selection-row labels.
+        public static let selectionHeaderIcon: Font = .system(size: 22, weight: .regular)
         /// Card and folder icons (36pt)
         public static let card: Font = .system(size: 36)
         /// Play/pause primary action (36pt medium)
@@ -493,8 +499,6 @@ public enum DesignTokens {
         public static let timeBubblePaddingV: CGFloat = Spacing.xxs
         /// Corner radius for hover time readout.
         public static let timeBubbleRadius: CGFloat = Radius.small
-        /// Hover time readout background.
-        public static let timeBubbleFill: Color = .white.opacity(0.16)
         /// Scrubber thumb edge, separating the button from the bright track.
         public static let thumbStroke: Color = .black.opacity(0.18)
         /// Scrubber thumb edge width.
@@ -579,10 +583,6 @@ public enum DesignTokens {
         public static let previewFrameRate: Double = 24
         /// Scale used when the expanded timeline grows out of the progress bar.
         public static let collapsedScale: CGFloat = 0.72
-        /// Expanded timeline panel fill.
-        public static let panelFill: Color = .black.opacity(0.22)
-        /// Expanded timeline border.
-        public static let panelBorder: Color = .white.opacity(0.08)
         /// Timecode foreground.
         public static let timecodeColor: Color = .white.opacity(0.92)
         /// Secondary timeline text foreground.
@@ -609,8 +609,6 @@ public enum DesignTokens {
         public static let zoomRailFill: Color = .white.opacity(0.12)
         /// Zoom rail active fill.
         public static let zoomRailActiveFill: Color = Theme.accent.opacity(0.72)
-        /// Subtle overlay used for controls on the timeline panel.
-        public static let controlFill: Color = .white.opacity(0.08)
         /// Simulated thumbnail palette.
         public static let thumbnailPalette: [Color] = [
             Color(red: 0.10, green: 0.20, blue: 0.26),

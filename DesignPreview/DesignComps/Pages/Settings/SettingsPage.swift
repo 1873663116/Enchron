@@ -221,11 +221,11 @@ struct SettingsDetailRow: View {
         .contentShape(.hoverEffect, DesignTokens.ShapeToken.element)
         .hoverEffect(.highlight)
         .contentShape(DesignTokens.ShapeToken.element)
-        .animation(DesignTokens.AnimationToken.panelSpring, value: isExpanded)
+        .animation(DesignTokens.AnimationToken.selection, value: isExpanded)
     }
 
     private func toggleExpansion() {
-        withAnimation(DesignTokens.AnimationToken.panelSpring) {
+        withAnimation(DesignTokens.AnimationToken.selection) {
             isExpanded.toggle()
         }
     }
