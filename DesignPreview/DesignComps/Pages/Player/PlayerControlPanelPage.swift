@@ -43,8 +43,7 @@ struct PlayerControlPanelPage: View {
 
     private var bottomControlRegion: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
-            PlayerProgressStrip()
-            PlayerControlBar()
+            PlayerControlDeck()
 
             Text("Player Control Panel / base state")
                 .font(DesignTokens.Typography.metadata)

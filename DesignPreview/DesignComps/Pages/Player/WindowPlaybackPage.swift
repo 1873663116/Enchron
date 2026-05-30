@@ -147,8 +147,7 @@ struct WindowPlaybackPage: View {
 
     private var bottomControls: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
-            PlayerProgressStrip(timelineResetToken: progressTimelineResetToken)
-            PlayerControlBar()
+            PlayerControlDeck(timelineResetToken: progressTimelineResetToken)
         }
         .frame(maxWidth: .infinity)
     }

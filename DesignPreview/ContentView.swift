@@ -11,6 +11,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     case surfaceAndStroke
     case animation
     case pressFeedback
+    case sidebar
     case settingListGroup
     case centerSlider
     case sceneCard
@@ -28,6 +29,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
         case .surfaceAndStroke: "Surface & Stroke"
         case .animation: "Animation"
         case .pressFeedback: "Press Feedback"
+        case .sidebar: "Sidebar"
         case .settingListGroup: "Setting List Group"
         case .centerSlider: "Center Slider"
         case .sceneCard: "Scene Card"
@@ -46,6 +48,7 @@ struct ContentView: View {
                     .tag(page)
             }
             .navigationTitle("Design Preview")
+            .navigationSplitViewColumnWidth(min: 200, ideal: 220, max: 260)
         } detail: {
             switch selection ?? .components {
             case .components:
@@ -64,6 +67,8 @@ struct ContentView: View {
                 AnimationTokensPreview()
             case .pressFeedback:
                 PressFeedbackPreview()
+            case .sidebar:
+                SidebarPreview()
             case .settingListGroup:
                 SettingListGroupPreview()
             case .centerSlider:
@@ -81,9 +86,24 @@ struct ContentView: View {
     ContentView()
 }
 
+// MARK: - Sidebar
+
+struct SidebarPreview: View {
+    var body: some View {
+        ScrollView {
+            SourceSidebarSection()
+                .padding(DesignTokens.Spacing.xxl)
+                .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .navigationTitle("Sidebar")
+    }
+}
+
 // MARK: - Setting list group
 
 struct SettingListGroupPreview: View {
+    @State private var showClearCacheConfirm = false
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
@@ -162,8 +182,43 @@ struct SettingListGroupPreview: View {
                                 feedback: nil,
                                 systemName: nil,
                                 role: .destructive,
+                                action: { showClearCacheConfirm = true }
+                            )
+                        )
+                    ])
+                    .frame(width: 580)
+
+                    SettingListGroup(items: [
+                        .init(
+                            title: "Performance HUD",
+                            systemName: "gauge",
+                            accessory: .toggle(isOn: false)
+                        ),
+                        .init(
+                            title: "Cache Size",
+                            systemName: "internaldrive",
+                            accessory: .value("1.8 GB")
+                        ),
+                        .init(
+                            title: "Version & Build",
+                            systemName: "info.circle",
+                            accessory: .valueAction(
+                                value: "0.1.0 (42)",
+                                actionTitle: "Copy",
+                                feedback: "Copied",
                                 action: {}
                             )
+                        ),
+                        .init(
+                            title: "Current Media Inspector",
+                            systemName: "list.bullet.rectangle",
+                            keyValueDetail: [
+                                .init(key: "Codec", value: "HEVC Main10"),
+                                .init(key: "Resolution", value: "3840 x 2160"),
+                                .init(key: "HDR", value: "HDR10 metadata detected")
+                            ],
+                            expansion: .top,
+                            accessory: .automatic
                         )
                     ])
                     .frame(width: 580)
@@ -173,6 +228,13 @@ struct SettingListGroupPreview: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
         .navigationTitle("Setting List Group")
+        .enchronDestructiveConfirmation(
+            "Clear App Cache?",
+            message: "This removes thumbnails and temporary cache. It does not delete video files or playback history.",
+            confirmTitle: "Clear",
+            isPresented: $showClearCacheConfirm,
+            onConfirm: {}
+        )
     }
 }
 
@@ -537,7 +599,7 @@ struct InteractionLayoutPreview: View {
 
             TokenSection(title: "Progress Bar", rows: progressBarRows) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                    PlayerProgressStrip()
+                    PlayerControlDeck()
                     HStack(alignment: .bottom, spacing: DesignTokens.Spacing.xl) {
                         progressBarDimension("thumb", DesignTokens.ProgressBar.thumbDiameter)
                         progressBarDimension("track", DesignTokens.ProgressBar.trackHeight)
@@ -1095,7 +1157,7 @@ struct ComponentStandardsPreview: View {
             TokenSection(title: "Control Bar", rows: controlRows) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                     dimensionBar("width", DesignTokens.ControlBar.width, maxWidth: 360)
-                    PlayerControlBar()
+                    PlayerControlDeck()
                 }
             }
         }

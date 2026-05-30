@@ -8,243 +8,14 @@ struct SettingsPage: View {
     }
 }
 
-struct SettingsDetailRow: View {
-    let item: SettingsItem
-    let showsDivider: Bool
-
-    @State private var selectedValue: String
-    @State private var isOn: Bool
-    @State private var isExpanded = false
-    @State private var statusText = ""
-    @State private var showsConfirmation = false
-    @State private var confirmation = SettingsConfirmation.empty
-
-    init(item: SettingsItem, showsDivider: Bool) {
-        self.item = item
-        self.showsDivider = showsDivider
-        _selectedValue = State(initialValue: item.control.initialSelection)
-        _isOn = State(initialValue: item.control.initialToggleState)
-    }
-
-    var body: some View {
-        rowControl
-            .confirmationDialog(
-                confirmation.title,
-                isPresented: $showsConfirmation,
-                titleVisibility: .visible
-            ) {
-                Button(confirmation.actionTitle, role: .destructive) {
-                    showStatus(confirmation.feedback)
-                }
-                Button("Cancel") {
-                    showsConfirmation = false
-                }
-            } message: {
-                Text(confirmation.message)
-            }
-            .accessibilityElement(children: .combine)
-            .accessibilityIdentifier("DesignComps-SettingsPage-detail-\(item.id)")
-    }
-
-    @ViewBuilder
-    private var rowControl: some View {
-        switch item.control {
-        case .selection(let config):
-            rowSurface {
-                Menu {
-                    ForEach(config.options, id: \.self) { option in
-                        Button {
-                            selectedValue = option
-                        } label: {
-                            Label(option, systemImage: option == selectedValue ? "checkmark" : "")
-                        }
-                    }
-                } label: {
-                    SettingsSelectionChip(title: selectedValue)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(item.title)
-            } expanded: {
-                EmptyView()
-            }
-
-        case .toggle:
-            rowSurface {
-                SettingsAccessoryButton(accessibilityLabel: item.title) {
-                    withAnimation(DesignTokens.AnimationToken.selection) {
-                        isOn.toggle()
-                    }
-                } label: {
-                    SettingsToggleIndicator(isOn: isOn)
-                }
-            } expanded: {
-                EmptyView()
-            }
-
-        case .action(let config):
-            rowSurface {
-                SettingsAccessoryButton(accessibilityLabel: item.title) {
-                    showStatus(config.feedback)
-                } label: {
-                    SettingsActionChip(title: statusText.isEmpty ? config.title : statusText)
-                }
-            } expanded: {
-                EmptyView()
-            }
-
-        case .destructive(let config):
-            rowSurface {
-                SettingsAccessoryButton(accessibilityLabel: item.title) {
-                    confirmation = SettingsConfirmation(
-                        title: config.confirmationTitle,
-                        message: config.confirmationMessage,
-                        actionTitle: config.actionTitle,
-                        feedback: config.feedback
-                    )
-                    showsConfirmation = true
-                } label: {
-                    SettingsActionChip(title: config.actionTitle, role: .destructive)
-                }
-            } expanded: {
-                EmptyView()
-            }
-
-        case .destructiveOptions(let config):
-            rowSurface {
-                Menu {
-                    ForEach(config.options, id: \.self) { option in
-                        Button(option, role: .destructive) {
-                            selectedValue = option
-                            confirmation = SettingsConfirmation(
-                                title: "\(option)?",
-                                message: config.confirmationMessage,
-                                actionTitle: option,
-                                feedback: config.feedback
-                            )
-                            showsConfirmation = true
-                        }
-                    }
-                } label: {
-                    SettingsSelectionChip(title: selectedValue, role: .destructive)
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(item.title)
-            } expanded: {
-                EmptyView()
-            }
-
-        case .readOnly(let config):
-            if let actionTitle = config.actionTitle {
-                rowSurface {
-                    HStack(spacing: DesignTokens.Spacing.xs) {
-                        SettingsValueText(statusText.isEmpty ? config.value : statusText)
-                        SettingsAccessoryButton(accessibilityLabel: item.title) {
-                            showStatus(config.feedback)
-                        } label: {
-                            SettingsActionChip(title: actionTitle)
-                        }
-                    }
-                } expanded: {
-                    EmptyView()
-                }
-            } else {
-                rowSurface {
-                    SettingsValueText(config.value)
-                } expanded: {
-                    EmptyView()
-                }
-            }
-
-        case .disclosure(let rows):
-            rowSurface {
-                SettingsAccessoryButton(accessibilityLabel: item.title) {
-                    toggleExpansion()
-                } label: {
-                    SettingsDisclosureChip(isExpanded: isExpanded)
-                }
-            } expanded: {
-                if isExpanded {
-                    SettingsKeyValueList(rows: rows)
-                        .transition(settingsExpansionTransition)
-                }
-            }
-        }
-    }
-
-    private var settingsExpansionTransition: AnyTransition {
-        .asymmetric(
-            insertion: .scale(scale: 0.96, anchor: .topTrailing)
-                .combined(with: .opacity)
-                .combined(with: .move(edge: .top)),
-            removal: .opacity
-        )
-    }
-
-    private func rowSurface<Trailing: View, Expanded: View>(
-        @ViewBuilder trailing: () -> Trailing,
-        @ViewBuilder expanded: () -> Expanded
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: DesignTokens.Spacing.md) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                    Text(item.title)
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(.primary)
-
-                    Text(item.subtitle)
-                        .font(DesignTokens.Typography.sectionHeader)
-                        .foregroundStyle(DesignTokens.Surface.supportingText)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                .frame(minWidth: 0, alignment: .leading)
-
-                Spacer(minLength: DesignTokens.Spacing.lg)
-
-                trailing()
-                    .layoutPriority(1)
-            }
-            .frame(minHeight: DesignTokens.Interactive.rowHeight)
-
-            expanded()
-        }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .padding(.vertical, DesignTokens.Spacing.xxs)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .overlay(alignment: .bottom) {
-            if showsDivider {
-                Rectangle()
-                    .fill(DesignTokens.Surface.divider)
-                    .frame(height: DesignTokens.Stroke.regular)
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-            }
-        }
-        .contentShape(.hoverEffect, DesignTokens.ShapeToken.element)
-        .hoverEffect(.highlight)
-        .contentShape(DesignTokens.ShapeToken.element)
-        .animation(DesignTokens.AnimationToken.selection, value: isExpanded)
-    }
-
-    private func toggleExpansion() {
-        withAnimation(DesignTokens.AnimationToken.selection) {
-            isExpanded.toggle()
-        }
-    }
-
-    private func showStatus(_ text: String) {
-        statusText = text
-        Task {
-            try? await Task.sleep(for: .seconds(1.4))
-            await MainActor.run {
-                if statusText == text {
-                    statusText = ""
-                }
-            }
-        }
-    }
-}
-
 struct SettingsDetailSectionView: View {
     let section: SettingsSection
+    /// Confirmation is owned by the page-level container (see
+    /// `SettingsDetailContentView`) and presented from a single root `.alert`,
+    /// mirroring `SettingListGroupPreview` in ContentView. A section only
+    /// *requests* a confirmation; it never hosts the alert itself, so toggling
+    /// presentation no longer rebuilds this section's `SettingListGroup`.
+    let onRequestConfirmation: (_ title: String, _ message: String, _ actionTitle: String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
@@ -252,155 +23,185 @@ struct SettingsDetailSectionView: View {
                 .font(DesignTokens.Typography.headline)
                 .foregroundStyle(.primary)
 
-            VStack(spacing: 0) {
-                ForEach(Array(section.items.enumerated()), id: \.element.id) { index, item in
-                    SettingsDetailRow(
-                        item: item,
-                        showsDivider: index < section.items.count - 1
-                    )
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .enchronTranslucentListContainer()
+            SettingListGroup(
+                accessibilityIdentifier: "DesignComps-SettingsSection-\(section.id)",
+                items: section.items.map(listItem(for:))
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
-}
 
-private struct SettingsSelectionChip: View {
-    let title: String
-    var role: SettingsActionRole = .normal
+    /// Maps a comps `SettingsItem` onto the shared `SettingListGroup` component.
+    /// Options and their semantics are preserved; only presentation changes.
+    private func listItem(for item: SettingsItem) -> SettingListGroup.Item {
+        switch item.control {
+        case .selection(let config):
+            return SettingListGroup.Item(
+                id: item.id,
+                title: item.title,
+                systemName: item.systemName,
+                accessory: .menu(
+                    title: config.value,
+                    options: config.options.map { SettingListGroup.MenuOption($0) }
+                )
+            )
 
-    var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            Text(title)
-                .font(DesignTokens.Typography.sectionHeader)
-                .lineLimit(1)
+        case .toggle(let config):
+            return SettingListGroup.Item(
+                id: item.id,
+                title: item.title,
+                systemName: item.systemName,
+                accessory: .toggle(isOn: config.isOn)
+            )
 
-            Image(systemName: "chevron.up.chevron.down")
-                .font(.caption2)
-        }
-        .foregroundStyle(role == .destructive ? .red : DesignTokens.Surface.accessoryText)
-        .padding(.horizontal, DesignTokens.Spacing.sm)
-        .frame(minHeight: DesignTokens.Interactive.compact)
-        .background(DesignTokens.Surface.elevated, in: Capsule())
-        .contentShape(.hoverEffect, Capsule())
-        .hoverEffect(.highlight)
-        .contentShape(Capsule())
-    }
-}
+        case .action(let config):
+            return SettingListGroup.Item(
+                id: item.id,
+                title: item.title,
+                systemName: item.systemName,
+                accessory: .action(
+                    title: config.title,
+                    feedback: config.feedback,
+                    systemName: nil,
+                    role: .normal,
+                    action: {}
+                )
+            )
 
-private struct SettingsActionChip: View {
-    let title: String
-    var role: SettingsActionRole = .normal
+        case .destructive(let config):
+            return SettingListGroup.Item(
+                id: item.id,
+                title: item.title,
+                systemName: item.systemName,
+                accessory: .action(
+                    title: config.actionTitle,
+                    feedback: nil,
+                    systemName: nil,
+                    role: .destructive,
+                    action: {
+                        requestConfirmation(
+                            title: config.confirmationTitle,
+                            message: config.confirmationMessage,
+                            actionTitle: config.actionTitle
+                        )
+                    }
+                )
+            )
 
-    var body: some View {
-        Text(title)
-            .font(DesignTokens.Typography.sectionHeader)
-            .foregroundStyle(role == .destructive ? .red : DesignTokens.Surface.accessoryText)
-            .lineLimit(1)
-            .padding(.horizontal, DesignTokens.Spacing.sm)
-            .frame(minHeight: DesignTokens.Interactive.compact)
-            .background(DesignTokens.Surface.elevated, in: Capsule())
-            .contentShape(.hoverEffect, Capsule())
-            .hoverEffect(.highlight)
-            .contentShape(Capsule())
-    }
-}
+        case .destructiveOptions(let config):
+            return SettingListGroup.Item(
+                id: item.id,
+                title: item.title,
+                systemName: item.systemName,
+                accessory: .menu(
+                    title: config.value,
+                    options: config.options.map { option in
+                        SettingListGroup.MenuOption(option, role: .destructive) {
+                            requestConfirmation(
+                                title: "\(option)?",
+                                message: config.confirmationMessage,
+                                actionTitle: option
+                            )
+                        }
+                    },
+                    role: .destructive
+                )
+            )
 
-private struct SettingsAccessoryButton<Label: View>: View {
-    let accessibilityLabel: String
-    let action: () -> Void
-    @ViewBuilder let label: () -> Label
-
-    var body: some View {
-        Button(action: action) {
-            label()
-        }
-        .buttonStyle(.plain)
-        .frame(minHeight: DesignTokens.Interactive.large)
-        .accessibilityLabel(accessibilityLabel)
-    }
-}
-
-private struct SettingsValueText: View {
-    let value: String
-
-    init(_ value: String) {
-        self.value = value
-    }
-
-    var body: some View {
-        Text(value)
-            .font(DesignTokens.Typography.sectionHeader)
-            .foregroundStyle(DesignTokens.Surface.accessoryText)
-            .lineLimit(1)
-    }
-}
-
-private struct SettingsDisclosureChip: View {
-    let isExpanded: Bool
-
-    var body: some View {
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(DesignTokens.Surface.accessoryText)
-            .rotationEffect(isExpanded ? .degrees(90) : .zero)
-            .frame(width: DesignTokens.Interactive.compact, height: DesignTokens.Interactive.compact)
-            .background(DesignTokens.Surface.elevated, in: Circle())
-            .contentShape(.hoverEffect, Circle())
-            .hoverEffect(.highlight)
-            .contentShape(Circle())
-    }
-}
-
-private struct SettingsToggleIndicator: View {
-    let isOn: Bool
-
-    var body: some View {
-        Capsule()
-            .fill(isOn ? DesignTokens.Theme.accent : DesignTokens.Surface.elevated)
-            .frame(width: 50, height: 30)
-            .overlay(alignment: isOn ? .trailing : .leading) {
-                Circle()
-                    .fill(.white)
-                    .frame(width: 26, height: 26)
-                    .padding(2)
+        case .readOnly(let config):
+            if let actionTitle = config.actionTitle {
+                return SettingListGroup.Item(
+                    id: item.id,
+                    title: item.title,
+                    systemName: item.systemName,
+                    accessory: .valueAction(
+                        value: config.value,
+                        actionTitle: actionTitle,
+                        feedback: config.feedback,
+                        action: {}
+                    )
+                )
+            } else {
+                return SettingListGroup.Item(
+                    id: item.id,
+                    title: item.title,
+                    systemName: item.systemName,
+                    accessory: .value(config.value)
+                )
             }
-            .clipShape(Capsule())
-            .glassBackgroundEffect(in: Capsule())
-            .contentShape(.hoverEffect, Capsule())
-            .hoverEffect(.highlight)
-            .contentShape(Capsule())
+
+        case .disclosure(let rows):
+            return SettingListGroup.Item(
+                id: item.id,
+                title: item.title,
+                systemName: item.systemName,
+                keyValueDetail: rows.map { SettingListGroup.KeyValue(key: $0.key, value: $0.value) },
+                accessory: .automatic
+            )
+        }
+    }
+
+    private func requestConfirmation(title: String, message: String, actionTitle: String) {
+        onRequestConfirmation(title, message, actionTitle)
     }
 }
 
-private struct SettingsKeyValueList: View {
-    let rows: [SettingsKeyValue]
+/// Owns the single confirmation state for a settings category and presents it
+/// from one root `.alert`, then fans the requester out to every section. This
+/// matches ContentView's `SettingListGroupPreview`, which hosts a single
+/// `showClearCacheConfirm` at the page root rather than per-row state.
+struct SettingsDetailContentView: View {
+    let category: SettingsCategory
+
+    @State private var pendingConfirmation = SettingsPendingConfirmation.empty
+    @State private var showsConfirmation = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Rectangle()
-                .fill(DesignTokens.Surface.border)
-                .frame(height: DesignTokens.Stroke.subtle)
-                .padding(.top, DesignTokens.Spacing.xxs)
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                Text(category.title)
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(.white)
 
-            ForEach(rows) { row in
-                HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.md) {
-                    Text(row.key)
-                        .font(DesignTokens.Typography.sectionHeader)
-                        .foregroundStyle(DesignTokens.Surface.supportingText)
-                        .frame(width: 160, alignment: .leading)
+                Text(category.summary)
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.Surface.supportingText)
+            }
 
-                    Text(row.value)
-                        .font(DesignTokens.Typography.sectionHeader)
-                        .foregroundStyle(DesignTokens.Surface.accessoryText)
-                        .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+                ForEach(category.sections) { section in
+                    SettingsDetailSectionView(
+                        section: section,
+                        onRequestConfirmation: requestConfirmation
+                    )
                 }
             }
         }
-        .padding(.bottom, DesignTokens.Spacing.sm)
+        .enchronDestructiveConfirmation(
+            pendingConfirmation.title,
+            message: pendingConfirmation.message,
+            confirmTitle: pendingConfirmation.actionTitle,
+            isPresented: $showsConfirmation,
+            onConfirm: {}
+        )
     }
+
+    private func requestConfirmation(title: String, message: String, actionTitle: String) {
+        pendingConfirmation = SettingsPendingConfirmation(
+            title: title,
+            message: message,
+            actionTitle: actionTitle
+        )
+        showsConfirmation = true
+    }
+}
+
+private struct SettingsPendingConfirmation {
+    let title: String
+    let message: String
+    let actionTitle: String
+
+    static let empty = SettingsPendingConfirmation(title: "", message: "", actionTitle: "")
 }
 
 struct SettingsSection: Identifiable {
@@ -412,7 +213,7 @@ struct SettingsSection: Identifiable {
 struct SettingsItem: Identifiable {
     let id: String
     let title: String
-    let subtitle: String
+    let systemName: String
     let control: SettingsControl
 }
 
@@ -424,26 +225,6 @@ enum SettingsControl {
     case destructiveOptions(SettingsDestructiveOptionsControl)
     case readOnly(SettingsReadOnlyControl)
     case disclosure([SettingsKeyValue])
-
-    var initialSelection: String {
-        switch self {
-        case .selection(let config):
-            config.value
-        case .destructiveOptions(let config):
-            config.value
-        case .toggle, .action, .destructive, .readOnly, .disclosure:
-            ""
-        }
-    }
-
-    var initialToggleState: Bool {
-        switch self {
-        case .toggle(let config):
-            config.isOn
-        case .selection, .action, .destructive, .destructiveOptions, .readOnly, .disclosure:
-            false
-        }
-    }
 }
 
 struct SettingsSelectionControl {
@@ -487,25 +268,6 @@ struct SettingsKeyValue: Identifiable {
     var id: String {
         "\(key)-\(value)"
     }
-}
-
-private struct SettingsConfirmation {
-    let title: String
-    let message: String
-    let actionTitle: String
-    let feedback: String
-
-    static let empty = SettingsConfirmation(
-        title: "",
-        message: "",
-        actionTitle: "",
-        feedback: ""
-    )
-}
-
-private enum SettingsActionRole {
-    case normal
-    case destructive
 }
 
 enum SettingsCategory: String, CaseIterable, Identifiable {
@@ -575,7 +337,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "resume-strategy",
                             title: "Resume Playback",
-                            subtitle: "Controls how progress is handled when a video opens again.",
+                            systemName: "play.circle",
                             control: .selection(.init(
                                 value: "Ask Every Time",
                                 options: ["Ask Every Time", "Always Resume", "Always Start Over"]
@@ -584,7 +346,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "end-behavior",
                             title: "End of Playback",
-                            subtitle: "Choose the next step after the current video ends.",
+                            systemName: "flag.checkered",
                             control: .selection(.init(
                                 value: "Stop",
                                 options: ["Stop", "Loop Single Episode", "Play Next"]
@@ -593,7 +355,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "controls-auto-hide",
                             title: "Controls Auto-Hide",
-                            subtitle: "Hide playback controls after a short delay.",
+                            systemName: "timer",
                             control: .selection(.init(
                                 value: "8 Seconds",
                                 options: ["5 Seconds", "8 Seconds", "15 Seconds"]
@@ -612,7 +374,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "default-scene",
                             title: "Default Scene",
-                            subtitle: "Scene used when immersive viewing starts.",
+                            systemName: "mountain.2",
                             control: .selection(.init(
                                 value: "Dark Cinema",
                                 options: ["Dark Cinema", "Starry Night", "Nature Sunset"]
@@ -621,7 +383,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "enter-immersive",
                             title: "Enter Immersion for Spatial Content",
-                            subtitle: "Applies to 3D, 180, 360, and future immersive media.",
+                            systemName: "visionpro",
                             control: .selection(.init(
                                 value: "Ask Every Time",
                                 options: ["Off", "Ask Every Time", "Auto Enter"]
@@ -640,7 +402,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "cache-size",
                             title: "Cache Size",
-                            subtitle: "App thumbnails, indexes, and temporary playback cache.",
+                            systemName: "internaldrive",
                             control: .readOnly(.init(
                                 value: "1.8 GB",
                                 actionTitle: nil,
@@ -650,7 +412,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "clear-cache",
                             title: "Clear Cache",
-                            subtitle: "Removes App cache without deleting videos or history.",
+                            systemName: "trash",
                             control: .destructive(.init(
                                 actionTitle: "Clear",
                                 confirmationTitle: "Clear App Cache?",
@@ -667,7 +429,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "clear-history",
                             title: "Clear Recent Playback & Progress",
-                            subtitle: "Deletes local watch history and resume points.",
+                            systemName: "clock.arrow.circlepath",
                             control: .destructiveOptions(.init(
                                 value: "Choose Scope",
                                 options: ["Clear All", "Clear Before 30 Days", "Clear Before 90 Days"],
@@ -678,7 +440,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "privacy-note",
                             title: "Privacy Notice",
-                            subtitle: "Review local files, photos access, credentials, and logs.",
+                            systemName: "lock.shield",
                             control: .disclosure([
                                 .init(key: "Local Files", value: "Selected file access stays on device."),
                                 .init(key: "Photos", value: "Permission is used only for media the user chooses."),
@@ -699,19 +461,19 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "copy-diagnostic-summary",
                             title: "Copy Diagnostic Summary",
-                            subtitle: "App, Build, device, visionOS, route, and media state.",
+                            systemName: "doc.on.doc",
                             control: .action(.init(title: "Copy", feedback: "Copied"))
                         ),
                         SettingsItem(
                             id: "export-diagnostic-package",
                             title: "Export Diagnostic Package",
-                            subtitle: "Logs, recent errors, media, rendering, and cache state.",
+                            systemName: "square.and.arrow.up",
                             control: .action(.init(title: "Export", feedback: "Queued"))
                         ),
                         SettingsItem(
                             id: "redaction-preview",
                             title: "Redaction Preview",
-                            subtitle: "Shows how paths, hosts, names, tokens, and filenames hide.",
+                            systemName: "eye.slash",
                             control: .disclosure([
                                 .init(key: "Path", value: "/Users/.../Movies/..."),
                                 .init(key: "Host", value: "nas-87f2.local"),
@@ -728,7 +490,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "log-level",
                             title: "Log Level",
-                            subtitle: "Temporary logging level for TestFlight diagnostics.",
+                            systemName: "list.bullet.rectangle",
                             control: .selection(.init(
                                 value: "Info",
                                 options: ["Off", "Error", "Info", "Verbose"]
@@ -737,7 +499,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "clear-logs",
                             title: "Clear Logs",
-                            subtitle: "Clears local diagnostic logs before reproducing an issue.",
+                            systemName: "trash",
                             control: .destructive(.init(
                                 actionTitle: "Clear",
                                 confirmationTitle: "Clear Local Logs?",
@@ -748,7 +510,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "verbose-auto-off",
                             title: "Verbose Auto-Off",
-                            subtitle: "Prevents long-running verbose logging.",
+                            systemName: "timer",
                             control: .selection(.init(
                                 value: "30 Minutes",
                                 options: ["Next Launch", "30 Minutes"]
@@ -763,7 +525,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "route-snapshot",
                             title: "Current Route Snapshot",
-                            subtitle: "Shows the actual engine, surface, pixel format, and EDR state.",
+                            systemName: "cpu",
                             control: .disclosure([
                                 .init(key: "Engine Route", value: "mpv -> Metal texture bridge"),
                                 .init(key: "Surface", value: "WindowGroup playback surface"),
@@ -775,7 +537,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "engine-reference",
                             title: "mpv / Apple Reference Comparison",
-                            subtitle: "Session-only comparison route for the current media.",
+                            systemName: "arrow.left.arrow.right",
                             control: .selection(.init(
                                 value: "Current Route",
                                 options: ["Current Route", "mpv Session", "Apple Reference Session"]
@@ -784,7 +546,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "reset-engine-overrides",
                             title: "Reset All Engine Overrides",
-                            subtitle: "Clears renderer, HDR, presets, and diagnostic flags.",
+                            systemName: "arrow.counterclockwise",
                             control: .destructive(.init(
                                 actionTitle: "Reset",
                                 confirmationTitle: "Reset Engine Overrides?",
@@ -795,7 +557,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "safe-mpv-preset",
                             title: "Safe mpv Test Preset",
-                            subtitle: "Preset-only testing. Raw mpv arguments are not exposed.",
+                            systemName: "slider.horizontal.3",
                             control: .selection(.init(
                                 value: "Default",
                                 options: ["Default", "Compatibility First", "HDR Experiment", "Conservative"]
@@ -810,7 +572,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "current-media-inspector",
                             title: "Current Media Inspector",
-                            subtitle: "Codec, resolution, fps, HDR, projection, stereo, and metadata source.",
+                            systemName: "info.circle",
                             control: .disclosure([
                                 .init(key: "Codec", value: "HEVC Main10"),
                                 .init(key: "Resolution", value: "3840 x 2160"),
@@ -824,19 +586,19 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "copy-media-summary",
                             title: "Copy Media Summary",
-                            subtitle: "Copies the current media profile for support.",
+                            systemName: "doc.on.doc",
                             control: .action(.init(title: "Copy", feedback: "Copied"))
                         ),
                         SettingsItem(
                             id: "redetect-media",
                             title: "Re-detect Current Media",
-                            subtitle: "Runs lightweight or runtime detection again.",
+                            systemName: "arrow.clockwise",
                             control: .action(.init(title: "Run", feedback: "Queued"))
                         ),
                         SettingsItem(
                             id: "clear-current-media-cache",
                             title: "Clear Current Media Profile Cache",
-                            subtitle: "Repairs a single file with incorrect media facts.",
+                            systemName: "trash",
                             control: .destructive(.init(
                                 actionTitle: "Clear",
                                 confirmationTitle: "Clear Current Media Profile?",
@@ -847,7 +609,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "clear-all-media-cache",
                             title: "Clear All Media Info Cache",
-                            subtitle: "Rebuilds cached media profiles after batch pollution.",
+                            systemName: "arrow.triangle.2.circlepath",
                             control: .destructive(.init(
                                 actionTitle: "Rebuild",
                                 confirmationTitle: "Rebuild All Media Info?",
@@ -864,7 +626,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "hdr-edr-state",
                             title: "HDR / EDR Status Panel",
-                            subtitle: "HDROutputMode, pixel format, colorspace, and EDR surface state.",
+                            systemName: "sun.max",
                             control: .disclosure([
                                 .init(key: "Output Mode", value: "System managed"),
                                 .init(key: "Layer Format", value: "rgba16Float"),
@@ -875,13 +637,13 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "sample-hdr-frame",
                             title: "Sample Current Frame HDR Data",
-                            subtitle: "Counts values above 1.0 and records max, mean, source, and contract.",
+                            systemName: "eyedropper",
                             control: .action(.init(title: "Sample", feedback: "Queued"))
                         ),
                         SettingsItem(
                             id: "hdr-session-comparison",
                             title: "HDR On / Off Session Comparison",
-                            subtitle: "Session-only switch for comparing the HDR path.",
+                            systemName: "circle.lefthalf.filled",
                             control: .selection(.init(
                                 value: "HDR On",
                                 options: ["HDR On", "HDR Off"]
@@ -890,7 +652,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "hdr-reference-comparison",
                             title: "mpv / Apple Reference HDR Comparison",
-                            subtitle: "Compares color, brightness, and saturation on the same media.",
+                            systemName: "arrow.left.arrow.right",
                             control: .selection(.init(
                                 value: "mpv Route",
                                 options: ["mpv Route", "Apple Reference"]
@@ -899,7 +661,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "copy-hdr-summary",
                             title: "Copy HDR Diagnostic Summary",
-                            subtitle: "Outputs HDR type, route, and sampling result.",
+                            systemName: "doc.on.doc",
                             control: .action(.init(title: "Copy", feedback: "Copied"))
                         )
                     ]
@@ -911,7 +673,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "immersive-inspector",
                             title: "Immersive State Inspector",
-                            subtitle: "Space state, playback mode, projection override, stereo override, and scene.",
+                            systemName: "cube.transparent",
                             control: .disclosure([
                                 .init(key: "Space", value: "closed"),
                                 .init(key: "Playback Mode", value: "Window"),
@@ -923,7 +685,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "immersive-open-close-test",
                             title: "Immersive Space Open / Close Test",
-                            subtitle: "Requests open or close and records system cancellation.",
+                            systemName: "visionpro",
                             control: .selection(.init(
                                 value: "No Test",
                                 options: ["No Test", "Request Open", "Request Close"]
@@ -932,7 +694,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "reset-scene-position",
                             title: "Reset Scene Screen Position",
-                            subtitle: "Repairs polluted spatial screen placement.",
+                            systemName: "arrow.counterclockwise",
                             control: .destructiveOptions(.init(
                                 value: "Choose Scope",
                                 options: ["Reset Current Scene", "Reset All Scenes"],
@@ -943,7 +705,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "spatial-classification",
                             title: "Current Spatial Content Classification",
-                            subtitle: "Shows the trigger condition for immersive entry.",
+                            systemName: "tag",
                             control: .disclosure([
                                 .init(key: "Detected Type", value: "flat"),
                                 .init(key: "Projection", value: "none"),
@@ -960,19 +722,19 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "remote-source-test",
                             title: "Remote Source Connection Test",
-                            subtitle: "Tests connect, directory listing, and playback URL resolution.",
+                            systemName: "network",
                             control: .action(.init(title: "Test", feedback: "Queued"))
                         ),
                         SettingsItem(
                             id: "reconnect-current-source",
                             title: "Reconnect Current Source",
-                            subtitle: "Reconnects the active NAS or WebDAV source.",
+                            systemName: "arrow.clockwise",
                             control: .action(.init(title: "Reconnect", feedback: "Queued"))
                         ),
                         SettingsItem(
                             id: "source-error-summary",
                             title: "Source Error Summary",
-                            subtitle: "Error code, duration, auth state, and redacted host fingerprint.",
+                            systemName: "exclamationmark.triangle",
                             control: .disclosure([
                                 .init(key: "Code", value: "none"),
                                 .init(key: "Duration", value: "0 ms"),
@@ -983,7 +745,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "source-read-only-info",
                             title: "Current Source Read-only Info",
-                            subtitle: "Source type, root path, and credential key fingerprint.",
+                            systemName: "server.rack",
                             control: .disclosure([
                                 .init(key: "Type", value: "Local"),
                                 .init(key: "Root", value: "~/Movies"),
@@ -999,25 +761,25 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "performance-hud",
                             title: "Performance HUD",
-                            subtitle: "fps, frame pacing, drops, memory, texture size, and resolution.",
+                            systemName: "gauge",
                             control: .toggle(.init(isOn: false))
                         ),
                         SettingsItem(
                             id: "performance-report",
                             title: "Sample 30-second Performance Report",
-                            subtitle: "fps, frame time, memory, thermal, media profile, and playback mode.",
+                            systemName: "stopwatch",
                             control: .action(.init(title: "Sample", feedback: "Queued"))
                         ),
                         SettingsItem(
                             id: "controls-never-hide",
                             title: "Controls Never Hide",
-                            subtitle: "Diagnostic-only mode for recordings and reproduction.",
+                            systemName: "eye",
                             control: .toggle(.init(isOn: false))
                         ),
                         SettingsItem(
                             id: "rendering-load-summary",
                             title: "Current Rendering Load Summary",
-                            subtitle: "Resolution, frame rate, panorama, HDR, and immersive pressure.",
+                            systemName: "memorychip",
                             control: .disclosure([
                                 .init(key: "Resolution", value: "3840 x 2160"),
                                 .init(key: "Frame Rate", value: "23.976"),
@@ -1039,7 +801,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "version-build",
                             title: "Version & Build",
-                            subtitle: "Used for feedback, TestFlight, and issue triage.",
+                            systemName: "info.circle",
                             control: .readOnly(.init(
                                 value: "0.1.0 (42)",
                                 actionTitle: "Copy",
@@ -1049,13 +811,13 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                         SettingsItem(
                             id: "licenses",
                             title: "Open-source Licenses",
-                            subtitle: "Third-party notices for mpv, FFmpeg, and dependencies.",
+                            systemName: "doc.text",
                             control: .action(.init(title: "View", feedback: "Opened"))
                         ),
                         SettingsItem(
                             id: "support-feedback",
                             title: "Support & Feedback",
-                            subtitle: "Contact support or copy a diagnostic summary.",
+                            systemName: "questionmark.circle",
                             control: .selection(.init(
                                 value: "Contact Support",
                                 options: ["Contact Support", "Copy Diagnostic Summary"]
