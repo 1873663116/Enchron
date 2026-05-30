@@ -418,7 +418,7 @@ public enum DesignTokens {
         /// Compact source row shape.
         public static let rowShape = RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
         /// Section labels inside the source sidebar.
-        public static let sectionTitleFont: Font = Typography.metadata
+        public static let sectionTitleFont: Font = Typography.headline.weight(.bold)
         /// Unchecked selection indicator color inside the source sidebar.
         public static let selectionIndicator: Color = .white.opacity(0.34)
         /// Width of swipe action buttons revealed behind source rows.
@@ -516,7 +516,7 @@ public enum DesignTokens {
     /// DesignPreview precision timeline prototype.
     public enum PrecisionTimeline {
         /// Expanded precision timeline width.
-        public static let expandedWidth: CGFloat = 960
+        public static let expandedWidth: CGFloat = 760
         /// Expanded precision timeline height.
         public static let expandedHeight: CGFloat = 220
         /// Vertical gap between the primary progress bar and expanded timeline.
