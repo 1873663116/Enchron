@@ -19,6 +19,9 @@ let package = Package(
                 .product(name: "AMSMB2", package: "AMSMB2")
             ],
             path: ".",
+            exclude: [
+                "DesignPreview/.claude"
+            ],
             sources: [
                 "XrPlayer/PlaybackCore/Domain/ValueObjects/PlaybackState.swift",
                 "XrPlayer/PlaybackCore/Domain/ValueObjects/PlaybackPosition.swift",

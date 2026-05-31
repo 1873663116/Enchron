@@ -198,21 +198,19 @@ struct MainWindowPage: View {
 
     private var videoList: some View {
         ScrollView {
-            LazyVStack(spacing: 0) {
-                ForEach(Array(videos.enumerated()), id: \.element.id) { index, video in
-                    VideoListRow(
+            FileListGroup(
+                items: videos.map { video in
+                    .video(
                         title: video.title,
                         fileSize: video.fileSize,
                         duration: video.duration,
-                        badges: video.badges,
-                        showsDivider: index < videos.count - 1
+                        badges: video.badges
                     )
                 }
-            }
+            )
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .enchronTranslucentListContainer()
         .scrollIndicators(.hidden)
         .transition(.opacity)
     }
