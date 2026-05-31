@@ -164,3 +164,19 @@ DerivedData、缓存和 Simulator 状态可以成为诊断对象；把它们当�
 文档优先级（冲突时）：Apple 官方文档裁决 API 行为、隐私/安全、App Store 约束和平台可用性；本地文档在这些平台约束内裁决产品、架构和实现取舍。产品体验冲突按 product_philosophy > brainstorms/*-requirements > quality_gates > ARCHITECTURE > 其余。
 
 ---
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (`github.com/1873663116/XrPlayer`), via the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical default labels: `needs-triage` / `needs-info` / `ready-for-agent` / `ready-for-human` / `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context layout (`CONTEXT.md` + `docs/adr/` at repo root). See `docs/agents/domain.md`.
+
+---
