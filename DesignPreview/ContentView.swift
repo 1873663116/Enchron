@@ -3,7 +3,14 @@ import SwiftUI
 // MARK: - Preview routing
 
 enum DesignPreviewPage: String, CaseIterable, Identifiable {
+    // MARK: Components (front)
     case components
+    case sidebar
+    case settingListGroup
+    case playerSettingsPanel
+    case centerSlider
+    case sceneCard
+    // MARK: Design Tokens (back)
     case spacing
     case radiusAndShapes
     case interactionAndLayout
@@ -11,11 +18,6 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     case surfaceAndStroke
     case animation
     case pressFeedback
-    case sidebar
-    case settingListGroup
-    case playerSettingsPanel
-    case centerSlider
-    case sceneCard
     case componentStandards
 
     var id: String { rawValue }
@@ -267,6 +269,20 @@ struct SettingListGroupPreview: View {
                         )
                     ])
                     .frame(width: 580)
+
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        Text("File List Group")
+                            .font(DesignTokens.Typography.headline)
+                            .foregroundStyle(.primary)
+
+                        FileListGroup(items: [
+                            .folder(title: "Movies", itemCount: 24),
+                            .folder(title: "Spatial", itemCount: 12),
+                            .video(title: "Interstellar", fileSize: "8.2 GB", duration: "2:49:00", badges: ["HDR10+"]),
+                            .video(title: "Blade Runner 2049", fileSize: "45.6 GB", duration: "2:29:55", badges: ["MV-HEVC"])
+                        ])
+                        .frame(width: 580)
+                    }
                 }
             }
             .padding(DesignTokens.Spacing.xxl)
@@ -846,60 +862,7 @@ struct SceneCardPreview: View {
     }
 }
 
-// MARK: - Shared token table
-
-struct TokenRow: Identifiable {
-    let id = UUID()
-    let name: String
-    let value: String
-    let note: String
-}
-
-struct TokenSection<Content: View>: View {
-    let title: String
-    let rows: [TokenRow]
-    let content: Content
-
-    init(title: String, rows: [TokenRow], @ViewBuilder content: () -> Content) {
-        self.title = title
-        self.rows = rows
-        self.content = content()
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text(title)
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-
-            content
-
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                ForEach(rows) { row in
-                    HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.md) {
-                        Text(row.name)
-                            .font(.system(.caption, design: .monospaced))
-                            .frame(width: 220, alignment: .leading)
-                        Text(row.value)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 140, alignment: .leading)
-                        Text(row.note)
-                            .font(DesignTokens.Typography.metadata)
-                            .foregroundStyle(.tertiary)
-                        Spacer(minLength: 0)
-                    }
-                    .padding(.horizontal, DesignTokens.Spacing.md)
-                    .frame(minHeight: 36)
-                    .enchronGlassMenuItem()
-                }
-            }
-        }
-        .padding(DesignTokens.Spacing.lg)
-        .enchronGlassPanel()
-    }
-}
+// MARK: - Token pages
 
 private struct TokenPage<Content: View>: View {
     let title: String
@@ -929,49 +892,285 @@ private func valueString(_ value: CGFloat) -> String {
     return String(format: "%.1fpt", value)
 }
 
+// MARK: - Token spec row (unified token display)
+
+/// One token rendered as a single row: a visual `swatch`, its `leafName` and
+/// `value`, and a usage `note`. Replaces the old "demo block + mono table"
+/// split — the swatch and its data share one row, and the `DesignTokens.X.`
+/// namespace prefix is shown once per section (on `TokenSpecSection`) instead
+/// of repeated on every row.
+struct TokenSpec: Identifiable {
+    let id = UUID()
+    let leafName: String
+    let value: String
+    let note: String
+    let swatch: AnyView?
+
+    /// A token with a visual representation (size, colour, shape, glyph).
+    static func spec(
+        _ leafName: String,
+        _ value: String,
+        _ note: String,
+        @ViewBuilder swatch: () -> some View
+    ) -> TokenSpec {
+        TokenSpec(leafName: leafName, value: value, note: note, swatch: AnyView(swatch()))
+    }
+
+    /// A pure scalar/relationship token with no visual (e.g. `inactiveScale =
+    /// 0.66`). The swatch column stays empty so rows stay aligned.
+    static func scalar(_ leafName: String, _ value: String, _ note: String) -> TokenSpec {
+        TokenSpec(leafName: leafName, value: value, note: note, swatch: nil)
+    }
+}
+
+private struct TokenSpecRowView: View {
+    let spec: TokenSpec
+    let swatchWidth: CGFloat
+
+    var body: some View {
+        HStack(alignment: .center, spacing: DesignTokens.Spacing.md) {
+            ZStack {
+                if let swatch = spec.swatch {
+                    swatch
+                }
+            }
+            .frame(width: swatchWidth, height: swatchWidth)
+
+            HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.xs) {
+                Text(spec.leafName)
+                    .font(.system(.callout, design: .monospaced))
+                Text(spec.value)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(width: 200, alignment: .leading)
+
+            Text(spec.note)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .padding(.vertical, DesignTokens.Spacing.sm)
+        .frame(minHeight: swatchWidth + DesignTokens.Spacing.md, alignment: .center)
+    }
+}
+
+/// A grouped, divider-separated list of token specs on the shared list-group
+/// glass surface — the same visual language as `SettingListGroup`/`FileListGroup`.
+struct TokenSpecGroup: View {
+    let specs: [TokenSpec]
+    var swatchWidth: CGFloat = 64
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ForEach(Array(specs.enumerated()), id: \.element.id) { index, spec in
+                if index > 0 {
+                    SettingListGroupDivider()
+                }
+                TokenSpecRowView(spec: spec, swatchWidth: swatchWidth)
+            }
+        }
+        .enchronListGroupSurface(cornerRadius: DesignTokens.Radius.element)
+    }
+}
+
+/// A token section: an uppercase title with the namespace prefix shown once,
+/// an optional `hero` demo (for tokens too large to fit a row swatch, e.g.
+/// `playerControlsWidth`), and the spec group.
+struct TokenSpecSection<Hero: View>: View {
+    let title: String
+    let namespace: String
+    let specs: [TokenSpec]
+    let hero: Hero
+
+    init(
+        title: String,
+        namespace: String,
+        specs: [TokenSpec],
+        @ViewBuilder hero: () -> Hero = { EmptyView() }
+    ) {
+        self.title = title
+        self.namespace = namespace
+        self.specs = specs
+        self.hero = hero()
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.sm) {
+                Text(title)
+                    .font(DesignTokens.Typography.sectionHeader)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                Text(namespace)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+
+            if !(hero is EmptyView) {
+                hero
+                    .padding(.bottom, DesignTokens.Spacing.xs)
+            }
+
+            TokenSpecGroup(specs: specs)
+        }
+    }
+}
+
+// MARK: - Token swatches (reusable across token pages)
+
+/// A filled accent circle of diameter `size`, nested inside a dashed reference
+/// ring, so interactive/symbol sizes read at true scale against a common 64pt frame.
+@ViewBuilder
+private func tokenSizeSwatch(_ size: CGFloat, reference: CGFloat = 64) -> some View {
+    ZStack {
+        Circle()
+            .stroke(style: StrokeStyle(lineWidth: DesignTokens.Stroke.regular, dash: [4, 3]))
+            .foregroundStyle(.tertiary)
+            .frame(width: reference, height: reference)
+        Circle()
+            .fill(Color.accentColor.opacity(0.2))
+            .frame(width: min(size, reference), height: min(size, reference))
+    }
+}
+
+/// A proportional accent bar — `value` mapped against `max` into a 56pt track.
+@ViewBuilder
+private func tokenBarSwatch(_ value: CGFloat, max maxValue: CGFloat, height: CGFloat = 16) -> some View {
+    RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+        .fill(Color.accentColor.opacity(0.45))
+        .frame(width: Swift.max(Swift.min(value / maxValue * 56, 56), 6), height: height)
+}
+
+/// A colour chip with a subtle border, for opacity/colour tokens.
+@ViewBuilder
+private func tokenColorSwatch(_ color: Color) -> some View {
+    let shape = RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+    shape
+        .fill(color)
+        .frame(width: 40, height: 40)
+        .overlay {
+            shape.stroke(DesignTokens.Surface.divider, lineWidth: DesignTokens.Stroke.subtle)
+        }
+}
+
+/// A filled rounded square showing a corner radius (capsule for `full`).
+@ViewBuilder
+private func tokenRadiusSwatch(_ radius: CGFloat) -> some View {
+    if radius == .greatestFiniteMagnitude {
+        let shape = Capsule()
+        shape
+            .fill(DesignTokens.Surface.elevated)
+            .frame(width: 56, height: 36)
+            .overlay { shape.strokeBorder(DesignTokens.Surface.border, lineWidth: DesignTokens.Stroke.regular) }
+    } else {
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        shape
+            .fill(DesignTokens.Surface.elevated)
+            .frame(width: 56, height: 56)
+            .overlay { shape.strokeBorder(DesignTokens.Surface.border, lineWidth: DesignTokens.Stroke.regular) }
+    }
+}
+
+/// A filled sample of a shape token.
+@ViewBuilder
+private func tokenShapeSwatch(_ shape: some Shape) -> some View {
+    shape
+        .fill(DesignTokens.Surface.elevated)
+        .frame(width: 56, height: 56)
+        .overlay { shape.stroke(DesignTokens.Surface.border, lineWidth: DesignTokens.Stroke.regular) }
+}
+
+/// A bordered rectangle drawn at a given stroke width.
+@ViewBuilder
+private func tokenStrokeSwatch(_ width: CGFloat) -> some View {
+    RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+        .strokeBorder(Color.accentColor.opacity(0.75), lineWidth: width)
+        .frame(width: 56, height: 44)
+}
+
+/// The glyph "Ag" set in a typography token, so weight/size read directly.
+@ViewBuilder
+private func tokenTypographySwatch(_ font: Font) -> some View {
+    Text("Ag").font(font)
+}
+
+/// Two nested rectangles showing how far a press-feedback scale shrinks a shape.
+@ViewBuilder
+private func tokenScaleSwatch(_ scale: CGFloat) -> some View {
+    let shape = RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+    ZStack {
+        shape.stroke(DesignTokens.Surface.border, lineWidth: DesignTokens.Stroke.subtle)
+            .frame(width: 48, height: 40)
+        shape.fill(Color.accentColor.opacity(0.4))
+            .frame(width: 48 * scale, height: 40 * scale)
+    }
+}
+
+/// A small bar that animates open/closed on tap — a per-row "tap to replay"
+/// sample for animation tokens.
+private struct AnimationSampleSwatch: View {
+    let name: String
+    let animation: Animation
+    @State private var expanded = false
+
+    var body: some View {
+        Button {
+            withAnimation(animation) { expanded.toggle() }
+        } label: {
+            RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+                .fill(expanded ? Color.accentColor.opacity(0.65) : DesignTokens.Surface.elevated)
+                .frame(width: expanded ? 56 : 22, height: 22)
+                .frame(width: 56, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("DesignPreview-Tokens-animation-\(name)")
+        .accessibilityLabel("Replay \(name) animation")
+    }
+}
+
 // MARK: - Spacing
 
 struct SpacingScalePreview: View {
-    private let rows = [
-        TokenRow(name: "DesignTokens.Spacing.xxs", value: "4pt", note: "hover gap, micro adjustment"),
-        TokenRow(name: "DesignTokens.Spacing.xs", value: "8pt", note: "compact padding, icon gaps"),
-        TokenRow(name: "DesignTokens.Spacing.sm", value: "12pt", note: "medium padding, list item spacing"),
-        TokenRow(name: "DesignTokens.Spacing.md", value: "16pt", note: "standard padding"),
-        TokenRow(name: "DesignTokens.Spacing.lg", value: "20pt", note: "panel padding, section spacing"),
-        TokenRow(name: "DesignTokens.Spacing.xl", value: "24pt", note: "large gaps"),
-        TokenRow(name: "DesignTokens.Spacing.xxl", value: "32pt", note: "section dividers"),
-        TokenRow(name: "DesignTokens.Spacing.xxxl", value: "48pt", note: "extra-large margins"),
-    ]
+    private var specs: [TokenSpec] {
+        [
+            .spec("xxs", "4pt", "hover gap, micro adjustment") {
+                tokenBarSwatch(DesignTokens.Spacing.xxs, max: 48, height: 20)
+            },
+            .spec("xs", "8pt", "compact padding, icon gaps") {
+                tokenBarSwatch(DesignTokens.Spacing.xs, max: 48, height: 20)
+            },
+            .spec("sm", "12pt", "medium padding, list item spacing") {
+                tokenBarSwatch(DesignTokens.Spacing.sm, max: 48, height: 20)
+            },
+            .spec("md", "16pt", "standard padding") {
+                tokenBarSwatch(DesignTokens.Spacing.md, max: 48, height: 20)
+            },
+            .spec("lg", "20pt", "panel padding, section spacing") {
+                tokenBarSwatch(DesignTokens.Spacing.lg, max: 48, height: 20)
+            },
+            .spec("xl", "24pt", "large gaps") {
+                tokenBarSwatch(DesignTokens.Spacing.xl, max: 48, height: 20)
+            },
+            .spec("xxl", "32pt", "section dividers") {
+                tokenBarSwatch(DesignTokens.Spacing.xxl, max: 48, height: 20)
+            },
+            .spec("xxxl", "48pt", "extra-large margins") {
+                tokenBarSwatch(DesignTokens.Spacing.xxxl, max: 48, height: 20)
+            },
+        ]
+    }
 
     var body: some View {
         TokenPage(title: "Spacing") {
-            TokenSection(title: "Spacing Scale", rows: rows) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                    spacingRow("xxs", DesignTokens.Spacing.xxs)
-                    spacingRow("xs", DesignTokens.Spacing.xs)
-                    spacingRow("sm", DesignTokens.Spacing.sm)
-                    spacingRow("md", DesignTokens.Spacing.md)
-                    spacingRow("lg", DesignTokens.Spacing.lg)
-                    spacingRow("xl", DesignTokens.Spacing.xl)
-                    spacingRow("xxl", DesignTokens.Spacing.xxl)
-                    spacingRow("xxxl", DesignTokens.Spacing.xxxl)
-                }
-            }
-        }
-    }
-
-    private func spacingRow(_ name: String, _ value: CGFloat) -> some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            Text(name)
-                .font(.system(.body, design: .monospaced))
-                .frame(width: 60, alignment: .trailing)
-            Text(valueString(value))
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-                .frame(width: 64, alignment: .trailing)
-            RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
-                .fill(Color.accentColor.opacity(0.65))
-                .frame(width: max(value * 4, 16), height: 20)
+            TokenSpecSection(
+                title: "Spacing Scale",
+                namespace: "DesignTokens.Spacing.*",
+                specs: specs
+            )
         }
     }
 }
@@ -979,102 +1178,83 @@ struct SpacingScalePreview: View {
 // MARK: - Radius & shapes
 
 struct RadiusShapesPreview: View {
-    private let radiusRows = [
-        TokenRow(name: "DesignTokens.Radius.panel", value: "40pt", note: "large panels, settings pages, detail views"),
-        TokenRow(name: "DesignTokens.Radius.card", value: "32pt", note: "cards, menus, mid-level containers"),
-        TokenRow(name: "DesignTokens.Radius.element", value: "24pt", note: "menu items, toolbar, inner containers"),
-        TokenRow(name: "DesignTokens.Radius.small", value: "12pt", note: "tags, thumbnails, small rounded backgrounds"),
-        TokenRow(name: "DesignTokens.Radius.full", value: "full", note: "circles and capsules"),
-        TokenRow(name: "DesignTokens.Radius.concentric", value: "function", note: "inner radius = outer radius - padding"),
-    ]
+    private var radiusSpecs: [TokenSpec] {
+        [
+            .spec("panel", "40pt", "large panels, settings pages, detail views") {
+                tokenRadiusSwatch(DesignTokens.Radius.panel)
+            },
+            .spec("card", "32pt", "cards, menus, mid-level containers") {
+                tokenRadiusSwatch(DesignTokens.Radius.card)
+            },
+            .spec("element", "24pt", "menu items, toolbar, inner containers") {
+                tokenRadiusSwatch(DesignTokens.Radius.element)
+            },
+            .spec("small", "12pt", "tags, thumbnails, small rounded backgrounds") {
+                tokenRadiusSwatch(DesignTokens.Radius.small)
+            },
+            .spec("full", "full", "circles and capsules") {
+                tokenRadiusSwatch(.greatestFiniteMagnitude)
+            },
+            .scalar("concentric", "function", "inner radius = outer radius − padding"),
+        ]
+    }
 
-    private let shapeRows = [
-        TokenRow(name: "DesignTokens.ShapeToken.panel", value: "radius 40", note: "large panel shape"),
-        TokenRow(name: "DesignTokens.ShapeToken.card", value: "radius 32", note: "card and menu container shape"),
-        TokenRow(name: "DesignTokens.ShapeToken.element", value: "radius 24", note: "menu item and toolbar shape"),
-    ]
+    private var shapeSpecs: [TokenSpec] {
+        [
+            .spec("panel", "radius 40", "large panel shape") {
+                tokenShapeSwatch(DesignTokens.ShapeToken.panel)
+            },
+            .spec("card", "radius 32", "card and menu container shape") {
+                tokenShapeSwatch(DesignTokens.ShapeToken.card)
+            },
+            .spec("element", "radius 24", "menu item and toolbar shape") {
+                tokenShapeSwatch(DesignTokens.ShapeToken.element)
+            },
+        ]
+    }
+
+    private var concentricSpecs: [TokenSpec] {
+        [
+            .spec("panel → card", "40 − 8 = 32", "panel containing a card") {
+                concentricSwatch(outer: DesignTokens.Radius.panel, inner: DesignTokens.Radius.card)
+            },
+            .spec("card → element", "32 − 8 = 24", "menu containing a row") {
+                concentricSwatch(outer: DesignTokens.Radius.card, inner: DesignTokens.Radius.element)
+            },
+        ]
+    }
 
     var body: some View {
         TokenPage(title: "Radius & Shapes") {
-            TokenSection(title: "Radius Tokens", rows: radiusRows) {
-                HStack(alignment: .bottom, spacing: DesignTokens.Spacing.xl) {
-                    radiusDemo("panel", DesignTokens.Radius.panel, width: 220, height: 130)
-                    radiusDemo("card", DesignTokens.Radius.card, width: 190, height: 112)
-                    radiusDemo("element", DesignTokens.Radius.element, width: 160, height: 88)
-                    radiusDemo("small", DesignTokens.Radius.small, width: 120, height: 64)
-                    capsuleDemo()
-                }
-            }
+            TokenSpecSection(
+                title: "Radius Tokens",
+                namespace: "DesignTokens.Radius.*",
+                specs: radiusSpecs
+            )
 
-            TokenSection(title: "Shape Tokens", rows: shapeRows) {
-                HStack(spacing: DesignTokens.Spacing.xl) {
-                    shapeDemo("panel", DesignTokens.ShapeToken.panel, width: 220, height: 130)
-                    shapeDemo("card", DesignTokens.ShapeToken.card, width: 190, height: 112)
-                    shapeDemo("element", DesignTokens.ShapeToken.element, width: 160, height: 88)
-                }
-            }
+            TokenSpecSection(
+                title: "Shape Tokens",
+                namespace: "DesignTokens.ShapeToken.*",
+                specs: shapeSpecs
+            )
 
-            TokenSection(title: "Concentric Examples", rows: [
-                TokenRow(name: "panel -> card", value: "40 - 8 = 32", note: "panel containing a card"),
-                TokenRow(name: "card -> element", value: "32 - 8 = 24", note: "menu containing a row"),
-            ]) {
-                HStack(spacing: DesignTokens.Spacing.xl) {
-                    concentricDemo(title: "panel -> card", outer: DesignTokens.Radius.panel, inner: DesignTokens.Radius.card)
-                    concentricDemo(title: "card -> element", outer: DesignTokens.Radius.card, inner: DesignTokens.Radius.element)
-                }
-            }
+            TokenSpecSection(
+                title: "Concentric Examples",
+                namespace: "outer − padding → inner",
+                specs: concentricSpecs
+            )
         }
     }
 
-    private func radiusDemo(_ title: String, _ radius: CGFloat, width: CGFloat, height: CGFloat) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            RoundedRectangle(cornerRadius: radius, style: .continuous)
-                .fill(DesignTokens.Surface.elevated)
-                .frame(width: width, height: height)
-            Text("\(title) \(valueString(radius))")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func capsuleDemo() -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            Capsule()
-                .fill(DesignTokens.Surface.elevated)
-                .frame(width: 132, height: DesignTokens.Interactive.regular)
-            Text("full / Capsule")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func shapeDemo(_ title: String, _ shape: some Shape, width: CGFloat, height: CGFloat) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            shape
-                .fill(DesignTokens.Surface.elevated)
-                .frame(width: width, height: height)
-                .overlay {
-                    shape.stroke(DesignTokens.Surface.border, lineWidth: DesignTokens.Stroke.regular)
-                }
-            Text(title)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func concentricDemo(title: String, outer: CGFloat, inner: CGFloat) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            ZStack {
-                RoundedRectangle(cornerRadius: outer, style: .continuous)
-                    .fill(DesignTokens.Surface.card)
-                    .frame(width: 220, height: 140)
-                RoundedRectangle(cornerRadius: inner, style: .continuous)
-                    .fill(DesignTokens.Surface.overlay)
-                    .frame(width: 204, height: 124)
-            }
-            Text(title)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
+    @ViewBuilder
+    private func concentricSwatch(outer: CGFloat, inner: CGFloat) -> some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: outer, style: .continuous)
+                .fill(DesignTokens.Surface.card)
+                .frame(width: 60, height: 56)
+            RoundedRectangle(cornerRadius: inner, style: .continuous)
+                .fill(DesignTokens.Surface.overlay)
+                .frame(width: 44, height: 40)
         }
     }
 }
@@ -1082,133 +1262,113 @@ struct RadiusShapesPreview: View {
 // MARK: - Interaction & layout
 
 struct InteractionLayoutPreview: View {
-    private let interactiveRows = [
-        TokenRow(name: "DesignTokens.Interactive.mini", value: "28pt", note: "disclosure, auxiliary controls"),
-        TokenRow(name: "DesignTokens.Interactive.compact", value: "36pt", note: "compact scrubbers and dense icon controls"),
-        TokenRow(name: "DesignTokens.Interactive.regular", value: "44pt", note: "standard buttons"),
-        TokenRow(name: "DesignTokens.Interactive.large", value: "60pt", note: "navigation buttons, self-sufficient target"),
-        TokenRow(name: "DesignTokens.Interactive.xl", value: "64pt", note: "primary action"),
-        TokenRow(name: "DesignTokens.Interactive.rowHeight", value: "60pt", note: "menu/list row minimum height"),
-        TokenRow(name: "DesignTokens.Interactive.buttonSpacing", value: "16pt", note: "minimum spacing between stacked buttons"),
-    ]
+    private var interactiveSpecs: [TokenSpec] {
+        [
+            .spec("mini", "28pt", "disclosure, auxiliary controls") {
+                tokenSizeSwatch(DesignTokens.Interactive.mini)
+            },
+            .spec("compact", "36pt", "compact scrubbers and dense icon controls") {
+                tokenSizeSwatch(DesignTokens.Interactive.compact)
+            },
+            .spec("regular", "44pt", "standard buttons") {
+                tokenSizeSwatch(DesignTokens.Interactive.regular)
+            },
+            .spec("large", "60pt", "navigation buttons, self-sufficient target") {
+                tokenSizeSwatch(DesignTokens.Interactive.large)
+            },
+            .spec("xl", "64pt", "primary action") {
+                tokenSizeSwatch(DesignTokens.Interactive.xl)
+            },
+            .spec("rowHeight", "60pt", "menu/list row minimum height") {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.18))
+                    .frame(width: 52, height: 56)
+            },
+            .spec("buttonSpacing", "16pt", "minimum spacing between stacked buttons") {
+                HStack(spacing: DesignTokens.Interactive.buttonSpacing) {
+                    Circle().fill(Color.accentColor.opacity(0.25)).frame(width: 14, height: 14)
+                    Circle().fill(Color.accentColor.opacity(0.25)).frame(width: 14, height: 14)
+                }
+            },
+        ]
+    }
 
-    private let layoutRows = [
-        TokenRow(name: "DesignTokens.Layout.playerControlsWidth", value: "680pt", note: "PlayerControlsView and NLETimelineView panel width"),
-        TokenRow(name: "DesignTokens.Layout.ornamentGap", value: "20pt", note: "ornament overlap with window bottom edge"),
-    ]
+    private var layoutSpecs: [TokenSpec] {
+        [
+            .spec("playerControlsWidth", "680pt", "PlayerControlsView and NLETimelineView panel width") {
+                tokenBarSwatch(DesignTokens.Layout.playerControlsWidth, max: 680)
+            },
+            .spec("ornamentGap", "20pt", "ornament overlap with window bottom edge") {
+                tokenBarSwatch(DesignTokens.Layout.ornamentGap, max: 680)
+            },
+        ]
+    }
 
-    private let progressBarRows = [
-        TokenRow(name: "DesignTokens.ProgressBar.thumbDiameter", value: "24pt", note: "standard draggable scrubber button"),
-        TokenRow(name: "DesignTokens.ProgressBar.trackHeight", value: "24pt", note: "active drag track height"),
-        TokenRow(name: "DesignTokens.ProgressBar.inactiveScale", value: "0.66", note: "unfocused and hover track height scale"),
-        TokenRow(name: "DesignTokens.ProgressBar.inactiveTrackHeight", value: "15.8pt", note: "track height before active drag"),
-        TokenRow(name: "DesignTokens.ProgressBar.hitHeight", value: "60pt", note: "hover and drag target height"),
-        TokenRow(name: "DesignTokens.ProgressBar.previewWidth", value: "680pt", note: "Design Preview player progress width"),
-        TokenRow(name: "DesignTokens.ProgressBar.timeBubbleOffset", value: "24pt", note: "time readout above scrubber"),
-        TokenRow(name: "DesignTokens.ProgressBar.playedColor", value: "white 0.72", note: "played portion in normal state"),
-        TokenRow(name: "DesignTokens.ProgressBar.unplayedColor", value: "white 0.16", note: "unplayed portion in normal state"),
-    ]
+    private var progressBarSpecs: [TokenSpec] {
+        [
+            .spec("thumbDiameter", "24pt", "standard draggable scrubber button") {
+                Circle()
+                    .fill(.white)
+                    .overlay {
+                        Circle().strokeBorder(DesignTokens.Theme.accent, lineWidth: DesignTokens.Stroke.bold)
+                    }
+                    .frame(width: DesignTokens.ProgressBar.thumbDiameter, height: DesignTokens.ProgressBar.thumbDiameter)
+            },
+            .spec("trackHeight", "24pt", "active drag track height") {
+                Capsule()
+                    .fill(DesignTokens.Theme.accent)
+                    .frame(width: 48, height: DesignTokens.ProgressBar.trackHeight)
+            },
+            .scalar("inactiveScale", "0.66", "unfocused and hover track height scale"),
+            .spec("inactiveTrackHeight", "15.8pt", "track height before active drag") {
+                Capsule()
+                    .fill(DesignTokens.Theme.accent)
+                    .frame(width: 48, height: DesignTokens.ProgressBar.inactiveTrackHeight)
+            },
+            .spec("hitHeight", "60pt", "hover and drag target height") {
+                RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.18))
+                    .frame(width: 28, height: 56)
+            },
+            .spec("previewWidth", "680pt", "Design Preview player progress width") {
+                tokenBarSwatch(DesignTokens.ProgressBar.previewWidth, max: 680)
+            },
+            .scalar("timeBubbleOffset", "24pt", "time readout above scrubber"),
+            .spec("playedColor", "white 0.72", "played portion in normal state") {
+                tokenColorSwatch(.white.opacity(0.72))
+            },
+            .spec("unplayedColor", "white 0.16", "unplayed portion in normal state") {
+                tokenColorSwatch(.white.opacity(0.16))
+            },
+        ]
+    }
 
     var body: some View {
         TokenPage(title: "Interaction & Layout") {
-            TokenSection(title: "Interactive Sizes", rows: interactiveRows) {
-                HStack(alignment: .bottom, spacing: DesignTokens.Spacing.xl) {
-                    interactiveItem("mini", DesignTokens.Interactive.mini)
-                    interactiveItem("compact", DesignTokens.Interactive.compact)
-                    interactiveItem("regular", DesignTokens.Interactive.regular)
-                    interactiveItem("large", DesignTokens.Interactive.large)
-                    interactiveItem("xl", DesignTokens.Interactive.xl)
-                    rowHeightDemo()
-                    spacingDemo()
-                }
-            }
+            TokenSpecSection(
+                title: "Interactive Sizes",
+                namespace: "DesignTokens.Interactive.*",
+                specs: interactiveSpecs
+            )
 
-            TokenSection(title: "Layout Dimensions", rows: layoutRows) {
+            TokenSpecSection(
+                title: "Layout Dimensions",
+                namespace: "DesignTokens.Layout.*",
+                specs: layoutSpecs
+            ) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                     dimensionBar("playerControlsWidth", DesignTokens.Layout.playerControlsWidth, maxWidth: 680)
                     dimensionBar("ornamentGap", DesignTokens.Layout.ornamentGap, maxWidth: 220)
                 }
             }
 
-            TokenSection(title: "Progress Bar", rows: progressBarRows) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                    PlayerControlDeck()
-                    HStack(alignment: .bottom, spacing: DesignTokens.Spacing.xl) {
-                        progressBarDimension("thumb", DesignTokens.ProgressBar.thumbDiameter)
-                        progressBarDimension("track", DesignTokens.ProgressBar.trackHeight)
-                        dimensionBar("hitHeight", DesignTokens.ProgressBar.hitHeight, maxWidth: 220)
-                    }
-                }
+            TokenSpecSection(
+                title: "Progress Bar",
+                namespace: "DesignTokens.ProgressBar.*",
+                specs: progressBarSpecs
+            ) {
+                PlayerControlDeck()
             }
-        }
-    }
-
-    private func interactiveItem(_ name: String, _ size: CGFloat) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            ZStack {
-                Circle()
-                    .stroke(style: StrokeStyle(lineWidth: DesignTokens.Stroke.regular, dash: [4, 3]))
-                    .foregroundStyle(.tertiary)
-                    .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)
-                Circle()
-                    .fill(Color.accentColor.opacity(0.2))
-                    .frame(width: size, height: size)
-            }
-            Text("\(name) \(Int(size))")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func rowHeightDemo() -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            HStack {
-                Image(systemName: "film")
-                Text("rowHeight")
-                Spacer()
-                Text("60")
-            }
-            .font(DesignTokens.Typography.metadata)
-            .padding(.horizontal, DesignTokens.Spacing.md)
-            .frame(width: 180, height: DesignTokens.Interactive.rowHeight)
-            .enchronGlassMenuItem()
-            Text("rowHeight")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func spacingDemo() -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            HStack(spacing: DesignTokens.Interactive.buttonSpacing) {
-                Circle().fill(Color.accentColor.opacity(0.25)).frame(width: 44, height: 44)
-                Circle().fill(Color.accentColor.opacity(0.25)).frame(width: 44, height: 44)
-            }
-            .frame(height: DesignTokens.Interactive.large)
-            Text("buttonSpacing")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func progressBarDimension(_ title: String, _ size: CGFloat) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            if title == "thumb" {
-                Circle()
-                    .fill(.white)
-                    .overlay {
-                        Circle()
-                            .strokeBorder(DesignTokens.Theme.accent, lineWidth: DesignTokens.Stroke.bold)
-                    }
-                    .frame(width: size, height: size)
-            } else {
-                Capsule()
-                    .fill(DesignTokens.Theme.accent)
-                    .frame(width: DesignTokens.ProgressBar.thumbDiameter * 2, height: size)
-            }
-            Text("\(title) \(Int(size))")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -1227,138 +1387,134 @@ struct InteractionLayoutPreview: View {
 // MARK: - Typography & symbols
 
 struct TypographySymbolsPreview: View {
-    private let typographyRows = [
-        TokenRow(name: "DesignTokens.Typography.title", value: ".title2", note: "video titles, page headings"),
-        TokenRow(name: "DesignTokens.Typography.headline", value: ".headline", note: "card titles, section labels"),
-        TokenRow(name: "DesignTokens.Typography.metadata", value: ".caption", note: "resolution, file size, date metadata"),
-        TokenRow(name: "DesignTokens.Typography.sectionHeader", value: ".caption2", note: "section headers"),
-        TokenRow(name: "DesignTokens.Typography.badge", value: ".caption", note: "badge labels"),
-        TokenRow(name: "DesignTokens.Typography.monospacedDetail", value: "9pt medium mono", note: "timecode and ruler text"),
-    ]
+    private var typographySpecs: [TokenSpec] {
+        [
+            .spec("title", ".title2", "video titles, page headings") {
+                tokenTypographySwatch(DesignTokens.Typography.title)
+            },
+            .spec("headline", ".headline", "card titles, section labels") {
+                tokenTypographySwatch(DesignTokens.Typography.headline)
+            },
+            .spec("metadata", ".caption", "resolution, file size, date metadata") {
+                tokenTypographySwatch(DesignTokens.Typography.metadata)
+            },
+            .spec("sectionHeader", ".caption2", "section headers") {
+                tokenTypographySwatch(DesignTokens.Typography.sectionHeader)
+            },
+            .spec("badge", ".caption", "badge labels") {
+                Text("HDR")
+                    .font(DesignTokens.Typography.badge)
+                    .padding(.horizontal, DesignTokens.Spacing.xs)
+                    .padding(.vertical, DesignTokens.Spacing.xxs)
+                    .enchronGlassBadge()
+            },
+            .spec("monospacedDetail", "9pt medium mono", "timecode and ruler text") {
+                Text("12:34")
+                    .font(DesignTokens.Typography.monospacedDetail)
+                    .foregroundStyle(.secondary)
+            },
+        ]
+    }
 
-    private let symbolRows = [
-        TokenRow(name: "DesignTokens.SymbolSize.control", value: "24pt semibold", note: "skip and seek buttons"),
-        TokenRow(name: "DesignTokens.SymbolSize.card", value: "36pt", note: "card and folder icons"),
-        TokenRow(name: "DesignTokens.SymbolSize.action", value: "36pt medium", note: "play/pause primary action"),
-        TokenRow(name: "DesignTokens.SymbolSize.feature", value: "44pt", note: "scene selector and large UI icons"),
-        TokenRow(name: "DesignTokens.SymbolSize.hero", value: "48pt", note: "hero detail view icons"),
-        TokenRow(name: "DesignTokens.SymbolSize.giant", value: "60pt", note: "empty state placeholder icons"),
-    ]
+    private var symbolSpecs: [TokenSpec] {
+        [
+            .spec("control", "24pt semibold", "skip and seek buttons") {
+                symbolGlyph(DesignTokens.SymbolSize.control)
+            },
+            .spec("card", "36pt", "card and folder icons") {
+                symbolGlyph(DesignTokens.SymbolSize.card)
+            },
+            .spec("action", "36pt medium", "play/pause primary action") {
+                symbolGlyph(DesignTokens.SymbolSize.action)
+            },
+            .spec("feature", "44pt", "scene selector and large UI icons") {
+                symbolGlyph(DesignTokens.SymbolSize.feature)
+            },
+            .spec("hero", "48pt", "hero detail view icons") {
+                symbolGlyph(DesignTokens.SymbolSize.hero)
+            },
+            .spec("giant", "60pt", "empty state placeholder icons") {
+                symbolGlyph(DesignTokens.SymbolSize.giant)
+            },
+        ]
+    }
 
     var body: some View {
         TokenPage(title: "Typography & Symbols") {
-            TokenSection(title: "Typography", rows: typographyRows) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                    Text("Title")
-                        .font(DesignTokens.Typography.title)
-                    Text("Headline")
-                        .font(DesignTokens.Typography.headline)
-                    Text("Metadata")
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(.secondary)
-                    Text("SECTION HEADER")
-                        .font(DesignTokens.Typography.sectionHeader)
-                        .foregroundStyle(.secondary)
-                        .textCase(.uppercase)
-                    Text("HDR10+")
-                        .font(DesignTokens.Typography.badge)
-                        .padding(.horizontal, DesignTokens.Spacing.xs)
-                        .padding(.vertical, DesignTokens.Spacing.xxs)
-                        .enchronGlassBadge()
-                    Text("00:12:34.56")
-                        .font(DesignTokens.Typography.monospacedDetail)
-                        .foregroundStyle(.secondary)
-                }
-            }
+            TokenSpecSection(
+                title: "Typography",
+                namespace: "DesignTokens.Typography.*",
+                specs: typographySpecs
+            )
 
-            TokenSection(title: "Symbol Sizes", rows: symbolRows) {
-                HStack(alignment: .bottom, spacing: DesignTokens.Spacing.xl) {
-                    symbolItem("control", DesignTokens.SymbolSize.control)
-                    symbolItem("card", DesignTokens.SymbolSize.card)
-                    symbolItem("action", DesignTokens.SymbolSize.action)
-                    symbolItem("feature", DesignTokens.SymbolSize.feature)
-                    symbolItem("hero", DesignTokens.SymbolSize.hero)
-                    symbolItem("giant", DesignTokens.SymbolSize.giant)
-                }
-            }
+            TokenSpecSection(
+                title: "Symbol Sizes",
+                namespace: "DesignTokens.SymbolSize.*",
+                specs: symbolSpecs
+            )
         }
     }
 
-    private func symbolItem(_ name: String, _ font: Font) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            Image(systemName: "play.fill")
-                .font(font)
-            Text(name)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
+    private func symbolGlyph(_ font: Font) -> some View {
+        Image(systemName: "play.fill")
+            .font(font)
+            .foregroundStyle(.secondary)
     }
 }
 
 // MARK: - Surface & stroke
 
 struct SurfaceStrokePreview: View {
-    private let surfaceRows = [
-        TokenRow(name: "DesignTokens.Surface.card", value: "white 0.03", note: "card background"),
-        TokenRow(name: "DesignTokens.Surface.elevated", value: "white 0.04", note: "elevated panel background"),
-        TokenRow(name: "DesignTokens.Surface.overlay", value: "white 0.06", note: "overlay / brighter surface"),
-        TokenRow(name: "DesignTokens.Surface.selected", value: "white 0.08", note: "selected state background"),
-        TokenRow(name: "DesignTokens.Surface.border", value: "white 0.05", note: "subtle border"),
-        TokenRow(name: "DesignTokens.Surface.focusBorder", value: "theme accent", note: "focused input/control border"),
-    ]
+    private var surfaceSpecs: [TokenSpec] {
+        [
+            .spec("card", "white 0.03", "card background") {
+                tokenColorSwatch(DesignTokens.Surface.card)
+            },
+            .spec("elevated", "white 0.04", "elevated panel background") {
+                tokenColorSwatch(DesignTokens.Surface.elevated)
+            },
+            .spec("overlay", "white 0.06", "overlay / brighter surface") {
+                tokenColorSwatch(DesignTokens.Surface.overlay)
+            },
+            .spec("selected", "white 0.08", "selected state background") {
+                tokenColorSwatch(DesignTokens.Surface.selected)
+            },
+            .spec("border", "white 0.05", "subtle border") {
+                tokenColorSwatch(DesignTokens.Surface.border)
+            },
+            .spec("focusBorder", "theme accent", "focused input/control border") {
+                tokenColorSwatch(DesignTokens.Surface.focusBorder)
+            },
+        ]
+    }
 
-    private let strokeRows = [
-        TokenRow(name: "DesignTokens.Stroke.subtle", value: "0.5pt", note: "card borders, unselected state"),
-        TokenRow(name: "DesignTokens.Stroke.regular", value: "1.0pt", note: "timeline major ticks"),
-        TokenRow(name: "DesignTokens.Stroke.bold", value: "1.5pt", note: "playhead, selected state borders"),
-    ]
+    private var strokeSpecs: [TokenSpec] {
+        [
+            .spec("subtle", "0.5pt", "card borders, unselected state") {
+                tokenStrokeSwatch(DesignTokens.Stroke.subtle)
+            },
+            .spec("regular", "1.0pt", "timeline major ticks") {
+                tokenStrokeSwatch(DesignTokens.Stroke.regular)
+            },
+            .spec("bold", "1.5pt", "playhead, selected state borders") {
+                tokenStrokeSwatch(DesignTokens.Stroke.bold)
+            },
+        ]
+    }
 
     var body: some View {
         TokenPage(title: "Surface & Stroke") {
-            TokenSection(title: "Surface Tiers", rows: surfaceRows) {
-                HStack(spacing: DesignTokens.Spacing.md) {
-                    surfaceItem("card", DesignTokens.Surface.card)
-                    surfaceItem("elevated", DesignTokens.Surface.elevated)
-                    surfaceItem("overlay", DesignTokens.Surface.overlay)
-                    surfaceItem("selected", DesignTokens.Surface.selected)
-                    surfaceItem("border", DesignTokens.Surface.border)
-                    surfaceItem("focusBorder", DesignTokens.Surface.focusBorder)
-                }
-            }
+            TokenSpecSection(
+                title: "Surface Tiers",
+                namespace: "DesignTokens.Surface.*",
+                specs: surfaceSpecs
+            )
 
-            TokenSection(title: "Stroke Widths", rows: strokeRows) {
-                HStack(spacing: DesignTokens.Spacing.xl) {
-                    strokeItem("subtle", DesignTokens.Stroke.subtle)
-                    strokeItem("regular", DesignTokens.Stroke.regular)
-                    strokeItem("bold", DesignTokens.Stroke.bold)
-                }
-            }
-        }
-    }
-
-    private func surfaceItem(_ title: String, _ color: Color) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
-                .fill(color)
-                .frame(width: 92, height: 92)
-                .overlay {
-                    RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
-                        .strokeBorder(DesignTokens.Surface.border, lineWidth: DesignTokens.Stroke.regular)
-                }
-            Text(title)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func strokeItem(_ title: String, _ width: CGFloat) -> some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(0.75), lineWidth: width)
-                .frame(width: 120, height: 72)
-            Text("\(title) \(String(format: "%.1f", width))")
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
+            TokenSpecSection(
+                title: "Stroke Widths",
+                namespace: "DesignTokens.Stroke.*",
+                specs: strokeSpecs
+            )
         }
     }
 }
@@ -1366,130 +1522,95 @@ struct SurfaceStrokePreview: View {
 // MARK: - Animation
 
 struct AnimationTokensPreview: View {
-    @State private var activeToken: String?
-    @State private var skeletonPulse = false
+    private var animationSpecs: [TokenSpec] {
+        [
+            .spec("controlsTransition", "easeInOut 0.4s", "controls show/hide") {
+                AnimationSampleSwatch(name: "controlsTransition", animation: DesignTokens.AnimationToken.controlsTransition)
+            },
+            .spec("panelSpring", "spring 0.35 b0.15", "panel expand/collapse") {
+                AnimationSampleSwatch(name: "panelSpring", animation: DesignTokens.AnimationToken.panelSpring)
+            },
+            .spec("menuPopup", "spring 0.35 b0.15", "menu/popover popup") {
+                AnimationSampleSwatch(name: "menuPopup", animation: DesignTokens.AnimationToken.menuPopup)
+            },
+            .spec("selection", "bouncy 0.4 +0.1", "selection state change") {
+                AnimationSampleSwatch(name: "selection", animation: DesignTokens.AnimationToken.selection)
+            },
+            .spec("playback", "spring r0.45 d0.85", "play/pause state") {
+                AnimationSampleSwatch(name: "playback", animation: DesignTokens.AnimationToken.playback)
+            },
+            .spec("scene", "spring r0.3 d0.7", "cinema environment switch") {
+                AnimationSampleSwatch(name: "scene", animation: DesignTokens.AnimationToken.scene)
+            },
+            .spec("fadeIn", "easeIn 0.25s", "content fade-in") {
+                AnimationSampleSwatch(name: "fadeIn", animation: DesignTokens.AnimationToken.fadeIn)
+            },
+            .spec("skeleton", "easeInOut 1s repeat", "skeleton loading pulse") {
+                AnimationSampleSwatch(name: "skeleton", animation: DesignTokens.AnimationToken.skeleton)
+            },
+        ]
+    }
 
-    private let rows = [
-        TokenRow(name: "DesignTokens.AnimationToken.controlsTransition", value: "easeInOut 0.4s", note: "controls show/hide"),
-        TokenRow(name: "DesignTokens.AnimationToken.panelSpring", value: "spring 0.35 b0.15", note: "panel expand/collapse"),
-        TokenRow(name: "DesignTokens.AnimationToken.menuPopup", value: "spring 0.35 b0.15", note: "menu/popover popup"),
-        TokenRow(name: "DesignTokens.AnimationToken.selection", value: "bouncy 0.4 +0.1", note: "selection state change"),
-        TokenRow(name: "DesignTokens.AnimationToken.playback", value: "spring r0.45 d0.85", note: "play/pause state"),
-        TokenRow(name: "DesignTokens.AnimationToken.scene", value: "spring r0.3 d0.7", note: "cinema environment switch"),
-        TokenRow(name: "DesignTokens.AnimationToken.fadeIn", value: "easeIn 0.25s", note: "content fade-in"),
-        TokenRow(name: "DesignTokens.AnimationToken.skeleton", value: "easeInOut 1s repeat", note: "skeleton loading pulse"),
-        TokenRow(name: "DesignTokens.LoadingSpinner.headAnimation", value: "easeOut 0.7s", note: "spinner head extension"),
-        TokenRow(name: "DesignTokens.LoadingSpinner.tailAnimation", value: "easeOut 0.55s", note: "spinner tail catch-up"),
-        TokenRow(name: "DesignTokens.LoadingSpinner.headDuration", value: "700ms", note: "spinner head phase duration"),
-        TokenRow(name: "DesignTokens.LoadingSpinner.tailDuration", value: "550ms", note: "spinner tail phase duration"),
-    ]
+    private var spinnerSpecs: [TokenSpec] {
+        [
+            .scalar("headAnimation", "easeOut 0.7s", "spinner head extension"),
+            .scalar("tailAnimation", "easeOut 0.55s", "spinner tail catch-up"),
+            .scalar("headDuration", "700ms", "spinner head phase duration"),
+            .scalar("tailDuration", "550ms", "spinner tail phase duration"),
+        ]
+    }
 
     var body: some View {
         TokenPage(title: "Animation") {
-            TokenSection(title: "Animation Tokens", rows: rows) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                    animationRow("controlsTransition", DesignTokens.AnimationToken.controlsTransition)
-                    animationRow("panelSpring", DesignTokens.AnimationToken.panelSpring)
-                    animationRow("menuPopup", DesignTokens.AnimationToken.menuPopup)
-                    animationRow("selection", DesignTokens.AnimationToken.selection)
-                    animationRow("playback", DesignTokens.AnimationToken.playback)
-                    animationRow("scene", DesignTokens.AnimationToken.scene)
-                    animationRow("fadeIn", DesignTokens.AnimationToken.fadeIn)
-                    skeletonRow()
-                }
+            TokenSpecSection(
+                title: "Animation Tokens",
+                namespace: "DesignTokens.AnimationToken.*  ·  tap to replay",
+                specs: animationSpecs
+            )
+
+            TokenSpecSection(
+                title: "Loading Spinner",
+                namespace: "DesignTokens.LoadingSpinner.*",
+                specs: spinnerSpecs
+            ) {
+                LoadingSpinner()
             }
         }
-    }
-
-    private func animationRow(_ name: String, _ animation: Animation) -> some View {
-        let isActive = activeToken == name
-        return Button {
-            withAnimation(animation) {
-                activeToken = isActive ? nil : name
-            }
-        } label: {
-            HStack(spacing: DesignTokens.Spacing.md) {
-                Text(name)
-                    .font(.system(.body, design: .monospaced))
-                    .frame(width: 190, alignment: .leading)
-                RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
-                    .fill(isActive ? Color.accentColor.opacity(0.65) : DesignTokens.Surface.elevated)
-                    .frame(width: isActive ? 220 : 64, height: 36)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, DesignTokens.Spacing.md)
-            .frame(height: DesignTokens.Interactive.rowHeight)
-            .enchronGlassMenuItem()
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("DesignPreview-Tokens-animation-\(name)")
-        .accessibilityLabel("Preview \(name) animation")
-    }
-
-    private func skeletonRow() -> some View {
-        Button {
-            skeletonPulse.toggle()
-        } label: {
-            HStack(spacing: DesignTokens.Spacing.md) {
-                Text("skeleton")
-                    .font(.system(.body, design: .monospaced))
-                    .frame(width: 190, alignment: .leading)
-                HStack(spacing: DesignTokens.Spacing.xs) {
-                    skeletonBlock(width: 160, opacity: skeletonPulse ? 0.22 : 0.55)
-                    skeletonBlock(width: 72, opacity: skeletonPulse ? 0.55 : 0.22)
-                }
-                .animation(DesignTokens.AnimationToken.skeleton, value: skeletonPulse)
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, DesignTokens.Spacing.md)
-            .frame(height: DesignTokens.Interactive.rowHeight)
-            .enchronGlassMenuItem()
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("DesignPreview-Tokens-animation-skeleton")
-        .accessibilityLabel("Preview skeleton animation")
-    }
-
-    private func skeletonBlock(width: CGFloat, opacity: Double) -> some View {
-        RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
-            .fill(Color.accentColor.opacity(opacity))
-            .frame(width: width, height: 24)
     }
 }
 
 // MARK: - Press feedback
 
 struct PressFeedbackPreview: View {
-    private let rows = [
-        TokenRow(name: "DesignTokens.PressFeedback.card", value: "scale 0.97", note: "cards and broad spatial surfaces"),
-        TokenRow(name: "DesignTokens.PressFeedback.row", value: "scale 0.985", note: "menu rows and list items"),
-        TokenRow(name: "DesignTokens.PressFeedback.control", value: "scale 0.96", note: "control capsules and grouped controls"),
-        TokenRow(name: "DesignTokens.PressFeedback.icon", value: "scale 0.90", note: "individual icon targets, stronger return spring"),
-    ]
+    private var specs: [TokenSpec] {
+        [
+            .spec("card", "scale 0.97", "cards and broad spatial surfaces") {
+                tokenScaleSwatch(DesignTokens.PressFeedback.card.pressedScale)
+            },
+            .spec("row", "scale 0.985", "menu rows and list items") {
+                tokenScaleSwatch(DesignTokens.PressFeedback.row.pressedScale)
+            },
+            .spec("control", "scale 0.96", "control capsules and grouped controls") {
+                tokenScaleSwatch(DesignTokens.PressFeedback.control.pressedScale)
+            },
+            .spec("icon", "scale 0.90", "individual icon targets, stronger return spring") {
+                tokenScaleSwatch(DesignTokens.PressFeedback.icon.pressedScale)
+            },
+        ]
+    }
 
     var body: some View {
         TokenPage(title: "Press Feedback") {
-            TokenSection(title: "Press Feedback Tokens", rows: rows) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                        Text("Tap each real component shape to compare the feedback.")
-                            .font(DesignTokens.Typography.metadata)
-                            .foregroundStyle(.secondary)
-
-                        HStack(alignment: .center, spacing: DesignTokens.Spacing.xl) {
-                            pressCardPreview
-                            pressRowPreview
-                            pressControlPreview
-                            pressIconPreview
-                        }
-                    }
-
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                        pressTokenRow(name: "DesignTokens.PressFeedback.card", spec: DesignTokens.PressFeedback.card, scenario: "Cards")
-                        pressTokenRow(name: "DesignTokens.PressFeedback.row", spec: DesignTokens.PressFeedback.row, scenario: "Rows")
-                        pressTokenRow(name: "DesignTokens.PressFeedback.control", spec: DesignTokens.PressFeedback.control, scenario: "Controls")
-                        pressTokenRow(name: "DesignTokens.PressFeedback.icon", spec: DesignTokens.PressFeedback.icon, scenario: "Icons")
-                    }
+            TokenSpecSection(
+                title: "Press Feedback Tokens",
+                namespace: "DesignTokens.PressFeedback.*  ·  tap a shape to feel it",
+                specs: specs
+            ) {
+                HStack(alignment: .center, spacing: DesignTokens.Spacing.xl) {
+                    pressCardPreview
+                    pressRowPreview
+                    pressControlPreview
+                    pressIconPreview
                 }
             }
         }
@@ -1591,45 +1712,6 @@ struct PressFeedbackPreview: View {
         }
     }
 
-    private func pressTokenRow(
-        name: String,
-        spec: DesignTokens.PressFeedbackSpec,
-        scenario: String
-    ) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: DesignTokens.Spacing.md) {
-            Text(name)
-                .font(.system(.caption, design: .monospaced))
-                .frame(width: 220, alignment: .leading)
-            Text(String(format: "%.3f", spec.pressedScale))
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 72, alignment: .leading)
-            Text("max \(valueString(spec.maximumVisualInset))")
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 84, alignment: .leading)
-            Text(spec.pressAnimationLabel)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 112, alignment: .leading)
-            Text(spec.releaseAnimationLabel)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 136, alignment: .leading)
-            Text(spec.holdDurationLabel)
-                .font(.system(.caption, design: .monospaced))
-                .foregroundStyle(.secondary)
-                .frame(width: 64, alignment: .leading)
-            Text(scenario)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.tertiary)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .frame(minHeight: 36)
-        .enchronGlassMenuItem()
-    }
-
     private func scaleText(_ spec: DesignTokens.PressFeedbackSpec) -> String {
         String(format: "%.3f", spec.pressedScale)
     }
@@ -1638,56 +1720,64 @@ struct PressFeedbackPreview: View {
 // MARK: - Component standards
 
 struct ComponentStandardsPreview: View {
-    private let cardRows = [
-        TokenRow(name: "DesignTokens.Card.paddingH", value: "16pt", note: "horizontal padding inside card text area"),
-        TokenRow(name: "DesignTokens.Card.paddingV", value: "14pt", note: "vertical padding inside card text area"),
-        TokenRow(name: "DesignTokens.Card.gridMin", value: "224pt", note: "adaptive grid minimum card width"),
-        TokenRow(name: "DesignTokens.Card.thumbnailHeight", value: "140pt", note: "thumbnail height for grid cards"),
-        TokenRow(name: "DesignTokens.Card.gridSpacing", value: "20pt", note: "grid inter-item spacing"),
-    ]
+    private var cardSpecs: [TokenSpec] {
+        [
+            .spec("paddingH", "16pt", "horizontal padding inside card text area") {
+                tokenBarSwatch(DesignTokens.Card.paddingH, max: 48)
+            },
+            .spec("paddingV", "14pt", "vertical padding inside card text area") {
+                tokenBarSwatch(DesignTokens.Card.paddingV, max: 48)
+            },
+            .spec("gridMin", "224pt", "adaptive grid minimum card width") {
+                tokenBarSwatch(DesignTokens.Card.gridMin, max: 224)
+            },
+            .spec("thumbnailHeight", "140pt", "thumbnail height for grid cards") {
+                tokenBarSwatch(DesignTokens.Card.thumbnailHeight, max: 224)
+            },
+            .spec("gridSpacing", "20pt", "grid inter-item spacing") {
+                tokenBarSwatch(DesignTokens.Card.gridSpacing, max: 224)
+            },
+        ]
+    }
 
-    private let menuRows = [
-        TokenRow(name: "DesignTokens.Menu.glassPadding", value: "8pt", note: "glass inset padding"),
-        TokenRow(name: "DesignTokens.Menu.panelWidth", value: "190pt", note: "main menu panel width"),
-        TokenRow(name: "DesignTokens.Menu.submenuWidth", value: "200pt", note: "submenu panel width"),
-    ]
-
-    private let controlRows = [
-        TokenRow(name: "DesignTokens.ControlBar.width", value: "680pt", note: "matches Layout.playerControlsWidth"),
-        TokenRow(name: "DesignTokens.ControlBar.buttonSpacing", value: "24pt", note: "spacing between playback controls"),
-        TokenRow(name: "DesignTokens.ControlBar.paddingH", value: "32pt", note: "horizontal padding inside control capsule"),
-        TokenRow(name: "DesignTokens.ControlBar.paddingV", value: "12pt", note: "vertical padding inside control capsule"),
-        TokenRow(name: "DesignTokens.ControlBar.primaryFill", value: "white 0.72", note: "primary play button fill"),
-        TokenRow(name: "DesignTokens.ControlBar.primarySymbol", value: "black 0.78", note: "primary play symbol color"),
-    ]
+    private var controlSpecs: [TokenSpec] {
+        [
+            .spec("width", "680pt", "matches Layout.playerControlsWidth") {
+                tokenBarSwatch(DesignTokens.ControlBar.width, max: 680)
+            },
+            .spec("buttonSpacing", "24pt", "spacing between playback controls") {
+                tokenBarSwatch(DesignTokens.ControlBar.buttonSpacing, max: 48)
+            },
+            .spec("paddingH", "32pt", "horizontal padding inside control capsule") {
+                tokenBarSwatch(DesignTokens.ControlBar.paddingH, max: 48)
+            },
+            .spec("paddingV", "12pt", "vertical padding inside control capsule") {
+                tokenBarSwatch(DesignTokens.ControlBar.paddingV, max: 48)
+            },
+            .spec("primaryFill", "white 0.72", "primary play button fill") {
+                tokenColorSwatch(.white.opacity(0.72))
+            },
+            .spec("primarySymbol", "black 0.78", "primary play symbol color") {
+                tokenColorSwatch(.black.opacity(0.78))
+            },
+        ]
+    }
 
     var body: some View {
         TokenPage(title: "Component Standards") {
-            TokenSection(title: "Card", rows: cardRows) {
+            TokenSpecSection(
+                title: "Card",
+                namespace: "DesignTokens.Card.*",
+                specs: cardSpecs
+            ) {
                 VideoCardLarge(title: "Interstellar", fileSize: "8.2 GB", duration: "2:49:00", badges: ["HDR10+"])
             }
 
-            TokenSection(title: "Menu", rows: menuRows) {
-                HStack(alignment: .top, spacing: DesignTokens.Spacing.xs) {
-                    VStack(spacing: DesignTokens.Spacing.xxs) {
-                        MenuItemRow(title: "Audio Track", isExpanded: true)
-                        MenuItemRow(title: "Subtitle", isExpanded: false)
-                    }
-                    .padding(DesignTokens.Menu.glassPadding)
-                    .frame(width: DesignTokens.Menu.panelWidth)
-                    .enchronGlassMenu()
-
-                    VStack(spacing: DesignTokens.Spacing.xxs) {
-                        SubMenuItemRow(title: "English 5.1", isChecked: true)
-                        SubMenuItemRow(title: "Japanese 2.0", isChecked: false)
-                    }
-                    .padding(DesignTokens.Menu.glassPadding)
-                    .frame(width: DesignTokens.Menu.submenuWidth)
-                    .enchronGlassMenu()
-                }
-            }
-
-            TokenSection(title: "Control Bar", rows: controlRows) {
+            TokenSpecSection(
+                title: "Control Bar",
+                namespace: "DesignTokens.ControlBar.*",
+                specs: controlSpecs
+            ) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                     dimensionBar("width", DesignTokens.ControlBar.width, maxWidth: 360)
                     PlayerControlDeck()

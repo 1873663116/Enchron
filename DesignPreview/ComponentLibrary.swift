@@ -23,9 +23,6 @@ struct ComponentLibraryView: View {
                 ToggleSection()
                 LoadingSection()
                 CardsSection()
-                RowsSection()
-                ContainersSection()
-                InteractiveMenuSection()
                 SmallElementsSection()
                 DestructiveConfirmationSection()
             }
@@ -257,13 +254,6 @@ private struct CardsSection: View {
         .init(title: "Gravity", fileSize: "18.9 GB", duration: "1:31:07", badges: [])
     ]
 
-    private let scenes: [SceneFixture] = [
-        .init(icon: "rectangle.on.rectangle", title: "Window", isSelected: true),
-        .init(icon: "sparkles.tv", title: "Cinema", isSelected: false),
-        .init(icon: "mountain.2", title: "Space", isSelected: false),
-        .init(icon: "moon.stars", title: "Night", isSelected: false)
-    ]
-
     private var componentCardWidth: CGFloat {
         DesignTokens.Card.gridMin - DesignTokens.Spacing.md
     }
@@ -289,13 +279,6 @@ private struct CardsSection: View {
                         badges: video.badges,
                         width: componentCardWidth
                     )
-                }
-            }
-
-            cardRow("SceneCardMedium") {
-                ForEach(scenes) { scene in
-                    SceneCardMedium(icon: scene.icon, title: scene.title, isSelected: scene.isSelected)
-                        .frame(width: componentCardWidth)
                 }
             }
         }
@@ -329,213 +312,11 @@ private struct CardsSection: View {
         let badges: [String]
         var id: String { title }
     }
-
-    private struct SceneFixture: Identifiable {
-        let icon: String
-        let title: String
-        let isSelected: Bool
-        var id: String { title }
-    }
-}
-
-// MARK: - Rows
-
-private struct RowsSection: View {
-    @State private var selectedAudioTrack = "English 5.1"
-    @State private var selectedCaptions = "Off"
-
-    private let audioTracks = ["English 5.1", "Japanese 2.0", "Commentary"]
-    private let captionTracks = ["Off", "English (CC)", "中文简体"]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text("ROWS / LIST ITEMS")
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(.secondary).textCase(.uppercase)
-
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                VStack(spacing: DesignTokens.Spacing.xxs) {
-                    FileListRow(icon: "folder", title: "Movies", metadata: "24 items")
-                    FileListRow(icon: "film", title: "Blade Runner 2049", metadata: "4K · 5.3 GB")
-                }
-                .frame(maxWidth: 600)
-
-                VStack(spacing: DesignTokens.Spacing.xxs) {
-                    NativeSelectionMenuRow(
-                        title: "Audio Track",
-                        selection: $selectedAudioTrack,
-                        options: audioTracks
-                    )
-                    NativeSelectionMenuRow(
-                        title: "Captions",
-                        selection: $selectedCaptions,
-                        options: captionTracks
-                    )
-                }
-                .frame(width: DesignTokens.Menu.panelWidth)
-            }
-
-            Text("element(24) + highlight hover · minHeight 60pt")
-                .font(.caption2).foregroundStyle(.tertiary)
-        }
-    }
-}
-
-private struct NativeSelectionMenuRow: View {
-    let title: String
-    @Binding var selection: String
-    let options: [String]
-
-    var body: some View {
-        Menu {
-            ForEach(options, id: \.self) { option in
-                Button {
-                    selection = option
-                } label: {
-                    Label(option, systemImage: option == selection ? "checkmark" : "")
-                }
-            }
-        } label: {
-            HStack(spacing: DesignTokens.Spacing.sm) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                    Text(title)
-                        .font(.body)
-                    Text(selection)
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(.tertiary)
-                }
-                Spacer(minLength: DesignTokens.Spacing.sm)
-                Image(systemName: "chevron.up.chevron.down")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-            }
-            .padding(.horizontal, DesignTokens.Spacing.md)
-            .frame(minHeight: DesignTokens.Interactive.rowHeight)
-            .enchronGlassMenuItem()
-        }
-        .buttonStyle(.plain)
-        .accessibilityIdentifier("DesignPreview-ComponentLibrary-menu-\(title)")
-        .accessibilityLabel(title)
-    }
-}
-
-// MARK: - Containers
-
-private struct ContainersSection: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text("CONTAINERS")
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(.secondary).textCase(.uppercase)
-
-            HStack(alignment: .top, spacing: DesignTokens.Spacing.xl) {
-                // Menu container
-                labeledComponent("MenuContainer\ncard(32) · 8pt padding → element(24)") {
-                    VStack(spacing: DesignTokens.Spacing.xxs) {
-                        MenuItemRow(title: "Option A", isExpanded: false)
-                        MenuItemRow(title: "Option B", isExpanded: false)
-                        MenuItemRow(title: "Option C", isExpanded: false)
-                    }
-                    .padding(DesignTokens.Menu.glassPadding)
-                    .frame(width: DesignTokens.Menu.panelWidth)
-                    .enchronGlassMenu()
-                }
-
-                // Source menu (with disconnect)
-                labeledComponent("SourceMenu\n(red destructive action)") {
-                    VStack(spacing: DesignTokens.Spacing.xxs) {
-                        MenuItemRow(title: "Connect New Source", isExpanded: false)
-                        HStack {
-                            Text("Disconnect").font(.body).foregroundStyle(.red)
-                            Spacer()
-                        }
-                        .padding(.horizontal, DesignTokens.Spacing.md)
-                        .frame(minHeight: DesignTokens.Interactive.rowHeight)
-                        .enchronGlassMenuItem()
-                    }
-                    .padding(DesignTokens.Menu.glassPadding)
-                    .frame(width: DesignTokens.Menu.panelWidth)
-                    .enchronGlassMenu()
-                }
-
-                // Large panel
-                labeledComponent("LargePanel\npanel(40) regularMaterial") {
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                        Text("Settings Panel").font(DesignTokens.Typography.headline)
-                        Text("Content with regularMaterial background.")
-                            .font(.body).foregroundStyle(.secondary)
-                    }
-                    .padding(DesignTokens.Spacing.lg)
-                    .frame(width: 280)
-                    .enchronGlassPanel()
-                }
-            }
-        }
-    }
-}
-
-// MARK: - Interactive Menu + Submenu
-
-private struct InteractiveMenuSection: View {
-    @State private var expandedItem: String?
-    private let menuItems = ["Audio Track", "Subtitle", "Speed"]
-    private let submenuData: [String: [String]] = [
-        "Audio Track": ["English 5.1", "Japanese 2.0", "Commentary"],
-        "Subtitle": ["English (CC)", "中文简体", "Off"],
-        "Speed": ["0.5×", "1.0×", "1.5×", "2.0×"],
-    ]
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            Text("MENU + SUBMENU")
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(.secondary).textCase(.uppercase)
-
-            HStack(alignment: .top, spacing: DesignTokens.Spacing.xs) {
-                VStack(spacing: DesignTokens.Spacing.xxs) {
-                    ForEach(menuItems, id: \.self) { item in
-                        Button {
-                            withAnimation(DesignTokens.AnimationToken.menuPopup) {
-                                expandedItem = expandedItem == item ? nil : item
-                            }
-                        } label: {
-                            MenuItemRow(title: item, isExpanded: expandedItem == item)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(DesignTokens.Menu.glassPadding)
-                .frame(width: DesignTokens.Menu.panelWidth)
-                .enchronGlassMenu()
-
-                if let selected = expandedItem, let options = submenuData[selected] {
-                    VStack(spacing: DesignTokens.Spacing.xxs) {
-                        ForEach(Array(options.enumerated()), id: \.offset) { idx, option in
-                            SubMenuItemRow(title: option, isChecked: idx == 0)
-                        }
-                    }
-                    .padding(DesignTokens.Menu.glassPadding)
-                    .frame(width: DesignTokens.Menu.submenuWidth)
-                    .enchronGlassMenu()
-                    .transition(.asymmetric(
-                        insertion: .move(edge: .leading).combined(with: .opacity),
-                        removal: .opacity
-                    ))
-                }
-            }
-
-            Text("点击条目展开子菜单 · menuPopup 动效 · glass material")
-                .font(.caption2).foregroundStyle(.tertiary)
-        }
-    }
 }
 
 // MARK: - Small elements
 
 private struct SmallElementsSection: View {
-    @State private var selectedFilter = "All"
-    private let filters = ["All", "Movies", "TV Shows", "Concerts"]
-
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("SMALL ELEMENTS")
@@ -549,14 +330,6 @@ private struct SmallElementsSection: View {
                         badgeItem("MV-HEVC")
                         badgeItem("Atmos")
                     }
-                }
-
-                labeledComponent("FilterPills · 点击切换") {
-                    FilterPillBar(filters: filters, selection: $selectedFilter)
-                }
-
-                labeledComponent("Breadcrumb") {
-                    MockBreadcrumb()
                 }
 
                 labeledComponent("PathBreadcrumbMenu") {

@@ -53,17 +53,6 @@ struct GlassCircleIconButton: View {
 }
 
 extension View {
-    func enchronTranslucentListContainer() -> some View {
-        background(.regularMaterial, in: DesignTokens.ShapeToken.card)
-            .clipShape(DesignTokens.ShapeToken.card)
-            .overlay {
-                DesignTokens.ShapeToken.card
-                    .stroke(DesignTokens.Surface.divider, lineWidth: DesignTokens.Stroke.subtle)
-            }
-    }
-}
-
-extension View {
     /// Presents a system confirmation alert for a destructive or sensitive action.
     ///
     /// Built on visionOS's native `.alert`, so the system owns presentation,
@@ -293,6 +282,103 @@ struct SettingListGroup: View {
     }
 }
 
+/// Shared row chrome for list groups (settings rows & file rows): concentric
+/// corner gaze highlight, cross-row separator fade, optional whole-row button.
+/// The row content is supplied by the caller; this shell owns only the
+/// hover / divider / hit-target chrome so every list group reads identically.
+///
+/// The content closure receives this row's `followsGroup` handle so a child
+/// (e.g. a file row's trailing metadata) can fade in sync with the same gaze
+/// the shell highlights on.
+struct ListGroupRowShell<Content: View>: View {
+    let index: Int
+    let count: Int
+    let cornerRadius: CGFloat
+    var hoverNamespace: Namespace.ID?
+    var showsHighlight: Bool = true
+    var isInteractive: Bool = true
+    var accessibilityLabel: String = ""
+    var accessibilityValue: String = ""
+    var action: () -> Void = {}
+    @ViewBuilder var content: (_ rowHoverGroup: HoverEffectGroup?) -> Content
+
+    private var isFirst: Bool { index == 0 }
+    private var isLast: Bool { index == count - 1 }
+    private var showsDivider: Bool { !isLast }
+
+    // Concentric corner rounding: round only the outer corners (matching the
+    // container clip) so the highlight aligns with the group edge and sits
+    // square against the separators on its inner edges.
+    private var highlightShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: isFirst ? cornerRadius : 0,
+            bottomLeadingRadius: isLast ? cornerRadius : 0,
+            bottomTrailingRadius: isLast ? cornerRadius : 0,
+            topTrailingRadius: isFirst ? cornerRadius : 0,
+            style: .continuous
+        )
+    }
+
+    /// The hover-effect group owned by the row at `rowIndex`. A row *activates*
+    /// its own group when gazed; a separator (or trailing metadata) *follows* it.
+    private func rowGroup(_ rowIndex: Int, _ behavior: HoverEffectGroup.Behavior) -> HoverEffectGroup? {
+        guard let hoverNamespace else { return nil }
+        return HoverEffectGroup(id: "listGroupRow\(rowIndex)", in: hoverNamespace, behavior: behavior)
+    }
+
+    @ViewBuilder
+    var body: some View {
+        if isInteractive {
+            Button(action: action) { surface }
+                .buttonStyle(.plain)
+                .accessibilityLabel(accessibilityLabel)
+                .accessibilityValue(accessibilityValue)
+        } else {
+            surface
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(accessibilityLabel)
+        }
+    }
+
+    @ViewBuilder
+    private var surface: some View {
+        let followGroup = rowGroup(index, .followsGroup)
+        if showsHighlight {
+            content(followGroup)
+                .contentShape(.hoverEffect, highlightShape)
+                .contentShape(.interaction, highlightShape)
+                .hoverEffect(.highlight)
+                .hoverEffect { effect, isActive, _ in
+                    effect.scaleEffect(isActive ? 1.006 : 1.0)
+                }
+                // No-op trigger: gazing this row activates its own group so the
+                // separators on both sides (which follow this group) fade in sync
+                // with the highlight — same system-composited phase, same timing.
+                .hoverEffect(in: rowGroup(index, .activatesGroup)) { effect, _, _ in effect }
+                .background(alignment: .bottom) { divider }
+        } else {
+            content(followGroup)
+                .background(alignment: .bottom) { divider }
+        }
+    }
+
+    @ViewBuilder
+    private var divider: some View {
+        if showsDivider {
+            SettingListGroupDivider()
+                .padding(.horizontal, DesignTokens.Spacing.lg)
+                // Follows both bordering rows: row `index` (above) and
+                // row `index + 1` (below). Either one's hover fades it.
+                .hoverEffect(in: rowGroup(index, .followsGroup)) { effect, isActive, _ in
+                    effect.opacity(isActive ? 0 : 1)
+                }
+                .hoverEffect(in: rowGroup(index + 1, .followsGroup)) { effect, isActive, _ in
+                    effect.opacity(isActive ? 0 : 1)
+                }
+        }
+    }
+}
+
 struct SettingListGroupRow: View {
     let title: String
     let systemName: String?
@@ -313,10 +399,7 @@ struct SettingListGroupRow: View {
     @State private var feedbackTitle: String?
     @State private var feedbackResetID = UUID()
 
-    private var isFirst: Bool { index == 0 }
-    private var isLast: Bool { index == count - 1 }
     private var isExpandable: Bool { detail != nil || keyValueDetail != nil }
-    private var showsDivider: Bool { !isLast }
     private var isEmbeddedOnly: Bool { embeddedControl != nil && isAccessoryEmpty }
     private var isAccessoryEmpty: Bool {
         if case .none = accessory {
@@ -332,69 +415,20 @@ struct SettingListGroupRow: View {
         return false
     }
 
-    // Concentric corner rounding: round only the outer corners (matching the
-    // container clip) so the highlight aligns with the group edge and sits
-    // square against the separators on its inner edges.
-    private var highlightShape: UnevenRoundedRectangle {
-        return UnevenRoundedRectangle(
-            topLeadingRadius: isFirst ? cornerRadius : 0,
-            bottomLeadingRadius: isLast ? cornerRadius : 0,
-            bottomTrailingRadius: isLast ? cornerRadius : 0,
-            topTrailingRadius: isFirst ? cornerRadius : 0,
-            style: .continuous
-        )
-    }
-
-    /// The hover-effect group owned by the row at `rowIndex`. A row *activates*
-    /// its own group when gazed; a separator *follows* the groups of the rows
-    /// above and below it, so it fades whenever either neighbour is highlighted.
-    private func rowGroup(_ rowIndex: Int, _ behavior: HoverEffectGroup.Behavior) -> HoverEffectGroup? {
-        guard let hoverNamespace else { return nil }
-        return HoverEffectGroup(id: "settingListRow\(rowIndex)", in: hoverNamespace, behavior: behavior)
-    }
-
     @ViewBuilder
     var body: some View {
-        // A real `Button` owns the tap — reliable on visionOS and carrying the
-        // system button trait — while `.buttonStyle(.plain)` leaves all visuals
-        // to the gaze hover stack below (a plain-button + custom hoverEffect
-        // split). The whole row is the hit target; the chevron is a pure indicator.
-        if usesWholeRowButton {
-            Button(action: handleTap) {
-                rowSurface
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(title)
-            .accessibilityValue(isExpandable ? (isExpanded ? "Expanded" : "Collapsed") : "")
-        } else {
-            rowSurface
-                .accessibilityElement(children: .contain)
-                .accessibilityLabel(title)
-        }
-    }
-
-    @ViewBuilder
-    private var rowSurface: some View {
-        if usesRowHover {
+        ListGroupRowShell(
+            index: index,
+            count: count,
+            cornerRadius: cornerRadius,
+            hoverNamespace: hoverNamespace,
+            showsHighlight: usesRowHover,
+            isInteractive: usesWholeRowButton,
+            accessibilityLabel: title,
+            accessibilityValue: isExpandable ? (isExpanded ? "Expanded" : "Collapsed") : "",
+            action: handleTap
+        ) { _ in
             rowSurfaceContent
-                .contentShape(.hoverEffect, highlightShape)
-                .contentShape(.interaction, highlightShape)
-                .hoverEffect(.highlight)
-                .hoverEffect { effect, isActive, _ in
-                    effect.scaleEffect(isActive ? 1.006 : 1.0)
-                }
-                // No-op trigger: gazing this row activates its own group so the
-                // separators on both sides (which follow this group) fade in sync
-                // with the highlight — same system-composited phase, same timing.
-                .hoverEffect(in: rowGroup(index, .activatesGroup)) { effect, _, _ in effect }
-                .background(alignment: .bottom) {
-                    divider
-                }
-        } else {
-            rowSurfaceContent
-                .background(alignment: .bottom) {
-                    divider
-                }
         }
     }
 
@@ -431,22 +465,6 @@ struct SettingListGroupRow: View {
         .animation(DesignTokens.AnimationToken.selection, value: isExpanded)
     }
 
-    @ViewBuilder
-    private var divider: some View {
-        if showsDivider {
-            SettingListGroupDivider()
-                .padding(.leading, DesignTokens.Spacing.lg)
-                .padding(.trailing, DesignTokens.Spacing.lg)
-                // Follows both bordering rows: row `index` (above) and
-                // row `index + 1` (below). Either one's hover fades it.
-                .hoverEffect(in: rowGroup(index, .followsGroup)) { effect, isActive, _ in
-                    effect.opacity(isActive ? 0 : 1)
-                }
-                .hoverEffect(in: rowGroup(index + 1, .followsGroup)) { effect, isActive, _ in
-                    effect.opacity(isActive ? 0 : 1)
-                }
-        }
-    }
 
     private var rowContent: some View {
         HStack(spacing: DesignTokens.Spacing.md) {
@@ -1270,33 +1288,6 @@ struct FolderCard: View {
     }
 }
 
-struct SceneCardMedium: View {
-    let icon: String
-    let title: String
-    let isSelected: Bool
-
-    var body: some View {
-        VStack(spacing: DesignTokens.Spacing.xs) {
-            Image(systemName: icon)
-                .font(DesignTokens.SymbolSize.feature)
-                .foregroundStyle(isSelected ? Color.accentColor : .secondary)
-                .frame(width: 100, height: 80)
-            Text(title)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(isSelected ? .primary : .secondary)
-        }
-        .padding(DesignTokens.Spacing.sm)
-        .overlay(
-            isSelected
-                ? RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-                    .strokeBorder(Color.accentColor, lineWidth: DesignTokens.Stroke.bold)
-                : nil
-        )
-        .enchronGlassCard()
-        .enchronPressFeedback(.card)
-    }
-}
-
 struct FeaturedScene: Identifiable {
     let id: String
     let imageName: String
@@ -1874,152 +1865,158 @@ struct SceneCardCarousel: View {
 
 // MARK: - Row items
 
-struct FileListRow: View {
-    let icon: String
-    let title: String
-    let metadata: String
+// MARK: - File List Group
+
+/// A file-browsing list group. Shares `ListGroupRowShell`'s row chrome with
+/// `SettingListGroup` (concentric gaze highlight, separator fade, whole-row
+/// tap) so file browsing and settings read in one visual language. It differs
+/// in content only: a leading kind icon and trailing metadata that fades in on
+/// gaze. Variants are parameter presets (`.video` / `.folder`) per ADR-0001.
+struct FileListGroup: View {
+    enum Kind {
+        case video
+        case folder
+
+        var icon: String {
+            switch self {
+            case .video: "film"
+            case .folder: "folder"
+            }
+        }
+    }
+
+    struct Item: Identifiable {
+        let id: String
+        let kind: Kind
+        let title: String
+        /// Trailing metadata revealed on gaze.
+        let metadata: String
+        var action: () -> Void = {}
+
+        /// Video file variant — gaze reveals `badges · size · duration`.
+        static func video(
+            id: String? = nil,
+            title: String,
+            fileSize: String,
+            duration: String,
+            badges: [String] = [],
+            action: @escaping () -> Void = {}
+        ) -> Item {
+            Item(
+                id: id ?? "video-\(title)",
+                kind: .video,
+                title: title,
+                metadata: (badges + [fileSize, duration]).joined(separator: " · "),
+                action: action
+            )
+        }
+
+        /// Folder variant — gaze reveals the item count.
+        static func folder(
+            id: String? = nil,
+            title: String,
+            itemCount: Int,
+            action: @escaping () -> Void = {}
+        ) -> Item {
+            Item(
+                id: id ?? "folder-\(title)",
+                kind: .folder,
+                title: title,
+                metadata: "\(itemCount) items",
+                action: action
+            )
+        }
+    }
+
+    var accessibilityIdentifier: String = "DesignPreview-FileListGroup"
+    let items: [Item]
+
+    private var cornerRadius: CGFloat { DesignTokens.Radius.element }
+    private var groupShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+    }
+
+    @Namespace private var hoverNamespace
 
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: icon)
-                .font(.body)
-                .frame(width: 24)
-                .foregroundStyle(.secondary)
-            Text(title).font(.body)
-            Spacer()
-            Text(metadata)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.tertiary)
+        VStack(spacing: 0) {
+            ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
+                FileListGroupRow(
+                    item: item,
+                    cornerRadius: cornerRadius,
+                    index: index,
+                    count: items.count,
+                    hoverNamespace: hoverNamespace
+                )
+            }
         }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .frame(minHeight: DesignTokens.Interactive.rowHeight)
-        .enchronGlassMenuItem()
-        .enchronPressFeedback(.row)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .enchronListGroupSurface(cornerRadius: cornerRadius)
+        .contentShape(groupShape)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
 
-struct VideoListRow: View {
-    @Namespace private var hoverNamespace
-
-    let title: String
-    let fileSize: String
-    let duration: String
-    var badges: [String] = []
-    var showsDivider = false
-
-    private var hoverActivationGroup: HoverEffectGroup {
-        HoverEffectGroup(
-            id: "video-list-row-info",
-            in: hoverNamespace,
-            behavior: .activatesGroup
-        )
-    }
-
-    private var hoverRevealGroup: HoverEffectGroup {
-        HoverEffectGroup(
-            id: "video-list-row-info",
-            in: hoverNamespace,
-            behavior: .followsGroup
-        )
-    }
+struct FileListGroupRow: View {
+    let item: FileListGroup.Item
+    let cornerRadius: CGFloat
+    let index: Int
+    let count: Int
+    var hoverNamespace: Namespace.ID?
 
     var body: some View {
-        let shape = DesignTokens.ShapeToken.element
+        ListGroupRowShell(
+            index: index,
+            count: count,
+            cornerRadius: cornerRadius,
+            hoverNamespace: hoverNamespace,
+            showsHighlight: true,
+            isInteractive: true,
+            accessibilityLabel: item.title,
+            action: item.action
+        ) { rowHoverGroup in
+            rowContent(reveal: rowHoverGroup)
+        }
+    }
 
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: "film")
-                .font(.body)
-                .frame(width: DesignTokens.Spacing.xl)
-                .foregroundStyle(.secondary)
+    private func rowContent(reveal rowHoverGroup: HoverEffectGroup?) -> some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            Image(systemName: item.kind.icon)
+                .font(DesignTokens.SymbolSize.selectionHeaderIcon)
+                .foregroundStyle(DesignTokens.Surface.accessoryText)
+                .frame(width: DesignTokens.Interactive.compact)
 
-            Text(title)
-                .font(.body)
-                .foregroundStyle(.primary)
+            Text(item.title)
+                .font(DesignTokens.Typography.selectionHeader)
+                .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
 
             Spacer(minLength: DesignTokens.Spacing.lg)
 
-            metadataRegion
+            metadataView(reveal: rowHoverGroup)
         }
-        .padding(.horizontal, DesignTokens.Spacing.xs)
+        .padding(.horizontal, DesignTokens.Spacing.lg)
         .frame(maxWidth: .infinity, minHeight: DesignTokens.Interactive.rowHeight)
-        .overlay(alignment: .bottom) {
-            if showsDivider {
-                Rectangle()
-                    .fill(DesignTokens.Surface.divider)
-                    .frame(height: DesignTokens.Stroke.regular)
-                    .padding(.horizontal, DesignTokens.Spacing.xs)
-            }
-        }
-        .contentShape(.hoverEffect, shape)
-        .contentShape(shape)
-        .hoverEffect(.highlight, in: hoverActivationGroup)
-        .enchronPressFeedback(.row)
-        .accessibilityLabel(title)
     }
 
-    private var metadataRegion: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            if !badges.isEmpty {
-                Text(badges.joined(separator: " · "))
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.Surface.accessoryText)
-            }
+    @ViewBuilder
+    private func metadataView(reveal rowHoverGroup: HoverEffectGroup?) -> some View {
+        let label = Text(item.metadata)
+            .font(DesignTokens.Typography.metadata)
+            .foregroundStyle(DesignTokens.Surface.accessoryText)
+            .lineLimit(1)
 
-            Text(fileSize)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(DesignTokens.Surface.accessoryText)
-
-            Text(duration)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(DesignTokens.Surface.accessoryText)
+        if let rowHoverGroup {
+            label
+                .hoverEffect(in: rowHoverGroup) { effect, isActive, _ in
+                    effect.animation(DesignTokens.AnimationToken.controlsTransition) {
+                        $0.opacity(isActive ? 1 : 0)
+                    }
+                }
+                .allowsHitTesting(false)
+        } else {
+            label.allowsHitTesting(false)
         }
-        .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-            effect.animation(DesignTokens.AnimationToken.controlsTransition) {
-                $0.opacity(isActive ? 1 : 0)
-            }
-        }
-        .allowsHitTesting(false)
-    }
-}
-
-struct MenuItemRow: View {
-    let title: String
-    let isExpanded: Bool
-
-    var body: some View {
-        HStack {
-            Text(title).font(.body)
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
-                .rotationEffect(isExpanded ? .degrees(90) : .zero)
-        }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .frame(minHeight: DesignTokens.Interactive.rowHeight)
-        .enchronGlassMenuItem()
-        .enchronPressFeedback(.row)
-    }
-}
-
-struct SubMenuItemRow: View {
-    let title: String
-    let isChecked: Bool
-
-    var body: some View {
-        HStack {
-            Text(title).font(.body)
-            Spacer()
-            if isChecked {
-                Image(systemName: "checkmark")
-                    .font(.caption)
-                    .foregroundStyle(Color.accentColor)
-            }
-        }
-        .padding(.horizontal, DesignTokens.Spacing.sm)
-        .frame(minHeight: DesignTokens.Interactive.rowHeight)
-        .enchronGlassMenuItem()
-        .enchronPressFeedback(.row)
     }
 }
 
@@ -2320,41 +2317,6 @@ struct CenterSlider: View {
     }
 }
 
-struct MockBreadcrumb: View {
-    let path: [String]
-    let onSelectLevel: (Int) -> Void
-
-    init(
-        path: [String] = ["Local Storage", "Movies"],
-        onSelectLevel: @escaping (Int) -> Void = { _ in }
-    ) {
-        self.path = path
-        self.onSelectLevel = onSelectLevel
-    }
-
-    var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xxs) {
-            ForEach(Array(path.enumerated()), id: \.offset) { index, node in
-                Button(node) {
-                    onSelectLevel(index)
-                }
-                .buttonStyle(.plain)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .contentShape(.hoverEffect, Capsule())
-                .hoverEffect(.lift)
-                .contentShape(Capsule())
-
-                if index < path.count - 1 {
-                    Image(systemName: "chevron.right")
-                        .font(.caption2)
-                        .foregroundStyle(Color.white.opacity(0.8))
-                }
-            }
-        }
-    }
-}
-
 struct PathBreadcrumbMenu: View {
     let path: [String]
     var onSelectLevel: (Int) -> Void = { _ in }
@@ -2476,34 +2438,6 @@ struct SearchInputCapsule: View {
     private func setInputActive(_ active: Bool) {
         withAnimation(DesignTokens.AnimationToken.selection) {
             isInputActive = active
-        }
-    }
-}
-
-struct FilterPillBar: View {
-    let filters: [String]
-    @Binding var selection: String
-
-    var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            ForEach(filters, id: \.self) { filter in
-                Button {
-                    withAnimation(DesignTokens.AnimationToken.selection) {
-                        selection = filter
-                    }
-                } label: {
-                    Text(filter)
-                        .font(.body)
-                        .foregroundStyle(selection == filter ? .primary : .secondary)
-                        .padding(.horizontal, DesignTokens.Spacing.md)
-                        .padding(.vertical, DesignTokens.Spacing.xs)
-                        .background(selection == filter ? DesignTokens.Surface.selected : .clear, in: Capsule())
-                }
-                .buttonStyle(.plain)
-                .enchronGlassPill()
-                .contentShape(.hoverEffect, Capsule())
-                .hoverEffect(.automatic)
-            }
         }
     }
 }

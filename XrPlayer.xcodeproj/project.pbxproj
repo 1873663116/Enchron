@@ -61,7 +61,6 @@
 		C3A35AC72F85434200DA0D16 /* Exceptions for "XrPlayer" folder in "DesignPreview" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Shared/DesignSystem/DesignSystemPreview.swift,
 				Shared/DesignSystem/DesignTokens.swift,
 				"Shared/DesignSystem/View+EnchronGlass.swift",
 				"Shared/DesignSystem/View+PressFeedback.swift",
@@ -74,7 +73,6 @@
 				ComponentLibrary.swift,
 				ContentView.swift,
 				DesignComps/DesignCompsPreviewGallery.swift,
-				DesignComps/Pages/Files/VideoDetailPage.swift,
 				DesignComps/Pages/Home/HomeFirstLaunchPage.swift,
 				DesignComps/Pages/Home/HomeV1Page.swift,
 				DesignComps/Pages/Player/PlayerControlPanelPage.swift,
@@ -280,6 +278,7 @@
 			packageReferences = (
 				A4C19F9D2FD1000100AABBCC /* XCRemoteSwiftPackageReference "AMSMB2" */,
 				C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */,
+				C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = C3B0F9812F5726B30064596E /* Products */;
@@ -702,6 +701,13 @@
 		};
 /* End XCConfigurationList section */
 
+/* Begin XCLocalSwiftPackageReference section */
+		C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/RealityKitContent;
+		};
+/* End XCLocalSwiftPackageReference section */
+
 /* Begin XCRemoteSwiftPackageReference section */
 		A4C19F9D2FD1000100AABBCC /* XCRemoteSwiftPackageReference "AMSMB2" */ = {
 			isa = XCRemoteSwiftPackageReference;
@@ -734,10 +740,12 @@
 		};
 		C3A35AB52F85429300DA0D16 /* RealityKitContent */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */;
 			productName = RealityKitContent;
 		};
 		C3B0F9852F5726B30064596E /* RealityKitContent */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */;
 			productName = RealityKitContent;
 		};
 /* End XCSwiftPackageProductDependency section */
