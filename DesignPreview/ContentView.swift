@@ -13,6 +13,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     case pressFeedback
     case sidebar
     case settingListGroup
+    case playerSettingsPanel
     case centerSlider
     case sceneCard
     case componentStandards
@@ -31,6 +32,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
         case .pressFeedback: "Press Feedback"
         case .sidebar: "Sidebar"
         case .settingListGroup: "Setting List Group"
+        case .playerSettingsPanel: "Player Settings Panel"
         case .centerSlider: "Center Slider"
         case .sceneCard: "Scene Card"
         case .componentStandards: "Component Standards"
@@ -71,6 +73,8 @@ struct ContentView: View {
                 SidebarPreview()
             case .settingListGroup:
                 SettingListGroupPreview()
+            case .playerSettingsPanel:
+                PlayerSettingsPanelPreview()
             case .centerSlider:
                 CenterSliderPreview()
             case .sceneCard:
@@ -103,6 +107,9 @@ struct SidebarPreview: View {
 
 struct SettingListGroupPreview: View {
     @State private var showClearCacheConfirm = false
+    @State private var selectedSpecialCardID = "day"
+    @State private var specialSliderValue = 0
+    @State private var specialAuto = true
 
     var body: some View {
         ScrollView {
@@ -133,6 +140,44 @@ struct SettingListGroupPreview: View {
                         ),
                     ])
                     .frame(width: 580)
+
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                        Text("Special Controls")
+                            .font(DesignTokens.Typography.headline)
+                            .foregroundStyle(.primary)
+
+                        SettingListGroup(items: [
+                            .init(
+                                id: "special-card-selection",
+                                title: "Scene",
+                                accessory: .none,
+                                embeddedControl: .cardSelection(
+                                    options: [
+                                        .init(id: "day", title: "Day", systemName: "sun.max.fill"),
+                                        .init(id: "night", title: "Night", systemName: "moon.stars.fill"),
+                                    ],
+                                    selectedID: $selectedSpecialCardID
+                                )
+                            ),
+                            .init(
+                                id: "special-center-slider",
+                                title: "Curve",
+                                accessory: .none,
+                                embeddedControl: .centerSlider(
+                                    value: $specialSliderValue,
+                                    leadingSystemImage: "rectangle",
+                                    trailingSystemImage: "capsule",
+                                    accessibilityLabel: "Curve"
+                                )
+                            ),
+                            .init(
+                                id: "special-plain-list",
+                                title: "Auto",
+                                accessory: .boundToggle(isOn: $specialAuto, isEnabled: true, marker: nil)
+                            ),
+                        ])
+                        .frame(width: 720)
+                    }
 
                     SettingListGroup(items: [
                         .init(
@@ -235,6 +280,494 @@ struct SettingListGroupPreview: View {
             isPresented: $showClearCacheConfirm,
             onConfirm: {}
         )
+    }
+}
+
+// MARK: - Player settings panel
+
+struct PlayerSettingsPanelPreview: View {
+    @State private var selectedCategory: PlayerPanelSettingsCategory = .sceneSetting
+    @State private var selectedSceneID = "day"
+    @State private var selectedPositionID = "left"
+    @State private var sceneAuto = true
+    @State private var screenCurve = 0
+    @State private var screenHeight = 0
+    @State private var screenDistance = 0
+    @State private var screenSize = 0
+    @State private var threeDMode = false
+    @State private var immersiveMode: ImmersiveVideoMode = .off
+    @State private var hdrEnabled = false
+    @State private var exposure = 0
+    @State private var shadows = 0
+    @State private var highlights = 0
+    @State private var contrast = 0
+    @State private var whites = 0
+    @State private var temperature = 0
+    @State private var tint = 0
+    @State private var saturation = 0
+    @State private var vibrance = 0
+    @State private var sharpness = 0
+    @State private var showResetConfirm = false
+
+    private enum ImmersiveVideoMode {
+        case off
+        case oneEighty
+        case threeSixty
+    }
+
+    private let panelWidth: CGFloat = 980
+    private let panelHeight: CGFloat = 560
+    private let detailColumnWidth: CGFloat = 720
+
+    var body: some View {
+        panelContainer
+            .navigationTitle("Player Settings Panel")
+            .enchronDestructiveConfirmation(
+                "Restore Default Settings?",
+                message: "This resets the panel preview controls to their default positions.",
+                confirmTitle: "Restore",
+                isPresented: $showResetConfirm,
+                onConfirm: restoreDefaults
+            )
+    }
+
+    private var panelContainer: some View {
+        let panelShape = DesignTokens.ShapeToken.panel
+
+        return HStack(alignment: .top, spacing: 0) {
+            sidebar
+                .padding(.leading, DesignTokens.SourceSidebar.windowInset)
+                .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
+
+            detailPanel
+                .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
+                .padding(.trailing, DesignTokens.SourceSidebar.windowInset)
+                .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
+        }
+        .frame(width: panelWidth, height: panelHeight, alignment: .topLeading)
+        .clipShape(panelShape)
+        .glassBackgroundEffect(.plate, in: panelShape, displayMode: .always)
+        .padding(DesignTokens.Spacing.xl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    private var sidebar: some View {
+        let shape = DesignTokens.SourceSidebar.shape
+
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            Text("Panel")
+                .font(DesignTokens.SourceSidebar.sectionTitleFont)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
+
+            VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
+                ForEach(PlayerPanelSettingsCategory.allCases) { category in
+                    sidebarRow(category)
+                }
+            }
+            .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
+        .frame(width: DesignTokens.SourceSidebar.width)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .clipShape(shape)
+        .glassBackgroundEffect(.plate, in: shape, displayMode: .always)
+        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-sidebar")
+    }
+
+    private var detailPanel: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+                Text(selectedCategory.title)
+                    .font(DesignTokens.Typography.title)
+                    .foregroundStyle(.white)
+
+                detailContent
+            }
+            .padding(.vertical, DesignTokens.Spacing.xxxl)
+            .frame(width: detailColumnWidth, alignment: .topLeading)
+        }
+        .scrollIndicators(.hidden)
+        .mask(PlayerSettingsPanelScrollFadeMask())
+        .frame(width: detailColumnWidth)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-detail")
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        switch selectedCategory {
+        case .sceneSetting:
+            sceneSettingContent
+        case .playMode:
+            playModeContent
+        case .advanced:
+            advancedContent
+        }
+    }
+
+    private var sceneSettingContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+            panelSection("Scene") {
+                SettingListGroup(items: [
+                    .init(
+                        id: "scene-day-night",
+                        title: "Scene",
+                        accessory: .none,
+                        embeddedControl: .cardSelection(
+                            options: [
+                                .init(id: "day", title: "Day", systemName: "sun.max.fill"),
+                                .init(id: "night", title: "Night", systemName: "moon.stars.fill"),
+                            ],
+                            selectedID: $selectedSceneID
+                        )
+                    ),
+                    .init(
+                        id: "scene-auto",
+                        title: "Auto",
+                        accessory: .boundToggle(isOn: $sceneAuto, isEnabled: true, marker: nil)
+                    ),
+                ])
+            }
+
+            panelSection("Screen Setting") {
+                SettingListGroup(items: [
+                    sliderItem(
+                        id: "screen-curve",
+                        title: "Curve",
+                        value: $screenCurve,
+                        leadingSystemImage: "rectangle",
+                        trailingSystemImage: "capsule"
+                    ),
+                    sliderItem(
+                        id: "screen-height",
+                        title: "Height",
+                        value: $screenHeight,
+                        leadingSystemImage: "arrow.down",
+                        trailingSystemImage: "arrow.up"
+                    ),
+                    sliderItem(
+                        id: "screen-distance",
+                        title: "Distance",
+                        value: $screenDistance,
+                        leadingSystemImage: "smallcircle.filled.circle",
+                        trailingSystemImage: "circle"
+                    ),
+                    sliderItem(
+                        id: "screen-size",
+                        title: "Size",
+                        value: $screenSize,
+                        leadingSystemImage: "arrow.down.right.and.arrow.up.left",
+                        trailingSystemImage: "arrow.up.left.and.arrow.down.right"
+                    ),
+                ])
+            }
+
+            panelSection("Position") {
+                SettingListGroup(items: [
+                    .init(
+                        id: "screen-position",
+                        title: "Position",
+                        accessory: .none,
+                        embeddedControl: .cardSelection(
+                            options: [
+                                .init(id: "left", title: "Left", systemName: "arrow.left"),
+                                .init(id: "center", title: "Center", systemName: "dot.square"),
+                                .init(id: "right", title: "Right", systemName: "arrow.right"),
+                            ],
+                            selectedID: $selectedPositionID
+                        )
+                    ),
+                ])
+            }
+
+            SettingListGroup(items: [
+                .init(
+                    id: "restore-default-settings",
+                    title: "Restore Default Settings",
+                    systemName: "arrow.counterclockwise",
+                    accessory: .action(
+                        title: "Restore",
+                        feedback: nil,
+                        systemName: nil,
+                        role: .destructive,
+                        action: { showResetConfirm = true }
+                    )
+                ),
+            ])
+        }
+    }
+
+    private var playModeContent: some View {
+        SettingListGroup(items: [
+            .init(
+                id: "play-mode-3d",
+                title: "3D",
+                systemName: "cube.transparent",
+                accessory: .boundToggle(isOn: $threeDMode, isEnabled: false, marker: "2D source")
+            ),
+            .init(
+                id: "play-mode-180",
+                title: "180° Immersive Video",
+                systemName: "circle.lefthalf.filled",
+                accessory: .boundToggle(isOn: immersive180Binding, isEnabled: true, marker: nil)
+            ),
+            .init(
+                id: "play-mode-360",
+                title: "360° Immersive Video",
+                systemName: "rotate.3d",
+                accessory: .boundToggle(isOn: immersive360Binding, isEnabled: true, marker: nil)
+            ),
+        ])
+    }
+
+    private var advancedContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+            SettingListGroup(items: [
+                .init(
+                    id: "advanced-hdr",
+                    title: "HDR",
+                    systemName: "sun.max.trianglebadge.exclamationmark",
+                    supportingText: "Dolby Vision fallback to HDR10",
+                    accessory: .boundToggle(isOn: $hdrEnabled, isEnabled: true, marker: nil)
+                ),
+            ])
+
+            panelSection("Color") {
+                SettingListGroup(items: [
+                    sliderItem(
+                        id: "color-exposure",
+                        title: "Exposure",
+                        value: $exposure,
+                        leadingSystemImage: "dial.min",
+                        trailingSystemImage: "plusminus.circle"
+                    ),
+                    sliderItem(
+                        id: "color-shadows",
+                        title: "Shadows",
+                        value: $shadows,
+                        leadingSystemImage: "circle.righthalf.filled",
+                        trailingSystemImage: "circle.lefthalf.striped.horizontal"
+                    ),
+                    sliderItem(
+                        id: "color-highlights",
+                        title: "Highlights",
+                        value: $highlights,
+                        leadingSystemImage: "circle.lefthalf.striped.horizontal",
+                        trailingSystemImage: "circle.righthalf.filled"
+                    ),
+                    sliderItem(
+                        id: "color-contrast",
+                        title: "Contrast",
+                        value: $contrast,
+                        leadingSystemImage: "circle.lefthalf.filled",
+                        trailingSystemImage: "circle.righthalf.filled"
+                    ),
+                    sliderItem(
+                        id: "color-whites",
+                        title: "Whites",
+                        value: $whites,
+                        leadingSystemImage: "sun.min",
+                        trailingSystemImage: "sun.max"
+                    ),
+                    sliderItem(
+                        id: "color-temperature",
+                        title: "Temperature",
+                        value: $temperature,
+                        leadingSystemImage: "snowflake",
+                        trailingSystemImage: "thermometer.sun.fill"
+                    ),
+                    sliderItem(
+                        id: "color-tint",
+                        title: "Tint",
+                        value: $tint,
+                        leadingSystemImage: "drop",
+                        trailingSystemImage: "drop.fill"
+                    ),
+                    sliderItem(
+                        id: "color-saturation",
+                        title: "Saturation",
+                        value: $saturation,
+                        leadingSystemImage: "paintpalette",
+                        trailingSystemImage: "paintpalette.fill"
+                    ),
+                    sliderItem(
+                        id: "color-vibrance",
+                        title: "Vibrance",
+                        value: $vibrance,
+                        leadingSystemImage: "sparkle",
+                        trailingSystemImage: "sparkles"
+                    ),
+                    sliderItem(
+                        id: "color-sharpness",
+                        title: "Sharpness",
+                        value: $sharpness,
+                        leadingSystemImage: "circle.dotted",
+                        trailingSystemImage: "scope"
+                    ),
+                ])
+            }
+        }
+    }
+
+    private var immersive180Binding: Binding<Bool> {
+        Binding {
+            immersiveMode == .oneEighty
+        } set: { isOn in
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                immersiveMode = isOn ? .oneEighty : .off
+            }
+        }
+    }
+
+    private var immersive360Binding: Binding<Bool> {
+        Binding {
+            immersiveMode == .threeSixty
+        } set: { isOn in
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                immersiveMode = isOn ? .threeSixty : .off
+            }
+        }
+    }
+
+    private func sidebarRow(_ category: PlayerPanelSettingsCategory) -> some View {
+        EditableSourceSidebarRow(
+            icon: category.icon,
+            title: category.title,
+            isSelected: selectedCategory == category,
+            isEnabled: true,
+            isOnline: false,
+            isDeletable: false,
+            isSelectionMode: false,
+            isChecked: false,
+            isAppearing: false,
+            isSwipeExpanded: false,
+            isDragging: false,
+            rowOffset: 0,
+            allowsReordering: false,
+            allowsSwipe: false,
+            onTap: {
+                withAnimation(DesignTokens.AnimationToken.selection) {
+                    selectedCategory = category
+                }
+            },
+            onToggleSelection: {},
+            onSwipeBegan: {},
+            onSwipeExpanded: {},
+            onSwipeCollapsed: {},
+            onDelete: {},
+            onReorderBegan: {},
+            onReorderChanged: { _ in },
+            onReorderEnded: {}
+        )
+        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-category-\(category.id)")
+    }
+
+    private func panelSection<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.headline)
+                .foregroundStyle(.primary)
+
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sliderItem(
+        id: String,
+        title: String,
+        value: Binding<Int>,
+        leadingSystemImage: String = "minus.circle",
+        trailingSystemImage: String = "plus.circle"
+    ) -> SettingListGroup.Item {
+        SettingListGroup.Item(
+            id: id,
+            title: title,
+            accessory: .none,
+            embeddedControl: .centerSlider(
+                value: value,
+                leadingSystemImage: leadingSystemImage,
+                trailingSystemImage: trailingSystemImage,
+                accessibilityLabel: title
+            )
+        )
+    }
+
+    private func restoreDefaults() {
+        selectedSceneID = "day"
+        selectedPositionID = "left"
+        sceneAuto = true
+        screenCurve = 0
+        screenHeight = 0
+        screenDistance = 0
+        screenSize = 0
+        threeDMode = false
+        immersiveMode = .off
+        hdrEnabled = false
+        exposure = 0
+        shadows = 0
+        highlights = 0
+        contrast = 0
+        whites = 0
+        temperature = 0
+        tint = 0
+        saturation = 0
+        vibrance = 0
+        sharpness = 0
+    }
+}
+
+private struct PlayerSettingsPanelScrollFadeMask: View {
+    var body: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .clear, location: 0),
+                .init(color: .black, location: 0.08),
+                .init(color: .black, location: 0.92),
+                .init(color: .clear, location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+}
+
+private enum PlayerPanelSettingsCategory: String, CaseIterable, Identifiable {
+    case sceneSetting
+    case playMode
+    case advanced
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .sceneSetting:
+            "Scene Setting"
+        case .playMode:
+            "Play Mode"
+        case .advanced:
+            "Advanced"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .sceneSetting:
+            "mountain.2.fill"
+        case .playMode:
+            "play.rectangle"
+        case .advanced:
+            "slider.horizontal.3"
+        }
     }
 }
 

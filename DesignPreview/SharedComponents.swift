@@ -153,6 +153,7 @@ struct SettingListGroup: View {
     }
 
     enum Accessory {
+        case none
         case automatic
         case menu(title: String, options: [MenuOption], role: ActionRole = .normal)
         case action(
@@ -165,6 +166,7 @@ struct SettingListGroup: View {
         /// Trailing glass toggle. The initial state seeds `MockToggle`, which owns
         /// the flip interaction.
         case toggle(isOn: Bool)
+        case boundToggle(isOn: Binding<Bool>, isEnabled: Bool, marker: String?)
         /// Read-only trailing value (e.g. a cache size or version string).
         case value(String)
         /// Read-only value paired with a trailing action chip (e.g. version + Copy).
@@ -174,6 +176,28 @@ struct SettingListGroup: View {
             actionTitle: String,
             feedback: String?,
             action: () -> Void
+        )
+    }
+
+    struct CardOption: Identifiable {
+        let id: String
+        let title: String
+        let systemName: String
+
+        init(id: String? = nil, title: String, systemName: String) {
+            self.id = id ?? title
+            self.title = title
+            self.systemName = systemName
+        }
+    }
+
+    enum EmbeddedControl {
+        case cardSelection(options: [CardOption], selectedID: Binding<String>)
+        case centerSlider(
+            value: Binding<Int>,
+            leadingSystemImage: String,
+            trailingSystemImage: String,
+            accessibilityLabel: String
         )
     }
 
@@ -187,7 +211,8 @@ struct SettingListGroup: View {
     struct Item: Identifiable {
         let id: String
         let title: String
-        let systemName: String
+        let systemName: String?
+        var supportingText: String? = nil
         /// Descriptive copy revealed when the row expands. `nil` keeps the row a
         /// plain tappable entry that fires `action` instead of disclosing.
         var detail: String? = nil
@@ -196,25 +221,30 @@ struct SettingListGroup: View {
         var keyValueDetail: [KeyValue]? = nil
         var expansion: ExpansionOrigin = .top
         var accessory: Accessory = .automatic
+        var embeddedControl: EmbeddedControl?
         var action: () -> Void = {}
 
         init(
             id: String? = nil,
             title: String,
-            systemName: String,
+            systemName: String? = nil,
+            supportingText: String? = nil,
             detail: String? = nil,
             keyValueDetail: [KeyValue]? = nil,
             expansion: ExpansionOrigin = .top,
             accessory: Accessory = .automatic,
+            embeddedControl: EmbeddedControl? = nil,
             action: @escaping () -> Void = {}
         ) {
-            self.id = id ?? "\(systemName)-\(title)"
+            self.id = id ?? "\(systemName ?? "plain")-\(title)"
             self.title = title
             self.systemName = systemName
+            self.supportingText = supportingText
             self.detail = detail
             self.keyValueDetail = keyValueDetail
             self.expansion = expansion
             self.accessory = accessory
+            self.embeddedControl = embeddedControl
             self.action = action
         }
     }
@@ -241,10 +271,12 @@ struct SettingListGroup: View {
                 SettingListGroupRow(
                     title: item.title,
                     systemName: item.systemName,
+                    supportingText: item.supportingText,
                     detail: item.detail,
                     keyValueDetail: item.keyValueDetail,
                     expansion: item.expansion,
                     accessory: item.accessory,
+                    embeddedControl: item.embeddedControl,
                     cornerRadius: cornerRadius,
                     index: index,
                     count: items.count,
@@ -263,11 +295,13 @@ struct SettingListGroup: View {
 
 struct SettingListGroupRow: View {
     let title: String
-    let systemName: String
+    let systemName: String?
+    var supportingText: String?
     var detail: String?
     var keyValueDetail: [SettingListGroup.KeyValue]?
     var expansion: SettingListGroup.ExpansionOrigin = .top
     var accessory: SettingListGroup.Accessory = .automatic
+    var embeddedControl: SettingListGroup.EmbeddedControl?
     let cornerRadius: CGFloat
     let index: Int
     let count: Int
@@ -283,6 +317,14 @@ struct SettingListGroupRow: View {
     private var isLast: Bool { index == count - 1 }
     private var isExpandable: Bool { detail != nil || keyValueDetail != nil }
     private var showsDivider: Bool { !isLast }
+    private var isEmbeddedOnly: Bool { embeddedControl != nil && isAccessoryEmpty }
+    private var isAccessoryEmpty: Bool {
+        if case .none = accessory {
+            return true
+        }
+        return false
+    }
+    private var usesRowHover: Bool { !isEmbeddedOnly }
     private var usesWholeRowButton: Bool {
         if case .automatic = accessory {
             return true
@@ -331,62 +373,102 @@ struct SettingListGroupRow: View {
         }
     }
 
+    @ViewBuilder
     private var rowSurface: some View {
-        VStack(spacing: 0) {
-            rowContent
+        if usesRowHover {
+            rowSurfaceContent
+                .contentShape(.hoverEffect, highlightShape)
+                .contentShape(.interaction, highlightShape)
+                .hoverEffect(.highlight)
+                .hoverEffect { effect, isActive, _ in
+                    effect.scaleEffect(isActive ? 1.006 : 1.0)
+                }
+                // No-op trigger: gazing this row activates its own group so the
+                // separators on both sides (which follow this group) fade in sync
+                // with the highlight — same system-composited phase, same timing.
+                .hoverEffect(in: rowGroup(index, .activatesGroup)) { effect, _, _ in effect }
+                .background(alignment: .bottom) {
+                    divider
+                }
+        } else {
+            rowSurfaceContent
+                .background(alignment: .bottom) {
+                    divider
+                }
+        }
+    }
 
-            if isExpanded {
-                if let keyValueDetail {
-                    expandedKeyValues(keyValueDetail)
-                        .transition(expansionTransition)
-                } else if let detail {
-                    expandedDetail(detail)
-                        .transition(expansionTransition)
+    private var rowSurfaceContent: some View {
+        VStack(spacing: 0) {
+            if isEmbeddedOnly {
+                if let embeddedControl {
+                    embeddedControlView(embeddedControl)
+                        .padding(.vertical, DesignTokens.Spacing.lg)
+                }
+            } else {
+                rowContent
+
+                if isExpanded {
+                    if let keyValueDetail {
+                        expandedKeyValues(keyValueDetail)
+                            .transition(expansionTransition)
+                    } else if let detail {
+                        expandedDetail(detail)
+                            .transition(expansionTransition)
+                    }
+                }
+
+                if let embeddedControl {
+                    embeddedControlView(embeddedControl)
+                        .padding(.horizontal, DesignTokens.Spacing.lg)
+                        .padding(.bottom, DesignTokens.Spacing.md)
                 }
             }
-
         }
         .frame(maxWidth: .infinity)
-        .contentShape(.hoverEffect, highlightShape)
-        .contentShape(.interaction, highlightShape)
-        .hoverEffect(.highlight)
-        .hoverEffect { effect, isActive, _ in
-            effect.scaleEffect(isActive ? 1.006 : 1.0)
-        }
-        // No-op trigger: gazing this row activates its own group so the
-        // separators on both sides (which follow this group) fade in sync
-        // with the highlight — same system-composited phase, same timing.
-        .hoverEffect(in: rowGroup(index, .activatesGroup)) { effect, _, _ in effect }
-        .background(alignment: .bottom) {
-            if showsDivider {
-                SettingListGroupDivider()
-                    .padding(.leading, DesignTokens.Spacing.lg)
-                    .padding(.trailing, DesignTokens.Spacing.lg)
-                    // Follows both bordering rows: row `index` (above) and
-                    // row `index + 1` (below). Either one's hover fades it.
-                    .hoverEffect(in: rowGroup(index, .followsGroup)) { effect, isActive, _ in
-                        effect.opacity(isActive ? 0 : 1)
-                    }
-                    .hoverEffect(in: rowGroup(index + 1, .followsGroup)) { effect, isActive, _ in
-                        effect.opacity(isActive ? 0 : 1)
-                    }
-            }
-        }
         // Drives the height change of this row and the rows it pushes down with
         // the same bouncy spring the detail panel animates in on.
         .animation(DesignTokens.AnimationToken.selection, value: isExpanded)
     }
 
+    @ViewBuilder
+    private var divider: some View {
+        if showsDivider {
+            SettingListGroupDivider()
+                .padding(.leading, DesignTokens.Spacing.lg)
+                .padding(.trailing, DesignTokens.Spacing.lg)
+                // Follows both bordering rows: row `index` (above) and
+                // row `index + 1` (below). Either one's hover fades it.
+                .hoverEffect(in: rowGroup(index, .followsGroup)) { effect, isActive, _ in
+                    effect.opacity(isActive ? 0 : 1)
+                }
+                .hoverEffect(in: rowGroup(index + 1, .followsGroup)) { effect, isActive, _ in
+                    effect.opacity(isActive ? 0 : 1)
+                }
+        }
+    }
+
     private var rowContent: some View {
         HStack(spacing: DesignTokens.Spacing.md) {
-            Image(systemName: systemName)
-                .font(DesignTokens.SymbolSize.selectionHeaderIcon)
-                .foregroundStyle(DesignTokens.Surface.accessoryText)
-                .frame(width: DesignTokens.Interactive.compact)
+            if let systemName {
+                Image(systemName: systemName)
+                    .font(DesignTokens.SymbolSize.selectionHeaderIcon)
+                    .foregroundStyle(DesignTokens.Surface.accessoryText)
+                    .frame(width: DesignTokens.Interactive.compact)
+            }
 
-            Text(title)
-                .font(DesignTokens.Typography.selectionHeader)
-                .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                Text(title)
+                    .font(DesignTokens.Typography.selectionHeader)
+                    .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+
+                if let supportingText {
+                    Text(supportingText)
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                        .lineLimit(1)
+                }
+            }
 
             Spacer(minLength: DesignTokens.Spacing.lg)
 
@@ -399,6 +481,9 @@ struct SettingListGroupRow: View {
     @ViewBuilder
     private var trailingAccessory: some View {
         switch accessory {
+        case .none:
+            EmptyView()
+
         case .automatic:
             Image(systemName: "chevron.right")
                 .font(DesignTokens.Typography.metadata)
@@ -446,6 +531,18 @@ struct SettingListGroupRow: View {
             MockToggle(isOn: isOn)
                 .accessibilityLabel(title)
 
+        case .boundToggle(let isOn, let isEnabled, let marker):
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                if let marker {
+                    Text(marker)
+                        .font(DesignTokens.Typography.sectionHeader)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
+
+                BoundMockToggle(isOn: isOn, isEnabled: isEnabled)
+                    .accessibilityLabel(title)
+            }
+
         case .value(let text):
             Text(text)
                 .font(DesignTokens.Typography.sectionHeader)
@@ -469,6 +566,23 @@ struct SettingListGroupRow: View {
                     )
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func embeddedControlView(_ control: SettingListGroup.EmbeddedControl) -> some View {
+        switch control {
+        case .cardSelection(let options, let selectedID):
+            SettingListCardSelectionGrid(options: options, selectedID: selectedID)
+
+        case .centerSlider(let value, let leadingSystemImage, let trailingSystemImage, let accessibilityLabel):
+            SettingListCenterSliderRow(
+                value: value,
+                title: title,
+                leadingSystemImage: leadingSystemImage,
+                trailingSystemImage: trailingSystemImage,
+                accessibilityLabel: accessibilityLabel
+            )
         }
     }
 
@@ -559,6 +673,156 @@ struct SettingListGroupDivider: View {
             .fill(DesignTokens.Surface.divider)
             .frame(height: DesignTokens.Stroke.regular)
             .accessibilityHidden(true)
+    }
+}
+
+private struct SettingListCardSelectionGrid: View {
+    let options: [SettingListGroup.CardOption]
+    @Binding var selectedID: String
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 0) {
+            Spacer(minLength: 0)
+
+            ForEach(Array(options.enumerated()), id: \.element.id) { index, option in
+                if index > 0 {
+                    Spacer(minLength: 0)
+                }
+
+                VStack(spacing: DesignTokens.Spacing.xs) {
+                    Button {
+                        withAnimation(DesignTokens.AnimationToken.selection) {
+                            selectedID = option.id
+                        }
+                    } label: {
+                        SettingListCardSelectionCard(
+                            option: option,
+                            isSelected: selectedID == option.id
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .frame(width: cardWidth)
+                    .accessibilityLabel(option.title)
+                    .accessibilityValue(selectedID == option.id ? "Selected" : "Not selected")
+
+                    Text(option.title)
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                        .allowsHitTesting(false)
+
+                    SettingListSelectionIndicator(isSelected: selectedID == option.id)
+                        .allowsHitTesting(false)
+                }
+                .frame(width: cardWidth)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private var cardWidth: CGFloat {
+        options.count <= 2 ? 160 : 132
+    }
+}
+
+private struct SettingListCenterSliderRow: View {
+    @Binding var value: Int
+    let title: String
+    let leadingSystemImage: String
+    let trailingSystemImage: String
+    let accessibilityLabel: String
+
+    @Namespace private var hoverNamespace
+
+    private let labelWidth: CGFloat = 144
+    private let embeddedTrackWidth: CGFloat = 404
+
+    var body: some View {
+        HStack(alignment: .trackCenter, spacing: DesignTokens.Spacing.md) {
+            Text(title)
+                .font(DesignTokens.Typography.selectionHeader)
+                .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+                .lineLimit(1)
+                .frame(width: labelWidth, alignment: .leading)
+                .hoverEffect(in: hoverGroup(.followsGroup)) { effect, isActive, _ in
+                    effect.opacity(isActive ? 1 : 0)
+                }
+
+            CenterSlider(
+                value: $value,
+                leadingSystemImage: leadingSystemImage,
+                trailingSystemImage: trailingSystemImage,
+                accessibilityLabel: accessibilityLabel,
+                trackWidth: embeddedTrackWidth
+            )
+        }
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
+        .hoverEffect(in: hoverGroup(.activatesGroup)) { effect, _, _ in effect }
+    }
+
+    private func hoverGroup(_ behavior: HoverEffectGroup.Behavior) -> HoverEffectGroup? {
+        HoverEffectGroup(id: "settingListCenterSliderLabel", in: hoverNamespace, behavior: behavior)
+    }
+}
+
+private struct SettingListCardSelectionCard: View {
+    let option: SettingListGroup.CardOption
+    let isSelected: Bool
+
+    private var cardShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+    }
+
+    var body: some View {
+        cardShape
+            .fill(DesignTokens.Surface.elevated)
+            .frame(height: 86)
+            .overlay {
+                Image(systemName: option.systemName)
+                    .font(DesignTokens.SymbolSize.card)
+                    .foregroundStyle(isSelected ? DesignTokens.Theme.accent : .secondary)
+            }
+            .overlay {
+                cardShape.stroke(
+                    isSelected ? DesignTokens.Theme.accent : DesignTokens.Surface.divider,
+                    lineWidth: isSelected ? DesignTokens.Stroke.bold : DesignTokens.Stroke.subtle
+                )
+            }
+            .contentShape(.hoverEffect, cardShape)
+            .hoverEffect(.highlight)
+            .contentShape(.interaction, cardShape)
+    }
+}
+
+private struct SettingListSelectionIndicator: View {
+    let isSelected: Bool
+
+    var body: some View {
+        selectionIndicator
+            .accessibilityHidden(true)
+    }
+
+    @ViewBuilder
+    private var selectionIndicator: some View {
+        if isSelected {
+            Circle()
+                .fill(DesignTokens.Theme.accent)
+                .frame(width: 22, height: 22)
+                .overlay {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.white)
+                }
+                .glassBackgroundEffect(in: Circle())
+        } else {
+            Circle()
+                .stroke(DesignTokens.SourceSidebar.selectionIndicator, lineWidth: DesignTokens.Stroke.regular)
+                .frame(width: 22, height: 22)
+        }
     }
 }
 
@@ -1791,6 +2055,39 @@ struct MockToggle: View {
     }
 }
 
+private struct BoundMockToggle: View {
+    @Binding var isOn: Bool
+    var isEnabled = true
+
+    var body: some View {
+        Button {
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                isOn.toggle()
+            }
+        } label: {
+            Capsule()
+                .fill(isOn ? DesignTokens.Theme.accent : DesignTokens.Surface.elevated)
+                .frame(width: 50, height: 30)
+                .overlay(alignment: isOn ? .trailing : .leading) {
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 26, height: 26)
+                        .padding(2)
+                }
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .opacity(isEnabled ? 1 : 0.42)
+        .clipShape(Capsule())
+        .glassBackgroundEffect(in: Capsule())
+        .contentShape(.hoverEffect, Capsule())
+        .hoverEffect(.automatic, isEnabled: isEnabled)
+        .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
+        .padding(.horizontal, (DesignTokens.Interactive.large - 50) / 2)
+        .contentShape(Capsule())
+    }
+}
+
 // MARK: - Center slider (centered, detented, bidirectional value track)
 
 /// Keeps the end icons aligned to the *track's* centre while the detent dots
@@ -1866,6 +2163,7 @@ struct CenterSlider: View {
     let trailingSystemImage: String
     var accessibilityLabel: String = "Center slider"
     var accessibilityIdentifier: String = "DesignPreview-CenterSlider"
+    var trackWidth: CGFloat = 450
 
     // Value at the moment the drag began; the live snap measures the finger's
     // translation against this origin so the knob lands on whole detents only.
@@ -1875,10 +2173,10 @@ struct CenterSlider: View {
     // EXPLORATORY: track-bar dimensions are not yet promoted to DesignTokens.
     // Knob (26) and track height (30) mirror the existing toggle for reuse;
     // promoting these to shared tokens needs a separate human decision.
-    private let trackWidth: CGFloat = 450
     private let trackHeight: CGFloat = 30
     private let knobSize: CGFloat = 26
     private let dotSize: CGFloat = 4
+    private let iconColumnWidth: CGFloat = DesignTokens.Interactive.compact
 
     private var detentCount: Int { range.count }
     private var midValue: Double { Double(range.lowerBound + range.upperBound) / 2 }
@@ -1900,7 +2198,8 @@ struct CenterSlider: View {
     var body: some View {
         HStack(alignment: .trackCenter, spacing: DesignTokens.Spacing.md) {
             Image(systemName: leadingSystemImage)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignTokens.Surface.accessoryText)
+                .frame(width: iconColumnWidth)
 
             // Track + dots share a column so the dots get real layout space
             // below the track. A bare `.offset` pushed them outside the bounds
@@ -1913,7 +2212,8 @@ struct CenterSlider: View {
             }
 
             Image(systemName: trailingSystemImage)
-                .foregroundStyle(.secondary)
+                .foregroundStyle(DesignTokens.Surface.accessoryText)
+                .frame(width: iconColumnWidth)
         }
         .font(.body)
         .accessibilityElement()
