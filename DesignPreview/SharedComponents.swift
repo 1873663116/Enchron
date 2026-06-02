@@ -33,22 +33,76 @@ struct GlassCircleIconLabel: View {
 struct GlassCircleIconButton: View {
     let systemName: String
     let accessibilityLabel: String
-    var iconColor: Color = .white
     var action: () -> Void = {}
     var accessibilityIdentifier: String?
+
+    // iconColor 锁死:按钮永远白色图标,不暴露给调用点(Label 默认即 .white)。
 
     var body: some View {
         Button(action: action) {
             GlassCircleIconLabel(
                 systemName: systemName,
                 accessibilityLabel: accessibilityLabel,
-                iconColor: iconColor,
                 accessibilityIdentifier: accessibilityIdentifier ?? "DesignPreview-button-\(systemName)"
             )
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(systemName)")
+    }
+
+    // MARK: 具名图标预设(组装约定:优先调预设;没有预设才传裸 systemName,且顺手补一个预设)
+
+    static func back(
+        accessibilityLabel: String = "Back",
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            systemName: "chevron.left",
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+
+    static func expand(
+        accessibilityLabel: String = "Expand",
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            systemName: "arrow.up.left.and.arrow.down.right",
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+
+    static func more(
+        accessibilityLabel: String = "More",
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            systemName: "ellipsis",
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+
+    static func close(
+        accessibilityLabel: String = "Close",
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            systemName: "xmark",
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
     }
 }
 
@@ -152,7 +206,7 @@ struct SettingListGroup: View {
             role: ActionRole,
             action: () -> Void
         )
-        /// Trailing glass toggle. The initial state seeds `MockToggle`, which owns
+        /// Trailing glass toggle. The initial state seeds `GlassToggle`, which owns
         /// the flip interaction.
         case toggle(isOn: Bool)
         case boundToggle(isOn: Binding<Bool>, isEnabled: Bool, marker: String?)
@@ -546,7 +600,7 @@ struct SettingListGroupRow: View {
             }
 
         case .toggle(let isOn):
-            MockToggle(isOn: isOn)
+            GlassToggle(isOn: isOn)
                 .accessibilityLabel(title)
 
         case .boundToggle(let isOn, let isEnabled, let marker):
@@ -557,7 +611,7 @@ struct SettingListGroupRow: View {
                         .foregroundStyle(DesignTokens.Surface.supportingText)
                 }
 
-                BoundMockToggle(isOn: isOn, isEnabled: isEnabled)
+                BoundGlassToggle(isOn: isOn, isEnabled: isEnabled)
                     .accessibilityLabel(title)
             }
 
@@ -1104,68 +1158,130 @@ struct ViewModeCapsuleControl: View {
 
 // MARK: - Cards
 
-struct VideoCardLarge: View {
+/// 文件浏览网格里的一张卡:玻璃缩略图 + 标题,悬停浮出补充信息。
+/// 视频与文件夹是同一张卡的两个变体,经 `GridCard.video(...)` / `GridCard.folder(...)` 构造。
+/// 宽高、缩略图、玻璃、悬停动画、按压反馈全部锁死(token 驱动),组装时只填数据。
+struct GridCard: View {
+    /// 变体轴:决定缩略图内容与悬停信息布局。缩略图内容由变体内部钉死,不开放给调用点。
+    enum Variant {
+        case video(fileSize: String, duration: String, badges: [String])
+        case folder(count: Int)
+    }
+
     @Namespace private var hoverNamespace
 
-    let title: String
-    let fileSize: String
-    let duration: String
-    var badges: [String] = []
-    var width: CGFloat = DesignTokens.Card.gridMin
-    // Future Settings entry: false keeps the grid clean; true allows thumbnail info to appear on hover.
-    var showsSupplementaryInfo = true
+    private let title: String
+    private let variant: Variant
+    private let explicitIdentifier: String?
 
-    private var hoverActivationGroup: HoverEffectGroup {
-        HoverEffectGroup(
-            id: "video-card-thumbnail-info",
-            in: hoverNamespace,
-            behavior: .activatesGroup
+    private init(title: String, variant: Variant, identifier: String?) {
+        self.title = title
+        self.variant = variant
+        self.explicitIdentifier = identifier
+    }
+
+    // MARK: 变体工厂
+
+    static func video(
+        title: String,
+        fileSize: String,
+        duration: String,
+        badges: [String] = [],
+        accessibilityIdentifier: String? = nil
+    ) -> GridCard {
+        GridCard(
+            title: title,
+            variant: .video(fileSize: fileSize, duration: duration, badges: badges),
+            identifier: accessibilityIdentifier
         )
     }
 
+    static func folder(
+        title: String,
+        count: Int,
+        accessibilityIdentifier: String? = nil
+    ) -> GridCard {
+        GridCard(title: title, variant: .folder(count: count), identifier: accessibilityIdentifier)
+    }
+
+    // MARK: 无障碍派生
+
+    private var variantKey: String {
+        switch variant {
+        case .video: return "video"
+        case .folder: return "folder"
+        }
+    }
+
+    private var resolvedIdentifier: String {
+        explicitIdentifier ?? "grid-card-\(variantKey)-\(title)"
+    }
+
+    private var resolvedLabel: String {
+        "\(title), \(variantKey)"
+    }
+
+    // MARK: 悬停组(@Namespace 按实例隔离,id 字面量可复用)
+
+    private var hoverActivationGroup: HoverEffectGroup {
+        HoverEffectGroup(id: "grid-card-thumbnail-info", in: hoverNamespace, behavior: .activatesGroup)
+    }
+
     private var hoverRevealGroup: HoverEffectGroup {
-        HoverEffectGroup(
-            id: "video-card-thumbnail-info",
-            in: hoverNamespace,
-            behavior: .followsGroup
-        )
+        HoverEffectGroup(id: "grid-card-thumbnail-info", in: hoverNamespace, behavior: .followsGroup)
     }
 
     var body: some View {
         let shape = DesignTokens.ShapeToken.card
-        VStack(spacing: 0) {
-            ZStack(alignment: .topTrailing) {
-                // Thumbnail placeholder — in real app this is the video frame
-                shape
-                    .fill(DesignTokens.Surface.elevated)
-                    .frame(height: DesignTokens.Card.thumbnailHeight)
-
-                if showsSupplementaryInfo {
-                    videoThumbnailInfo
-                }
-            }
-            .frame(height: DesignTokens.Card.thumbnailHeight)
-            .clipShape(shape)
-            .glassBackgroundEffect(in: shape)
-            .contentShape(.hoverEffect, shape)
-            .hoverEffect(.highlight, in: hoverActivationGroup)
+        VStack(alignment: .leading, spacing: 0) {
+            thumbnailContent(shape)
+                .frame(height: DesignTokens.Card.thumbnailHeight)
+                .clipShape(shape)
+                .glassBackgroundEffect(in: shape)
+                .contentShape(.hoverEffect, shape)
+                .hoverEffect(.highlight, in: hoverActivationGroup)
 
             Text(title)
                 .font(DesignTokens.Typography.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, DesignTokens.Card.paddingH)
-            .padding(.vertical, DesignTokens.Card.paddingV)
+                .padding(.horizontal, DesignTokens.Card.paddingH)
+                .padding(.vertical, DesignTokens.Card.paddingV)
         }
-        .frame(width: width)
+        .frame(width: DesignTokens.Card.gridMin)
         .contentShape(shape)
         .enchronPressFeedback(.card)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier(resolvedIdentifier)
+        .accessibilityLabel(resolvedLabel)
+        .accessibilityAddTraits(.isButton)
     }
 
-    private var videoThumbnailInfo: some View {
+    @ViewBuilder
+    private func thumbnailContent(_ shape: RoundedRectangle) -> some View {
+        switch variant {
+        case let .video(fileSize, duration, badges):
+            // 缩略图占位 — 真实 app 中为视频帧/海报
+            ZStack(alignment: .topTrailing) {
+                shape.fill(DesignTokens.Surface.elevated)
+                videoThumbnailInfo(fileSize: fileSize, duration: duration, badges: badges)
+            }
+        case let .folder(count):
+            shape.fill(DesignTokens.Surface.elevated)
+                .overlay(alignment: .center) {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 54))
+                        .foregroundStyle(.tertiary)
+                }
+                .overlay(alignment: .bottomLeading) {
+                    folderThumbnailInfo(count: count)
+                }
+        }
+    }
+
+    private func videoThumbnailInfo(fileSize: String, duration: String, badges: [String]) -> some View {
         VStack {
             HStack {
                 Spacer(minLength: 0)
-
                 if !badges.isEmpty {
                     HStack(spacing: DesignTokens.Spacing.xxs) {
                         ForEach(badges, id: \.self) { badge in
@@ -1193,80 +1309,7 @@ struct VideoCardLarge: View {
         .allowsHitTesting(false)
     }
 
-    private func thumbnailBadge(_ text: String) -> some View {
-        Text(text)
-            .font(DesignTokens.Typography.badge)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, DesignTokens.Spacing.xs)
-            .padding(.vertical, DesignTokens.Spacing.xxs)
-            .enchronGlassBadge()
-    }
-
-    private func thumbnailMetadata(_ text: String) -> some View {
-        Text(text)
-            .font(DesignTokens.Typography.metadata)
-            .foregroundStyle(.secondary)
-    }
-}
-
-struct FolderCard: View {
-    @Namespace private var hoverNamespace
-
-    let title: String
-    let count: Int
-    var width: CGFloat = DesignTokens.Card.gridMin
-    // Future Settings entry: false keeps the grid clean; true allows thumbnail info to appear on hover.
-    var showsSupplementaryInfo = true
-
-    private var hoverActivationGroup: HoverEffectGroup {
-        HoverEffectGroup(
-            id: "folder-card-thumbnail-info",
-            in: hoverNamespace,
-            behavior: .activatesGroup
-        )
-    }
-
-    private var hoverRevealGroup: HoverEffectGroup {
-        HoverEffectGroup(
-            id: "folder-card-thumbnail-info",
-            in: hoverNamespace,
-            behavior: .followsGroup
-        )
-    }
-
-    var body: some View {
-        let shape = DesignTokens.ShapeToken.card
-        VStack(alignment: .leading, spacing: 0) {
-            shape
-                .fill(DesignTokens.Surface.elevated)
-                .frame(height: DesignTokens.Card.thumbnailHeight)
-                .overlay(alignment: .center) {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 54))
-                        .foregroundStyle(.tertiary)
-                }
-                .overlay(alignment: .bottomLeading) {
-                    if showsSupplementaryInfo {
-                        folderThumbnailInfo
-                    }
-                }
-                .clipShape(shape)
-                .glassBackgroundEffect(in: shape)
-                .contentShape(.hoverEffect, shape)
-                .hoverEffect(.highlight, in: hoverActivationGroup)
-
-            Text(title)
-                .font(DesignTokens.Typography.headline)
-                .padding(.horizontal, DesignTokens.Card.paddingH)
-                .padding(.vertical, DesignTokens.Card.paddingV)
-                .frame(maxWidth: .infinity, alignment: .leading)
-        }
-        .frame(width: width)
-        .contentShape(shape)
-        .enchronPressFeedback(.card)
-    }
-
-    private var folderThumbnailInfo: some View {
+    private func folderThumbnailInfo(count: Int) -> some View {
         HStack {
             thumbnailMetadata("\(count) items")
             Spacer(minLength: 0)
@@ -1281,10 +1324,20 @@ struct FolderCard: View {
         .allowsHitTesting(false)
     }
 
+    private func thumbnailBadge(_ text: String) -> some View {
+        Text(text)
+            .font(DesignTokens.Typography.badge)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, DesignTokens.Spacing.xs)
+            .padding(.vertical, DesignTokens.Spacing.xxs)
+            .enchronGlassBadge()
+    }
+
+    // 元数据前景色统一 .secondary(消除旧 video/.secondary 与 folder/.primary 的分叉)。
     private func thumbnailMetadata(_ text: String) -> some View {
         Text(text)
             .font(DesignTokens.Typography.metadata)
-            .foregroundStyle(.primary)
+            .foregroundStyle(.secondary)
     }
 }
 
@@ -1364,7 +1417,7 @@ struct FeaturedScene: Identifiable {
     ]
 }
 
-struct FeaturedSceneCard: View {
+struct SceneCard: View {
     var scene: FeaturedScene = .fixtures[0]
     var detailVisibility: CGFloat = 1
     var atmosphericFade: CGFloat = 0
@@ -1393,7 +1446,7 @@ struct FeaturedSceneCard: View {
         .contentShape(.hoverEffect, shape)
         .contentShape(shape)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("DesignPreview-FeaturedSceneCard")
+        .accessibilityIdentifier("DesignPreview-SceneCard")
         .accessibilityLabel("Featured scene card, \(scene.title)")
     }
 
@@ -1423,14 +1476,14 @@ struct FeaturedSceneCard: View {
                     systemName: "chevron.left",
                     accessibilityLabel: "Return to window",
                     action: onReturn,
-                    accessibilityIdentifier: "DesignPreview-FeaturedSceneCard-button-return"
+                    accessibilityIdentifier: "DesignPreview-SceneCard-button-return"
                 )
                 Spacer()
                 GlassCircleIconButton(
                     systemName: "arrow.up.left.and.arrow.down.right",
                     accessibilityLabel: "Expand scene",
                     action: onExpand,
-                    accessibilityIdentifier: "DesignPreview-FeaturedSceneCard-button-expand"
+                    accessibilityIdentifier: "DesignPreview-SceneCard-button-expand"
                 )
             }
             .padding(Metrics.chromePadding)
@@ -1556,7 +1609,7 @@ struct SceneCardCarousel: View {
                 EmptyView()
             } else {
                 ForEach(renderItems) { item in
-                    FeaturedSceneCard(
+                    SceneCard(
                         scene: item.scene,
                         detailVisibility: interactionDetailVisibility(for: item.visualPosition),
                         atmosphericFade: atmosphericFade(for: item.visualPosition),
@@ -2022,7 +2075,7 @@ struct FileListGroupRow: View {
 
 // MARK: - Small elements
 
-struct MockToggle: View {
+struct GlassToggle: View {
     @State var isOn: Bool
 
     var body: some View {
@@ -2052,7 +2105,7 @@ struct MockToggle: View {
     }
 }
 
-private struct BoundMockToggle: View {
+private struct BoundGlassToggle: View {
     @Binding var isOn: Bool
     var isEnabled = true
 
@@ -2478,6 +2531,72 @@ struct SourceSidebarRow: View {
         )
         .opacity(isEnabled ? 1 : 0.42)
         .accessibilityLabel(title)
+    }
+}
+
+// MARK: - Category sidebar
+
+/// 分类器条目:图标 + 标题 + 稳定 id。
+struct CategorySidebarItem: Identifiable, Equatable {
+    let id: String
+    let icon: String
+    let title: String
+}
+
+/// 通用静态大类分类器侧栏:在 Settings 页面 / Panel 面板中选一个大类。
+/// 天生无重排、无删除、无 footer——就是个可选中的静态列表。行视觉复用纯视觉行 `SourceSidebarRow`。
+/// 本件是唯一暴露尺寸(`width`/`height` 成对)的标准件,因 Settings 满宽 vs Panel 紧凑,容器管不了。
+struct CategorySidebar: View {
+    let items: [CategorySidebarItem]
+    @Binding var selection: String
+    var title: String = "Categories"
+    var width: CGFloat = DesignTokens.SourceSidebar.width
+    var height: CGFloat? = nil
+    var containerIdentifier: String = "CategorySidebar"
+    var identifierPrefix: String = "CategorySidebar"
+
+    var body: some View {
+        let shape = DesignTokens.SourceSidebar.shape
+
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                HStack(spacing: DesignTokens.Spacing.xs) {
+                    Text(title)
+                        .font(DesignTokens.SourceSidebar.sectionTitleFont)
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                    Spacer(minLength: 0)
+                    Color.clear
+                        .frame(width: DesignTokens.Interactive.compact,
+                               height: DesignTokens.Interactive.compact)
+                        .accessibilityHidden(true)
+                }
+                .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
+
+                VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
+                    ForEach(items) { item in
+                        SourceSidebarRow(
+                            icon: item.icon,
+                            title: item.title,
+                            isSelected: selection == item.id
+                        )
+                        .contentShape(DesignTokens.SourceSidebar.rowShape)
+                        .onTapGesture { selection = item.id }
+                        .accessibilityAddTraits(selection == item.id ? [.isButton, .isSelected] : .isButton)
+                        .accessibilityIdentifier("\(identifierPrefix)-category-\(item.id)")
+                    }
+                }
+                .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
+        .frame(width: width)
+        .frame(maxHeight: height ?? .infinity, alignment: .topLeading)
+        .glassBackgroundEffect(.plate, in: shape, displayMode: .always)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier(containerIdentifier)
     }
 }
 

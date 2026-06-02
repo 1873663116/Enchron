@@ -227,7 +227,7 @@ private struct ToggleSection: View {
 
             HStack(spacing: DesignTokens.Spacing.xl) {
                 labeledComponent("Tap to toggle") {
-                    MockToggle(isOn: true)
+                    GlassToggle(isOn: true)
                 }
             }
 
@@ -254,30 +254,25 @@ private struct CardsSection: View {
         .init(title: "Gravity", fileSize: "18.9 GB", duration: "1:31:07", badges: [])
     ]
 
-    private var componentCardWidth: CGFloat {
-        DesignTokens.Card.gridMin - DesignTokens.Spacing.md
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("CARDS")
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(.secondary).textCase(.uppercase)
 
-            cardRow("FolderCard") {
+            cardRow("GridCard · folder") {
                 ForEach(folders) { folder in
-                    FolderCard(title: folder.title, count: folder.count, width: componentCardWidth)
+                    GridCard.folder(title: folder.title, count: folder.count)
                 }
             }
 
-            cardRow("VideoCardLarge") {
+            cardRow("GridCard · video") {
                 ForEach(videos) { video in
-                    VideoCardLarge(
+                    GridCard.video(
                         title: video.title,
                         fileSize: video.fileSize,
                         duration: video.duration,
-                        badges: video.badges,
-                        width: componentCardWidth
+                        badges: video.badges
                     )
                 }
             }
@@ -403,7 +398,14 @@ private struct PlayerSection: View {
 
 struct SourceSidebarSection: View {
     @State private var fullItems = SidebarSourceItem.defaultItems
-    @State private var plainItems = SidebarSourceItem.defaultItems
+    @State private var demoCategorySelection = "playback"
+
+    private let demoCategories = [
+        CategorySidebarItem(id: "playback", icon: "play.rectangle.fill", title: "Playback"),
+        CategorySidebarItem(id: "display", icon: "display", title: "Display"),
+        CategorySidebarItem(id: "audio", icon: "speaker.wave.3", title: "Audio"),
+        CategorySidebarItem(id: "about", icon: "info.circle", title: "About")
+    ]
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
@@ -412,29 +414,28 @@ struct SourceSidebarSection: View {
                 .foregroundStyle(.secondary).textCase(.uppercase)
 
             HStack(alignment: .top, spacing: DesignTokens.Spacing.xl) {
-                labeledComponent("Full · reorder + swipe + select + add") {
+                labeledComponent("SourceSidebar · 交互源列表(重排/滑删/多选/加源,内置存储条)") {
                     SourceSidebar(
                         items: $fullItems,
-                        capabilities: .all,
-                        containerIdentifier: "DesignPreview-ComponentLibrary-sourceSidebar-full",
-                        identifierPrefix: "DesignPreview-ComponentLibrary-sourceSidebar-full"
+                        containerIdentifier: "DesignPreview-ComponentLibrary-sourceSidebar",
+                        identifierPrefix: "DesignPreview-ComponentLibrary-sourceSidebar"
                     )
                     .frame(height: 420)
                 }
 
-                labeledComponent("View only · 纯展示列表") {
-                    SourceSidebar(
-                        items: $plainItems,
-                        capabilities: .viewOnly,
-                        showsStatusIndicators: false,
-                        containerIdentifier: "DesignPreview-ComponentLibrary-sourceSidebar-plain",
-                        identifierPrefix: "DesignPreview-ComponentLibrary-sourceSidebar-plain"
+                labeledComponent("CategorySidebar · 静态大类分类器(无交互,可选中)") {
+                    CategorySidebar(
+                        items: demoCategories,
+                        selection: $demoCategorySelection,
+                        title: "Settings",
+                        height: 420,
+                        containerIdentifier: "DesignPreview-ComponentLibrary-categorySidebar",
+                        identifierPrefix: "DesignPreview-ComponentLibrary-categorySidebar"
                     )
-                    .frame(height: 420)
                 }
             }
 
-            Text("SourceSidebar · Capabilities 可逐项开关 · 复用 SourceSidebarRow / DesignTokens.SourceSidebar")
+            Text("两个角色 · SourceSidebar(有整套状态机)/ CategorySidebar(纯静态)· 共用 SourceSidebarRow 视觉 / DesignTokens.SourceSidebar")
                 .font(.caption2).foregroundStyle(.tertiary)
         }
     }
@@ -483,32 +484,11 @@ struct SidebarSourceItem: Identifiable, Equatable {
     ]
 }
 
-// 顶层类型：Swift 不允许泛型类型（SourceSidebar<Footer>）的嵌套类型持有 static stored property，
-// 因此 Capabilities 提为顶层 OptionSet。
-struct SourceSidebarCapabilities: OptionSet {
-    let rawValue: Int
-
-    /// 长按拖动重排行序
-    static let reorder = SourceSidebarCapabilities(rawValue: 1 << 0)
-    /// 横向滑动显露删除
-    static let swipeDelete = SourceSidebarCapabilities(rawValue: 1 << 1)
-    /// 多选模式（勾选 + 批量删除）
-    static let selection = SourceSidebarCapabilities(rawValue: 1 << 2)
-    /// 头部菜单中的「添加来源」入口
-    static let addSource = SourceSidebarCapabilities(rawValue: 1 << 3)
-
-    static let all: SourceSidebarCapabilities = [.reorder, .swipeDelete, .selection, .addSource]
-    static let viewOnly: SourceSidebarCapabilities = []
-}
-
-struct SourceSidebar<Footer: View>: View {
+struct SourceSidebar: View {
     @Binding var items: [SidebarSourceItem]
     var title: String = "Sources"
-    var capabilities: SourceSidebarCapabilities = .all
-    var showsStatusIndicators = true
     var containerIdentifier: String = "SourceSidebar"
     var identifierPrefix: String = "SourceSidebar"
-    @ViewBuilder var footer: () -> Footer
 
     @State private var isSelectingSidebarItems = false
     @State private var selectedSourceIDs: Set<SidebarSourceItem.ID> = []
@@ -526,13 +506,13 @@ struct SourceSidebar<Footer: View>: View {
         return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             sourcesSection
 
-            if capabilities.contains(.selection) && isSelectingSidebarItems {
+            if isSelectingSidebarItems {
                 sidebarSelectionActions
             }
 
             Spacer(minLength: 0)
 
-            footer()
+            sidebarStorageMeter
         }
         .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
         .frame(width: DesignTokens.SourceSidebar.width)
@@ -565,7 +545,7 @@ struct SourceSidebar<Footer: View>: View {
                         title: item.title,
                         isSelected: item.isSelected,
                         isEnabled: item.isEnabled,
-                        isOnline: showsStatusIndicators && item.isOnline,
+                        isOnline: item.isOnline,
                         isDeletable: item.isDeletable,
                         isSelectionMode: isSelectingSidebarItems,
                         isChecked: selectedSourceIDs.contains(item.id),
@@ -573,8 +553,8 @@ struct SourceSidebar<Footer: View>: View {
                         isSwipeExpanded: expandedSourceID == item.id,
                         isDragging: draggingSourceID == item.id,
                         rowOffset: sourceRowOffset(for: item),
-                        allowsReordering: capabilities.contains(.reorder),
-                        allowsSwipe: capabilities.contains(.swipeDelete),
+                        allowsReordering: true,
+                        allowsSwipe: true,
                         onToggleSelection: {
                             toggleSourceSelection(item.id)
                         },
@@ -619,13 +599,8 @@ struct SourceSidebar<Footer: View>: View {
         )
     }
 
-    @ViewBuilder
     private var headerTrailingControl: some View {
-        if capabilities.contains(.addSource) || capabilities.contains(.selection) {
-            sourceMoreMenu
-        } else {
-            sidebarHeaderTrailingPlaceholder
-        }
+        sourceMoreMenu
     }
 
     private func sidebarSectionTitle(_ title: String) -> some View {
@@ -635,42 +610,57 @@ struct SourceSidebar<Footer: View>: View {
             .textCase(.uppercase)
     }
 
-    private var sidebarHeaderTrailingPlaceholder: some View {
-        Color.clear
-            .frame(width: DesignTokens.Interactive.compact, height: DesignTokens.Interactive.compact)
-            .accessibilityHidden(true)
+    // 底部存储条:内置。DesignPreview 是 fake UX,存储数字写死 mock,不开放为参数。
+    private var sidebarStorageMeter: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            HStack {
+                Text("Storage")
+                Spacer()
+                Text("1.2 TB / 4 TB")
+            }
+            .font(DesignTokens.Typography.sectionHeader)
+            .foregroundStyle(.secondary)
+
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(DesignTokens.Surface.overlay)
+                    Capsule()
+                        .fill(DesignTokens.Theme.accent)
+                        .frame(width: geometry.size.width * 0.3)
+                }
+            }
+            .frame(height: DesignTokens.Spacing.xs)
+        }
+        .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
     }
 
     private var sourceMoreMenu: some View {
         Menu {
-            if capabilities.contains(.addSource) {
-                Menu {
-                    Button {} label: {
-                        Label("WebDAV", systemImage: "cloud.fill")
-                    }
-                    Button {} label: {
-                        Label("SMB", systemImage: "server.rack")
-                    }
-                    Button {
-                        addDebugSource()
-                    } label: {
-                        Label("Add One", systemImage: "plus.circle")
-                    }
-                } label: {
-                    Label("Add", systemImage: "plus")
+            Menu {
+                Button {} label: {
+                    Label("WebDAV", systemImage: "cloud.fill")
                 }
+                Button {} label: {
+                    Label("SMB", systemImage: "server.rack")
+                }
+                Button {
+                    addDebugSource()
+                } label: {
+                    Label("Add One", systemImage: "plus.circle")
+                }
+            } label: {
+                Label("Add", systemImage: "plus")
             }
             Button {} label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
-            if capabilities.contains(.selection) {
-                Button {
-                    enterSidebarDeleteSelectionMode()
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                }
-                .disabled(!hasDeletableSources)
+            Button {
+                enterSidebarDeleteSelectionMode()
+            } label: {
+                Label("Delete", systemImage: "trash")
             }
+            .disabled(!hasDeletableSources)
         } label: {
             GlassCircleIconLabel(
                 systemName: "ellipsis",
@@ -953,28 +943,6 @@ struct SourceSidebar<Footer: View>: View {
         }
 
         return 0
-    }
-}
-
-extension SourceSidebar where Footer == EmptyView {
-    init(
-        items: Binding<[SidebarSourceItem]>,
-        title: String = "Sources",
-        capabilities: SourceSidebarCapabilities = .all,
-        showsStatusIndicators: Bool = true,
-        containerIdentifier: String = "SourceSidebar",
-        identifierPrefix: String = "SourceSidebar"
-    ) {
-        self.init(
-            items: items,
-            title: title,
-            capabilities: capabilities,
-            showsStatusIndicators: showsStatusIndicators,
-            containerIdentifier: containerIdentifier,
-            identifierPrefix: identifierPrefix
-        ) {
-            EmptyView()
-        }
     }
 }
 

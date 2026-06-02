@@ -9,7 +9,14 @@
 ## 当前进度
 - **Step 1(清理重复组件/死件)已完成**——由并行 agent 在 `b0c1d2b` 完成并合并进 main。
 - **契约定义阶段已完成**——19 份白话契约落在 `docs/contracts/`,全部决策已拍。
-- **下一步 = 实现阶段(尚未开始)。** 用户验收方式:不读代码。
+- **Phase 2 / A 批(结构性合并·删除·重命名)已完成**(Agent 自查,每步编译绿):
+  - A.1 `VideoCardLarge`+`FolderCard` → `GridCard`(+ `.video`/`.folder` 工厂、锁宽高、删 `showsSupplementaryInfo`、元数据色统一 `.secondary`、补 a11y);运行态 Files 网格自查通过。
+  - `FeaturedSceneCard` → `SceneCard`(纯重命名,参数面已就位)。
+  - `MockToggle`/`BoundMockToggle` → `GlassToggle`/`BoundGlassToggle`(去 fake-UX 命名)。
+  - `GlassCircleIconButton`:锁 `iconColor` + 加具名图标预设 `.back/.expand/.more/.close`(Label 仍保留 iconColor 供 SortMenuButton 复用)。
+  - A.5 Sidebar 拆两角色:`SourceSidebar` 去泛型 `<Footer>`/删 `SourceSidebarCapabilities`/`showsStatusIndicators`、存储条内置 mock;新增 `CategorySidebar`(+`CategorySidebarItem`)入 `SharedComponents.swift`,从内联 `settingsSidebar` 抽取。调用点全改、孤儿清理。运行态 Files 的 SourceSidebar+存储条自查通过;**CategorySidebar 的 Settings 运行态截图被 `snapshot_ui` 工具崩溃挡住,待 Canvas 确认**。
+  - **跳过(工程判断)**:`ViewMode` Int→enum(非阻塞建议,低价值高 churn);`FeaturedScene.mode/atmosphere`→enum(atmosphere 是自由文案,枚举化=过度设计)。
+- **下一步 = B(逐件参数化)→ C(重组 DesignComps)→ D(SwiftLint 守卫 + 薄测试)。** 用户验收方式:不读代码,Agent 自查 + Canvas。
 
 ## 核心模型(一句话)
 严格派:一个视觉角色 = 一个带参标准件,差异走**参数**或**具名变体工厂/预设**(`GridCard.video`)。`DesignTokens` 是纯值层(被组件消费),组件不是 token 的预设而是其使用者。组装时只调标准件改参数,**不许写自定义组件代码**。

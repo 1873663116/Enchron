@@ -853,7 +853,7 @@ struct SceneCardPreview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .center, spacing: DesignTokens.Spacing.xl) {
-                FeaturedSceneCard()
+                SceneCard()
             }
             .padding(DesignTokens.Spacing.xxl)
             .frame(maxWidth: .infinity, alignment: .center)
@@ -1618,7 +1618,7 @@ struct PressFeedbackPreview: View {
 
     private var pressCardPreview: some View {
         VStack(spacing: DesignTokens.Spacing.xs) {
-            VideoCardLarge(
+            GridCard.video(
                 title: "Card",
                 fileSize: scaleText(DesignTokens.PressFeedback.card),
                 duration: DesignTokens.PressFeedback.card.holdDurationLabel,
@@ -1770,7 +1770,7 @@ struct ComponentStandardsPreview: View {
                 namespace: "DesignTokens.Card.*",
                 specs: cardSpecs
             ) {
-                VideoCardLarge(title: "Interstellar", fileSize: "8.2 GB", duration: "2:49:00", badges: ["HDR10+"])
+                GridCard.video(title: "Interstellar", fileSize: "8.2 GB", duration: "2:49:00", badges: ["HDR10+"])
             }
 
             TokenSpecSection(
