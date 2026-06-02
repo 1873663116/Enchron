@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mpv 在 Apple / visionOS 的视频解码渲染管线 · 学习 Canvas</title>
+<style>
+  :root{
+    --bg:#0b0e14; --bg2:#11151f; --panel:#151a26; --panel2:#1b2233;
+    --ink:#e8ecf4; --ink-dim:#a6b0c3; --ink-faint:#6f7b93;
+    --line:#27304a; --line2:#333f63;
+    --accent:#5ec8ff; --accent2:#7af0c8; --accent3:#c79bff; --accent4:#ffb86b;
+    --warn:#ff8585; --ok:#7af0c8;
+    --mono:"SF Mono",ui-monospace,"JetBrains Mono",Menlo,Consolas,monospace;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Hiragino Sans GB",sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:linear-gradient(180deg,#0b0e14,#0a0c12 60%,#090b10);color:var(--ink);font-family:var(--sans);line-height:1.7;font-size:16px;-webkit-font-smoothing:antialiased}
+  a{color:var(--accent);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* layout */
+  .wrap{display:grid;grid-template-columns:264px minmax(0,1fr);max-width:1280px;margin:0 auto;gap:0}
+  nav.toc{position:sticky;top:0;align-self:start;height:100vh;overflow-y:auto;padding:28px 18px 60px;border-right:1px solid var(--line);background:rgba(10,12,18,.6);backdrop-filter:blur(6px)}
+  nav.toc .brand{font-weight:700;font-size:15px;letter-spacing:.3px;color:var(--ink);margin-bottom:4px}
+  nav.toc .brand small{display:block;color:var(--ink-faint);font-weight:400;font-size:12px;margin-top:4px;letter-spacing:0}
+  nav.toc ol{list-style:none;margin:18px 0 0;padding:0;counter-reset:s}
+  nav.toc li{counter-increment:s;margin:2px 0}
+  nav.toc a{display:block;color:var(--ink-dim);font-size:13.5px;padding:6px 10px;border-radius:8px;border-left:2px solid transparent}
+  nav.toc a:hover{background:var(--panel);text-decoration:none;color:var(--ink)}
+  nav.toc a::before{content:counter(s);display:inline-block;width:1.6em;color:var(--accent);font-family:var(--mono);font-size:12px}
+  main{padding:0 clamp(20px,4vw,56px) 120px;min-width:0}
+
+  header.hero{padding:64px 0 36px;border-bottom:1px solid var(--line)}
+  header.hero .kicker{font-family:var(--mono);font-size:12.5px;letter-spacing:2px;color:var(--accent2);text-transform:uppercase}
+  header.hero h1{font-size:clamp(26px,3.4vw,40px);line-height:1.2;margin:14px 0 12px;font-weight:760;letter-spacing:-.5px}
+  header.hero h1 .g{background:linear-gradient(100deg,var(--accent),var(--accent3));-webkit-background-clip:text;background-clip:text;color:transparent}
+  header.hero p.sub{color:var(--ink-dim);max-width:70ch;margin:0;font-size:16.5px}
+  .meta-pills{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+  .pill{font-family:var(--mono);font-size:11.5px;color:var(--ink-dim);border:1px solid var(--line2);background:var(--panel);padding:4px 10px;border-radius:999px}
+
+  section{padding:48px 0 8px;border-bottom:1px solid var(--line)}
+  section>h2{font-size:25px;font-weight:720;letter-spacing:-.3px;margin:0 0 6px;display:flex;align-items:baseline;gap:12px}
+  section>h2 .num{font-family:var(--mono);font-size:14px;color:var(--accent);font-weight:600}
+  section>.lede{color:var(--ink-dim);margin:0 0 20px;max-width:74ch}
+  h3{font-size:18.5px;font-weight:680;margin:30px 0 8px;color:var(--ink)}
+  h4{font-size:15px;font-weight:680;margin:20px 0 6px;color:var(--accent2);font-family:var(--mono);letter-spacing:.2px}
+  p{margin:10px 0}
+  ul,ol{margin:10px 0;padding-left:22px}
+  li{margin:5px 0}
+  strong{color:#fff;font-weight:640}
+  code{font-family:var(--mono);font-size:.88em;background:#0e1320;border:1px solid var(--line);padding:1.5px 6px;border-radius:6px;color:var(--accent2)}
+
+  /* definition / principle blocks */
+  .def{display:grid;grid-template-columns:auto 1fr;gap:0;border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:16px 0;background:var(--panel)}
+  .def .tag{writing-mode:vertical-rl;text-orientation:upright;background:var(--panel2);color:var(--accent);font-family:var(--mono);font-size:11px;letter-spacing:3px;padding:14px 8px;display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line)}
+  .def.principle .tag{color:var(--accent3)}
+  .def.why .tag{color:var(--accent4)}
+  .def .body{padding:14px 18px}
+  .def .body>:first-child{margin-top:0}
+  .def .body>:last-child{margin-bottom:0}
+  .def .term{font-weight:700;color:#fff}
+
+  /* callouts */
+  .note{border-left:3px solid var(--accent);background:linear-gradient(90deg,rgba(94,200,255,.08),transparent);padding:12px 16px;border-radius:0 10px 10px 0;margin:16px 0}
+  .note.warn{border-color:var(--warn);background:linear-gradient(90deg,rgba(255,133,133,.09),transparent)}
+  .note.key{border-color:var(--accent2);background:linear-gradient(90deg,rgba(122,240,200,.09),transparent)}
+  .note .lbl{font-family:var(--mono);font-size:11px;letter-spacing:1.5px;text-transform:uppercase;color:var(--accent);display:block;margin-bottom:4px}
+  .note.warn .lbl{color:var(--warn)}
+  .note.key .lbl{color:var(--accent2)}
+
+  /* code block */
+  pre{background:#0a0e17;border:1px solid var(--line);border-radius:12px;padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:13px;line-height:1.6;color:#cdd6e8;margin:14px 0}
+  pre .c{color:var(--ink-faint)}
+  pre .k{color:var(--accent3)}
+  pre .s{color:var(--accent2)}
+  pre .n{color:var(--accent4)}
+
+  /* tables */
+  table{width:100%;border-collapse:collapse;margin:16px 0;font-size:14px}
+  th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--accent);font-weight:620;font-size:12.5px;letter-spacing:.3px;background:var(--panel);border-bottom:1px solid var(--line2)}
+  td code{font-size:12px}
+  tr:hover td{background:rgba(255,255,255,.015)}
+
+  /* pipeline diagram */
+  .diagram{background:radial-gradient(1200px 400px at 30% -10%,rgba(94,200,255,.07),transparent),var(--bg2);border:1px solid var(--line);border-radius:16px;padding:8px;margin:22px 0;overflow-x:auto}
+  .diagram svg{display:block;min-width:760px;width:100%;height:auto}
+
+  /* stage cards row */
+  .stages{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin:18px 0}
+  .stage{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:12px 12px 14px;position:relative}
+  .stage .si{font-family:var(--mono);font-size:11px;color:var(--accent);letter-spacing:1px}
+  .stage h5{margin:6px 0 4px;font-size:14.5px}
+  .stage p{margin:0;font-size:12.5px;color:var(--ink-dim);line-height:1.5}
+  .stage code{font-size:11px;background:none;border:none;padding:0;color:var(--accent4)}
+  @media(max-width:880px){.stages{grid-template-columns:1fr 1fr}}
+
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:16px 0}
+  @media(max-width:880px){.twocol{grid-template-columns:1fr}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px 18px}
+  .card h4{margin-top:0}
+  .card.path-a{border-color:rgba(94,200,255,.4)}
+  .card.path-b{border-color:rgba(255,184,107,.35)}
+
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin:10px 0 0;font-size:12.5px;color:var(--ink-dim)}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+
+  .conf{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:880px){.conf{grid-template-columns:1fr}}
+  .conf ul{padding-left:18px}
+  .badge{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:2px 8px;border-radius:999px;letter-spacing:.5px;vertical-align:middle}
+  .badge.ok{color:#0a0c12;background:var(--ok)}
+  .badge.q{color:#0a0c12;background:var(--accent4)}
+
+  footer{padding:40px 0 0;color:var(--ink-faint);font-size:13px}
+  footer a{color:var(--ink-dim)}
+  .filepath{font-family:var(--mono);font-size:12px;color:var(--ink-faint)}
+  hr.soft{border:none;border-top:1px dashed var(--line2);margin:24px 0}
+  .anchor{position:relative;top:-10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<nav class="toc">
+  <div class="brand">mpv × Apple 解码管线
+    <small>Enchron / XrPlayer · 学习 Canvas</small>
+  </div>
+  <ol>
+    <li><a href="#s1">心智模型：拉式五层管线</a></li>
+    <li><a href="#s2">全景管线图</a></li>
+    <li><a href="#s3">输入侧：Stream 与 Demuxer</a></li>
+    <li><a href="#s4">解码侧：FFmpeg 与 VideoToolbox</a></li>
+    <li><a href="#s5">渲染侧：VO、libplacebo、Metal 真相</a></li>
+    <li><a href="#s6">Apple 框架：零拷贝桥</a></li>
+    <li><a href="#s7">visionOS 输出侧：RealityKit / Compositor</a></li>
+    <li><a href="#s8">本仓库的实际形态</a></li>
+    <li><a href="#s9">可信度与待验证</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <div class="kicker">Learning Canvas · 概念 / 原理 / 证据</div>
+  <h1>mpv 在 <span class="g">Apple / visionOS</span> 上的<br>视频解码渲染管线</h1>
+  <p class="sub">一帧视频如何从一串字节，穿过解复用、解码、滤镜、色彩管理，最终变成 Vision Pro 眼前空间表面上的像素。本文聚焦 visionOS，把「mpv 上游通用原理」与「XrPlayer 仓库的真实实现」逐层对照。</p>
+  <div class="meta-pills">
+    <span class="pill">libmpv / MPVKit-GPL</span>
+    <span class="pill">FFmpeg · libavcodec</span>
+    <span class="pill">VideoToolbox</span>
+    <span class="pill">MoltenVK → Metal</span>
+    <span class="pill">RealityKit · LowLevelTexture</span>
+    <span class="pill">visionOS</span>
+  </div>
+</header>
+
+<!-- ============ 1 ============ -->
+<section id="s1"><span class="anchor"></span>
+  <h2><span class="num">01</span>心智模型：拉式（pull-based）五层管线</h2>
+  <p class="lede">在动手看任何代码之前，先建立一张正确的地图。mpv 是一个<strong>拉式</strong>播放器：渲染时钟在最末端拉动整条流水线——需要下一帧时，才回溯去解码、去解复用、去读字节。一帧视频要穿过五个职责清晰的分层。</p>
+
+  <div class="stages">
+    <div class="stage"><div class="si">LAYER 1</div><h5>Stream 流抽象</h5><p>把「字节从哪来」抹平：文件 / HTTP / SMB / WebDAV 都变成统一可读字节流。<code>stream/</code></p></div>
+    <div class="stage"><div class="si">LAYER 2</div><h5>Demux 解复用</h5><p>拆容器，分出视频/音频/字幕轨，切成带时间戳的 <b>packet</b>。<code>demux/</code></p></div>
+    <div class="stage"><div class="si">LAYER 3</div><h5>Decode 解码</h5><p>压缩 packet → 原始像素 <b>frame</b>。委托 FFmpeg。<code>video/decode/vd_lavc.c</code></p></div>
+    <div class="stage"><div class="si">LAYER 4</div><h5>Filter 滤镜</h5><p>对 raw 帧做去隔行 / 格式转换 / 裁剪。<code>filters/ · video/filter/</code></p></div>
+    <div class="stage"><div class="si">LAYER 5</div><h5>VO + 渲染</h5><p>色彩管理、YUV→RGB、HDR、缩放、抖动、上屏。<code>video/out/</code></p></div>
+  </div>
+
+  <div class="def principle">
+    <div class="tag">核心概念</div>
+    <div class="body">
+      <p><span class="term">packet 与 frame 的分界，就是「解码」这个动作本身。</span>Demux 产出的是 <strong>packet</strong>（仍是 H.264/HEVC 压缩比特），Decode 产出的是 <strong>frame</strong>（可直接显示的原始像素，通常是 YUV）。记住这条分界线，后面所有「在哪里发生零拷贝」「硬解输出什么」的问题都能定位。</p>
+    </div>
+  </div>
+
+  <p>mpv 的 <span class="filepath">player/</span> 核心（如 <code>player/video.c</code>）不亲自解码，它是<strong>调度者</strong>：负责把这五层串起来、做音视频同步（A/V sync）、管理时间戳、决定何时该拉下一帧。真正的「重活」——解复用和解码——都委托给 <strong>FFmpeg</strong>。</p>
+</section>
+
+<!-- ============ 2 ============ -->
+<section id="s2"><span class="anchor"></span>
+  <h2><span class="num">02</span>全景管线图</h2>
+  <p class="lede">下面这张图是后续所有章节的索引。蓝色是 mpv/FFmpeg 内部，绿色是 Apple 框架，紫色是 visionOS 呈现层。注意右侧两条分叉——这正是 XrPlayer 的两条渲染路径。</p>
+
+  <div class="diagram">
+    <svg viewBox="0 0 980 520" xmlns="http://www.w3.org/2000/svg" font-family="var(--mono)">
+      <defs>
+        <marker id="ah" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#6f7b93"/></marker>
+        <linearGradient id="gmpv" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#16263a"/><stop offset="1" stop-color="#11202f"/></linearGradient>
+        <linearGradient id="gapple" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#13332a"/><stop offset="1" stop-color="#102a22"/></linearGradient>
+        <linearGradient id="gvos" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#291f3a"/><stop offset="1" stop-color="#211830"/></linearGradient>
+      </defs>
+      <style>
+        .bx{rx:11;stroke-width:1.2}
+        .mpv{fill:url(#gmpv);stroke:#2f5f8a}
+        .apple{fill:url(#gapple);stroke:#2f7a5f}
+        .vos{fill:url(#gvos);stroke:#6a4f9a}
+        .t{fill:#e8ecf4;font-size:13px;font-weight:600}
+        .st{fill:#9fb0c8;font-size:10.5px}
+        .fl{stroke:#6f7b93;stroke-width:1.4;fill:none;marker-end:url(#ah)}
+        .fl2{stroke:#7af0c8;stroke-width:1.6;fill:none;marker-end:url(#ah);stroke-dasharray:5 4}
+        .lab{fill:#7af0c8;font-size:10px}
+      </style>
+
+      <!-- row 1: input chain -->
+      <rect class="bx mpv" x="20" y="30" width="150" height="56"/>
+      <text class="t" x="34" y="55">输入 / URL</text>
+      <text class="st" x="34" y="72">本地·SMB·WebDAV·HTTP</text>
+
+      <rect class="bx mpv" x="200" y="30" width="150" height="56"/>
+      <text class="t" x="214" y="55">Stream 抽象</text>
+      <text class="st" x="214" y="72">stream/ · 统一字节流</text>
+
+      <rect class="bx mpv" x="380" y="30" width="150" height="56"/>
+      <text class="t" x="394" y="55">Demuxer</text>
+      <text class="st" x="394" y="72">demux_lavf · 拆容器</text>
+
+      <rect class="bx mpv" x="560" y="30" width="180" height="56"/>
+      <text class="t" x="574" y="55">Decode · vd_lavc</text>
+      <text class="st" x="574" y="72">FFmpeg libavcodec</text>
+
+      <line class="fl" x1="170" y1="58" x2="198" y2="58"/>
+      <line class="fl" x1="350" y1="58" x2="378" y2="58"/>
+      <line class="fl" x1="530" y1="58" x2="558" y2="58"/>
+      <text class="lab" x="352" y="48">packet</text>
+
+      <!-- down into hwdec -->
+      <line class="fl" x1="650" y1="86" x2="650" y2="120"/>
+      <rect class="bx apple" x="540" y="120" width="220" height="60"/>
+      <text class="t" x="556" y="145">VideoToolbox 硬解</text>
+      <text class="st" x="556" y="163">hwdec=videotoolbox</text>
+
+      <!-- frame output -->
+      <line class="fl" x1="650" y1="180" x2="650" y2="214"/>
+      <rect class="bx apple" x="500" y="214" width="300" height="64"/>
+      <text class="t" x="516" y="239">CVPixelBuffer (NV12 / p010)</text>
+      <text class="st" x="516" y="258">由 IOSurface 背书 · 帧留在 GPU 可见内存</text>
+      <text class="lab" x="668" y="205">frame</text>
+
+      <!-- mpv render gpu-next -->
+      <line class="fl" x1="500" y1="246" x2="372" y2="246"/>
+      <rect class="bx mpv" x="180" y="214" width="190" height="64"/>
+      <text class="t" x="194" y="237">VO: gpu-next</text>
+      <text class="st" x="194" y="255">libplacebo 着色器链</text>
+      <text class="st" x="194" y="270">YUV→RGB·HDR·缩放·抖动</text>
+
+      <!-- moltenvk -->
+      <line class="fl" x1="275" y1="278" x2="275" y2="312"/>
+      <rect class="bx mpv" x="150" y="312" width="250" height="56"/>
+      <text class="t" x="164" y="336">gpu-api=vulkan → MoltenVK</text>
+      <text class="st" x="164" y="353">Vulkan 调用翻译成 Metal</text>
+
+      <!-- CAMetalLayer -->
+      <line class="fl" x1="275" y1="368" x2="275" y2="400"/>
+      <rect class="bx apple" x="150" y="400" width="250" height="58"/>
+      <text class="t" x="164" y="424">CAMetalLayer · drawable</text>
+      <text class="st" x="164" y="442">MTLTexture (rgba16Float)</text>
+
+      <!-- branch to window -->
+      <line class="fl2" x1="400" y1="429" x2="470" y2="429"/>
+      <rect class="bx vos" x="470" y="400" width="160" height="58"/>
+      <text class="t" x="484" y="424">Window 模式</text>
+      <text class="st" x="484" y="442">直接上屏</text>
+
+      <!-- branch to bridge -->
+      <line class="fl2" x1="275" y1="458" x2="275" y2="486"/>
+      <rect class="bx vos" x="120" y="486" width="310" height="30"/>
+      <text class="t" x="134" y="506">PanoramaLayerBridge → LowLevelTexture</text>
+
+      <line class="fl2" x1="430" y1="501" x2="500" y2="501"/>
+      <rect class="bx vos" x="500" y="486" width="330" height="30"/>
+      <text class="t" x="514" y="506">RealityKit 材质 → 球面/曲面屏 → 沉浸空间</text>
+
+      <!-- legend dots handled in HTML below -->
+    </svg>
+  </div>
+  <div class="legend">
+    <span><i style="background:#1a3450"></i> mpv / FFmpeg 内部</span>
+    <span><i style="background:#15402f"></i> Apple 框架</span>
+    <span><i style="background:#2a1f3e"></i> visionOS 呈现层</span>
+    <span><i style="background:none;border:1px dashed #7af0c8"></i> XrPlayer 分叉路径</span>
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section id="s3"><span class="anchor"></span>
+  <h2><span class="num">03</span>输入侧：Stream 与 Demuxer</h2>
+  <p class="lede">视频文件不是「一种东西」，而是两层正交的概念叠在一起：容器装着轨道，轨道用某种编码压缩。理解这一层，才能理解为什么 XrPlayer 能同时支持本地、SMB、WebDAV。</p>
+
+  <div class="def">
+    <div class="tag">定义</div>
+    <div class="body">
+      <p><span class="term">Stream（流抽象，<code>stream/</code>）</span>：mpv 把「数据来源」统一成一个可 seek、可读的字节流接口。每种协议是一个 stream 实现——本地文件 <code>stream_file.c</code>、网络协议大多直接走 FFmpeg 的 <code>stream_lavf.c</code>（覆盖 http/https/rtmp/rtsp/hls）。</p>
+      <p class="note key" style="margin-bottom:0"><span class="lbl">为什么这对 XrPlayer 重要</span>上层 demuxer 根本不关心字节是从 SSD 还是从 SMB / WebDAV 来的。<strong>只要能提供字节流，mpv 就能播。</strong>这正好对应 FileBrowsing 模块「本地 / SMB / WebDAV」多数据源设计——数据源差异在 stream 层就被吸收，不会污染解码与渲染。</p>
+    </div>
+  </div>
+
+  <div class="def">
+    <div class="tag">定义</div>
+    <div class="body">
+      <p><span class="term">Demuxer（解复用器，<code>demux/</code>）</span>：读取 stream，识别容器格式，把交织在一起的多条 elementary stream（视频轨、音频轨、字幕轨）分离出来，并切成带时间戳（PTS 显示时间戳 / DTS 解码时间戳）的 <strong>packet</strong>。mpv 绝大多数容器委托 FFmpeg 的 <code>demux_lavf.c</code>，少量内建（mkv 的 <code>demux_mkv.c</code> 等）。</p>
+    </div>
+  </div>
+
+  <div class="def principle">
+    <div class="tag">关键区分</div>
+    <div class="body">
+      <p><span class="term">容器格式 ≠ 编码格式（二者正交）</span></p>
+      <table style="margin-top:8px">
+        <tr><th style="width:30%">维度</th><th>容器 / Container</th><th>编码 / Codec</th></tr>
+        <tr><td>例子</td><td><code>.mp4 .mkv .mov .ts .webm</code></td><td><code>H.264 HEVC AV1 VP9 / AAC FLAC</code></td></tr>
+        <tr><td>规定什么</td><td>如何把多条轨道、时间戳、元数据、字幕打包进一个文件</td><td>单条轨道的数据如何被压缩</td></tr>
+        <tr><td>谁处理</td><td><strong>Demuxer</strong></td><td><strong>Decoder</strong></td></tr>
+      </table>
+      <p style="margin-bottom:0">同一个 <code>.mkv</code> 里可以装 HEVC 视频 + FLAC 音频；同一段 H.264 流既能放进 MP4 也能放进 TS。<strong>先解容器拿到 packet，再按 codec 解码成 frame。</strong></p>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section id="s4"><span class="anchor"></span>
+  <h2><span class="num">04</span>解码侧：FFmpeg、VideoToolbox 与零拷贝</h2>
+  <p class="lede">这是整条管线里 Apple 平台特性最浓的一段。核心问题只有一个：解码出来的像素，落在哪块内存？答案决定了后面能不能做到零拷贝。</p>
+
+  <h3>4.1 FFmpeg / libavcodec 的角色</h3>
+  <div class="def why">
+    <div class="tag">事实</div>
+    <div class="body">
+      <p><span class="term">mpv 本身不写视频解码器。</span>它的解码层 <code>video/decode/vd_lavc.c</code>（"lavc" = libavcodec）是对 <strong>FFmpeg libavcodec</strong> 的封装。FFmpeg 是 mpv 解码与解复用的事实引擎；mpv 提供调度、硬解选择（hwdec）、滤镜接入、输出与渲染。</p>
+    </div>
+  </div>
+
+  <h3>4.2 软件解码 vs 硬件解码</h3>
+  <div class="twocol">
+    <div class="card">
+      <h4>软件解码（CPU）</h4>
+      <p style="font-size:14px;color:var(--ink-dim)">用 CPU 跑 libavcodec，输出 raw frame 落在<strong>系统内存（RAM）</strong>，典型格式 <code>yuv420p</code> / <code>p010</code>。通用、不挑硬件，但 4K/8K/HEVC/AV1 时 CPU 与功耗代价大。</p>
+    </div>
+    <div class="card">
+      <h4>硬件解码（GPU / ASIC）</h4>
+      <p style="font-size:14px;color:var(--ink-dim)">把熵解码、反量化、运动补偿交给专用解码块。输出帧<strong>留在 GPU 可访问内存</strong>，CPU 几乎不碰像素。省 CPU、省电，能扛 4K/8K HDR——这是 Vision Pro 长时间观看的刚需。</p>
+    </div>
+  </div>
+
+  <h3>4.3 Apple 平台的硬件解码：VideoToolbox</h3>
+  <div class="def">
+    <div class="tag">定义</div>
+    <div class="body">
+      <p><span class="term">VideoToolbox</span>（<code>VideoToolbox.framework</code>）是 Apple 的底层硬件编解码框架，直接访问硬件解码器。FFmpeg 内建 VideoToolbox 后端，mpv 通过它使用。</p>
+      <ul style="margin-bottom:0">
+        <li><code>hwdec=videotoolbox</code> —— 启用硬件解码，解码后的帧<strong>保留在 GPU 内存（CVPixelBuffer 形式）</strong>，用于零拷贝渲染。官方要求搭配 <code>--vo=gpu/gpu-next</code>（macOS）或 <code>--vo=libmpv</code>（iOS 9+）。</li>
+        <li><code>hwdec=videotoolbox-copy</code> —— 硬件解码后把帧<strong>拷回系统 RAM</strong>。多一次 GPU→CPU 拷贝，换来与任意 VO / 软件滤镜的兼容性。<strong>这会破坏零拷贝。</strong></li>
+      </ul>
+    </div>
+  </div>
+  <div class="note"><span class="lbl">命名澄清</span><code>AVHWDeviceType</code>（如 <code>AV_HWDEVICE_TYPE_VIDEOTOOLBOX</code>）是 <strong>FFmpeg 的概念</strong>，不是 Apple API——它表示「用哪类硬件设备上下文做加速」。别把它和 AVFoundation 混淆。</div>
+
+  <h3>4.4 CVPixelBuffer、IOSurface 与零拷贝</h3>
+  <div class="def principle">
+    <div class="tag">原理</div>
+    <div class="body">
+      <p><span class="term">CVPixelBuffer</span>（Core Video 的像素缓冲对象）是 VideoToolbox 解码输出的每一帧的载体。在 Apple 平台上它通常由一个 <span class="term">IOSurface</span> 背书——IOSurface 是<strong>内核级、可跨进程 / 跨框架共享的 GPU 内存缓冲</strong>。正因为帧落在 IOSurface 上，Metal 才能直接把它当纹理用，无需复制。</p>
+      <p style="margin-bottom:0"><span class="term">零拷贝（zero-copy）</span>：指像素数据从解码到渲染<strong>不发生 CPU 内存拷贝</strong>。解码器写进 IOSurface，渲染器（Metal）直接引用同一块 IOSurface 生成纹理。<code>videotoolbox</code> 是零拷贝路径；<code>videotoolbox-copy</code> 多一次回拷，破坏零拷贝。</p>
+    </div>
+  </div>
+
+  <h3>4.5 解码输出的像素格式</h3>
+  <p>视频几乎都以 <strong>YUV</strong>（亮度 Y + 色度 U/V）存储，且色度常被下采样为 4:2:0 以省码率；而屏幕需要 RGB，所以<strong>渲染阶段必须做 YUV→RGB 转换</strong>。常见格式：</p>
+  <table>
+    <tr><th>格式</th><th>布局</th><th>位深</th><th>典型场景 / CVPixelBuffer 类型</th></tr>
+    <tr><td><code>yuv420p</code></td><td>平面 planar 4:2:0</td><td>8-bit</td><td>软件解码，住在 RAM</td></tr>
+    <tr><td><code>NV12</code></td><td>半平面 semi-planar（Y 一面，UV 交错一面）</td><td>8-bit</td><td>Apple 硬解 SDR · <code>420YpCbCr8BiPlanar</code></td></tr>
+    <tr><td><code>p010</code></td><td>半平面 4:2:0</td><td>10-bit</td><td>HDR10 / HLG · <code>420YpCbCr10BiPlanar</code></td></tr>
+  </table>
+  <p>硬解时 FFmpeg/VideoToolbox 把帧封进 CVPixelBuffer，其内部布局就是 NV12（8-bit）或 p010（10-bit）；mpv 拿到的是封装在 FFmpeg <code>AVFrame</code> 里、pixel format = <code>AV_PIX_FMT_VIDEOTOOLBOX</code> 的这个 CVPixelBuffer。</p>
+</section>
+
+<!-- ============ 5 ============ -->
+<section id="s5"><span class="anchor"></span>
+  <h2><span class="num">05</span>渲染侧：VO、libplacebo，以及「mpv 与 Metal」的真相</h2>
+  <p class="lede">这一节是全文的认知关键点。很多人以为 mpv 在 Apple 上「用 Metal 渲染」——这个说法不准确。理解真相，才能理解 XrPlayer 为什么配置成 <code>gpu-api=vulkan</code>。</p>
+
+  <h3>5.1 VO 抽象与两个 GPU 渲染器</h3>
+  <div class="def">
+    <div class="tag">定义</div>
+    <div class="body">
+      <p><span class="term">VO（Video Output，<code>video/out/</code>）</span>是输出驱动抽象，每个 VO 实现一个 <code>vo_driver</code>。两个 GPU 渲染器：</p>
+      <ul style="margin-bottom:0">
+        <li><code>vo_gpu</code> —— 旧的、mpv 自带的 GPU 渲染器，自写 shader 链，抽象在多种图形 API 之上。</li>
+        <li><code>vo_gpu_next</code> —— 新一代渲染器，<strong>基于 libplacebo</strong>（libplacebo 最初就是从 mpv 渲染管线剥离出来的独立库）。上游推荐的高质量路径，HDR / tone mapping / 色彩处理更好。<strong>XrPlayer 原生路径用的正是它。</strong></li>
+      </ul>
+    </div>
+  </div>
+
+  <h3>5.2 mpv 渲染到底做了什么（「自渲染」的价值）</h3>
+  <p>这正是「播放器自己渲染、而不直接交给系统 AVPlayer」的理由。mpv（尤其 gpu-next/libplacebo）的 shader 链做：</p>
+  <table>
+    <tr><th>处理</th><th>原理</th></tr>
+    <tr><td><strong>色彩空间转换</strong></td><td>YUV→RGB（按 BT.601/709/2020 矩阵），处理 primaries、transfer function、range（limited/full）。libplacebo 内部统一升采样到 4:4:4 再处理。</td></tr>
+    <tr><td><strong>HDR tone mapping</strong></td><td>把 HDR（PQ/HLG，BT.2020）映射到目标显示能力，多种曲线可选。</td></tr>
+    <tr><td><strong>缩放 scaling</strong></td><td>高质量重采样核（ewa_lanczos、spline 等），远胜系统默认双线性。</td></tr>
+    <tr><td><strong>debanding</strong></td><td>去除低码率/平滑渐变区的色带（banding）。</td></tr>
+    <tr><td><strong>dithering 抖动</strong></td><td>量化到目标位深前做 gamma 正确的抖动，避免引入新 banding。</td></tr>
+  </table>
+  <div class="note key"><span class="lbl">沉浸场景为何必须自渲染</span>系统视频层（AVPlayer）只能放矩形画面。要把视频贴到 180/360 球面、曲面巨幕等<strong>任意几何</strong>上，必须拿到 GPU 纹理自己摆放——这是 SpatialScene 存在的根本前提。</div>
+
+  <h3>5.3 libmpv 的 render API</h3>
+  <p>当你把 mpv <strong>嵌入自己的 app</strong>（正是 XrPlayer 的场景），不用 mpv 自带窗口，而用 libmpv render API：<code>mpv_render_context_create()</code> 把渲染交还给你的 GPU 上下文。官方 header（<code>include/mpv/render.h</code>）里<strong>只定义了两种 API type</strong>：</p>
+  <pre><span class="c">// include/mpv/render.h —— 官方仅有的两种渲染后端</span>
+<span class="k">#define</span> MPV_RENDER_API_TYPE_OPENGL  <span class="s">"opengl"</span>   <span class="c">// OpenGL</span>
+<span class="k">#define</span> MPV_RENDER_API_TYPE_SW      <span class="s">"sw"</span>       <span class="c">// software，输出到一块内存 buffer</span>
+
+<span class="c">// 注意：不存在 MPV_RENDER_API_TYPE_METAL</span></pre>
+
+  <h3>5.4 真相：上游 mpv 没有原生 Metal 后端</h3>
+  <div class="def why">
+    <div class="tag">已查证</div>
+    <div class="body">
+      <ul>
+        <li><code>--gpu-api</code> 的合法取值只有 <code>opengl / vulkan / d3d11</code>（加 <code>auto</code>），<strong>没有 <code>metal</code></strong>。</li>
+        <li>源码 <code>video/out/</code> 下只有 <code>opengl/ vulkan/ d3d11/</code> 三个后端，<strong>没有任何 metal 目录</strong>。</li>
+        <li>libmpv render API 没有 Metal type（见上）。</li>
+      </ul>
+      <p style="margin-bottom:0">那 mpv 在 Apple 上怎么用到 GPU？答案是 <strong>MoltenVK</strong>：一个把 Vulkan 调用翻译成 Metal 的库。设 <code>gpu-api=vulkan</code> + <code>gpu-context=moltenvk</code>，mpv 以为自己在跑 Vulkan，实际命令被 MoltenVK 转译给 Metal 执行。</p>
+    </div>
+  </div>
+  <div class="note warn"><span class="lbl">重要边界</span>macOS/iOS 上的 <strong>MoltenVK 不含视频解码扩展</strong>。所以即便渲染走 Vulkan→Metal，<strong>解码仍然必须用 VideoToolbox</strong>。解码与渲染是两条独立的硬件路径：VideoToolbox 解码 → IOSurface → MoltenVK/Metal 渲染。</div>
+  <div class="note warn"><span class="lbl">visionOS 的现实约束</span>另两条路也走不通：<code>OPENGL</code> 依赖 OpenGL ES，而 <strong>visionOS 不支持 GLES</strong>；纯 <code>SW</code> 软渲有 CPU 拷贝与性能代价。因此 visionOS 上的现实路径就是 <strong>VideoToolbox 解码 + gpu-next 经 MoltenVK 渲染进 CAMetalLayer</strong>——这正是 XrPlayer 的选择。</div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section id="s6"><span class="anchor"></span>
+  <h2><span class="num">06</span>Apple 框架：从 CVPixelBuffer 到 MTLTexture 的零拷贝桥</h2>
+  <p class="lede">解码侧产出 CVPixelBuffer，渲染侧需要 MTLTexture。这两者之间不需要复制——靠的是它们共享同一块 IOSurface。这是整个 Apple 视频栈零拷贝的物理基础。</p>
+
+  <div class="diagram" style="padding:20px 24px">
+    <svg viewBox="0 0 900 250" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        .b{rx:10;stroke-width:1.2;fill:#13332a;stroke:#2f7a5f}
+        .bm{rx:10;stroke-width:1.2;fill:#1b2233;stroke:#3a4f7a}
+        .tt{fill:#e8ecf4;font-size:13px;font-weight:600;font-family:var(--mono)}
+        .ss{fill:#9fb0c8;font-size:10.5px;font-family:var(--mono)}
+        .ar{stroke:#7af0c8;stroke-width:1.6;fill:none;marker-end:url(#ah2)}
+        .lb{fill:#7af0c8;font-size:10px;font-family:var(--mono)}
+      </style>
+      <defs><marker id="ah2" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#7af0c8"/></marker></defs>
+
+      <rect class="b" x="20" y="40" width="180" height="58"/>
+      <text class="tt" x="36" y="64">VideoToolbox</text>
+      <text class="ss" x="36" y="82">硬件解码</text>
+
+      <rect class="b" x="250" y="40" width="200" height="58"/>
+      <text class="tt" x="266" y="64">CVPixelBuffer</text>
+      <text class="ss" x="266" y="82">NV12 / p010</text>
+
+      <rect class="b" x="510" y="40" width="200" height="58"/>
+      <text class="tt" x="526" y="64">CVMetalTextureCache</text>
+      <text class="ss" x="526" y="82">零拷贝桥</text>
+
+      <rect class="b" x="510" y="160" width="200" height="58" style="fill:#1b2233;stroke:#3a4f7a"/>
+      <text class="tt" x="526" y="184">MTLTexture (Metal)</text>
+      <text class="ss" x="526" y="202">Y plane + CbCr plane</text>
+
+      <!-- IOSurface underlay -->
+      <rect x="250" y="125" width="460" height="14" rx="7" fill="#0e1a2a" stroke="#2f5f8a"/>
+      <text class="ss" x="430" y="135" fill="#5ec8ff">IOSurface · 内核级共享 GPU 内存（同一块，不复制）</text>
+
+      <line class="ar" x1="200" y1="69" x2="248" y2="69"/>
+      <line class="ar" x1="450" y1="69" x2="508" y2="69"/>
+      <line class="ar" x1="610" y1="98" x2="610" y2="158"/>
+      <text class="lb" x="205" y="60">frame</text>
+
+      <line x1="350" y1="98" x2="350" y2="123" stroke="#5ec8ff" stroke-dasharray="3 3" stroke-width="1"/>
+      <line x1="610" y1="139" x2="610" y2="158" stroke="#5ec8ff" stroke-dasharray="3 3" stroke-width="1"/>
+    </svg>
+  </div>
+
+  <div class="def">
+    <div class="tag">框架关系</div>
+    <div class="body">
+      <table>
+        <tr><th>框架</th><th>提供什么</th></tr>
+        <tr><td><strong>VideoToolbox</strong></td><td>硬件编解码，产出 CVPixelBuffer</td></tr>
+        <tr><td><strong>Core Video</strong></td><td><code>CVPixelBuffer</code>（像素缓冲，IOSurface 背书）、<code>CVMetalTextureCache</code>（CVPixelBuffer↔MTLTexture 零拷贝缓存）</td></tr>
+        <tr><td><strong>IOSurface</strong></td><td>底层共享内存缓冲，让 VideoToolbox / Core Video / Metal 共享同一块像素内存而不复制</td></tr>
+        <tr><td><strong>Metal</strong></td><td><code>MTLTexture</code> GPU 纹理；<code>CAMetalLayer</code> 把 Metal 渲染结果上屏</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="def principle">
+    <div class="tag">原理</div>
+    <div class="body">
+      <p><span class="term">CVMetalTextureCache 如何零拷贝转 MTLTexture</span></p>
+      <ol style="margin-bottom:0">
+        <li>解码得到 CVPixelBuffer（内部 NV12/p010，由 IOSurface 背书）。</li>
+        <li>调 <code>CVMetalTextureCacheCreateTextureFromImage()</code>，传入 CVPixelBuffer + plane 索引 + Metal 像素格式。</li>
+        <li>Core Video <strong>不复制像素</strong>，而是基于底层 IOSurface 创建 <code>CVMetalTexture</code>，从中取出 MTLTexture——和原 CVPixelBuffer 指向同一块内存。</li>
+        <li>NV12 取两个 plane：plane 0（Y，<code>r8</code>）、plane 1（CbCr，<code>rg8</code>）；p010 用 <code>r16</code>/<code>rg16</code>。然后在 Metal shader 里做 YUV→RGB。</li>
+      </ol>
+    </div>
+  </div>
+  <div class="note"><span class="lbl">本质</span>零拷贝靠的是 IOSurface 这块共享内存被多方<strong>「引用」而非「拷贝」</strong>。这是理解整条 Apple 视频管线效率的那把钥匙。</div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section id="s7"><span class="anchor"></span>
+  <h2><span class="num">07</span>visionOS 输出侧：把帧变成空间表面上的像素</h2>
+  <p class="lede">最终一步：一块 MTLTexture 如何成为 Vision Pro 眼前的画面。visionOS 提供了三条出口，对应窗口、空间材质、沉浸式三种场景。</p>
+
+  <table>
+    <tr><th>出口</th><th>是什么</th><th>适用场景</th></tr>
+    <tr><td><code>CAMetalLayer</code></td><td>把 Metal drawable 直接上屏的 layer</td><td>Window 窗口里的平面画面</td></tr>
+    <tr><td><code>TextureResource.DrawableQueue</code></td><td>给 RealityKit 材质创建可动态更新的 drawable 队列；取出 Drawable（内含 MTLTexture），写入帧后 <code>present</code> 刷新材质</td><td>视频贴到 entity 材质</td></tr>
+    <tr><td><code>LowLevelTexture</code></td><td>visionOS 2.0+ 的自管理纹理容器，可直接用 Metal 写入其底层 MTLTexture 再绑材质，比 DrawableQueue 更底层灵活</td><td>需要 compute shader 处理帧（XrPlayer 采用）</td></tr>
+    <tr><td>Compositor Services <code>LayerRenderer</code></td><td>在 ImmersiveSpace 里直接驱动 Metal，拿到逐眼 drawable 自己绘制并 present</td><td>完全自定义的沉浸式几何 / 立体渲染</td></tr>
+  </table>
+
+  <div class="def principle">
+    <div class="tag">典型流程</div>
+    <div class="body">
+      <p style="margin:0"><code>hwdec=videotoolbox</code> 出 CVPixelBuffer → <code>CVMetalTextureCache</code> 取 Y/CbCr 纹理 → Metal compute/blit 做 YUV→RGB（或叠字幕/OSD）写入 <strong>LowLevelTexture / DrawableQueue 的 MTLTexture</strong> → 贴到空间表面材质 → RealityKit 合成到空间。</p>
+    </div>
+  </div>
+  <p class="note"><span class="lbl">输出侧的最终答案</span>无论哪条路，<strong>最终产物都是一块 GPU 纹理（MTLTexture）或一个 drawable</strong>：窗口 → CAMetalLayer drawable；空间材质 → DrawableQueue/LowLevelTexture；沉浸式 → Compositor 的逐眼 drawable。</p>
+</section>
+
+<!-- ============ 8 ============ -->
+<section id="s8"><span class="anchor"></span>
+  <h2><span class="num">08</span>本仓库的实际形态：XrPlayer 如何落地这条管线</h2>
+  <p class="lede">前面是通用原理，这一节是 XrPlayer 仓库里的真实代码。它做了一个聪明的选择：<strong>让 mpv 用完整的 gpu-next 管线渲染（含全部色彩/HDR 处理），再把渲染好的 drawable 纹理捕获下来喂给 RealityKit</strong>——而不是让 mpv 只解码、自己重写一套渲染。</p>
+
+  <h3>8.1 mpv 初始化与关键配置</h3>
+  <p class="filepath">PlaybackCore/Adapters/MPV/MPVPlayerAdapter.swift · MPVConfiguration.swift</p>
+  <pre><span class="c">// MPVConfiguration —— 原生 GPU 输出路径的关键选项</span>
+(<span class="s">"vo"</span>,          <span class="s">"gpu-next"</span>)          <span class="c">// libplacebo 渲染器</span>
+(<span class="s">"hwdec"</span>,       <span class="s">"videotoolbox"</span>)      <span class="c">// 零拷贝硬解（回退路径用 videotoolbox-copy）</span>
+(<span class="s">"hwdec-codecs"</span>,<span class="s">"all"</span>)               <span class="c">// H.264 / HEVC / VP9 / AV1...</span>
+(<span class="s">"vd-lavc-dr"</span>,  <span class="s">"yes"</span>)               <span class="c">// direct rendering，零拷贝输出</span>
+(<span class="s">"gpu-api"</span>,     <span class="s">"vulkan"</span>)            <span class="c">// ← 不是 metal！</span>
+(<span class="s">"gpu-context"</span>, <span class="s">"moltenvk"</span>)          <span class="c">// Vulkan 经 MoltenVK 翻译成 Metal</span>
+(<span class="s">"fbo-format"</span>,  <span class="s">"rgba16f"</span>)           <span class="c">// HDR 半精度浮点输出</span>
+(<span class="s">"target-colorspace-hint"</span>, <span class="s">"auto"</span>)  <span class="c">// HDR 色彩空间直通</span>
+(<span class="s">"tone-mapping"</span>, <span class="s">"auto"</span>)</pre>
+  <p>初始化时（<code>ensureMPVReady()</code>）通过 <code>mpv_set_option(handle, "wid", …)</code> 把一个 <code>CAMetalLayer</code> 指针交给 mpv，让 gpu-next 直接渲染进这个 layer。</p>
+
+  <h3>8.2 原生路径 vs 软件回退（两条腿）</h3>
+  <div class="twocol">
+    <div class="card path-a">
+      <h4>路径 A · 原生 GPU（gpu-next）</h4>
+      <p class="filepath">Shared/MPVNativeMetalLayerView.swift</p>
+      <p style="font-size:13.5px;color:var(--ink-dim)">mpv (gpu-next) → MoltenVK/Vulkan → <code>MPVNativeMetalLayer</code>(CAMetalLayer)。该 layer 重写 <code>nextDrawable()</code> 记录 <code>lastVendedDrawable</code>，供空间桥读取。配置：<code>pixelFormat=.rgba16Float</code>、<code>framebufferOnly=false</code>（允许读回）、<code>wantsExtendedDynamicRangeContent=true</code>（HDR）。</p>
+    </div>
+    <div class="card path-b">
+      <h4>路径 B · 软件回退（libmpv）</h4>
+      <p class="filepath">Shared/MetalVideoRenderer.swift</p>
+      <p style="font-size:13.5px;color:var(--ink-dim)">mpv 软渲出 CVPixelBuffer，经 <code>FrameOutput.didOutputFrame()</code> 送达 <code>MetalVideoRenderer</code>（MTKView delegate），用 <code>CVMetalTextureCache</code> 取纹理、Metal shader 做 NV12→RGB / 直渲 BGRA。</p>
+    </div>
+  </div>
+
+  <h3>8.3 空间桥：从 drawable 到 RealityKit 材质</h3>
+  <p class="filepath">SpatialScene/Renderers/PanoramaLayerBridge.swift</p>
+  <p>这是 XrPlayer 把「窗口画面」升级为「空间画面」的关键。一个 <code>CADisplayLink</code> 每帧：</p>
+  <pre><span class="c">// 每个显示刷新</span>
+<span class="k">let</span> drawable = layer.lastVendedDrawable        <span class="c">// mpv 刚渲染好的帧</span>
+<span class="k">let</span> source   = drawable.texture                <span class="c">// MTLTexture（已含 HDR/色彩处理）</span>
+<span class="k">let</span> dest = lowLevelTexture.replace(<span class="k">using</span>: cmd)  <span class="c">// RealityKit 可写纹理</span>
+
+<span class="k">if</span> fisheyeRemapConfig != <span class="k">nil</span> {
+    encodeFisheyeRemap(cmd, source, dest, config)   <span class="c">// 鱼眼→等距矩形 compute shader</span>
+} <span class="k">else</span> <span class="k">if</span> <span class="k">let</span> stereoCropMode {
+    encodeBlitCopy(cmd, source, dest)               <span class="c">// SBS/上下 3D 裁到左眼</span>
+} <span class="k">else</span> {
+    encodeBlitCopy(cmd, source, dest)               <span class="c">// 直接拷贝</span>
+}
+cmd.commit()                                        <span class="c">// → TextureResource → 材质</span></pre>
+  <p>输出 <code>TextureResource</code> 绑到 <code>UnlitMaterial</code>（<code>applyPostProcessToneMap:false</code>——因为 mpv 已经做过 tone mapping，RealityKit 不能再做一次），贴到几何体：</p>
+
+  <div class="diagram" style="padding:18px 22px">
+    <svg viewBox="0 0 900 150" xmlns="http://www.w3.org/2000/svg">
+      <style>
+        .vb{rx:9;fill:#211830;stroke:#6a4f9a;stroke-width:1.2}
+        .vt{fill:#e8ecf4;font-size:12px;font-weight:600;font-family:var(--mono)}
+        .vs{fill:#b6a6d0;font-size:10px;font-family:var(--mono)}
+        .va{stroke:#c79bff;stroke-width:1.5;fill:none;marker-end:url(#ah3)}
+      </style>
+      <defs><marker id="ah3" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M0,0 L9,4.5 L0,9 Z" fill="#c79bff"/></marker></defs>
+      <rect class="vb" x="20" y="50" width="170" height="50"/>
+      <text class="vt" x="34" y="72">TextureResource</text><text class="vs" x="34" y="89">来自 LowLevelTexture</text>
+      <rect class="vb" x="250" y="20" width="200" height="50"/>
+      <text class="vt" x="264" y="42">PanoramaSphereEntity</text><text class="vs" x="264" y="59">360°球 / 180°半球</text>
+      <rect class="vb" x="250" y="85" width="200" height="50"/>
+      <text class="vt" x="264" y="107">VirtualScreenEntity</text><text class="vs" x="264" y="124">平面 / 曲面巨幕</text>
+      <rect class="vb" x="520" y="50" width="170" height="50"/>
+      <text class="vt" x="534" y="72">RealityView</text><text class="vs" x="534" y="89">ImmersiveSpace</text>
+      <rect class="vb" x="740" y="50" width="140" height="50"/>
+      <text class="vt" x="754" y="72">visionOS</text><text class="vs" x="754" y="89">逐眼合成上屏</text>
+      <line class="va" x1="190" y1="70" x2="248" y2="45"/>
+      <line class="va" x1="190" y1="80" x2="248" y2="110"/>
+      <line class="va" x1="450" y1="45" x2="518" y2="68"/>
+      <line class="va" x1="450" y1="110" x2="518" y2="80"/>
+      <line class="va" x1="690" y1="75" x2="738" y2="75"/>
+    </svg>
+  </div>
+
+  <div class="note key"><span class="lbl">架构不变量</span>SpatialScene <strong>被动接收纹理</strong>，不控制播放；PlayerUI 不知道 mpv 的存在；一个会话只有一个生产引擎（mpv），禁止 session 内切换引擎。详见 <code>ARCHITECTURE.md</code> 与 <code>docs/contracts/playback-engine-routing.md</code>。</div>
+
+  <h3>8.4 运行时元数据决策</h3>
+  <p>立体布局、球面投影、HDR 类型不是写死的，而是运行时从 mpv 属性探测（<code>docs/reference/2026-04-06-mpv-metadata-investigation.md</code>）：</p>
+  <ul>
+    <li><strong>立体布局</strong>：<code>video-params/stereo-in</code> → <code>sbs2l/sbs2r/ab2l/ab2r</code></li>
+    <li><strong>球面投影</strong>：<code>metadata/by-key/GSpherical:*</code> + 宽高比启发式</li>
+    <li><strong>HDR 类型</strong>：gamma（<code>pq</code>/<code>hlg</code>）+ primaries（BT.2020）+ <code>scene-max-*</code> 动态元数据</li>
+  </ul>
+</section>
+
+<!-- ============ 9 ============ -->
+<section id="s9"><span class="anchor"></span>
+  <h2><span class="num">09</span>可信度标注与仍需在设备上验证的点</h2>
+  <p class="lede">学习材料要分清「已查证的事实」与「工程推断 / 选型」。下面诚实标注边界。</p>
+
+  <div class="conf">
+    <div class="card">
+      <h4 style="color:var(--ok)">已确证 <span class="badge ok">verified</span></h4>
+      <ul style="font-size:14px;color:var(--ink-dim)">
+        <li>mpv 五层分层与目录（<code>stream/ demux/ vd_lavc.c filters/ video/out/</code>）。</li>
+        <li>视频解码委托 FFmpeg libavcodec；demux 委托 libavformat。</li>
+        <li><code>hwdec=videotoolbox</code> 保留 GPU 帧、<code>-copy</code> 回拷 RAM（官方 options.rst）。</li>
+        <li>libmpv render API 只有 OPENGL 与 SW，<strong>无 Metal type</strong>。</li>
+        <li>上游 mpv 无原生 Metal 后端；<code>--gpu-api</code> 只有 opengl/vulkan/d3d11；macOS Metal 只能经 MoltenVK，且 MoltenVK 无解码扩展。</li>
+        <li>vo_gpu_next 基于 libplacebo；其 YUV→RGB / tone mapping / debanding / dithering / scaling 能力。</li>
+        <li>CVMetalTextureCache 经 IOSurface 零拷贝转 MTLTexture。</li>
+        <li>RealityKit <code>DrawableQueue</code> 与 <code>LowLevelTexture</code> 存在且用于动态纹理。</li>
+        <li>XrPlayer 仓库配置：<code>vo=gpu-next, gpu-api=vulkan, gpu-context=moltenvk, hwdec=videotoolbox</code>，及 PanoramaLayerBridge 捕获 drawable → LowLevelTexture 的实现。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h4 style="color:var(--accent4)">待验证 / 工程选型 <span class="badge q">verify on-device</span></h4>
+      <ul style="font-size:14px;color:var(--ink-dim)">
+        <li>你实际使用的 <strong>MPVKit-GPL 构建是否打了自定义 patch</strong>（上游主线无 Metal，但分支可能有胶水层）——以仓库 <code>docs/reference/mpv-build-guide.md</code> 为准。</li>
+        <li>visionOS 上 mpv 帧 → RealityKit/Compositor 的<strong>最佳路径选型</strong>（DrawableQueue vs LowLevelTexture vs Compositor Services）官方无 mpv 专门指引，需以零拷贝/掉帧/HDR 实测裁决。</li>
+        <li><code>AVHWDeviceType</code> 命名按 FFmpeg 文档复核（<code>AV_HWDEVICE_TYPE_VIDEOTOOLBOX</code>）。</li>
+        <li>HDR 端到端正确性（PQ/HLG 标签直通、EDR 元数据、UnlitMaterial 不二次 tone map）需在真机以 HDR 片源验证——build pass / Simulator 正确都不是 HDR 正确性证据。</li>
+      </ul>
+    </div>
+  </div>
+
+  <hr class="soft">
+  <h4>权威来源</h4>
+  <p style="font-size:13px;color:var(--ink-faint)">
+    mpv: <a href="https://github.com/mpv-player/mpv/blob/master/DOCS/man/vo.rst">vo.rst</a> ·
+    <a href="https://github.com/mpv-player/mpv/blob/master/DOCS/man/options.rst">options.rst</a> ·
+    <a href="https://github.com/mpv-player/mpv/blob/master/include/mpv/render.h">render.h</a> ·
+    <a href="https://github.com/mpv-player/mpv/blob/master/video/decode/vd_lavc.c">vd_lavc.c</a> ·
+    <a href="https://github.com/mpv-player/mpv/tree/master/video/out">video/out/</a><br>
+    Apple: <a href="https://developer.apple.com/documentation/corevideo/cvmetaltexturecache">CVMetalTextureCache</a> ·
+    <a href="https://developer.apple.com/documentation/realitykit/lowleveltexture">LowLevelTexture</a> ·
+    <a href="https://developer.apple.com/documentation/realitykit/textureresource/drawablequeue-swift.class">TextureResource.DrawableQueue</a> ·
+    <a href="https://github.com/haasn/libplacebo">libplacebo</a><br>
+    仓库: <code>ARCHITECTURE.md</code> · <code>docs/contracts/playback-engine-routing.md</code> · <code>docs/reference/mpv-build-guide.md</code> · <code>docs/reference/2026-04-06-mpv-metadata-investigation.md</code>
+  </p>
+</section>
+
+<footer>
+  <p>Enchron / XrPlayer 学习 Canvas · 生成于 2026-06-02。内容融合 mpv 上游源码、Apple 官方文档与本仓库实现的交叉核对。<br>
+  「不确定」项请以你的实际 MPVKit-GPL 构建与 Vision Pro 真机实测为准。</p>
+</footer>
+</main>
+</div>
+</body>
+</html>
