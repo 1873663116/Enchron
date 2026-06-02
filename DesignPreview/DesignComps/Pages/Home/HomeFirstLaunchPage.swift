@@ -43,34 +43,24 @@ struct MainWindowPage: View {
         case .files:
             SourceSidebar(
                 items: $sourceItems,
-                capabilities: .all,
                 containerIdentifier: "DesignComps-MainWindowPage-sidebar",
                 identifierPrefix: "DesignComps-FilesPage"
-            ) {
-                storageMeter
-            }
+            )
         case .settings:
-            settingsSidebar
+            CategorySidebar(
+                items: SettingsCategory.allCases.map {
+                    CategorySidebarItem(id: $0.id, icon: $0.icon, title: $0.title)
+                },
+                selection: $selectedSettingCategoryID,
+                title: "Settings",
+                containerIdentifier: "DesignComps-MainWindowPage-sidebar",
+                identifierPrefix: "DesignComps-SettingsPage"
+            )
+            .padding(.leading, DesignTokens.SourceSidebar.windowInset)
+            .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
         case .scene:
             EmptyView()
         }
-    }
-
-    private var settingsSidebar: some View {
-        let shape = DesignTokens.SourceSidebar.shape
-
-        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            settingsSidebarSection
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
-        .frame(width: DesignTokens.SourceSidebar.width)
-        .frame(maxHeight: .infinity, alignment: .topLeading)
-        .glassBackgroundEffect(.plate, in: shape, displayMode: .always)
-        .padding(.leading, DesignTokens.SourceSidebar.windowInset)
-        .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
-        .accessibilityIdentifier("DesignComps-MainWindowPage-sidebar")
     }
 
     @ViewBuilder
@@ -183,7 +173,7 @@ struct MainWindowPage: View {
                 spacing: DesignTokens.Card.gridSpacing
             ) {
                 ForEach(videos) { video in
-                    VideoCardLarge(
+                    GridCard.video(
                         title: video.title,
                         fileSize: video.fileSize,
                         duration: video.duration,
@@ -213,24 +203,6 @@ struct MainWindowPage: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .scrollIndicators(.hidden)
         .transition(.opacity)
-    }
-
-    private var settingsSidebarSection: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                sidebarSectionTitle("Settings")
-                Spacer(minLength: 0)
-                sidebarHeaderTrailingPlaceholder
-            }
-            .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
-
-            VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
-                ForEach(SettingsCategory.allCases) { category in
-                    settingsCategoryRow(category)
-                }
-            }
-            .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
-        }
     }
 
     private var selectedSettingCategory: SettingsCategory {
@@ -268,73 +240,6 @@ struct MainWindowPage: View {
 
     private func settingsDetailContent(for category: SettingsCategory) -> some View {
         SettingsDetailContentView(category: category)
-    }
-
-    private func settingsCategoryRow(_ category: SettingsCategory) -> some View {
-        EditableSourceSidebarRow(
-            icon: category.icon,
-            title: category.title,
-            isSelected: selectedSettingCategoryID == category.id,
-            isEnabled: true,
-            isOnline: false,
-            isDeletable: false,
-            isSelectionMode: false,
-            isChecked: false,
-            isAppearing: false,
-            isSwipeExpanded: false,
-            isDragging: false,
-            rowOffset: 0,
-            allowsReordering: false,
-            onTap: {
-                selectedSettingCategoryID = category.id
-            },
-            onToggleSelection: {},
-            onSwipeBegan: {},
-            onSwipeExpanded: {},
-            onSwipeCollapsed: {},
-            onDelete: {},
-            onReorderBegan: {},
-            onReorderChanged: { _ in },
-            onReorderEnded: {}
-        )
-        .accessibilityIdentifier("DesignComps-SettingsPage-category-\(category.id)")
-    }
-
-    private func sidebarSectionTitle(_ title: String) -> some View {
-        Text(title)
-            .font(DesignTokens.SourceSidebar.sectionTitleFont)
-            .foregroundStyle(.secondary)
-            .textCase(.uppercase)
-    }
-
-    private var sidebarHeaderTrailingPlaceholder: some View {
-        Color.clear
-            .frame(width: DesignTokens.Interactive.compact, height: DesignTokens.Interactive.compact)
-            .accessibilityHidden(true)
-    }
-
-    private var storageMeter: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            HStack {
-                Text("Storage")
-                Spacer()
-                Text("1.2 TB / 4 TB")
-            }
-            .font(DesignTokens.Typography.sectionHeader)
-            .foregroundStyle(.secondary)
-
-            GeometryReader { geometry in
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(DesignTokens.Surface.overlay)
-                    Capsule()
-                        .fill(DesignTokens.Theme.accent)
-                        .frame(width: geometry.size.width * 0.3)
-                }
-            }
-            .frame(height: DesignTokens.Spacing.xs)
-        }
-        .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
     }
 }
 
