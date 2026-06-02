@@ -212,19 +212,18 @@ struct MainWindowPage: View {
     private var settingsContentArea: some View {
         GeometryReader { geometry in
             ScrollView {
-                ZStack(alignment: .topLeading) {
-                    settingsDetailContent(for: selectedSettingCategory)
-                        .id(selectedSettingCategory.id)
-                        .transition(.opacity)
-                }
-                .frame(width: settingsDetailColumnWidth(for: geometry.size.width), alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.vertical, DesignTokens.Spacing.xxxl)
-                .animation(DesignTokens.AnimationToken.fadeIn, value: selectedSettingCategoryID)
+                settingsDetailContent(for: selectedSettingCategory)
+                    .frame(width: settingsDetailColumnWidth(for: geometry.size.width), alignment: .leading)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, DesignTokens.Spacing.xxxl)
+                    .id(selectedSettingCategory.id)
+                    .transition(.opacity)
             }
             .scrollIndicators(.hidden)
+            .animation(DesignTokens.AnimationToken.fadeIn, value: selectedSettingCategoryID)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .glassBackgroundEffect(.plate, in: DesignTokens.SourceSidebar.shape, displayMode: .always)
         .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
         .padding(.trailing, DesignTokens.SourceSidebar.windowInset)
         .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
