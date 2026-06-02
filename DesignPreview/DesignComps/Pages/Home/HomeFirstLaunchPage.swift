@@ -89,12 +89,13 @@ struct MainWindowPage: View {
         .accessibilityIdentifier("DesignComps-FilesPage-contentArea")
     }
 
+    // 网格与列表用同一套内容内缩,保证两种视图模式宽度/padding 一致。
     private var contentLeadingPadding: CGFloat {
-        viewMode == 0 ? DesignTokens.SourceSidebar.trailingContentGap : DesignTokens.Spacing.xs
+        DesignTokens.SourceSidebar.trailingContentGap
     }
 
     private var contentTrailingPadding: CGFloat {
-        viewMode == 0 ? DesignTokens.Spacing.xxl : DesignTokens.Spacing.xs
+        DesignTokens.Spacing.xxl
     }
 
     @ViewBuilder
@@ -197,7 +198,7 @@ struct MainWindowPage: View {
                     )
                 }
             )
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: gridMaxWidth, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .scrollIndicators(.hidden)
@@ -224,7 +225,6 @@ struct MainWindowPage: View {
             .scrollIndicators(.hidden)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .glassBackgroundEffect(.plate, in: DesignTokens.SourceSidebar.shape, displayMode: .always)
         .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
         .padding(.trailing, DesignTokens.SourceSidebar.windowInset)
         .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
