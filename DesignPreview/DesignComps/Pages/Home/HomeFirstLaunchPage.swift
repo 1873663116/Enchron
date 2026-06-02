@@ -135,7 +135,6 @@ struct MainWindowPage: View {
     private var toolbarViewModeControl: some View {
         ViewModeCapsuleControl(
             selection: $viewMode,
-            iconColor: .white,
             accessibilityIdentifier: "DesignComps-FilesPage-viewMode"
         )
     }

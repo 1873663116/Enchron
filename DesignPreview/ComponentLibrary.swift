@@ -90,7 +90,6 @@ private struct CircleButtonsSection: View {
                 HStack(spacing: DesignTokens.Spacing.xl) {
                     labeledComponent("Nav Back/Forward") {
                         NavBackForwardCapsuleControl(
-                            iconColor: .white,
                             accessibilityIdentifier: "DesignPreview-ComponentLibrary-control-navBackForward"
                         )
                     }
@@ -98,7 +97,6 @@ private struct CircleButtonsSection: View {
                     labeledComponent("View Mode (tap to switch)") {
                         ViewModeCapsuleControl(
                             selection: $viewMode,
-                            iconColor: .white,
                             accessibilityIdentifier: "DesignPreview-ComponentLibrary-control-viewMode"
                         )
                     }
@@ -106,7 +104,6 @@ private struct CircleButtonsSection: View {
                         SearchInputCapsule(
                             text: $searchText,
                             placeholder: "搜索",
-                            width: DesignTokens.Card.gridMin + DesignTokens.Spacing.xxxl + DesignTokens.Spacing.md,
                             accessibilityIdentifier: "DesignPreview-ComponentLibrary-input-search"
                         )
                     }

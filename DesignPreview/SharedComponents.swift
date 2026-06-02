@@ -956,8 +956,10 @@ enum SortMenuOrder {
 struct SortMenuButton: View {
     @Binding var sortKey: SortMenuKey
     @Binding var sortOrder: SortMenuOrder
-    var iconColor: Color = .secondary
     var accessibilityIdentifier: String = "DesignPreview-menu-sort"
+
+    // 锁死:图标恒 .secondary,不暴露。
+    private let iconColor: Color = .secondary
 
     var body: some View {
         Menu {
@@ -1004,10 +1006,12 @@ struct GlassCapsuleIconLabelButton: View {
     let title: String
     let systemName: String
     let accessibilityLabel: String
-    var iconColor: Color = .white
-    var minWidth: CGFloat = DesignTokens.Interactive.regular * 2
     var action: () -> Void = {}
     var accessibilityIdentifier: String?
+
+    // 锁死:图标恒白、最小宽度恒 regular*2,不暴露。
+    private let iconColor: Color = .white
+    private let minWidth: CGFloat = DesignTokens.Interactive.regular * 2
 
     var body: some View {
         Button(action: action) {
@@ -1031,12 +1035,14 @@ struct GlassCapsuleIconLabelButton: View {
 }
 
 struct NavBackForwardCapsuleControl: View {
-    var iconColor: Color = .white
-    var trailingOpacity: Double = 0.65
     var onBack: () -> Void = {}
     var onForward: () -> Void = {}
     var accessibilityIdentifier: String = "DesignPreview-control-navBackForward"
     var accessibilityLabel: String = "Back and Forward"
+
+    // 锁死:图标恒白、forward 半区恒 0.65 透明,不暴露。
+    private let iconColor: Color = .white
+    private let trailingOpacity: Double = 0.65
 
     @State private var pressedSide: NavSide? = nil
     @State private var pressFeedbackTrigger = 0
@@ -1089,10 +1095,12 @@ struct NavBackForwardCapsuleControl: View {
 
 struct ViewModeCapsuleControl: View {
     @Binding var selection: Int
-    var iconColor: Color = .white
-    var unselectedOpacity: Double = 0.45
     var accessibilityIdentifier: String = "DesignPreview-control-viewMode"
     var accessibilityLabel: String = "View Mode"
+
+    // 锁死:图标恒白、未选透明度 0.45,不暴露给调用点。
+    private let iconColor: Color = .white
+    private let unselectedOpacity: Double = 0.45
 
     @Namespace private var indicatorNamespace
     @State private var pressedIndex: Int? = nil
@@ -2408,8 +2416,10 @@ struct PathBreadcrumbMenu: View {
 struct SearchInputCapsule: View {
     @Binding var text: String
     var placeholder = "Search"
-    var width: CGFloat = DesignTokens.Card.gridMin
     var accessibilityIdentifier = "DesignPreview-input-search"
+
+    // 锁死:宽度恒 Card.gridMin,尺寸归容器管,不暴露。
+    private let width: CGFloat = DesignTokens.Card.gridMin
 
     @State private var pressFeedbackTrigger = 0
     @State private var isInputActive = false
