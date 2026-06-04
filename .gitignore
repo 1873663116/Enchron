@@ -6,6 +6,7 @@
 .omc_inner_repo/
 .codex-crashlogs/
 .codex-debug-runs/
+.xcodebuildmcp/
 
 # SwiftPM local workspace state
 .build/
