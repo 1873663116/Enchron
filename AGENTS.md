@@ -35,14 +35,14 @@ XrPlayer/
 - 根目录 `Package.resolved` 与 `XrPlayer.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` 不可互换。
 - `XrPlayer` target 依赖 AMSMB2、MPVKit-GPL 和 RealityKitContent。
 - `DesignPreview` 是独立 Xcode target。
-- `.mcp.json` 配置 XcodeBuildMCP；MCP 是模拟器 UI、截图、accessibility、IDE 自动化补充层，不替代 CLI。
+- `.mcp.json` 配置 XcodeBuildMCP（MCP server 接入）；它是日常 build / test / run / clean、LLDB 调试、模拟器管理、UI 自动化、覆盖率的默认执行层——结构化输出、省上下文。它不覆盖 `analyze`、`archive`、Instruments/`xctrace`、`swift-format`、SwiftLint、Reality Composer Pro、signing/证书管理；这些走 Apple 原生工具。
 
 ---
 
 ## Apple 工具链公理
 
-- Apple 原生命令行是 Enchron 的构建、验证、分析和归档主线。
-- `xcodebuild` 用于 app build、test、analyze、archive，以及查询 scheme、destination 和 build settings。
+- 工具分流：日常 build / test / run / clean、LLDB 调试、模拟器管理、UI 自动化、覆盖率走 **XcodeBuildMCP**（默认执行层，结构化输出、省上下文）；`analyze`、`archive`/发布、Instruments·`xctrace`、`swift-format`、SwiftLint、Reality Composer Pro、signing 走 **Apple 原生 CLI/工具**（MCP 未覆盖或需 Apple 裁决，权威主线）。
+- `xcodebuild` 是 `analyze`、`archive`、深度 build-settings 查询和复杂 destination 的权威；app 的日常 build / test / run 优先用 XcodeBuildMCP 等价工具，必要时回落 `xcodebuild`。
 - `swift` / SwiftPM 只证明 `Package.swift` 覆盖的 package 逻辑。
 - `xcode-select --print-path` 用于检查当前 Xcode；`xcrun` 按当前 Xcode/SDK 调用 Apple 开发工具。
 - Simulator 与 destination 先用 `xcrun simctl` 和 `xcodebuild -showdestinations` 确认。
@@ -77,7 +77,7 @@ UI / Design Preview 改动先读就近规范；当前入口是 `DesignPreview/`
 
 稳定接口、active contract 或跨模块边界发生变化时，先更新 `docs/contracts/` 和 `ARCHITECTURE.md` 的相关不变量，再改代码；接口和文档不同步时，后来的 agent 会在错误地图上工作。探索性 spike、局部 adapter 签名整理、方向尚未证明的改动，不先制造 contract 承诺；等边界成立后再文档化。
 
-验证跟着风险走：纯 Domain / UseCase 改动通常从 `swift test` 开始；完整 app、UI、asset、target membership、RealityKitContent、signing、entitlement 或 bundle 改动用匹配 scheme 的 `xcodebuild`；播放器、Metal、CoreVideo、bridging、线程、HDR、远程 I/O 或持久化风险升高时考虑 `xcodebuild analyze`；性能和长时间观看问题进入 Instruments / `xctrace`。
+验证跟着风险走：纯 Domain / UseCase 改动通常从 `swift test` 开始；完整 app、UI、asset、target membership、RealityKitContent、signing、entitlement 或 bundle 改动用匹配 scheme 的完整构建（日常走 XcodeBuildMCP，signing/archive 等走 `xcodebuild`）；播放器、Metal、CoreVideo、bridging、线程、HDR、远程 I/O 或持久化风险升高时考虑 `xcodebuild analyze`；性能和长时间观看问题进入 Instruments / `xctrace`。
 
 ---
 
@@ -180,3 +180,4 @@ Canonical default labels: `needs-triage` / `needs-info` / `ready-for-agent` / `r
 Single-context layout (`CONTEXT.md` + `docs/adr/` at repo root). See `docs/agents/domain.md`.
 
 ---
+- If using XcodeBuildMCP, use the installed XcodeBuildMCP skill before calling XcodeBuildMCP tools.

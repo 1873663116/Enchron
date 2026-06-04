@@ -32,6 +32,9 @@ struct MainWindowPage: View {
             mainContentArea
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // 整窗一层玻璃背景:Sidebar(自带玻璃)与内容都坐在它之上;
+        // 详情区不再单独叠玻璃,SettingListGroup 直接显示在这层窗口玻璃上。
+        .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("DesignComps-MainWindowPage")
         .accessibilityLabel("Main window page")
@@ -223,7 +226,6 @@ struct MainWindowPage: View {
             .animation(DesignTokens.AnimationToken.fadeIn, value: selectedSettingCategoryID)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-        .glassBackgroundEffect(.plate, in: DesignTokens.SourceSidebar.shape, displayMode: .always)
         .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
         .padding(.trailing, DesignTokens.SourceSidebar.windowInset)
         .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
