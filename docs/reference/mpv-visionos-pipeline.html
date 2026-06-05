@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>mpv · visionOS 全景管线图（修正版）</title>
+<style>
+  :root{
+    --bg:#0b1220;
+    --panel:#0f1830;
+    --mpv:#13314f;        /* mpv / FFmpeg 内部 */
+    --mpv-border:#1f5f96;
+    --apple:#123a2c;      /* Apple 框架 */
+    --apple-border:#1f7a55;
+    --vos:#2a1d44;        /* visionOS 呈现层 */
+    --vos-border:#6b46c1;
+    --out:#3a2a12;        /* 真实输出产物 */
+    --out-border:#c08a2a;
+    --ink:#e8eefc;
+    --muted:#9fb0d0;
+    --faint:#6f82a6;
+    --arrow:#6f82a6;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;background:radial-gradient(1200px 700px at 50% -10%, #122 0%, var(--bg) 60%);
+    color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"PingFang SC","Hiragino Sans GB",sans-serif;
+    padding:28px 26px 48px;
+  }
+  .head{max-width:1080px;margin:0 auto 18px}
+  .kicker{color:#5aa0ff;font-weight:700;font-size:13px;letter-spacing:.12em}
+  h1{font-size:24px;margin:4px 0 8px;font-weight:800}
+  .sub{color:var(--muted);font-size:13.5px;line-height:1.7;max-width:920px}
+  .sub b{color:#ffd28a}
+  .wrap{max-width:1080px;margin:0 auto;background:linear-gradient(180deg,#0e1730,#0b1325);
+    border:1px solid #1c2a48;border-radius:16px;padding:26px 24px 30px;position:relative}
+  .col{display:flex;flex-direction:column;align-items:center;gap:0}
+  .box{
+    border-radius:11px;padding:12px 16px;width:340px;text-align:left;position:relative;
+    background:var(--mpv);border:1px solid var(--mpv-border);box-shadow:0 2px 10px rgba(0,0,0,.25)
+  }
+  .box .t{font-weight:700;font-size:14.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace}
+  .box .d{color:var(--muted);font-size:11.5px;margin-top:3px;line-height:1.55}
+  .box.apple{background:var(--apple);border-color:var(--apple-border)}
+  .box.vos{background:var(--vos);border-color:var(--vos-border)}
+  .box.out{background:var(--out);border-color:var(--out-border)}
+  .tag{position:absolute;top:-9px;right:10px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:99px;letter-spacing:.04em}
+  .tag.intern{background:#26344f;color:#9fc0ff;border:1px solid #35507f}
+  .tag.realout{background:#5a3f12;color:#ffd28a;border:1px solid #c08a2a}
+  .arrow{width:2px;height:26px;background:linear-gradient(var(--arrow),var(--arrow));position:relative;margin:5px 0}
+  .arrow::after{content:"";position:absolute;left:-4px;bottom:-1px;border:5px solid transparent;border-top-color:var(--arrow)}
+  .arrow .lbl{position:absolute;left:12px;top:4px;font-size:10.5px;color:var(--faint);white-space:nowrap;font-family:ui-monospace,monospace}
+  .note{width:340px;font-size:10.5px;color:var(--faint);line-height:1.5;margin:2px 0 0;text-align:left;padding-left:2px}
+
+  /* fork */
+  .forkrow{display:flex;gap:34px;justify-content:center;align-items:flex-start;margin-top:6px;flex-wrap:wrap}
+  .branch{display:flex;flex-direction:column;align-items:center;gap:0}
+  .branchhdr{font-size:11px;color:var(--faint);margin-bottom:8px;text-align:center;font-weight:700;letter-spacing:.06em}
+
+  .legend{max-width:1080px;margin:16px auto 0;display:flex;gap:18px;flex-wrap:wrap;color:var(--muted);font-size:12px;align-items:center}
+  .legend .item{display:flex;align-items:center;gap:7px}
+  .sw{width:13px;height:13px;border-radius:3px;border:1px solid}
+  .sw.mpv{background:var(--mpv);border-color:var(--mpv-border)}
+  .sw.apple{background:var(--apple);border-color:var(--apple-border)}
+  .sw.vos{background:var(--vos);border-color:var(--vos-border)}
+  .sw.out{background:var(--out);border-color:var(--out-border)}
+
+  .sidebar{max-width:1080px;margin:18px auto 0;display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .card{background:var(--panel);border:1px solid #1c2a48;border-radius:12px;padding:14px 16px}
+  .card h3{margin:0 0 8px;font-size:13px;color:#ffd28a;letter-spacing:.03em}
+  .card p,.card li{font-size:12px;color:var(--muted);line-height:1.65;margin:0}
+  .card ul{margin:0;padding-left:18px}
+  code{font-family:ui-monospace,Menlo,monospace;color:#9fc0ff;font-size:11.5px}
+  .divider{height:1px;background:#1c2a48;max-width:1080px;margin:26px auto 18px}
+  .swpath{max-width:1080px;margin:0 auto;background:#0d1426;border:1px dashed #35507f;border-radius:12px;padding:16px 18px}
+  .swpath .row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+  .mini{background:var(--mpv);border:1px solid var(--mpv-border);border-radius:9px;padding:8px 12px;font-size:12px}
+  .mini.apple{background:var(--apple);border-color:var(--apple-border)}
+  .mini.out{background:var(--out);border-color:var(--out-border)}
+  .mini .t{font-family:ui-monospace,monospace;font-weight:700;font-size:12.5px}
+  .mini .d{color:var(--muted);font-size:10.5px;margin-top:2px}
+  .sep{color:var(--faint);font-family:ui-monospace,monospace;font-size:15px}
+  .foot{max-width:1080px;margin:18px auto 0;color:var(--faint);font-size:11px;line-height:1.6}
+</style>
+</head>
+<body>
+  <div class="head">
+    <div class="kicker">02 · 修正版</div>
+    <h1>mpv 在 visionOS 上的视频管线 — 输出产物视角</h1>
+    <p class="sub">
+      关键区分：<b>内部中间产物</b>（只在 mpv/libplacebo 管线内部流转，外部拿不到，也接不上 visionOS 抽象）
+      与 <b>真实输出产物</b>（mpv 的"出口"，可以被 CAMetalLayer / MTLTexture / RealityKit 消费）。
+      VideoToolbox 是 <code>vd_lavc</code> 内部的硬解 hwaccel，不是独立下游阶段；它产出的 <b>CVPixelBuffer 是 hwdec 中间产物</b>，
+      在原生路径下被 libplacebo 零拷贝吃进去，<b>不会</b>直达 RealityKit。真正到 RealityKit 的是 libplacebo 之后的 rgba16Float drawable。
+    </p>
+  </div>
+
+  <div class="wrap">
+    <div class="col">
+
+      <div class="box">
+        <div class="t">输入 / URL</div>
+        <div class="d">本地 · SMB · WebDAV · HTTP</div>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="box">
+        <div class="t">stream/ · 字节流抽象</div>
+        <div class="d">统一协议字节流 <code>stream_t</code></div>
+      </div>
+      <div class="arrow"><span class="lbl">bytes</span></div>
+
+      <div class="box">
+        <div class="tag intern">内部中间产物</div>
+        <div class="t">Demuxer · demux_lavf</div>
+        <div class="d">libavformat 拆容器 → 压缩 <code>demux_packet</code></div>
+      </div>
+      <div class="arrow"><span class="lbl">packet</span></div>
+
+      <div class="box">
+        <div class="tag intern">内部中间产物</div>
+        <div class="t">Decode · vd_lavc &nbsp;⟮hwdec=videotoolbox⟯</div>
+        <div class="d">libavcodec 解码；VideoToolbox 是其 <b>内嵌 hwaccel</b>，不是独立阶段。
+          产出 <code>mp_image</code>（IMGFMT_VIDEOTOOLBOX）</div>
+      </div>
+      <div class="arrow"><span class="lbl">frame</span></div>
+
+      <div class="box apple">
+        <div class="tag intern">内部中间产物</div>
+        <div class="t">CVPixelBuffer · NV12 / p010</div>
+        <div class="d">IOSurface 背书 · 帧留在 GPU 可见内存。
+          <b>这是 hwdec 帧，不是上屏产物</b>。原生路径下不外露。</div>
+      </div>
+      <div class="note">↑ 仅在 <code>videotoolbox-copy</code> / 软件路径下，这个 CVPixelBuffer 才成为可消费输出（见下方软件路径）。</div>
+      <div class="arrow"><span class="lbl">hwdec interop · 零拷贝导入</span></div>
+
+      <div class="box apple">
+        <div class="tag intern">内部中间产物</div>
+        <div class="t">hwdec_vt_pl · IOSurface → MTLTexture → pl_tex</div>
+        <div class="d">每平面 <code>CVMetalTextureCacheCreateTextureFromImage</code> → MTLTexture，
+          再以 <code>PL_HANDLE_MTL_TEX</code> 包成 libplacebo 纹理。零拷贝。</div>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="box">
+        <div class="tag intern">内部中间产物</div>
+        <div class="t">VO: gpu-next · libplacebo 滤镜链</div>
+        <div class="d">YUV→RGB · HDR tonemap · 缩放 · 抖动 → 渲染进 swapchain 目标</div>
+      </div>
+      <div class="arrow"></div>
+
+      <div class="box">
+        <div class="tag intern">内部中间产物</div>
+        <div class="t">gpu-api=vulkan → MoltenVK</div>
+        <div class="d">Vulkan 调用经 MoltenVK 翻译成 Metal；
+          <code>vkCreateMetalSurfaceEXT</code> 在 CAMetalLayer 上建表面</div>
+      </div>
+      <div class="arrow"><span class="lbl">present → drawable</span></div>
+
+      <!-- 真实输出 -->
+      <div class="box out">
+        <div class="tag realout">真实输出产物</div>
+        <div class="t">CAMetalLayer · drawable</div>
+        <div class="d"><b>MTLTexture (rgba16Float)</b> + extendedLinearDisplayP3 + wantsEDR。
+          CAMetalLayer 由 App 经 <code>wid</code> 选项注入，mpv 渲染进其 drawable。</div>
+      </div>
+
+      <div class="forkrow">
+        <!-- window -->
+        <div class="branch">
+          <div class="branchhdr">▼ 窗口模式</div>
+          <div class="arrow" style="height:18px"></div>
+          <div class="box vos" style="width:300px">
+            <div class="tag realout">真实输出产物</div>
+            <div class="t">Window · 直接上屏</div>
+            <div class="d">系统直接合成呈现 CAMetalLayer</div>
+          </div>
+        </div>
+
+        <!-- realitykit -->
+        <div class="branch">
+          <div class="branchhdr">▼ 沉浸 / 全景模式（逐帧 GPU 拷贝）</div>
+          <div class="arrow" style="height:18px"><span class="lbl">读 lastVendedDrawable.texture</span></div>
+          <div class="box vos" style="width:340px">
+            <div class="t">PanoramaLayerBridge</div>
+            <div class="d">Blit 拷贝（或 fisheye / 左眼 stereo 的 compute remap）
+              drawable.texture → LowLevelTexture</div>
+          </div>
+          <div class="arrow" style="height:18px"></div>
+          <div class="box vos" style="width:340px">
+            <div class="tag realout">真实输出产物</div>
+            <div class="t">LowLevelTexture → TextureResource</div>
+            <div class="d">→ RealityKit 材质 → 球面 / 曲面屏 → ImmersiveSpace</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="legend">
+    <div class="item"><span class="sw mpv"></span> mpv / FFmpeg 内部</div>
+    <div class="item"><span class="sw apple"></span> Apple 框架（VideoToolbox / Metal / MoltenVK）</div>
+    <div class="item"><span class="sw vos"></span> visionOS 呈现层</div>
+    <div class="item"><span class="sw out"></span> 真实输出产物（可被 visionOS 消费）</div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- 软件路径 -->
+  <div class="swpath">
+    <div class="branchhdr" style="text-align:left;margin-bottom:10px;color:#ffd28a">
+      软件 / 模拟器回退路径（原图缺失的第二个出口）
+    </div>
+    <div class="row">
+      <div class="mini">
+        <div class="t">vo=libmpv + hwdec=videotoolbox-copy</div>
+        <div class="d">解码后回拷到 CPU 帧</div>
+      </div>
+      <span class="sep">→</span>
+      <div class="mini">
+        <div class="t">MPV_RENDER_API_TYPE_SW</div>
+        <div class="d">mpv_render_context 软件渲染</div>
+      </div>
+      <span class="sep">→</span>
+      <div class="mini out">
+        <div class="t">CVPixelBuffer · BGRA (bgr0)</div>
+        <div class="d"><b>真实输出</b>：CPU 像素缓冲（IOSurface 背书池）</div>
+      </div>
+      <span class="sep">→</span>
+      <div class="mini apple">
+        <div class="t">FrameOutput</div>
+        <div class="d">→ CVMetalTextureCache → MTLTexture → 上屏</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sidebar">
+    <div class="card">
+      <h3>两个真实"出口"，各拿到什么</h3>
+      <ul>
+        <li><b>原生 GPU 路径</b>：出口是 <code>CAMetalLayer</code>（App 经 <code>wid</code> 注入）及其 drawable 的
+          <code>MTLTexture rgba16Float</code>。窗口模式直接上屏；沉浸模式由 <code>PanoramaLayerBridge</code>
+          逐帧 blit/compute 拷进 <code>LowLevelTexture</code>。</li>
+        <li><b>软件路径（模拟器）</b>：出口是 <code>MPV_RENDER_API_TYPE_SW</code> 渲出的
+          <code>CVPixelBuffer (BGRA)</code>，交给 <code>FrameOutput</code>。</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>原图的主要修正点</h3>
+      <ul>
+        <li>VideoToolbox 并入 <code>vd_lavc</code>（内嵌 hwaccel），不是独立下游阶段。</li>
+        <li>CVPixelBuffer(NV12/p010) 标注为 <b>hwdec 内部中间产物</b>，经 <code>hwdec_vt_pl</code> 零拷贝导入 libplacebo，不直达 RealityKit。</li>
+        <li>CAMetalLayer 由 App 经 <code>wid</code> 提供，并补充 <code>vkCreateMetalSurfaceEXT</code> 这一 MoltenVK 细节。</li>
+        <li>RealityKit 分叉是逐帧 GPU 拷贝（读 <code>lastVendedDrawable</code>），非零拷贝共享。</li>
+        <li>补回软件/模拟器输出路径（CVPixelBuffer BGRA）。</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="foot">
+    依据：mpv 源码 <code>video/out/hwdec/hwdec_vt_pl.m</code>、<code>video/out/vulkan/context_mac.m</code>、<code>video/decode/vd_lavc.c</code>；
+    本仓库 <code>MPVConfiguration.swift</code>（vo=gpu-next / gpu-api=vulkan / gpu-context=moltenvk / hwdec=videotoolbox / fbo-format=rgba16f）、
+    <code>MPVPlayerAdapter.swift</code>（wid 注入 + SW render 回退）、<code>PanoramaLayerBridge.swift</code>、<code>MPVNativeMetalLayerView.swift</code>。
+  </div>
+</body>
+</html>
