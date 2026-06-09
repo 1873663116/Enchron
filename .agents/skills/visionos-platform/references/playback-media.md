@@ -34,7 +34,7 @@ Apple API 事实用官方 `DocumentationSearch`（`mcp__xcode__DocumentationSear
 - 在 reference/future research 中改变 presentation transitions、system playback UI 或 spatial-audio behavior 时，打开 Destination Video sample；它是具体平台 baseline，不只是 sample link。
 - 如果使用 MPV + Metal，app 要拥有系统播放器通常提供的东西：controls、readiness、errors、dynamic range behavior、subtitles/tracks、accessibility，以及进入 immersive experiences 的 transitions。
 - AVFoundation 是跨 Apple 平台的 time-based media framework，可用于 metadata、diagnostics、HDR/EDR observation 和未来 Apple-native media research。它不是当前 production playback route。
-- `preferredDisplayDynamicRange` 只有在 API 可用且 content/display 支持 HDR 时才有意义。本地 AVKit docset 的该 API platform list 不包含 visionOS；HDR label 必须跟随证据，而不是 toggle。
+- `preferredDisplayDynamicRange` 只有在 API 可用且 content/display 支持 HDR 时才有意义。采用前用 `DocumentationSearch` 或 SDK 编译器 `@available` 确认它在 visionOS 的可用性，不要靠某个文档源查不到反推；HDR label 必须跟随证据，而不是 toggle。
 - Audio session、interruptions、route changes、spatial-audio behavior、captions/subtitles、external subtitle files 和 remote-command expectations 都是 media surface 的一部分。不要把它们当成通用 iOS 细节。
 - 对 `AVPlayerLayer`、`CAMetalLayer` 或 `MTKView`，UIKit `UIViewRepresentable` bridge 可以是合适的。它是 implementation bridge，不是让 app 变成 UIKit-shaped 的许可。
 - Window Metal output、RealityKit texture playback 和 fully immersive Metal rendering 是不同 surface。
