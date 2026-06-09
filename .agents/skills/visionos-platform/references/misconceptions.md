@@ -1,88 +1,80 @@
-# visionOS Misconception Checklist
+# visionOS 误区清单
 
-Pause and consult the relevant reference if any of these assumptions appear in
-code, comments, plans, or proposed fixes.
+如果代码、注释、计划或拟议修复中出现这些假设，暂停并查阅相关 reference。
 
-## Platform And Scene Model
+## 平台与 Scene 模型
 
-- "visionOS SwiftUI is basically iPadOS SwiftUI."
-- "Use macOS window-management patterns for placement."
-- "Use full screen for video."
-- "The app can move or resize windows whenever it wants."
-- "Multiple immersive spaces can be open if they have different ids."
-- "If `openImmersiveSpace` is called, it definitely opened."
-- "A volume is just a bigger window."
-- "A 3D-looking card is a volume."
-- "A `WindowGroup` can only open generic windows, so video/library windows need
-  global app state instead of value-based scene routing."
-- "Older fixed-volume guidance is the whole current platform contract."
-- "UIKit scene bridging means UIKit lifecycle should drive Enchron architecture."
+- “visionOS SwiftUI 基本就是 iPadOS SwiftUI。”
+- “摆放要用 macOS window-management 模式。”
+- “视频应该走 full screen。”
+- “app 想什么时候移动或调整窗口都可以。”
+- “只要 id 不同，就能同时打开多个 immersive space。”
+- “调用了 `openImmersiveSpace`，它就一定打开了。”
+- “volume 只是更大的窗口。”
+- “看起来像 3D 的 card 就是 volume。”
+- “`WindowGroup` 只能打开通用窗口，所以视频/library 窗口需要全局 app state，而不是基于值的 scene routing。”
+- “旧的固定 volume 指导就是完整的当前平台契约。”
+- “UIKit scene bridging 意味着 UIKit 生命周期应该驱动 Enchron 架构。”
 
-Read: `app-scenes.md`, then Apple docs for windows/spaces.
+证据镜头：先对具名 scene/window 概念做 `DocumentationSearch`，再只把 `app-scenes.md` 用作 Enchron 边界说明。
 
-## UI And Input
+## UI 与输入
 
-- "Hover is pointer hover."
-- "`onHover` is enough for gaze."
-- "44 pt targets are fine."
-- "A `TapGesture` is equivalent to a `Button`."
-- "Dense desktop sidebars are fine because this is a productivity app."
-- "Custom glass/material always looks more native."
-- "Explicit accessibility labels are always better than correct semantic labels."
-- "RealityKit `ManipulationComponent` is the right path for normal playback
-  buttons."
-- "Apple Pencil or spatial accessory support can be accepted or rejected without
-  checking current availability and device support."
+- “Hover 就是 pointer hover。”
+- “`onHover` 对 gaze 来说已经足够。”
+- “44 pt target 没问题。”
+- “`TapGesture` 等价于 `Button`。”
+- “这是 productivity app，所以密集 desktop sidebar 没问题。”
+- “自定义 glass/material 总是更原生。”
+- “显式 accessibility label 总比正确语义 label 更好。”
+- “RealityKit `ManipulationComponent` 是普通播放按钮的正确路径。”
+- “Apple Pencil 或 spatial accessory 支持可以不查当前可用性和设备支持就接受或拒绝。”
 
-Read: `spatial-ui.md`, then HIG Eyes/Gestures/Buttons/Spatial Layout.
+证据镜头：SwiftUI/RealityKit API 事实用 `DocumentationSearch`，human interface 声明用 HIG，Enchron 边界说明用 `spatial-ui.md`。
 
-## Playback And Media
+## 播放与媒体
 
-- "AVKit docs are irrelevant because Enchron uses MPV."
-- "AVKit docs prove MPV already behaves correctly."
-- "AVKit docs define Enchron's current production playback route."
-- "Apple reference playback is a production fallback."
-- "HDR labels can follow user toggles instead of media/display evidence."
-- "A 2D Metal layer is automatically compatible with immersive rendering."
-- "iOS full-screen playback is the model for Vision Pro playback."
-- "visionOS media playback inherits iOS Picture in Picture, background, routing,
-  and full-screen behavior unchanged."
-- "RealityKit video means only `VideoMaterial`."
-- "`CompositorLayer` always means full immersion."
-- "360 video defaults to drawing video on the inside of a sphere."
-- "3D video embedded inline will display stereoscopically."
-- "Spatial Video is side-by-side 3D."
-- "Apple Immersive Video is ordinary high-resolution 180 or 360 video."
-- "`AVPlayerLayer` or an MPV layer can display pixels, so the visionOS media
-  experience is done."
-- "APMP or Apple Immersive Video metadata can be ignored if frames decode."
-- "High-motion immersive video can go directly to full immersion."
+- “Enchron 用 MPV，所以 AVKit 文档无关。”
+- “AVKit 文档证明 MPV 已经行为正确。”
+- “AVKit 文档定义了 Enchron 当前 production playback route。”
+- “Apple reference playback 是 production fallback。”
+- “HDR label 可以跟随用户 toggle，而不是 media/display 证据。”
+- “2D Metal layer 自动兼容 immersive rendering。”
+- “iOS full-screen playback 是 Vision Pro 播放模型。”
+- “visionOS media playback 原样继承 iOS Picture in Picture、background、routing 和 full-screen 行为。”
+- “RealityKit video 只意味着 `VideoMaterial`。”
+- “`CompositorLayer` 总是意味着 full immersion。”
+- “360 video 默认就是把视频画在 sphere 内侧。”
+- “inline 嵌入的 3D video 会 stereoscopic 显示。”
+- “Spatial Video 就是 side-by-side 3D。”
+- “Apple Immersive Video 就是普通高分辨率 180 或 360 video。”
+- “`AVPlayerLayer` 或 MPV layer 能显示像素，所以 visionOS media experience 已完成。”
+- “只要 frame 能解码，APMP 或 Apple Immersive Video metadata 可以忽略。”
+- “High-motion immersive video 可以直接进入 full immersion。”
 
-Read: `immersive-media-profiles.md`, `playback-media.md`, plus
-`metal-compositor.md` if custom rendering is involved.
+证据镜头：media、RealityKit、AVKit 和 Metal 事实用 `DocumentationSearch`；`immersive-media-profiles.md`、`playback-media.md` 和 `metal-compositor.md` 只用于匹配的 Enchron 边界。
 
-## RealityKit, ARKit, Sensors
+## RealityKit、ARKit、传感器
 
-- "Hand tracking is needed for normal controls."
-- "The app can know where the user is looking."
-- "iOS ARKit display code ports directly."
-- "RealityKit entities can be recreated freely inside SwiftUI updates."
-- "ARKit authorization can be guessed from the provider name."
-- "All ARKit providers require Full Space."
-- "RealityKit `SpatialTrackingSession` bypasses ARKit privacy requirements."
+- “普通控制需要 hand tracking。”
+- “app 可以知道用户正在看哪里。”
+- “iOS ARKit 显示代码可以直接移植。”
+- “RealityKit entities 可以在 SwiftUI update 中随意重建。”
+- “ARKit authorization 可以根据 provider 名称猜。”
+- “所有 ARKit provider 都需要 Full Space。”
+- “RealityKit `SpatialTrackingSession` 可以绕过 ARKit 隐私要求。”
 
-Read: `realitykit-spatialscene.md` and `arkit-privacy.md`.
+证据镜头：先用 `DocumentationSearch` 搜索具名 RealityKit/ARKit API 和 availability，再用 `realitykit-spatialscene.md` 或 `arkit-privacy.md` 做 Enchron 边界说明。
 
-## Files, Persistence, Performance
+## 文件、持久化、性能
 
-- "Photo library or local file access behaves like desktop file access."
-- "SMB or WebDAV on the LAN does not need local-network privacy."
-- "A raw file path remains valid after document selection."
-- "Credentials can live in defaults during early development."
-- "UserDefaults is fine as a general database."
-- "Simulator verification is enough for spatial, video, HDR, or performance."
-- "Simulator playback proves audio, subtitles, comfort, power, and immersive
-  transitions."
-- "Debug build performance is enough evidence."
+- “Photo library 或 local file access 行为像 desktop file access。”
+- “LAN 上的 SMB 或 WebDAV 不需要 local-network privacy。”
+- “document selection 之后 raw file path 仍然有效。”
+- “早期开发时 credentials 可以放在 defaults 里。”
+- “UserDefaults 可以当通用数据库。”
+- “Simulator verification 足以证明 spatial、video、HDR 或 performance。”
+- “Simulator playback 能证明 audio、subtitles、comfort、power 和 immersive transitions。”
+- “Debug build performance 已经是足够证据。”
 
-Read: `files-network-persistence.md` and `performance-debugging.md`.
+证据镜头：先用 `DocumentationSearch` 搜索 platform API/privacy/performance 事实，再用 `files-network-persistence.md` 或 `performance-debugging.md` 处理匹配的 Enchron 边界。

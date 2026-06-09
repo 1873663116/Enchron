@@ -1,158 +1,70 @@
-# MPV Production Playback, Apple AV Reference, HDR
+# MPV 生产播放、Apple AV 参考、HDR
 
-Purpose: route visionOS media decisions through Apple platform sources and
-Enchron playback boundaries.
-Status: Active visionOS reference.
-Owner/scope: mpv production playback, AVKit/AVFoundation reference behavior,
-MPV comparison, HDR/EDR, subtitles/tracks, video surfaces, and playback
-diagnostics. Media-profile specific immersive playback lives in
-`immersive-media-profiles.md`.
-This file is not a product contract; active Enchron contracts live in
+用途：让 visionOS media decision 经过 Apple 平台来源和 Enchron playback boundary。
+状态：Active visionOS reference。
+负责人/范围：mpv production playback、AVKit/AVFoundation reference behavior、MPV comparison、HDR/EDR、subtitles/tracks、video surfaces 和 playback diagnostics。Media-profile specific immersive playback 位于
+`immersive-media-profiles.md`。
+本文件不是 product contract；active Enchron contracts 位于
 `docs/contracts/`.
 
-## Evidence Handles
+## 证据指针
 
-Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
-Prefer the local DocSetQuery pages below before web search. They are generated
-from Apple API Reference `docset_version: 24703`.
+Apple API 事实用官方 `DocumentationSearch`（`mcp__xcode__DocumentationSearch`，跟随当前 Xcode）查本 surface 相关 framework/概念，再用下面的判断段收窄到 Enchron 边界。
 
-### Open first
+### 查询种子（DocumentationSearch / 官方 web）
 
-- `Apple-Media-Device/avkit-adopting-the-system-player-interface-in-visionos.md#documentation-avkit-adopting-the-system-player-interface-in-visionos`
-  — AVKit system player interface baseline for visionOS.
-- `Apple-Media-Device/avkit-avplayerviewcontroller.md#documentation-avkit-avplayerviewcontroller`
-  — `AVPlayerViewController` platform player surface.
-- `Apple-Media-Device/avfoundation-avplayer.md#documentation-avfoundation-avplayer`
-  — `AVPlayer` time-based media control.
-- `Apple-Media-Device/avkit-playing-immersive-media-with-avkit.md#documentation-avkit-playing-immersive-media-with-avkit`
-  — AVKit immersive media playback.
-- `Apple-Media-Device/avfoundation-configuring-your-app-for-media-playback.md#documentation-avfoundation-configuring-your-app-for-media-playback`
-  — app-level media playback configuration for iOS, tvOS, and visionOS.
+- `"Destination Video" "visionOS" "AVPlayerViewController"`
+  用于 sample app baseline。
+- `"Determining whether to bring your app to visionOS" "Picture in Picture"`
+  用于 migration constraints 和不可用的 iOS media affordances。
+- `"Playing immersive media with RealityKit" "VideoPlayerComponent"`
+  用于文章级 immersive RealityKit walkthrough。
 
-### Open if
-
-- `Apple-Media-Device/avkit-avexperiencecontroller.md#documentation-avkit-avexperiencecontroller`
-  — controls and observes `AVPlayerViewController` experience changes.
-- `Apple-Media-Device/avkit-avexperiencecontroller-experience-swift.enum.md#documentation-avkit-avexperiencecontroller-experience-swiftenum`
-  — AVKit experience enum.
-- `Apple-Media-Device/avkit-avdisplaydynamicrange.md#documentation-avkit-avdisplaydynamicrange`
-  — AVKit dynamic range values; local platform list excludes visionOS, so use
-  this as an availability check before adopting.
-- `Apple-Media-Device/avkit-avplayerviewcontroller-preferreddisplaydynamicrange.md#documentation-avkit-avplayerviewcontroller-preferreddisplaydynamicrange`
-  — preferred display dynamic range on `AVPlayerViewController`; local
-  platform list excludes visionOS, so do not assume Enchron can use it.
-- `Apple-Media-Device/avfaudio-handling-audio-interruptions.md#documentation-avfaudio-handling-audio-interruptions`
-  — AVFAudio interruption handling.
-- `Apple-Media-Device/avfaudio-responding-to-audio-route-changes.md#documentation-avfaudio-responding-to-audio-route-changes`
-  — AVFAudio route-change handling.
-- `Apple-Media-Device/avkit-avpictureinpicturecontroller-ispictureinpicturesupported.md#documentation-avkit-avpictureinpicturecontroller-ispictureinpicturesupported`
-  — Picture in Picture support check.
-- `Apple-Media-Device/metal-hdr-content.md#documentation-metal-hdr-content`
-  — HDR content handling in Metal.
-- `Apple-Media-Device/realitykit-scene-content-videos.md#documentation-realitykit-scene-content-videos`
-  — RealityKit video API overview.
-- `Apple-Media-Device/realitykit-videoplayercomponent.md#documentation-realitykit-videoplayercomponent`
-  — RealityKit video component for immersive media.
-- `Apple-Media-Device/realitykit-rendering-stereoscopic-video-with-realitykit.md#documentation-realitykit-rendering-stereoscopic-video-with-realitykit`
-  — side-by-side stereoscopic video sample using RealityKit.
-
-### Search when DocSet lacks the article
-
-- Xcode Documentation Search:
-  `"Destination Video" "visionOS" "AVPlayerViewController"`
-  for the sample app baseline.
-- Xcode Documentation Search:
-  `"Determining whether to bring your app to visionOS" "Picture in Picture"`
-  for migration constraints and unavailable iOS media affordances.
-- Xcode Documentation Search:
-  `"Playing immersive media with RealityKit" "VideoPlayerComponent"`
-  for article-level immersive RealityKit walkthrough.
-
-### Official web fallback
+### 官方 Web fallback
 
 - `https://developer.apple.com/av-foundation/`
 - `https://developer.apple.com/av-foundation/Apple-Movie-Profiles.pdf`
 
-## Correct Decisions
+## 正确判断
 
-- Enchron's current production playback direction is mpv-first. Production
-  playback work should converge around mpv.
-- mpv is the current production basis for playback, compatibility, open
-  formats, complex subtitles/tracks, remote I/O, HDR experiments, and future
-  immersive rendering exploration.
-- Apple recommends `AVPlayerViewController` for system video playback
-  integration in visionOS. In Enchron, that fact is reference and diagnostics
-  evidence unless a future architecture decision promotes Apple AV into
-  production.
-- For Spatial Video, APMP, Apple Immersive Video, or immersive 3D playback
-  research, read `immersive-media-profiles.md` before making platform claims.
-- Open the Destination Video sample when changing presentation transitions,
-  system playback UI, or spatial-audio behavior in reference/future research;
-  it is the concrete platform baseline, not just a sample link.
-- If using MPV + Metal, the app owns what the system player normally supplies:
-  controls, readiness, errors, dynamic range behavior, subtitles/tracks,
-  accessibility, and transitions into immersive experiences.
-- AVFoundation is the cross-Apple-platform media framework for time-based media,
-  and can be useful for metadata, diagnostics, HDR/EDR observation, and future
-  Apple-native media research. It is not a current production playback route.
-- `preferredDisplayDynamicRange` matters only where the API is available and
-  content and display support HDR. The local AVKit docset platform list does
-  not include visionOS for this API; HDR labels must follow evidence, not
-  toggles.
-- Audio session, interruptions, route changes, spatial-audio behavior,
-  captions/subtitles, external subtitle files, and remote-command expectations
-  are part of the media surface. Do not treat them as generic iOS details.
-- A UIKit `UIViewRepresentable` bridge can be appropriate for `AVPlayerLayer`,
-  `CAMetalLayer`, or `MTKView`. It is an implementation bridge, not a license to
-  make the app UIKit-shaped.
-- Window Metal output, RealityKit texture playback, and fully immersive Metal
-  rendering are different surfaces.
+- Enchron 当前 production playback 方向是 mpv-first。Production playback 工作应围绕 mpv 收敛。
+- mpv 是当前 playback、compatibility、open formats、复杂 subtitles/tracks、remote I/O、HDR experiments 和未来 immersive rendering exploration 的 production basis。
+- Apple 推荐在 visionOS 中用 `AVPlayerViewController` 做 system video playback integration。在 Enchron 中，除非未来架构决策把 Apple AV 提升为 production，否则这个事实属于 reference 和 diagnostics 证据。
+- 对 Spatial Video、APMP、Apple Immersive Video 或 immersive 3D playback research，做平台声明前先读 `immersive-media-profiles.md`。
+- 在 reference/future research 中改变 presentation transitions、system playback UI 或 spatial-audio behavior 时，打开 Destination Video sample；它是具体平台 baseline，不只是 sample link。
+- 如果使用 MPV + Metal，app 要拥有系统播放器通常提供的东西：controls、readiness、errors、dynamic range behavior、subtitles/tracks、accessibility，以及进入 immersive experiences 的 transitions。
+- AVFoundation 是跨 Apple 平台的 time-based media framework，可用于 metadata、diagnostics、HDR/EDR observation 和未来 Apple-native media research。它不是当前 production playback route。
+- `preferredDisplayDynamicRange` 只有在 API 可用且 content/display 支持 HDR 时才有意义。本地 AVKit docset 的该 API platform list 不包含 visionOS；HDR label 必须跟随证据，而不是 toggle。
+- Audio session、interruptions、route changes、spatial-audio behavior、captions/subtitles、external subtitle files 和 remote-command expectations 都是 media surface 的一部分。不要把它们当成通用 iOS 细节。
+- 对 `AVPlayerLayer`、`CAMetalLayer` 或 `MTKView`，UIKit `UIViewRepresentable` bridge 可以是合适的。它是 implementation bridge，不是让 app 变成 UIKit-shaped 的许可。
+- Window Metal output、RealityKit texture playback 和 fully immersive Metal rendering 是不同 surface。
 
-## iOS/macOS Conflicts
+## iOS/macOS 冲突点
 
-- Do not use iOS full-screen player assumptions as the target experience.
-- Do not assume macOS `AVPlayerView` patterns are the system answer on visionOS.
-- Do not assume an iOS/macOS `AVPlayer` pattern is correct on visionOS without
-  checking the owning visionOS surface.
-- Do not turn AVKit reference behavior into Enchron's current production route.
-- Do not subclass `AVPlayerViewController`; Apple documents unsupported
-  subclassing behavior.
-- Apple migration docs list Picture in Picture and AV routing as unavailable on
-  visionOS. Do not design Enchron playback UX around those iOS affordances.
-  Check current API availability before adding conditional fallback behavior.
-- Do not equate "AVPlayer can do this" with "MPV already does this." Use AVKit
-  as evidence and comparison.
-- Do not treat AVKit system UI as Enchron's product state machine.
-- Do not treat a working MPV surface as proof that future Apple-native
-  immersive media research is complete.
-- Do not use this baseline playback reference as the only source for APMP,
-  Apple Immersive Video, Spatial Video, or immersive 3D decisions.
-- Do not treat a 2D `CAMetalLayer` or `MTKView` path as automatically correct
-  for RealityKit immersive rendering.
-- Do not infer HDR from filename, user toggle, or UI label. Use media metadata,
-  output contract, and display behavior.
+- 不要把 iOS full-screen player 假设当成目标体验。
+- 不要假设 macOS `AVPlayerView` 模式是 visionOS 上的系统答案。
+- 没有检查 owning visionOS surface 前，不要假设 iOS/macOS `AVPlayer` 模式在 visionOS 上正确。
+- 不要把 AVKit reference behavior 变成 Enchron 当前 production route。
+- 不要 subclass `AVPlayerViewController`；Apple 文档说明这种 subclassing behavior 不受支持。
+- Apple migration docs 将 Picture in Picture 和 AV routing 列为 visionOS 不可用。不要围绕这些 iOS affordance 设计 Enchron playback UX。添加 conditional fallback behavior 前要检查当前 API 可用性。
+- 不要把“AVPlayer 可以做到这个”等同于“MPV 已经做到这个”。把 AVKit 用作证据和对照。
+- 不要把 AVKit system UI 当成 Enchron 的 product state machine。
+- 不要把可工作的 MPV surface 当成未来 Apple-native immersive media research 已完成的证明。
+- 不要把这个 baseline playback reference 当成 APMP、Apple Immersive Video、Spatial Video 或 immersive 3D 决策的唯一来源。
+- 不要把 2D `CAMetalLayer` 或 `MTKView` 路径视为自动适用于 RealityKit immersive rendering。
+- 不要从文件名、用户 toggle 或 UI label 推断 HDR。使用 media metadata、output contract 和 display behavior。
 
-## Enchron Checkpoints
+## Enchron 检查点
 
-- Keep playback mode decision in `PlayerUI`; `PlaybackCore` reports facts.
-- Enchron's current production media direction is mpv-first.
-- Apple AV / AVFoundation / AVKit are reference, diagnostics, subjective visual
-  comparison, HDR/EDR observation, and future platform investigation surfaces.
-- Apple AV is not the current production `PlaybackEngine`, default fallback, or
-  current engine-routing target branch.
-- AVKit evidence does not prove mpv correctness.
-- mpv behavior does not prove future Apple-native media profile support.
-- APMP, Apple Immersive Video, Spatial Video, and immersive 3D playback require
-  the media-profile reference before claims about support or future direction.
-- Production engine routing is defined by
-  `docs/contracts/playback-engine-routing.md`.
-- Diagnostic Apple reference playback is not a selected production
-  `PlaybackEngineRoute`.
-- `PlayerUI` must not branch on mpv vs Apple reference playback. It must use
-  shared playback and domain semantics.
-- HDR/EDR changes should include an evidence path: metadata, AVKit comparison
-  when useful, MPV output contract, layer/display configuration, and device
-  verification when required.
-- If future Apple AV production playback is proposed, require a new explicit
-  architecture decision, capability boundary, tests, and doc updates before
-  treating it as implementation guidance.
+- Playback mode decision 留在 `PlayerUI`；`PlaybackCore` 只报告事实。
+- Enchron 当前 production media direction 是 mpv-first。
+- Apple AV / AVFoundation / AVKit 是 reference、diagnostics、主观视觉对照、HDR/EDR observation 和未来 platform investigation surface。
+- Apple AV 不是当前 production `PlaybackEngine`、default fallback 或当前 engine-routing target branch。
+- AVKit 证据不能证明 mpv 正确。
+- mpv 行为不能证明未来 Apple-native media profile 支持。
+- APMP、Apple Immersive Video、Spatial Video 和 immersive 3D playback 在声明支持或未来方向前，需要先查 media-profile reference。
+- Production engine routing 由 `docs/contracts/playback-engine-routing.md` 定义。
+- Diagnostic Apple reference playback 不是已选中的 production `PlaybackEngineRoute`。
+- `PlayerUI` 不得按 mpv vs Apple reference playback 分支。它必须使用共享 playback 和 domain semantics。
+- HDR/EDR 改动应包含证据路径：metadata、必要时的 AVKit comparison、MPV output contract、layer/display configuration，以及需要时的 device verification。
+- 如果提出未来 Apple AV production playback，需要新的明确架构决策、capability boundary、测试和文档更新，然后才能把它当成实现指导。
