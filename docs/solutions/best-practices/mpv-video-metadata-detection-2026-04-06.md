@@ -227,7 +227,7 @@ if gamma == "hlg" || gamma == "arib-std-b67" { hdrType = .hlg }
 
 ## 相关
 
-- 调研报告：`docs/reference/2026-04-06-mpv-metadata-investigation.md`
+- 调研报告：`docs/archive/investigations/2026-04-06-mpv-metadata-investigation.md`
 - mpv 属性文档：`video/csputils.c`（mp_stereo3d_names）、`player/command.c`
 - FFmpeg：`libavformat/mov.c`（st3d/sv3d 解析）、`libavutil/spherical.h`
 - Apple WWDC23 Session 10071（MV-HEVC / Apple Spatial Video）

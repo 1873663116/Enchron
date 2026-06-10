@@ -171,5 +171,5 @@ E6 窗口呈现裁决：自产 xcframework 下，同片源并排对比——出�
 ## 8. 文档体系衔接
 
 - 本文结论在 E1-E6 取证后凝结为 `docs/contracts/frame-pipeline.md`（出口 API 语义、双缓冲、色彩契约、切换语义、平台矩阵）；contract 先于 App 核心重构定稿。
-- 新术语（常驻纹理出口、双缓冲环、front 发布、出口 A/B 的正式命名）经 `docs/ubiquitous_language.md` 收编后再进入代码与 contract。
+- 新术语（常驻纹理出口、双缓冲环、front 发布、出口 A/B 的正式命名）经根目录 `CONTEXT.md` 收编后再进入代码与 contract。
 - fork 仓库 `CLAUDE.md`「解耦边界」一节中「visionOS 上两种模式都应走 IOSurface 出口」的表述按本文 §1 模型更新（窗口模式走 moltenvk 出口 A；该更新需在 fork 仓库的会话中完成）。

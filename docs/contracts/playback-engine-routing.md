@@ -19,7 +19,7 @@ They are not the current production playback engine, default fallback, second
 production core, or target branch of current engine routing.
 
 Product rationale belongs in `docs/product_philosophy.md`. Vocabulary belongs
-in `docs/ubiquitous_language.md`. High-level module ownership belongs in
+in root `CONTEXT.md`. High-level module ownership belongs in
 `ARCHITECTURE.md`.
 
 ## Production Engine
@@ -208,7 +208,7 @@ That decision must define:
 - fallback and teardown rules
 - tests and device evidence
 - updates to `ARCHITECTURE.md`, `docs/product_philosophy.md`,
-  `docs/ubiquitous_language.md`, this contract, and relevant skill references
+  root `CONTEXT.md`, this contract, and relevant skill references
 
 Future support for Dolby Vision, Apple-native immersive media, Spatial Video,
 MV-HEVC, APMP, or other system media capabilities belongs behind this gate.

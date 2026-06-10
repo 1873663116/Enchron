@@ -23,7 +23,7 @@ from the strongest available source before editing documentation:
 - `ARCHITECTURE.md` and active contracts for architecture and module
   boundaries.
 - `docs/product_philosophy.md` for product direction and strategic tradeoffs.
-- `docs/ubiquitous_language.md` for shared terms.
+- Root `CONTEXT.md` for shared terms.
 - `.agents/skills/*` for agent routing and reference expectations.
 - Apple documentation for platform behavior, API availability, privacy,
   App Store, media/HDR, ARKit, performance, and deployment facts.
@@ -44,13 +44,17 @@ Classify each touched or conflicting document before changing it.
   responsibilities, dependency direction, invariants, and deliberate absences.
 - `docs/product_philosophy.md` owns product principles, experience priorities,
   and strategic tradeoffs.
-- `docs/ubiquitous_language.md` owns shared vocabulary.
+- Root `CONTEXT.md` owns shared vocabulary.
 - `docs/contracts/` owns active normative contracts.
 - `docs/plans/active/` owns live execution plans with exits.
 - `docs/reference/` owns durable investigations, diagnostics, and technical
   references; it becomes normative only when active architecture or contracts
   say so.
 - `.agents/skills/` owns agent routing and task-specific operating guidance.
+- `docs/adr/` owns immutable decision records; append new records, never rewrite
+  old ones.
+- `docs/cockpit/` owns the human-facing non-normative projection; agents write
+  it, never read it as truth.
 - `docs/archive/` owns historical material.
 - Archived requirements and original requirements preserve the original
   historical request. Use them as evidence; keep their historical wording
@@ -69,7 +73,7 @@ already established and the edit preserves meaning:
 - Fix broken links, stale paths, and references to deleted files.
 - Add or repair active-document purpose, status, owner/scope, or exclusion
   headers when the surrounding document already establishes them.
-- Normalize terms to `docs/ubiquitous_language.md` when the semantic target is
+- Normalize terms to root `CONTEXT.md` when the semantic target is
   clear.
 - Clean reference/archive status wording when a document's role is clear.
 - Bring low-authority explanatory docs in line with clear high-authority facts.
