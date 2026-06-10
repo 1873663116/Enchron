@@ -1,107 +1,56 @@
-# Performance, Debugging, Simulator, Device
+# 性能、调试、Simulator、设备
 
-Use for performance planning, Simulator/device differences, RealityKit render
-cost, video/HDR validation, thermal/power, Instruments, visual debugging, and
-QA evidence.
+用于 performance planning、Simulator/device 差异、RealityKit render cost、video/HDR validation、thermal/power、Instruments、visual debugging 和 QA evidence。
 
-## Evidence Handles
+## 证据指针
 
-Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
-Prefer the local DocSetQuery pages below before web search. They are generated
-from Apple API Reference `docset_version: 24703`.
+Apple API 事实用官方 `DocumentationSearch`（`mcp__xcode__DocumentationSearch`，跟随当前 Xcode）查本 surface 相关 framework/概念，再用下面的判断段收窄到 Enchron 边界。
 
-### Open first
+### 查询种子（DocumentationSearch / 官方 web）
 
-- `Apple-Media-Device/realitykit.md#documentation-realitykit-ecs-scenes`
-  — RealityKit scene API surface.
-- `Apple-Media-Device/realitykit.md#documentation-realitykit-ecs-events`
-  — RealityKit event API surface for subscriptions and diagnostics.
-- `Apple-Media-Device/metal.md#documentation-metal`
-  — Metal framework root for lower-level rendering and diagnostics.
-- `Apple-Tools-Misc/compositorservices.md#documentation-compositorservices`
-  — Compositor Services root for custom immersive render loops.
+- `"Creating a performance plan for visionOS app" "RealityKit Trace"`
+  用于 performance planning。
+- `"Analyzing the performance of your visionOS app" "Instruments"`
+  用于 profiling workflow。
+- `"Understanding the visionOS render pipeline" "render server" "compositor"`
+  用于 render-pipeline ownership。
+- `"Reducing the rendering cost of RealityKit content on visionOS"`
+  用于 RealityKit-specific render-cost guidance。
+- `"Diagnosing issues in the appearance of your running app" "Xcode"`
+  用于 visual debugging workflow。
+- `"Running your app in Simulator or on a device" "visionOS"`
+  用于 Simulator/device gaps。
+- `"Interacting with your app in the visionOS Simulator"`
+  用于 Simulator interaction workflow。
 
-### Open if
+## 正确判断
 
-- `Apple-Media-Device/realitykit.md#documentation-realitykit-ecs-systems`
-  — RealityKit systems API surface for per-frame scene work.
-- `Apple-Media-Device/metal-hdr-content.md#documentation-metal-hdr-content`
-  — HDR content checks for Metal paths.
-- `Apple-Tools-Misc/compositorservices-drawing-fully-immersive-content-using-metal.md#documentation-compositorservices-drawing-fully-immersive-content-using-metal`
-  — fully immersive Metal rendering contract.
+- Simulator 有用，但它不是 rendering、input、audio/video、hardware features、HDR 或 thermal behavior 的权威证据。
+- 性能声明要在 physical device 上 profile。
+- 跟踪 launch/load time、responsiveness/latency、render frame pacing、power、memory、network 和 task efficiency。
+- Shared Space 和 Full Space 有不同的 performance/coexistence profile。当功能可运行在两个 context 中时，两者都要测试。
+- Multi-app coexistence 是 Shared Space performance model 的一部分。不要假设 Enchron 在 Full Space 之外拥有全部 render 或 attention budget。
+- Background 或 inactive scene state 不一定意味着用户看不到或听不到相关 app 内容。要有意识地保存状态并减少工作。
+- RealityKit render-server stalls 和 entity commits 是一等性能问题。
+- 对 RealityKit/render-server bottleneck、commits、dropped frames、high power use、animation、physics 和 spatial systems，使用 RealityKit Trace template。
+- 用 visionOS render-pipeline 文档判断 bottleneck 位于 app main-thread work、RealityKit/Core Animation commits、render server、compositor，还是 Metal/Compositor Services frame submission。
+- 需要时用 visible axes、bounds、overlays 或临时 diagnostic entities 调试 immersive placement。
+- Immersive media profile 声明需要 device check，尤其是 comfort mitigation、spatial audio、captions/subtitles、power 和 long-viewing behavior。
+- 性能声明使用接近 release 的配置；Debug build 用于功能诊断。
 
-### Search when DocSet lacks the article
+## iOS/macOS 冲突点
 
-- Xcode Documentation Search:
-  `"Creating a performance plan for visionOS app" "RealityKit Trace"`
-  for performance planning.
-- Xcode Documentation Search:
-  `"Analyzing the performance of your visionOS app" "Instruments"`
-  for profiling workflow.
-- Xcode Documentation Search:
-  `"Understanding the visionOS render pipeline" "render server" "compositor"`
-  for render-pipeline ownership.
-- Xcode Documentation Search:
-  `"Reducing the rendering cost of RealityKit content on visionOS"`
-  for RealityKit-specific render-cost guidance.
-- Xcode Documentation Search:
-  `"Diagnosing issues in the appearance of your running app" "Xcode"`
-  for visual debugging workflow.
-- Xcode Documentation Search:
-  `"Running your app in Simulator or on a device" "visionOS"`
-  for Simulator/device gaps.
-- Xcode Documentation Search:
-  `"Interacting with your app in the visionOS Simulator"`
-  for Simulator interaction workflow.
+- 不要把“Simulator 中可用”当成 spatial、video、HDR 或 performance 路径在设备上正确的证据。
+- 不要只根据 Debug-build metrics 做优化。
+- 不要忽视 thermal pressure；Apple 文档说明当资源使用把设备推过限制时，会有用户可见影响。
+- 不要把 2D layout inspection 当成 immersive content 的充分检查。
+- 不要因为短暂 Simulator playback 能启动，就把 APMP、Apple Immersive Video、Spatial Video 或 high-motion immersive playback 视为已验证。
+- 不要假设 macOS desktop profiling 信号能直接映射到 Vision Pro comfort 或 spatial frame pacing。
+- 不要只通过 RealityKit 信号 profile Compositor Services 工作；Metal immersive rendering 需要 Metal/compositor timing 证据。
 
-## Correct Decisions
+## Enchron 检查点
 
-- Simulator is useful but not authoritative for rendering, input, audio/video,
-  hardware features, HDR, or thermal behavior.
-- Profile on physical device for performance claims.
-- Track launch/load time, responsiveness/latency, render frame pacing, power,
-  memory, network, and task efficiency.
-- Shared Space and Full Space have different performance and coexistence
-  profiles. Test both when a feature can run in both contexts.
-- Multi-app coexistence is part of the Shared Space performance model. Do not
-  assume Enchron owns the whole render or attention budget outside Full Space.
-- Background or inactive scene state does not always mean the user cannot see
-  or hear relevant app content. Save state and reduce work deliberately.
-- RealityKit render-server stalls and entity commits are first-class
-  performance concerns.
-- Use the RealityKit Trace template for RealityKit/render-server bottlenecks,
-  commits, dropped frames, high power use, animation, physics, and spatial
-  systems.
-- Use the visionOS render-pipeline docs to decide whether the bottleneck lives
-  in app main-thread work, RealityKit/Core Animation commits, render server,
-  compositor, or Metal/Compositor Services frame submission.
-- Debug immersive placement with visible axes, bounds, overlays, or temporary
-  diagnostic entities when needed.
-- Immersive media profile claims need device checks for comfort mitigation,
-  spatial audio, captions/subtitles, power, and long-viewing behavior.
-- Use release-like configuration for performance claims; Debug builds are for
-  functional diagnosis.
-
-## iOS/macOS Conflicts
-
-- Do not accept "works in Simulator" as evidence that a spatial, video, HDR, or
-  performance path is correct on device.
-- Do not optimize from Debug-build metrics alone.
-- Do not ignore thermal pressure; Apple documents user-visible impact when
-  resource use pushes the device beyond limits.
-- Do not treat 2D layout inspection as sufficient for immersive content.
-- Do not treat APMP, Apple Immersive Video, Spatial Video, or high-motion
-  immersive playback as verified because a short Simulator playback starts.
-- Do not assume macOS desktop profiling signals map directly to Vision Pro
-  comfort or spatial frame pacing.
-- Do not profile Compositor Services work only through RealityKit signals; Metal
-  immersive rendering needs Metal/compositor timing evidence.
-
-## Enchron Checkpoints
-
-- UI-only changes can usually be verified with build plus visual review.
-- HDR, MPV Metal output, RealityKit texture bridge, and immersive scene claims
-  need explicit Simulator/device risk notes.
-- APMP, Apple Immersive Video, Spatial Video, and custom immersive video paths
-  need human headset verification notes even when docs and builds pass.
-- A QA report should separate automated verification from human headset checks.
+- UI-only 改动通常可以用 build 加 visual review 验证。
+- HDR、MPV Metal output、RealityKit texture bridge 和 immersive scene 声明需要明确 Simulator/device risk notes。
+- 即使 docs 和 builds 都通过，APMP、Apple Immersive Video、Spatial Video 和 custom immersive video paths 仍需要 human headset verification notes。
+- QA report 应区分 automated verification 和 human headset checks。

@@ -1,162 +1,132 @@
 ---
 name: visionos-platform
-description: Use for Enchron/XrPlayer work that touches visionOS-specific Swift, SwiftUI, RealityKit, ARKit, Metal, AVKit/video playback, scene/window lifecycle, spatial interaction, privacy, performance, networking, persistence, or any area where iOS/macOS Swift instincts might conflict with Apple Vision Pro behavior. Do not use for pure Swift Domain, UseCase, or unit-test changes with no platform surface. This is an official-docs router; load only the matching reference file for the task.
+description: 用于 Enchron/XrPlayer 中触及 visionOS-specific Swift、SwiftUI、RealityKit、Reality Composer Pro、Shader Graph、Metal、ARKit、AVKit/video playback、scene/window lifecycle、spatial interaction、privacy、performance、networking、persistence，或任何 iOS/macOS Swift 直觉可能与 Apple Vision Pro 行为冲突的工作。这是平台判断指南：先用官方 Xcode DocumentationSearch（MCP）获取 Apple 事实，再按 visionOS surface 和 Enchron 边界过滤。
 ---
 
-# visionOS Platform Router
+# visionOS 平台判断指南
 
-This skill prevents iOS/macOS Swift and SwiftUI habits from silently becoming
-visionOS decisions in Enchron.
+这个 skill 防止 iOS/macOS 习惯静悄悄变成 Enchron 的 visionOS 决策。它是判断指南，不是 checklist，也不是静态 Apple-docs router。
 
-The skill body is only an entry point. Do not read every reference by default.
-Pick the task area below, then load only the matching file in `references/`.
-When the work is broad or architectural, read multiple matching files in order.
+用它保持几个正确的“方向盘”始终可见：
 
-If a subagent must use this skill, pass both this `SKILL.md` path and the
-specific reference path it should read.
+- 证据方向：Apple 平台事实先来自官方 Xcode DocumentationSearch（MCP），再考虑记忆；
+- 探索方式：陌生领域先 broad，已知 API 可直接 search，命中后必须读上下文；
+- 平台过滤：Apple docs 覆盖多个平台，命中并不自动等于 visionOS 结论；
+- 项目过滤：读完 Apple docs 后，回到 Enchron 的 module、surface、architecture boundary 和 verification risk；
+- 轻量逃生口：小、明显、可逆的工作应保持轻量。
 
-## Loading Rule
+## 核心规则
 
-Codex keeps skill metadata in context, not this full body. After the skill
-triggers, read this router, then the smallest relevant reference file.
-Triggering this skill means the task has a visionOS boundary to keep visible; it
-does not mean every reference file should be read.
+当 Apple platform behavior、API availability、rendering、privacy、media/HDR、ARKit permissions、performance、lifecycle 或 compatibility 事实重要时，优先使用官方 Xcode `DocumentationSearch`（`mcp__xcode__DocumentationSearch`），而不是凭记忆或泛化 web 搜索。
 
-Use the reference file's local DocSetQuery evidence handles first when the
-answer depends on API availability, OS-version behavior, privacy requirements,
-media/HDR behavior, ARKit permissions, or performance claims. Use Xcode
-Documentation Search for the listed article-level queries when DocSetQuery lacks
-that article. Use official web pages only for items marked as web fallbacks,
-such as HIG pages, WWDC videos, PDFs, streaming examples, or technotes.
-When current docs explain individual APIs but not complete project composition,
-consult `references/sample-code-corpus.md` for durable local Apple sample code
-and selected open-source comparison repositories.
+搜索结果是候选入口，不是结论。依赖结果前，先下钻 doc 详情页或命中的项目代码。
 
-Coding, debugging, build triage, runtime triage, and code review all count as
-skill triggers when they touch a visionOS platform surface. A trigger asks for
-surface ownership and evidence discipline, not a full-document ritual.
+如果任务很小、可逆，并且已经由本地代码或已读来源支撑，不要因为触发了这个 skill 就增加仪式感。
 
-When this skill and an iOS/macOS skill both appear relevant, this skill controls
-surface selection, lifecycle, privacy, media behavior, rendering, input, and
-verification. iOS/macOS skills may help with Swift syntax, general Foundation
-patterns, or cross-platform API mechanics only after the visionOS surface is
-chosen.
+## 文档查询（DocumentationSearch）
 
-## Working Shape
+官方 Xcode MCP 工具 `mcp__xcode__DocumentationSearch` 是 Apple 平台事实的权威源：它对运行中的 Xcode 做语义搜索，**跟随当前安装的 Xcode 版本**，返回带 overview 和代码示例的结果，以及可下钻的 doc uri。
 
-Use this skill to keep the right question in view, not to fill a checklist.
+前提：Xcode 必须在运行（IDE-attached）。
 
-- Name the touched Enchron module and visionOS surface.
-- Open the smallest matching reference file from the route table.
-- Open the reference file's DocSetQuery handles when the behavior depends on
-  API, privacy, media/HDR, ARKit, or performance facts.
-- Use `references/sample-code-corpus.md` when the task needs complete-project
-  implementation examples, and prefer a subagent for broad sample exploration.
-- Notice the inherited iOS/macOS assumption that could be wrong.
-- Inspect local code before proposing or editing.
-- Keep the change small and aligned with the chosen visionOS surface.
-- Verify with the smallest evidence that can see the risk; name Simulator or
-  device checks only when automation cannot answer them.
+当 API、type 或 concept 已经具名时，直接 search（`frameworks` 收窄到相关 framework 提升精度，不确定时省略做全局语义搜索）：
 
-## Route Table
+```
+DocumentationSearch(query: "ShaderGraphMaterial", frameworks: ["RealityKit"])
+DocumentationSearch(query: "VideoPlayerComponent")
+DocumentationSearch(query: "Compositor Services")
+```
 
-| Task area | Local files likely involved | Read |
-| --- | --- | --- |
-| App scene lifecycle, windows, volumes, immersive spaces, launch/default size/restoration | `XrPlayer/App`, `MainView`, `AppModel`, `DesignPreviewApp` | `references/app-scenes.md` |
-| SwiftUI controls, DesignPreview, gaze hover, ornaments, spatial layout, accessibility | `PlayerUI`, `DesignPreview`, `Shared/DesignSystem`, `Settings` | `references/spatial-ui.md` |
-| Playback, AVFoundation/AVKit, MPV comparison, HDR/EDR, subtitles/tracks, video surfaces | `PlaybackCore`, `WindowVideoView`, `WindowVideoViewModel`, `PlayerUI/Views/*Video*` | `references/playback-media.md` |
-| Immersive media profiles, APMP, Spatial Video, Apple Immersive Video, AVExperienceController, RealityKit VideoPlayerComponent | `PlaybackCore`, `PlayerUI`, `SpatialScene`, media routing plans | `references/immersive-media-profiles.md` |
-| RealityKit scenes, `RealityView`, entities, attachments, panoramas, virtual screens, volumes | `SpatialScene`, RealityKit renderers, immersive views | `references/realitykit-spatialscene.md` |
-| ARKit data, world/hand/scene sensing, camera access, privacy permissions | `SpatialScene`, ARKit integration, privacy-sensitive features | `references/arkit-privacy.md` |
-| Custom Metal immersive rendering, Compositor Services, render loops, stereoscopic drawing | `Shared/Metal*`, `WindowVideoView`, future custom immersive renderer | `references/metal-compositor.md` |
-| File browsing, PhotoKit, UTType, WebDAV, SMB, URL loading, credentials, persistence | `FileBrowsing`, `Persistence`, network adapters, credential stores | `references/files-network-persistence.md` |
-| Simulator/device gap, profiling, RealityKit render cost, thermal/power, visual debugging | Any performance or QA task | `references/performance-debugging.md` |
-| Suspicious platform assumptions or code review | Any module | `references/misconceptions.md` |
+`DocumentationSearch` 缺失，或主题超出 API reference 范围（HIG、WWDC videos、technotes、PDF、streaming examples）时，才走官方 Apple web pages。本地 DocSet 已淘汰，不再作为证据源。
 
-## Cross-Read Rules
+availability（`@available(visionOS, …)`）**不在 search 结果里直接给出**——它返回符号/摘要。确认 availability 用本节下方的 SDK typecheck probe 或读 doc 详情页；不要靠“某个源查不到”反推不可用。
 
-- SwiftUI window, scene, volume, immersive-space, presentation, or restoration
-  work: read `app-scenes.md`.
-- SwiftUI controls, layout, hover/focus, ornaments, accessibility, or
-  DesignPreview work: read `spatial-ui.md`.
-- MPV `CAMetalLayer`, EDR/HDR, texture bridge, or renderer timing: read
-  `playback-media.md`, `metal-compositor.md`, and `performance-debugging.md`.
-- Spatial Video, 3D video, APMP, Apple Immersive Video, Quick Look immersive
-  preview, `AVExperienceController`, or RealityKit `VideoPlayerComponent` work:
-  read `immersive-media-profiles.md`, then `playback-media.md` only if baseline
-  playback or engine comparison is involved.
-- Immersive video in RealityKit: read `immersive-media-profiles.md` and
-  `realitykit-spatialscene.md`; add `playback-media.md` when baseline playback
-  or engine comparison matters.
-- Any ARKit provider, sensing permission, world/hand/scene/camera/accessory
-  feature: read `arkit-privacy.md` even if the code lives in `SpatialScene`.
-- SMB, WebDAV, LAN discovery, arbitrary host entry, or local file selection:
-  read `files-network-persistence.md`.
-- Custom spatial controls or RealityKit entities that can be activated: read
-  `spatial-ui.md` and the accessibility section in that file.
+有用的 query seeds 是提示，不是强制阅读清单：
 
-## Broad Task Reading Order
+- RealityKit / RCP / materials: `Reality Composer Pro`, `ShaderGraph`,
+  `ShaderGraphMaterial`, `CustomMaterial`, `MaterialX`,
+  `RealityKit materials and shaders`.
+- Metal: `Metal shader libraries`, `Metal compute shader`,
+  `CustomMaterial SurfaceShader`, `Metal HDR content`,
+  `Compositor Services Metal`.
+- Scene and UI: `ImmersiveSpace`, `RealityView`, `volumetric window`,
+  `GeometryReader3D`, `ornament`, `hover effect`.
+- Media: `VideoPlayerComponent`, `VideoMaterial`, `AVExperienceController`,
+  `Apple Projected Media Profile`, `Apple Immersive Video`, `spatial video`.
+- ARKit and sensing: `ARKit`, `SpatialTrackingSession`, `WorldTrackingProvider`,
+  `HandTrackingProvider`, `SceneReconstructionProvider`.
+- Files and persistence: `FileDocument`, `UTType`, `SwiftData`, `Keychain`,
+  `Network`, `URLSession`, `Security`.
 
-For a broad Enchron platform audit, read:
+## 平台过滤
 
-1. `references/app-scenes.md`
-2. `references/misconceptions.md`
-3. `references/playback-media.md`
-4. `references/immersive-media-profiles.md`
-5. `references/metal-compositor.md`
-6. `references/realitykit-spatialscene.md`
-7. `references/arkit-privacy.md`
-8. `references/spatial-ui.md`
-9. `references/files-network-persistence.md`
-10. `references/performance-debugging.md`
+`DocumentationSearch` 覆盖 Apple documentation 的多个平台：iOS、macOS、tvOS、watchOS、visionOS 和 cross-platform frameworks。命中 Apple 页面本身还不够。
 
-For a small edit, read only one task reference plus `misconceptions.md` if the
-code smells like an iOS/macOS port.
+按风险提出对应平台问题：
 
-## Version Question
+- 哪个 visionOS surface 拥有这个行为：window、volume、`ImmersiveSpace`、RealityKit scene、AVKit/system video、custom Metal/Compositor Services、ARKit sensing，还是 file/network/persistence service？
+- 该来源描述的是 generic API behavior，还是 platform-specific lifecycle、rendering、input、privacy、media 或 performance rule？
+- 与 iOS/macOS 相比，visionOS 是否需要不同的 presentation model、permission check、comfort constraint、renderer contract 或 verification surface？
+- 这个 API 在 Enchron 的 deployment target 上是否可用？不支持的行为是否需要 availability guard、capability check 或明确降级 fallback？
 
-Before choosing a visionOS 26 API, keep these facts visible:
+处理 shader 工作时，保持概念分离：
 
-1. What is the project minimum deployment target?
-2. Is the API available at that target?
-3. If not, where is the availability guard, runtime capability check, or
-   fallback?
-4. Does the fallback preserve product behavior, or is it intentionally degraded?
+- Shader Graph / MaterialX / `ShaderGraphMaterial`：asset-authored RealityKit material graphs，通常由 Reality Composer Pro 或 MaterialX content 产生。
+- RealityKit `CustomMaterial`：由 custom shader stages 支撑的 RealityKit runtime material customization。对 Enchron 已安装 Apple toolchain 的当前判定：这不是 visionOS 路线。已安装的 XROS 和 XRSIMULATOR SDK 会把 `CustomMaterial` typecheck 为 `@available(visionOS, unavailable)`（见下方 probe）——availability 以 SDK typecheck 为准，不要靠“某个文档源查不到”反推。如果 shader 答案只把 `CustomMaterial` 当成“未确认”，力度太弱；除非更新后的当前 SDK/docs 证明相反，否则应说不可用。
+- Metal shaders：`.metal` functions、shader libraries、render/compute pipelines、resource binding 和 GPU execution。
+- Compositor Services：fully immersive custom Metal rendering，包含 compositor lifecycle 和 stereoscopic/frame-timing 职责。
 
-## Default Surface Question
+shader 路线声明的最小 availability probe：
 
-Before choosing an API, answer:
+```bash
+XROS_VER=$(xcrun --sdk xros --show-sdk-version)   # 跟随当前 Xcode 的 visionOS SDK，勿写死版本号
+xcrun --sdk xros swiftc -target arm64-apple-xros${XROS_VER} -typecheck - <<'SWIFT'
+import RealityKit
+func check() {
+    _ = CustomMaterial.self
+    _ = ShaderGraphMaterial.self
+}
+SWIFT
+```
 
-What visionOS surface owns this behavior?
+当前机器上的预期结果是：`CustomMaterial` 在 visionOS 上 unavailable，而 `ShaderGraphMaterial` available。
 
-- Bounded 2D UI: standard window.
-- Bounded 3D object/model: volume.
-- Unbounded spatial content controlled by the app: `ImmersiveSpace`.
-- Custom immersive Metal renderer: `ImmersiveSpace` with `CompositorLayer`;
-  check Compositor Services docs for full/mixed/progressive behavior.
-- Maximum system video integration research: `AVPlayerViewController`; this is
-  a platform reference surface, not Enchron's current production route.
-- Media-profile immersive video research: Quick Look, AVKit, or RealityKit
-  `VideoPlayerComponent`, chosen by media profile only after the task is scoped
-  as Apple-native investigation.
-- Current Enchron production playback: mpv-first. Custom immersive video work
-  should state the mpv capability or experiment being exercised; future Apple
-  AV / AVKit / RealityKit production adoption requires an explicit architecture
-  decision.
-- Network/file/persistence: Foundation, Network, Security, SwiftData, plus
-  visionOS privacy and lifecycle constraints.
+## Enchron 过滤
 
-For video/media work, also answer:
+读完 Apple docs 后，先回到 Enchron，再做决定。
 
-What media profile owns this content?
+重要时命名 owning module：
 
-- 2D flat video.
-- 3D flat or stereoscopic video.
-- Spatial Video / MV-HEVC with spatial metadata.
-- APMP 180.
-- APMP 360 / Wide FOV.
-- Apple Immersive Video.
-- Custom or unknown media.
+- `PlaybackCore`：loading、decoding、playback control、mpv integration。
+- `PlayerUI`：playback interface 和 presentation decisions。
+- `FileBrowsing`：local/SMB/WebDAV file browsing。
+- `SpatialScene`：spatial presentation、RealityKit scenes、immersive content、virtual screens、panoramas 和 future scene rendering。
+- `Persistence`：SwiftData、UserDefaults、Keychain、stored settings。
+- `App`：launch、scene wiring、dependency injection。
+- `Shared`：tokens、constants 和窄 Metal helpers 等低层稳定 utilities。
+- `DesignPreview`：隔离的 design/prototype surfaces。
 
-Do not start from "this is SwiftUI, so use iOS/macOS pattern X." Start from the
-visionOS surface and then choose the Swift API.
+始终看见项目边界：
+
+- 当前 Enchron production playback 是 mpv-first。Apple AV / AVKit / RealityKit media routes 属于 reference、diagnostics 或 future research，直到明确架构决策另行规定。
+- Reality Composer Pro 和 MaterialX validation 属于 exploratory RealityKit asset/material surface，例如 `RealityKitContent`、`DesignPreview` 或有边界的 `SpatialScene` spike。它本身不应暗示 production playback 或 renderer route。
+- `SpatialScene` 拥有 spatial presentation，不拥有 non-spatial playback control。
+- Build 成功不能证明 spatial comfort、HDR/EDR correctness、long-viewing performance、device brightness behavior 或 human experience。
+- Stable interface 或 active contract 变化需要对齐相关 active docs；exploratory spikes 和未证明实验不应制造过早 contract。
+
+## 参考资料
+
+`references/` 中的文件是项目边界说明，不是默认 Apple documentation 入口。当本地代码和 `DocumentationSearch` 已经识别平台区域后，如果它们能收窄 Enchron-specific decision，或代码闻起来像引入了 iOS/macOS 假设，再使用它们。
+
+默认不要读取所有 references。优先选择能回答 project-boundary question 的最小 note。只有任务需要 API 事实之外的 complete-project examples 时，才使用 `references/sample-code-corpus.md`。
+
+## 升级调查
+
+对小且可逆的任务保持轻量。当工作陌生、platform-sensitive、rendering/media-related、privacy-sensitive、performance-sensitive、cross-module、contract-affecting，或容易与 iOS/macOS 行为混淆时，升级调查。
+
+选择能看见风险的最小证据：
+
+- package/domain logic：focused tests；
+- app target、assets、target membership、scene lifecycle 或 RealityKitContent：匹配的 Xcode build；
+- playback、Metal、CoreVideo、bridging、threading、HDR、remote I/O 或 persistence 风险：build 加相关 tests，并考虑 `xcodebuild analyze`；
+- visual/spatial comfort、HDR/EDR credibility、device brightness、long-viewing behavior 和 interaction feel：Simulator/device/human verification，并明确命名。

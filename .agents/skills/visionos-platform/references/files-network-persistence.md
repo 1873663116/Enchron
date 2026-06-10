@@ -1,124 +1,62 @@
-# Files, Networking, Credentials, Persistence
+# 文件、网络、凭据、持久化
 
-Use for `FileBrowsing`, local files, PhotoKit, UTType filtering, WebDAV, SMB,
-URL loading, credentials, saved data sources, preferences, progress, and
-persistence stores.
+用于 `FileBrowsing`、本地文件、PhotoKit、UTType filtering、WebDAV、SMB、URL loading、credentials、已保存数据源、preferences、progress 和 persistence stores。
 
-## Evidence Handles
+## 证据指针
 
-Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
-Prefer the local DocSetQuery pages below before web search. They are generated
-from Apple API Reference `docset_version: 24703`.
+Apple API 事实用官方 `DocumentationSearch`（`mcp__xcode__DocumentationSearch`，跟随当前 Xcode）查本 surface 相关 framework/概念，再用下面的判断段收窄到 Enchron 边界。
 
-### Open first
+### 查询种子（DocumentationSearch / 官方 web）
 
-- `Apple-Data-State/bundleresources.md#documentation-bundleresources-information-property-list-nslocalnetworkusagedescription`
-  — local network usage description key.
-- `Apple-Data-State/bundleresources.md#documentation-bundleresources-information-property-list-nsbonjourservices`
-  — Bonjour services declaration key.
-- `Apple-System-Network/network.md#documentation-network`
-  — Network framework root for path, transport, and discovery work.
-- `Apple-Language-Foundation/uniformtypeidentifiers.md#documentation-uniformtypeidentifiers`
-  — Uniform Type Identifiers framework root.
-- `Apple-System-Network/security.md#documentation-security-keychain-services`
-  — Keychain Services.
+- `"TN3179" "local network privacy"`
+  用于 local-network privacy technote。
+- `"Connecting iPadOS and visionOS apps over the local network"`
+  用于 visionOS local-network 文章指导。
+- `"URL Loading System" "URLSession" "authentication challenge"`
+  用于 Foundation URL loading 和 WebDAV-style HTTP auth 行为。
+- `"startAccessingSecurityScopedResource" "URL"`
+  用于 Swift `URL` security-scoped resource access。
+- `"Requesting authorization to access photos" "PhotoKit"`
+  用于 PhotoKit authorization flow。
+- `"Adopting best practices for privacy" "visionOS"`
+  用于平台隐私指导。
 
-### Open if
-
-- `Apple-UI-Frameworks/swiftui.md#documentation-swiftui-documentgroup`
-  — system document scene support.
-- `Apple-Media-Device/photos.md#documentation-photos`
-  — Photos/PhotoKit framework root for user photo and video assets.
-- `Apple-Media-Device/photos.md#documentation-photos-phphotolibrary`
-  — `PHPhotoLibrary` access surface.
-- `Apple-Language-Foundation/uniformtypeidentifiers.md#documentation-uniformtypeidentifiers-system-declared-uniform-type-identifiers`
-  — system-declared UTTypes.
-- `Apple-Data-State/swiftdata.md#documentation-swiftdata`
-  — SwiftData persistence framework root.
-
-### Search when DocSet lacks the article or Swift overlay page
-
-- Xcode Documentation Search:
-  `"TN3179" "local network privacy"`
-  for the local-network privacy technote.
-- Xcode Documentation Search:
-  `"Connecting iPadOS and visionOS apps over the local network"`
-  for visionOS local-network article guidance.
-- Xcode Documentation Search:
-  `"URL Loading System" "URLSession" "authentication challenge"`
-  for Foundation URL loading and WebDAV-style HTTP auth behavior.
-- Xcode Documentation Search:
-  `"startAccessingSecurityScopedResource" "URL"`
-  for Swift `URL` security-scoped resource access.
-- Xcode Documentation Search:
-  `"Requesting authorization to access photos" "PhotoKit"`
-  for PhotoKit authorization flow.
-- Xcode Documentation Search:
-  `"Adopting best practices for privacy" "visionOS"`
-  for platform privacy guidance.
-
-### Official web fallback
+### 官方 Web fallback
 
 - `https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy`
 
-## Correct Decisions
+## 正确判断
 
-- Use `URLSession` for HTTP/WebDAV-style URL loading unless a lower-level
-  protocol requirement demands Network framework.
-- Use Network framework for path monitoring, custom TCP/TLS/UDP/QUIC protocols,
-  and transport-level diagnostics.
-- SMB discovery, LAN WebDAV, arbitrary local-host connections, Bonjour
-  browsing/registration, broadcast, and multicast are local-network privacy
-  surfaces. Add `NSLocalNetworkUsageDescription` and, for Bonjour service
-  browsing or registration, `NSBonjourServices`.
-- Use URL loading authentication-challenge docs for HTTP/WebDAV auth behavior.
-- Large media downloads, HLS manifests, and remote previews should be
-  resumable or cancellable. Do not require the user to keep watching a loading
-  surface for long-running network work.
-- User-selected local files must come from system-mediated selection such as
-  file importer/document picker flows. Persist access with security-scoped
-  bookmarks when long-term access is needed; do not store raw paths as durable
-  authority.
-- Balance every successful `startAccessingSecurityScopedResource()` call with
-  `stopAccessingSecurityScopedResource()`.
-- Prefer UTType over extension-only string guesses when the system can provide
-  structured type information.
-- Photo library access is privacy-gated and can be limited; the app must work
-  when only selected assets are visible.
-- Credentials belong in Keychain, not UserDefaults or plain JSON.
-- UserDefaults is acceptable for lightweight preferences or early local
-  prototypes, but do not name a UserDefaults-backed class as though it were
-  real SwiftData unless that is intentional and documented.
-- Scene/window restoration is a platform feature. Do not duplicate it blindly
-  in persistence state.
+- 除非底层协议要求必须使用 Network framework，否则 HTTP/WebDAV-style URL loading 使用 `URLSession`。
+- Network framework 用于 path monitoring、自定义 TCP/TLS/UDP/QUIC 协议和 transport-level diagnostics。
+- SMB discovery、LAN WebDAV、任意 local-host connection、Bonjour browsing/registration、broadcast 和 multicast 都是 local-network privacy surface。添加 `NSLocalNetworkUsageDescription`；如果进行 Bonjour service browsing 或 registration，还要添加 `NSBonjourServices`。
+- HTTP/WebDAV auth 行为查 URL loading authentication-challenge 文档。
+- 大型媒体下载、HLS manifest 和远程 preview 应可恢复或可取消。不要要求用户为了长时间网络任务一直盯着 loading surface。
+- 用户选择的本地文件必须来自系统中介的选择，例如 file importer/document picker flow。需要长期访问时，用 security-scoped bookmark 持久化访问权；不要把 raw path 当成持久权限。
+- 每个成功的 `startAccessingSecurityScopedResource()` 调用，都要配对 `stopAccessingSecurityScopedResource()`。
+- 当系统能提供结构化类型信息时，优先使用 UTType，而不是只靠扩展名字符串猜测。
+- Photo library access 受隐私控制，并且可能是 limited；app 必须能在只看得到选中资产时工作。
+- Credentials 属于 Keychain，不属于 UserDefaults 或明文 JSON。
+- UserDefaults 可以用于轻量 preferences 或早期本地 prototype，但不要把 UserDefaults-backed class 命名得像真正 SwiftData，除非这是有意且已记录的选择。
+- Scene/window restoration 是平台能力。不要在 persistence state 里盲目复制它。
 
-## iOS/macOS Conflicts
+## iOS/macOS 冲突点
 
-- Do not assume desktop file-system freedom. visionOS app file access is
-  sandboxed and privacy-mediated.
-- Do not assume SMB/WebDAV LAN access works without local-network privacy
-  strings and denial handling.
-- Do not assume a raw file path remains valid after a user selects a document.
-- Do not treat PhotoKit full-library access as guaranteed.
-- Do not parse file types by extension when UTType or metadata is available.
-- Do not block SwiftUI interaction on synchronous network/file work.
-- Do not assume scene backgrounding means the content is invisible or that
-  long-running media/network work can continue without a product reason.
-- Do not store network credentials in UserDefaults.
-- Do not use UserDefaults as a general database.
-- Do not import macOS preference-window assumptions into visionOS settings.
+- 不要假设桌面文件系统自由度。visionOS app 文件访问受沙盒和隐私中介约束。
+- 不要假设 SMB/WebDAV LAN access 不需要 local-network privacy 字符串和 denial handling。
+- 不要假设用户选择文档后 raw file path 仍然长期有效。
+- 不要把 PhotoKit full-library access 视为保证存在。
+- 当 UTType 或 metadata 可用时，不要按扩展名解析文件类型。
+- 不要让同步网络/文件工作阻塞 SwiftUI 交互。
+- 不要假设 scene backgrounding 意味着内容不可见，也不要假设长时间 media/network work 可在没有产品理由的情况下继续。
+- 不要把网络凭据存进 UserDefaults。
+- 不要把 UserDefaults 当通用数据库。
+- 不要把 macOS preference-window 假设引入 visionOS settings。
 
-## Enchron Checkpoints
+## Enchron 检查点
 
-- WebDAV code should follow Foundation URL loading behavior for auth, redirects,
-  errors, cancellation, and background responsiveness.
-- SMB library behavior comes from the third-party client, but credentials,
-  local-network permission state, Bonjour/service discovery, network status,
-  file filtering, and UI behavior still follow Apple Foundation/Security/privacy
-  docs.
-- Local-file playback must keep a scoped-access plan separate from playback
-  state, progress state, and recent-item UI.
-- Saved playback progress and saved screen positions should separate user
-  preferences, transient scene restoration, and credential-like secrets.
-- Remote media features should state how cancellation, retry, partial content,
-  authentication challenges, and scene lifecycle changes affect playback start.
+- WebDAV 代码应遵循 Foundation URL loading 对 auth、redirect、error、cancellation 和 background responsiveness 的行为。
+- SMB library 行为来自第三方 client，但 credentials、local-network permission state、Bonjour/service discovery、network status、file filtering 和 UI 行为仍然遵循 Apple Foundation/Security/privacy 文档。
+- Local-file playback 必须把 scoped-access plan 与 playback state、progress state 和 recent-item UI 分开。
+- 保存的 playback progress 和保存的 screen position 应区分 user preferences、transient scene restoration 和 credential-like secrets。
+- Remote media 功能应说明 cancellation、retry、partial content、authentication challenge 和 scene lifecycle change 如何影响 playback start。

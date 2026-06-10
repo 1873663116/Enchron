@@ -1,102 +1,57 @@
-# ARKit, Sensors, Privacy, World Understanding
+# ARKit、传感器、隐私、世界理解
 
-Use for ARKit data access, world/scene/hand tracking, real-world surroundings,
-camera access, sensor privacy, and any feature that asks what the user is doing
-or where real-world objects are.
+用于 ARKit 数据访问、world/scene/hand tracking、真实世界周边、相机访问、传感器隐私，以及任何询问用户正在做什么或真实世界物体在哪里的功能。
 
-## Evidence Handles
+## 证据指针
 
-Local DocSetQuery root: `/Users/xiongzhipeng/DocSetQuery/docs/apple`.
-Prefer the local DocSetQuery pages below before web search. They are generated
-from Apple API Reference `docset_version: 24703`.
+Apple API 事实用官方 `DocumentationSearch`（`mcp__xcode__DocumentationSearch`，跟随当前 Xcode）查本 surface 相关 framework/概念，再用下面的判断段收窄到 Enchron 边界。
 
-### Open first
+### 查询种子（DocumentationSearch / 官方 web）
 
-- `Apple-Media-Device/arkit.md#documentation-arkit`
-  — ARKit framework root.
-- `Apple-Media-Device/arkit.md#documentation-arkit-arkit-in-visionos`
-  — ARKit in visionOS overview.
-- `Apple-Media-Device/realitykit.md#documentation-realitykit-spatialtrackingsession`
-  — RealityKit `SpatialTrackingSession` high-level tracking path.
-- `Apple-Media-Device/arkit-tracking-accessories-in-volumetric-windows.md#documentation-arkit-tracking-accessories-in-volumetric-windows`
-  — accessory tracking in volumetric windows.
-- `Apple-Media-Device/arkit-accessorytrackingprovider.md#documentation-arkit-accessorytrackingprovider`
-  — ARKit `AccessoryTrackingProvider`.
+- `"Adopting best practices for privacy" "visionOS" "ARKit"`
+  用于平台隐私和用户偏好指导。
+- `"Setting up access to ARKit data" "requiredAuthorizations"`
+  用于 provider 授权设置。
+- `"Bringing your ARKit app to visionOS" "Full Space"`
+  用于迁移指导。
+- `"Incorporating real-world surroundings in an immersive experience" "visionOS"`
+  用于周边环境和 scene-sensing 指导。
+- `"Tracking points in world space" "visionOS"`
+  用于 world-space tracking 指导。
+- `"Accessing the main camera" "visionOS" "enterprise"`
+  用于相机 entitlement 约束。
 
-### Search when DocSet lacks the article
-
-- Xcode Documentation Search:
-  `"Adopting best practices for privacy" "visionOS" "ARKit"`
-  for platform privacy and user-preference guidance.
-- Xcode Documentation Search:
-  `"Setting up access to ARKit data" "requiredAuthorizations"`
-  for provider authorization setup.
-- Xcode Documentation Search:
-  `"Bringing your ARKit app to visionOS" "Full Space"`
-  for migration guidance.
-- Xcode Documentation Search:
-  `"Incorporating real-world surroundings in an immersive experience" "visionOS"`
-  for surroundings and scene-sensing guidance.
-- Xcode Documentation Search:
-  `"Tracking points in world space" "visionOS"`
-  for world-space tracking guidance.
-- Xcode Documentation Search:
-  `"Accessing the main camera" "visionOS" "enterprise"`
-  for camera entitlement constraints.
-
-### Official web fallback
+### 官方 Web fallback
 
 - WWDC25 287 `What is new in RealityKit`
 
-## Correct Decisions
+## 正确判断
 
-- Standard gaze and hand input do not expose raw gaze/hand position to the app.
-  The system handles private sensor data for ordinary input.
-- Use standard SwiftUI/UIKit event handling for ordinary interaction.
-- Request ARKit data only when the system interaction model cannot express the
-  feature.
-- Most world, hand, and scene-sensing ARKit providers require Full Space
-  presentation, but the rule is provider-specific. Verify each provider's
-  presentation context, support checks, and authorization requirements in
-  current Apple docs.
-- Use "Full Space", "presentation context", and exact provider names when
-  describing availability. Do not use "immersive space" as a loose synonym for
-  every sensing requirement.
-- RealityKit `SpatialTrackingSession` and high-level anchoring APIs can provide
-  a RealityKit-shaped path to ARKit data. They still require capability checks,
-  authorization handling, and a fallback story when sensitive data is involved.
-- Add provider-specific usage descriptions before requesting sensitive data.
-- Check provider-specific `requiredAuthorizations`; do not guess.
-- Handle denied and later-revoked authorization with a usable fallback.
-- Main camera access is an enterprise entitlement path, not a general app
-  capability.
+- 标准 gaze 和 hand input 不会向 app 暴露原始 gaze/hand position。普通输入中的私密传感器数据由系统处理。
+- 普通交互优先使用标准 SwiftUI/UIKit event handling。
+- 只有系统交互模型无法表达功能时，才请求 ARKit 数据。
+- 大多数 world、hand 和 scene-sensing ARKit provider 需要 Full Space presentation，但规则是 provider-specific 的。要在当前 Apple 文档中逐个确认 provider 的 presentation context、support check 和 authorization requirement。
+- 描述可用性时使用 "Full Space"、"presentation context" 和精确 provider 名称。不要把 "immersive space" 松散地当作所有 sensing requirement 的同义词。
+- RealityKit `SpatialTrackingSession` 和高层 anchoring API 可以提供 RealityKit 形态的 ARKit 数据路径。只要涉及敏感数据，它们仍然需要 capability check、authorization handling 和 fallback story。
+- 请求敏感数据前，添加 provider-specific usage description。
+- 检查 provider-specific `requiredAuthorizations`；不要猜。
+- 对被拒绝和后续被撤销的授权提供可用 fallback。
+- 主相机访问是 enterprise entitlement 路径，不是通用 app 能力。
 
-## iOS/macOS Conflicts
+## iOS/macOS 冲突点
 
-- Do not assume an app can read what the user is looking at.
-- Do not use hand tracking to implement ordinary button presses, sliders, or
-  selection.
-- Do not treat iOS ARKit as the display stack. visionOS ARKit is mainly for
-  sensing/world data; presentation is SwiftUI, RealityKit, or Compositor
-  Services.
-- Do not treat a RealityKit access path as a privacy downgrade or a permission
-  bypass.
-- Do not ship a core UI feature that has no fallback when ARKit authorization is
-  denied.
-- Do not infer permission requirements from similar provider names. Verify the
-  current Apple docs for the exact provider.
-- Do not assume every ARKit provider is Full Space only. Accessory tracking and
-  future provider-specific APIs can have different presentation constraints.
+- 不要假设 app 可以读取用户正在看哪里。
+- 不要用 hand tracking 实现普通按钮点击、slider 或 selection。
+- 不要把 iOS ARKit 当成显示栈。visionOS ARKit 主要用于 sensing/world data；presentation 属于 SwiftUI、RealityKit 或 Compositor Services。
+- 不要把 RealityKit 访问路径当成隐私降级或权限绕过。
+- 不要发布一个在 ARKit 授权被拒绝时没有 fallback 的核心 UI 功能。
+- 不要从相似 provider 名称推断权限要求。要查当前 Apple 文档中的精确 provider。
+- 不要假设每个 ARKit provider 都只能在 Full Space 使用。Accessory tracking 和未来 provider-specific API 可能有不同 presentation 约束。
 
-## Enchron Checkpoints
+## Enchron 检查点
 
-- Enchron playback controls should work through standard input first.
-- Scene positioning and screen placement can use spatial state, but privacy
-  boundaries must be explicit before adding ARKit providers.
-- Any future world-aware scene feature needs a permission/fallback story before
-  implementation.
-- Provider adoption should name the exact provider, `isSupported` behavior,
-  authorization type, presentation surface, and Simulator/device support.
-- RealityKit `SpatialTrackingSession` adoption should name the tracked anchors
-  or scene-understanding capabilities, unavailable-capability behavior,
-  authorization behavior, and whether manual `ARKitSession` access is required.
+- Enchron 播放控件应首先通过标准输入工作。
+- Scene positioning 和 screen placement 可以使用 spatial state，但添加 ARKit provider 前必须明确隐私边界。
+- 任何未来 world-aware scene 功能都需要先有 permission/fallback story，再进入实现。
+- Provider adoption 应命名精确 provider、`isSupported` 行为、authorization type、presentation surface，以及 Simulator/device 支持。
+- 采用 RealityKit `SpatialTrackingSession` 时，应命名 tracked anchors 或 scene-understanding capabilities、unavailable-capability 行为、authorization 行为，以及是否需要手动 `ARKitSession` 访问。

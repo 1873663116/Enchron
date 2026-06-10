@@ -35,16 +35,20 @@ XrPlayer/
 - 根目录 `Package.resolved` 与 `XrPlayer.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved` 不可互换。
 - `XrPlayer` target 依赖 AMSMB2、MPVKit-GPL 和 RealityKitContent。
 - `DesignPreview` 是独立 Xcode target。
-- `.mcp.json` 配置 XcodeBuildMCP（MCP server 接入）；它是日常 build / test / run / clean、LLDB 调试、模拟器管理、UI 自动化、覆盖率的默认执行层——结构化输出、省上下文。它不覆盖 `analyze`、`archive`、Instruments/`xctrace`、`swift-format`、SwiftLint、Reality Composer Pro、signing/证书管理；这些走 Apple 原生工具。
+- 两个 MCP 分工并存，**官方 Xcode MCP 为主、XcodeBuildMCP 为辅**：
+  - **官方 Xcode MCP**（`mcp__xcode__*`，挂运行中的 Xcode、IDE-attached，跟随你打开的 Xcode 版本，不依赖 `xcode-select`）：文档查询（`DocumentationSearch`，Apple 文档权威源）、SwiftUI Preview 渲染（`RenderPreview`）、Issue Navigator、结构化改 build settings / entitlement / Info.plist（不碰 `project.pbxproj`）、与 IDE 共享的 lldb、String Catalog、App Store Connect 崩溃/性能。它在用户/全局层配置，不在项目 `.mcp.json`。
+  - **XcodeBuildMCP**（`.mcp.json` 配置，headless CLI，经 `xcrun xcodebuild`、依赖 `xcode-select` 指向完整 Xcode）：日常 build / test / run / clean、模拟器舰队管理、UI 自动化、代码覆盖率、headless/CI——结构化输出、省上下文。
+  - 纪律：别让两个 MCP 同时对同一项目并发 build（争 DerivedData）。
+  - 两者都不覆盖 `analyze`、`archive`、Instruments/`xctrace`、`swift-format`、SwiftLint、Reality Composer Pro、signing/证书管理；这些走 Apple 原生工具。
 
 ---
 
 ## Apple 工具链公理
 
-- 工具分流：日常 build / test / run / clean、LLDB 调试、模拟器管理、UI 自动化、覆盖率走 **XcodeBuildMCP**（默认执行层，结构化输出、省上下文）；`analyze`、`archive`/发布、Instruments·`xctrace`、`swift-format`、SwiftLint、Reality Composer Pro、signing 走 **Apple 原生 CLI/工具**（MCP 未覆盖或需 Apple 裁决，权威主线）。
+- 工具分流（三层）：**官方 Xcode MCP**（`mcp__xcode__*`，IDE-attached）主管文档查询（`DocumentationSearch`，跟随当前 Xcode）、SwiftUI Preview 渲染、Issue Navigator、结构化改 build settings/entitlement/Info.plist、IDE 共享 lldb；**XcodeBuildMCP**（headless CLI）主管日常 build / test / run / clean、模拟器舰队、UI 自动化、覆盖率；`analyze`、`archive`/发布、Instruments·`xctrace`、`swift-format`、SwiftLint、Reality Composer Pro、signing 走 **Apple 原生 CLI/工具**（MCP 未覆盖或需 Apple 裁决，权威主线）。Apple 文档事实优先 `DocumentationSearch`，不再用本地 DocSet。
 - `xcodebuild` 是 `analyze`、`archive`、深度 build-settings 查询和复杂 destination 的权威；app 的日常 build / test / run 优先用 XcodeBuildMCP 等价工具，必要时回落 `xcodebuild`。
 - `swift` / SwiftPM 只证明 `Package.swift` 覆盖的 package 逻辑。
-- `xcode-select --print-path` 用于检查当前 Xcode；`xcrun` 按当前 Xcode/SDK 调用 Apple 开发工具。
+- `xcode-select --print-path` 用于检查当前 Xcode；`xcrun` 按当前 Xcode/SDK 调用 Apple 开发工具。XcodeBuildMCP 经 `xcrun xcodebuild` 工作，依赖 `xcode-select` 指向完整 Xcode（非 CommandLineTools），否则整体不可用；官方 Xcode MCP 挂运行中的 Xcode 进程，不受 `xcode-select` 影响。
 - Simulator 与 destination 先用 `xcrun simctl` 和 `xcodebuild -showdestinations` 确认。
 - `swift-format` 只处理格式一致性；大规模格式化必须单独成事。
 - SwiftLint 是少量高信号架构守卫，不是架构设计器。
@@ -68,7 +72,7 @@ Agent 的职责是做出可解释的工程判断，先确认 ownership、visionO
 - 它触及哪个 visionOS surface：window、volume、`ImmersiveSpace`、RealityKit scene、AVKit/system video、mpv/Metal texture、Compositor Services、file/network/persistence、Simulator/device/performance？
 - 什么证据能证明它真的变好了：`swift test`、`xcodebuild`、SwiftLint、`xcodebuild analyze`、Simulator、Vision Pro device、LLDB、Instruments / `xctrace`，还是人类体验判断？
 
-代码改动先读 `ARCHITECTURE.md`，确认职责归属和 Architecture Invariants。触及 SwiftUI、RealityKit、ARKit、Metal、AVKit、scene/window lifecycle、spatial interaction、文件/网络/持久化、性能，或任何 iOS/macOS 平台假设时，使用 `.agents/skills/visionos-platform/SKILL.md` 找到相关 reference，不要一次性吞下所有平台文档。
+代码改动先读 `ARCHITECTURE.md`，确认职责归属和 Architecture Invariants。触及 SwiftUI、RealityKit、ARKit、Metal、AVKit、scene/window lifecycle、spatial interaction、文件/网络/持久化、性能，或任何 iOS/macOS 平台假设时，使用 `.agents/skills/visionos-platform/SKILL.md` 保持平台判断、`DocumentationSearch` 证据方向和 Enchron 边界；不要一次性吞下所有平台文档。
 
 UI / Design Preview 改动先读就近规范；当前入口是 `DesignPreview/`
 产品体验判断先读 `docs/product_philosophy.md`
@@ -83,6 +87,7 @@ UI / Design Preview 改动先读就近规范；当前入口是 `DesignPreview/`
 
 ## 判断提醒
 
+- visionOS 平台第一：这是 visionOS 项目，不要直接套用 iOS/iPadOS/macOS 的 API 直觉和交互模式（窗口、播放、手势、target 尺寸、隐私、scene 生命周期都可能不同）；平台敏感改动用 `visionos-platform` skill 核对，Apple 事实用官方 `DocumentationSearch`。
 - 系统原生优先：系统容器、材质、动效是第一选择；自定义需要改善核心体验。
 - 聚焦单一目标：不要把修 bug、换风格、重构和工具链清理混成一团。
 - 临时方案写清移除条件：`// WORKAROUND:` 后面要说明什么时候可以删。
