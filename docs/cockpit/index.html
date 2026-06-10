@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Enchron 驾驶舱</title>
+<style>
+  :root { --ink:#1d1d1f; --sub:#6e6e73; --line:#e5e5ea; --accent:#0a84ff; --warn:#b25000; --ok:#1f7a33; --bg:#f5f5f7; --card:#ffffff; }
+  body { font-family: -apple-system, "PingFang SC", "Noto Sans SC", sans-serif; margin:0; background:var(--bg); color:var(--ink); line-height:1.6; }
+  main { max-width: 880px; margin: 0 auto; padding: 24px 20px 80px; }
+  h1 { font-size: 1.6rem; margin: 8px 0 2px; }
+  h2 { font-size: 1.15rem; margin: 36px 0 10px; border-bottom: 1px solid var(--line); padding-bottom: 6px; }
+  .meta { color: var(--sub); font-size: .85rem; }
+  .notice { background:#fff8e6; border:1px solid #f0d9a8; border-radius:10px; padding:10px 14px; font-size:.88rem; margin:14px 0; }
+  .banner { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; margin:18px 0; }
+  .banner .stage { font-size:1.05rem; font-weight:600; }
+  .banner .next { margin-top:6px; }
+  .next b { color: var(--warn); }
+  table { width:100%; border-collapse:collapse; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:hidden; font-size:.9rem; }
+  th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { background:#fafafc; font-weight:600; color:var(--sub); font-size:.82rem; }
+  tr:last-child td { border-bottom:none; }
+  .chip { display:inline-block; border-radius:999px; padding:1px 10px; font-size:.78rem; white-space:nowrap; }
+  .done { background:#e6f4ea; color:var(--ok); }
+  .todo { background:#f2f2f7; color:var(--sub); }
+  .theory { background:#fff3e0; color:var(--warn); }
+  .open { background:#fdecec; color:#a82a2a; }
+  ul { padding-left: 1.2em; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .legend { font-size:.85rem; color:var(--sub); margin:6px 0 10px; }
+  footer { margin-top:48px; color:var(--sub); font-size:.82rem; border-top:1px solid var(--line); padding-top:12px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Enchron 驾驶舱</h1>
+  <div class="meta">最后更新：2026-06-10 ｜ 维护者：每轮 agent 会话结束时更新</div>
+  <div class="notice">本页是<b>非规范视图</b>：只为人类导航与记忆服务。与规范文档（CONTEXT.md / ARCHITECTURE.md / contracts / 作战地图）冲突时，以规范文档为准，并修复本页。</div>
+
+  <div class="banner">
+    <div class="stage">当前阶段：阶段 2 —— mpv 正式接入 visionOS（理论已闭环，进入实证）</div>
+    <div class="next">现在最重要的一件事：<b>T1 打包</b>——在 mac 上 fork MPVKit、合入 patch、产出 xros XCFramework（见作战地图）。</div>
+  </div>
+
+  <h2>作战地图（终点判据）</h2>
+  <div class="legend">详情与证据登记：<a href="../plans/active/2026-06-pipeline-stage2.md">docs/plans/active/2026-06-pipeline-stage2.md</a></div>
+  <table>
+    <tr><th>判据</th><th>一句话</th><th>状态</th><th>在哪干</th></tr>
+    <tr><td>T1 打包</td><td>enchron 合 patch → xros XCFramework，xr_resident 符号在</td><td><span class="chip todo">待办</span></td><td>mac</td></tr>
+    <tr><td>T2 冒烟</td><td>macvk_resident 初始化 + front ID 翻转（最大未知 C6 在此撞墙）</td><td><span class="chip todo">待办</span></td><td>mac</td></tr>
+    <tr><td>T3 贴面</td><td>一个纹理环喂三个表面：虚拟屏 / 窗口平面 / 全景球</td><td><span class="chip todo">待办</span></td><td>mac+云端</td></tr>
+    <tr><td>T4 路由</td><td>三模式往返 ≥10 次，mpv 不重启</td><td><span class="chip todo">待办</span></td><td>mac+云端</td></tr>
+    <tr><td>T5 真机抽查</td><td>Vision Pro 目检撕裂与色彩</td><td><span class="chip todo">待办</span></td><td>mac+真机</td></tr>
+    <tr><td>T6 登记</td><td>堵点编号入账，C 清单更新</td><td><span class="chip todo">待办</span></td><td>云端</td></tr>
+  </table>
+
+  <h2>待人类决策队列</h2>
+  <table>
+    <tr><th>决策</th><th>等什么</th></tr>
+    <tr><td>D1/D2 出口拓扑终判（单出口已是工作假设）</td><td>E6 并排对比证据（画质/节奏/HDR/功耗）；定案后写第一批 ADR</td></tr>
+    <tr><td>自产 XCFramework 合入 main</td><td>T1–T5 完成后的显式确认（分支范围已授权）</td></tr>
+    <tr><td>PRD / frame-pipeline contract 开工</td><td>本轮验证打通宣言</td></tr>
+  </table>
+
+  <h2>论断速览（C 清单）</h2>
+  <div class="legend">完整版：<a href="../reference/2026-06-10-frame-pipeline-theory-investigation.md">帧管线理论闭环调查</a> §4</div>
+  <table>
+    <tr><th>#</th><th>一句话</th><th>状态</th></tr>
+    <tr><td>C1</td><td>visionOS 窗口模式不需要 AppKit（moltenvk + CAMetalLayer）</td><td><span class="chip done">已证</span></td></tr>
+    <tr><td>C2</td><td>常驻纹理出口全链路在 macOS 成立</td><td><span class="chip done">已证</span></td></tr>
+    <tr><td>C3</td><td>MPVKit patch 合入 fork 是机械合并</td><td><span class="chip done">已证(静态)</span></td></tr>
+    <tr><td>C4</td><td>fork 窗口模式与现 App 行为等价</td><td><span class="chip theory">理论</span></td></tr>
+    <tr><td>C5</td><td>surfaceless 上下文在 visionOS 可初始化</td><td><span class="chip theory">理论</span></td></tr>
+    <tr><td>C6</td><td>VK_EXT_metal_objects 在 visionOS 可用（单点最大未知）</td><td><span class="chip theory">理论</span></td></tr>
+    <tr><td>C7</td><td>热切在 visionOS 干净（单出口假设下暂不需要）</td><td><span class="chip theory">理论</span></td></tr>
+    <tr><td>C8</td><td>sRGB 色彩契约在 visionOS 成立</td><td><span class="chip theory">理论</span></td></tr>
+    <tr><td>C9</td><td>HDR 出口（rgba16Float 真机实验）</td><td><span class="chip open">开放</span></td></tr>
+    <tr><td>C10</td><td>异步 fence 替全停</td><td><span class="chip open">欠账</span></td></tr>
+    <tr><td>C11</td><td>模拟器与真机的证据边界</td><td><span class="chip theory">部分</span></td></tr>
+  </table>
+
+  <h2>概念地图（边实践边学）</h2>
+  <div class="legend">掌握度：✅ 已懂 ｜ 🟡 模糊 ｜ ⬜ 未接触。改标记：告诉 agent 或直接编辑本文件。术语定义以 <a href="../../CONTEXT.md">CONTEXT.md</a> 为准。</div>
+  <table>
+    <tr><th>概念</th><th>一句话（比喻版）</th><th>掌握度</th></tr>
+    <tr><td>FrameExit 帧出口</td><td>放映机的光从哪个口出来：直接打到幕布（swapchain）或先写进底片库（residentTexture）</td><td>🟡</td></tr>
+    <tr><td>ResidentTextureRing 常驻纹理环</td><td>两张轮换的底片：mpv 写一张、你读另一张，永不读到写一半的</td><td>🟡</td></tr>
+    <tr><td>PresentationSurface 呈现表面</td><td>三块幕布：窗口平面 / 虚拟屏 / 全景球。模式切换=换幕布</td><td>🟡</td></tr>
+    <tr><td>PlaybackMode vs PlaybackEngineRoute</td><td>「在哪看」（呈现决策）vs「谁来播」（引擎路由），刻意分开的两个词</td><td>🟡</td></tr>
+    <tr><td>IOSurface</td><td>系统级共享相纸：两个进程/两套图形 API 看同一块显存</td><td>🟡</td></tr>
+    <tr><td>CAMetalLayer / swapchain</td><td>窗口的画框+轮换画布，画完一张换下一张直接上屏</td><td>🟡</td></tr>
+    <tr><td>vo=gpu-next / libplacebo</td><td>mpv 的高质量渲染管线（缩放、色彩、HDR 的发生地）</td><td>🟡</td></tr>
+    <tr><td>MoltenVK / Vulkan</td><td>mpv 说 Vulkan 语，Apple 只懂 Metal，MoltenVK 是同声传译</td><td>🟡</td></tr>
+    <tr><td>VK_EXT_metal_objects</td><td>传译员的特殊通道：让 Vulkan 直接拿 Metal 的纹理（C6 赌的就是它）</td><td>🟡</td></tr>
+    <tr><td>LowLevelTexture / TextureResource</td><td>RealityKit 接收外部画面的两种插座</td><td>🟡</td></tr>
+    <tr><td>sRGB 色彩契约（_srgb / Unlit）</td><td>写读两端约好同一种「曝光参数」，否则画面发白（ADR 0004 的教训）</td><td>🟡</td></tr>
+    <tr><td>XCFramework / MPVKit</td><td>把 mpv 全家桶打包成 Xcode 认识的积木盒</td><td>🟡</td></tr>
+    <tr><td>RCP（Reality Composer Pro）</td><td>3D 场景的剪辑室，产出 .usda 资产</td><td>🟡</td></tr>
+    <tr><td>双缓冲 / front 发布</td><td>「写完才举牌」：front ID 永远指向最新完整的一帧</td><td>🟡</td></tr>
+  </table>
+
+  <h2>分工（谁在哪干活）</h2>
+  <table>
+    <tr><th>执行侧</th><th>负责</th></tr>
+    <tr><td>mac 本地（你 + 本地 agent）</td><td>打包、构建、模拟器/真机运行、RCP 资产、一切「证据」的产出</td></tr>
+    <tr><td>云端 agent 会话</td><td>Swift/C 代码编写、文档维护、调查与计划（Linux 容器，无 Apple 工具链）</td></tr>
+  </table>
+
+  <h2>文档地图（人类版）</h2>
+  <ul>
+    <li><a href="../plans/active/2026-06-pipeline-stage2.md">作战地图</a> —— 本轮在干嘛、干到哪了（最常看）</li>
+    <li><a href="../../CONTEXT.md">CONTEXT.md</a> —— 术语唯一来源（名词不认识来这里）</li>
+    <li><a href="../reference/2026-06-10-frame-pipeline-theory-investigation.md">管线理论调查</a> —— 为什么这么干、证据在哪</li>
+    <li><a href="../../ARCHITECTURE.md">ARCHITECTURE.md</a> —— 模块边界与不变量（改代码前必读）</li>
+    <li><a href="../product_philosophy.md">产品哲学</a> —— 产品取舍（未来被 PRD 取代）</li>
+    <li><a href="../contracts/">contracts/</a> —— 已生效的边界契约 ｜ <a href="../adr/">adr/</a> —— 架构决策记录（已启用，队列见 README）</li>
+  </ul>
+
+  <footer>
+    维护规则：agent 每轮会话结束更新本页与作战地图，随代码一并提交；本页永远不是真相源。<br>
+    mpv fork：github.com/1873663116/mpv（enchron 分支，xr-fork/ 下有它自己的 CLAUDE.md 与 ADR）。
+  </footer>
+</main>
+</body>
+</html>
