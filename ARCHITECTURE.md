@@ -154,7 +154,7 @@ Do not link to contract files that do not exist. Do not create contract document
 
 ### Ubiquitous Language
 
-代码和文档使用 `docs/ubiquitous_language.md` 中的词汇。新术语成为架构词汇前，先更新该文件。
+代码和文档使用根目录 `CONTEXT.md` 中的词汇。新术语成为架构词汇前，先更新该文件。
 
 ### Verification
 
@@ -182,7 +182,7 @@ Do not link to contract files that do not exist. Do not create contract document
 
 1. 读本文，确认架构边界。
 2. 读 `docs/product_philosophy.md`，确认产品优先级。
-3. 读 `docs/ubiquitous_language.md`，确认共享术语。
+3. 读 `CONTEXT.md`，确认共享术语。
 4. 变更受 contract 约束的边界时，读 `docs/contracts/` 下的 active contract。
 
 归档 phase、QA、investigation 文档是历史上下文。它们与本文、当前源码或 active contracts 冲突时，先修正 active source of truth。

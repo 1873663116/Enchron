@@ -85,6 +85,17 @@ UI / Design Preview 改动先读就近规范；当前入口是 `DesignPreview/`
 
 ---
 
+## 会话交接（记忆协议）
+
+人类与 agent 都健忘，交接靠文件不靠记忆：
+
+- 会话开始：先读 `docs/cockpit/index.html`（人类驾驶舱）与 `docs/plans/active/` 下的作战地图，恢复现场再动手。
+- 会话结束或交付前：更新作战地图的证据/堵点登记与驾驶舱状态，随代码一并提交。
+- 驾驶舱是非规范视图；与规范文档冲突时，以规范文档为准并修复驾驶舱。
+- 交付说明末尾附「本轮新概念」，同步驾驶舱概念地图的掌握度标记（服务人类的边实践边学）。
+
+---
+
 ## 判断提醒
 
 - visionOS 平台第一：这是 visionOS 项目，不要直接套用 iOS/iPadOS/macOS 的 API 直觉和交互模式（窗口、播放、手势、target 尺寸、隐私、scene 生命周期都可能不同）；平台敏感改动用 `visionos-platform` skill 核对，Apple 事实用官方 `DocumentationSearch`。
@@ -124,7 +135,7 @@ DerivedData、缓存和 Simulator 状态可以成为诊断对象；把它们当�
 - 写清 ownership：谁拥有事实，谁拥有决策，谁只是执行。
 - 分开事实、决策和理由；不要把调查材料写成项目规则。
 - 少写进度形容词，多写证据边界；build pass、Simulator 正确、HDR 标签正确、窗口模式正确都不是完整正确性证据。
-- 使用 `docs/ubiquitous_language.md` 术语：`PlaybackEngine` 不是 `PlaybackMode`；`PlaybackEngineRoute` 不是 presentation；`MediaProfile` 是共享事实层；`AppleNativeMedia` 需要证据；
+- 使用根目录 `CONTEXT.md` 术语：`PlaybackEngine` 不是 `PlaybackMode`；`PlaybackEngineRoute` 不是 presentation；`MediaProfile` 是共享事实层；`AppleNativeMedia` 需要证据；
 
 ---
 
@@ -153,8 +164,10 @@ DerivedData、缓存和 Simulator 状态可以成为诊断对象；把它们当�
 |------|--------|----------|
 | `docs/product_philosophy.md` | 产品灵魂、三种播放模式的体验愿景 | 做设计决策时 |
 | `docs/quality_gates.md` | 改动可信度与风险信号 | 提交代码前自查 |
-| `docs/ubiquitous_language.md` | 项目统一术语表 | 命名类、方法、变量时 |
+| `CONTEXT.md`（根目录） | 项目唯一术语源 | 命名类、方法、变量时 |
 | `docs/reference/apple-toolchain-guide.md` | Apple 工具链命令与验证提示 | 构建、测试、分析、归档、发布前检查时 |
+| `docs/cockpit/index.html` | 人类驾驶舱：阶段、清单、决策队列、概念地图（非规范视图） | 会话开始恢复现场时 |
+| `docs/plans/active/` | 进行中的作战地图：目标、终点判据、证据与堵点登记 | 会话开始与结束时 |
 
 ### docs/ 子目录
 
