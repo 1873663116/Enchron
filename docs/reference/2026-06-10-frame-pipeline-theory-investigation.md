@@ -133,6 +133,8 @@ MPVKit 构建脚本（`Sources/BuildScripts/XCFrameworkBuild/main.swift`）：mp
 
 「单出口」与「全 RealityKit」是两个决策：D1 取单出口时，D2 仍可选 blit 载体保住 HDR 能力。
 
+> **工作假设（2026-06-10 拍板）**：本轮 visionOS 接入验证以**单出口**为工作假设，窗口呈现载体先用 RealityView 平面（D2 最简形态）；出口 A 仅作对照组。D1/D2 终判仍挂 E6 证据，此处不构成最终架构决策。
+
 可逆性：出口 A（上游 swapchain + moltenvk patch）天然保留在 fork 中，D1 只决定 App 消费哪个出口，可回退；出口 A 并继续充当色彩/质量对照组（ADR 0004 的发现方式正依赖双出口对照）。
 
 ## 6. 阶段 2 验证序列（每个实验回答一个问题）
