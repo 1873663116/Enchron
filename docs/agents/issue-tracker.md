@@ -25,5 +25,5 @@ Cloud agent sessions do not have `gh`; use the GitHub MCP tools (`mcp__github__*
 - PR 描述必带 `Closes #N`（合入默认分支自动关单）。
 - 关闭三选一并留一句结语：completed（附证据/PR 链接）/ not planned（为什么不做）/ duplicate（指向正主）。
 - `ready-for-agent` 只给前置已满足、AFK 可执行的 issue；串行任务的后续项不预先升标，由每轮收尾清扫升。
-- 每轮收尾做 issue 卫生：该关的关、过期 `needs-triage` 重分诊、open 列表超一屏（约 25）必须做关闭决定。
+- 每轮收尾做 issue 卫生：该关的关、过期 `needs-triage` 重分诊。open 列表超一屏（约 25）是水位警报——呈报人类裁决要不要收口；agent 不为凑数关单，没有证据或人类裁决支撑的关闭比堆积更糟。
 - issue 是讨论现场不是档案馆：边界决定回流 ADR / `CONTEXT.md`，可迁移经验回流 `docs/solutions/`。
