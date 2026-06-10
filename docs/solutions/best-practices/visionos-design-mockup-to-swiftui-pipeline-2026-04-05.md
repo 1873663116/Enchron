@@ -75,7 +75,7 @@ visionOS 应用需要在 SwiftUI 实现之前进行视觉设计探索，但 web 
 
 ### 对抗性审查协议（设计适配版）
 
-本项目采用的三阶段审查协议与已有的 `test-first-adversarial-iteration` 模式一致（见 `docs/solutions/best-practices/overnight-test-first-adversarial-iteration-visionos-2026-04-02.md`），但针对设计场景做了适配：
+本项目采用的三阶段审查协议与已有的 `test-first-adversarial-iteration` 模式一致（见 `docs/archive/solutions/overnight-test-first-adversarial-iteration-visionos-2026-04-02.md`），但针对设计场景做了适配：
 
 1. **挑战**：Codex（GPT-5.3）+ Claude 子代理独立审查，分别从 visionOS HIG 合规、信息层级、一致性、空间设计、菜单系统等维度评估
 2. **辩护**：防御子代理用产品上下文挑战审查发现——核心辩护点是"web mockup 的视觉尺寸 ≠ visionOS 的注视目标区域"
@@ -129,5 +129,5 @@ visionOS 应用需要在 SwiftUI 实现之前进行视觉设计探索，但 web 
 
 - `docs/designs/design-to-swiftui.md` — 完整的 web→SwiftUI 组件映射（17 章节）
 - `docs/designs/file-browser-redesign-2026-04-05/` — 本次设计迭代的 HTML 原型文件
-- `docs/solutions/best-practices/overnight-test-first-adversarial-iteration-visionos-2026-04-02.md` — 三阶段对抗性审查协议的首次记录
+- `docs/archive/solutions/overnight-test-first-adversarial-iteration-visionos-2026-04-02.md` — 三阶段对抗性审查协议的首次记录
 - `~/Movies/HelloWorld/` — Apple 官方 visionOS 示范项目（.ornament、.glassBackgroundEffect、DragGesture+MagnifyGesture 等模式参考）

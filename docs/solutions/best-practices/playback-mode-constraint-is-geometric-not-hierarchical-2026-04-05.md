@@ -1,3 +1,13 @@
+---
+title: 播放模式约束是几何兼容性问题，不是层级问题
+date: 2026-04-05
+applies_when:
+  - 设计或修改 PlaybackMode 升级/切换约束时
+  - 出现「某内容类型不该进某模式」的需求表述时
+expires_when:
+  - PresentationSurface 几何模型改变（如全景球支持平面内容重投影）
+---
+
 # Compound: 播放模式约束是几何兼容性问题，不是层级问题
 
 **Date**: 2026-04-05
