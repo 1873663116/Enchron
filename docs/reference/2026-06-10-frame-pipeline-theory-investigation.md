@@ -103,7 +103,39 @@ MPVKit 构建脚本（`Sources/BuildScripts/XCFrameworkBuild/main.swift`）：mp
 | C10 | 出口 B 同步现为 `pl_gpu_finish` 全停，异步跨设备 fence 未做 | 已知欠账 | 性能项非正确性项；E5 真机帧率观察后决策 |
 | C11 | 模拟器证据边界：xrsimulator 上 gpu-next 可运行（现 App 模拟器可播放，ASS 降级），但 MoltenVK / IOSurface / 合成行为与真机的差异未刻画 | 部分证据 | 阶段 2 模拟器先行、真机裁决 |
 
-## 5. 阶段 2 验证序列（每个实验回答一个问题）
+## 5. 架构分叉：出口拓扑（开放决策，挂在 E2/E3 证据之后）
+
+「三种模式都消费常驻纹理」是一个真实的候选架构（fork CLAUDE.md 解耦边界一节的原始建议即此形态）。它包含两个独立决策：
+
+**D1 — mpv 出口数量**
+
+- 双出口（§1 模型，现验证路线）：窗口走出口 A，沉浸/全景走出口 B，模式切换 = `gpu-context` 热切或冷重建。
+- 单出口：出口 B 常开，三种模式都消费常驻纹理；mpv 永远是生产者，`gpu-context` 永不切换。
+
+单出口收益：
+
+- 模式切换变成纯 App 侧呈现路由（SwiftUI 场景状态），无管线重建；窗口 ↔ 沉浸过渡可无缝衔接，两个消费者可同时采样同一环（交叉淡化成为可能）。
+- C7（热切）从验证矩阵消失；C4 改写为窗口呈现质量裁决（并入 E6）。
+- 现 App 的 `wid` 失效冷重建 hack 整体消失，窗口生命周期与 mpv 生命周期解耦。
+- 验证面、色彩契约、消费端实现单一化；与产品哲学「不为窗口模式捷径牺牲沉浸场景演进」同向。
+
+单出口代价（D1 的裁决依据）：
+
+- **窗口 HDR 回退**：现 App 唯一建成的窗口 HDR 路径（`fbo-format=rgba16f` + layer EDR 元数据 + 诊断体系）在出口 A 上；出口 B 契约为 SDR，且 RealityKit 自定义纹理路径无文档化 EDR 出口（ADR 0004 决策 4）。C9 实验由可选升级为 D1 的前置输入。
+- **节奏与缩放各多一跳**：出口 B 下 mpv 按音频时钟出帧（headless 无 display-resample），窗口尺寸变化依赖环重配或采样器缩放，比 swapchain 直出多一代重采样；感知影响未刻画，E6 并排观察。
+- **风险集中**：C6 失败时，双出口仍可交付窗口模式产品；单出口则全线阻塞。故 E2 仍排最前，D1 决策必须等它。
+- 全停/fence 欠账（C10）扩大到全部模式，async fence 优先级随 D1 取单出口而上升。
+
+**D2 — 窗口呈现载体（若 D1 = 单出口）**
+
+- RealityView 平面：与球面共用同一套采样/材质实现，最简。
+- App 自有 CAMetalLayer blit（采样 front → 全屏四边形）：保留 layer 级 EDR/colorspace 控制，是窗口 HDR 路线的对冲（环升级 16F 后可接 EDR layer）；代价是多一个微型呈现器实现。
+
+「单出口」与「全 RealityKit」是两个决策：D1 取单出口时，D2 仍可选 blit 载体保住 HDR 能力。
+
+可逆性：出口 A（上游 swapchain + moltenvk patch）天然保留在 fork 中，D1 只决定 App 消费哪个出口，可回退；出口 A 并继续充当色彩/质量对照组（ADR 0004 的发现方式正依赖双出口对照）。
+
+## 6. 阶段 2 验证序列（每个实验回答一个问题）
 
 ```text
 E1 打包脊柱：fork MPVKit → patch 0001/0002 合入 enchron → make build platform=xros
@@ -116,16 +148,17 @@ E4 切换语义：moltenvk ↔ macvk_resident 热切往返
    → 验证：往返 10 次无泄漏/黑帧/死锁；失败则采用冷重建保底并记录。回答 C7
 E5 真机一致性：撕裂观察 + 帧率/功耗采样（Instruments）
    → 验证：无可见撕裂；决定 fence 是否进生产前置。回答 C10
-E6 窗口回归：自产 xcframework 替换 MPVKit 官方包，窗口模式 A/B 同片源对比
-   → 验证：行为等价（含 HDR/EDR 路径）。回答 C4
-∥  HDR 并行实验（C9）：纯 RealityKit，与 E1-E6 无依赖，随时可做
+E6 窗口呈现裁决：自产 xcframework 下，同片源并排对比——出口 A 窗口 vs
+   出口 B 窗口（RealityView 平面 / blit 载体）
+   → 验证：画质、缩放、节奏、HDR/EDR、功耗。回答 C4（等价性）并裁决 §5 的 D1/D2
+∥  HDR 并行实验（C9）：纯 RealityKit，与 E1-E6 无依赖；若 §5 走向单出口，它是 D1 前置输入
 ```
 
-依赖关系：E1 → E2 → E3/E4 → E5；E6 在 E1 后即可做。E2 失败则回到 fork 调整导入机制（影响出口契约形状），这是「先验证后重构」顺序的依据。
+依赖关系：E1 → E2 → E3/E4 → E5；E6 在 E1 后即可做。E2 失败则回到 fork 调整导入机制（影响出口契约形状），这是「先验证后重构」顺序的依据。D1/D2（§5）在 E2/E3 + E6 证据后裁决，属人类决策。
 
 注：将 MPVKit 官方包替换为自产 xcframework 属于依赖变更，为人类裁决项（CLAUDE.md 边界），到 E6 时显式决策。
 
-## 6. 风险与开放问题
+## 7. 风险与开放问题
 
 - **C6 是单点最大未知**：MoltenVK 在 visionOS 上对 `VK_EXT_metal_objects` 的支持状态未经本项目验证，需 E2 实证；失败的备选是改用 MoltenVK 的 IOSurface 直接导入路径或 CVPixelBuffer 中介（届时出契约修正）。
 - HDR：出口 B 契约当前为 SDR；沉浸 HDR 取决于 C9 实验，是 PRD 范围决策的输入而非既成能力。
@@ -133,7 +166,7 @@ E6 窗口回归：自产 xcframework 替换 MPVKit 官方包，窗口模式 A/B 
 - 现 `PanoramaLayerBridge` 的 fisheye / stereo 处理迁移（§3 功能继承清单），新消费端设计时纳入。
 - License：MPVKit-GPL + fork（GPL/LGPL）是既有事实，发布姿态在 PRD 中显式记录，人类裁决。
 
-## 7. 文档体系衔接
+## 8. 文档体系衔接
 
 - 本文结论在 E1-E6 取证后凝结为 `docs/contracts/frame-pipeline.md`（出口 API 语义、双缓冲、色彩契约、切换语义、平台矩阵）；contract 先于 App 核心重构定稿。
 - 新术语（常驻纹理出口、双缓冲环、front 发布、出口 A/B 的正式命名）经 `docs/ubiquitous_language.md` 收编后再进入代码与 contract。
