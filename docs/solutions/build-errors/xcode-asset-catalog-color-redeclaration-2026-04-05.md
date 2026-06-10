@@ -67,4 +67,4 @@ Xcode 15 引入了 Generated Asset Symbols（`GeneratedAssetSymbols.swift`），
 - 如确实需要代码层的封装逻辑（如计算颜色、条件颜色），使用与 Asset Catalog 不同的属性名
 
 ## 相关问题
-- docs/solutions/best-practices/visionos-swiftui-migration-pitfalls-2026-04-05.md — visionOS SwiftUI 迁移陷阱集
+- .agents/skills/visionos-platform/references/swiftui-migration-pitfalls.md — visionOS SwiftUI 迁移陷阱集（已晋升为 skill reference）

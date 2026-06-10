@@ -15,7 +15,7 @@
 
 ## 先读位置
 
-- 本文档：`docs/solutions/best-practices/window-playback-preview-fixture.md`
+- 本文档：`DesignPreview/docs/window-playback-preview-fixture.md`
 - Preview 页面：`DesignPreview/DesignComps/Pages/Player/WindowPlaybackPage.swift`
 - Preview 入口：`DesignPreview/DesignComps/DesignCompsPreviewGallery.swift`
 - Scene 容器：`DesignPreview/DesignPreviewApp.swift`

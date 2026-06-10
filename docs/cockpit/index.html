@@ -20,11 +20,8 @@
   th, td { text-align:left; padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:top; }
   th { background:#fafafc; font-weight:600; color:var(--sub); font-size:.82rem; }
   tr:last-child td { border-bottom:none; }
-  .chip { display:inline-block; border-radius:999px; padding:1px 10px; font-size:.78rem; white-space:nowrap; }
-  .done { background:#e6f4ea; color:var(--ok); }
-  .todo { background:#f2f2f7; color:var(--sub); }
-  .theory { background:#fff3e0; color:var(--warn); }
-  .open { background:#fdecec; color:#a82a2a; }
+  ol.law { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px 14px 12px 36px; margin:10px 0; font-size:.92rem; }
+  ol.law li { margin:4px 0; }
   ul { padding-left: 1.2em; }
   a { color: var(--accent); text-decoration: none; }
   a:hover { text-decoration: underline; }
@@ -35,49 +32,38 @@
 <body>
 <main>
   <h1>Enchron 驾驶舱</h1>
-  <div class="meta">最后更新：2026-06-10 ｜ 维护者：每轮 agent 会话结束时更新</div>
-  <div class="notice">本页是<b>非规范视图</b>：只为人类导航与记忆服务。与规范文档（CONTEXT.md / ARCHITECTURE.md / contracts / 作战地图）冲突时，以规范文档为准，并修复本页。</div>
+  <div class="meta">最后更新：2026-06-10 ｜ 维护者：agent 每轮收尾刷新（只写不读）</div>
+  <div class="notice">本页是<b>非规范的人类投影</b>：只服务你的全景、回忆与学习。agent 不从这里取事实；与规范文档冲突时以规范文档为准并重建本页。</div>
 
   <div class="banner">
     <div class="stage">当前阶段：阶段 2 —— mpv 正式接入 visionOS（理论已闭环，进入实证）</div>
-    <div class="next">现在最重要的一件事：<b>T1 打包</b>——在 mac 上 fork MPVKit、合入 patch、产出 xros XCFramework（见作战地图）。</div>
+    <div class="next">现在最重要的一件事：<b>T1 打包（<a href="https://github.com/1873663116/XrPlayer/issues/22">#22</a>）</b>——在 mac 上 fork MPVKit、合 patch、出 xros XCFramework、nm 验 xr_resident 符号。</div>
   </div>
 
-  <h2>作战地图（终点判据）</h2>
-  <div class="legend">详情与证据登记：<a href="../plans/active/2026-06-pipeline-stage2.md">docs/plans/active/2026-06-pipeline-stage2.md</a></div>
-  <table>
-    <tr><th>判据</th><th>一句话</th><th>状态</th><th>在哪干</th></tr>
-    <tr><td>T1 打包</td><td>enchron 合 patch → xros XCFramework，xr_resident 符号在</td><td><span class="chip todo">待办</span></td><td>mac</td></tr>
-    <tr><td>T2 冒烟</td><td>macvk_resident 初始化 + front ID 翻转（最大未知 C6 在此撞墙）</td><td><span class="chip todo">待办</span></td><td>mac</td></tr>
-    <tr><td>T3 贴面</td><td>一个纹理环喂三个表面：虚拟屏 / 窗口平面 / 全景球</td><td><span class="chip todo">待办</span></td><td>mac+云端</td></tr>
-    <tr><td>T4 路由</td><td>三模式往返 ≥10 次，mpv 不重启</td><td><span class="chip todo">待办</span></td><td>mac+云端</td></tr>
-    <tr><td>T5 真机抽查</td><td>Vision Pro 目检撕裂与色彩</td><td><span class="chip todo">待办</span></td><td>mac+真机</td></tr>
-    <tr><td>T6 登记</td><td>堵点编号入账，C 清单更新</td><td><span class="chip todo">待办</span></td><td>云端</td></tr>
-  </table>
+  <h2>状态看两处（本页不再镜像清单）</h2>
+  <ul>
+    <li><a href="https://github.com/1873663116/XrPlayer/issues">Open issues</a> —— 每个任务做到哪了、证据在哪（T1–T6 = #22–#27，串行链）</li>
+    <li><a href="../plans/active/2026-06-pipeline-stage2.md">作战地图</a> —— 本轮假设、堵点登记、谁在执棒</li>
+  </ul>
+
+  <h2>宪法七条（协作的游戏规则，全文在 CLAUDE.md 顶部）</h2>
+  <ol class="law">
+    <li><b>双全景</b>——你和任何新 agent 五分钟内能答：在哪、干嘛、下一步、谁执棒。</li>
+    <li><b>按需加载</b>——agent 文档分常驻/触发/按需/冷库四层；常驻层有预算，进一字挤一字。</li>
+    <li><b>人类层单向</b>——本页这类人类层，agent 只写不读；错了重建，不传染。</li>
+    <li><b>真相时态</b>——每份文档属于：活法律 / 时间戳记录 / 工作态 / 人类投影。</li>
+    <li><b>证据与验收</b>——动工前写验收条件，「完成」必须挂证据。</li>
+    <li><b>固定节奏自清洁</b>——每轮收尾清扫；堆积是节奏失守，不是分类不够。</li>
+    <li><b>一切可推翻</b>——宪法高于旧指示；修宪写 ADR 留痕。</li>
+  </ol>
 
   <h2>待人类决策队列</h2>
   <table>
     <tr><th>决策</th><th>等什么</th></tr>
-    <tr><td>D1/D2 出口拓扑终判（单出口已是工作假设）</td><td>E6 并排对比证据（画质/节奏/HDR/功耗）；定案后写第一批 ADR</td></tr>
+    <tr><td>D1/D2 出口拓扑终判（单出口已是工作假设）</td><td>E6 并排对比证据（画质/节奏/HDR/功耗）；定案写 ADR 0002</td></tr>
     <tr><td>自产 XCFramework 合入 main</td><td>T1–T5 完成后的显式确认（分支范围已授权）</td></tr>
     <tr><td>PRD / frame-pipeline contract 开工</td><td>本轮验证打通宣言</td></tr>
-  </table>
-
-  <h2>论断速览（C 清单）</h2>
-  <div class="legend">完整版：<a href="../reference/2026-06-10-frame-pipeline-theory-investigation.md">帧管线理论闭环调查</a> §4</div>
-  <table>
-    <tr><th>#</th><th>一句话</th><th>状态</th></tr>
-    <tr><td>C1</td><td>visionOS 窗口模式不需要 AppKit（moltenvk + CAMetalLayer）</td><td><span class="chip done">已证</span></td></tr>
-    <tr><td>C2</td><td>常驻纹理出口全链路在 macOS 成立</td><td><span class="chip done">已证</span></td></tr>
-    <tr><td>C3</td><td>MPVKit patch 合入 fork 是机械合并</td><td><span class="chip done">已证(静态)</span></td></tr>
-    <tr><td>C4</td><td>fork 窗口模式与现 App 行为等价</td><td><span class="chip theory">理论</span></td></tr>
-    <tr><td>C5</td><td>surfaceless 上下文在 visionOS 可初始化</td><td><span class="chip theory">理论</span></td></tr>
-    <tr><td>C6</td><td>VK_EXT_metal_objects 在 visionOS 可用（单点最大未知）</td><td><span class="chip theory">理论</span></td></tr>
-    <tr><td>C7</td><td>热切在 visionOS 干净（单出口假设下暂不需要）</td><td><span class="chip theory">理论</span></td></tr>
-    <tr><td>C8</td><td>sRGB 色彩契约在 visionOS 成立</td><td><span class="chip theory">理论</span></td></tr>
-    <tr><td>C9</td><td>HDR 出口（rgba16Float 真机实验）</td><td><span class="chip open">开放</span></td></tr>
-    <tr><td>C10</td><td>异步 fence 替全停</td><td><span class="chip open">欠账</span></td></tr>
-    <tr><td>C11</td><td>模拟器与真机的证据边界</td><td><span class="chip theory">部分</span></td></tr>
+    <tr><td>验收细则迭代（quality_gates 骨架→细则）</td><td>验证轮跑完一遍后的实感</td></tr>
   </table>
 
   <h2>概念地图（边实践边学）</h2>
@@ -98,27 +84,34 @@
     <tr><td>XCFramework / MPVKit</td><td>把 mpv 全家桶打包成 Xcode 认识的积木盒</td><td>🟡</td></tr>
     <tr><td>RCP（Reality Composer Pro）</td><td>3D 场景的剪辑室，产出 .usda 资产</td><td>🟡</td></tr>
     <tr><td>双缓冲 / front 发布</td><td>「写完才举牌」：front ID 永远指向最新完整的一帧</td><td>🟡</td></tr>
+    <tr><td>issue 状态机</td><td>open 是唯一要管的水位（一屏放得下）；closed 是免费冷库，关闭≠删除</td><td>🟡</td></tr>
+    <tr><td>Closes #N</td><td>缝合针脚：PR 合进默认分支的瞬间自动关单并互挂链接</td><td>🟡</td></tr>
+    <tr><td>开便宜、关昂贵</td><td>堆积的力学原理：开 issue 只要念头，关 issue 需要决定；治理靠节奏不靠分类</td><td>🟡</td></tr>
+    <tr><td>渐进披露（skills）</td><td>skill 只把「名片」常驻上下文，正文命中才加载——防淹没的核心机制</td><td>🟡</td></tr>
+    <tr><td>上下文经济学</td><td>冷库免费、常驻层每字节都贵；危险不是文件多，是常驻层胖和活文档说谎</td><td>🟡</td></tr>
+    <tr><td>真相时态</td><td>活法律会腐烂（要少要新），时间戳记录不会（随便堆）；治腐烂只盯前者</td><td>🟡</td></tr>
+    <tr><td>不对称性设计</td><td>好的协作机制不是平等，是互补缺陷：你健忘他失忆，你疲劳他不知疲倦</td><td>🟡</td></tr>
+    <tr><td>修宪走 ADR</td><td>「一切可推翻」不滑向混乱的锚：推翻可以，留痕必须</td><td>🟡</td></tr>
   </table>
 
-  <h2>分工（谁在哪干活）</h2>
-  <table>
-    <tr><th>执行侧</th><th>负责</th></tr>
-    <tr><td>mac 本地（你 + 本地 agent）</td><td>打包、构建、模拟器/真机运行、RCP 资产、一切「证据」的产出</td></tr>
-    <tr><td>云端 agent 会话</td><td>Swift/C 代码编写、文档维护、调查与计划（Linux 容器，无 Apple 工具链）</td></tr>
-  </table>
-
-  <h2>文档地图（人类版）</h2>
+  <h2>文档地图（人话版宪章）</h2>
   <ul>
-    <li><a href="../plans/active/2026-06-pipeline-stage2.md">作战地图</a> —— 本轮在干嘛、干到哪了（最常看）</li>
-    <li><a href="../../CONTEXT.md">CONTEXT.md</a> —— 术语唯一来源（名词不认识来这里）</li>
-    <li><a href="../reference/2026-06-10-frame-pipeline-theory-investigation.md">管线理论调查</a> —— 为什么这么干、证据在哪</li>
-    <li><a href="../../ARCHITECTURE.md">ARCHITECTURE.md</a> —— 模块边界与不变量（改代码前必读）</li>
-    <li><a href="../product_philosophy.md">产品哲学</a> —— 产品取舍（未来被 PRD 取代）</li>
-    <li><a href="../contracts/">contracts/</a> —— 已生效的边界契约 ｜ <a href="../adr/">adr/</a> —— 架构决策记录（已启用，队列见 README）</li>
+    <li><a href="../plans/active/2026-06-pipeline-stage2.md">作战地图</a> —— 本轮在干嘛（最常看）｜工作态，一轮一张</li>
+    <li><a href="../../CONTEXT.md">CONTEXT.md</a> —— 名词不认识来这里｜活法律</li>
+    <li><a href="../../CLAUDE.md">CLAUDE.md</a> —— 宪法 + agent 路由（AGENTS.md 是它的 symlink）｜活法律</li>
+    <li><a href="../../ARCHITECTURE.md">ARCHITECTURE.md</a> —— 模块边界与不变量｜活法律</li>
+    <li><a href="../quality_gates.md">验证与验收</a> —— 什么证据算数、怎样算完成｜活法律（骨架迭代中）</li>
+    <li><a href="../reference/2026-06-10-frame-pipeline-theory-investigation.md">管线理论调查</a> —— 为什么这么干、C/E 清单｜活跃轮调查（轮末归档）</li>
+    <li><a href="../adr/">adr/</a> —— 为什么这样决定（0001 协作宪法）｜时间戳记录</li>
+    <li><a href="../solutions/">solutions/</a> —— 踩过的坑（入册规则见其 README）｜时间戳记录</li>
+    <li><a href="../contracts/">contracts/</a> —— 跨模块契约｜活法律</li>
+    <li><a href="../designs/">designs/</a> —— UI 设计稿（等 #21 接入轮消费）｜人类投影</li>
+    <li><a href="../product_philosophy.md">产品哲学</a> —— 产品取舍（PRD 诞生日退位）｜活法律</li>
+    <li>archive/ —— 冷库，永不加载，grep 可达</li>
   </ul>
 
   <footer>
-    维护规则：agent 每轮会话结束更新本页与作战地图，随代码一并提交；本页永远不是真相源。<br>
+    维护规则：agent 每轮收尾刷新本页与作战地图，随代码一并提交；本页永远不是真相源，agent 只写不读。<br>
     mpv fork：github.com/1873663116/mpv（enchron 分支，xr-fork/ 下有它自己的 CLAUDE.md 与 ADR）。
   </footer>
 </main>

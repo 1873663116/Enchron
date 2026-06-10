@@ -116,5 +116,5 @@ ScreenPositionControlView 包含：
 
 ## 相关
 
-- `docs/solutions/visionos-uiux-refactor-requirements-lessons-2026-04-05.md` — 需求阶段经验（.sheet 行为差异、ornament 兼容性）
-- `docs/solutions/best-practices/autonomous-overnight-visionos-architectural-patterns.md` — 架构模式（PreparedPlayback TTL、Clean Architecture 断联检查）
+- `docs/archive/solutions/visionos-uiux-refactor-requirements-lessons-2026-04-05.md` — 需求阶段经验（.sheet 行为差异、ornament 兼容性）
+- `docs/archive/solutions/autonomous-overnight-visionos-architectural-patterns.md` — 架构模式（PreparedPlayback TTL、Clean Architecture 断联检查）
