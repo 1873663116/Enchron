@@ -7,9 +7,9 @@ This repo uses a **single-context** layout:
 - `CONTEXT.md` at the repo root — the project's domain language and key concepts.
 - `docs/adr/` — architectural decision records.
 
-> Note: `CONTEXT.md` is live at the repo root (migrated from `docs/ubiquitous_language.md`,
-> which remains as a pointer stub). `docs/adr/` is live; see its README for when to write
-> an ADR. Consult `ARCHITECTURE.md` for module ownership and invariants.
+> Note: `CONTEXT.md` is live at the repo root (migrated from the former
+> `docs/ubiquitous_language.md`, since removed). `docs/adr/` is live; see its README for
+> when to write an ADR. Consult `ARCHITECTURE.md` for module ownership and invariants.
 
 ## How agents consume these
 

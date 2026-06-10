@@ -1,73 +1,32 @@
-# Enchron Acceptance Signals
+# 验证与验收
 
-Purpose: describe the signals that make a change credible enough to hand off.
-Status: Active acceptance guidance.
-Owner/scope: evidence expectations for code, docs, platform behavior, and experience risk.
-This file is not a feature spec, architecture contract, release checklist, or QA archive.
+- Status: 活法律（骨架版——细则随阶段 2 验证轮迭代，修订走收尾协议）。
+- Purpose: 定义「什么证据让一个改动可信」与「怎样算验收通过」。
 
-## General Signals
+## 证据分级阶梯
 
-A good change preserves `ARCHITECTURE.md` invariants, uses project vocabulary from `docs/ubiquitous_language.md`, and chooses the smallest evidence that can see the risk it touched.
+自动检查 < 构建通过 < 模拟器 < 真机 < 人类体验。
 
-Automated checks and human Simulator/device checks answer different questions. Keep them separate in the handoff when both matter.
+交付时声明爬到了哪一级、为什么对这个改动足够。build pass 不证明空间交互、HDR、沉浸视频、舒适度、音频或性能正确；模拟器不证明真机——HDR/EDR、亮度、撕裂、功耗、长时间观看只在真机与人眼可见。自动化与人类验证回答不同的问题，交接时分开陈述。
 
-A build or script pass is useful evidence. It is not evidence that spatial interaction, HDR, immersive video, comfort, audio, or performance is correct.
+## 验收条件前置
 
-Human verification notes should name only what automation cannot prove: device feel, comfort, spatial interaction, HDR/EDR credibility, long-viewing behavior, signing identity, compliance, or other judgment-heavy surfaces.
+- issue 动工前 body 写明「怎样算完成」；验收条件不满足不关单。
+- 证据原件（截图、日志、`nm` 输出、录屏）贴 issue 评论；仓库不进二进制证据。
+- PR 描述必带 `Closes #N`。
 
-## Apple Toolchain Signals
+## 每轮一次人类验收
 
-`XrPlayer.xcodeproj` is the complete app build source of truth. `Package.swift` covers package-scoped core tests.
+收尾时把待裁决项呈进驾驶舱决策队列；人类裁决结果回流 issue（关闭/重开/改验收条件），属决策者写 ADR。
 
-Use `xcodebuild` when the change touches the app target, UI, scene lifecycle, assets, target membership, bundle behavior, entitlements, signing surface, or RealityKitContent. Use `swift test` when the change stays inside the package-covered core.
+## 风险路由
 
-Discover local simulator destinations with `xcrun simctl` and `xcodebuild -showdestinations`; do not guess device names.
+- 纯 Domain/UseCase → `swift test`；触 app target、UI、asset、scene lifecycle、entitlement、RealityKitContent → 匹配 scheme 的完整构建。
+- 播放、mpv、Metal、CoreVideo、桥接、线程、HDR、远程 I/O、持久化 → 升 `xcodebuild analyze`。
+- 选 API 前先答两问：哪个 visionOS surface 拥有此行为？哪个 MediaProfile 拥有此内容？平台敏感改动走 `.agents/skills/visionos-platform`。
+- 性能、掉帧、内存、启动、长时间观看 → Instruments / `xctrace`。
+- 命令样例与证据选择表：`docs/reference/apple-toolchain-guide.md`。
 
-Raise `xcodebuild analyze` when the touched surface involves playback, mpv, Apple AV reference/diagnostics, Metal, CoreVideo, bridging, threading, remote I/O, or persistence risk.
+## 发布两种真相
 
-For command examples, use `docs/reference/apple-toolchain-guide.md`.
-
-## visionOS Platform Signals
-
-Before choosing an API, know which visionOS surface owns the behavior: window, volume, `ImmersiveSpace`, RealityKit scene, Compositor Services, Apple AV reference/system video research, or file/network/persistence service.
-
-When API availability, privacy, App Store constraints, media/HDR behavior, ARKit permissions, or performance claims matter, route through `.agents/skills/visionos-platform/SKILL.md` and the smallest relevant reference file. Skill routing confirms the platform boundary; it is not a request to read the full reference set.
-
-For visionOS 26 APIs, check the project deployment target and the fallback story. A degraded fallback is acceptable only when the product behavior is explicit.
-
-## Media Signals
-
-Video/media changes need two facts in view:
-
-- What visionOS surface owns this behavior?
-- What media profile owns this content?
-
-The shared media profiles are 2D flat video, 3D flat or stereoscopic video, Spatial Video / MV-HEVC with spatial metadata, APMP 180, APMP 360 / Wide FOV, Apple Immersive Video, and custom or unknown media.
-
-Current Enchron production playback is mpv-first. For Spatial Video, APMP, Apple Immersive Video, or immersive 3D work, separate current mpv production behavior from future Apple-native capability research. Quick Look, AVKit, and RealityKit `VideoPlayerComponent` are reference or future investigation candidates unless a new architecture decision promotes them into production.
-
-Custom media rendering needs a concrete reason: name the media profile, the mpv capability or experiment being exercised, and any system behavior being compared or deferred.
-
-Device risk notes are useful for immersive media comfort, spatial audio, captions/subtitles, power, and long-viewing behavior.
-
-## Documentation Signals
-
-Active docs are maps for future work, not phase summaries. Write the state the project should keep using.
-
-Skill docs stay router-oriented. Add or update a reference when detail would make `SKILL.md` too broad.
-
-External audits belong under `docs/reference/` with a non-normative header unless promoted into project rules.
-
-New architecture terms belong in `docs/ubiquitous_language.md`. New or changed module boundaries belong in `ARCHITECTURE.md` and any active contract before code relies on them.
-
-Use kebab-case for active docs; date-prefixed docs use `YYYY-MM-DD`. Leave archive names alone unless the task is explicitly archival cleanup.
-
-## Release Signals
-
-Release work has two different truths: technical readiness and distribution readiness.
-
-Archive success only proves the project can produce an archive. It does not prove product behavior, signing readiness, privacy completeness, license compliance, export compliance, or TestFlight/App Store feedback.
-
-MPVKit-GPL and other third-party dependencies need explicit license/compliance attention before TestFlight or App Store distribution.
-
-Agents can inspect release settings and prepare commands. Changing signing identity, development team, bundle identifier, provisioning profile, entitlements, or compliance-sensitive settings is a human decision.
+技术就绪 ≠ 分发就绪。archive 成功只证明能出包；signing、隐私、license（含 MPVKit-GPL）、export compliance、TestFlight 反馈是另一条线，全部属于人类裁决边界（见 CLAUDE.md 硬边界）。

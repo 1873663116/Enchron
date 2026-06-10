@@ -120,6 +120,8 @@ SWIFT
 
 默认不要读取所有 references。优先选择能回答 project-boundary question 的最小 note。只有任务需要 API 事实之外的 complete-project examples 时，才使用 `references/sample-code-corpus.md`。
 
+两份由 solutions 晋升的平台事实注记：`references/coremedia-dolby-vision-constants.md`（visionOS SDK 缺失 Dolby Vision CoreMedia 常量）、`references/swiftui-migration-pitfalls.md`（iOS→visionOS SwiftUI 迁移陷阱）；适用与过期条件见各自 frontmatter。
+
 ## 升级调查
 
 对小且可逆的任务保持轻量。当工作陌生、platform-sensitive、rendering/media-related、privacy-sensitive、performance-sensitive、cross-module、contract-affecting，或容易与 iOS/macOS 行为混淆时，升级调查。
