@@ -17,6 +17,8 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 **锚点规则**：可观察结果以 `accessibilityIdentifier` 为锚，用户可见文案作辅助描述——文案会随本地化变，identifier 不变。
 
+**命名对齐规则**：UI 区域与组件称呼以 `DesignPreview/DesignComps` 为准——导航 sidebar（系统 TabView：Files / Settings / Scene）、Source Sidebar（Files 页数据源列表）、CategorySidebar（Settings 页分类列表）、PlayerControlDeck（播放控制台）、GridCard / FileListGroup（文件卡/行）。应然 UX 冲突时设计稿赢过主 app 现有代码。
+
 **排序规则**：初次填充时章内按典型操作动线排；此后新增一律追加章末取下一序号，**永不重排已有行**。ID 序号 = 追加顺序，不承载语义。
 
 **字段说明**：
@@ -57,8 +59,8 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-LNCH-01 | 启动进浏览页 | 启动 app | 显示主窗口，侧栏含 Files / Settings / Scenes 三个标签（以 DesignPreview 为准），Files 默认选中并展示文件浏览内容 | 未实现 | 未覆盖 | — |
-| UC-LNCH-03 | 切换主导航标签 | 点侧栏导航条的 Settings / Scenes 标签 | 主区域切换为对应页面，当前标签高亮 | 未实现 | 未覆盖 | — |
+| UC-LNCH-01 | 启动进浏览页 | 启动 app | 显示主窗口，导航 sidebar（系统 TabView）含 Files / Settings / Scene 三个标签，Files 默认选中并展示文件浏览内容 | 未实现 | 未覆盖 | — |
+| UC-LNCH-03 | 切换主导航标签 | 点导航 sidebar 的 Settings 标签 | 主区域切换为设置页，当前标签高亮（Scene 标签行为见 UC-SCEN-13） | 未实现 | 未覆盖 | — |
 
 ## Files（FILE）
 
@@ -80,9 +82,9 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 | UC-FILE-14 | SMB 地址滤非法字符 | 在 SMB 地址框输入数字和点以外的字符 | 非法字符被自动过滤，输入框只留数字和点 | 未验证 | 未覆盖 | — |
 | UC-FILE-15 | 凭据免重输 | 连接过的远程源，重启 app 后在侧栏点它 | 直接连上并显示内容，无需重新输入用户名密码（凭据存 Keychain） | 未验证 | 未覆盖 | — |
 | UC-FILE-16 | 切换数据源 | 点侧栏另一个已保存数据源 | 绿点移到该源，其余源圆点变灰，主区域刷新为该源内容 | 未验证 | 未覆盖 | — |
-| UC-FILE-17 | 删远程源回本地 | 侧栏左滑/长按删除一个远程源 | 该源从侧栏移除、凭据删除；若它是活跃源，自动回到 Local Storage | 未验证 | 未覆盖 | — |
+| UC-FILE-17 | 删远程源回本地 | Source Sidebar 滑动删除一个远程源 | 该源从列表移除、凭据删除；若它是活跃源，自动回到 Local Storage | 未验证 | 未覆盖 | — |
 | UC-FILE-18 | 进文件夹扩面包屑 | 点一个文件夹卡片（锚 `FileBrowsing-ContentGrid-button-folder-*`） | 主区域加载该文件夹内容，面包屑追加一段且末段加粗 | 未验证 | 未覆盖 | — |
-| UC-FILE-19 | 面包屑回跳 | 点面包屑中非当前段（锚 `FileBrowsing-Breadcrumb-button-*`） | 返回该层级，其后所有段移除，内容区重载 | 未验证 | 未覆盖 | — |
+| UC-FILE-19 | 面包屑回跳 | 点面包屑（PathBreadcrumbMenu）中任一上级层级 | 返回该层级，其后所有段移除，内容区重载 | 未验证 | 未覆盖 | — |
 | UC-FILE-20 | 排序即时生效 | 点排序按钮（锚 `FileBrowsing-Toolbar-button-sort`）选 Name / Date Modified / Size 或反转方向 | 文件列表立即按所选键与方向重排，菜单中当前项带勾与方向箭头 | 未验证 | 未覆盖 | — |
 | UC-FILE-21 | 过滤胶囊排他切换 | 点过滤胶囊（锚 `FileBrowsing-Filter-button-*`）：All 与 4K/HDR/Spatial 互点 | 选具体过滤器时 All 取消，全部取消时回到 All；激活项高亮 | 未验证 | 未覆盖 | — |
 | UC-FILE-22 | 过滤实际筛文件 | 激活 4K / HDR / Spatial 过滤胶囊 | 列表只显示符合该媒体属性的文件 | 未实现 | 未覆盖 | — |
@@ -96,8 +98,13 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 | UC-FILE-30 | 最近播放空态 | 无播放历史时打开最近播放列表 | 显示 "No Recent Playback" 空态 | 未验证 | 未覆盖 | — |
 | UC-FILE-31 | 点最近条目续播 | 点最近播放列表一条（其来源仍存在） | 直接进入播放，按续播策略处理进度 | 未实现 | 未覆盖 | — |
 | UC-FILE-32 | 下拉刷新 | 主内容区下拉 | 重新加载当前目录，期间显示加载态 | 未验证 | 未覆盖 | — |
-| UC-FILE-33 | 文件名搜索 | 工具栏搜索框输入关键词 | 列表实时过滤为匹配文件 | 未实现 | 未覆盖 | — |
-| UC-FILE-34 | 网格列表视图切换 | 工具栏视图模式控件切换 Grid / List | 内容区在网格卡片与列表行两种布局间切换 | 未实现 | 未覆盖 | — |
+| UC-FILE-33 | 文件名搜索 | 工具栏搜索框（SearchInputCapsule）输入关键词 | 列表实时过滤为匹配文件 | 未实现 | 未覆盖 | — |
+| UC-FILE-34 | 网格列表视图切换 | 工具栏视图切换胶囊（ViewModeCapsuleControl）切 Grid / List | 内容区在 GridCard 网格与 FileListGroup 列表两种布局间平滑切换 | 未实现 | 未覆盖 | — |
+| UC-FILE-35 | 拖拽重排数据源 | Source Sidebar 长按拖拽一个来源条目 | 来源顺序随拖拽改变并保持 | 未实现 | 未覆盖 | — |
+| UC-FILE-36 | 侧栏显示存储条 | 查看 Source Sidebar 底部 | 显示设备总存储与已用空间的容量条 | 未验证 | 未覆盖 | — |
+| UC-FILE-37 | 浏览历史前后退 | 点工具栏前进/后退胶囊（NavBackForwardCapsuleControl） | 在浏览历史中后退/前进，无历史方向的按钮禁用 | 未实现 | 未覆盖 | — |
+| UC-FILE-38 | 显示条目计数 | 浏览任意目录 | 工具栏下方右侧显示 "{N} items" 计数，随内容变化更新 | 未实现 | 未覆盖 | — |
+| UC-FILE-39 | 悬停浮现卡片徽章 | 视线/指针悬停一张 GridCard | 卡片浮起，浮现角标（HDR / MV-HEVC 等）、文件大小与时长；文件夹卡浮现 "N items" | 未实现 | 未覆盖 | — |
 
 ## Settings（SET）
 
@@ -117,7 +124,8 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 | UC-SET-12 | 偏好重启保留 | 修改续播策略/结束行为/默认倍速/屏幕形状/默认环境后重启 app | 五项设置保持修改后的值 | 未验证 | 未覆盖 | — |
 | UC-SET-13 | 设控件隐藏时长 | Settings → Controls Auto-Hide 选 5/8/15 秒 | 播放控件按所选秒数无交互后自动隐藏 | 未实现 | 未覆盖 | — |
 | UC-SET-14 | 设空间内容自动沉浸 | Settings → Enter Immersion for Spatial Content 选 Off / Ask / Auto | 打开空间内容时按所选策略进入沉浸 | 未实现 | 未覆盖 | — |
-| UC-SET-15 | 清除播放历史 | Settings → Clear Recent Playback & Progress | 最近播放列表与续播进度被清空，Recent 页回到空态 | 未实现 | 未覆盖 | — |
+| UC-SET-15 | 清除播放历史 | Settings → Clear Recent Playback & Progress | 最近播放列表与续播进度被清空，最近播放回到空态 | 未实现 | 未覆盖 | — |
+| UC-SET-16 | 分类侧栏切内容 | Settings 页点左侧 CategorySidebar 的分类（Playback / Spatial Content / Storage & Privacy / Advanced / About） | 右侧内容淡入切换为该分类的设置组，选中分类高亮 | 未实现 | 未覆盖 | — |
 
 ## Playback（PLAY）
 
@@ -162,7 +170,8 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 | UC-SCEN-10 | 空间点按切控件 | 沉浸/全景中对虚拟屏或球面做空间点按 | 播放控件显隐切换 | 未验证 | 未覆盖 | 沉浸, 全景 |
 | UC-SCEN-11 | 全景拖拽转视角 | 全景模式中拖拽球面 | 视角随拖拽旋转（俯仰限 ±30°） | 未验证 | 未覆盖 | 全景 |
 | UC-SCEN-12 | 关沉浸回窗口 | Settings 或开关按钮关闭沉浸空间 | 沉浸空间关闭，主窗口恢复，播放回 Window 模式继续 | 未验证 | 未覆盖 | — |
-| UC-SCEN-13 | 场景选择页开沉浸 | 点导航条场景按钮（锚 `Navigation-Ornament-button-sceneSelector`）选环境卡片 | 进入环境网格页，点卡片自动打开对应环境的沉浸空间 | 未验证 | 未覆盖 | — |
+| UC-SCEN-13 | 场景页开独立空间 | 点导航 sidebar 的 Scene 标签 | 主窗口关闭，打开独立 volumetric 场景窗口，场景卡片轮播（SceneCardCarousel）展示可选场景 | 未实现 | 未覆盖 | — |
+| UC-SCEN-14 | 场景页返回主窗 | 场景窗口点返回按钮 | 场景窗口关闭，主窗口恢复到进入前的标签 | 未实现 | 未覆盖 | — |
 
 ---
 
