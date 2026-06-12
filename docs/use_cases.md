@@ -48,25 +48,24 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 供 agent 理解功能因果顺序；未来测试阶段的 E2E 剧本。只收典型管线，3~6 条封顶。
 
-- **冷启动看片**：UC-LNCH-01 启动进浏览页 → UC-FILE-01 点视频弹详情 → UC-PLAY-01 点按钮开始播放 → UC-PLAY-19 退出播放回浏览
+- **冷启动看片**：UC-LNCH-01 启动进浏览页 → UC-FILE-01 点视频直接播放 → UC-PLAY-19 退出播放回浏览
 - **添加远程源**：UC-FILE-02 展开添加源菜单 → UC-FILE-09 连接 WebDAV 服务器（或 UC-FILE-11 SMB 列出共享 → UC-FILE-12 选共享接入）→ UC-FILE-18 进文件夹扩面包屑
-- **沉浸观影**：UC-FILE-01 点视频弹详情 → UC-SCEN-01 详情页选呈现模式 → UC-SCEN-03 进沉浸开虚拟屏 → UC-SCEN-08 调节屏幕位置 → UC-SCEN-12 关沉浸回窗口
-- **续看**：UC-LNCH-01 启动进浏览页 → UC-FILE-29 最近播放列表 → UC-FILE-31 点最近条目开详情 → UC-PLAY-02 询问续播双按钮
+- **播放中切模式**：UC-FILE-01 点视频直接播放 → UC-SCEN-05 播放中切模式（窗口→沉浸 / 窗口→全景）→ UC-SCEN-08 调节屏幕位置 → UC-SCEN-12 关沉浸回窗口
+- **续看**：UC-LNCH-01 启动进浏览页 → UC-FILE-29 最近播放列表 → UC-FILE-31 点最近条目续播 → UC-PLAY-02 询问续播双按钮
 
 ## Launch（LNCH）
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-LNCH-01 | 启动进浏览页 | 启动 app | 显示主窗口，侧栏含 Browse / Recent / Settings 三个标签，Browse 默认选中并展示文件浏览内容 | 未验证 | 未覆盖 | — |
-| UC-LNCH-02 | 重启不续位 | 退出后重新启动 app | 浏览页回到根层级，不恢复上次浏览位置或上次打开的文件 | 未验证 | 未覆盖 | — |
-| UC-LNCH-03 | 切换主导航标签 | 点侧栏导航条的 Recent / Settings 标签（锚 `Navigation-Ornament-tab-*`） | 主区域切换为对应页面，当前标签高亮 | 未验证 | 未覆盖 | — |
+| UC-LNCH-01 | 启动进浏览页 | 启动 app | 显示主窗口，侧栏含 Files / Settings / Scenes 三个标签（以 DesignPreview 为准），Files 默认选中并展示文件浏览内容 | 未实现 | 未覆盖 | — |
+| UC-LNCH-03 | 切换主导航标签 | 点侧栏导航条的 Settings / Scenes 标签 | 主区域切换为对应页面，当前标签高亮 | 未实现 | 未覆盖 | — |
 
 ## Files（FILE）
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-FILE-01 | 点视频弹详情 | Browse 页已有可用数据源；点一个视频文件 | 弹出视频详情面板（sheet），含播放按钮（锚 `videoDetail.playButton`，首次观看文案 "Start Playback"） | 未验证 | 未覆盖 | — |
-| UC-FILE-02 | 展开添加源菜单 | Browse 页点 "Add Source" 菜单 | 菜单展开，含 Local 分组（Choose Folder… / Import Video… / Photo Library… / Use App Documents）与 Remote 分组（Add WebDAV Server… / Add SMB Server…） | 未验证 | 未覆盖 | — |
+| UC-FILE-01 | 点视频直接播放 | Files 页已有可用数据源；点一个视频文件 | 直接进入播放（呈现模式按内容自动路由），不出现中间详情面板 | 未实现 | 未覆盖 | — |
+| UC-FILE-02 | 展开添加源菜单 | Files 页点 "Add Source" 菜单 | 菜单展开，含 Local 分组（Choose Folder… / Import Video… / Photo Library… / Use App Documents）与 Remote 分组（Add WebDAV Server… / Add SMB Server…） | 未验证 | 未覆盖 | — |
 | UC-FILE-03 | 选本地文件夹接入 | Add Source → "Choose Folder…"，在系统选择器选一个文件夹 | 主区域显示该文件夹内容，侧栏 Local Storage 标记活跃（绿点） | 未验证 | 未覆盖 | — |
 | UC-FILE-04 | 用 App 文档目录 | Add Source → "Use App Documents" | 主区域显示 Documents 文件夹内容，Local Storage 标记活跃 | 未验证 | 未覆盖 | — |
 | UC-FILE-05 | 导入视频成功 | Add Source → "Import Video…"，多选视频文件确认 | 文件复制进 Documents，显示 "Imported X file(s)." 消息，列表出现新文件 | 未验证 | 未覆盖 | — |
@@ -93,9 +92,9 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 | UC-FILE-26 | 已看卡片显进度 | 目录中存在播放过的文件 | 该卡片底部显示橙色进度条与 "Watched HH:MM:SS" | 未验证 | 未覆盖 | — |
 | UC-FILE-27 | 删除本地文件 | Documents 目录中右键视频卡片选 "Delete"（红色） | 文件从磁盘删除、卡片移除；远程源不提供此项 | 未验证 | 未覆盖 | — |
 | UC-FILE-28 | 断连保列表弹警 | 浏览远程源时网络断开/服务器离线 | 列表保留上次内容不清空，弹 "File Browser Error" 对话框含 Retry / OK，OK 回 Local Storage | 未验证 | 未覆盖 | — |
-| UC-FILE-29 | 最近播放列表 | 进 Recent 标签页 | 最多 50 条按最后播放时间降序，每条含文件名、播放位置、最后播放时间（锚 `App-RecentlyPlayed-row-*`） | 未验证 | 未覆盖 | — |
-| UC-FILE-30 | 最近播放空态 | 无播放历史时进 Recent 页 | 显示 "No Recent Playback" 空态 | 未验证 | 未覆盖 | — |
-| UC-FILE-31 | 点最近条目开详情 | 点 Recent 列表一条（其来源仍存在） | 打开该文件的详情面板 | 未验证 | 未覆盖 | — |
+| UC-FILE-29 | 最近播放列表 | 打开最近播放列表（入口归属以 DesignPreview 为准） | 最多 50 条按最后播放时间降序，每条含文件名、播放位置、最后播放时间（锚 `App-RecentlyPlayed-row-*`） | 未验证 | 未覆盖 | — |
+| UC-FILE-30 | 最近播放空态 | 无播放历史时打开最近播放列表 | 显示 "No Recent Playback" 空态 | 未验证 | 未覆盖 | — |
+| UC-FILE-31 | 点最近条目续播 | 点最近播放列表一条（其来源仍存在） | 直接进入播放，按续播策略处理进度 | 未实现 | 未覆盖 | — |
 | UC-FILE-32 | 下拉刷新 | 主内容区下拉 | 重新加载当前目录，期间显示加载态 | 未验证 | 未覆盖 | — |
 | UC-FILE-33 | 文件名搜索 | 工具栏搜索框输入关键词 | 列表实时过滤为匹配文件 | 未实现 | 未覆盖 | — |
 | UC-FILE-34 | 网格列表视图切换 | 工具栏视图模式控件切换 Grid / List | 内容区在网格卡片与列表行两种布局间切换 | 未实现 | 未覆盖 | — |
@@ -104,7 +103,7 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-SET-01 | 设续播策略 | Settings → Resume Behavior（锚 `Settings-Playback-picker-resumePolicy`）选三值之一 | 下次打开已看过的视频时，详情页播放按钮按所选策略呈现（见 UC-PLAY-02/03/04） | 未验证 | 未覆盖 | — |
+| UC-SET-01 | 设续播策略 | Settings → Resume Behavior（锚 `Settings-Playback-picker-resumePolicy`）选三值之一 | 下次播放已看过的视频时按所选策略处理（见 UC-PLAY-02/03/04） | 未验证 | 未覆盖 | — |
 | UC-SET-02 | 设结束行为 | Settings → When Video Ends（锚 `Settings-Playback-picker-endBehavior`）选 Stop / Repeat / Play Next | 视频播完按所选行为执行（见 UC-PLAY-22） | 未验证 | 未覆盖 | — |
 | UC-SET-03 | 设默认倍速 | Settings → Default Speed（锚 `Settings-Playback-picker-defaultSpeed`）选 0.25×~5.0× | 之后新开播放以该倍速起播 | 未验证 | 未覆盖 | — |
 | UC-SET-04 | 开关沉浸空间 | Settings → 沉浸空间开关按钮（锚 `Settings-ImmersiveSpace-button-toggle`） | 沉浸空间打开/关闭，按钮文案在 "Show/Hide Immersive Space" 间切换；过渡中按钮禁用 | 未验证 | 未覆盖 | — |
@@ -124,10 +123,9 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-PLAY-01 | 点按钮开始播放 | 详情面板点播放按钮（锚 `videoDetail.playButton`） | 进入所选呈现模式开始播放，控制条出现 | 未验证 | 未覆盖 | — |
-| UC-PLAY-02 | 询问续播双按钮 | 续播策略为 Ask，打开有进度（>5s）的视频详情 | 显示 "Resume from HH:MM:SS" 主按钮与 "Play from Start" 次按钮 | 未验证 | 未覆盖 | — |
-| UC-PLAY-03 | 总是续播单按钮 | 续播策略为 Always Resume，打开有进度的视频详情 | 仅显示 "Resume" 按钮，点击从断点继续 | 未验证 | 未覆盖 | — |
-| UC-PLAY-04 | 总是重头播放 | 续播策略为 Always Start Over，打开有进度的视频详情 | 仅显示 "Play" 按钮，点击从头播放 | 未验证 | 未覆盖 | — |
+| UC-PLAY-02 | 询问续播双按钮 | 续播策略为 Ask，开始播放有进度（>5s）的视频 | 播放前弹续播选择："Resume from HH:MM:SS" 主按钮与 "Play from Start" 次按钮 | 未验证 | 未覆盖 | — |
+| UC-PLAY-03 | 总是断点续播 | 续播策略为 Always Resume，开始播放有进度的视频 | 不询问，直接从断点继续播放 | 未验证 | 未覆盖 | — |
+| UC-PLAY-04 | 总是重头播放 | 续播策略为 Always Start Over，开始播放有进度的视频 | 不询问，直接从头播放 | 未验证 | 未覆盖 | — |
 | UC-PLAY-05 | 播放暂停切换 | 点中央播放/暂停按钮（锚 `play-pause-button`） | 播放 ⟷ 暂停切换，图标随状态变化（play.fill / pause.fill） | 未验证 | 未覆盖 | — |
 | UC-PLAY-06 | 播完按钮变重播 | 视频播放至末尾（结束行为为 Stop） | 中央按钮变重播图标（文案 "Replay"），点击从头播放 | 未验证 | 未覆盖 | — |
 | UC-PLAY-07 | 快进十秒 | 点快进按钮（锚 `forward-button`） | 播放位置 +10 秒，画面跳转 | 未验证 | 未覆盖 | — |
@@ -144,7 +142,7 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 | UC-PLAY-18 | 逐帧步进 | NLE 时间轴点前帧/后帧按钮（需媒体帧率已知） | 播放位置精确移动一帧，画面逐帧变化 | 未验证 | 未覆盖 | — |
 | UC-PLAY-19 | 退出播放回浏览 | 点信息条返回按钮（锚 `PlayerUI-InfoBar-button-back`） | 停止播放、记录进度、返回文件浏览 | 未验证 | 未覆盖 | — |
 | UC-PLAY-20 | 信息条显元数据 | 播放中查看顶部信息条 | 显示视频标题与徽章：分辨率（4K/1080p…）、HDR 类型、编解码器、空间音频（如有） | 未验证 | 未覆盖 | — |
-| UC-PLAY-21 | 加载中转圈提示 | 选片后媒体加载阶段 | 详情页显示 "Loading media information…" 进度指示 | 未验证 | 未覆盖 | — |
+| UC-PLAY-21 | 加载中转圈提示 | 选片后媒体加载阶段 | 显示加载进度指示，加载完成后消失 | 未验证 | 未覆盖 | — |
 | UC-PLAY-22 | 按设置执行结束行为 | 视频播完，结束行为设为 Repeat 或 Play Next | Repeat 自动从头重播；Play Next 自动播下一个文件 | 未验证 | 未覆盖 | — |
 | UC-PLAY-23 | 加载失败可重试 | 文件损坏/不支持/网络失败导致加载失败 | 显示 "Failed to Load" 错误面板含原因描述，提供 Retry 与 Close 按钮 | 未验证 | 未覆盖 | — |
 | UC-PLAY-24 | 缓冲显示指示 | 网络源播放中缓冲不足 | 画面出现缓冲指示，恢复后自动消失 | 未实现 | 未覆盖 | — |
@@ -153,7 +151,6 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-SCEN-01 | 详情页选呈现模式 | 详情面板模式选择器（锚 `videoDetail.playbackModePicker`） | 三按钮 Window / Immersive / Panorama，选中带勾高亮；非全景内容 Panorama 灰显不可选 | 未验证 | 未覆盖 | — |
 | UC-SCEN-02 | 立体内容强制沉浸 | 播放 SBS / TopBottom 立体视频 | 自动进入沉浸模式播放，Window 不可用 | 未验证 | 未覆盖 | 沉浸 |
 | UC-SCEN-03 | 进沉浸开虚拟屏 | 以 Immersive 模式开始播放（或播放中切入） | 主窗口让位，沉浸空间打开，3D 空间中浮现虚拟屏幕与所选环境穹顶 | 未验证 | 未覆盖 | 沉浸 |
 | UC-SCEN-04 | 进全景开球面 | 全景内容以 Panorama 模式播放 | 全景球面包裹用户（360° 全球 / 180° 半球按内容投影），无虚拟屏幕 | 未验证 | 未覆盖 | 全景 |
@@ -177,4 +174,8 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 ## 退役名单（只追加）
 
-（空。格式：`UC-XXX-NN — 退役 YYYY-MM-DD：一句话原因`。退役条目从正文删行，原文去 git history 查。）
+UC-LNCH-02 — 退役 2026-06-12：窗口关闭/重启的生命周期归 visionOS 管理，非 app 承诺（评审期删除）
+UC-PLAY-01 — 退役 2026-06-12：详情面板取消，点视频直接播放，并入 UC-FILE-01（评审期删除）
+UC-SCEN-01 — 退役 2026-06-12：详情面板取消，呈现模式在播放中切换（UC-SCEN-05）（评审期删除）
+
+（格式：`UC-XXX-NN — 退役 YYYY-MM-DD：一句话原因`。退役条目从正文删行，原文去 git history 查。）
