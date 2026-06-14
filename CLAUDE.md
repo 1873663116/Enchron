@@ -2,7 +2,7 @@
 
 面向 visionOS 的高质感视频播放器。`SWIFT_VERSION = 6.0`
 技术栈：Xcode visionOS app / SwiftUI / RealityKit / ARKit / Metal / AVKit / mpv / SMB / WebDAV / SwiftData / Keychain
-姊妹仓库：`github.com/1873663116/mpv`（`enchron` 分支的 mpv fork，仓库巨大，我们仅仅作了小幅度源码修改，需要时补读其 CLAUDE.md ）
+姊妹仓库（均平铺于 `~/Applications/`，需要时补读各自 CLAUDE.md）：`github.com/1873663116/mpv`（`enchron` 分支的 mpv fork，仓库巨大，仅小幅源码修改；产出视频帧 → IOSurface 常驻纹理 → RealityKit 零拷贝）；`github.com/1873663116/Xrplay_scene`（美术/场景，RCP3 原生装配，导出 RealityKitContent/USD——**目标：取代 app 内模板 `Packages/RealityKitContent/`**，见 `docs/adr/0004`）。
 
 ## 宪法（七条，裁决一切冲突；立宪依据 `docs/adr/0001`）
 
