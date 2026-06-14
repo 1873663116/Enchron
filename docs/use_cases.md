@@ -59,14 +59,14 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-LNCH-01 | 启动进浏览页 | 启动 app | 显示主窗口，导航 sidebar（系统 TabView）含 Files / Settings / Scene 三个标签，Files 默认选中并展示文件浏览内容 | 未实现 | 未覆盖 | — |
-| UC-LNCH-03 | 切换主导航标签 | 点导航 sidebar 的 Settings 标签 | 主区域切换为设置页，当前标签高亮（Scene 标签行为见 UC-SCEN-13） | 未实现 | 未覆盖 | — |
+| UC-LNCH-01 | 启动进浏览页 | 启动 app | 显示主窗口，系统 Tabview(Tarbar) 含 Files / Settings / Scene 三个标签，Files 默认选中并展示文件浏览内容 | 已实现 | 未覆盖 | — |
+| UC-LNCH-03 | 切换主导航标签 | 点导航 sidebar 的 Settings\Files\scenes 标签 | 主区域切换为对应页，当前标签高亮（Scene 标签行为见 UC-SCEN-13） | 已实现 | 未覆盖 | — |
 
 ## Files（FILE）
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-FILE-01 | 点视频直接播放 | Files 页已有可用数据源；点一个视频文件 | 直接进入播放（呈现模式按内容自动路由），不出现中间详情面板 | 未实现 | 未覆盖 | — |
+| UC-FILE-01 | 点视频开始播放 | Files 页已有可用数据源；点一个视频文件 | 直接进入播放（呈现模式按内容自动路由）| 已实现 | 未覆盖 | — |
 | UC-FILE-02 | 展开添加源菜单 | Files 页点 "Add Source" 菜单 | 菜单展开，含 Local 分组（Choose Folder… / Import Video… / Photo Library… / Use App Documents）与 Remote 分组（Add WebDAV Server… / Add SMB Server…） | 未验证 | 未覆盖 | — |
 | UC-FILE-03 | 选本地文件夹接入 | Add Source → "Choose Folder…"，在系统选择器选一个文件夹 | 主区域显示该文件夹内容，侧栏 Local Storage 标记活跃（绿点） | 未验证 | 未覆盖 | — |
 | UC-FILE-04 | 用 App 文档目录 | Add Source → "Use App Documents" | 主区域显示 Documents 文件夹内容，Local Storage 标记活跃 | 未验证 | 未覆盖 | — |
