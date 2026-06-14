@@ -2,12 +2,12 @@
 
 面向 visionOS 的高质感视频播放器。`SWIFT_VERSION = 6.0`
 技术栈：Xcode visionOS app / SwiftUI / RealityKit / ARKit / Metal / AVKit / mpv / SMB / WebDAV / SwiftData / Keychain
-姊妹仓库：`github.com/1873663116/mpv`（`enchron` 分支的 mpv fork，自带 CLAUDE.md 与 `xr-fork/adr/`）
+姊妹仓库（均平铺于 `~/Applications/`，需要时补读各自 CLAUDE.md）：`github.com/1873663116/mpv`（`enchron` 分支的 mpv fork，仓库巨大，仅小幅源码修改；产出视频帧 → IOSurface 常驻纹理 → RealityKit 零拷贝）；`github.com/1873663116/Xrplay_scene`（美术/场景，RCP3 原生装配，导出 RealityKitContent/USD——**目标：取代 app 内模板 `Packages/RealityKitContent/`**，见 `docs/adr/0004`）。
 
 ## 宪法（七条，裁决一切冲突；立宪依据 `docs/adr/0001`）
 
 1. **双全景**：任何时刻，人类与新 agent 都能在五分钟内回答——项目在哪、本轮干嘛、下一步是什么、谁在执棒。人类看驾驶舱；agent 看作战地图 + open issues。
-2. **按需加载**：agent 文档四层——常驻（本文件，预算 ≤9KB，进一字挤一字）/ 触发（`.agents/skills/`）/ 按需（路由表指到才读）/ 冷库（`docs/archive/`，默认不进上下文；查历史时定点检索，不整库吞入）。
+2. **按需加载**：优先阅读 `ARCHITECTURE.md`、`CONTEXT.md`；触及 visionOS 表面或对平台行为不确定时，执行 /visionos-platform（触发面见「验证跟着风险走」）；其余文档按需阅读。
 3. **人类层单向**：驾驶舱、设计稿等人类层 agent **只写不读**；它是非规范投影，可随时重建，错了不传染。
 4. **真相时态**：每份文档属于且仅属于一种时态——活法律（现在为真，随代码同 commit 更新）/ 时间戳记录（当时为真，只追加）/ 工作态（本轮为真，TTL=本轮）/ 人类投影。无时态归属的文档不存在。
 5. **证据与验收**：issue 动工前写验收条件；「完成」声明必须链接证据（原件贴 issue 评论）；证据分级与风险路由见 `docs/quality_gates.md`。
@@ -17,7 +17,7 @@
 ## 会话协议
 
 - **开局**：读 `docs/plans/active/` 作战地图 → 扫 open issues（标签语义见 `docs/agents/triage-labels.md`）→ 确认作战地图头部执棒者。
-- **执棒**：同一时刻只有一个会话（mac 或云端）执笔写仓库；接棒先改执棒者字段。
+- **执棒**：同一时刻，一个分支只允许一个会话执笔写仓库；接棒先改执棒者字段。
 - **执行**：工作以 issue 为单元；PR 描述必带 `Closes #N`；验收条件不满足不关单；约定细则见 `docs/agents/issue-tracker.md`。
 - **收尾**：① 作战地图登记证据/堵点 ② issue 卫生（该关的关、关单留一句结语、前置已满足的升 `ready-for-agent`）③ 过期件归档（`plans/active/` 只住进行中；`reference/` 日期件轮末入冷库）④ 大改后跑 `doc-auditor` skill 审漂移 ⑤ 刷新驾驶舱（只写）⑥ 交付说明末尾附「本轮新概念」并同步驾驶舱概念地图掌握度。
 
@@ -41,19 +41,20 @@ XrPlayer/
 
 | 分区 | 时态 | 何时读 | 维护与死亡规则 |
 |---|---|---|---|
-| `CLAUDE.md`（`AGENTS.md` 是其 symlink） | 活法律·常驻 | 每会话自动 | 预算 ≤9KB；修订走 ADR |
+| `CLAUDE.md`（`AGENTS.md` 是其 symlink） | 活法律·常驻 | 每会话自动 | 大幅修订走 ADR |
 | `ARCHITECTURE.md` | 活法律 | 改代码前 | 边界变更同 commit 更新 |
 | `CONTEXT.md` | 活法律 | 命名前 | 新术语先入册 |
 | `docs/contracts/` | 活法律 | 动跨模块边界前 | 失效即归档 |
 | `docs/quality_gates.md` | 活法律 | 交付前自查 | 验证与验收骨架；细则迭代中 |
+| `docs/use_cases.md` | 活法律 | 改用户可观察行为前；判断功能存在/冲突时 | 蓝图模式，与代码冲突默认表为准；细则见其宪章与 ADR 0003 |
 | `docs/agents/` | 活法律·附则 | 走 issue/triage/domain 流程时 | 小而稳 |
 | `docs/product_philosophy.md` | 活法律 | 产品取舍时 | PRD 诞生日退位归档 |
 | `docs/reference/` | 常青指南 + 活跃轮调查 | 路由命中时 | 日期件轮末归档；指南失修即修或废 |
 | `docs/plans/active/` | 工作态 | **开局必读** | 一轮一张；TTL=本轮，收尾归档 |
 | `docs/solutions/` | 时间戳记录 | 类似问题前查 | 入册/晋升/过期规则见其 README |
 | `docs/adr/` | 时间戳记录 | 重大决策前后 | 只追加，永不改 |
-| `docs/cockpit/`、`docs/designs/` | 人类投影 | agent 只写不读 | 收尾刷新；可重建 |
-| `docs/archive/` | 冷库 | 默认不读；查历史时定点检索 | grep 可达即合格；永不整理 |
+| `docs/cockpit/` | 人类投影 | agent 只写不读 | 收尾刷新；可重建 |
+| `docs/archive/` | 冷库 | 默认不读；查历史时定点检索 | grep 可达即合格 |
 
 ## 仓库与工具链事实
 
@@ -65,7 +66,11 @@ XrPlayer/
 
 ## 验证跟着风险走
 
-证据阶梯：自动检查 < 构建 < 模拟器 < 真机 < 人类体验；build pass ≠ 体验正确。纯 Domain/UseCase 从 `swift test` 起；触 app target/UI/asset/scene/RealityKitContent 用匹配 scheme 完整构建；播放、Metal、CoreVideo、桥接、线程、HDR、远程 I/O、持久化风险升 `xcodebuild analyze`；性能进 Instruments/`xctrace`。触及任何 visionOS 表面（窗口、volume、`ImmersiveSpace`、RealityKit、Metal、AVKit、scene 生命周期、空间交互、隐私、性能）先用 `.agents/skills/visionos-platform` 校直觉——这是 visionOS 项目，iOS/macOS 直觉默认不可信。
+证据阶梯：自动检查 < 构建 < 模拟器 < 真机 < 人类体验；build pass ≠ 体验正确。
+纯 Domain/UseCase 从 `swift test` 起；
+触 app target/UI/asset/scene/RealityKitContent 用匹配 scheme 完整构建；
+播放、Metal、CoreVideo、桥接、线程、HDR、远程 I/O、持久化风险升 `xcodebuild analyze`，性能进 Instruments/`xctrace`；
+触及任何 visionOS 表面（窗口、volume、`ImmersiveSpace`、RealityKit、Metal、AVKit、scene 生命周期、空间交互、隐私、性能）先用 `.agents/skills/visionos-platform` 校验直觉——这是 visionOS 项目，iOS/macOS 的直觉可能不可信。
 
 ## 硬边界（人类裁决，不作顺手修复）
 
@@ -89,4 +94,6 @@ DerivedData、缓存、模拟器状态可作诊断对象；当第一反应通常
 
 GitHub Issues（`github.com/1873663116/XrPlayer`）。mac 用 `gh` CLI，云端用 GitHub MCP 工具。约定与标签：`docs/agents/issue-tracker.md`、`docs/agents/triage-labels.md`。
 
-文档优先级（冲突时）：Apple 官方文档裁决 API 行为、隐私/安全、App Store 约束与平台可用性；本地文档在平台约束内裁决产品、架构与实现取舍；本地文档之间按宪法与分区宪章裁决。
+文档优先级（冲突时）：
+Apple 官方文档裁决 API 行为、隐私/安全、App Store 约束与平台可用性；
+本地文档在平台约束内裁决产品、架构与实现取舍；文档本身按宪法与分区宪章裁决。
