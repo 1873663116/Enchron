@@ -1,66 +1,33 @@
 ---
 name: visionos-platform
-description: 用于 Enchron/XrPlayer 中触及 visionOS-specific Swift、SwiftUI、RealityKit、Reality Composer Pro、Shader Graph、Metal、ARKit、AVKit/video playback、scene/window lifecycle、spatial interaction、privacy、performance、networking、persistence，或任何 iOS/macOS Swift 直觉可能与 Apple Vision Pro 行为冲突的工作。这是平台判断指南：先用官方 Xcode DocumentationSearch（MCP）获取 Apple 事实，再按 visionOS surface 和 Enchron 边界过滤。
+description: 用于 Enchron/XrPlayer 中触及 visionOS-specific Swift、SwiftUI、RealityKit、Reality Composer Pro、Shader Graph、Metal、AVKit等概念，或任何 iOS/macOS Swift 直觉可能与 Apple Vision Pro 行为冲突的工作。这是平台判断指南。
 ---
 
 # visionOS 平台判断指南
 
-这个 skill 防止 iOS/macOS 习惯静悄悄变成 Enchron 的 visionOS 决策。它是判断指南，不是 checklist，也不是静态 Apple-docs router。
-
-用它保持几个正确的“方向盘”始终可见：
-
-- 证据方向：Apple 平台事实先来自官方 Xcode DocumentationSearch（MCP），再考虑记忆；
-- 探索方式：陌生领域先 broad，已知 API 可直接 search，命中后必须读上下文；
-- 平台过滤：Apple docs 覆盖多个平台，命中并不自动等于 visionOS 结论；
-- 项目过滤：读完 Apple docs 后，回到 Enchron 的 module、surface、architecture boundary 和 verification risk；
-- 轻量逃生口：小、明显、可逆的工作应保持轻量。
+这个 skill 防止 iOS/macOS 习惯静悄悄变成 Enchron 的 visionOS 决策。它是判断指南，不是 checklist。
 
 ## 核心规则
 
-当 Apple platform behavior、API availability、rendering、privacy、media/HDR、ARKit permissions、performance、lifecycle 或 compatibility 事实重要时，优先使用官方 Xcode `DocumentationSearch`（`mcp__xcode__DocumentationSearch`），而不是凭记忆或泛化 web 搜索。
+当 Apple platform behavior、API availability、rendering、privacy、media/HDR、permissions、performance、lifecycle 或 compatibility 事实重要时，优先使用官方 Xcode `DocumentationSearch`（`mcp__xcode__DocumentationSearch`），而不是凭记忆或泛化 web 搜索。
 
 搜索结果是候选入口，不是结论。依赖结果前，先下钻 doc 详情页或命中的项目代码。
 
-如果任务很小、可逆，并且已经由本地代码或已读来源支撑，不要因为触发了这个 skill 就增加仪式感。
+逃生口：如果任务很小、可逆，并且已经由本地代码或已读来源支撑，不要因为这个 skill 而增加仪式感。
 
 ## 文档查询（DocumentationSearch）
 
-官方 Xcode MCP 工具 `mcp__xcode__DocumentationSearch` 是 Apple 平台事实的权威源：它对运行中的 Xcode 做语义搜索，**跟随当前安装的 Xcode 版本**，返回带 overview 和代码示例的结果，以及可下钻的 doc uri。
+`mcp__xcode__DocumentationSearch` 是 Apple 平台事实的权威源：对运行中的 Xcode 做语义搜索，**跟随当前安装的 Xcode 版本**，返回带 overview 和代码示例的结果，以及可下钻的 doc uri。前提：Xcode 必须在运行（IDE-attached）。
 
-前提：Xcode 必须在运行（IDE-attached）。
+API、type 或 concept 已具名时直接 search；`frameworks` 收窄到相关 framework 提升精度，不确定时省略做全局语义搜索。
 
-当 API、type 或 concept 已经具名时，直接 search（`frameworks` 收窄到相关 framework 提升精度，不确定时省略做全局语义搜索）：
-
-```
-DocumentationSearch(query: "ShaderGraphMaterial", frameworks: ["RealityKit"])
-DocumentationSearch(query: "VideoPlayerComponent")
-DocumentationSearch(query: "Compositor Services")
-```
-
-`DocumentationSearch` 缺失，或主题超出 API reference 范围（HIG、WWDC videos、technotes、PDF、streaming examples）时，才走官方 Apple web pages。本地 DocSet 已淘汰，不再作为证据源。
+`DocumentationSearch` 缺失，或主题超出 API reference 范围（HIG、WWDC videos、technotes、PDF、streaming examples）时，才走官方 Apple web pages(使用 Apple doc sosumi 返回干净数据）。
 
 availability（`@available(visionOS, …)`）**不在 search 结果里直接给出**——它返回符号/摘要。确认 availability 用本节下方的 SDK typecheck probe 或读 doc 详情页；不要靠“某个源查不到”反推不可用。
 
-有用的 query seeds 是提示，不是强制阅读清单：
-
-- RealityKit / RCP / materials: `Reality Composer Pro`, `ShaderGraph`,
-  `ShaderGraphMaterial`, `CustomMaterial`, `MaterialX`,
-  `RealityKit materials and shaders`.
-- Metal: `Metal shader libraries`, `Metal compute shader`,
-  `CustomMaterial SurfaceShader`, `Metal HDR content`,
-  `Compositor Services Metal`.
-- Scene and UI: `ImmersiveSpace`, `RealityView`, `volumetric window`,
-  `GeometryReader3D`, `ornament`, `hover effect`.
-- Media: `VideoPlayerComponent`, `VideoMaterial`, `AVExperienceController`,
-  `Apple Projected Media Profile`, `Apple Immersive Video`, `spatial video`.
-- ARKit and sensing: `ARKit`, `SpatialTrackingSession`, `WorldTrackingProvider`,
-  `HandTrackingProvider`, `SceneReconstructionProvider`.
-- Files and persistence: `FileDocument`, `UTType`, `SwiftData`, `Keychain`,
-  `Network`, `URLSession`, `Security`.
-
 ## 平台过滤
 
-`DocumentationSearch` 覆盖 Apple documentation 的多个平台：iOS、macOS、tvOS、watchOS、visionOS 和 cross-platform frameworks。命中 Apple 页面本身还不够。
+`DocumentationSearch` 覆盖 Apple documentation 的多个平台：iOS、macOS、tvOS、watchOS、visionOS 和 cross-platform frameworks。命中 Apple 页面本身还不够，结果也不带平台可用性标注。
 
 按风险提出对应平台问题：
 
@@ -93,18 +60,7 @@ SWIFT
 
 ## Enchron 过滤
 
-读完 Apple docs 后，先回到 Enchron，再做决定。
-
-重要时命名 owning module：
-
-- `PlaybackCore`：loading、decoding、playback control、mpv integration。
-- `PlayerUI`：playback interface 和 presentation decisions。
-- `FileBrowsing`：local/SMB/WebDAV file browsing。
-- `SpatialScene`：spatial presentation、RealityKit scenes、immersive content、virtual screens、panoramas 和 future scene rendering。
-- `Persistence`：SwiftData、UserDefaults、Keychain、stored settings。
-- `App`：launch、scene wiring、dependency injection。
-- `Shared`：tokens、constants 和窄 Metal helpers 等低层稳定 utilities。
-- `DesignPreview`：隔离的 design/prototype surfaces。
+读完 Apple docs 后，先回到 Enchron，再做决定。owning module 的划分与职责见 `ARCHITECTURE.md`。
 
 始终看见项目边界：
 
@@ -126,9 +82,4 @@ SWIFT
 
 对小且可逆的任务保持轻量。当工作陌生、platform-sensitive、rendering/media-related、privacy-sensitive、performance-sensitive、cross-module、contract-affecting，或容易与 iOS/macOS 行为混淆时，升级调查。
 
-选择能看见风险的最小证据：
-
-- package/domain logic：focused tests；
-- app target、assets、target membership、scene lifecycle 或 RealityKitContent：匹配的 Xcode build；
-- playback、Metal、CoreVideo、bridging、threading、HDR、remote I/O 或 persistence 风险：build 加相关 tests，并考虑 `xcodebuild analyze`；
-- visual/spatial comfort、HDR/EDR credibility、device brightness、long-viewing behavior 和 interaction feel：Simulator/device/human verification，并明确命名。
+证据选择按 `docs/quality_gates.md` 的阶梯走；本 skill 只补一条 visionOS 增量：visual/spatial comfort、HDR/EDR credibility、device brightness、long-viewing behavior 和 interaction feel 必须升到 Simulator/device/human verification，并明确命名验证到哪一级。
