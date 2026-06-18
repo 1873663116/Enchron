@@ -26,7 +26,7 @@ public final class FileBrowsingViewModel {
     /// Watched seconds keyed by MediaFile.id (UUID) for progress indicators in file list.
     public var fileWatchedSeconds: [UUID: Double] = [:]
 
-    private let localDataSource: LocalDataSourceAdapter
+    private let localDataSource: any LocalFileSource
     private let fileManager: FileManager
     public let credentialStoreForConfig: CredentialStoring
     private let savedDataSourceStore: SavedDataSourceRecordStoring
@@ -48,7 +48,7 @@ public final class FileBrowsingViewModel {
     private let prefetchService: MediaProfilePrefetchService?
 
     public init(
-        localDataSource: LocalDataSourceAdapter,
+        localDataSource: any LocalFileSource,
         fileManager: FileManager = .default,
         credentialStore: CredentialStoring = KeychainStore(),
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
