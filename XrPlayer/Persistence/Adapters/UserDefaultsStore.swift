@@ -7,6 +7,11 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, @unchecked
     private static let endBehaviorKey = "xrplayer.preferences.endBehavior"
     private static let defaultSpeedKey = "xrplayer.preferences.defaultSpeed"
     private static let screenShapeKey = "xrplayer.preferences.screenShape"
+    private static let controlsAutoHideKey = "xrplayer.preferences.controlsAutoHideSeconds"
+    private static let enterImmersionKey = "xrplayer.preferences.entersImmersion"
+    private static let logLevelKey = "xrplayer.preferences.logLevel"
+    private static let performanceHUDKey = "xrplayer.preferences.performanceHUD"
+    private static let verboseAutoOffKey = "xrplayer.preferences.verboseAutoOff"
 
     public init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -39,12 +44,23 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, @unchecked
         let envID = defaults.string(forKey: Self.defaultEnvironmentKey)
         let isScreenCurved = defaults.bool(forKey: Self.screenShapeKey)
 
+        let controlsAutoHide = defaults.object(forKey: Self.controlsAutoHideKey) as? Int ?? 8
+        let entersImmersion = defaults.bool(forKey: Self.enterImmersionKey)
+        let logLevel = PersistenceDomain.LogLevel(rawValue: defaults.string(forKey: Self.logLevelKey) ?? "") ?? .info
+        let showsPerformanceHUD = defaults.bool(forKey: Self.performanceHUDKey)
+        let verboseAutoOff = PersistenceDomain.VerboseAutoOff(rawValue: defaults.string(forKey: Self.verboseAutoOffKey) ?? "") ?? .thirtyMinutes
+
         return PersistenceDomain.UserPreferences(
             resumePolicy: policy,
             playbackEndBehavior: endBehavior,
             defaultPlaybackSpeed: defaultSpeed,
             defaultEnvironmentID: envID,
-            isScreenCurved: isScreenCurved
+            isScreenCurved: isScreenCurved,
+            controlsAutoHideSeconds: controlsAutoHide,
+            entersImmersionForSpatialContent: entersImmersion,
+            logLevel: logLevel,
+            showsPerformanceHUD: showsPerformanceHUD,
+            verboseAutoOff: verboseAutoOff
         )
     }
 
@@ -73,5 +89,10 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, @unchecked
         defaults.set(preferences.defaultPlaybackSpeed, forKey: Self.defaultSpeedKey)
         defaults.set(preferences.defaultEnvironmentID, forKey: Self.defaultEnvironmentKey)
         defaults.set(preferences.isScreenCurved, forKey: Self.screenShapeKey)
+        defaults.set(preferences.controlsAutoHideSeconds, forKey: Self.controlsAutoHideKey)
+        defaults.set(preferences.entersImmersionForSpatialContent, forKey: Self.enterImmersionKey)
+        defaults.set(preferences.logLevel.rawValue, forKey: Self.logLevelKey)
+        defaults.set(preferences.showsPerformanceHUD, forKey: Self.performanceHUDKey)
+        defaults.set(preferences.verboseAutoOff.rawValue, forKey: Self.verboseAutoOffKey)
     }
 }
