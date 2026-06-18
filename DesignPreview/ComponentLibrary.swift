@@ -251,6 +251,13 @@ private struct CardsSection: View {
         .init(title: "Gravity", fileSize: "18.9 GB", duration: "1:31:07", badges: [])
     ]
 
+    // 已看进度变体:同一组卡带不同已观看比例(刚开始 / 过半 / 接近看完)。
+    private let watchedVideos: [VideoFixture] = [
+        .init(title: "Blade Runner 2049", fileSize: "45.6 GB", duration: "2:29:55", badges: ["HDR"], watchedProgress: 0.18),
+        .init(title: "The Martian", fileSize: "31.5 GB", duration: "2:24:11", badges: [], watchedProgress: 0.62),
+        .init(title: "Ex Machina", fileSize: "22.7 GB", duration: "2:19:48", badges: ["Dolby Vision"], watchedProgress: 0.95)
+    ]
+
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             Text("CARDS")
@@ -270,6 +277,19 @@ private struct CardsSection: View {
                         fileSize: video.fileSize,
                         duration: video.duration,
                         badges: video.badges
+                    )
+                }
+            }
+
+            // 已看进度描边变体(UC-FILE-26):底部 accent 进度条表示已观看比例。
+            cardRow("GridCard · video · 已看进度") {
+                ForEach(watchedVideos) { video in
+                    GridCard.video(
+                        title: video.title,
+                        fileSize: video.fileSize,
+                        duration: video.duration,
+                        badges: video.badges,
+                        watchedProgress: video.watchedProgress
                     )
                 }
             }
@@ -302,6 +322,7 @@ private struct CardsSection: View {
         let fileSize: String
         let duration: String
         let badges: [String]
+        var watchedProgress: Double? = nil
         var id: String { title }
     }
 }
@@ -335,7 +356,7 @@ private struct SmallElementsSection: View {
     private func badgeItem(_ text: String) -> some View {
         Text(text)
             .font(DesignTokens.Typography.badge)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DesignTokens.Surface.supportingText)
             .padding(.horizontal, DesignTokens.Spacing.xs)
             .padding(.vertical, DesignTokens.Spacing.xxs)
             .enchronGlassBadge()
@@ -465,7 +486,7 @@ struct SidebarSourceItem: Identifiable, Equatable {
     let title: String
     var isSelected = false
     var isEnabled = true
-    var isOnline = false
+    var isActiveSource = false
     var isDeletable = true
 
     static let defaultItems = [
@@ -473,10 +494,9 @@ struct SidebarSourceItem: Identifiable, Equatable {
             id: "local-storage",
             icon: "externaldrive.fill",
             title: "Local Storage",
-            isOnline: true,
             isDeletable: false
         ),
-        SidebarSourceItem(id: "nas-01-smb", icon: "server.rack", title: "NAS-01 (SMB)", isSelected: true, isOnline: true),
+        SidebarSourceItem(id: "nas-01-smb", icon: "server.rack", title: "NAS-01 (SMB)", isSelected: true, isActiveSource: true),
         SidebarSourceItem(id: "webdav", icon: "cloud.fill", title: "WebDAV", isEnabled: false)
     ]
 }
@@ -542,7 +562,7 @@ struct SourceSidebar: View {
                         title: item.title,
                         isSelected: item.isSelected,
                         isEnabled: item.isEnabled,
-                        isOnline: item.isOnline,
+                        isActiveSource: item.isActiveSource,
                         isDeletable: item.isDeletable,
                         isSelectionMode: isSelectingSidebarItems,
                         isChecked: selectedSourceIDs.contains(item.id),
@@ -664,7 +684,6 @@ struct SourceSidebar: View {
                 accessibilityLabel: "More source actions",
                 iconColor: .secondary,
                 visualSize: DesignTokens.Interactive.compact,
-                targetSize: DesignTokens.Interactive.compact,
                 font: DesignTokens.Typography.headline,
                 accessibilityIdentifier: "\(identifierPrefix)-sourceMoreLabel"
             )
@@ -794,8 +813,7 @@ struct SourceSidebar: View {
         let newSource = SidebarSourceItem(
             id: newSourceID,
             icon: debugIndex.isMultiple(of: 2) ? "server.rack" : "externaldrive.fill",
-            title: "Debug Source \(debugIndex)",
-            isOnline: debugIndex.isMultiple(of: 2)
+            title: "Debug Source \(debugIndex)"
         )
 
         collapseExpandedSource()
@@ -953,7 +971,7 @@ struct EditableSourceSidebarRow: View {
     let title: String
     let isSelected: Bool
     let isEnabled: Bool
-    let isOnline: Bool
+    let isActiveSource: Bool
     let isDeletable: Bool
     let isSelectionMode: Bool
     let isChecked: Bool
@@ -1067,7 +1085,7 @@ struct EditableSourceSidebarRow: View {
                 title: title,
                 isSelected: isSelected || isChecked,
                 isEnabled: isEnabled,
-                isOnline: isOnline,
+                isActiveSource: isActiveSource,
                 showsSelectionBackground: false
             )
             .frame(maxWidth: .infinity)

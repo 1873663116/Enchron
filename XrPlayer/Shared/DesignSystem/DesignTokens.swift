@@ -368,10 +368,12 @@ public enum DesignTokens {
         public static let thumbnailHeight: CGFloat = 140
         /// Grid inter-item spacing
         public static let gridSpacing: CGFloat = Spacing.lg     // 20
+        /// Centered placeholder icon size for grid card thumbnails (no preview)
+        public static let placeholderIconSize: CGFloat = 45
     }
 
     /// Spatial card stack used by the Camp Scene preview.
-    public enum SceneCarousel {
+    public enum EnvironmentCarousel {
         public static let volumeWidthMeters: CGFloat = 2.20
         public static let volumeHeightMeters: CGFloat = 0.115
         public static let volumeDepthMeters: CGFloat = 0.46
@@ -483,6 +485,9 @@ public enum DesignTokens {
         public static let inactiveScale: CGFloat = 0.66
         /// Track height before active drag mode.
         public static let inactiveTrackHeight: CGFloat = trackHeight * inactiveScale
+        /// Watched-progress edge stroke height on grid cards — sits on the card's
+        /// bottom edge like a thin stroke (hover-revealed), not a full track.
+        public static let watchedEdgeHeight: CGFloat = 3
         /// Interactive strip height that contains hover target, track, and scrubber.
         public static let hitHeight: CGFloat = Interactive.large
         /// Near-invisible fill that lets the system own the 60pt hover carrier without drawing a visible control.
@@ -515,8 +520,9 @@ public enum DesignTokens {
 
     /// DesignPreview precision timeline prototype.
     public enum PrecisionTimeline {
-        /// Expanded precision timeline width.
-        public static let expandedWidth: CGFloat = 760
+        /// Expanded precision timeline width. 贴近窗口可用宽(1280 窗 − 左右 xxl 边距
+        /// − deck padding),让展开的时间轴/胶片接近窗口边缘。
+        public static let expandedWidth: CGFloat = 1152
         /// Expanded precision timeline height.
         public static let expandedHeight: CGFloat = 220
         /// Vertical gap between the primary progress bar and expanded timeline.

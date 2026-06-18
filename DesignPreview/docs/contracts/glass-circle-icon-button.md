@@ -3,7 +3,7 @@
 > 状态:已定稿(契约层)。未实现。
 
 ## 0. 角色
-圆形玻璃图标按钮,点按触发动作。播放窗口关闭/放大、场景卡返回/展开等都是它。
+圆形玻璃图标按钮,点按触发动作。播放窗口关闭/放大、环境卡返回/展开等都是它。
 
 ## 1. 构造
 分层一对:`GlassCircleIconLabel`(纯视觉:玻璃圆 + 图标 + 悬停 + 按压,**不可点**)+ `GlassCircleIconButton`(把 Label 套进 `Button(action:)`,**可点**)。Button 复用 Label,不重画。**保留分层**(Label 要作为子件被 `SortMenuButton` 等内部复用;visionOS 上装饰图标不该带 Button 的焦点/按压语义)。

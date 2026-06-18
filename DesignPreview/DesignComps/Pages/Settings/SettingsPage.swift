@@ -290,7 +290,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .storagePrivacy:
             "Storage & Privacy"
         case .advanced:
-            "Advanced"
+            "Diagnostics & Tools"
         case .about:
             "About"
         }
@@ -301,7 +301,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
         case .playback:
             "Resume behavior, end behavior, and control timing"
         case .spatialContent:
-            "Default scenes and immersive entry for spatial media"
+            "Default environments and immersive entry for spatial media"
         case .storagePrivacy:
             "Cache visibility, cleanup, history, and privacy notes"
         case .advanced:
@@ -358,7 +358,7 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                             systemName: "timer",
                             control: .selection(.init(
                                 value: "8 Seconds",
-                                options: ["5 Seconds", "8 Seconds", "15 Seconds"]
+                                options: ["5 Seconds", "8 Seconds", "15 Seconds", "Never"]
                             ))
                         )
                     ]
@@ -372,8 +372,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                     title: "Spatial Content",
                     items: [
                         SettingsItem(
-                            id: "default-scene",
-                            title: "Default Scene",
+                            id: "default-environment",
+                            title: "Default Environment",
                             systemName: "mountain.2",
                             control: .selection(.init(
                                 value: "Dark Cinema",
@@ -385,8 +385,8 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                             title: "Enter Immersion for Spatial Content",
                             systemName: "visionpro",
                             control: .selection(.init(
-                                value: "Ask Every Time",
-                                options: ["Off", "Ask Every Time", "Auto Enter"]
+                                value: "Off",
+                                options: ["Off", "On"]
                             ))
                         )
                     ]
@@ -692,12 +692,12 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                             ))
                         ),
                         SettingsItem(
-                            id: "reset-scene-position",
-                            title: "Reset Scene Screen Position",
+                            id: "reset-environment-position",
+                            title: "Reset Environment Screen Position",
                             systemName: "arrow.counterclockwise",
                             control: .destructiveOptions(.init(
                                 value: "Choose Scope",
-                                options: ["Reset Current Scene", "Reset All Scenes"],
+                                options: ["Reset Current Environment", "Reset All Environments"],
                                 confirmationMessage: "This resets saved screen placement. Playback files and sources are not changed.",
                                 feedback: "Reset"
                             ))
@@ -771,12 +771,6 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                             control: .action(.init(title: "Sample", feedback: "Queued"))
                         ),
                         SettingsItem(
-                            id: "controls-never-hide",
-                            title: "Controls Never Hide",
-                            systemName: "eye",
-                            control: .toggle(.init(isOn: false))
-                        ),
-                        SettingsItem(
                             id: "rendering-load-summary",
                             title: "Current Rendering Load Summary",
                             systemName: "memorychip",
@@ -818,9 +812,10 @@ enum SettingsCategory: String, CaseIterable, Identifiable {
                             id: "support-feedback",
                             title: "Support & Feedback",
                             systemName: "questionmark.circle",
-                            control: .selection(.init(
-                                value: "Contact Support",
-                                options: ["Contact Support", "Copy Diagnostic Summary"]
+                            control: .readOnly(.init(
+                                value: "feedback@enchron.app",
+                                actionTitle: "Copy",
+                                feedback: "Copied"
                             ))
                         )
                     ]

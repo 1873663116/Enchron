@@ -12,9 +12,15 @@ struct DesignPreviewApp: App {
     @State private var navigationModel = DesignPreviewNavigationModel()
 
     var body: some Scene {
+        // TEMP(simulator 验证 ornament 旋转/window bar): 临时把启动窗口设为播放窗口
+        // 状态 B。验证后还原为 DesignPreviewRoot()。
         WindowGroup(id: DesignPreviewNavigationModel.mainWindowID) {
-            DesignPreviewRoot()
-                .environment(navigationModel)
+            WindowPlaybackPage(
+                initialChromeVisible: true,
+                initialSettingsPanelPresented: true,
+                initialTimelineExpanded: true
+            )
+            .environment(navigationModel)
         }
         .windowStyle(.plain)
 
@@ -24,9 +30,9 @@ struct DesignPreviewApp: App {
         }
         .windowStyle(.volumetric)
         .defaultSize(
-            width: DesignTokens.SceneCarousel.volumeWidthMeters,
-            height: DesignTokens.SceneCarousel.volumeHeightMeters,
-            depth: DesignTokens.SceneCarousel.volumeDepthMeters,
+            width: DesignTokens.EnvironmentCarousel.volumeWidthMeters,
+            height: DesignTokens.EnvironmentCarousel.volumeHeightMeters,
+            depth: DesignTokens.EnvironmentCarousel.volumeDepthMeters,
             in: .meters
         )
         .windowResizability(.contentSize)

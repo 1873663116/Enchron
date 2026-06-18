@@ -11,14 +11,14 @@
 - **契约定义阶段已完成**——19 份白话契约落在 `docs/contracts/`,全部决策已拍。
 - **Phase 2 / A 批(结构性合并·删除·重命名)已完成**(Agent 自查,每步编译绿):
   - A.1 `VideoCardLarge`+`FolderCard` → `GridCard`(+ `.video`/`.folder` 工厂、锁宽高、删 `showsSupplementaryInfo`、元数据色统一 `.secondary`、补 a11y);运行态 Files 网格自查通过。
-  - `FeaturedSceneCard` → `SceneCard`(纯重命名,参数面已就位)。
+  - `FeaturedEnvironment` → `EnvironmentCard`(纯重命名,参数面已就位)。
   - `MockToggle`/`BoundMockToggle` → `GlassToggle`/`BoundGlassToggle`(去 fake-UX 命名)。
   - `GlassCircleIconButton`:锁 `iconColor` + 加具名图标预设 `.back/.expand/.more/.close`(Label 仍保留 iconColor 供 SortMenuButton 复用)。
   - A.5 Sidebar 拆两角色:`SourceSidebar` 去泛型 `<Footer>`/删 `SourceSidebarCapabilities`/`showsStatusIndicators`、存储条内置 mock;新增 `CategorySidebar`(+`CategorySidebarItem`)入 `SharedComponents.swift`,从内联 `settingsSidebar` 抽取。调用点全改、孤儿清理。运行态 Files 的 SourceSidebar+存储条自查通过;**CategorySidebar 的 Settings 运行态截图被 `snapshot_ui` 工具崩溃挡住,待 Canvas 确认**。
-  - **跳过(工程判断)**:`ViewMode` Int→enum(非阻塞建议,低价值高 churn);`FeaturedScene.mode/atmosphere`→enum(atmosphere 是自由文案,枚举化=过度设计)。
+  - **跳过(工程判断)**:`ViewMode` Int→enum(非阻塞建议,低价值高 churn);`FeaturedEnvironment.mode/atmosphere`→enum(atmosphere 是自由文案,枚举化=过度设计)。
 - **Phase 2 / B 批(逐件参数化)进行中**:
   - 已锁(转 `private let`,从公开 init 移除,调用点同步去参,编译绿):`ViewModeCapsuleControl`(iconColor/unselectedOpacity)、`SortMenuButton`(iconColor)、`NavBackForwardCapsuleControl`(iconColor/trailingOpacity)、`SearchInputCapsule`(width)、`GlassCapsuleIconLabelButton`(iconColor/minWidth)。
-  - **待做(B 剩余)**:`NavBackForwardCapsuleControl` 加 `canGoBack/canGoForward`(待有禁用态消费方再加,避免悬空演示);核对 `CenterSlider`/`PathBreadcrumbMenu`/`LoadingSpinner`/`GlassCircleIconLabel`/`SceneCardCarousel`/`PlayerControlDeck`/`GlassToggle` 暴露面是否已贴合各自契约;`SettingListGroup`/`FileListGroup` 声明式,基本就位。
+  - **待做(B 剩余)**:`NavBackForwardCapsuleControl` 加 `canGoBack/canGoForward`(待有禁用态消费方再加,避免悬空演示);核对 `CenterSlider`/`PathBreadcrumbMenu`/`LoadingSpinner`/`GlassCircleIconLabel`/`EnvironmentCardCarousel`/`PlayerControlDeck`/`GlassToggle` 暴露面是否已贴合各自契约;`SettingListGroup`/`FileListGroup` 声明式,基本就位。
 - **下一步 = B 收尾 → C(重组 DesignComps:把页面内联 UI 换成标准件调用)→ D(SwiftLint 守卫 + 薄测试)。** 用户验收方式:不读代码,Agent 自查 + Canvas。
 
 ## 核心模型(一句话)
@@ -33,7 +33,7 @@
 - **SettingListGroup**:一套组件 + 尾部插槽(8 种 accessory 全用,不拆 N 个组件)。
 - **按钮**:Label/Button 分层保留;锁 iconColor;加具名图标预设工厂(`.close`/`.expand`/`.back`);按钮家族变体全留。
 - **Nav 控件**:加 `canGoBack`/`canGoForward`(禁用半区灰显且不可点)。
-- **Scene**:`FeaturedSceneCard` → 重命名 `SceneCard`;动画态由 `SceneCardCarousel` 驱动,非暴露面。
+- **Environment**:`FeaturedEnvironment` → 重命名 `EnvironmentCard`;动画态由 `EnvironmentCardCarousel` 驱动,非暴露面。
 - **PlayerControlDeck**:近零参数(仅 `timelineResetToken`),定死复合件。
 - **PlayerSettingsPanel**:不是组件,是 `CategorySidebar` + `SettingListGroup` + 玻璃的**组装参考**,直接抄。
 - **三个收尾**:`LoadingSpinner` 保留(未来加载态);`SearchInputCapsule` width 锁;`GlassCapsuleIconLabelButton` 保留。
@@ -49,9 +49,9 @@
 - 合并 `VideoCardLarge`+`FolderCard` → `GridCard`(+ 工厂)
 - `SourceSidebar`:删 OptionSet、删泛型 footer、存储条内置(mock)
 - 抽取 `CategorySidebar`(从内联 `settingsSidebar`)
-- 重命名 `FeaturedSceneCard` → `SceneCard`
+- 重命名 `FeaturedEnvironment` → `EnvironmentCard`
 - 按钮加具名图标预设工厂
-- 小项:`ViewMode.selection` → enum;`FeaturedScene.mode/atmosphere` → enum;`MockToggle` 改名(如 `GlassToggle`)
+- 小项:`ViewMode.selection` → enum;`FeaturedEnvironment.mode/atmosphere` → enum;`MockToggle` 改名(如 `GlassToggle`)
 
 **B. 逐件参数化**:每个标准件暴露面收敛到契约规定,其余锁死(私有默认 / token);变体做成静态工厂,组件库陈列各变体实例。
 
