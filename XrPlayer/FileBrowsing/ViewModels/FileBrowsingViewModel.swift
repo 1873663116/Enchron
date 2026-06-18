@@ -71,6 +71,12 @@ public final class FileBrowsingViewModel {
     // all files in the current folder so detail-page opens see instant metadata.
     private let prefetchService: MediaProfilePrefetchService?
 
+    /// Injectable remote-adapter factory (FILE-10 / 44 / 46 testability). When nil,
+    /// `connectToDataSource` builds the real WebDAV / SMB / Photo adapters; tests
+    /// inject a fake that times out / rejects credentials / succeeds deterministically.
+    /// Returns nil to fall through to the built-in adapters (e.g. for `.local`).
+    private let makeRemoteAdapter: (@MainActor (FileBrowsingDomain.DataSource) -> (any DataSourceConnecting & FileProviding)?)?
+
     public init(
         localDataSource: any LocalFileSource,
         fileManager: FileManager = .default,
@@ -78,6 +84,7 @@ public final class FileBrowsingViewModel {
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
         progressStore: ProgressStoring = SwiftDataStore(),
         prefetchService: MediaProfilePrefetchService? = nil,
+        makeRemoteAdapter: (@MainActor (FileBrowsingDomain.DataSource) -> (any DataSourceConnecting & FileProviding)?)? = nil,
         onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void,
         onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)? = nil
     ) {
@@ -87,6 +94,7 @@ public final class FileBrowsingViewModel {
         self.savedDataSourceStore = savedDataSourceStore
         self.progressStore = progressStore
         self.prefetchService = prefetchService
+        self.makeRemoteAdapter = makeRemoteAdapter
         self.onPlayFile = onPlayFile
         self.onPrepareFile = onPrepareFile
         let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first
@@ -174,22 +182,28 @@ public final class FileBrowsingViewModel {
         currentRootDisplayName = ds.name
 
         let adapter: any DataSourceConnecting & FileProviding
-        switch ds.connectionInfo.sourceType {
-        case .webDAV:
-            let webDAV = WebDAVDataSourceAdapter(credentialStore: credentialStore)
-            webDAV.ownerDataSourceID = ds.id
-            adapter = webDAV
-        case .smb:
-            let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
-            smb.ownerDataSourceID = ds.id
-            adapter = smb
-        case .local:
-            await useDefaultFolder()
-            return
-        case .photoLibrary:
-            let photos = PhotoLibraryDataSourceAdapter()
-            photos.ownerDataSourceID = ds.id
-            adapter = photos
+        // FILE-10/44/46: an injected factory overrides the real adapters (e.g. a
+        // fake that times out / rejects / succeeds). Returning nil falls through.
+        if let injected = makeRemoteAdapter?(ds) {
+            adapter = injected
+        } else {
+            switch ds.connectionInfo.sourceType {
+            case .webDAV:
+                let webDAV = WebDAVDataSourceAdapter(credentialStore: credentialStore)
+                webDAV.ownerDataSourceID = ds.id
+                adapter = webDAV
+            case .smb:
+                let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
+                smb.ownerDataSourceID = ds.id
+                adapter = smb
+            case .local:
+                await useDefaultFolder()
+                return
+            case .photoLibrary:
+                let photos = PhotoLibraryDataSourceAdapter()
+                photos.ownerDataSourceID = ds.id
+                adapter = photos
+            }
         }
 
         activeRemoteAdapter?.disconnect()
