@@ -22,52 +22,12 @@ public struct MainView: View {
         appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls && appModel.playbackMode == .window
     }
 
-    // MARK: - Player Menu Panels (window-space overlay)
+    // MARK: - Load-failure retry (UC-PLAY-23)
 
-    /// Menu panels rendered in window space so they aren't clipped by the ornament.
-    /// Follows the same layout as player.html: left menu left-aligned, right settings right-aligned,
-    /// sub-menus extend sideways via padding in a ZStack.
-    @ViewBuilder
-    private var playerMenuPanelsOverlay: some View {
-        HStack(alignment: .top, spacing: 0) {
-            // ── Left: Menu popup + sub-menus (sub extends LEFT) ──
-            if appModel.showPlayerMenuPopup {
-                ZStack(alignment: .topTrailing) {
-                    MenuPopoverContent(activeSubMenu: Bindable(appModel).playerMenuSubMenu)
-
-                    if appModel.playerMenuSubMenu != nil {
-                        MenuPopoverContent.SubMenuOnly(
-                            activeSubMenu: Bindable(appModel).playerMenuSubMenu,
-                            videoViewModel: windowVideoViewModel,
-                            appModel: appModel
-                        )
-                        .fixedSize()
-                        .padding(.trailing, 214)
-                        .transition(.scale(scale: 0.92, anchor: .trailing).combined(with: .opacity))
-                    }
-                }
-            }
-
-            Spacer(minLength: 0)
-
-            // ── Right: Settings popup + sub-menus (sub extends RIGHT) ──
-            if appModel.showPlayerSettingsPopup {
-                ZStack(alignment: .topLeading) {
-                    SettingsPopoverContent(activeSubMenu: Bindable(appModel).playerSettingsSubMenu)
-
-                    if appModel.playerSettingsSubMenu != nil {
-                        SettingsPopoverContent.SubMenuOnly(
-                            activeSubMenu: Bindable(appModel).playerSettingsSubMenu,
-                            appModel: appModel
-                        )
-                        .fixedSize()
-                        .padding(.leading, 224)
-                        .transition(.scale(scale: 0.92, anchor: .leading).combined(with: .opacity))
-                    }
-                }
-            }
-        }
-        .frame(width: DesignTokens.Layout.playerControlsWidth)
+    private func retryPlayback() {
+        windowVideoViewModel.lastErrorMessage = nil
+        guard let request = windowVideoViewModel.currentLaunchRequest else { return }
+        playbackLauncher.beginPlayback(request)
     }
 
     public var body: some View {
@@ -184,31 +144,26 @@ public struct MainView: View {
                         .transition(.opacity)
                 }
             }
-            // Player menu panels — rendered in WINDOW space (not in ornament)
-            // so they aren't clipped by ornament bounds. Positioned at window bottom,
-            // visually above the pill ornament (matching player.html absolute positioning).
+            // Load-failure panel (UC-PLAY-23) — polished glass card over the
+            // darkened video, replaces the system error alert.
             .overlay {
-                if shouldShowPlayerControls && (appModel.showPlayerMenuPopup || appModel.showPlayerSettingsPopup) {
-                    // Full-area tap catcher: blocks interaction with video/seek bar behind menus
-                    // and closes menus on tap-outside (matching player.html click-outside behavior).
-                    // Note: Color.clear doesn't intercept touches on visionOS; use near-invisible black.
-                    Color.black.opacity(0.001)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            withAnimation(MenuAnimation.spring) {
-                                appModel.closeAllPlayerMenus()
-                            }
-                        }
-
-                    VStack {
-                        Spacer()
-                        playerMenuPanelsOverlay
-                            .padding(.bottom, 20)
-                    }
-                    .animation(MenuAnimation.spring, value: appModel.showPlayerMenuPopup)
-                    .animation(MenuAnimation.spring, value: appModel.showPlayerSettingsPopup)
-                    .animation(MenuAnimation.spring, value: appModel.playerMenuSubMenu)
-                    .animation(MenuAnimation.spring, value: appModel.playerSettingsSubMenu)
+                if isWindowPlaybackActive, let message = windowVideoViewModel.lastErrorMessage {
+                    PlaybackOverlayCard(
+                        systemImage: "exclamationmark.triangle",
+                        title: "Failed to Load",
+                        message: message,
+                        primaryTitle: "Retry",
+                        primaryIcon: "arrow.clockwise",
+                        primaryAction: { retryPlayback() },
+                        secondaryTitle: "Close",
+                        secondaryIcon: "xmark",
+                        secondaryAction: {
+                            windowVideoViewModel.lastErrorMessage = nil
+                            playbackLauncher.stopPlayback()
+                        },
+                        identifierPrefix: "PlayerUI-loadFailure"
+                    )
+                    .transition(.opacity)
                 }
             }
             .animation(.easeInOut(duration: 0.4), value: appModel.showControls)
@@ -219,35 +174,10 @@ public struct MainView: View {
             .allowsHitTesting(isWindowPlaybackActive)
             .accessibilityHidden(!isWindowPlaybackActive)
         }
-        .alert(
-            "Playback Error",
-            isPresented: Binding(
-                get: { windowVideoViewModel.lastErrorMessage != nil },
-                set: { isPresented in
-                    if isPresented == false {
-                        windowVideoViewModel.lastErrorMessage = nil
-                    }
-                }
-            )
-        ) {
-            Button("OK", role: .cancel) {
-                windowVideoViewModel.lastErrorMessage = nil
-            }
-        } message: {
-            Text(windowVideoViewModel.lastErrorMessage ?? "Unknown playback error")
-        }
         .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
-            PlayerControlsView()
-                // IMPORTANT: Do NOT attach broad .animation() modifiers here.
-                // Doing so propagates the animation transaction into the entire
-                // PlayerControlsView subtree — including SwiftUI Menu popover layers.
-                // When `showControls` or `isPlaying` change, that causes Menu
-                // popover sublayers to be torn down and rebuilt, which manifests as
-                // flickering and broken hit-testing of sub-menus during playback.
-                //
-                // Opacity animations are already driven by withAnimation() at every
-                // call-site that mutates showControls / isPlaying — no redundant
-                // .animation() wrapper is needed here.
+            // Polished player deck (transport / progress / precision timeline /
+            // ⋯ menu) driven by WindowVideoViewModel — replaces PlayerControlsView.
+            WindowPlayerDeckView()
                 .opacity(shouldShowPlayerControls ? 1 : 0)
                 .allowsHitTesting(shouldShowPlayerControls)
         }
@@ -257,6 +187,17 @@ public struct MainView: View {
             contentAlignment: .trailing
         ) {
             NavigationOrnament()
+        }
+        // Leading playback-settings panel (Environment / Play Mode / Picture),
+        // summoned by the deck's ≡ button — replaces SettingsPopoverContent.
+        .ornament(
+            visibility: (shouldShowPlayerControls && appModel.showPlayerSettingsPopup) ? .visible : .hidden,
+            attachmentAnchor: .scene(.leading),
+            contentAlignment: .trailing
+        ) {
+            PlaybackSettingsPanel()
+                .opacity(shouldShowPlayerControls && appModel.showPlayerSettingsPopup ? 1 : 0)
+                .allowsHitTesting(shouldShowPlayerControls && appModel.showPlayerSettingsPopup)
         }
         .sheet(isPresented: Bindable(appModel).showSceneSelector) {
             SceneSelectorView()

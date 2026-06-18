@@ -74,18 +74,12 @@ public final class AppModel {
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
 
-    // MARK: - Player Menu State (shared between ornament buttons + window overlay panels)
-    var showPlayerMenuPopup: Bool = false
+    // MARK: - Player Settings Panel
+    /// Whether the leading playback-settings ornament (Environment / Play Mode /
+    /// Picture) is summoned. Toggled by the deck's ≡ button. The ⋯ menu is now a
+    /// native SwiftUI Menu inside `PlayerControlDeck`, so the old window-overlay
+    /// popup + sub-menu state is gone.
     var showPlayerSettingsPopup: Bool = false
-    var playerMenuSubMenu: MenuSubMenu? = nil
-    var playerSettingsSubMenu: SettingsSubMenu? = nil
-
-    func closeAllPlayerMenus() {
-        showPlayerMenuPopup = false
-        showPlayerSettingsPopup = false
-        playerMenuSubMenu = nil
-        playerSettingsSubMenu = nil
-    }
 
     // MARK: - Debug Controls
     public var showDebugPanel: Bool = false

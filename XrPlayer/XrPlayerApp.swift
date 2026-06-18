@@ -158,7 +158,7 @@ struct XrPlayerApp: App {
         .windowResizability(.contentSize)
 
         WindowGroup(id: "playerControls") {
-            PlayerControlsView()
+            WindowPlayerDeckView()
                 .environment(appModel)
                 .environment(windowVideoViewModel)
                 .environment(fileBrowsingViewModel)
