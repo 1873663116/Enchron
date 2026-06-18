@@ -46,3 +46,18 @@ custom_rules:
     included: ".*/Domain/.*\\.swift"
     message: "Domain 层禁止使用 try!，请用 do-catch 显式处理错误"
     severity: error
+
+  # 稳定组件库的动效必须走 DesignTokens.AnimationToken（挡裸动画曲线，
+  # 防止确认组件回归到一次性参数）。仅限组件库文件，不波及页面层约定。
+  components_use_animation_tokens:
+    regex: '\.(easeOut|easeIn|spring)\(|\.animation\(\.default'
+    included: ".*/Shared/Components/.*\\.swift"
+    message: "稳定组件动效须走 DesignTokens.AnimationToken，不要用裸 .easeOut/.spring/.default"
+    severity: error
+
+  # 稳定组件库禁止硬编码颜色字面量，颜色须走 design tokens。
+  components_no_hardcoded_color:
+    regex: 'Color\(red:|Color\(hex:'
+    included: ".*/Shared/Components/.*\\.swift"
+    message: "稳定组件颜色须走 design tokens，禁止 Color(red:/Color(hex: 硬编码"
+    severity: error
