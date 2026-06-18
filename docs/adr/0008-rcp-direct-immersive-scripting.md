@@ -1,8 +1,23 @@
-# ADR-0008：RCP 直接沉浸接入（RealityKitScripting）—— 提案
+# ADR-0008：RCP 直接沉浸接入（RealityKitScripting）
 
-- 状态：**提案**（待人类裁决；涉及宪法硬边界：新增 SwiftPM 依赖）
-- 日期：2026-06-18
-- 决策者：待项目负责人裁决
+- 状态：**已批准但本轮按可丢弃原则推迟落地**（依赖+二进制的提交单独确认）
+- 日期：2026-06-18（2026-06-18 复议）
+- 决策者：项目负责人已批准 RKS 接法（解除 SwiftPM 依赖硬边界）
+
+## 复议（2026-06-18，FakeApp 收口轮）
+
+负责人已明确批准本场景接法（"场景我一开始就批准过你的"），SwiftPM 依赖硬边界**解除**。
+但同一指令要求"别造难以丢弃的东西（实验，一个月内可能删）"。落地 RKS world 需：
+① 提交 ~43MB `Immersive_Space.reality` 二进制进仓；② 新增远程 SwiftPM 依赖
+`apple/realitykitscripting`（改 `Package.resolved`、手改真 `.xcodeproj` pbxproj，有
+损坏工程、连带打挂其余已绿构建的风险）。这两项是全计划中**唯一非可丢弃**的部分,与
+可丢弃原则正面冲突。
+
+**本轮决策：场景体验用可丢弃方式交付**——`SenseZoneVolumeRoot`(volumetric WindowGroup)
++ 共享 `EnvironmentCardCarousel`(7 卡)+ 中心卡展开经唯一沉浸入口进沉浸,沉浸里**沿用
+既有程序球顶 `EnvironmentDomeEntity`**(零新依赖、零二进制、随时可删)。RKS 真 world 交换
+**待负责人单独确认"接受提交 43MB 二进制 + 远程依赖"后一步接入**(本文「决策」节即配方)。
+不是权限阻塞,是可丢弃取舍 + pbxproj 风险的工程判断。
 
 ## 背景
 
