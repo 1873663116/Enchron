@@ -84,7 +84,9 @@ public nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked S
     // MARK: - Helpers
 
     private static func normalize(_ path: String) -> String {
-        path.isEmpty ? "/" : path
+        // The browsing view-model queries the local root as "." (and remote
+        // roots as ""); both map to the catalog root key "/".
+        (path.isEmpty || path == ".") ? "/" : path
     }
 
     private func applyLatency() async throws {
