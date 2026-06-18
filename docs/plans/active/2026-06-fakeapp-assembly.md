@@ -33,22 +33,24 @@ FakeApp = 将来要发布的那个 app 本身,只是文件列表、播放、设�
 - **批3 基本准**:5 个 `UserPreferences` 字段确缺;`CategorySidebar`+`SettingsDetailContentView` 已组装(值/动作死、分类切换活);SET-07 目标锚点 `Settings-SpatialContent-picker-environment` 代码 0 命中(现状旧 `Settings-ImmersiveSpace-picker-environment`)。
 - **批4 修正**:四个 ARKit 用途串全缺(只有相册串)→ 必补;Info.plist 在 `Config/XrPlayer-Info.plist`(仓库级)。
 
-进展(本会话 6 commit:df09326→603493c,均 visionOS 模拟器构建零错误;经独立验证 workflow 对抗式核对,无虚报):
+进展(截至 2026-06-18,11 commit:df09326→7e6ab59;均 visionOS 模拟器构建零错误;`swift test` 22 绿、`test_sim` 4 UI 全绿;经独立验证 workflow `fakeapp-final-verify` 对抗式核对 5 批——**0 虚报**,25 verified / 1 partial / 4 诚实声明 deferred,RKS 硬边界 grep 确认未越界):
 
 **已完成并验证(done):**
-- [x] **测试地基救活**(原本两条路径都坏):① `swift test` 资源冲突已修(`Package.swift` 排除两个 `Assets.xcassets`)→ 8 测试绿(3 XCTest + 5 Swift Testing,真断言);② 空 UITests target 接真 XCUITest(`XrPlayerUITests/SmokeLaunchUITests.swift`,经同步组接入)→ 模拟器跑绿、故意失败实证能变红;③ 提交 `XrPlayer.xctestplan`、scheme 指向它(去掉 `shouldAutocreateTestPlan`)。桥接决策=不另建 target:纯逻辑走 `swift test`,UI/集成走 `xcodebuild test`+testplan。
-- [x] 删两个孤儿画布 `HomeV1Page` / `PlayerControlPanelPage`(文件删 + pbxproj 白名单移除,零引用确认)。
-- [x] **组件库共享化**:`SharedComponents.swift`(4320 行)+ `SourceSidebar` 族搬到 `XrPlayer/Shared/Components/`,经白名单两 target 共享(机制同 DesignTokens)。两 target 均构建通过。
-- [x] **批1 数据竖切脊梁**:`LocalFileSource` 协议 + `FileBrowsingViewModel` 加宽成 `any LocalFileSource`(真假两源都 conform)+ `FakeFileDataSource`(9 影片 + `/Documentaries` + `/Empty` 空目录 + 可注入延迟/失败)+ 组合根 `XrPlayerApp.init` 注入假源(单点切换回真 adapter 即发布)。
-- [x] **FakeApp 核心端到端验证**:`build_run_sim` + 截图确认真 app 冷启动跑在假数据上,假目录/影片上屏。
+- [x] **测试地基救活**:`swift test`(SPM 镜像模块 `XrPlayerCore`)+ 真 XCUITest + `XrPlayer.xctestplan`(scheme 指向、去 `shouldAutocreateTestPlan`)。纯逻辑走 `swift test`,UI/集成走 `xcodebuild test`+testplan。
+- [x] 删两个孤儿画布 + **组件库共享化**(`SharedComponents`/`SourceSidebar` 搬入 `XrPlayer/Shared/Components/`,白名单两 target 共享)。
+- [x] **批0**:`NavigationTab`→files/settings/environment(Environment 不驻留主窗);新 `FilesScreen`/`SettingsScreen` 由共享组件组装接 view-model;退役 5 旧视图(FileBrowserView/ContentGridView/DataSourceConfigView/VideoDetailView/RecentlyPlayedView)+ SettingsView,零引用 clean 删。
+- [x] **批1 Files**:`FilesScreen` 接 `FileBrowsingViewModel`(`LocalFileSource` 协议 + `FakeFileDataSource` 9 影片/子目录/空目录);FILE-33 搜索(`displayedFiles`)、FILE-37 前进栈(`navigateForward`)、FILE-01 直接开播(丢 `onPrepareFile`)、`SourceSidebar` `onSelectSource`(FILE-16)。UI 测试:catalog 上屏 + 点片卡开播放控件。
+- [x] **批2 Playback 脊梁**:`FakePlaybackSource`(确定性 tick 时间线,组合根注入)经 `WindowVideoViewModel` 200ms 轮询驱动控件;单测 5 条;Files→播放 UI 测试绿。
+- [x] **批3 Settings**:`UserPreferences` +5 字段 + `LogLevel`/`VerboseAutoOff` 枚举;`UserDefaultsStore` 跨启动持久(SET-12);`SettingsViewModel` 双向写穿 + `SettingsScreen`(CategorySidebar+SettingListGroup)绑核心持久项(SET-01/02/13/07/14/23/25/11/19);SET-07 锚点迁 `Settings-SpatialContent-picker-environment`;退役 SettingsView。UI 测试 SET-16 分类切换 + 单测 SET-12 往返。
+- [x] **批4 到硬边界**:四个 ARKit Info.plist 用途串;`EnvironmentSceneMapping` 卡→world 总映射 + 单测。
+- [x] **留痕**:ADR-0007(FakeApp 架构)+ ADR-0008(RCP 直接沉浸,**提案态**);`use_cases.md` 追溯列填已验证 UC。
 
-**未完成(not-started,经验证确认代码未动):**
-- [ ] 批0 剩余:`NavigationTab` 改名(仍 browse/recent/settings)、删退役七旧视图 + 锚点迁移、SwiftLint 守卫扩到新前端(仍只两条 Domain 规则)。
-- [ ] 批1 剩余:打磨组件搭新 Files 屏替换 `MainView.swift:80` 的 `FileBrowserView()`(MainView 本轮未碰);`connectToDataSource` 远程 adapter 可注入工厂(仍硬构造);搜索 FILE-33 / 前进栈 FILE-37 / 连接表单态 / 各 FILE-* UC + 单元测试。
-- [ ] **批2 Playback 整批**:假播放源、组件接入、各 PLAY-*。
-- [ ] **批3 Settings 整批**:假设置存储、`UserPreferences` 扩 5 字段、设置 VM 双向绑定、退役旧 SettingsView、各 SET-*。
-- [ ] **批4 Environment/RCP 整批**:复制 `.reality`、接 RKS(**新增 SwiftPM 依赖=硬边界,待人类裁决**)、补四个 ARKit 串、`world` 取代球顶、各 ENV-*。
-- [ ] 留痕:两份 ADR、`use_cases.md` 追溯列。
+**未完成 / 硬边界(deferred,经验证确认):**
+- [ ] **批4 沉浸 world 加载(ENV-18)+ SenseZone volume 迁移(ENV-13/14)= RKS 硬边界**:复制 `Immersive_Space.reality`、接 RealityKitScripting SwiftPM 依赖 + `RKS.initialize` + `.scriptingSystem`。**宪法硬边界:新增 SwiftPM 依赖需人类裁决,agent 不自接**(无 RKS 则 world 加载必失败)。见 ADR-0008 提案。
+- [ ] 批2 PLAY-* 细粒度:打磨 `WindowPlaybackPage` deck/时间轴/菜单未接入 app(仍用 `PlayerControlsView`);续播提示(PLAY-02)、拖拽气泡(PLAY-09)、倍速档(PLAY-14)、NLE 展开(PLAY-17)等未逐条接。
+- [ ] 批1 远程连接:`connectToDataSource` 工厂未注入化(仍硬构造);`ConnectionFormPanel` 连接表单未接入 app(FILE-09/10/11/13/44/46);本地管理 New Folder(FILE-43)。
+- [ ] 批3 诊断/存储长尾:缓存清理/披露/检视器(SET-08/09/17/20/21/22/24/26/27/28 等)未绑定;per-row 锚点为分区组级。
+- [ ] SwiftLint 架构守卫未扩到新前端(仍两条 Domain 规则)。
 
 ## 总账
 
