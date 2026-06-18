@@ -9,7 +9,7 @@ final class DesignPreviewNavigationModel {
 
     var selectedTab: DesignPreviewTab = .files
     var returnRoute = DesignPreviewReturnRoute(tab: .files)
-    var isSceneTransitionInFlight = false
+    var isEnvironmentTransitionInFlight = false
 
     func rememberReturnRoute(from tab: DesignPreviewTab) {
         guard let restorableTab = tab.restorableTab else { return }
@@ -24,13 +24,13 @@ final class DesignPreviewNavigationModel {
 enum DesignPreviewTab: Hashable, Codable {
     case files
     case settings
-    case scene
+    case environment
 
     var restorableTab: DesignPreviewTab? {
         switch self {
         case .files, .settings:
             self
-        case .scene:
+        case .environment:
             nil
         }
     }

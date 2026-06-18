@@ -9,10 +9,12 @@ struct GlassCircleIconLabel: View {
     let accessibilityLabel: String
     var iconColor: Color = .white
     var visualSize: CGFloat = DesignTokens.Interactive.regular
-    var targetSize: CGFloat = DesignTokens.Interactive.large
     var font: Font = DesignTokens.SymbolSize.control
     var accessibilityIdentifier: String?
 
+    // 纯视觉:玻璃圆 + 注视高亮 + press,命中区恒等于视觉圆。命中区的静默扩展由
+    // 手势包装层(GlassCircleIconButton)负责——不在 label 内撑大 interaction 区,
+    // 否则外层 Button/Menu 会把 hover 套到扩展区,产生一圈多余的注视高亮。
     var body: some View {
         Image(systemName: systemName)
             .font(font)
@@ -22,8 +24,6 @@ struct GlassCircleIconLabel: View {
             .glassBackgroundEffect(in: Circle())
             .contentShape(.hoverEffect, Circle())
             .hoverEffect(.automatic)
-            .padding(max((targetSize - visualSize) / 2, 0))
-            .contentShape(Circle())
             .enchronPressFeedback(.icon)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-label-\(systemName)")
@@ -35,18 +35,25 @@ struct GlassCircleIconButton: View {
     let accessibilityLabel: String
     var action: () -> Void = {}
     var accessibilityIdentifier: String?
+    var visualSize: CGFloat = DesignTokens.Interactive.regular
+    var targetSize: CGFloat = DesignTokens.Interactive.large
 
     // iconColor 锁死:按钮永远白色图标,不暴露给调用点(Label 默认即 .white)。
+    // 不用 Button——Button 会把系统 hover 套到整个命中区。改用手势 + 外层静默扩展,
+    // hover 只留在 label 的视觉圆上(参照 NavBackForwardCapsuleControl)。
 
     var body: some View {
-        Button(action: action) {
-            GlassCircleIconLabel(
-                systemName: systemName,
-                accessibilityLabel: accessibilityLabel,
-                accessibilityIdentifier: accessibilityIdentifier ?? "DesignPreview-button-\(systemName)"
-            )
-        }
-        .buttonStyle(.plain)
+        GlassCircleIconLabel(
+            systemName: systemName,
+            accessibilityLabel: accessibilityLabel,
+            visualSize: visualSize,
+            accessibilityIdentifier: accessibilityIdentifier ?? "DesignPreview-button-\(systemName)"
+        )
+        .frame(width: targetSize, height: targetSize)
+        .contentShape(Circle())
+        .onTapGesture(perform: action)
+        .accessibilityElement(children: .ignore)
+        .accessibilityAddTraits(.isButton)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(systemName)")
     }
@@ -129,6 +136,31 @@ extension View {
                 .accessibilityIdentifier("DesignPreview-destructiveConfirmation-confirm")
             Button("Cancel", role: .cancel) {}
                 .accessibilityIdentifier("DesignPreview-destructiveConfirmation-cancel")
+        } message: {
+            Text(message)
+        }
+    }
+
+    /// Non-destructive two-action error dialog (e.g. File Browser / playback load
+    /// failures): a primary retry action plus a dismiss action, presented from the
+    /// same system `.alert` surface as `enchronDestructiveConfirmation`. No colors
+    /// are authored here; the system resolves button styling. Sizing is system
+    /// managed, so no size is exposed.
+    func enchronErrorDialog(
+        _ title: String,
+        message: String,
+        primaryTitle: String,
+        secondaryTitle: String,
+        isPresented: Binding<Bool>,
+        identifierPrefix: String = "DesignPreview-errorDialog",
+        onPrimary: @escaping () -> Void = {},
+        onSecondary: @escaping () -> Void = {}
+    ) -> some View {
+        alert(title, isPresented: isPresented) {
+            Button(primaryTitle, action: onPrimary)
+                .accessibilityIdentifier("\(identifierPrefix)-primary")
+            Button(secondaryTitle, role: .cancel, action: onSecondary)
+                .accessibilityIdentifier("\(identifierPrefix)-secondary")
         } message: {
             Text(message)
         }
@@ -240,6 +272,18 @@ struct SettingListGroup: View {
             value: Binding<Int>,
             leadingSystemImage: String,
             trailingSystemImage: String,
+            accessibilityLabel: String
+        )
+        /// Leading-origin continuous slider over an arbitrary `range`, paired with
+        /// a numeric readout (`decimals` places, optional trailing `unit`). Shares
+        /// the `GlassSliderRail` visual with `centerSlider` and the timeline zoom
+        /// slider; unlike `centerSlider` it is not detented and carries its own
+        /// value domain rather than the fixed -5…5 detents.
+        case rangeSlider(
+            value: Binding<Double>,
+            range: ClosedRange<Double>,
+            decimals: Int = 0,
+            unit: String? = nil,
             accessibilityLabel: String
         )
     }
@@ -461,6 +505,16 @@ struct SettingListGroupRow: View {
         }
         return false
     }
+    // centerSlider 自带标题行 + 轨道 + 标点,内部已有纵向结构,外层只需较紧的
+    // 留白;cardSelection 等仍用标准 lg 留白。
+    private var embeddedVerticalPadding: CGFloat {
+        switch embeddedControl {
+        case .centerSlider?, .rangeSlider?:
+            return DesignTokens.Spacing.sm
+        default:
+            return DesignTokens.Spacing.lg
+        }
+    }
     private var usesRowHover: Bool { !isEmbeddedOnly }
     private var usesWholeRowButton: Bool {
         if case .automatic = accessory {
@@ -491,7 +545,7 @@ struct SettingListGroupRow: View {
             if isEmbeddedOnly {
                 if let embeddedControl {
                     embeddedControlView(embeddedControl)
-                        .padding(.vertical, DesignTokens.Spacing.lg)
+                        .padding(.vertical, embeddedVerticalPadding)
                 }
             } else {
                 rowContent
@@ -655,6 +709,16 @@ struct SettingListGroupRow: View {
                 trailingSystemImage: trailingSystemImage,
                 accessibilityLabel: accessibilityLabel
             )
+
+        case .rangeSlider(let value, let range, let decimals, let unit, let accessibilityLabel):
+            SettingListRangeSliderRow(
+                value: value,
+                range: range,
+                decimals: decimals,
+                unit: unit,
+                title: title,
+                accessibilityLabel: accessibilityLabel
+            )
         }
     }
 
@@ -807,17 +871,26 @@ private struct SettingListCenterSliderRow: View {
     let accessibilityLabel: String
 
     @Namespace private var hoverNamespace
+    @State private var rowWidth: CGFloat = 0
 
-    private let labelWidth: CGFloat = 144
-    private let embeddedTrackWidth: CGFloat = 404
+    // CenterSlider 两侧各有一个图标列(Interactive.compact)与一段 spacing(md),
+    // 轨道宽 = 行宽 - 左右 padding(lg×2) - 两图标列 - 两段 spacing。据此让轨道
+    // 撑满到与 HDR 行相同的左右边距;detentDots / 旋钮按 trackWidth 自动延展。
+    private var resolvedTrackWidth: CGFloat {
+        let sidePadding = DesignTokens.Spacing.lg * 2
+        let iconColumns = DesignTokens.Interactive.compact * 2
+        let spacings = DesignTokens.Spacing.md * 2
+        return max(rowWidth - sidePadding - iconColumns - spacings, 200)
+    }
 
     var body: some View {
-        HStack(alignment: .trackCenter, spacing: DesignTokens.Spacing.md) {
+        // 标题不再占据左侧固定列,而是浮在滑轨正上方、注视时淡入。这一行始终
+        // 预留一行标题高度,避免淡入/淡出时把滑块顶上顶下。
+        VStack(spacing: DesignTokens.Spacing.xs) {
             Text(title)
                 .font(DesignTokens.Typography.selectionHeader)
                 .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
                 .lineLimit(1)
-                .frame(width: labelWidth, alignment: .leading)
                 .hoverEffect(in: hoverGroup(.followsGroup)) { effect, isActive, _ in
                     effect.opacity(isActive ? 1 : 0)
                 }
@@ -827,17 +900,99 @@ private struct SettingListCenterSliderRow: View {
                 leadingSystemImage: leadingSystemImage,
                 trailingSystemImage: trailingSystemImage,
                 accessibilityLabel: accessibilityLabel,
-                trackWidth: embeddedTrackWidth
+                trackWidth: resolvedTrackWidth
             )
         }
         .padding(.horizontal, DesignTokens.Spacing.lg)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity)
+        .background {
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { rowWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { _, newValue in rowWidth = newValue }
+            }
+        }
         .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
         .hoverEffect(in: hoverGroup(.activatesGroup)) { effect, _, _ in effect }
     }
 
     private func hoverGroup(_ behavior: HoverEffectGroup.Behavior) -> HoverEffectGroup? {
         HoverEffectGroup(id: "settingListCenterSliderLabel", in: hoverNamespace, behavior: behavior)
+    }
+}
+
+/// Embedded-control row for `EmbeddedControl.rangeSlider`. Mirrors
+/// `SettingListCenterSliderRow`'s gaze-revealed title + full-width track
+/// resolution, but pairs the track with a numeric readout and uses the
+/// leading-origin continuous `RangeSlider` instead of the detented centre slider.
+private struct SettingListRangeSliderRow: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    let decimals: Int
+    let unit: String?
+    let title: String
+    let accessibilityLabel: String
+
+    @Namespace private var hoverNamespace
+    @State private var rowWidth: CGFloat = 0
+
+    // Same track-width arithmetic as the centre slider row so both fill to an
+    // identical inset; the range slider has no end-icon columns, so it only
+    // subtracts the side padding.
+    private var resolvedTrackWidth: CGFloat {
+        let sidePadding = DesignTokens.Spacing.lg * 2
+        return max(rowWidth - sidePadding, 200)
+    }
+
+    private var readout: String {
+        let number = value.formatted(.number.precision(.fractionLength(decimals)))
+        if let unit {
+            return "\(number) \(unit)"
+        }
+        return number
+    }
+
+    var body: some View {
+        VStack(spacing: DesignTokens.Spacing.xs) {
+            HStack {
+                Text(title)
+                    .font(DesignTokens.Typography.selectionHeader)
+                    .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+                    .lineLimit(1)
+                Spacer(minLength: DesignTokens.Spacing.sm)
+                Text(readout)
+                    .font(DesignTokens.Typography.selectionHeader)
+                    .monospacedDigit()
+                    .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
+                    .lineLimit(1)
+            }
+            .hoverEffect(in: hoverGroup(.followsGroup)) { effect, isActive, _ in
+                effect.opacity(isActive ? 1 : 0)
+            }
+
+            RangeSlider(
+                value: $value,
+                range: range,
+                accessibilityLabel: accessibilityLabel,
+                accessibilityValue: readout,
+                trackWidth: resolvedTrackWidth
+            )
+        }
+        .padding(.horizontal, DesignTokens.Spacing.lg)
+        .frame(maxWidth: .infinity)
+        .background {
+            GeometryReader { geo in
+                Color.clear
+                    .onAppear { rowWidth = geo.size.width }
+                    .onChange(of: geo.size.width) { _, newValue in rowWidth = newValue }
+            }
+        }
+        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
+        .hoverEffect(in: hoverGroup(.activatesGroup)) { effect, _, _ in effect }
+    }
+
+    private func hoverGroup(_ behavior: HoverEffectGroup.Behavior) -> HoverEffectGroup? {
+        HoverEffectGroup(id: "settingListRangeSliderLabel", in: hoverNamespace, behavior: behavior)
     }
 }
 
@@ -1172,7 +1327,7 @@ struct ViewModeCapsuleControl: View {
 struct GridCard: View {
     /// 变体轴:决定缩略图内容与悬停信息布局。缩略图内容由变体内部钉死,不开放给调用点。
     enum Variant {
-        case video(fileSize: String, duration: String, badges: [String])
+        case video(fileSize: String, duration: String, badges: [String], watchedProgress: Double?)
         case folder(count: Int)
     }
 
@@ -1195,11 +1350,18 @@ struct GridCard: View {
         fileSize: String,
         duration: String,
         badges: [String] = [],
+        /// 0…1 已观看进度;`nil` 表示未看过(不画底部进度描边)。
+        watchedProgress: Double? = nil,
         accessibilityIdentifier: String? = nil
     ) -> GridCard {
         GridCard(
             title: title,
-            variant: .video(fileSize: fileSize, duration: duration, badges: badges),
+            variant: .video(
+                fileSize: fileSize,
+                duration: duration,
+                badges: badges,
+                watchedProgress: watchedProgress
+            ),
             identifier: accessibilityIdentifier
         )
     }
@@ -1267,18 +1429,24 @@ struct GridCard: View {
     @ViewBuilder
     private func thumbnailContent(_ shape: RoundedRectangle) -> some View {
         switch variant {
-        case let .video(fileSize, duration, badges):
+        case let .video(fileSize, duration, badges, watchedProgress):
             // 缩略图占位 — 真实 app 中为视频帧/海报
-            ZStack(alignment: .topTrailing) {
-                shape.fill(DesignTokens.Surface.elevated)
-                videoThumbnailInfo(fileSize: fileSize, duration: duration, badges: badges)
-            }
+            shape.fill(DesignTokens.Surface.elevated)
+                .overlay(alignment: .center) {
+                    thumbnailPlaceholderIcon("film")
+                }
+                .overlay {
+                    videoThumbnailInfo(fileSize: fileSize, duration: duration, badges: badges)
+                }
+                .overlay {
+                    if let watchedProgress {
+                        watchedProgressBar(watchedProgress)
+                    }
+                }
         case let .folder(count):
             shape.fill(DesignTokens.Surface.elevated)
                 .overlay(alignment: .center) {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 54))
-                        .foregroundStyle(.tertiary)
+                    thumbnailPlaceholderIcon("folder.fill")
                 }
                 .overlay(alignment: .bottomLeading) {
                     folderThumbnailInfo(count: count)
@@ -1335,35 +1503,108 @@ struct GridCard: View {
     private func thumbnailBadge(_ text: String) -> some View {
         Text(text)
             .font(DesignTokens.Typography.badge)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DesignTokens.Surface.supportingText)
             .padding(.horizontal, DesignTokens.Spacing.xs)
             .padding(.vertical, DesignTokens.Spacing.xxs)
             .enchronGlassBadge()
     }
 
-    // 元数据前景色统一 .secondary(消除旧 video/.secondary 与 folder/.primary 的分叉)。
+    // 底部已观看进度描边(UC-FILE-26)。嵌入卡片底边:thin 描边随缩略图 clipShape 贴合圆角,
+    // 仅 hover 时随缩略图 hover 组显隐;未 hover 不显示。视觉本体见 `watchedEdgeProgressVisual`。
+    private func watchedProgressBar(_ progress: Double) -> some View {
+        watchedEdgeProgressVisual(progress)
+            .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+                effect.animation(DesignTokens.AnimationToken.controlsTransition) {
+                    $0.opacity(isActive ? 1 : 0)
+                }
+            }
+    }
+
+    // 居中占位图标:无缩略图时的视频/文件夹标识。视频与文件夹共用同一尺寸与前景色,避免分叉。
+    private func thumbnailPlaceholderIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: DesignTokens.Card.placeholderIconSize))
+            .foregroundStyle(DesignTokens.Surface.supportingText)
+    }
+
+    // 元数据与占位图标统一用 Surface.supportingText(token);视频与文件夹一致。
     private func thumbnailMetadata(_ text: String) -> some View {
         Text(text)
             .font(DesignTokens.Typography.metadata)
-            .foregroundStyle(.secondary)
+            .foregroundStyle(DesignTokens.Surface.supportingText)
     }
 }
 
-struct FeaturedScene: Identifiable {
+// 已观看进度描边的纯视觉本体(无 hover 门控):把卡片当作【直角矩形】画满整条底边
+// (全宽,贴底,高 = watchedEdgeHeight 的 `Theme.accent` 细线),圆角交给卡片的
+// `clipShape` 收口——超出圆角的部分被系统自动裁掉,描边两端顺圆角自然收尾。
+// 进度从左铺,width = 全宽 × progress,100% 占满整条底边。无未看段 track。
+// 整体填满卡片尺寸,作 `.overlay { }` 叠在缩略图上(clipShape 在 overlay 之后,故会裁)。
+func watchedEdgeProgressVisual(_ progress: Double) -> some View {
+    let clamped = max(0, min(1, progress))
+    let lineWidth = DesignTokens.ProgressBar.watchedEdgeHeight
+    return GeometryReader { proxy in
+        Rectangle()
+            .fill(DesignTokens.Theme.accent)
+            .frame(width: proxy.size.width * clamped, height: lineWidth)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            // 自己按卡片圆角 clip:全宽直线在圆角处被弧线切掉,两端顺圆角收口,不外溢。
+            .clipShape(DesignTokens.ShapeToken.card)
+    }
+    .allowsHitTesting(false)
+    .accessibilityHidden(true)
+}
+
+// 演示:呈现 hover 显示后的底边进度描边,25% / 50% / 100% 三态。
+// 静态渲染触发不了 gaze hover,这里直接用视觉本体常显,等价于卡片 hover 后的样子。
+private struct WatchedEdgeProgressDemo: View {
+    private let shape = DesignTokens.ShapeToken.card
+    private let samples: [Double] = [0.25, 0.5, 1.0]
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.xl) {
+            ForEach(samples, id: \.self) { p in
+                VStack(spacing: DesignTokens.Spacing.sm) {
+                    shape.fill(DesignTokens.Surface.elevated)
+                        .overlay(alignment: .center) {
+                            Image(systemName: "film")
+                                .font(.system(size: DesignTokens.Card.placeholderIconSize))
+                                .foregroundStyle(DesignTokens.Surface.supportingText)
+                        }
+                        .overlay { watchedEdgeProgressVisual(p) }
+                        .frame(width: DesignTokens.Card.gridMin, height: DesignTokens.Card.thumbnailHeight)
+                        .clipShape(shape)
+                        .glassBackgroundEffect(in: shape)
+
+                    Text("\(Int(p * 100))%")
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
+            }
+        }
+        .padding(DesignTokens.Spacing.xxxl)
+    }
+}
+
+#Preview("Watched edge · 25/50/100") {
+    WatchedEdgeProgressDemo()
+}
+
+struct FeaturedEnvironment: Identifiable {
     let id: String
     let imageName: String
     let title: String
-    let sceneNumber: String
+    let environmentNumber: String
     let quote: String
     let mode: String
     let atmosphere: String
 
-    static let fixtures: [FeaturedScene] = [
+    static let fixtures: [FeaturedEnvironment] = [
         .init(
             id: "snow-village",
             imageName: "SceneFeatureCard",
             title: "Snow Village",
-            sceneNumber: "Scene 01",
+            environmentNumber: "Environment 01",
             quote: "\"A bright winter morning opens into a quiet alpine town.\"",
             mode: "Spatial cinema",
             atmosphere: "Snowfield / clear daylight"
@@ -1372,7 +1613,7 @@ struct FeaturedScene: Identifiable {
             id: "dune-observatory",
             imageName: "SceneFeatureDesert",
             title: "Dune Observatory",
-            sceneNumber: "Scene 02",
+            environmentNumber: "Environment 02",
             quote: "\"A gold horizon turns the theatre into a quiet instrument.\"",
             mode: "Observatory cinema",
             atmosphere: "Desert / amber dusk"
@@ -1381,7 +1622,7 @@ struct FeaturedScene: Identifiable {
             id: "neon-canopy",
             imageName: "SceneFeatureNeonCity",
             title: "Neon Canopy",
-            sceneNumber: "Scene 03",
+            environmentNumber: "Environment 03",
             quote: "\"Rain and city light fold into a private rooftop screen.\"",
             mode: "Night lounge",
             atmosphere: "Neon / reflective rain"
@@ -1390,7 +1631,7 @@ struct FeaturedScene: Identifiable {
             id: "forest-shrine",
             imageName: "SceneFeatureForestShrine",
             title: "Forest Shrine",
-            sceneNumber: "Scene 04",
+            environmentNumber: "Environment 04",
             quote: "\"The woods dim the world without closing it in.\"",
             mode: "Ambient cinema",
             atmosphere: "Moss / morning mist"
@@ -1399,7 +1640,7 @@ struct FeaturedScene: Identifiable {
             id: "ocean-temple",
             imageName: "SceneFeatureOceanTemple",
             title: "Ocean Temple",
-            sceneNumber: "Scene 05",
+            environmentNumber: "Environment 05",
             quote: "\"Light falls through water and softens every edge.\"",
             mode: "Deep cinema",
             atmosphere: "Coral / turquoise depth"
@@ -1408,7 +1649,7 @@ struct FeaturedScene: Identifiable {
             id: "orbital-garden",
             imageName: "SceneFeatureOrbitalGarden",
             title: "Orbital Garden",
-            sceneNumber: "Scene 06",
+            environmentNumber: "Environment 06",
             quote: "\"A living station holds the planet in the corner of your eye.\"",
             mode: "Spatial cinema",
             atmosphere: "Orbit / luminous green"
@@ -1417,7 +1658,7 @@ struct FeaturedScene: Identifiable {
             id: "dream-cinema",
             imageName: "SceneFeatureCinema",
             title: "Dream Cinema",
-            sceneNumber: "Scene 07",
+            environmentNumber: "Environment 07",
             quote: "\"Projector light turns the hall into a warm private ritual.\"",
             mode: "Classic theatre",
             atmosphere: "Velvet / brass glow"
@@ -1425,8 +1666,8 @@ struct FeaturedScene: Identifiable {
     ]
 }
 
-struct SceneCard: View {
-    var scene: FeaturedScene = .fixtures[0]
+struct EnvironmentCard: View {
+    var environment: FeaturedEnvironment = .fixtures[0]
     var detailVisibility: CGFloat = 1
     var atmosphericFade: CGFloat = 0
     var onReturn: () -> Void = {}
@@ -1442,7 +1683,7 @@ struct SceneCard: View {
         ZStack(alignment: .bottom) {
             backgroundImage
             topMultiplyOverlay
-            sceneInfoPanel
+            environmentInfoPanel
             topControls
         }
         .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
@@ -1454,8 +1695,8 @@ struct SceneCard: View {
         .contentShape(.hoverEffect, shape)
         .contentShape(shape)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("DesignPreview-SceneCard")
-        .accessibilityLabel("Featured scene card, \(scene.title)")
+        .accessibilityIdentifier("DesignPreview-EnvironmentCard")
+        .accessibilityLabel("Featured environment card, \(environment.title)")
     }
 
     private var clampedDetailVisibility: CGFloat {
@@ -1467,7 +1708,7 @@ struct SceneCard: View {
     }
 
     private var backgroundImage: some View {
-        Image(scene.imageName)
+        Image(environment.imageName)
             .resizable()
             .scaledToFill()
             .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
@@ -1484,14 +1725,14 @@ struct SceneCard: View {
                     systemName: "chevron.left",
                     accessibilityLabel: "Return to window",
                     action: onReturn,
-                    accessibilityIdentifier: "DesignPreview-SceneCard-button-return"
+                    accessibilityIdentifier: "DesignPreview-EnvironmentCard-button-return"
                 )
                 Spacer()
                 GlassCircleIconButton(
                     systemName: "arrow.up.left.and.arrow.down.right",
-                    accessibilityLabel: "Expand scene",
+                    accessibilityLabel: "Expand environment",
                     action: onExpand,
-                    accessibilityIdentifier: "DesignPreview-SceneCard-button-expand"
+                    accessibilityIdentifier: "DesignPreview-EnvironmentCard-button-expand"
                 )
             }
             .padding(Metrics.chromePadding)
@@ -1514,26 +1755,26 @@ struct SceneCard: View {
         .opacity(Double(clampedDetailVisibility))
     }
 
-    private var sceneInfoPanel: some View {
+    private var environmentInfoPanel: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             HStack(alignment: .firstTextBaseline) {
-                Text(scene.title)
+                Text(environment.title)
                     .font(DesignTokens.Typography.title)
                     .foregroundStyle(.white)
                 Spacer(minLength: DesignTokens.Spacing.md)
-                Text(scene.sceneNumber)
+                Text(environment.environmentNumber)
                     .font(DesignTokens.Typography.metadata)
                     .foregroundStyle(.white.opacity(0.72))
             }
 
-            Text(scene.quote)
+            Text(environment.quote)
                 .font(.title3)
                 .foregroundStyle(.white)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                Text("Mode: \(scene.mode)")
-                Text("Atmosphere: \(scene.atmosphere)")
+                Text("Mode: \(environment.mode)")
+                Text("Atmosphere: \(environment.atmosphere)")
             }
             .font(DesignTokens.Typography.metadata)
             .foregroundStyle(.white.opacity(0.72))
@@ -1599,8 +1840,8 @@ struct SceneCard: View {
     }
 }
 
-struct SceneCardCarousel: View {
-    var scenes: [FeaturedScene] = FeaturedScene.fixtures
+struct EnvironmentCardCarousel: View {
+    var environments: [FeaturedEnvironment] = FeaturedEnvironment.fixtures
     var onReturn: () -> Void = {}
 
     @State private var scrollPosition: CGFloat = 0
@@ -1613,12 +1854,12 @@ struct SceneCardCarousel: View {
 
     var body: some View {
         ZStack {
-            if scenes.isEmpty {
+            if environments.isEmpty {
                 EmptyView()
             } else {
                 ForEach(renderItems) { item in
-                    SceneCard(
-                        scene: item.scene,
+                    EnvironmentCard(
+                        environment: item.environment,
                         detailVisibility: interactionDetailVisibility(for: item.visualPosition),
                         atmosphericFade: atmosphericFade(for: item.visualPosition),
                         onReturn: onReturn,
@@ -1638,11 +1879,11 @@ struct SceneCardCarousel: View {
         .frame(depth: Metrics.stageDepth)
         .contentShape(Rectangle())
         .gesture(dragGesture)
-        .accessibilityIdentifier("DesignPreview-SceneCardCarousel")
+        .accessibilityIdentifier("DesignPreview-EnvironmentCardCarousel")
     }
 
     private var renderItems: [RenderItem] {
-        scenes.indices.compactMap { index in
+        environments.indices.compactMap { index in
             let visualPosition = visualPosition(for: index)
             guard abs(visualPosition) <= activeRenderCardDistance else {
                 return nil
@@ -1650,7 +1891,7 @@ struct SceneCardCarousel: View {
 
             return RenderItem(
                 visualPosition: visualPosition,
-                scene: scenes[index]
+                environment: environments[index]
             )
         }
     }
@@ -1660,7 +1901,7 @@ struct SceneCardCarousel: View {
     }
 
     private var currentScrollPosition: CGFloat {
-        guard !scenes.isEmpty else { return 0 }
+        guard !environments.isEmpty else { return 0 }
         let gestureProgress = -dragTranslation / Metrics.dragDistance
         return scrollPosition + gestureProgress
     }
@@ -1739,17 +1980,17 @@ struct SceneCardCarousel: View {
     }
 
     private func visualPosition(for index: Int) -> CGFloat {
-        guard !scenes.isEmpty else { return 0 }
-        let sceneCount = CGFloat(scenes.count)
+        guard !environments.isEmpty else { return 0 }
+        let environmentCount = CGFloat(environments.count)
         let rawPosition = CGFloat(index) - currentScrollPosition
-        return rawPosition - (rawPosition / sceneCount).rounded() * sceneCount
+        return rawPosition - (rawPosition / environmentCount).rounded() * environmentCount
     }
 
     private func normalizedScrollPosition(_ position: CGFloat) -> CGFloat {
-        guard !scenes.isEmpty else { return 0 }
-        let sceneCount = CGFloat(scenes.count)
-        let remainder = position.truncatingRemainder(dividingBy: sceneCount)
-        return remainder >= 0 ? remainder : remainder + sceneCount
+        guard !environments.isEmpty else { return 0 }
+        let environmentCount = CGFloat(environments.count)
+        let remainder = position.truncatingRemainder(dividingBy: environmentCount)
+        return remainder >= 0 ? remainder : remainder + environmentCount
     }
 
     private func targetScrollPosition(actualPosition: CGFloat, projectedPosition: CGFloat) -> CGFloat {
@@ -1880,16 +2121,16 @@ struct SceneCardCarousel: View {
     }
 
     private enum Metrics {
-        static let stageWidth: CGFloat = DesignTokens.SceneCarousel.stageWidth
-        static let stageHeight: CGFloat = DesignTokens.SceneCarousel.stageHeight
-        static let stageDepth: CGFloat = DesignTokens.SceneCarousel.stageDepth
-        static let dragDistance: CGFloat = DesignTokens.SceneCarousel.dragDistance
-        static let snapThreshold: CGFloat = DesignTokens.SceneCarousel.snapThreshold
-        static let maximumPredictedStepLead: CGFloat = DesignTokens.SceneCarousel.maximumPredictedStepLead
-        static let maximumStepPerGesture: CGFloat = DesignTokens.SceneCarousel.maximumStepPerGesture
-        static let detailRevealDelayNanoseconds = DesignTokens.SceneCarousel.detailRevealDelayNanoseconds
+        static let stageWidth: CGFloat = DesignTokens.EnvironmentCarousel.stageWidth
+        static let stageHeight: CGFloat = DesignTokens.EnvironmentCarousel.stageHeight
+        static let stageDepth: CGFloat = DesignTokens.EnvironmentCarousel.stageDepth
+        static let dragDistance: CGFloat = DesignTokens.EnvironmentCarousel.dragDistance
+        static let snapThreshold: CGFloat = DesignTokens.EnvironmentCarousel.snapThreshold
+        static let maximumPredictedStepLead: CGFloat = DesignTokens.EnvironmentCarousel.maximumPredictedStepLead
+        static let maximumStepPerGesture: CGFloat = DesignTokens.EnvironmentCarousel.maximumStepPerGesture
+        static let detailRevealDelayNanoseconds = DesignTokens.EnvironmentCarousel.detailRevealDelayNanoseconds
         static let detailRevealDelayPerStepNanoseconds =
-            DesignTokens.SceneCarousel.detailRevealDelayPerStepNanoseconds
+            DesignTokens.EnvironmentCarousel.detailRevealDelayPerStepNanoseconds
         static let centerHitTestingDistance: CGFloat = 0.12
         static let stableRenderCardDistance: CGFloat = 1.55
         static let motionRenderCardDistance: CGFloat = 2.18
@@ -1902,24 +2143,24 @@ struct SceneCardCarousel: View {
         static let edgeSlideOutDistance: CGFloat = 300
         static let edgeDepthRetreat: CGFloat = 42
         static let edgeAtmosphericBoost: CGFloat = 0.42
-        static let centerCardGap: CGFloat = DesignTokens.SceneCarousel.centerCardGap
-        static let outerCardGap: CGFloat = DesignTokens.SceneCarousel.outerCardGap
-        static let sideCardYOffset: CGFloat = DesignTokens.SceneCarousel.sideCardYOffset
-        static let centerDepthOffset: CGFloat = DesignTokens.SceneCarousel.centerDepthOffset
-        static let sideDepthOffset: CGFloat = DesignTokens.SceneCarousel.sideDepthOffset
-        static let atmosphericFadeStart: CGFloat = DesignTokens.SceneCarousel.atmosphericFadeStart
-        static let atmosphericFadeEnd: CGFloat = DesignTokens.SceneCarousel.atmosphericFadeEnd
-        static let atmosphericFadeMaxOpacity: CGFloat = DesignTokens.SceneCarousel.atmosphericFadeMaxOpacity
-        static let detailRevealStart: CGFloat = DesignTokens.SceneCarousel.detailRevealStart
-        static let detailRevealComplete: CGFloat = DesignTokens.SceneCarousel.detailRevealComplete
+        static let centerCardGap: CGFloat = DesignTokens.EnvironmentCarousel.centerCardGap
+        static let outerCardGap: CGFloat = DesignTokens.EnvironmentCarousel.outerCardGap
+        static let sideCardYOffset: CGFloat = DesignTokens.EnvironmentCarousel.sideCardYOffset
+        static let centerDepthOffset: CGFloat = DesignTokens.EnvironmentCarousel.centerDepthOffset
+        static let sideDepthOffset: CGFloat = DesignTokens.EnvironmentCarousel.sideDepthOffset
+        static let atmosphericFadeStart: CGFloat = DesignTokens.EnvironmentCarousel.atmosphericFadeStart
+        static let atmosphericFadeEnd: CGFloat = DesignTokens.EnvironmentCarousel.atmosphericFadeEnd
+        static let atmosphericFadeMaxOpacity: CGFloat = DesignTokens.EnvironmentCarousel.atmosphericFadeMaxOpacity
+        static let detailRevealStart: CGFloat = DesignTokens.EnvironmentCarousel.detailRevealStart
+        static let detailRevealComplete: CGFloat = DesignTokens.EnvironmentCarousel.detailRevealComplete
     }
 
     private struct RenderItem: Identifiable {
         let visualPosition: CGFloat
-        let scene: FeaturedScene
+        let environment: FeaturedEnvironment
 
         var id: String {
-            scene.id
+            environment.id
         }
     }
 }
@@ -2256,8 +2497,9 @@ struct CenterSlider: View {
     var body: some View {
         HStack(alignment: .trackCenter, spacing: DesignTokens.Spacing.md) {
             Image(systemName: leadingSystemImage)
+                .font(DesignTokens.SymbolSize.selectionHeaderIcon)
                 .foregroundStyle(DesignTokens.Surface.accessoryText)
-                .frame(width: iconColumnWidth)
+                .frame(width: iconColumnWidth, height: iconColumnWidth)
 
             // Track + dots share a column so the dots get real layout space
             // below the track. A bare `.offset` pushed them outside the bounds
@@ -2270,10 +2512,10 @@ struct CenterSlider: View {
             }
 
             Image(systemName: trailingSystemImage)
+                .font(DesignTokens.SymbolSize.selectionHeaderIcon)
                 .foregroundStyle(DesignTokens.Surface.accessoryText)
-                .frame(width: iconColumnWidth)
+                .frame(width: iconColumnWidth, height: iconColumnWidth)
         }
-        .font(.body)
         .accessibilityElement()
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(accessibilityLabel)
@@ -2375,6 +2617,100 @@ struct CenterSlider: View {
         withAnimation(snapAnimation(to: clamped)) {
             value = clamped
         }
+    }
+}
+
+/// Leading-origin continuous slider over an arbitrary `Double` range. Shares the
+/// `GlassSliderRail` visual (track + accent lit-fill + white knob) and the
+/// leading-origin lit-fill geometry with the timeline zoom slider; unlike
+/// `CenterSlider` it is not detented and maps a finger position straight onto the
+/// value domain. Press feedback and motion all read from `DesignTokens`.
+struct RangeSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    var accessibilityLabel: String = "Range slider"
+    var accessibilityValue: String = ""
+    var accessibilityIdentifier: String = "DesignPreview-RangeSlider"
+    var trackWidth: CGFloat = 450
+
+    @State private var isDragging = false
+
+    // EXPLORATORY: track-bar dimensions are not yet promoted to DesignTokens.
+    // Knob (26) and track height (30) mirror CenterSlider so the two read as the
+    // same control; promoting these to shared tokens needs a separate human
+    // decision (same note as CenterSlider / the zoom slider).
+    private let trackHeight: CGFloat = 30
+    private let knobSize: CGFloat = 26
+
+    private var span: Double {
+        let width = range.upperBound - range.lowerBound
+        return width > 0 ? width : 1
+    }
+
+    private var normalized: CGFloat {
+        CGFloat((value - range.lowerBound) / span)
+    }
+
+    var body: some View {
+        let travel = trackWidth - knobSize
+        let knobOffsetX = -travel / 2 + normalized * travel
+        let radius = trackHeight / 2
+        let leftEdge = -trackWidth / 2
+        // Leading-origin lit fill, right cap centred under the knob — same seam
+        // trick the zoom slider and CenterSlider use.
+        let rightEdge = knobOffsetX + radius
+        let litWidth = rightEdge - leftEdge
+        let litCenterX = (leftEdge + rightEdge) / 2
+
+        return GlassSliderRail(
+            trackWidth: trackWidth,
+            trackHeight: trackHeight,
+            knobSize: knobSize,
+            knobOffsetX: knobOffsetX,
+            litCenterX: litCenterX,
+            litWidth: litWidth,
+            litVisible: normalized > 0.001,
+            isDragging: isDragging
+        )
+        .frame(width: trackWidth, height: trackHeight)
+        .gesture(dragGesture)
+        .accessibilityElement()
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityValue(accessibilityValue)
+        .accessibilityAdjustableAction { direction in
+            // One step = 1% of the range, matching the zoom slider's feel.
+            let step = span / 100
+            switch direction {
+            case .increment: value = clamp(value + step)
+            case .decrement: value = clamp(value - step)
+            @unknown default: break
+            }
+        }
+    }
+
+    private var dragGesture: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { gesture in
+                if !isDragging {
+                    withAnimation(DesignTokens.PressFeedback.control.pressAnimation) {
+                        isDragging = true
+                    }
+                }
+                let travel = max(trackWidth - knobSize, 1)
+                let localX = gesture.location.x - knobSize / 2
+                let proposed = min(max(localX / travel, 0), 1)
+                value = range.lowerBound + Double(proposed) * span
+            }
+            .onEnded { _ in
+                withAnimation(DesignTokens.PressFeedback.control.releaseAnimation) {
+                    isDragging = false
+                }
+            }
+    }
+
+    private func clamp(_ newValue: Double) -> Double {
+        min(max(newValue, range.lowerBound), range.upperBound)
     }
 }
 
@@ -2510,7 +2846,7 @@ struct SourceSidebarRow: View {
     let title: String
     var isSelected = false
     var isEnabled = true
-    var isOnline = false
+    var isActiveSource = false
     var showsSelectionBackground = true
 
     var body: some View {
@@ -2527,9 +2863,9 @@ struct SourceSidebarRow: View {
 
             Spacer(minLength: 0)
 
-            if isOnline {
+            if isActiveSource {
                 Circle()
-                    .fill(isSelected ? DesignTokens.Theme.accent : .green)
+                    .fill(DesignTokens.Theme.accent)
                     .frame(width: DesignTokens.Spacing.xs, height: DesignTokens.Spacing.xs)
             }
         }
@@ -2612,6 +2948,20 @@ struct CategorySidebar: View {
 
 struct PlayerControlDeck: View {
     var timelineResetToken = 0
+    /// 左侧 ≡ 设置入口的动作。由组合阶段(如窗口播放页)注入,用于召出 player panel。
+    var onOpenSettings: () -> Void = {}
+
+    // initialTimelineExpanded 仅供 Canvas 审查直接展示展开态的二级时间轴;
+    // 运行时仍由双击进度条切换。其余 @State 保留各自的行内默认值。
+    init(
+        timelineResetToken: Int = 0,
+        onOpenSettings: @escaping () -> Void = {},
+        initialTimelineExpanded: Bool = false
+    ) {
+        self.timelineResetToken = timelineResetToken
+        self.onOpenSettings = onOpenSettings
+        _isTimelineExpanded = State(initialValue: initialTimelineExpanded)
+    }
 
     @Namespace private var hoverNamespace
     @State private var progress: CGFloat = 0.45
@@ -2625,6 +2975,9 @@ struct PlayerControlDeck: View {
     @State private var timelineFeedbackTrigger = 0
     @State private var announcedBoundary: ProgressBoundary? = nil
     @State private var timelinePixelsPerSecond = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
+    @State private var selectedSubtitle = "Off"
+    @State private var selectedAudioTrack = "English 5.1"
+    @State private var selectedSpeed = "1×"
 
     private enum ProgressBoundary {
         case minimum
@@ -2898,10 +3251,10 @@ struct PlayerControlDeck: View {
                    height: DesignTokens.Interactive.large)
     }
 
-    // TEMP: 设置面板入口占位。三横线只承担和其它图标一致的点击/hover 动画;
-    //       真正的设置面板由 DesignOps 组合阶段接入。面板接好后删除此占位实现。
+    // 左侧 ≡ 设置入口。动作由 onOpenSettings 注入(组合阶段接入 player panel);
+    // 点击/hover 动画与其它 transport 图标一致。
     private var panelMenuButton: some View {
-        Button {} label: {
+        Button(action: onOpenSettings) {
             controlIcon("line.3.horizontal")
         }
         .buttonStyle(.plain)
@@ -2917,24 +3270,28 @@ struct PlayerControlDeck: View {
         Menu {
             Section("Playback Settings") {
                 Menu("Subtitles") {
-                    menuOption("Off")
-                    menuOption("English CC")
-                    menuOption("中文简体")
-                    menuOption("Auto")
+                    selectableMenuOption("Off", selection: $selectedSubtitle)
+                    selectableMenuOption("English CC", selection: $selectedSubtitle)
+                    selectableMenuOption("中文简体", selection: $selectedSubtitle)
+                    selectableMenuOption("Auto", selection: $selectedSubtitle)
                 }
 
                 Menu("Audio Track") {
-                    menuOption("English 5.1")
-                    menuOption("Japanese 2.0")
-                    menuOption("Commentary")
+                    selectableMenuOption("English 5.1", selection: $selectedAudioTrack)
+                    selectableMenuOption("Japanese 2.0", selection: $selectedAudioTrack)
+                    selectableMenuOption("Commentary", selection: $selectedAudioTrack)
                 }
 
                 Menu("Playback Speed") {
-                    menuOption("0.5x")
-                    menuOption("1x")
-                    menuOption("1.25x")
-                    menuOption("1.5x")
-                    menuOption("2x")
+                    selectableMenuOption("0.25×", selection: $selectedSpeed)
+                    selectableMenuOption("0.5×", selection: $selectedSpeed)
+                    selectableMenuOption("0.75×", selection: $selectedSpeed)
+                    selectableMenuOption("1×", selection: $selectedSpeed)
+                    selectableMenuOption("1.25×", selection: $selectedSpeed)
+                    selectableMenuOption("1.5×", selection: $selectedSpeed)
+                    selectableMenuOption("2×", selection: $selectedSpeed)
+                    selectableMenuOption("3×", selection: $selectedSpeed)
+                    selectableMenuOption("5×", selection: $selectedSpeed)
                 }
 
                 Menu("Episodes") {
@@ -2961,6 +3318,19 @@ struct PlayerControlDeck: View {
     private func menuOption(_ title: String) -> some View {
         Button {} label: {
             Text(title)
+        }
+    }
+
+    // 选中项打勾,复用 SortMenuButton 的 checkmark 表达方式
+    // (Label + systemImage: 选中 "checkmark" / 未选中 "")。
+    private func selectableMenuOption(
+        _ title: String,
+        selection: Binding<String>
+    ) -> some View {
+        Button {
+            selection.wrappedValue = title
+        } label: {
+            Label(title, systemImage: selection.wrappedValue == title ? "checkmark" : "")
         }
     }
 
@@ -3298,7 +3668,8 @@ struct PlayerControlDeck: View {
     }
 }
 
-private struct PrecisionTimelineView: View {
+// internal(原 private):融合面板试验场需跨文件复用这个时间轴积木。
+struct PrecisionTimelineView: View {
     @Binding var currentTime: Double
     @Binding var pixelsPerSecond: CGFloat
 
@@ -3603,9 +3974,15 @@ private struct PrecisionTimelineView: View {
         guard duration > 0 else { return }
 
         let contentWidth = CGFloat(duration) * pixelsPerSecond
+        let segmentWidth = max(
+            DesignTokens.PrecisionTimeline.thumbnailMinWidth,
+            pixelsPerSecond * DesignTokens.PrecisionTimeline.thumbnailSecondsScale
+        )
         let visibleStart = max(-leadingX, 0)
+        // 唯一事实是 contentWidth(= duration×pps),拖拽极限/标尺/胶片末端都以它为准,
+        // 不再单独截短整体(那会与拖拽极限脱节,且最小缩放时一格≈数十秒,白白丢失可拖范围)。
         let visibleEnd = min(viewportWidth - leadingX, contentWidth)
-        guard visibleStart <= visibleEnd else { return }
+        guard visibleStart < visibleEnd else { return }
 
         let visibleFilmRect = CGRect(
             x: leadingX + visibleStart,
@@ -3618,31 +3995,38 @@ private struct PrecisionTimelineView: View {
             with: .color(DesignTokens.PrecisionTimeline.filmStripBase)
         )
 
-        let segmentWidth = max(
-            DesignTokens.PrecisionTimeline.thumbnailMinWidth,
-            pixelsPerSecond * DesignTokens.PrecisionTimeline.thumbnailSecondsScale
-        )
-        let startIndex = max(Int(floor(-leadingX / segmentWidth)), 0)
-        let endIndex = min(
-            Int(ceil((viewportWidth - leadingX) / segmentWidth)),
-            Int(ceil(CGFloat(duration) * pixelsPerSecond / segmentWidth))
-        )
+        // segmentWidth 不整除 contentWidth 时,末尾会余下一截。把它并入最后一个完整格
+        // (lastDrawIndex 的右边界钉到 contentWidth),让胶片干净收在内容边界上——既不
+        // 切到方块中间,也不留半格细条;余量较大(≥半格)时则自成一格。
+        let fullCount = Int(floor(contentWidth / segmentWidth))
+        let remainder = contentWidth - CGFloat(fullCount) * segmentWidth
+        let lastDrawIndex = (remainder >= segmentWidth * 0.5) ? fullCount : max(fullCount - 1, 0)
+
+        let startIndex = max(Int(floor(visibleStart / segmentWidth)), 0)
+        let endIndex = min(max(Int(ceil(visibleEnd / segmentWidth)), startIndex), lastDrawIndex)
         guard startIndex <= endIndex else { return }
 
+        var stripContext = context
+        stripContext.clip(to: Path(visibleFilmRect))
+
         for index in startIndex...endIndex {
-            let x = leadingX + CGFloat(index) * segmentWidth
+            let leftContentX = CGFloat(index) * segmentWidth
+            // 最后一格的右边界永远钉在 contentWidth,与底板/拖拽极限对齐。
+            let rightContentX = (index == lastDrawIndex)
+                ? contentWidth
+                : CGFloat(index + 1) * segmentWidth
             let rect = CGRect(
-                x: x,
+                x: leadingX + leftContentX,
                 y: DesignTokens.PrecisionTimeline.filmImageInset,
-                width: segmentWidth,
+                width: max(rightContentX - leftContentX, 1),
                 height: max(size.height - DesignTokens.PrecisionTimeline.filmImageInset * 2, 1)
             )
             let palette = DesignTokens.PrecisionTimeline.thumbnailPalette
             let color = palette[index % palette.count]
             let path = Path(rect.insetBy(dx: DesignTokens.Stroke.regular, dy: DesignTokens.Stroke.subtle))
 
-            context.fill(path, with: .color(color))
-            context.fill(
+            stripContext.fill(path, with: .color(color))
+            stripContext.fill(
                 Path(CGRect(
                     x: rect.minX + DesignTokens.Stroke.regular,
                     y: rect.minY + DesignTokens.Stroke.regular,
@@ -3651,7 +4035,7 @@ private struct PrecisionTimelineView: View {
                 )),
                 with: .color(DesignTokens.PrecisionTimeline.filmStripHighlight)
             )
-            context.fill(
+            stripContext.fill(
                 Path(CGRect(
                     x: rect.minX + DesignTokens.Stroke.regular,
                     y: rect.midY,
@@ -3660,7 +4044,7 @@ private struct PrecisionTimelineView: View {
                 )),
                 with: .color(Color.black.opacity(0.12))
             )
-            context.fill(
+            stripContext.fill(
                 Path(CGRect(
                     x: rect.maxX - DesignTokens.PrecisionTimeline.thumbnailSeparatorWidth,
                     y: rect.minY,
@@ -3692,8 +4076,10 @@ private struct PrecisionTimelineView: View {
         let step = holeWidth + DesignTokens.PrecisionTimeline.sprocketSpacing
         guard step > 0 else { return }
 
-        let startIndex = Int(floor(visibleStart / step))
-        let endIndex = Int(ceil(visibleEnd / step))
+        // 只画完整落在 [visibleStart, visibleEnd] 内的齿孔,避免右边界外冒出半截/孤立的孔。
+        let startIndex = max(Int(ceil(visibleStart / step)), 0)
+        let endIndex = Int(floor((visibleEnd - holeWidth) / step))
+        guard startIndex <= endIndex else { return }
         let topY = DesignTokens.Spacing.xxs
         let bottomY = size.height - holeHeight - DesignTokens.Spacing.xxs
 
@@ -3850,12 +4236,12 @@ private struct SpinnerArc: Shape {
     var start: CGFloat
     var end: CGFloat
 
-    var animatableData: AnimatablePair<CGFloat, CGFloat> {
+    nonisolated var animatableData: AnimatablePair<CGFloat, CGFloat> {
         get { AnimatablePair(start, end) }
         set { start = newValue.first; end = newValue.second }
     }
 
-    func path(in rect: CGRect) -> Path {
+    nonisolated func path(in rect: CGRect) -> Path {
         var path = Path()
         path.addArc(
             center: CGPoint(x: rect.midX, y: rect.midY),

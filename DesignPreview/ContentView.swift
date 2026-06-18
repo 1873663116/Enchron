@@ -8,8 +8,11 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     case sidebar
     case settingListGroup
     case playerSettingsPanel
-    case centerSlider
-    case sceneCard
+    case slider
+    case environmentCard
+    case connectionForm
+    case dialogs
+    case fusedPanel
     // MARK: Design Tokens (back)
     case spacing
     case radiusAndShapes
@@ -35,8 +38,11 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
         case .sidebar: "Sidebar"
         case .settingListGroup: "Setting List Group"
         case .playerSettingsPanel: "Player Settings Panel"
-        case .centerSlider: "Center Slider"
-        case .sceneCard: "Scene Card"
+        case .slider: "Slider"
+        case .environmentCard: "Environment Card"
+        case .connectionForm: "Connection Form"
+        case .dialogs: "Dialogs"
+        case .fusedPanel: "Fused Panel (test)"
         case .componentStandards: "Component Standards"
         }
     }
@@ -77,10 +83,16 @@ struct ContentView: View {
                 SettingListGroupPreview()
             case .playerSettingsPanel:
                 PlayerSettingsPanelPreview()
-            case .centerSlider:
-                CenterSliderPreview()
-            case .sceneCard:
-                SceneCardPreview()
+            case .slider:
+                SliderPreview()
+            case .environmentCard:
+                EnvironmentCardPreview()
+            case .connectionForm:
+                ConnectionFormPreview()
+            case .dialogs:
+                DialogsPreview()
+            case .fusedPanel:
+                FusedPlayerPanelTestPage()
             case .componentStandards:
                 ComponentStandardsPreview()
             }
@@ -90,6 +102,160 @@ struct ContentView: View {
 
 #Preview(windowStyle: .automatic) {
     ContentView()
+}
+
+// MARK: - Fused Player Panel (test)
+
+/// 阶段 B 试验场:把 PlayerControls / Timeline / PlayerPanel 融合成【一块】会形变的
+/// `glassBackgroundEffect` 壳,带弹性 spring。
+///
+/// 这一版是**基线**:内容直接放进会形变的壳里(deck 现有的旧做法),用来在 Canvas 上
+/// 看到融合形变,并作为设备 profile 的 A 组(内容跟着动画 frame 逐帧重排)。下一步的
+/// B 组再做"内容脱钩"(固定 frame + 裁切显隐),用 Instruments 对照 layout 开销。
+///
+/// 原 `PlayerControlDeck` / `PlayerSettingsPanelPreview` 暂留作对照,融合面板定稿后淘汰。
+struct FusedPlayerPanelTestPage: View {
+    @State private var mode: FusedPlayerPanel.Mode = .controls
+
+    var body: some View {
+        VStack(spacing: DesignTokens.Spacing.xxl) {
+            Picker("Mode", selection: $mode) {
+                ForEach(FusedPlayerPanel.Mode.allCases) { mode in
+                    Text(mode.rawValue).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 460)
+
+            Spacer(minLength: 0)
+            FusedPlayerPanel(mode: mode)
+            Spacer(minLength: 0)
+        }
+        .padding(DesignTokens.Spacing.xxl)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationTitle("Fused Panel (test)")
+    }
+}
+
+struct FusedPlayerPanel: View {
+    enum Mode: String, CaseIterable, Identifiable {
+        case controls = "Controls"
+        case timeline = "+ Timeline"
+        case settings = "+ Settings"
+        case all = "All three"
+
+        var id: String { rawValue }
+        var showsTimeline: Bool { self == .timeline || self == .all }
+        var showsSettings: Bool { self == .settings || self == .all }
+    }
+
+    var mode: Mode
+
+    @State private var progress: CGFloat = 0.45
+    @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
+
+    // timeline 与 settings 共用同一展开宽度,保证两者并存时边对边对齐
+    // (不再各用各的自然宽,消除"长度不一致 / 崩溃排版")。
+    private let expandedWidth: CGFloat = 880
+    private let settingsHeight: CGFloat = 520
+
+    // 任一展开块(timeline / settings)打开时,控件行也撑到 expandedWidth,
+    // 让 ≡/expand 贴左缘、⋯ 贴右缘,与下方两块边对边;只开控件时保持紧凑宽。
+    private var isExpanded: Bool { mode.showsTimeline || mode.showsSettings }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+    }
+
+    var body: some View {
+        VStack(spacing: DesignTokens.Spacing.md) {
+            controlsRow
+
+            if mode.showsTimeline {
+                PrecisionTimelineView(
+                    currentTime: timelineCurrentTime,
+                    pixelsPerSecond: $pixelsPerSecond,
+                    duration: DesignTokens.PrecisionTimeline.previewDuration,
+                    framesPerSecond: DesignTokens.PrecisionTimeline.previewFrameRate
+                )
+                .frame(width: expandedWidth, height: DesignTokens.PrecisionTimeline.expandedHeight)
+                .transition(.opacity)
+            }
+
+            if mode.showsSettings {
+                PlayerSettingsPanelPreview(chromeless: true)
+                    .frame(width: expandedWidth, height: settingsHeight)
+                    .transition(.opacity)
+            }
+        }
+        .padding(DesignTokens.Spacing.xl)
+        .clipShape(shape)
+        .glassBackgroundEffect(in: shape)
+        // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
+        .animation(DesignTokens.AnimationToken.panelSpring, value: mode)
+    }
+
+    private var controlsRow: some View {
+        HStack(spacing: 0) {
+            HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                GlassCircleIconButton(
+                    systemName: "line.3.horizontal",
+                    accessibilityLabel: "Settings panel",
+                    accessibilityIdentifier: "DesignPreview-FusedPanel-button-panel"
+                )
+                GlassCircleIconButton(
+                    systemName: "arrow.up.left.and.arrow.down.right",
+                    accessibilityLabel: "Expand",
+                    accessibilityIdentifier: "DesignPreview-FusedPanel-button-expand"
+                )
+            }
+            Spacer(minLength: 0)
+            HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                GlassCircleIconButton(
+                    systemName: "gobackward.10",
+                    accessibilityLabel: "Rewind 10 seconds",
+                    accessibilityIdentifier: "DesignPreview-FusedPanel-button-rewind"
+                )
+                playButton
+                GlassCircleIconButton(
+                    systemName: "goforward.10",
+                    accessibilityLabel: "Forward 10 seconds",
+                    accessibilityIdentifier: "DesignPreview-FusedPanel-button-forward"
+                )
+            }
+            Spacer(minLength: 0)
+            GlassCircleIconButton(
+                systemName: "ellipsis",
+                accessibilityLabel: "More",
+                accessibilityIdentifier: "DesignPreview-FusedPanel-button-more"
+            )
+        }
+        .frame(width: isExpanded ? expandedWidth : DesignTokens.ProgressBar.previewWidth)
+    }
+
+    private var playButton: some View {
+        Image(systemName: "play.fill")
+            .font(DesignTokens.SymbolSize.action)
+            .foregroundStyle(.white)
+            .frame(width: DesignTokens.Interactive.xl, height: DesignTokens.Interactive.xl)
+            .clipShape(Circle())
+            .glassBackgroundEffect(in: Circle())
+            .contentShape(.hoverEffect, Circle())
+            .hoverEffect(.lift)
+            .enchronPressFeedback(.icon)
+            .accessibilityLabel("Play")
+            .accessibilityIdentifier("DesignPreview-FusedPanel-button-play")
+    }
+
+    private var timelineCurrentTime: Binding<Double> {
+        Binding(
+            get: { Double(progress) * DesignTokens.PrecisionTimeline.previewDuration },
+            set: { newValue in
+                let duration = DesignTokens.PrecisionTimeline.previewDuration
+                progress = duration > 0 ? CGFloat(newValue / duration) : 0
+            }
+        )
+    }
 }
 
 // MARK: - Sidebar
@@ -302,27 +468,49 @@ struct SettingListGroupPreview: View {
 // MARK: - Player settings panel
 
 struct PlayerSettingsPanelPreview: View {
-    @State private var selectedCategory: PlayerPanelSettingsCategory = .sceneSetting
-    @State private var selectedSceneID = "day"
+    // chromeless: 去掉外层 .plate 玻璃 + 固定 880×560 框,只渲染 sidebar+detail 内容,
+    // 供融合面板内嵌、与 controls/timeline 共用同一块玻璃壳。默认 false(独立预览带壳)。
+    var chromeless: Bool = false
+
+    @State private var selectedCategory: PlayerPanelSettingsCategory = .environmentSetting
+    @State private var selectedEnvironmentID = "day"
     @State private var selectedPositionID = "left"
-    @State private var sceneAuto = true
+    @State private var environmentAuto = true
     @State private var screenCurve = 0
     @State private var screenHeight = 0
     @State private var screenDistance = 0
     @State private var screenSize = 0
     @State private var threeDMode = false
     @State private var immersiveMode: ImmersiveVideoMode = .off
-    @State private var hdrEnabled = false
-    @State private var exposure = 0
-    @State private var shadows = 0
-    @State private var highlights = 0
-    @State private var contrast = 0
-    @State private var whites = 0
-    @State private var temperature = 0
-    @State private var tint = 0
-    @State private var saturation = 0
-    @State private var vibrance = 0
-    @State private var sharpness = 0
+
+    // MARK: Picture (libplacebo) state
+    // ① Peak Detection
+    @State private var hdrComputePeak = "auto"
+    @State private var hdrPeakPercentile = 99.9
+    @State private var hdrPeakDecayRate = 20.0
+    @State private var hdrSceneThresholdLow = 1.0
+    @State private var hdrSceneThresholdHigh = 3.0
+    // ② Output Target
+    @State private var targetPeak = 406.0
+    @State private var hdrReferenceWhite = 183.0
+    @State private var targetContrast = "inf"
+    // ③ Tone Mapping
+    @State private var toneMapping = "bt.2390"
+    @State private var toneMappingParam = 0.0
+    @State private var inverseToneMapping = false
+    @State private var toneMappingMaxBoost = 1.0
+    @State private var hdrContrastRecovery = 0.15
+    @State private var hdrContrastSmoothness = 100.0
+    // ④ Gamut & Color
+    @State private var gamutMappingMode = "clip"
+    @State private var saturation = 9.0
+    @State private var brightness = 0.0
+    @State private var contrast = 10.0
+    @State private var gamma = 1.0
+    @State private var hue = 0.0
+    // ⑤ Diagnostics
+    @State private var toneMappingVisualize = false
+
     @State private var showResetConfirm = false
 
     private enum ImmersiveVideoMode {
@@ -331,46 +519,73 @@ struct PlayerSettingsPanelPreview: View {
         case threeSixty
     }
 
-    private let panelWidth: CGFloat = 980
+    private let panelWidth: CGFloat = 880
     private let panelHeight: CGFloat = 560
-    private let detailColumnWidth: CGFloat = 720
+    // 8(左 inset)+224(sidebar)+20(gutter)+detail+20(右 inset)= 880 → detail = 608
+    private let detailColumnWidth: CGFloat = 608
 
     var body: some View {
-        panelContainer
-            .navigationTitle("Player Settings Panel")
-            .enchronDestructiveConfirmation(
-                "Restore Default Settings?",
-                message: "This resets the panel preview controls to their default positions.",
-                confirmTitle: "Restore",
-                isPresented: $showResetConfirm,
-                onConfirm: restoreDefaults
-            )
+        Group {
+            if chromeless {
+                panelInner
+            } else {
+                panelInner
+                    .frame(width: panelWidth, height: panelHeight, alignment: .topLeading)
+                    .clipShape(DesignTokens.ShapeToken.panel)
+                    .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
+                    .padding(DesignTokens.Spacing.xl)
+            }
+        }
+        .navigationTitle("Player Settings Panel")
+        .enchronDestructiveConfirmation(
+            "Restore Default Settings?",
+            message: "This resets the panel preview controls to their default positions.",
+            confirmTitle: "Restore",
+            isPresented: $showResetConfirm,
+            onConfirm: restoreDefaults
+        )
     }
 
-    private var panelContainer: some View {
-        let panelShape = DesignTokens.ShapeToken.panel
-
-        return HStack(alignment: .top, spacing: 0) {
+    // sidebar + detail 内容本体(无外层 chrome)。独立预览在外面套 .plate + 固定框;
+    // 融合面板直接用它,自己定宽高、共用一块壳。
+    private var panelInner: some View {
+        HStack(alignment: .top, spacing: 0) {
             sidebar
                 .padding(.leading, DesignTokens.SourceSidebar.windowInset)
                 .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
 
+            // 融合(chromeless)语境:sidebar 已去掉自带玻璃,改用发丝分隔线划出列边界。
+            // 分隔线吃进原本的 trailingContentGap 列间距(不额外占宽),detail 左 padding 归零;
+            // 独立预览(chromeless=false)保留 sidebar 玻璃,不画线、detail 左 padding 照旧。
+            if chromeless {
+                columnDivider
+            }
+
             detailPanel
-                .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
-                .padding(.trailing, DesignTokens.SourceSidebar.windowInset)
+                .padding(.leading, chromeless ? 0 : DesignTokens.SourceSidebar.trailingContentGap)
+                .padding(.trailing, DesignTokens.SourceSidebar.trailingContentGap)
                 .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
         }
-        .frame(width: panelWidth, height: panelHeight, alignment: .topLeading)
-        .clipShape(panelShape)
-        .glassBackgroundEffect(.plate, in: panelShape, displayMode: .always)
-        .padding(DesignTokens.Spacing.xl)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // 竖直发丝分隔线,整块宽度 = trailingContentGap,把线居中夹在原列间距里。
+    private var columnDivider: some View {
+        Rectangle()
+            .fill(DesignTokens.Surface.divider)
+            .frame(width: DesignTokens.Stroke.regular)
+            .frame(maxHeight: .infinity)
+            .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
+            .padding(
+                .horizontal,
+                (DesignTokens.SourceSidebar.trailingContentGap - DesignTokens.Stroke.regular) / 2
+            )
     }
 
     private var sidebar: some View {
         let shape = DesignTokens.SourceSidebar.shape
 
-        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+        let content = VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             Text("Panel")
                 .font(DesignTokens.SourceSidebar.sectionTitleFont)
                 .foregroundStyle(.secondary)
@@ -389,8 +604,18 @@ struct PlayerSettingsPanelPreview: View {
         .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
         .frame(width: DesignTokens.SourceSidebar.width)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .clipShape(shape)
-        .glassBackgroundEffect(.plate, in: shape, displayMode: .always)
+
+        // 融合语境共用外层那一块玻璃,sidebar 不再叠自己的 .plate(消除玻璃叠玻璃的糊边);
+        // 独立预览保留自带玻璃。区分度改由 columnDivider + 选中行高亮承担。
+        return Group {
+            if chromeless {
+                content
+            } else {
+                content
+                    .clipShape(shape)
+                    .glassBackgroundEffect(.plate, in: shape, displayMode: .always)
+            }
+        }
         .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-sidebar")
     }
 
@@ -416,35 +641,35 @@ struct PlayerSettingsPanelPreview: View {
     @ViewBuilder
     private var detailContent: some View {
         switch selectedCategory {
-        case .sceneSetting:
-            sceneSettingContent
+        case .environmentSetting:
+            environmentSettingContent
         case .playMode:
             playModeContent
-        case .advanced:
-            advancedContent
+        case .picture:
+            pictureContent
         }
     }
 
-    private var sceneSettingContent: some View {
+    private var environmentSettingContent: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
-            panelSection("Scene") {
+            panelSection("Environment") {
                 SettingListGroup(items: [
                     .init(
-                        id: "scene-day-night",
-                        title: "Scene",
+                        id: "environment-day-night",
+                        title: "Environment",
                         accessory: .none,
                         embeddedControl: .cardSelection(
                             options: [
                                 .init(id: "day", title: "Day", systemName: "sun.max.fill"),
                                 .init(id: "night", title: "Night", systemName: "moon.stars.fill"),
                             ],
-                            selectedID: $selectedSceneID
+                            selectedID: $selectedEnvironmentID
                         )
                     ),
                     .init(
-                        id: "scene-auto",
+                        id: "environment-auto",
                         title: "Auto",
-                        accessory: .boundToggle(isOn: $sceneAuto, isEnabled: true, marker: nil)
+                        accessory: .boundToggle(isOn: $environmentAuto, isEnabled: true, marker: nil)
                     ),
                 ])
             }
@@ -540,89 +765,183 @@ struct PlayerSettingsPanelPreview: View {
         ])
     }
 
-    private var advancedContent: some View {
+    // libplacebo 参数面板。数值滑块用 range-aware 的 `.rangeSlider`(真实数值域 +
+    // 数值读出),枚举用既有 `.menu`,只读用 `.value`。
+    private var pictureContent: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
-            SettingListGroup(items: [
-                .init(
-                    id: "advanced-hdr",
-                    title: "HDR",
-                    systemName: "sun.max.trianglebadge.exclamationmark",
-                    supportingText: "Dolby Vision fallback to HDR10",
-                    accessory: .boundToggle(isOn: $hdrEnabled, isEnabled: true, marker: nil)
-                ),
-            ])
-
-            panelSection("Color") {
+            panelSection("Peak Detection") {
                 SettingListGroup(items: [
-                    sliderItem(
-                        id: "color-exposure",
-                        title: "Exposure",
-                        value: $exposure,
-                        leadingSystemImage: "dial.min",
-                        trailingSystemImage: "plusminus.circle"
+                    pickerItem(
+                        id: "picture-hdr-compute-peak",
+                        title: "动态峰值检测",
+                        selection: $hdrComputePeak,
+                        options: ["auto", "yes", "no"]
                     ),
-                    sliderItem(
-                        id: "color-shadows",
-                        title: "Shadows",
-                        value: $shadows,
-                        leadingSystemImage: "circle.righthalf.filled",
-                        trailingSystemImage: "circle.lefthalf.striped.horizontal"
+                    rangeSliderItem(
+                        id: "picture-hdr-peak-percentile",
+                        title: "峰值百分位",
+                        value: $hdrPeakPercentile,
+                        range: 90...100,
+                        decimals: 1
                     ),
-                    sliderItem(
-                        id: "color-highlights",
-                        title: "Highlights",
-                        value: $highlights,
-                        leadingSystemImage: "circle.lefthalf.striped.horizontal",
-                        trailingSystemImage: "circle.righthalf.filled"
+                    rangeSliderItem(
+                        id: "picture-hdr-peak-decay-rate",
+                        title: "峰值平滑率",
+                        value: $hdrPeakDecayRate,
+                        range: 1...100
                     ),
-                    sliderItem(
-                        id: "color-contrast",
-                        title: "Contrast",
-                        value: $contrast,
-                        leadingSystemImage: "circle.lefthalf.filled",
-                        trailingSystemImage: "circle.righthalf.filled"
+                    rangeSliderItem(
+                        id: "picture-hdr-scene-threshold-low",
+                        title: "换场阈值·低",
+                        value: $hdrSceneThresholdLow,
+                        range: 0...20,
+                        decimals: 1
                     ),
-                    sliderItem(
-                        id: "color-whites",
-                        title: "Whites",
-                        value: $whites,
-                        leadingSystemImage: "sun.min",
-                        trailingSystemImage: "sun.max"
+                    rangeSliderItem(
+                        id: "picture-hdr-scene-threshold-high",
+                        title: "换场阈值·高",
+                        value: $hdrSceneThresholdHigh,
+                        range: 0...20,
+                        decimals: 1
                     ),
-                    sliderItem(
-                        id: "color-temperature",
-                        title: "Temperature",
-                        value: $temperature,
-                        leadingSystemImage: "snowflake",
-                        trailingSystemImage: "thermometer.sun.fill"
+                ])
+            }
+
+            panelSection("Output Target") {
+                SettingListGroup(items: [
+                    .init(
+                        id: "picture-target-prim",
+                        title: "输出色域",
+                        accessory: .value("display-p3")
                     ),
-                    sliderItem(
-                        id: "color-tint",
-                        title: "Tint",
-                        value: $tint,
-                        leadingSystemImage: "drop",
-                        trailingSystemImage: "drop.fill"
+                    .init(
+                        id: "picture-target-trc",
+                        title: "输出传递曲线",
+                        accessory: .value("linear")
                     ),
-                    sliderItem(
-                        id: "color-saturation",
-                        title: "Saturation",
+                    rangeSliderItem(
+                        id: "picture-target-peak",
+                        title: "目标峰值亮度 (nits)",
+                        value: $targetPeak,
+                        range: 100...2000,
+                        unit: "nits"
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-reference-white",
+                        title: "HDR 参考白 (nits)",
+                        value: $hdrReferenceWhite,
+                        range: 50...1000,
+                        unit: "nits"
+                    ),
+                    pickerItem(
+                        id: "picture-target-contrast",
+                        title: "目标对比度 / 黑位",
+                        selection: $targetContrast,
+                        options: ["inf", "auto", "100000", "10000", "1000"]
+                    ),
+                ])
+            }
+
+            panelSection("Tone Mapping") {
+                SettingListGroup(items: [
+                    pickerItem(
+                        id: "picture-tone-mapping",
+                        title: "色调映射曲线",
+                        selection: $toneMapping,
+                        options: ["bt.2390", "bt.2446a", "spline", "hable", "mobius"]
+                    ),
+                    rangeSliderItem(
+                        id: "picture-tone-mapping-param",
+                        title: "曲线参数",
+                        value: $toneMappingParam,
+                        range: 0...2,
+                        decimals: 1
+                    ),
+                    .init(
+                        id: "picture-inverse-tone-mapping",
+                        title: "反向色调映射",
+                        accessory: .boundToggle(isOn: $inverseToneMapping, isEnabled: true, marker: nil)
+                    ),
+                    rangeSliderItem(
+                        id: "picture-tone-mapping-max-boost",
+                        title: "最大提亮倍数",
+                        value: $toneMappingMaxBoost,
+                        range: 1...10
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-contrast-recovery",
+                        title: "对比度恢复",
+                        value: $hdrContrastRecovery,
+                        range: 0...2,
+                        decimals: 2
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-contrast-smoothness",
+                        title: "对比度恢复平滑度",
+                        value: $hdrContrastSmoothness,
+                        range: 1...100
+                    ),
+                ])
+            }
+
+            panelSection("Gamut & Color") {
+                SettingListGroup(items: [
+                    pickerItem(
+                        id: "picture-gamut-mapping-mode",
+                        title: "色域映射模式",
+                        selection: $gamutMappingMode,
+                        options: ["clip", "perceptual", "relative", "saturation", "absolute"]
+                    ),
+                    rangeSliderItem(
+                        id: "picture-saturation",
+                        title: "饱和度",
                         value: $saturation,
-                        leadingSystemImage: "paintpalette",
-                        trailingSystemImage: "paintpalette.fill"
+                        range: -100...100
                     ),
-                    sliderItem(
-                        id: "color-vibrance",
-                        title: "Vibrance",
-                        value: $vibrance,
-                        leadingSystemImage: "sparkle",
-                        trailingSystemImage: "sparkles"
+                    rangeSliderItem(
+                        id: "picture-brightness",
+                        title: "亮度",
+                        value: $brightness,
+                        range: -100...100
                     ),
-                    sliderItem(
-                        id: "color-sharpness",
-                        title: "Sharpness",
-                        value: $sharpness,
-                        leadingSystemImage: "circle.dotted",
-                        trailingSystemImage: "scope"
+                    rangeSliderItem(
+                        id: "picture-contrast",
+                        title: "对比度",
+                        value: $contrast,
+                        range: -100...100
+                    ),
+                    rangeSliderItem(
+                        id: "picture-gamma",
+                        title: "伽马",
+                        value: $gamma,
+                        range: -100...100
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hue",
+                        title: "色相",
+                        value: $hue,
+                        range: -100...100
+                    ),
+                ])
+            }
+
+            panelSection("Diagnostics") {
+                SettingListGroup(items: [
+                    .init(
+                        id: "picture-tone-mapping-visualize",
+                        title: "可视化色调曲线",
+                        accessory: .boundToggle(isOn: $toneMappingVisualize, isEnabled: true, marker: nil)
+                    ),
+                    .init(
+                        id: "picture-gamut-mapping-warn",
+                        title: "色域越界标红",
+                        accessory: .action(
+                            title: "Warn",
+                            feedback: "Toggled",
+                            systemName: nil,
+                            role: .normal,
+                            action: {}
+                        )
                     ),
                 ])
             }
@@ -655,7 +974,7 @@ struct PlayerSettingsPanelPreview: View {
             title: category.title,
             isSelected: selectedCategory == category,
             isEnabled: true,
-            isOnline: false,
+            isActiveSource: false,
             isDeletable: false,
             isSelectionMode: false,
             isChecked: false,
@@ -716,27 +1035,83 @@ struct PlayerSettingsPanelPreview: View {
         )
     }
 
+    // 枚举选择行,复用既有 `.menu` accessory:trailing 菜单显示当前值,
+    // 选项点击写回绑定。
+    private func pickerItem(
+        id: String,
+        title: String,
+        selection: Binding<String>,
+        options: [String]
+    ) -> SettingListGroup.Item {
+        SettingListGroup.Item(
+            id: id,
+            title: title,
+            accessory: .menu(
+                title: selection.wrappedValue,
+                options: options.map { option in
+                    SettingListGroup.MenuOption(option) {
+                        selection.wrappedValue = option
+                    }
+                }
+            )
+        )
+    }
+
+    // range-aware 数值滑块行:真实数值域 + 按 decimals/unit 显示读出。
+    private func rangeSliderItem(
+        id: String,
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        decimals: Int = 0,
+        unit: String? = nil
+    ) -> SettingListGroup.Item {
+        SettingListGroup.Item(
+            id: id,
+            title: title,
+            accessory: .none,
+            embeddedControl: .rangeSlider(
+                value: value,
+                range: range,
+                decimals: decimals,
+                unit: unit,
+                accessibilityLabel: title
+            )
+        )
+    }
+
     private func restoreDefaults() {
-        selectedSceneID = "day"
+        selectedEnvironmentID = "day"
         selectedPositionID = "left"
-        sceneAuto = true
+        environmentAuto = true
         screenCurve = 0
         screenHeight = 0
         screenDistance = 0
         screenSize = 0
         threeDMode = false
         immersiveMode = .off
-        hdrEnabled = false
-        exposure = 0
-        shadows = 0
-        highlights = 0
-        contrast = 0
-        whites = 0
-        temperature = 0
-        tint = 0
-        saturation = 0
-        vibrance = 0
-        sharpness = 0
+        // Picture (libplacebo) defaults
+        hdrComputePeak = "auto"
+        hdrPeakPercentile = 99.9
+        hdrPeakDecayRate = 20.0
+        hdrSceneThresholdLow = 1.0
+        hdrSceneThresholdHigh = 3.0
+        targetPeak = 406.0
+        hdrReferenceWhite = 183.0
+        targetContrast = "inf"
+        toneMapping = "bt.2390"
+        toneMappingParam = 0.0
+        inverseToneMapping = false
+        toneMappingMaxBoost = 1.0
+        hdrContrastRecovery = 0.15
+        hdrContrastSmoothness = 100.0
+        gamutMappingMode = "clip"
+        saturation = 9.0
+        brightness = 0.0
+        contrast = 10.0
+        gamma = 1.0
+        hue = 0.0
+        toneMappingVisualize = false
     }
 }
 
@@ -756,9 +1131,9 @@ private struct PlayerSettingsPanelScrollFadeMask: View {
 }
 
 private enum PlayerPanelSettingsCategory: String, CaseIterable, Identifiable {
-    case sceneSetting
+    case environmentSetting
     case playMode
-    case advanced
+    case picture
 
     var id: String {
         rawValue
@@ -766,61 +1141,105 @@ private enum PlayerPanelSettingsCategory: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .sceneSetting:
-            "Scene Setting"
+        case .environmentSetting:
+            "Environment Setting"
         case .playMode:
             "Play Mode"
-        case .advanced:
-            "Advanced"
+        case .picture:
+            "Picture"
         }
     }
 
     var icon: String {
         switch self {
-        case .sceneSetting:
+        case .environmentSetting:
             "mountain.2.fill"
         case .playMode:
             "play.rectangle"
-        case .advanced:
+        case .picture:
             "slider.horizontal.3"
         }
     }
 }
 
-// MARK: - Center slider
+// MARK: - Slider
 
-struct CenterSliderPreview: View {
+// 两种滑块的真相展示面:CenterSlider(居中档位)与 range-aware 的 RangeSlider
+// (真实数值域 + 数值读出)。
+struct SliderPreview: View {
     @State private var exposure = 0
     @State private var fineAdjust = -2
+    @State private var peakPercentile = 99.9
+    @State private var targetPeak = 406.0
+    @State private var saturation = 9.0
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
-                Text("Center Slider")
-                    .font(DesignTokens.Typography.title)
-                    .foregroundStyle(.primary)
-
-                sliderRow(
-                    "Exposure",
-                    value: $exposure,
-                    leading: "sun.min",
-                    trailing: "sun.max"
-                )
-
-                sliderRow(
-                    "Fine Adjust",
-                    value: $fineAdjust,
-                    leading: "minus",
-                    trailing: "plus"
-                )
+                centerSliderSection
+                rangeSliderSection
             }
             .padding(DesignTokens.Spacing.xxl)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .navigationTitle("Center Slider")
+        .navigationTitle("Slider")
     }
 
-    private func sliderRow(
+    private var centerSliderSection: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            Text("Center Slider")
+                .font(DesignTokens.Typography.title)
+                .foregroundStyle(.primary)
+            Text("居中档位、-5…5、Binding<Int>;无内置数值读出。")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+
+            centerRow(
+                "Exposure",
+                value: $exposure,
+                leading: "sun.min",
+                trailing: "sun.max"
+            )
+
+            centerRow(
+                "Fine Adjust",
+                value: $fineAdjust,
+                leading: "minus",
+                trailing: "plus"
+            )
+        }
+    }
+
+    private var rangeSliderSection: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            Text("Slider")
+                .font(DesignTokens.Typography.title)
+                .foregroundStyle(.primary)
+            Text("range-aware、连续、Binding<Double>;按真实数值域映射 + 数值读出(可带小数 / 单位)。")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+
+            rangeRow(
+                "峰值百分位",
+                value: $peakPercentile,
+                range: 90...100,
+                decimals: 1
+            )
+            rangeRow(
+                "目标峰值亮度",
+                value: $targetPeak,
+                range: 100...2000,
+                unit: "nits"
+            )
+            rangeRow(
+                "饱和度",
+                value: $saturation,
+                range: -100...100
+            )
+        }
+    }
+
+    private func centerRow(
         _ title: String,
         value: Binding<Int>,
         leading: String,
@@ -845,20 +1264,575 @@ struct CenterSliderPreview: View {
             )
         }
     }
+
+    // 裸 RangeSlider 不渲染读出(读出在 SettingListRangeSliderRow 里);这里加一段
+    // review-only 读出,让真实数值域 / 小数 / 单位在组件库里可见。
+    private func rangeRow(
+        _ title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        decimals: Int = 0,
+        unit: String? = nil
+    ) -> some View {
+        let readout = value.wrappedValue.formatted(.number.precision(.fractionLength(decimals)))
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                Text("\(title) · \(Int(range.lowerBound))–\(Int(range.upperBound))")
+                    .font(DesignTokens.Typography.headline)
+                Text(unit.map { "\(readout) \($0)" } ?? readout)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+
+            RangeSlider(
+                value: value,
+                range: range,
+                accessibilityLabel: title,
+                accessibilityValue: unit.map { "\(readout) \($0)" } ?? readout,
+                accessibilityIdentifier: "DesignPreview-RangeSlider-\(title)"
+            )
+        }
+    }
 }
 
-// MARK: - Scene card
+// MARK: - Environment card
 
-struct SceneCardPreview: View {
+struct EnvironmentCardPreview: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .center, spacing: DesignTokens.Spacing.xl) {
-                SceneCard()
+                EnvironmentCard()
             }
             .padding(DesignTokens.Spacing.xxl)
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .navigationTitle("Scene Card")
+        .navigationTitle("Environment Card")
+    }
+}
+
+// MARK: - Dialogs
+
+// enchron alert 模式族的真相展示面:两个 modifier 各一个触发按钮,点按弹出对应
+// alert。两者同为系统 `.alert` 表面、无 authored color;破坏性确认走
+// ButtonRole.destructive 自动红,错误对话框是非破坏性双动作。
+struct DialogsPreview: View {
+    @State private var showsDestructive = false
+    @State private var showsError = false
+    @State private var lastAction = "未触发"
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+                dialogRow(
+                    title: "Destructive Confirmation",
+                    subtitle: "enchronDestructiveConfirmation · 标题+描述 · Cancel 固定 · Confirm 走 ButtonRole.destructive 自动红",
+                    buttonTitle: "Clear Cache",
+                    identifier: "DesignPreview-Dialogs-trigger-destructive"
+                ) {
+                    showsDestructive = true
+                }
+
+                dialogRow(
+                    title: "Error Dialog",
+                    subtitle: "enchronErrorDialog · 非破坏性双动作 · 主动作(Retry)+ 取消动作(OK)",
+                    buttonTitle: "Trigger Error",
+                    identifier: "DesignPreview-Dialogs-trigger-error"
+                ) {
+                    showsError = true
+                }
+
+                Text("最近动作:\(lastAction)")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(DesignTokens.Spacing.xxl)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .navigationTitle("Dialogs")
+        .enchronDestructiveConfirmation(
+            "Clear Cache?",
+            message: "This frees up disk space. Downloaded files and history aren't affected.",
+            confirmTitle: "Clear",
+            isPresented: $showsDestructive,
+            onConfirm: { lastAction = "Destructive · Clear" }
+        )
+        .enchronErrorDialog(
+            "File Browser Error",
+            message: "Couldn't load this location. Check the source connection and try again.",
+            primaryTitle: "Retry",
+            secondaryTitle: "OK",
+            isPresented: $showsError,
+            identifierPrefix: "DesignPreview-Dialogs-error",
+            onPrimary: { lastAction = "Error · Retry" },
+            onSecondary: { lastAction = "Error · OK" }
+        )
+    }
+
+    private func dialogRow(
+        title: String,
+        subtitle: String,
+        buttonTitle: String,
+        identifier: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.title)
+                .foregroundStyle(.primary)
+            Text(subtitle)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+
+            Button(buttonTitle, action: action)
+                .buttonStyle(.bordered)
+                .accessibilityIdentifier(identifier)
+        }
+    }
+}
+
+// MARK: - Connection form (EXPLORATORY)
+
+// EXPLORATORY: 「建立新连接」面板探索稿。验收满意后再决定是否把字段控件
+// (ConnectionFormField) 提升为 SharedComponents 稳定组件、把临时色/形状/尺寸
+// 转成 DesignTokens。在此之前不得复制进 ComponentLibrary / SharedComponents。
+// 范围边界:这是设计审查用 mockup——状态由 mock 状态机驱动,不接真实 AMSMB2 /
+// WebDAV 网络逻辑(真实连接/超时属于未来 FakeApp 阶段)。
+
+/// 连接协议。单组件靠它决定字段集合与地址校验规则。
+enum ConnectionKind: String, CaseIterable, Identifiable {
+    case smb
+    case webdav
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .smb: "SMB"
+        case .webdav: "WebDAV"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .smb: "局域网共享 · 主机名或 IP"
+        case .webdav: "HTTP(S) 服务器 · 完整地址"
+        }
+    }
+
+    var systemImage: String {
+        switch self {
+        case .smb: "externaldrive.connected.to.line.below"
+        case .webdav: "network"
+        }
+    }
+
+    var addressLabel: String {
+        switch self {
+        case .smb: "地址"
+        case .webdav: "服务器地址"
+        }
+    }
+
+    var addressPlaceholder: String {
+        switch self {
+        case .smb: "192.168.1.10 或 mynas.local"
+        case .webdav: "https://dav.example.com/remote.php/dav"
+        }
+    }
+}
+
+/// 连接生命周期的视觉状态。由 mock 驱动,供审查各状态外观。
+/// 连接生命周期状态,由面板内的 mock 状态机驱动。
+enum ConnectionMockState {
+    case idle
+    case connecting
+    case error
+    case timeout
+    case success
+}
+
+/// EXPLORATORY: 带标签 / 焦点态 / 错误态的表单输入字段。
+/// 组件库尚无此视觉形态——已上报人类裁决,暂以探索稿形态存在。
+struct ConnectionFormField: View {
+    let label: String
+    let placeholder: String
+    @Binding var text: String
+    var isSecure = false
+    var accessibilityIdentifier: String
+
+    @FocusState private var isFocused: Bool
+
+    // EXPLORATORY: 字段外形未进 token——12pt 圆角、44pt 高沿用现有 Radius.small /
+    // Interactive.regular;焦点描边复用 Surface.focusBorder。
+    private let shape = RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(label)
+                .font(DesignTokens.Typography.sectionHeader)
+                .foregroundStyle(DesignTokens.Surface.supportingText)
+
+            Group {
+                if isSecure {
+                    SecureField(placeholder, text: $text)
+                } else {
+                    TextField(placeholder, text: $text)
+                }
+            }
+            .textFieldStyle(.plain)
+            .font(.body)
+            .foregroundStyle(.primary)
+            .focused($isFocused)
+            .textInputAutocapitalization(.never)
+            .autocorrectionDisabled(true)
+            .hoverEffectDisabled()
+            .padding(.horizontal, DesignTokens.Spacing.md)
+            .frame(height: DesignTokens.Interactive.regular)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .clipShape(shape)
+            .glassBackgroundEffect(in: shape)
+            .contentShape(.hoverEffect, shape)
+            .hoverEffect(.automatic)
+            .contentShape(shape)
+            .overlay {
+                shape
+                    .strokeBorder(
+                        isFocused ? DesignTokens.Surface.focusBorder : .clear,
+                        lineWidth: DesignTokens.Stroke.bold
+                    )
+                    .animation(DesignTokens.AnimationToken.selection, value: isFocused)
+            }
+            .accessibilityIdentifier(accessibilityIdentifier)
+            .accessibilityLabel(label)
+        }
+    }
+}
+
+/// EXPLORATORY: 单组件 + 协议参数 + mock 状态机。SMB / WebDAV 共享外壳与状态区,
+/// 仅字段集合随 `kind` 变化。胶囊按钮;SMB 访客开关在账号密码下方。
+///
+/// 行为是设计审查用的假业务生命周期(点连接 → 3s 等待 → 结果 → 自动关闭),
+/// 不接真实网络;3s 等待 / 正确连接信息均为临时常量,后续删除或迁 FakeApp。
+struct ConnectionFormPanel: View {
+    let kind: ConnectionKind
+    var onDismiss: () -> Void = {}
+
+    // 预填的默认值同时也是「正确」连接信息:开箱即可点成功,改错可测失败路径。
+    @State private var address = ConnectionFormPanel.correctAddress
+    @State private var username = ConnectionFormPanel.correctUsername
+    @State private var password = ConnectionFormPanel.correctPassword
+    @State private var connectAsGuest = false   // SMB 专属:默认关闭,常显账号密码
+    @State private var state: ConnectionMockState = .idle
+    @State private var connectTask: Task<Void, Never>?
+
+    // EXPLORATORY: 面板宽度与状态色未进 token。绿色成功 / 橙色超时 / 红色失败
+    // 是 mockup 临时色;提升前需新增语义 token 或复用既有色。
+    private let panelWidth: CGFloat = 420
+    private let shape = DesignTokens.ShapeToken.card
+
+    // EXPLORATORY: mock 正确连接信息与计时常量,非真实凭证、非真实超时。
+    private static let correctAddress = "192.168.1.1"
+    private static let correctUsername = "123"
+    private static let correctPassword = "123"
+    private let connectWaitDuration: Duration = .seconds(3)
+    private let successHoldDuration: Duration = .seconds(1)
+    // 账密揭示相对容器/按钮的滞后量。
+    private let credentialRevealDelay: Double = 0.18
+
+    private var showsCredentials: Bool {
+        switch kind {
+        case .smb: !connectAsGuest
+        case .webdav: true
+        }
+    }
+
+    /// 连接中或成功(待自动关闭)期间,锁定整个输入区。
+    private var isBusy: Bool {
+        state == .connecting || state == .success
+    }
+
+    /// 访客模式不要求账密;其余情况账密必填。
+    private var credentialsRequired: Bool {
+        !(kind == .smb && connectAsGuest)
+    }
+
+    private var inputsComplete: Bool {
+        guard !address.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
+        if credentialsRequired {
+            return !username.isEmpty && !password.isEmpty
+        }
+        return true
+    }
+
+    private var connectDisabled: Bool {
+        isBusy || !inputsComplete
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            header
+            fields
+            statusRegion
+            actions
+        }
+        .padding(DesignTokens.Spacing.xl)
+        .frame(width: panelWidth, alignment: .leading)
+        .clipShape(shape)
+        .glassBackgroundEffect(in: shape)
+        // 动画挂在整个面板根部:容器/按钮高度按同一条曲线立即联动;
+        // 账密块靠自身延迟过渡滞后浮现(见 credentialsTransition)。
+        .animation(DesignTokens.AnimationToken.selection, value: showsCredentials)
+        .animation(DesignTokens.AnimationToken.selection, value: state)
+        .onDisappear { connectTask?.cancel() }
+    }
+
+    private var header: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Image(systemName: kind.systemImage)
+                .font(DesignTokens.SymbolSize.selectionHeaderIcon)
+                .foregroundStyle(DesignTokens.Theme.accent)
+                .frame(width: DesignTokens.Interactive.regular)
+
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                Text("连接到 \(kind.title)")
+                    .font(DesignTokens.Typography.headline)
+                    .foregroundStyle(.primary)
+                Text(kind.subtitle)
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.Surface.supportingText)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    // 账号密码显隐过渡,对齐 SettingListGroup「Current Media Inspector」展开:
+    // 从顶部 scale 0.96 + opacity 长出,opacity 收起。
+    // 插入带 credentialRevealDelay:容器/按钮已挂根部动画立即就位,
+    // 字段滞后浮现,形成「框先动、账密后现」的异步观感。
+    private var credentialsTransition: AnyTransition {
+        .asymmetric(
+            insertion: AnyTransition.scale(scale: 0.96, anchor: .top)
+                .combined(with: .opacity)
+                .combined(with: .move(edge: .top))
+                .animation(DesignTokens.AnimationToken.selection.delay(credentialRevealDelay)),
+            removal: AnyTransition.opacity
+                .animation(DesignTokens.AnimationToken.selection)
+        )
+    }
+
+    @ViewBuilder
+    private var credentialFields: some View {
+        ConnectionFormField(
+            label: "用户名",
+            placeholder: "用户名",
+            text: $username,
+            accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-username"
+        )
+        ConnectionFormField(
+            label: "密码",
+            placeholder: "密码",
+            text: $password,
+            isSecure: true,
+            accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-password"
+        )
+    }
+
+    private var guestToggle: some View {
+        Toggle("以访客身份连接", isOn: $connectAsGuest)
+            .font(DesignTokens.Typography.selectionHeader)
+            .tint(DesignTokens.Theme.accent)
+    }
+
+    @ViewBuilder
+    private var fields: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            ConnectionFormField(
+                label: kind.addressLabel,
+                placeholder: kind.addressPlaceholder,
+                text: $address,
+                accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-address"
+            )
+
+            if showsCredentials {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+                    credentialFields
+                }
+                .transition(credentialsTransition)
+            }
+
+            // 访客开关在账号密码下方。
+            if kind == .smb {
+                guestToggle
+            }
+        }
+        // 连接中/成功期间锁定地址、账密与访客开关,避免中途改动。
+        .disabled(isBusy)
+    }
+
+    @ViewBuilder
+    private var statusRegion: some View {
+        Group {
+            switch state {
+            case .idle:
+                EmptyView()
+            case .connecting:
+                HStack(spacing: DesignTokens.Spacing.sm) {
+                    LoadingSpinner(size: DesignTokens.Interactive.compact)
+                    Text("正在连接…")
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
+            case .error:
+                statusLine(systemImage: "exclamationmark.triangle.fill",
+                           text: "连接失败:认证被拒绝,请检查用户名和密码",
+                           tint: .red)
+            case .timeout:
+                statusLine(systemImage: "clock.badge.exclamationmark",
+                           text: "连接超时:无法访问该地址,请检查网络",
+                           tint: .orange)
+            case .success:
+                statusLine(systemImage: "checkmark.circle.fill",
+                           text: "连接成功",
+                           tint: DesignTokens.Theme.accent)
+            }
+        }
+        // 连接中 / 警告 / 成功的出现都从顶部淡入,而非瞬现。
+        .transition(.opacity.combined(with: .move(edge: .top)))
+    }
+
+    // EXPLORATORY: 状态行临时色直接取 .red/.orange 与 accent,未抽 token。
+    private func statusLine(systemImage: String, text: String, tint: Color) -> some View {
+        HStack(spacing: DesignTokens.Spacing.xs) {
+            Image(systemName: systemImage)
+                .foregroundStyle(tint)
+            Text(text)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(DesignTokens.Surface.accessoryText)
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var actions: some View {
+        HStack(spacing: DesignTokens.Interactive.buttonSpacing) {
+            Spacer(minLength: 0)
+            GlassCapsuleIconLabelButton(
+                title: "取消",
+                systemName: "xmark",
+                accessibilityLabel: "取消",
+                action: cancelAndDismiss,
+                accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-cancel"
+            )
+            GlassCapsuleIconLabelButton(
+                title: "连接",
+                systemName: "link",
+                accessibilityLabel: "连接",
+                action: connect,
+                accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-connect"
+            )
+            .opacity(connectDisabled ? 0.5 : 1)
+            .disabled(connectDisabled)
+        }
+    }
+
+    // MARK: - Mock 状态机
+    // TODO(FakeApp): 这整套连接状态机(3s 等待 / 正确连接信息 / 自动关闭)仅供
+    // 当前预览,后续整体拆出到 Fake App,本面板回归纯视觉组件。
+
+    /// 点连接:进入 3s 等待,期满后判定结果。
+    private func connect() {
+        connectTask?.cancel()
+        state = .connecting
+        connectTask = Task {
+            try? await Task.sleep(for: connectWaitDuration)
+            guard !Task.isCancelled else { return }
+            resolveOutcome()
+        }
+    }
+
+    /// 判定优先级:地址不可达(超时)→ 凭证错误(报错)→ 成功。
+    private func resolveOutcome() {
+        let addressOK = address.trimmingCharacters(in: .whitespaces) == Self.correctAddress
+        let credentialsOK: Bool = {
+            // 访客模式不带认证,只看地址。
+            if kind == .smb && connectAsGuest { return true }
+            return username == Self.correctUsername && password == Self.correctPassword
+        }()
+
+        if !addressOK {
+            state = .timeout
+        } else if !credentialsOK {
+            state = .error
+        } else {
+            state = .success
+            scheduleAutoDismiss()
+        }
+    }
+
+    /// 成功后停留片刻让用户看清,再自动关闭。
+    private func scheduleAutoDismiss() {
+        connectTask?.cancel()
+        connectTask = Task {
+            try? await Task.sleep(for: successHoldDuration)
+            guard !Task.isCancelled else { return }
+            onDismiss()
+        }
+    }
+
+    /// 取消:撤销挂起任务并立即关闭。
+    private func cancelAndDismiss() {
+        connectTask?.cancel()
+        onDismiss()
+    }
+}
+
+struct ConnectionFormPreview: View {
+    @State private var smbPresented = true
+    @State private var webdavPresented = true
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                    Text("Connection Form")
+                        .font(DesignTokens.Typography.title)
+                        .foregroundStyle(.primary)
+                    Text("默认预填正确连接信息(192.168.1.1 / 123 / 123)。点连接 → 等 3s → 成功后自动关闭;改错地址出超时、改错账密出报错;取消随时关闭。关闭后用「重新打开」复看。")
+                        .font(DesignTokens.Typography.metadata)
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
+
+                HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
+                    panelColumn(kind: .smb, presented: $smbPresented)
+                    panelColumn(kind: .webdav, presented: $webdavPresented)
+                }
+            }
+            .padding(DesignTokens.Spacing.xxl)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .navigationTitle("Connection Form")
+    }
+
+    private func panelColumn(
+        kind: ConnectionKind,
+        presented: Binding<Bool>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            if presented.wrappedValue {
+                ConnectionFormPanel(kind: kind, onDismiss: { presented.wrappedValue = false })
+                    // EXPLORATORY: 消失动画——缩小 + 淡出,临时 scale 值。
+                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+            } else {
+                GlassCapsuleIconLabelButton(
+                    title: "重新打开 \(kind.title)",
+                    systemName: "arrow.clockwise",
+                    accessibilityLabel: "重新打开 \(kind.title)",
+                    action: { presented.wrappedValue = true },
+                    accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-reopen"
+                )
+            }
+        }
+        .frame(width: 420, alignment: .top)
+        .animation(DesignTokens.AnimationToken.panelSpring, value: presented.wrappedValue)
     }
 }
 
@@ -1427,7 +2401,7 @@ struct TypographySymbolsPreview: View {
             .spec("action", "36pt medium", "play/pause primary action") {
                 symbolGlyph(DesignTokens.SymbolSize.action)
             },
-            .spec("feature", "44pt", "scene selector and large UI icons") {
+            .spec("feature", "44pt", "environment selector and large UI icons") {
                 symbolGlyph(DesignTokens.SymbolSize.feature)
             },
             .spec("hero", "48pt", "hero detail view icons") {

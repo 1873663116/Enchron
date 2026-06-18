@@ -12,9 +12,9 @@ import SwiftUI
     "SenseZone Volume",
     windowStyle: .volumetric,
     traits: .fixedLayout(
-        width: DesignTokens.SceneCarousel.stageWidth,
-        height: DesignTokens.SceneCarousel.stageHeight,
-        depth: DesignTokens.SceneCarousel.stageDepth
+        width: DesignTokens.EnvironmentCarousel.stageWidth,
+        height: DesignTokens.EnvironmentCarousel.stageHeight,
+        depth: DesignTokens.EnvironmentCarousel.stageDepth
     )
 ) {
     SenseZoneVolumePreviewHost()

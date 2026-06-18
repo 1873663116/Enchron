@@ -1,6 +1,6 @@
 # Enchron
 
-面向 visionOS 的沉浸式视频播放器。本文件是项目唯一术语源：新术语先进入这里，再进入代码与文档。模块归属与不变量见 `ARCHITECTURE.md`。
+面向 visionOS 的沉浸式视频播放器。本文件是项目**领域语言**术语源：跨模块的领域事实先进入这里，再进入代码与文档。DesignPreview 的**组件语言**（视觉角色 / 屏幕 / tab / 面板分类的名字）在 `DesignPreview/CONTEXT.md`；某个词进哪一层的裁决判据见根目录 `CONTEXT-MAP.md`。模块归属与不变量见 `ARCHITECTURE.md`。
 
 ## Language
 
@@ -74,6 +74,12 @@ _Avoid_: 源文件类型
 **PlaybackMode**:
 当前视频的呈现方式：窗口、沉浸场景或全景。presentation decision。
 _Avoid_: engine decision、FrameExit
+
+### 空间环境
+
+**Environment（环境）**:
+用户在环境卡片轮播（`EnvironmentCardCarousel`）中选择的沉浸观影环境（如 Snow Village），由美术仓 `xrplay_scene` 的 RCP3 场景提供，视频在其中播放。领域概念；2026-06-17 由旧名「Scene」改名以避开 SwiftUI `Scene` 协议（见 `docs/adr/0005`）。用例表前缀 `ENV`（2026-06-18 由 `SCEN` 改名，推翻 ADR-0005 的「沿用 SCEN」，见 `docs/adr/0006`）。
+_Avoid_: SwiftUI `Scene`（窗口/空间容器协议）、`SpatialScene`（渲染模块）、`PresentationSurface`（帧载体）、裸词「场景」
 
 ### 文件与来源
 

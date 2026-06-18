@@ -30,11 +30,11 @@ struct DesignPreviewRoot: View {
                 }
                 .tag(DesignPreviewTab.settings)
 
-            DesignPreviewSceneLaunchPage()
+            DesignPreviewEnvironmentLaunchPage()
                 .tabItem {
-                    Label("Scene", systemImage: "mountain.2")
+                    Label("Environments", systemImage: "mountain.2")
                 }
-                .tag(DesignPreviewTab.scene)
+                .tag(DesignPreviewTab.environment)
         }
         .tabViewStyle(.sidebarAdaptable)
         .accessibilityIdentifier("DesignPreview-rootTabView")
@@ -52,26 +52,26 @@ struct DesignPreviewRoot: View {
             case .files, .settings:
                 navigationModel.selectedTab = newTab
                 navigationModel.rememberReturnRoute(from: newTab)
-            case .scene:
+            case .environment:
                 openSenseZone(from: navigationModel.selectedTab)
             }
         }
     }
 
     private func openSenseZone(from previousTab: DesignPreviewTab) {
-        guard !navigationModel.isSceneTransitionInFlight else { return }
+        guard !navigationModel.isEnvironmentTransitionInFlight else { return }
 
         let returnTab = previousTab.restorableTab ?? navigationModel.returnRoute.tab
         navigationModel.rememberReturnRoute(from: returnTab)
-        navigationModel.isSceneTransitionInFlight = true
+        navigationModel.isEnvironmentTransitionInFlight = true
         navigationModel.selectedTab = returnTab
         openWindow(id: DesignPreviewNavigationModel.senseZoneVolumeID)
         dismissWindow(id: DesignPreviewNavigationModel.mainWindowID)
-        navigationModel.isSceneTransitionInFlight = false
+        navigationModel.isEnvironmentTransitionInFlight = false
     }
 }
 
-private struct DesignPreviewSceneLaunchPage: View {
+private struct DesignPreviewEnvironmentLaunchPage: View {
     var body: some View {
         Color.clear
             .accessibilityLabel("Opening SenseZone")

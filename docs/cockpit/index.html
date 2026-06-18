@@ -32,12 +32,17 @@
 <body>
 <main>
   <h1>Enchron 驾驶舱</h1>
-  <div class="meta">最后更新：2026-06-10 ｜ 维护者：agent 每轮收尾刷新（只写不读）</div>
+  <div class="meta">最后更新：2026-06-18 ｜ 维护者：agent 每轮收尾刷新（只写不读）</div>
   <div class="notice">本页是<b>非规范的人类投影</b>：只服务你的全景、回忆与学习。agent 不从这里取事实；与规范文档冲突时以规范文档为准并重建本页。</div>
 
   <div class="banner">
     <div class="stage">当前阶段：阶段 2 —— mpv 正式接入 visionOS（理论已闭环，进入实证）</div>
     <div class="next">现在最重要的一件事：<b>T1 打包（<a href="https://github.com/1873663116/XrPlayer/issues/22">#22</a>）</b>——在 mac 上 fork MPVKit、合 patch、出 xros XCFramework、nm 验 xr_resident 符号。</div>
+  </div>
+
+  <div class="banner">
+    <div class="stage">并行轨：DesignPreview / FakeApp 前端（2026-06-18 一轮）</div>
+    <div class="next">本轮做了：<b>命名规范化 + 用例表全口径审查重写</b>。Scene→Environment 改名收尾、前缀 SCEN→ENV、双上下文（领域语言根 CONTEXT / 组件语言 DesignPreview CONTEXT，靠 <a href="../../CONTEXT-MAP.md">CONTEXT-MAP</a> 三问判据裁决）；<a href="../use_cases.md">use_cases.md</a> 逐 UC 对照设计稿审查重写（393 行、16 条新 UC、污染回填）；comp 重建（Picture=libplacebo 调参面板 + range-aware 滑块、FILE-03 Manage 入口、空/加载/错误/续播等蓝图状态）。决策留痕见 <a href="../adr/0006-ledger-conflict-governance-dual-context-and-prefix-env.md">ADR-0006</a>。证据级：编译通过；<b>待 Canvas 视觉验收 + 提交/PR</b>。</div>
   </div>
 
   <h2>状态看两处（本页不再镜像清单）</h2>
@@ -92,6 +97,12 @@
     <tr><td>真相时态</td><td>活法律会腐烂（要少要新），时间戳记录不会（随便堆）；治腐烂只盯前者</td><td>🟡</td></tr>
     <tr><td>不对称性设计</td><td>好的协作机制不是平等，是互补缺陷：你健忘他失忆，你疲劳他不知疲倦</td><td>🟡</td></tr>
     <tr><td>修宪走 ADR</td><td>「一切可推翻」不滑向混乱的锚：推翻可以，留痕必须</td><td>🟡</td></tr>
+    <tr><td>Environment（原 Scene）</td><td>影厅环境改名避开和 SwiftUI Scene 撞车；前缀 SCEN→ENV，ID 不承载语义所以敢 churn</td><td>✅</td></tr>
+    <tr><td>双上下文 + 三问判据</td><td>两本词典：领域语言（根 CONTEXT）vs 组件语言（DesignPreview CONTEXT）；某词进哪本走 CONTEXT-MAP 三问，纯文案哪本都不进</td><td>✅</td></tr>
+    <tr><td>用例表无默认权威</td><td>用例表是 agent 写的初稿、设计稿也是你的意志；冲突时谁也不天然对，摆出来你裁——连「表为准」都让位</td><td>✅</td></tr>
+    <tr><td>library → comp（组件库先于 comp）</td><td>组件先在 ContentView 组件库立 showcase，comp 只组合；不能先改 comp 再补库，依赖不可逆</td><td>✅</td></tr>
+    <tr><td>rangeSlider vs CenterSlider</td><td>两种滑块：居中 ±档（CenterSlider）vs 带真实量程+读数的连续滑块（rangeSlider）</td><td>🟡</td></tr>
+    <tr><td>Picture = libplacebo 画面区</td><td>播放面板的画面调参 = mpv/libplacebo 官方参数全集（峰值/色调映射/色域…），不是消费级调色</td><td>🟡</td></tr>
   </table>
 
   <h2>文档地图（人话版宪章）</h2>

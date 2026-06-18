@@ -9,7 +9,7 @@ struct SenseZoneVolumeRoot: View {
     @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
-        CampScenePage(onReturn: returnToMainWindow)
+        CampEnvironmentPage(onReturn: returnToMainWindow)
             .overlay {
                 SenseZoneVolumeLayoutBoundsProbe()
             }
@@ -18,14 +18,14 @@ struct SenseZoneVolumeRoot: View {
     }
 
     private func returnToMainWindow() {
-        guard !navigationModel.isSceneTransitionInFlight else { return }
+        guard !navigationModel.isEnvironmentTransitionInFlight else { return }
 
         // TODO: Restore the main window when the system Window Bar closes this volume.
-        navigationModel.isSceneTransitionInFlight = true
+        navigationModel.isEnvironmentTransitionInFlight = true
         navigationModel.restoreReturnRoute()
         openWindow(id: DesignPreviewNavigationModel.mainWindowID)
         dismissWindow(id: DesignPreviewNavigationModel.senseZoneVolumeID)
-        navigationModel.isSceneTransitionInFlight = false
+        navigationModel.isEnvironmentTransitionInFlight = false
     }
 }
 
