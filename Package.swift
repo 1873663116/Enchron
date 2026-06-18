@@ -65,6 +65,7 @@ let package = Package(
                 "XrPlayer/PlaybackCore/Adapters/MPV/EDRMetadataDescriptor.swift",
                 "XrPlayer/PlaybackCore/Adapters/MPV/ProjectionDetection.swift",
                 "XrPlayer/SpatialScene/Domain/SpatialSceneDomain.swift",
+                "XrPlayer/SpatialScene/Domain/EnvironmentSceneMapping.swift",
                 "XrPlayer/SpatialScene/Domain/CinemaEnvironment.swift",
                 "XrPlayer/SpatialScene/Domain/ScreenGeometry.swift",
                 "XrPlayer/SpatialScene/Domain/VirtualScreenConfiguration.swift",
