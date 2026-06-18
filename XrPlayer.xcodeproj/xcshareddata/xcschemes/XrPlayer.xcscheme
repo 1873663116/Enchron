@@ -27,21 +27,13 @@
       buildConfiguration = "Debug"
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
-      shouldUseLaunchSchemeArgsEnv = "YES"
-      shouldAutocreateTestPlan = "YES">
-      <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "YES">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "E2E0000100000000DEADBEEF"
-               BuildableName = "XrPlayerUITests.xctest"
-               BlueprintName = "XrPlayerUITests"
-               ReferencedContainer = "container:XrPlayer.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
-      </Testables>
+      shouldUseLaunchSchemeArgsEnv = "YES">
+      <TestPlans>
+         <TestPlanReference
+            reference = "container:XrPlayer.xctestplan"
+            default = "YES">
+         </TestPlanReference>
+      </TestPlans>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"
