@@ -33,6 +33,10 @@ struct SourceSidebar: View {
     var title: String = "Sources"
     var containerIdentifier: String = "SourceSidebar"
     var identifierPrefix: String = "SourceSidebar"
+    /// Invoked when a source row is tapped (not in selection/swipe mode). Optional so
+    /// the DesignPreview mock can stay view-only; the app passes it to drive the
+    /// view-model's source switching (UC-FILE-16).
+    var onSelectSource: ((SidebarSourceItem.ID) -> Void)?
 
     @State private var isSelectingSidebarItems = false
     @State private var selectedSourceIDs: Set<SidebarSourceItem.ID> = []
@@ -99,6 +103,9 @@ struct SourceSidebar: View {
                         rowOffset: sourceRowOffset(for: item),
                         allowsReordering: true,
                         allowsSwipe: true,
+                        onTap: {
+                            onSelectSource?(item.id)
+                        },
                         onToggleSelection: {
                             toggleSourceSelection(item.id)
                         },

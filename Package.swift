@@ -81,7 +81,14 @@ let package = Package(
                 "XrPlayer/Persistence/Domain/Ports/ScreenPositionStoring.swift",
                 "XrPlayer/Persistence/Adapters/SwiftDataStore.swift",
                 "XrPlayer/PlayerUI/Domain/ValueObjects/PlaybackMode.swift",
-                "XrPlayer/Shared/DesignSystem/DesignTokens.swift"
+                "XrPlayer/Shared/DesignSystem/DesignTokens.swift",
+                "XrPlayer/Persistence/Domain/ValueObjects/ResumePolicy.swift",
+                "XrPlayer/Persistence/Domain/ValueObjects/PlaybackEndBehavior.swift",
+                "XrPlayer/Persistence/Domain/Entities/UserPreferences.swift",
+                "XrPlayer/Persistence/Domain/Ports/PreferencesStoring.swift",
+                "XrPlayer/Persistence/Adapters/Fake/FakePreferencesStore.swift",
+                "XrPlayer/PlaybackCore/Adapters/Fake/FakePlaybackSource.swift",
+                "XrPlayer/FileBrowsing/Adapters/Fake/FakeFileDataSource.swift"
             ],
             linkerSettings: [
                 .linkedFramework("Security"),
