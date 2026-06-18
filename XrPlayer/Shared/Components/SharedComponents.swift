@@ -1,5 +1,10 @@
 import SwiftUI
 
+// swiftlint:disable file_length
+// Consolidated shared component library (used by both the app screens and the
+// DesignPreview Canvas). Splitting into per-component-family files is tracked
+// as separate hygiene; the file_length rule is waived here, not globally.
+
 // MARK: - Shared components used by the Design System review pages
 
 // MARK: - Reusable controls

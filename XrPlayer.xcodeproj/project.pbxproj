@@ -60,6 +60,7 @@
 		C3A35AC72F85434200DA0D16 /* Exceptions for "XrPlayer" folder in "DesignPreview" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				Shared/Components/SharedComponents.swift,
 				Shared/DesignSystem/DesignTokens.swift,
 				"Shared/DesignSystem/View+EnchronGlass.swift",
 				"Shared/DesignSystem/View+PressFeedback.swift",
@@ -72,18 +73,15 @@
 				ComponentLibrary.swift,
 				ContentView.swift,
 				DesignComps/DesignCompsPreviewGallery.swift,
-				DesignComps/Pages/Home/HomeFirstLaunchPage.swift,
-				DesignComps/Pages/Home/HomeV1Page.swift,
-				DesignComps/Pages/Player/PlayerControlPanelPage.swift,
-				DesignComps/Pages/Player/WindowPlaybackPage.swift,
 				DesignComps/Pages/Environment/CampEnvironmentPage.swift,
 				DesignComps/Pages/Environment/SenseZoneVolumeRoot.swift,
+				DesignComps/Pages/Home/HomeFirstLaunchPage.swift,
+				DesignComps/Pages/Player/WindowPlaybackPage.swift,
 				DesignComps/Pages/Settings/SettingsPage.swift,
 				DesignComps/Windows/EmptyPanelWindowContent.swift,
 				DesignPreviewApp.swift,
 				DesignPreviewNavigationModel.swift,
 				DesignPreviewRoot.swift,
-				SharedComponents.swift,
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};
