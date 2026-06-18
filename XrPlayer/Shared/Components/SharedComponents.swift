@@ -1848,6 +1848,9 @@ struct EnvironmentCard: View {
 struct EnvironmentCardCarousel: View {
     var environments: [FeaturedEnvironment] = FeaturedEnvironment.fixtures
     var onReturn: () -> Void = {}
+    /// Center-card expand (enter immersive). Forwarded from the focused card's
+    /// expand control; defaults to no-op for Canvas review (ENV-18).
+    var onExpand: (FeaturedEnvironment) -> Void = { _ in }
 
     @State private var scrollPosition: CGFloat = 0
     @State private var dragTranslation: CGFloat = 0
@@ -1868,7 +1871,7 @@ struct EnvironmentCardCarousel: View {
                         detailVisibility: interactionDetailVisibility(for: item.visualPosition),
                         atmosphericFade: atmosphericFade(for: item.visualPosition),
                         onReturn: onReturn,
-                        onExpand: {},
+                        onExpand: { onExpand(item.environment) },
                         onMore: {}
                     )
                     .allowsHitTesting(abs(item.visualPosition) < Metrics.centerHitTestingDistance)

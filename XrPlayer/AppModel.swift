@@ -17,6 +17,14 @@ public final class AppModel {
     public var selectedTab: NavigationTab = .files
     public var showSceneSelector: Bool = false
 
+    // MARK: - SenseZone Volume (Environments destination)
+    /// Volumetric WindowGroup id hosting the polished EnvironmentCardCarousel.
+    public static let senseZoneVolumeID = "senseZoneVolume"
+    /// Tab to restore in the main window when the SenseZone volume closes (ENV-14).
+    public var environmentReturnTab: NavigationTab = .files
+    /// Guards against re-entrant volume open/close during a transition (ENV-15).
+    public var isEnvironmentTransitionInFlight: Bool = false
+
     // MARK: - Immersive Space State
     public let immersiveSpaceID = "ImmersiveSpace"
 
