@@ -95,14 +95,14 @@ struct XrPlayerApp: App {
         // app is exercisable without real disk/network. Swap FakeFileDataSource()
         // → LocalDataSourceAdapter() at this single site to ship on real files.
         let localDataSource: any LocalFileSource = FakeFileDataSource()
+        // FILE-01: tapping a video card plays it directly — no detail page. The
+        // prepare/confirm path (which fed the retired VideoDetailView) is dropped, so
+        // `selectFile` routes straight to `beginPlayback`.
         let fileBrowsingViewModel = FileBrowsingViewModel(
             localDataSource: localDataSource,
             prefetchService: sharedPrefetchService,
             onPlayFile: { request in
                 launcher.beginPlayback(request)
-            },
-            onPrepareFile: { request in
-                launcher.preparePlayback(request)
             }
         )
 

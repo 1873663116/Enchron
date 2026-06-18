@@ -6,9 +6,15 @@ import Observation
 public final class AppModel {
     // MARK: - Navigation State
     public enum NavigationTab: String, CaseIterable {
-        case browse, recent, settings
+        case files, settings, environment
+
+        /// Files/Settings render content in the main window; Environment opens a
+        /// separate destination (volume) and does not park the main window (LNCH-03).
+        var isContentDestination: Bool {
+            self != .environment
+        }
     }
-    public var selectedTab: NavigationTab = .browse
+    public var selectedTab: NavigationTab = .files
     public var showSceneSelector: Bool = false
 
     // MARK: - Immersive Space State

@@ -76,12 +76,14 @@ public struct MainView: View {
             // Kept in tree (not removed via if/else) to preserve NavigationSplitView state.
             Group {
                 switch appModel.selectedTab {
-                case .browse:
-                    FileBrowserView()
-                case .recent:
-                    RecentlyPlayedView()
+                case .files:
+                    FilesScreen()
                 case .settings:
                     SettingsView()
+                case .environment:
+                    // Environments opens a separate destination; the tab never parks
+                    // here (see NavigationOrnament). Render nothing if ever reached.
+                    Color.clear
                 }
             }
             .opacity(isWindowPlaybackActive ? 0 : 1)

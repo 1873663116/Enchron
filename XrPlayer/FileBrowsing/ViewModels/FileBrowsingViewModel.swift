@@ -26,6 +26,28 @@ public final class FileBrowsingViewModel {
     /// Watched seconds keyed by MediaFile.id (UUID) for progress indicators in file list.
     public var fileWatchedSeconds: [UUID: Double] = [:]
 
+    /// Live search query (UC-FILE-33). Filters the displayed file/folder lists by
+    /// name; the underlying `files`/`folders` arrays are untouched, so clearing the
+    /// query restores the full listing.
+    public var searchText: String = ""
+
+    /// Files after applying the live search filter (UC-FILE-33).
+    public var displayedFiles: [FileBrowsingDomain.MediaFile] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return files }
+        return files.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    /// Folders after applying the live search filter (UC-FILE-33).
+    public var displayedFolders: [FileBrowsingDomain.MediaFolder] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return folders }
+        return folders.filter { $0.name.localizedCaseInsensitiveContains(query) }
+    }
+
+    /// True when a level popped by `navigateUp` can be redone via `navigateForward` (UC-FILE-37).
+    public private(set) var canNavigateForward: Bool = false
+
     private let localDataSource: any LocalFileSource
     private let fileManager: FileManager
     public let credentialStoreForConfig: CredentialStoring
@@ -41,6 +63,8 @@ public final class FileBrowsingViewModel {
     private var securityScopedRootURL: URL?
     private var activeRemoteAdapter: (any DataSourceConnecting & FileProviding)?
     private var remotePathStack: [String] = []
+    /// Levels popped by `navigateUp`, available to redo via `navigateForward` (UC-FILE-37).
+    private var forwardPathStack: [String] = []
     private var reconnectAttempted: Bool = false
 
     // §5.6 Background profile prefetch service — warms the metadata cache for
@@ -384,13 +408,19 @@ public final class FileBrowsingViewModel {
         remotePathStack.append(folder.path)
         currentRemotePath = folder.path
         canNavigateUp = remotePathStack.count > 1
+        // Descending into a folder starts a new branch — the forward history is gone.
+        forwardPathStack.removeAll()
+        canNavigateForward = false
         currentRootDisplayName = folder.name
         await loadFiles()
     }
 
     public func navigateUp() async {
         guard remotePathStack.count > 1 else { return }
-        remotePathStack.removeLast()
+        let leftLevel = remotePathStack.removeLast()
+        // Remember the level we left so `navigateForward` can redo it (UC-FILE-37).
+        forwardPathStack.append(leftLevel)
+        canNavigateForward = true
         let previousPath = remotePathStack.last ?? "/"
         currentRemotePath = previousPath
         canNavigateUp = remotePathStack.count > 1
@@ -404,6 +434,18 @@ public final class FileBrowsingViewModel {
             let name = (previousPath as NSString).lastPathComponent
             currentRootDisplayName = name.removingPercentEncoding ?? name
         }
+        await loadFiles()
+    }
+
+    /// Redo the most recently popped level (UC-FILE-37). No-op at the head of history.
+    public func navigateForward() async {
+        guard let next = forwardPathStack.popLast() else { return }
+        remotePathStack.append(next)
+        currentRemotePath = next
+        canNavigateUp = remotePathStack.count > 1
+        canNavigateForward = !forwardPathStack.isEmpty
+        let name = (next as NSString).lastPathComponent
+        currentRootDisplayName = name.removingPercentEncoding ?? name
         await loadFiles()
     }
 
