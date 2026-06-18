@@ -10,7 +10,7 @@ import Foundation
 ///
 /// Optional `latency` and `failureMode` drive the loading / disconnect use
 /// cases (UC-FILE-24 / UC-FILE-28) without real I/O.
-public nonisolated final class FakeFileDataSource: FileProviding, DataSourceConnecting, @unchecked Sendable {
+public nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable {
 
     public enum FailureMode: Sendable {
         case none

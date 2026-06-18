@@ -50,6 +50,7 @@ let package = Package(
                 "XrPlayer/FileBrowsing/Domain/Entities/MediaFolder.swift",
                 "XrPlayer/FileBrowsing/Domain/Ports/FileProviding.swift",
                 "XrPlayer/FileBrowsing/Domain/Ports/DataSourceConnecting.swift",
+                "XrPlayer/FileBrowsing/Domain/Ports/LocalFileSource.swift",
                 "XrPlayer/FileBrowsing/Adapters/Local/LocalDataSourceAdapter.swift",
                 "XrPlayer/FileBrowsing/Adapters/WebDAV/WebDAVDataSourceAdapter.swift",
                 "XrPlayer/FileBrowsing/Adapters/SMB/SMBDataSourceAdapter.swift",
