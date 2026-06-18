@@ -20,7 +20,9 @@ let package = Package(
             ],
             path: ".",
             exclude: [
-                "DesignPreview/.claude"
+                "DesignPreview/.claude",
+                "XrPlayer/Assets.xcassets",
+                "DesignPreview/Assets.xcassets"
             ],
             sources: [
                 "XrPlayer/PlaybackCore/Domain/ValueObjects/PlaybackState.swift",

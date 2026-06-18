@@ -1,0 +1,28 @@
+{
+  "configurations" : [
+    {
+      "id" : "9F8E7D6C-5B4A-3210-FEDC-BA9876543210",
+      "name" : "Default",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:XrPlayer.xcodeproj",
+      "identifier" : "C3B0F97F2F5726B30064596E",
+      "name" : "XrPlayer"
+    }
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:XrPlayer.xcodeproj",
+        "identifier" : "E2E0000100000000DEADBEEF",
+        "name" : "XrPlayerUITests"
+      }
+    }
+  ],
+  "version" : 1
+}
