@@ -57,8 +57,7 @@ FakeApp = 将来要发布的那个 app 本身,只是文件列表、播放、设�
 - [x] **Phase D1 场景 volume**:`SenseZoneVolumeRoot`(volumetric WindowGroup)托管共享 `EnvironmentCardCarousel`(7 卡);NavigationOrnament `.environment` → openWindow(volume);carousel 加 `onExpand` 经唯一沉浸入口进沉浸(程序球顶);取代 SceneSelectorView。ENV-13/14/15/16/17。
 - [x] **Phase E**:SwiftLint 两条守卫扩到 `Shared/Components/`(挡裸动画/硬编码色,组件库 token 干净零误杀)。
 
-**唯一未落地(用户单点决策):**
-- [ ] **Phase D2 — RKS 真 `world` 加载(ENV-18)**:负责人已批准接法(硬边界解除),但落地需提交 ~43MB `.reality` 二进制 + 新增远程 SwiftPM 依赖,与"实验勿造难丢弃之物"冲突,且手改真 pbxproj 有损坏工程风险。**本轮按可丢弃原则用程序球顶交付沉浸,RKS world 待用户确认"接受 43MB+依赖"后一步接入**(配方在 ADR-0008)。
+**Phase D2 — RKS 真 `world` 加载(ENV-18):决策已定,实验阶段不落地。** 负责人已批准接法(硬边界解除),并于 2026-06-18 确认「这个大文件就没必要提交了」——**实验阶段不提交 ~43MB `.reality`、不接 RealityKitScripting 远程依赖**。沉浸沿用程序球顶(可丢弃);配方留 ADR-0008,转正后再启用。
 
 **诚实边界(round 2):** ① `ConnectionFormPanel`(EXPLORATORY 未确认组件、在 DesignPreview)未数据驱动接入 app——本轮落工厂解耦,表单 UI 留待;② visionOS ornament 内控件在 XCUITest 命中不可靠,PLAY-05/25 细粒度点击靠 FakePlaybackSource 单测 + deck live 绑定保证,不做假绿 UI 断言;③ 设置破坏动作在假后端确认后为 no-op+反馈;④ 窗口路径下假源是否自动推进到 .playing 属 batch2 既有 launcher/VM 行为(deck 如实反映状态)。
 
