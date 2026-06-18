@@ -90,7 +90,11 @@ struct XrPlayerApp: App {
 
         // Pre-warm MPV in the background to reduce first-play black-screen latency.
         player.warmup()
-        let localDataSource = LocalDataSourceAdapter()
+        // FakeApp data backend: the browsing UI runs on a deterministic
+        // in-memory catalog (nine demo films + a folder hierarchy) so the whole
+        // app is exercisable without real disk/network. Swap FakeFileDataSource()
+        // → LocalDataSourceAdapter() at this single site to ship on real files.
+        let localDataSource: any LocalFileSource = FakeFileDataSource()
         let fileBrowsingViewModel = FileBrowsingViewModel(
             localDataSource: localDataSource,
             prefetchService: sharedPrefetchService,
