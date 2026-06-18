@@ -33,11 +33,22 @@ FakeApp = 将来要发布的那个 app 本身,只是文件列表、播放、设�
 - **批3 基本准**:5 个 `UserPreferences` 字段确缺;`CategorySidebar`+`SettingsDetailContentView` 已组装(值/动作死、分类切换活);SET-07 目标锚点 `Settings-SpatialContent-picker-environment` 代码 0 命中(现状旧 `Settings-ImmersiveSpace-picker-environment`)。
 - **批4 修正**:四个 ARKit 用途串全缺(只有相册串)→ 必补;Info.plist 在 `Config/XrPlayer-Info.plist`(仓库级)。
 
-进展:
+进展(本会话 6 commit:df09326→603493c,均 visionOS 模拟器构建零错误;经独立验证 workflow 对抗式核对,无虚报):
 
-- [x] app 在 visionOS 模拟器构建通过(20.7s,零错误)。
-- [x] **测试地基救活**(原本两条路径都坏):① `swift test` 资源冲突已修(`Package.swift` 排除两个 `Assets.xcassets`)→ 8 测试绿;② 空 UITests target 接真 XCUITest(`XrPlayerUITests/SmokeLaunchUITests.swift`,经同步组接入)→ 模拟器跑绿、故意失败能变红;③ 提交 `XrPlayer.xctestplan`、scheme 指向它(去掉 `shouldAutocreateTestPlan`)。
-  - 测试桥接决策:纯逻辑走 `swift test`(SPM 镜像包,云端/Linux 也能跑);UI/集成走 `xcodebuild test`+testplan。两条都真,不另建桥接 unit-test target(回答了计划"或要不要加桥接测试 target"=不建)。
+**已完成并验证(done):**
+- [x] **测试地基救活**(原本两条路径都坏):① `swift test` 资源冲突已修(`Package.swift` 排除两个 `Assets.xcassets`)→ 8 测试绿(3 XCTest + 5 Swift Testing,真断言);② 空 UITests target 接真 XCUITest(`XrPlayerUITests/SmokeLaunchUITests.swift`,经同步组接入)→ 模拟器跑绿、故意失败实证能变红;③ 提交 `XrPlayer.xctestplan`、scheme 指向它(去掉 `shouldAutocreateTestPlan`)。桥接决策=不另建 target:纯逻辑走 `swift test`,UI/集成走 `xcodebuild test`+testplan。
+- [x] 删两个孤儿画布 `HomeV1Page` / `PlayerControlPanelPage`(文件删 + pbxproj 白名单移除,零引用确认)。
+- [x] **组件库共享化**:`SharedComponents.swift`(4320 行)+ `SourceSidebar` 族搬到 `XrPlayer/Shared/Components/`,经白名单两 target 共享(机制同 DesignTokens)。两 target 均构建通过。
+- [x] **批1 数据竖切脊梁**:`LocalFileSource` 协议 + `FileBrowsingViewModel` 加宽成 `any LocalFileSource`(真假两源都 conform)+ `FakeFileDataSource`(9 影片 + `/Documentaries` + `/Empty` 空目录 + 可注入延迟/失败)+ 组合根 `XrPlayerApp.init` 注入假源(单点切换回真 adapter 即发布)。
+- [x] **FakeApp 核心端到端验证**:`build_run_sim` + 截图确认真 app 冷启动跑在假数据上,假目录/影片上屏。
+
+**未完成(not-started,经验证确认代码未动):**
+- [ ] 批0 剩余:`NavigationTab` 改名(仍 browse/recent/settings)、删退役七旧视图 + 锚点迁移、SwiftLint 守卫扩到新前端(仍只两条 Domain 规则)。
+- [ ] 批1 剩余:打磨组件搭新 Files 屏替换 `MainView.swift:80` 的 `FileBrowserView()`(MainView 本轮未碰);`connectToDataSource` 远程 adapter 可注入工厂(仍硬构造);搜索 FILE-33 / 前进栈 FILE-37 / 连接表单态 / 各 FILE-* UC + 单元测试。
+- [ ] **批2 Playback 整批**:假播放源、组件接入、各 PLAY-*。
+- [ ] **批3 Settings 整批**:假设置存储、`UserPreferences` 扩 5 字段、设置 VM 双向绑定、退役旧 SettingsView、各 SET-*。
+- [ ] **批4 Environment/RCP 整批**:复制 `.reality`、接 RKS(**新增 SwiftPM 依赖=硬边界,待人类裁决**)、补四个 ARKit 串、`world` 取代球顶、各 ENV-*。
+- [ ] 留痕:两份 ADR、`use_cases.md` 追溯列。
 
 ## 总账
 
