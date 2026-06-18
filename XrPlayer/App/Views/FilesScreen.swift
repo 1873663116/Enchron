@@ -273,7 +273,7 @@ struct FilesScreen: View {
                     GridCard.folder(
                         title: folder.name,
                         count: 0,
-                        accessibilityIdentifier: "FileBrowsing-grid-folder-\(folder.id)"
+                        accessibilityIdentifier: "FileBrowsing-grid-folder-\(folder.name)"
                     )
                     .onTapGesture { Task { await viewModel.navigateToFolder(folder) } }
                 }
@@ -282,7 +282,7 @@ struct FilesScreen: View {
                         title: displayTitle(file),
                         fileSize: fileSizeText(file),
                         duration: "",
-                        accessibilityIdentifier: "FileBrowsing-grid-video-\(file.id)"
+                        accessibilityIdentifier: "FileBrowsing-grid-video-\(file.name)"
                     )
                     .onTapGesture { viewModel.selectFile(file) }
                 }

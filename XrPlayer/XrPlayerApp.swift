@@ -47,7 +47,11 @@ struct XrPlayerApp: App {
         if savedPrefs.isScreenCurved {
             appModel.screenShape = .curved(radius: 3.0, height: 1.35)
         }
-        let player = MPVPlayerAdapter()
+        // FakeApp playback backend: an in-memory fake that simulates the playback
+        // timeline (position / state / tracks) without decoding real media, so the
+        // whole play loop runs on the fake catalog's fake:// URLs. Swap
+        // FakePlaybackSource() → MPVPlayerAdapter() (and restore warmup below) to ship.
+        let player = FakePlaybackSource()
         let windowVideoViewModel = WindowVideoViewModel(player: player)
         let smokeLaunch = SmokeLaunchConfiguration(environment: ProcessInfo.processInfo.environment)
 
@@ -88,8 +92,7 @@ struct XrPlayerApp: App {
             }
         }
 
-        // Pre-warm MPV in the background to reduce first-play black-screen latency.
-        player.warmup()
+        // (mpv warmup is restored when swapping the player back to MPVPlayerAdapter.)
         // FakeApp data backend: the browsing UI runs on a deterministic
         // in-memory catalog (nine demo films + a folder hierarchy) so the whole
         // app is exercisable without real disk/network. Swap FakeFileDataSource()
