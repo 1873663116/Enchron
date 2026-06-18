@@ -79,7 +79,7 @@ public struct MainView: View {
                 case .files:
                     FilesScreen()
                 case .settings:
-                    SettingsView()
+                    SettingsScreen()
                 case .environment:
                     // Environments opens a separate destination; the tab never parks
                     // here (see NavigationOrnament). Render nothing if ever reached.

@@ -157,13 +157,6 @@ struct XrPlayerApp: App {
         .defaultSize(width: 1280, height: 720)
         .windowResizability(.contentSize)
 
-        WindowGroup(id: "settings") {
-            NavigationStack {
-                SettingsView()
-            }
-            .environment(appModel)
-        }
-
         WindowGroup(id: "playerControls") {
             PlayerControlsView()
                 .environment(appModel)
