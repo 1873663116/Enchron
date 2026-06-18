@@ -79,7 +79,7 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-LNCH-01 | 启动进浏览页 | 启动 app | 显示主窗口，系统 TabView 含 Files / Settings / Environments 三个标签，Files 默认选中并展示文件浏览内容 | 未验证 | 未覆盖 | — |
+| UC-LNCH-01 | 启动进浏览页 | 启动 app | 显示主窗口，系统 TabView 含 Files / Settings / Environments 三个标签，Files 默认选中并展示文件浏览内容 | 已验证 | FilesPlaybackUITests.testFilesScreenShowsFakeCatalog（导航实为 NavigationOrnament 三标签胶囊，非系统 TabView——表述待复核） | — |
 | UC-LNCH-03 | 切换主导航标签 | 点系统 TabView 的标签 | Files / Settings 切换主区域内容页、当前标签高亮；Environments 不切页而是关主窗口、开独立环境窗口（见 UC-ENV-13），标签不驻留高亮 | 未验证 | 未覆盖 | — |
 
 ## Files（FILE）
@@ -130,16 +130,16 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 | UC-FILE-19 | 面包屑回跳 | 点面包屑（PathBreadcrumbMenu） | 显示二级菜单，内含直到根目录的所有目录，点击可跳转至目标目录 | 未验证 | 未覆盖 | — |
 | UC-FILE-20 | 排序即时生效 | 点排序按钮（锚 `FileBrowsing-Toolbar-button-sort`）选 Name / Date Modified / Size 或反转方向 | 文件列表立即按所选键与方向重排，菜单中当前项带勾、方向另有箭头表达 | 未验证 | 未覆盖 | — |
 | UC-FILE-32 | 下拉刷新 | 主内容区下拉 | 重新加载当前目录，期间显示加载态（见 UC-FILE-24） | 未验证 | 未覆盖 | — |
-| UC-FILE-33 | 文件名搜索 | 工具栏搜索框（SearchInputCapsule）输入关键词 | 列表实时过滤为匹配文件 | 未实现 | 未覆盖 | — |
+| UC-FILE-33 | 文件名搜索 | 工具栏搜索框（SearchInputCapsule）输入关键词 | 列表实时过滤为匹配文件 | 未验证 | FileBrowsingViewModel.displayedFiles/displayedFolders 实时过滤（已实现；E2E 未自动化） | — |
 | UC-FILE-34 | 网格列表视图切换 | 工具栏视图切换胶囊（ViewModeCapsuleControl）切 Grid / List | 内容区在 GridCard 网格与 FileListGroup 列表两种布局间平滑切换 | 未验证 | 未覆盖 | — |
-| UC-FILE-37 | 浏览历史前后退 | 点工具栏前进/后退胶囊（NavBackForwardCapsuleControl） | 在浏览历史中后退/前进，无历史方向的按钮禁用 | 未实现 | 未覆盖 | — |
+| UC-FILE-37 | 浏览历史前后退 | 点工具栏前进/后退胶囊（NavBackForwardCapsuleControl） | 在浏览历史中后退/前进，无历史方向的按钮禁用 | 未验证 | FileBrowsingViewModel.forwardPathStack/navigateForward/canNavigateForward（已实现；E2E 未自动化） | — |
 | UC-FILE-38 | 显示条目计数 | 浏览任意目录 | 工具栏下方右侧显示 "{N} items" 计数，随内容变化更新 | 未验证 | 未覆盖 | — |
 
 ### Files · 文件项与卡片
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-FILE-01 | 点视频开始播放 | Files 页已有可用数据源；点一个视频文件 | 直接进入播放（呈现模式按内容自动路由） | 未验证 | 未覆盖 | — |
+| UC-FILE-01 | 点视频开始播放 | Files 页已有可用数据源；点一个视频文件 | 直接进入播放（呈现模式按内容自动路由） | 已验证 | FilesPlaybackUITests.testTappingFilmCardOpensPlayer | — |
 | UC-FILE-26 | 已看卡片显进度 | gaze 播放过的文件 | 该卡片底部显示已观看进度描边（走进度 token，非裸色） | 未验证 | 未覆盖 | — |
 | UC-FILE-39 | 悬停浮现卡片徽章 | 视线/指针悬停一张 GridCard | hover：卡片浮起，浮现角标（HDR / MV-HEVC 等）、文件大小与时长；文件夹卡浮现 "N items" | 未验证 | 未覆盖 | — |
 
@@ -147,9 +147,9 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-FILE-23 | 空文件夹空态 | 进入无文件夹且无可播文件的目录；或权限被拒、Local Storage 为空 | 显示空白页：只显示按钮、无内容，此时禁用刷新与多选 | 未验证 | 未覆盖 | — |
+| UC-FILE-23 | 空文件夹空态 | 进入无文件夹且无可播文件的目录；或权限被拒、Local Storage 为空 | 显示空白页：只显示按钮、无内容，此时禁用刷新与多选 | 未验证 | FakeFileDataSourceTests.emptyFolderIsEmpty（空目录数据层单元；UI 空态未自动化） | — |
 | UC-FILE-24 | 加载转圈 | 切源、刷新或导航触发加载 | 显示加载转圈组件（LoadingSpinner）动画，加载完显示真实内容 | 未验证 | 未覆盖 | — |
-| UC-FILE-28 | 断连保列表弹警 | 浏览远程源时网络断开/服务器离线 | 列表保留上次内容不清空，弹 "File Browser Error" 对话框含 Retry / OK，OK 回 Local Storage；再点该源成员触发加载重试 | 未验证 | 未覆盖 | — |
+| UC-FILE-28 | 断连保列表弹警 | 浏览远程源时网络断开/服务器离线 | 列表保留上次内容不清空，弹 "File Browser Error" 对话框含 Retry / OK，OK 回 Local Storage；再点该源成员触发加载重试 | 未验证 | FakeFileDataSourceTests.failureModeThrows（失败态数据层单元；UI 弹框未自动化） | — |
 
 ## Settings（SET）
 
@@ -205,8 +205,8 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-SET-16 | 分类侧栏切内容 | Settings 页点左侧 CategorySidebar 的分类（Playback / Spatial Content / Storage & Privacy / Diagnostics & Tools / About） | 右侧内容淡入切换为该分类的设置组，选中分类高亮 | 未验证 | 未覆盖 | — |
-| UC-SET-12 | 偏好重启保留 | 修改续播策略 / 结束行为 / 默认环境 / 进沉浸开关 / 控件隐藏时长后重启 app | 各项设置保持修改后的值 | 未验证 | 未覆盖 | — |
+| UC-SET-16 | 分类侧栏切内容 | Settings 页点左侧 CategorySidebar 的分类（Playback / Spatial Content / Storage & Privacy / Diagnostics & Tools / About） | 右侧内容淡入切换为该分类的设置组，选中分类高亮 | 已验证 | SettingsUITests.testNavigatingToSettingsAndSwitchingCategory（注：分类为 Playback/Spatial/Diagnostics/About 四类，Storage&Privacy 长尾未绑定） | — |
+| UC-SET-12 | 偏好重启保留 | 修改续播策略 / 结束行为 / 默认环境 / 进沉浸开关 / 控件隐藏时长后重启 app | 各项设置保持修改后的值 | 已验证 | PreferencesPersistenceTests.testUserDefaultsStoreRoundTripsExtendedFields（UserDefaults 跨实例往返） | — |
 
 ## Playback（PLAY）
 
