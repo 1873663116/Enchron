@@ -7,6 +7,7 @@ import SwiftUI
 /// does not park the main window on a blank tab (LNCH-03).
 public struct NavigationOrnament: View {
     @Environment(AppModel.self) private var appModel
+    @Environment(\.openWindow) private var openWindow
     @AccessibilityFocusState private var focusedTab: AppModel.NavigationTab?
 
     public init() {}
@@ -21,9 +22,11 @@ public struct NavigationOrnament: View {
                             appModel.selectedTab = tab
                             focusedTab = tab
                         } else {
-                            // Environments opens its own destination (volume) without
-                            // parking the main window on a blank tab (LNCH-03).
-                            appModel.showSceneSelector = true
+                            // Environments opens its own destination — the SenseZone
+                            // volume with the polished EnvironmentCardCarousel — without
+                            // parking the main window on a blank tab (LNCH-03 / ENV-13).
+                            appModel.environmentReturnTab = appModel.selectedTab
+                            openWindow(id: AppModel.senseZoneVolumeID)
                         }
                     } label: {
                         Image(systemName: tab.iconName)

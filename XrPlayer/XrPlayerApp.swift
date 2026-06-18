@@ -167,6 +167,15 @@ struct XrPlayerApp: App {
         }
         .defaultSize(width: 600, height: 200)
 
+        // SenseZone volume — Environments destination hosting the polished
+        // EnvironmentCardCarousel (ENV-13/14/16/17). Coexists with the main window.
+        WindowGroup(id: AppModel.senseZoneVolumeID) {
+            SenseZoneVolumeRoot()
+                .environment(appModel)
+        }
+        .windowStyle(.volumetric)
+        .defaultSize(width: 1.4, height: 0.9, depth: 0.8, in: .meters)
+
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
             ImmersiveSpaceView()
                 .environment(appModel)
