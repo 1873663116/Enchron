@@ -61,6 +61,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Shared/Components/SharedComponents.swift,
+				Shared/Components/SourceSidebar.swift,
 				Shared/DesignSystem/DesignTokens.swift,
 				"Shared/DesignSystem/View+EnchronGlass.swift",
 				"Shared/DesignSystem/View+PressFeedback.swift",
