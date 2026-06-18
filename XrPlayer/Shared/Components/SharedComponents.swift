@@ -2951,20 +2951,62 @@ struct CategorySidebar: View {
     }
 }
 
+/// 播放 deck 的一个菜单条目(字幕 / 音轨 / 倍速 / 剧集任一项)。
+/// 选中态与动作由组合阶段(产品层)提供,deck 只负责呈现与打勾。
+struct DeckMenuItem: Identifiable {
+    let id: String
+    let title: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    init(id: String, title: String, isSelected: Bool, action: @escaping () -> Void) {
+        self.id = id
+        self.title = title
+        self.isSelected = isSelected
+        self.action = action
+    }
+}
+
+/// 把 `PlayerControlDeck` 从「纯视觉 mock」接到真实(或假)播放状态的薄绑定面。
+/// 为 nil 时 deck 维持自带 @State 的 Canvas 审查行为(所有既有 Preview 不受影响);
+/// 注入后 deck 改读这里的值并把交互回调给产品层。刻意做成可丢弃的值类型,不引入新抽象层。
+struct PlayerControlDeckLive {
+    var isPlaying: Bool
+    var showsReplay: Bool
+    var progress: CGFloat
+    var elapsedLabel: String
+    var remainingLabel: String
+    var duration: Double
+    var framesPerSecond: Double
+    var onPlayPause: () -> Void
+    var onSkipBackward: () -> Void
+    var onSkipForward: () -> Void
+    var onSeek: (CGFloat) -> Void
+    var onFrameStep: (Int) -> Void
+    var subtitleItems: [DeckMenuItem]
+    var audioItems: [DeckMenuItem]
+    var speedItems: [DeckMenuItem]
+    var episodeItems: [DeckMenuItem]
+}
+
 struct PlayerControlDeck: View {
     var timelineResetToken = 0
     /// 左侧 ≡ 设置入口的动作。由组合阶段(如窗口播放页)注入,用于召出 player panel。
     var onOpenSettings: () -> Void = {}
+    /// 实时播放绑定。nil = Canvas mock(默认);注入后 deck 接真实播放状态与交互。
+    var live: PlayerControlDeckLive?
 
     // initialTimelineExpanded 仅供 Canvas 审查直接展示展开态的二级时间轴;
     // 运行时仍由双击进度条切换。其余 @State 保留各自的行内默认值。
     init(
         timelineResetToken: Int = 0,
         onOpenSettings: @escaping () -> Void = {},
-        initialTimelineExpanded: Bool = false
+        initialTimelineExpanded: Bool = false,
+        live: PlayerControlDeckLive? = nil
     ) {
         self.timelineResetToken = timelineResetToken
         self.onOpenSettings = onOpenSettings
+        self.live = live
         _isTimelineExpanded = State(initialValue: initialTimelineExpanded)
     }
 
@@ -3032,10 +3074,16 @@ struct PlayerControlDeck: View {
         DesignTokens.ProgressBar.previewWidth
     }
 
+    // 拖动中用本地 `progress`(视觉跟手);松手回调 onSeek。非拖动时镜像 live 位置。
+    // live 为 nil 时退化为纯本地 @State(Canvas mock)。
+    private var displayProgress: CGFloat {
+        isDragging ? progress : (live?.progress ?? progress)
+    }
+
     var body: some View {
         let overlayWidth = collapsedTrackWidth
         let width = max(overlayWidth - DesignTokens.ProgressBar.thumbDiameter, 0)
-        let clampedProgress = min(max(progress, 0), 1)
+        let clampedProgress = min(max(displayProgress, 0), 1)
         let thumbX = DesignTokens.ProgressBar.thumbDiameter / 2 + clampedProgress * width
         let containerWidth = currentContainerWidth
         let containerHeight = currentContainerHeight
@@ -3062,6 +3110,9 @@ struct PlayerControlDeck: View {
         .sensoryFeedback(.selection(.minimum), trigger: minimumBoundaryFeedbackTrigger)
         .sensoryFeedback(.selection(.maximum), trigger: maximumBoundaryFeedbackTrigger)
         .sensoryFeedback(.selection(.on), trigger: timelineFeedbackTrigger)
+        // Container, not a leaf: keep child controls (play / ⋯ / thumb) queryable
+        // for accessibility and UI tests instead of collapsing into one element.
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier("DesignPreview-PlayerControlDeck")
         .accessibilityLabel("Player controls")
         .onChange(of: timelineResetToken) {
@@ -3127,8 +3178,10 @@ struct PlayerControlDeck: View {
             transportRow(
                 backward: "gobackward.10",
                 backwardLabel: "Rewind 10 seconds",
+                backwardAction: { live?.onSkipBackward() },
                 forward: "goforward.10",
-                forwardLabel: "Forward 10 seconds"
+                forwardLabel: "Forward 10 seconds",
+                forwardAction: { live?.onSkipForward() }
             )
 
             progressBarBody(
@@ -3172,6 +3225,10 @@ struct PlayerControlDeck: View {
     /// Steps the previewed timeline by one frame in `direction` (-1 backward,
     /// +1 forward) by nudging `progress`, which the expanded timeline binds to.
     private func stepFrame(_ direction: Double) {
+        if let live {
+            live.onFrameStep(direction < 0 ? -1 : 1)
+            return
+        }
         let fps = DesignTokens.PrecisionTimeline.previewFrameRate
         let duration = DesignTokens.PrecisionTimeline.previewDuration
         guard fps > 0, duration > 0 else { return }
@@ -3199,8 +3256,8 @@ struct PlayerControlDeck: View {
             PrecisionTimelineView(
                 currentTime: timelineCurrentTime,
                 pixelsPerSecond: $timelinePixelsPerSecond,
-                duration: DesignTokens.PrecisionTimeline.previewDuration,
-                framesPerSecond: DesignTokens.PrecisionTimeline.previewFrameRate
+                duration: timelineDuration,
+                framesPerSecond: timelineFrameRate
             )
             .frame(
                 width: DesignTokens.PrecisionTimeline.expandedWidth,
@@ -3215,8 +3272,8 @@ struct PlayerControlDeck: View {
     }
 
     private var primaryPlayButton: some View {
-        Button {} label: {
-            Image(systemName: "play.fill")
+        Button { live?.onPlayPause() } label: {
+            Image(systemName: primaryPlayIcon)
                 .font(DesignTokens.SymbolSize.action)
                 .foregroundStyle(.white)
                 .frame(width: DesignTokens.Interactive.xl,
@@ -3229,7 +3286,19 @@ struct PlayerControlDeck: View {
         .hoverEffect(.lift)
         .contentShape(Circle())
         .accessibilityIdentifier("DesignPreview-PlayerControlDeck-button-play")
-        .accessibilityLabel("Play")
+        .accessibilityLabel(primaryPlayLabel)
+    }
+
+    private var primaryPlayIcon: String {
+        guard let live else { return "play.fill" }
+        if live.showsReplay { return "arrow.counterclockwise" }
+        return live.isPlaying ? "pause.fill" : "play.fill"
+    }
+
+    private var primaryPlayLabel: String {
+        guard let live else { return "Play" }
+        if live.showsReplay { return "Replay" }
+        return live.isPlaying ? "Pause" : "Play"
     }
 
     private func transportSideButton(
@@ -3273,40 +3342,10 @@ struct PlayerControlDeck: View {
 
     private var moreMenu: some View {
         Menu {
-            Section("Playback Settings") {
-                Menu("Subtitles") {
-                    selectableMenuOption("Off", selection: $selectedSubtitle)
-                    selectableMenuOption("English CC", selection: $selectedSubtitle)
-                    selectableMenuOption("中文简体", selection: $selectedSubtitle)
-                    selectableMenuOption("Auto", selection: $selectedSubtitle)
-                }
-
-                Menu("Audio Track") {
-                    selectableMenuOption("English 5.1", selection: $selectedAudioTrack)
-                    selectableMenuOption("Japanese 2.0", selection: $selectedAudioTrack)
-                    selectableMenuOption("Commentary", selection: $selectedAudioTrack)
-                }
-
-                Menu("Playback Speed") {
-                    selectableMenuOption("0.25×", selection: $selectedSpeed)
-                    selectableMenuOption("0.5×", selection: $selectedSpeed)
-                    selectableMenuOption("0.75×", selection: $selectedSpeed)
-                    selectableMenuOption("1×", selection: $selectedSpeed)
-                    selectableMenuOption("1.25×", selection: $selectedSpeed)
-                    selectableMenuOption("1.5×", selection: $selectedSpeed)
-                    selectableMenuOption("2×", selection: $selectedSpeed)
-                    selectableMenuOption("3×", selection: $selectedSpeed)
-                    selectableMenuOption("5×", selection: $selectedSpeed)
-                }
-
-                Menu("Episodes") {
-                    menuOption("Episode 1 · The Signal")
-                    menuOption("Episode 2 · Night Crossing")
-                    menuOption("Episode 3 · Glass Harbor")
-                    menuOption("Episode 4 · Quiet Orbit")
-                    menuOption("Episode 5 · Afterimage")
-                    menuOption("Episode 6 · The Long Return")
-                }
+            if let live {
+                liveMoreMenuSections(live)
+            } else {
+                mockMoreMenuSections
             }
         } label: {
             controlIcon("ellipsis")
@@ -3318,6 +3357,72 @@ struct PlayerControlDeck: View {
         .contentShape(Circle())
         .accessibilityIdentifier("DesignPreview-PlayerControlDeck-menu-more")
         .accessibilityLabel("More playback settings")
+    }
+
+    // Canvas mock 的写死菜单(live 为 nil 时)。
+    @ViewBuilder
+    private var mockMoreMenuSections: some View {
+        Section("Playback Settings") {
+            Menu("Subtitles") {
+                selectableMenuOption("Off", selection: $selectedSubtitle)
+                selectableMenuOption("English CC", selection: $selectedSubtitle)
+                selectableMenuOption("中文简体", selection: $selectedSubtitle)
+                selectableMenuOption("Auto", selection: $selectedSubtitle)
+            }
+
+            Menu("Audio Track") {
+                selectableMenuOption("English 5.1", selection: $selectedAudioTrack)
+                selectableMenuOption("Japanese 2.0", selection: $selectedAudioTrack)
+                selectableMenuOption("Commentary", selection: $selectedAudioTrack)
+            }
+
+            Menu("Playback Speed") {
+                selectableMenuOption("0.25×", selection: $selectedSpeed)
+                selectableMenuOption("0.5×", selection: $selectedSpeed)
+                selectableMenuOption("0.75×", selection: $selectedSpeed)
+                selectableMenuOption("1×", selection: $selectedSpeed)
+                selectableMenuOption("1.25×", selection: $selectedSpeed)
+                selectableMenuOption("1.5×", selection: $selectedSpeed)
+                selectableMenuOption("2×", selection: $selectedSpeed)
+                selectableMenuOption("3×", selection: $selectedSpeed)
+                selectableMenuOption("5×", selection: $selectedSpeed)
+            }
+
+            Menu("Episodes") {
+                menuOption("Episode 1 · The Signal")
+                menuOption("Episode 2 · Night Crossing")
+                menuOption("Episode 3 · Glass Harbor")
+                menuOption("Episode 4 · Quiet Orbit")
+                menuOption("Episode 5 · Afterimage")
+                menuOption("Episode 6 · The Long Return")
+            }
+        }
+    }
+
+    // 实时菜单(live 注入时):字幕 / 音轨 / 倍速 / 剧集都来自产品层,空集合的子菜单隐藏。
+    @ViewBuilder
+    private func liveMoreMenuSections(_ live: PlayerControlDeckLive) -> some View {
+        Section("Playback Settings") {
+            if !live.subtitleItems.isEmpty {
+                Menu("Subtitles") { liveMenuItems(live.subtitleItems) }
+            }
+            if !live.audioItems.isEmpty {
+                Menu("Audio Track") { liveMenuItems(live.audioItems) }
+            }
+            Menu("Playback Speed") { liveMenuItems(live.speedItems) }
+            if !live.episodeItems.isEmpty {
+                Menu("Episodes") { liveMenuItems(live.episodeItems) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func liveMenuItems(_ items: [DeckMenuItem]) -> some View {
+        ForEach(items) { item in
+            Button(action: item.action) {
+                Label(item.title, systemImage: item.isSelected ? "checkmark" : "")
+            }
+        }
     }
 
     private func menuOption(_ title: String) -> some View {
@@ -3472,9 +3577,9 @@ struct PlayerControlDeck: View {
         )
 
         return HStack(spacing: DesignTokens.Spacing.xs) {
-            Text("6:21")
+            Text(live?.elapsedLabel ?? "6:21")
                 .foregroundStyle(.primary)
-            Text("-7:54")
+            Text(live?.remainingLabel ?? "-7:54")
                 .foregroundStyle(.secondary)
         }
             .font(DesignTokens.Typography.monospacedDetail)
@@ -3534,7 +3639,10 @@ struct PlayerControlDeck: View {
                         isIgnoringDrag = true
                         return
                     }
-                    dragStartProgress = progress
+                    // live 注入时进度起点取自当前播放位置(displayProgress),避免从陈旧
+                    // 本地 @State 起跳;mock 时 displayProgress == progress,行为不变。
+                    dragStartProgress = displayProgress
+                    progress = displayProgress
                     beginScrubbing()
                 }
                 updateProgress(forTranslation: value.translation.width, width: width)
@@ -3542,6 +3650,7 @@ struct PlayerControlDeck: View {
             .onEnded { _ in
                 if isDragging {
                     endScrubbing()
+                    live?.onSeek(progress)
                 }
                 isIgnoringDrag = false
             }
@@ -3655,19 +3764,32 @@ struct PlayerControlDeck: View {
         }
     }
 
+    // live 注入时时间轴跨度/帧率取自真实媒体;mock 时退化为 Canvas 预览常量。
+    private var timelineDuration: Double {
+        if let d = live?.duration, d > 0 { return d }
+        return DesignTokens.PrecisionTimeline.previewDuration
+    }
+
+    private var timelineFrameRate: Double {
+        if let fps = live?.framesPerSecond, fps > 0 { return fps }
+        return DesignTokens.PrecisionTimeline.previewFrameRate
+    }
+
     private var timelineCurrentTime: Binding<Double> {
         Binding(
             get: {
-                Double(progress) * DesignTokens.PrecisionTimeline.previewDuration
+                Double(displayProgress) * timelineDuration
             },
             set: { newValue in
-                let duration = DesignTokens.PrecisionTimeline.previewDuration
+                let duration = timelineDuration
                 guard duration > 0 else {
                     progress = 0
                     return
                 }
                 let clampedTime = min(max(newValue, 0), duration)
-                progress = CGFloat(clampedTime / duration)
+                let p = CGFloat(clampedTime / duration)
+                progress = p
+                live?.onSeek(p)
             }
         )
     }
