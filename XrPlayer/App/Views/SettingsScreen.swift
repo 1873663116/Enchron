@@ -11,6 +11,33 @@ import UIKit
 struct SettingsScreen: View {
     @State private var viewModel: SettingsViewModel
     @State private var selectedCategoryID: String = Category.playback.rawValue
+    @State private var pendingDestructive: DestructiveAction?
+
+    /// Destructive long-tail actions that require an explicit confirm (SET-21/24).
+    /// On a fake backend the confirm path is a no-op + transient feedback; the
+    /// dialog itself is the polished, honest UX.
+    private enum DestructiveAction: Identifiable {
+        case clearLogs, resetEngineOverrides
+        var id: String { String(describing: self) }
+        var title: String {
+            switch self {
+            case .clearLogs: "Clear Logs?"
+            case .resetEngineOverrides: "Reset All Engine Overrides?"
+            }
+        }
+        var message: String {
+            switch self {
+            case .clearLogs: "Removes captured diagnostic logs. Media and sources are not affected."
+            case .resetEngineOverrides: "Restores mpv/libplacebo overrides to defaults. Media and sources are not affected."
+            }
+        }
+        var confirmTitle: String {
+            switch self {
+            case .clearLogs: "Clear Logs"
+            case .resetEngineOverrides: "Reset Overrides"
+            }
+        }
+    }
 
     init(store: PreferencesStoring = UserDefaultsStore()) {
         _viewModel = State(initialValue: SettingsViewModel(store: store))
@@ -69,6 +96,20 @@ struct SettingsScreen: View {
         .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Settings-SettingsScreen")
+        .confirmationDialog(
+            pendingDestructive?.title ?? "",
+            isPresented: Binding(
+                get: { pendingDestructive != nil },
+                set: { if !$0 { pendingDestructive = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: pendingDestructive
+        ) { action in
+            Button(action.confirmTitle, role: .destructive) { pendingDestructive = nil }
+            Button("Cancel", role: .cancel) { pendingDestructive = nil }
+        } message: { action in
+            Text(action.message)
+        }
     }
 
     private var detail: some View {
@@ -208,6 +249,41 @@ struct SettingsScreen: View {
                     SettingListGroup.MenuOption("Next Launch") { viewModel.update { $0.verboseAutoOff = .nextLaunch } },
                     SettingListGroup.MenuOption("30 Minutes") { viewModel.update { $0.verboseAutoOff = .thirtyMinutes } }
                 ])
+            ),
+            // SET-20: read-only diagnostic disclosures.
+            SettingListGroup.Item(
+                id: "route-snapshot",
+                title: "Route Snapshot",
+                systemName: "point.topleft.down.to.point.bottomright.curvepath",
+                keyValueDetail: [
+                    .init(key: "Playback Mode", value: "Window"),
+                    .init(key: "Immersive Space", value: "Closed"),
+                    .init(key: "Active Source", value: "Local (fake catalog)")
+                ]
+            ),
+            SettingListGroup.Item(
+                id: "media-inspector",
+                title: "Media Inspector",
+                systemName: "waveform.and.magnifyingglass",
+                keyValueDetail: [
+                    .init(key: "Backend", value: "FakePlaybackSource"),
+                    .init(key: "Resolution", value: "1920×1080"),
+                    .init(key: "Codec", value: "h264 (simulated)")
+                ]
+            ),
+            // SET-24: destructive action gated by a confirm dialog.
+            SettingListGroup.Item(
+                id: "clear-logs",
+                title: "Clear Logs",
+                systemName: "trash",
+                accessory: .action(title: "Clear", feedback: "Cleared", systemName: nil, role: .destructive, action: { pendingDestructive = .clearLogs })
+            ),
+            // SET-21: reset engine overrides, also confirm-gated.
+            SettingListGroup.Item(
+                id: "reset-overrides",
+                title: "Reset All Engine Overrides",
+                systemName: "arrow.counterclockwise",
+                accessory: .action(title: "Reset", feedback: nil, systemName: nil, role: .destructive, action: { pendingDestructive = .resetEngineOverrides })
             )
         ]
     }
@@ -227,6 +303,32 @@ struct SettingsScreen: View {
                 title: "Support & Feedback",
                 systemName: "questionmark.circle",
                 accessory: .valueAction(value: feedbackEmail, actionTitle: "Copy", feedback: "Copied", action: { copy(feedbackEmail) })
+            ),
+            // SET-08: cache size — Empty on the fake backend (no real cache yet).
+            SettingListGroup.Item(
+                id: "storage-cache",
+                title: "Storage",
+                systemName: "internaldrive",
+                accessory: .value("Empty")
+            ),
+            // SET-17: privacy disclosure (four data categories).
+            SettingListGroup.Item(
+                id: "privacy-notice",
+                title: "Privacy Notice",
+                systemName: "hand.raised",
+                keyValueDetail: [
+                    .init(key: "Local Files", value: "On device only"),
+                    .init(key: "Photos", value: "Read on request"),
+                    .init(key: "Remote Credentials", value: "Keychain, never synced"),
+                    .init(key: "Diagnostics", value: "Stay on device")
+                ]
+            ),
+            // SET-18: open-source licenses entry.
+            SettingListGroup.Item(
+                id: "licenses",
+                title: "Open-source Licenses",
+                systemName: "doc.text",
+                accessory: .action(title: "View", feedback: "Opening…", systemName: nil, role: .normal, action: {})
             )
         ]
     }
