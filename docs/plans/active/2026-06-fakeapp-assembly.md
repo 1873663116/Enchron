@@ -45,12 +45,22 @@ FakeApp = 将来要发布的那个 app 本身,只是文件列表、播放、设�
 - [x] **批4 到硬边界**:四个 ARKit Info.plist 用途串;`EnvironmentSceneMapping` 卡→world 总映射 + 单测。
 - [x] **留痕**:ADR-0007(FakeApp 架构)+ ADR-0008(RCP 直接沉浸,**提案态**);`use_cases.md` 追溯列填已验证 UC。
 
-**未完成 / 硬边界(deferred,经验证确认):**
-- [ ] **批4 沉浸 world 加载(ENV-18)+ SenseZone volume 迁移(ENV-13/14)= RKS 硬边界**:复制 `Immersive_Space.reality`、接 RealityKitScripting SwiftPM 依赖 + `RKS.initialize` + `.scriptingSystem`。**宪法硬边界:新增 SwiftPM 依赖需人类裁决,agent 不自接**(无 RKS 则 world 加载必失败)。见 ADR-0008 提案。
-- [ ] 批2 PLAY-* 细粒度:打磨 `WindowPlaybackPage` deck/时间轴/菜单未接入 app(仍用 `PlayerControlsView`);续播提示(PLAY-02)、拖拽气泡(PLAY-09)、倍速档(PLAY-14)、NLE 展开(PLAY-17)等未逐条接。
-- [ ] 批1 远程连接:`connectToDataSource` 工厂未注入化(仍硬构造);`ConnectionFormPanel` 连接表单未接入 app(FILE-09/10/11/13/44/46);本地管理 New Folder(FILE-43)。
-- [ ] 批3 诊断/存储长尾:缓存清理/披露/检视器(SET-08/09/17/20/21/22/24/26/27/28 等)未绑定;per-row 锚点为分区组级。
-- [ ] SwiftLint 架构守卫未扩到新前端(仍两条 Domain 规则)。
+## 第二轮全量收口(2026-06-18,branch `claude/fakeapp-assembly`)
+
+用户指令:把所有未完成的 UI/UX 用打磨好的组件收口完;场景(RKS)已批准;别造难丢弃之物。
+按 A→B→C→D→E 五阶段执行,每阶段构建+提交绿色增量。最终:**22 SPM 单测 + 5 UI 测试 + build SUCCEEDED 全绿**。
+
+**已完成并验证(round 2):**
+- [x] **Phase A 死命令**:播放窗换打磨 `PlayerControlDeck`(加可选 live 绑定接 `WindowVideoViewModel`:play/pause/replay、进度+时间气泡、字幕/音轨/倍速实时菜单、帧步进、拖动 seek、精度时间轴);新 `WindowPlayerDeckView`(底部 ornament)+ `PlaybackSettingsPanel`(leading ornament,CategorySidebar+SettingListGroup 拼 Environment/Play Mode/Picture)+ `PlaybackOverlayCard`(PLAY-23 失败卡片)。**退役 `PlayerControlsView`/`SeekBarView`/`NLETimelineView`/`MenuPopoverContent`/`SettingsPopoverContent`**。`PlaybackDeckUITests` 证明 deck 是活播放面。覆盖 PLAY-05/07/08/11/12/13/14/16/17/18/19/23/25/26/27 等(deck 可见面)。
+- [x] **Phase B**:`connectToDataSource` 改可注入 `makeRemoteAdapter` 工厂(默认 nil 走真 adapter,行为不变;FILE-10/44/46 可注入测试)。
+- [x] **Phase C 设置长尾**:SET-20 诊断披露(Route Snapshot/Media Inspector keyValueDetail)、SET-24/21 确认式破坏动作(confirmationDialog)、SET-08 Storage(Empty)、SET-17 Privacy Notice、SET-18 Licenses。
+- [x] **Phase D1 场景 volume**:`SenseZoneVolumeRoot`(volumetric WindowGroup)托管共享 `EnvironmentCardCarousel`(7 卡);NavigationOrnament `.environment` → openWindow(volume);carousel 加 `onExpand` 经唯一沉浸入口进沉浸(程序球顶);取代 SceneSelectorView。ENV-13/14/15/16/17。
+- [x] **Phase E**:SwiftLint 两条守卫扩到 `Shared/Components/`(挡裸动画/硬编码色,组件库 token 干净零误杀)。
+
+**唯一未落地(用户单点决策):**
+- [ ] **Phase D2 — RKS 真 `world` 加载(ENV-18)**:负责人已批准接法(硬边界解除),但落地需提交 ~43MB `.reality` 二进制 + 新增远程 SwiftPM 依赖,与"实验勿造难丢弃之物"冲突,且手改真 pbxproj 有损坏工程风险。**本轮按可丢弃原则用程序球顶交付沉浸,RKS world 待用户确认"接受 43MB+依赖"后一步接入**(配方在 ADR-0008)。
+
+**诚实边界(round 2):** ① `ConnectionFormPanel`(EXPLORATORY 未确认组件、在 DesignPreview)未数据驱动接入 app——本轮落工厂解耦,表单 UI 留待;② visionOS ornament 内控件在 XCUITest 命中不可靠,PLAY-05/25 细粒度点击靠 FakePlaybackSource 单测 + deck live 绑定保证,不做假绿 UI 断言;③ 设置破坏动作在假后端确认后为 no-op+反馈;④ 窗口路径下假源是否自动推进到 .playing 属 batch2 既有 launcher/VM 行为(deck 如实反映状态)。
 
 ## 总账
 
