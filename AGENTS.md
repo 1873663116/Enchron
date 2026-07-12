@@ -2,11 +2,11 @@
 
 ## 当前阶段
 
-本仓库先证明 macOS sample-buffer 播放主线，不直接实现完整 visionOS 播放器。
+本仓库只设计并证明 macOS H.264 video-only sample-buffer 播放主线。
 实现顺序以 `README.md` 的验证顺序为准。
 
-FFmpeg 和 mpv 都是解封装 adapter。播放核心的领域模型、CoreMedia sample 组装、
-renderer graph、RealityKit entity 和诊断接口不得依赖某个 adapter 的内部对象。
+FFmpeg 是当前 Demux Contract adapter。播放核心的领域模型、CoreMedia sample 组装、
+renderer graph、RealityKit entity 和诊断接口不得依赖 FFmpeg 内部对象。
 
 ## 默认入口
 
@@ -19,10 +19,9 @@ renderer graph、RealityKit entity 和诊断接口不得依赖某个 adapter 的
 
 ## 修改边界
 
-先建立最小 macOS Playback Lab 和 provider-neutral Demux Contract。
-在 FFmpeg video-only vertical slice 成立前，不扩展音频同步、字幕、seek、HDR、
-Apple Projected Media Profile、Portal 或 mpv adapter。
+先建立 Apple Sample Reference Path 的完整 macOS 后半段播放管线，再让
+PlaybackCore Target Path 通过相同的 Renderer Input Coordination seam 复用它。
+当前不预留其他媒体能力的接口。
 
-每个验证用例只有一个预期结果。`AVPlayer` 只作为用户可见基准；
-`AVAssetReader` sample-buffer 路径才是 renderer harness 的已知正确基准。
-
+每个验证用例只有一个预期结果。`AVAssetReader` 是验证专用 sample provider，
+不是 Demux Contract adapter，也不为节点 3 到节点 6 提供成功证据。
