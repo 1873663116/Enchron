@@ -11,7 +11,6 @@ struct WindowPlaybackPage: View {
 
     @Environment(\.dismissWindow) private var dismissWindow
     @State private var isChromeVisible: Bool
-    @State private var progressTimelineResetToken = 0
     @State private var isSettingsPanelPresented: Bool
     // 蓝图状态(UC-PLAY-02 / 23):续播提示与加载失败面板。默认都不显示,运行时行为不变;
     // 仅供 Canvas 审查时通过 init 直接呈现。
@@ -21,8 +20,6 @@ struct WindowPlaybackPage: View {
     // revealed = 入场进度(同时驱动 opacity / 从上往下位移 / 合页旋转,一气呵成)。
     @State private var deckMounted: Bool
     @State private var deckRevealed: Bool
-    @State private var settingsMounted: Bool
-    @State private var settingsRevealed: Bool
     private let initialTimelineExpanded: Bool
 
     // 默认隐藏 chrome(点击画面召出);initial* 参数仅供 Canvas 截图/审查时直接
@@ -38,11 +35,8 @@ struct WindowPlaybackPage: View {
         _isSettingsPanelPresented = State(initialValue: initialSettingsPanelPresented)
         // 初始态预览直接呈现完成态(不播放入场动画)。
         let deckShown = initialChromeVisible
-        let panelShown = initialChromeVisible && initialSettingsPanelPresented
         _deckMounted = State(initialValue: deckShown)
         _deckRevealed = State(initialValue: deckShown)
-        _settingsMounted = State(initialValue: panelShown)
-        _settingsRevealed = State(initialValue: panelShown)
         self.initialTimelineExpanded = initialTimelineExpanded
         self.showsResumePrompt = showsResumePrompt
         self.showsLoadFailure = showsLoadFailure
@@ -85,20 +79,9 @@ struct WindowPlaybackPage: View {
             ) {
                 if deckMounted { deckOrnament }
             }
-            .ornament(
-                visibility: .visible,
-                attachmentAnchor: .scene(.leading),
-                contentAlignment: Alignment3D(horizontal: .trailing, vertical: .center, depth: .back)
-            ) {
-                if settingsMounted { settingsPanelOrnament }
-            }
             .contentShape(.interaction, playbackShape)
             .onChange(of: isChromeVisible) { _, _ in
                 updateDeckReveal()
-                updateSettingsReveal()
-            }
-            .onChange(of: isSettingsPanelPresented) { _, _ in
-                updateSettingsReveal()
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("DesignComps-WindowPlaybackPage")
@@ -114,15 +97,6 @@ struct WindowPlaybackPage: View {
             mounted: { deckMounted = $0 },
             revealed: { deckRevealed = $0 },
             isStillHidden: { !isChromeVisible }
-        )
-    }
-
-    private func updateSettingsReveal() {
-        setReveal(
-            show: isChromeVisible && isSettingsPanelPresented,
-            mounted: { settingsMounted = $0 },
-            revealed: { settingsRevealed = $0 },
-            isStillHidden: { !(isChromeVisible && isSettingsPanelPresented) }
         )
     }
 
@@ -231,13 +205,12 @@ struct WindowPlaybackPage: View {
         }
     }
 
-    // Bottom ornament 内容:播放控件 deck。
+    // Bottom ornament 内容:融合播放面板(ADR-0009——设置由 ≡ 内联形变,不再单设前缘 ornament)。
     // EXPLORATORY: 初始与窗口共面,绕 X 轴(与底边平行)以贴窗口的 top 边为合页线朝用户
     // 抬起 30°;top padding(= ornamentGap)留出与窗口底缘的一致间距。
     private var deckOrnament: some View {
-        PlayerControlDeck(
-            timelineResetToken: progressTimelineResetToken,
-            onOpenSettings: toggleSettingsPanel,
+        FusedPlayerPanel(
+            initialSettingsPresented: isSettingsPanelPresented,
             initialTimelineExpanded: initialTimelineExpanded
         )
         .rotation3DEffect(.degrees(deckRevealed ? ornamentHingeAngle : 0), axis: .x, anchor: .top)
@@ -296,25 +269,6 @@ struct WindowPlaybackPage: View {
         }
     }
 
-    // Leading ornament 内容:设置面板(player panel)。
-    // EXPLORATORY: 初始与窗口共面,绕 Y 轴(竖直)以贴窗口的 trailing 边为合页线朝用户
-    // 转 30°;trailing padding(= ornamentGap)留出与窗口左缘的一致间距。角度/正负号
-    // 以 Simulator 透视实测为准,定稿后再决定是否进 token。
-    private var settingsPanelOrnament: some View {
-        PlayerSettingsPanelPreview()
-            .rotation3DEffect(.degrees(settingsRevealed ? ornamentHingeAngle : 0), axis: .y, anchor: .trailing)
-            .padding(.trailing, ornamentGap)
-            .opacity(settingsRevealed ? 1 : 0)
-            .offset(y: settingsRevealed ? 0 : -ornamentRevealOffset)
-            .accessibilityIdentifier("DesignComps-WindowPlaybackPage-settingsPanel")
-    }
-
-    private func toggleSettingsPanel() {
-        withAnimation(DesignTokens.AnimationToken.panelSpring) {
-            isSettingsPanelPresented.toggle()
-        }
-    }
-
     private var topMaskHeightRatio: CGFloat { 0.30 }
     private var bottomMaskHeightRatio: CGFloat { 0.36 }
     private var playbackShape: RoundedRectangle {
@@ -327,9 +281,6 @@ struct WindowPlaybackPage: View {
 
     private func toggleChromeVisibility() {
         withAnimation(DesignTokens.AnimationToken.controlsTransition) {
-            if isChromeVisible {
-                progressTimelineResetToken += 1
-            }
             isChromeVisible.toggle()
         }
     }

@@ -64,4 +64,47 @@ struct FakeFileDataSourceTests {
             _ = try await source.listContents(at: "/")
         }
     }
+
+    // MARK: - Deep catalog (in/out navigation harness)
+
+    @Test("demoDeep root lists the four top-level folders")
+    func demoDeepRootFolders() async throws {
+        let source = FakeFileDataSource(catalog: .demoDeep)
+        let folders = try await source.listFolders(at: "/")
+        #expect(folders.map(\.name) == ["Movies", "Documentaries", "Concerts", "Empty"])
+    }
+
+    @Test("demoDeep nests four levels deep with a leaf series folder")
+    func demoDeepNesting() async throws {
+        let source = FakeFileDataSource(catalog: .demoDeep)
+        #expect(try await source.listFolders(at: "/Movies").map(\.name) == ["Sci-Fi", "Drama", "Animation"])
+        #expect(try await source.listFolders(at: "/Movies/Sci-Fi").map(\.name) == ["Series"])
+        let episodes = try await source.listContents(at: "/Movies/Sci-Fi/Series")
+        #expect(episodes.count == 3)
+        #expect(episodes.allSatisfy { $0.name.hasPrefix("Foundation") })
+    }
+
+    @Test("demoDeep exposes empty folders at root and nested depth (UC-FILE-23)")
+    func demoDeepEmptyFolders() async throws {
+        let source = FakeFileDataSource(catalog: .demoDeep)
+        // Root-level empty folder.
+        #expect(try await source.listContents(at: "/Empty").isEmpty)
+        #expect(try await source.listFolders(at: "/Empty").isEmpty)
+        // Nested empty folder, reachable only by descending into /Concerts.
+        #expect(try await source.listFolders(at: "/Concerts").map(\.name) == ["Empty Nested"])
+        #expect(try await source.listContents(at: "/Concerts/Empty Nested").isEmpty)
+        #expect(try await source.listFolders(at: "/Concerts/Empty Nested").isEmpty)
+    }
+
+    @Test("demoDeep round-trips the logical root key the browser falls back to")
+    func demoDeepRootKeyConsistency() async throws {
+        // The browser lists the local root via "." (empty stack) and, after
+        // popping back from a subfolder, via "/" — both must surface the same
+        // root listing or back/forward navigation lands on an empty page.
+        let source = FakeFileDataSource(catalog: .demoDeep)
+        let viaDot = try await source.listFolders(at: ".").map(\.name)
+        let viaSlash = try await source.listFolders(at: "/").map(\.name)
+        #expect(viaDot == viaSlash)
+        #expect(!viaSlash.isEmpty)
+    }
 }

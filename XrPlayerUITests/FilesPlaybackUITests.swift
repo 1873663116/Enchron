@@ -33,10 +33,10 @@ nonisolated final class FilesPlaybackUITests: XCTestCase {
                       "Interstellar card should exist before tapping")
         card.tap()
 
-        // FILE-01: tapping a film plays it directly (no detail page) — the polished
-        // PlayerControlDeck transport chrome appears, driven by FakePlaybackSource.
-        let playPause = app.descendants(matching: .any)["DesignPreview-PlayerControlDeck-button-play"]
+        // FILE-01: tapping a film plays it directly (no detail page) — the fused
+        // FusedPlayerPanel transport chrome appears, driven by FakePlaybackSource.
+        let playPause = app.descendants(matching: .any)["PlayerPanel-button-play"]
         XCTAssertTrue(playPause.waitForExistence(timeout: 20),
-                      "Tapping a film should open the polished player deck (FILE-01)")
+                      "Tapping a film should open the fused player panel (FILE-01)")
     }
 }

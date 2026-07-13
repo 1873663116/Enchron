@@ -65,6 +65,16 @@ public struct MainView: View {
                             AppleReferenceVideoSurface(player: windowVideoViewModel.appleReferencePlayer)
                                 .background(.black)
                         }
+
+                        // EXPLORATORY (FakeApp): FakePlaybackSource decodes no real
+                        // frames, so the MTKView clears to black. This stand-in makes
+                        // simulated playback visible during the experiment. Remove when
+                        // the real MPVPlayerAdapter lands (usesNativeGPUOutput == true).
+                        if !windowVideoViewModel.usesNativeGPUOutput {
+                            SimulatedPlaybackSurface(
+                                title: windowVideoViewModel.currentLaunchRequest?.displayName ?? ""
+                            )
+                        }
                     }
                 }
                 .glassBackgroundEffect()
@@ -188,17 +198,8 @@ public struct MainView: View {
         ) {
             NavigationOrnament()
         }
-        // Leading playback-settings panel (Environment / Play Mode / Picture),
-        // summoned by the deck's ≡ button — replaces SettingsPopoverContent.
-        .ornament(
-            visibility: (shouldShowPlayerControls && appModel.showPlayerSettingsPopup) ? .visible : .hidden,
-            attachmentAnchor: .scene(.leading),
-            contentAlignment: .trailing
-        ) {
-            PlaybackSettingsPanel()
-                .opacity(shouldShowPlayerControls && appModel.showPlayerSettingsPopup ? 1 : 0)
-                .allowsHitTesting(shouldShowPlayerControls && appModel.showPlayerSettingsPopup)
-        }
+        // ADR-0009:前缘 PlaybackSettingsPanel ornament 已撤——设置改由底部
+        // FusedPlayerPanel 的 ≡ 内联形变长出(Environment / Play Mode / Picture)。
         .sheet(isPresented: Bindable(appModel).showSceneSelector) {
             SceneSelectorView()
         }
@@ -316,7 +317,9 @@ public struct MainView: View {
             Task { @MainActor in
                 switch request {
                 case .open:
-                    await openImmersiveSpaceUnified()
+                    // Environment-expand entry: mixed immersion so the SenseZone
+                    // volume stays open while the RCP `world` loads (ENV-18).
+                    await openImmersiveSpaceUnified(fullImmersion: false)
                 case .dismiss:
                     guard appModel.immersiveSpaceState == .open else { return }
                     appModel.isTransitioningPlaybackMode = true
@@ -359,10 +362,13 @@ public struct MainView: View {
     /// All sub-views route through appModel.immersiveSpaceRequest,
     /// which is observed here and dispatched to this function.
     @MainActor
-    private func openImmersiveSpaceUnified() async {
+    private func openImmersiveSpaceUnified(fullImmersion: Bool = true) async {
         appModel.isTransitioningPlaybackMode = true
         appModel.immersiveSpaceState = .inTransition
-        appModel.isFullImmersion = true   // §5.9c: ensure full/exclusive immersion on every entry
+        // Playback immersion is full/exclusive; environment-expand browsing is
+        // mixed so the SenseZone volume carousel stays visible alongside the RCP
+        // `world` (ENV-18 — the volume must not close on expand).
+        appModel.isFullImmersion = fullImmersion
         switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
         case .opened:
             // Attach video layer for panorama/immersive rendering
@@ -370,7 +376,11 @@ public struct MainView: View {
             panoramaBridge.attachVideoLayer(layer)
             // §5.9b: mark state as open before dismissing main window
             appModel.immersiveSpaceState = .open
-            dismissWindow(id: "main")
+            // Only full immersion replaces the shared space; in mixed immersion
+            // the main window and SenseZone volume coexist with the scene.
+            if fullImmersion {
+                dismissWindow(id: "main")
+            }
         case .userCancelled, .error:
             fallthrough
         @unknown default:
@@ -418,6 +428,39 @@ public struct MainView: View {
                 }
             }
         }
+    }
+}
+
+/// EXPLORATORY (FakeApp): visible stand-in for decoded video frames while the
+/// app runs on `FakePlaybackSource`. Reads as "now playing <title>" over a dark
+/// gradient so simulated playback is observable. Delete when the real
+/// `MPVPlayerAdapter` produces frames (`usesNativeGPUOutput == true`).
+private struct SimulatedPlaybackSurface: View {
+    let title: String
+
+    var body: some View {
+        ZStack {
+            Color.black
+            DesignTokens.Surface.elevated
+
+            VStack(spacing: DesignTokens.Spacing.md) {
+                Image(systemName: "film.stack")
+                    .font(DesignTokens.SymbolSize.hero)
+                    .foregroundStyle(DesignTokens.Surface.supportingText)
+                if title.isEmpty == false {
+                    Text(title)
+                        .font(DesignTokens.Typography.title)
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                }
+                Text("Simulated playback · no decode")
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.Surface.supportingText)
+            }
+            .padding(DesignTokens.Spacing.xl)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 

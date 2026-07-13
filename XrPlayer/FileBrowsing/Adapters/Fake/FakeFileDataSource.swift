@@ -168,6 +168,55 @@ nonisolated extension FakeFileDataSource {
                 "/": ["Documentaries", "Empty"]
             ]
         )
+
+        /// A deep, multi-branch tree for exercising in/out navigation, breadcrumb,
+        /// back/forward, and empty-directory handling. Four levels at the deepest
+        /// branch (`/Movies/Sci-Fi/Series`), several sibling branches, and two
+        /// empty folders at different depths (`/Empty` at root, `/Concerts/Empty
+        /// Nested` deeper down). Folders with no catalog entry list as empty.
+        public static let demoDeep = Catalog(
+            filesByPath: [
+                "/": [
+                    FileSeed("Interstellar.mkv", gigabytes: 42.8, daysAgo: 3),
+                    FileSeed("Dune Part Two.mkv", gigabytes: 56.1, daysAgo: 1),
+                    FileSeed("Arrival.mkv", gigabytes: 28.4, daysAgo: 30)
+                ],
+                "/Movies": [
+                    FileSeed("The Martian.mkv", gigabytes: 31.5, daysAgo: 5)
+                ],
+                "/Movies/Sci-Fi": [
+                    FileSeed("Blade Runner 2049.mkv", gigabytes: 45.6, daysAgo: 7),
+                    FileSeed("Ex Machina.mov", gigabytes: 22.7, daysAgo: 21),
+                    FileSeed("2001 A Space Odyssey.mkv", gigabytes: 35.1, daysAgo: 60)
+                ],
+                "/Movies/Sci-Fi/Series": [
+                    FileSeed("Foundation S01E01.mkv", gigabytes: 8.2, daysAgo: 14),
+                    FileSeed("Foundation S01E02.mkv", gigabytes: 8.6, daysAgo: 13),
+                    FileSeed("Foundation S01E03.mkv", gigabytes: 8.4, daysAgo: 12)
+                ],
+                "/Movies/Drama": [
+                    FileSeed("Oppenheimer.mkv", gigabytes: 61.3, daysAgo: 8),
+                    FileSeed("The Whale.mkv", gigabytes: 19.7, daysAgo: 40)
+                ],
+                "/Movies/Animation": [
+                    FileSeed("Spirited Away.mkv", gigabytes: 24.1, daysAgo: 90),
+                    FileSeed("Akira.mkv", gigabytes: 27.8, daysAgo: 120)
+                ],
+                "/Documentaries": [
+                    FileSeed("Cosmos.mkv", gigabytes: 12.4, daysAgo: 9),
+                    FileSeed("Planet Earth.mkv", gigabytes: 64.2, daysAgo: 15)
+                ],
+                "/Concerts": [
+                    FileSeed("Live at Pompeii.mkv", gigabytes: 33.0, daysAgo: 50)
+                ]
+            ],
+            folderNamesByPath: [
+                "/": ["Movies", "Documentaries", "Concerts", "Empty"],
+                "/Movies": ["Sci-Fi", "Drama", "Animation"],
+                "/Movies/Sci-Fi": ["Series"],
+                "/Concerts": ["Empty Nested"]
+            ]
+        )
     }
 
     /// A lightweight seed for one fake media file. Sizes and dates are fixed so
