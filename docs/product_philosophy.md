@@ -17,7 +17,7 @@ SwiftUI 窗口内播放，它是用户最先接触的界面，也是验证基础
 
 ### 沉浸场景模式
 
-用户进入 3D 虚拟场景，视频显示在场景中的虚拟屏幕上。虚拟屏幕的远近、高度、视角均可调节，每个场景独立记忆观影位置。帧数据通过 Metal 纹理桥接渲染到 RealityKit 材质上。
+用户进入 3D 虚拟场景，视频显示在场景中的虚拟屏幕上。虚拟屏幕的远近、高度、视角均可调节，每个场景独立记忆观影位置。播放画面由外部 `PlaybackCore` 提供，Enchron 负责把它组装进 RealityKit 呈现表面。
 
 这是产品的终极形态，呈现高质量的美术场景，也是核心差异化。当前交互设计、接口定义和模块边界都要为它预留空间。
 
@@ -33,17 +33,11 @@ SwiftUI 窗口内播放，它是用户最先接触的界面，也是验证基础
 
 ### 媒体引擎策略
 
-Enchron 当前媒体策略是 **mpv-first**。
+Enchron 不拥有媒体引擎。独立的 `PlaybackCore` 是唯一播放核心，负责媒体来源接入、轨道与播放状态、sample-buffer 生产、同步和渲染输入协调；Enchron 只持有产品级播放请求、界面状态与呈现生命周期。
 
-mpv 是当前生产播放、兼容性、开放格式、复杂字幕/音轨、远程 I/O、HDR 实验和后续沉浸式渲染探索的主要基础。当前实现和后续生产改动应围绕 mpv 收敛。
+`PlaybackCore` 内部的 Apple Compressed 与 FFmpeg Compressed 是同一核心中的两条显式路线，不是 Enchron 的双引擎路由。Enchron 不探测路线、不实现失败回退，也不把底层选项直接暴露成产品模型。
 
-Apple AV / AVFoundation / AVKit 当前用于 reference、diagnostics、主观视觉对照、HDR/EDR 行为观察和平台能力研究。它们不构成当前生产 playback engine、默认 fallback、第二播放核心或当前 engine routing 目标分支。
-
-未来如果产品要支持 Dolby Vision、Apple-native immersive media、Spatial Video、MV-HEVC、APMP 或其他系统媒体能力，可以重新评估 Apple AV / AVKit / RealityKit 路线。该评估需要新的显式架构决策、能力边界、测试依据和文档更新。
-
-三种播放模式仍然共享一套语义播放模型。窗口、沉浸场景和全景模式的差异是呈现路径差异，不是播放引擎语义差异。
-
-当前代码中可能存在诊断开关、reference surface、历史残留或临时结构。它们是需要理解和评估的现状，不自动构成双引擎生产架构意图。
+远程来源、字幕、HDR 与新媒体能力先在 `PlaybackCore` 中形成稳定契约，再由 Enchron 的薄适配层接入。任何新的播放后端都需要独立架构决策，不能因历史代码存在而成为产品方向。
 
 ## 2. 具体设计取向
 
@@ -85,7 +79,7 @@ Apple AV / AVFoundation / AVKit 当前用于 reference、diagnostics、主观视
 沉浸场景对当前设计产生持续约束：
 
 - `PlayerUI` 的控件布局要考虑未来在 3D 空间中浮层呈现的可能。
-- `PlaybackCore` 的帧输出接口要支持 MTKView 直接渲染和 Metal 纹理桥接两类能力表达。
+- Enchron 的播放适配层只消费 `PlaybackCore` 提供的呈现能力，不复制 renderer、同步器或帧队列。
 - 播放模式决策逻辑应由 `PlayerUI` 持有，通过查询 `SpatialScene` 状态来决定呈现路径。
 
 ## 4. 产品边界

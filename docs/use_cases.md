@@ -9,7 +9,7 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 - **Settings**（`SET`）— Playback · Spatial Content · Storage & Privacy · Diagnostics & Tools · About · 框架（导航与持久化）
 - **Playback**（`PLAY`）— 传输与进度 · 精度时间轴 · ⋯ 轨道菜单 · 播放设置面板（≡）· 控件显隐与窗口 · 续播与加载生命周期
 - **Environment**（`ENV`）— 环境选择 · 沉浸呈现 · 沉浸内调整（2026-06-19 RCP 真实场景落地，见 ADR-0008）
-- **附录** — Picture 画面参数（libplacebo）
+- **画面参数边界** — 产品语义与播放核心契约的分界
 
 ## 宪章
 
@@ -61,8 +61,6 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 复杂条目的补充说明不进表格，在该章末尾用 `> UC-XXX-NN 备注：…` 引用块承载。
 
 **验证状态自更新（给后续 agent）**：本表 `验证状态` 列每轮验证后**就地回填**，是活法律不是初始草稿。后续 agent 看到 `已验证`/`部分` 就**采信最近一次验证结论，不要默认全表未验证从头重核**；要复核先读最新验证报告对齐增量，只补做未覆盖或状态过期的行。最近一轮 = 下方横幅。
-
-> **2026-06-19 全量验证（已回填本列）**：111 条经三层证据核过——XCUITest 5/5 全绿（真实点击）+ workflow `fakeapp-usecase-verify`（14 簇代码追溯 + 对抗证伪，28 agent）+ RCP 运行时。回填结果：**45 已验证 / 27 部分 / 30 未实现**（另 8 条边角本轮未覆盖，留 `未验证`）；**0 conflict**（无代码与蓝图矛盾）。逐条 file:line 证据、`部分` 行的具体缺口、`需真机` 清单见 [`docs/reference/2026-06-19-fakeapp-usecase-verification.md`](reference/2026-06-19-fakeapp-usecase-verification.md)。
 
 ---
 
@@ -187,7 +185,7 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 
 | ID | 简名 | 触发·前置 | 预期可观察结果 | 验证状态 | 关联测试 | 模式适用 |
 |---|---|---|---|---|---|---|
-| UC-SET-20 | 只读诊断面存在 | Settings → Diagnostics & Tools 分类 | 显示只读诊断披露（Route Snapshot / Media Inspector / HDR-EDR 状态 / Safe mpv Preset 概览等）。**纯只读披露不逐项立用例**；本行只记录该面存在 | 已验证 | 未覆盖 | — |
+| UC-SET-20 | 只读诊断面存在 | Settings → Diagnostics & Tools 分类 | 显示只读诊断披露（当前路线、媒体信息与 HDR/EDR 状态等）。**纯只读披露不逐项立用例**；本行只记录该面存在 | 已验证 | 未覆盖 | — |
 | UC-SET-21 | 重置引擎覆盖 | Diagnostics & Tools → Reset All Engine Overrides 并确认 | 弹确认对话框，确认后引擎诊断覆盖回到干净会话态 | 部分 | 未覆盖 | — |
 | UC-SET-22 | 重置环境屏位 | Diagnostics & Tools → Reset Environment Screen Position 选范围（当前/全部）并确认 | 弹确认（文案声明仅重置已存屏幕摆位、不动文件与源），确认后所选环境的屏位重置 | 未实现 | 未覆盖 | 沉浸 |
 | UC-SET-23 | 设日志级别 | Diagnostics & Tools → Log Level 选级别 | 日志详细度切换并持久 | 已验证 | 未覆盖 | — |
@@ -323,58 +321,9 @@ App 用户可观察行为的唯一规范清单。时态：**活法律**——随
 空缺原因：待管线技术验证与大规模测试设计阶段一并定义。填充责任：人类发起，agent 起草。
 **在此之前，任何 agent 不得自行发明指标。**
 
-## 附录·Picture 画面参数（libplacebo）
+## 画面参数边界
 
-`UC-PLAY-28` 的规范来源。播放设置面板 → Picture 分区按 list-group 渲染下列参数，调任一项即时改变画面。参数源 = mpv（gpu-next / libplacebo）暴露的可调项（出处：`~/Applications/mpv/xr-fork/verify-visionos`）。**mpv 选项名为稳定键（锚点），「官方名」为面板显示名**；只读项以信息行展示、不可交互。
-
-### 峰值检测（Peak Detection）
-
-| 官方名 | mpv 选项（键） | 类型/范围·默认 |
-|---|---|---|
-| 动态峰值检测 | `hdr-compute-peak` | 枚举 auto/yes/no · auto |
-| 峰值百分位 | `hdr-peak-percentile` | 90–100 · 99.9 |
-| 峰值平滑率 | `hdr-peak-decay-rate` | 1–100 · 20 |
-| 换场阈值·低 | `hdr-scene-threshold-low` | 0–20 · 1.0 |
-| 换场阈值·高 | `hdr-scene-threshold-high` | 0–20 · 3.0 |
-
-### 输出目标（Output Target）
-
-| 官方名 | mpv 选项（键） | 类型/范围·默认 |
-|---|---|---|
-| 输出色域（只读） | `target-prim` | 只读信息 · display-p3 |
-| 输出传递曲线（只读） | `target-trc` | 只读信息 · linear |
-| 目标峰值亮度 (nits) | `target-peak` | 100–2000 · 406 |
-| HDR 参考白 (nits) | `hdr-reference-white` | 50–1000 · 183 |
-| 目标对比度 / 黑位 | `target-contrast` | 枚举 inf/auto/100000/10000/1000 · inf |
-
-### 色调映射（Tone Mapping）
-
-| 官方名 | mpv 选项（键） | 类型/范围·默认 |
-|---|---|---|
-| 色调映射曲线 | `tone-mapping` | 枚举（bt.2390/bt.2446a/spline/…）· bt.2390 |
-| 曲线参数 | `tone-mapping-param` | 0–2 · 0 |
-| 反向色调映射 | `inverse-tone-mapping` | 开关 · no |
-| 最大提亮倍数 | `tone-mapping-max-boost` | 1–10 · 1 |
-| 对比度恢复 | `hdr-contrast-recovery` | 0–2 · 0.15 |
-| 对比度恢复平滑度 | `hdr-contrast-smoothness` | 1–100 · 100 |
-
-### 色域与色彩（Gamut & Color）
-
-| 官方名 | mpv 选项（键） | 类型/范围·默认 |
-|---|---|---|
-| 色域映射模式 | `gamut-mapping-mode` | 枚举（clip/perceptual/…）· clip |
-| 饱和度 | `saturation` | -100–100 · 9 |
-| 亮度 | `brightness` | -100–100 · 0 |
-| 对比度 | `contrast` | -100–100 · 10 |
-| 伽马 | `gamma` | -100–100 · 1 |
-| 色相 | `hue` | -100–100 · 0 |
-
-### 诊断（Diagnostics）
-
-| 官方名 | mpv 选项（键） | 类型·默认 |
-|---|---|---|
-| 可视化色调曲线 | `tone-mapping-visualize` | 开关 · no |
-| 色域越界标红 | `gamut-mapping-warn`（快捷切 warn↔clip） | 按钮 |
+`UC-PLAY-28` 只描述用户能够理解和验证的画面调节能力。具体参数、范围与默认值必须来自 `PlaybackCore` 的稳定公开契约；不得把 FFmpeg、libplacebo、mpv 或平台框架的底层选项名直接当作产品模型的稳定键。
 
 ## 退役名单（只追加）
 

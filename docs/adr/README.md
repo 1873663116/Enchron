@@ -6,7 +6,6 @@
 2. 缺上下文会让未来读者困惑"为什么这样做"；
 3. 真实权衡的产物——存在过认真的替代方案。
 
-格式：标题即决策、状态、日期、背景、决策、考虑过的替代方案、后果。先例：本目录 `0001-collaboration-constitution.md`；mpv fork 仓库的 `xr-fork/adr/`。
+格式：标题即决策、状态、日期、背景、决策、考虑过的替代方案、后果。先例：本目录 `0001-collaboration-constitution.md`。
 
-已收录：0001 协作宪法；0002 收窄 /visionos-platform 触发面；0009 融合播放面板收口（FusedPlayerPanel 取代 deck + 设置面板）。
-排队中：D1/D2 出口拓扑终判（等 E6 证据，见 `docs/reference/2026-06-10-frame-pipeline-theory-investigation.md` §5）。
+已收录：0001 协作宪法；0002 收窄 /visionos-platform 触发面；0009 融合播放面板收口；0010 PlaybackCore 取代内部 mpv 播放核心。
