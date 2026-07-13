@@ -416,8 +416,13 @@ public final class FileBrowsingViewModel {
 
     public func navigateToFolder(_ folder: FileBrowsingDomain.MediaFolder) async {
         if remotePathStack.isEmpty {
-            // First navigation: push current root as initial stack entry
-            remotePathStack.append(activeRemoteAdapter != nil ? currentRemotePath : rootURL.path)
+            // First navigation: push the root as the stack's base entry. The stack
+            // holds logical query keys, not display paths — so the local base must
+            // be the same logical root the loader uses on the initial (empty-stack)
+            // listing, not the filesystem `rootURL.path`. Seeding the absolute path
+            // here made `navigateUp`/`navigateForward`/breadcrumb-to-root query a key
+            // the source doesn't recognize, returning an empty root.
+            remotePathStack.append(activeRemoteAdapter != nil ? currentRemotePath : "/")
         }
         remotePathStack.append(folder.path)
         currentRemotePath = folder.path

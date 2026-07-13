@@ -82,13 +82,6 @@ public final class AppModel {
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
 
-    // MARK: - Player Settings Panel
-    /// Whether the leading playback-settings ornament (Environment / Play Mode /
-    /// Picture) is summoned. Toggled by the deck's ≡ button. The ⋯ menu is now a
-    /// native SwiftUI Menu inside `PlayerControlDeck`, so the old window-overlay
-    /// popup + sub-menu state is gone.
-    var showPlayerSettingsPopup: Bool = false
-
     // MARK: - Debug Controls
     public var showDebugPanel: Bool = false
 
@@ -104,6 +97,12 @@ public final class AppModel {
     public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
     public var screenShape: SpatialSceneDomain.ScreenGeometry = .flat(width: 2.4, height: 1.35)
     public var isFullImmersion: Bool = true
+
+    /// True while the immersive space is presenting the RCP `world` for
+    /// environment-expand browsing (ENV-18) rather than video playback. Drives
+    /// `ImmersiveSpaceView` to load the `world` even though `playbackMode` stays
+    /// `.window`, and selects mixed immersion so the SenseZone volume stays open.
+    public var isEnvironmentImmersiveActive: Bool = false
 
     private let screenPositionStore: ScreenPositionStoring
 

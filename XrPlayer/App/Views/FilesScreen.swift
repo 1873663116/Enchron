@@ -125,6 +125,21 @@ struct FilesScreen: View {
 
     @ViewBuilder
     private var filesBody: some View {
+        ZStack {
+            currentFolderContent
+                // Each folder is its own identity, so changing path cross-fades the
+                // listing in/out instead of hard-cutting — the same quick fade used
+                // elsewhere. View-mode (grid/list) keeps the identity, so toggling it
+                // is unaffected.
+                .id(viewModel.currentRemotePath)
+                .transition(.opacity)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .animation(DesignTokens.AnimationToken.controlsTransition, value: viewModel.currentRemotePath)
+    }
+
+    @ViewBuilder
+    private var currentFolderContent: some View {
         if viewModel.isLoading && viewModel.files.isEmpty && viewModel.folders.isEmpty {
             loadingState
         } else if isEmpty {
@@ -178,13 +193,11 @@ struct FilesScreen: View {
                 selection: $viewMode,
                 accessibilityIdentifier: "FileBrowsing-FilesScreen-viewMode"
             )
-            .disabled(isEmpty)
             SortMenuButton(
                 sortKey: $sortKey,
                 sortOrder: $sortOrder,
                 accessibilityIdentifier: "FileBrowsing-FilesScreen-sort"
             )
-            .disabled(isEmpty)
             .onChange(of: sortKey) { _, _ in applySort() }
             .onChange(of: sortOrder) { _, _ in applySort() }
             manageMenu
@@ -225,11 +238,14 @@ struct FilesScreen: View {
                 Label("New Folder", systemImage: "folder.badge.plus")
             }
             Divider()
+            // Only multi-select needs items to act on; an empty folder still
+            // allows New Folder / Use Documents / Add Photos.
             Button {
                 isMultiSelecting.toggle()
             } label: {
                 Label("Select", systemImage: "checkmark.circle")
             }
+            .disabled(isEmpty)
         } label: {
             GlassCircleIconLabel(
                 systemName: "ellipsis",
@@ -238,7 +254,6 @@ struct FilesScreen: View {
             )
         }
         .buttonStyle(.plain)
-        .disabled(isEmpty)
         .accessibilityLabel("Manage local files")
         .accessibilityIdentifier("FileBrowsing-Manage-button")
     }
@@ -273,18 +288,18 @@ struct FilesScreen: View {
                     GridCard.folder(
                         title: folder.name,
                         count: 0,
-                        accessibilityIdentifier: "FileBrowsing-grid-folder-\(folder.name)"
+                        accessibilityIdentifier: "FileBrowsing-grid-folder-\(folder.name)",
+                        action: { Task { await viewModel.navigateToFolder(folder) } }
                     )
-                    .onTapGesture { Task { await viewModel.navigateToFolder(folder) } }
                 }
                 ForEach(viewModel.displayedFiles) { file in
                     GridCard.video(
                         title: displayTitle(file),
                         fileSize: fileSizeText(file),
                         duration: "",
-                        accessibilityIdentifier: "FileBrowsing-grid-video-\(file.name)"
+                        accessibilityIdentifier: "FileBrowsing-grid-video-\(file.name)",
+                        action: { viewModel.selectFile(file) }
                     )
-                    .onTapGesture { viewModel.selectFile(file) }
                 }
             }
             .frame(maxWidth: gridMaxWidth, alignment: .leading)

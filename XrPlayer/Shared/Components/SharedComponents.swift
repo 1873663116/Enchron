@@ -877,6 +877,7 @@ private struct SettingListCenterSliderRow: View {
 
     @Namespace private var hoverNamespace
     @State private var rowWidth: CGFloat = 0
+    @State private var isDragging = false
 
     // CenterSlider 两侧各有一个图标列(Interactive.compact)与一段 spacing(md),
     // 轨道宽 = 行宽 - 左右 padding(lg×2) - 两图标列 - 两段 spacing。据此让轨道
@@ -897,7 +898,7 @@ private struct SettingListCenterSliderRow: View {
                 .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
                 .lineLimit(1)
                 .hoverEffect(in: hoverGroup(.followsGroup)) { effect, isActive, _ in
-                    effect.opacity(isActive ? 1 : 0)
+                    effect.opacity(isActive || isDragging ? 1 : 0)
                 }
 
             CenterSlider(
@@ -905,7 +906,8 @@ private struct SettingListCenterSliderRow: View {
                 leadingSystemImage: leadingSystemImage,
                 trailingSystemImage: trailingSystemImage,
                 accessibilityLabel: accessibilityLabel,
-                trackWidth: resolvedTrackWidth
+                trackWidth: resolvedTrackWidth,
+                onDraggingChanged: { isDragging = $0 }
             )
         }
         .padding(.horizontal, DesignTokens.Spacing.lg)
@@ -940,6 +942,7 @@ private struct SettingListRangeSliderRow: View {
 
     @Namespace private var hoverNamespace
     @State private var rowWidth: CGFloat = 0
+    @State private var isDragging = false
 
     // Same track-width arithmetic as the centre slider row so both fill to an
     // identical inset; the range slider has no end-icon columns, so it only
@@ -972,7 +975,7 @@ private struct SettingListRangeSliderRow: View {
                     .lineLimit(1)
             }
             .hoverEffect(in: hoverGroup(.followsGroup)) { effect, isActive, _ in
-                effect.opacity(isActive ? 1 : 0)
+                effect.opacity(isActive || isDragging ? 1 : 0)
             }
 
             RangeSlider(
@@ -980,7 +983,8 @@ private struct SettingListRangeSliderRow: View {
                 range: range,
                 accessibilityLabel: accessibilityLabel,
                 accessibilityValue: readout,
-                trackWidth: resolvedTrackWidth
+                trackWidth: resolvedTrackWidth,
+                onDraggingChanged: { isDragging = $0 }
             )
         }
         .padding(.horizontal, DesignTokens.Spacing.lg)
@@ -1123,15 +1127,20 @@ struct SortMenuButton: View {
 
     var body: some View {
         Menu {
-            Section("Sort By") {
-                sortKeyButton(.name, title: "Name")
-                sortKeyButton(.modifiedDate, title: "Date Modified")
-                sortKeyButton(.size, title: "Size")
+            // Picker renders the selected row with a system checkmark on the
+            // trailing edge — the native menu idiom. A hand-rolled
+            // `Label(systemImage: "checkmark")` forced the mark to the leading
+            // edge, shoving the title right.
+            Picker("Sort By", selection: $sortKey) {
+                Text("Name").tag(SortMenuKey.name)
+                Text("Date Modified").tag(SortMenuKey.modifiedDate)
+                Text("Size").tag(SortMenuKey.size)
             }
+            .pickerStyle(.inline)
 
-            Menu("Order") {
-                sortOrderButton(.ascending, title: "Ascending")
-                sortOrderButton(.descending, title: "Descending")
+            Picker("Order", selection: $sortOrder) {
+                Text("Ascending").tag(SortMenuOrder.ascending)
+                Text("Descending").tag(SortMenuOrder.descending)
             }
         } label: {
             GlassCircleIconLabel(
@@ -1143,22 +1152,6 @@ struct SortMenuButton: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Sort")
         .accessibilityIdentifier(accessibilityIdentifier)
-    }
-
-    private func sortKeyButton(_ key: SortMenuKey, title: String) -> some View {
-        Button {
-            sortKey = key
-        } label: {
-            Label(title, systemImage: sortKey == key ? "checkmark" : "")
-        }
-    }
-
-    private func sortOrderButton(_ order: SortMenuOrder, title: String) -> some View {
-        Button {
-            sortOrder = order
-        } label: {
-            Label(title, systemImage: sortOrder == order ? "checkmark" : "")
-        }
     }
 }
 
@@ -1341,11 +1334,18 @@ struct GridCard: View {
     private let title: String
     private let variant: Variant
     private let explicitIdentifier: String?
+    /// When set, the whole card is a real interactive control (same contract as
+    /// `FileListGroup.Item.action`). When `nil`, the card is display-only — used
+    /// by showcase previews. This is what unifies grid and list interaction:
+    /// both drive the same routing instead of the grid bolting on an external
+    /// `.onTapGesture`, which hit-tested unreliably over the card's own gestures.
+    private let action: (() -> Void)?
 
-    private init(title: String, variant: Variant, identifier: String?) {
+    private init(title: String, variant: Variant, identifier: String?, action: (() -> Void)?) {
         self.title = title
         self.variant = variant
         self.explicitIdentifier = identifier
+        self.action = action
     }
 
     // MARK: 变体工厂
@@ -1357,7 +1357,8 @@ struct GridCard: View {
         badges: [String] = [],
         /// 0…1 已观看进度;`nil` 表示未看过(不画底部进度描边)。
         watchedProgress: Double? = nil,
-        accessibilityIdentifier: String? = nil
+        accessibilityIdentifier: String? = nil,
+        action: (() -> Void)? = nil
     ) -> GridCard {
         GridCard(
             title: title,
@@ -1367,16 +1368,18 @@ struct GridCard: View {
                 badges: badges,
                 watchedProgress: watchedProgress
             ),
-            identifier: accessibilityIdentifier
+            identifier: accessibilityIdentifier,
+            action: action
         )
     }
 
     static func folder(
         title: String,
         count: Int,
-        accessibilityIdentifier: String? = nil
+        accessibilityIdentifier: String? = nil,
+        action: (() -> Void)? = nil
     ) -> GridCard {
-        GridCard(title: title, variant: .folder(count: count), identifier: accessibilityIdentifier)
+        GridCard(title: title, variant: .folder(count: count), identifier: accessibilityIdentifier, action: action)
     }
 
     // MARK: 无障碍派生
@@ -1407,8 +1410,24 @@ struct GridCard: View {
     }
 
     var body: some View {
+        if let action {
+            Button(action: action) { cardVisual }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityIdentifier(resolvedIdentifier)
+                .accessibilityLabel(resolvedLabel)
+        } else {
+            cardVisual
+                .accessibilityElement(children: .ignore)
+                .accessibilityIdentifier(resolvedIdentifier)
+                .accessibilityLabel(resolvedLabel)
+                .accessibilityAddTraits(.isButton)
+        }
+    }
+
+    private var cardVisual: some View {
         let shape = DesignTokens.ShapeToken.card
-        VStack(alignment: .leading, spacing: 0) {
+        return VStack(alignment: .leading, spacing: 0) {
             thumbnailContent(shape)
                 .frame(height: DesignTokens.Card.thumbnailHeight)
                 .clipShape(shape)
@@ -1425,10 +1444,6 @@ struct GridCard: View {
         .frame(width: DesignTokens.Card.gridMin)
         .contentShape(shape)
         .enchronPressFeedback(.card)
-        .accessibilityElement(children: .ignore)
-        .accessibilityIdentifier(resolvedIdentifier)
-        .accessibilityLabel(resolvedLabel)
-        .accessibilityAddTraits(.isButton)
     }
 
     @ViewBuilder
@@ -2471,6 +2486,9 @@ struct CenterSlider: View {
     var accessibilityLabel: String = "Center slider"
     var accessibilityIdentifier: String = "DesignPreview-CenterSlider"
     var trackWidth: CGFloat = 450
+    /// 拖动状态上抛给宿主行:行据此让"标题/数值 readout"在拖动期间保持可见
+    /// (gaze hover 在拖动时会离开该行,单靠 hover 会让 readout 消失)。
+    var onDraggingChanged: (Bool) -> Void = { _ in }
 
     // Value at the moment the drag began; the live snap measures the finger's
     // translation against this origin so the knob lands on whole detents only.
@@ -2566,6 +2584,7 @@ struct CenterSlider: View {
                     withAnimation(DesignTokens.PressFeedback.control.pressAnimation) {
                         isDragging = true
                     }
+                    onDraggingChanged(true)
                 }
                 // Map the finger's position back to the nearest in-range detent
                 // and commit it live; the knob then glides notch-to-notch with the
@@ -2584,6 +2603,7 @@ struct CenterSlider: View {
                 withAnimation(DesignTokens.PressFeedback.control.releaseAnimation) {
                     isDragging = false
                 }
+                onDraggingChanged(false)
             }
     }
 
@@ -2640,6 +2660,8 @@ struct RangeSlider: View {
     var accessibilityValue: String = ""
     var accessibilityIdentifier: String = "DesignPreview-RangeSlider"
     var trackWidth: CGFloat = 450
+    /// 拖动状态上抛给宿主行(见 CenterSlider.onDraggingChanged)。
+    var onDraggingChanged: (Bool) -> Void = { _ in }
 
     @State private var isDragging = false
 
@@ -2704,6 +2726,7 @@ struct RangeSlider: View {
                     withAnimation(DesignTokens.PressFeedback.control.pressAnimation) {
                         isDragging = true
                     }
+                    onDraggingChanged(true)
                 }
                 let travel = max(trackWidth - knobSize, 1)
                 let localX = gesture.location.x - knobSize / 2
@@ -2714,6 +2737,7 @@ struct RangeSlider: View {
                 withAnimation(DesignTokens.PressFeedback.control.releaseAnimation) {
                     isDragging = false
                 }
+                onDraggingChanged(false)
             }
     }
 
@@ -2732,13 +2756,20 @@ struct PathBreadcrumbMenu: View {
 
     var body: some View {
         Menu {
-            ForEach(Array(path.enumerated()), id: \.offset) { index, _ in
-                Button {
-                    onSelectLevel(index)
-                } label: {
-                    Label(pathPrefix(through: index), systemImage: index == path.count - 1 ? "checkmark" : "")
+            // Picker checkmarks the current level (last) on the trailing edge,
+            // natively. Selecting any other level routes through `onSelectLevel`.
+            Picker(
+                "Path",
+                selection: Binding(
+                    get: { path.count - 1 },
+                    set: { onSelectLevel($0) }
+                )
+            ) {
+                ForEach(Array(path.enumerated()), id: \.offset) { index, _ in
+                    Text(pathPrefix(through: index)).tag(index)
                 }
             }
+            .pickerStyle(.inline)
         } label: {
             Text(currentFolder)
                 .font(.body)
@@ -2789,6 +2820,7 @@ struct SearchInputCapsule: View {
                 .autocorrectionDisabled(true)
                 .hoverEffectDisabled()
                 .onTapGesture(perform: activateInput)
+                .accessibilityIdentifier(accessibilityIdentifier)
         }
         .padding(.horizontal, DesignTokens.Spacing.md)
         .frame(width: width, height: DesignTokens.Interactive.regular)
@@ -2967,834 +2999,6 @@ struct DeckMenuItem: Identifiable {
         self.title = title
         self.isSelected = isSelected
         self.action = action
-    }
-}
-
-/// 把 `PlayerControlDeck` 从「纯视觉 mock」接到真实(或假)播放状态的薄绑定面。
-/// 为 nil 时 deck 维持自带 @State 的 Canvas 审查行为(所有既有 Preview 不受影响);
-/// 注入后 deck 改读这里的值并把交互回调给产品层。刻意做成可丢弃的值类型,不引入新抽象层。
-struct PlayerControlDeckLive {
-    var isPlaying: Bool
-    var showsReplay: Bool
-    var progress: CGFloat
-    var elapsedLabel: String
-    var remainingLabel: String
-    var duration: Double
-    var framesPerSecond: Double
-    var onPlayPause: () -> Void
-    var onSkipBackward: () -> Void
-    var onSkipForward: () -> Void
-    var onSeek: (CGFloat) -> Void
-    var onFrameStep: (Int) -> Void
-    var subtitleItems: [DeckMenuItem]
-    var audioItems: [DeckMenuItem]
-    var speedItems: [DeckMenuItem]
-    var episodeItems: [DeckMenuItem]
-}
-
-struct PlayerControlDeck: View {
-    var timelineResetToken = 0
-    /// 左侧 ≡ 设置入口的动作。由组合阶段(如窗口播放页)注入,用于召出 player panel。
-    var onOpenSettings: () -> Void = {}
-    /// 实时播放绑定。nil = Canvas mock(默认);注入后 deck 接真实播放状态与交互。
-    var live: PlayerControlDeckLive?
-
-    // initialTimelineExpanded 仅供 Canvas 审查直接展示展开态的二级时间轴;
-    // 运行时仍由双击进度条切换。其余 @State 保留各自的行内默认值。
-    init(
-        timelineResetToken: Int = 0,
-        onOpenSettings: @escaping () -> Void = {},
-        initialTimelineExpanded: Bool = false,
-        live: PlayerControlDeckLive? = nil
-    ) {
-        self.timelineResetToken = timelineResetToken
-        self.onOpenSettings = onOpenSettings
-        self.live = live
-        _isTimelineExpanded = State(initialValue: initialTimelineExpanded)
-    }
-
-    @Namespace private var hoverNamespace
-    @State private var progress: CGFloat = 0.45
-    @State private var isDragging = false
-    @State private var isIgnoringDrag = false
-    @State private var dragStartProgress: CGFloat = 0.45
-    @State private var isTimelineExpanded = false
-    @State private var scrubFeedbackTrigger = 0
-    @State private var minimumBoundaryFeedbackTrigger = 0
-    @State private var maximumBoundaryFeedbackTrigger = 0
-    @State private var timelineFeedbackTrigger = 0
-    @State private var announcedBoundary: ProgressBoundary? = nil
-    @State private var timelinePixelsPerSecond = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
-    @State private var selectedSubtitle = "Off"
-    @State private var selectedAudioTrack = "English 5.1"
-    @State private var selectedSpeed = "1×"
-
-    private enum ProgressBoundary {
-        case minimum
-        case maximum
-    }
-
-    private var trackScale: CGFloat {
-        isDragging
-            ? 1
-            : DesignTokens.ProgressBar.inactiveScale
-    }
-
-    private var hoverActivationGroup: HoverEffectGroup {
-        HoverEffectGroup(
-            id: "progress-bar-reveal",
-            in: hoverNamespace,
-            behavior: .activatesGroup
-        )
-    }
-
-    private var hoverRevealGroup: HoverEffectGroup {
-        HoverEffectGroup(
-            id: "progress-bar-reveal",
-            in: hoverNamespace,
-            behavior: .followsGroup
-        )
-    }
-
-    // One RoundedRectangle for both presentations: the glass panel interpolates
-    // continuously as the container resizes between the collapsed bar and the
-    // expanded precision-timeline panel — never a literal Capsule, so the shape
-    // morph stays smooth.
-    private var deckShape: RoundedRectangle {
-        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-    }
-
-    // Reuse the existing control-bar padding/spacing rather than minting new
-    // values; the left/right buttons sit one `deckPaddingH` in from the panel
-    // edge instead of flush against it.
-    private var deckPaddingH: CGFloat { DesignTokens.ControlBar.paddingH }
-    private var deckPaddingV: CGFloat { DesignTokens.ControlBar.paddingV }
-    private var deckRowSpacing: CGFloat { DesignTokens.Spacing.sm }
-
-    // Collapsed track spans the full transport-row width so its ends line up
-    // vertically with the edge-pinned ≡ (left) and ⋯ (right) buttons.
-    private var collapsedTrackWidth: CGFloat {
-        DesignTokens.ProgressBar.previewWidth
-    }
-
-    // 拖动中用本地 `progress`(视觉跟手);松手回调 onSeek。非拖动时镜像 live 位置。
-    // live 为 nil 时退化为纯本地 @State(Canvas mock)。
-    private var displayProgress: CGFloat {
-        isDragging ? progress : (live?.progress ?? progress)
-    }
-
-    var body: some View {
-        let overlayWidth = collapsedTrackWidth
-        let width = max(overlayWidth - DesignTokens.ProgressBar.thumbDiameter, 0)
-        let clampedProgress = min(max(displayProgress, 0), 1)
-        let thumbX = DesignTokens.ProgressBar.thumbDiameter / 2 + clampedProgress * width
-        let containerWidth = currentContainerWidth
-        let containerHeight = currentContainerHeight
-
-        ZStack(alignment: .bottom) {
-            expandedTimelineDismissLayer(
-                containerWidth: containerWidth,
-                containerHeight: containerHeight
-            )
-
-            deckPanel(
-                overlayWidth: overlayWidth,
-                width: width,
-                clampedProgress: clampedProgress,
-                thumbX: thumbX,
-                containerWidth: containerWidth,
-                containerHeight: containerHeight
-            )
-            .zIndex(2)
-        }
-        .frame(width: containerWidth, height: containerHeight, alignment: .bottom)
-        .animation(DesignTokens.AnimationToken.panelSpring, value: isTimelineExpanded)
-        .sensoryFeedback(.press(.slider), trigger: scrubFeedbackTrigger)
-        .sensoryFeedback(.selection(.minimum), trigger: minimumBoundaryFeedbackTrigger)
-        .sensoryFeedback(.selection(.maximum), trigger: maximumBoundaryFeedbackTrigger)
-        .sensoryFeedback(.selection(.on), trigger: timelineFeedbackTrigger)
-        // Container, not a leaf: keep child controls (play / ⋯ / thumb) queryable
-        // for accessibility and UI tests instead of collapsing into one element.
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("DesignPreview-PlayerControlDeck")
-        .accessibilityLabel("Player controls")
-        .onChange(of: timelineResetToken) {
-            resetTimelinePresentation()
-        }
-    }
-
-    private var currentContainerWidth: CGFloat {
-        let contentWidth = isTimelineExpanded
-            ? DesignTokens.PrecisionTimeline.expandedWidth
-            : DesignTokens.ProgressBar.previewWidth
-        return contentWidth + deckPaddingH * 2
-    }
-
-    private var currentContainerHeight: CGFloat {
-        if isTimelineExpanded {
-            return deckPaddingV * 2
-                + DesignTokens.Interactive.xl               // transport row (5 buttons)
-                + deckRowSpacing
-                + DesignTokens.PrecisionTimeline.expandedHeight   // slider+time+film card
-        } else {
-            return deckPaddingV * 2
-                + DesignTokens.Interactive.xl               // transport button row
-                + deckRowSpacing
-                + DesignTokens.ProgressBar.hitHeight        // progress track row
-        }
-    }
-
-    @ViewBuilder
-    private func deckPanel(
-        overlayWidth: CGFloat,
-        width: CGFloat,
-        clampedProgress: CGFloat,
-        thumbX: CGFloat,
-        containerWidth: CGFloat,
-        containerHeight: CGFloat
-    ) -> some View {
-        Group {
-            if isTimelineExpanded {
-                expandedDeckLayout()
-                    .transition(.opacity)
-            } else {
-                collapsedDeckLayout(
-                    overlayWidth: overlayWidth,
-                    width: width,
-                    clampedProgress: clampedProgress,
-                    thumbX: thumbX
-                )
-                .transition(.opacity)
-            }
-        }
-        .frame(width: containerWidth, height: containerHeight)
-        .glassBackgroundEffect(in: deckShape)
-    }
-
-    private func collapsedDeckLayout(
-        overlayWidth: CGFloat,
-        width: CGFloat,
-        clampedProgress: CGFloat,
-        thumbX: CGFloat
-    ) -> some View {
-        VStack(spacing: deckRowSpacing) {
-            transportRow(
-                backward: "gobackward.10",
-                backwardLabel: "Rewind 10 seconds",
-                backwardAction: { live?.onSkipBackward() },
-                forward: "goforward.10",
-                forwardLabel: "Forward 10 seconds",
-                forwardAction: { live?.onSkipForward() }
-            )
-
-            progressBarBody(
-                width: width,
-                clampedProgress: clampedProgress,
-                thumbX: thumbX,
-                overlayWidth: overlayWidth
-            )
-        }
-        .padding(.horizontal, deckPaddingH)
-        .padding(.vertical, deckPaddingV)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // Shared transport row for both states: panel (≡) pinned far-left, more (⋯)
-    // far-right, and the three centre controls (seek / play / seek) held in the
-    // middle. Collapsed uses 10s-seek; expanded swaps in frame-step.
-    private func transportRow(
-        backward: String,
-        backwardLabel: String,
-        backwardAction: @escaping () -> Void = {},
-        forward: String,
-        forwardLabel: String,
-        forwardAction: @escaping () -> Void = {}
-    ) -> some View {
-        HStack(spacing: 0) {
-            panelMenuButton
-            Spacer(minLength: 0)
-            HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-                transportSideButton(backward, label: backwardLabel, action: backwardAction)
-                primaryPlayButton
-                transportSideButton(forward, label: forwardLabel, action: forwardAction)
-            }
-            Spacer(minLength: 0)
-            moreMenu
-        }
-        .frame(height: DesignTokens.Interactive.xl)
-        .foregroundStyle(.secondary)
-    }
-
-    /// Steps the previewed timeline by one frame in `direction` (-1 backward,
-    /// +1 forward) by nudging `progress`, which the expanded timeline binds to.
-    private func stepFrame(_ direction: Double) {
-        if let live {
-            live.onFrameStep(direction < 0 ? -1 : 1)
-            return
-        }
-        let fps = DesignTokens.PrecisionTimeline.previewFrameRate
-        let duration = DesignTokens.PrecisionTimeline.previewDuration
-        guard fps > 0, duration > 0 else { return }
-        let frameDuration = 1 / fps
-        let currentTime = Double(progress) * duration
-        let nextTime = min(max(currentTime + direction * frameDuration, 0), duration)
-        progress = CGFloat(nextTime / duration)
-    }
-
-    private func expandedDeckLayout() -> some View {
-        VStack(spacing: deckRowSpacing) {
-            // Row 1: same shared transport row as collapsed, with 10s-seek
-            // swapped for frame-step.
-            transportRow(
-                backward: "backward.frame",
-                backwardLabel: "Previous frame",
-                backwardAction: { stepFrame(-1) },
-                forward: "forward.frame",
-                forwardLabel: "Next frame",
-                forwardAction: { stepFrame(1) }
-            )
-
-            // Rows 2–4 (zoom slider, timecode, film strip) live inside the
-            // PrecisionTimelineView's reused SettingListGroup card.
-            PrecisionTimelineView(
-                currentTime: timelineCurrentTime,
-                pixelsPerSecond: $timelinePixelsPerSecond,
-                duration: timelineDuration,
-                framesPerSecond: timelineFrameRate
-            )
-            .frame(
-                width: DesignTokens.PrecisionTimeline.expandedWidth,
-                height: DesignTokens.PrecisionTimeline.expandedHeight
-            )
-            .contentShape(Rectangle())
-            .onTapGesture {}
-        }
-        .padding(.horizontal, deckPaddingH)
-        .padding(.vertical, deckPaddingV)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private var primaryPlayButton: some View {
-        Button { live?.onPlayPause() } label: {
-            Image(systemName: primaryPlayIcon)
-                .font(DesignTokens.SymbolSize.action)
-                .foregroundStyle(.white)
-                .frame(width: DesignTokens.Interactive.xl,
-                       height: DesignTokens.Interactive.xl)
-                .clipShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .enchronPressFeedback(.icon)
-        .contentShape(.hoverEffect, Circle())
-        .hoverEffect(.lift)
-        .contentShape(Circle())
-        .accessibilityIdentifier("DesignPreview-PlayerControlDeck-button-play")
-        .accessibilityLabel(primaryPlayLabel)
-    }
-
-    private var primaryPlayIcon: String {
-        guard let live else { return "play.fill" }
-        if live.showsReplay { return "arrow.counterclockwise" }
-        return live.isPlaying ? "pause.fill" : "play.fill"
-    }
-
-    private var primaryPlayLabel: String {
-        guard let live else { return "Play" }
-        if live.showsReplay { return "Replay" }
-        return live.isPlaying ? "Pause" : "Play"
-    }
-
-    private func transportSideButton(
-        _ systemName: String,
-        label: String,
-        action: @escaping () -> Void = {}
-    ) -> some View {
-        Button(action: action) {
-            controlIcon(systemName)
-        }
-        .buttonStyle(.plain)
-        .enchronPressFeedback(.icon)
-        .contentShape(.hoverEffect, Circle())
-        .hoverEffect(.lift)
-        .contentShape(Circle())
-        .accessibilityIdentifier("DesignPreview-PlayerControlDeck-button-\(label)")
-        .accessibilityLabel(label)
-    }
-
-    private func controlIcon(_ systemName: String) -> some View {
-        Image(systemName: systemName)
-            .font(DesignTokens.SymbolSize.control)
-            .frame(width: DesignTokens.Interactive.large,
-                   height: DesignTokens.Interactive.large)
-    }
-
-    // 左侧 ≡ 设置入口。动作由 onOpenSettings 注入(组合阶段接入 player panel);
-    // 点击/hover 动画与其它 transport 图标一致。
-    private var panelMenuButton: some View {
-        Button(action: onOpenSettings) {
-            controlIcon("line.3.horizontal")
-        }
-        .buttonStyle(.plain)
-        .enchronPressFeedback(.icon)
-        .contentShape(.hoverEffect, Circle())
-        .hoverEffect(.lift)
-        .contentShape(Circle())
-        .accessibilityIdentifier("DesignPreview-PlayerControlDeck-button-panel")
-        .accessibilityLabel("Settings panel")
-    }
-
-    private var moreMenu: some View {
-        Menu {
-            if let live {
-                liveMoreMenuSections(live)
-            } else {
-                mockMoreMenuSections
-            }
-        } label: {
-            controlIcon("ellipsis")
-        }
-        .buttonStyle(.plain)
-        .enchronPressFeedback(.icon)
-        .contentShape(.hoverEffect, Circle())
-        .hoverEffect(.lift)
-        .contentShape(Circle())
-        .accessibilityIdentifier("DesignPreview-PlayerControlDeck-menu-more")
-        .accessibilityLabel("More playback settings")
-    }
-
-    // Canvas mock 的写死菜单(live 为 nil 时)。
-    @ViewBuilder
-    private var mockMoreMenuSections: some View {
-        Section("Playback Settings") {
-            Menu("Subtitles") {
-                selectableMenuOption("Off", selection: $selectedSubtitle)
-                selectableMenuOption("English CC", selection: $selectedSubtitle)
-                selectableMenuOption("中文简体", selection: $selectedSubtitle)
-                selectableMenuOption("Auto", selection: $selectedSubtitle)
-            }
-
-            Menu("Audio Track") {
-                selectableMenuOption("English 5.1", selection: $selectedAudioTrack)
-                selectableMenuOption("Japanese 2.0", selection: $selectedAudioTrack)
-                selectableMenuOption("Commentary", selection: $selectedAudioTrack)
-            }
-
-            Menu("Playback Speed") {
-                selectableMenuOption("0.25×", selection: $selectedSpeed)
-                selectableMenuOption("0.5×", selection: $selectedSpeed)
-                selectableMenuOption("0.75×", selection: $selectedSpeed)
-                selectableMenuOption("1×", selection: $selectedSpeed)
-                selectableMenuOption("1.25×", selection: $selectedSpeed)
-                selectableMenuOption("1.5×", selection: $selectedSpeed)
-                selectableMenuOption("2×", selection: $selectedSpeed)
-                selectableMenuOption("3×", selection: $selectedSpeed)
-                selectableMenuOption("5×", selection: $selectedSpeed)
-            }
-
-            Menu("Episodes") {
-                menuOption("Episode 1 · The Signal")
-                menuOption("Episode 2 · Night Crossing")
-                menuOption("Episode 3 · Glass Harbor")
-                menuOption("Episode 4 · Quiet Orbit")
-                menuOption("Episode 5 · Afterimage")
-                menuOption("Episode 6 · The Long Return")
-            }
-        }
-    }
-
-    // 实时菜单(live 注入时):字幕 / 音轨 / 倍速 / 剧集都来自产品层,空集合的子菜单隐藏。
-    @ViewBuilder
-    private func liveMoreMenuSections(_ live: PlayerControlDeckLive) -> some View {
-        Section("Playback Settings") {
-            if !live.subtitleItems.isEmpty {
-                Menu("Subtitles") { liveMenuItems(live.subtitleItems) }
-            }
-            if !live.audioItems.isEmpty {
-                Menu("Audio Track") { liveMenuItems(live.audioItems) }
-            }
-            Menu("Playback Speed") { liveMenuItems(live.speedItems) }
-            if !live.episodeItems.isEmpty {
-                Menu("Episodes") { liveMenuItems(live.episodeItems) }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func liveMenuItems(_ items: [DeckMenuItem]) -> some View {
-        ForEach(items) { item in
-            Button(action: item.action) {
-                Label(item.title, systemImage: item.isSelected ? "checkmark" : "")
-            }
-        }
-    }
-
-    private func menuOption(_ title: String) -> some View {
-        Button {} label: {
-            Text(title)
-        }
-    }
-
-    // 选中项打勾,复用 SortMenuButton 的 checkmark 表达方式
-    // (Label + systemImage: 选中 "checkmark" / 未选中 "")。
-    private func selectableMenuOption(
-        _ title: String,
-        selection: Binding<String>
-    ) -> some View {
-        Button {
-            selection.wrappedValue = title
-        } label: {
-            Label(title, systemImage: selection.wrappedValue == title ? "checkmark" : "")
-        }
-    }
-
-    private func progressBarBody(
-        width: CGFloat,
-        clampedProgress: CGFloat,
-        thumbX: CGFloat,
-        overlayWidth: CGFloat
-    ) -> some View {
-        ZStack(alignment: .leading) {
-            hoverCarrier(width: overlayWidth)
-
-            progressHub(
-                width: width,
-                progress: clampedProgress,
-                overlayWidth: overlayWidth,
-                scale: trackScale
-            )
-
-            timeBubble
-                .position(
-                    x: thumbX,
-                    y: DesignTokens.ProgressBar.hitHeight / 2 - DesignTokens.ProgressBar.timeBubbleOffset
-                )
-                .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-                    effect.animation(DesignTokens.AnimationToken.selection) {
-                        $0.opacity(isActive || isDragging ? 1.0 : 0.0)
-                    }
-                }
-                .allowsHitTesting(false)
-
-            scrubberControl(width: width)
-                .position(
-                    x: thumbX,
-                    y: DesignTokens.ProgressBar.hitHeight / 2
-                )
-        }
-        .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
-        .contentShape(.interaction, Capsule())
-        .gesture(dragGesture(width: width, thumbX: thumbX))
-    }
-
-    private func hoverCarrier(width: CGFloat) -> some View {
-        Capsule()
-            .fill(DesignTokens.ProgressBar.hoverCarrierFill)
-            .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
-            .contentShape(.hoverEffect, Capsule())
-            .hoverEffect(in: hoverActivationGroup) { effect, isActive, _ in
-                effect.animation(DesignTokens.AnimationToken.selection) {
-                    $0.opacity(isActive ? 1.0 : DesignTokens.ProgressBar.hoverCarrierInactiveOpacity)
-                }
-            }
-            .contentShape(.interaction, Capsule())
-            .accessibilityHidden(true)
-    }
-
-    private func progressHub(
-        width: CGFloat,
-        progress: CGFloat,
-        overlayWidth: CGFloat,
-        scale: CGFloat
-    ) -> some View {
-        ZStack(alignment: .leading) {
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(.clear)
-                    .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
-                    .glassBackgroundEffect(in: Capsule())
-
-                progressTrackLayer(
-                    railWidth: overlayWidth,
-                    playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
-                    scale: scale,
-                    playedColor: DesignTokens.ProgressBar.playedColor,
-                    unplayedColor: DesignTokens.ProgressBar.unplayedColor
-                )
-
-                progressTrackLayer(
-                    railWidth: overlayWidth,
-                    playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
-                    scale: scale,
-                    playedColor: DesignTokens.ProgressBar.playedHoverColor,
-                    unplayedColor: DesignTokens.ProgressBar.unplayedHoverColor
-                )
-                .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-                    effect.animation(DesignTokens.AnimationToken.selection) {
-                        $0.opacity(isActive || isDragging ? 1.0 : 0.0)
-                    }
-                }
-            }
-            .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
-            .scaleEffect(y: scale)
-            .animation(DesignTokens.PressFeedback.control.pressAnimation, value: scale)
-        }
-            .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
-            .allowsHitTesting(false)
-    }
-
-    private func progressTrackLayer(
-        railWidth: CGFloat,
-        playedWidth: CGFloat,
-        scale: CGFloat,
-        playedColor: Color,
-        unplayedColor: Color
-    ) -> some View {
-        let visualHeight = DesignTokens.ProgressBar.trackHeight * scale
-        let shape = RoundedRectangle(
-            cornerSize: CGSize(
-                width: visualHeight / 2,
-                height: DesignTokens.ProgressBar.trackHeight / 2
-            ),
-            style: .continuous
-        )
-
-        return ZStack(alignment: .leading) {
-            shape
-                .fill(unplayedColor)
-                .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
-            shape
-                .fill(playedColor)
-                .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
-                .mask(alignment: .leading) {
-                    Rectangle()
-                        .frame(width: playedWidth, height: DesignTokens.ProgressBar.trackHeight)
-                }
-        }
-        .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
-    }
-
-    private var timeBubble: some View {
-        let shape = RoundedRectangle(
-            cornerRadius: DesignTokens.ProgressBar.timeBubbleRadius,
-            style: .continuous
-        )
-
-        return HStack(spacing: DesignTokens.Spacing.xs) {
-            Text(live?.elapsedLabel ?? "6:21")
-                .foregroundStyle(.primary)
-            Text(live?.remainingLabel ?? "-7:54")
-                .foregroundStyle(.secondary)
-        }
-            .font(DesignTokens.Typography.monospacedDetail)
-            .monospacedDigit()
-            .padding(.horizontal, DesignTokens.ProgressBar.timeBubblePaddingH)
-            .padding(.vertical, DesignTokens.ProgressBar.timeBubblePaddingV)
-            .glassBackgroundEffect(in: shape)
-    }
-
-    private func scrubberThumbVisual() -> some View {
-        Circle()
-            .fill(.white)
-            .overlay {
-                Circle()
-                    .strokeBorder(
-                        DesignTokens.ProgressBar.thumbStroke,
-                        lineWidth: DesignTokens.ProgressBar.thumbStrokeWidth
-                    )
-            }
-            .frame(width: DesignTokens.ProgressBar.thumbDiameter,
-                   height: DesignTokens.ProgressBar.thumbDiameter)
-    }
-
-    private func scrubberThumb() -> some View {
-        scrubberThumbVisual()
-            .accessibilityIdentifier("DesignPreview-PlayerControlDeck-thumb")
-            .accessibilityLabel("Playback position thumb")
-    }
-
-    private func scrubberControl(width: CGFloat) -> some View {
-        scrubberThumb()
-            .contentShape(.hoverEffect, Circle())
-            .hoverEffect()
-            .frame(width: DesignTokens.ProgressBar.hitHeight,
-                   height: DesignTokens.ProgressBar.hitHeight)
-            .contentShape(.hoverEffect, Circle())
-            .hoverEffect(in: hoverActivationGroup) { effect, isActive, _ in
-                effect.animation(DesignTokens.AnimationToken.selection) {
-                    $0.opacity(1.0)
-                }
-            }
-            .contentShape(Circle())
-            .simultaneousGesture(
-                TapGesture(count: 2)
-                    .onEnded {
-                        openTimeline()
-                    }
-            )
-    }
-
-    private func dragGesture(width: CGFloat, thumbX: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: DesignTokens.Stroke.regular)
-            .onChanged { value in
-                guard !isIgnoringDrag else { return }
-                if !isDragging {
-                    guard isThumbHit(value.startLocation, thumbX: thumbX) else {
-                        isIgnoringDrag = true
-                        return
-                    }
-                    // live 注入时进度起点取自当前播放位置(displayProgress),避免从陈旧
-                    // 本地 @State 起跳;mock 时 displayProgress == progress,行为不变。
-                    dragStartProgress = displayProgress
-                    progress = displayProgress
-                    beginScrubbing()
-                }
-                updateProgress(forTranslation: value.translation.width, width: width)
-            }
-            .onEnded { _ in
-                if isDragging {
-                    endScrubbing()
-                    live?.onSeek(progress)
-                }
-                isIgnoringDrag = false
-            }
-    }
-
-    private func beginScrubbing() {
-        withAnimation(DesignTokens.PressFeedback.control.pressAnimation) {
-            isDragging = true
-        }
-        scrubFeedbackTrigger += 1
-    }
-
-    private func endScrubbing() {
-        withAnimation(DesignTokens.AnimationToken.selection) {
-            isDragging = false
-        }
-        announcedBoundary = nil
-    }
-
-    private func progress(forTranslation translationX: CGFloat, width: CGFloat) -> CGFloat {
-        guard width > 0 else { return progress }
-        return min(max(dragStartProgress + translationX / width, 0), 1)
-    }
-
-    private func updateProgress(forTranslation translationX: CGFloat, width: CGFloat) {
-        let nextProgress = progress(forTranslation: translationX, width: width)
-        updateBoundaryFeedback(for: nextProgress)
-
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            progress = nextProgress
-        }
-    }
-
-    private func updateBoundaryFeedback(for nextProgress: CGFloat) {
-        let boundary: ProgressBoundary?
-        if nextProgress <= 0 {
-            boundary = .minimum
-        } else if nextProgress >= 1 {
-            boundary = .maximum
-        } else {
-            boundary = nil
-        }
-
-        guard boundary != announcedBoundary else { return }
-        announcedBoundary = boundary
-
-        switch boundary {
-        case .minimum:
-            minimumBoundaryFeedbackTrigger += 1
-        case .maximum:
-            maximumBoundaryFeedbackTrigger += 1
-        case nil:
-            break
-        }
-    }
-
-    private func openTimeline() {
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            isDragging = false
-            announcedBoundary = nil
-        }
-
-        timelineFeedbackTrigger += 1
-        withAnimation(DesignTokens.AnimationToken.panelSpring) {
-            isTimelineExpanded = true
-        }
-    }
-
-    private func resetTimelinePresentation() {
-        var transaction = Transaction()
-        transaction.animation = nil
-        withTransaction(transaction) {
-            isTimelineExpanded = false
-            isDragging = false
-            isIgnoringDrag = false
-            announcedBoundary = nil
-        }
-    }
-
-    private func isThumbHit(_ location: CGPoint, thumbX: CGFloat) -> Bool {
-        let thumbCenter = CGPoint(
-            x: thumbX,
-            y: DesignTokens.ProgressBar.hitHeight / 2
-        )
-        let hitRadius = DesignTokens.ProgressBar.hitHeight / 2
-        let dx = location.x - thumbCenter.x
-        let dy = location.y - thumbCenter.y
-        return (dx * dx + dy * dy) <= (hitRadius * hitRadius)
-    }
-
-    @ViewBuilder
-    private func expandedTimelineDismissLayer(
-        containerWidth: CGFloat,
-        containerHeight: CGFloat
-    ) -> some View {
-        if isTimelineExpanded {
-            Rectangle()
-                .fill(.clear)
-                .frame(width: containerWidth, height: containerHeight)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    withAnimation(DesignTokens.AnimationToken.panelSpring) {
-                        isTimelineExpanded = false
-                    }
-                }
-                .zIndex(1)
-        }
-    }
-
-    // live 注入时时间轴跨度/帧率取自真实媒体;mock 时退化为 Canvas 预览常量。
-    private var timelineDuration: Double {
-        if let d = live?.duration, d > 0 { return d }
-        return DesignTokens.PrecisionTimeline.previewDuration
-    }
-
-    private var timelineFrameRate: Double {
-        if let fps = live?.framesPerSecond, fps > 0 { return fps }
-        return DesignTokens.PrecisionTimeline.previewFrameRate
-    }
-
-    private var timelineCurrentTime: Binding<Double> {
-        Binding(
-            get: {
-                Double(displayProgress) * timelineDuration
-            },
-            set: { newValue in
-                let duration = timelineDuration
-                guard duration > 0 else {
-                    progress = 0
-                    return
-                }
-                let clampedTime = min(max(newValue, 0), duration)
-                let p = CGFloat(clampedTime / duration)
-                progress = p
-                live?.onSeek(p)
-            }
-        )
     }
 }
 
@@ -4445,6 +3649,1513 @@ struct LoadingSpinner: View {
                 arcStart = 0
                 arcEnd = 0
             }
+        }
+    }
+}
+
+// MARK: - Fused player panel (迁自 DesignPreview/ContentView,ADR-0009 收口)
+
+/// 注入式播放/模式绑定:nil = Canvas mock(默认,DesignPreview 走此路),主 App 注真。
+/// 合并 transport 面(原 PlayerControlDeckLive)+ 两个模式入口(全景 / 虚拟场景)。
+/// ADR-0009:取代 PlayerControlDeckLive。
+struct FusedPlayerPanelLive {
+    var isPlaying: Bool
+    var showsReplay: Bool
+    var progress: CGFloat
+    var elapsedLabel: String
+    var remainingLabel: String
+    var duration: Double
+    var framesPerSecond: Double
+    var onPlayPause: () -> Void
+    var onSkipBackward: () -> Void
+    var onSkipForward: () -> Void
+    var onSeek: (CGFloat) -> Void
+    var onFrameStep: (Int) -> Void
+    /// ⤢ 展开按钮:进入全景穹顶(.panorama)。
+    var onEnterPanorama: () -> Void
+    /// 🧘 虚拟场景按钮:进入默认沉浸场景(.immersive),不带选场景语义。
+    var onEnterImmersive: () -> Void
+    var subtitleItems: [DeckMenuItem]
+    var audioItems: [DeckMenuItem]
+    var speedItems: [DeckMenuItem]
+    var episodeItems: [DeckMenuItem]
+}
+
+/// 设置区桶①(能接真后端)的注入绑定:nil = Canvas mock(本地 @State),主 App 注真。
+/// 桶③(无后端)的行始终用面板内部本地 @State 做 honest-fake,不经此结构。
+struct PlaybackSettingsLive {
+    /// Display Mode:"Flat" / "SBS" / "TB" → stereoLayoutOverride。
+    var displayMode: Binding<String>
+    /// 180° 沉浸投影开关 → projectionOverride(front180)。
+    var projection180: Binding<Bool>
+    /// 360° 沉浸投影开关 → projectionOverride(full360)。
+    var projection360: Binding<Bool>
+}
+
+struct FusedPlayerPanel: View {
+    /// 实时播放绑定。nil = Canvas mock(默认);注入后接真实播放状态与交互。
+    var live: FusedPlayerPanelLive?
+    /// 设置区桶① 绑定。nil = Canvas mock。透传给内嵌设置面板。
+    var settingsLive: PlaybackSettingsLive?
+    /// 面板级交互回调(≡ 开合设置、双击开合时间轴)。主 App 用它重置自动隐藏计时器,
+    /// 对齐原 deck 的 onOpenSettings→register() 行为。默认 no-op(Canvas 无计时器)。
+    var onInteraction: () -> Void = {}
+
+    // initialSettingsPresented / initialTimelineExpanded 仅供 Canvas 审查直接展示展开态;
+    // 运行时仍由 ≡ / 双击进度条切换。
+    init(
+        live: FusedPlayerPanelLive? = nil,
+        settingsLive: PlaybackSettingsLive? = nil,
+        onInteraction: @escaping () -> Void = {},
+        initialSettingsPresented: Bool = false,
+        initialTimelineExpanded: Bool = false
+    ) {
+        self.live = live
+        self.settingsLive = settingsLive
+        self.onInteraction = onInteraction
+        _settingsPresented = State(initialValue: initialSettingsPresented)
+        _timelineExpanded = State(initialValue: initialTimelineExpanded)
+    }
+
+    // 状态机:两个独立开关。Setting Panel 由 ≡ 切换(再点收回);Timeline 由双击进度条
+    // 展开/收起。两者互不依赖——时间轴展开时仍可开关 Setting Panel。
+    @State private var settingsPresented = false
+    @State private var timelineExpanded = false
+
+    // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
+    @State private var progress: CGFloat = 0.45
+    @State private var isDragging = false
+    @State private var isIgnoringDrag = false
+    @State private var dragStartProgress: CGFloat = 0.45
+    /// Seek 完成锁存:松手 onSeek 后,live.progress 异步才追上,锁存期内拇指钉在目标值,
+    /// 避免"跳回旧位再闪到目标"。live 追上(或超时兜底)即释放。
+    @State private var pendingSeekTarget: CGFloat?
+    @State private var scrubFeedbackTrigger = 0
+    @State private var minimumBoundaryFeedbackTrigger = 0
+    @State private var maximumBoundaryFeedbackTrigger = 0
+    @State private var timelineFeedbackTrigger = 0
+    @State private var announcedBoundary: ProgressBoundary?
+    @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
+    // ⋯ 菜单 Canvas mock 选择态(live 为 nil 时)。
+    @State private var selectedSubtitle = "Off"
+    @State private var selectedAudioTrack = "English 5.1"
+    @State private var selectedSpeed = "1×"
+    @Namespace private var hoverNamespace
+
+    private enum ProgressBoundary { case minimum, maximum }
+
+    // 拖动中用本地 progress(视觉跟手);松手回调 onSeek。非拖动时镜像 live 位置;
+    // 锁存期内钉在 pendingSeekTarget;live 为 nil 退化纯本地 @State(Canvas mock)。
+    private var displayProgress: CGFloat {
+        if isDragging { return progress }
+        if let pendingSeekTarget { return pendingSeekTarget }
+        return live?.progress ?? progress
+    }
+
+    // timeline 与 settings 共用同一展开宽度,保证两者并存时边对边对齐。
+    private let expandedWidth: CGFloat = 880
+    private let settingsHeight: CGFloat = 520
+
+    // 任一展开块打开时,控件簇(按钮 + 进度条)撑到 expandedWidth,让 ≡ 贴左、⋯ 贴右,
+    // 与下方块边对边;全收起时保持紧凑的进度条宽。
+    private var isExpanded: Bool { timelineExpanded || settingsPresented }
+    private var clusterWidth: CGFloat {
+        isExpanded ? expandedWidth : DesignTokens.ProgressBar.previewWidth
+    }
+
+    private var shape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
+    }
+
+    var body: some View {
+        VStack(spacing: DesignTokens.Spacing.md) {
+            controlsRow
+
+            // 控件簇第二行(与按钮同属"播放控制",无分界线):时间轴收起时是进度条
+            // ——进度条本身就是打开时间轴的按钮(双击展开);展开时同槽位换成时间轴本体。
+            if timelineExpanded {
+                timelineBlock
+            } else {
+                progressBar
+            }
+
+            // Setting Panel:独立开关,由 ≡ 触发;与时间轴可同时打开。前置全宽分界线。
+            if settingsPresented {
+                panelDivider
+                PlayerSettingsPanelPreview(chromeless: true, settingsLive: settingsLive)
+                    .frame(width: expandedWidth, height: settingsHeight)
+                    .transition(.opacity)
+            }
+        }
+        .padding(DesignTokens.Spacing.xl)
+        .clipShape(shape)
+        .glassBackgroundEffect(in: shape)
+        // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
+        .animation(DesignTokens.AnimationToken.panelSpring, value: timelineExpanded)
+        .animation(DesignTokens.AnimationToken.panelSpring, value: settingsPresented)
+        .sensoryFeedback(.press(.slider), trigger: scrubFeedbackTrigger)
+        .sensoryFeedback(.selection(.minimum), trigger: minimumBoundaryFeedbackTrigger)
+        .sensoryFeedback(.selection(.maximum), trigger: maximumBoundaryFeedbackTrigger)
+        .sensoryFeedback(.selection(.on), trigger: timelineFeedbackTrigger)
+        .onChange(of: live?.progress) { _, newValue in
+            // 锁存释放:player 报告的位置追上(容差内)目标即放行。
+            guard let target = pendingSeekTarget, let newValue else { return }
+            if abs(newValue - target) < 0.02 { pendingSeekTarget = nil }
+        }
+        .task(id: pendingSeekTarget) {
+            // 兜底:player 永远不精确落到目标时,别让锁存无限钉住拇指。
+            guard pendingSeekTarget != nil else { return }
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            pendingSeekTarget = nil
+        }
+    }
+
+    private var panelDivider: some View {
+        Rectangle()
+            .fill(DesignTokens.Surface.divider)
+            .frame(width: expandedWidth, height: DesignTokens.Stroke.regular)
+            .transition(.opacity)
+    }
+
+    private var controlsRow: some View {
+        // 中组(后退/播放/前进)独立于左右内容几何居中:左组(2 按钮)比右按钮
+        // (1 按钮)宽,中组要落在面板中心,需脱离左右宽度差的影响。ZStack 居中
+        // 层放中组,左右两组用 maxWidth + alignment 贴边;三者互不牵动,
+        // 展开态左组自然更紧凑、中组恒居中。
+        ZStack {
+            // 中组:时间轴收起时左右是 10s seek;展开(精密时间轴)时换成逐帧步进。
+            HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                GlassCircleIconButton(
+                    systemName: timelineExpanded ? "backward.frame" : "gobackward.10",
+                    accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 10 seconds",
+                    action: { timelineExpanded ? stepFrame(-1) : live?.onSkipBackward() },
+                    accessibilityIdentifier: "PlayerPanel-button-rewind"
+                )
+                playButton
+                GlassCircleIconButton(
+                    systemName: timelineExpanded ? "forward.frame" : "goforward.10",
+                    accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 10 seconds",
+                    action: { timelineExpanded ? stepFrame(1) : live?.onSkipForward() },
+                    accessibilityIdentifier: "PlayerPanel-button-forward"
+                )
+            }
+
+            // 左簇 [≡ 设置][⤢ 全景]。每个按钮命中框(large 60)比视觉圆(regular 44)
+            // 两侧各宽 8pt,故两圆可见间距 = spacing + 16。spacing = xs(8)→ 可见 24pt。
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                GlassCircleIconButton(
+                    systemName: "line.3.horizontal",
+                    accessibilityLabel: "Settings panel",
+                    action: { toggleSettings() },
+                    accessibilityIdentifier: "PlayerPanel-button-panel"
+                )
+                GlassCircleIconButton(
+                    systemName: "arrow.up.left.and.arrow.down.right",
+                    accessibilityLabel: "Panorama",
+                    action: { live?.onEnterPanorama() },
+                    accessibilityIdentifier: "PlayerPanel-button-panorama"
+                )
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 右簇 [🧘 虚拟场景][⋯ 菜单],与左簇对称(工具在外、模式在内)。
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                GlassCircleIconButton(
+                    systemName: "apple.meditate",
+                    accessibilityLabel: "Virtual scene",
+                    action: { live?.onEnterImmersive() },
+                    accessibilityIdentifier: "PlayerPanel-button-immersive"
+                )
+                moreMenu
+            }
+            .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+        .frame(width: clusterWidth)
+    }
+
+    // ⋯ 菜单:玻璃圆(GlassCircleIconLabel)作 Menu label,内容 live 注入时来自产品层、
+    // 否则 Canvas mock。命中尺寸对齐其它 transport 玻璃圆(large 60)。
+    private var moreMenu: some View {
+        Menu {
+            if let live {
+                liveMoreMenuSections(live)
+            } else {
+                mockMoreMenuSections
+            }
+        } label: {
+            GlassCircleIconLabel(
+                systemName: "ellipsis",
+                accessibilityLabel: "More",
+                accessibilityIdentifier: "PlayerPanel-menu-more"
+            )
+        }
+        .buttonStyle(.plain)
+        .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)
+        .contentShape(Circle())
+        .accessibilityIdentifier("PlayerPanel-menu-more")
+        .accessibilityLabel("More playback settings")
+    }
+
+    /// 逐帧步进:live 注入时回调产品层;否则在 mock 本地 progress 上挪一帧。
+    private func stepFrame(_ direction: Double) {
+        if let live {
+            live.onFrameStep(direction < 0 ? -1 : 1)
+            return
+        }
+        let fps = DesignTokens.PrecisionTimeline.previewFrameRate
+        let duration = DesignTokens.PrecisionTimeline.previewDuration
+        guard fps > 0, duration > 0 else { return }
+        let frameDuration = 1 / fps
+        let currentTime = Double(progress) * duration
+        let nextTime = min(max(currentTime + direction * frameDuration, 0), duration)
+        progress = CGFloat(nextTime / duration)
+    }
+
+    private func toggleSettings() {
+        onInteraction()
+        withAnimation(DesignTokens.AnimationToken.panelSpring) {
+            settingsPresented.toggle()
+        }
+    }
+
+    private var playButton: some View {
+        Button { live?.onPlayPause() } label: {
+            Image(systemName: primaryPlayIcon)
+                .font(DesignTokens.SymbolSize.action)
+                .foregroundStyle(.white)
+                .frame(width: DesignTokens.Interactive.xl, height: DesignTokens.Interactive.xl)
+                .clipShape(Circle())
+                .glassBackgroundEffect(in: Circle())
+        }
+        .buttonStyle(.plain)
+        .contentShape(.hoverEffect, Circle())
+        .hoverEffect(.lift)
+        .enchronPressFeedback(.icon)
+        .accessibilityLabel(primaryPlayLabel)
+        .accessibilityIdentifier("PlayerPanel-button-play")
+    }
+
+    private var primaryPlayIcon: String {
+        guard let live else { return "play.fill" }
+        if live.showsReplay { return "arrow.counterclockwise" }
+        return live.isPlaying ? "pause.fill" : "play.fill"
+    }
+
+    private var primaryPlayLabel: String {
+        guard let live else { return "Play" }
+        if live.showsReplay { return "Replay" }
+        return live.isPlaying ? "Pause" : "Play"
+    }
+
+    // MARK: ⋯ 菜单内容(live 注入 / Canvas mock 两路,抄自原 PlayerControlDeck)
+
+    @ViewBuilder
+    private var mockMoreMenuSections: some View {
+        Section("Playback Settings") {
+            mockSelectableMenu("Subtitles", ["Off", "English CC", "中文简体", "Auto"], selection: $selectedSubtitle)
+            mockSelectableMenu("Audio Track", ["English 5.1", "Japanese 2.0", "Commentary"], selection: $selectedAudioTrack)
+            mockSelectableMenu(
+                "Playback Speed",
+                ["0.25×", "0.5×", "0.75×", "1×", "1.25×", "1.5×", "2×", "3×", "5×"],
+                selection: $selectedSpeed
+            )
+            Menu("Episodes") {
+                menuOption("Episode 1 · The Signal")
+                menuOption("Episode 2 · Night Crossing")
+                menuOption("Episode 3 · Glass Harbor")
+                menuOption("Episode 4 · Quiet Orbit")
+                menuOption("Episode 5 · Afterimage")
+                menuOption("Episode 6 · The Long Return")
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func liveMoreMenuSections(_ live: FusedPlayerPanelLive) -> some View {
+        Section("Playback Settings") {
+            if !live.subtitleItems.isEmpty {
+                Menu("Subtitles") { liveMenuItems(live.subtitleItems) }
+            }
+            if !live.audioItems.isEmpty {
+                Menu("Audio Track") { liveMenuItems(live.audioItems) }
+            }
+            Menu("Playback Speed") { liveMenuItems(live.speedItems) }
+            if !live.episodeItems.isEmpty {
+                Menu("Episodes") { liveMenuItems(live.episodeItems) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func liveMenuItems(_ items: [DeckMenuItem]) -> some View {
+        Picker("", selection: liveSelection(items)) {
+            ForEach(items) { item in
+                Text(item.title).tag(item.id)
+            }
+        }
+        .pickerStyle(.inline)
+        .labelsHidden()
+    }
+
+    private func liveSelection(_ items: [DeckMenuItem]) -> Binding<String> {
+        Binding(
+            get: { items.first(where: \.isSelected)?.id ?? "" },
+            set: { id in items.first(where: { $0.id == id })?.action() }
+        )
+    }
+
+    private func menuOption(_ title: String) -> some View {
+        Button {} label: { Text(title) }
+    }
+
+    private func mockSelectableMenu(
+        _ title: String,
+        _ options: [String],
+        selection: Binding<String>
+    ) -> some View {
+        Menu(title) {
+            Picker("", selection: selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
+    }
+
+    // MARK: Timeline(展开态)
+
+    private var timelineBlock: some View {
+        PrecisionTimelineView(
+            currentTime: timelineCurrentTime,
+            pixelsPerSecond: $pixelsPerSecond,
+            duration: DesignTokens.PrecisionTimeline.previewDuration,
+            framesPerSecond: DesignTokens.PrecisionTimeline.previewFrameRate
+        )
+        .frame(width: expandedWidth, height: DesignTokens.PrecisionTimeline.expandedHeight)
+        .transition(.opacity)
+        // 对称:双击进度条展开,双击时间轴收起。
+        .contentShape(Rectangle())
+        .simultaneousGesture(TapGesture(count: 2).onEnded { closeTimeline() })
+    }
+
+    private var timelineCurrentTime: Binding<Double> {
+        Binding(
+            get: { Double(progress) * DesignTokens.PrecisionTimeline.previewDuration },
+            set: { newValue in
+                let duration = DesignTokens.PrecisionTimeline.previewDuration
+                progress = duration > 0 ? CGFloat(newValue / duration) : 0
+            }
+        )
+    }
+
+    // MARK: Progress bar(收起态;双击展开时间轴)—— 整套抄自 PlayerControlDeck
+
+    private var trackScale: CGFloat {
+        isDragging ? 1 : DesignTokens.ProgressBar.inactiveScale
+    }
+
+    private var hoverActivationGroup: HoverEffectGroup {
+        HoverEffectGroup(id: "fused-progress-reveal", in: hoverNamespace, behavior: .activatesGroup)
+    }
+
+    private var hoverRevealGroup: HoverEffectGroup {
+        HoverEffectGroup(id: "fused-progress-reveal", in: hoverNamespace, behavior: .followsGroup)
+    }
+
+    private var progressBar: some View {
+        let overlayWidth = clusterWidth
+        let width = max(overlayWidth - DesignTokens.ProgressBar.thumbDiameter, 0)
+        let clampedProgress = min(max(displayProgress, 0), 1)
+        let thumbX = DesignTokens.ProgressBar.thumbDiameter / 2 + clampedProgress * width
+        return progressBarBody(
+            width: width,
+            clampedProgress: clampedProgress,
+            thumbX: thumbX,
+            overlayWidth: overlayWidth
+        )
+        .transition(.opacity)
+    }
+
+    private func progressBarBody(
+        width: CGFloat,
+        clampedProgress: CGFloat,
+        thumbX: CGFloat,
+        overlayWidth: CGFloat
+    ) -> some View {
+        ZStack(alignment: .leading) {
+            hoverCarrier(width: overlayWidth)
+
+            progressHub(
+                width: width,
+                progress: clampedProgress,
+                overlayWidth: overlayWidth,
+                scale: trackScale
+            )
+
+            timeBubble
+                .position(
+                    x: thumbX,
+                    y: DesignTokens.ProgressBar.hitHeight / 2 - DesignTokens.ProgressBar.timeBubbleOffset
+                )
+                .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+                    effect.animation(DesignTokens.AnimationToken.selection) {
+                        $0.opacity(isActive || isDragging ? 1.0 : 0.0)
+                    }
+                }
+                .allowsHitTesting(false)
+
+            scrubberControl(width: width)
+                .position(
+                    x: thumbX,
+                    y: DesignTokens.ProgressBar.hitHeight / 2
+                )
+        }
+        .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
+        .contentShape(.interaction, Capsule())
+        .gesture(dragGesture(width: width, thumbX: thumbX))
+        // 双击进度条任意处展开时间轴。
+        .simultaneousGesture(TapGesture(count: 2).onEnded { openTimeline() })
+    }
+
+    private func hoverCarrier(width: CGFloat) -> some View {
+        Capsule()
+            .fill(DesignTokens.ProgressBar.hoverCarrierFill)
+            .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
+            .contentShape(.hoverEffect, Capsule())
+            .hoverEffect(in: hoverActivationGroup) { effect, isActive, _ in
+                effect.animation(DesignTokens.AnimationToken.selection) {
+                    $0.opacity(isActive ? 1.0 : DesignTokens.ProgressBar.hoverCarrierInactiveOpacity)
+                }
+            }
+            .contentShape(.interaction, Capsule())
+            .accessibilityHidden(true)
+    }
+
+    private func progressHub(
+        width: CGFloat,
+        progress: CGFloat,
+        overlayWidth: CGFloat,
+        scale: CGFloat
+    ) -> some View {
+        ZStack(alignment: .leading) {
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.clear)
+                    .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
+                    .glassBackgroundEffect(in: Capsule())
+
+                progressTrackLayer(
+                    railWidth: overlayWidth,
+                    playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
+                    scale: scale,
+                    playedColor: DesignTokens.ProgressBar.playedColor,
+                    unplayedColor: DesignTokens.ProgressBar.unplayedColor
+                )
+
+                progressTrackLayer(
+                    railWidth: overlayWidth,
+                    playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
+                    scale: scale,
+                    playedColor: DesignTokens.ProgressBar.playedHoverColor,
+                    unplayedColor: DesignTokens.ProgressBar.unplayedHoverColor
+                )
+                .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
+                    effect.animation(DesignTokens.AnimationToken.selection) {
+                        $0.opacity(isActive || isDragging ? 1.0 : 0.0)
+                    }
+                }
+            }
+            .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
+            .scaleEffect(y: scale)
+            .animation(DesignTokens.PressFeedback.control.pressAnimation, value: scale)
+        }
+        .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
+        .allowsHitTesting(false)
+    }
+
+    private func progressTrackLayer(
+        railWidth: CGFloat,
+        playedWidth: CGFloat,
+        scale: CGFloat,
+        playedColor: Color,
+        unplayedColor: Color
+    ) -> some View {
+        let visualHeight = DesignTokens.ProgressBar.trackHeight * scale
+        let trackShape = RoundedRectangle(
+            cornerSize: CGSize(
+                width: visualHeight / 2,
+                height: DesignTokens.ProgressBar.trackHeight / 2
+            ),
+            style: .continuous
+        )
+
+        return ZStack(alignment: .leading) {
+            trackShape
+                .fill(unplayedColor)
+                .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
+            trackShape
+                .fill(playedColor)
+                .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
+                .mask(alignment: .leading) {
+                    Rectangle()
+                        .frame(width: playedWidth, height: DesignTokens.ProgressBar.trackHeight)
+                }
+        }
+        .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
+    }
+
+    private var timeBubble: some View {
+        let bubbleShape = RoundedRectangle(
+            cornerRadius: DesignTokens.ProgressBar.timeBubbleRadius,
+            style: .continuous
+        )
+
+        return HStack(spacing: DesignTokens.Spacing.xs) {
+            Text(live?.elapsedLabel ?? "6:21").foregroundStyle(.primary)
+            Text(live?.remainingLabel ?? "-7:54").foregroundStyle(.secondary)
+        }
+        .font(DesignTokens.Typography.monospacedDetail)
+        .monospacedDigit()
+        .padding(.horizontal, DesignTokens.ProgressBar.timeBubblePaddingH)
+        .padding(.vertical, DesignTokens.ProgressBar.timeBubblePaddingV)
+        .glassBackgroundEffect(in: bubbleShape)
+    }
+
+    private func scrubberControl(width: CGFloat) -> some View {
+        Circle()
+            .fill(.white)
+            .overlay {
+                Circle().strokeBorder(
+                    DesignTokens.ProgressBar.thumbStroke,
+                    lineWidth: DesignTokens.ProgressBar.thumbStrokeWidth
+                )
+            }
+            .frame(width: DesignTokens.ProgressBar.thumbDiameter,
+                   height: DesignTokens.ProgressBar.thumbDiameter)
+            .accessibilityIdentifier("PlayerPanel-thumb")
+            .accessibilityLabel("Playback position thumb")
+            .contentShape(.hoverEffect, Circle())
+            .hoverEffect()
+            .frame(width: DesignTokens.ProgressBar.hitHeight,
+                   height: DesignTokens.ProgressBar.hitHeight)
+            .contentShape(.hoverEffect, Circle())
+            .hoverEffect(in: hoverActivationGroup) { effect, _, _ in
+                effect.animation(DesignTokens.AnimationToken.selection) { $0.opacity(1.0) }
+            }
+            .contentShape(Circle())
+    }
+
+    private func dragGesture(width: CGFloat, thumbX: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: DesignTokens.Stroke.regular)
+            .onChanged { value in
+                guard !isIgnoringDrag else { return }
+                if !isDragging {
+                    guard isThumbHit(value.startLocation, thumbX: thumbX) else {
+                        isIgnoringDrag = true
+                        return
+                    }
+                    // live 注入时进度起点取自当前播放位置(displayProgress),避免从陈旧
+                    // 本地 @State 起跳;mock 时 displayProgress == progress,行为不变。
+                    dragStartProgress = displayProgress
+                    progress = displayProgress
+                    beginScrubbing()
+                }
+                updateProgress(forTranslation: value.translation.width, width: width)
+            }
+            .onEnded { _ in
+                if isDragging {
+                    endScrubbing()
+                    if live != nil {
+                        // 锁存到目标值,跨过异步 seek 往返;live 追上后释放(见 body 的 onChange)。
+                        pendingSeekTarget = progress
+                    }
+                    live?.onSeek(progress)
+                }
+                isIgnoringDrag = false
+            }
+    }
+
+    private func beginScrubbing() {
+        withAnimation(DesignTokens.PressFeedback.control.pressAnimation) { isDragging = true }
+        scrubFeedbackTrigger += 1
+    }
+
+    private func endScrubbing() {
+        withAnimation(DesignTokens.AnimationToken.selection) { isDragging = false }
+        announcedBoundary = nil
+    }
+
+    private func progressValue(forTranslation translationX: CGFloat, width: CGFloat) -> CGFloat {
+        guard width > 0 else { return progress }
+        return min(max(dragStartProgress + translationX / width, 0), 1)
+    }
+
+    private func updateProgress(forTranslation translationX: CGFloat, width: CGFloat) {
+        let nextProgress = progressValue(forTranslation: translationX, width: width)
+        updateBoundaryFeedback(for: nextProgress)
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) { progress = nextProgress }
+    }
+
+    private func updateBoundaryFeedback(for nextProgress: CGFloat) {
+        let boundary: ProgressBoundary?
+        if nextProgress <= 0 {
+            boundary = .minimum
+        } else if nextProgress >= 1 {
+            boundary = .maximum
+        } else {
+            boundary = nil
+        }
+        guard boundary != announcedBoundary else { return }
+        announcedBoundary = boundary
+        switch boundary {
+        case .minimum: minimumBoundaryFeedbackTrigger += 1
+        case .maximum: maximumBoundaryFeedbackTrigger += 1
+        case nil: break
+        }
+    }
+
+    private func openTimeline() {
+        onInteraction()
+        var transaction = Transaction()
+        transaction.animation = nil
+        withTransaction(transaction) {
+            isDragging = false
+            announcedBoundary = nil
+        }
+        timelineFeedbackTrigger += 1
+        withAnimation(DesignTokens.AnimationToken.panelSpring) { timelineExpanded = true }
+    }
+
+    private func closeTimeline() {
+        onInteraction()
+        withAnimation(DesignTokens.AnimationToken.panelSpring) { timelineExpanded = false }
+    }
+
+    private func isThumbHit(_ location: CGPoint, thumbX: CGFloat) -> Bool {
+        let thumbCenter = CGPoint(x: thumbX, y: DesignTokens.ProgressBar.hitHeight / 2)
+        let hitRadius = DesignTokens.ProgressBar.hitHeight / 2
+        let dx = location.x - thumbCenter.x
+        let dy = location.y - thumbCenter.y
+        return (dx * dx + dy * dy) <= (hitRadius * hitRadius)
+    }
+}
+
+// MARK: - Player settings panel
+
+struct PlayerSettingsPanelPreview: View {
+    // chromeless: 去掉外层 .plate 玻璃 + 固定 880×560 框,只渲染 sidebar+detail 内容,
+    // 供融合面板内嵌、与 controls/timeline 共用同一块玻璃壳。默认 false(独立预览带壳)。
+    var chromeless: Bool = false
+    // settingsLive: 桶① 真后端绑定(Display Mode→stereo、180/360→projection)。
+    // nil = Canvas mock(用下方本地 @State)。桶③ 行始终走本地 @State 做 honest-fake。
+    var settingsLive: PlaybackSettingsLive?
+
+    @State private var selectedCategory: PlayerPanelSettingsCategory = .environmentSetting
+    @Namespace private var categoryIndicatorNamespace
+    @State private var pressedCategory: PlayerPanelSettingsCategory?
+    @State private var categoryPressTrigger = 0
+    @State private var selectedEnvironmentID = "day"
+    @State private var selectedPositionID = "left"
+    @State private var environmentAuto = true
+    @State private var screenCurve = 0
+    @State private var screenHeight = 0
+    @State private var screenDistance = 0
+    @State private var screenSize = 0
+    @State private var displayMode = "Flat"
+    @State private var immersiveMode: ImmersiveVideoMode = .off
+
+    // MARK: Picture (libplacebo) state
+    // ① Peak Detection
+    @State private var hdrComputePeak = "auto"
+    @State private var hdrPeakPercentile = 99.9
+    @State private var hdrPeakDecayRate = 20.0
+    @State private var hdrSceneThresholdLow = 1.0
+    @State private var hdrSceneThresholdHigh = 3.0
+    // ② Output Target
+    @State private var targetPeak = 406.0
+    @State private var hdrReferenceWhite = 183.0
+    @State private var targetContrast = "inf"
+    // ③ Tone Mapping
+    @State private var toneMapping = "bt.2390"
+    @State private var toneMappingParam = 0.0
+    @State private var inverseToneMapping = false
+    @State private var toneMappingMaxBoost = 1.0
+    @State private var hdrContrastRecovery = 0.15
+    @State private var hdrContrastSmoothness = 100.0
+    // ④ Gamut & Color
+    @State private var gamutMappingMode = "clip"
+    @State private var saturation = 9.0
+    @State private var brightness = 0.0
+    @State private var contrast = 10.0
+    @State private var gamma = 1.0
+    @State private var hue = 0.0
+    // ⑤ Diagnostics
+    @State private var toneMappingVisualize = false
+
+    @State private var showResetConfirm = false
+
+    private enum ImmersiveVideoMode {
+        case off
+        case oneEighty
+        case threeSixty
+    }
+
+    private let panelWidth: CGFloat = 880
+    private let panelHeight: CGFloat = 560
+    // 8(左 inset)+224(sidebar)+20(gutter)+detail+20(右 inset)= 880 → detail = 608
+    private let detailColumnWidth: CGFloat = 608
+
+    var body: some View {
+        Group {
+            if chromeless {
+                panelInner
+            } else {
+                panelInner
+                    .frame(width: panelWidth, height: panelHeight, alignment: .topLeading)
+                    .clipShape(DesignTokens.ShapeToken.panel)
+                    .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
+                    .padding(DesignTokens.Spacing.xl)
+                    // navigationTitle 只给独立预览;嵌入(chromeless)语境加它会污染外层导航栏、
+                    // 并让内容在导航栏材质下透出(看起来像"背景超出 glass")。
+                    .navigationTitle("Player Settings Panel")
+            }
+        }
+        .enchronDestructiveConfirmation(
+            "Restore Default Settings?",
+            message: "This resets the panel preview controls to their default positions.",
+            confirmTitle: "Restore",
+            isPresented: $showResetConfirm,
+            onConfirm: restoreDefaults
+        )
+    }
+
+    // 融合(chromeless):左侧图标圆按钮竖栏(纯图标,无文字)+ 右侧 List Group 详情;
+    // 独立预览(chromeless=false):左竖 sidebar + 右详情(原结构,日后可弃)。
+    private var panelInner: some View {
+        Group {
+            if chromeless {
+                HStack(alignment: .top, spacing: 0) {
+                    // 左列:胶囊左缘贴齐面板内容左缘(= 上方 ≡ 命中框左缘,故无左 inset);
+                    // 用与右侧 panelSection 同款隐藏标题占位 + 同款上间距,把胶囊上缘精确压到
+                    // 第一张卡的上沿线(而非标题)。占位与右侧标题同字号 → 顶边严格对齐。
+                    VStack(spacing: DesignTokens.Spacing.sm) {
+                        Text("Aa")
+                            .font(DesignTokens.Typography.headline)
+                            .opacity(0)
+                            .accessibilityHidden(true)
+                        categoryRail
+                        Spacer(minLength: 0)
+                    }
+
+                    detailPanel
+                        .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
+                }
+                // 顶部不留内部 padding:让设置内容紧贴在分界线下 md 处,与 timeline 同款间距;
+                // 底部留 windowInset 透气。左右 inset 见各列(左列贴边、右列 trailingContentGap)。
+                .padding(.trailing, DesignTokens.SourceSidebar.windowInset)
+                .padding(.bottom, DesignTokens.SourceSidebar.windowInset)
+            } else {
+                HStack(alignment: .top, spacing: 0) {
+                    sidebar
+                        .padding(.leading, DesignTokens.SourceSidebar.windowInset)
+                        .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
+
+                    detailPanel
+                        .frame(width: detailColumnWidth)
+                        .padding(.horizontal, DesignTokens.SourceSidebar.trailingContentGap)
+                        .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+    }
+
+    // EXPLORATORY (2026-06-21): 竖向玻璃胶囊做分类选择——把横向 ViewModeCapsuleControl(2 段)
+    //   推广成竖排 N 段:一条玻璃胶囊壳(enchronGlassControl)+ 段内图标 + matchedGeometry 选中圆底
+    //   (切换时竖向滑动)。多分区命中守"不嵌 Button,用 SpatialTapGesture + location.y 分区";
+    //   press 走 DesignTokens.PressFeedback.icon。命中区横向 44→60 静默扩展、竖向不扩(段已满)。
+    //   移除条件:范式确认后泛化为组件库正式控件(竖向 N 段胶囊),需人类裁决命名/语义。
+    private var categoryRail: some View {
+        let categories = PlayerPanelSettingsCategory.allCases
+        let visual = DesignTokens.Interactive.regular        // 44 单段视觉尺寸
+        let target = DesignTokens.Interactive.large          // 60 命中宽
+        let railHeight = visual * CGFloat(categories.count)  // 段高 44 × 段数 = 胶囊高
+        let press = DesignTokens.PressFeedback.icon
+
+        return VStack(spacing: 0) {
+            ForEach(categories) { category in
+                categoryRailIcon(category)
+            }
+        }
+        .frame(width: visual, height: railHeight)
+        .enchronGlassControl()
+        .frame(width: target, height: railHeight)
+        .contentShape(Rectangle())
+        .gesture(
+            SpatialTapGesture().onEnded { value in
+                let index = min(categories.count - 1, max(0, Int(value.location.y / visual)))
+                let tapped = categories[index]
+                categoryPressTrigger += 1
+                withAnimation(press.pressAnimation) { pressedCategory = tapped }
+                Task {
+                    try? await Task.sleep(for: press.holdDuration)
+                    withAnimation(DesignTokens.AnimationToken.selection) {
+                        selectedCategory = tapped
+                        pressedCategory = nil
+                    }
+                }
+            }
+        )
+        .sensoryFeedback(.press(.buttonIconOnly), trigger: categoryPressTrigger)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-categoryRail")
+        .accessibilityLabel("Settings Category")
+        .accessibilityValue(selectedCategory.title)
+    }
+
+    private func categoryRailIcon(_ category: PlayerPanelSettingsCategory) -> some View {
+        let isSelected = selectedCategory == category
+        let isPressed = pressedCategory == category
+        let visual = DesignTokens.Interactive.regular
+        let press = DesignTokens.PressFeedback.icon
+
+        return ZStack {
+            if isSelected {
+                Circle()
+                    .fill(DesignTokens.Surface.selected)
+                    .frame(width: visual, height: visual)
+                    .matchedGeometryEffect(id: "categoryRailIndicator", in: categoryIndicatorNamespace)
+            }
+            // 选中语言严格照搬 ViewModeCapsuleControl:唯一选中态 = Surface.selected 圆底;
+            // 图标恒白、未选 0.45 暗化,不做 accent 变色(避免两个选中态叠加)。
+            Image(systemName: category.icon)
+                .font(DesignTokens.SymbolSize.control)
+                .foregroundStyle(.white.opacity(isSelected ? 1.0 : 0.45))
+                .scaleEffect(isPressed ? press.pressedScale : 1.0)
+                .frame(width: visual, height: visual)
+                .clipShape(Circle())   // 对齐 GlassCircleIconLabel:把图标裁进视觉圆,防宽图标溢出
+        }
+        .frame(width: visual, height: visual)
+    }
+
+    private var sidebar: some View {
+        let shape = DesignTokens.SourceSidebar.shape
+
+        let content = VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            Text("Panel")
+                .font(DesignTokens.SourceSidebar.sectionTitleFont)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
+
+            VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
+                ForEach(PlayerPanelSettingsCategory.allCases) { category in
+                    sidebarRow(category)
+                }
+            }
+            .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
+
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
+        .frame(width: DesignTokens.SourceSidebar.width)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+
+        // 融合语境共用外层那一块玻璃,sidebar 不再叠自己的 .plate(消除玻璃叠玻璃的糊边);
+        // 独立预览保留自带玻璃。区分度改由 columnDivider + 选中行高亮承担。
+        return Group {
+            if chromeless {
+                content
+            } else {
+                content
+                    .clipShape(shape)
+                    .glassBackgroundEffect(.plate, in: shape, displayMode: .always)
+            }
+        }
+        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-sidebar")
+    }
+
+    private var detailPanel: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+                // 融合语境:分类由左侧图标竖栏(categoryRail)表达,省去大标题以压低高度;
+                // 独立预览保留标题。
+                // 注:图标无文字,当前哪个分类只靠选中高亮表达;如需可在此恢复标题(见交付说明)。
+                if !chromeless {
+                    Text(selectedCategory.title)
+                        .font(DesignTokens.Typography.title)
+                        .foregroundStyle(.white)
+                }
+
+                detailContent
+            }
+            // chromeless:顶部不留内边距(紧凑,内容贴分界线下 md,与 timeline 同间距;
+            // 顶部渐隐已去掉,故标题不会被吃);底部留 lg。
+            .padding(.top, chromeless ? 0 : DesignTokens.Spacing.xxxl)
+            .padding(.bottom, chromeless ? DesignTokens.Spacing.lg : DesignTokens.Spacing.xxxl)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+        }
+        .scrollIndicators(.hidden)
+        .mask(PlayerSettingsPanelScrollFadeMask())
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-detail")
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        switch selectedCategory {
+        case .environmentSetting:
+            environmentSettingContent
+        case .playMode:
+            playModeContent
+        case .picture:
+            pictureContent
+        }
+    }
+
+    // FAKE(ADR-0009 桶③):Environment(Day/Night=场景内昼夜,非切场景)、Screen 几何、
+    // Position 本轮均无后端,用本地 @State 做可交互 honest-fake;接管真后端时再接真。
+    private var environmentSettingContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+            panelSection("Environment") {
+                SettingListGroup(items: [
+                    .init(
+                        id: "environment-day-night",
+                        title: "Environment",
+                        accessory: .none,
+                        embeddedControl: .cardSelection(
+                            options: [
+                                .init(id: "day", title: "Day", systemName: "sun.max.fill"),
+                                .init(id: "night", title: "Night", systemName: "moon.stars.fill"),
+                            ],
+                            selectedID: $selectedEnvironmentID
+                        )
+                    ),
+                    .init(
+                        id: "environment-auto",
+                        title: "Auto",
+                        accessory: .boundToggle(isOn: $environmentAuto, isEnabled: true, marker: nil)
+                    ),
+                ])
+            }
+
+            panelSection("Screen Setting") {
+                SettingListGroup(items: [
+                    sliderItem(
+                        id: "screen-curve",
+                        title: "Curve",
+                        value: $screenCurve,
+                        leadingSystemImage: "rectangle",
+                        trailingSystemImage: "capsule"
+                    ),
+                    sliderItem(
+                        id: "screen-height",
+                        title: "Height",
+                        value: $screenHeight,
+                        leadingSystemImage: "arrow.down",
+                        trailingSystemImage: "arrow.up"
+                    ),
+                    sliderItem(
+                        id: "screen-distance",
+                        title: "Distance",
+                        value: $screenDistance,
+                        leadingSystemImage: "smallcircle.filled.circle",
+                        trailingSystemImage: "circle"
+                    ),
+                    sliderItem(
+                        id: "screen-size",
+                        title: "Size",
+                        value: $screenSize,
+                        leadingSystemImage: "arrow.down.right.and.arrow.up.left",
+                        trailingSystemImage: "arrow.up.left.and.arrow.down.right"
+                    ),
+                ])
+            }
+
+            panelSection("Position") {
+                SettingListGroup(items: [
+                    .init(
+                        id: "screen-position",
+                        title: "Position",
+                        accessory: .none,
+                        embeddedControl: .cardSelection(
+                            options: [
+                                .init(id: "left", title: "Left", systemName: "arrow.left"),
+                                .init(id: "center", title: "Center", systemName: "dot.square"),
+                                .init(id: "right", title: "Right", systemName: "arrow.right"),
+                            ],
+                            selectedID: $selectedPositionID
+                        )
+                    ),
+                ])
+            }
+
+            SettingListGroup(items: [
+                .init(
+                    id: "restore-default-settings",
+                    title: "Restore Default Settings",
+                    systemName: "arrow.counterclockwise",
+                    accessory: .action(
+                        title: "Restore",
+                        feedback: nil,
+                        systemName: nil,
+                        role: .destructive,
+                        action: { showResetConfirm = true }
+                    )
+                ),
+            ])
+        }
+    }
+
+    // 桶①:Display Mode 单一真值。settingsLive 注入时读写 stereoLayoutOverride;
+    // 否则用本地 @State(Canvas mock)。值域 Flat / SBS / TB。
+    private var displayModeValue: String {
+        settingsLive?.displayMode.wrappedValue ?? displayMode
+    }
+    private func setDisplayMode(_ value: String) {
+        if let settingsLive {
+            settingsLive.displayMode.wrappedValue = value
+        } else {
+            displayMode = value
+        }
+    }
+
+    private var playModeContent: some View {
+        panelSection("Display") {
+            SettingListGroup(items: [
+                .init(
+                    id: "play-mode-display",
+                    title: "Display Mode",
+                    systemName: "cube.transparent",
+                    accessory: .menu(
+                        title: displayModeValue,
+                        options: [
+                            .init("Flat", action: { setDisplayMode("Flat") }),
+                            .init("SBS", action: { setDisplayMode("SBS") }),
+                            .init("TB", action: { setDisplayMode("TB") }),
+                        ]
+                    )
+                ),
+                .init(
+                    id: "play-mode-180",
+                    title: "180° Immersive Video",
+                    systemName: "circle.lefthalf.filled",
+                    accessory: .boundToggle(isOn: immersive180Binding, isEnabled: true, marker: nil)
+                ),
+                .init(
+                    id: "play-mode-360",
+                    title: "360° Immersive Video",
+                    systemName: "rotate.3d",
+                    accessory: .boundToggle(isOn: immersive360Binding, isEnabled: true, marker: nil)
+                ),
+            ])
+        }
+    }
+
+    // libplacebo 参数面板。数值滑块用 range-aware 的 `.rangeSlider`(真实数值域 +
+    // 数值读出),枚举用既有 `.menu`,只读用 `.value`。
+    // FAKE(ADR-0009 桶③):整套 libplacebo 参数本轮无 mpv 引擎背书,做可交互 honest-fake;
+    // 真 mpv 落地时接真。
+    private var pictureContent: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+            panelSection("Peak Detection") {
+                SettingListGroup(items: [
+                    pickerItem(
+                        id: "picture-hdr-compute-peak",
+                        title: "动态峰值检测",
+                        selection: $hdrComputePeak,
+                        options: ["auto", "yes", "no"]
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-peak-percentile",
+                        title: "峰值百分位",
+                        value: $hdrPeakPercentile,
+                        range: 90...100,
+                        decimals: 1
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-peak-decay-rate",
+                        title: "峰值平滑率",
+                        value: $hdrPeakDecayRate,
+                        range: 1...100
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-scene-threshold-low",
+                        title: "换场阈值·低",
+                        value: $hdrSceneThresholdLow,
+                        range: 0...20,
+                        decimals: 1
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-scene-threshold-high",
+                        title: "换场阈值·高",
+                        value: $hdrSceneThresholdHigh,
+                        range: 0...20,
+                        decimals: 1
+                    ),
+                ])
+            }
+
+            panelSection("Output Target") {
+                SettingListGroup(items: [
+                    .init(
+                        id: "picture-target-prim",
+                        title: "输出色域",
+                        accessory: .value("display-p3")
+                    ),
+                    .init(
+                        id: "picture-target-trc",
+                        title: "输出传递曲线",
+                        accessory: .value("linear")
+                    ),
+                    rangeSliderItem(
+                        id: "picture-target-peak",
+                        title: "目标峰值亮度 (nits)",
+                        value: $targetPeak,
+                        range: 100...2000,
+                        unit: "nits"
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-reference-white",
+                        title: "HDR 参考白 (nits)",
+                        value: $hdrReferenceWhite,
+                        range: 50...1000,
+                        unit: "nits"
+                    ),
+                    pickerItem(
+                        id: "picture-target-contrast",
+                        title: "目标对比度 / 黑位",
+                        selection: $targetContrast,
+                        options: ["inf", "auto", "100000", "10000", "1000"]
+                    ),
+                ])
+            }
+
+            panelSection("Tone Mapping") {
+                SettingListGroup(items: [
+                    pickerItem(
+                        id: "picture-tone-mapping",
+                        title: "色调映射曲线",
+                        selection: $toneMapping,
+                        options: ["bt.2390", "bt.2446a", "spline", "hable", "mobius"]
+                    ),
+                    rangeSliderItem(
+                        id: "picture-tone-mapping-param",
+                        title: "曲线参数",
+                        value: $toneMappingParam,
+                        range: 0...2,
+                        decimals: 1
+                    ),
+                    .init(
+                        id: "picture-inverse-tone-mapping",
+                        title: "反向色调映射",
+                        accessory: .boundToggle(isOn: $inverseToneMapping, isEnabled: true, marker: nil)
+                    ),
+                    rangeSliderItem(
+                        id: "picture-tone-mapping-max-boost",
+                        title: "最大提亮倍数",
+                        value: $toneMappingMaxBoost,
+                        range: 1...10
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-contrast-recovery",
+                        title: "对比度恢复",
+                        value: $hdrContrastRecovery,
+                        range: 0...2,
+                        decimals: 2
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hdr-contrast-smoothness",
+                        title: "对比度恢复平滑度",
+                        value: $hdrContrastSmoothness,
+                        range: 1...100
+                    ),
+                ])
+            }
+
+            panelSection("Gamut & Color") {
+                SettingListGroup(items: [
+                    pickerItem(
+                        id: "picture-gamut-mapping-mode",
+                        title: "色域映射模式",
+                        selection: $gamutMappingMode,
+                        options: ["clip", "perceptual", "relative", "saturation", "absolute"]
+                    ),
+                    rangeSliderItem(
+                        id: "picture-saturation",
+                        title: "饱和度",
+                        value: $saturation,
+                        range: -100...100
+                    ),
+                    rangeSliderItem(
+                        id: "picture-brightness",
+                        title: "亮度",
+                        value: $brightness,
+                        range: -100...100
+                    ),
+                    rangeSliderItem(
+                        id: "picture-contrast",
+                        title: "对比度",
+                        value: $contrast,
+                        range: -100...100
+                    ),
+                    rangeSliderItem(
+                        id: "picture-gamma",
+                        title: "伽马",
+                        value: $gamma,
+                        range: -100...100
+                    ),
+                    rangeSliderItem(
+                        id: "picture-hue",
+                        title: "色相",
+                        value: $hue,
+                        range: -100...100
+                    ),
+                ])
+            }
+
+            panelSection("Diagnostics") {
+                SettingListGroup(items: [
+                    .init(
+                        id: "picture-tone-mapping-visualize",
+                        title: "可视化色调曲线",
+                        accessory: .boundToggle(isOn: $toneMappingVisualize, isEnabled: true, marker: nil)
+                    ),
+                    .init(
+                        id: "picture-gamut-mapping-warn",
+                        title: "色域越界标红",
+                        accessory: .action(
+                            title: "Warn",
+                            feedback: "Toggled",
+                            systemName: nil,
+                            role: .normal,
+                            action: {}
+                        )
+                    ),
+                ])
+            }
+        }
+    }
+
+    // 桶①:180/360 投影。settingsLive 注入时直接读写 projectionOverride 绑定
+    // (互斥由 host 的单一 projectionOverride 保证);否则用本地互斥枚举(Canvas mock)。
+    private var immersive180Binding: Binding<Bool> {
+        if let settingsLive { return settingsLive.projection180 }
+        return Binding {
+            immersiveMode == .oneEighty
+        } set: { isOn in
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                immersiveMode = isOn ? .oneEighty : .off
+            }
+        }
+    }
+
+    private var immersive360Binding: Binding<Bool> {
+        if let settingsLive { return settingsLive.projection360 }
+        return Binding {
+            immersiveMode == .threeSixty
+        } set: { isOn in
+            withAnimation(DesignTokens.AnimationToken.selection) {
+                immersiveMode = isOn ? .threeSixty : .off
+            }
+        }
+    }
+
+    private func sidebarRow(_ category: PlayerPanelSettingsCategory) -> some View {
+        EditableSourceSidebarRow(
+            icon: category.icon,
+            title: category.title,
+            isSelected: selectedCategory == category,
+            isEnabled: true,
+            isActiveSource: false,
+            isDeletable: false,
+            isSelectionMode: false,
+            isChecked: false,
+            isAppearing: false,
+            isSwipeExpanded: false,
+            isDragging: false,
+            rowOffset: 0,
+            allowsReordering: false,
+            allowsSwipe: false,
+            onTap: {
+                withAnimation(DesignTokens.AnimationToken.selection) {
+                    selectedCategory = category
+                }
+            },
+            onToggleSelection: {},
+            onSwipeBegan: {},
+            onSwipeExpanded: {},
+            onSwipeCollapsed: {},
+            onDelete: {},
+            onReorderBegan: {},
+            onReorderChanged: { _ in },
+            onReorderEnded: {}
+        )
+        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-category-\(category.id)")
+    }
+
+    private func panelSection<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.headline)
+                .foregroundStyle(.primary)
+
+            content()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sliderItem(
+        id: String,
+        title: String,
+        value: Binding<Int>,
+        leadingSystemImage: String = "minus.circle",
+        trailingSystemImage: String = "plus.circle"
+    ) -> SettingListGroup.Item {
+        SettingListGroup.Item(
+            id: id,
+            title: title,
+            accessory: .none,
+            embeddedControl: .centerSlider(
+                value: value,
+                leadingSystemImage: leadingSystemImage,
+                trailingSystemImage: trailingSystemImage,
+                accessibilityLabel: title
+            )
+        )
+    }
+
+    // 枚举选择行,复用既有 `.menu` accessory:trailing 菜单显示当前值,
+    // 选项点击写回绑定。
+    private func pickerItem(
+        id: String,
+        title: String,
+        selection: Binding<String>,
+        options: [String]
+    ) -> SettingListGroup.Item {
+        SettingListGroup.Item(
+            id: id,
+            title: title,
+            accessory: .menu(
+                title: selection.wrappedValue,
+                options: options.map { option in
+                    SettingListGroup.MenuOption(option) {
+                        selection.wrappedValue = option
+                    }
+                }
+            )
+        )
+    }
+
+    // range-aware 数值滑块行:真实数值域 + 按 decimals/unit 显示读出。
+    private func rangeSliderItem(
+        id: String,
+        title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        decimals: Int = 0,
+        unit: String? = nil
+    ) -> SettingListGroup.Item {
+        SettingListGroup.Item(
+            id: id,
+            title: title,
+            accessory: .none,
+            embeddedControl: .rangeSlider(
+                value: value,
+                range: range,
+                decimals: decimals,
+                unit: unit,
+                accessibilityLabel: title
+            )
+        )
+    }
+
+    private func restoreDefaults() {
+        selectedEnvironmentID = "day"
+        selectedPositionID = "left"
+        environmentAuto = true
+        screenCurve = 0
+        screenHeight = 0
+        screenDistance = 0
+        screenSize = 0
+        displayMode = "Flat"
+        immersiveMode = .off
+        // Picture (libplacebo) defaults
+        hdrComputePeak = "auto"
+        hdrPeakPercentile = 99.9
+        hdrPeakDecayRate = 20.0
+        hdrSceneThresholdLow = 1.0
+        hdrSceneThresholdHigh = 3.0
+        targetPeak = 406.0
+        hdrReferenceWhite = 183.0
+        targetContrast = "inf"
+        toneMapping = "bt.2390"
+        toneMappingParam = 0.0
+        inverseToneMapping = false
+        toneMappingMaxBoost = 1.0
+        hdrContrastRecovery = 0.15
+        hdrContrastSmoothness = 100.0
+        gamutMappingMode = "clip"
+        saturation = 9.0
+        brightness = 0.0
+        contrast = 10.0
+        gamma = 1.0
+        hue = 0.0
+        toneMappingVisualize = false
+    }
+}
+
+private struct PlayerSettingsPanelScrollFadeMask: View {
+    var body: some View {
+        // 顶部不渐隐(避免吃标题 + 与分界线保持紧凑间距);仅底部渐隐让内容在下沿柔和淡出。
+        LinearGradient(
+            stops: [
+                .init(color: .black, location: 0),
+                .init(color: .black, location: 0.92),
+                .init(color: .clear, location: 1),
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+}
+
+private enum PlayerPanelSettingsCategory: String, CaseIterable, Identifiable {
+    case environmentSetting
+    case playMode
+    case picture
+
+    var id: String {
+        rawValue
+    }
+
+    var title: String {
+        switch self {
+        case .environmentSetting:
+            "Environment Setting"
+        case .playMode:
+            "Play Mode"
+        case .picture:
+            "Picture"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .environmentSetting:
+            "apple.meditate"
+        case .playMode:
+            "cube.transparent"
+        case .picture:
+            "photo"
         }
     }
 }

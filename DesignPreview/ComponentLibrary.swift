@@ -405,8 +405,8 @@ private struct PlayerSection: View {
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(.secondary).textCase(.uppercase)
 
-            labeledComponent("PlayerControlDeck · progress + transport · double-tap track to expand timeline") {
-                PlayerControlDeck()
+            labeledComponent("FusedPlayerPanel · transport + progress + 内联设置 · 双击进度条展开时间轴") {
+                FusedPlayerPanel()
             }
         }
     }

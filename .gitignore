@@ -28,3 +28,6 @@ overnight-log.md
 TODOS.md
 .overnight-supervisor/
 logs/
+
+# RCP immersive scene binary (~42MB) — local-only per ADR-0008, not committed
+XrPlayer/SpatialScene/Resources/Immersive_Space.reality

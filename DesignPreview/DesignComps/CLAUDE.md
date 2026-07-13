@@ -65,7 +65,7 @@
 - Empty Panel 的系统窗口语义由 `WindowGroup` 和 Scene 配置拥有。Canvas 中的包装层只表达审查所需的窗口内容或舞台。
 - 使用 `DesignCompsPreviewGallery.swift` 作为具名 Preview Canvas 的审查入口。页面局部 `#Preview` 用于隔离组件工作；根审查入口保持为 Preview Canvas 总览。
 - 当骨架需要提高审查清晰度时，使用简短区域标签。这些标签是设计审查标签，不是产品文案。
-- 组件库中已有的控件直接复用。创建局部占位之前，先直接调用 `PlayerControlDeck`、`GridCard`（`.video` / `.folder` 变体）、`FileListGroup`、`EnvironmentCard`、`ViewModeCapsuleControl`、`PathBreadcrumbMenu`、`SearchInputCapsule`、`SourceSidebarRow` 及相关组件。
+- 组件库中已有的控件直接复用。创建局部占位之前，先直接调用 `FusedPlayerPanel`（融合播放面板，ADR-0009 取代 `PlayerControlDeck`）、`GridCard`（`.video` / `.folder` 变体）、`FileListGroup`、`EnvironmentCard`、`ViewModeCapsuleControl`、`PathBreadcrumbMenu`、`SearchInputCapsule`、`SourceSidebarRow` 及相关组件。
 - 局部预览状态只服务视觉状态检查，真实业务逻辑留给产品实现层。
 - 在播放器子菜单的顶层面板语义稳定之前，保留为局部状态或占位，不展开成跨 Preview 流程。
 - 当前不维护“点开播放卡片后的二级播放设置页面”。视频详情、播放前设置和跨 Preview 启动链路留到未来 FakeApp 或产品流程明确后再裁决。

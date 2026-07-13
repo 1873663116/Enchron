@@ -1,4 +1,5 @@
 import SwiftUI
+import RealityKitScripting
 
 @main
 struct XrPlayerApp: App {
@@ -38,6 +39,16 @@ struct XrPlayerApp: App {
     @State private var immersionStyle: ImmersionStyle = .full
 
     init() {
+        // RealityKitScripting must initialize before any `.scriptingSystem()`
+        // RealityView is created: the RCP `world` scene carries a Script Graph,
+        // and skipping init surfaces as NetworkAssetManager / sampler-binding
+        // failures at scene load. See ADR-0008.
+        do {
+            try RKS.initialize()
+        } catch {
+            assertionFailure("[RKS] RealityKitScripting initialize failed: \(error)")
+        }
+
         Task.detached(priority: .utility) {
             Self.copySampleVideoIfAvailable()
         }
@@ -94,10 +105,11 @@ struct XrPlayerApp: App {
 
         // (mpv warmup is restored when swapping the player back to MPVPlayerAdapter.)
         // FakeApp data backend: the browsing UI runs on a deterministic
-        // in-memory catalog (nine demo films + a folder hierarchy) so the whole
-        // app is exercisable without real disk/network. Swap FakeFileDataSource()
+        // in-memory catalog (a deep, multi-branch folder tree with empty folders)
+        // so the whole app is exercisable — in/out navigation, breadcrumb,
+        // back/forward — without real disk/network. Swap FakeFileDataSource()
         // → LocalDataSourceAdapter() at this single site to ship on real files.
-        let localDataSource: any LocalFileSource = FakeFileDataSource()
+        let localDataSource: any LocalFileSource = FakeFileDataSource(catalog: .demoDeep)
         // FILE-01: tapping a video card plays it directly — no detail page. The
         // prepare/confirm path (which fed the retired VideoDetailView) is dropped, so
         // `selectFile` routes straight to `beginPlayback`.
@@ -193,6 +205,8 @@ struct XrPlayerApp: App {
                     if appModel.playbackMode != .window {
                         appModel.updatePlaybackMode(.window)
                     }
+                    // Environment-expand browsing ends with the space.
+                    appModel.isEnvironmentImmersiveActive = false
                 }
         }
         .immersionStyle(selection: $immersionStyle, in: .mixed, .full)

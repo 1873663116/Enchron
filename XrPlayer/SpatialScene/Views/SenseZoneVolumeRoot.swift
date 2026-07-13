@@ -5,8 +5,9 @@ import SwiftUI
 /// old `SceneSelectorView` sheet as the Environments destination (ENV-13/14/16/17).
 ///
 /// The center card's expand control enters the immersive space through the single
-/// canonical entry point (`AppModel.requestImmersiveSpace` → `MainView`), which in
-/// this round loads the procedural dome; the RCP `world` swap is ADR-0008 (ENV-18).
+/// canonical entry point (`AppModel.requestImmersiveSpace` → `MainView`), which
+/// loads the real RCP `world` in mixed immersion so this volume stays open
+/// alongside the scene (ADR-0008, ENV-18).
 ///
 /// Deviation from the design's "close main window on entry": the volume coexists
 /// with the main window so `MainView` stays alive to service the immersive-space
@@ -34,8 +35,12 @@ struct SenseZoneVolumeRoot: View {
         appModel.isEnvironmentTransitionInFlight = false
     }
 
-    // ENV-18: route through the canonical immersive entry point.
+    // ENV-18: route through the canonical immersive entry point. Mark the
+    // environment-browse intent so `ImmersiveSpaceView` loads the RCP `world`
+    // (playbackMode stays `.window`) and `MainView` opens mixed immersion,
+    // keeping this volume visible.
     private func enterImmersive() {
+        appModel.isEnvironmentImmersiveActive = true
         appModel.requestImmersiveSpace()
     }
 }

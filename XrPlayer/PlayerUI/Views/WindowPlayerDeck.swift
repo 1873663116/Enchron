@@ -1,38 +1,27 @@
 import SwiftUI
 
-/// Production window-playback chrome, assembled entirely from the polished
-/// component library and bound to the live playback engine.
+/// Production window-playback chrome, bound to the live playback engine.
 ///
-/// `WindowPlayerDeckView` hosts the shared `PlayerControlDeck` (transport row,
-/// progress / precision timeline, ⋯ menu) driven by `WindowVideoViewModel`.
-/// `PlaybackSettingsPanel` is the leading ornament, composed from the shared
-/// `CategorySidebar` + `SettingListGroup`. `PlaybackOverlayCard` covers the
-/// resume / load-failure states (UC-PLAY-02 / 23).
-///
-/// This retires the bespoke `PlayerControlsView` / `SeekBarView` /
-/// `NLETimelineView` / `MenuPopoverContent` / `SettingsPopoverContent`: the
-/// player surface the user sees is now the polished deck, not a one-off.
+/// `WindowPlayerDeckView` hosts the shared `FusedPlayerPanel` (transport row,
+/// progress / precision timeline, ⋯ menu, ≡-summoned inline settings, and the
+/// ⤢/🧘 panorama / immersive entries) driven by `WindowVideoViewModel` +
+/// `AppModel` (ADR-0009). `PlaybackOverlayCard` covers the resume / load-failure
+/// states (UC-PLAY-02 / 23).
 
-// MARK: - Bottom ornament: the polished deck, wired to playback
+// MARK: - Bottom ornament: the fused player panel, wired to playback
 
 struct WindowPlayerDeckView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(WindowVideoViewModel.self) private var videoViewModel
 
     var body: some View {
-        PlayerControlDeck(
-            onOpenSettings: openSettingsPanel,
-            live: live
+        FusedPlayerPanel(
+            live: live,
+            settingsLive: settingsLive,
+            onInteraction: register
         )
         .onHover { appModel.setControlsFocused($0) }
         .accessibilityIdentifier("PlayerUI-WindowPlayerDeck")
-    }
-
-    private func openSettingsPanel() {
-        register()
-        withAnimation(DesignTokens.AnimationToken.panelSpring) {
-            appModel.showPlayerSettingsPopup.toggle()
-        }
     }
 
     /// Resets the auto-hide idle timer on every control interaction and keeps
@@ -46,11 +35,11 @@ struct WindowPlayerDeckView: View {
 
     // MARK: - Live binding
 
-    private var live: PlayerControlDeckLive {
+    private var live: FusedPlayerPanelLive {
         let position = videoViewModel.playbackPosition
         let duration = position.duration
         let remaining = max(0, duration - position.seconds)
-        return PlayerControlDeckLive(
+        return FusedPlayerPanelLive(
             isPlaying: videoViewModel.playbackState == .playing,
             showsReplay: videoViewModel.playbackState == .ended,
             progress: duration > 0 ? CGFloat(position.seconds / duration) : 0,
@@ -73,11 +62,65 @@ struct WindowPlayerDeckView: View {
                     self.videoViewModel.frameStepForward()
                 }
             },
+            onEnterPanorama: { self.enterPlaybackMode(.panorama) },
+            onEnterImmersive: { self.enterPlaybackMode(.immersive) },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
             episodeItems: []
         )
+    }
+
+    /// ⤢ 全景 / 🧘 虚拟场景入口:切 playbackMode 触发沉浸空间进出(由 MainView 监听驱动),
+    /// 守 inTransition 避免抖动。沿用原 PlaybackSettingsPanel 的 Play Mode 卡语义。
+    private func enterPlaybackMode(_ mode: PlaybackMode) {
+        register()
+        guard mode != appModel.playbackMode,
+              appModel.immersiveSpaceState != .inTransition else { return }
+        appModel.updatePlaybackMode(mode)
+    }
+
+    // MARK: - Settings 桶① 绑定(Display Mode→stereo、180/360→projection)
+
+    private var settingsLive: PlaybackSettingsLive {
+        PlaybackSettingsLive(
+            displayMode: Binding(
+                get: { Self.displayModeLabel(appModel.effectiveStereoLayout) },
+                set: { label in
+                    register()
+                    appModel.setStereoLayoutOverride(Self.stereoLayout(forLabel: label))
+                }
+            ),
+            projection180: projectionBinding(.equirectangular180),
+            projection360: projectionBinding(.equirectangular360)
+        )
+    }
+
+    private func projectionBinding(_ type: PlaybackCoreDomain.ProjectionType) -> Binding<Bool> {
+        Binding(
+            get: { appModel.effectiveProjectionType == type },
+            set: { isOn in
+                self.register()
+                // 单一 projectionOverride 天然互斥:开则设为该投影,关则回平面。
+                self.appModel.setProjectionOverride(isOn ? type : .flat)
+            }
+        )
+    }
+
+    private static func displayModeLabel(_ layout: PlaybackCoreDomain.StereoLayout) -> String {
+        switch layout {
+        case .mono: "Flat"
+        case .sideBySide: "SBS"
+        case .topBottom: "TB"
+        }
+    }
+
+    private static func stereoLayout(forLabel label: String) -> PlaybackCoreDomain.StereoLayout {
+        switch label {
+        case "SBS": .sideBySide
+        case "TB": .topBottom
+        default: .mono
+        }
     }
 
     private func togglePlayPause() {
@@ -134,216 +177,6 @@ struct WindowPlayerDeckView: View {
             return "\(Int(value))×"
         }
         return "\(String(format: "%g", value))×"
-    }
-}
-
-// MARK: - Leading ornament: polished playback settings panel
-
-/// Playback settings, composed from the shared `CategorySidebar` +
-/// `SettingListGroup`. Replaces the retired `SettingsPopoverContent`.
-/// Play Mode + Environment are bound to live `AppModel` state; the libplacebo
-/// Picture parameters are presented read-only until a real mpv backend lands.
-struct PlaybackSettingsPanel: View {
-    @Environment(AppModel.self) private var appModel
-
-    @State private var selectedCategoryID = Category.environment.rawValue
-
-    private enum Category: String, CaseIterable {
-        case environment, playMode, picture
-
-        var title: String {
-            switch self {
-            case .environment: "Environment"
-            case .playMode: "Play Mode"
-            case .picture: "Picture"
-            }
-        }
-
-        var icon: String {
-            switch self {
-            case .environment: "mountain.2.fill"
-            case .playMode: "cube.fill"
-            case .picture: "camera.filters"
-            }
-        }
-    }
-
-    private var selectedCategory: Category {
-        Category(rawValue: selectedCategoryID) ?? .environment
-    }
-
-    var body: some View {
-        HStack(spacing: 0) {
-            CategorySidebar(
-                items: Category.allCases.map { CategorySidebarItem(id: $0.rawValue, icon: $0.icon, title: $0.title) },
-                selection: $selectedCategoryID,
-                title: "Player",
-                width: 196,
-                containerIdentifier: "Playback-Settings-sidebar",
-                identifierPrefix: "Playback-Settings"
-            )
-
-            ScrollView {
-                sections(for: selectedCategory)
-                    .padding(DesignTokens.Spacing.lg)
-                    .id(selectedCategoryID)
-                    .transition(.opacity)
-            }
-            .scrollIndicators(.hidden)
-            .frame(width: 360)
-            .animation(DesignTokens.AnimationToken.fadeIn, value: selectedCategoryID)
-        }
-        .frame(maxHeight: 460)
-        .glassBackgroundEffect(in: DesignTokens.ShapeToken.panel)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("Playback-Settings-panel")
-    }
-
-    @ViewBuilder
-    private func sections(for category: Category) -> some View {
-        switch category {
-        case .environment:
-            SettingListGroup(accessibilityIdentifier: "Playback-Settings-environment-group", items: environmentItems)
-        case .playMode:
-            SettingListGroup(accessibilityIdentifier: "Playback-Settings-playMode-group", items: playModeItems)
-        case .picture:
-            SettingListGroup(accessibilityIdentifier: "Playback-Settings-picture-group", items: pictureItems)
-        }
-    }
-
-    // MARK: - Environment (PLAY-26 / SET-07 vocabulary)
-
-    private var environmentItems: [SettingListGroup.Item] {
-        [
-            SettingListGroup.Item(
-                id: "environment-select",
-                title: "Environment",
-                systemName: "mountain.2",
-                accessory: .none,
-                embeddedControl: .cardSelection(
-                    options: SpatialSceneDomain.CinemaEnvironment.allCases.map {
-                        SettingListGroup.CardOption(id: environmentID($0), title: $0.displayName, systemName: "photo")
-                    },
-                    selectedID: Binding(
-                        get: { environmentID(appModel.currentCinemaEnvironment) },
-                        set: { id in
-                            guard let env = environment(forID: id) else { return }
-                            Task { await appModel.switchEnvironment(to: env) }
-                        }
-                    )
-                )
-            ),
-            SettingListGroup.Item(
-                id: "screen-curvature",
-                title: "Curved Screen",
-                systemName: "tv",
-                accessory: .boundToggle(
-                    isOn: Binding(
-                        get: {
-                            if case .curved = appModel.screenShape { return true }
-                            return false
-                        },
-                        set: { curved in
-                            appModel.screenShape = curved
-                                ? .curved(radius: 3.0, height: 1.35)
-                                : .flat(width: 2.4, height: 1.35)
-                        }
-                    ),
-                    isEnabled: true,
-                    marker: nil
-                )
-            )
-        ]
-    }
-
-    private func environmentID(_ env: SpatialSceneDomain.CinemaEnvironment) -> String {
-        switch env {
-        case .darkTheatre: "dark"
-        case .starryNight: "starry"
-        case .sunsetNature: "sunset"
-        }
-    }
-
-    private func environment(forID id: String) -> SpatialSceneDomain.CinemaEnvironment? {
-        switch id {
-        case "dark": .darkTheatre
-        case "starry": .starryNight
-        case "sunset": .sunsetNature
-        default: nil
-        }
-    }
-
-    // MARK: - Play Mode (PLAY-27)
-
-    private var playModeItems: [SettingListGroup.Item] {
-        [
-            SettingListGroup.Item(
-                id: "play-mode-select",
-                title: "Play Mode",
-                systemName: "cube",
-                accessory: .none,
-                embeddedControl: .cardSelection(
-                    options: [
-                        SettingListGroup.CardOption(id: "window", title: "Window", systemName: "macwindow"),
-                        SettingListGroup.CardOption(id: "immersive", title: "Immersive", systemName: "visionpro"),
-                        SettingListGroup.CardOption(id: "panorama", title: "Panorama", systemName: "pano")
-                    ],
-                    selectedID: Binding(
-                        get: { modeID(appModel.playbackMode) },
-                        set: { id in
-                            guard let mode = mode(forID: id), mode != appModel.playbackMode,
-                                  appModel.immersiveSpaceState != .inTransition else { return }
-                            appModel.updatePlaybackMode(mode)
-                        }
-                    )
-                )
-            )
-        ]
-    }
-
-    private func modeID(_ mode: PlaybackMode) -> String {
-        switch mode {
-        case .window: "window"
-        case .immersive: "immersive"
-        case .panorama: "panorama"
-        }
-    }
-
-    private func mode(forID id: String) -> PlaybackMode? {
-        switch id {
-        case "window": .window
-        case "immersive": .immersive
-        case "panorama": .panorama
-        default: nil
-        }
-    }
-
-    // MARK: - Picture (PLAY-28 — read-only until real mpv backend)
-
-    private var pictureItems: [SettingListGroup.Item] {
-        [
-            // EXPLORATORY: libplacebo parameters have no fake backing; presented
-            // read-only (pixel response awaits the real mpv adapter). Remove the
-            // read-only treatment when the engine swap lands.
-            SettingListGroup.Item(
-                id: "picture-tone-mapping",
-                title: "Tone Mapping",
-                systemName: "circle.lefthalf.filled",
-                accessory: .value("BT.2390")
-            ),
-            SettingListGroup.Item(
-                id: "picture-peak-detect",
-                title: "Peak Detection",
-                systemName: "sparkles",
-                accessory: .value("Auto")
-            ),
-            SettingListGroup.Item(
-                id: "picture-target-gamut",
-                title: "Output Gamut",
-                systemName: "paintpalette",
-                accessory: .value("Display P3")
-            )
-        ]
     }
 }
 

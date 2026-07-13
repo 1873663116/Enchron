@@ -35,6 +35,11 @@ FakeApp = 将来要发布的那个 app 本身,只是文件列表、播放、设�
 
 进展(截至 2026-06-18,11 commit:df09326→7e6ab59;均 visionOS 模拟器构建零错误;`swift test` 22 绿、`test_sim` 4 UI 全绿;经独立验证 workflow `fakeapp-final-verify` 对抗式核对 5 批——**0 虚报**,25 verified / 1 partial / 4 诚实声明 deferred,RKS 硬边界 grep 确认未越界):
 
+**2026-06-19 收口验证轮(D2 RCP 落地 + 全量用例核验):**
+- [x] **RCP 真实场景落地**(ADR-0008,见上 D2):RealityKitScripting + 真 `world` + mixed 沉浸保 volume,运行时三重证据通过;程序球顶已删;占位脚手架已清。
+- [x] **全量用例端到端核验**:workflow `fakeapp-usecase-verify`(14 簇代码追溯 + 对抗证伪,28 agent)+ XCUITest 5/5 全绿 + RCP 运行时。结果 ≈60 confirmed / 27 partial / 5 refuted / 48 not-impl / **0 conflict** / 7 需真机。报告:`docs/reference/2026-06-19-fakeapp-usecase-verification.md`。
+- [ ] **待裁决(下轮候选)**:A 类廉价高价值缺口——UC-LNCH-03 返回不恢复标签、UC-FILE-26/39 数据没喂进卡片、UC-PLAY-09 a11y id 不符;B 类数据源 UI 改不持久化(FILE-17/35/47)。C/D/E 类多属真后端/蓝图未建。
+
 **已完成并验证(done):**
 - [x] **测试地基救活**:`swift test`(SPM 镜像模块 `XrPlayerCore`)+ 真 XCUITest + `XrPlayer.xctestplan`(scheme 指向、去 `shouldAutocreateTestPlan`)。纯逻辑走 `swift test`,UI/集成走 `xcodebuild test`+testplan。
 - [x] 删两个孤儿画布 + **组件库共享化**(`SharedComponents`/`SourceSidebar` 搬入 `XrPlayer/Shared/Components/`,白名单两 target 共享)。
@@ -57,9 +62,21 @@ FakeApp = 将来要发布的那个 app 本身,只是文件列表、播放、设�
 - [x] **Phase D1 场景 volume**:`SenseZoneVolumeRoot`(volumetric WindowGroup)托管共享 `EnvironmentCardCarousel`(7 卡);NavigationOrnament `.environment` → openWindow(volume);carousel 加 `onExpand` 经唯一沉浸入口进沉浸(程序球顶);取代 SceneSelectorView。ENV-13/14/15/16/17。
 - [x] **Phase E**:SwiftLint 两条守卫扩到 `Shared/Components/`(挡裸动画/硬编码色,组件库 token 干净零误杀)。
 
-**Phase D2 — RKS 真 `world` 加载(ENV-18):决策已定,实验阶段不落地。** 负责人已批准接法(硬边界解除),并于 2026-06-18 确认「这个大文件就没必要提交了」——**实验阶段不提交 ~43MB `.reality`、不接 RealityKitScripting 远程依赖**。沉浸沿用程序球顶(可丢弃);配方留 ADR-0008,转正后再启用。
+**Phase D2 — RKS 真 `world` 加载(ENV-18):✅ 2026-06-19 已落地(模拟器运行时验证通过)。** 负责人 2026-06-19 明确"所谓的'已延期'都不存在"——expand 接真实 RCP `world` 场景,假场景(程序球顶 `EnvironmentDomeEntity`,94 行)已删,空黑沉浸态丢弃。接法:RealityKitScripting(`e0a8a39`)+ swift-syntax;`RKS.initialize()` + `.realityScripting()` + `Entity(named:"world")`;`Immersive_Space.reality`(42MB,**不进 Git**·gitignore)。**约束达成:expand 用 mixed 沉浸,volume 不关闭**(环境浏览 `isEnvironmentImmersiveActive` 标志驱动,`playbackMode` 保持 `.window`,与沉浸播放 full 路径分流)。证据:运行时日志 `world loaded children=3`、零 RKS/sampler 报错、截图渲染美术世界+窗口共存。落地清单/机制/证据见 ADR-0008「2026-06-19 复议」节。
 
 **诚实边界(round 2):** ① `ConnectionFormPanel`(EXPLORATORY 未确认组件、在 DesignPreview)未数据驱动接入 app——本轮落工厂解耦,表单 UI 留待;② visionOS ornament 内控件在 XCUITest 命中不可靠,PLAY-05/25 细粒度点击靠 FakePlaybackSource 单测 + deck live 绑定保证,不做假绿 UI 断言;③ 设置破坏动作在假后端确认后为 no-op+反馈;④ 窗口路径下假源是否自动推进到 .playing 属 batch2 既有 launcher/VM 行为(deck 如实反映状态)。
+
+## 第三轮 — 融合播放面板收口(2026-06-21,ADR-0009,branch `claude/fakeapp-assembly`)
+
+用户拍板(经 /grill-with-docs 逐叉定案):把定稿的 `FusedPlayerPanel`(单块形变玻璃壳:transport + 进度/精密时间轴 + ⋯ 菜单 + ≡ 内联设置)固化为唯一窗口播放面板,**整壳取代** round-2 的双 ornament(`PlayerControlDeck` 底部 + `PlaybackSettingsPanel` 前缘)。决策与桶①③接线见 ADR-0009。
+
+- [x] **Stage 1 固化**:`FusedPlayerPanel` + 设置区(原 `PlayerSettingsPanelPreview`)从 DesignPreview/ContentView 迁入 `SharedComponents.swift`(两 target 共编译);移植 `FusedPlayerPanelLive`(原 `PlayerControlDeckLive` + ⤢ 全景 / 🧘 虚拟场景两入口)+ ⋯ 四组菜单 + seek-latch + frame-step;新增 `PlaybackSettingsLive` 注入桶①(Display Mode→`stereoLayoutOverride`、180/360→`projectionOverride`);桶③(Day/Night·屏幕几何·Position·libplacebo)标 `// FAKE` 可交互 inert。
+- [x] **Stage 2 主 App**:`WindowPlayerDeck` 注真(live + settingsLive + onInteraction);`MainView` 撤前缘 `PlaybackSettingsPanel` ornament,设置改由 ≡ 内联形变;删死属性 `showPlayerSettingsPopup`。
+- [x] **Stage 3 测试**:`PlaybackDeckUITests` / `FilesPlaybackUITests` ID 由 `DesignPreview-PlayerControlDeck-*` 改为 `PlayerPanel-*`,不再触及旧组件。
+- [x] **Stage 4 删除**:删 `PlayerControlDeck` + `PlayerControlDeckLive`(SharedComponents)、`PlaybackSettingsPanel`(WindowPlayerDeck);`WindowPlaybackPage` DesignComp 撤前缘设置 ornament、底部换 FusedPanel;ComponentLibrary + ContentView showcase 改指 FusedPanel。
+- 证据:DesignPreview + XrPlayer 两 scheme `build_sim` 均 **SUCCEEDED 零错误**(无 error 级 SwiftLint 守卫违规);模拟器截图确认收起态控件行(≡/⤢/⏪/▶/⏩/🧘/⋯ + 进度条)与全展开态(时间轴 + 竖胶囊 rail 设置)渲染正确。
+
+**诚实边界(round 3):** ① 主 App **运行时**(真 seek / ⤢🧘 触发沉浸 / 桶①真生效)仅构建验证,未跑通——visionOS 模拟器无法合成点击进播放,运行时证据待真机·人或 UI 自动化补;② 桶③ 全为 honest-fake,接管真 mpv/几何时再接真(曲面屏绑定本轮一并降级为 fake,见 ADR-0009 后果);③ UC-PLAY-09 a11y id 仍不符规范(`PlayerUI-SeekBar-slider-position` vs 现 `PlayerPanel-thumb`),沿用 round-2 既有缺口未在本轮闭;④ `FusedPlayerPanelTestPage` / `WindowPlaybackPage` 全展开态面板高度超默认窗口(控件行被裁),属定稿尺寸的窗口适配问题,留待。
 
 ## 总账
 
