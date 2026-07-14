@@ -1,23 +1,28 @@
-# 节点 8：RealityKit renderer binding
+# 节点 8：RealityKit Renderer Binding
 
 ## 作用与边界
 
-节点 8 把节点 7 的 active `AVSampleBufferVideoRenderer` 写入 `VideoPlayerComponent(videoRenderer:)`，并把 component 挂到当前 Media Session 的 video entity。它不负责 sample delivery，也不负责把 entity 放入 `RealityView`。
+节点 8 由 App Adapter 把节点 7 的 active renderer 交给唯一 active RealityKit 呈现器，再把 binding facts 写回 PlaybackCore。Flat Window / Docked 使用运行时平面网格上的 `VideoMaterial(videoRenderer:)`；Portal Window / Panorama 使用 `VideoPlayerComponent(videoRenderer:)`。核心不 import RealityKit，也不选择 `RealityView` 或 SwiftUI scene。
 
-完成条件是 component 引用当前 renderer graph 的 active video renderer，component 已挂到 video entity，binding 能追溯到同一个 Media Session、renderer graph 和 sample provenance。
+## Input / output
 
-## 输入与输出
+输入是 Media Session、route、renderer graph、Stream Epoch、active renderer，以及 App Adapter 报告的 component / entity identity。输出是 RealityKit Binding Record；renderer-backed entity 由 App Adapter 持有。
 
-输入包含 `mediaSessionID`、sample provenance、active video renderer、renderer graph revision 和 cleanup 信号。PlaybackCore Target Path 的 provenance 保留 `trackModelID`；Apple Sample Reference Path 保留 reference sample source identity。
-
-输出是 renderer-backed video entity 和 RealityKit Binding Record。记录说明 renderer graph、active renderer、video entity、component attached state、binding identity、sample provenance 和最后一次失败。
+record 至少包含 Media Session、route、renderer / graph privacy-safe identity、entity identity、component attached、component renderer identity summary、binding identity、active state 和 failure reason。
 
 ## 稳定规则
 
-renderer、component 和 entity 必须属于同一个 Media Session。component 必须引用节点 7 当前 active renderer。同一个 active renderer 只有一个 active video binding。renderer graph 被替换或 cleanup 后，旧 binding 不再声明 active。
+- renderer、component、entity、route 和 binding 属于同一 Media Session。
+- component 引用节点 7 当前 active renderer。
+- 任意稳定时刻同一个 renderer 只有一个 active component binding。
+- renderer graph replacement 或 cold switch 后，旧 binding 不再 active。
+- cleanup 后旧 entity 不代表当前播放。
+- App Adapter 创建 component 与 entity，但不能创建第二个 active component 来绕过 binding record。
+
+## 完成条件
+
+唯一完成条件：当前 video entity 上的 component 引用当前 renderer，且 active binding record 已写回同一 Media Session。该结果不替代 renderer enqueue 或可见画面。
 
 ## 验收方向
 
-L1 验证 binding record、identity、唯一性和 stale rejection。L2 使用 macOS Playback Lab 分别运行 Apple Sample Reference Path 与 PlaybackCore Target Path，证明真实 `VideoPlayerComponent(videoRenderer:)` 使用节点 7 的 active renderer，并挂到当前 video entity。
-
-具体 entity 类型、identity 生成和测试 hook 由实现阶段使用 `$tdd` 决定。
+L1 验证 identity、uniqueness、replacement 和 stale rejection。L2 分别证明真实 `VideoMaterial(videoRenderer:)` 平面 binding 与 `VideoPlayerComponent(videoRenderer:)` 沉浸 binding，并证明交接过程中不存在两个 active consumer；visionOS 复用同一核心并补平台 adapter 证据。

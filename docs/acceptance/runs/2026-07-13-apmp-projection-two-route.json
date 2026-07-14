@@ -1,0 +1,339 @@
+{
+  "completed" : true,
+  "completedCount" : 2,
+  "expectedCount" : 2,
+  "processID" : 10883,
+  "routes" : [
+    {
+      "audioRenderer" : {
+        "availability" : "none"
+      },
+      "audioSwitch" : {
+        "availability" : "singleTrack"
+      },
+      "audioTrack" : {
+        "availability" : "none"
+      },
+      "availableAudioTracks" : [
+
+      ],
+      "controls" : {
+        "availability" : "notRunInCoverageProbe"
+      },
+      "currentSeconds" : 0.500079834,
+      "destinationFormat" : "hvc1",
+      "displayedPixelBuffer" : true,
+      "enqueuedSamples" : 62,
+      "firstLaneFacts" : {
+        "dependencySummary" : "dependsOnOthers",
+        "formatRevision" : 1,
+        "formatSignaling" : {
+          "ambientViewingEnvironment" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "colorPrimaries" : {
+            "availability" : "known",
+            "value" : "709_2"
+          },
+          "contentLightLevelMetadata" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "dvcC" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "dvvC" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "hvcC" : {
+            "availability" : "known",
+            "value" : true
+          },
+          "masteringDisplayMetadata" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "projectionKind" : {
+            "availability" : "known",
+            "value" : "Equirectangular"
+          },
+          "provenance" : "CMFormatDescription.sampleDescription",
+          "range" : {
+            "availability" : "known",
+            "value" : "video"
+          },
+          "transferFunction" : {
+            "availability" : "known",
+            "value" : "709_2"
+          },
+          "viewPackingKind" : {
+            "availability" : "none",
+            "value" : null
+          },
+          "yCbCrMatrix" : {
+            "availability" : "known",
+            "value" : "709_2"
+          }
+        },
+        "inputKind" : "compressed",
+        "mediaSubtype" : "hvc1",
+        "payloadOwnershipState" : "retainedCMSampleBuffer",
+        "sampleCount" : 1,
+        "streamEpoch" : 1,
+        "syncSummary" : "notSync"
+      },
+      "presentationBinding" : true,
+      "providerOpen" : {
+        "codecConfiguration" : {
+          "availability" : "known",
+          "value" : "hvcC"
+        },
+        "codecName" : "hvc1",
+        "codecTag" : "hvc1",
+        "containerFormat" : "mov",
+        "formatSignaling" : {
+          "ambientViewingEnvironment" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "colorPrimaries" : {
+            "availability" : "known",
+            "value" : "ITU_R_709_2"
+          },
+          "contentLightLevelMetadata" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "dvcC" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "dvvC" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "hvcC" : {
+            "availability" : "known",
+            "value" : true
+          },
+          "masteringDisplayMetadata" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "projectionKind" : {
+            "availability" : "known",
+            "value" : "Equirectangular"
+          },
+          "provenance" : "AVAssetTrack.formatDescription",
+          "range" : {
+            "availability" : "known",
+            "value" : "video"
+          },
+          "transferFunction" : {
+            "availability" : "known",
+            "value" : "ITU_R_709_2"
+          },
+          "viewPackingKind" : {
+            "availability" : "none",
+            "value" : null
+          },
+          "yCbCrMatrix" : {
+            "availability" : "known",
+            "value" : "ITU_R_709_2"
+          }
+        },
+        "providerKind" : "AVAssetReaderTrackOutput",
+        "schemaVersion" : 1,
+        "seekability" : {
+          "availability" : "known",
+          "value" : "providerRebuild"
+        },
+        "sourceSummary" : "equirect_grid_hevc_mono_apmp.mov"
+      },
+      "realityKitBinding" : true,
+      "rendererError" : "none",
+      "rendererInput" : {
+        "formatRevision" : 1,
+        "inputKind" : "compressed",
+        "outcome" : "accepted",
+        "streamEpoch" : 1,
+        "timelineConfiguredBeforeFirstEnqueue" : true
+      },
+      "rendererStatus" : "AVQueuedSampleBufferRenderingStatus(rawValue: 1)",
+      "result" : "passed",
+      "route" : "appleCompressed",
+      "source" : "\/Users\/xiongzhipeng\/Desktop\/test\/_derived\/APMP\/equirect_grid_hevc_mono_apmp.mov",
+      "sourceFormat" : "compressed",
+      "timelineConfiguredBeforeFirstEnqueue" : true
+    },
+    {
+      "audioRenderer" : {
+        "availability" : "none"
+      },
+      "audioSwitch" : {
+        "availability" : "singleTrack"
+      },
+      "audioTrack" : {
+        "availability" : "none"
+      },
+      "availableAudioTracks" : [
+
+      ],
+      "controls" : {
+        "availability" : "notRunInCoverageProbe"
+      },
+      "currentSeconds" : 0.50003241700000001,
+      "destinationFormat" : "hvc1",
+      "displayedPixelBuffer" : true,
+      "enqueuedSamples" : 62,
+      "firstLaneFacts" : {
+        "dependencySummary" : "notMarked",
+        "formatRevision" : 1,
+        "formatSignaling" : {
+          "ambientViewingEnvironment" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "colorPrimaries" : {
+            "availability" : "known",
+            "value" : "709_2"
+          },
+          "contentLightLevelMetadata" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "dvcC" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "dvvC" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "hvcC" : {
+            "availability" : "known",
+            "value" : true
+          },
+          "masteringDisplayMetadata" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "projectionKind" : {
+            "availability" : "known",
+            "value" : "Equirectangular"
+          },
+          "provenance" : "CMFormatDescription.sampleDescription",
+          "range" : {
+            "availability" : "unknown",
+            "value" : null
+          },
+          "transferFunction" : {
+            "availability" : "known",
+            "value" : "709_2"
+          },
+          "viewPackingKind" : {
+            "availability" : "none",
+            "value" : null
+          },
+          "yCbCrMatrix" : {
+            "availability" : "known",
+            "value" : "709_2"
+          }
+        },
+        "inputKind" : "compressed",
+        "mediaSubtype" : "hvc1",
+        "payloadOwnershipState" : "retainedCMSampleBuffer",
+        "sampleCount" : 1,
+        "streamEpoch" : 1,
+        "syncSummary" : "notSync"
+      },
+      "presentationBinding" : true,
+      "providerOpen" : {
+        "codecConfiguration" : {
+          "availability" : "known",
+          "value" : "hvcC"
+        },
+        "codecName" : "hevc",
+        "codecTag" : "hvc1",
+        "containerFormat" : "mov,mp4,m4a,3gp,3g2,mj2",
+        "formatSignaling" : {
+          "ambientViewingEnvironment" : {
+            "availability" : "notExposed",
+            "value" : null
+          },
+          "colorPrimaries" : {
+            "availability" : "known",
+            "value" : "bt709"
+          },
+          "contentLightLevelMetadata" : {
+            "availability" : "notExposed",
+            "value" : null
+          },
+          "dvcC" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "dvvC" : {
+            "availability" : "none",
+            "value" : false
+          },
+          "hvcC" : {
+            "availability" : "known",
+            "value" : true
+          },
+          "masteringDisplayMetadata" : {
+            "availability" : "notExposed",
+            "value" : null
+          },
+          "projectionKind" : {
+            "availability" : "known",
+            "value" : "Equirectangular"
+          },
+          "provenance" : "FFmpeg.codecParameters",
+          "range" : {
+            "availability" : "known",
+            "value" : "tv"
+          },
+          "transferFunction" : {
+            "availability" : "known",
+            "value" : "bt709"
+          },
+          "viewPackingKind" : {
+            "availability" : "unknown",
+            "value" : null
+          },
+          "yCbCrMatrix" : {
+            "availability" : "known",
+            "value" : "bt709"
+          }
+        },
+        "providerKind" : "FFmpegCompressed",
+        "schemaVersion" : 1,
+        "seekability" : {
+          "availability" : "known",
+          "value" : "providerRebuild"
+        },
+        "sourceSummary" : "equirect_grid_hevc_mono_apmp.mov"
+      },
+      "realityKitBinding" : true,
+      "rendererError" : "none",
+      "rendererInput" : {
+        "formatRevision" : 1,
+        "inputKind" : "compressed",
+        "outcome" : "accepted",
+        "streamEpoch" : 1,
+        "timelineConfiguredBeforeFirstEnqueue" : true
+      },
+      "rendererStatus" : "AVQueuedSampleBufferRenderingStatus(rawValue: 1)",
+      "result" : "passed",
+      "route" : "ffmpegCompressed",
+      "source" : "\/Users\/xiongzhipeng\/Desktop\/test\/_derived\/APMP\/equirect_grid_hevc_mono_apmp.mov",
+      "sourceFormat" : "compressed",
+      "timelineConfiguredBeforeFirstEnqueue" : true
+    }
+  ],
+  "runID" : "20260713-apmp-projection-two-route"
+}

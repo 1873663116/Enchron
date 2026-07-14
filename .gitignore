@@ -2,4 +2,8 @@
 .build/
 DerivedData/
 .verification-runs/
-
+/.derivedData/
+/PlaybackCore.xcodeproj/xcuserdata/
+/PlaybackCore.xcodeproj/**/xcuserdata/
+.derivedData*/
+/Vendor/FFmpeg/PlaybackFFmpeg.xcframework/

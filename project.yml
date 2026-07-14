@@ -1,0 +1,131 @@
+name: PlaybackCore
+options:
+  bundleIdPrefix: com.xiongzhipeng
+  deploymentTarget:
+    macOS: "26.0"
+    visionOS: "26.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+targets:
+  PlaybackFFmpegBridge:
+    type: framework.static
+    supportedDestinations:
+      - macOS
+      - visionOS
+    deploymentTarget:
+      macOS: "26.0"
+      visionOS: "26.0"
+    sources:
+      - path: Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c
+      - path: Sources/PlaybackFFmpegBridge/include
+        buildPhase: headers
+        headerVisibility: public
+    dependencies:
+      - framework: Vendor/FFmpeg/PlaybackFFmpeg.xcframework
+        embed: false
+    settings:
+      base:
+        PRODUCT_MODULE_NAME: PlaybackFFmpegBridge
+        DEFINES_MODULE: YES
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+
+  PlaybackCore:
+    type: framework
+    supportedDestinations:
+      - macOS
+      - visionOS
+    deploymentTarget:
+      macOS: "26.0"
+      visionOS: "26.0"
+    sources:
+      - path: Sources/PlaybackCore
+    dependencies:
+      - target: PlaybackFFmpegBridge
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiongzhipeng.PlaybackCore
+        PRODUCT_MODULE_NAME: PlaybackCore
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+
+  PlaybackLabVision:
+    type: application
+    platform: visionOS
+    sources:
+      - path: Sources/PlaybackLab/PlaybackRoute.swift
+      - path: Sources/PlaybackLabVision
+        excludes:
+          - Fixtures
+      - path: Sources/PlaybackLabVision/Fixtures
+        buildPhase: resources
+    dependencies:
+      - target: PlaybackCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiongzhipeng.PlaybackLabVision
+        PRODUCT_NAME: PlaybackLab
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
+        INFOPLIST_KEY_UIApplicationSceneManifest_UIApplicationSupportsMultipleScenes: YES
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: JFLYK8F636
+        SWIFT_STRICT_CONCURRENCY: targeted
+    scheme:
+      gatherCoverageData: false
+  PlaybackLab:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/PlaybackLab
+    dependencies:
+      - target: PlaybackCore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiongzhipeng.PlaybackLab
+        PRODUCT_NAME: PlaybackLab
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        CODE_SIGN_STYLE: Automatic
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_STRICT_CONCURRENCY: targeted
+    scheme:
+      gatherCoverageData: false
+  HDRBoundaryProbe:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Tools/HDRBoundaryProbe
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiongzhipeng.HDRBoundaryProbe
+        PRODUCT_NAME: HDRBoundaryProbe
+        SWIFT_STRICT_CONCURRENCY: targeted
+    scheme:
+      gatherCoverageData: false
+  DolbyVisionCompressedProbe:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Tools/DolbyVisionCompressedProbe
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiongzhipeng.DolbyVisionCompressedProbe
+        PRODUCT_NAME: DolbyVisionCompressedProbe
+        SWIFT_STRICT_CONCURRENCY: targeted
+    scheme:
+      gatherCoverageData: false
+  PlaybackDebugCLI:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Tools/PlaybackDebugCLI
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.xiongzhipeng.PlaybackDebugCLI
+        PRODUCT_NAME: PlaybackDebugCLI
+        SWIFT_STRICT_CONCURRENCY: targeted
+    scheme:
+      gatherCoverageData: false

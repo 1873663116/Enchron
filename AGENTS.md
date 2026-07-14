@@ -2,11 +2,11 @@
 
 ## 当前阶段
 
-本仓库只设计并证明 macOS H.264 video-only sample-buffer 播放主线。
+本仓库当前设计并证明 macOS 与 visionOS 共用的双路线音视频 sample-buffer 播放系统。
 实现顺序以 `README.md` 的验证顺序为准。
 
-FFmpeg 是当前 Demux Contract adapter。播放核心的领域模型、CoreMedia sample 组装、
-renderer graph、RealityKit entity 和诊断接口不得依赖 FFmpeg 内部对象。
+两条显式视频路线是 Apple Compressed 和 FFmpeg Compressed。当前只做冷切换；
+不实现能力探测、自动选路或失败回退。
 
 ## 默认入口
 
@@ -19,9 +19,10 @@ renderer graph、RealityKit entity 和诊断接口不得依赖 FFmpeg 内部对�
 
 ## 修改边界
 
-先建立 Apple Sample Reference Path 的完整 macOS 后半段播放管线，再让
-PlaybackCore Target Path 通过相同的 Renderer Input Coordination seam 复用它。
-当前不预留其他媒体能力的接口。
+两条路线必须在 `VideoSampleProvider` 处分流，并复用同一个 Renderer Input Coordination、
+renderer、synchronizer 与 RealityKit binding。不要为每条路线复制播放器。
 
-每个验证用例只有一个预期结果。`AVAssetReader` 是验证专用 sample provider，
-不是 Demux Contract adapter，也不为节点 3 到节点 6 提供成功证据。
+macOS `PlaybackLab` 证明播放链路能否持续出帧；`PlaybackLabVision` 负责 Vision Pro
+真机的可见播放和 HDR 观感验收。macOS 画面不能替代 visionOS HDR 证据。
+
+每个验证用例只有一个预期结果。不同路线的成功证据分别记录，不能由一条路线的结果推断另一条。
