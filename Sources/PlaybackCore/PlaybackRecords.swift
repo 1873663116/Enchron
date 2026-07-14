@@ -25,7 +25,7 @@ public enum PlaybackNode: Int, Codable, CaseIterable, Sendable {
     case videoSampleStream
     case rendererInputCoordination
     case realityKitRendererBinding
-    case realityViewPresentation
+    case rendererConsumerBinding
 }
 
 public enum FactAvailability: String, Codable, Sendable {
