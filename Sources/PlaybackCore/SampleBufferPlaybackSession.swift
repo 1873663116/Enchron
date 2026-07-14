@@ -112,8 +112,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private let rendererFailureLock = NSLock()
     private var acceptsRendererFailure = true
     private let videoTrackID: String
-    private let deliveryQueue = DispatchQueue(label: "PlaybackLab.sample-delivery")
-    private let audioDeliveryQueue = DispatchQueue(label: "PlaybackLab.audio-sample-delivery")
+    private let deliveryQueue = DispatchQueue(label: "PlaybackCore.sample-delivery")
+    private let audioDeliveryQueue = DispatchQueue(label: "PlaybackCore.audio-sample-delivery")
     private let endStateLock = NSLock()
     private var endState = EndState()
     private var hasStartedTimeline = false
@@ -151,7 +151,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private var audioFrameCount: UInt64 = 0
     public private(set) var selectedAudioStreamIndex: Int?
     public private(set) var availableAudioTracks: [PlaybackAudioTrack] = []
-    private let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackLab", category: "Playback")
+    private let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
 
     public convenience init(route: PlaybackRoute, traceID: String = UUID().uuidString) {
         let provider: VideoSampleProvider = switch route {
@@ -1411,7 +1411,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             debugStore.emit(
                 mediaSessionID: traceID,
                 route: route,
-                node: .realityViewPresentation,
+                node: .rendererConsumerBinding,
                 kind: "presentation.bindingRejected",
                 outcome: .failed,
                 details: ["realityView": realityViewIdentity]
@@ -1434,7 +1434,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             entityAttached: true,
             platform: platform,
             provenance: "appAdapter",
-            appAdapterKind: platform == "macOS" ? "PlaybackLab" : "PlaybackLabVision",
+            appAdapterKind: "externalAppAdapter",
             sceneContainer: .init(.known, value: sceneContainer),
             sceneLifecycle: .init(.known, value: sceneLifecycle)
         ) : nil
@@ -1442,7 +1442,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         debugStore.emit(
             mediaSessionID: traceID,
             route: route,
-            node: .realityViewPresentation,
+            node: .rendererConsumerBinding,
             kind: attached ? "presentation.attached" : "presentation.detached",
             outcome: attached ? .succeeded : .terminatedByCleanup,
             details: [
@@ -1466,7 +1466,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             debugStore.emit(
                 mediaSessionID: traceID,
                 route: route,
-                node: .realityViewPresentation,
+                node: .rendererConsumerBinding,
                 kind: "presentation.stateRejected",
                 outcome: .failed
             )
@@ -1476,7 +1476,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         debugStore.emit(
             mediaSessionID: traceID,
             route: route,
-            node: .realityViewPresentation,
+            node: .rendererConsumerBinding,
             kind: "presentation.stateChanged",
             outcome: record.transitionError.availability == .known ? .failed : .succeeded,
             details: [

@@ -6,7 +6,7 @@
 
 ## 2026-07-13 — 融合 xr-fork 对象模型，移除 mpv 单路线前提
 
-xr-fork 的 Media Session、Track Model、event epoch、format revision、renderer、RealityKit、scene、runtime operation 与 evidence 模型进入 PlaybackCore，但 nodes 3–6 改为 route-neutral Provider records。macOS Playback Lab 成为大多数真实播放和 RealityKit 事实的主要 L2，visionOS Simulator 只补平台独有集成，Vision Pro 只承担设备差分验收。对应决策见 [ADR 0004](adr/0004-route-neutral-provider-records-and-macos-l2.md)，完整迁移审计见 [xr-fork 融合映射](migration/xr-fork-fusion-map.md)。
+xr-fork 的 Media Session、Track Model、event epoch、format revision、renderer 与 runtime operation 模型进入 PlaybackCore，但 nodes 3–6 改为 route-neutral Provider records。当时的 App 验证模型现已归档，不再属于核心完成条件。对应历史决策见 [ADR 0004](adr/0004-route-neutral-provider-records-and-macos-l2.md)。
 
 ## 2026-07-12 — Apple 参考路线改为 compressed storage samples
 

@@ -3,8 +3,8 @@ import OSLog
 
 public enum PlaybackTrace {
     private static let logger = Logger(
-        subsystem: "com.xiongzhipeng.PlaybackLab",
-        category: "VisionPlaybackTrace"
+        subsystem: "com.xiongzhipeng.PlaybackCore",
+        category: "PlaybackTrace"
     )
 
     public static func event(_ message: String) {

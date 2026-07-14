@@ -19,7 +19,7 @@
 - access requirement 与本次 access observation。
 - delivery target：公开 PlaybackCore control interface。
 
-失败输出 Source Acquisition Failure Record。取消或 cleanup 输出 `terminatedByCleanup`。验证 App / Lab 的固定 fixture 入口必须标为 `testAutomation`，不能冒充系统文件选择器。
+失败输出 Source Acquisition Failure Record。取消或 cleanup 输出 `terminatedByCleanup`。外部测试客户端的固定 fixture 入口必须标为 `testAutomation`，不能冒充系统文件选择器。
 
 ## 稳定规则
 

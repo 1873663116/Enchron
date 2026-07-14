@@ -54,11 +54,11 @@ PlaybackCore 的测试素材分为 contract、seed 和 restricted 三类。
 2. 短 HEVC Main10 HDR10 video-only：关闭 compressed format、decoded attachments 与 HDR metadata provenance。
 3. 含 B-frame 的 H.264 / HEVC：验证 PTS、DTS、duration 和 decode / presentation order 不被合并。
 4. 明确 unsupported / malformed source：分别验证 Provider open failure 与 sample production failure。
-5. 双 AAC 音轨 H.264 SDR MP4：由 `script/generate_multiaudio_fixture.sh` 重复生成，验证音轨枚举、选择、音频 enqueue，以及选择后音量、静音、倍速和 seek。
+5. 双 AAC 音轨 H.264 SDR MP4：由测试或外部 fixture 工具重复生成，验证音轨枚举、选择、音频 enqueue，以及选择后音量、静音、倍速和 seek。
 
 Dolby Vision Profile 5、8.1、8.4 当前是本地 seed / L3 fixtures。它们的 Apple Compressed 结果单独记录，不自动升级为公开 contract fixtures。
 
-本地 `equirect_grid_hevc_mono_30s_apmp.mov` 由 Apple 官方 “Converting projected video to Apple Projected Media Profile” 示例从生成的 2:1 HEVC seed 转换而来。CoreMedia 必须读到 `ProjectionKind = Equirectangular` 后，它才可用于 Panorama / Portal 投影验证；只有 2:1 画幅而没有 APMP `vexu` 信令的文件不算投影 fixture。
+本地 `equirect_grid_hevc_mono_30s_apmp.mov` 由 Apple 官方 “Converting projected video to Apple Projected Media Profile” 示例从生成的 2:1 HEVC seed 转换而来。CoreMedia 必须读到 `ProjectionKind = Equirectangular` 后，它才可用于投影格式验证；只有 2:1 画幅而没有 APMP `vexu` 信令的文件不算投影 fixture。
 
 ## Route-specific assertions
 
