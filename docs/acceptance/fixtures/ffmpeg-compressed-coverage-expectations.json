@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "sourcePathSuffix": "CodecContainerMatrix/H264/h264-ffmpeg-h264-tta.mkv",
+      "fileSizeBytes": 3145728,
+      "coverageSeek": {
+        "availability": "notApplicable",
+        "reason": "truncatedFixture",
+        "declaredDurationSeconds": 1450.951,
+        "availablePayloadEvidence": {
+          "probe": "ffprobePacketScan",
+          "integrity": "fileEndedPrematurely",
+          "maxVideoPTSSeconds": 8.3
+        }
+      }
+    },
+    {
+      "sourcePathSuffix": "CodecContainerMatrix/MPEG4-Part2/mpeg4-part2-ffmpeg-mushishi24-head.mkv",
+      "fileSizeBytes": 1798640,
+      "coverageSeek": {
+        "availability": "notApplicable",
+        "reason": "truncatedFixture",
+        "declaredDurationSeconds": 1462.449,
+        "availablePayloadEvidence": {
+          "probe": "ffprobePacketScan",
+          "integrity": "fileEndedPrematurely",
+          "maxVideoPTSSeconds": 21.354
+        }
+      }
+    }
+  ]
+}
