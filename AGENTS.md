@@ -6,4 +6,4 @@ Enchron 是 visionOS 产品 App 与系统组装入口。播放行为由外部 `P
 
 `XrPlayer/PlaybackCore` 与 mpv 代码是待删除的旧实现，不能扩展；在外部 PlaybackCore 接入完成前，只允许维护现有 FakeApp 前端验证面。场景内容由相邻 `../Xrplay_scene` 导出，场景仓不拥有播放行为。
 
-纯逻辑运行 `swift test`；App、SwiftUI 或 RealityKit 变更构建对应 Xcode scheme；HDR、空间呈现和真实交互必须按风险升级到 Simulator 或 Vision Pro。不要修改相邻 `../../PlaybackCore`，除非用户明确要求。
+纯逻辑运行 `swift test`；App、SwiftUI 或 RealityKit 变更构建对应 Xcode scheme；HDR、空间呈现和真实交互必须按风险升级到 Simulator 或 Vision Pro。PlaybackCore 位于相邻 `../PlaybackCore`。
