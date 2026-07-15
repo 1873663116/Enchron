@@ -19,19 +19,6 @@ enum PlaybackInfoFormatter {
         return formatter.string(fromByteCount: sizeInBytes)
     }
 
-    static func hdrOutputDescription(_ outputMode: PlaybackCoreDomain.HDROutputMode) -> String {
-        switch outputMode {
-        case .edrOutputPath:
-            return "EDR Output Path"
-        case .toneMappedSDR:
-            return "Tone-Mapped SDR"
-        case .previewSDR:
-            return "SDR Preview"
-        case .unsupported:
-            return "Unavailable"
-        }
-    }
-
     static func videoCodecLabel(_ codec: String?) -> String {
         guard let codec, !codec.isEmpty else { return "Unknown" }
         switch codec.lowercased() {
@@ -58,7 +45,7 @@ enum PlaybackInfoFormatter {
         return String(format: "%d:%02d", m, s)
     }
 
-    static func hdrTypeLabel(_ hdrType: PlaybackCoreDomain.HDRType) -> String {
+    static func hdrTypeLabel(_ hdrType: PlaybackModel.HDRType) -> String {
         switch hdrType {
         case .sdr:
             return "SDR"

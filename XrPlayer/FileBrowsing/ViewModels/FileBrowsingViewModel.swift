@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import OSLog
 
 @MainActor
 @Observable
@@ -11,7 +12,6 @@ public final class FileBrowsingViewModel {
     public var sortCriteria: FileBrowsingDomain.SortCriteria = .nameAscending {
         didSet { applySortToFiles() }
     }
-    public var activeFilters: Set<FileBrowsingDomain.ContentFilter> = [.all]
     public private(set) var currentRootDisplayName: String = "Documents"
     public private(set) var currentRemotePath: String = "/"
     public private(set) var canNavigateUp: Bool = false
@@ -49,16 +49,16 @@ public final class FileBrowsingViewModel {
     public private(set) var canNavigateForward: Bool = false
 
     private let localDataSource: any LocalFileSource
+    private let logger = Logger(subsystem: "app.enchron", category: "FileBrowser")
     private let fileManager: FileManager
     public let credentialStoreForConfig: CredentialStoring
     private let savedDataSourceStore: SavedDataSourceRecordStoring
     private let progressStore: ProgressStoring
     private var credentialStore: CredentialStoring { credentialStoreForConfig }
-    private let importQueue = DispatchQueue(label: "xrplayer.fileimport.io", qos: .utility)
     private let onPlayFile: @MainActor (PlaybackLaunchRequest) -> Void
     private let onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)?
     private let defaultRootURL: URL
-    private let localDataSourceID = UUID()
+    public let localDataSourceID: UUID
     private var rootURL: URL
     private var securityScopedRootURL: URL?
     private var activeRemoteAdapter: (any DataSourceConnecting & FileProviding)?
@@ -83,6 +83,7 @@ public final class FileBrowsingViewModel {
         credentialStore: CredentialStoring = KeychainStore(),
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
         progressStore: ProgressStoring = SwiftDataStore(),
+        localDataSourceID: UUID = UUID(),
         prefetchService: MediaProfilePrefetchService? = nil,
         makeRemoteAdapter: (@MainActor (FileBrowsingDomain.DataSource) -> (any DataSourceConnecting & FileProviding)?)? = nil,
         onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void,
@@ -93,6 +94,7 @@ public final class FileBrowsingViewModel {
         self.credentialStoreForConfig = credentialStore
         self.savedDataSourceStore = savedDataSourceStore
         self.progressStore = progressStore
+        self.localDataSourceID = localDataSourceID
         self.prefetchService = prefetchService
         self.makeRemoteAdapter = makeRemoteAdapter
         self.onPlayFile = onPlayFile
@@ -200,9 +202,9 @@ public final class FileBrowsingViewModel {
                 await useDefaultFolder()
                 return
             case .photoLibrary:
-                let photos = PhotoLibraryDataSourceAdapter()
-                photos.ownerDataSourceID = ds.id
-                adapter = photos
+                isLoading = false
+                lastErrorMessage = "Choose Photos videos from the Media Library add menu."
+                return
             }
         }
 
@@ -377,9 +379,10 @@ public final class FileBrowsingViewModel {
     public func selectFile(_ file: FileBrowsingDomain.MediaFile) {
         Task { [weak self] in
             guard let self else { return }
+            try? await Task.sleep(for: .milliseconds(20))
             do {
                 let request = try await playbackRequest(for: file)
-                print("[FileBrowser] selected file: \(request.url.path)")
+                logger.info("file selected name=\(file.name, privacy: .public)")
                 if let onPrepareFile {
                     self.detailNavigationRequest = request
                     onPrepareFile(request)
@@ -388,7 +391,7 @@ public final class FileBrowsingViewModel {
                 }
             } catch {
                 lastErrorMessage = "Failed to open \"\(file.name)\": \(error.localizedDescription)"
-                print("[FileBrowser] selectFile failed for \(file.name): \(error)")
+                logger.error("file selection failed name=\(file.name, privacy: .public) error=\(error.localizedDescription, privacy: .public)")
                 return
             }
         }
@@ -406,12 +409,57 @@ public final class FileBrowsingViewModel {
 
         let fileIdentifier = makeFileIdentifier(for: file, playableURL: playableURL)
         let metadata = PlaybackMediaMetadata(fileSizeInBytes: file.sizeInBytes)
+        let sourceAccess = playableURL.isFileURL
+            ? PlaybackSourceAccess.securityScoped(securityScopedRootURL ?? playableURL)
+            : nil
         return PlaybackLaunchRequest(
             url: playableURL,
             displayName: file.name,
             fileIdentifier: fileIdentifier,
-            initialMetadata: metadata
+            initialMetadata: metadata,
+            sourceAccess: sourceAccess
         )
+    }
+
+    public func resolveSourceItem(
+        dataSourceID: UUID,
+        path: String,
+        reference: FileBrowsingDomain.MediaReference
+    ) async throws -> URL {
+        if dataSourceID == localDataSourceID {
+            guard let url = URL(string: path) else { throw LocalDataSourceError.itemNotReachable }
+            return url
+        }
+        guard let dataSource = savedDataSources.first(where: { $0.id == dataSourceID }) else {
+            throw MediaReferenceResolver.ResolutionError.unavailableSource
+        }
+
+        let adapter: any DataSourceConnecting & FileProviding
+        switch dataSource.sourceType {
+        case .webDAV:
+            let webDAV = WebDAVDataSourceAdapter(credentialStore: credentialStore)
+            webDAV.ownerDataSourceID = dataSource.id
+            adapter = webDAV
+        case .smb:
+            let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
+            smb.ownerDataSourceID = dataSource.id
+            adapter = smb
+        case .photoLibrary, .local:
+            throw MediaReferenceResolver.ResolutionError.unavailableSource
+        }
+
+        try await adapter.connect(with: dataSource.connectionInfo)
+        guard let url = URL(string: path) else {
+            throw MediaReferenceResolver.ResolutionError.unavailableSource
+        }
+        let file = FileBrowsingDomain.MediaFile(
+            name: reference.name,
+            sizeInBytes: reference.sizeInBytes,
+            modifiedAt: reference.modifiedAt,
+            fileExtension: reference.fileExtension,
+            url: url
+        )
+        return try await adapter.resolvePlayableURL(for: file)
     }
 
     public func navigateToFolder(_ folder: FileBrowsingDomain.MediaFolder) async {
@@ -521,28 +569,6 @@ public final class FileBrowsingViewModel {
         await loadFiles()
     }
 
-    // MARK: - Content Filters
-
-    /// Toggle a content filter. "All" clears other filters; selecting a specific
-    /// filter clears "All". Deselecting all reverts to "All".
-    public func toggleFilter(_ filter: FileBrowsingDomain.ContentFilter) {
-        if filter == .all {
-            activeFilters = [.all]
-        } else {
-            activeFilters.remove(.all)
-            if activeFilters.contains(filter) {
-                activeFilters.remove(filter)
-            } else {
-                activeFilters.insert(filter)
-            }
-            if activeFilters.isEmpty {
-                activeFilters = [.all]
-            }
-        }
-        // TODO: Wire to MediaProfile when available — currently MediaFile lacks
-        // resolution/HDR/spatial attributes, so non-All filters are visual-only.
-    }
-
     public func selectLocalFolder(_ folderURL: URL) async {
         let normalizedURL = folderURL.standardizedFileURL
         activeDataSource = nil
@@ -591,70 +617,6 @@ public final class FileBrowsingViewModel {
         await connectAndLoad()
     }
 
-    public func importLocalFiles(_ sourceURLs: [URL]) async {
-        guard sourceURLs.isEmpty == false else { return }
-
-        isLoading = true
-        defer { isLoading = false }
-
-        do {
-            try fileManager.createDirectory(at: defaultRootURL, withIntermediateDirectories: true)
-        } catch {
-            lastErrorMessage = "Failed to prepare Documents folder: \(error.localizedDescription)"
-            return
-        }
-
-        var importedCount = 0
-        var failedNames: [String] = []
-        var skippedDuplicates: [String] = []
-
-        for sourceURL in sourceURLs {
-            let normalizedURL = sourceURL.standardizedFileURL
-
-            guard FileBrowsingDomain.FileFilter.playable.matches(fileURL: normalizedURL) else {
-                failedNames.append(normalizedURL.lastPathComponent)
-                continue
-            }
-
-            // Skip if a file with the same name already exists in Documents
-            let destinationURL = defaultRootURL.appendingPathComponent(normalizedURL.lastPathComponent)
-            if fileManager.fileExists(atPath: destinationURL.path) {
-                skippedDuplicates.append(normalizedURL.lastPathComponent)
-                continue
-            }
-
-            let hasSecurityAccess = normalizedURL.startAccessingSecurityScopedResource()
-            defer {
-                if hasSecurityAccess {
-                    normalizedURL.stopAccessingSecurityScopedResource()
-                }
-            }
-
-            do {
-                try await copyItem(at: normalizedURL, to: destinationURL)
-                importedCount += 1
-            } catch {
-                failedNames.append(normalizedURL.lastPathComponent)
-                print("[FileBrowser] import failed for \(normalizedURL.lastPathComponent): \(error)")
-            }
-        }
-
-        await useDefaultFolder()
-
-        var messages: [String] = []
-        if importedCount > 0 { messages.append("Imported \(importedCount) file(s).") }
-        if skippedDuplicates.isEmpty == false { messages.append("Skipped duplicates: \(skippedDuplicates.joined(separator: ", "))") }
-        if failedNames.isEmpty == false { messages.append("Failed: \(failedNames.joined(separator: ", "))") }
-
-        if importedCount == 0 && skippedDuplicates.isEmpty == false {
-            lastErrorMessage = messages.joined(separator: " ")
-        } else if messages.count > 1 || importedCount == 0 {
-            lastErrorMessage = messages.isEmpty ? "No files were imported." : messages.joined(separator: " ")
-        } else {
-            lastErrorMessage = nil
-        }
-    }
-
     private func connectAndLoad() async {
         activeRemoteAdapter?.disconnect()
         activeRemoteAdapter = nil
@@ -667,39 +629,6 @@ public final class FileBrowsingViewModel {
             files = []
             lastErrorMessage = "Failed to connect local data source: \(error.localizedDescription)"
             print("[FileBrowser] connect failed: \(error)")
-        }
-    }
-
-    private func nextAvailableDocumentURL(for sourceURL: URL) -> URL {
-        let ext = sourceURL.pathExtension
-        let stem = sourceURL.deletingPathExtension().lastPathComponent
-        var candidate = defaultRootURL.appendingPathComponent(sourceURL.lastPathComponent)
-        var counter = 1
-
-        while fileManager.fileExists(atPath: candidate.path) {
-            let filename: String
-            if ext.isEmpty {
-                filename = "\(stem) \(counter)"
-            } else {
-                filename = "\(stem) \(counter).\(ext)"
-            }
-            candidate = defaultRootURL.appendingPathComponent(filename)
-            counter += 1
-        }
-
-        return candidate
-    }
-
-    private func copyItem(at sourceURL: URL, to destinationURL: URL) async throws {
-        try await withCheckedThrowingContinuation { continuation in
-            importQueue.async { [fileManager] in
-                do {
-                    try fileManager.copyItem(at: sourceURL, to: destinationURL)
-                    continuation.resume(returning: ())
-                } catch {
-                    continuation.resume(throwing: error)
-                }
-            }
         }
     }
 

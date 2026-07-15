@@ -7,6 +7,7 @@ nonisolated final class SettingsUITests: XCTestCase {
     @MainActor
     func testNavigatingToSettingsAndSwitchingCategory() {
         let app = XCUIApplication()
+        app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
         app.launch()
 
         // LNCH-03: the Settings tab in the leading navigation ornament switches
@@ -19,14 +20,13 @@ nonisolated final class SettingsUITests: XCTestCase {
         XCTAssertTrue(playbackGroup.waitForExistence(timeout: 10),
                       "Settings should open on the Playback category")
 
-        // SET-16: tapping a category switches the detail pane to that group.
-        let diagnosticsCategory = app.descendants(matching: .any).matching(identifier: "Settings-category-diagnostics").firstMatch
-        XCTAssertTrue(diagnosticsCategory.waitForExistence(timeout: 10),
-                      "Diagnostics category row should exist")
-        diagnosticsCategory.tap()
+        let storageCategory = app.descendants(matching: .any).matching(identifier: "Settings-category-storagePrivacy").firstMatch
+        XCTAssertTrue(storageCategory.waitForExistence(timeout: 10),
+                      "Storage & Privacy category row should exist")
+        storageCategory.tap()
 
-        let diagnosticsGroup = app.descendants(matching: .any)["Settings-Diagnostics-group"]
-        XCTAssertTrue(diagnosticsGroup.waitForExistence(timeout: 10),
-                      "Tapping the Diagnostics category should reveal its settings group (SET-16)")
+        let storageGroup = app.descendants(matching: .any)["Settings-StoragePrivacy-group"]
+        XCTAssertTrue(storageGroup.waitForExistence(timeout: 10),
+                      "Tapping Storage & Privacy should reveal its settings group")
     }
 }

@@ -15,4 +15,4 @@ Xrplay_scene 继续作为独立场景创作仓，只向 Enchron 交付 RealityKi
 
 ## 后果
 
-旧代码在 PlaybackCore App Adapter vertical slice 建立后删除。迁移期间 FakeApp 只用于前端验证，不能被解释为生产播放实现。外部 PlaybackCore 仍在独立调试时，Enchron 不修改其源码。
+旧播放代码与依赖已经删除。确定性 fixture 只用于 Preview 和测试，不能被解释为生产播放实现；产品 target 只通过 `PlaybackRuntime` 使用相邻 PlaybackCore。

@@ -1,12 +1,12 @@
 import Foundation
 
-/// In-memory fake file source for the FakeApp assembly.
+/// In-memory file source fixture for UI tests and previews.
 ///
 /// Conforms to the same `FileProviding` + `DataSourceConnecting` ports as the
 /// production `LocalDataSourceAdapter`, but serves a fixed in-memory catalog
 /// instead of touching disk or the network. This lets the browsing UI run
 /// end-to-end against deterministic data; the composition root swaps in a real
-/// adapter to ship.
+/// adapter in production.
 ///
 /// Optional `latency` and `failureMode` drive the loading / disconnect use
 /// cases (UC-FILE-24 / UC-FILE-28) without real I/O.

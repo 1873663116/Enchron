@@ -1,4 +1,5 @@
 import Foundation
+import CryptoKit
 #if canImport(AMSMB2)
 import AMSMB2
 #endif
@@ -10,6 +11,7 @@ public nonisolated enum SMBError: LocalizedError, Sendable {
     case authenticationFailed
     case networkFailed(String)
     case protocolFailed(String)
+    case cacheFailed(String)
     case noShareSelected
 
     public var errorDescription: String? {
@@ -26,6 +28,8 @@ public nonisolated enum SMBError: LocalizedError, Sendable {
             return "SMB network failed: \(reason)"
         case .protocolFailed(let reason):
             return "SMB protocol failed: \(reason)"
+        case .cacheFailed(let reason):
+            return "SMB playback cache failed: \(reason)"
         case .noShareSelected:
             return "No SMB share selected. Please select a share first."
         }
@@ -230,38 +234,91 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
     }
 
     public func resolvePlayableURL(for file: FileBrowsingDomain.MediaFile) async throws -> URL {
-        guard let info = connectionInfo,
-              let host = info.host else {
-            return file.url
+        guard let smb = smbManager, let info = connectionInfo else {
+            throw SMBError.notConnected
+        }
+        guard connectedShareName != nil else {
+            throw SMBError.noShareSelected
         }
 
-        // Construct smb:// URL with credentials for mpv playback
-        let sourceID = info.credentialSourceID
-        var username = info.username ?? "guest"
-        var password = ""
-
-        if let credentialStore,
-           let credential = try? credentialStore.loadCredential(for: sourceID) {
-            username = credential.username.isEmpty ? "guest" : credential.username
-            password = credential.password
-        }
-
-        let port = info.port ?? 445
-        let filePath = Self.normalizeAbsolutePath(
+        let remotePath = smbRelativePath(from:
             file.url.path.isEmpty ? Self.childPath(named: file.name, in: info.rootPath) : file.url.path
         )
-
-        var components = URLComponents()
-        components.scheme = "smb"
-        components.host = host
-        components.port = port
-        components.user = username
-        if !password.isEmpty {
-            components.password = password
+        let fileManager = FileManager.default
+        let cacheDirectory = try Self.playbackCacheDirectory(fileManager: fileManager)
+        let destination = cacheDirectory.appendingPathComponent(
+            Self.playbackCacheFileName(for: file, connectionInfo: info),
+            isDirectory: false
+        )
+        if Self.cachedFile(at: destination, matches: file, fileManager: fileManager) {
+            return destination
         }
-        components.path = filePath
 
-        return components.url ?? file.url
+        let partial = destination.appendingPathExtension("partial")
+        try? fileManager.removeItem(at: partial)
+        do {
+            try await smb.downloadItem(atPath: remotePath, to: partial, progress: { _, _ in true })
+            guard Self.cachedFile(at: partial, matches: file, fileManager: fileManager) else {
+                throw SMBError.cacheFailed("Downloaded file size does not match the remote item.")
+            }
+            try? fileManager.removeItem(at: destination)
+            try fileManager.moveItem(at: partial, to: destination)
+            return destination
+        } catch {
+            try? fileManager.removeItem(at: partial)
+            throw Self.classify(error)
+        }
+    }
+
+    static func playbackCacheFileName(
+        for file: FileBrowsingDomain.MediaFile,
+        connectionInfo: FileBrowsingDomain.ConnectionInfo
+    ) -> String {
+        let identity = [
+            connectionInfo.host ?? "",
+            String(connectionInfo.port ?? 445),
+            connectionInfo.rootPath,
+            file.url.path,
+            String(file.sizeInBytes),
+            String(file.modifiedAt.timeIntervalSince1970.bitPattern)
+        ].joined(separator: "\u{1f}")
+        let digest = SHA256.hash(data: Data(identity.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        let fileExtension = file.fileExtension.trimmingCharacters(in: CharacterSet(charactersIn: "."))
+        return fileExtension.isEmpty ? digest : "\(digest).\(fileExtension.lowercased())"
+    }
+
+    private static func playbackCacheDirectory(fileManager: FileManager) throws -> URL {
+        let base = try fileManager.url(
+            for: .cachesDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let directory = base
+            .appendingPathComponent("Enchron", isDirectory: true)
+            .appendingPathComponent("RemotePlayback", isDirectory: true)
+        do {
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+            return directory
+        } catch {
+            throw SMBError.cacheFailed(error.localizedDescription)
+        }
+    }
+
+    private static func cachedFile(
+        at url: URL,
+        matches file: FileBrowsingDomain.MediaFile,
+        fileManager: FileManager
+    ) -> Bool {
+        guard fileManager.fileExists(atPath: url.path) else { return false }
+        guard file.sizeInBytes > 0 else { return true }
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
+              let size = attributes[.size] as? NSNumber else {
+            return false
+        }
+        return size.int64Value == file.sizeInBytes
     }
 
     private static func classify(_ error: Error) -> SMBError {

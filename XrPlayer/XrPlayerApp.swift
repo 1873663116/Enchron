@@ -1,158 +1,181 @@
+import PlaybackCore
+@preconcurrency import Photos
 import SwiftUI
 import RealityKitScripting
 
 @main
 struct XrPlayerApp: App {
-    private struct SmokeLaunchConfiguration {
-        enum Panel: String {
-            case tracks
-            case timeline
-        }
-
-        let videoName: String
-        let panel: Panel?
-        let enableFirstSubtitle: Bool
-        let hideControlsAfterSetup: Bool
-        let runHDRProbe: Bool
-        let runFullFrameHDRProbe: Bool
-
-        init?(environment: [String: String]) {
-            guard environment["XRPLAYER_SMOKE_TEST"] == "1" else {
-                return nil
-            }
-
-            self.videoName = environment["XRPLAYER_SMOKE_VIDEO"] ?? "sim-sample.mp4"
-            self.panel = environment["XRPLAYER_SMOKE_PANEL"].flatMap(Panel.init(rawValue:))
-            self.enableFirstSubtitle = environment["XRPLAYER_SMOKE_ENABLE_SUBTITLE"] == "1"
-            self.hideControlsAfterSetup = environment["XRPLAYER_SMOKE_HIDE_CONTROLS"] == "1"
-            self.runHDRProbe = environment["XRPLAYER_SMOKE_HDR_PROBE"] == "1"
-            self.runFullFrameHDRProbe = environment["XRPLAYER_SMOKE_HDR_FULL_FRAME"] == "1"
-        }
-    }
-
     @State private var appModel: AppModel
-    @State private var windowVideoViewModel: WindowVideoViewModel
+    @State private var playbackRuntime: PlaybackRuntime
     @State private var fileBrowsingViewModel: FileBrowsingViewModel
+    @State private var mediaLibraryViewModel: MediaLibraryViewModel
     @State private var playbackLauncher: PlaybackLaunchCoordinator
-    @State private var panoramaBridge: PanoramaLayerBridge
     @State private var thumbnailService: ThumbnailService
     @State private var immersionStyle: ImmersionStyle = .full
 
     init() {
-        // RealityKitScripting must initialize before any `.scriptingSystem()`
-        // RealityView is created: the RCP `world` scene carries a Script Graph,
-        // and skipping init surfaces as NetworkAssetManager / sampler-binding
-        // failures at scene load. See ADR-0008.
         do {
             try RKS.initialize()
         } catch {
-            assertionFailure("[RKS] RealityKitScripting initialize failed: \(error)")
+            assertionFailure("RealityKitScripting initialization failed: \(error)")
         }
 
-        Task.detached(priority: .utility) {
-            Self.copySampleVideoIfAvailable()
+        let environment = ProcessInfo.processInfo.environment
+        let isUITesting = environment["ENCHRON_UI_TESTING"] == "1"
+        let defaults: UserDefaults
+        if isUITesting {
+            let suiteName = "app.enchron.ui-testing"
+            defaults = UserDefaults(suiteName: suiteName) ?? .standard
+            defaults.removePersistentDomain(forName: suiteName)
+        } else {
+            defaults = .standard
+        }
+        if environment["ENCHRON_RESET_MEDIA_LIBRARY"] == "1" {
+            defaults.removeObject(forKey: "enchron.mediaLibrary")
+        }
+        let persistenceStore = SwiftDataStore(defaults: defaults)
+        let preferencesStore = UserDefaultsStore(defaults: defaults)
+        if isUITesting {
+            preferencesStore.savePreferences(
+                .init(resumePolicy: .alwaysStartFromBeginning)
+            )
         }
 
-        let appModel = AppModel()
-        let savedPrefs = UserDefaultsStore().loadPreferences()
-        if savedPrefs.isScreenCurved {
-            appModel.screenShape = .curved(radius: 3.0, height: 1.35)
-        }
-        // FakeApp playback backend: an in-memory fake that simulates the playback
-        // timeline (position / state / tracks) without decoding real media, so the
-        // whole play loop runs on the fake catalog's fake:// URLs. Swap
-        // FakePlaybackSource() → MPVPlayerAdapter() (and restore warmup below) to ship.
-        let player = FakePlaybackSource()
-        let windowVideoViewModel = WindowVideoViewModel(player: player)
-        let smokeLaunch = SmokeLaunchConfiguration(environment: ProcessInfo.processInfo.environment)
-
-        // §5.6: Shared metadata service — used by both the prefetch service and the
-        // launcher so cache writes from background prefetch are immediately visible
-        // to preparePlayback without a shared-state race.
-        let sharedMetadataService = PlaybackMediaMetadataService()
-
-        // §5.6: Single shared prefetch service — the launcher awaits in-flight
-        // prefetch tasks started by FileBrowsingViewModel, eliminating race conditions.
-        let sharedPrefetchService = MediaProfilePrefetchService(metadataService: sharedMetadataService)
+        let appModel = AppModel(screenPositionStore: persistenceStore)
+        let playbackRuntime = PlaybackRuntime(isUITestFixture: isUITesting)
+        let metadataService = PlaybackMediaMetadataService()
+        let prefetchService = MediaProfilePrefetchService(metadataService: metadataService)
         let launcher = PlaybackLaunchCoordinator(
             appModel: appModel,
-            windowVideoViewModel: windowVideoViewModel,
-            metadataService: sharedMetadataService,
-            prefetchService: sharedPrefetchService
+            playbackRuntime: playbackRuntime,
+            progressStore: persistenceStore,
+            preferencesStore: preferencesStore,
+            metadataService: metadataService,
+            prefetchService: prefetchService
+        )
+        let mediaReferenceResolver = MediaReferenceResolver()
+        let fixtureSourceID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
+        let mediaLibraryStore = UserDefaultsMediaLibraryStore(defaults: defaults)
+        let mediaLibrary = MediaLibraryViewModel(
+            store: mediaLibraryStore,
+            resolver: mediaReferenceResolver,
+            initialLibrary: isUITesting ? Self.makeUITestLibrary(sourceID: fixtureSourceID) : nil,
+            onPlay: launcher.requestPlayback
+        )
+        let dataSource: any LocalFileSource = isUITesting
+            ? FakeFileDataSource(catalog: .demo)
+            : LocalDataSourceAdapter()
+        let browser = FileBrowsingViewModel(
+            localDataSource: dataSource,
+            localDataSourceID: fixtureSourceID,
+            prefetchService: prefetchService,
+            onPlayFile: launcher.requestPlayback
         )
 
-        // Clean up expired playback progress entries (older than 5 days).
-        Task.detached(priority: .background) {
-            await SwiftDataStore().cleanExpiredProgress(olderThan: 5)
+        mediaReferenceResolver.resolveSourceItem = { [weak browser] sourceID, path, reference in
+            guard let browser else { throw MediaReferenceResolver.ResolutionError.unavailableSource }
+            return try await browser.resolveSourceItem(
+                dataSourceID: sourceID,
+                path: path,
+                reference: reference
+            )
         }
 
-        // Clean up Photo Library temp exports older than 5 days.
-        Task.detached(priority: .background) {
-            let tempDir = FileManager.default.temporaryDirectory
-                .appendingPathComponent("xrplayer-photos", isDirectory: true)
-            guard let files = try? FileManager.default.contentsOfDirectory(
-                at: tempDir, includingPropertiesForKeys: [.contentModificationDateKey]
-            ) else { return }
-            let cutoff = Date().addingTimeInterval(-5 * 24 * 3600)
-            for file in files {
-                if let attrs = try? file.resourceValues(forKeys: [.contentModificationDateKey]),
-                   let modified = attrs.contentModificationDate,
-                   modified < cutoff {
-                    try? FileManager.default.removeItem(at: file)
-                }
+        launcher.nextFileProvider = { [weak mediaLibrary, weak browser, weak playbackRuntime] in
+            if let next = await mediaLibrary?.nextPlaybackRequest() {
+                return next
             }
+            guard let browser,
+                  let request = playbackRuntime?.currentLaunchRequest,
+                  let index = browser.files.firstIndex(where: { $0.name == request.displayName }),
+                  browser.files.indices.contains(index + 1) else { return nil }
+            return try? await browser.playbackRequest(for: browser.files[index + 1])
         }
 
-        // (mpv warmup is restored when swapping the player back to MPVPlayerAdapter.)
-        // FakeApp data backend: the browsing UI runs on a deterministic
-        // in-memory catalog (a deep, multi-branch folder tree with empty folders)
-        // so the whole app is exercisable — in/out navigation, breadcrumb,
-        // back/forward — without real disk/network. Swap FakeFileDataSource()
-        // → LocalDataSourceAdapter() at this single site to ship on real files.
-        let localDataSource: any LocalFileSource = FakeFileDataSource(catalog: .demoDeep)
-        // FILE-01: tapping a video card plays it directly — no detail page. The
-        // prepare/confirm path (which fed the retired VideoDetailView) is dropped, so
-        // `selectFile` routes straight to `beginPlayback`.
-        let fileBrowsingViewModel = FileBrowsingViewModel(
-            localDataSource: localDataSource,
-            prefetchService: sharedPrefetchService,
-            onPlayFile: { request in
-                launcher.beginPlayback(request)
-            }
-        )
-
-        // Wire auto-next-episode: find the next file after the current one in the sorted file list
-        launcher.nextFileProvider = { [weak fileBrowsingViewModel, weak windowVideoViewModel] in
-            guard let vm = fileBrowsingViewModel,
-                  let currentRequest = windowVideoViewModel?.currentLaunchRequest else { return nil }
-
-            guard let currentIndex = vm.files.firstIndex(where: {
-                $0.name == currentRequest.displayName
-            }) else { return nil }
-
-            let nextIndex = currentIndex + 1
-            guard nextIndex < vm.files.count else { return nil }
-
-            return try? await vm.playbackRequest(for: vm.files[nextIndex])
+        let preferences = preferencesStore.loadPreferences()
+        appModel.controlsAutoHideSeconds = preferences.controlsAutoHideSeconds
+        if let environment = SpatialSceneDomain.CinemaEnvironment(preferenceValue: preferences.defaultEnvironmentID) {
+            appModel.currentCinemaEnvironment = environment
         }
 
         _appModel = State(initialValue: appModel)
-        _windowVideoViewModel = State(initialValue: windowVideoViewModel)
-        _fileBrowsingViewModel = State(initialValue: fileBrowsingViewModel)
+        _playbackRuntime = State(initialValue: playbackRuntime)
+        _fileBrowsingViewModel = State(initialValue: browser)
+        _mediaLibraryViewModel = State(initialValue: mediaLibrary)
         _playbackLauncher = State(initialValue: launcher)
-        _panoramaBridge = State(initialValue: PanoramaLayerBridge())
-        _thumbnailService = State(initialValue: ThumbnailService.shared)
+        _thumbnailService = State(initialValue: .shared)
 
-        if let smokeLaunch {
-            appModel.showControls = true
-            Task { @MainActor in
-                await Self.runSmokeLaunch(
-                    smokeLaunch,
-                    appModel: appModel,
-                    windowVideoViewModel: windowVideoViewModel,
-                    launcher: launcher
-                )
+        Task.detached(priority: .background) {
+            await persistenceStore.cleanExpiredProgress(olderThan: 5)
+        }
+
+        Self.beginAutoplayIfRequested(
+            environment: environment,
+            isUITesting: isUITesting,
+            mediaLibrary: mediaLibrary,
+            launcher: launcher
+        )
+        Self.beginPhotoAutoplayIfRequested(
+            environment: environment,
+            mediaLibrary: mediaLibrary
+        )
+    }
+
+    @MainActor
+    private static func beginAutoplayIfRequested(
+        environment: [String: String],
+        isUITesting: Bool,
+        mediaLibrary: MediaLibraryViewModel,
+        launcher: PlaybackLaunchCoordinator
+    ) {
+        guard let source = environment["ENCHRON_AUTOPLAY_FILE"], source.isEmpty == false else { return }
+        Task { @MainActor in
+            let url: URL
+            if let parsedURL = URL(string: source), parsedURL.scheme?.isEmpty == false {
+                url = parsedURL
+            } else {
+                url = URL(fileURLWithPath: source)
             }
+            if isUITesting || !url.isFileURL {
+                launcher.requestPlayback(PlaybackLaunchRequest(
+                    url: url,
+                    displayName: url.lastPathComponent
+                ))
+                return
+            }
+            mediaLibrary.addFiles([url])
+            guard let reference = mediaLibrary.references.first(where: { $0.name == url.lastPathComponent }) else {
+                mediaLibrary.lastErrorMessage = "The verification media could not be added to Media Library."
+                return
+            }
+            mediaLibrary.play(reference)
+        }
+    }
+
+    @MainActor
+    private static func beginPhotoAutoplayIfRequested(
+        environment: [String: String],
+        mediaLibrary: MediaLibraryViewModel
+    ) {
+        guard environment["ENCHRON_AUTOPLAY_FIRST_PHOTO"] == "1" else { return }
+        Task { @MainActor in
+            let authorization = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
+            guard authorization == .authorized || authorization == .limited else {
+                mediaLibrary.lastErrorMessage = "Photos Full Access is required for automated playback verification."
+                return
+            }
+            guard let asset = PHAsset.fetchAssets(with: .video, options: nil).firstObject else {
+                mediaLibrary.lastErrorMessage = "No Photos video is available for automated playback verification."
+                return
+            }
+            let name = PHAssetResource.assetResources(for: asset).first?.originalFilename
+                ?? "Photos Video"
+            mediaLibrary.addPhotoItems([(asset.localIdentifier, name)])
+            guard let reference = mediaLibrary.references.last else {
+                mediaLibrary.lastErrorMessage = "The Photos video reference could not be created."
+                return
+            }
+            mediaLibrary.play(reference)
         }
     }
 
@@ -160,27 +183,27 @@ struct XrPlayerApp: App {
         WindowGroup(id: "main") {
             MainView()
                 .environment(appModel)
-                .environment(windowVideoViewModel)
+                .environment(playbackRuntime)
                 .environment(fileBrowsingViewModel)
+                .environment(mediaLibraryViewModel)
                 .environment(playbackLauncher)
-                .environment(panoramaBridge)
                 .environment(thumbnailService)
         }
         .defaultSize(width: 1280, height: 720)
         .windowResizability(.contentSize)
 
         WindowGroup(id: "playerControls") {
-            WindowPlayerDeckView()
+            SpatialPlaybackControlsRoot()
                 .environment(appModel)
-                .environment(windowVideoViewModel)
+                .environment(playbackRuntime)
                 .environment(fileBrowsingViewModel)
+                .environment(mediaLibraryViewModel)
                 .environment(playbackLauncher)
                 .environment(thumbnailService)
         }
-        .defaultSize(width: 600, height: 200)
+        .defaultSize(width: 760, height: 220)
+        .windowResizability(.contentSize)
 
-        // SenseZone volume — Environments destination hosting the polished
-        // EnvironmentCardCarousel (ENV-13/14/16/17). Coexists with the main window.
         WindowGroup(id: AppModel.senseZoneVolumeID) {
             SenseZoneVolumeRoot()
                 .environment(appModel)
@@ -191,21 +214,20 @@ struct XrPlayerApp: App {
         ImmersiveSpace(id: appModel.immersiveSpaceID) {
             ImmersiveSpaceView()
                 .environment(appModel)
-                .environment(panoramaBridge)
+                .environment(playbackRuntime)
                 .onAppear {
                     appModel.immersiveSpaceState = .open
-                    Task {
-                        await appModel.loadScreenPosition()
-                    }
+                    Task { await appModel.loadScreenPosition() }
                 }
                 .onDisappear {
-                    appModel.immersiveSpaceState = .closed
-                    // Ensure bridge stops when immersive space is dismissed.
-                    panoramaBridge.attachVideoLayer(nil)
-                    if appModel.playbackMode != .window {
-                        appModel.updatePlaybackMode(.window)
+                    if playbackRuntime.attachedPresentation != .window {
+                        playbackRuntime.detach()
                     }
-                    // Environment-expand browsing ends with the space.
+                    appModel.immersiveSpaceState = .closed
+                    if let transition = appModel.presentationTransition,
+                       transition.targetPresentation != .window {
+                        appModel.rollbackPlaybackPresentation(transition.id)
+                    }
                     appModel.isEnvironmentImmersiveActive = false
                 }
         }
@@ -215,198 +237,16 @@ struct XrPlayerApp: App {
         }
     }
 
-    nonisolated private static func copySampleVideoIfAvailable(fileManager: FileManager = .default) {
-        guard let documentsURL = fileManager.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return
-        }
-
-        let candidateNames = ["SampleMovie", "Sample Movie"]
-        let candidateExtensions = ["mp4", "mov", "m4v", "mkv"]
-
-        for name in candidateNames {
-            for ext in candidateExtensions {
-                guard let bundledURL = Bundle.main.url(forResource: name, withExtension: ext) else {
-                    continue
-                }
-
-                // Avoid blocking startup by copying very large bundled media.
-                if let size = try? bundledURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-                   size > 200 * 1024 * 1024 {
-                    continue
-                }
-
-                let destinationURL = documentsURL.appendingPathComponent("\(name).\(ext)")
-                guard !fileManager.fileExists(atPath: destinationURL.path) else { return }
-
-                do {
-                    try fileManager.copyItem(at: bundledURL, to: destinationURL)
-                } catch {
-                    return
-                }
-                return
-            }
-        }
-    }
-
-    @MainActor
-    private static func runSmokeLaunch(
-        _ configuration: SmokeLaunchConfiguration,
-        appModel: AppModel,
-        windowVideoViewModel: WindowVideoViewModel,
-        launcher: PlaybackLaunchCoordinator
-    ) async {
-        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return
-        }
-
-        let videoURL = documentsURL.appendingPathComponent(configuration.videoName)
-        for _ in 0..<20 where FileManager.default.fileExists(atPath: videoURL.path) == false {
-            try? await Task.sleep(for: .milliseconds(250))
-        }
-
-        guard FileManager.default.fileExists(atPath: videoURL.path) else {
-            print("[SmokeTest] video not found at \(videoURL.path)")
-            return
-        }
-
-        if let panel = configuration.panel {
-            appModel.smokePanelRequest = panel.rawValue
-        }
-
-        print(
-            "[SmokeTest] autoplay \(videoURL.lastPathComponent) panel=\(configuration.panel?.rawValue ?? "none") subtitle=\(configuration.enableFirstSubtitle)"
-        )
-        appendSmokeLog("autoplay video=\(videoURL.lastPathComponent)")
-        launcher.beginPlayback(for: videoURL)
-
-        if configuration.runHDRProbe {
-            await runSmokeHDRProbe(
-                configuration,
-                windowVideoViewModel: windowVideoViewModel
+    private static func makeUITestLibrary(sourceID: UUID) -> FileBrowsingDomain.MediaLibrary {
+        var library = FileBrowsingDomain.MediaLibrary()
+        for name in ["Interstellar.mkv", "The Matrix.mkv", "Arrival.mkv"] {
+            try? library.add(
+                .init(
+                    name: name,
+                    locator: .sourceItem(dataSourceID: sourceID, path: "fake:///\(name)")
+                )
             )
         }
-
-        guard configuration.enableFirstSubtitle else {
-            return
-        }
-
-        for _ in 0..<24 {
-            if let track = windowVideoViewModel.availableSubtitleTracks.first {
-                print("[SmokeTest] enabling subtitle track \(track.id) \(track.displayName)")
-                windowVideoViewModel.selectSubtitleTrack(track)
-                try? await Task.sleep(for: .milliseconds(700))
-                if let state = windowVideoViewModel.debugSubtitleState() {
-                    print("[SmokeTest] subtitle-state \(state)")
-                }
-                let screenshotURL = documentsURL.appendingPathComponent("smoke-subtitle-capture.png")
-                windowVideoViewModel.captureScreenshot(to: screenshotURL)
-                print("[SmokeTest] requested screenshot \(screenshotURL.lastPathComponent)")
-                if configuration.hideControlsAfterSetup {
-                    appModel.showControls = false
-                    print("[SmokeTest] controls hidden")
-                }
-                break
-            }
-            try? await Task.sleep(for: .milliseconds(250))
-        }
-    }
-
-    @MainActor
-    private static func runSmokeHDRProbe(
-        _ configuration: SmokeLaunchConfiguration,
-        windowVideoViewModel: WindowVideoViewModel
-    ) async {
-        for attempt in 1...12 {
-            try? await Task.sleep(for: .milliseconds(500))
-            appendSmokeLog("sample=on_attempt_\(attempt) start")
-            await windowVideoViewModel.sampleCurrentHDRDrawable(trigger: "smoke_probe_on_attempt_\(attempt)")
-            if let sample = windowVideoViewModel.latestHDRProbeSample, sample.source == .mpvDrawable {
-                print("[SmokeTest] hdr-probe-on-ready attempt=\(attempt)")
-                appendSmokeProbeLog("on_attempt_\(attempt)", sample: sample)
-                break
-            } else if let error = windowVideoViewModel.lastHDRProbeError {
-                appendSmokeLog("sample=on_attempt_\(attempt) failed error=\(error)")
-                if error.contains("disabled on Simulator") {
-                    break
-                }
-            }
-        }
-
-        if configuration.runFullFrameHDRProbe {
-            await windowVideoViewModel.sampleFullFrameHDRDrawable()
-            if let sample = windowVideoViewModel.latestHDRProbeSample {
-                appendSmokeProbeLog("full_frame", sample: sample)
-            }
-        }
-
-        windowVideoViewModel.setHDREnabled(false)
-        try? await Task.sleep(for: .milliseconds(700))
-        await windowVideoViewModel.sampleCurrentHDRDrawable(trigger: "smoke_probe_off")
-        if let sample = windowVideoViewModel.latestHDRProbeSample {
-            appendSmokeProbeLog("off", sample: sample)
-        } else if let error = windowVideoViewModel.lastHDRProbeError {
-            appendSmokeLog("sample=off failed error=\(error)")
-        }
-
-        windowVideoViewModel.setHDREnabled(true)
-        try? await Task.sleep(for: .milliseconds(700))
-        await windowVideoViewModel.sampleCurrentHDRDrawable(trigger: "smoke_probe_on_after_toggle")
-        if let sample = windowVideoViewModel.latestHDRProbeSample {
-            appendSmokeProbeLog("on_after_toggle", sample: sample)
-        } else if let error = windowVideoViewModel.lastHDRProbeError {
-            appendSmokeLog("sample=on_after_toggle failed error=\(error)")
-        }
-
-        if let delta = windowVideoViewModel.hdrProbeDelta {
-            print(
-                "[SmokeTest] hdr-probe-delta matched=true maxDelta=\(delta.maxRGBDelta) p99Delta=\(delta.p99LuminanceDelta) above1Delta=\(delta.countAbove1Delta) above2Delta=\(delta.countAbove2Delta)"
-            )
-            appendSmokeLog(
-                "delta matched=true maxDelta=\(delta.maxRGBDelta) p99Delta=\(delta.p99LuminanceDelta) above1Delta=\(delta.countAbove1Delta) above2Delta=\(delta.countAbove2Delta)"
-            )
-        } else {
-            print("[SmokeTest] hdr-probe-delta matched=false status=\(windowVideoViewModel.hdrProbeDeltaStatus)")
-            appendSmokeLog("delta matched=false status=\(windowVideoViewModel.hdrProbeDeltaStatus)")
-        }
-    }
-
-    private static func appendSmokeProbeLog(
-        _ label: String,
-        sample: PlaybackCoreDomain.HDRProbeSample
-    ) {
-        appendSmokeLog(
-            [
-                "sample=\(label)",
-                "hdr=\(sample.hdrOutputEnabled.map(String.init) ?? "unknown")",
-                "source=\(sample.source.rawValue)",
-                "region=\(sample.probeRegion)",
-                "format=\(sample.pixelFormat)",
-                "colorspace=\(sample.colorspace)",
-                "contract=\(sample.contract)",
-                "size=\(sample.width)x\(sample.height)",
-                "max=\(sample.statistics.maxRGB.maxChannel)",
-                "p99=\(sample.statistics.p99Luminance)",
-                "above1=\(sample.statistics.countAbove1)",
-                "above2=\(sample.statistics.countAbove2)",
-                "pixels=\(sample.statistics.sampledPixelCount)"
-            ].joined(separator: " ")
-        )
-    }
-
-    private static func appendSmokeLog(_ line: String) {
-        guard let documentsURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else {
-            return
-        }
-        let url = documentsURL.appendingPathComponent("hdr-probe-smoke.log")
-        let payload = "\(Date().timeIntervalSince1970) \(line)\n"
-        guard let data = payload.data(using: .utf8) else { return }
-        if FileManager.default.fileExists(atPath: url.path),
-           let handle = try? FileHandle(forWritingTo: url) {
-            try? handle.seekToEnd()
-            try? handle.write(contentsOf: data)
-            try? handle.close()
-        } else {
-            try? data.write(to: url)
-        }
+        return library
     }
 }

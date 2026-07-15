@@ -152,7 +152,7 @@ public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, Fi
             return file.url
         }
 
-        // Try loading credentials from keychain to embed in URL for mpv playback
+        // Load credentials from Keychain for the PlaybackCore source URL.
         let sourceID = info.credentialSourceID
         if let credentialStore,
            let credential = try? credentialStore.loadCredential(for: sourceID),

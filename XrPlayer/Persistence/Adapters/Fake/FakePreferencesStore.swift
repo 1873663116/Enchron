@@ -1,7 +1,6 @@
 import Foundation
 
-/// In-memory fake satisfying `PreferencesStoring` for the FakeApp. Preferences live in
-/// memory only and never touch `UserDefaults`. Swap to `UserDefaultsStore` to ship.
+/// In-memory `PreferencesStoring` fixture for tests and previews.
 public nonisolated final class FakePreferencesStore: PreferencesStoring, @unchecked Sendable {
     private let lock = NSLock()
     private var preferences: PersistenceDomain.UserPreferences

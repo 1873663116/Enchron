@@ -1,17 +1,5 @@
 import SwiftUI
 
-/// Production SenseZone volume content: the polished `EnvironmentCardCarousel`
-/// (7 featured environments) hosted in a volumetric `WindowGroup`. Replaces the
-/// old `SceneSelectorView` sheet as the Environments destination (ENV-13/14/16/17).
-///
-/// The center card's expand control enters the immersive space through the single
-/// canonical entry point (`AppModel.requestImmersiveSpace` → `MainView`), which
-/// loads the real RCP `world` in mixed immersion so this volume stays open
-/// alongside the scene (ADR-0008, ENV-18).
-///
-/// Deviation from the design's "close main window on entry": the volume coexists
-/// with the main window so `MainView` stays alive to service the immersive-space
-/// request (the architecture's single immersive entry point lives there).
 struct SenseZoneVolumeRoot: View {
     @Environment(AppModel.self) private var appModel
     @Environment(\.dismissWindow) private var dismissWindow
@@ -19,15 +7,13 @@ struct SenseZoneVolumeRoot: View {
     var body: some View {
         EnvironmentCardCarousel(
             onReturn: returnToMain,
-            onExpand: { _ in enterImmersive() }
+            onExpand: enterImmersive
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SenseZone-VolumeRoot")
         .accessibilityLabel("SenseZone environments")
     }
 
-    // ENV-14 / ENV-15: close the volume; the main window (kept alive) resumes its
-    // prior tab. The in-flight guard absorbs repeated return taps mid-transition.
     private func returnToMain() {
         guard !appModel.isEnvironmentTransitionInFlight else { return }
         appModel.isEnvironmentTransitionInFlight = true
@@ -35,11 +21,8 @@ struct SenseZoneVolumeRoot: View {
         appModel.isEnvironmentTransitionInFlight = false
     }
 
-    // ENV-18: route through the canonical immersive entry point. Mark the
-    // environment-browse intent so `ImmersiveSpaceView` loads the RCP `world`
-    // (playbackMode stays `.window`) and `MainView` opens mixed immersion,
-    // keeping this volume visible.
-    private func enterImmersive() {
+    private func enterImmersive(_ featured: FeaturedEnvironment) {
+        appModel.currentCinemaEnvironment = featured.environment
         appModel.isEnvironmentImmersiveActive = true
         appModel.requestImmersiveSpace()
     }

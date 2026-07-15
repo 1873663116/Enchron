@@ -16,6 +16,7 @@ nonisolated final class SmokeLaunchUITests: XCTestCase {
     @MainActor
     func testAppLaunchesToInteractiveMainWindow() {
         let app = XCUIApplication()
+        app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
         app.launch()
 
         XCTAssertEqual(app.state, .runningForeground,

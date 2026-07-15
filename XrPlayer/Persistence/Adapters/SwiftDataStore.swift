@@ -55,6 +55,13 @@ public nonisolated final class SwiftDataStore: ProgressStoring, ScreenPositionSt
         }
     }
 
+    public func clearAllProgress() async {
+        let keys = defaults.dictionaryRepresentation().keys.filter {
+            $0.hasPrefix(Self.progressPrefix)
+        }
+        for key in keys { defaults.removeObject(forKey: key) }
+    }
+
     public func loadRecentlyPlayed(limit: Int) async -> [PersistenceDomain.PlaybackProgress] {
         guard limit > 0 else { return [] }
         let allKeys = defaults.dictionaryRepresentation().keys.filter {

@@ -1,31 +1,17 @@
 import SwiftUI
 
-/// Production window-playback chrome, bound to the live playback engine.
-///
-/// `WindowPlayerDeckView` hosts the shared `FusedPlayerPanel` (transport row,
-/// progress / precision timeline, ⋯ menu, ≡-summoned inline settings, and the
-/// ⤢/🧘 panorama / immersive entries) driven by `WindowVideoViewModel` +
-/// `AppModel` (ADR-0009). `PlaybackOverlayCard` covers the resume / load-failure
-/// states (UC-PLAY-02 / 23).
-
-// MARK: - Bottom ornament: the fused player panel, wired to playback
-
 struct WindowPlayerDeckView: View {
     @Environment(AppModel.self) private var appModel
-    @Environment(WindowVideoViewModel.self) private var videoViewModel
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
 
     var body: some View {
         FusedPlayerPanel(
             live: live,
-            settingsLive: settingsLive,
             onInteraction: register
         )
         .onHover { appModel.setControlsFocused($0) }
-        .accessibilityIdentifier("PlayerUI-WindowPlayerDeck")
     }
 
-    /// Resets the auto-hide idle timer on every control interaction and keeps
-    /// chrome visible. The 8s idle fade itself is driven by `MainView`.
     private func register() {
         appModel.registerControlsInteraction()
         if appModel.showControls == false {
@@ -33,37 +19,40 @@ struct WindowPlayerDeckView: View {
         }
     }
 
-    // MARK: - Live binding
-
     private var live: FusedPlayerPanelLive {
-        let position = videoViewModel.playbackPosition
+        let position = playbackRuntime.playbackPosition
         let duration = position.duration
         let remaining = max(0, duration - position.seconds)
         return FusedPlayerPanelLive(
-            isPlaying: videoViewModel.playbackState == .playing,
-            showsReplay: videoViewModel.playbackState == .ended,
+            presentation: appModel.playbackPresentation,
+            canDock: playbackRuntime.canEnterSpatialPresentation,
+            canEnterPanorama: playbackRuntime.canEnterSpatialPresentation
+                && appModel.effectiveProjectionType.isPanoramic,
+            isPlaying: playbackRuntime.playbackState == .playing,
+            showsReplay: playbackRuntime.playbackState == .ended,
             progress: duration > 0 ? CGFloat(position.seconds / duration) : 0,
             elapsedLabel: PlaybackTimeFormatter.clock(position.seconds),
             remainingLabel: "-" + PlaybackTimeFormatter.clock(remaining),
             duration: duration,
-            framesPerSecond: videoViewModel.displayMediaProfile?.frameRate ?? 0,
+            framesPerSecond: playbackRuntime.displayMediaProfile?.frameRate ?? 0,
             onPlayPause: { self.register(); self.togglePlayPause() },
-            onSkipBackward: { self.register(); self.videoViewModel.skip(by: -10) },
-            onSkipForward: { self.register(); self.videoViewModel.skip(by: 10) },
+            onSkipBackward: { self.register(); self.playbackRuntime.skip(by: -10) },
+            onSkipForward: { self.register(); self.playbackRuntime.skip(by: 10) },
             onSeek: { p in
                 self.register()
-                self.videoViewModel.seek(to: Double(p) * duration)
+                self.playbackRuntime.seek(to: Double(p) * duration)
             },
             onFrameStep: { direction in
                 self.register()
                 if direction < 0 {
-                    self.videoViewModel.frameStepBackward()
+                    self.playbackRuntime.frameStepBackward()
                 } else {
-                    self.videoViewModel.frameStepForward()
+                    self.playbackRuntime.frameStepForward()
                 }
             },
-            onEnterPanorama: { self.enterPlaybackMode(.panorama) },
-            onEnterImmersive: { self.enterPlaybackMode(.immersive) },
+            onEnterPanorama: { self.enterPlaybackPresentation(.panorama) },
+            onEnterImmersive: { self.enterPlaybackPresentation(.docked) },
+            onExitSpatial: { self.enterPlaybackPresentation(.window) },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
@@ -71,102 +60,63 @@ struct WindowPlayerDeckView: View {
         )
     }
 
-    /// ⤢ 全景 / 🧘 虚拟场景入口:切 playbackMode 触发沉浸空间进出(由 MainView 监听驱动),
-    /// 守 inTransition 避免抖动。沿用原 PlaybackSettingsPanel 的 Play Mode 卡语义。
-    private func enterPlaybackMode(_ mode: PlaybackMode) {
+    private func enterPlaybackPresentation(_ presentation: PlaybackPresentation) {
         register()
-        guard mode != appModel.playbackMode,
+        guard presentation != appModel.playbackPresentation,
               appModel.immersiveSpaceState != .inTransition else { return }
-        appModel.updatePlaybackMode(mode)
-    }
-
-    // MARK: - Settings 桶① 绑定(Display Mode→stereo、180/360→projection)
-
-    private var settingsLive: PlaybackSettingsLive {
-        PlaybackSettingsLive(
-            displayMode: Binding(
-                get: { Self.displayModeLabel(appModel.effectiveStereoLayout) },
-                set: { label in
-                    register()
-                    appModel.setStereoLayoutOverride(Self.stereoLayout(forLabel: label))
-                }
-            ),
-            projection180: projectionBinding(.equirectangular180),
-            projection360: projectionBinding(.equirectangular360)
-        )
-    }
-
-    private func projectionBinding(_ type: PlaybackCoreDomain.ProjectionType) -> Binding<Bool> {
-        Binding(
-            get: { appModel.effectiveProjectionType == type },
-            set: { isOn in
-                self.register()
-                // 单一 projectionOverride 天然互斥:开则设为该投影,关则回平面。
-                self.appModel.setProjectionOverride(isOn ? type : .flat)
-            }
-        )
-    }
-
-    private static func displayModeLabel(_ layout: PlaybackCoreDomain.StereoLayout) -> String {
-        switch layout {
-        case .mono: "Flat"
-        case .sideBySide: "SBS"
-        case .topBottom: "TB"
+        if presentation != .window {
+            guard playbackRuntime.canEnterSpatialPresentation else { return }
         }
-    }
-
-    private static func stereoLayout(forLabel label: String) -> PlaybackCoreDomain.StereoLayout {
-        switch label {
-        case "SBS": .sideBySide
-        case "TB": .topBottom
-        default: .mono
+        if presentation == .panorama {
+            guard appModel.effectiveProjectionType.isPanoramic else { return }
         }
+        _ = try? appModel.requestPlaybackPresentation(presentation)
     }
 
     private func togglePlayPause() {
-        switch videoViewModel.playbackState {
-        case .ended: videoViewModel.replay()
-        case .playing: videoViewModel.pause()
-        default: videoViewModel.resume()
+        switch playbackRuntime.playbackState {
+        case .ended: playbackRuntime.replay()
+        case .playing: playbackRuntime.pause()
+        default: playbackRuntime.resume()
         }
     }
 
     private var subtitleItems: [DeckMenuItem] {
-        let current = videoViewModel.currentSubtitleTrackID
-        var items = videoViewModel.availableSubtitleTracks.map { track in
+        let current = playbackRuntime.currentSubtitleTrackID
+        var items = playbackRuntime.availableSubtitleTracks.map { track in
             DeckMenuItem(id: track.id, title: track.displayName, isSelected: current == track.id) {
                 self.register()
-                self.videoViewModel.selectSubtitleTrack(track)
+                self.playbackRuntime.selectSubtitleTrack(track)
             }
         }
         items.append(
             DeckMenuItem(id: "off", title: "Off", isSelected: current == nil) {
                 self.register()
-                self.videoViewModel.selectSubtitleTrack(nil)
+                self.playbackRuntime.selectSubtitleTrack(nil)
             }
         )
         return items
     }
 
     private var audioItems: [DeckMenuItem] {
-        let current = videoViewModel.currentAudioTrackID
-        return videoViewModel.availableAudioTracks.map { track in
+        let current = playbackRuntime.currentAudioTrackID
+        return playbackRuntime.availableAudioTracks.map { track in
             DeckMenuItem(id: track.id, title: track.displayName, isSelected: current == track.id) {
                 self.register()
-                self.videoViewModel.selectAudioTrack(track)
+                self.playbackRuntime.selectAudioTrack(track)
             }
         }
     }
 
     private var speedItems: [DeckMenuItem] {
-        PlaybackCoreDomain.PlaybackSpeed.allCases.map { speed in
+        PlaybackModel.PlaybackSpeed.allCases.map { speed in
             DeckMenuItem(
                 id: String(speed.value),
                 title: Self.formatSpeed(speed.value),
                 isSelected: appModel.playbackSpeed == speed
             ) {
                 self.register()
-                self.videoViewModel.setSpeed(speed)
+                self.playbackRuntime.setSpeed(speed)
                 self.appModel.updatePlaybackSpeed(speed)
             }
         }

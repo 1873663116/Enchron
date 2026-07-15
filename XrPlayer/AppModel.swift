@@ -1,5 +1,6 @@
 import SwiftUI
 import Observation
+import OSLog
 
 @MainActor
 @Observable
@@ -15,8 +16,6 @@ public final class AppModel {
         }
     }
     public var selectedTab: NavigationTab = .files
-    public var showSceneSelector: Bool = false
-
     // MARK: - SenseZone Volume (Environments destination)
     /// Volumetric WindowGroup id hosting the polished EnvironmentCardCarousel.
     public static let senseZoneVolumeID = "senseZoneVolume"
@@ -28,7 +27,7 @@ public final class AppModel {
     // MARK: - Immersive Space State
     public let immersiveSpaceID = "ImmersiveSpace"
 
-    public enum ImmersiveSpaceState {
+    public enum ImmersiveSpaceState: Equatable, Sendable {
         case closed
         case inTransition
         case open
@@ -50,24 +49,31 @@ public final class AppModel {
     public var isTransitioningPlaybackMode: Bool = false
     
     // MARK: - Playback State
-    public var playbackState: PlaybackCoreDomain.PlaybackState = .idle
-    public var playbackPosition: PlaybackCoreDomain.PlaybackPosition = .init(seconds: 0, duration: 0)
-    public var playbackSpeed: PlaybackCoreDomain.PlaybackSpeed = .default
-    public var mediaProfile: PlaybackCoreDomain.MediaProfile?
-    public var playbackMode: PlaybackMode = .window
-    public var detectedProjectionType: PlaybackCoreDomain.ProjectionType = .flat
-    public var projectionOverride: PlaybackCoreDomain.ProjectionType? = nil
-    public var detectedStereoLayout: PlaybackCoreDomain.StereoLayout = .mono
+    public var playbackSpeed: PlaybackModel.PlaybackSpeed = .default
+    public var mediaProfile: PlaybackModel.MediaProfile?
+    public var playbackPresentationState = PlaybackPresentationState()
+    public var playbackPresentation: PlaybackPresentation {
+        playbackPresentationState.presented
+    }
+    public var presentationTransition: PlaybackPresentationTransition? {
+        playbackPresentationState.transition
+    }
+    public var environmentContext: EnvironmentContext {
+        playbackPresentationState.environment
+    }
+    public var detectedProjectionType: PlaybackModel.ProjectionType = .flat
+    public var projectionOverride: PlaybackModel.ProjectionType? = nil
+    public var detectedStereoLayout: PlaybackModel.StereoLayout = .mono
     /// User-selected 3D mode override. nil = Auto (follows detectedStereoLayout).
     /// .mono = 3D Off (stereoCropMode = nil). .sideBySide/.topBottom = force that layout.
-    public var stereoLayoutOverride: PlaybackCoreDomain.StereoLayout? = nil
+    public var stereoLayoutOverride: PlaybackModel.StereoLayout? = nil
 
-    public var effectiveProjectionType: PlaybackCoreDomain.ProjectionType {
+    public var effectiveProjectionType: PlaybackModel.ProjectionType {
         projectionOverride ?? detectedProjectionType
     }
 
     /// The stereo layout that should drive the render pipeline (override takes precedence).
-    public var effectiveStereoLayout: PlaybackCoreDomain.StereoLayout {
+    public var effectiveStereoLayout: PlaybackModel.StereoLayout {
         stereoLayoutOverride ?? detectedStereoLayout
     }
 
@@ -78,15 +84,9 @@ public final class AppModel {
     public var isPlaying: Bool = false
     public var currentPlaybackURL: URL?
     public var showControls: Bool = true
-    public var smokePanelRequest: String?
+    public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
-
-    // MARK: - Debug Controls
-    public var showDebugPanel: Bool = false
-
-    // MARK: - Current Media
-    public var currentMedia: PlaybackCoreDomain.MediaFile?
 
     // MARK: - Screen Position State (Immersive Mode)
     public var screenDistance: Double = 8.0
@@ -95,104 +95,97 @@ public final class AppModel {
 
     // MARK: - Immersive Cinema State
     public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
-    public var screenShape: SpatialSceneDomain.ScreenGeometry = .flat(width: 2.4, height: 1.35)
     public var isFullImmersion: Bool = true
 
     /// True while the immersive space is presenting the RCP `world` for
     /// environment-expand browsing (ENV-18) rather than video playback. Drives
-    /// `ImmersiveSpaceView` to load the `world` even though `playbackMode` stays
+    /// `ImmersiveSpaceView` to load the `world` even though presentation stays
     /// `.window`, and selects mixed immersion so the SenseZone volume stays open.
     public var isEnvironmentImmersiveActive: Bool = false
 
     private let screenPositionStore: ScreenPositionStoring
+    private let logger = Logger(subsystem: "app.enchron", category: "Presentation")
 
     public init(screenPositionStore: ScreenPositionStoring = SwiftDataStore()) {
         self.screenPositionStore = screenPositionStore
     }
     
     // MARK: - Actions
-    public func updatePlaybackState(_ state: PlaybackCoreDomain.PlaybackState) {
-        playbackState = state
-    }
-    
-    public func updatePlaybackPosition(_ position: PlaybackCoreDomain.PlaybackPosition) {
-        playbackPosition = position
-    }
-    
-    public func updatePlaybackSpeed(_ speed: PlaybackCoreDomain.PlaybackSpeed) {
+    public func updatePlaybackSpeed(_ speed: PlaybackModel.PlaybackSpeed) {
         playbackSpeed = speed
     }
     
-    public func updateMediaProfile(_ profile: PlaybackCoreDomain.MediaProfile) {
+    public func updateMediaProfile(_ profile: PlaybackModel.MediaProfile) {
         mediaProfile = profile
     }
     
-    public func updatePlaybackMode(_ mode: PlaybackMode) {
-        playbackMode = mode
+    @discardableResult
+    public func requestPlaybackPresentation(
+        _ presentation: PlaybackPresentation,
+        environment: SpatialSceneDomain.CinemaEnvironment? = nil
+    ) throws -> PlaybackPresentationTransition {
+        let transition = try playbackPresentationState.begin(
+            presentation,
+            environment: environment,
+            defaultEnvironment: currentCinemaEnvironment
+        )
+        logger.info("transition requested id=\(transition.id.uuidString, privacy: .public) from=\(String(describing: transition.previousPresentation), privacy: .public) to=\(String(describing: transition.targetPresentation), privacy: .public)")
+        return transition
+    }
+
+    public func commitPlaybackPresentation(_ transitionID: UUID) throws {
+        try playbackPresentationState.commit(transitionID)
+        logger.info("transition committed id=\(transitionID.uuidString, privacy: .public)")
+        if let environment = playbackPresentationState.environment.environment {
+            currentCinemaEnvironment = environment
+        }
+    }
+
+    public func rollbackPlaybackPresentation(_ transitionID: UUID) {
+        playbackPresentationState.rollback(transitionID)
+        logger.error("transition rolled back id=\(transitionID.uuidString, privacy: .public)")
+    }
+
+    public func updateEnvironmentContext(_ context: EnvironmentContext) throws {
+        try playbackPresentationState.setEnvironment(context)
+        if let environment = context.environment {
+            currentCinemaEnvironment = environment
+        }
     }
 
     public func updateDetectedProjection(
-        _ type: PlaybackCoreDomain.ProjectionType,
-        stereoLayout: PlaybackCoreDomain.StereoLayout = .mono
+        _ type: PlaybackModel.ProjectionType,
+        stereoLayout: PlaybackModel.StereoLayout = .mono
     ) {
         detectedProjectionType = type
         detectedStereoLayout = stereoLayout
         // Clear override when new media detected
         projectionOverride = nil
-        // Auto-route playback mode based on detected content type
-        autoRoutePlaybackMode()
     }
 
-    private static let modeDecider = DecidePlaybackModeUseCase()
-
-    private func autoRoutePlaybackMode() {
-        guard let profile = mediaProfile else { return }
-        // Use effectiveProjectionType (respects user override) for routing
-        // Include detectedStereoLayout so flat-SBS/TopBottom content routes to immersive
-        let routingProfile = PlaybackCoreDomain.MediaProfile(
-            projectionType: effectiveProjectionType,
-            stereoLayout: detectedStereoLayout,
-            hdrType: profile.hdrType,
-            resolution: profile.resolution,
-            frameRate: profile.frameRate
-        )
-        let decidedMode = Self.modeDecider.decideMode(
-            for: routingProfile,
-            isEnvironmentActive: immersiveSpaceState == .open,
-            manualOverride: nil
-        )
-        if decidedMode != playbackMode {
-            playbackMode = decidedMode
-        }
-    }
-
-    public func setProjectionOverride(_ type: PlaybackCoreDomain.ProjectionType?) {
+    public func setProjectionOverride(_ type: PlaybackModel.ProjectionType?) {
         projectionOverride = type
-        autoRoutePlaybackMode()
     }
 
-    public func setStereoLayoutOverride(_ layout: PlaybackCoreDomain.StereoLayout?) {
+    public func setStereoLayoutOverride(_ layout: PlaybackModel.StereoLayout?) {
         stereoLayoutOverride = layout
     }
 
     public func startPlayback(url: URL) {
         currentPlaybackURL = url
         isPlaying = true
-        playbackState = .loading
-        playbackPosition = .init(seconds: 0, duration: 0)
         mediaProfile = nil
         projectionOverride = nil
         stereoLayoutOverride = nil
         detectedProjectionType = .flat
         detectedStereoLayout = .mono
-        withAnimation(.easeInOut(duration: 0.4)) { showControls = true }
+        showControls = true
         registerControlsInteraction()
+        logger.info("playback started controlsVisible=true")
     }
 
     public func stopPlayback() {
         isPlaying = false
-        playbackState = .stopped
-        playbackPosition = .init(seconds: 0, duration: 0)
         mediaProfile = nil
         currentPlaybackURL = nil
         isControlsFocused = false
@@ -202,15 +195,26 @@ public final class AppModel {
         lastControlsInteractionAt = date
     }
 
-    public func setControlsFocused(_ focused: Bool, at date: Date = Date()) {
-        isControlsFocused = focused
-        if focused {
+    public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {
+        let elapsed = date.timeIntervalSince(lastControlsInteractionAt)
+        guard elapsed > 0.5 else {
+            logger.info("surface tap ignored during playback transition")
+            return
+        }
+        showControls.toggle()
+        logger.info("surface tap controlsVisible=\(self.showControls)")
+        if showControls {
             registerControlsInteraction(at: date)
         }
     }
 
+    public func setControlsFocused(_ focused: Bool, at date: Date = Date()) {
+        isControlsFocused = focused
+        registerControlsInteraction(at: date)
+    }
+
     public var canAutoHideControls: Bool {
-        showControls && isControlsFocused == false
+        controlsAutoHideSeconds > 0 && showControls && isControlsFocused == false
     }
 
     // MARK: - Screen Position Persistence

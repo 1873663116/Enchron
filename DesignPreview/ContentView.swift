@@ -7,7 +7,6 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     case components
     case sidebar
     case settingListGroup
-    case playerSettingsPanel
     case slider
     case environmentCard
     case connectionForm
@@ -37,12 +36,11 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
         case .pressFeedback: "Press Feedback"
         case .sidebar: "Sidebar"
         case .settingListGroup: "Setting List Group"
-        case .playerSettingsPanel: "Player Settings Panel"
         case .slider: "Slider"
         case .environmentCard: "Environment Card"
         case .connectionForm: "Connection Form"
         case .dialogs: "Dialogs"
-        case .fusedPanel: "Fused Panel (test)"
+        case .fusedPanel: "Fused Panel"
         case .componentStandards: "Component Standards"
         }
     }
@@ -81,8 +79,6 @@ struct ContentView: View {
                 SidebarPreview()
             case .settingListGroup:
                 SettingListGroupPreview()
-            case .playerSettingsPanel:
-                PlayerSettingsPanelPreview()
             case .slider:
                 SliderPreview()
             case .environmentCard:
@@ -92,7 +88,7 @@ struct ContentView: View {
             case .dialogs:
                 DialogsPreview()
             case .fusedPanel:
-                FusedPlayerPanelTestPage()
+                FusedPlayerPanelPreview()
             case .componentStandards:
                 ComponentStandardsPreview()
             }
@@ -104,18 +100,12 @@ struct ContentView: View {
     ContentView()
 }
 
-// MARK: - Fused Player Panel (test)
+// MARK: - Fused Player Panel
 
-/// 阶段 B 试验场:把 PlayerControls / Timeline / PlayerPanel 融合成【一块】会形变的
-/// `glassBackgroundEffect` 壳,带弹性 spring。
-///
-/// 内容直接放进会形变的壳里,用来在 Canvas 上看融合形变。`FusedPlayerPanel` 已是
-/// 唯一窗口播放面板(ADR-0009),`PlayerControlDeck` / `PlaybackSettingsPanel` 已退役。
-struct FusedPlayerPanelTestPage: View {
+struct FusedPlayerPanelPreview: View {
     var body: some View {
         VStack {
             Spacer(minLength: 0)
-            // 自驱状态机:≡ 开关 Setting Panel,双击进度条开/收时间轴。无外部 mode 控制。
             FusedPlayerPanel()
             Spacer(minLength: 0)
         }
@@ -562,13 +552,7 @@ struct DialogsPreview: View {
     }
 }
 
-// MARK: - Connection form (EXPLORATORY)
-
-// EXPLORATORY: 「建立新连接」面板探索稿。验收满意后再决定是否把字段控件
-// (ConnectionFormField) 提升为 SharedComponents 稳定组件、把临时色/形状/尺寸
-// 转成 DesignTokens。在此之前不得复制进 ComponentLibrary / SharedComponents。
-// 范围边界:这是设计审查用 mockup——状态由 mock 状态机驱动,不接真实 AMSMB2 /
-// WebDAV 网络逻辑(真实连接/超时属于未来 FakeApp 阶段)。
+// MARK: - Connection form
 
 /// 连接协议。单组件靠它决定字段集合与地址校验规则。
 enum ConnectionKind: String, CaseIterable, Identifiable {
@@ -680,11 +664,6 @@ struct ConnectionFormField: View {
     }
 }
 
-/// EXPLORATORY: 单组件 + 协议参数 + mock 状态机。SMB / WebDAV 共享外壳与状态区,
-/// 仅字段集合随 `kind` 变化。胶囊按钮;SMB 访客开关在账号密码下方。
-///
-/// 行为是设计审查用的假业务生命周期(点连接 → 3s 等待 → 结果 → 自动关闭),
-/// 不接真实网络;3s 等待 / 正确连接信息均为临时常量,后续删除或迁 FakeApp。
 struct ConnectionFormPanel: View {
     let kind: ConnectionKind
     var onDismiss: () -> Void = {}
@@ -906,9 +885,7 @@ struct ConnectionFormPanel: View {
         }
     }
 
-    // MARK: - Mock 状态机
-    // TODO(FakeApp): 这整套连接状态机(3s 等待 / 正确连接信息 / 自动关闭)仅供
-    // 当前预览,后续整体拆出到 Fake App,本面板回归纯视觉组件。
+    // MARK: - Preview state
 
     /// 点连接:进入 3s 等待,期满后判定结果。
     private func connect() {

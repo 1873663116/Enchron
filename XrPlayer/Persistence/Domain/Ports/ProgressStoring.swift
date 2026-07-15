@@ -5,8 +5,10 @@ public nonisolated protocol ProgressStoring: Sendable {
     func loadProgress(for fileID: PersistenceDomain.FileIdentifier) async -> PersistenceDomain.PlaybackProgress?
     func loadRecentlyPlayed(limit: Int) async -> [PersistenceDomain.PlaybackProgress]
     func cleanExpiredProgress(olderThan days: Int) async
+    func clearAllProgress() async
 }
 
 nonisolated extension ProgressStoring {
     public func loadRecentlyPlayed(limit: Int) async -> [PersistenceDomain.PlaybackProgress] { [] }
+    public func clearAllProgress() async {}
 }
