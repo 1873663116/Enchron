@@ -9,6 +9,63 @@ import Testing
     #expect(PlaybackRoute.ffmpegCompressed.rendererInputKind == .compressed)
 }
 
+@MainActor
+@Test func productControllerDefaultsToTheFFmpegProvider() {
+    #expect(PlaybackCoreController().selectedRoute == .ffmpegCompressed)
+}
+
+@Test func ffmpegSourceLocatorPreservesRemoteSchemeHostAndCredentials() throws {
+    let remote = try #require(URL(string: "http://user:pass@example.test:5244/dav/video.mkv"))
+    #expect(
+        FFmpegSourceLocator.argument(for: remote)
+            == "http://user:pass@example.test:5244/dav/video.mkv"
+    )
+
+    let local = URL(fileURLWithPath: "/tmp/video.mkv")
+    #expect(FFmpegSourceLocator.argument(for: local) == "/tmp/video.mkv")
+}
+
+@MainActor
+@Test func productOpenUsesTheDemuxProviderForURLSources() async throws {
+    let controller = PlaybackCoreController { route, sessionID in
+        SampleBufferPlaybackSession(
+            route: route,
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(route: route, events: [.end]),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+
+    let localSession = try await controller.open(URL(fileURLWithPath: "/fixtures/movie.mkv"))
+
+    #expect(localSession.route == .ffmpegCompressed)
+    await controller.closeAndWait()
+
+    let remoteURL = try #require(URL(string: "https://example.test/media/movie.mkv"))
+    let remoteSession = try await controller.open(remoteURL)
+
+    #expect(remoteSession.route == .ffmpegCompressed)
+    await controller.closeAndWait()
+}
+
+@MainActor
+@Test func productOpenKeepsSuppliedAVAssetsOnTheFFmpegProvider() async throws {
+    let controller = PlaybackCoreController { route, sessionID in
+        SampleBufferPlaybackSession(
+            route: route,
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(route: route, events: [.end]),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    let url = URL(fileURLWithPath: "/fixtures/photos-video.mov")
+
+    let session = try await controller.open(url, asset: PlaybackAsset(AVURLAsset(url: url)))
+
+    #expect(session.route == .ffmpegCompressed)
+    await controller.closeAndWait()
+}
+
 @Test func projectionFieldsRemainBackwardCompatibleWithDebugSnapshotV1() throws {
     let current = VideoFormatSignalingSummary(provenance: "test")
     let encoded = try JSONEncoder().encode(current)
@@ -411,6 +468,7 @@ import Testing
     let first = try await controller.open(source, route: .appleCompressed)
 
     controller.close(clearSource: false)
+    try await waitForFlushCount(1, in: sink)
     #expect(sink.flushCount == 1)
     let didFinishSecondOpen = LockedBox(false)
     let (secondOpenStarted, secondOpenStartedContinuation) = AsyncStream.makeStream(of: Void.self)
@@ -673,7 +731,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         platform: "macOS",
         attached: true
     )
-    try first.selectAudioTrack(streamIndex: 2)
+    try await first.selectAudioTrack(streamIndex: 2)
     try first.setVolume(0.35)
     first.setMuted(true)
 
@@ -792,6 +850,8 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
             #expect(snapshot.lastRendererInput?.timelineConfiguredBeforeFirstEnqueue == true)
             #expect(snapshot.lastRendererInput?.outcome == .accepted)
             #expect(sink.enqueuedSampleCount == 1)
+            #expect(sink.renderingEventObservationCount == 1)
+            #expect(!sink.startedRenderingEventObservationBeforeFirstEnqueue)
             try expectCompressedH264Contract(try #require(sink.lastEnqueuedSample))
             return
         }
@@ -800,6 +860,129 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     Issue.record(
         "Provider sample did not reach renderer input coordination: \(session.debugSnapshot())"
     )
+}
+
+@Test func zeroRequestedStartOwnsTimelineWhenFirstVideoSampleStartsLater() async throws {
+    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 0.021)
+    let session = SampleBufferPlaybackSession(
+        route: .ffmpegCompressed,
+        traceID: "offset-first-video-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    let eventStream = session.debugEvents()
+    let targetEvent = Task<PlaybackDebugEvent?, Never> {
+        for await event in eventStream where event.kind == "timeline.targetApplied" {
+            return event
+        }
+        return nil
+    }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/offset-first-video.mkv"),
+        startTime: .zero
+    )
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    let event = try #require(await targetEvent.value)
+    #expect(event.details["time"] == "0.0")
+}
+
+@Test func decoderPrerollBootstrapsBeforeReceiverBackpressure() async throws {
+    let firstSample = try makeCompressedH264Sample(
+        presentationTimeSeconds: 0.021,
+        decodeTimeSeconds: -0.066,
+        durationSeconds: 1.0 / 30.0
+    )
+    let secondSample = try makeCompressedH264Sample(
+        presentationTimeSeconds: 0.054,
+        decodeTimeSeconds: -0.033,
+        durationSeconds: 1.0 / 30.0
+    )
+    let thirdSample = try makeCompressedH264Sample(
+        presentationTimeSeconds: 0.087,
+        decodeTimeSeconds: 0,
+        durationSeconds: 1.0 / 30.0
+    )
+    let fourthSample = try makeCompressedH264Sample(
+        presentationTimeSeconds: 0.120,
+        decodeTimeSeconds: 0.033,
+        durationSeconds: 1.0 / 30.0
+    )
+    let sink = FakeRendererInputSink(automaticallyRunsRequests: false)
+    let session = SampleBufferPlaybackSession(
+        route: .ffmpegCompressed,
+        traceID: "first-video-preroll-session",
+        provider: FakeVideoSampleProvider(
+            events: [
+                .sample(firstSample),
+                .sample(secondSample),
+                .sample(thirdSample),
+                .sample(fourthSample),
+                .end,
+            ]
+        ),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/delayed-video.mkv"))
+    try session.start()
+    try await waitForPendingRequestCount(1, in: sink)
+
+    #expect(sink.enqueuedSampleCount == 3)
+    #expect(sink.immediateEnqueueCount == 3)
+    #expect(session.synchronizer.rate == 1)
+    sink.runNextPendingRequest()
+    try await waitForSampleCount(4, in: session)
+    #expect(sink.immediateEnqueueCount == 3)
+}
+
+@Test func markerOnlySampleDoesNotBlockFollowingVideoSample() async throws {
+    let marker = try makeMarkerOnlySample(presentationTimeSeconds: 1.0 / 15.0)
+    let video = try makeCompressedH264Sample(presentationTimeSeconds: 1.0 / 15.0)
+    let sink = FakeRendererInputSink()
+    let session = SampleBufferPlaybackSession(
+        route: .appleCompressed,
+        traceID: "marker-then-video-session",
+        provider: FakeVideoSampleProvider(
+            route: .appleCompressed,
+            events: [.sample(marker), .sample(video), .end]
+        ),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/marker-then-video.mp4"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    #expect(session.debugSnapshot().sampleCount == 1)
+    #expect(sink.enqueuedSampleCount == 1)
+}
+
+@Test func appleProviderCopyOwnsCompressedBytesAcrossAsyncHandoff() throws {
+    let source = try makeCompressedH264Sample(
+        presentationTimeSeconds: 1.25,
+        durationSeconds: 1.0 / 24.0
+    )
+    let copy = try AppleCompressedSampleProvider.independentCopy(of: source)
+    let sourceData = try #require(CMSampleBufferGetDataBuffer(source))
+    let copiedData = try #require(CMSampleBufferGetDataBuffer(copy))
+
+    #expect(sourceData !== copiedData)
+    #expect(CMBlockBufferGetDataLength(sourceData) == CMBlockBufferGetDataLength(copiedData))
+    #expect(CMSampleBufferGetPresentationTimeStamp(copy) == CMSampleBufferGetPresentationTimeStamp(source))
+
+    let length = CMBlockBufferGetDataLength(sourceData)
+    var sourceBytes = [UInt8](repeating: 0, count: length)
+    var copiedBytes = [UInt8](repeating: 0, count: length)
+    #expect(CMBlockBufferCopyDataBytes(sourceData, atOffset: 0, dataLength: length, destination: &sourceBytes) == noErr)
+    #expect(CMBlockBufferCopyDataBytes(copiedData, atOffset: 0, dataLength: length, destination: &copiedBytes) == noErr)
+    #expect(sourceBytes == copiedBytes)
 }
 
 @Test func invalidRateIsRejectedAndRecorded() async throws {
@@ -1052,7 +1235,7 @@ func stereoOverrideBeforeFirstSampleKeepsInitialRevision(route: PlaybackRoute) a
 
 @Test(arguments: PlaybackRoute.allCases)
 func liveStereoOverrideUsesSharedSeamWithoutChangingTimeline(route: PlaybackRoute) async throws {
-    let sample = try makeCompressedH264Sample()
+    let sample = try makeCompressedH264Sample(durationSeconds: 30)
     let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
     let session = SampleBufferPlaybackSession(
         route: route,
@@ -1223,25 +1406,29 @@ func panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeli
 
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/stereo.mov"))
     try session.start()
-    try await waitForPendingRequestCount(1, in: sink)
-    sink.runNextPendingRequest()
     try await waitForSampleCount(1, in: session)
+    try await waitForPendingRequestCount(1, in: sink)
 
+    let explicitCancellationCount = sink.cancelledRequestCount
     let explicitMono = Task {
         try await session.setStereoLayout(.mono)
     }
+    try await waitForCancelledRequestCount(explicitCancellationCount + 1, in: sink)
     try await waitForPendingRequestCount(1, in: sink)
     sink.runNextPendingRequest()
     _ = try await explicitMono.value
     let explicitSnapshot = session.debugSnapshot()
     #expect(explicitSnapshot.lastVideoSample?.formatSignaling.viewPackingKind.value == nil)
+    try await waitForPendingRequestCount(1, in: sink)
 
     let didFinishClear = LockedBox(false)
+    let clearCancellationCount = sink.cancelledRequestCount
     let clear = Task {
         let revision = try await session.clearStereoLayoutOverride()
         didFinishClear.withLock { $0 = true }
         return revision
     }
+    try await waitForCancelledRequestCount(clearCancellationCount + 1, in: sink)
     try await waitForPendingRequestCount(1, in: sink)
 
     #expect(!didFinishClear.withLock { $0 })
@@ -1270,7 +1457,7 @@ enum StereoProviderReset: CaseIterable {
 }
 
 @Test(arguments: StereoProviderReset.allCases)
-func stereoOverrideWaitsAcrossProviderResetWithoutOwningItsFlush(
+func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     reset: StereoProviderReset
 ) async throws {
     let sample = try makeCompressedH264Sample()
@@ -1294,39 +1481,45 @@ func stereoOverrideWaitsAcrossProviderResetWithoutOwningItsFlush(
 
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/stereo.mov"))
     try session.start()
-    try await waitForPendingRequestCount(1, in: sink)
-    sink.runNextPendingRequest()
     try await waitForSampleCount(1, in: session)
     let baseline = session.debugSnapshot()
+    let initialStreamEpoch = try #require(baseline.lastVideoSample?.streamEpoch)
+    let initialFormatRevision = try #require(baseline.lastVideoSample?.formatRevision)
+    try await waitForFlushCount(1, in: sink)
+
+    #expect(sink.flushCount == 1)
+    switch reset {
+    case .formatChanged:
+        #expect(session.debugSnapshot().streamEpoch == initialStreamEpoch)
+    case .flush:
+        #expect(session.debugSnapshot().streamEpoch == initialStreamEpoch + 1)
+    }
+
+    sink.completePendingFlushes()
+    try await waitForPendingRequestCount(1, in: sink)
 
     let didFinishStereo = LockedBox(false)
+    let didStartStereo = LockedBox(false)
+    let observerID = session.debugStore.addEventObserver { event in
+        if event.kind == "control.stereo.started" {
+            didStartStereo.withLock { $0 = true }
+        }
+    }
+    defer { session.debugStore.removeEventObserver(observerID) }
     let stereo = Task {
         let revision = try await session.setStereoLayout(.sideBySide)
         didFinishStereo.withLock { $0 = true }
         return revision
     }
-    try await waitForPendingRequestCount(1, in: sink)
-    sink.runNextPendingRequest()
-    try await waitForFlushCount(1, in: sink)
-
-    #expect(!didFinishStereo.withLock { $0 })
-    #expect(sink.pendingRequestCount == 0)
-    #expect(sink.flushCount == 1)
-    switch reset {
-    case .formatChanged:
-        #expect(session.debugSnapshot().streamEpoch == baseline.streamEpoch)
-    case .flush:
-        #expect(session.debugSnapshot().streamEpoch == baseline.streamEpoch + 1)
-    }
-
-    sink.completePendingFlushes()
+    await Task.yield()
+    try await waitForFlag(didStartStereo, description: "stereo command start")
     try await waitForPendingRequestCount(1, in: sink)
     #expect(!didFinishStereo.withLock { $0 })
     sink.runNextPendingRequest()
 
     let acceptedRevision = try await stereo.value
     let final = session.debugSnapshot()
-    let expectedRevision = baseline.formatRevision + (reset == .formatChanged ? 2 : 1)
+    let expectedRevision = initialFormatRevision + (reset == .formatChanged ? 2 : 1)
     #expect(didFinishStereo.withLock { $0 })
     #expect(acceptedRevision == expectedRevision)
     #expect(final.lastVideoSample?.formatRevision == acceptedRevision)
@@ -1335,7 +1528,7 @@ func stereoOverrideWaitsAcrossProviderResetWithoutOwningItsFlush(
         final.lastVideoSample?.formatSignaling.viewPackingKind.value
             == kCMFormatDescriptionViewPackingKind_SideBySide as String
     )
-    #expect(final.streamEpoch == baseline.streamEpoch + (reset == .flush ? 1 : 0))
+    #expect(final.streamEpoch == initialStreamEpoch + (reset == .flush ? 1 : 0))
     #expect(sink.flushCount == 1)
 }
 
@@ -1370,14 +1563,23 @@ func stereoOverrideWaitsAcrossProviderResetWithoutOwningItsFlush(
     try controller.start()
     try await waitForPendingRequestCount(1, in: firstSink)
     firstSink.runNextPendingRequest()
-    try await waitForSampleCount(1, in: first)
+    try await waitForSampleCount(2, in: first)
+    try await waitForPendingRequestCount(1, in: firstSink)
 
     let didFinishOldCommand = LockedBox(false)
+    let didStartOldCommand = LockedBox(false)
+    let observerID = first.debugStore.addEventObserver { event in
+        if event.kind == "control.stereo.started" {
+            didStartOldCommand.withLock { $0 = true }
+        }
+    }
+    defer { first.debugStore.removeEventObserver(observerID) }
     let oldCommand = Task { @MainActor in
         defer { didFinishOldCommand.withLock { $0 = true } }
         return try await controller.setStereoLayout(.sideBySide)
     }
-    try await waitForPendingRequestCount(1, in: firstSink)
+    await Task.yield()
+    try await waitForFlag(didStartOldCommand, description: "old stereo command start")
     #expect(!didFinishOldCommand.withLock { $0 })
 
     controller.close(clearSource: false)
@@ -1447,7 +1649,7 @@ func stereoOverrideWaitsAcrossProviderResetWithoutOwningItsFlush(
     #expect(audio.preparedStreamIndices == [nil])
     let videoEpochBeforeSelection = session.debugSnapshot().streamEpoch
 
-    try session.selectAudioTrack(streamIndex: 2)
+    try await session.selectAudioTrack(streamIndex: 2)
     try session.setVolume(0.35)
     session.setMuted(true)
 
@@ -1547,6 +1749,47 @@ func stereoOverrideWaitsAcrossProviderResetWithoutOwningItsFlush(
     #expect(state.muted)
 }
 
+@Test func firstAudioEnqueueEventPersistsTheUpdatedRendererState() async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 5)
+    let audioSample = try makeAudioSample(durationSeconds: 5)
+    let session = SampleBufferPlaybackSession(
+        route: .ffmpegCompressed,
+        traceID: "first-audio-enqueue-snapshot",
+        provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
+        audioProvider: FakeAudioSampleProvider(
+            sampleAfterPrepare: audioSample,
+            repeatsSample: true
+        ),
+        rendererSink: FakeRendererInputSink(automaticallyRunsRequests: false)
+    )
+    let recorder = PlaybackDebugRecorder(session: session, platform: "macOS")
+    defer {
+        recorder.stop()
+        session.close()
+        try? FileManager.default.removeItem(at: recorder.directoryURL)
+    }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-snapshot.mp4"))
+    try session.start()
+    let deadline = ContinuousClock.now + .seconds(2)
+    let decoder = JSONDecoder()
+    decoder.dateDecodingStrategy = .iso8601
+    var persisted: PlaybackDebugSnapshotV1?
+    while ContinuousClock.now < deadline {
+        if let data = try? Data(contentsOf: recorder.snapshotURL),
+           let snapshot = try? decoder.decode(PlaybackDebugSnapshotV1.self, from: data),
+           snapshot.audioRendererState?.enqueuedSampleBufferCount == 1 {
+            persisted = snapshot
+            break
+        }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+
+    let capturedSnapshot = try #require(persisted)
+    #expect(capturedSnapshot.audioRendererState?.enqueuedSampleBufferCount == 1)
+    #expect(capturedSnapshot.audioRendererState?.enqueuedAudioFrameCount == 240_000)
+}
+
 @Test func audioOpenFailureIsNotClassifiedByMessageText() async throws {
     let session = SampleBufferPlaybackSession(
         route: .ffmpegCompressed,
@@ -1589,7 +1832,7 @@ func stereoOverrideWaitsAcrossProviderResetWithoutOwningItsFlush(
     try await setRateWhenTimelineIsReady(1.5, in: session)
 
     do {
-        try session.selectAudioTrack(streamIndex: 2)
+        try await session.selectAudioTrack(streamIndex: 2)
         Issue.record("Expected replacement audio track preparation to fail")
     } catch FakeSampleError.audioPrepare {
     } catch {
@@ -1606,7 +1849,7 @@ func stereoOverrideWaitsAcrossProviderResetWithoutOwningItsFlush(
 }
 
 @Test(arguments: [RendererFailureKind.video, .audio])
-func terminalRendererFailureStopsDeliveryAndPublishesFailedOnce(
+func terminalRendererFailurePublishesFailedOnce(
     _ rendererKind: RendererFailureKind
 ) async throws {
     let videoSample = try makeCompressedH264Sample(durationSeconds: 5)
@@ -1632,7 +1875,6 @@ func terminalRendererFailureStopsDeliveryAndPublishesFailedOnce(
     try await waitForSampleCount(1, in: session)
     try await waitForAudioSampleCount(1, in: session)
     try await setRateWhenTimelineIsReady(1, in: session)
-    let stopCountBeforeFailure = sink.stopRequestCount
     let requiresFlush = rendererKind == .video ? true : nil
     let fact = RendererFailureFact(
         rendererKind: rendererKind,
@@ -1659,13 +1901,79 @@ func terminalRendererFailureStopsDeliveryAndPublishesFailedOnce(
     #expect(snapshot.lastFailure?.message == fact.message)
     #expect(snapshot.lastFailure?.requiresFlushToResumeDecoding == requiresFlush)
     #expect(session.synchronizer.rate == 0)
-    #expect(!sink.isReadyForMoreMediaData)
-    #expect(sink.stopRequestCount == stopCountBeforeFailure + 1)
     #expect(statuses.withLock { values in
         values.filter {
             if case .failed = $0 { true } else { false }
         }.count
     } == 1)
+}
+
+@Test func receiverDecodeWarningsAcceptTheVideoSample() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 5)
+    let sink = FakeRendererInputSink(
+        enqueueOutcomes: [.acceptedWithWarnings(["Injected decode warning"])]
+    )
+    let session = SampleBufferPlaybackSession(
+        route: .ffmpegCompressed,
+        traceID: "receiver-warning-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/receiver-warning.mp4"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.lifecycle != .failed)
+    #expect(snapshot.lastFailure == nil)
+    #expect(snapshot.rendererState?.rendererStatus == "readyWithDecodeFailures")
+    #expect(snapshot.rendererState?.rendererError == "Injected decode warning")
+}
+
+@Test func receiverFlushCancellationDoesNotAcceptOrFailTheVideoSample() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 5)
+    let sink = FakeRendererInputSink(enqueueOutcomes: [.cancelledByFlush])
+    let session = SampleBufferPlaybackSession(
+        route: .ffmpegCompressed,
+        traceID: "receiver-flush-cancellation-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/receiver-flush.mp4"))
+    try session.start()
+    try await waitForSinkSampleCount(1, in: sink)
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.sampleCount == 0)
+    #expect(snapshot.lifecycle != .failed)
+    #expect(snapshot.lastFailure == nil)
+}
+
+@Test func receiverRequiresFlushPublishesTerminalVideoFailure() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 5)
+    let sink = FakeRendererInputSink(
+        enqueueOutcomes: [.requiresFlush("Injected flush requirement")]
+    )
+    let session = SampleBufferPlaybackSession(
+        route: .ffmpegCompressed,
+        traceID: "receiver-requires-flush-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/receiver-requires-flush.mp4"))
+    try session.start()
+    try await waitForLifecycle(.failed, in: session)
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.lastFailure?.rendererKind == RendererFailureKind.video.rawValue)
+    #expect(snapshot.lastFailure?.message == "Injected flush requirement")
+    #expect(snapshot.lastFailure?.requiresFlushToResumeDecoding == true)
 }
 
 @Test(arguments: PlaybackRoute.allCases)
@@ -1769,7 +2077,7 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
         self.readError = readError
     }
 
-    func prepare(url: URL, startTime: CMTime) async throws {
+    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
         if startTime > .zero, let seekPrepareDelay {
             try await Task.sleep(for: seekPrepareDelay)
         }
@@ -1778,7 +2086,7 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
 
     func start() throws { startCount += 1 }
 
-    func copyNextEvent() throws -> VideoSampleProviderEvent {
+    func nextEvent() async throws -> VideoSampleProviderEvent {
         if let readError { throw readError }
         guard index < events.count else { return .end }
         defer { index += 1 }
@@ -1789,34 +2097,33 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
 }
 
 private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendable {
-    private struct PendingRequest {
-        let queue: DispatchQueue
-        let block: @Sendable () -> Void
-    }
-
     private let lock = NSLock()
     private let completesFlushImmediately: Bool
     private let pausesAfterEachEnqueue: Bool
     private let automaticallyRunsRequests: Bool
-    private var ready = true
     private var samples: [CMSampleBuffer] = []
     private var rendererFlushCount = 0
-    private var rendererStopRequestCount = 0
-    private var pendingFlushCompletions: [@Sendable () -> Void] = []
-    private var pendingRequests: [PendingRequest] = []
+    private var pendingFlushContinuations: [CheckedContinuation<Void, Never>] = []
+    private var availableFlushCompletions = 0
+    private var waitingEnqueueCount = 0
+    private var availableEnqueuePermits: Int
+    private var enqueueOutcomes: [RendererEnqueueOutcome]
+    private var cancelledEnqueueCount = 0
+    private var immediateEnqueueCounter = 0
+    private var eventObservationCount = 0
+    private var eventObservationStartedWithoutSample = false
 
     init(
         completesFlushImmediately: Bool = true,
         pausesAfterEachEnqueue: Bool = false,
-        automaticallyRunsRequests: Bool = true
+        automaticallyRunsRequests: Bool = true,
+        enqueueOutcomes: [RendererEnqueueOutcome] = []
     ) {
         self.completesFlushImmediately = completesFlushImmediately
         self.pausesAfterEachEnqueue = pausesAfterEachEnqueue
         self.automaticallyRunsRequests = automaticallyRunsRequests
-    }
-
-    var isReadyForMoreMediaData: Bool {
-        lock.withLock { ready }
+        self.enqueueOutcomes = enqueueOutcomes
+        availableEnqueuePermits = automaticallyRunsRequests && pausesAfterEachEnqueue ? 1 : 0
     }
 
     var recommendedPixelBufferAttributes: [String: Any] {
@@ -1839,69 +2146,121 @@ private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendabl
         lock.withLock { rendererFlushCount }
     }
 
-    var stopRequestCount: Int {
-        lock.withLock { rendererStopRequestCount }
-    }
-
     var pendingRequestCount: Int {
-        lock.withLock { pendingRequests.count }
+        lock.withLock { waitingEnqueueCount }
     }
 
-    func requestMediaDataWhenReady(
-        on queue: DispatchQueue,
-        using block: @escaping @Sendable () -> Void
-    ) {
-        let runsAutomatically = lock.withLock {
-            ready = true
-            if !automaticallyRunsRequests {
-                pendingRequests.append(PendingRequest(queue: queue, block: block))
+    var cancelledRequestCount: Int {
+        lock.withLock { cancelledEnqueueCount }
+    }
+
+    var immediateEnqueueCount: Int {
+        lock.withLock { immediateEnqueueCounter }
+    }
+
+    var renderingEventObservationCount: Int {
+        lock.withLock { eventObservationCount }
+    }
+
+    var startedRenderingEventObservationBeforeFirstEnqueue: Bool {
+        lock.withLock { eventObservationStartedWithoutSample }
+    }
+
+    func enqueueImmediately(
+        _ input: RendererInputSample
+    ) throws -> RendererEnqueueOutcome {
+        lock.withLock {
+            immediateEnqueueCounter += 1
+            samples.append(input.sampleBuffer)
+            guard !enqueueOutcomes.isEmpty else { return .accepted }
+            return enqueueOutcomes.removeFirst()
+        }
+    }
+
+    func enqueue(
+        _ input: RendererInputSample
+    ) async throws -> RendererEnqueueOutcome {
+        let sample = input.sampleBuffer
+        if !automaticallyRunsRequests || pausesAfterEachEnqueue {
+            lock.withLock { waitingEnqueueCount += 1 }
+            defer {
+                lock.withLock {
+                    waitingEnqueueCount -= 1
+                    if Task.isCancelled {
+                        cancelledEnqueueCount += 1
+                    }
+                }
             }
-            return automaticallyRunsRequests
+            while true {
+                try Task.checkCancellation()
+                let acquiredPermit = lock.withLock {
+                    guard availableEnqueuePermits > 0 else { return false }
+                    availableEnqueuePermits -= 1
+                    return true
+                }
+                if acquiredPermit { break }
+                if automaticallyRunsRequests {
+                    try await Task.sleep(for: .milliseconds(25))
+                    lock.withLock { availableEnqueuePermits += 1 }
+                } else {
+                    try await Task.sleep(for: .milliseconds(1))
+                }
+            }
         }
-        if runsAutomatically { queue.async(execute: block) }
-    }
-
-    func stopRequestingMediaData() {
-        lock.withLock {
-            ready = false
-            rendererStopRequestCount += 1
-        }
-    }
-
-    func enqueue(_ sample: CMSampleBuffer) {
-        lock.withLock {
+        return lock.withLock {
             samples.append(sample)
-            if pausesAfterEachEnqueue { ready = false }
+            guard !enqueueOutcomes.isEmpty else { return .accepted }
+            return enqueueOutcomes.removeFirst()
         }
     }
 
-    func flush(removingDisplayedImage: Bool, completion: @escaping @Sendable () -> Void) {
-        let completesImmediately = lock.withLock {
+    func flush(removingDisplayedImage: Bool) async {
+        let waitsForCompletion = lock.withLock {
             samples.removeAll()
             rendererFlushCount += 1
-            if !completesFlushImmediately {
-                pendingFlushCompletions.append(completion)
-            }
-            return completesFlushImmediately
+            return !completesFlushImmediately
         }
-        if completesImmediately { completion() }
+        guard waitsForCompletion else { return }
+        await withCheckedContinuation { continuation in
+            let completesImmediately = lock.withLock {
+                guard availableFlushCompletions > 0 else {
+                    pendingFlushContinuations.append(continuation)
+                    return false
+                }
+                availableFlushCompletions -= 1
+                return true
+            }
+            if completesImmediately { continuation.resume() }
+        }
+    }
+
+    func observeRenderingEventsAfterFinishedEnqueuing(
+        handler: @escaping @Sendable (RendererInputEventFact) -> Void
+    ) {
+        lock.withLock {
+            eventObservationCount += 1
+            if samples.isEmpty {
+                eventObservationStartedWithoutSample = true
+            }
+        }
     }
 
     func completePendingFlushes() {
-        let completions = lock.withLock {
-            let result = pendingFlushCompletions
-            pendingFlushCompletions.removeAll()
-            return result
+        let continuations: [CheckedContinuation<Void, Never>] = lock.withLock {
+            guard !pendingFlushContinuations.isEmpty else {
+                availableFlushCompletions += 1
+                return []
+            }
+            let continuations = pendingFlushContinuations
+            pendingFlushContinuations.removeAll()
+            return continuations
         }
-        completions.forEach { $0() }
+        continuations.forEach { $0.resume() }
     }
 
     func runNextPendingRequest() {
-        let request = lock.withLock {
-            pendingRequests.isEmpty ? nil : pendingRequests.removeFirst()
-        }
-        if let request {
-            request.queue.async(execute: request.block)
+        lock.withLock {
+            availableEnqueuePermits += 1
         }
     }
 }
@@ -1929,17 +2288,20 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
     private(set) var preparedStreamIndices: [Int?] = []
     private let failingStreamIndex: Int?
     private let sampleAfterPrepare: CMSampleBuffer?
+    private let repeatsSample: Bool
     private var nextSample: CMSampleBuffer?
 
     init(
         failingStreamIndex: Int? = nil,
-        sampleAfterPrepare: CMSampleBuffer? = nil
+        sampleAfterPrepare: CMSampleBuffer? = nil,
+        repeatsSample: Bool = false
     ) {
         self.failingStreamIndex = failingStreamIndex
         self.sampleAfterPrepare = sampleAfterPrepare
+        self.repeatsSample = repeatsSample
     }
 
-    func tracks(in url: URL) -> [PlaybackAudioTrack] {
+    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
         [
             PlaybackAudioTrack(
                 streamIndex: 1, codecName: "aac", sampleRate: 48_000,
@@ -1952,7 +2314,12 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
         ]
     }
 
-    func prepare(url: URL, startTime: CMTime, streamIndex: Int?) throws {
+    func prepare(
+        url: URL,
+        asset: PlaybackAsset?,
+        startTime: CMTime,
+        streamIndex: Int?
+    ) async throws {
         preparedStreamIndices.append(streamIndex)
         let selected = streamIndex ?? 1
         if selected == failingStreamIndex {
@@ -1965,9 +2332,10 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
         nextSample = sampleAfterPrepare
     }
 
-    func copyNextSample() throws -> CMSampleBuffer? {
-        defer { nextSample = nil }
-        return nextSample
+    func copyNextSample() async throws -> CMSampleBuffer? {
+        let sample = nextSample
+        if !repeatsSample { nextSample = nil }
+        return sample
     }
 
     func cancel() {
@@ -1979,7 +2347,7 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
 private final class FailingAudioOpenProvider: AudioSampleProvider {
     var info: AudioSampleProviderInfo? { nil }
 
-    func tracks(in url: URL) -> [PlaybackAudioTrack] {
+    func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
         [
             PlaybackAudioTrack(
                 streamIndex: 1, codecName: "aac", sampleRate: 0,
@@ -1988,11 +2356,16 @@ private final class FailingAudioOpenProvider: AudioSampleProvider {
         ]
     }
 
-    func prepare(url: URL, startTime: CMTime, streamIndex: Int?) throws {
+    func prepare(
+        url: URL,
+        asset: PlaybackAsset?,
+        startTime: CMTime,
+        streamIndex: Int?
+    ) async throws {
         throw MisleadingAudioOpenError.failed
     }
 
-    func copyNextSample() throws -> CMSampleBuffer? { nil }
+    func copyNextSample() async throws -> CMSampleBuffer? { nil }
     func cancel() {}
 }
 
@@ -2006,6 +2379,7 @@ private enum MisleadingAudioOpenError: LocalizedError {
 
 private func makeCompressedH264Sample(
     presentationTimeSeconds: Double = 0,
+    decodeTimeSeconds: Double? = nil,
     durationSeconds: Double = 1.0 / 30.0,
     projectionKind: CFString? = nil
 ) throws -> CMSampleBuffer {
@@ -2102,7 +2476,10 @@ private func makeCompressedH264Sample(
     var timing = CMSampleTimingInfo(
         duration: CMTime(seconds: durationSeconds, preferredTimescale: 60_000),
         presentationTimeStamp: timestamp,
-        decodeTimeStamp: timestamp
+        decodeTimeStamp: CMTime(
+            seconds: decodeTimeSeconds ?? presentationTimeSeconds,
+            preferredTimescale: 600
+        )
     )
     var sampleSize = payload.count
     var sample: CMSampleBuffer?
@@ -2121,6 +2498,30 @@ private func makeCompressedH264Sample(
         throw FakeSampleError.sampleBuffer(status)
     }
     return sample
+}
+
+private func makeMarkerOnlySample(presentationTimeSeconds: Double) throws -> CMSampleBuffer {
+    var marker: CMSampleBuffer?
+    var timing = CMSampleTimingInfo(
+        duration: .invalid,
+        presentationTimeStamp: CMTime(seconds: presentationTimeSeconds, preferredTimescale: 600),
+        decodeTimeStamp: .invalid
+    )
+    let status = CMSampleBufferCreateReady(
+        allocator: kCFAllocatorDefault,
+        dataBuffer: nil,
+        formatDescription: nil,
+        sampleCount: 0,
+        sampleTimingEntryCount: 1,
+        sampleTimingArray: &timing,
+        sampleSizeEntryCount: 0,
+        sampleSizeArray: nil,
+        sampleBufferOut: &marker
+    )
+    guard status == noErr, let marker else {
+        throw FakeSampleError.sampleBuffer(status)
+    }
+    return marker
 }
 
 private func expectCompressedH264Contract(_ sample: CMSampleBuffer) throws {
@@ -2232,6 +2633,30 @@ private func waitForSampleCount(
     Issue.record("Timed out waiting for sample count \(count)")
 }
 
+private func waitForSinkSampleCount(
+    _ count: Int,
+    in sink: FakeRendererInputSink
+) async throws {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline {
+        if sink.enqueuedSampleCount >= count { return }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    Issue.record("Timed out waiting for renderer sink sample count \(count)")
+}
+
+private func waitForLifecycle(
+    _ lifecycle: PlaybackLifecycle,
+    in session: SampleBufferPlaybackSession
+) async throws {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline {
+        if session.debugSnapshot().lifecycle == lifecycle { return }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    Issue.record("Timed out waiting for lifecycle \(lifecycle.rawValue)")
+}
+
 private func waitForPendingRequestCount(
     _ count: Int,
     in sink: FakeRendererInputSink
@@ -2244,6 +2669,18 @@ private func waitForPendingRequestCount(
     Issue.record("Timed out waiting for pending renderer request count \(count)")
 }
 
+private func waitForCancelledRequestCount(
+    _ count: Int,
+    in sink: FakeRendererInputSink
+) async throws {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline {
+        if sink.cancelledRequestCount >= count { return }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    Issue.record("Timed out waiting for cancelled renderer request count \(count)")
+}
+
 private func waitForFlushCount(
     _ count: Int,
     in sink: FakeRendererInputSink
@@ -2254,6 +2691,18 @@ private func waitForFlushCount(
         try await Task.sleep(for: .milliseconds(10))
     }
     Issue.record("Timed out waiting for renderer flush count \(count)")
+}
+
+private func waitForFlag(
+    _ flag: LockedBox<Bool>,
+    description: String
+) async throws {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline {
+        if flag.withLock({ $0 }) { return }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    Issue.record("Timed out waiting for \(description)")
 }
 
 private func waitForAudioSampleCount(

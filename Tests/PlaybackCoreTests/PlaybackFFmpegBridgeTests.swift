@@ -1,3 +1,4 @@
+import AudioToolbox
 import CoreMedia
 import Foundation
 import PlaybackFFmpegBridge
@@ -31,7 +32,7 @@ import Testing
     #expect(message == "Audio stream parameters are unavailable after extended probe")
 }
 
-@Test func delayedAudioParametersProduceLinearPCMSample() throws {
+@Test func delayedAudioParametersProduceCompressedAACSample() throws {
     silenceFFmpegDiagnostics()
     let fixture = try delayedAACTransportStream()
     defer { try? FileManager.default.removeItem(at: fixture) }
@@ -49,12 +50,20 @@ import Testing
         &error,
         error.count
     )
+    let message = String(
+        decoding: error.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
+        as: UTF8.self
+    )
+    #expect(result == PBFFmpegReadResultSample, Comment(rawValue: message))
     let buffer = try #require(sample?.takeRetainedValue())
 
-    #expect(result == PBFFmpegReadResultSample)
     #expect(PBFFmpegAudioReaderGetSampleRate(activeReader) == 48_000)
     #expect(PBFFmpegAudioReaderGetChannelCount(activeReader) == 1)
     #expect(CMSampleBufferGetNumSamples(buffer) > 0)
+    let format = try #require(CMSampleBufferGetFormatDescription(buffer))
+    let streamDescription = try #require(CMAudioFormatDescriptionGetStreamBasicDescription(format))
+    #expect(streamDescription.pointee.mFormatID == kAudioFormatMPEG4AAC)
+    #expect(streamDescription.pointee.mFormatID != kAudioFormatLinearPCM)
 }
 
 private func delayedAACTransportStream(includeAudioPackets: Bool = true) throws -> URL {

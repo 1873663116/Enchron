@@ -45,12 +45,16 @@ private struct HDRBoundaryProbe {
             kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr10BiPlanarVideoRange
         ]
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: settings)
-        output.alwaysCopiesSampleData = false
-        guard reader.canAdd(output) else { throw ProbeError.cannotAddOutput }
-        reader.add(output)
-        guard reader.startReading(), let sourceSample = output.copyNextSampleBuffer(),
-              let source = CMSampleBufferGetImageBuffer(sourceSample) else {
-            throw reader.error ?? ProbeError.cannotReadFrame
+        let outputProvider = reader.outputProvider(for: output)
+        try reader.start()
+        guard let readySample = try await outputProvider.next() else {
+            throw ProbeError.cannotReadFrame
+        }
+        let sourceSample = try readySample.withUnsafeSampleBuffer {
+            try CMSampleBuffer(copying: $0)
+        }
+        guard let source = CMSampleBufferGetImageBuffer(sourceSample) else {
+            throw ProbeError.cannotReadFrame
         }
 
         let displayLayer = AVSampleBufferDisplayLayer()
@@ -64,7 +68,7 @@ private struct HDRBoundaryProbe {
         let sourceSummary = try bufferSummary(source)
         let destinationSummary = try bufferSummary(destination)
         let rebuiltSummary = try sampleSummary(renderSample, destination: destination)
-        let renderedSummary = try rendererSummary(renderer: renderer, sample: renderSample)
+        let renderedSummary = try await rendererSummary(renderer: renderer, sample: renderSample)
 
         var failures: [String] = []
         if sourceSummary["planeSHA256"] as? [String] != destinationSummary["planeSHA256"] as? [String] {
@@ -187,23 +191,40 @@ private struct HDRBoundaryProbe {
     private static func rendererSummary(
         renderer: AVSampleBufferVideoRenderer,
         sample: CMSampleBuffer
-    ) throws -> [String: Any] {
+    ) async throws -> [String: Any] {
         let synchronizer = AVSampleBufferRenderSynchronizer()
-        synchronizer.addRenderer(renderer)
-        renderer.enqueue(sample)
+        let receiver = synchronizer.sampleBufferReceiver(adding: renderer)
         synchronizer.setRate(0, time: CMSampleBufferGetPresentationTimeStamp(sample))
+        let readySample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
+            unsafeBuffer: sample
+        )
+        let enqueueResult = try await receiver.enqueue(readySample)
+        let enqueueSummary: String
+        switch enqueueResult {
+        case .enqueued:
+            enqueueSummary = "enqueued"
+        case .enqueuedWithDecodeFailures(let errors):
+            enqueueSummary = errors.map(\.localizedDescription).joined(separator: " | ")
+        case .cancelledDueToFlush:
+            throw ProbeError.rendererCancelled
+        case .cancelledDueToFlushRequiredToResume(let error):
+            throw error ?? ProbeError.rendererRequiresFlush
+        case .cancelledDueToError(let error):
+            throw error
+        @unknown default:
+            throw ProbeError.rendererFailed
+        }
 
         let deadline = Date().addingTimeInterval(2)
         var displayed: CVPixelBuffer?
         while Date() < deadline, displayed == nil {
             displayed = renderer.displayedPixelBuffer()
-            RunLoop.current.run(until: Date().addingTimeInterval(0.01))
+            try await Task.sleep(for: .milliseconds(10))
         }
         synchronizer.rate = 0
 
         var result: [String: Any] = [
-            "status": String(describing: renderer.status),
-            "error": renderer.error?.localizedDescription ?? "none"
+            "enqueueResult": enqueueSummary
         ]
         if let displayed {
             result["displayedPixelBuffer"] = try bufferSummary(displayed)
@@ -393,8 +414,10 @@ RunLoop.main.run()
 
 private enum ProbeError: LocalizedError {
     case noVideoTrack
-    case cannotAddOutput
     case cannotReadFrame
+    case rendererCancelled
+    case rendererRequiresFlush
+    case rendererFailed
     case cannotCreatePool(CVReturn)
     case cannotAllocateBuffer(CVReturn)
     case cannotCreateTransferSession(OSStatus)
@@ -407,8 +430,10 @@ private enum ProbeError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noVideoTrack: "No video track."
-        case .cannotAddOutput: "AVAssetReader rejected the output."
         case .cannotReadFrame: "Could not read the target frame."
+        case .rendererCancelled: "Renderer enqueue was cancelled by a flush."
+        case .rendererRequiresFlush: "Renderer requires a flush before decoding can resume."
+        case .rendererFailed: "Renderer returned an unknown failure."
         case .cannotCreatePool(let status): "Could not create pixel buffer pool: \(status)."
         case .cannotAllocateBuffer(let status): "Could not allocate destination pixel buffer: \(status)."
         case .cannotCreateTransferSession(let status): "Could not create pixel transfer session: \(status)."

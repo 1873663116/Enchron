@@ -6,8 +6,9 @@ public final class PlaybackCoreController {
     public private(set) var activeSession: SampleBufferPlaybackSession?
     public private(set) var status = PlaybackStatus.idle
     public private(set) var diagnostics = PlaybackDiagnostics()
-    public private(set) var selectedRoute = PlaybackRoute.appleCompressed
+    public private(set) var selectedRoute = PlaybackRoute.ffmpegCompressed
     public private(set) var selectedURL: URL?
+    public private(set) var selectedAsset: PlaybackAsset?
     public private(set) var selectedStereoLayout: VideoStereoLayout?
     public private(set) var selectedProjectionOverride: VideoProjectionOverride?
 
@@ -49,6 +50,33 @@ public final class PlaybackCoreController {
     @discardableResult
     public func open(
         _ url: URL,
+        asset: PlaybackAsset? = nil,
+        startTime: CMTime = .zero,
+        startsPaused: Bool = false,
+        initialRate: Float? = nil,
+        initialStereoLayout: VideoStereoLayout? = nil,
+        initialProjectionOverride: VideoProjectionOverride? = nil,
+        provenance: String = "appOpen",
+        accessRequirement: String = "appAdapterManaged"
+    ) async throws -> SampleBufferPlaybackSession {
+        try await open(
+            url,
+            asset: asset,
+            route: Self.providerRoute(for: url, asset: asset),
+            startTime: startTime,
+            startsPaused: startsPaused,
+            initialRate: initialRate,
+            initialStereoLayout: initialStereoLayout,
+            initialProjectionOverride: initialProjectionOverride,
+            provenance: provenance,
+            accessRequirement: accessRequirement
+        )
+    }
+
+    @discardableResult
+    public func open(
+        _ url: URL,
+        asset: PlaybackAsset? = nil,
         route: PlaybackRoute,
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
@@ -90,6 +118,7 @@ public final class PlaybackCoreController {
         }
 
         selectedURL = url
+        selectedAsset = asset
         selectedRoute = route
         setStatus(.loading)
         let session = sessionFactory(route, sessionID)
@@ -129,6 +158,7 @@ public final class PlaybackCoreController {
         do {
             try await session.prepare(
                 url: url,
+                asset: asset,
                 startTime: startTime,
                 startsPaused: startsPaused,
                 initialRate: initialRate,
@@ -304,10 +334,10 @@ public final class PlaybackCoreController {
         activeSession?.availableAudioTracks ?? []
     }
 
-    public func selectAudioTrack(streamIndex: Int) throws {
+    public func selectAudioTrack(streamIndex: Int) async throws {
         guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
         try rejectIfSeekIsInProgress()
-        try activeSession.selectAudioTrack(streamIndex: streamIndex)
+        try await activeSession.selectAudioTrack(streamIndex: streamIndex)
     }
 
     public func seek(to time: CMTime, startsPaused: Bool? = nil) async throws {
@@ -375,6 +405,7 @@ public final class PlaybackCoreController {
         await closeAndWait(clearSource: false)
         let session = try await open(
             url,
+            asset: selectedAsset,
             route: route,
             startTime: startTime,
             startsPaused: startsPaused,
@@ -388,10 +419,14 @@ public final class PlaybackCoreController {
         session.setMuted(muted)
         if let audioStreamIndex,
            session.availableAudioTracks.contains(where: { $0.streamIndex == audioStreamIndex }) {
-            try session.selectAudioTrack(streamIndex: audioStreamIndex)
+            try await session.selectAudioTrack(streamIndex: audioStreamIndex)
         }
         session.registerPendingRouteSwitch(from: sourceRoute, startedAt: startedAt)
         return session
+    }
+
+    private static func providerRoute(for _: URL, asset _: PlaybackAsset?) -> PlaybackRoute {
+        .ffmpegCompressed
     }
 
     @discardableResult
@@ -407,6 +442,7 @@ public final class PlaybackCoreController {
         await closeAndWait(clearSource: false)
         return try await open(
             url,
+            asset: selectedAsset,
             route: route,
             initialStereoLayout: stereoLayout,
             initialProjectionOverride: projectionOverride,
@@ -418,7 +454,10 @@ public final class PlaybackCoreController {
     public func close(clearSource: Bool = true) {
         failedCleanupTask?.cancel()
         failedCleanupTask = nil
-        if clearSource { selectedURL = nil }
+        if clearSource {
+            selectedURL = nil
+            selectedAsset = nil
+        }
         stereoGeneration &+= 1
         activeStereoTask?.cancel()
         activeStereoTask = nil
@@ -434,7 +473,10 @@ public final class PlaybackCoreController {
     public func closeAndWait(clearSource: Bool = true) async {
         failedCleanupTask?.cancel()
         failedCleanupTask = nil
-        if clearSource { selectedURL = nil }
+        if clearSource {
+            selectedURL = nil
+            selectedAsset = nil
+        }
         stereoGeneration &+= 1
         let closingStereoGeneration = stereoGeneration
         guard let session = activeSession else {

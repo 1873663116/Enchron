@@ -2,13 +2,13 @@
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <libavcodec/avcodec.h>
+#include <libavcodec/bsf.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libavutil/dovi_meta.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/spherical.h>
 #include <libavutil/stereo3d.h>
-#include <libswresample/swresample.h>
 #include <limits.h>
 #include <math.h>
 #include <stdio.h>
@@ -41,24 +41,37 @@ struct PBFFmpegReader {
 
 struct PBFFmpegAudioReader {
     AVFormatContext *formatContext;
-    AVCodecContext *codecContext;
     AVPacket *packet;
-    AVFrame *frame;
-    SwrContext *resampler;
+    AVPacket *filteredPacket;
+    AVBSFContext *bitstreamFilter;
     int audioStreamIndex;
     AVRational timeBase;
     int64_t startTimestamp;
     int sampleRate;
     int channelCount;
     bool inputEnded;
-    bool decoderDrained;
+    bool filterDrained;
     CMAudioFormatDescriptionRef formatDescription;
     char codecName[64];
 };
 
-static bool audio_stream_is_decodable(const AVStream *stream) {
+static AudioFormatID audio_format_id(enum AVCodecID codecID) {
+    switch (codecID) {
+        case AV_CODEC_ID_AAC: return kAudioFormatMPEG4AAC;
+        case AV_CODEC_ID_AC3: return kAudioFormatAC3;
+        case AV_CODEC_ID_EAC3: return kAudioFormatEnhancedAC3;
+        case AV_CODEC_ID_MP2: return kAudioFormatMPEGLayer2;
+        case AV_CODEC_ID_MP3: return kAudioFormatMPEGLayer3;
+        case AV_CODEC_ID_ALAC: return kAudioFormatAppleLossless;
+        case AV_CODEC_ID_FLAC: return kAudioFormatFLAC;
+        case AV_CODEC_ID_OPUS: return kAudioFormatOpus;
+        default: return 0;
+    }
+}
+
+static bool audio_stream_is_supported(const AVStream *stream) {
     if (!stream || stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) return false;
-    return avcodec_find_decoder(stream->codecpar->codec_id) != NULL &&
+    return audio_format_id(stream->codecpar->codec_id) != 0 &&
         stream->codecpar->sample_rate > 0 &&
         stream->codecpar->ch_layout.nb_channels > 0;
 }
@@ -67,7 +80,7 @@ static void set_error(char *buffer, size_t size, const char *message);
 
 static bool audio_stream_needs_more_probe(const AVStream *stream) {
     if (!stream || stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) return false;
-    return avcodec_find_decoder(stream->codecpar->codec_id) != NULL &&
+    return audio_format_id(stream->codecpar->codec_id) != 0 &&
         (stream->codecpar->sample_rate <= 0 ||
          stream->codecpar->ch_layout.nb_channels <= 0);
 }
@@ -76,9 +89,71 @@ static bool is_audio_stream(const AVStream *stream) {
     return stream && stream->codecpar->codec_type == AVMEDIA_TYPE_AUDIO;
 }
 
-static bool audio_stream_has_decoder(const AVStream *stream) {
+static bool audio_stream_has_supported_codec(const AVStream *stream) {
     return is_audio_stream(stream) &&
-        avcodec_find_decoder(stream->codecpar->codec_id) != NULL;
+        audio_format_id(stream->codecpar->codec_id) != 0;
+}
+
+static const int aac_sample_rates[] = {
+    96000, 88200, 64000, 48000, 44100, 32000, 24000,
+    22050, 16000, 12000, 11025, 8000, 7350,
+};
+
+static bool fill_aac_parameters_from_adts(AVStream *stream, const AVPacket *packet) {
+    if (!stream || !packet || stream->codecpar->codec_id != AV_CODEC_ID_AAC) return false;
+    int searchLimit = packet->size < 64 ? packet->size : 64;
+    for (int offset = 0; offset + 7 <= searchLimit; offset++) {
+        const uint8_t *header = packet->data + offset;
+        if (header[0] != 0xff || (header[1] & 0xf6) != 0xf0) continue;
+        int sampleRateIndex = (header[2] >> 2) & 0x0f;
+        int channelCount = ((header[2] & 0x01) << 2) | ((header[3] >> 6) & 0x03);
+        if (sampleRateIndex >= 13 || channelCount <= 0) continue;
+
+        stream->codecpar->sample_rate = aac_sample_rates[sampleRateIndex];
+        av_channel_layout_uninit(&stream->codecpar->ch_layout);
+        av_channel_layout_default(&stream->codecpar->ch_layout, channelCount);
+        stream->codecpar->profile = (header[2] >> 6) & 0x03;
+        stream->codecpar->frame_size = 1024;
+        return true;
+    }
+    return false;
+}
+
+static void probe_delayed_audio_parameters(AVFormatContext *context) {
+    int unresolved = 0;
+    for (unsigned int index = 0; index < context->nb_streams; index++) {
+        if (audio_stream_needs_more_probe(context->streams[index])) unresolved++;
+    }
+    if (unresolved == 0) return;
+
+    AVPacket *packet = av_packet_alloc();
+    if (!packet) return;
+    int packetCount = 0;
+    int64_t byteCount = 0;
+    while (unresolved > 0 && packetCount < 100000 && byteCount < 100LL * 1024 * 1024) {
+        int result = av_read_frame(context, packet);
+        if (result < 0) break;
+        packetCount++;
+        byteCount += packet->size;
+        if (packet->stream_index >= 0 &&
+            packet->stream_index < (int)context->nb_streams) {
+            AVStream *stream = context->streams[packet->stream_index];
+            if (audio_stream_needs_more_probe(stream) &&
+                fill_aac_parameters_from_adts(stream, packet)) {
+                unresolved--;
+            }
+        }
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+
+    if (context->pb && (context->pb->seekable & AVIO_SEEKABLE_NORMAL)) {
+        if (avformat_seek_file(
+                context, -1, INT64_MIN, 0, INT64_MAX, AVSEEK_FLAG_BACKWARD
+            ) >= 0) {
+            avformat_flush(context);
+        }
+    }
 }
 
 static void set_audio_stream_selection_error(
@@ -87,16 +162,16 @@ static void set_audio_stream_selection_error(
     size_t errorBufferSize
 ) {
     bool hasAudioStream = false;
-    bool hasDecoder = false;
+    bool hasSupportedCodec = false;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         AVStream *stream = context->streams[index];
         hasAudioStream = hasAudioStream || is_audio_stream(stream);
-        hasDecoder = hasDecoder || audio_stream_has_decoder(stream);
+        hasSupportedCodec = hasSupportedCodec || audio_stream_has_supported_codec(stream);
     }
     if (!hasAudioStream) {
         set_error(errorBuffer, errorBufferSize, "The selected source has no audio stream");
-    } else if (!hasDecoder) {
-        set_error(errorBuffer, errorBufferSize, "FFmpeg audio decoder is unavailable for this codec");
+    } else if (!hasSupportedCodec) {
+        set_error(errorBuffer, errorBufferSize, "The selected compressed audio codec is not supported");
     } else {
         set_error(
             errorBuffer,
@@ -157,6 +232,7 @@ static int open_media_source_for_audio(
     }
     context->probesize = 100LL * 1024 * 1024;
     context->max_analyze_duration = 30LL * AV_TIME_BASE;
+    context->max_probe_packets = 100000;
     result = avformat_open_input(&context, path, NULL, NULL);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Reopen audio media source", result);
@@ -169,6 +245,7 @@ static int open_media_source_for_audio(
         avformat_close_input(&context);
         return result;
     }
+    probe_delayed_audio_parameters(context);
     *contextOut = context;
     return 0;
 }
@@ -1143,10 +1220,10 @@ PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
 
     if (preferredStreamIndex >= 0) {
         if (preferredStreamIndex < (int)reader->formatContext->nb_streams &&
-            audio_stream_is_decodable(reader->formatContext->streams[preferredStreamIndex])) {
+            audio_stream_is_supported(reader->formatContext->streams[preferredStreamIndex])) {
             reader->audioStreamIndex = preferredStreamIndex;
         } else {
-            set_error(errorBuffer, errorBufferSize, "The selected audio stream cannot be decoded");
+            set_error(errorBuffer, errorBufferSize, "The selected audio stream cannot be demuxed as a supported compressed format");
             PBFFmpegAudioReaderDestroy(reader);
             return NULL;
         }
@@ -1155,12 +1232,12 @@ PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
             reader->formatContext, AVMEDIA_TYPE_AUDIO, -1, -1, NULL, 0
         );
         if (reader->audioStreamIndex >= 0 &&
-            !audio_stream_is_decodable(reader->formatContext->streams[reader->audioStreamIndex])) {
+            !audio_stream_is_supported(reader->formatContext->streams[reader->audioStreamIndex])) {
             reader->audioStreamIndex = -1;
         }
         if (reader->audioStreamIndex < 0) {
             for (unsigned int index = 0; index < reader->formatContext->nb_streams; index++) {
-                if (audio_stream_is_decodable(reader->formatContext->streams[index])) {
+                if (audio_stream_is_supported(reader->formatContext->streams[index])) {
                     reader->audioStreamIndex = (int)index;
                     break;
                 }
@@ -1178,100 +1255,51 @@ PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
     }
 
     AVStream *stream = reader->formatContext->streams[reader->audioStreamIndex];
-    const AVCodec *codec = avcodec_find_decoder(stream->codecpar->codec_id);
-    if (codec == NULL) {
-        set_error(errorBuffer, errorBufferSize, "FFmpeg audio decoder is unavailable for this codec");
-        PBFFmpegAudioReaderDestroy(reader);
-        return NULL;
-    }
-    reader->codecContext = avcodec_alloc_context3(codec);
-    if (reader->codecContext == NULL) {
-        PBFFmpegAudioReaderDestroy(reader);
-        return NULL;
-    }
-    result = avcodec_parameters_to_context(reader->codecContext, stream->codecpar);
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Copy audio codec parameters", result);
-        PBFFmpegAudioReaderDestroy(reader);
-        return NULL;
-    }
-    result = avcodec_open2(reader->codecContext, codec, NULL);
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Open audio decoder", result);
-        PBFFmpegAudioReaderDestroy(reader);
-        return NULL;
-    }
-
-    reader->sampleRate = reader->codecContext->sample_rate;
-    reader->channelCount = reader->codecContext->ch_layout.nb_channels;
+    reader->sampleRate = stream->codecpar->sample_rate;
+    reader->channelCount = stream->codecpar->ch_layout.nb_channels;
     if (reader->sampleRate <= 0 || reader->channelCount <= 0) {
         set_error(errorBuffer, errorBufferSize, "Audio stream has invalid sample rate or channel layout");
         PBFFmpegAudioReaderDestroy(reader);
         return NULL;
     }
-    AVChannelLayout outputLayout;
-    av_channel_layout_default(&outputLayout, reader->channelCount);
-    result = swr_alloc_set_opts2(
-        &reader->resampler,
-        &outputLayout,
-        AV_SAMPLE_FMT_FLT,
-        reader->sampleRate,
-        &reader->codecContext->ch_layout,
-        reader->codecContext->sample_fmt,
-        reader->codecContext->sample_rate,
-        0,
-        NULL
-    );
-    av_channel_layout_uninit(&outputLayout);
-    if (result < 0 || reader->resampler == NULL) {
-        set_av_error(errorBuffer, errorBufferSize, "Create audio resampler", result);
-        PBFFmpegAudioReaderDestroy(reader);
-        return NULL;
-    }
-    result = swr_init(reader->resampler);
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Initialize audio resampler", result);
-        PBFFmpegAudioReaderDestroy(reader);
-        return NULL;
-    }
-
-    AudioStreamBasicDescription asbd = {
-        .mSampleRate = reader->sampleRate,
-        .mFormatID = kAudioFormatLinearPCM,
-        .mFormatFlags = kAudioFormatFlagIsFloat | kAudioFormatFlagIsPacked,
-        .mBytesPerPacket = (UInt32)(reader->channelCount * sizeof(float)),
-        .mFramesPerPacket = 1,
-        .mBytesPerFrame = (UInt32)(reader->channelCount * sizeof(float)),
-        .mChannelsPerFrame = (UInt32)reader->channelCount,
-        .mBitsPerChannel = 32,
-    };
-    OSStatus status = CMAudioFormatDescriptionCreate(
-        kCFAllocatorDefault,
-        &asbd,
-        0,
-        NULL,
-        0,
-        NULL,
-        NULL,
-        &reader->formatDescription
-    );
-    if (status != noErr) {
-        char message[128];
-        snprintf(message, sizeof(message), "Create audio format description failed (%d)", (int)status);
-        set_error(errorBuffer, errorBufferSize, message);
-        PBFFmpegAudioReaderDestroy(reader);
-        return NULL;
-    }
-
     reader->packet = av_packet_alloc();
-    reader->frame = av_frame_alloc();
+    reader->filteredPacket = av_packet_alloc();
     reader->timeBase = stream->time_base;
     reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
     snprintf(reader->codecName, sizeof(reader->codecName), "%s", avcodec_get_name(stream->codecpar->codec_id));
-    if (reader->packet == NULL || reader->frame == NULL) {
-        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg audio packet/frame");
+    if (reader->packet == NULL || reader->filteredPacket == NULL) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg audio packet");
         PBFFmpegAudioReaderDestroy(reader);
         return NULL;
+    }
+
+    if (stream->codecpar->codec_id == AV_CODEC_ID_AAC) {
+        const AVBitStreamFilter *filter = av_bsf_get_by_name("aac_adtstoasc");
+        if (filter == NULL || av_bsf_alloc(filter, &reader->bitstreamFilter) < 0) {
+            set_error(errorBuffer, errorBufferSize, "Unable to create AAC compressed-audio filter");
+            PBFFmpegAudioReaderDestroy(reader);
+            return NULL;
+        }
+        result = avcodec_parameters_copy(reader->bitstreamFilter->par_in, stream->codecpar);
+        if (result >= 0) {
+            reader->bitstreamFilter->time_base_in = stream->time_base;
+            result = av_bsf_init(reader->bitstreamFilter);
+        }
+        if (result < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Initialize AAC compressed-audio filter", result);
+            PBFFmpegAudioReaderDestroy(reader);
+            return NULL;
+        }
+        if (reader->bitstreamFilter->time_base_out.num > 0 &&
+            reader->bitstreamFilter->time_base_out.den > 0 &&
+            av_cmp_q(reader->timeBase, reader->bitstreamFilter->time_base_out) != 0) {
+            reader->startTimestamp = av_rescale_q(
+                reader->startTimestamp,
+                reader->timeBase,
+                reader->bitstreamFilter->time_base_out
+            );
+            reader->timeBase = reader->bitstreamFilter->time_base_out;
+        }
     }
 
     if (startSeconds > 0) {
@@ -1290,7 +1318,7 @@ PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
             PBFFmpegAudioReaderDestroy(reader);
             return NULL;
         }
-        avcodec_flush_buffers(reader->codecContext);
+        if (reader->bitstreamFilter) av_bsf_flush(reader->bitstreamFilter);
     }
     return reader;
 }
@@ -1298,41 +1326,129 @@ PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
 void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
     if (reader == NULL) return;
     if (reader->formatDescription) CFRelease(reader->formatDescription);
-    swr_free(&reader->resampler);
-    av_frame_free(&reader->frame);
+    av_bsf_free(&reader->bitstreamFilter);
+    av_packet_free(&reader->filteredPacket);
     av_packet_free(&reader->packet);
-    avcodec_free_context(&reader->codecContext);
     avformat_close_input(&reader->formatContext);
     free(reader);
 }
 
+static UInt32 audio_frames_per_packet(const AVCodecParameters *parameters) {
+    if (parameters->frame_size > 0) return (UInt32)parameters->frame_size;
+    switch (parameters->codec_id) {
+        case AV_CODEC_ID_AAC: return 1024;
+        case AV_CODEC_ID_AC3:
+        case AV_CODEC_ID_EAC3: return 1536;
+        case AV_CODEC_ID_MP2:
+        case AV_CODEC_ID_MP3: return 1152;
+        case AV_CODEC_ID_OPUS: return 960;
+        default: return 0;
+    }
+}
+
+static AudioFormatFlags audio_format_flags(const AVCodecParameters *parameters) {
+    if (parameters->codec_id != AV_CODEC_ID_ALAC) return 0;
+    switch (parameters->bits_per_raw_sample) {
+        case 20: return kAppleLosslessFormatFlag_20BitSourceData;
+        case 24: return kAppleLosslessFormatFlag_24BitSourceData;
+        case 32: return kAppleLosslessFormatFlag_32BitSourceData;
+        default: return kAppleLosslessFormatFlag_16BitSourceData;
+    }
+}
+
+static int aac_sample_rate_index(int sampleRate) {
+    for (int index = 0; index < 13; index++) {
+        if (aac_sample_rates[index] == sampleRate) return index;
+    }
+    return -1;
+}
+
+static int ensure_compressed_audio_format(
+    PBFFmpegAudioReader *reader,
+    const AVCodecParameters *parameters,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (reader->formatDescription) return 0;
+    AudioFormatID formatID = audio_format_id(parameters->codec_id);
+    if (formatID == 0) {
+        set_error(errorBuffer, errorBufferSize, "The selected compressed audio codec is not supported");
+        return AVERROR(ENOSYS);
+    }
+    AudioStreamBasicDescription asbd = {
+        .mSampleRate = parameters->sample_rate,
+        .mFormatID = formatID,
+        .mFormatFlags = audio_format_flags(parameters),
+        .mBytesPerPacket = 0,
+        .mFramesPerPacket = audio_frames_per_packet(parameters),
+        .mBytesPerFrame = 0,
+        .mChannelsPerFrame = (UInt32)parameters->ch_layout.nb_channels,
+        .mBitsPerChannel = 0,
+        .mReserved = 0,
+    };
+    uint8_t synthesizedAACCookie[2] = {0};
+    const void *cookie = parameters->extradata_size > 0 ? parameters->extradata : NULL;
+    size_t cookieSize = parameters->extradata_size > 0
+        ? (size_t)parameters->extradata_size
+        : 0;
+    if (parameters->codec_id == AV_CODEC_ID_AAC && cookieSize == 0) {
+        int sampleRateIndex = aac_sample_rate_index(parameters->sample_rate);
+        int channelConfiguration = parameters->ch_layout.nb_channels;
+        int profile = parameters->profile == AV_PROFILE_UNKNOWN
+            ? AV_PROFILE_AAC_LOW
+            : parameters->profile;
+        if (sampleRateIndex < 0 || channelConfiguration < 1 || channelConfiguration > 7 ||
+            profile < AV_PROFILE_AAC_MAIN || profile > AV_PROFILE_AAC_LTP) {
+            set_error(errorBuffer, errorBufferSize, "Compressed AAC codec configuration is unavailable");
+            return AVERROR_INVALIDDATA;
+        }
+        int audioObjectType = profile + 1;
+        synthesizedAACCookie[0] = (uint8_t)((audioObjectType << 3) | (sampleRateIndex >> 1));
+        synthesizedAACCookie[1] = (uint8_t)(((sampleRateIndex & 1) << 7) | (channelConfiguration << 3));
+        cookie = synthesizedAACCookie;
+        cookieSize = sizeof(synthesizedAACCookie);
+    }
+    OSStatus status = CMAudioFormatDescriptionCreate(
+        kCFAllocatorDefault,
+        &asbd,
+        0,
+        NULL,
+        cookieSize,
+        cookie,
+        NULL,
+        &reader->formatDescription
+    );
+    if (status != noErr) {
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Create compressed audio format description failed (%d)",
+            (int)status
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return AVERROR_INVALIDDATA;
+    }
+    return 0;
+}
+
 static PBFFmpegReadResult create_audio_sample(
     PBFFmpegAudioReader *reader,
+    AVPacket *packet,
+    const AVCodecParameters *parameters,
     CMSampleBufferRef *sampleOut,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
-    int outputCapacity = swr_get_out_samples(reader->resampler, reader->frame->nb_samples);
-    size_t byteCount = (size_t)outputCapacity * reader->channelCount * sizeof(float);
-    uint8_t *bytes = malloc(byteCount);
-    if (bytes == NULL) {
-        set_error(errorBuffer, errorBufferSize, "Unable to allocate converted audio buffer");
-        return PBFFmpegReadResultError;
-    }
-    uint8_t *outputPlanes[1] = {bytes};
-    int outputFrames = swr_convert(
-        reader->resampler,
-        outputPlanes,
-        outputCapacity,
-        (const uint8_t **)reader->frame->extended_data,
-        reader->frame->nb_samples
+    int formatResult = ensure_compressed_audio_format(
+        reader, parameters, errorBuffer, errorBufferSize
     );
-    if (outputFrames < 0) {
-        free(bytes);
-        set_av_error(errorBuffer, errorBufferSize, "Convert audio frame", outputFrames);
+    if (formatResult < 0) return PBFFmpegReadResultError;
+    if (packet->size <= 0 || packet->data == NULL) {
+        set_error(errorBuffer, errorBufferSize, "Compressed audio packet is empty");
         return PBFFmpegReadResultError;
     }
-    byteCount = (size_t)outputFrames * reader->channelCount * sizeof(float);
+    size_t byteCount = (size_t)packet->size;
     CMBlockBufferRef block = NULL;
     OSStatus status = CMBlockBufferCreateWithMemoryBlock(
         kCFAllocatorDefault,
@@ -1346,36 +1462,45 @@ static PBFFmpegReadResult create_audio_sample(
         &block
     );
     if (status == noErr) {
-        status = CMBlockBufferReplaceDataBytes(bytes, block, 0, byteCount);
+        status = CMBlockBufferReplaceDataBytes(packet->data, block, 0, byteCount);
     }
-    free(bytes);
+    UInt32 framesPerPacket = audio_frames_per_packet(parameters);
+    CMTime duration = framesPerPacket > 0 && parameters->sample_rate > 0
+        ? CMTimeMake(framesPerPacket, parameters->sample_rate)
+        : cm_time(packet->duration, reader->timeBase);
     CMSampleTimingInfo timing = {
-        .duration = CMTimeMake(1, reader->sampleRate),
+        .duration = duration,
         .presentationTimeStamp = cm_time(
-            reader->frame->best_effort_timestamp == AV_NOPTS_VALUE
+            packet->pts == AV_NOPTS_VALUE
                 ? AV_NOPTS_VALUE
-                : reader->frame->best_effort_timestamp - reader->startTimestamp,
+                : packet->pts - reader->startTimestamp,
             reader->timeBase
         ),
-        .decodeTimeStamp = kCMTimeInvalid,
+        .decodeTimeStamp = cm_time(
+            packet->dts == AV_NOPTS_VALUE
+                ? AV_NOPTS_VALUE
+                : packet->dts - reader->startTimestamp,
+            reader->timeBase
+        ),
     };
+    size_t sampleSize = byteCount;
     if (status == noErr) {
         status = CMSampleBufferCreateReady(
             kCFAllocatorDefault,
             block,
             reader->formatDescription,
-            outputFrames,
+            1,
             1,
             &timing,
-            0,
-            NULL,
+            1,
+            &sampleSize,
             sampleOut
         );
     }
     if (block) CFRelease(block);
     if (status != noErr) {
         char message[128];
-        snprintf(message, sizeof(message), "Create decoded audio CMSampleBuffer failed (%d)", (int)status);
+        snprintf(message, sizeof(message), "Create compressed audio CMSampleBuffer failed (%d)", (int)status);
         set_error(errorBuffer, errorBufferSize, message);
         return PBFFmpegReadResultError;
     }
@@ -1393,50 +1518,68 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
         return PBFFmpegReadResultError;
     }
     *sampleOut = NULL;
+    AVStream *stream = reader->formatContext->streams[reader->audioStreamIndex];
     while (true) {
-        int result = avcodec_receive_frame(reader->codecContext, reader->frame);
-        if (result == 0) {
-            PBFFmpegReadResult readResult = create_audio_sample(
-                reader, sampleOut, errorBuffer, errorBufferSize
-            );
-            av_frame_unref(reader->frame);
-            return readResult;
-        }
-        if (result == AVERROR_EOF) return PBFFmpegReadResultEnd;
-        if (result != AVERROR(EAGAIN)) {
-            set_av_error(errorBuffer, errorBufferSize, "Receive decoded audio frame", result);
-            return PBFFmpegReadResultError;
-        }
-        if (reader->inputEnded) {
-            if (!reader->decoderDrained) {
-                result = avcodec_send_packet(reader->codecContext, NULL);
-                reader->decoderDrained = true;
-                if (result < 0 && result != AVERROR_EOF) {
-                    set_av_error(errorBuffer, errorBufferSize, "Drain audio decoder", result);
-                    return PBFFmpegReadResultError;
-                }
-                continue;
+        if (reader->bitstreamFilter) {
+            int result = av_bsf_receive_packet(reader->bitstreamFilter, reader->filteredPacket);
+            if (result == 0) {
+                PBFFmpegReadResult readResult = create_audio_sample(
+                    reader,
+                    reader->filteredPacket,
+                    reader->bitstreamFilter->par_out,
+                    sampleOut,
+                    errorBuffer,
+                    errorBufferSize
+                );
+                av_packet_unref(reader->filteredPacket);
+                return readResult;
             }
-            return PBFFmpegReadResultEnd;
-        }
-        while (true) {
-            result = av_read_frame(reader->formatContext, reader->packet);
-            if (result < 0) {
-                reader->inputEnded = true;
-                break;
-            }
-            if (reader->packet->stream_index != reader->audioStreamIndex) {
-                av_packet_unref(reader->packet);
-                continue;
-            }
-            result = avcodec_send_packet(reader->codecContext, reader->packet);
-            av_packet_unref(reader->packet);
-            if (result == AVERROR_INVALIDDATA) continue;
-            if (result < 0 && result != AVERROR(EAGAIN)) {
-                set_av_error(errorBuffer, errorBufferSize, "Send packet to audio decoder", result);
+            if (result == AVERROR_EOF) return PBFFmpegReadResultEnd;
+            if (result != AVERROR(EAGAIN)) {
+                set_av_error(errorBuffer, errorBufferSize, "Read filtered compressed audio packet", result);
                 return PBFFmpegReadResultError;
             }
-            break;
+            if (reader->inputEnded) {
+                if (!reader->filterDrained) {
+                    result = av_bsf_send_packet(reader->bitstreamFilter, NULL);
+                    reader->filterDrained = true;
+                    if (result < 0 && result != AVERROR_EOF) {
+                        set_av_error(errorBuffer, errorBufferSize, "Finish compressed audio filter", result);
+                        return PBFFmpegReadResultError;
+                    }
+                    continue;
+                }
+                return PBFFmpegReadResultEnd;
+            }
+        }
+
+        int result = av_read_frame(reader->formatContext, reader->packet);
+        if (result < 0) {
+            reader->inputEnded = true;
+            if (reader->bitstreamFilter) continue;
+            return PBFFmpegReadResultEnd;
+        }
+        if (reader->packet->stream_index != reader->audioStreamIndex) {
+            av_packet_unref(reader->packet);
+            continue;
+        }
+        if (!reader->bitstreamFilter) {
+            PBFFmpegReadResult readResult = create_audio_sample(
+                reader,
+                reader->packet,
+                stream->codecpar,
+                sampleOut,
+                errorBuffer,
+                errorBufferSize
+            );
+            av_packet_unref(reader->packet);
+            return readResult;
+        }
+        result = av_bsf_send_packet(reader->bitstreamFilter, reader->packet);
+        av_packet_unref(reader->packet);
+        if (result < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Filter compressed audio packet", result);
+            return PBFFmpegReadResultError;
         }
     }
 }
@@ -1462,7 +1605,7 @@ int PBFFmpegAudioTrackCount(const char *path) {
     if (!path || open_media_source_for_audio(path, &context, NULL, 0) < 0) return -1;
     int count = 0;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
-        if (audio_stream_is_decodable(context->streams[index])) count++;
+        if (audio_stream_is_supported(context->streams[index])) count++;
     }
     avformat_close_input(&context);
     return count;
@@ -1488,7 +1631,7 @@ bool PBFFmpegAudioTrackCopyInfo(
     int current = 0;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         AVStream *stream = context->streams[index];
-        if (!audio_stream_is_decodable(stream)) continue;
+        if (!audio_stream_is_supported(stream)) continue;
         if (current++ == ordinal) { selected = stream; break; }
     }
     if (!selected) { avformat_close_input(&context); return false; }

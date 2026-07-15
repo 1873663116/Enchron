@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="8.0.1"
+CONFIGURATION_REVISION="network-demux-v1"
 BUILD_ROOT="$ROOT_DIR/.build/ffmpeg"
 ARCHIVE="$BUILD_ROOT/ffmpeg-$VERSION.tar.xz"
 SOURCE="$BUILD_ROOT/ffmpeg-$VERSION"
@@ -25,13 +26,13 @@ build_slice() {
   local sdk="$2"
   local arch="$3"
   local target="$4"
-  local build="$BUILD_ROOT/build-$name"
-  local prefix="$BUILD_ROOT/prefix-$name"
+  local build="$BUILD_ROOT/build-$CONFIGURATION_REVISION-$name"
+  local prefix="$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-$name"
   local sysroot
   sysroot="$(xcrun --sdk "$sdk" --show-sdk-path)"
 
   mkdir -p "$build" "$prefix"
-  if [[ ! -f "$prefix/lib/libswresample.a" ]]; then
+  if [[ ! -f "$prefix/lib/libavformat.a" ]]; then
     (
       cd "$build"
       "$SOURCE/configure" \
@@ -51,13 +52,16 @@ build_slice() {
         --enable-pic \
         --disable-programs \
         --disable-doc \
-        --disable-network \
         --disable-avdevice \
         --disable-avfilter \
+        --disable-decoders \
         --disable-encoders \
+        --disable-hwaccels \
         --disable-muxers \
+        --disable-swresample \
+        --disable-swscale \
         --disable-autodetect \
-        --enable-audiotoolbox
+        --enable-securetransport
       make -j"$(sysctl -n hw.logicalcpu)" install
     )
   fi
@@ -65,31 +69,29 @@ build_slice() {
   /usr/bin/libtool -static -o "$prefix/lib/libPlaybackFFmpeg.a" \
     "$prefix/lib/libavformat.a" \
     "$prefix/lib/libavcodec.a" \
-    "$prefix/lib/libswresample.a" \
-    "$prefix/lib/libswscale.a" \
     "$prefix/lib/libavutil.a"
 }
 
-build_slice macos-arm64 macosx arm64 arm64-apple-macos26.0
-build_slice xros-arm64 xros arm64 arm64-apple-xros26.0
-build_slice xrsimulator-arm64 xrsimulator arm64 arm64-apple-xros26.0-simulator
-build_slice xrsimulator-x86_64 xrsimulator x86_64 x86_64-apple-xros26.0-simulator
+build_slice macos27-arm64 macosx arm64 arm64-apple-macos27.0
+build_slice xros27-arm64 xros arm64 arm64-apple-xros27.0
+build_slice xrsimulator27-arm64 xrsimulator arm64 arm64-apple-xros27.0-simulator
+build_slice xrsimulator27-x86_64 xrsimulator x86_64 x86_64-apple-xros27.0-simulator
 
-SIMULATOR_DIR="$BUILD_ROOT/prefix-xrsimulator-universal"
+SIMULATOR_DIR="$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-xrsimulator27-universal"
 mkdir -p "$SIMULATOR_DIR/lib"
 lipo -create \
-  "$BUILD_ROOT/prefix-xrsimulator-arm64/lib/libPlaybackFFmpeg.a" \
-  "$BUILD_ROOT/prefix-xrsimulator-x86_64/lib/libPlaybackFFmpeg.a" \
+  "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-xrsimulator27-arm64/lib/libPlaybackFFmpeg.a" \
+  "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-xrsimulator27-x86_64/lib/libPlaybackFFmpeg.a" \
   -output "$SIMULATOR_DIR/lib/libPlaybackFFmpeg.a"
 
 rm -rf "$OUTPUT"
 xcodebuild -create-xcframework \
-  -library "$BUILD_ROOT/prefix-macos-arm64/lib/libPlaybackFFmpeg.a" \
-  -headers "$BUILD_ROOT/prefix-macos-arm64/include" \
-  -library "$BUILD_ROOT/prefix-xros-arm64/lib/libPlaybackFFmpeg.a" \
-  -headers "$BUILD_ROOT/prefix-xros-arm64/include" \
+  -library "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-macos27-arm64/lib/libPlaybackFFmpeg.a" \
+  -headers "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-macos27-arm64/include" \
+  -library "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-xros27-arm64/lib/libPlaybackFFmpeg.a" \
+  -headers "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-xros27-arm64/include" \
   -library "$SIMULATOR_DIR/lib/libPlaybackFFmpeg.a" \
-  -headers "$BUILD_ROOT/prefix-xrsimulator-arm64/include" \
+  -headers "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-xrsimulator27-arm64/include" \
   -output "$OUTPUT"
 
 echo "$OUTPUT"

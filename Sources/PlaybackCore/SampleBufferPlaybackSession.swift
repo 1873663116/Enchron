@@ -19,69 +19,6 @@ protocol RendererFailureMonitoring: AnyObject {
     func stop()
 }
 
-private final class AVRendererFailureMonitor: RendererFailureMonitoring, @unchecked Sendable {
-    private let videoRenderer: AVSampleBufferVideoRenderer
-    private let audioRenderer: AVSampleBufferAudioRenderer
-    private let lock = NSLock()
-    private var videoStatusObservation: NSKeyValueObservation?
-    private var audioStatusObservation: NSKeyValueObservation?
-
-    init(
-        videoRenderer: AVSampleBufferVideoRenderer,
-        audioRenderer: AVSampleBufferAudioRenderer
-    ) {
-        self.videoRenderer = videoRenderer
-        self.audioRenderer = audioRenderer
-    }
-
-    func start(handler: @escaping @Sendable (RendererFailureFact) -> Void) {
-        stop()
-        let videoObservation = videoRenderer.observe(\.status, options: [.initial, .new]) {
-            renderer,
-            _ in
-            guard renderer.status == .failed else { return }
-            let error = renderer.error
-            handler(RendererFailureFact(
-                rendererKind: .video,
-                errorType: error.map { String(reflecting: type(of: $0)) }
-                    ?? "AVSampleBufferVideoRenderer",
-                message: error?.localizedDescription
-                    ?? "Video renderer entered failed status.",
-                requiresFlushToResumeDecoding: renderer.requiresFlushToResumeDecoding
-            ))
-        }
-        let audioObservation = audioRenderer.observe(\.status, options: [.initial, .new]) {
-            renderer,
-            _ in
-            guard renderer.status == .failed else { return }
-            let error = renderer.error
-            handler(RendererFailureFact(
-                rendererKind: .audio,
-                errorType: error.map { String(reflecting: type(of: $0)) }
-                    ?? "AVSampleBufferAudioRenderer",
-                message: error?.localizedDescription
-                    ?? "Audio renderer entered failed status.",
-                requiresFlushToResumeDecoding: nil
-            ))
-        }
-        lock.withLock {
-            videoStatusObservation = videoObservation
-            audioStatusObservation = audioObservation
-        }
-    }
-
-    func stop() {
-        let observations = lock.withLock {
-            let observations = (videoStatusObservation, audioStatusObservation)
-            videoStatusObservation = nil
-            audioStatusObservation = nil
-            return observations
-        }
-        observations.0?.invalidate()
-        observations.1?.invalidate()
-    }
-}
-
 public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private struct EndState {
         var requiresAudio = false
@@ -107,6 +44,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private let provider: VideoSampleProvider
     private let audioProvider: AudioSampleProvider
     private let rendererSink: RendererInputSink
+    private let audioRendererSink: AudioRendererInputSink
     private let videoSampleFormatOverride = VideoSampleFormatOverride()
     private var rendererFailureMonitor: RendererFailureMonitoring?
     private let rendererFailureLock = NSLock()
@@ -114,6 +52,14 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private let videoTrackID: String
     private let deliveryQueue = DispatchQueue(label: "PlaybackCore.sample-delivery")
     private let audioDeliveryQueue = DispatchQueue(label: "PlaybackCore.audio-sample-delivery")
+    private let deliveryTaskLock = NSLock()
+    private var videoDeliveryTask: Task<Void, Never>?
+    private var videoDeliveryGeneration: UInt64 = 0
+    private var audioDeliveryTask: Task<Void, Never>?
+    private let pendingVideoSampleLock = NSLock()
+    private var pendingVideoSample: CMSampleBuffer?
+    private let decoderBootstrapLock = NSLock()
+    private var decoderBootstrapComplete = false
     private let endStateLock = NSLock()
     private var endState = EndState()
     private var hasStartedTimeline = false
@@ -129,6 +75,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private var timelineStartRate: Float = 1
     public private(set) var preferredPlaybackRate: Float = 1
     private var sourceURL: URL?
+    private var sourceAsset: PlaybackAsset?
     private var isResetting = false
     private var mediaSessionRecord: MediaSessionRecord?
     private var streamEpoch: UInt64 = 1
@@ -149,22 +96,30 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private var hasAudio = false
     private var audioSampleBufferCount: UInt64 = 0
     private var audioFrameCount: UInt64 = 0
+    private let rendererStateLock = NSLock()
+    private var videoRendererStatus = "unknown"
+    private var videoRendererError: String?
+    private var audioRendererError: String?
     public private(set) var selectedAudioStreamIndex: Int?
     public private(set) var availableAudioTracks: [PlaybackAudioTrack] = []
     private let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
 
     public convenience init(route: PlaybackRoute, traceID: String = UUID().uuidString) {
-        let provider: VideoSampleProvider = switch route {
+        let provider: VideoSampleProvider
+        let audioProvider: AudioSampleProvider
+        switch route {
         case .appleCompressed:
-            AppleCompressedSampleProvider()
+            provider = AppleCompressedSampleProvider()
+            audioProvider = AppleCompressedAudioSampleProvider()
         case .ffmpegCompressed:
-            FFmpegSampleProvider(route: route)
+            provider = FFmpegSampleProvider(route: route)
+            audioProvider = FFmpegCompressedAudioSampleProvider()
         }
         self.init(
             route: route,
             traceID: traceID,
             provider: provider,
-            audioProvider: FFmpegAudioSampleProvider(),
+            audioProvider: audioProvider,
             rendererSink: nil
         )
     }
@@ -175,6 +130,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         provider: VideoSampleProvider,
         audioProvider: AudioSampleProvider = NoAudioSampleProvider(),
         rendererSink: RendererInputSink? = nil,
+        audioRendererSink: AudioRendererInputSink? = nil,
         rendererFailureMonitor: RendererFailureMonitoring? = nil
     ) {
         self.route = route
@@ -183,21 +139,24 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         precondition(provider.route == route)
         self.provider = provider
         self.audioProvider = audioProvider
-        let usesSystemRendererSink = rendererSink == nil
-        self.rendererSink = rendererSink ?? AVSampleBufferRendererInputSink(renderer: renderer)
-        if let rendererFailureMonitor {
-            self.rendererFailureMonitor = rendererFailureMonitor
-        } else if usesSystemRendererSink {
-            self.rendererFailureMonitor = AVRendererFailureMonitor(
-                videoRenderer: renderer,
-                audioRenderer: audioRenderer
+        if let rendererSink {
+            self.rendererSink = rendererSink
+        } else {
+            self.rendererSink = AVSampleBufferRendererInputSink(
+                receiver: synchronizer.sampleBufferReceiver(adding: renderer)
             )
         }
+        if let audioRendererSink {
+            self.audioRendererSink = audioRendererSink
+        } else {
+            self.audioRendererSink = AVSampleBufferAudioRendererInputSink(
+                receiver: synchronizer.sampleBufferReceiver(adding: audioRenderer)
+            )
+        }
+        self.rendererFailureMonitor = rendererFailureMonitor
         diagnostics.requestedRoute = route.rawValue
         diagnostics.selectedRoute = route.rawValue
         diagnostics.rendererInputKind = route.rendererInputKind.rawValue
-        synchronizer.addRenderer(renderer)
-        synchronizer.addRenderer(audioRenderer)
         PlaybackTrace.event(
             "session.init id=\(traceID) route=\(route.rawValue) " +
             "renderer=\(PlaybackTrace.identity(renderer)) synchronizer=\(PlaybackTrace.identity(synchronizer))"
@@ -212,6 +171,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     public func prepare(
         url: URL,
+        asset: PlaybackAsset? = nil,
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
@@ -222,13 +182,15 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             "session.prepare.begin id=\(traceID) start=\(startTime.seconds) paused=\(startsPaused)"
         )
         resetEndState(requiresAudio: false)
+        resetDecoderBootstrap()
         let requestedRate = initialRate ?? 1
         preferredPlaybackRate = requestedRate > 0 ? requestedRate : 1
         timelineStartRate = startsPaused || requestedRate == 0
             ? 0
             : preferredPlaybackRate
         sourceURL = url
-        availableAudioTracks = audioProvider.tracks(in: url)
+        sourceAsset = asset
+        availableAudioTracks = try await audioProvider.tracks(in: url, asset: asset)
         debugStore.recordAvailableAudioTracks(availableAudioTracks)
         requestedTimelineStart = startTime
         beginOperation(.open, targetTimeSeconds: startTime.seconds)
@@ -257,14 +219,15 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             details: ["source": url.lastPathComponent]
         )
         do {
-            try await provider.prepare(url: url, startTime: startTime)
+            try await provider.prepare(url: url, asset: asset, startTime: startTime)
         } catch {
             recordFailure(error, node: .providerOpen, kind: "provider.openFailed")
             throw error
         }
         do {
-            try audioProvider.prepare(
+            try await audioProvider.prepare(
                 url: url,
+                asset: asset,
                 startTime: startTime,
                 streamIndex: selectedAudioStreamIndex
             )
@@ -396,13 +359,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             recordFailure(error, node: .routeMediaEventStream, kind: "provider.startFailed")
             throw error
         }
-        rendererSink.requestMediaDataWhenReady(on: deliveryQueue) { [weak self] in
-            self?.deliverSamples()
-        }
+        startVideoDelivery()
         if hasAudio {
-            audioRenderer.requestMediaDataWhenReady(on: audioDeliveryQueue) { [weak self] in
-                self?.deliverAudioSamples()
-            }
+            startAudioDelivery()
         }
         PlaybackTrace.event("session.start.end id=\(traceID)")
     }
@@ -611,7 +570,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private func applyStereoLayoutOverride(
         _ layout: VideoStereoLayout?
     ) -> StereoLayoutChange {
-        rendererSink.stopRequestingMediaData()
+        stopVideoDelivery()
         let change = deliveryQueue.sync {
             let providerResetIsInFlight = isResetting
             let previous = stereoLayoutOverride
@@ -623,7 +582,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             let awaitsSample = hasRequestedVideoData
                 && !videoProviderHasEnded
                 && !isClosed
-                && renderer.status != .failed
+                && !isVideoRendererFailed
             return StereoLayoutChange(
                 previous: previous,
                 revision: formatRevision,
@@ -632,9 +591,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             )
         }
         if change.shouldResumeDelivery {
-            rendererSink.requestMediaDataWhenReady(on: deliveryQueue) { [weak self] in
-                self?.deliverSamples()
-            }
+            startVideoDelivery()
         }
         return change
     }
@@ -659,7 +616,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             if videoProviderHasEnded {
                 break
             }
-            if isClosed || renderer.status == .failed {
+            if isClosed { throw CancellationError() }
+            if isVideoRendererFailed {
                 break
             }
             try await Task.sleep(for: .milliseconds(10))
@@ -841,7 +799,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private func applyProjectionOverride(
         _ projection: VideoProjectionOverride?
     ) -> ProjectionChange {
-        rendererSink.stopRequestingMediaData()
+        stopVideoDelivery()
         let change = deliveryQueue.sync {
             let providerResetIsInFlight = isResetting
             let previous = projectionOverride
@@ -853,7 +811,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             let awaitsSample = hasRequestedVideoData
                 && !videoProviderHasEnded
                 && !isClosed
-                && renderer.status != .failed
+                && !isVideoRendererFailed
             return ProjectionChange(
                 previous: previous,
                 revision: formatRevision,
@@ -862,9 +820,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             )
         }
         if change.shouldResumeDelivery {
-            rendererSink.requestMediaDataWhenReady(on: deliveryQueue) { [weak self] in
-                self?.deliverSamples()
-            }
+            startVideoDelivery()
         }
         return change
     }
@@ -890,7 +846,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                ) {
                 return sample.formatRevision
             }
-            if videoProviderHasEnded || isClosed || renderer.status == .failed { break }
+            if isClosed { throw CancellationError() }
+            if videoProviderHasEnded || isVideoRendererFailed { break }
             try await Task.sleep(for: .milliseconds(10))
         }
         throw CorePlaybackError.projectionOverrideTimedOut(projection)
@@ -949,8 +906,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             details: ["targetSeconds": String(target)]
         )
 
-        rendererSink.stopRequestingMediaData()
-        audioRenderer.stopRequestingMediaData()
+        stopVideoDelivery()
+        stopAudioDelivery()
+        discardPendingVideoSample()
         synchronizer.rate = 0
         deliveryQueue.sync {
             isResetting = true
@@ -959,12 +917,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         audioDeliveryQueue.sync {
             audioProvider.cancel()
         }
-        await withCheckedContinuation { continuation in
-            rendererSink.flush(removingDisplayedImage: true) {
-                continuation.resume()
-            }
-        }
-        audioRenderer.flush()
+        await rendererSink.flush(removingDisplayedImage: true)
+        resetDecoderBootstrap()
+        audioRendererSink.flush()
         resetEndState(requiresAudio: hasAudio)
 
         streamEpoch += 1
@@ -995,13 +950,15 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         do {
             try await provider.prepare(
                 url: sourceURL,
+                asset: sourceAsset,
                 startTime: CMTime(seconds: target, preferredTimescale: 60_000)
             )
             try Task.checkCancellation()
             try provider.start()
             if hasAudio {
-                try audioProvider.prepare(
+                try await audioProvider.prepare(
                     url: sourceURL,
+                    asset: sourceAsset,
                     startTime: CMTime(seconds: target, preferredTimescale: 60_000),
                     streamIndex: selectedAudioStreamIndex
                 )
@@ -1039,13 +996,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             isResetting = false
         }
         updateLifecycle(.ready)
-        rendererSink.requestMediaDataWhenReady(on: deliveryQueue) { [weak self] in
-            self?.deliverSamples()
-        }
+        startVideoDelivery()
         if hasAudio {
-            audioRenderer.requestMediaDataWhenReady(on: audioDeliveryQueue) { [weak self] in
-                self?.deliverAudioSamples()
-            }
+            startAudioDelivery()
         }
 
         let expectedEpoch = streamEpoch
@@ -1129,7 +1082,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     }
 
     public func currentRate() -> Float {
-        hasStartedTimeline ? synchronizer.rate : timelineStartRate
+        guard hasStartedTimeline else { return timelineStartRate }
+        return debugStore.snapshot().lifecycle == .playing ? preferredPlaybackRate : 0
     }
 
     public var currentVolume: Float {
@@ -1153,7 +1107,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         recordAudioRendererState()
     }
 
-    public func selectAudioTrack(streamIndex: Int) throws {
+    public func selectAudioTrack(streamIndex: Int) async throws {
         guard let sourceURL else { throw PlaybackControlError.noActiveMediaSession }
         guard availableAudioTracks.contains(where: { $0.streamIndex == streamIndex }) else {
             throw PlaybackControlError.invalidAudioTrack(streamIndex)
@@ -1162,19 +1116,25 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         let previousStreamIndex = selectedAudioStreamIndex
         let previouslyHadAudio = hasAudio
         let time = currentTime()
-        let rate = currentRate()
+        let rate = interruptionRecoveryRate()
         synchronizer.rate = 0
-        audioRenderer.stopRequestingMediaData()
+        stopAudioDelivery()
         audioDeliveryQueue.sync { audioProvider.cancel() }
-        audioRenderer.flush()
+        audioRendererSink.flush()
         resetAudioEndState(requiresAudio: previouslyHadAudio)
         do {
-            try audioProvider.prepare(url: sourceURL, startTime: time, streamIndex: streamIndex)
+            try await audioProvider.prepare(
+                url: sourceURL,
+                asset: sourceAsset,
+                startTime: time,
+                streamIndex: streamIndex
+            )
         } catch {
             let replacementError = error
             do {
-                try audioProvider.prepare(
+                try await audioProvider.prepare(
                     url: sourceURL,
+                    asset: sourceAsset,
                     startTime: time,
                     streamIndex: previousStreamIndex
                 )
@@ -1196,9 +1156,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             resetAudioEndState(requiresAudio: previouslyHadAudio)
             audioStreamEpoch += 1
             if hasAudio {
-                audioRenderer.requestMediaDataWhenReady(on: audioDeliveryQueue) { [weak self] in
-                    self?.deliverAudioSamples()
-                }
+                startAudioDelivery()
             }
             synchronizer.setRate(rate, time: time)
             recordAudioRendererState()
@@ -1230,9 +1188,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             ))
         }
         audioStreamEpoch += 1
-        audioRenderer.requestMediaDataWhenReady(on: audioDeliveryQueue) { [weak self] in
-            self?.deliverAudioSamples()
-        }
+        startAudioDelivery()
         synchronizer.setRate(rate, time: time)
         recordAudioRendererState()
         debugStore.emit(
@@ -1242,6 +1198,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             outcome: .succeeded,
             details: ["streamIndex": String(streamIndex)]
         )
+    }
+
+    private func interruptionRecoveryRate() -> Float {
+        mediaSessionRecord?.lifecycle == .playing ? preferredPlaybackRate : 0
     }
 
     public func debugEvents() -> AsyncStream<PlaybackDebugEvent> {
@@ -1517,7 +1477,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
         PlaybackTrace.event(
             "session.close.begin id=\(traceID) samples=\(diagnostics.enqueuedSampleCount) " +
-            "rendererStatus=\(renderer.status) displayed=\(renderer.displayedPixelBuffer() != nil)"
+            "rendererStatus=\(currentVideoRendererStatus) displayed=\(renderer.displayedPixelBuffer() != nil)"
         )
         if activeOperation != nil {
             finishActiveOperation(.terminatedByCleanup)
@@ -1532,8 +1492,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             outcome: .terminatedByCleanup
         )
         closeEndState()
-        rendererSink.stopRequestingMediaData()
-        audioRenderer.stopRequestingMediaData()
+        stopVideoDelivery()
+        stopAudioDelivery()
+        discardPendingVideoSample()
         synchronizer.rate = 0
         deliveryQueue.sync {
             isClosed = true
@@ -1544,9 +1505,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             audioProvider.cancel()
             debugStore.recordCleanupStep(.audioProviderCancelled)
         }
-        audioRenderer.flush()
+        audioRendererSink.flush()
         debugStore.recordCleanupStep(.audioRendererFlushed)
-        rendererSink.flush(removingDisplayedImage: true) { [self] in
+        Task { [self] in
+            await rendererSink.flush(removingDisplayedImage: true)
             finishCloseAfterFlush()
         }
     }
@@ -1571,35 +1533,95 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         completions.forEach { $0() }
     }
 
-    private func deliverSamples() {
-        while rendererSink.isReadyForMoreMediaData, !isClosed, !isResetting {
-            let sourceSample: CMSampleBuffer
-            do {
-                let event = try provider.copyNextEvent()
-                switch event {
-                case .sample(let sample):
-                    sourceSample = sample
-                case .formatChanged:
-                    handleProviderControlEvent(.formatChanged)
-                    return
-                case .flush:
-                    handleProviderControlEvent(.flush)
-                    return
-                case .end:
-                    finishDelivery()
-                    return
-                }
-            } catch {
-                rendererSink.stopRequestingMediaData()
-                provider.cancel()
-                recordRouteErrorEvent()
-                recordFailure(error, node: .routeMediaEventStream, kind: "provider.readFailed")
-                onStatusChange?(.failed(error.localizedDescription))
+    private func startVideoDelivery() {
+        rendererSink.stopRenderingEventObservation()
+        let generation = deliveryTaskLock.withLock {
+            videoDeliveryGeneration &+= 1
+            videoDeliveryTask?.cancel()
+            return videoDeliveryGeneration
+        }
+        let task = Task.detached { [weak self] in
+            guard let self else { return }
+            await self.deliverSamples(generation: generation)
+        }
+        deliveryTaskLock.withLock {
+            guard videoDeliveryGeneration == generation else {
+                task.cancel()
                 return
             }
+            self.videoDeliveryTask = task
+        }
+    }
 
-            guard CMSampleBufferGetNumSamples(sourceSample) > 0,
+    private func stopVideoDelivery() {
+        deliveryTaskLock.withLock {
+            videoDeliveryGeneration &+= 1
+            videoDeliveryTask?.cancel()
+            videoDeliveryTask = nil
+        }
+    }
+
+    private func startAudioDelivery() {
+        audioRendererSink.stopRenderingEventObservation()
+        let task = Task.detached { [weak self] in
+            guard let self else { return }
+            await self.deliverAudioSamples()
+        }
+        deliveryTaskLock.withLock {
+            audioDeliveryTask?.cancel()
+            audioDeliveryTask = task
+        }
+    }
+
+    private func stopAudioDelivery() {
+        deliveryTaskLock.withLock {
+            audioDeliveryTask?.cancel()
+            audioDeliveryTask = nil
+        }
+    }
+
+    private func deliverSamples(generation: UInt64) async {
+        while isCurrentVideoDelivery(generation), !isClosed, !isResetting {
+            let sourceSample: CMSampleBuffer
+            if let pendingSample = currentPendingVideoSample() {
+                sourceSample = pendingSample
+            } else {
+                do {
+                    let event = try await provider.nextEvent()
+                    switch event {
+                    case .sample(let sample):
+                        sourceSample = sample
+                        setPendingVideoSample(sample)
+                    case .formatChanged:
+                        await handleProviderControlEvent(.formatChanged)
+                        return
+                    case .flush:
+                        await handleProviderControlEvent(.flush)
+                        return
+                    case .end:
+                        finishDelivery()
+                        return
+                    }
+                    guard isCurrentVideoDelivery(generation), !isClosed, !isResetting else {
+                        return
+                    }
+                } catch {
+                    guard !Task.isCancelled, !isClosed else { return }
+                    provider.cancel()
+                    recordRouteErrorEvent()
+                    recordFailure(error, node: .routeMediaEventStream, kind: "provider.readFailed")
+                    onStatusChange?(.failed(error.localizedDescription))
+                    return
+                }
+            }
+
+            let sourceSampleCount = CMSampleBufferGetNumSamples(sourceSample)
+            guard sourceSampleCount > 0,
                   CMSampleBufferGetFormatDescription(sourceSample) != nil else {
+                clearPendingVideoSample(sourceSample)
+                PlaybackTrace.event(
+                    "session.videoSample.skipped id=\(traceID) sampleCount=\(sourceSampleCount)"
+                )
                 continue
             }
 
@@ -1625,7 +1647,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                     renderSample = sourceSample
                 }
             } catch {
-                rendererSink.stopRequestingMediaData()
                 recordFailure(
                     error,
                     node: .rendererInputCoordination,
@@ -1634,10 +1655,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 onStatusChange?(.failed(error.localizedDescription))
                 return
             }
-            let sourceEventID = recordVideoSample(renderSample)
-            updateCompressedDiagnostics(sample: renderSample)
-            lastSourceEventID = sourceEventID
-
             markAsPrerollIfNeeded(renderSample, presentationTime: presentationTime)
             if !hasStartedTimeline {
                 let hasPreroll = requestedTimelineStart.isNumeric &&
@@ -1645,20 +1662,16 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 let timelineStart = hasPreroll ? presentationTime : targetTimelineTime(
                     fallback: presentationTime
                 )
-                let initialRate: Float = hasPreroll ? 1 : timelineStartRate
                 PlaybackTrace.event(
                     "session.firstSample id=\(traceID) pts=\(presentationTime.seconds) " +
                     "timelineStart=\(timelineStart.seconds) " +
                     "input=\(route.rendererInputKind)"
                 )
-                synchronizer.setRate(initialRate, time: timelineStart)
+                synchronizer.setRate(0, time: timelineStart)
                 hasStartedTimeline = true
                 isPrerolling = hasPreroll
-                if !hasPreroll {
-                    publishTargetTimelineState(at: timelineStart)
-                }
                 PlaybackTrace.event(
-                    "session.timeline.set id=\(traceID) rate=\(initialRate) " +
+                    "session.timeline.set id=\(traceID) rate=0.0 " +
                     "time=\(timelineStart.seconds)"
                 )
                 publishDiagnostics(at: timelineStart, force: true)
@@ -1672,9 +1685,59 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             }
             if diagnostics.enqueuedSampleCount == 0 {
                 diagnostics.timelineConfiguredBeforeFirstEnqueue = hasStartedTimeline
+                dumpVideoSampleIfRequested(renderSample)
             }
+            let isFirstVideoSample = diagnostics.enqueuedSampleCount == 0
+            let decodeTime = CMSampleBufferGetDecodeTimeStamp(renderSample)
+            let decoderBootstrapTarget = targetTimelineTime(fallback: presentationTime)
+            let bootstrapIncomplete = !decoderBootstrapLock.withLock { decoderBootstrapComplete }
+            let requiresImmediateDecoderBootstrap = bootstrapIncomplete && (
+                isFirstVideoSample || !decodeTime.isNumeric || decodeTime <= decoderBootstrapTarget
+            )
+            let outcome: RendererEnqueueOutcome
+            do {
+                let enqueueSample = try CMSampleBuffer(copying: renderSample)
+                let input = RendererInputSample(sampleBuffer: enqueueSample)
+                if requiresImmediateDecoderBootstrap {
+                    outcome = try rendererSink.enqueueImmediately(input)
+                } else {
+                    outcome = try await rendererSink.enqueue(input)
+                }
+            } catch {
+                guard isCurrentVideoDelivery(generation), !isClosed else { return }
+                publishRendererFailure(RendererFailureFact(
+                    rendererKind: .video,
+                    errorType: String(reflecting: type(of: error)),
+                    message: error.localizedDescription,
+                    requiresFlushToResumeDecoding: nil
+                ))
+                return
+            }
+            guard isCurrentVideoDelivery(generation), !isClosed, !isResetting else {
+                return
+            }
+            guard handleVideoEnqueueOutcome(outcome) else { return }
+            if bootstrapIncomplete,
+               !decodeTime.isNumeric || decodeTime >= decoderBootstrapTarget {
+                decoderBootstrapLock.withLock { decoderBootstrapComplete = true }
+            }
+            if isFirstVideoSample {
+                let activationRate: Float = isPrerolling ? 1 : timelineStartRate
+                synchronizer.rate = activationRate
+                if !isPrerolling {
+                    publishTargetTimelineState(
+                        at: targetTimelineTime(fallback: presentationTime)
+                    )
+                }
+                PlaybackTrace.event(
+                    "session.timeline.activated id=\(traceID) rate=\(activationRate)"
+                )
+            }
+            clearPendingVideoSample(sourceSample)
+            let sourceEventID = recordVideoSample(renderSample)
+            updateCompressedDiagnostics(sample: renderSample)
+            lastSourceEventID = sourceEventID
             diagnostics.enqueuedSampleCount += 1
-            rendererSink.enqueue(renderSample)
             let rendererRecord = RendererInputRecord(
                 mediaSessionID: traceID,
                 route: route,
@@ -1705,34 +1768,46 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                     ]
                 )
                 PlaybackTrace.event(
-                    "session.firstEnqueue id=\(traceID) rendererStatus=\(renderer.status) " +
-                    "rendererError=\(renderer.error?.localizedDescription ?? "none")"
+                    "session.firstEnqueue id=\(traceID) rendererStatus=\(currentVideoRendererStatus) " +
+                    "rendererError=\(currentVideoRendererError ?? "none")"
                 )
             }
         }
-        if !isClosed, !videoProviderHasEnded, !rendererSink.isReadyForMoreMediaData {
-            debugStore.recordRendererInput(RendererInputRecord(
-                mediaSessionID: traceID,
-                route: route,
-                sourceEventID: lastSourceEventID,
-                videoTrackID: videoTrackID,
-                streamEpoch: streamEpoch,
-                formatRevision: formatRevision,
-                graphRevision: 1,
-                inputKind: route.rendererInputKind,
-                timelineConfiguredBeforeFirstEnqueue: hasStartedTimeline,
-                action: "readiness",
-                outcome: .deferredByBackpressure
-            ))
+    }
+
+    private func isCurrentVideoDelivery(_ generation: UInt64) -> Bool {
+        guard !Task.isCancelled else { return false }
+        return deliveryTaskLock.withLock { videoDeliveryGeneration == generation }
+    }
+
+    private func currentPendingVideoSample() -> CMSampleBuffer? {
+        pendingVideoSampleLock.withLock { pendingVideoSample }
+    }
+
+    private func setPendingVideoSample(_ sample: CMSampleBuffer) {
+        pendingVideoSampleLock.withLock { pendingVideoSample = sample }
+    }
+
+    private func clearPendingVideoSample(_ sample: CMSampleBuffer) {
+        pendingVideoSampleLock.withLock {
+            if pendingVideoSample === sample {
+                pendingVideoSample = nil
+            }
         }
     }
 
-    private func deliverAudioSamples() {
-        while audioRenderer.isReadyForMoreMediaData, !isClosed, !isResetting {
+    private func discardPendingVideoSample() {
+        pendingVideoSampleLock.withLock { pendingVideoSample = nil }
+    }
+
+    private func deliverAudioSamples() async {
+        while !Task.isCancelled, !isClosed, !isResetting {
             do {
-                guard let sample = try audioProvider.copyNextSample() else {
-                    audioRenderer.stopRequestingMediaData()
+                guard let sample = try await audioProvider.copyNextSample() else {
                     markAudioProviderEnded()
+                    audioRendererSink.observeRenderingEventsAfterFinishedEnqueuing(
+                        handler: rendererInputEventHandler()
+                    )
                     debugStore.emit(
                         mediaSessionID: traceID,
                         route: route,
@@ -1767,9 +1842,13 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                     payloadOwnershipState: "retainedCMSampleBuffer"
                 )
                 debugStore.recordAudioSample(record)
-                audioRenderer.enqueue(sample)
+                let outcome = try await audioRendererSink.enqueue(
+                    RendererInputSample(sampleBuffer: sample)
+                )
+                guard handleAudioEnqueueOutcome(outcome) else { return }
                 audioSampleBufferCount += 1
                 audioFrameCount += UInt64(max(0, record.sampleCount))
+                recordAudioRendererState()
                 if audioSampleBufferCount == 1 {
                     debugStore.emit(
                         mediaSessionID: traceID,
@@ -1779,14 +1858,114 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                         details: ["audioTrackID": trackID]
                     )
                 }
-                recordAudioRendererState()
             } catch {
-                audioRenderer.stopRequestingMediaData()
+                guard !Task.isCancelled, !isClosed else { return }
                 recordFailure(error, node: .rendererInputCoordination, kind: "audioRenderer.deliveryFailed")
                 onStatusChange?(.failed(error.localizedDescription))
                 return
             }
         }
+    }
+
+    private func handleVideoEnqueueOutcome(_ outcome: RendererEnqueueOutcome) -> Bool {
+        switch outcome {
+        case .accepted:
+            setVideoRendererState(status: "ready", error: nil)
+            return true
+        case .acceptedWithWarnings(let warnings):
+            setVideoRendererState(status: "readyWithDecodeFailures", error: warnings.first)
+            debugStore.emit(
+                mediaSessionID: traceID,
+                route: route,
+                node: .rendererInputCoordination,
+                kind: "videoRenderer.decodeFailures",
+                outcome: .failed,
+                details: ["errors": warnings.joined(separator: " | ")]
+            )
+            return true
+        case .cancelledByFlush:
+            return false
+        case .requiresFlush(let message):
+            publishRendererFailure(RendererFailureFact(
+                rendererKind: .video,
+                errorType: "AVSampleBufferVideoRenderer.RequiresFlush",
+                message: message ?? "Video renderer requires a flush before decoding can resume.",
+                requiresFlushToResumeDecoding: true
+            ))
+            return false
+        case .failed(let message):
+            publishRendererFailure(RendererFailureFact(
+                rendererKind: .video,
+                errorType: "AVSampleBufferVideoRenderer.Receiver",
+                message: message,
+                requiresFlushToResumeDecoding: false
+            ))
+            return false
+        }
+    }
+
+    private func handleAudioEnqueueOutcome(_ outcome: RendererEnqueueOutcome) -> Bool {
+        switch outcome {
+        case .accepted:
+            setAudioRendererError(nil)
+            return true
+        case .acceptedWithWarnings(let warnings):
+            setAudioRendererError(warnings.first)
+            debugStore.emit(
+                mediaSessionID: traceID,
+                route: route,
+                node: .rendererInputCoordination,
+                kind: "audioRenderer.suggestedFlush",
+                outcome: .succeeded,
+                details: ["reasons": warnings.joined(separator: " | ")]
+            )
+            return true
+        case .cancelledByFlush:
+            return false
+        case .requiresFlush(let message):
+            publishRendererFailure(RendererFailureFact(
+                rendererKind: .audio,
+                errorType: "AVSampleBufferAudioRenderer.Receiver",
+                message: message ?? "Audio renderer could not accept the sample.",
+                requiresFlushToResumeDecoding: nil
+            ))
+            return false
+        case .failed(let message):
+            publishRendererFailure(RendererFailureFact(
+                rendererKind: .audio,
+                errorType: "AVSampleBufferAudioRenderer.Receiver",
+                message: message,
+                requiresFlushToResumeDecoding: nil
+            ))
+            return false
+        }
+    }
+
+    private var isVideoRendererFailed: Bool {
+        rendererStateLock.withLock { videoRendererStatus == "failed" }
+    }
+
+    private var currentVideoRendererStatus: String {
+        rendererStateLock.withLock { videoRendererStatus }
+    }
+
+    private var currentVideoRendererError: String? {
+        rendererStateLock.withLock { videoRendererError }
+    }
+
+    private var currentAudioRendererError: String? {
+        rendererStateLock.withLock { audioRendererError }
+    }
+
+    private func setVideoRendererState(status: String, error: String?) {
+        rendererStateLock.withLock {
+            videoRendererStatus = status
+            videoRendererError = error
+        }
+    }
+
+    private func setAudioRendererError(_ error: String?) {
+        rendererStateLock.withLock { audioRendererError = error }
     }
 
     private func recordAudioRendererState() {
@@ -1801,14 +1980,16 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             enqueuedAudioFrameCount: audioFrameCount,
             volume: audioRenderer.volume,
             muted: audioRenderer.isMuted,
-            error: audioRenderer.error?.localizedDescription
+            error: currentAudioRendererError
         ))
     }
 
 
     private func finishDelivery() {
-        rendererSink.stopRequestingMediaData()
         markVideoProviderEnded()
+        rendererSink.observeRenderingEventsAfterFinishedEnqueuing(
+            handler: rendererInputEventHandler()
+        )
         sourceEventSequence += 1
         let event = RouteMediaEventRecord(
             eventID: "\(traceID).event.\(sourceEventSequence)",
@@ -1830,8 +2011,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         )
     }
 
-    private func handleProviderControlEvent(_ kind: RouteMediaEventKind) {
-        rendererSink.stopRequestingMediaData()
+    private func handleProviderControlEvent(_ kind: RouteMediaEventKind) async {
         isResetting = true
         switch kind {
         case .formatChanged:
@@ -1868,17 +2048,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         didRecordFormat = false
         resetVideoEndState()
         flushCount += 1
-        rendererSink.flush(removingDisplayedImage: false) { [weak self] in
-            guard let self else { return }
-            self.deliveryQueue.async { [self] in
-                guard !self.isClosed else { return }
-                self.isResetting = false
-                self.recordRendererState(at: self.currentTime())
-                self.rendererSink.requestMediaDataWhenReady(on: self.deliveryQueue) { [weak self] in
-                    self?.deliverSamples()
-                }
-            }
-        }
+        await rendererSink.flush(removingDisplayedImage: false)
+        guard !isClosed else { return }
+        isResetting = false
+        recordRendererState(at: currentTime())
+        startVideoDelivery()
     }
 
     private func recordRouteErrorEvent() {
@@ -2033,13 +2207,25 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         guard force || wholeSecond != lastDiagnosticsSecond else { return }
         lastDiagnosticsSecond = wholeSecond
         diagnostics.currentSeconds = seconds
-        diagnostics.rendererStatus = String(describing: renderer.status)
-        diagnostics.rendererError = renderer.error?.localizedDescription ?? "none"
+        diagnostics.rendererStatus = currentVideoRendererStatus
+        diagnostics.rendererError = currentVideoRendererError ?? "none"
         recordRendererState(at: time)
         PlaybackTrace.event(
             "session.heartbeat id=\(traceID) time=\(time.seconds) samples=\(diagnostics.enqueuedSampleCount) " +
             "rendererStatus=\(diagnostics.rendererStatus) rendererError=\(diagnostics.rendererError) " +
             "displayed=\(renderer.displayedPixelBuffer() != nil)"
+        )
+        debugStore.emit(
+            mediaSessionID: traceID,
+            route: route,
+            node: .rendererInputCoordination,
+            kind: "timeline.heartbeat",
+            outcome: .succeeded,
+            details: [
+                "timeSeconds": String(seconds),
+                "videoSampleCount": String(diagnostics.enqueuedSampleCount),
+                "audioSampleBufferCount": String(audioSampleBufferCount),
+            ]
         )
         onDiagnosticsChange?(diagnostics)
     }
@@ -2057,6 +2243,18 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         diagnostics.yCbCrMatrix = extensionString(extensions, key: kCMFormatDescriptionExtension_YCbCrMatrix)
         diagnostics.range = (extensions[kCMFormatDescriptionExtension_FullRangeVideo as String] as? Bool) == true
             ? "full-range" : "video-range"
+        diagnostics.projectionKind = extensionString(
+            extensions,
+            key: kCMFormatDescriptionExtension_ProjectionKind
+        )
+        diagnostics.viewPackingKind = extensionString(
+            extensions,
+            key: kCMFormatDescriptionExtension_ViewPackingKind
+        )
+        diagnostics.hasLeftStereoEyeView =
+            extensions[kCMFormatDescriptionExtension_HasLeftStereoEyeView as String] as? Bool == true
+        diagnostics.hasRightStereoEyeView =
+            extensions[kCMFormatDescriptionExtension_HasRightStereoEyeView as String] as? Bool == true
         diagnostics.sourceFormatHasMasteringDisplayMetadata = extensions[kCMFormatDescriptionExtension_MasteringDisplayColorVolume as String] != nil
         diagnostics.sourceFormatHasContentLightLevelMetadata = extensions[kCMFormatDescriptionExtension_ContentLightLevelInfo as String] != nil
         let atoms = extensions[kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String]
@@ -2125,7 +2323,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         if isFirstSample { lastRecordedSampleEpoch = streamEpoch }
         debugStore.recordVideoSample(sampleRecord)
         if isFirstSample {
-            dumpVideoSampleIfRequested(sample)
             debugStore.emit(
                 mediaSessionID: traceID,
                 route: route,
@@ -2344,9 +2541,13 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     }
 
     private func targetTimelineTime(fallback: CMTime) -> CMTime {
-        requestedTimelineStart.isNumeric && requestedTimelineStart > .zero
+        requestedTimelineStart.isNumeric
             ? requestedTimelineStart
             : fallback
+    }
+
+    private func resetDecoderBootstrap() {
+        decoderBootstrapLock.withLock { decoderBootstrapComplete = false }
     }
 
     private func publishTargetTimelineState(at time: CMTime) {
@@ -2402,13 +2603,20 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         rendererFailureMonitor?.stop()
         closeEndState()
         synchronizer.rate = 0
-        rendererSink.stopRequestingMediaData()
-        audioRenderer.stopRequestingMediaData()
+        stopVideoDelivery()
+        stopAudioDelivery()
+        discardPendingVideoSample()
         provider.cancel()
         audioDeliveryQueue.sync {
             audioProvider.cancel()
         }
 
+        switch fact.rendererKind {
+        case .video:
+            setVideoRendererState(status: "failed", error: fact.message)
+        case .audio:
+            setAudioRendererError(fact.message)
+        }
         updateLifecycle(.failed)
         let stage = "\(fact.rendererKind.rawValue)Renderer.failed"
         debugStore.recordFailure(PlaybackFailureRecord(
@@ -2446,10 +2654,35 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     }
 
     private func startRendererFailureMonitoring() {
-        rendererFailureMonitor?.start { [weak self] fact in
+        let failureHandler: @Sendable (RendererFailureFact) -> Void = { [weak self] fact in
             self?.deliveryQueue.async { [weak self] in
                 self?.publishRendererFailure(fact)
             }
+        }
+        rendererFailureMonitor?.start(handler: failureHandler)
+    }
+
+    private func rendererInputEventHandler() -> @Sendable (RendererInputEventFact) -> Void {
+        { [weak self] event in
+            self?.deliveryQueue.async { [weak self] in
+                self?.handleRendererInputEvent(event)
+            }
+        }
+    }
+
+    private func handleRendererInputEvent(_ event: RendererInputEventFact) {
+        switch event {
+        case .failure(let fact):
+            publishRendererFailure(fact)
+        case .warning(let rendererKind, let message):
+            debugStore.emit(
+                mediaSessionID: traceID,
+                route: route,
+                node: .rendererInputCoordination,
+                kind: "\(rendererKind.rawValue)Renderer.warning",
+                outcome: .failed,
+                details: ["message": message]
+            )
         }
     }
 
@@ -2466,6 +2699,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             acceptsRendererFailure = false
         }
         rendererFailureMonitor?.stop()
+        rendererSink.stopRenderingEventObservation()
+        audioRendererSink.stopRenderingEventObservation()
     }
 
     private func beginOperation(
@@ -2542,9 +2777,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             timelineConfigured: hasStartedTimeline,
             currentTimeSeconds: numericSeconds(time) ?? 0,
             rate: synchronizer.rate,
-            rendererStatus: String(describing: renderer.status),
-            rendererError: renderer.error?.localizedDescription,
-            readyForMoreMediaData: rendererSink.isReadyForMoreMediaData,
+            rendererStatus: currentVideoRendererStatus,
+            rendererError: currentVideoRendererError,
+            inputModel: "receiverAsyncBackpressure",
             displayedPixelBuffer: renderer.displayedPixelBuffer() != nil,
             flushCount: flushCount
         ))
