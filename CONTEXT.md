@@ -1,25 +1,35 @@
 # Enchron 术语
 
-**PlaybackCore**：相邻独立仓库提供的音视频 sample-buffer 播放模块。它拥有 Media Session、播放控制、轨道、时间线、renderer 和播放诊断；Enchron 不重新定义这些概念。
+**Enchron**：visionOS 产品 App 与 composition root。它拥有产品状态、界面、来源、持久化和 Apple 平台呈现，不拥有媒体核心。
 
-**Playback App Adapter**：Enchron 内连接 PlaybackCore 与产品界面的 adapter。它持有产品会话所需的来源授权，把核心状态投影给 SwiftUI，并把 video renderer 绑定到 RealityKit entity。
+**PlaybackCore**：相邻仓库中的唯一播放核心。它读取容器、解封装并组装保留原始编码的 `CMSampleBuffer`，把解码、HDR / Dolby Vision 解释与渲染交给 AVFoundation。
 
-**PlaybackLaunchCoordinator**：本仓唯一播放启动协调入口。它把用户选择、恢复位置、窗口和持久化动作组织成一次产品播放启动，但不实现媒体播放。
+**PlaybackRuntime**：Enchron 中连接 SwiftUI、RealityKit 与 PlaybackCore 的薄 adapter。它不复制 PlaybackCore 状态机。
 
-**PlaybackMode**：产品选择的视频呈现方式，当前包括 Window、沉浸环境中的固定屏幕和 Panorama。它不是播放路线。
+**Media Library**：Enchron 拥有的虚拟媒体目录，只保存用户分类、媒体引用和播放相关状态，不变更媒体源。
+_Avoid_：App 文件目录、本地文件系统
 
-**Environment**：由 Xrplay_scene 创作并导出的沉浸观影环境。它属于空间内容，不拥有 video renderer 或播放控制。
+**Library Folder**：Media Library 中由用户创建的分类容器，不对应系统文件夹，也不继承文件系统的路径与删除语义。
+_Avoid_：本地文件夹、Documents 文件夹
 
-**Presentation Surface**：承载 renderer-backed video entity 的产品位置，例如窗口、固定屏幕或全景呈现。
+**Media Reference**：Media Library 中指向原始媒体的持久引用；它可以解析为系统文件、Photos 资源或网络来源，删除引用不会删除原始媒体。
+_Avoid_：导入文件、文件副本
 
-**Media Profile**：供产品决策使用的 projection、stereo layout、HDR type 和尺寸等媒体事实。检测事实来自 PlaybackCore；用户覆盖和有效呈现结果属于 Enchron。
+**Add to Library**：在 Media Library 中创建 Media Reference，不复制、移动或修改原始媒体。
+_Avoid_：导入
 
-**Browsing Media File**：文件浏览中的条目，包含名称、大小、修改时间和来源身份。
+**Playback Presentation**：视频当前稳定的呈现位置，只包括 Window、Docked 和 Panorama。
 
-**Playback Launch Request**：FileBrowsing 交给 PlaybackLaunchCoordinator 的产品请求，包含来源 locator、显示名称、持久化身份和可选预取事实。
+**Environment Context**：当前没有观影场景，或某个观影场景已经打开。它独立于 Playback Presentation；打开场景不等于 Dock。
 
-**Data Source**：本地文件系统、Photos、SMB、WebDAV 或未来来源。
+**Docked**：Enchron 把 PlaybackCore 的同一个 renderer 通过 `VideoPlayerComponent` 放入 RCP 场景中的产品呈现。它复用 Apple RealityKit 视频组件，但不是 `AVPlayerViewController` 的系统 Docking。
 
-**RealityKitContent**：Xrplay_scene 导出的版本化场景产物，由 Enchron 的 SpatialScene 消费。
+**Panorama**：`VideoPlayerComponent` 的 Apple immersive viewing behavior。projection 和 stereo layout 来自 PlaybackCore 媒体事实或用户显式覆盖。
 
-**FakeApp**：使用假目录和假播放状态验证最终 SwiftUI 产品界面的临时开发形态。它不是第二个播放器，也不能作为真实播放证据。
+**Presentation Transition**：从一个稳定呈现到另一个稳定呈现的暂态。目标 surface 与 renderer binding 成功后提交，失败则回滚。
+
+**UI Assembly**：生产页面将产品状态和动作绑定到共享 SwiftUI 组件。组件与 Design Token 是 UI 视觉真相，页面不现场仿写已有组件。
+
+**DesignPreview**：生产组件的代码化陈列入口，不是 Fake App，也不拥有产品导航或业务状态。
+
+**Product Runtime Observability**：`Logger` / OSLog 与 signpost 产生可关联运行事实；Xcode、LLDB、Console、Instruments、XCTest 和 XCUIAutomation 负责实时观察、调试与验证。`.xcresult` 是运行后的测试证据，不是实时调试通道。

@@ -10,6 +10,8 @@ import SwiftUI
 // MARK: - Reusable controls
 
 struct GlassCircleIconLabel: View {
+    @Environment(\.isEnabled) private var isEnabled
+
     let systemName: String
     let accessibilityLabel: String
     var iconColor: Color = .white
@@ -32,10 +34,13 @@ struct GlassCircleIconLabel: View {
             .enchronPressFeedback(.icon)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-label-\(systemName)")
+            .opacity(isEnabled ? 1 : 0.32)
     }
 }
 
 struct GlassCircleIconButton: View {
+    @Environment(\.isEnabled) private var isEnabled
+
     let systemName: String
     let accessibilityLabel: String
     var action: () -> Void = {}
@@ -56,7 +61,10 @@ struct GlassCircleIconButton: View {
         )
         .frame(width: targetSize, height: targetSize)
         .contentShape(Circle())
-        .onTapGesture(perform: action)
+        .onTapGesture {
+            guard isEnabled else { return }
+            action()
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(accessibilityLabel)
@@ -1187,6 +1195,249 @@ struct GlassCapsuleIconLabelButton: View {
     }
 }
 
+enum PlaybackTopSecondaryMenu: String {
+    case dock
+    case videoFormat
+}
+
+struct PlaybackTopActions: View {
+    private let canDock: Bool
+    private let canApplyFormat: Bool
+    private let onDock: ((SpatialSceneDomain.CinemaEnvironment) -> Void)?
+    private let onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)?
+
+    @State private var presentedMenu: PlaybackTopSecondaryMenu?
+    @State private var selectedEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
+    @State private var projection: PlaybackModel.ProjectionType = .flat
+    @State private var stereoLayout: PlaybackModel.StereoLayout = .mono
+
+    init(
+        initialPresentedMenu: PlaybackTopSecondaryMenu? = nil,
+        canDock: Bool = true,
+        canApplyFormat: Bool = true,
+        onDock: ((SpatialSceneDomain.CinemaEnvironment) -> Void)? = nil,
+        onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)? = nil
+    ) {
+        self.canDock = canDock
+        self.canApplyFormat = canApplyFormat
+        self.onDock = onDock
+        self.onApplyFormat = onApplyFormat
+        _presentedMenu = State(initialValue: initialPresentedMenu)
+    }
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            topActionButton(
+                title: "Dock",
+                systemName: "square.stack.3d.up",
+                menu: .dock,
+                isEnabled: canDock
+            )
+
+            topActionButton(
+                title: "Video Format",
+                systemName: "pano",
+                menu: .videoFormat,
+                isEnabled: canApplyFormat
+            )
+        }
+        .overlay(alignment: .topTrailing) {
+            Group {
+                switch presentedMenu {
+                case .dock: dockMenu
+                case .videoFormat: videoFormatMenu
+                case nil: EmptyView()
+                }
+            }
+            .offset(y: DesignTokens.Interactive.large)
+            .zIndex(10)
+        }
+        .onChange(of: canDock) { _, available in
+            if available == false, presentedMenu == .dock { presentedMenu = nil }
+        }
+        .onChange(of: canApplyFormat) { _, available in
+            if available == false, presentedMenu == .videoFormat { presentedMenu = nil }
+        }
+    }
+
+    private func topActionButton(
+        title: String,
+        systemName: String,
+        menu: PlaybackTopSecondaryMenu,
+        isEnabled: Bool
+    ) -> some View {
+        Button {
+            presentedMenu = presentedMenu == menu ? nil : menu
+        } label: {
+            Label(title, systemImage: systemName)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(isEnabled ? .white : .secondary)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .frame(minHeight: DesignTokens.Interactive.regular)
+        }
+        .buttonStyle(.plain)
+        .clipShape(Capsule())
+        .glassBackgroundEffect(in: Capsule())
+        .contentShape(.hoverEffect, Capsule())
+        .hoverEffect(.automatic)
+        .frame(minHeight: DesignTokens.Interactive.large)
+        .disabled(!isEnabled)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("PlayerUI-TopAction-\(menu.rawValue)")
+    }
+
+    private var dockMenu: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            menuHeading("Dock", supporting: "Choose an environment")
+
+            VStack(spacing: DesignTokens.Spacing.xs) {
+                ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { environment in
+                    Button {
+                        selectedEnvironment = environment
+                        presentedMenu = nil
+                        onDock?(environment)
+                    } label: {
+                        HStack(spacing: DesignTokens.Spacing.md) {
+                            Image(systemName: environmentIcon(environment))
+                                .frame(width: DesignTokens.Interactive.regular)
+
+                            Text(environmentTitle(environment))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            if selectedEnvironment == environment {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .font(DesignTokens.Typography.metadata)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                        .frame(minHeight: DesignTokens.Interactive.large)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .hoverEffect(.highlight)
+                    .accessibilityIdentifier("PlayerUI-DockMenu-\(environment.rawValue)")
+                }
+            }
+        }
+        .padding(DesignTokens.Spacing.lg)
+        .frame(width: 320)
+        .fixedSize(horizontal: false, vertical: true)
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+    }
+
+    private var videoFormatMenu: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            menuHeading("Video Format", supporting: "Choose how the video is presented")
+
+            formatPicker(
+                title: "Projection",
+                selection: $projection,
+                options: [
+                    PlaybackModel.ProjectionType.flat,
+                    .equirectangular180,
+                    .equirectangular360,
+                    .fisheye
+                ],
+                label: projectionTitle
+            )
+
+            formatPicker(
+                title: "Stereo Layout",
+                selection: $stereoLayout,
+                options: PlaybackModel.StereoLayout.allCases,
+                label: stereoTitle
+            )
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    presentedMenu = nil
+                }
+                .accessibilityIdentifier("PlayerUI-VideoFormat-cancel")
+                Button("Apply") {
+                    presentedMenu = nil
+                    onApplyFormat?(projection, stereoLayout)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("PlayerUI-VideoFormat-apply")
+            }
+        }
+        .padding(DesignTokens.Spacing.lg)
+        .frame(width: 520)
+        .fixedSize(horizontal: false, vertical: true)
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+    }
+
+    private func menuHeading(_ title: String, supporting: String) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(title)
+                .font(DesignTokens.Typography.headline)
+            Text(supporting)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formatPicker<Value: Hashable>(
+        title: String,
+        selection: Binding<Value>,
+        options: [Value],
+        label: @escaping (Value) -> String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+            Picker(title, selection: selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(label(option))
+                        .tag(option)
+                        .accessibilityIdentifier("PlayerUI-VideoFormat-\(title)-\(label(option))")
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel(title)
+        }
+    }
+
+    private func environmentTitle(_ environment: SpatialSceneDomain.CinemaEnvironment) -> String {
+        switch environment {
+        case .darkTheatre: "Dark Theatre"
+        case .starryNight: "Starry Night"
+        case .sunsetNature: "Sunset Nature"
+        }
+    }
+
+    private func environmentIcon(_ environment: SpatialSceneDomain.CinemaEnvironment) -> String {
+        switch environment {
+        case .darkTheatre: "theatermasks"
+        case .starryNight: "sparkles"
+        case .sunsetNature: "sun.horizon"
+        }
+    }
+
+    private func projectionTitle(_ projection: PlaybackModel.ProjectionType) -> String {
+        switch projection {
+        case .flat: "Flat"
+        case .equirectangular180: "180°"
+        case .equirectangular360: "360°"
+        case .fisheye: "Fisheye"
+        }
+    }
+
+    private func stereoTitle(_ stereoLayout: PlaybackModel.StereoLayout) -> String {
+        switch stereoLayout {
+        case .mono: "Mono"
+        case .sideBySide: "Side-by-Side"
+        case .topBottom: "Top-Bottom"
+        }
+    }
+}
+
 struct NavBackForwardCapsuleControl: View {
     var onBack: () -> Void = {}
     var onForward: () -> Void = {}
@@ -1411,11 +1662,13 @@ struct GridCard: View {
 
     var body: some View {
         if let action {
-            Button(action: action) { cardVisual }
-                .buttonStyle(.plain)
+            cardVisual
+                .onTapGesture(perform: action)
                 .accessibilityElement(children: .ignore)
                 .accessibilityIdentifier(resolvedIdentifier)
                 .accessibilityLabel(resolvedLabel)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { action() }
         } else {
             cardVisual
                 .accessibilityElement(children: .ignore)
@@ -1443,7 +1696,6 @@ struct GridCard: View {
         }
         .frame(width: DesignTokens.Card.gridMin)
         .contentShape(shape)
-        .enchronPressFeedback(.card)
     }
 
     @ViewBuilder
@@ -1611,7 +1863,7 @@ private struct WatchedEdgeProgressDemo: View {
 }
 
 struct FeaturedEnvironment: Identifiable {
-    let id: String
+    let environment: SpatialSceneDomain.CinemaEnvironment
     let imageName: String
     let title: String
     let environmentNumber: String
@@ -1619,75 +1871,41 @@ struct FeaturedEnvironment: Identifiable {
     let mode: String
     let atmosphere: String
 
-    static let fixtures: [FeaturedEnvironment] = [
+    var id: String { environment.rawValue }
+
+    static let catalog: [FeaturedEnvironment] = [
         .init(
-            id: "snow-village",
-            imageName: "SceneFeatureCard",
-            title: "Snow Village",
-            environmentNumber: "Environment 01",
-            quote: "\"A bright winter morning opens into a quiet alpine town.\"",
-            mode: "Spatial cinema",
-            atmosphere: "Snowfield / clear daylight"
-        ),
-        .init(
-            id: "dune-observatory",
-            imageName: "SceneFeatureDesert",
-            title: "Dune Observatory",
-            environmentNumber: "Environment 02",
-            quote: "\"A gold horizon turns the theatre into a quiet instrument.\"",
-            mode: "Observatory cinema",
-            atmosphere: "Desert / amber dusk"
-        ),
-        .init(
-            id: "neon-canopy",
-            imageName: "SceneFeatureNeonCity",
-            title: "Neon Canopy",
-            environmentNumber: "Environment 03",
-            quote: "\"Rain and city light fold into a private rooftop screen.\"",
-            mode: "Night lounge",
-            atmosphere: "Neon / reflective rain"
-        ),
-        .init(
-            id: "forest-shrine",
-            imageName: "SceneFeatureForestShrine",
-            title: "Forest Shrine",
-            environmentNumber: "Environment 04",
-            quote: "\"The woods dim the world without closing it in.\"",
-            mode: "Ambient cinema",
-            atmosphere: "Moss / morning mist"
-        ),
-        .init(
-            id: "ocean-temple",
-            imageName: "SceneFeatureOceanTemple",
-            title: "Ocean Temple",
-            environmentNumber: "Environment 05",
-            quote: "\"Light falls through water and softens every edge.\"",
-            mode: "Deep cinema",
-            atmosphere: "Coral / turquoise depth"
-        ),
-        .init(
-            id: "orbital-garden",
-            imageName: "SceneFeatureOrbitalGarden",
-            title: "Orbital Garden",
-            environmentNumber: "Environment 06",
-            quote: "\"A living station holds the planet in the corner of your eye.\"",
-            mode: "Spatial cinema",
-            atmosphere: "Orbit / luminous green"
-        ),
-        .init(
-            id: "dream-cinema",
+            environment: .darkTheatre,
             imageName: "SceneFeatureCinema",
-            title: "Dream Cinema",
-            environmentNumber: "Environment 07",
-            quote: "\"Projector light turns the hall into a warm private ritual.\"",
+            title: "Dark Theatre",
+            environmentNumber: "Environment 01",
+            quote: "\"A focused private theatre with the world held outside.\"",
             mode: "Classic theatre",
-            atmosphere: "Velvet / brass glow"
+            atmosphere: "Dark / quiet"
+        ),
+        .init(
+            environment: .starryNight,
+            imageName: "SceneFeatureOrbitalGarden",
+            title: "Starry Night",
+            environmentNumber: "Environment 02",
+            quote: "\"A quiet screen beneath an open night sky.\"",
+            mode: "Open-air cinema",
+            atmosphere: "Night / starlight"
+        ),
+        .init(
+            environment: .sunsetNature,
+            imageName: "SceneFeatureDesert",
+            title: "Sunset Nature",
+            environmentNumber: "Environment 03",
+            quote: "\"Warm horizon light surrounds a calm viewing space.\"",
+            mode: "Nature cinema",
+            atmosphere: "Sunset / warm air"
         )
     ]
 }
 
 struct EnvironmentCard: View {
-    var environment: FeaturedEnvironment = .fixtures[0]
+    var environment: FeaturedEnvironment = .catalog[0]
     var detailVisibility: CGFloat = 1
     var atmosphericFade: CGFloat = 0
     var onReturn: () -> Void = {}
@@ -1861,7 +2079,7 @@ struct EnvironmentCard: View {
 }
 
 struct EnvironmentCardCarousel: View {
-    var environments: [FeaturedEnvironment] = FeaturedEnvironment.fixtures
+    var environments: [FeaturedEnvironment] = FeaturedEnvironment.catalog
     var onReturn: () -> Void = {}
     /// Center-card expand (enter immersive). Forwarded from the focused card's
     /// expand control; defaults to no-op for Canvas review (ENV-18).
@@ -2211,12 +2429,21 @@ struct FileListGroup: View {
     }
 
     struct Item: Identifiable {
+        struct ContextAction: Identifiable {
+            let title: String
+            let systemName: String
+            var role: ButtonRole? = nil
+            let action: () -> Void
+            var id: String { "\(title)-\(systemName)" }
+        }
+
         let id: String
         let kind: Kind
         let title: String
         /// Trailing metadata revealed on gaze.
         let metadata: String
         var action: () -> Void = {}
+        var contextActions: [ContextAction] = []
 
         /// Video file variant — gaze reveals `badges · size · duration`.
         static func video(
@@ -2225,6 +2452,7 @@ struct FileListGroup: View {
             fileSize: String,
             duration: String,
             badges: [String] = [],
+            contextActions: [ContextAction] = [],
             action: @escaping () -> Void = {}
         ) -> Item {
             Item(
@@ -2232,7 +2460,8 @@ struct FileListGroup: View {
                 kind: .video,
                 title: title,
                 metadata: (badges + [fileSize, duration]).joined(separator: " · "),
-                action: action
+                action: action,
+                contextActions: contextActions
             )
         }
 
@@ -2241,6 +2470,7 @@ struct FileListGroup: View {
             id: String? = nil,
             title: String,
             itemCount: Int,
+            contextActions: [ContextAction] = [],
             action: @escaping () -> Void = {}
         ) -> Item {
             Item(
@@ -2248,7 +2478,8 @@ struct FileListGroup: View {
                 kind: .folder,
                 title: title,
                 metadata: "\(itemCount) items",
-                action: action
+                action: action,
+                contextActions: contextActions
             )
         }
     }
@@ -2302,6 +2533,16 @@ struct FileListGroupRow: View {
             action: item.action
         ) { rowHoverGroup in
             rowContent(reveal: rowHoverGroup)
+        }
+        .contextMenu {
+            ForEach(item.contextActions) { contextAction in
+                Button(
+                    contextAction.title,
+                    systemImage: contextAction.systemName,
+                    role: contextAction.role,
+                    action: contextAction.action
+                )
+            }
         }
     }
 
@@ -3659,6 +3900,9 @@ struct LoadingSpinner: View {
 /// 合并 transport 面(原 PlayerControlDeckLive)+ 两个模式入口(全景 / 虚拟场景)。
 /// ADR-0009:取代 PlayerControlDeckLive。
 struct FusedPlayerPanelLive {
+    var presentation: PlaybackPresentation
+    var canDock: Bool
+    var canEnterPanorama: Bool
     var isPlaying: Bool
     var showsReplay: Bool
     var progress: CGFloat
@@ -3673,53 +3917,33 @@ struct FusedPlayerPanelLive {
     var onFrameStep: (Int) -> Void
     /// ⤢ 展开按钮:进入全景穹顶(.panorama)。
     var onEnterPanorama: () -> Void
-    /// 🧘 虚拟场景按钮:进入默认沉浸场景(.immersive),不带选场景语义。
+    /// Dock 按钮进入当前或默认 Environment 的 Docked presentation。
     var onEnterImmersive: () -> Void
+    var onExitSpatial: () -> Void
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
     var episodeItems: [DeckMenuItem]
 }
 
-/// 设置区桶①(能接真后端)的注入绑定:nil = Canvas mock(本地 @State),主 App 注真。
-/// 桶③(无后端)的行始终用面板内部本地 @State 做 honest-fake,不经此结构。
-struct PlaybackSettingsLive {
-    /// Display Mode:"Flat" / "SBS" / "TB" → stereoLayoutOverride。
-    var displayMode: Binding<String>
-    /// 180° 沉浸投影开关 → projectionOverride(front180)。
-    var projection180: Binding<Bool>
-    /// 360° 沉浸投影开关 → projectionOverride(full360)。
-    var projection360: Binding<Bool>
-}
-
 struct FusedPlayerPanel: View {
     /// 实时播放绑定。nil = Canvas mock(默认);注入后接真实播放状态与交互。
     var live: FusedPlayerPanelLive?
-    /// 设置区桶① 绑定。nil = Canvas mock。透传给内嵌设置面板。
-    var settingsLive: PlaybackSettingsLive?
     /// 面板级交互回调(≡ 开合设置、双击开合时间轴)。主 App 用它重置自动隐藏计时器,
     /// 对齐原 deck 的 onOpenSettings→register() 行为。默认 no-op(Canvas 无计时器)。
     var onInteraction: () -> Void = {}
 
-    // initialSettingsPresented / initialTimelineExpanded 仅供 Canvas 审查直接展示展开态;
-    // 运行时仍由 ≡ / 双击进度条切换。
+    // initialTimelineExpanded 仅供 Canvas 审查直接展示展开态。
     init(
         live: FusedPlayerPanelLive? = nil,
-        settingsLive: PlaybackSettingsLive? = nil,
         onInteraction: @escaping () -> Void = {},
-        initialSettingsPresented: Bool = false,
         initialTimelineExpanded: Bool = false
     ) {
         self.live = live
-        self.settingsLive = settingsLive
         self.onInteraction = onInteraction
-        _settingsPresented = State(initialValue: initialSettingsPresented)
         _timelineExpanded = State(initialValue: initialTimelineExpanded)
     }
 
-    // 状态机:两个独立开关。Setting Panel 由 ≡ 切换(再点收回);Timeline 由双击进度条
-    // 展开/收起。两者互不依赖——时间轴展开时仍可开关 Setting Panel。
-    @State private var settingsPresented = false
     @State private var timelineExpanded = false
 
     // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
@@ -3752,13 +3976,9 @@ struct FusedPlayerPanel: View {
         return live?.progress ?? progress
     }
 
-    // timeline 与 settings 共用同一展开宽度,保证两者并存时边对边对齐。
     private let expandedWidth: CGFloat = 880
-    private let settingsHeight: CGFloat = 520
 
-    // 任一展开块打开时,控件簇(按钮 + 进度条)撑到 expandedWidth,让 ≡ 贴左、⋯ 贴右,
-    // 与下方块边对边;全收起时保持紧凑的进度条宽。
-    private var isExpanded: Bool { timelineExpanded || settingsPresented }
+    private var isExpanded: Bool { timelineExpanded }
     private var clusterWidth: CGFloat {
         isExpanded ? expandedWidth : DesignTokens.ProgressBar.previewWidth
     }
@@ -3779,20 +3999,12 @@ struct FusedPlayerPanel: View {
                 progressBar
             }
 
-            // Setting Panel:独立开关,由 ≡ 触发;与时间轴可同时打开。前置全宽分界线。
-            if settingsPresented {
-                panelDivider
-                PlayerSettingsPanelPreview(chromeless: true, settingsLive: settingsLive)
-                    .frame(width: expandedWidth, height: settingsHeight)
-                    .transition(.opacity)
-            }
         }
         .padding(DesignTokens.Spacing.xl)
         .clipShape(shape)
         .glassBackgroundEffect(in: shape)
         // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
         .animation(DesignTokens.AnimationToken.panelSpring, value: timelineExpanded)
-        .animation(DesignTokens.AnimationToken.panelSpring, value: settingsPresented)
         .sensoryFeedback(.press(.slider), trigger: scrubFeedbackTrigger)
         .sensoryFeedback(.selection(.minimum), trigger: minimumBoundaryFeedbackTrigger)
         .sensoryFeedback(.selection(.maximum), trigger: maximumBoundaryFeedbackTrigger)
@@ -3811,67 +4023,69 @@ struct FusedPlayerPanel: View {
         }
     }
 
-    private var panelDivider: some View {
-        Rectangle()
-            .fill(DesignTokens.Surface.divider)
-            .frame(width: expandedWidth, height: DesignTokens.Stroke.regular)
-            .transition(.opacity)
-    }
-
+    @ViewBuilder
     private var controlsRow: some View {
-        // 中组(后退/播放/前进)独立于左右内容几何居中:左组(2 按钮)比右按钮
-        // (1 按钮)宽,中组要落在面板中心,需脱离左右宽度差的影响。ZStack 居中
-        // 层放中组,左右两组用 maxWidth + alignment 贴边;三者互不牵动,
-        // 展开态左组自然更紧凑、中组恒居中。
-        ZStack {
-            // 中组:时间轴收起时左右是 10s seek;展开(精密时间轴)时换成逐帧步进。
+        if (live?.presentation ?? .window) == .window {
             HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
                 GlassCircleIconButton(
-                    systemName: timelineExpanded ? "backward.frame" : "gobackward.10",
-                    accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 10 seconds",
-                    action: { timelineExpanded ? stepFrame(-1) : live?.onSkipBackward() },
-                    accessibilityIdentifier: "PlayerPanel-button-rewind"
+                    systemName: "slider.horizontal.3",
+                    accessibilityLabel: timelineExpanded ? "Collapse playback panel" : "Expand playback panel",
+                    action: { timelineExpanded ? closeTimeline() : openTimeline() },
+                    accessibilityIdentifier: "PlayerPanel-button-expand"
                 )
+                GlassCircleIconButton(
+                    systemName: "square.stack.3d.up",
+                    accessibilityLabel: "Docking",
+                    action: { live?.onEnterImmersive() },
+                    accessibilityIdentifier: "PlayerPanel-button-dock"
+                )
+                .disabled(!(live?.canDock ?? true))
+                rewindButton
                 playButton
+                forwardButton
                 GlassCircleIconButton(
-                    systemName: timelineExpanded ? "forward.frame" : "goforward.10",
-                    accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 10 seconds",
-                    action: { timelineExpanded ? stepFrame(1) : live?.onSkipForward() },
-                    accessibilityIdentifier: "PlayerPanel-button-forward"
-                )
-            }
-
-            // 左簇 [≡ 设置][⤢ 全景]。每个按钮命中框(large 60)比视觉圆(regular 44)
-            // 两侧各宽 8pt,故两圆可见间距 = spacing + 16。spacing = xs(8)→ 可见 24pt。
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                GlassCircleIconButton(
-                    systemName: "line.3.horizontal",
-                    accessibilityLabel: "Settings panel",
-                    action: { toggleSettings() },
-                    accessibilityIdentifier: "PlayerPanel-button-panel"
-                )
-                GlassCircleIconButton(
-                    systemName: "arrow.up.left.and.arrow.down.right",
+                    systemName: "pano",
                     accessibilityLabel: "Panorama",
                     action: { live?.onEnterPanorama() },
                     accessibilityIdentifier: "PlayerPanel-button-panorama"
                 )
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            // 右簇 [🧘 虚拟场景][⋯ 菜单],与左簇对称(工具在外、模式在内)。
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                GlassCircleIconButton(
-                    systemName: "apple.meditate",
-                    accessibilityLabel: "Virtual scene",
-                    action: { live?.onEnterImmersive() },
-                    accessibilityIdentifier: "PlayerPanel-button-immersive"
-                )
+                .disabled(!(live?.canEnterPanorama ?? true))
                 moreMenu
             }
-            .frame(maxWidth: .infinity, alignment: .trailing)
+            .frame(width: clusterWidth)
+        } else if let live {
+            HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                GlassCircleIconButton(
+                    systemName: live.presentation == .docked ? "rectangle.portrait.and.arrow.forward" : "pano",
+                    accessibilityLabel: live.presentation == .docked ? "Undock" : "Exit Panorama",
+                    action: live.onExitSpatial,
+                    accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
+                )
+                rewindButton
+                playButton
+                forwardButton
+                moreMenu
+            }
+            .frame(width: clusterWidth)
         }
-        .frame(width: clusterWidth)
+    }
+
+    private var rewindButton: some View {
+        GlassCircleIconButton(
+            systemName: timelineExpanded ? "backward.frame" : "gobackward.10",
+            accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 10 seconds",
+            action: { timelineExpanded ? stepFrame(-1) : live?.onSkipBackward() },
+            accessibilityIdentifier: "PlayerPanel-button-rewind"
+        )
+    }
+
+    private var forwardButton: some View {
+        GlassCircleIconButton(
+            systemName: timelineExpanded ? "forward.frame" : "goforward.10",
+            accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 10 seconds",
+            action: { timelineExpanded ? stepFrame(1) : live?.onSkipForward() },
+            accessibilityIdentifier: "PlayerPanel-button-forward"
+        )
     }
 
     // ⋯ 菜单:玻璃圆(GlassCircleIconLabel)作 Menu label,内容 live 注入时来自产品层、
@@ -3910,13 +4124,6 @@ struct FusedPlayerPanel: View {
         let currentTime = Double(progress) * duration
         let nextTime = min(max(currentTime + direction * frameDuration, 0), duration)
         progress = CGFloat(nextTime / duration)
-    }
-
-    private func toggleSettings() {
-        onInteraction()
-        withAnimation(DesignTokens.AnimationToken.panelSpring) {
-            settingsPresented.toggle()
-        }
     }
 
     private var playButton: some View {
@@ -4342,820 +4549,5 @@ struct FusedPlayerPanel: View {
         let dx = location.x - thumbCenter.x
         let dy = location.y - thumbCenter.y
         return (dx * dx + dy * dy) <= (hitRadius * hitRadius)
-    }
-}
-
-// MARK: - Player settings panel
-
-struct PlayerSettingsPanelPreview: View {
-    // chromeless: 去掉外层 .plate 玻璃 + 固定 880×560 框,只渲染 sidebar+detail 内容,
-    // 供融合面板内嵌、与 controls/timeline 共用同一块玻璃壳。默认 false(独立预览带壳)。
-    var chromeless: Bool = false
-    // settingsLive: 桶① 真后端绑定(Display Mode→stereo、180/360→projection)。
-    // nil = Canvas mock(用下方本地 @State)。桶③ 行始终走本地 @State 做 honest-fake。
-    var settingsLive: PlaybackSettingsLive?
-
-    @State private var selectedCategory: PlayerPanelSettingsCategory = .environmentSetting
-    @Namespace private var categoryIndicatorNamespace
-    @State private var pressedCategory: PlayerPanelSettingsCategory?
-    @State private var categoryPressTrigger = 0
-    @State private var selectedEnvironmentID = "day"
-    @State private var selectedPositionID = "left"
-    @State private var environmentAuto = true
-    @State private var screenCurve = 0
-    @State private var screenHeight = 0
-    @State private var screenDistance = 0
-    @State private var screenSize = 0
-    @State private var displayMode = "Flat"
-    @State private var immersiveMode: ImmersiveVideoMode = .off
-
-    // MARK: Picture (libplacebo) state
-    // ① Peak Detection
-    @State private var hdrComputePeak = "auto"
-    @State private var hdrPeakPercentile = 99.9
-    @State private var hdrPeakDecayRate = 20.0
-    @State private var hdrSceneThresholdLow = 1.0
-    @State private var hdrSceneThresholdHigh = 3.0
-    // ② Output Target
-    @State private var targetPeak = 406.0
-    @State private var hdrReferenceWhite = 183.0
-    @State private var targetContrast = "inf"
-    // ③ Tone Mapping
-    @State private var toneMapping = "bt.2390"
-    @State private var toneMappingParam = 0.0
-    @State private var inverseToneMapping = false
-    @State private var toneMappingMaxBoost = 1.0
-    @State private var hdrContrastRecovery = 0.15
-    @State private var hdrContrastSmoothness = 100.0
-    // ④ Gamut & Color
-    @State private var gamutMappingMode = "clip"
-    @State private var saturation = 9.0
-    @State private var brightness = 0.0
-    @State private var contrast = 10.0
-    @State private var gamma = 1.0
-    @State private var hue = 0.0
-    // ⑤ Diagnostics
-    @State private var toneMappingVisualize = false
-
-    @State private var showResetConfirm = false
-
-    private enum ImmersiveVideoMode {
-        case off
-        case oneEighty
-        case threeSixty
-    }
-
-    private let panelWidth: CGFloat = 880
-    private let panelHeight: CGFloat = 560
-    // 8(左 inset)+224(sidebar)+20(gutter)+detail+20(右 inset)= 880 → detail = 608
-    private let detailColumnWidth: CGFloat = 608
-
-    var body: some View {
-        Group {
-            if chromeless {
-                panelInner
-            } else {
-                panelInner
-                    .frame(width: panelWidth, height: panelHeight, alignment: .topLeading)
-                    .clipShape(DesignTokens.ShapeToken.panel)
-                    .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
-                    .padding(DesignTokens.Spacing.xl)
-                    // navigationTitle 只给独立预览;嵌入(chromeless)语境加它会污染外层导航栏、
-                    // 并让内容在导航栏材质下透出(看起来像"背景超出 glass")。
-                    .navigationTitle("Player Settings Panel")
-            }
-        }
-        .enchronDestructiveConfirmation(
-            "Restore Default Settings?",
-            message: "This resets the panel preview controls to their default positions.",
-            confirmTitle: "Restore",
-            isPresented: $showResetConfirm,
-            onConfirm: restoreDefaults
-        )
-    }
-
-    // 融合(chromeless):左侧图标圆按钮竖栏(纯图标,无文字)+ 右侧 List Group 详情;
-    // 独立预览(chromeless=false):左竖 sidebar + 右详情(原结构,日后可弃)。
-    private var panelInner: some View {
-        Group {
-            if chromeless {
-                HStack(alignment: .top, spacing: 0) {
-                    // 左列:胶囊左缘贴齐面板内容左缘(= 上方 ≡ 命中框左缘,故无左 inset);
-                    // 用与右侧 panelSection 同款隐藏标题占位 + 同款上间距,把胶囊上缘精确压到
-                    // 第一张卡的上沿线(而非标题)。占位与右侧标题同字号 → 顶边严格对齐。
-                    VStack(spacing: DesignTokens.Spacing.sm) {
-                        Text("Aa")
-                            .font(DesignTokens.Typography.headline)
-                            .opacity(0)
-                            .accessibilityHidden(true)
-                        categoryRail
-                        Spacer(minLength: 0)
-                    }
-
-                    detailPanel
-                        .padding(.leading, DesignTokens.SourceSidebar.trailingContentGap)
-                }
-                // 顶部不留内部 padding:让设置内容紧贴在分界线下 md 处,与 timeline 同款间距;
-                // 底部留 windowInset 透气。左右 inset 见各列(左列贴边、右列 trailingContentGap)。
-                .padding(.trailing, DesignTokens.SourceSidebar.windowInset)
-                .padding(.bottom, DesignTokens.SourceSidebar.windowInset)
-            } else {
-                HStack(alignment: .top, spacing: 0) {
-                    sidebar
-                        .padding(.leading, DesignTokens.SourceSidebar.windowInset)
-                        .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
-
-                    detailPanel
-                        .frame(width: detailColumnWidth)
-                        .padding(.horizontal, DesignTokens.SourceSidebar.trailingContentGap)
-                        .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-    }
-
-    // EXPLORATORY (2026-06-21): 竖向玻璃胶囊做分类选择——把横向 ViewModeCapsuleControl(2 段)
-    //   推广成竖排 N 段:一条玻璃胶囊壳(enchronGlassControl)+ 段内图标 + matchedGeometry 选中圆底
-    //   (切换时竖向滑动)。多分区命中守"不嵌 Button,用 SpatialTapGesture + location.y 分区";
-    //   press 走 DesignTokens.PressFeedback.icon。命中区横向 44→60 静默扩展、竖向不扩(段已满)。
-    //   移除条件:范式确认后泛化为组件库正式控件(竖向 N 段胶囊),需人类裁决命名/语义。
-    private var categoryRail: some View {
-        let categories = PlayerPanelSettingsCategory.allCases
-        let visual = DesignTokens.Interactive.regular        // 44 单段视觉尺寸
-        let target = DesignTokens.Interactive.large          // 60 命中宽
-        let railHeight = visual * CGFloat(categories.count)  // 段高 44 × 段数 = 胶囊高
-        let press = DesignTokens.PressFeedback.icon
-
-        return VStack(spacing: 0) {
-            ForEach(categories) { category in
-                categoryRailIcon(category)
-            }
-        }
-        .frame(width: visual, height: railHeight)
-        .enchronGlassControl()
-        .frame(width: target, height: railHeight)
-        .contentShape(Rectangle())
-        .gesture(
-            SpatialTapGesture().onEnded { value in
-                let index = min(categories.count - 1, max(0, Int(value.location.y / visual)))
-                let tapped = categories[index]
-                categoryPressTrigger += 1
-                withAnimation(press.pressAnimation) { pressedCategory = tapped }
-                Task {
-                    try? await Task.sleep(for: press.holdDuration)
-                    withAnimation(DesignTokens.AnimationToken.selection) {
-                        selectedCategory = tapped
-                        pressedCategory = nil
-                    }
-                }
-            }
-        )
-        .sensoryFeedback(.press(.buttonIconOnly), trigger: categoryPressTrigger)
-        .accessibilityElement(children: .ignore)
-        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-categoryRail")
-        .accessibilityLabel("Settings Category")
-        .accessibilityValue(selectedCategory.title)
-    }
-
-    private func categoryRailIcon(_ category: PlayerPanelSettingsCategory) -> some View {
-        let isSelected = selectedCategory == category
-        let isPressed = pressedCategory == category
-        let visual = DesignTokens.Interactive.regular
-        let press = DesignTokens.PressFeedback.icon
-
-        return ZStack {
-            if isSelected {
-                Circle()
-                    .fill(DesignTokens.Surface.selected)
-                    .frame(width: visual, height: visual)
-                    .matchedGeometryEffect(id: "categoryRailIndicator", in: categoryIndicatorNamespace)
-            }
-            // 选中语言严格照搬 ViewModeCapsuleControl:唯一选中态 = Surface.selected 圆底;
-            // 图标恒白、未选 0.45 暗化,不做 accent 变色(避免两个选中态叠加)。
-            Image(systemName: category.icon)
-                .font(DesignTokens.SymbolSize.control)
-                .foregroundStyle(.white.opacity(isSelected ? 1.0 : 0.45))
-                .scaleEffect(isPressed ? press.pressedScale : 1.0)
-                .frame(width: visual, height: visual)
-                .clipShape(Circle())   // 对齐 GlassCircleIconLabel:把图标裁进视觉圆,防宽图标溢出
-        }
-        .frame(width: visual, height: visual)
-    }
-
-    private var sidebar: some View {
-        let shape = DesignTokens.SourceSidebar.shape
-
-        let content = VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            Text("Panel")
-                .font(DesignTokens.SourceSidebar.sectionTitleFont)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
-
-            VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
-                ForEach(PlayerPanelSettingsCategory.allCases) { category in
-                    sidebarRow(category)
-                }
-            }
-            .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
-
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
-        .frame(width: DesignTokens.SourceSidebar.width)
-        .frame(maxHeight: .infinity, alignment: .topLeading)
-
-        // 融合语境共用外层那一块玻璃,sidebar 不再叠自己的 .plate(消除玻璃叠玻璃的糊边);
-        // 独立预览保留自带玻璃。区分度改由 columnDivider + 选中行高亮承担。
-        return Group {
-            if chromeless {
-                content
-            } else {
-                content
-                    .clipShape(shape)
-                    .glassBackgroundEffect(.plate, in: shape, displayMode: .always)
-            }
-        }
-        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-sidebar")
-    }
-
-    private var detailPanel: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
-                // 融合语境:分类由左侧图标竖栏(categoryRail)表达,省去大标题以压低高度;
-                // 独立预览保留标题。
-                // 注:图标无文字,当前哪个分类只靠选中高亮表达;如需可在此恢复标题(见交付说明)。
-                if !chromeless {
-                    Text(selectedCategory.title)
-                        .font(DesignTokens.Typography.title)
-                        .foregroundStyle(.white)
-                }
-
-                detailContent
-            }
-            // chromeless:顶部不留内边距(紧凑,内容贴分界线下 md,与 timeline 同间距;
-            // 顶部渐隐已去掉,故标题不会被吃);底部留 lg。
-            .padding(.top, chromeless ? 0 : DesignTokens.Spacing.xxxl)
-            .padding(.bottom, chromeless ? DesignTokens.Spacing.lg : DesignTokens.Spacing.xxxl)
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-        }
-        .scrollIndicators(.hidden)
-        .mask(PlayerSettingsPanelScrollFadeMask())
-        .frame(maxHeight: .infinity, alignment: .topLeading)
-        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-detail")
-    }
-
-    @ViewBuilder
-    private var detailContent: some View {
-        switch selectedCategory {
-        case .environmentSetting:
-            environmentSettingContent
-        case .playMode:
-            playModeContent
-        case .picture:
-            pictureContent
-        }
-    }
-
-    // FAKE(ADR-0009 桶③):Environment(Day/Night=场景内昼夜,非切场景)、Screen 几何、
-    // Position 本轮均无后端,用本地 @State 做可交互 honest-fake;接管真后端时再接真。
-    private var environmentSettingContent: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
-            panelSection("Environment") {
-                SettingListGroup(items: [
-                    .init(
-                        id: "environment-day-night",
-                        title: "Environment",
-                        accessory: .none,
-                        embeddedControl: .cardSelection(
-                            options: [
-                                .init(id: "day", title: "Day", systemName: "sun.max.fill"),
-                                .init(id: "night", title: "Night", systemName: "moon.stars.fill"),
-                            ],
-                            selectedID: $selectedEnvironmentID
-                        )
-                    ),
-                    .init(
-                        id: "environment-auto",
-                        title: "Auto",
-                        accessory: .boundToggle(isOn: $environmentAuto, isEnabled: true, marker: nil)
-                    ),
-                ])
-            }
-
-            panelSection("Screen Setting") {
-                SettingListGroup(items: [
-                    sliderItem(
-                        id: "screen-curve",
-                        title: "Curve",
-                        value: $screenCurve,
-                        leadingSystemImage: "rectangle",
-                        trailingSystemImage: "capsule"
-                    ),
-                    sliderItem(
-                        id: "screen-height",
-                        title: "Height",
-                        value: $screenHeight,
-                        leadingSystemImage: "arrow.down",
-                        trailingSystemImage: "arrow.up"
-                    ),
-                    sliderItem(
-                        id: "screen-distance",
-                        title: "Distance",
-                        value: $screenDistance,
-                        leadingSystemImage: "smallcircle.filled.circle",
-                        trailingSystemImage: "circle"
-                    ),
-                    sliderItem(
-                        id: "screen-size",
-                        title: "Size",
-                        value: $screenSize,
-                        leadingSystemImage: "arrow.down.right.and.arrow.up.left",
-                        trailingSystemImage: "arrow.up.left.and.arrow.down.right"
-                    ),
-                ])
-            }
-
-            panelSection("Position") {
-                SettingListGroup(items: [
-                    .init(
-                        id: "screen-position",
-                        title: "Position",
-                        accessory: .none,
-                        embeddedControl: .cardSelection(
-                            options: [
-                                .init(id: "left", title: "Left", systemName: "arrow.left"),
-                                .init(id: "center", title: "Center", systemName: "dot.square"),
-                                .init(id: "right", title: "Right", systemName: "arrow.right"),
-                            ],
-                            selectedID: $selectedPositionID
-                        )
-                    ),
-                ])
-            }
-
-            SettingListGroup(items: [
-                .init(
-                    id: "restore-default-settings",
-                    title: "Restore Default Settings",
-                    systemName: "arrow.counterclockwise",
-                    accessory: .action(
-                        title: "Restore",
-                        feedback: nil,
-                        systemName: nil,
-                        role: .destructive,
-                        action: { showResetConfirm = true }
-                    )
-                ),
-            ])
-        }
-    }
-
-    // 桶①:Display Mode 单一真值。settingsLive 注入时读写 stereoLayoutOverride;
-    // 否则用本地 @State(Canvas mock)。值域 Flat / SBS / TB。
-    private var displayModeValue: String {
-        settingsLive?.displayMode.wrappedValue ?? displayMode
-    }
-    private func setDisplayMode(_ value: String) {
-        if let settingsLive {
-            settingsLive.displayMode.wrappedValue = value
-        } else {
-            displayMode = value
-        }
-    }
-
-    private var playModeContent: some View {
-        panelSection("Display") {
-            SettingListGroup(items: [
-                .init(
-                    id: "play-mode-display",
-                    title: "Display Mode",
-                    systemName: "cube.transparent",
-                    accessory: .menu(
-                        title: displayModeValue,
-                        options: [
-                            .init("Flat", action: { setDisplayMode("Flat") }),
-                            .init("SBS", action: { setDisplayMode("SBS") }),
-                            .init("TB", action: { setDisplayMode("TB") }),
-                        ]
-                    )
-                ),
-                .init(
-                    id: "play-mode-180",
-                    title: "180° Immersive Video",
-                    systemName: "circle.lefthalf.filled",
-                    accessory: .boundToggle(isOn: immersive180Binding, isEnabled: true, marker: nil)
-                ),
-                .init(
-                    id: "play-mode-360",
-                    title: "360° Immersive Video",
-                    systemName: "rotate.3d",
-                    accessory: .boundToggle(isOn: immersive360Binding, isEnabled: true, marker: nil)
-                ),
-            ])
-        }
-    }
-
-    // libplacebo 参数面板。数值滑块用 range-aware 的 `.rangeSlider`(真实数值域 +
-    // 数值读出),枚举用既有 `.menu`,只读用 `.value`。
-    // FAKE(ADR-0009 桶③):整套 libplacebo 参数本轮无 mpv 引擎背书,做可交互 honest-fake;
-    // 真 mpv 落地时接真。
-    private var pictureContent: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
-            panelSection("Peak Detection") {
-                SettingListGroup(items: [
-                    pickerItem(
-                        id: "picture-hdr-compute-peak",
-                        title: "动态峰值检测",
-                        selection: $hdrComputePeak,
-                        options: ["auto", "yes", "no"]
-                    ),
-                    rangeSliderItem(
-                        id: "picture-hdr-peak-percentile",
-                        title: "峰值百分位",
-                        value: $hdrPeakPercentile,
-                        range: 90...100,
-                        decimals: 1
-                    ),
-                    rangeSliderItem(
-                        id: "picture-hdr-peak-decay-rate",
-                        title: "峰值平滑率",
-                        value: $hdrPeakDecayRate,
-                        range: 1...100
-                    ),
-                    rangeSliderItem(
-                        id: "picture-hdr-scene-threshold-low",
-                        title: "换场阈值·低",
-                        value: $hdrSceneThresholdLow,
-                        range: 0...20,
-                        decimals: 1
-                    ),
-                    rangeSliderItem(
-                        id: "picture-hdr-scene-threshold-high",
-                        title: "换场阈值·高",
-                        value: $hdrSceneThresholdHigh,
-                        range: 0...20,
-                        decimals: 1
-                    ),
-                ])
-            }
-
-            panelSection("Output Target") {
-                SettingListGroup(items: [
-                    .init(
-                        id: "picture-target-prim",
-                        title: "输出色域",
-                        accessory: .value("display-p3")
-                    ),
-                    .init(
-                        id: "picture-target-trc",
-                        title: "输出传递曲线",
-                        accessory: .value("linear")
-                    ),
-                    rangeSliderItem(
-                        id: "picture-target-peak",
-                        title: "目标峰值亮度 (nits)",
-                        value: $targetPeak,
-                        range: 100...2000,
-                        unit: "nits"
-                    ),
-                    rangeSliderItem(
-                        id: "picture-hdr-reference-white",
-                        title: "HDR 参考白 (nits)",
-                        value: $hdrReferenceWhite,
-                        range: 50...1000,
-                        unit: "nits"
-                    ),
-                    pickerItem(
-                        id: "picture-target-contrast",
-                        title: "目标对比度 / 黑位",
-                        selection: $targetContrast,
-                        options: ["inf", "auto", "100000", "10000", "1000"]
-                    ),
-                ])
-            }
-
-            panelSection("Tone Mapping") {
-                SettingListGroup(items: [
-                    pickerItem(
-                        id: "picture-tone-mapping",
-                        title: "色调映射曲线",
-                        selection: $toneMapping,
-                        options: ["bt.2390", "bt.2446a", "spline", "hable", "mobius"]
-                    ),
-                    rangeSliderItem(
-                        id: "picture-tone-mapping-param",
-                        title: "曲线参数",
-                        value: $toneMappingParam,
-                        range: 0...2,
-                        decimals: 1
-                    ),
-                    .init(
-                        id: "picture-inverse-tone-mapping",
-                        title: "反向色调映射",
-                        accessory: .boundToggle(isOn: $inverseToneMapping, isEnabled: true, marker: nil)
-                    ),
-                    rangeSliderItem(
-                        id: "picture-tone-mapping-max-boost",
-                        title: "最大提亮倍数",
-                        value: $toneMappingMaxBoost,
-                        range: 1...10
-                    ),
-                    rangeSliderItem(
-                        id: "picture-hdr-contrast-recovery",
-                        title: "对比度恢复",
-                        value: $hdrContrastRecovery,
-                        range: 0...2,
-                        decimals: 2
-                    ),
-                    rangeSliderItem(
-                        id: "picture-hdr-contrast-smoothness",
-                        title: "对比度恢复平滑度",
-                        value: $hdrContrastSmoothness,
-                        range: 1...100
-                    ),
-                ])
-            }
-
-            panelSection("Gamut & Color") {
-                SettingListGroup(items: [
-                    pickerItem(
-                        id: "picture-gamut-mapping-mode",
-                        title: "色域映射模式",
-                        selection: $gamutMappingMode,
-                        options: ["clip", "perceptual", "relative", "saturation", "absolute"]
-                    ),
-                    rangeSliderItem(
-                        id: "picture-saturation",
-                        title: "饱和度",
-                        value: $saturation,
-                        range: -100...100
-                    ),
-                    rangeSliderItem(
-                        id: "picture-brightness",
-                        title: "亮度",
-                        value: $brightness,
-                        range: -100...100
-                    ),
-                    rangeSliderItem(
-                        id: "picture-contrast",
-                        title: "对比度",
-                        value: $contrast,
-                        range: -100...100
-                    ),
-                    rangeSliderItem(
-                        id: "picture-gamma",
-                        title: "伽马",
-                        value: $gamma,
-                        range: -100...100
-                    ),
-                    rangeSliderItem(
-                        id: "picture-hue",
-                        title: "色相",
-                        value: $hue,
-                        range: -100...100
-                    ),
-                ])
-            }
-
-            panelSection("Diagnostics") {
-                SettingListGroup(items: [
-                    .init(
-                        id: "picture-tone-mapping-visualize",
-                        title: "可视化色调曲线",
-                        accessory: .boundToggle(isOn: $toneMappingVisualize, isEnabled: true, marker: nil)
-                    ),
-                    .init(
-                        id: "picture-gamut-mapping-warn",
-                        title: "色域越界标红",
-                        accessory: .action(
-                            title: "Warn",
-                            feedback: "Toggled",
-                            systemName: nil,
-                            role: .normal,
-                            action: {}
-                        )
-                    ),
-                ])
-            }
-        }
-    }
-
-    // 桶①:180/360 投影。settingsLive 注入时直接读写 projectionOverride 绑定
-    // (互斥由 host 的单一 projectionOverride 保证);否则用本地互斥枚举(Canvas mock)。
-    private var immersive180Binding: Binding<Bool> {
-        if let settingsLive { return settingsLive.projection180 }
-        return Binding {
-            immersiveMode == .oneEighty
-        } set: { isOn in
-            withAnimation(DesignTokens.AnimationToken.selection) {
-                immersiveMode = isOn ? .oneEighty : .off
-            }
-        }
-    }
-
-    private var immersive360Binding: Binding<Bool> {
-        if let settingsLive { return settingsLive.projection360 }
-        return Binding {
-            immersiveMode == .threeSixty
-        } set: { isOn in
-            withAnimation(DesignTokens.AnimationToken.selection) {
-                immersiveMode = isOn ? .threeSixty : .off
-            }
-        }
-    }
-
-    private func sidebarRow(_ category: PlayerPanelSettingsCategory) -> some View {
-        EditableSourceSidebarRow(
-            icon: category.icon,
-            title: category.title,
-            isSelected: selectedCategory == category,
-            isEnabled: true,
-            isActiveSource: false,
-            isDeletable: false,
-            isSelectionMode: false,
-            isChecked: false,
-            isAppearing: false,
-            isSwipeExpanded: false,
-            isDragging: false,
-            rowOffset: 0,
-            allowsReordering: false,
-            allowsSwipe: false,
-            onTap: {
-                withAnimation(DesignTokens.AnimationToken.selection) {
-                    selectedCategory = category
-                }
-            },
-            onToggleSelection: {},
-            onSwipeBegan: {},
-            onSwipeExpanded: {},
-            onSwipeCollapsed: {},
-            onDelete: {},
-            onReorderBegan: {},
-            onReorderChanged: { _ in },
-            onReorderEnded: {}
-        )
-        .accessibilityIdentifier("DesignPreview-PlayerSettingsPanel-category-\(category.id)")
-    }
-
-    private func panelSection<Content: View>(
-        _ title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Text(title)
-                .font(DesignTokens.Typography.headline)
-                .foregroundStyle(.primary)
-
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func sliderItem(
-        id: String,
-        title: String,
-        value: Binding<Int>,
-        leadingSystemImage: String = "minus.circle",
-        trailingSystemImage: String = "plus.circle"
-    ) -> SettingListGroup.Item {
-        SettingListGroup.Item(
-            id: id,
-            title: title,
-            accessory: .none,
-            embeddedControl: .centerSlider(
-                value: value,
-                leadingSystemImage: leadingSystemImage,
-                trailingSystemImage: trailingSystemImage,
-                accessibilityLabel: title
-            )
-        )
-    }
-
-    // 枚举选择行,复用既有 `.menu` accessory:trailing 菜单显示当前值,
-    // 选项点击写回绑定。
-    private func pickerItem(
-        id: String,
-        title: String,
-        selection: Binding<String>,
-        options: [String]
-    ) -> SettingListGroup.Item {
-        SettingListGroup.Item(
-            id: id,
-            title: title,
-            accessory: .menu(
-                title: selection.wrappedValue,
-                options: options.map { option in
-                    SettingListGroup.MenuOption(option) {
-                        selection.wrappedValue = option
-                    }
-                }
-            )
-        )
-    }
-
-    // range-aware 数值滑块行:真实数值域 + 按 decimals/unit 显示读出。
-    private func rangeSliderItem(
-        id: String,
-        title: String,
-        value: Binding<Double>,
-        range: ClosedRange<Double>,
-        decimals: Int = 0,
-        unit: String? = nil
-    ) -> SettingListGroup.Item {
-        SettingListGroup.Item(
-            id: id,
-            title: title,
-            accessory: .none,
-            embeddedControl: .rangeSlider(
-                value: value,
-                range: range,
-                decimals: decimals,
-                unit: unit,
-                accessibilityLabel: title
-            )
-        )
-    }
-
-    private func restoreDefaults() {
-        selectedEnvironmentID = "day"
-        selectedPositionID = "left"
-        environmentAuto = true
-        screenCurve = 0
-        screenHeight = 0
-        screenDistance = 0
-        screenSize = 0
-        displayMode = "Flat"
-        immersiveMode = .off
-        // Picture (libplacebo) defaults
-        hdrComputePeak = "auto"
-        hdrPeakPercentile = 99.9
-        hdrPeakDecayRate = 20.0
-        hdrSceneThresholdLow = 1.0
-        hdrSceneThresholdHigh = 3.0
-        targetPeak = 406.0
-        hdrReferenceWhite = 183.0
-        targetContrast = "inf"
-        toneMapping = "bt.2390"
-        toneMappingParam = 0.0
-        inverseToneMapping = false
-        toneMappingMaxBoost = 1.0
-        hdrContrastRecovery = 0.15
-        hdrContrastSmoothness = 100.0
-        gamutMappingMode = "clip"
-        saturation = 9.0
-        brightness = 0.0
-        contrast = 10.0
-        gamma = 1.0
-        hue = 0.0
-        toneMappingVisualize = false
-    }
-}
-
-private struct PlayerSettingsPanelScrollFadeMask: View {
-    var body: some View {
-        // 顶部不渐隐(避免吃标题 + 与分界线保持紧凑间距);仅底部渐隐让内容在下沿柔和淡出。
-        LinearGradient(
-            stops: [
-                .init(color: .black, location: 0),
-                .init(color: .black, location: 0.92),
-                .init(color: .clear, location: 1),
-            ],
-            startPoint: .top,
-            endPoint: .bottom
-        )
-    }
-}
-
-private enum PlayerPanelSettingsCategory: String, CaseIterable, Identifiable {
-    case environmentSetting
-    case playMode
-    case picture
-
-    var id: String {
-        rawValue
-    }
-
-    var title: String {
-        switch self {
-        case .environmentSetting:
-            "Environment Setting"
-        case .playMode:
-            "Play Mode"
-        case .picture:
-            "Picture"
-        }
-    }
-
-    var icon: String {
-        switch self {
-        case .environmentSetting:
-            "apple.meditate"
-        case .playMode:
-            "cube.transparent"
-        case .picture:
-            "photo"
-        }
     }
 }

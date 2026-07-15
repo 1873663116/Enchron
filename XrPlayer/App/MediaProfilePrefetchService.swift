@@ -6,11 +6,11 @@ import Foundation
 /// When the file browser loads a folder, this service queues all video files
 /// for background profile detection using AVFoundation. Detected profiles are
 /// written to `PlaybackMediaMetadataService` so the detail page can read them
-/// from cache without waiting for mpv to detect them at open time.
+/// from cache before PlaybackCore opens the media session.
 ///
 /// Concurrency model:
 /// - max 3 concurrent prefetch tasks per folder load (TaskGroup)
-/// - 3-second timeout per file (matches Unit 2 preparePlayback timeout)
+/// - bounded metadata reads so scrolling cannot retain unbounded work
 /// - Fast-switch: when a new folder load starts, the previous prefetch Task is cancelled
 /// - Session-level dedup: tracks (fileIdentifier, modifiedAt) to skip already-prefetched files
 public actor MediaProfilePrefetchService {
@@ -28,7 +28,7 @@ public actor MediaProfilePrefetchService {
 
     /// In-flight per-file detection tasks. Callers can await a specific file's
     /// result instead of polling the cache.
-    private var inflightTasks: [String: Task<PlaybackCoreDomain.MediaProfile?, Never>] = [:]
+    private var inflightTasks: [String: Task<PlaybackModel.MediaProfile?, Never>] = [:]
 
     public init(metadataService: PlaybackMediaMetadataService = PlaybackMediaMetadataService()) {
         self.metadataService = metadataService
@@ -54,7 +54,7 @@ public actor MediaProfilePrefetchService {
     /// or if no prefetch is in progress for this file.
     public func awaitProfile(
         for fileIdentifier: PersistenceDomain.FileIdentifier
-    ) async -> PlaybackCoreDomain.MediaProfile? {
+    ) async -> PlaybackModel.MediaProfile? {
         let key = fileIdentifier.rawValue
 
         // Check session cache first — if already done, read from persistent store
@@ -117,7 +117,7 @@ public actor MediaProfilePrefetchService {
             return
         }
 
-        let task = Task<PlaybackCoreDomain.MediaProfile?, Never> { [weak self] in
+        let task = Task<PlaybackModel.MediaProfile?, Never> { [weak self] in
             guard let self else { return nil }
             return await self.detectAndCache(request: request, modifiedAt: modifiedAt)
         }
@@ -129,7 +129,7 @@ public actor MediaProfilePrefetchService {
     /// Performs detection and caching, returning the profile (or nil on failure).
     private func detectAndCache(
         request: PlaybackLaunchRequest, modifiedAt: Date
-    ) async -> PlaybackCoreDomain.MediaProfile? {
+    ) async -> PlaybackModel.MediaProfile? {
         guard let fileIdentifier = request.fileIdentifier else { return nil }
 
         // Check persistent cache
@@ -140,7 +140,7 @@ public actor MediaProfilePrefetchService {
         }
 
         do {
-            let profile = try await withThrowingTaskGroup(of: PlaybackCoreDomain.MediaProfile.self) { group in
+            let profile = try await withThrowingTaskGroup(of: PlaybackModel.MediaProfile.self) { group in
                 group.addTask {
                     try await Self.detectProfile(url: request.url)
                 }
@@ -177,7 +177,7 @@ public actor MediaProfilePrefetchService {
         print("[Prefetch] detecting \(request.displayName)")
 
         do {
-            let profile = try await withThrowingTaskGroup(of: PlaybackCoreDomain.MediaProfile.self) { group in
+            let profile = try await withThrowingTaskGroup(of: PlaybackModel.MediaProfile.self) { group in
                 group.addTask {
                     try await Self.detectProfile(url: request.url)
                 }
@@ -206,13 +206,13 @@ public actor MediaProfilePrefetchService {
     // MARK: - AVFoundation Profile Detection
 
     /// Detects a `MediaProfile` from a local or remote URL using AVFoundation.
-    /// This is much lighter than spawning mpv — AVFoundation reads container
+    /// AVFoundation reads container
     /// metadata directly without decoding frames.
     ///
     /// Limitation: projection type detection (360°/180°/fisheye) relies on
     /// container metadata tags (GSpherical). If those are absent, projection
-    /// defaults to `.flat`. mpv will correct this at actual playback time.
-    private static func detectProfile(url: URL) async throws -> PlaybackCoreDomain.MediaProfile {
+    /// defaults to `.flat`; PlaybackCore preserves source metadata at playback time.
+    private static func detectProfile(url: URL) async throws -> PlaybackModel.MediaProfile {
         let asset = AVURLAsset(url: url, options: [AVURLAssetPreferPreciseDurationAndTimingKey: false])
 
         // Always cancel AVURLAsset loading on exit to release HTTP connections promptly.
@@ -233,7 +233,7 @@ public actor MediaProfilePrefetchService {
 
         guard let videoTrack = videoTracks.first else {
             // Audio-only or unreadable file — return minimal SDR flat profile
-            return PlaybackCoreDomain.MediaProfile(
+            return PlaybackModel.MediaProfile(
                 projectionType: .flat,
                 stereoLayout: .mono,
                 hdrType: .sdr,
@@ -257,7 +257,7 @@ public actor MediaProfilePrefetchService {
 
         let videoCodec = detectVideoCodec(from: formatDescriptions)
 
-        return PlaybackCoreDomain.MediaProfile(
+        return PlaybackModel.MediaProfile(
             projectionType: projectionType,
             stereoLayout: stereoLayout,
             hdrType: hdrType,
@@ -270,7 +270,7 @@ public actor MediaProfilePrefetchService {
 
     private static func detectHDRType(
         from formatDescriptions: [CMFormatDescription]
-    ) -> PlaybackCoreDomain.HDRType {
+    ) -> PlaybackModel.HDRType {
         guard let desc = formatDescriptions.first else { return .sdr }
 
         // Check Dolby Vision via format description extensions.
@@ -320,7 +320,7 @@ public actor MediaProfilePrefetchService {
 
     private static func detectStereoLayout(
         from formatDescriptions: [CMFormatDescription]
-    ) -> PlaybackCoreDomain.StereoLayout {
+    ) -> PlaybackModel.StereoLayout {
         guard let desc = formatDescriptions.first else { return .mono }
         guard let extensions = CMFormatDescriptionGetExtensions(desc) as? [String: Any] else {
             return .mono
@@ -344,7 +344,7 @@ public actor MediaProfilePrefetchService {
     private static func detectProjectionType(
         from formatDescriptions: [CMFormatDescription],
         asset: AVURLAsset
-    ) -> PlaybackCoreDomain.ProjectionType {
+    ) -> PlaybackModel.ProjectionType {
         guard let desc = formatDescriptions.first else { return .flat }
         guard let extensions = CMFormatDescriptionGetExtensions(desc) as? [String: Any] else {
             return .flat

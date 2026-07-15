@@ -1,12 +1,13 @@
 import Foundation
+import PlaybackCore
 
 public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
-    public let mediaProfile: PlaybackCoreDomain.MediaProfile?
+    public let mediaProfile: PlaybackModel.MediaProfile?
     public let fileSizeInBytes: Int64?
     public let lastUpdatedAt: Date
 
     public init(
-        mediaProfile: PlaybackCoreDomain.MediaProfile? = nil,
+        mediaProfile: PlaybackModel.MediaProfile? = nil,
         fileSizeInBytes: Int64? = nil,
         lastUpdatedAt: Date = Date()
     ) {
@@ -24,7 +25,7 @@ public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
         )
     }
 
-    public func updating(mediaProfile: PlaybackCoreDomain.MediaProfile) -> PlaybackMediaMetadata {
+    public func updating(mediaProfile: PlaybackModel.MediaProfile) -> PlaybackMediaMetadata {
         PlaybackMediaMetadata(
             mediaProfile: mediaProfile,
             fileSizeInBytes: fileSizeInBytes,
@@ -33,12 +34,13 @@ public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
     }
 }
 
-public nonisolated struct PlaybackLaunchRequest: Sendable, Equatable, Identifiable {
+public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable, Identifiable {
     public let id: URL
     public let url: URL
     public let displayName: String
     public let fileIdentifier: PersistenceDomain.FileIdentifier?
     public let initialMetadata: PlaybackMediaMetadata?
+    let sourceAccess: PlaybackSourceAccess?
 
     public init(
         url: URL,
@@ -51,6 +53,22 @@ public nonisolated struct PlaybackLaunchRequest: Sendable, Equatable, Identifiab
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier
         self.initialMetadata = initialMetadata
+        self.sourceAccess = nil
+    }
+
+    init(
+        url: URL,
+        displayName: String,
+        fileIdentifier: PersistenceDomain.FileIdentifier? = nil,
+        initialMetadata: PlaybackMediaMetadata? = nil,
+        sourceAccess: PlaybackSourceAccess?
+    ) {
+        self.id = url
+        self.url = url
+        self.displayName = displayName
+        self.fileIdentifier = fileIdentifier
+        self.initialMetadata = initialMetadata
+        self.sourceAccess = sourceAccess
     }
 
     public func updating(metadata: PlaybackMediaMetadata?) -> PlaybackLaunchRequest {
@@ -58,7 +76,16 @@ public nonisolated struct PlaybackLaunchRequest: Sendable, Equatable, Identifiab
             url: url,
             displayName: displayName,
             fileIdentifier: fileIdentifier,
-            initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata
+            initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata,
+            sourceAccess: sourceAccess
         )
+    }
+
+    public static func == (lhs: PlaybackLaunchRequest, rhs: PlaybackLaunchRequest) -> Bool {
+        lhs.id == rhs.id &&
+            lhs.url == rhs.url &&
+            lhs.displayName == rhs.displayName &&
+            lhs.fileIdentifier == rhs.fileIdentifier &&
+            lhs.initialMetadata == rhs.initialMetadata
     }
 }

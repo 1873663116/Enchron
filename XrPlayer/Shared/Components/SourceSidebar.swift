@@ -37,6 +37,10 @@ struct SourceSidebar: View {
     /// the DesignPreview mock can stay view-only; the app passes it to drive the
     /// view-model's source switching (UC-FILE-16).
     var onSelectSource: ((SidebarSourceItem.ID) -> Void)?
+    var onAddSource: ((FileBrowsingDomain.SourceType) -> Void)?
+    var onRefresh: (() -> Void)?
+    var onDeleteSources: ((Set<SidebarSourceItem.ID>) -> Void)?
+    var showsStorageMeter = false
 
     @State private var isSelectingSidebarItems = false
     @State private var selectedSourceIDs: Set<SidebarSourceItem.ID> = []
@@ -60,7 +64,9 @@ struct SourceSidebar: View {
 
             Spacer(minLength: 0)
 
-            sidebarStorageMeter
+            if showsStorageMeter {
+                sidebarStorageMeter
+            }
         }
         .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
         .frame(width: DesignTokens.SourceSidebar.width)
@@ -189,23 +195,47 @@ struct SourceSidebar: View {
     private var sourceMoreMenu: some View {
         Menu {
             Menu {
-                Button {} label: {
+                Button {
+                    onAddSource?(.local)
+                } label: {
+                    Label("Files", systemImage: "folder")
+                }
+                .accessibilityIdentifier("\(identifierPrefix)-addFiles")
+                Button {
+                    onAddSource?(.photoLibrary)
+                } label: {
+                    Label("Photos", systemImage: "photo.on.rectangle")
+                }
+                .accessibilityIdentifier("\(identifierPrefix)-addPhotos")
+                Button {
+                    onAddSource?(.webDAV)
+                } label: {
                     Label("WebDAV", systemImage: "cloud.fill")
                 }
-                Button {} label: {
+                .accessibilityIdentifier("\(identifierPrefix)-addWebDAV")
+                Button {
+                    onAddSource?(.smb)
+                } label: {
                     Label("SMB", systemImage: "server.rack")
                 }
-                Button {
-                    addDebugSource()
-                } label: {
-                    Label("Add One", systemImage: "plus.circle")
+                .accessibilityIdentifier("\(identifierPrefix)-addSMB")
+                if onAddSource == nil {
+                    Button {
+                        addDebugSource()
+                    } label: {
+                        Label("Add One", systemImage: "plus.circle")
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix)-addDebug")
                 }
             } label: {
                 Label("Add", systemImage: "plus")
             }
-            Button {} label: {
+            Button {
+                onRefresh?()
+            } label: {
                 Label("Refresh", systemImage: "arrow.clockwise")
             }
+            .accessibilityIdentifier("\(identifierPrefix)-refresh")
             Button {
                 enterSidebarDeleteSelectionMode()
             } label: {
@@ -313,6 +343,7 @@ struct SourceSidebar: View {
     private func deleteSource(_ item: SidebarSourceItem) {
         guard item.isDeletable else { return }
 
+        onDeleteSources?([item.id])
         collapseExpandedSource()
         withAnimation(DesignTokens.AnimationToken.listMutation) {
             items.removeAll { $0.id == item.id }
@@ -325,6 +356,7 @@ struct SourceSidebar: View {
         let deletedIDs = selectedSourceIDs.filter(isDeletableSourceID)
         guard !deletedIDs.isEmpty else { return }
 
+        onDeleteSources?(deletedIDs)
         withAnimation(DesignTokens.AnimationToken.listMutation) {
             items.removeAll { deletedIDs.contains($0.id) }
             selectedSourceIDs.removeAll()

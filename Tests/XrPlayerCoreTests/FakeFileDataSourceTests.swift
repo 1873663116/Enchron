@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import XrPlayerCore
 
-/// Verifies the in-memory `FakeFileDataSource` that backs the FakeApp's file
-/// browsing — the deterministic catalog, empty directories, path normalization,
-/// URL resolution, and the injectable failure mode (UC-FILE-23 / UC-FILE-28).
 struct FakeFileDataSourceTests {
 
     @Test("demo catalog root lists the nine demo films")

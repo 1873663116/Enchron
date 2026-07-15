@@ -1,56 +1,25 @@
 import SwiftUI
 import UIKit
 
-/// The app's Settings screen, assembled from the shared component library
-/// (`CategorySidebar` + `SettingListGroup`) and bound two-way to persisted
-/// `UserPreferences` via `SettingsViewModel`. Replaces the retired `SettingsView`.
-///
-/// Scope note: this binds the persistent core settings (Playback / Spatial /
-/// Diagnostics / About). The polished design's full diagnostics + storage long
-/// tail (cache actions, disclosures, inspectors) is not yet bound.
 struct SettingsScreen: View {
+    @Environment(AppModel.self) private var appModel
     @State private var viewModel: SettingsViewModel
     @State private var selectedCategoryID: String = Category.playback.rawValue
-    @State private var pendingDestructive: DestructiveAction?
-
-    /// Destructive long-tail actions that require an explicit confirm (SET-21/24).
-    /// On a fake backend the confirm path is a no-op + transient feedback; the
-    /// dialog itself is the polished, honest UX.
-    private enum DestructiveAction: Identifiable {
-        case clearLogs, resetEngineOverrides
-        var id: String { String(describing: self) }
-        var title: String {
-            switch self {
-            case .clearLogs: "Clear Logs?"
-            case .resetEngineOverrides: "Reset All Engine Overrides?"
-            }
-        }
-        var message: String {
-            switch self {
-            case .clearLogs: "Removes captured diagnostic logs. Media and sources are not affected."
-            case .resetEngineOverrides: "Restores mpv/libplacebo overrides to defaults. Media and sources are not affected."
-            }
-        }
-        var confirmTitle: String {
-            switch self {
-            case .clearLogs: "Clear Logs"
-            case .resetEngineOverrides: "Reset Overrides"
-            }
-        }
-    }
+    @State private var cacheUsageInBytes: Int64 = 0
+    @State private var showsLicenses = false
 
     init(store: PreferencesStoring = UserDefaultsStore()) {
         _viewModel = State(initialValue: SettingsViewModel(store: store))
     }
 
     private enum Category: String, CaseIterable {
-        case playback, spatial, diagnostics, about
+        case playback, spatial, storagePrivacy, about
 
         var title: String {
             switch self {
             case .playback: "Playback"
             case .spatial: "Spatial Content"
-            case .diagnostics: "Diagnostics & Tools"
+            case .storagePrivacy: "Storage & Privacy"
             case .about: "About"
             }
         }
@@ -59,7 +28,7 @@ struct SettingsScreen: View {
             switch self {
             case .playback: "Resume behavior, end behavior, and control timing"
             case .spatial: "Default environments and immersive entry for spatial media"
-            case .diagnostics: "Logs and performance overlays"
+            case .storagePrivacy: "Rebuildable cache, playback history, and data handling"
             case .about: "Version, support, and feedback"
             }
         }
@@ -68,7 +37,7 @@ struct SettingsScreen: View {
             switch self {
             case .playback: "play.circle.fill"
             case .spatial: "visionpro.fill"
-            case .diagnostics: "slider.horizontal.3"
+            case .storagePrivacy: "internaldrive.fill"
             case .about: "info.circle.fill"
             }
         }
@@ -96,19 +65,9 @@ struct SettingsScreen: View {
         .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Settings-SettingsScreen")
-        .confirmationDialog(
-            pendingDestructive?.title ?? "",
-            isPresented: Binding(
-                get: { pendingDestructive != nil },
-                set: { if !$0 { pendingDestructive = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: pendingDestructive
-        ) { action in
-            Button(action.confirmTitle, role: .destructive) { pendingDestructive = nil }
-            Button("Cancel", role: .cancel) { pendingDestructive = nil }
-        } message: { action in
-            Text(action.message)
+        .task { await refreshCacheUsage() }
+        .sheet(isPresented: $showsLicenses) {
+            OpenSourceLicensesView()
         }
     }
 
@@ -147,8 +106,8 @@ struct SettingsScreen: View {
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
         case .spatial:
             SettingListGroup(accessibilityIdentifier: "Settings-SpatialContent-picker-environment", items: spatialItems)
-        case .diagnostics:
-            SettingListGroup(accessibilityIdentifier: "Settings-Diagnostics-group", items: diagnosticsItems)
+        case .storagePrivacy:
+            SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
         case .about:
             SettingListGroup(accessibilityIdentifier: "Settings-About-group", items: aboutItems)
         }
@@ -179,6 +138,19 @@ struct SettingsScreen: View {
                 ])
             ),
             SettingListGroup.Item(
+                id: "default-speed",
+                title: "Default Speed",
+                systemName: "speedometer",
+                accessory: .menu(
+                    title: speedTitle(viewModel.preferences.defaultPlaybackSpeed),
+                    options: PlaybackModel.PlaybackSpeed.allCases.map { speed in
+                        SettingListGroup.MenuOption(speedTitle(speed.value)) {
+                            viewModel.update { $0.defaultPlaybackSpeed = speed.value }
+                        }
+                    }
+                )
+            ),
+            SettingListGroup.Item(
                 id: "controls-auto-hide",
                 title: "Controls Auto-Hide",
                 systemName: "timer",
@@ -200,90 +172,53 @@ struct SettingsScreen: View {
                 id: "default-environment",
                 title: "Default Environment",
                 systemName: "mountain.2",
-                accessory: .menu(title: environmentTitle, options: environmentOptions.map { name in
-                    SettingListGroup.MenuOption(name) { viewModel.update { $0.defaultEnvironmentID = name } }
+                accessory: .menu(title: environmentTitle, options: SpatialSceneDomain.CinemaEnvironment.allCases.map { environment in
+                    SettingListGroup.MenuOption(environment.displayName) {
+                        viewModel.update { $0.defaultEnvironmentID = environment.rawValue }
+                        appModel.currentCinemaEnvironment = environment
+                    }
                 })
-            ),
-            SettingListGroup.Item(
-                id: "enter-immersive",
-                title: "Enter Immersion for Spatial Content",
-                systemName: "visionpro",
-                accessory: .menu(title: viewModel.preferences.entersImmersionForSpatialContent ? "On" : "Off", options: [
-                    SettingListGroup.MenuOption("Off") { viewModel.update { $0.entersImmersionForSpatialContent = false } },
-                    SettingListGroup.MenuOption("On") { viewModel.update { $0.entersImmersionForSpatialContent = true } }
-                ])
             )
         ]
     }
 
-    // MARK: - Diagnostics
+    // MARK: - Storage & Privacy
 
-    private var diagnosticsItems: [SettingListGroup.Item] {
+    private var storagePrivacyItems: [SettingListGroup.Item] {
         [
             SettingListGroup.Item(
-                id: "log-level",
-                title: "Log Level",
-                systemName: "list.bullet.rectangle",
-                accessory: .menu(title: logLevelTitle, options: PersistenceDomain.LogLevel.allCases.map { level in
-                    SettingListGroup.MenuOption(logLevelLabel(level)) { viewModel.update { $0.logLevel = level } }
-                })
-            ),
-            SettingListGroup.Item(
-                id: "performance-hud",
-                title: "Performance HUD",
-                systemName: "gauge",
-                accessory: .boundToggle(
-                    isOn: Binding(
-                        get: { viewModel.preferences.showsPerformanceHUD },
-                        set: { value in viewModel.update { $0.showsPerformanceHUD = value } }
-                    ),
-                    isEnabled: true,
-                    marker: nil
+                id: "clear-cache",
+                title: "Thumbnail Cache",
+                systemName: "photo.stack",
+                accessory: .valueAction(
+                    value: ByteCountFormatter.string(fromByteCount: cacheUsageInBytes, countStyle: .file),
+                    actionTitle: "Clear",
+                    feedback: "Cleared",
+                    action: clearCache
                 )
             ),
             SettingListGroup.Item(
-                id: "verbose-auto-off",
-                title: "Verbose Auto-Off",
-                systemName: "timer",
-                accessory: .menu(title: verboseAutoOffTitle, options: [
-                    SettingListGroup.MenuOption("Next Launch") { viewModel.update { $0.verboseAutoOff = .nextLaunch } },
-                    SettingListGroup.MenuOption("30 Minutes") { viewModel.update { $0.verboseAutoOff = .thirtyMinutes } }
-                ])
+                id: "clear-progress",
+                title: "Playback Progress",
+                systemName: "clock.arrow.circlepath",
+                accessory: .action(
+                    title: "Clear All",
+                    feedback: "Cleared",
+                    systemName: nil,
+                    role: .destructive,
+                    action: clearProgress
+                )
             ),
-            // SET-20: read-only diagnostic disclosures.
             SettingListGroup.Item(
-                id: "route-snapshot",
-                title: "Route Snapshot",
-                systemName: "point.topleft.down.to.point.bottomright.curvepath",
+                id: "privacy-notice",
+                title: "Privacy Notice",
+                systemName: "hand.raised",
                 keyValueDetail: [
-                    .init(key: "Playback Mode", value: "Window"),
-                    .init(key: "Immersive Space", value: "Closed"),
-                    .init(key: "Active Source", value: "Local (fake catalog)")
+                    .init(key: "Local Files", value: "Read on device"),
+                    .init(key: "Photos", value: "Read only after permission"),
+                    .init(key: "Remote Credentials", value: "Stored in Keychain"),
+                    .init(key: "Diagnostics", value: "Remain on device")
                 ]
-            ),
-            SettingListGroup.Item(
-                id: "media-inspector",
-                title: "Media Inspector",
-                systemName: "waveform.and.magnifyingglass",
-                keyValueDetail: [
-                    .init(key: "Backend", value: "FakePlaybackSource"),
-                    .init(key: "Resolution", value: "1920×1080"),
-                    .init(key: "Codec", value: "h264 (simulated)")
-                ]
-            ),
-            // SET-24: destructive action gated by a confirm dialog.
-            SettingListGroup.Item(
-                id: "clear-logs",
-                title: "Clear Logs",
-                systemName: "trash",
-                accessory: .action(title: "Clear", feedback: "Cleared", systemName: nil, role: .destructive, action: { pendingDestructive = .clearLogs })
-            ),
-            // SET-21: reset engine overrides, also confirm-gated.
-            SettingListGroup.Item(
-                id: "reset-overrides",
-                title: "Reset All Engine Overrides",
-                systemName: "arrow.counterclockwise",
-                accessory: .action(title: "Reset", feedback: nil, systemName: nil, role: .destructive, action: { pendingDestructive = .resetEngineOverrides })
             )
         ]
     }
@@ -304,31 +239,17 @@ struct SettingsScreen: View {
                 systemName: "questionmark.circle",
                 accessory: .valueAction(value: feedbackEmail, actionTitle: "Copy", feedback: "Copied", action: { copy(feedbackEmail) })
             ),
-            // SET-08: cache size — Empty on the fake backend (no real cache yet).
-            SettingListGroup.Item(
-                id: "storage-cache",
-                title: "Storage",
-                systemName: "internaldrive",
-                accessory: .value("Empty")
-            ),
-            // SET-17: privacy disclosure (four data categories).
-            SettingListGroup.Item(
-                id: "privacy-notice",
-                title: "Privacy Notice",
-                systemName: "hand.raised",
-                keyValueDetail: [
-                    .init(key: "Local Files", value: "On device only"),
-                    .init(key: "Photos", value: "Read on request"),
-                    .init(key: "Remote Credentials", value: "Keychain, never synced"),
-                    .init(key: "Diagnostics", value: "Stay on device")
-                ]
-            ),
-            // SET-18: open-source licenses entry.
             SettingListGroup.Item(
                 id: "licenses",
                 title: "Open-source Licenses",
                 systemName: "doc.text",
-                accessory: .action(title: "View", feedback: "Opening…", systemName: nil, role: .normal, action: {})
+                accessory: .action(
+                    title: "View",
+                    feedback: nil,
+                    systemName: nil,
+                    role: .normal,
+                    action: { showsLicenses = true }
+                )
             )
         ]
     }
@@ -337,7 +258,10 @@ struct SettingsScreen: View {
 
     private func setResume(_ value: PersistenceDomain.ResumePolicy) { viewModel.update { $0.resumePolicy = value } }
     private func setEnd(_ value: PersistenceDomain.PlaybackEndBehavior) { viewModel.update { $0.playbackEndBehavior = value } }
-    private func setAutoHide(_ seconds: Int) { viewModel.update { $0.controlsAutoHideSeconds = seconds } }
+    private func setAutoHide(_ seconds: Int) {
+        viewModel.update { $0.controlsAutoHideSeconds = seconds }
+        appModel.controlsAutoHideSeconds = seconds
+    }
 
     private var resumeTitle: String {
         switch viewModel.preferences.resumePolicy {
@@ -362,26 +286,14 @@ struct SettingsScreen: View {
         }
     }
 
-    private let environmentOptions = ["Dark Cinema", "Starry Night", "Nature Sunset"]
+    private func speedTitle(_ speed: Double) -> String {
+        speed == speed.rounded() ? "\(Int(speed))×" : "\(String(format: "%g", speed))×"
+    }
+
     private var environmentTitle: String {
-        viewModel.preferences.defaultEnvironmentID ?? "Dark Cinema"
-    }
-
-    private func logLevelLabel(_ level: PersistenceDomain.LogLevel) -> String {
-        switch level {
-        case .off: "Off"
-        case .error: "Error"
-        case .info: "Info"
-        case .verbose: "Verbose"
-        }
-    }
-    private var logLevelTitle: String { logLevelLabel(viewModel.preferences.logLevel) }
-
-    private var verboseAutoOffTitle: String {
-        switch viewModel.preferences.verboseAutoOff {
-        case .nextLaunch: "Next Launch"
-        case .thirtyMinutes: "30 Minutes"
-        }
+        SpatialSceneDomain.CinemaEnvironment(
+            preferenceValue: viewModel.preferences.defaultEnvironmentID
+        )?.displayName ?? SpatialSceneDomain.CinemaEnvironment.darkTheatre.displayName
     }
 
     private let feedbackEmail = "feedback@enchron.app"
@@ -394,5 +306,40 @@ struct SettingsScreen: View {
 
     private func copy(_ string: String) {
         UIPasteboard.general.string = string
+    }
+
+    private func refreshCacheUsage() async {
+        cacheUsageInBytes = await ThumbnailService.shared.cacheUsageInBytes()
+    }
+
+    private func clearCache() {
+        Task {
+            await ThumbnailService.shared.clearCache()
+            await refreshCacheUsage()
+        }
+    }
+
+    private func clearProgress() {
+        Task { await SwiftDataStore().clearAllProgress() }
+    }
+}
+
+private struct OpenSourceLicensesView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Text("PlaybackCore — MIT")
+                Text("AMSMB2 — MIT")
+                Text("RealityKitScripting — Apple sample code license")
+            }
+            .navigationTitle("Open-source Licenses")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
     }
 }

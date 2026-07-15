@@ -78,6 +78,39 @@ nonisolated final class ThumbnailCache: @unchecked Sendable {
         diskCacheURL.appendingPathComponent(key + ".jpg")
     }
 
+    func diskUsageInBytes() async -> Int64 {
+        await withCheckedContinuation { continuation in
+            ioQueue.async { [diskCacheURL] in
+                let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey]
+                let urls = (try? FileManager.default.contentsOfDirectory(
+                    at: diskCacheURL,
+                    includingPropertiesForKeys: Array(keys)
+                )) ?? []
+                let bytes = urls.reduce(into: Int64(0)) { total, url in
+                    let values = try? url.resourceValues(forKeys: keys)
+                    if values?.isRegularFile == true {
+                        total += Int64(values?.fileSize ?? 0)
+                    }
+                }
+                continuation.resume(returning: bytes)
+            }
+        }
+    }
+
+    func clear() async {
+        memoryCache.removeAllObjects()
+        await withCheckedContinuation { continuation in
+            ioQueue.async { [diskCacheURL] in
+                try? FileManager.default.removeItem(at: diskCacheURL)
+                try? FileManager.default.createDirectory(
+                    at: diskCacheURL,
+                    withIntermediateDirectories: true
+                )
+                continuation.resume()
+            }
+        }
+    }
+
     // MARK: - Private Helpers
 
     private static func sha256Hex(_ input: String) -> String {

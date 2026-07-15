@@ -10,13 +10,20 @@
 		A4C19F9F2FD1000100AABBCC /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
 		A4C19FA02FD1000100AABBCC /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A4C1A00F2FD2000100AABBCC /* RealityKitScripting in Frameworks */ = {isa = PBXBuildFile; productRef = A4C1A00E2FD2000100AABBCC /* RealityKitScripting */; };
-		C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = C32D79C32F57A609002717FA /* MPVKit-GPL */; };
+		B1C000032FD3000100C0FFEE /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
 		C3D4A1012F90000100DA0D16 /* DesignPreview/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C3D4A1002F90000100DA0D16 /* DesignPreview/Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
 		E2E0000800000000DEADBEEF /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C3B0F9782F5726B30064596E /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C3B0F97F2F5726B30064596E;
+			remoteInfo = XrPlayer;
+		};
+		F1A0000800000000DEADBEEF /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = C3B0F9782F5726B30064596E /* Project object */;
 			proxyType = 1;
@@ -55,17 +62,25 @@
 		C3B0F9842F5726B30064596E /* RealityKitContent */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = RealityKitContent; sourceTree = "<group>"; };
 		C3D4A1002F90000100DA0D16 /* DesignPreview/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = DesignPreview/Assets.xcassets; sourceTree = "<group>"; };
 		E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = XrPlayerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		F1A0000200000000DEADBEEF /* XrPlayerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = XrPlayerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
 		C3A35AC72F85434200DA0D16 /* Exceptions for "XrPlayer" folder in "DesignPreview" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				FileBrowsing/Domain/ValueObjects/SourceType.swift,
+				PlaybackModel/Domain/ValueObjects/PlaybackState.swift,
+				PlaybackModel/Domain/ValueObjects/ProjectionType.swift,
+				PlaybackModel/Domain/ValueObjects/StereoLayout.swift,
+				PlayerUI/Domain/ValueObjects/PlaybackPresentation.swift,
 				Shared/Components/SharedComponents.swift,
 				Shared/Components/SourceSidebar.swift,
 				Shared/DesignSystem/DesignTokens.swift,
 				"Shared/DesignSystem/View+EnchronGlass.swift",
 				"Shared/DesignSystem/View+PressFeedback.swift",
+				SpatialScene/Domain/CinemaEnvironment.swift,
+				SpatialScene/Domain/SpatialSceneDomain.swift,
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};
@@ -74,16 +89,8 @@
 			membershipExceptions = (
 				ComponentLibrary.swift,
 				ContentView.swift,
-				DesignComps/DesignCompsPreviewGallery.swift,
-				DesignComps/Pages/Environment/CampEnvironmentPage.swift,
-				DesignComps/Pages/Environment/SenseZoneVolumeRoot.swift,
-				DesignComps/Pages/Home/HomeFirstLaunchPage.swift,
-				DesignComps/Pages/Player/WindowPlaybackPage.swift,
-				DesignComps/Pages/Settings/SettingsPage.swift,
 				DesignComps/Windows/EmptyPanelWindowContent.swift,
 				DesignPreviewApp.swift,
-				DesignPreviewNavigationModel.swift,
-				DesignPreviewRoot.swift,
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};
@@ -111,6 +118,11 @@
 			path = XrPlayerUITests;
 			sourceTree = "<group>";
 		};
+		F1A0000C00000000DEADBEEF /* XrPlayerTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = XrPlayerTests;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -126,13 +138,20 @@
 			buildActionMask = 2147483647;
 			files = (
 				A4C19F9F2FD1000100AABBCC /* AMSMB2 in Frameworks */,
-				C32D79C42F57A609002717FA /* MPVKit-GPL in Frameworks */,
+				B1C000032FD3000100C0FFEE /* PlaybackCore in Frameworks */,
 				C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */,
 				A4C1A00F2FD2000100AABBCC /* RealityKitScripting in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E2E0000500000000DEADBEEF /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1A0000500000000DEADBEEF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -156,6 +175,7 @@
 				C3B0F9822F5726B30064596E /* XrPlayer */,
 				C3B0F9832F5726B30064596E /* Packages */,
 				C3A35AA12F85415E00DA0D16 /* DesignPreview */,
+				F1A0000C00000000DEADBEEF /* XrPlayerTests */,
 				E2E0000C00000000DEADBEEF /* XrPlayerUITests */,
 				C3B0F9812F5726B30064596E /* Products */,
 				C38F115C2FC16A0700843A5C /* Recovered References */,
@@ -166,6 +186,7 @@
 			isa = PBXGroup;
 			children = (
 				C3B0F9802F5726B30064596E /* XrPlayer.app */,
+				F1A0000200000000DEADBEEF /* XrPlayerTests.xctest */,
 				E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */,
 				C3A35AB32F85429300DA0D16 /* DesignPreview.app */,
 			);
@@ -223,8 +244,8 @@
 			name = XrPlayer;
 			packageProductDependencies = (
 				A4C19F9E2FD1000100AABBCC /* AMSMB2 */,
+				B1C000022FD3000100C0FFEE /* PlaybackCore */,
 				C3B0F9852F5726B30064596E /* RealityKitContent */,
-				C32D79C32F57A609002717FA /* MPVKit-GPL */,
 				A4C1A00E2FD2000100AABBCC /* RealityKitScripting */,
 			);
 			productName = XrPlayer;
@@ -252,6 +273,27 @@
 			productReference = E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		F1A0000100000000DEADBEEF /* XrPlayerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F1A0000B00000000DEADBEEF /* Build configuration list for PBXNativeTarget "XrPlayerTests" */;
+			buildPhases = (
+				F1A0000400000000DEADBEEF /* Sources */,
+				F1A0000500000000DEADBEEF /* Frameworks */,
+				F1A0000600000000DEADBEEF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				F1A0000700000000DEADBEEF /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				F1A0000C00000000DEADBEEF /* XrPlayerTests */,
+			);
+			name = XrPlayerTests;
+			productName = XrPlayerTests;
+			productReference = F1A0000200000000DEADBEEF /* XrPlayerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -272,6 +314,10 @@
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = C3B0F97F2F5726B30064596E;
 					};
+					F1A0000100000000DEADBEEF = {
+						CreatedOnToolsVersion = 27.0;
+						TestTargetID = C3B0F97F2F5726B30064596E;
+					};
 				};
 			};
 			buildConfigurationList = C3B0F97B2F5726B30064596E /* Build configuration list for PBXProject "XrPlayer" */;
@@ -285,7 +331,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A4C19F9D2FD1000100AABBCC /* XCRemoteSwiftPackageReference "AMSMB2" */,
-				C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */,
+				B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "../PlaybackCore" */,
 				C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */,
 				A4C1A00D2FD2000100AABBCC /* XCRemoteSwiftPackageReference "realitykitscripting" */,
 			);
@@ -295,6 +341,7 @@
 			projectRoot = "";
 			targets = (
 				C3B0F97F2F5726B30064596E /* XrPlayer */,
+				F1A0000100000000DEADBEEF /* XrPlayerTests */,
 				E2E0000100000000DEADBEEF /* XrPlayerUITests */,
 				C3A35AB22F85429300DA0D16 /* DesignPreview */,
 			);
@@ -318,6 +365,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E2E0000600000000DEADBEEF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		F1A0000600000000DEADBEEF /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -370,6 +424,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		F1A0000400000000DEADBEEF /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -377,6 +438,11 @@
 			isa = PBXTargetDependency;
 			target = C3B0F97F2F5726B30064596E /* XrPlayer */;
 			targetProxy = E2E0000800000000DEADBEEF /* PBXContainerItemProxy */;
+		};
+		F1A0000700000000DEADBEEF /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C3B0F97F2F5726B30064596E /* XrPlayer */;
+			targetProxy = F1A0000800000000DEADBEEF /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -466,7 +532,6 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "XrPlayer/XrPlayer-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
@@ -499,7 +564,6 @@
 				SWIFT_APPROACHABLE_CONCURRENCY = YES;
 				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "XrPlayer/XrPlayer-Bridging-Header.h";
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
@@ -566,7 +630,7 @@
 				SDKROOT = xros;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				XROS_DEPLOYMENT_TARGET = 26.2;
+				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Debug;
 		};
@@ -623,7 +687,7 @@
 				SDKROOT = xros;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
-				XROS_DEPLOYMENT_TARGET = 26.2;
+				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Release;
 		};
@@ -644,7 +708,7 @@
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
 				TEST_TARGET_NAME = XrPlayer;
-				XROS_DEPLOYMENT_TARGET = 26.2;
+				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Debug;
 		};
@@ -665,7 +729,53 @@
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = 7;
 				TEST_TARGET_NAME = XrPlayer;
-				XROS_DEPLOYMENT_TARGET = 26.2;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Release;
+		};
+		F1A0000900000000DEADBEEF /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/XrPlayer.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/XrPlayer";
+				TEST_TARGET_NAME = XrPlayer;
+				XROS_DEPLOYMENT_TARGET = 27.0;
+			};
+			name = Debug;
+		};
+		F1A0000A00000000DEADBEEF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.XrPlayerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "xros xrsimulator";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = 7;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/XrPlayer.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/XrPlayer";
+				TEST_TARGET_NAME = XrPlayer;
+				XROS_DEPLOYMENT_TARGET = 27.0;
 			};
 			name = Release;
 		};
@@ -708,9 +818,22 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		F1A0000B00000000DEADBEEF /* Build configuration list for PBXNativeTarget "XrPlayerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				F1A0000900000000DEADBEEF /* Debug */,
+				F1A0000A00000000DEADBEEF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "../PlaybackCore" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../PlaybackCore;
+		};
 		C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = Packages/RealityKitContent;
@@ -734,14 +857,6 @@
 				kind = branch;
 			};
 		};
-		C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/mpvkit/MPVKit.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.41.0;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -755,10 +870,10 @@
 			package = A4C1A00D2FD2000100AABBCC /* XCRemoteSwiftPackageReference "realitykitscripting" */;
 			productName = RealityKitScripting;
 		};
-		C32D79C32F57A609002717FA /* MPVKit-GPL */ = {
+		B1C000022FD3000100C0FFEE /* PlaybackCore */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = C32D79C02F57A609002717FA /* XCRemoteSwiftPackageReference "MPVKit" */;
-			productName = "MPVKit-GPL";
+			package = B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "../PlaybackCore" */;
+			productName = PlaybackCore;
 		};
 		C3B0F9852F5726B30064596E /* RealityKitContent */ = {
 			isa = XCSwiftPackageProductDependency;

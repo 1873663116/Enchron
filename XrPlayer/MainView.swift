@@ -1,195 +1,51 @@
 import SwiftUI
-import RealityKit
 import UIKit
 
 public struct MainView: View {
-    @Environment(AppModel.self) var appModel
-    @Environment(WindowVideoViewModel.self) var windowVideoViewModel
-    @Environment(PlaybackLaunchCoordinator.self) var playbackLauncher
+    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
-    @Environment(PanoramaLayerBridge.self) var panoramaBridge
+
+    @State private var controlsTimer: Task<Void, Never>?
 
     public init() {}
 
-    private var isWindowPlaybackActive: Bool {
-        appModel.isPlaying && appModel.playbackMode == .window
+    private var showsWindowPlayback: Bool {
+        appModel.isPlaying && appModel.playbackPresentation == .window
     }
 
-    private var shouldShowPlayerControls: Bool {
-        appModel.isPlaying && appModel.showControls && windowVideoViewModel.canPresentControls && appModel.playbackMode == .window
-    }
-
-    // MARK: - Load-failure retry (UC-PLAY-23)
-
-    private func retryPlayback() {
-        windowVideoViewModel.lastErrorMessage = nil
-        guard let request = windowVideoViewModel.currentLaunchRequest else { return }
-        playbackLauncher.beginPlayback(request)
+    private var windowSurfaceIsActive: Bool {
+        showsWindowPlayback && appModel.presentationTransition == nil
     }
 
     public var body: some View {
         ZStack {
-            // Content area — routed by navigation state.
-            // Kept in tree (not removed via if/else) to preserve NavigationSplitView state.
-            Group {
-                switch appModel.selectedTab {
-                case .files:
-                    FilesScreen()
-                case .settings:
-                    SettingsScreen()
-                case .environment:
-                    // Environments opens a separate destination; the tab never parks
-                    // here (see NavigationOrnament). Render nothing if ever reached.
-                    Color.clear
-                }
+            browser
+                .opacity(showsWindowPlayback ? 0 : 1)
+                .allowsHitTesting(!showsWindowPlayback)
+
+            windowPlayback
+                .opacity(showsWindowPlayback ? 1 : 0)
+                .allowsHitTesting(showsWindowPlayback)
+
+            if let decision = playbackLauncher.pendingResumeDecision {
+                PlaybackOverlayCard(
+                    systemImage: "clock.arrow.circlepath",
+                    title: "Resume Playback?",
+                    message: "Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.",
+                    primaryTitle: "Resume",
+                    primaryIcon: "play.fill",
+                    primaryAction: playbackLauncher.resumePendingPlayback,
+                    secondaryTitle: "Start Over",
+                    secondaryIcon: "backward.end.fill",
+                    secondaryAction: playbackLauncher.startPendingPlaybackFromBeginning,
+                    identifierPrefix: "PlayerUI-resume"
+                )
             }
-            .opacity(isWindowPlaybackActive ? 0 : 1)
-            .allowsHitTesting(!isWindowPlaybackActive)
-            .accessibilityHidden(isWindowPlaybackActive)
-
-            // Always-mounted video surface — hidden when not playing,
-            // so attachVideoLayer() and native warmup complete before first play.
-            ZStack(alignment: .topTrailing) {
-                GeometryReader { geometry in
-                    ZStack {
-                        WindowVideoView(
-                            viewModel: windowVideoViewModel,
-                            containerSize: geometry.size
-                        )
-                        .opacity(shouldShowMPVSurface ? 1 : 0)
-
-                        if shouldShowAppleReferenceSurface {
-                            AppleReferenceVideoSurface(player: windowVideoViewModel.appleReferencePlayer)
-                                .background(.black)
-                        }
-
-                        // EXPLORATORY (FakeApp): FakePlaybackSource decodes no real
-                        // frames, so the MTKView clears to black. This stand-in makes
-                        // simulated playback visible during the experiment. Remove when
-                        // the real MPVPlayerAdapter lands (usesNativeGPUOutput == true).
-                        if !windowVideoViewModel.usesNativeGPUOutput {
-                            SimulatedPlaybackSurface(
-                                title: windowVideoViewModel.currentLaunchRequest?.displayName ?? ""
-                            )
-                        }
-                    }
-                }
-                .glassBackgroundEffect()
-                // Edge vignette — darkens screen edges when controls are visible
-                // so labels remain readable against bright/white video content.
-                // Placed on GeometryReader (same frame as glass background) so it
-                // naturally clips to the window's rounded corners.
-                .overlay {
-                    VStack(spacing: 0) {
-                        LinearGradient(
-                            colors: [.black.opacity(0.65), .clear],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 160)
-                        Spacer()
-                        LinearGradient(
-                            colors: [.clear, .black.opacity(0.55)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                        .frame(height: 200)
-                    }
-                    .clipShape(DesignTokens.ShapeToken.panel)
-                    .opacity(appModel.showControls && appModel.isPlaying ? 1 : 0)
-                    .allowsHitTesting(false)
-                }
-                .contentShape(Rectangle())
-                .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                if !pinchBegan {
-                                    pinchBegan = true
-                                    windowVideoViewModel.gestureUseCase.handlePinchBegan()
-                                } else {
-                                    windowVideoViewModel.gestureUseCase.handlePinchChanged(
-                                        translation: value.translation
-                                    )
-                                }
-                            }
-                            .onEnded { _ in
-                                pinchBegan = false
-                                windowVideoViewModel.gestureUseCase.handlePinchEnded()
-                            }
-                    )
-
-                if windowVideoViewModel.presentationState != .videoVisible {
-                    RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-                        .fill(.black)
-                        .transition(.opacity)
-                }
-
-                if windowVideoViewModel.presentationState == .placeholder {
-                    ProgressView()
-                        .progressViewStyle(.circular)
-                        .scaleEffect(1.5)
-                        .padding(20)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small))
-                        .transition(.opacity)
-                }
-
-                if windowVideoViewModel.playbackState == .buffering {
-                    ProgressView("Buffering…")
-                        .progressViewStyle(.circular)
-                        .padding(20)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small))
-                        .transition(.opacity)
-                }
-
-            }
-            // Info bar overlay (top-leading)
-            .overlay(alignment: .topLeading) {
-                if appModel.showControls && appModel.isPlaying && appModel.playbackMode == .window {
-                    PlayerInfoBarView()
-                        .padding(.horizontal, 28)
-                        .padding(.top, 20)
-                        .transition(.opacity)
-                }
-            }
-            // Load-failure panel (UC-PLAY-23) — polished glass card over the
-            // darkened video, replaces the system error alert.
-            .overlay {
-                if isWindowPlaybackActive, let message = windowVideoViewModel.lastErrorMessage {
-                    PlaybackOverlayCard(
-                        systemImage: "exclamationmark.triangle",
-                        title: "Failed to Load",
-                        message: message,
-                        primaryTitle: "Retry",
-                        primaryIcon: "arrow.clockwise",
-                        primaryAction: { retryPlayback() },
-                        secondaryTitle: "Close",
-                        secondaryIcon: "xmark",
-                        secondaryAction: {
-                            windowVideoViewModel.lastErrorMessage = nil
-                            playbackLauncher.stopPlayback()
-                        },
-                        identifierPrefix: "PlayerUI-loadFailure"
-                    )
-                    .transition(.opacity)
-                }
-            }
-            .animation(.easeInOut(duration: 0.4), value: appModel.showControls)
-            .opacity(isWindowPlaybackActive ? 1 : 0)
-            .scaleEffect(isWindowPlaybackActive ? 1.0 : 0.98)
-            .blur(radius: isWindowPlaybackActive ? 0 : 4)
-            .animation(.spring(response: 0.45, dampingFraction: 0.85), value: appModel.isPlaying)
-            .allowsHitTesting(isWindowPlaybackActive)
-            .accessibilityHidden(!isWindowPlaybackActive)
-        }
-        .ornament(attachmentAnchor: .scene(.bottom), contentAlignment: .center) {
-            // Polished player deck (transport / progress / precision timeline /
-            // ⋯ menu) driven by WindowVideoViewModel — replaces PlayerControlsView.
-            WindowPlayerDeckView()
-                .opacity(shouldShowPlayerControls ? 1 : 0)
-                .allowsHitTesting(shouldShowPlayerControls)
         }
         .ornament(
             visibility: appModel.isPlaying ? .hidden : .visible,
@@ -198,288 +54,297 @@ public struct MainView: View {
         ) {
             NavigationOrnament()
         }
-        // ADR-0009:前缘 PlaybackSettingsPanel ornament 已撤——设置改由底部
-        // FusedPlayerPanel 的 ≡ 内联形变长出(Environment / Play Mode / Picture)。
-        .sheet(isPresented: Bindable(appModel).showSceneSelector) {
-            SceneSelectorView()
-        }
         .onAppear {
-            windowVideoViewModel.gestureUseCase.onGestureResolved = { gesture in
-                switch gesture {
-                case .singlePinch:
-                    if appModel.showControls {
-                        guard appModel.isControlsFocused == false else {
-                            appModel.registerControlsInteraction()
-                            break
-                        }
-                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = false }
-                        controlsTimerTask?.cancel()
-                    } else {
-                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
-                        appModel.registerControlsInteraction()
-                        startControlsTimer()
-                    }
-                case .doublePinch:
-                    if windowVideoViewModel.playbackState == .playing {
-                        windowVideoViewModel.pause()
-                    } else if windowVideoViewModel.playbackState == .ended {
-                        windowVideoViewModel.replay()
-                    } else {
-                        windowVideoViewModel.resume()
-                    }
-                case .drag:
-                    seekStartSeconds = windowVideoViewModel.playbackPosition.seconds
-                    if !appModel.showControls {
-                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
-                        appModel.registerControlsInteraction()
-                        startControlsTimer()
-                    }
-                case .longPress:
-                    break
+            playbackRuntime.onPlaybackEnded = {
+                let showControls = playbackLauncher.handlePlaybackEnded()
+                if showControls {
+                    appModel.showControls = true
+                    controlsTimer?.cancel()
                 }
-            }
-
-            windowVideoViewModel.gestureUseCase.onLongPressBegan = {
-                speedBeforeLongPress = appModel.playbackSpeed
-                windowVideoViewModel.setSpeed(PlaybackCoreDomain.PlaybackSpeed(2.0))
-            }
-            windowVideoViewModel.gestureUseCase.onLongPressEnded = {
-                windowVideoViewModel.setSpeed(speedBeforeLongPress ?? .default)
-                speedBeforeLongPress = nil
-            }
-
-            windowVideoViewModel.gestureUseCase.onDragUpdate = { translation in
-                guard let startPos = seekStartSeconds else { return }
-                let duration = windowVideoViewModel.playbackPosition.duration
-                guard duration > 0 else { return }
-                let seekDelta = Double(translation.width) * 0.15
-                let target = max(0, min(duration, startPos + seekDelta))
-                windowVideoViewModel.seek(to: target)
-                appModel.registerControlsInteraction()
-            }
-            windowVideoViewModel.gestureUseCase.onDragEnded = {
-                seekStartSeconds = nil
-            }
-
-            windowVideoViewModel.onPlaybackEnded = {
-                let shouldShowControls = playbackLauncher.handlePlaybackEnded(
-                    onFallbackShowControls: {
-                        withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
-                        controlsTimerTask?.cancel()
-                    }
-                )
-                if shouldShowControls {
-                    withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
-                    controlsTimerTask?.cancel()
-                }
-            }
-
-            if appModel.isPlaying {
-                startControlsTimer()
             }
         }
         .onChange(of: appModel.isPlaying) { _, isPlaying in
-            if isPlaying {
-                appModel.registerControlsInteraction()
-                withAnimation(.easeInOut(duration: 0.4)) { appModel.showControls = true }
-                startControlsTimer()
-            }
-            updateWindowResizingRestrictions(isPlaying: isPlaying)
-        }
-        .onChange(of: appModel.playbackMode) { oldMode, newMode in
-            guard appModel.isPlaying else { return }
-            let needsImmersive = newMode == .panorama || newMode == .immersive
-            let oldNeedsImmersive = oldMode == .panorama || oldMode == .immersive
-            // Only transition when immersive requirement actually changes
-            guard needsImmersive != oldNeedsImmersive else { return }
             Task { @MainActor in
-                // Detach panorama bridge before dismissing old immersive space
-                if oldNeedsImmersive {
-                    panoramaBridge.attachVideoLayer(nil)
-                }
-
-                if needsImmersive && appModel.immersiveSpaceState == .closed {
-                    await openImmersiveSpaceUnified()
-                } else if !needsImmersive && appModel.immersiveSpaceState == .open {
-                    appModel.isTransitioningPlaybackMode = true
-                    appModel.immersiveSpaceState = .inTransition
-                    await dismissImmersiveSpace()
-                    openWindow(id: "main")
-                    appModel.isTransitioningPlaybackMode = false
+                try? await Task.sleep(for: .milliseconds(20))
+                updateWindowResizingRestrictions(isPlaying: isPlaying)
+                if isPlaying {
+                    scheduleControlsAutoHide()
+                } else {
+                    controlsTimer?.cancel()
                 }
             }
+        }
+        .onChange(of: appModel.lastControlsInteractionAt) { _, _ in
+            guard appModel.isPlaying else { return }
+            scheduleControlsAutoHide()
+        }
+        .onDisappear {
+            controlsTimer?.cancel()
+        }
+        .onChange(of: appModel.presentationTransition?.id) { _, _ in
+            guard let transition = appModel.presentationTransition,
+                  transition.targetPresentation != .window else { return }
+            Task { await enterSpatialPresentation(transition) }
         }
         .onChange(of: appModel.immersiveSpaceRequest) { _, request in
-            // Unified entry point for sub-views (SceneSelectorView, ToggleImmersiveSpaceButton)
-            // that cannot call openImmersiveSpace directly per Architecture Invariant.
             guard let request else { return }
             appModel.immersiveSpaceRequest = nil
-            Task { @MainActor in
+            Task {
                 switch request {
-                case .open:
-                    // Environment-expand entry: mixed immersion so the SenseZone
-                    // volume stays open while the RCP `world` loads (ENV-18).
-                    await openImmersiveSpaceUnified(fullImmersion: false)
-                case .dismiss:
-                    guard appModel.immersiveSpaceState == .open else { return }
-                    appModel.isTransitioningPlaybackMode = true
-                    appModel.immersiveSpaceState = .inTransition
-                    await dismissImmersiveSpace()
-                    openWindow(id: "main")
-                    dismissWindow(id: "playerControls")
-                    appModel.isTransitioningPlaybackMode = false
-                }
-            }
-        }
-        .onChange(of: appModel.playbackMode != .window) { _, shouldShow in
-            // P1 #1 fix: serialize window operations to prevent race on rapid mode transitions.
-            // §5.9d: removed isPlaying gate — paused state can also summon controls.
-            guard !appModel.isTransitioningPlaybackMode else { return }
-            playerControlsWindowTask?.cancel()
-            playerControlsWindowTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(100))
-                guard !Task.isCancelled else { return }
-                if shouldShow {
-                    openWindow(id: "playerControls")
-                } else {
-                    dismissWindow(id: "playerControls")
+                case .open: await openEnvironmentPreview()
+                case .dismiss: await closeEnvironmentPreview()
                 }
             }
         }
     }
 
-    private var shouldShowMPVSurface: Bool {
-        DiagnosticsFeatureFlags.hdrLabEnabled == false || windowVideoViewModel.diagnosticRenderer == .mpv
+    @ViewBuilder
+    private var browser: some View {
+        switch appModel.selectedTab {
+        case .files: FilesScreen()
+        case .settings: SettingsScreen()
+        case .environment: Color.clear
+        }
     }
 
-    private var shouldShowAppleReferenceSurface: Bool {
-        DiagnosticsFeatureFlags.hdrLabEnabled && windowVideoViewModel.diagnosticRenderer == .apple
+    private var windowPlayback: some View {
+        ZStack {
+            Color.black
+            PlaybackVideoSurface(presentation: .window, isActive: windowSurfaceIsActive)
+
+            if playbackRuntime.presentationState == .placeholder || playbackRuntime.playbackState == .loading {
+                ProgressView()
+                    .controlSize(.large)
+            }
+
+            if playbackRuntime.playbackState == .buffering {
+                ProgressView("Buffering…")
+                    .padding(20)
+                    .glassBackgroundEffect()
+            }
+
+            if let message = playbackRuntime.lastErrorMessage {
+                PlaybackOverlayCard(
+                    systemImage: "exclamationmark.triangle",
+                    title: "Failed to Load",
+                    message: message,
+                    primaryTitle: "Retry",
+                    primaryIcon: "arrow.clockwise",
+                    primaryAction: retryPlayback,
+                    secondaryTitle: "Close",
+                    secondaryIcon: "xmark",
+                    secondaryAction: playbackLauncher.stopPlayback,
+                    identifierPrefix: "PlayerUI-loadFailure"
+                )
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-window-playback")
+        .accessibilityValue(playbackRuntime.playbackState.rawValue)
+        .glassBackgroundEffect()
+        .overlay {
+            if appModel.showControls && showsWindowPlayback {
+                VStack(spacing: 0) {
+                    PlayerInfoBarView()
+                    Spacer(minLength: DesignTokens.Spacing.xl)
+                    WindowPlayerDeckView()
+                }
+                .padding(.horizontal, 28)
+                .padding(.top, 20)
+                .padding(.bottom, 28)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("PlayerUI-window-control-plane")
+            }
+        }
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                appModel.toggleControlsFromPlaybackSurface()
+            }
+            if appModel.showControls { scheduleControlsAutoHide() }
+        }
     }
 
-    // MARK: - Unified Immersive Space Entry (§5.9a)
+    private func retryPlayback() {
+        playbackRuntime.lastErrorMessage = nil
+        guard let request = playbackRuntime.currentLaunchRequest else { return }
+        playbackLauncher.beginPlayback(request)
+    }
 
-    /// Single canonical site where openImmersiveSpace is called.
-    /// All sub-views route through appModel.immersiveSpaceRequest,
-    /// which is observed here and dispatched to this function.
     @MainActor
-    private func openImmersiveSpaceUnified(fullImmersion: Bool = true) async {
+    private func enterSpatialPresentation(_ transition: PlaybackPresentationTransition) async {
+        guard appModel.isTransitioningPlaybackMode == false else { return }
         appModel.isTransitioningPlaybackMode = true
-        appModel.immersiveSpaceState = .inTransition
-        // Playback immersion is full/exclusive; environment-expand browsing is
-        // mixed so the SenseZone volume carousel stays visible alongside the RCP
-        // `world` (ENV-18 — the volume must not close on expand).
-        appModel.isFullImmersion = fullImmersion
-        switch await openImmersiveSpace(id: appModel.immersiveSpaceID) {
-        case .opened:
-            // Attach video layer for panorama/immersive rendering
-            let layer = windowVideoViewModel.nativeVideoLayer
-            panoramaBridge.attachVideoLayer(layer)
-            // §5.9b: mark state as open before dismissing main window
-            appModel.immersiveSpaceState = .open
-            // Only full immersion replaces the shared space; in mixed immersion
-            // the main window and SenseZone volume coexist with the scene.
-            if fullImmersion {
-                dismissWindow(id: "main")
+        let reusedEnvironmentSpace = appModel.immersiveSpaceState == .open
+            && appModel.isEnvironmentImmersiveActive
+        if reusedEnvironmentSpace == false {
+            appModel.immersiveSpaceState = .inTransition
+        }
+        appModel.isEnvironmentImmersiveActive = false
+        appModel.isFullImmersion = true
+        await Task.yield()
+
+        let opened: Bool
+        if reusedEnvironmentSpace {
+            opened = true
+        } else {
+            if case .opened = await openImmersiveSpace(id: appModel.immersiveSpaceID) {
+                opened = true
+            } else {
+                opened = false
             }
-        case .userCancelled, .error:
-            fallthrough
-        @unknown default:
-            // §5.9b: keep main window visible on failure
+        }
+
+        guard opened else {
+            appModel.rollbackPlaybackPresentation(transition.id)
             appModel.immersiveSpaceState = .closed
-            appModel.updatePlaybackMode(.window)
+            appModel.isEnvironmentImmersiveActive = false
+            appModel.isTransitioningPlaybackMode = false
+            return
+        }
+
+        guard await playbackRuntime.waitUntilAttached(to: transition.targetPresentation) else {
+            if reusedEnvironmentSpace {
+                appModel.isEnvironmentImmersiveActive = true
+                appModel.isFullImmersion = false
+            } else {
+                await dismissImmersiveSpace()
+                appModel.immersiveSpaceState = .closed
+            }
+            appModel.rollbackPlaybackPresentation(transition.id)
+            playbackRuntime.lastErrorMessage = "The spatial playback surface could not attach to PlaybackCore."
+            appModel.isTransitioningPlaybackMode = false
+            return
+        }
+
+        do {
+            try appModel.commitPlaybackPresentation(transition.id)
+            appModel.immersiveSpaceState = .open
+            openWindow(id: "playerControls")
+            dismissWindow(id: "main")
+        } catch {
+            if reusedEnvironmentSpace {
+                appModel.isEnvironmentImmersiveActive = true
+                appModel.isFullImmersion = false
+            } else {
+                await dismissImmersiveSpace()
+                appModel.immersiveSpaceState = .closed
+            }
+            appModel.rollbackPlaybackPresentation(transition.id)
+            playbackRuntime.lastErrorMessage = error.localizedDescription
         }
         appModel.isTransitioningPlaybackMode = false
     }
 
-    @State private var controlsTimerTask: Task<Void, Never>?
-    @State private var playerControlsWindowTask: Task<Void, Never>?
-    @State private var pinchBegan = false
-    @State private var speedBeforeLongPress: PlaybackCoreDomain.PlaybackSpeed?
-    @State private var seekStartSeconds: Double?
+    @MainActor
+    private func openEnvironmentPreview() async {
+        guard appModel.immersiveSpaceState == .closed else { return }
+        appModel.immersiveSpaceState = .inTransition
+        appModel.isFullImmersion = false
+        if case .opened = await openImmersiveSpace(id: appModel.immersiveSpaceID) {
+            appModel.immersiveSpaceState = .open
+            appModel.isEnvironmentImmersiveActive = true
+            try? appModel.updateEnvironmentContext(.active(appModel.currentCinemaEnvironment))
+        } else {
+            appModel.immersiveSpaceState = .closed
+        }
+    }
 
-    /// Switches visionOS window resizing between uniform (aspect-ratio-locked)
-    /// during playback and freeform when browsing files.
-    /// Uses Apple's `UIWindowScene.GeometryPreferences.Vision` API.
+    @MainActor
+    private func closeEnvironmentPreview() async {
+        guard appModel.immersiveSpaceState == .open else { return }
+        await dismissImmersiveSpace()
+        appModel.immersiveSpaceState = .closed
+        appModel.isEnvironmentImmersiveActive = false
+        try? appModel.updateEnvironmentContext(.none)
+    }
+
+    private func scheduleControlsAutoHide() {
+        controlsTimer?.cancel()
+        guard appModel.controlsAutoHideSeconds > 0 else { return }
+        let delay = Duration.seconds(appModel.controlsAutoHideSeconds)
+        controlsTimer = Task { @MainActor in
+            try? await Task.sleep(for: delay)
+            guard !Task.isCancelled,
+                  appModel.canAutoHideControls,
+                  playbackRuntime.playbackState == .playing else { return }
+            withAnimation(.easeInOut(duration: 0.3)) {
+                appModel.showControls = false
+            }
+        }
+    }
+
     private func updateWindowResizingRestrictions(isPlaying: Bool) {
         guard let windowScene = UIApplication.shared.connectedScenes
-            .first(where: { $0 is UIWindowScene }) as? UIWindowScene
-        else { return }
-        let restrictions: UIWindowScene.ResizingRestrictions = isPlaying ? .uniform : .freeform
+            .compactMap({ $0 as? UIWindowScene })
+            .first else { return }
         windowScene.requestGeometryUpdate(
-            .Vision(resizingRestrictions: restrictions)
+            .Vision(resizingRestrictions: isPlaying ? .uniform : .freeform)
         )
     }
-
-    private func startControlsTimer() {
-        controlsTimerTask?.cancel()
-        controlsTimerTask = Task {
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(250))
-                guard !Task.isCancelled else { return }
-                guard windowVideoViewModel.playbackState == .playing else { continue }
-                guard appModel.canAutoHideControls else { continue }
-
-                let idleTime = Date().timeIntervalSince(appModel.lastControlsInteractionAt)
-                if idleTime >= 8 {
-                    withAnimation(.easeInOut(duration: 0.4)) {
-                        appModel.showControls = false
-                    }
-                    return
-                }
-            }
-        }
-    }
 }
 
-/// EXPLORATORY (FakeApp): visible stand-in for decoded video frames while the
-/// app runs on `FakePlaybackSource`. Reads as "now playing <title>" over a dark
-/// gradient so simulated playback is observable. Delete when the real
-/// `MPVPlayerAdapter` produces frames (`usesNativeGPUOutput == true`).
-private struct SimulatedPlaybackSurface: View {
-    let title: String
+struct SpatialPlaybackControlsRoot: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
-        ZStack {
-            Color.black
-            DesignTokens.Surface.elevated
-
-            VStack(spacing: DesignTokens.Spacing.md) {
-                Image(systemName: "film.stack")
-                    .font(DesignTokens.SymbolSize.hero)
-                    .foregroundStyle(DesignTokens.Surface.supportingText)
-                if title.isEmpty == false {
-                    Text(title)
-                        .font(DesignTokens.Typography.title)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
-                }
-                Text("Simulated playback · no decode")
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.Surface.supportingText)
+        WindowPlayerDeckView()
+            .onChange(of: appModel.presentationTransition?.id) { _, _ in
+                guard let transition = appModel.presentationTransition,
+                      transition.targetPresentation == .window else { return }
+                Task { await returnToWindow(transition) }
             }
-            .padding(DesignTokens.Spacing.xl)
+            .onChange(of: appModel.immersiveSpaceState) { _, state in
+                guard state == .closed,
+                      appModel.playbackPresentation != .window,
+                      appModel.presentationTransition == nil else { return }
+                recoverFromSystemDismissal()
+            }
+    }
+
+    @MainActor
+    private func returnToWindow(_ transition: PlaybackPresentationTransition) async {
+        guard appModel.isTransitioningPlaybackMode == false else { return }
+        appModel.isTransitioningPlaybackMode = true
+        playbackRuntime.detach()
+        let keepsEnvironmentOpen = transition.targetEnvironment.environment != nil
+        if keepsEnvironmentOpen {
+            appModel.isEnvironmentImmersiveActive = true
+            appModel.isFullImmersion = false
+            await Task.yield()
+        } else {
+            await dismissImmersiveSpace()
         }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
-    }
-}
-
-#Preview(windowStyle: .automatic) {
-    let appModel = AppModel()
-    let windowVideoViewModel = WindowVideoViewModel(player: MPVPlayerAdapter())
-    let launcher = PlaybackLaunchCoordinator(
-        appModel: appModel,
-        windowVideoViewModel: windowVideoViewModel
-    )
-    let fileBrowsingViewModel = FileBrowsingViewModel(localDataSource: LocalDataSourceAdapter()) { request in
-        launcher.beginPlayback(request)
+        do {
+            try appModel.commitPlaybackPresentation(transition.id)
+            appModel.immersiveSpaceState = keepsEnvironmentOpen ? .open : .closed
+            openWindow(id: "main")
+            dismissWindow(id: "playerControls")
+        } catch {
+            appModel.rollbackPlaybackPresentation(transition.id)
+            playbackRuntime.lastErrorMessage = error.localizedDescription
+        }
+        appModel.isTransitioningPlaybackMode = false
     }
 
-    MainView()
-        .environment(appModel)
-        .environment(windowVideoViewModel)
-        .environment(fileBrowsingViewModel)
-        .environment(launcher)
-        .environment(PanoramaLayerBridge())
-        .environment(ThumbnailService.shared)
+    @MainActor
+    private func recoverFromSystemDismissal() {
+        do {
+            let transition = try appModel.requestPlaybackPresentation(.window)
+            try appModel.commitPlaybackPresentation(transition.id)
+            try appModel.updateEnvironmentContext(.none)
+            appModel.isEnvironmentImmersiveActive = false
+            openWindow(id: "main")
+            dismissWindow(id: "playerControls")
+        } catch {
+            if let transition = appModel.presentationTransition {
+                appModel.rollbackPlaybackPresentation(transition.id)
+            }
+            playbackRuntime.lastErrorMessage = error.localizedDescription
+        }
+    }
 }

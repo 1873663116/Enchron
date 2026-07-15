@@ -18,12 +18,9 @@ final class PreferencesPersistenceTests: XCTestCase {
         var prefs = PersistenceDomain.UserPreferences()
         prefs.resumePolicy = .alwaysResume
         prefs.playbackEndBehavior = .playNext
+        prefs.defaultPlaybackSpeed = 1.5
         prefs.defaultEnvironmentID = "Starry Night"
         prefs.controlsAutoHideSeconds = 15
-        prefs.entersImmersionForSpatialContent = true
-        prefs.logLevel = .verbose
-        prefs.showsPerformanceHUD = true
-        prefs.verboseAutoOff = .nextLaunch
         store.savePreferences(prefs)
 
         // A fresh store reading the same backing store simulates a relaunch.
@@ -42,8 +39,5 @@ final class PreferencesPersistenceTests: XCTestCase {
 
         let loaded = UserDefaultsStore(defaults: defaults).loadPreferences()
         XCTAssertEqual(loaded.controlsAutoHideSeconds, 8)
-        XCTAssertEqual(loaded.logLevel, .info)
-        XCTAssertEqual(loaded.verboseAutoOff, .thirtyMinutes)
-        XCTAssertFalse(loaded.showsPerformanceHUD)
     }
 }

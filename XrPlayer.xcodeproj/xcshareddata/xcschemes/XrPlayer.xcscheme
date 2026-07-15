@@ -21,6 +21,20 @@
                ReferencedContainer = "container:XrPlayer.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
+         <BuildActionEntry
+            buildForTesting = "YES"
+            buildForRunning = "NO"
+            buildForProfiling = "NO"
+            buildForArchiving = "NO"
+            buildForAnalyzing = "YES">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "F1A0000100000000DEADBEEF"
+               BuildableName = "XrPlayerTests.xctest"
+               BlueprintName = "XrPlayerTests"
+               ReferencedContainer = "container:XrPlayer.xcodeproj">
+            </BuildableReference>
+         </BuildActionEntry>
       </BuildActionEntries>
    </BuildAction>
    <TestAction

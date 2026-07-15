@@ -42,7 +42,7 @@ public actor PlaybackMediaMetadataService {
     }
 
     func recordDetectedProfile(
-        _ profile: PlaybackCoreDomain.MediaProfile,
+        _ profile: PlaybackModel.MediaProfile,
         for request: PlaybackLaunchRequest
     ) async -> PlaybackMediaMetadata {
         let metadata =

@@ -1,4 +1,4 @@
-// swift-tools-version:6.2
+// swift-tools-version: 6.4
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -6,10 +6,10 @@ import PackageDescription
 let package = Package(
     name: "RealityKitContent",
     platforms: [
-        .visionOS(.v26),
-        .macOS(.v26),
-        .iOS(.v26),
-        .tvOS(.v26)
+        .visionOS("27.0"),
+        .macOS("27.0"),
+        .iOS("27.0"),
+        .tvOS("27.0")
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.

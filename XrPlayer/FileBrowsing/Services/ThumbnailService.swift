@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreGraphics
 import Foundation
 
@@ -5,7 +6,7 @@ import Foundation
 ///
 /// Owned by the app layer and injected via the SwiftUI environment.
 /// Manages two-level cache (NSCache hot + disk JPEG cold) and concurrent
-/// extraction via dedicated `ThumbnailMPVAdapter` instances.
+/// extraction through `AVAssetImageGenerator`.
 ///
 /// Lookup order: NSCache → disk JPEG → generate (Phase B cover art, then Phase A frame).
 ///
@@ -57,6 +58,16 @@ public final class ThumbnailService {
         return await deduplicatedExtraction(for: file, key: key)
     }
 
+    public func cacheUsageInBytes() async -> Int64 {
+        await cache.diskUsageInBytes()
+    }
+
+    public func clearCache() async {
+        for task in inFlightTasks.values { task.cancel() }
+        inFlightTasks.removeAll()
+        await cache.clear()
+    }
+
     // MARK: - Private: Deduplication
 
     private func deduplicatedExtraction(
@@ -92,10 +103,19 @@ public final class ThumbnailService {
         await semaphore.wait()
         defer { semaphore.signal() }
 
-        let adapter = ThumbnailMPVAdapter()
-        defer { adapter.cleanup() }
-
-        guard let image = await adapter.extract(from: file) else { return nil }
+        let accessed = file.url.startAccessingSecurityScopedResource()
+        defer {
+            if accessed { file.url.stopAccessingSecurityScopedResource() }
+        }
+        let asset = AVURLAsset(url: file.url)
+        let generator = AVAssetImageGenerator(asset: asset)
+        generator.appliesPreferredTrackTransform = true
+        generator.maximumSize = CGSize(width: 640, height: 360)
+        generator.requestedTimeToleranceBefore = .positiveInfinity
+        generator.requestedTimeToleranceAfter = .positiveInfinity
+        guard let image = try? await generator.image(at: CMTime(seconds: 2, preferredTimescale: 600)).image else {
+            return nil
+        }
 
         // Write to disk and warm the memory cache
         cache.storeInMemory(image, forKey: key)
