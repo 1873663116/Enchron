@@ -251,7 +251,7 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
     public var rate: Float
     public var rendererStatus: String
     public var rendererError: String?
-    public var readyForMoreMediaData: Bool
+    public var inputModel: String?
     public var displayedPixelBuffer: Bool
     public var flushCount: UInt64
 
@@ -268,7 +268,7 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
         rate: Float,
         rendererStatus: String,
         rendererError: String?,
-        readyForMoreMediaData: Bool,
+        inputModel: String?,
         displayedPixelBuffer: Bool,
         flushCount: UInt64
     ) {
@@ -284,7 +284,7 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
         self.rate = rate
         self.rendererStatus = rendererStatus
         self.rendererError = rendererError
-        self.readyForMoreMediaData = readyForMoreMediaData
+        self.inputModel = inputModel
         self.displayedPixelBuffer = displayedPixelBuffer
         self.flushCount = flushCount
     }

@@ -1,12 +1,12 @@
-// swift-tools-version: 6.2
+// swift-tools-version: 6.4
 
 import PackageDescription
 
 let package = Package(
     name: "PlaybackCore",
     platforms: [
-        .macOS(.v26),
-        .visionOS(.v26),
+        .macOS("27.0"),
+        .visionOS("27.0"),
     ],
     products: [
         .library(name: "PlaybackCore", targets: ["PlaybackCore"]),
@@ -24,6 +24,7 @@ let package = Package(
             linkerSettings: [
                 .linkedFramework("AudioToolbox"),
                 .linkedFramework("CoreMedia"),
+                .linkedFramework("Security"),
             ]
         ),
         .target(

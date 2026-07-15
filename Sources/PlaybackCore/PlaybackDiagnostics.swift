@@ -18,6 +18,10 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var transferFunction = "—"
     public var yCbCrMatrix = "—"
     public var range = "—"
+    public var projectionKind = "missing"
+    public var viewPackingKind = "missing"
+    public var hasLeftStereoEyeView = false
+    public var hasRightStereoEyeView = false
     public var sourceBufferHasMasteringDisplayMetadata = false
     public var sourceBufferHasContentLightLevelMetadata = false
     public var trackFormatHasMasteringDisplayMetadata = false
@@ -62,6 +66,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
         pixelFormat: \(sourcePixelFormat) -> \(destinationPixelFormat)
         dimensions: \(dimensions)
         color: primaries=\(colorPrimaries), transfer=\(transferFunction), matrix=\(yCbCrMatrix), range=\(range)
+        spatialFormat: projection=\(projectionKind), packing=\(viewPackingKind), leftEye=\(hasLeftStereoEyeView), rightEye=\(hasRightStereoEyeView)
         hdrMetadata.sourceBuffer: masteringDisplay=\(sourceBufferHasMasteringDisplayMetadata), contentLightLevel=\(sourceBufferHasContentLightLevelMetadata)
         hdrMetadata.trackFormat: masteringDisplay=\(trackFormatHasMasteringDisplayMetadata), contentLightLevel=\(trackFormatHasContentLightLevelMetadata)
         hdrMetadata.sourceFormat: masteringDisplay=\(sourceFormatHasMasteringDisplayMetadata), contentLightLevel=\(sourceFormatHasContentLightLevelMetadata)

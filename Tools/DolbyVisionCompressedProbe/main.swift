@@ -41,24 +41,20 @@ private struct DolbyVisionCompressedProbe {
         }
         let reader = try AVAssetReader(asset: asset)
         let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
-        output.alwaysCopiesSampleData = false
-        guard reader.canAdd(output) else { throw ProbeError.cannotAddOutput }
-        reader.add(output)
-        guard reader.startReading() else { throw reader.error ?? ProbeError.readerDidNotStart }
+        let outputProvider = reader.outputProvider(for: output)
+        try reader.start()
 
         defer { reader.cancelReading() }
         let renderer = renderContext.renderer
         let synchronizer = renderContext.synchronizer
+        let receiver = renderContext.receiver
         synchronizer.rate = 0
-        await renderer.flush(removingDisplayedImage: true)
+        await receiver.flush(removingDisplayedImage: true)
 
         let deadline = ContinuousClock.now + .seconds(20)
         var enqueuedSamples = 0
         var formatSummary: FormatSummary?
         while ContinuousClock.now < deadline {
-            if renderer.status == .failed {
-                throw renderer.error ?? ProbeError.rendererFailed
-            }
             if let displayed = renderer.displayedPixelBuffer(), enqueuedSamples >= 12 {
                 guard let summary = formatSummary else { throw ProbeError.missingFormatDescription }
                 try fixture.validate(summary)
@@ -74,31 +70,39 @@ private struct DolbyVisionCompressedProbe {
                     "amve": summary.amve,
                     "enqueuedSamples": enqueuedSamples,
                     "displayedPixelFormat": fourCC(CVPixelBufferGetPixelFormatType(displayed)),
-                    "rendererStatus": String(describing: renderer.status),
-                    "rendererError": renderer.error?.localizedDescription ?? "none"
+                    "rendererInput": "AVSampleBufferVideoRenderer.Receiver"
                 ]
-                await renderer.flush(removingDisplayedImage: true)
+                await receiver.flush(removingDisplayedImage: true)
                 return result
             }
-            if renderer.isReadyForMoreMediaData {
-                guard let sample = output.copyNextSampleBuffer() else {
-                    if reader.status == .failed {
-                        throw reader.error ?? ProbeError.readerFailed
-                    }
-                    throw ProbeError.reachedEndBeforeDisplay
-                }
-                guard CMSampleBufferGetNumSamples(sample) > 0,
-                      let sampleFormat = CMSampleBufferGetFormatDescription(sample) else {
-                    continue
-                }
-                if formatSummary == nil {
-                    formatSummary = compressedFormatSummary(sampleFormat)
-                    synchronizer.setRate(1, time: CMSampleBufferGetPresentationTimeStamp(sample))
-                }
-                renderer.enqueue(sample)
+            guard let readySample = try await outputProvider.next() else {
+                throw ProbeError.reachedEndBeforeDisplay
+            }
+            let sample = try readySample.withUnsafeSampleBuffer {
+                try CMSampleBuffer(copying: $0)
+            }
+            guard CMSampleBufferGetNumSamples(sample) > 0,
+                  let sampleFormat = CMSampleBufferGetFormatDescription(sample) else {
+                continue
+            }
+            if formatSummary == nil {
+                formatSummary = compressedFormatSummary(sampleFormat)
+                synchronizer.setRate(1, time: CMSampleBufferGetPresentationTimeStamp(sample))
+            }
+            let receiverSample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
+                unsafeBuffer: sample
+            )
+            switch try await receiver.enqueue(receiverSample) {
+            case .enqueued, .enqueuedWithDecodeFailures:
                 enqueuedSamples += 1
-            } else {
-                try await Task.sleep(for: .milliseconds(10))
+            case .cancelledDueToFlush:
+                throw ProbeError.rendererCancelled
+            case .cancelledDueToFlushRequiredToResume(let error):
+                throw error ?? ProbeError.rendererRequiresFlush
+            case .cancelledDueToError(let error):
+                throw error
+            @unknown default:
+                throw ProbeError.rendererFailed
             }
         }
         throw ProbeError.timedOut
@@ -132,6 +136,7 @@ private final class RenderContext {
     let window: NSWindow
     let renderer: AVSampleBufferVideoRenderer
     let synchronizer = AVSampleBufferRenderSynchronizer()
+    let receiver: AVSampleBufferVideoRenderer.Receiver
 
     init() {
         _ = NSApplication.shared
@@ -152,7 +157,7 @@ private final class RenderContext {
 
         self.window = window
         self.renderer = displayLayer.sampleBufferRenderer
-        synchronizer.addRenderer(renderer)
+        self.receiver = synchronizer.sampleBufferReceiver(adding: renderer)
     }
 }
 
@@ -194,9 +199,8 @@ private struct FormatSummary {
 
 private enum ProbeError: LocalizedError {
     case noVideoTrack
-    case cannotAddOutput
-    case readerDidNotStart
-    case readerFailed
+    case rendererCancelled
+    case rendererRequiresFlush
     case rendererFailed
     case missingFormatDescription
     case reachedEndBeforeDisplay
@@ -206,9 +210,8 @@ private enum ProbeError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .noVideoTrack: "No video track."
-        case .cannotAddOutput: "AVAssetReader rejected the storage-format output."
-        case .readerDidNotStart: "AVAssetReader could not start."
-        case .readerFailed: "AVAssetReader failed."
+        case .rendererCancelled: "Renderer enqueue was cancelled by a flush."
+        case .rendererRequiresFlush: "Renderer requires a flush before decoding can resume."
         case .rendererFailed: "AVSampleBufferVideoRenderer failed."
         case .missingFormatDescription: "The compressed sample has no format description."
         case .reachedEndBeforeDisplay: "The source ended before a displayed pixel buffer appeared."

@@ -1,17 +1,11 @@
-# PlaybackCore 验证系统
+# PlaybackCore 验证规则
 
-本仓库只验证 library 行为，不拥有 App、UI、RealityKit 或设备观感验收。
+验证只证明 `docs/core-spec.md` 中由 PlaybackCore 拥有的行为，不建立手工状态表。
 
-## 层级
+`swift test` 负责公开接口、Media Session、sample contract、轨道、控制、Receiver async backpressure、stale rejection 和 cleanup 的确定性测试。生成或提交的 fixture 必须许可清楚、身份稳定并有明确预期；本机绝对路径不是 fixture registry。
 
-- L1：swift test，证明 records、admission、Provider seam、控制状态机、audio/video graph、format override、stale rejection 和 cleanup barrier。
-- L2：独立 probe 工具验证真实 container / sample / FFmpeg bridge 与 Apple compressed reference 行为。
-- Consumer：调用方自行验证 renderer consumer、可见画面、可听输出、平台 presentation 与主观观感；结果不写成本仓库完成条件。
+真实 container、FFmpeg demux 和 compressed `CMSampleBuffer` 使用独立 probe 或集成测试验证。证据必须记录 Git revision、fixture identity、命令、唯一预期结果和第一处失败边界。
 
-## 节点规则
+macOS 27 可以证明 sample contract、AVFoundation Receiver 接受、displayed-frame 进度和长时间运行；Vision Pro 的 visionOS 27 验收才能证明设备硬件解码、HDR / Dolby Vision 和 visionOS renderer 行为。RealityKit consumer、窗口、沉浸空间和最终产品呈现由 Enchron 验证。
 
-节点 1–8 分别产生 record。每个用例只有一个预期结果；一条路线成功不能推断另一条路线成功。失败必须在发生节点终止，不能由下游隐藏补救。
-
-## 证据规则
-
-有效证据必须记录当前 Git revision、fixture identity、命令、结果和失败边界。历史 App 运行结果只能作为历史背景，不能证明当前 library。
+构建成功、测试数量、某个 route 的历史成功、日志中没有错误或单张截图都不是更强声明的替代品。最近一次有效证据记录在 `evidence.md`，历史结果只作为背景。

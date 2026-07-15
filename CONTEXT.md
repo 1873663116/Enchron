@@ -1,20 +1,20 @@
 # PlaybackCore 术语
 
+**PlaybackCore**：读取媒体容器、解封装音视频并组装保留原始编码的 `CMSampleBuffer`，供 Apple AVFoundation 的 sample-buffer renderer 消费。它不实现音视频解码、自定义画面处理或并行产品播放路线。
+
 **Media Source**：一次 open 的输入，包含 locator、provenance、privacy-safe summary 与访问要求。
 
-**Playback Route**：把 Media Source 转换为 Video Sample Stream 的显式实现选择。当前为 Apple Compressed 与 FFmpeg Compressed。
-
-**Media Session**：一次 accepted open 到 close 或 failed 的身份范围。来源、路线、节点、操作与 renderer graph 都属于同一个 Media Session。
+**Media Session**：一次 accepted open 到 close 或 failed 的身份范围。来源、sample、操作与 renderer graph 都属于同一个 Media Session。
 
 **Current Media Slot**：核心允许占用的唯一 Media Session 位置，用于 open admission 与 stale rejection。
 
 **Provider Open Snapshot**：Provider 打开来源后形成的不可变容器、时长、轨道、codec 与 metadata 事实。
 
-**Video Track Model**：根据 Provider Open Snapshot 建立的稳定视频轨身份、来源映射和格式事实。
+**Track Model**：根据 Provider Open Snapshot 建立的稳定 video、audio 与 subtitle track 身份、来源映射和格式事实。
 
-**Video Sample Provider**：把来源与选定轨道转换为 route-owned event 和 compressed CMSampleBuffer 的模块接口。
+**Media Sample Provider**：读取容器、建立 Track Model，并把选定轨道转换为 compressed `CMSampleBuffer` 与 timed metadata event 的模块接口。
 
-**Route Media Event**：sample、format changed、flush、end 或 error。事件必须携带 Media Session、route、track、Stream Epoch 与 Format Revision 归属。
+**Media Event**：sample、format changed、flush、end 或 error。事件必须携带 Media Session、track、Stream Epoch 与 Format Revision 归属。
 
 **Stream Epoch**：区分 seek、reset、reopen 或 cleanup 前后事件世代的单调身份。
 
@@ -22,13 +22,11 @@
 
 **Video Sample Stream**：可追溯的 compressed video sample 与 control marker 流。
 
-**Audio Track Provider**：共享的 FFmpeg 音频模块，负责枚举、选择、解码和重采样；它不是第三条 Playback Route。
+**Compressed Audio Sample Stream**：选中音轨产生的、保留原始编码与时间信息的 audio `CMSampleBuffer` 流。
 
-**Linear PCM Sample Stream**：选中音轨产生的交错 Float32 Linear PCM CMSampleBuffer 流。
+**Renderer Input Coordination**：把 compressed audio / video sample 交给 Apple renderer 所需的最小协调边界，通过 AVFoundation Receiver 管理 async backpressure、timeline、enqueue、flush、end 和 error。
 
-**Renderer Input Coordination**：管理 video / PCM readiness、timeline、backpressure、enqueue、flush、end 和 error 的核心模块。
-
-**Renderer Graph**：一个 Media Session 独占的 AVSampleBufferVideoRenderer、可选 AVSampleBufferAudioRenderer 和共享 AVSampleBufferRenderSynchronizer。
+**Renderer Graph**：一个 Media Session 使用的 `AVSampleBufferVideoRenderer`、可选 `AVSampleBufferAudioRenderer` 和共享 `AVSampleBufferRenderSynchronizer`。解码与渲染语义属于 Apple AVFoundation。
 
 **Renderer Consumer Binding**：外部调用方把 active video renderer 交给唯一 consumer 后回填的可追溯事实。核心不拥有 consumer、entity 或 scene。
 
@@ -38,7 +36,7 @@
 
 **Stereo Layout**：mono、sideBySide 或 overUnder 的显式 format override，与投影和播放时间线正交。
 
-**Debug Event Stream**：节点和操作在状态边界发布的结构化事件流。
+**Debug Event Stream**：Media Session、sample、renderer 和控制操作在状态边界发布的结构化事件流。
 
 **Debug Snapshot**：从当前稳定 records 派生的版本化状态投影，不替代 records 或验收证据。
 
