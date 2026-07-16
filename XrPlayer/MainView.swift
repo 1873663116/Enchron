@@ -288,6 +288,8 @@ struct SpatialPlaybackControlsRoot: View {
 
     var body: some View {
         WindowPlayerDeckView()
+            .accessibilityIdentifier("PlayerUI-spatial-control-plane")
+            .accessibilityValue(spatialAcceptanceValue)
             .onChange(of: appModel.presentationTransition?.id) { _, _ in
                 guard let transition = appModel.presentationTransition,
                       transition.targetPresentation == .window else { return }
@@ -299,6 +301,18 @@ struct SpatialPlaybackControlsRoot: View {
                       appModel.presentationTransition == nil else { return }
                 recoverFromSystemDismissal()
             }
+    }
+
+    private var spatialAcceptanceValue: String {
+        guard ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" else {
+            return ""
+        }
+        return [
+            "presentation=\(appModel.playbackPresentation.rawValue)",
+            "lifecycle=\(playbackRuntime.lifecycle.label)",
+            "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
+            "session=\(playbackRuntime.activeSessionID ?? "none")",
+        ].joined(separator: ";")
     }
 
     @MainActor

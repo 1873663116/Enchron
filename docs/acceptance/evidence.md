@@ -1,5 +1,13 @@
 # Enchron 播放系统证据
 
+## 2026-07-16 Simulator 空间播放验收入口
+
+- Code revision：本节对应的空间播放验收提交，基于 Enchron `889b19e832e5`。
+- Implementation：新增 `SpatialPresentationAcceptanceUITests.testRealPlaybackDockedAndPanoramaRoundTrips` 与 `scripts/verify-spatial-presentations-simulator.zsh`。测试使用本机生成的 H.264/AAC moving fixture，经带认证与 Range 的 localhost HTTP source 进入产品 FFmpeg → PlaybackCore 路线，不设置 `ENCHRON_UI_TESTING`；一次启动要求 Window → Docked → Window → Panorama → Window、同一 Media Session、持续播放截图变化、无 load failure，并保存 `.xcresult` 截图。产品运行时把 scene container、RealityView/entity identity，以及 `VideoPlayerComponent` desired/actual immersive、viewing、spatial video mode 写入 PlaybackCore presentation events。
+- Deterministic checks：runner 拒绝 UI fixture 日志，核对最终 snapshot 的 session/binding identity、active RealityKit binding、video/audio sample 推进与无 terminal error，并要求 presentation event 序列及 Panorama `ready + progressive/mono/screen` 收敛。语义元素不可直接命中时，测试保存截图后只使用该元素的语义几何中心 fallback；无有效几何即失败。runner 另有 600 秒宿主 watchdog，并把 `waiting for workers to materialize` 明确分类为基础设施失败。
+- Compile and lower layers：新产品代码与 UI test target 已由 Xcode 27 beta 2 完整编译、链接、签名；PlaybackCore 67 tests 全部通过；Enchron 根包 30 项 Swift Testing 与 5 项 XCTest 通过，1 项外部 WebDAV 测试按设计跳过。
+- Simulator result：未通过也未判定产品失败。原 Apple Vision Pro device 与新建隔离 device 均无法启动最小 `SmokeLaunchUITests`；Xcode 的首个未完成操作一致为 `com.apple.dt.xctest.target-runner` 等待 workers materialize，`IDELaunchiPhoneSimulatorLauncher` 未完成。直接 `simctl launch` 也无法返回，Device Hub 截图为纯黑；因此真实 Docked/Panorama 断言尚未开始执行。主要诊断 bundle 位于 `/var/folders/dw/_wl4kmhd2fdgqfmmj2ghcyb40000gn/T/EnchronSpatialAcceptance-20260716-125807/`。Vision Pro L3 未执行。
+
 ## 2026-07-16 单仓迁移与应用控制收敛
 
 - Verified code revision：Enchron `e6d32e86e3d9`；该 revision 已包含完整 PlaybackCore 导入历史与应用控制重构。

@@ -29,4 +29,4 @@ Environment Context 与 Playback Presentation 独立。Window 可以在 Environm
 
 ## 验收
 
-macOS L2 证明 Window surface 的真实 displayed frame、持续推进、音频、detach 和 same-process reopen。visionOS Simulator 证明 Window/Docked/Panorama lifecycle、transaction 与 rollback。Vision Pro 独立验收硬件解码、HDR/EDR、可听同步、实际 immersive behavior、空间舒适度和性能。
+macOS L2 证明 Window surface 的真实 displayed frame、持续推进、音频、detach 和 same-process reopen。visionOS Simulator 使用 `scripts/verify-spatial-presentations-simulator.zsh` 驱动真实 PlaybackCore session，只有同时得到 Window → Docked → Window → Panorama → Window 事件序列、同一 Media Session、surface attach、播放推进、两帧截图变化，以及 Panorama desired/actual mode 收敛，才通过本节点的 Simulator 部分。Vision Pro 独立验收硬件解码、HDR/EDR、可听同步、实际 immersive behavior、空间舒适度和性能。
