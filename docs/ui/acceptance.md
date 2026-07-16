@@ -1,8 +1,13 @@
 # Enchron V1 验收矩阵
 
+本文件记录产品 UI 用例与阶段性结果；跨 PlaybackCore、macOS App、Simulator 与 Vision Pro 的门槛以 [`../acceptance/verification-system.md`](../acceptance/verification-system.md) 为准。下方 2026-07-15 结果发生在 Receiver/API 迁移之后、Enchron macOS L2 恢复之前，因此只能作为 build、logic、UI 与局部 RealityKit 证据，不能证明当前 PlaybackCore 可持续播放、音频或颜色正确。
+
 ```mermaid
 flowchart LR
-    Spec["产品与 UI 规格"] --> Logic["Swift Testing\n状态机 · 偏好 · 来源"]
+    Core["PlaybackCore L1"] --> MacCore["Enchron macOS L2\nCore"]
+    MacCore --> MacAdapter["Enchron macOS L2\nApp Adapter"]
+    MacAdapter --> Spec["产品与 UI 规格"]
+    Spec --> Logic["Swift Testing\n状态机 · 偏好 · 来源"]
     Spec --> Build["Xcode Build\nDevice · Simulator · DesignPreview"]
     Spec --> E2E["XCUIAutomation\n真实 App 进程"]
     Spec --> Render["RealityRenderer\n程序化离屏渲染"]
@@ -18,6 +23,8 @@ flowchart LR
 
 | 边界 | 自动化必须证明 | 最终证据 |
 |---|---|---|
+| PlaybackCore 可播放 | Enchron macOS Core scenario 完成真实视频、音频、控制、颜色/HDR 信令与 RealityKit displayed-frame 矩阵 | macOS L2 evidence |
+| App Adapter 等价 | 相同 fixture 与断言经 `PlaybackRuntime` 运行，renderer identity、timeline、控制和颜色不改变 | macOS L2 evidence |
 | Presentation 状态机 | Window、Docked、Panorama 合法转换；Environment 独立；重复命令、直接空间互转、失败回滚 | Swift Testing |
 | 来源与持久化 | 虚拟目录增删改、引用移动、三类 locator 持久化、bookmark 原址解析、搜索与排序；WebDAV 认证、列目录与 Range 读取由可选的真实服务测试验证 | Swift Testing / XCTest |
 | 产品组装 | XrPlayer 与 DesignPreview 对 device / Simulator SDK 编译；只链接外部 PlaybackCore | `xcodebuild` |
@@ -47,6 +54,18 @@ Simulator 通过不等于设备播放通过；设备不可用时必须把设备�
 产品最低系统为 visionOS 27。Enchron App、DesignPreview、UI Tests、`RealityKitContent`、PlaybackCore package 与 FFmpeg 后续重建 target triple 统一使用 27，不保留 visionOS 26 兼容路径。
 
 统一后，XrPlayer generic visionOS Device、DesignPreview generic visionOS Device 与 Simulator `build-for-testing` 均通过，先前 `RealityKitScripting` 27.0 链接到 26.2 target 的版本警告已经消失。PlaybackCore 以 Swift 6.4、macOS 27 和 visionOS 27 为 package 基线，并使用 audio/video Receiver async enqueue；产品媒体输入始终由 FFmpeg 解封装为 compressed `CMSampleBuffer`，不以 `AVAssetReader` 建立第二条产品路线，也不恢复 visionOS 26 target 来隐藏 API 迁移问题。
+
+## 2026-07-16 Enchron macOS L2 恢复
+
+Enchron 的同一 Xcode 工程已新增 `EnchronMacOS` App target，并提供真实 `RealityView`、`VideoMaterial`、Apple/FFmpeg compressed 对照、播放暂停、seek、前后跳转、倍速、音量、静音、reopen/close 与颜色诊断。`./script/build_and_run.sh --verify` 在 macOS 27 SDK 下完成 build、launch 和进程验证；`--l2-core` 以 fixture ID/hash 运行真实 App 并输出 JSON，任何 route 或断言失败都会以非零状态结束。
+
+同一 HDR10/PQ 样片复现并关闭了五处首失败边界：FFmpeg 构建禁用 codec probing 导致 Provider/sample 丢失 BT.2020/PQ/matrix；sample assembly 没有为 MPEG range 显式写入 `FullRangeVideo=false`；FFmpeg reader copy 可与 cancel/destroy 并发；Receiver task 在持锁状态取消形成锁顺序反转；三个 actor-reentrant seek 可在等待同一旧任务后同时进入 session。修复后 PlaybackCore 66 tests 全部通过，并新增三连 seek 最终请求所有权回归。
+
+`local-hdr10-pq-hevc-aac-001` 在真实 Enchron macOS App 中连续完成三轮 Apple compressed 与 FFmpeg compressed 双路线机器场景。两条路线均通过 Receiver、共享 synchronizer、RealityKit consumer/displayed pixel、audio sample/buffer 推进、3 秒稳定播放、pause/resume、volume/mute、1.5× 与恢复、前后 seek、三次快速连续 seek、cleanup barrier 与 reopen；sample 与 displayed pixel 均保持 BT.2020/PQ/video-range。主 artifact 为 `/tmp/enchron-l2-core-hdr10-after-seek-fix.json`，稳定性复测为 `/tmp/enchron-l2-core-repeat-1.json` 与 `/tmp/enchron-l2-core-repeat-2.json`。
+
+生产 `XrPlayer/App/PlaybackRuntime.swift` 现已作为同一 `EnchronMacOS` target 的源文件参与编译；macOS 只对 visionOS `AVAudioSession` 生命周期做平台空操作，不替换 PlaybackCore audio renderer。`--l2-app` 通过该生产 adapter 运行同一 fixture、RealityKit consumer 和断言，只允许产品 FFmpeg route。主 artifact `/tmp/enchron-l2-app-adapter-hdr10.json` 与复测 `/tmp/enchron-l2-app-adapter-repeat.json` 均通过，并与 Core FFmpeg 一致记录 `receiverAsyncBackpressure`、`platform=macOS`、BT.2020/PQ/video-range、`&xv0`、相同控制结果和最终连续 seek 所有权。Enchron 30 项 Swift Testing 与 5 项 XCTest 通过，1 项外部 WebDAV 测试按设计跳过；generic visionOS device 构建通过。
+
+这仍不是完整 L2/L3 通过。该 fixture 许可未登记且只有单音轨；机器 audio renderer 事实不能替代物理输出上的可听音频与严格音画同步，也没有覆盖 SDR、HLG、Dolby Vision、B-frame、长媒体和扩展稳定性。Simulator 当前 revision 以及 Vision Pro L3 都尚未执行，因此不得由本地 Core/App Adapter 结果推导整个 Enchron 验收通过。
 
 ## Vision Pro 回归
 

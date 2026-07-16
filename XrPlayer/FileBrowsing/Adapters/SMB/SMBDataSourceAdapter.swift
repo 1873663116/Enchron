@@ -1,5 +1,4 @@
 import Foundation
-import CryptoKit
 #if canImport(AMSMB2)
 import AMSMB2
 #endif
@@ -11,7 +10,7 @@ public nonisolated enum SMBError: LocalizedError, Sendable {
     case authenticationFailed
     case networkFailed(String)
     case protocolFailed(String)
-    case cacheFailed(String)
+    case streamingFailed(String)
     case noShareSelected
 
     public var errorDescription: String? {
@@ -28,8 +27,8 @@ public nonisolated enum SMBError: LocalizedError, Sendable {
             return "SMB network failed: \(reason)"
         case .protocolFailed(let reason):
             return "SMB protocol failed: \(reason)"
-        case .cacheFailed(let reason):
-            return "SMB playback cache failed: \(reason)"
+        case .streamingFailed(let reason):
+            return "SMB playback stream failed: \(reason)"
         case .noShareSelected:
             return "No SMB share selected. Please select a share first."
         }
@@ -51,6 +50,8 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
         set { currentConnectionInfo = newValue }
     }
     private var connectedShareName: String?
+    private let playbackServersLock = NSLock()
+    private var playbackServers: [URL: HTTPRangeStreamingServer] = [:]
 
     public init(credentialStore: CredentialStoring? = nil) {
         self.credentialStore = credentialStore
@@ -149,6 +150,12 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
     }
 
     public func disconnect() {
+        let servers = playbackServersLock.withLock {
+            let servers = Array(playbackServers.values)
+            playbackServers.removeAll()
+            return servers
+        }
+        servers.forEach { $0.stop() }
         let manager = smbManager
         Task {
             try? await manager?.disconnectShare()
@@ -244,81 +251,23 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
         let remotePath = smbRelativePath(from:
             file.url.path.isEmpty ? Self.childPath(named: file.name, in: info.rootPath) : file.url.path
         )
-        let fileManager = FileManager.default
-        let cacheDirectory = try Self.playbackCacheDirectory(fileManager: fileManager)
-        let destination = cacheDirectory.appendingPathComponent(
-            Self.playbackCacheFileName(for: file, connectionInfo: info),
-            isDirectory: false
+        guard file.sizeInBytes > 0 else {
+            throw SMBError.streamingFailed("The server did not report the remote file size.")
+        }
+        let source = SMBByteRangeSource(
+            manager: smb,
+            path: remotePath,
+            contentLength: file.sizeInBytes
         )
-        if Self.cachedFile(at: destination, matches: file, fileManager: fileManager) {
-            return destination
-        }
-
-        let partial = destination.appendingPathExtension("partial")
-        try? fileManager.removeItem(at: partial)
+        let server = HTTPRangeStreamingServer(source: source, filename: file.name)
         do {
-            try await smb.downloadItem(atPath: remotePath, to: partial, progress: { _, _ in true })
-            guard Self.cachedFile(at: partial, matches: file, fileManager: fileManager) else {
-                throw SMBError.cacheFailed("Downloaded file size does not match the remote item.")
-            }
-            try? fileManager.removeItem(at: destination)
-            try fileManager.moveItem(at: partial, to: destination)
-            return destination
+            let url = try await server.start()
+            playbackServersLock.withLock { playbackServers[url] = server }
+            return url
         } catch {
-            try? fileManager.removeItem(at: partial)
-            throw Self.classify(error)
+            server.stop()
+            throw SMBError.streamingFailed(error.localizedDescription)
         }
-    }
-
-    static func playbackCacheFileName(
-        for file: FileBrowsingDomain.MediaFile,
-        connectionInfo: FileBrowsingDomain.ConnectionInfo
-    ) -> String {
-        let identity = [
-            connectionInfo.host ?? "",
-            String(connectionInfo.port ?? 445),
-            connectionInfo.rootPath,
-            file.url.path,
-            String(file.sizeInBytes),
-            String(file.modifiedAt.timeIntervalSince1970.bitPattern)
-        ].joined(separator: "\u{1f}")
-        let digest = SHA256.hash(data: Data(identity.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
-        let fileExtension = file.fileExtension.trimmingCharacters(in: CharacterSet(charactersIn: "."))
-        return fileExtension.isEmpty ? digest : "\(digest).\(fileExtension.lowercased())"
-    }
-
-    private static func playbackCacheDirectory(fileManager: FileManager) throws -> URL {
-        let base = try fileManager.url(
-            for: .cachesDirectory,
-            in: .userDomainMask,
-            appropriateFor: nil,
-            create: true
-        )
-        let directory = base
-            .appendingPathComponent("Enchron", isDirectory: true)
-            .appendingPathComponent("RemotePlayback", isDirectory: true)
-        do {
-            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
-            return directory
-        } catch {
-            throw SMBError.cacheFailed(error.localizedDescription)
-        }
-    }
-
-    private static func cachedFile(
-        at url: URL,
-        matches file: FileBrowsingDomain.MediaFile,
-        fileManager: FileManager
-    ) -> Bool {
-        guard fileManager.fileExists(atPath: url.path) else { return false }
-        guard file.sizeInBytes > 0 else { return true }
-        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path),
-              let size = attributes[.size] as? NSNumber else {
-            return false
-        }
-        return size.int64Value == file.sizeInBytes
     }
 
     private static func classify(_ error: Error) -> SMBError {
@@ -390,6 +339,25 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
         return String(withLeadingSlash.dropLast())
     }
 
+}
+
+private nonisolated final class SMBByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
+    let contentLength: Int64
+    private let manager: SMB2Manager
+    private let path: String
+
+    init(manager: SMB2Manager, path: String, contentLength: Int64) {
+        self.manager = manager
+        self.path = path
+        self.contentLength = contentLength
+    }
+
+    func read(in range: Range<Int64>) async throws -> Data {
+        try await manager.contents(
+            atPath: path,
+            range: UInt64(range.lowerBound)..<UInt64(range.upperBound)
+        )
+    }
 }
 
 #else
