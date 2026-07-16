@@ -810,6 +810,67 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(snapshot.lastCompletedOperation?.state == .completed)
 }
 
+@MainActor
+@Test func threeRapidSeeksOnlyAllowNewestWaiterToEnterSession() async throws {
+    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 20)
+    let controller = PlaybackCoreController { route, sessionID in
+        SampleBufferPlaybackSession(
+            route: route,
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: [.sample(sample), .end],
+                seekPrepareDelay: .milliseconds(150),
+                seekPrepareIgnoresCancellation: true
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/fake.mov"),
+        route: .ffmpegCompressed
+    )
+    session.recordPresentationBinding(
+        realityViewIdentity: "testRealityView",
+        platform: "macOS",
+        attached: true
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+
+    let first = Task {
+        try await controller.seek(to: CMTime(seconds: 5, preferredTimescale: 600))
+    }
+    try await Task.sleep(for: .milliseconds(20))
+    let second = Task {
+        try await controller.seek(to: CMTime(seconds: 10, preferredTimescale: 600))
+    }
+    try await Task.sleep(for: .milliseconds(20))
+    let third = Task {
+        try await controller.seek(to: CMTime(seconds: 15, preferredTimescale: 600))
+    }
+
+    for (task, target) in [(first, 5.0), (second, 10.0)] {
+        do {
+            try await task.value
+            Issue.record("Expected seek to \(target) seconds to be superseded")
+        } catch let error as PlaybackControlError {
+            guard case .seekSuperseded(let actualTarget) = error else {
+                Issue.record("Expected seekSuperseded, got \(error)")
+                continue
+            }
+            #expect(actualTarget == target)
+        }
+    }
+    try await third.value
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.streamEpoch == 3)
+    #expect(snapshot.lastCompletedOperation?.kind == .seek)
+    #expect(snapshot.lastCompletedOperation?.targetTimeSeconds == 15)
+    #expect(snapshot.lastCompletedOperation?.state == .completed)
+}
+
 @Test func injectedProviderProducesRouteEventSampleAndRendererIntent() async throws {
     let sample = try makeCompressedH264Sample()
     try expectCompressedH264Contract(sample)
@@ -2034,6 +2095,7 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
     private var events: [VideoSampleProviderEvent]
     private var index = 0
     private let seekPrepareDelay: Duration?
+    private let seekPrepareIgnoresCancellation: Bool
     private let readError: Error?
     private(set) var startCount = 0
 
@@ -2041,6 +2103,7 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
         route: PlaybackRoute = .ffmpegCompressed,
         events: [VideoSampleProviderEvent],
         seekPrepareDelay: Duration? = nil,
+        seekPrepareIgnoresCancellation: Bool = false,
         readError: Error? = nil,
         projectionKind: String? = nil
     ) {
@@ -2074,12 +2137,19 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
         )
         self.events = events
         self.seekPrepareDelay = seekPrepareDelay
+        self.seekPrepareIgnoresCancellation = seekPrepareIgnoresCancellation
         self.readError = readError
     }
 
     func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
         if startTime > .zero, let seekPrepareDelay {
-            try await Task.sleep(for: seekPrepareDelay)
+            if seekPrepareIgnoresCancellation {
+                await Task.detached {
+                    try? await Task.sleep(for: seekPrepareDelay)
+                }.value
+            } else {
+                try await Task.sleep(for: seekPrepareDelay)
+            }
         }
         index = 0
     }

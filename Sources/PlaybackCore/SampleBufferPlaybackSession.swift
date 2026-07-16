@@ -1535,30 +1535,35 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     private func startVideoDelivery() {
         rendererSink.stopRenderingEventObservation()
-        let generation = deliveryTaskLock.withLock {
+        let (generation, previousTask) = deliveryTaskLock.withLock {
             videoDeliveryGeneration &+= 1
-            videoDeliveryTask?.cancel()
-            return videoDeliveryGeneration
+            let previousTask = videoDeliveryTask
+            videoDeliveryTask = nil
+            return (videoDeliveryGeneration, previousTask)
         }
+        previousTask?.cancel()
         let task = Task.detached { [weak self] in
             guard let self else { return }
             await self.deliverSamples(generation: generation)
         }
-        deliveryTaskLock.withLock {
+        let shouldCancel = deliveryTaskLock.withLock {
             guard videoDeliveryGeneration == generation else {
-                task.cancel()
-                return
+                return true
             }
             self.videoDeliveryTask = task
+            return false
         }
+        if shouldCancel { task.cancel() }
     }
 
     private func stopVideoDelivery() {
-        deliveryTaskLock.withLock {
+        let task = deliveryTaskLock.withLock {
             videoDeliveryGeneration &+= 1
-            videoDeliveryTask?.cancel()
+            let task = videoDeliveryTask
             videoDeliveryTask = nil
+            return task
         }
+        task?.cancel()
     }
 
     private func startAudioDelivery() {
@@ -1567,17 +1572,21 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             guard let self else { return }
             await self.deliverAudioSamples()
         }
-        deliveryTaskLock.withLock {
-            audioDeliveryTask?.cancel()
+        let previousTask = deliveryTaskLock.withLock {
+            let previousTask = audioDeliveryTask
             audioDeliveryTask = task
+            return previousTask
         }
+        previousTask?.cancel()
     }
 
     private func stopAudioDelivery() {
-        deliveryTaskLock.withLock {
-            audioDeliveryTask?.cancel()
+        let task = deliveryTaskLock.withLock {
+            let task = audioDeliveryTask
             audioDeliveryTask = nil
+            return task
         }
+        task?.cancel()
     }
 
     private func deliverSamples(generation: UInt64) async {

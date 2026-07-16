@@ -353,6 +353,10 @@ public final class PlaybackCoreController {
             activeSeekTask.cancel()
             _ = try? await activeSeekTask.value
         }
+        guard seekGeneration == generation else {
+            let target = time.seconds.isFinite ? time.seconds : 0
+            throw PlaybackControlError.seekSuperseded(target)
+        }
         guard activeSession === session else {
             throw PlaybackControlError.noActiveMediaSession
         }

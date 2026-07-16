@@ -65,5 +65,7 @@ PlaybackCore 完成需要同时证明：
 3. audio/video renderer 属于同一 graph 和 synchronizer，控制与轨道切换具有确定语义。
 4. stale callback、superseded operation、renderer failure 和 cleanup barrier 有自动测试。
 5. library 在 macOS 与 visionOS 构建，当前测试通过；真实媒体和 AVFoundation renderer 证据按验证规则记录。
+6. Enchron macOS App 的 L2 核心验证模式使用真实媒体、真实 audio/video renderer、共享 synchronizer 与 RealityKit consumer，证明持续可见播放、可听音频、音画同步、seek、连续 seek、快进、快退、rate、pause/resume、音量、静音、close/reopen 和长时间运行。
+7. 产品路线使用的 compressed sample 必须在 Enchron macOS App 中证明 codec configuration、color primaries、transfer function、YCbCr matrix、range 与 HDR / Dolby Vision signaling 到达实际显示帧；缺失、错误或仅由来源 metadata 推断都视为未通过。
 
-RealityKit binding、最终画面、HDR 观感、空间呈现和产品交互由 Enchron 验收，不是本仓库单独完成的声明。
+macOS App target 和 RealityKit consumer 由 Enchron 承载，不改变 PlaybackCore 的纯 library 边界；PlaybackCore 拥有上述核心播放证明义务。Enchron 的产品状态、最终空间呈现、HDR 观感与交互仍由 Enchron 验收。详细分层、节点和证据门槛见 `docs/acceptance/verification-system.md`。

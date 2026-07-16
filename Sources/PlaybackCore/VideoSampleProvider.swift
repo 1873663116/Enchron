@@ -385,8 +385,12 @@ final class AppleCompressedSampleProvider: VideoSampleProvider {
 
 final class FFmpegSampleProvider: VideoSampleProvider {
     let route: PlaybackRoute
-    private(set) var info = VideoSampleProviderInfo()
+    var info: VideoSampleProviderInfo {
+        readerLock.withLock { storedInfo }
+    }
 
+    private let readerLock = NSLock()
+    private var storedInfo = VideoSampleProviderInfo()
     private var reader: OpaquePointer?
 
     init(route: PlaybackRoute) {
@@ -396,37 +400,37 @@ final class FFmpegSampleProvider: VideoSampleProvider {
 
     func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
         var error = [CChar](repeating: 0, count: 512)
-        reader = FFmpegSourceLocator.argument(for: url).withCString { path in
+        let newReader = FFmpegSourceLocator.argument(for: url).withCString { path in
             PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, startTime.seconds, &error, error.count)
         }
-        guard let reader else {
+        guard let newReader else {
             throw PlaybackProviderError.ffmpeg(Self.errorMessage(error))
         }
         let configurationAtoms = [
-            PBFFmpegReaderFormatHasHvcC(reader) ? "hvcC" : nil,
-            PBFFmpegReaderFormatHasDvcC(reader) ? "dvcC" : nil,
-            PBFFmpegReaderFormatHasDvvC(reader) ? "dvvC" : nil,
+            PBFFmpegReaderFormatHasHvcC(newReader) ? "hvcC" : nil,
+            PBFFmpegReaderFormatHasDvcC(newReader) ? "dvcC" : nil,
+            PBFFmpegReaderFormatHasDvvC(newReader) ? "dvvC" : nil,
         ].compactMap(\.self)
-        info = VideoSampleProviderInfo(
+        let newInfo = VideoSampleProviderInfo(
             providerKind: "FFmpegCompressed",
-            containerFormat: String(cString: PBFFmpegReaderGetContainerFormat(reader)),
-            durationSeconds: PBFFmpegReaderGetDurationSeconds(reader),
-            nominalFrameRate: PBFFmpegReaderGetNominalFrameRate(reader),
-            codecName: String(cString: PBFFmpegReaderGetCodecName(reader)),
-            codecTag: String(cString: PBFFmpegReaderGetCodecTag(reader)),
-            dimensions: "\(PBFFmpegReaderGetWidth(reader))x\(PBFFmpegReaderGetHeight(reader))",
-            colorPrimaries: String(cString: PBFFmpegReaderGetColorPrimaries(reader)),
-            transferFunction: String(cString: PBFFmpegReaderGetTransferFunction(reader)),
-            yCbCrMatrix: String(cString: PBFFmpegReaderGetYCbCrMatrix(reader)),
-            range: String(cString: PBFFmpegReaderGetColorRange(reader)),
+            containerFormat: String(cString: PBFFmpegReaderGetContainerFormat(newReader)),
+            durationSeconds: PBFFmpegReaderGetDurationSeconds(newReader),
+            nominalFrameRate: PBFFmpegReaderGetNominalFrameRate(newReader),
+            codecName: String(cString: PBFFmpegReaderGetCodecName(newReader)),
+            codecTag: String(cString: PBFFmpegReaderGetCodecTag(newReader)),
+            dimensions: "\(PBFFmpegReaderGetWidth(newReader))x\(PBFFmpegReaderGetHeight(newReader))",
+            colorPrimaries: String(cString: PBFFmpegReaderGetColorPrimaries(newReader)),
+            transferFunction: String(cString: PBFFmpegReaderGetTransferFunction(newReader)),
+            yCbCrMatrix: String(cString: PBFFmpegReaderGetYCbCrMatrix(newReader)),
+            range: String(cString: PBFFmpegReaderGetColorRange(newReader)),
             seekability: .init(.known, value: "providerRebuild"),
             selectedRawTrackMapping: .init(
                 .known,
-                value: "stream:\(PBFFmpegReaderGetVideoStreamIndex(reader))"
+                value: "stream:\(PBFFmpegReaderGetVideoStreamIndex(newReader))"
             ),
             timebase: .init(
                 .known,
-                value: "\(PBFFmpegReaderGetTimeBaseNumerator(reader))/\(PBFFmpegReaderGetTimeBaseDenominator(reader))"
+                value: "\(PBFFmpegReaderGetTimeBaseNumerator(newReader))/\(PBFFmpegReaderGetTimeBaseDenominator(newReader))"
             ),
             codecConfigurationSummary: configurationAtoms.isEmpty
                 ? .init(.none)
@@ -434,58 +438,67 @@ final class FFmpegSampleProvider: VideoSampleProvider {
             formatSignaling: VideoFormatSignalingSummary(
                 provenance: "FFmpeg.codecParameters",
                 colorPrimaries: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetColorPrimaries(reader))
+                    String(cString: PBFFmpegReaderGetColorPrimaries(newReader))
                 ),
                 transferFunction: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetTransferFunction(reader))
+                    String(cString: PBFFmpegReaderGetTransferFunction(newReader))
                 ),
                 yCbCrMatrix: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetYCbCrMatrix(reader))
+                    String(cString: PBFFmpegReaderGetYCbCrMatrix(newReader))
                 ),
                 range: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetColorRange(reader))
+                    String(cString: PBFFmpegReaderGetColorRange(newReader))
                 ),
                 projectionKind: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetProjectionKind(reader))
+                    String(cString: PBFFmpegReaderGetProjectionKind(newReader))
                 ),
                 viewPackingKind: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetViewPackingKind(reader))
+                    String(cString: PBFFmpegReaderGetViewPackingKind(newReader))
                 ),
-                hvcC: PBFFmpegReaderFormatHasHvcC(reader)
+                hvcC: PBFFmpegReaderFormatHasHvcC(newReader)
                     ? .init(.known, value: true)
                     : .init(.none, value: false),
-                dvcC: PBFFmpegReaderFormatHasDvcC(reader)
+                dvcC: PBFFmpegReaderFormatHasDvcC(newReader)
                     ? .init(.known, value: true)
                     : .init(.none, value: false),
-                dvvC: PBFFmpegReaderFormatHasDvvC(reader)
+                dvvC: PBFFmpegReaderFormatHasDvvC(newReader)
                     ? .init(.known, value: true)
                     : .init(.none, value: false)
             )
         )
+        readerLock.withLock {
+            if let reader { PBFFmpegReaderDestroy(reader) }
+            reader = newReader
+            storedInfo = newInfo
+        }
     }
 
     func start() throws {}
 
     func nextEvent() async throws -> VideoSampleProviderEvent {
-        guard let reader else { return .end }
-        var sample: Unmanaged<CMSampleBuffer>?
-        var error = [CChar](repeating: 0, count: 512)
-        let result = PBFFmpegReaderCopyNextSample(reader, &sample, &error, error.count)
-        switch result {
-        case PBFFmpegReadResultSample:
-            guard let sample else { return .end }
-            return .sample(sample.takeRetainedValue())
-        case PBFFmpegReadResultEnd:
-            return .end
-        default:
-            throw PlaybackProviderError.ffmpeg(Self.errorMessage(error))
+        try readerLock.withLock {
+            guard let reader else { return .end }
+            var sample: Unmanaged<CMSampleBuffer>?
+            var error = [CChar](repeating: 0, count: 512)
+            let result = PBFFmpegReaderCopyNextSample(reader, &sample, &error, error.count)
+            switch result {
+            case PBFFmpegReadResultSample:
+                guard let sample else { return .end }
+                return .sample(sample.takeRetainedValue())
+            case PBFFmpegReadResultEnd:
+                return .end
+            default:
+                throw PlaybackProviderError.ffmpeg(Self.errorMessage(error))
+            }
         }
     }
 
     func cancel() {
-        if let reader {
-            PBFFmpegReaderDestroy(reader)
-            self.reader = nil
+        readerLock.withLock {
+            if let reader {
+                PBFFmpegReaderDestroy(reader)
+                self.reader = nil
+            }
         }
     }
 

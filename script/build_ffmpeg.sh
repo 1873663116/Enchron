@@ -3,7 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VERSION="8.0.1"
-CONFIGURATION_REVISION="network-demux-v1"
+CONFIGURATION_REVISION="network-demux-metadata-v2"
 BUILD_ROOT="$ROOT_DIR/.build/ffmpeg"
 ARCHIVE="$BUILD_ROOT/ffmpeg-$VERSION.tar.xz"
 SOURCE="$BUILD_ROOT/ffmpeg-$VERSION"
@@ -54,7 +54,6 @@ build_slice() {
         --disable-doc \
         --disable-avdevice \
         --disable-avfilter \
-        --disable-decoders \
         --disable-encoders \
         --disable-hwaccels \
         --disable-muxers \
