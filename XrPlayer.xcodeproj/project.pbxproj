@@ -13,6 +13,7 @@
 		B1C000032FD3000100C0FFEE /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = B1C000022FD3000100C0FFEE /* PlaybackCore */; };
 		C3B0F9862F5726B30064596E /* RealityKitContent in Frameworks */ = {isa = PBXBuildFile; productRef = C3B0F9852F5726B30064596E /* RealityKitContent */; };
 		C3D4A1012F90000100DA0D16 /* DesignPreview/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C3D4A1002F90000100DA0D16 /* DesignPreview/Assets.xcassets */; };
+		D40000122FA0000100E1C001 /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = D40000112FA0000100E1C001 /* PlaybackCore */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -61,6 +62,7 @@
 		C3B0F9802F5726B30064596E /* XrPlayer.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XrPlayer.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C3B0F9842F5726B30064596E /* RealityKitContent */ = {isa = PBXFileReference; lastKnownFileType = wrapper; path = RealityKitContent; sourceTree = "<group>"; };
 		C3D4A1002F90000100DA0D16 /* DesignPreview/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = DesignPreview/Assets.xcassets; sourceTree = "<group>"; };
+		D40000022FA0000100E1C001 /* EnchronMacOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = EnchronMacOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = XrPlayerUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		F1A0000200000000DEADBEEF /* XrPlayerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = XrPlayerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -94,6 +96,29 @@
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};
+		D40000132FA0000100E1C001 /* Production PlaybackRuntime sources for "EnchronMacOS" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				App/PlaybackAudioSession.swift,
+				App/PlaybackLaunchRequest.swift,
+				App/PlaybackRuntime.swift,
+				App/PlaybackSourceAccess.swift,
+				Persistence/Domain/ValueObjects/FileIdentifier.swift,
+				PlaybackModel/Domain/Entities/AudioTrack.swift,
+				PlaybackModel/Domain/Entities/SubtitleTrack.swift,
+				PlaybackModel/Domain/ValueObjects/HDRType.swift,
+				PlaybackModel/Domain/ValueObjects/MediaProfile.swift,
+				PlaybackModel/Domain/ValueObjects/PlaybackPosition.swift,
+				PlaybackModel/Domain/ValueObjects/PlaybackSpeed.swift,
+				PlaybackModel/Domain/ValueObjects/PlaybackState.swift,
+				PlaybackModel/Domain/ValueObjects/ProjectionType.swift,
+				PlaybackModel/Domain/ValueObjects/StereoLayout.swift,
+				PlayerUI/Domain/ValueObjects/PlaybackPresentation.swift,
+				SpatialScene/Domain/CinemaEnvironment.swift,
+				SpatialScene/Domain/SpatialSceneDomain.swift,
+			);
+			target = D40000032FA0000100E1C001 /* EnchronMacOS */;
+		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -109,8 +134,14 @@
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				C3A35AC72F85434200DA0D16 /* Exceptions for "XrPlayer" folder in "DesignPreview" target */,
+				D40000132FA0000100E1C001 /* Production PlaybackRuntime sources for "EnchronMacOS" target */,
 			);
 			path = XrPlayer;
+			sourceTree = "<group>";
+		};
+		D40000012FA0000100E1C001 /* EnchronMacOS */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = EnchronMacOS;
 			sourceTree = "<group>";
 		};
 		E2E0000C00000000DEADBEEF /* XrPlayerUITests */ = {
@@ -144,6 +175,14 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		D40000052FA0000100E1C001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D40000122FA0000100E1C001 /* PlaybackCore in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		E2E0000500000000DEADBEEF /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -173,6 +212,7 @@
 			isa = PBXGroup;
 			children = (
 				C3B0F9822F5726B30064596E /* XrPlayer */,
+				D40000012FA0000100E1C001 /* EnchronMacOS */,
 				C3B0F9832F5726B30064596E /* Packages */,
 				C3A35AA12F85415E00DA0D16 /* DesignPreview */,
 				F1A0000C00000000DEADBEEF /* XrPlayerTests */,
@@ -186,6 +226,7 @@
 			isa = PBXGroup;
 			children = (
 				C3B0F9802F5726B30064596E /* XrPlayer.app */,
+				D40000022FA0000100E1C001 /* EnchronMacOS.app */,
 				F1A0000200000000DEADBEEF /* XrPlayerTests.xctest */,
 				E2E0000200000000DEADBEEF /* XrPlayerUITests.xctest */,
 				C3A35AB32F85429300DA0D16 /* DesignPreview.app */,
@@ -252,6 +293,29 @@
 			productReference = C3B0F9802F5726B30064596E /* XrPlayer.app */;
 			productType = "com.apple.product-type.application";
 		};
+		D40000032FA0000100E1C001 /* EnchronMacOS */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = D400000A2FA0000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronMacOS" */;
+			buildPhases = (
+				D40000042FA0000100E1C001 /* Sources */,
+				D40000052FA0000100E1C001 /* Frameworks */,
+				D40000062FA0000100E1C001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				D40000012FA0000100E1C001 /* EnchronMacOS */,
+			);
+			name = EnchronMacOS;
+			packageProductDependencies = (
+				D40000112FA0000100E1C001 /* PlaybackCore */,
+			);
+			productName = EnchronMacOS;
+			productReference = D40000022FA0000100E1C001 /* EnchronMacOS.app */;
+			productType = "com.apple.product-type.application";
+		};
 		E2E0000100000000DEADBEEF /* XrPlayerUITests */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = E2E0000B00000000DEADBEEF /* Build configuration list for PBXNativeTarget "XrPlayerUITests" */;
@@ -310,6 +374,9 @@
 					C3B0F97F2F5726B30064596E = {
 						CreatedOnToolsVersion = 26.2;
 					};
+					D40000032FA0000100E1C001 = {
+						CreatedOnToolsVersion = 27.0;
+					};
 					E2E0000100000000DEADBEEF = {
 						CreatedOnToolsVersion = 26.2;
 						TestTargetID = C3B0F97F2F5726B30064596E;
@@ -341,6 +408,7 @@
 			projectRoot = "";
 			targets = (
 				C3B0F97F2F5726B30064596E /* XrPlayer */,
+				D40000032FA0000100E1C001 /* EnchronMacOS */,
 				F1A0000100000000DEADBEEF /* XrPlayerTests */,
 				E2E0000100000000DEADBEEF /* XrPlayerUITests */,
 				C3A35AB22F85429300DA0D16 /* DesignPreview */,
@@ -358,6 +426,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C3B0F97E2F5726B30064596E /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D40000062FA0000100E1C001 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -411,6 +486,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		C3B0F97C2F5726B30064596E /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D40000042FA0000100E1C001 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -691,6 +773,55 @@
 			};
 			name = Release;
 		};
+		D40000082FA0000100E1C001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Enchron macOS";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.EnchronMacOS;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		D40000092FA0000100E1C001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = JFLYK8F636;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Enchron macOS";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 27.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.xiongzhipeng.EnchronMacOS;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
 		E2E0000900000000DEADBEEF /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -809,6 +940,15 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		D400000A2FA0000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronMacOS" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D40000082FA0000100E1C001 /* Debug */,
+				D40000092FA0000100E1C001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		E2E0000B00000000DEADBEEF /* Build configuration list for PBXNativeTarget "XrPlayerUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -879,6 +1019,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */;
 			productName = RealityKitContent;
+		};
+		D40000112FA0000100E1C001 /* PlaybackCore */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "../PlaybackCore" */;
+			productName = PlaybackCore;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

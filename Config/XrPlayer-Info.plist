@@ -20,6 +20,8 @@
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Enchron needs access to your photo library to browse and play videos.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Enchron connects to media servers on your local network to browse and stream videos.</string>
 	<key>NSWorldSensingUsageDescription</key>
 	<string>Enchron uses world sensing to place the cinema environment and screen around you.</string>
 	<key>NSHandsTrackingUsageDescription</key>

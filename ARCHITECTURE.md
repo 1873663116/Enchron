@@ -2,6 +2,8 @@
 
 Enchron 是产品 composition root，不是播放后端。一次播放只有一个 `PlaybackCoreController`、一个 `SampleBufferPlaybackSession` 和一个 `AVSampleBufferVideoRenderer`；Window、Docked 与 Panorama 只迁移同一个 renderer 的呈现位置。
 
+Enchron 同时提供 macOS App。它不是另一套产品前端或播放核心，而是进入 visionOS 产品前必须通过的 L2 宿主：Core scenario 直接连接 PlaybackCore 与 macOS RealityKit consumer；通过后，App Adapter scenario 改由同一 `PlaybackRuntime` 接入。两者必须复用同一 fixture、renderer 断言和控制矩阵。
+
 ```mermaid
 flowchart LR
     Sources["Source Browser\nFiles · Photos · SMB · WebDAV"] --> Library["Media Library\nVirtual folders · Persistent references"]
@@ -9,6 +11,8 @@ flowchart LR
     Resolve --> Launch["PlaybackLaunchCoordinator\n启动 · 续播 · 结束策略"]
     Launch --> Adapter["PlaybackRuntime\nEnchron adapter"]
     Adapter --> Core["../PlaybackCore\n唯一媒体会话与 renderer"]
+    Mac["Enchron macOS App\nL2 Core · App Adapter"] --> Adapter
+    Mac --> Core
     Adapter --> State["AppModel\n产品状态"]
     State --> UI["SwiftUI 页面\n组装共享组件"]
     Core --> Surface["RealityKit VideoPlayerComponent"]
@@ -23,6 +27,7 @@ flowchart LR
 以下是不变量：
 
 - Enchron 不解封装、不解码、不维护时间线、renderer graph、播放 route 或备用核心。
+- PlaybackCore 的 L1 与 Enchron macOS App 的 Core scenario 未通过时，不进入 App Adapter、visionOS Simulator 或 Vision Pro 验收；上层成功不能反推下层通过。
 - Media Library 只管理引用。文件 bookmark、Photos identifier 与远程路径始终指向原来源；分类、移动和删除引用不能复制、移动或删除媒体字节。
 - Window、Docked、Panorama 是互斥的稳定 `PlaybackPresentation`；Environment Context 是独立状态，Window 可以和已打开场景共存。
 - 只允许 Window 与一种空间呈现之间转换。平台 surface 和 renderer 都附着成功后才提交；失败恢复原状态和原 Environment Context。

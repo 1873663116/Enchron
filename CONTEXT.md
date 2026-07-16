@@ -6,6 +6,14 @@
 
 **PlaybackRuntime**：Enchron 中连接 SwiftUI、RealityKit 与 PlaybackCore 的薄 adapter。它不复制 PlaybackCore 状态机。
 
+**Enchron macOS App**：Enchron 的桌面 App，同时是 PlaybackCore 到产品之间的 L2 验证宿主。它先以 Core scenario 直接证明 PlaybackCore 的真实播放，再以 App Adapter scenario 证明 `PlaybackRuntime` 接入等价性。
+
+**L1 Core Contract**：PlaybackCore 内部的确定性合同与真实 container/sample 集成验证，不宣称画面可见或音频可听。
+
+**L2 Enchron Integration**：由 Enchron macOS App 先证明核心真实播放和 App Adapter，再由 visionOS Simulator 补充平台 API、UI 与基础 RealityKit 生命周期。
+
+**L3 Vision Pro Acceptance**：在物理 Vision Pro 上完成硬件解码、HDR/EDR、设备音频、空间呈现、性能与最终交互验收。
+
 **Media Library**：Enchron 拥有的虚拟媒体目录，只保存用户分类、媒体引用和播放相关状态，不变更媒体源。
 _Avoid_：App 文件目录、本地文件系统
 

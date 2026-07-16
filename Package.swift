@@ -48,6 +48,7 @@ let package = Package(
                 "FileBrowsing/Adapters/Local/SecurityScopedFileReferenceResolver.swift",
                 "FileBrowsing/Adapters/WebDAV/WebDAVDataSourceAdapter.swift",
                 "FileBrowsing/Adapters/SMB/SMBDataSourceAdapter.swift",
+                "FileBrowsing/Services/HTTPRangeStreamingServer.swift",
                 "Persistence/Domain/Ports/CredentialStoring.swift",
                 "Persistence/Adapters/KeychainStore.swift",
                 "PlayerUI/UseCases/PlaybackTimeFormatter.swift",

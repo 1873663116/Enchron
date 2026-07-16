@@ -220,7 +220,7 @@ public final class PlaybackRuntime {
         session.recordRealityKitBinding(entityIdentity: entityID, active: true)
         session.recordPresentationBinding(
             realityViewIdentity: realityViewID,
-            platform: "visionOS",
+            platform: platformName,
             attached: true,
             sceneContainer: presentation.sceneContainer,
             sceneLifecycle: "activeRealityView"
@@ -236,7 +236,7 @@ public final class PlaybackRuntime {
             audioSessionLifecycle.deactivate()
             session.recordPresentationBinding(
                 realityViewIdentity: realityViewID,
-                platform: "visionOS",
+                platform: platformName,
                 attached: false,
                 sceneContainer: presentation.sceneContainer,
                 sceneLifecycle: "attachFailed"
@@ -262,7 +262,7 @@ public final class PlaybackRuntime {
         guard let session, let attachment else { return }
         session.recordPresentationBinding(
             realityViewIdentity: attachment.realityViewID,
-            platform: "visionOS",
+            platform: platformName,
             attached: false,
             sceneContainer: attachment.presentation.sceneContainer,
             sceneLifecycle: "detachedRealityView"
@@ -337,6 +337,24 @@ public final class PlaybackRuntime {
         do {
             try controller.setRate(Float(speed.value))
             currentPlaybackSpeed = speed
+        } catch {
+            fail(error)
+        }
+    }
+
+    public func setVolume(_ volume: Float) {
+        if isUITestFixture { return }
+        do {
+            try controller.setVolume(volume)
+        } catch {
+            fail(error)
+        }
+    }
+
+    public func setMuted(_ muted: Bool) {
+        if isUITestFixture { return }
+        do {
+            try controller.setMuted(muted)
         } catch {
             fail(error)
         }
@@ -465,6 +483,27 @@ public final class PlaybackRuntime {
             "surface attachment timed out expected=\(String(describing: presentation), privacy: .public) actual=\(String(describing: self.attachedPresentation), privacy: .public)"
         )
         return false
+    }
+
+    func debugSnapshot() -> PlaybackDebugSnapshotV1? {
+        session?.debugSnapshot()
+    }
+
+    func activeSessionForVerification() -> SampleBufferPlaybackSession? {
+        session
+    }
+
+    func waitForPendingClose() async {
+        await closingTask?.value
+        closingTask = nil
+    }
+
+    private var platformName: String {
+#if os(macOS)
+        "macOS"
+#else
+        "visionOS"
+#endif
     }
 
     private func frameStep(direction: Double) {
