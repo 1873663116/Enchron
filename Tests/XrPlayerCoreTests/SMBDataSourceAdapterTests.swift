@@ -3,38 +3,61 @@ import Testing
 @testable import XrPlayerCore
 
 struct SMBDataSourceAdapterTests {
-    @Test("SMB playback cache identity is stable and changes with remote content")
-    func playbackCacheIdentity() {
-        let file = FileBrowsingDomain.MediaFile(
-            name: "feature.mkv",
-            sizeInBytes: 42_000,
-            modifiedAt: Date(timeIntervalSince1970: 1_700_000_000),
-            fileExtension: "mkv",
-            url: URL(string: "smb://placeholder/Movies/feature.mkv")!
-        )
-        let connection = FileBrowsingDomain.ConnectionInfo(
-            sourceType: .smb,
-            scheme: "smb",
-            host: "192.168.1.20",
-            port: 445,
-            rootPath: "/Movies"
-        )
+    @Test("SMB playback bridge serves only the requested byte range")
+    func requestedByteRange() async throws {
+        let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
+        let server = HTTPRangeStreamingServer(source: source, filename: "feature.mp4")
+        let url = try await server.start()
+        defer { server.stop() }
 
-        let first = SMBDataSourceAdapter.playbackCacheFileName(for: file, connectionInfo: connection)
-        let same = SMBDataSourceAdapter.playbackCacheFileName(for: file, connectionInfo: connection)
-        let changed = SMBDataSourceAdapter.playbackCacheFileName(
-            for: FileBrowsingDomain.MediaFile(
-                name: file.name,
-                sizeInBytes: file.sizeInBytes + 1,
-                modifiedAt: file.modifiedAt,
-                fileExtension: file.fileExtension,
-                url: file.url
-            ),
-            connectionInfo: connection
-        )
+        var request = URLRequest(url: url)
+        request.setValue("bytes=3-6", forHTTPHeaderField: "Range")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let httpResponse = try #require(response as? HTTPURLResponse)
 
-        #expect(first == same)
-        #expect(first != changed)
-        #expect(first.hasSuffix(".mkv"))
+        #expect(httpResponse.statusCode == 206)
+        #expect(httpResponse.value(forHTTPHeaderField: "Content-Range") == "bytes 3-6/10")
+        #expect(data == Data("3456".utf8))
+        #expect(source.requestedRanges == [3..<7])
+    }
+
+    @Test("SMB playback bridge applies backpressure-sized source reads")
+    func boundedReads() async throws {
+        let source = RecordingByteRangeSource(data: Data(repeating: 0x2a, count: 11))
+        let server = HTTPRangeStreamingServer(
+            source: source,
+            filename: "feature.mkv",
+            readChunkSize: 4
+        )
+        let url = try await server.start()
+        defer { server.stop() }
+
+        let (data, response) = try await URLSession.shared.data(from: url)
+        let httpResponse = try #require(response as? HTTPURLResponse)
+
+        #expect(httpResponse.statusCode == 200)
+        #expect(data.count == 11)
+        #expect(source.requestedRanges == [0..<4, 4..<8, 8..<11])
+    }
+}
+
+private final class RecordingByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
+    let contentLength: Int64
+    private let data: Data
+    private let lock = NSLock()
+    private var ranges: [Range<Int64>] = []
+
+    var requestedRanges: [Range<Int64>] {
+        lock.withLock { ranges }
+    }
+
+    init(data: Data) {
+        self.data = data
+        contentLength = Int64(data.count)
+    }
+
+    func read(in range: Range<Int64>) async throws -> Data {
+        lock.withLock { ranges.append(range) }
+        return data[Int(range.lowerBound)..<Int(range.upperBound)]
     }
 }

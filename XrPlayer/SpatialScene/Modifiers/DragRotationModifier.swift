@@ -6,7 +6,7 @@ extension View {
     /// with optional pitch limit and configurable sensitivity.
     ///
     /// Adapted from Apple's HelloWorld DragRotationModifier pattern for
-    /// Enchron's immersive/panorama playback modes.
+    /// Enchron's immersive and panorama playback presentations.
     /// Uses `.interactiveSpring` during drag and `.spring` with predicted
     /// end translation for inertia on release.
     func dragRotation(

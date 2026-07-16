@@ -2,7 +2,6 @@ import RealityKit
 import SwiftUI
 
 struct PlaybackVideoSurface: View {
-    @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
 
     let presentation: PlaybackPresentation
@@ -36,7 +35,7 @@ struct PlaybackVideoSurface: View {
             videoEntity,
             renderer: renderer,
             presentation: presentation,
-            stereoLayout: appModel.effectiveStereoLayout
+            stereoLayout: playbackRuntime.effectiveStereoLayout
         )
         surfaceActivation.observe(videoEntity, in: content) {
             attachSurfaceIfReady()

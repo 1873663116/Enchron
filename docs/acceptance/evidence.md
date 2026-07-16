@@ -1,0 +1,46 @@
+# Enchron 播放系统证据
+
+## 2026-07-16 单仓迁移与应用控制收敛
+
+- Verified code revision：Enchron `e6d32e86e3d9`；该 revision 已包含完整 PlaybackCore 导入历史与应用控制重构。
+- Scope：PlaybackCore 以保留 Git 历史的方式进入 `Packages/PlaybackCore`；核心行为 spec、节点 01–09、fixture registry 和 evidence 进入 Enchron 的统一 `docs/`。macOS `EnchronMacOS` 同时保留 Core scenario 与生产 App Adapter scenario，二者是同一 Entry App 的递进验证入口。
+- State ownership：删除 Entry App 的重复 `PlaybackState`、`PlaybackSession`、媒体格式副本与 seek generation。`PlaybackRuntime` 直接投影 PlaybackCore 的 `PlaybackStatus`；连续相对 seek 在 `PlaybackCoreController` 内基于最新请求目标累计，App 不再推测核心时间线。
+- L1：`Packages/PlaybackCore` 的 `swift test` 共 67 项全部通过，新增 `rapidRelativeSeeksAccumulateInsideTheCore`；Enchron 根包 30 项 Swift Testing 与 6 项 XCTest 通过，其中 1 项未配置外部 WebDAV 环境而按设计跳过。
+- Build：`EnchronMacOS` macOS target 与 `XrPlayer` `generic/platform=visionOS` 无签名构建通过。Xcode 直接从 `Packages/PlaybackCore` 解析本地 package，不再依赖兄弟仓库路径。
+- Core L2：`script/build_and_run.sh --l2-core /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-core-e6d32e8.json` 通过。Apple compressed 与 FFmpeg compressed 两条路线均完成真实播放推进、audio renderer enqueue、暂停/恢复、音量/静音、速率恢复、前后 seek、三次连续 seek、cleanup 与 reopen；sample 与 displayed pixel 均符合 BT.2020/PQ/video-range oracle，displayed pixel format 为 `&xv0`。artifact 内嵌 Enchron/PlaybackCore revision 均为 `e6d32e86e3d9`。
+- App Adapter L2：`script/build_and_run.sh --l2-app /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-app-e6d32e8.json` 通过。生产 `PlaybackRuntime` 的 FFmpeg 路线通过与 Core scenario 相同的 renderer、颜色、音频、控制、cleanup 与 reopen 断言；artifact 内嵌 Enchron/PlaybackCore revision 均为 `e6d32e86e3d9`。
+- Simulator boundary：visionOS 27.0 Simulator 测试已完成编译，但 test runner 没有 materialize；Xcode 等待约 295 秒后报告 simulator launch server died，`NSMachErrorDomain Code=-308 (ipc/mig) server died`。显式重启后仍停在 `Waiting on BackBoard`。因此本次结果是 Simulator 基础设施阻塞，不是测试失败，也不标记 Simulator passed。
+- Evidence boundary：当前 HDR10 fixture 仍是 license 未记录的 diagnostic fixture，audio renderer 推进不能代替物理听音，Vision Pro L3 未执行。
+
+## 2026-07-16 Enchron macOS L2 恢复与 HDR10 颜色回归
+
+- Code revisions：PlaybackCore `2491fede02ba` 与 Enchron `f4aa5be3311f` 加当前工作区变更。
+- Toolchain：Xcode 27.0 beta 2（`27A5209h`）、Apple Swift 6.4、macOS 27 SDK、FFmpeg 8.0.1。
+- Diagnostic fixture：registry ID `local-hdr10-pq-hevc-aac-001`，本机 `HDR10.MP4`，759,326,428 bytes，SHA-256 `b73fe04c7cec95449d0d9d09e6211693b766ae178b73ca7bf25eae3288b09580`，HEVC `hvc1`、3840×2160、59.94 fps、HDR10/PQ、AAC stereo。registry 把它标为 `diagnostic-only-until-license-is-recorded`；因此本轮结果不能代表完整 acceptance fixture matrix。
+- Historical reference：commit `8ba948006597222bbbb8e4d657efd370d8ab7545` 的 Verify App 已同时实现 Apple compressed 与 FFmpeg compressed 两条路线。FFmpeg 只负责 demux；两条路线从 compressed `CMSampleBuffer` 后共用 AVFoundation renderer、synchronizer、RealityKit consumer、控制和断言。当前 Enchron macOS Core scenario 恢复的是这条分层边界，不把历史实现误写为只有 `AVAssetReader`。
+- Color first failure：FFmpeg Provider Open 与 sample 一度缺失 BT.2020/PQ/matrix；其根因是 2026-07-16 的 FFmpeg 构建加入 `--disable-decoders`。bridge 不调用 FFmpeg decode API，但 `avformat_find_stream_info` 仍需要 codec probing 从 HEVC VUI 补出容器没有直接给出的颜色事实。移除该选项并把构建 revision 更新为 `network-demux-metadata-v2` 后，Provider 恢复 `bt2020 / smpte2084 / bt2020nc / tv`。
+- Range first failure：Provider 已报告 `tv` 时，FFmpeg sample 的 `CMFormatDescription` 仍没有 range；bridge 只为 JPEG range 写入 `FullRangeVideo=true`，对 MPEG range 没有写入 `false`。现在两种已知 range 都显式写入，FFmpeg sample 恢复 `2020 / ST_2084_PQ / 2020 / video`，displayed pixel 为 `&xv0`。
+- Lifecycle failures：快速 seek 与 close 暴露了三个独立竞态。FFmpeg video/audio reader 的同步 copy 与 `cancel()` 销毁 reader 可并发，导致 use-after-free；delivery task cancellation 曾在持有 `deliveryTaskLock` 时进入 AVFoundation Receiver cancellation，形成锁顺序反转；三个 actor-reentrant seek 可同时等待同一旧任务，随后较旧 waiter 与最新 waiter 一起进入同一个 session。修复分别为序列化 reader 所有权、在锁外执行 `Task.cancel()`、等待后重新检查 seek generation，并新增三连 seek 回归测试。
+- L1 result：当时 `swift test` 的 66 tests 全部通过，包含 `threeRapidSeeksOnlyAllowNewestWaiterToEnterSession`；后续单仓迁移记录已提升为 67 项。
+- L2 command：`Enchron/script/build_and_run.sh --l2-core /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-core-hdr10-after-seek-fix.json`。同一构建随后直接执行两次，artifact 为 `/tmp/enchron-l2-core-repeat-1.json` 与 `/tmp/enchron-l2-core-repeat-2.json`。
+- L2 machine result：三次完整双路线运行都通过。Apple compressed 与 FFmpeg compressed 均证明真实 Receiver、共享 synchronizer、RealityKit `VideoMaterial` consumer、displayed pixel、audio sample/buffer 推进、3 秒稳定播放、pause/resume、volume/mute、1.5× 与恢复、前后 seek、三次快速连续 seek 的最终请求所有权、cleanup barrier 与新 session/reopen。两条路线的 sample 与 displayed pixel 都保持 BT.2020/PQ/video-range；renderer ready 且无 terminal error。
+- App Adapter command：`Enchron/script/build_and_run.sh --l2-app /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-app-adapter-hdr10.json`，同一构建复测 artifact 为 `/tmp/enchron-l2-app-adapter-repeat.json`。Enchron macOS target 直接编译生产 `XrPlayer/App/PlaybackRuntime.swift` 与其产品模型，不使用同名 fixture adapter；两次都通过产品 FFmpeg route 的同一媒体、控制、颜色、RealityKit、cleanup 与 reopen 断言。Core FFmpeg 与 App Adapter 均记录 `receiverAsyncBackpressure`、`platform=macOS`、BT.2020/PQ/video-range 和 `&xv0`，连续 seek 最终 epoch 与目标一致。
+- Product assembly：Enchron 30 项 Swift Testing 加 5 项 XCTest 通过，1 项未配置外部 WebDAV 环境的测试按设计跳过；`XrPlayer` generic visionOS device 无签名构建通过，证明同一 `PlaybackRuntime` 的 visionOS 分支仍可编译。这仍不是 Simulator 或设备运行证据。
+- Evidence boundary：音频 renderer enqueue 与共享时间线只能证明 audio lane 推进，不能代替人在物理输出设备上确认“可听且同步”；当前 fixture 只有单音轨，也没有覆盖 SDR、HLG、Dolby Vision、B-frame、长媒体和许可完整的 fixture 集合。visionOS Simulator 当前 revision 与 Vision Pro L3 尚未执行。因此本记录关闭本地 HDR10 颜色、快速 seek/cleanup 与生产 App Adapter 接入回归，但仍不把完整 L2 或整个验收链标记为通过。
+
+## 2026-07-15 Swift 6.4 / AVFoundation Receiver 升级
+
+- Code revision：`89310ad` 加当前未提交升级工作区。
+- Toolchain：Xcode 27.0 beta 2（`27A5209h`）、Apple Swift 6.4（`swiftlang-6.4.0.23.5`）、macOS 27 SDK、visionOS 27 SDK。
+- Commands：`script/build_ffmpeg.sh` 与 object-level `vtool -show-build`；PlaybackCore 在全新 scratch path 执行 `swift test`；两个保留诊断工具以 `xcrun swiftc -swift-version 6 -typecheck` 检查；Enchron `swift test`；`XrPlayer` 与 `DesignPreview` 的 `generic/platform=visionOS` 无签名构建。
+- Result：FFmpeg XCFramework 的 macOS arm64、visionOS arm64、visionOS Simulator arm64 / x86_64 object 均声明 minOS 27.0 与 SDK 27.0；PlaybackCore 全新冷构建 56 tests passed；两个诊断工具无警告通过 Swift 6 类型检查；Enchron 31 tests passed、1 个需外部 WebDAV 环境的测试 skipped；两个 visionOS scheme 构建成功，XrPlayer 另以全新 DerivedData 链接重建后的 FFmpeg 成功。
+- Proven：现有 provider、Media Session、控制与 renderer graph 已在 Swift 6.4 工具链编译；Apple reader 使用 `AVAssetReaderOutput.Provider`；audio/video 输入使用 AVFoundation Receiver async enqueue、Receiver flush 与 rendering event；正常接受、解码警告、flush cancellation、requires-flush failure、backpressure cancellation 与 cleanup 有确定性回归。
+- Not proven：Vision Pro 硬件解码、HDR / Dolby Vision、RealityKit 最终呈现和长时间真机行为；单一公开 sample-buffer 路径、compressed audio、subtitle interface 与移除 route selection 仍属于后续架构迁移。
+
+当前 Xcode 27 beta 2 SDK 声明的 video Receiver requires-flush rendering event 与本机 macOS 27 beta Swift runtime 符号不一致。实现不直接引用该不匹配 case，并把未识别的 video terminal event 保守记录为 requires-flush failure；更新到匹配的 Xcode / macOS beta 后必须重新验证并移除此兼容边界。
+
+## AVFoundation reference evidence
+
+既有 macOS probe 已证明 Dolby Vision Profile 5、8.1 与 8.4 的 storage-format sample 保留对应 codec configuration，并被 Apple renderer 接受产生 displayed pixel buffer。既有 Vision Pro 人工对照记录显示三类样片的 Apple Compressed 画面与系统播放器一致。
+
+这些结果证明 AVFoundation reference path 的系统能力，不证明 PlaybackCore 当前 FFmpeg sample assembly 已经满足同一合同；产品路径迁移后必须使用相同 profile 重新验证。

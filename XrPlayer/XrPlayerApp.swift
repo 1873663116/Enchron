@@ -46,7 +46,6 @@ struct XrPlayerApp: App {
         let metadataService = PlaybackMediaMetadataService()
         let prefetchService = MediaProfilePrefetchService(metadataService: metadataService)
         let launcher = PlaybackLaunchCoordinator(
-            appModel: appModel,
             playbackRuntime: playbackRuntime,
             progressStore: persistenceStore,
             preferencesStore: preferencesStore,

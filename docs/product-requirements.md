@@ -52,4 +52,6 @@ stateDiagram-v2
 - 产品页面只组装生产组件并绑定产品状态。新 UI 先搜索现有组件；共享变化修改组件，页面特有变化修改页面。
 - DesignPreview、SwiftUI Preview 与测试可以注入确定性 fixture，但不得维护平行页面或第二套产品行为。
 - 运行事实通过 OSLog 和 signpost 暴露；不建设 Enchron CLI、自定义调试协议、Debug Overlay 或产品内日志面板。
-- Swift Testing / XCTest 验证纯逻辑和适配边界，XCUIAutomation 验证可访问交互，`xcodebuild` 与 `.xcresult` 保存结果。Simulator 验证 UI 和基础 RealityKit 生命周期；硬件解码、HDR/EDR、最终 Panorama、空间舒适度和性能必须在 Vision Pro 验证。
+- 验证严格按 PlaybackCore L1 → Enchron macOS App L2 Core scenario → Enchron macOS App L2 App Adapter scenario → visionOS Simulator → L3 Vision Pro 执行。前一门槛未通过时，不用后一层结果代替。
+- Enchron macOS App 使用真实视频与音频、真实 AVFoundation renderer、共享 synchronizer 和 RealityKit consumer，证明持续播放、seek、连续 seek、快进、快退、rate、音量、静音、音画同步、close/reopen、颜色/HDR 信令与稳定性；Core scenario 通过后才能接入 `PlaybackRuntime`。
+- Swift Testing / XCTest 验证纯逻辑和适配边界，XCUIAutomation 验证可访问交互，`xcodebuild` 与 `.xcresult` 保存结果。Simulator 验证 UI、平台 API 和基础 RealityKit 生命周期；硬件解码、HDR/EDR、最终 Panorama、空间舒适度和性能必须在 Vision Pro 验证。完整门槛见 [`acceptance/verification-system.md`](acceptance/verification-system.md)。

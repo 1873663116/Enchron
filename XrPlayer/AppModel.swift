@@ -43,14 +43,12 @@ public final class AppModel {
     }
     public var immersiveSpaceRequest: ImmersiveSpaceRequest? = nil
 
-    /// True while a playback-mode transition is in progress (immersive space
+    /// True while a playback-presentation transition is in progress (immersive space
     /// opening or closing). Gates playerControls window open/close and
     /// prevents concurrent menu operations.
-    public var isTransitioningPlaybackMode: Bool = false
+    public var isTransitioningPlaybackPresentation: Bool = false
     
-    // MARK: - Playback State
-    public var playbackSpeed: PlaybackModel.PlaybackSpeed = .default
-    public var mediaProfile: PlaybackModel.MediaProfile?
+    // MARK: - Playback Presentation
     public var playbackPresentationState = PlaybackPresentationState()
     public var playbackPresentation: PlaybackPresentation {
         playbackPresentationState.presented
@@ -61,28 +59,6 @@ public final class AppModel {
     public var environmentContext: EnvironmentContext {
         playbackPresentationState.environment
     }
-    public var detectedProjectionType: PlaybackModel.ProjectionType = .flat
-    public var projectionOverride: PlaybackModel.ProjectionType? = nil
-    public var detectedStereoLayout: PlaybackModel.StereoLayout = .mono
-    /// User-selected 3D mode override. nil = Auto (follows detectedStereoLayout).
-    /// .mono = 3D Off (stereoCropMode = nil). .sideBySide/.topBottom = force that layout.
-    public var stereoLayoutOverride: PlaybackModel.StereoLayout? = nil
-
-    public var effectiveProjectionType: PlaybackModel.ProjectionType {
-        projectionOverride ?? detectedProjectionType
-    }
-
-    /// The stereo layout that should drive the render pipeline (override takes precedence).
-    public var effectiveStereoLayout: PlaybackModel.StereoLayout {
-        stereoLayoutOverride ?? detectedStereoLayout
-    }
-
-    public var isStereoContent: Bool {
-        detectedStereoLayout != .mono
-    }
-
-    public var isPlaying: Bool = false
-    public var currentPlaybackURL: URL?
     public var showControls: Bool = true
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
@@ -111,14 +87,6 @@ public final class AppModel {
     }
     
     // MARK: - Actions
-    public func updatePlaybackSpeed(_ speed: PlaybackModel.PlaybackSpeed) {
-        playbackSpeed = speed
-    }
-    
-    public func updateMediaProfile(_ profile: PlaybackModel.MediaProfile) {
-        mediaProfile = profile
-    }
-    
     @discardableResult
     public func requestPlaybackPresentation(
         _ presentation: PlaybackPresentation,
@@ -151,44 +119,6 @@ public final class AppModel {
         if let environment = context.environment {
             currentCinemaEnvironment = environment
         }
-    }
-
-    public func updateDetectedProjection(
-        _ type: PlaybackModel.ProjectionType,
-        stereoLayout: PlaybackModel.StereoLayout = .mono
-    ) {
-        detectedProjectionType = type
-        detectedStereoLayout = stereoLayout
-        // Clear override when new media detected
-        projectionOverride = nil
-    }
-
-    public func setProjectionOverride(_ type: PlaybackModel.ProjectionType?) {
-        projectionOverride = type
-    }
-
-    public func setStereoLayoutOverride(_ layout: PlaybackModel.StereoLayout?) {
-        stereoLayoutOverride = layout
-    }
-
-    public func startPlayback(url: URL) {
-        currentPlaybackURL = url
-        isPlaying = true
-        mediaProfile = nil
-        projectionOverride = nil
-        stereoLayoutOverride = nil
-        detectedProjectionType = .flat
-        detectedStereoLayout = .mono
-        showControls = true
-        registerControlsInteraction()
-        logger.info("playback started controlsVisible=true")
-    }
-
-    public func stopPlayback() {
-        isPlaying = false
-        mediaProfile = nil
-        currentPlaybackURL = nil
-        isControlsFocused = false
     }
 
     public func registerControlsInteraction(at date: Date = Date()) {
