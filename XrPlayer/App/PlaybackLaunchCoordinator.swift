@@ -10,7 +10,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         public let seconds: Double
     }
 
-    private let appModel: AppModel
     private let playbackRuntime: PlaybackRuntime
     private let progressStore: ProgressStoring
     private let preferencesStore: PreferencesStoring
@@ -26,7 +25,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private var generation = 0
 
     public init(
-        appModel: AppModel,
         playbackRuntime: PlaybackRuntime,
         progressStore: ProgressStoring = SwiftDataStore(),
         preferencesStore: PreferencesStoring = UserDefaultsStore(),
@@ -34,7 +32,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         prefetchService: MediaProfilePrefetchService? = nil,
         networkMonitor: NetworkMonitor = NetworkMonitor()
     ) {
-        self.appModel = appModel
         self.playbackRuntime = playbackRuntime
         self.progressStore = progressStore
         self.preferencesStore = preferencesStore
@@ -43,11 +40,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
         playbackRuntime.onMediaProfileResolved = { [weak self] request, profile in
             guard let self else { return }
-            self.appModel.updateMediaProfile(profile)
-            self.appModel.updateDetectedProjection(
-                profile.projectionType,
-                stereoLayout: profile.stereoLayout
-            )
             Task {
                 let metadata = await self.metadataService.recordDetectedProfile(profile, for: request)
                 guard self.playbackRuntime.currentLaunchRequest == request else { return }
@@ -114,7 +106,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         playbackRuntime.stop()
 
         let preparedRequest = request.updating(metadata: request.initialMetadata)
-        appModel.startPlayback(url: preparedRequest.url)
         playbackRuntime.prepareForPlayback(preparedRequest)
         logger.info("launch requested source=\(preparedRequest.displayName, privacy: .public)")
 
@@ -124,13 +115,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             guard !Task.isCancelled, generation == launchGeneration else { return }
             if let metadata {
                 playbackRuntime.applyPrefetchedMetadata(metadata)
-                if let profile = metadata.mediaProfile {
-                    appModel.updateMediaProfile(profile)
-                    appModel.updateDetectedProjection(
-                        profile.projectionType,
-                        stereoLayout: profile.stereoLayout
-                    )
-                }
             }
         }
 
@@ -146,7 +130,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 if defaultSpeed != 1 {
                     let speed = PlaybackModel.PlaybackSpeed(defaultSpeed)
                     playbackRuntime.setSpeed(speed)
-                    appModel.updatePlaybackSpeed(speed)
                 }
             } catch {
                 guard generation == launchGeneration else { return }
@@ -171,7 +154,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         pendingResumeDecision = nil
         persistCurrentSession()
         playbackRuntime.stop()
-        appModel.stopPlayback()
     }
 
     public func handlePlaybackEnded(onFallbackShowControls: (@MainActor () -> Void)? = nil) -> Bool {

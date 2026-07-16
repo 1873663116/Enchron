@@ -103,7 +103,7 @@ public struct ImmersiveSpaceView: View {
             entity,
             renderer: renderer,
             presentation: presentation,
-            stereoLayout: appModel.effectiveStereoLayout
+            stereoLayout: playbackRuntime.effectiveStereoLayout
         )
         surfaceActivation.observe(entity, in: content) {
             attachSpatialSurfaceIfReady()

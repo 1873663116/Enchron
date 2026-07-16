@@ -1,7 +1,9 @@
-# PlaybackCore 取代 Enchron 内部 mpv 播放核心
+---
+status: superseded by ADR 0015
+date: 2026-07-13
+---
 
-- 状态：accepted
-- 日期：2026-07-13
+# PlaybackCore 取代 Enchron 内部 mpv 播放核心
 
 ## 背景
 
@@ -9,10 +11,10 @@ Enchron 内部长期维护 `MPVPlayerAdapter`、MPVKit、Metal texture bridge、
 
 ## 决策
 
-Enchron 作为产品 composition root，直接依赖独立 PlaybackCore。Enchron 只保留 Playback App Adapter、产品启动协调、SwiftUI、文件来源、持久化和空间呈现。内部 mpv 播放核心、MPVKit 依赖、Metal texture bridge 和 engine routing 全部退役，不建立兼容层或备用产品核心。
+Enchron 作为产品 composition root，直接依赖当时独立的 PlaybackCore。Enchron 只保留 Playback App Adapter、产品启动协调、SwiftUI、文件来源、持久化和空间呈现。内部 mpv 播放核心、MPVKit 依赖、Metal texture bridge 和 engine routing 全部退役，不建立兼容层或备用产品核心。
 
 Xrplay_scene 继续作为独立场景创作仓，只向 Enchron 交付 RealityKitContent / USD，不参与播放实现。
 
 ## 后果
 
-旧播放代码与依赖已经删除。确定性 fixture 只用于 Preview 和测试，不能被解释为生产播放实现；产品 target 只通过 `PlaybackRuntime` 使用相邻 PlaybackCore。
+旧播放代码与依赖已经删除。确定性 fixture 只用于 Preview 和测试，不能被解释为生产播放实现；PlaybackCore 后续由 ADR 0015 导入 Enchron 仓库，但继续保持同一模块边界。

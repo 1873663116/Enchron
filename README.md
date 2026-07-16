@@ -1,7 +1,11 @@
 # Enchron
 
-Enchron 是 visionOS 产品 App。它负责文件来源、SwiftUI 前端、产品状态、持久化与空间呈现；相邻的 `../PlaybackCore` 是唯一播放核心，`../Xrplay_scene` 交付 Reality Composer Pro 场景资产。
+Enchron 是最低运行于 visionOS 27 的媒体产品。仓库同时包含 Entry App、播放核心 Swift Package、RealityKit 内容、测试和统一文档。
 
-当前产品规格在 `docs/product-requirements.md`，UI 结构在 `docs/ui/README.md`，模块边界在 `ARCHITECTURE.md`。页面和组件的精确内容以生产 Swift 代码为准。
+```text
+XrPlayer -> PlaybackRuntime -> Packages/PlaybackCore -> AVFoundation -> RealityKit
+```
 
-构建 Xcode scheme `XrPlayer` 运行产品；`DesignPreview` 只展示生产组件，不维护第二套 App。仓库不再包含 mpv 播放路线、Metal 视频桥或内置备用播放核心。
+从 `ARCHITECTURE.md` 和 `CONTEXT.md` 开始。核心行为由 `docs/core-spec.md` 定义，产品能力由 `docs/product-requirements.md` 定义，完整节点和验证门槛位于 `docs/acceptance/`。
+
+构建 `XrPlayer` scheme 运行 visionOS 产品；`EnchronMacOS` 是同一播放应用控制的 macOS L2 入口；`DesignPreview` 只展示生产组件。首次构建 PlaybackCore 前运行 `Packages/PlaybackCore/script/build_ffmpeg.sh` 生成本地 FFmpeg XCFramework。

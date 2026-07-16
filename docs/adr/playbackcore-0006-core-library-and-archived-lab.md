@@ -1,8 +1,9 @@
-# ADR-0006：PlaybackCore 成为纯 library，Lab 归档
+---
+status: partially superseded by ADR 0015
+date: 2026-07-14
+---
 
-- 状态：accepted
-- 日期：2026-07-14
-- 取代：ADR-0004 与 ADR-0005 中把 Playback Lab 作为核心 L2 或完成条件的部分
+# ADR-0006：PlaybackCore 成为纯 library，Lab 归档
 
 ## 背景
 
@@ -10,12 +11,12 @@
 
 ## 决策
 
-PlaybackCore 仓库只发布 library，拥有 Media Session、Provider、sample、audio、renderer graph、控制和诊断。所有 App target、UI、空间呈现、运行脚本、设备证据与客户端回归模型移出本仓库。
+PlaybackCore 当时的独立仓库只发布 library，拥有 Media Session、Provider、sample、audio、renderer graph、控制和诊断。所有 App target、UI、空间呈现、运行脚本、设备证据与客户端回归模型移出该仓库。
 
 原验证 App 作为只读历史快照归档，不进入当前构建或验收。Enchron 直接为 PlaybackCore 实现新的 App Adapter。
 
 ## 后果
 
-- PlaybackCore 的完成条件只由 library 接口、核心测试和独立低层 probe 证明。
+- PlaybackCore 的模块边界继续有效；独立仓库和独立文档体系由 ADR 0015 取代。
 - 可见画面、可听输出、RealityKit、窗口、空间形态和产品交互由消费方验证。
 - 核心不得再次增加 App target 或客户端状态模型。

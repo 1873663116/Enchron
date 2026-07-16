@@ -385,7 +385,7 @@ final class PlaybackVerificationModel {
             while !Task.isCancelled {
                 guard let self, let session = self.activeSession else { return }
                 if let runtime = self.runtime {
-                    self.status = Self.coreStatus(runtime.playbackState, error: runtime.lastErrorMessage)
+                    self.status = runtime.lifecycle
                     self.diagnostics = runtime.diagnostics
                     self.durationSeconds = runtime.playbackPosition.duration
                     self.controlError = runtime.lastErrorMessage
@@ -419,20 +419,6 @@ final class PlaybackVerificationModel {
 
     private func syncRuntimeError() {
         controlError = runtime?.lastErrorMessage
-    }
-
-    private static func coreStatus(
-        _ state: PlaybackModel.PlaybackState,
-        error: String?
-    ) -> PlaybackStatus {
-        switch state {
-        case .idle, .stopped: .idle
-        case .loading, .buffering: .loading
-        case .playing: .playing
-        case .paused: .paused
-        case .ended: .ended
-        case .failed: .failed(error ?? "PlaybackRuntime failed")
-        }
     }
 
     private static func fourCC(_ value: OSType) -> String {

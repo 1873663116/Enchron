@@ -1,3 +1,4 @@
+import PlaybackCore
 import SwiftUI
 
 struct WindowPlayerDeckView: View {
@@ -27,9 +28,9 @@ struct WindowPlayerDeckView: View {
             presentation: appModel.playbackPresentation,
             canDock: playbackRuntime.canEnterSpatialPresentation,
             canEnterPanorama: playbackRuntime.canEnterSpatialPresentation
-                && appModel.effectiveProjectionType.isPanoramic,
-            isPlaying: playbackRuntime.playbackState == .playing,
-            showsReplay: playbackRuntime.playbackState == .ended,
+                && playbackRuntime.effectiveProjectionType.isPanoramic,
+            isPlaying: playbackRuntime.lifecycle == .playing,
+            showsReplay: playbackRuntime.lifecycle == .ended,
             progress: duration > 0 ? CGFloat(position.seconds / duration) : 0,
             elapsedLabel: PlaybackTimeFormatter.clock(position.seconds),
             remainingLabel: "-" + PlaybackTimeFormatter.clock(remaining),
@@ -68,13 +69,13 @@ struct WindowPlayerDeckView: View {
             guard playbackRuntime.canEnterSpatialPresentation else { return }
         }
         if presentation == .panorama {
-            guard appModel.effectiveProjectionType.isPanoramic else { return }
+            guard playbackRuntime.effectiveProjectionType.isPanoramic else { return }
         }
         _ = try? appModel.requestPlaybackPresentation(presentation)
     }
 
     private func togglePlayPause() {
-        switch playbackRuntime.playbackState {
+        switch playbackRuntime.lifecycle {
         case .ended: playbackRuntime.replay()
         case .playing: playbackRuntime.pause()
         default: playbackRuntime.resume()
@@ -113,11 +114,10 @@ struct WindowPlayerDeckView: View {
             DeckMenuItem(
                 id: String(speed.value),
                 title: Self.formatSpeed(speed.value),
-                isSelected: appModel.playbackSpeed == speed
+                isSelected: playbackRuntime.currentPlaybackSpeed == speed
             ) {
                 self.register()
                 self.playbackRuntime.setSpeed(speed)
-                self.appModel.updatePlaybackSpeed(speed)
             }
         }
     }

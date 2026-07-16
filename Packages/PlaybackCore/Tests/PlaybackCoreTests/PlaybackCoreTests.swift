@@ -871,6 +871,61 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(snapshot.lastCompletedOperation?.state == .completed)
 }
 
+@MainActor
+@Test func rapidRelativeSeeksAccumulateInsideTheCore() async throws {
+    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 30)
+    let controller = PlaybackCoreController { route, sessionID in
+        SampleBufferPlaybackSession(
+            route: route,
+            traceID: sessionID,
+            provider: FakeVideoSampleProvider(
+                events: [.sample(sample), .end],
+                seekPrepareDelay: .milliseconds(150)
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+    }
+    defer { controller.close() }
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/fake.mov"),
+        route: .ffmpegCompressed
+    )
+    session.recordPresentationBinding(
+        realityViewIdentity: "testRealityView",
+        platform: "macOS",
+        attached: true
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    try controller.pause()
+    let baseSeconds = session.currentTime().seconds
+
+    let first = Task {
+        try await controller.seek(by: CMTime(seconds: 10, preferredTimescale: 600))
+    }
+    try await Task.sleep(for: .milliseconds(20))
+    let second = Task {
+        try await controller.seek(by: CMTime(seconds: 10, preferredTimescale: 600))
+    }
+
+    do {
+        try await first.value
+        Issue.record("Expected the first relative seek to be superseded")
+    } catch let error as PlaybackControlError {
+        guard case .seekSuperseded(let target) = error else {
+            Issue.record("Expected seekSuperseded, got \(error)")
+            return
+        }
+        #expect(abs(target - (baseSeconds + 10)) < 0.001)
+    }
+    try await second.value
+
+    let finalTarget = try #require(
+        session.debugSnapshot().lastCompletedOperation?.targetTimeSeconds
+    )
+    #expect(abs(finalTarget - (baseSeconds + 20)) < 0.001)
+}
+
 @Test func injectedProviderProducesRouteEventSampleAndRendererIntent() async throws {
     let sample = try makeCompressedH264Sample()
     try expectCompressedH264Contract(sample)

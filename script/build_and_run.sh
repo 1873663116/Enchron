@@ -57,9 +57,9 @@ case "$MODE" in
     ENCHRON_L2_SCENARIO="$SCENARIO" \
     ENCHRON_L2_SOURCE="$SOURCE_PATH" \
     ENCHRON_L2_FIXTURE_ID="${ENCHRON_L2_FIXTURE_ID:-local-hdr10-pq-hevc-aac-001}" \
-    ENCHRON_L2_FIXTURE_REGISTRY="${ENCHRON_L2_FIXTURE_REGISTRY:-$ROOT_DIR/../PlaybackCore/docs/acceptance/fixture-registry.json}" \
+    ENCHRON_L2_FIXTURE_REGISTRY="${ENCHRON_L2_FIXTURE_REGISTRY:-$ROOT_DIR/docs/acceptance/fixture-registry.json}" \
     ENCHRON_L2_OUTPUT="$OUTPUT_PATH" \
-    ENCHRON_PLAYBACKCORE_REVISION="$(git -C "$ROOT_DIR/../PlaybackCore" rev-parse HEAD)" \
+    ENCHRON_PLAYBACKCORE_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD)" \
     ENCHRON_REVISION="$(git -C "$ROOT_DIR" rev-parse HEAD)" \
     "$APP_BINARY"
     test -f "$OUTPUT_PATH"
