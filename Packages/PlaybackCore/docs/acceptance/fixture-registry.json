@@ -1,0 +1,100 @@
+{
+  "schemaVersion": 1,
+  "fixtures": [
+    {
+      "id": "local-hdr10-pq-hevc-aac-001",
+      "sha256": "b73fe04c7cec95449d0d9d09e6211693b766ae178b73ca7bf25eae3288b09580",
+      "license": "unknown-local-diagnostic-source",
+      "acceptanceEligibility": "diagnostic-only-until-license-is-recorded",
+      "container": "ISO BMFF / MP4",
+      "videoCodec": "HEVC hvc1, 3840x2160, 60000/1001 fps, BT.2020, PQ, video range",
+      "audio": "AAC, 48 kHz, stereo, one track",
+      "durationSeconds": 83.083,
+      "oracle": {
+        "sampleColorPrimaries": ["2020"],
+        "sampleTransferFunction": ["2084", "pq"],
+        "sampleYCbCrMatrix": ["2020"],
+        "sampleRange": ["video", "tv"],
+        "displayedColorPrimaries": ["2020"],
+        "displayedTransferFunction": ["2084", "pq"],
+        "displayedYCbCrMatrix": ["2020"],
+        "displayedPixelFormats": ["&xv0"]
+      }
+    },
+    {
+      "id": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
+      "sha256": "9642fcd959b686cf619128cf9355c063179e7fddbfc488136b0120eefa6c2f54",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "ISO BMFF / MP4",
+      "videoCodec": "H.264 avc1 High, 1280x720, 30 fps, B-frames, BT.709, video range",
+      "audio": "two AAC LC 48 kHz stereo tracks; 880 Hz and 440 Hz 80 ms pulses aligned with a white video flash every second",
+      "durationSeconds": 30.0,
+      "generation": {
+        "script": "script/generate_acceptance_fixtures.sh",
+        "output": ".verification-fixtures/sdr-bframe-multiaudio-avsync-30s.mp4",
+        "ffmpegVersion": "8.0.1"
+      },
+      "oracle": {
+        "sampleColorPrimaries": ["709"],
+        "sampleTransferFunction": ["709"],
+        "sampleYCbCrMatrix": ["709"],
+        "sampleRange": ["video", "tv"],
+        "displayedColorPrimaries": ["709"],
+        "displayedTransferFunction": ["709"],
+        "displayedYCbCrMatrix": ["709"],
+        "displayedPixelFormats": ["&8v0"]
+      }
+    },
+    {
+      "id": "generated-hlg-hevc10-avsync-10s-v1",
+      "sha256": "8f22cdec5d118682375d31a5ab965435471e846dff0b26b04289e201fee210e6",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "ISO BMFF / MP4",
+      "videoCodec": "HEVC hvc1 Main 10, 1280x720, 30 fps, BT.2020, HLG, video range",
+      "audio": "AAC LC 48 kHz stereo; 660 Hz 80 ms pulses aligned with a white video flash every second",
+      "durationSeconds": 10.0,
+      "generation": {
+        "script": "script/generate_acceptance_fixtures.sh",
+        "output": ".verification-fixtures/hlg-hevc-10bit-avsync-10s.mp4",
+        "ffmpegVersion": "8.0.1"
+      },
+      "oracle": {
+        "sampleColorPrimaries": ["2020"],
+        "sampleTransferFunction": ["hlg", "b67", "2100"],
+        "sampleYCbCrMatrix": ["2020"],
+        "sampleRange": ["video", "tv"],
+        "displayedColorPrimaries": ["2020"],
+        "displayedTransferFunction": ["hlg", "b67", "2100"],
+        "displayedYCbCrMatrix": ["2020"],
+        "displayedPixelFormats": ["&xv0"]
+      }
+    },
+    {
+      "id": "generated-pq-hevc10-avsync-10s-v1",
+      "sha256": "12589cd7edf269c9ec7ee48791487b785002d80ab4d8b33be470620249e82957",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "ISO BMFF / MP4",
+      "videoCodec": "HEVC hvc1 Main 10, 1280x720, 30 fps, BT.2020, PQ, video range",
+      "audio": "AAC LC 48 kHz stereo; 660 Hz 80 ms pulses aligned with a white video flash every second",
+      "durationSeconds": 10.0,
+      "generation": {
+        "script": "script/generate_acceptance_fixtures.sh",
+        "output": ".verification-fixtures/pq-hevc-10bit-avsync-10s.mp4",
+        "ffmpegVersion": "8.0.1"
+      },
+      "oracle": {
+        "sampleColorPrimaries": ["2020"],
+        "sampleTransferFunction": ["2084", "pq"],
+        "sampleYCbCrMatrix": ["2020"],
+        "sampleRange": ["video", "tv"],
+        "displayedColorPrimaries": ["2020"],
+        "displayedTransferFunction": ["2084", "pq"],
+        "displayedYCbCrMatrix": ["2020"],
+        "displayedPixelFormats": ["&xv0"]
+      }
+    }
+  ]
+}
