@@ -2,14 +2,15 @@
 
 ## 2026-07-16 单仓迁移与应用控制收敛
 
+- Verified code revision：Enchron `e6d32e86e3d9`；该 revision 已包含完整 PlaybackCore 导入历史与应用控制重构。
 - Scope：PlaybackCore 以保留 Git 历史的方式进入 `Packages/PlaybackCore`；核心行为 spec、节点 01–09、fixture registry 和 evidence 进入 Enchron 的统一 `docs/`。macOS `EnchronMacOS` 同时保留 Core scenario 与生产 App Adapter scenario，二者是同一 Entry App 的递进验证入口。
 - State ownership：删除 Entry App 的重复 `PlaybackState`、`PlaybackSession`、媒体格式副本与 seek generation。`PlaybackRuntime` 直接投影 PlaybackCore 的 `PlaybackStatus`；连续相对 seek 在 `PlaybackCoreController` 内基于最新请求目标累计，App 不再推测核心时间线。
 - L1：`Packages/PlaybackCore` 的 `swift test` 共 67 项全部通过，新增 `rapidRelativeSeeksAccumulateInsideTheCore`；Enchron 根包 30 项 Swift Testing 与 6 项 XCTest 通过，其中 1 项未配置外部 WebDAV 环境而按设计跳过。
 - Build：`EnchronMacOS` macOS target 与 `XrPlayer` `generic/platform=visionOS` 无签名构建通过。Xcode 直接从 `Packages/PlaybackCore` 解析本地 package，不再依赖兄弟仓库路径。
-- Core L2：`script/build_and_run.sh --l2-core /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-core-merged.json` 通过。Apple compressed 与 FFmpeg compressed 两条路线均完成真实播放推进、audio renderer enqueue、暂停/恢复、音量/静音、速率恢复、前后 seek、三次连续 seek、cleanup 与 reopen；sample 与 displayed pixel 均符合 BT.2020/PQ/video-range oracle，displayed pixel format 为 `&xv0`。
-- App Adapter L2：`script/build_and_run.sh --l2-app /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-app-merged.json` 通过。生产 `PlaybackRuntime` 的 FFmpeg 路线通过与 Core scenario 相同的 renderer、颜色、音频、控制、cleanup 与 reopen 断言。
+- Core L2：`script/build_and_run.sh --l2-core /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-core-e6d32e8.json` 通过。Apple compressed 与 FFmpeg compressed 两条路线均完成真实播放推进、audio renderer enqueue、暂停/恢复、音量/静音、速率恢复、前后 seek、三次连续 seek、cleanup 与 reopen；sample 与 displayed pixel 均符合 BT.2020/PQ/video-range oracle，displayed pixel format 为 `&xv0`。artifact 内嵌 Enchron/PlaybackCore revision 均为 `e6d32e86e3d9`。
+- App Adapter L2：`script/build_and_run.sh --l2-app /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-app-e6d32e8.json` 通过。生产 `PlaybackRuntime` 的 FFmpeg 路线通过与 Core scenario 相同的 renderer、颜色、音频、控制、cleanup 与 reopen 断言；artifact 内嵌 Enchron/PlaybackCore revision 均为 `e6d32e86e3d9`。
 - Simulator boundary：visionOS 27.0 Simulator 测试已完成编译，但 test runner 没有 materialize；Xcode 等待约 295 秒后报告 simulator launch server died，`NSMachErrorDomain Code=-308 (ipc/mig) server died`。显式重启后仍停在 `Waiting on BackBoard`。因此本次结果是 Simulator 基础设施阻塞，不是测试失败，也不标记 Simulator passed。
-- Evidence boundary：上述两个 JSON 在提交前工作区执行，内嵌 revision 仍是历史导入点 `0e1cbf8aa25a`；提交后必须用最终 revision 重跑才能成为该提交的正式 evidence。当前 HDR10 fixture 仍是 license 未记录的 diagnostic fixture，audio renderer 推进不能代替物理听音，Vision Pro L3 未执行。
+- Evidence boundary：当前 HDR10 fixture 仍是 license 未记录的 diagnostic fixture，audio renderer 推进不能代替物理听音，Vision Pro L3 未执行。
 
 ## 2026-07-16 Enchron macOS L2 恢复与 HDR10 颜色回归
 
