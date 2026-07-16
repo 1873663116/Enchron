@@ -1,37 +1,69 @@
 # Enchron 架构
 
-Enchron 是产品 composition root，不是播放后端。一次播放只有一个 `PlaybackCoreController`、一个 `SampleBufferPlaybackSession` 和一个 `AVSampleBufferVideoRenderer`；Window、Docked 与 Panorama 只迁移同一个 renderer 的呈现位置。
+Enchron 是唯一产品与代码仓库。`Packages/PlaybackCore` 是仓库内独立 Swift Package，拥有媒体会话、时间线、sample 与 renderer graph；Entry App 拥有来源、产品策略、SwiftUI、RealityKit 和空间呈现。模块独立不产生第二套产品、状态机或文档体系。
 
-Enchron 同时提供 macOS App。它不是另一套产品前端或播放核心，而是进入 visionOS 产品前必须通过的 L2 宿主：Core scenario 直接连接 PlaybackCore 与 macOS RealityKit consumer；通过后，App Adapter scenario 改由同一 `PlaybackRuntime` 接入。两者必须复用同一 fixture、renderer 断言和控制矩阵。
+## 系统主线
 
 ```mermaid
 flowchart LR
-    Sources["Source Browser\nFiles · Photos · SMB · WebDAV"] --> Library["Media Library\nVirtual folders · Persistent references"]
-    Library --> Resolve["MediaReferenceResolver\nBookmark · PHAsset · Remote path"]
-    Resolve --> Launch["PlaybackLaunchCoordinator\n启动 · 续播 · 结束策略"]
-    Launch --> Adapter["PlaybackRuntime\nEnchron adapter"]
-    Adapter --> Core["../PlaybackCore\n唯一媒体会话与 renderer"]
-    Mac["Enchron macOS App\nL2 Core · App Adapter"] --> Adapter
-    Mac --> Core
-    Adapter --> State["AppModel\n产品状态"]
-    State --> UI["SwiftUI 页面\n组装共享组件"]
-    Core --> Surface["RealityKit VideoPlayerComponent"]
-    State --> Surface
-    Scene["Xrplay_scene\nRCP 场景交付"] --> Surface
-    Store["Persistence\nMedia Library · 偏好 · 进度 · Keychain"] <--> Library
-    Store <--> Launch
+    Sources["来源\nFiles · Photos · SMB · WebDAV"] --> Library["Media Library\n引用 · 分类 · 持久化"]
+    Library --> Resolve["Source Resolution\n授权 · 远程流 · provenance"]
+    Resolve --> Launch["PlaybackLaunchCoordinator\n续播 · 结束策略 · 启动"]
+    Launch --> Runtime["PlaybackRuntime\n应用控制与只读投影"]
+    Runtime --> Core["Packages/PlaybackCore\n唯一 Media Session 与 timeline"]
+    Core --> Binding["Renderer Consumer Binding\nRealityKit entity"]
+    Binding --> Presentation["Playback Presentation\nWindow · Docked · Panorama"]
+    Presentation --> UI["Enchron Entry App\nSwiftUI 与场景卡片"]
 ```
 
-`FileBrowsing` 拥有 Media Library、来源浏览与引用解析；`PlaybackLaunchCoordinator` 是唯一产品播放入口；`PlaybackRuntime` 把 PlaybackCore 的状态、控制和 renderer 映射到 App；`PlayerUI` 组装播放控件；`SpatialScene` 执行 Environment、Docked 与 Panorama 的 RealityKit 生命周期；`Persistence` 保存媒体目录、偏好、进度和凭据；`Shared` 拥有 Design Token 与生产组件。
+一次产品播放只有一个 `PlaybackCoreController`、一个 Current Media Slot、一个 Media Session 和一个 renderer graph。`PlaybackRuntime` 负责把 App 请求交给核心并把核心状态投影给产品；它不得自行决定 seek 先后、推进媒体时间、伪造 ready/playing/ended，或维护第二个播放会话。
 
-以下是不变量：
+## PlaybackCore 内部结构
 
-- Enchron 不解封装、不解码、不维护时间线、renderer graph、播放 route 或备用核心。
-- PlaybackCore 的 L1 与 Enchron macOS App 的 Core scenario 未通过时，不进入 App Adapter、visionOS Simulator 或 Vision Pro 验收；上层成功不能反推下层通过。
-- Media Library 只管理引用。文件 bookmark、Photos identifier 与远程路径始终指向原来源；分类、移动和删除引用不能复制、移动或删除媒体字节。
-- Window、Docked、Panorama 是互斥的稳定 `PlaybackPresentation`；Environment Context 是独立状态，Window 可以和已打开场景共存。
-- 只允许 Window 与一种空间呈现之间转换。平台 surface 和 renderer 都附着成功后才提交；失败恢复原状态和原 Environment Context。
-- Docked 使用 Enchron 的 RealityKit docking adapter，把同一个 `VideoPlayerComponent` 放入 RCP 场景。
-- Panorama 使用 Apple `VideoPlayerComponent` 的 immersive viewing behavior。Flat、180°、360° 由 PlaybackCore 写入 Apple 格式描述；Fisheye 只接受带 Apple Immersive Media Embedded（AIME）元数据的来源。
-- 修改 UI 视觉效果、参数在组件或 `DesignTokens`，用户页面只拥有产品特有的组合与状态绑定 `Shared/Components`
-- `DesignPreview` 只展示同一份生产组件。组件 interface、页面内容和交互细节由代码、Preview 与测试表达，不建立影子文档或平行前端。
+```text
+Source Admission -> Media Session -> Demux Provider
+                                         |-- compressed video samples
+                                         |-- audio samples
+                                         `-- track and timed metadata facts
+                                                    |
+                                                    v
+                                      Renderer Input Coordination
+                                                    |
+                                                    v
+ AVSampleBufferVideoRenderer + AVSampleBufferAudioRenderer + Synchronizer
+```
+
+- `Source Admission` 接受 Entry App 已解析的来源与访问事实，并管理唯一 Current Media Slot。
+- `Media Session` 拥有一次 accepted open 到 close/failed 的身份、控制操作、Stream Epoch、Format Revision 与 stale rejection。
+- `Demux Provider` 打开容器、建立轨道模型并组装 sample。产品路径由 FFmpeg 解封装；Apple compressed route 只作为验证参考，不是产品 fallback。
+- `Renderer Input Coordination` 通过 AVFoundation Receiver 管理 audio/video backpressure、timeline、enqueue、flush、end 和 error。
+- `Renderer Graph` 组合 video renderer、audio renderer 与共享 synchronizer。AVFoundation 拥有解码、HDR/Dolby Vision 解释和最终渲染。
+- `Diagnostics` 发布与当前 Media Session 可关联的 records、事件和 Debug Snapshot；Snapshot 不是第二套状态机。
+
+## 模块所有权
+
+| 模块 | 拥有 | 不拥有 |
+|---|---|---|
+| `Packages/PlaybackCore` | container、track、sample、Media Session、播放生命周期、seek/rate/track transaction、renderer graph、诊断事实 | SwiftUI、来源长期授权、续播/下一项策略、RealityKit entity、窗口和空间 |
+| `XrPlayer/App` | 来源交接、产品策略、核心控制入口、核心状态只读投影、错误呈现协调 | demux、sample、timeline、renderer queue、第二 Media Session |
+| `XrPlayer/PlayerUI` | 生产 SwiftUI 页面、transport 输入、Window 播放 surface | 播放事实与核心调度 |
+| `XrPlayer/SpatialScene` | Environment Context、Docked/Panorama 生命周期、目标 surface attach/rollback | renderer graph 与媒体时间线 |
+| `XrPlayer/FileBrowsing` | Media Library、本地/Photos/SMB/WebDAV 来源和持久引用 | 媒体字节所有权与播放状态 |
+| `Packages/RealityKitContent` | Enchron 使用的 RCP 场景交付 | 播放行为 |
+
+## Entry App 与验证入口
+
+历史 Verify App 的非 SwiftUI 播放控制和断言是 Entry App 播放功能的基准。macOS target 是同一 Entry App application control 的 L2 平台入口；Core scenario 只是绕过产品来源和页面的验证模式，App Adapter scenario 使用生产 `PlaybackRuntime`。二者共享 fixture、renderer consumer、控制矩阵和节点断言，不形成平行 App。
+
+系统节点 01–09 统一位于 `docs/acceptance/nodes/`。节点描述完整产品链，文件位置不随实现模块拆分；每个节点分别声明实现所有者、证据所有者和完成边界。
+
+## 不变量
+
+- 产品只有一条 FFmpeg demux → compressed sample → AVFoundation renderer 路径；验证 route 不进入产品 UI，也不参与失败后的隐藏切换。
+- `Playback Lifecycle` 由 PlaybackCore 唯一发布；`Playback Presentation` 由 Entry App 管理，两者不能压成同一个“播放模式”。
+- Window、Docked、Panorama 迁移同一个 renderer。目标 surface 与 renderer binding 成功后才提交；失败回滚到原 Presentation，不重开 Media Session。
+- Media Library 只保存引用。分类、移动或删除引用不得复制、移动或删除媒体字节。
+- DesignPreview、SwiftUI Preview 与测试复用生产组件和页面；fixture adapter 不维护平行产品行为。
+- L1、macOS L2 Core、macOS L2 App Adapter、visionOS Simulator 与 Vision Pro L3 是递进门槛，上层结果不能反推下层通过。
+
+行为合同见 `docs/core-spec.md` 和 `docs/product-requirements.md`；唯一验证规则见 `docs/acceptance/verification-system.md`。

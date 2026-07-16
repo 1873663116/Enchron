@@ -1,12 +1,14 @@
 # PlaybackCore 规格
 
-这是 PlaybackCore 的唯一活跃规格。它定义产品所依赖的媒体接入、sample-buffer、renderer、控制、轨道和诊断行为；产品 UI、RealityKit entity、窗口与空间呈现属于 Enchron。
+这是 PlaybackCore 的唯一活跃行为规格。它定义 Enchron 所依赖的媒体接入、sample、renderer、控制、轨道、Playback Lifecycle 和诊断合同；来源长期授权、产品策略、RealityKit entity、Playback Presentation 与 SwiftUI 属于 Entry App。
+
+本文件不拥有一套独立验证体系。完整产品链的节点 01–09、分层门槛与证据规则统一位于 `docs/acceptance/`；节点可以由不同模块实现，但不能按模块拆成互不相连的文档。
 
 ## 目标与边界
 
 PlaybackCore 接受一个 Media Source，读取容器并建立 Media Session。它解封装音视频，组装保留原始编码、时间信息和格式信令的 `CMSampleBuffer`，交给 Apple AVFoundation 的 sample-buffer renderer。
 
-PlaybackCore 不解码音视频，不拥有 HDR / Dolby Vision 映射、自定义画面处理或画面参数。公开接口不暴露 FFmpeg、AVAssetReader 或其他实现路线，也不在失败后静默切换播放路径。
+PlaybackCore 不解码视频，不拥有 HDR / Dolby Vision 映射、自定义画面处理、产品画面参数或 Playback Presentation。公开产品接口不暴露 FFmpeg、AVAssetReader 或其他验证路线，也不在失败后静默切换路径。
 
 ## Media Session
 
@@ -50,9 +52,11 @@ PlaybackCore 报告来源检测到的 projection 与 stereo facts。调用方可
 
 所有控制只作用于当前 Media Session。无 active session、cleanup 未完成、目标 session 已过期或互斥操作进行中时必须显式拒绝。seek 与 reopen 保留调用方可观察的播放意图，但不得产生第二条 timeline。
 
-## 状态与诊断
+## Playback Lifecycle 与诊断
 
 公开状态至少区分 idle、loading、ready、playing、paused、ended 与 failed。一次产品播放启动中的 source、session、provider、sample、renderer input、control、track selection、cleanup 和 error 事实使用同一关联身份。
+
+PlaybackCore 是 Playback Lifecycle 的唯一发布者。Entry App 可以为了界面建立只读投影，但不得增加与核心竞争的 playing、paused、ended、position、track 或 seek 调度事实。
 
 PlaybackCore 发布结构化事件和版本化 Debug Snapshot，供 Enchron 投影和 OSLog 记录。Snapshot 是 records 的当前投影，不是第二套状态机，也不能单独证明可见画面、可听输出或产品呈现。
 
@@ -65,7 +69,7 @@ PlaybackCore 完成需要同时证明：
 3. audio/video renderer 属于同一 graph 和 synchronizer，控制与轨道切换具有确定语义。
 4. stale callback、superseded operation、renderer failure 和 cleanup barrier 有自动测试。
 5. library 在 macOS 与 visionOS 构建，当前测试通过；真实媒体和 AVFoundation renderer 证据按验证规则记录。
-6. Enchron macOS App 的 L2 核心验证模式使用真实媒体、真实 audio/video renderer、共享 synchronizer 与 RealityKit consumer，证明持续可见播放、可听音频、音画同步、seek、连续 seek、快进、快退、rate、pause/resume、音量、静音、close/reopen 和长时间运行。
-7. 产品路线使用的 compressed sample 必须在 Enchron macOS App 中证明 codec configuration、color primaries、transfer function、YCbCr matrix、range 与 HDR / Dolby Vision signaling 到达实际显示帧；缺失、错误或仅由来源 metadata 推断都视为未通过。
+6. 同一 Entry App 的 macOS L2 Core scenario 使用真实媒体、真实 audio/video renderer、共享 synchronizer 与 RealityKit consumer，证明持续可见播放、可听音频、音画同步、seek、连续 seek、快进、快退、rate、pause/resume、音量、静音、close/reopen 和长时间运行。
+7. 产品 compressed sample 必须在同一 macOS L2 中证明 codec configuration、color primaries、transfer function、YCbCr matrix、range 与 HDR / Dolby Vision signaling 到达实际显示帧；缺失、错误或仅由来源 metadata 推断都视为未通过。
 
-macOS App target 和 RealityKit consumer 由 Enchron 承载，不改变 PlaybackCore 的纯 library 边界；PlaybackCore 拥有上述核心播放证明义务。Enchron 的产品状态、最终空间呈现、HDR 观感与交互仍由 Enchron 验收。详细分层、节点和证据门槛见 `docs/acceptance/verification-system.md`。
+macOS platform entry、RealityKit consumer 与验证编排由 Enchron 承载，不改变 PlaybackCore 的 module 边界。核心行为只有在系统节点 01–09 的相应证明成立后才能进入产品完成声明；最终 Playback Presentation、HDR 观感与交互仍由 Entry App 和 Vision Pro 验收。

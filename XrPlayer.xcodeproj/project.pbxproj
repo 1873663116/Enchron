@@ -72,7 +72,7 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				FileBrowsing/Domain/ValueObjects/SourceType.swift,
-				PlaybackModel/Domain/ValueObjects/PlaybackState.swift,
+				PlaybackModel/Domain/PlaybackModel.swift,
 				PlaybackModel/Domain/ValueObjects/ProjectionType.swift,
 				PlaybackModel/Domain/ValueObjects/StereoLayout.swift,
 				PlayerUI/Domain/ValueObjects/PlaybackPresentation.swift,
@@ -96,7 +96,7 @@
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};
-		D40000132FA0000100E1C001 /* Production PlaybackRuntime sources for "EnchronMacOS" target */ = {
+		D40000132FA0000100E1C001 /* Exceptions for "XrPlayer" folder in "EnchronMacOS" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				App/PlaybackAudioSession.swift,
@@ -110,7 +110,7 @@
 				PlaybackModel/Domain/ValueObjects/MediaProfile.swift,
 				PlaybackModel/Domain/ValueObjects/PlaybackPosition.swift,
 				PlaybackModel/Domain/ValueObjects/PlaybackSpeed.swift,
-				PlaybackModel/Domain/ValueObjects/PlaybackState.swift,
+				PlaybackModel/Domain/PlaybackModel.swift,
 				PlaybackModel/Domain/ValueObjects/ProjectionType.swift,
 				PlaybackModel/Domain/ValueObjects/StereoLayout.swift,
 				PlayerUI/Domain/ValueObjects/PlaybackPresentation.swift,
@@ -133,8 +133,8 @@
 		C3B0F9822F5726B30064596E /* XrPlayer */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
+				D40000132FA0000100E1C001 /* Exceptions for "XrPlayer" folder in "EnchronMacOS" target */,
 				C3A35AC72F85434200DA0D16 /* Exceptions for "XrPlayer" folder in "DesignPreview" target */,
-				D40000132FA0000100E1C001 /* Production PlaybackRuntime sources for "EnchronMacOS" target */,
 			);
 			path = XrPlayer;
 			sourceTree = "<group>";
@@ -398,7 +398,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A4C19F9D2FD1000100AABBCC /* XCRemoteSwiftPackageReference "AMSMB2" */,
-				B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "../PlaybackCore" */,
+				B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "Packages/PlaybackCore" */,
 				C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */,
 				A4C1A00D2FD2000100AABBCC /* XCRemoteSwiftPackageReference "realitykitscripting" */,
 			);
@@ -970,9 +970,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
-		B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "../PlaybackCore" */ = {
+		B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "Packages/PlaybackCore" */ = {
 			isa = XCLocalSwiftPackageReference;
-			relativePath = ../PlaybackCore;
+			relativePath = Packages/PlaybackCore;
 		};
 		C3D4A1022F90000200DA0D16 /* XCLocalSwiftPackageReference "Packages/RealityKitContent" */ = {
 			isa = XCLocalSwiftPackageReference;
@@ -1012,7 +1012,7 @@
 		};
 		B1C000022FD3000100C0FFEE /* PlaybackCore */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "../PlaybackCore" */;
+			package = B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "Packages/PlaybackCore" */;
 			productName = PlaybackCore;
 		};
 		C3B0F9852F5726B30064596E /* RealityKitContent */ = {
@@ -1022,7 +1022,7 @@
 		};
 		D40000112FA0000100E1C001 /* PlaybackCore */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "../PlaybackCore" */;
+			package = B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "Packages/PlaybackCore" */;
 			productName = PlaybackCore;
 		};
 /* End XCSwiftPackageProductDependency section */

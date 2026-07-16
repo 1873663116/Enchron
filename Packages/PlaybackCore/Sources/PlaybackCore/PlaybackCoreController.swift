@@ -32,6 +32,7 @@ public final class PlaybackCoreController {
     private var failedCleanupTask: Task<Void, Never>?
     private var pendingCleanupMediaSessionID: String?
     private var pendingCleanupWaiters: [CheckedContinuation<Void, Never>] = []
+    private var latestRequestedSeekTime: CMTime?
     private var seekGeneration: UInt64 = 0
     private var stereoGeneration: UInt64 = 0
 
@@ -347,6 +348,8 @@ public final class PlaybackCoreController {
         if activeStereoTask != nil {
             throw PlaybackControlError.operationInProgress(.setStereoLayout)
         }
+        let time = clampedSeekTime(time)
+        latestRequestedSeekTime = time
         seekGeneration += 1
         let generation = seekGeneration
         if let activeSeekTask {
@@ -369,10 +372,12 @@ public final class PlaybackCoreController {
             try await task.value
             if seekGeneration == generation {
                 activeSeekTask = nil
+                latestRequestedSeekTime = nil
             }
         } catch {
             if seekGeneration == generation {
                 activeSeekTask = nil
+                latestRequestedSeekTime = nil
             }
             if error is CancellationError {
                 let target = time.seconds.isFinite ? time.seconds : 0
@@ -384,6 +389,26 @@ public final class PlaybackCoreController {
             }
             throw error
         }
+    }
+
+    public func seek(by offset: CMTime, startsPaused: Bool? = nil) async throws {
+        guard let session = activeSession else {
+            throw PlaybackControlError.noActiveMediaSession
+        }
+        let base = latestRequestedSeekTime ?? session.currentTime()
+        let target = CMTime(
+            seconds: base.seconds + offset.seconds,
+            preferredTimescale: max(base.timescale, 600)
+        )
+        try await seek(to: target, startsPaused: startsPaused)
+    }
+
+    private func clampedSeekTime(_ time: CMTime) -> CMTime {
+        let seconds = time.seconds.isFinite ? time.seconds : 0
+        return CMTime(
+            seconds: max(0, seconds),
+            preferredTimescale: max(time.timescale, 600)
+        )
     }
 
     @discardableResult
@@ -465,12 +490,13 @@ public final class PlaybackCoreController {
         stereoGeneration &+= 1
         activeStereoTask?.cancel()
         activeStereoTask = nil
+        activeSeekTask?.cancel()
+        activeSeekTask = nil
+        latestRequestedSeekTime = nil
         guard let session = activeSession else {
             setStatus(.idle)
             return
         }
-        activeSeekTask?.cancel()
-        activeSeekTask = nil
         beginPendingCleanup(for: session)
     }
 
@@ -483,7 +509,10 @@ public final class PlaybackCoreController {
         }
         stereoGeneration &+= 1
         let closingStereoGeneration = stereoGeneration
+        latestRequestedSeekTime = nil
         guard let session = activeSession else {
+            activeSeekTask?.cancel()
+            activeSeekTask = nil
             activeStereoTask?.cancel()
             activeStereoTask = nil
             setStatus(.idle)

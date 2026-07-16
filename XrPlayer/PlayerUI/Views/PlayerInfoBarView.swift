@@ -48,7 +48,7 @@ struct PlayerInfoBarView: View {
     }
 
     private var videoTitle: String {
-        appModel.currentPlaybackURL?.deletingPathExtension().lastPathComponent ?? "Unknown"
+        playbackRuntime.currentPlaybackURL?.deletingPathExtension().lastPathComponent ?? "Unknown"
     }
 
     private var initialPresentedMenu: PlaybackTopSecondaryMenu? {
@@ -75,8 +75,6 @@ struct PlayerInfoBarView: View {
         Task {
             do {
                 try await playbackRuntime.setFormat(projection: projection, stereo: stereo)
-                appModel.setProjectionOverride(projection)
-                appModel.setStereoLayoutOverride(stereo)
                 if projection != .flat {
                     _ = try appModel.requestPlaybackPresentation(.panorama)
                 }

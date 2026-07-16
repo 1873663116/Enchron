@@ -1,4 +1,15 @@
-# PlaybackCore 当前证据
+# Enchron 播放系统证据
+
+## 2026-07-16 单仓迁移与应用控制收敛
+
+- Scope：PlaybackCore 以保留 Git 历史的方式进入 `Packages/PlaybackCore`；核心行为 spec、节点 01–09、fixture registry 和 evidence 进入 Enchron 的统一 `docs/`。macOS `EnchronMacOS` 同时保留 Core scenario 与生产 App Adapter scenario，二者是同一 Entry App 的递进验证入口。
+- State ownership：删除 Entry App 的重复 `PlaybackState`、`PlaybackSession`、媒体格式副本与 seek generation。`PlaybackRuntime` 直接投影 PlaybackCore 的 `PlaybackStatus`；连续相对 seek 在 `PlaybackCoreController` 内基于最新请求目标累计，App 不再推测核心时间线。
+- L1：`Packages/PlaybackCore` 的 `swift test` 共 67 项全部通过，新增 `rapidRelativeSeeksAccumulateInsideTheCore`；Enchron 根包 30 项 Swift Testing 与 6 项 XCTest 通过，其中 1 项未配置外部 WebDAV 环境而按设计跳过。
+- Build：`EnchronMacOS` macOS target 与 `XrPlayer` `generic/platform=visionOS` 无签名构建通过。Xcode 直接从 `Packages/PlaybackCore` 解析本地 package，不再依赖兄弟仓库路径。
+- Core L2：`script/build_and_run.sh --l2-core /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-core-merged.json` 通过。Apple compressed 与 FFmpeg compressed 两条路线均完成真实播放推进、audio renderer enqueue、暂停/恢复、音量/静音、速率恢复、前后 seek、三次连续 seek、cleanup 与 reopen；sample 与 displayed pixel 均符合 BT.2020/PQ/video-range oracle，displayed pixel format 为 `&xv0`。
+- App Adapter L2：`script/build_and_run.sh --l2-app /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-app-merged.json` 通过。生产 `PlaybackRuntime` 的 FFmpeg 路线通过与 Core scenario 相同的 renderer、颜色、音频、控制、cleanup 与 reopen 断言。
+- Simulator boundary：visionOS 27.0 Simulator 测试已完成编译，但 test runner 没有 materialize；Xcode 等待约 295 秒后报告 simulator launch server died，`NSMachErrorDomain Code=-308 (ipc/mig) server died`。显式重启后仍停在 `Waiting on BackBoard`。因此本次结果是 Simulator 基础设施阻塞，不是测试失败，也不标记 Simulator passed。
+- Evidence boundary：上述两个 JSON 在提交前工作区执行，内嵌 revision 仍是历史导入点 `0e1cbf8aa25a`；提交后必须用最终 revision 重跑才能成为该提交的正式 evidence。当前 HDR10 fixture 仍是 license 未记录的 diagnostic fixture，audio renderer 推进不能代替物理听音，Vision Pro L3 未执行。
 
 ## 2026-07-16 Enchron macOS L2 恢复与 HDR10 颜色回归
 
@@ -9,7 +20,7 @@
 - Color first failure：FFmpeg Provider Open 与 sample 一度缺失 BT.2020/PQ/matrix；其根因是 2026-07-16 的 FFmpeg 构建加入 `--disable-decoders`。bridge 不调用 FFmpeg decode API，但 `avformat_find_stream_info` 仍需要 codec probing 从 HEVC VUI 补出容器没有直接给出的颜色事实。移除该选项并把构建 revision 更新为 `network-demux-metadata-v2` 后，Provider 恢复 `bt2020 / smpte2084 / bt2020nc / tv`。
 - Range first failure：Provider 已报告 `tv` 时，FFmpeg sample 的 `CMFormatDescription` 仍没有 range；bridge 只为 JPEG range 写入 `FullRangeVideo=true`，对 MPEG range 没有写入 `false`。现在两种已知 range 都显式写入，FFmpeg sample 恢复 `2020 / ST_2084_PQ / 2020 / video`，displayed pixel 为 `&xv0`。
 - Lifecycle failures：快速 seek 与 close 暴露了三个独立竞态。FFmpeg video/audio reader 的同步 copy 与 `cancel()` 销毁 reader 可并发，导致 use-after-free；delivery task cancellation 曾在持有 `deliveryTaskLock` 时进入 AVFoundation Receiver cancellation，形成锁顺序反转；三个 actor-reentrant seek 可同时等待同一旧任务，随后较旧 waiter 与最新 waiter 一起进入同一个 session。修复分别为序列化 reader 所有权、在锁外执行 `Task.cancel()`、等待后重新检查 seek generation，并新增三连 seek 回归测试。
-- L1 result：`swift test` 当前 66 tests 全部通过，包含 `threeRapidSeeksOnlyAllowNewestWaiterToEnterSession`。
+- L1 result：当时 `swift test` 的 66 tests 全部通过，包含 `threeRapidSeeksOnlyAllowNewestWaiterToEnterSession`；后续单仓迁移记录已提升为 67 项。
 - L2 command：`Enchron/script/build_and_run.sh --l2-core /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-core-hdr10-after-seek-fix.json`。同一构建随后直接执行两次，artifact 为 `/tmp/enchron-l2-core-repeat-1.json` 与 `/tmp/enchron-l2-core-repeat-2.json`。
 - L2 machine result：三次完整双路线运行都通过。Apple compressed 与 FFmpeg compressed 均证明真实 Receiver、共享 synchronizer、RealityKit `VideoMaterial` consumer、displayed pixel、audio sample/buffer 推进、3 秒稳定播放、pause/resume、volume/mute、1.5× 与恢复、前后 seek、三次快速连续 seek 的最终请求所有权、cleanup barrier 与新 session/reopen。两条路线的 sample 与 displayed pixel 都保持 BT.2020/PQ/video-range；renderer ready 且无 terminal error。
 - App Adapter command：`Enchron/script/build_and_run.sh --l2-app /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-app-adapter-hdr10.json`，同一构建复测 artifact 为 `/tmp/enchron-l2-app-adapter-repeat.json`。Enchron macOS target 直接编译生产 `XrPlayer/App/PlaybackRuntime.swift` 与其产品模型，不使用同名 fixture adapter；两次都通过产品 FFmpeg route 的同一媒体、控制、颜色、RealityKit、cleanup 与 reopen 断言。Core FFmpeg 与 App Adapter 均记录 `receiverAsyncBackpressure`、`platform=macOS`、BT.2020/PQ/video-range 和 `&xv0`，连续 seek 最终 epoch 与目标一致。

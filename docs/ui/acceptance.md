@@ -27,7 +27,7 @@ flowchart LR
 | App Adapter 等价 | 相同 fixture 与断言经 `PlaybackRuntime` 运行，renderer identity、timeline、控制和颜色不改变 | macOS L2 evidence |
 | Presentation 状态机 | Window、Docked、Panorama 合法转换；Environment 独立；重复命令、直接空间互转、失败回滚 | Swift Testing |
 | 来源与持久化 | 虚拟目录增删改、引用移动、三类 locator 持久化、bookmark 原址解析、搜索与排序；WebDAV 认证、列目录与 Range 读取由可选的真实服务测试验证 | Swift Testing / XCTest |
-| 产品组装 | XrPlayer 与 DesignPreview 对 device / Simulator SDK 编译；只链接外部 PlaybackCore | `xcodebuild` |
+| 产品组装 | XrPlayer 与 DesignPreview 对 device / Simulator SDK 编译；只链接仓库内 `Packages/PlaybackCore` | `xcodebuild` |
 | Window UI | 启动、媒体目录创建、来源入口、搜索、媒体引用直达播放、transport、Dock 菜单、正交 Video Format 菜单、Settings 分类 | XCUIAutomation / `.xcresult` |
 | 空间转换 | Window、Docked、Panorama 的状态转换、Environment Context 保留与失败回退由 Swift Testing 验证；Simulator XCUIAutomation 验证 Window 中可进入的菜单；实际进入 Full Space、空间面板与返回点击只由 Vision Pro 验证 | XCUIAutomation + Swift Testing + OSLog |
 | RealityKit 通用渲染 | `RealityRenderer` 在不启动产品 App 时完成 Metal texture 输出；实体与 camera 可由测试程序化构造 | macOS / visionOS Simulator XCTest |
