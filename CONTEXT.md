@@ -30,6 +30,14 @@
 
 **Renderer Consumer Binding**：外部调用方把 active video renderer 交给唯一 consumer 后回填的可追溯事实。核心不拥有 consumer、entity 或 scene。
 
+**Enchron macOS App**：Enchron 的桌面 App 与 L2 验证宿主。它先以 Core scenario 直接连接 PlaybackCore，再以 App Adapter scenario 连接 `PlaybackRuntime`，不把 RealityKit 所有权移入核心。
+
+**L1 Core Contract**：不依赖真实产品 surface 的确定性核心合同与真实 container/sample 集成验证。
+
+**L2 Enchron macOS**：使用真实 AVFoundation renderer、共享 synchronizer、RealityKit consumer、视频与音频输出，证明核心确实可播放并验证 App Adapter 等价性的集成层。
+
+**L3 Vision Pro Acceptance**：只在物理 Vision Pro 上成立的硬件解码、HDR/EDR、设备音频、空间呈现、性能与最终交互验收。
+
 **Detected Projection**：Provider 从来源观察到的投影格式事实。
 
 **Effective Projection**：经过调用方显式 override 后实际交给 renderer 的投影格式。override 只重建 format description，不修改 payload、timing 或 HDR signaling。

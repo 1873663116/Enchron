@@ -62,7 +62,12 @@ final class NoAudioSampleProvider: AudioSampleProvider {
 }
 
 final class FFmpegCompressedAudioSampleProvider: AudioSampleProvider {
-    private(set) var info: AudioSampleProviderInfo?
+    var info: AudioSampleProviderInfo? {
+        readerLock.withLock { storedInfo }
+    }
+
+    private let readerLock = NSLock()
+    private var storedInfo: AudioSampleProviderInfo?
     private var reader: OpaquePointer?
 
     func prepare(
@@ -73,7 +78,7 @@ final class FFmpegCompressedAudioSampleProvider: AudioSampleProvider {
     ) async throws {
         cancel()
         var error = [CChar](repeating: 0, count: 512)
-        reader = FFmpegSourceLocator.argument(for: url).withCString { path in
+        let newReader = FFmpegSourceLocator.argument(for: url).withCString { path in
             PBFFmpegAudioReaderCreate(
                 path,
                 startTime.seconds,
@@ -82,48 +87,57 @@ final class FFmpegCompressedAudioSampleProvider: AudioSampleProvider {
                 error.count
             )
         }
-        guard let reader else {
+        guard let newReader else {
             let message = Self.errorMessage(error)
             if message == "The selected source has no audio stream" {
                 throw AudioSampleProviderError.noAudioStream
             }
             throw AudioSampleProviderError.open(message)
         }
-        info = AudioSampleProviderInfo(
+        let newInfo = AudioSampleProviderInfo(
             providerKind: "FFmpegCompressedAudio",
-            streamIndex: Int(PBFFmpegAudioReaderGetStreamIndex(reader)),
-            codecName: String(cString: PBFFmpegAudioReaderGetCodecName(reader)),
-            sampleRate: Int(PBFFmpegAudioReaderGetSampleRate(reader)),
-            channelCount: Int(PBFFmpegAudioReaderGetChannelCount(reader))
+            streamIndex: Int(PBFFmpegAudioReaderGetStreamIndex(newReader)),
+            codecName: String(cString: PBFFmpegAudioReaderGetCodecName(newReader)),
+            sampleRate: Int(PBFFmpegAudioReaderGetSampleRate(newReader)),
+            channelCount: Int(PBFFmpegAudioReaderGetChannelCount(newReader))
         )
+        readerLock.withLock {
+            if let reader { PBFFmpegAudioReaderDestroy(reader) }
+            reader = newReader
+            storedInfo = newInfo
+        }
     }
 
     func copyNextSample() async throws -> CMSampleBuffer? {
-        guard let reader else { return nil }
-        var sample: Unmanaged<CMSampleBuffer>?
-        var error = [CChar](repeating: 0, count: 512)
-        let result = PBFFmpegAudioReaderCopyNextSample(
-            reader,
-            &sample,
-            &error,
-            error.count
-        )
-        switch result {
-        case PBFFmpegReadResultSample:
-            return sample?.takeRetainedValue()
-        case PBFFmpegReadResultEnd:
-            return nil
-        default:
-            throw AudioSampleProviderError.read(Self.errorMessage(error))
+        try readerLock.withLock {
+            guard let reader else { return nil }
+            var sample: Unmanaged<CMSampleBuffer>?
+            var error = [CChar](repeating: 0, count: 512)
+            let result = PBFFmpegAudioReaderCopyNextSample(
+                reader,
+                &sample,
+                &error,
+                error.count
+            )
+            switch result {
+            case PBFFmpegReadResultSample:
+                return sample?.takeRetainedValue()
+            case PBFFmpegReadResultEnd:
+                return nil
+            default:
+                throw AudioSampleProviderError.read(Self.errorMessage(error))
+            }
         }
     }
 
     func cancel() {
-        if let reader {
-            PBFFmpegAudioReaderDestroy(reader)
-            self.reader = nil
+        readerLock.withLock {
+            if let reader {
+                PBFFmpegAudioReaderDestroy(reader)
+                self.reader = nil
+            }
+            storedInfo = nil
         }
-        info = nil
     }
 
     deinit {

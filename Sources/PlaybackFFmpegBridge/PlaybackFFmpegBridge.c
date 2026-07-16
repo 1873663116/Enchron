@@ -721,6 +721,8 @@ static OSStatus create_compressed_format(
     if (matrix) CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_YCbCrMatrix, matrix);
     if (parameters->color_range == AVCOL_RANGE_JPEG) {
         CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_FullRangeVideo, kCFBooleanTrue);
+    } else if (parameters->color_range == AVCOL_RANGE_MPEG) {
+        CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_FullRangeVideo, kCFBooleanFalse);
     }
     add_projected_media_extensions(parameters, extensions);
     add_dovi_configuration_atom(parameters, atoms);

@@ -3,6 +3,7 @@
 .swiftpm/
 DerivedData/
 .verification-runs/
+.verification-fixtures/
 /.derivedData/
 /PlaybackCore.xcodeproj/xcuserdata/
 /PlaybackCore.xcodeproj/**/xcuserdata/
