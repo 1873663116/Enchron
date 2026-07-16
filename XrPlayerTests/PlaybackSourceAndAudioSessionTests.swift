@@ -90,10 +90,8 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         let suiteName = "app.enchron.tests.open-failure.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
         defer { defaults.removePersistentDomain(forName: suiteName) }
-        let appModel = AppModel(screenPositionStore: SwiftDataStore(defaults: defaults))
         let runtime = PlaybackRuntime()
         let launcher = PlaybackLaunchCoordinator(
-            appModel: appModel,
             playbackRuntime: runtime,
             progressStore: SwiftDataStore(defaults: defaults),
             preferencesStore: UserDefaultsStore(defaults: defaults)
@@ -104,13 +102,15 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         launcher.beginPlayback(.init(url: missingURL, displayName: "Missing Video"))
 
         let deadline = ContinuousClock.now + .seconds(5)
-        while runtime.playbackState != .failed, ContinuousClock.now < deadline {
+        while runtime.lastErrorMessage == nil, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(25))
         }
 
-        XCTAssertEqual(runtime.playbackState, .failed)
+        guard case .failed = runtime.lifecycle else {
+            return XCTFail("Expected PlaybackCore to publish a failed lifecycle, got \(runtime.lifecycle)")
+        }
         XCTAssertNotNil(runtime.lastErrorMessage)
-        XCTAssertTrue(appModel.isPlaying)
+        XCTAssertTrue(runtime.hasActivePlaybackRequest)
         XCTAssertEqual(runtime.currentLaunchRequest?.displayName, "Missing Video")
         launcher.stopPlayback()
     }
@@ -156,13 +156,13 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         try await runtime.open(request, startTimeSeconds: 42)
 
         XCTAssertEqual(runtime.playbackPosition.seconds, 42)
-        XCTAssertEqual(runtime.playbackState, .paused)
+        XCTAssertEqual(runtime.lifecycle, .ready)
         try runtime.attach(
             entityID: "resume-surface",
             realityViewID: "resume-reality-view",
             presentation: .window
         )
-        XCTAssertEqual(runtime.playbackState, .playing)
+        XCTAssertEqual(runtime.lifecycle, .playing)
         runtime.stop()
     }
 

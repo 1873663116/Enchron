@@ -1,5 +1,8 @@
-import AVFAudio
 import OSLog
+
+#if os(visionOS)
+import AVFAudio
+#endif
 
 @MainActor
 protocol PlaybackAudioSessionManaging: AnyObject {
@@ -9,6 +12,7 @@ protocol PlaybackAudioSessionManaging: AnyObject {
 
 @MainActor
 final class SystemPlaybackAudioSession: PlaybackAudioSessionManaging {
+#if os(visionOS)
     private let session = AVAudioSession.sharedInstance()
 
     func activateForMoviePlayback() throws {
@@ -19,6 +23,10 @@ final class SystemPlaybackAudioSession: PlaybackAudioSessionManaging {
     func deactivate() throws {
         try session.setActive(false, options: .notifyOthersOnDeactivation)
     }
+#else
+    func activateForMoviePlayback() throws {}
+    func deactivate() throws {}
+#endif
 }
 
 @MainActor

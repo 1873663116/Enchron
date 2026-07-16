@@ -1,3 +1,4 @@
+import PlaybackCore
 import SwiftUI
 import UIKit
 
@@ -15,7 +16,7 @@ public struct MainView: View {
     public init() {}
 
     private var showsWindowPlayback: Bool {
-        appModel.isPlaying && appModel.playbackPresentation == .window
+        playbackRuntime.hasActivePlaybackRequest && appModel.playbackPresentation == .window
     }
 
     private var windowSurfaceIsActive: Bool {
@@ -48,7 +49,7 @@ public struct MainView: View {
             }
         }
         .ornament(
-            visibility: appModel.isPlaying ? .hidden : .visible,
+            visibility: playbackRuntime.hasActivePlaybackRequest ? .hidden : .visible,
             attachmentAnchor: .scene(.leading),
             contentAlignment: .trailing
         ) {
@@ -63,11 +64,11 @@ public struct MainView: View {
                 }
             }
         }
-        .onChange(of: appModel.isPlaying) { _, isPlaying in
+        .onChange(of: playbackRuntime.hasActivePlaybackRequest) { _, hasActivePlaybackRequest in
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(20))
-                updateWindowResizingRestrictions(isPlaying: isPlaying)
-                if isPlaying {
+                updateWindowResizingRestrictions(isPlaying: hasActivePlaybackRequest)
+                if hasActivePlaybackRequest {
                     scheduleControlsAutoHide()
                 } else {
                     controlsTimer?.cancel()
@@ -75,7 +76,7 @@ public struct MainView: View {
             }
         }
         .onChange(of: appModel.lastControlsInteractionAt) { _, _ in
-            guard appModel.isPlaying else { return }
+            guard playbackRuntime.hasActivePlaybackRequest else { return }
             scheduleControlsAutoHide()
         }
         .onDisappear {
@@ -112,15 +113,9 @@ public struct MainView: View {
             Color.black
             PlaybackVideoSurface(presentation: .window, isActive: windowSurfaceIsActive)
 
-            if playbackRuntime.presentationState == .placeholder || playbackRuntime.playbackState == .loading {
+            if playbackRuntime.presentationState == .placeholder || playbackRuntime.lifecycle == .loading {
                 ProgressView()
                     .controlSize(.large)
-            }
-
-            if playbackRuntime.playbackState == .buffering {
-                ProgressView("Buffering…")
-                    .padding(20)
-                    .glassBackgroundEffect()
             }
 
             if let message = playbackRuntime.lastErrorMessage {
@@ -140,7 +135,7 @@ public struct MainView: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-playback")
-        .accessibilityValue(playbackRuntime.playbackState.rawValue)
+        .accessibilityValue(playbackRuntime.lifecycle.label)
         .glassBackgroundEffect()
         .overlay {
             if appModel.showControls && showsWindowPlayback {
@@ -173,8 +168,8 @@ public struct MainView: View {
 
     @MainActor
     private func enterSpatialPresentation(_ transition: PlaybackPresentationTransition) async {
-        guard appModel.isTransitioningPlaybackMode == false else { return }
-        appModel.isTransitioningPlaybackMode = true
+        guard appModel.isTransitioningPlaybackPresentation == false else { return }
+        appModel.isTransitioningPlaybackPresentation = true
         let reusedEnvironmentSpace = appModel.immersiveSpaceState == .open
             && appModel.isEnvironmentImmersiveActive
         if reusedEnvironmentSpace == false {
@@ -199,7 +194,7 @@ public struct MainView: View {
             appModel.rollbackPlaybackPresentation(transition.id)
             appModel.immersiveSpaceState = .closed
             appModel.isEnvironmentImmersiveActive = false
-            appModel.isTransitioningPlaybackMode = false
+            appModel.isTransitioningPlaybackPresentation = false
             return
         }
 
@@ -213,7 +208,7 @@ public struct MainView: View {
             }
             appModel.rollbackPlaybackPresentation(transition.id)
             playbackRuntime.lastErrorMessage = "The spatial playback surface could not attach to PlaybackCore."
-            appModel.isTransitioningPlaybackMode = false
+            appModel.isTransitioningPlaybackPresentation = false
             return
         }
 
@@ -233,7 +228,7 @@ public struct MainView: View {
             appModel.rollbackPlaybackPresentation(transition.id)
             playbackRuntime.lastErrorMessage = error.localizedDescription
         }
-        appModel.isTransitioningPlaybackMode = false
+        appModel.isTransitioningPlaybackPresentation = false
     }
 
     @MainActor
@@ -267,7 +262,7 @@ public struct MainView: View {
             try? await Task.sleep(for: delay)
             guard !Task.isCancelled,
                   appModel.canAutoHideControls,
-                  playbackRuntime.playbackState == .playing else { return }
+                  playbackRuntime.lifecycle == .playing else { return }
             withAnimation(.easeInOut(duration: 0.3)) {
                 appModel.showControls = false
             }
@@ -308,8 +303,8 @@ struct SpatialPlaybackControlsRoot: View {
 
     @MainActor
     private func returnToWindow(_ transition: PlaybackPresentationTransition) async {
-        guard appModel.isTransitioningPlaybackMode == false else { return }
-        appModel.isTransitioningPlaybackMode = true
+        guard appModel.isTransitioningPlaybackPresentation == false else { return }
+        appModel.isTransitioningPlaybackPresentation = true
         playbackRuntime.detach()
         let keepsEnvironmentOpen = transition.targetEnvironment.environment != nil
         if keepsEnvironmentOpen {
@@ -328,7 +323,7 @@ struct SpatialPlaybackControlsRoot: View {
             appModel.rollbackPlaybackPresentation(transition.id)
             playbackRuntime.lastErrorMessage = error.localizedDescription
         }
-        appModel.isTransitioningPlaybackMode = false
+        appModel.isTransitioningPlaybackPresentation = false
     }
 
     @MainActor

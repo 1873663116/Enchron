@@ -1,0 +1,11 @@
+.DS_Store
+.build/
+.swiftpm/
+DerivedData/
+.verification-runs/
+.verification-fixtures/
+/.derivedData/
+/PlaybackCore.xcodeproj/xcuserdata/
+/PlaybackCore.xcodeproj/**/xcuserdata/
+.derivedData*/
+/Vendor/FFmpeg/PlaybackFFmpeg.xcframework/
