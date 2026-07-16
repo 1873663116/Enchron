@@ -29,8 +29,8 @@ struct GlassCircleIconLabel: View {
             .frame(width: visualSize, height: visualSize)
             .clipShape(Circle())
             .glassBackgroundEffect(in: Circle())
-            .contentShape(.hoverEffect, Circle())
-            .hoverEffect(.automatic)
+            .enchronHoverContentShape(Circle())
+            .enchronHoverEffect(.automatic)
             .enchronPressFeedback(.icon)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-label-\(systemName)")
@@ -67,6 +67,10 @@ struct GlassCircleIconButton: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            guard isEnabled else { return }
+            action()
+        }
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(systemName)")
     }
@@ -411,7 +415,7 @@ struct ListGroupRowShell<Content: View>: View {
     var accessibilityLabel: String = ""
     var accessibilityValue: String = ""
     var action: () -> Void = {}
-    @ViewBuilder var content: (_ rowHoverGroup: HoverEffectGroup?) -> Content
+    @ViewBuilder var content: (_ rowHoverGroup: EnchronHoverGroup?) -> Content
 
     private var isFirst: Bool { index == 0 }
     private var isLast: Bool { index == count - 1 }
@@ -432,9 +436,9 @@ struct ListGroupRowShell<Content: View>: View {
 
     /// The hover-effect group owned by the row at `rowIndex`. A row *activates*
     /// its own group when gazed; a separator (or trailing metadata) *follows* it.
-    private func rowGroup(_ rowIndex: Int, _ behavior: HoverEffectGroup.Behavior) -> HoverEffectGroup? {
+    private func rowGroup(_ rowIndex: Int, _ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
         guard let hoverNamespace else { return nil }
-        return HoverEffectGroup(id: "listGroupRow\(rowIndex)", in: hoverNamespace, behavior: behavior)
+        return EnchronHoverGroup(id: "listGroupRow\(rowIndex)", in: hoverNamespace, behavior: behavior)
     }
 
     @ViewBuilder
@@ -456,16 +460,14 @@ struct ListGroupRowShell<Content: View>: View {
         let followGroup = rowGroup(index, .followsGroup)
         if showsHighlight {
             content(followGroup)
-                .contentShape(.hoverEffect, highlightShape)
+                .enchronHoverContentShape(highlightShape)
                 .contentShape(.interaction, highlightShape)
-                .hoverEffect(.highlight)
-                .hoverEffect { effect, isActive, _ in
-                    effect.scaleEffect(isActive ? 1.006 : 1.0)
-                }
+                .enchronHoverEffect(.highlight)
+                .enchronHoverScale(active: 1.006)
                 // No-op trigger: gazing this row activates its own group so the
                 // separators on both sides (which follow this group) fade in sync
                 // with the highlight — same system-composited phase, same timing.
-                .hoverEffect(in: rowGroup(index, .activatesGroup)) { effect, _, _ in effect }
+                .enchronHoverActivation(in: rowGroup(index, .activatesGroup))
                 .background(alignment: .bottom) { divider }
         } else {
             content(followGroup)
@@ -480,12 +482,18 @@ struct ListGroupRowShell<Content: View>: View {
                 .padding(.horizontal, DesignTokens.Spacing.lg)
                 // Follows both bordering rows: row `index` (above) and
                 // row `index + 1` (below). Either one's hover fades it.
-                .hoverEffect(in: rowGroup(index, .followsGroup)) { effect, isActive, _ in
-                    effect.opacity(isActive ? 0 : 1)
-                }
-                .hoverEffect(in: rowGroup(index + 1, .followsGroup)) { effect, isActive, _ in
-                    effect.opacity(isActive ? 0 : 1)
-                }
+                .enchronHoverOpacity(
+                    active: 0,
+                    inactive: 1,
+                    in: rowGroup(index, .followsGroup),
+                    macShowsActive: false
+                )
+                .enchronHoverOpacity(
+                    active: 0,
+                    inactive: 1,
+                    in: rowGroup(index + 1, .followsGroup),
+                    macShowsActive: false
+                )
         }
     }
 }
@@ -905,9 +913,12 @@ private struct SettingListCenterSliderRow: View {
                 .font(DesignTokens.Typography.selectionHeader)
                 .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
                 .lineLimit(1)
-                .hoverEffect(in: hoverGroup(.followsGroup)) { effect, isActive, _ in
-                    effect.opacity(isActive || isDragging ? 1 : 0)
-                }
+                .enchronHoverOpacity(
+                    active: 1,
+                    inactive: 0,
+                    in: hoverGroup(.followsGroup),
+                    forcedActive: isDragging
+                )
 
             CenterSlider(
                 value: $value,
@@ -927,12 +938,12 @@ private struct SettingListCenterSliderRow: View {
                     .onChange(of: geo.size.width) { _, newValue in rowWidth = newValue }
             }
         }
-        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
-        .hoverEffect(in: hoverGroup(.activatesGroup)) { effect, _, _ in effect }
+        .enchronHoverContentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
+        .enchronHoverActivation(in: hoverGroup(.activatesGroup))
     }
 
-    private func hoverGroup(_ behavior: HoverEffectGroup.Behavior) -> HoverEffectGroup? {
-        HoverEffectGroup(id: "settingListCenterSliderLabel", in: hoverNamespace, behavior: behavior)
+    private func hoverGroup(_ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
+        EnchronHoverGroup(id: "settingListCenterSliderLabel", in: hoverNamespace, behavior: behavior)
     }
 }
 
@@ -982,9 +993,12 @@ private struct SettingListRangeSliderRow: View {
                     .foregroundStyle(DesignTokens.Surface.selectionHeaderText)
                     .lineLimit(1)
             }
-            .hoverEffect(in: hoverGroup(.followsGroup)) { effect, isActive, _ in
-                effect.opacity(isActive || isDragging ? 1 : 0)
-            }
+            .enchronHoverOpacity(
+                active: 1,
+                inactive: 0,
+                in: hoverGroup(.followsGroup),
+                forcedActive: isDragging
+            )
 
             RangeSlider(
                 value: $value,
@@ -1004,12 +1018,12 @@ private struct SettingListRangeSliderRow: View {
                     .onChange(of: geo.size.width) { _, newValue in rowWidth = newValue }
             }
         }
-        .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
-        .hoverEffect(in: hoverGroup(.activatesGroup)) { effect, _, _ in effect }
+        .enchronHoverContentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous))
+        .enchronHoverActivation(in: hoverGroup(.activatesGroup))
     }
 
-    private func hoverGroup(_ behavior: HoverEffectGroup.Behavior) -> HoverEffectGroup? {
-        HoverEffectGroup(id: "settingListRangeSliderLabel", in: hoverNamespace, behavior: behavior)
+    private func hoverGroup(_ behavior: EnchronHoverGroup.Behavior) -> EnchronHoverGroup? {
+        EnchronHoverGroup(id: "settingListRangeSliderLabel", in: hoverNamespace, behavior: behavior)
     }
 }
 
@@ -1036,8 +1050,8 @@ private struct SettingListCardSelectionCard: View {
                     lineWidth: isSelected ? DesignTokens.Stroke.bold : DesignTokens.Stroke.subtle
                 )
             }
-            .contentShape(.hoverEffect, cardShape)
-            .hoverEffect(.highlight)
+            .enchronHoverContentShape(cardShape)
+            .enchronHoverEffect(.highlight)
             .contentShape(.interaction, cardShape)
     }
 }
@@ -1092,8 +1106,8 @@ private struct SettingListActionChip: View {
         .padding(.horizontal, DesignTokens.Spacing.sm)
         .frame(minHeight: DesignTokens.Interactive.compact)
         .background(DesignTokens.Surface.elevated, in: Capsule())
-        .contentShape(.hoverEffect, Capsule())
-        .hoverEffect(.automatic)
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverEffect(.automatic)
         .contentShape(.interaction, Capsule())
         .animation(DesignTokens.AnimationToken.selection, value: title)
     }
@@ -1185,8 +1199,8 @@ struct GlassCapsuleIconLabelButton: View {
         .buttonStyle(.plain)
         .clipShape(Capsule())
         .glassBackgroundEffect(in: Capsule())
-        .contentShape(.hoverEffect, Capsule())
-        .hoverEffect(.automatic)
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverEffect(.automatic)
         .padding(.vertical, (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
         .contentShape(Capsule())
         .enchronPressFeedback(.control)
@@ -1278,8 +1292,8 @@ struct PlaybackTopActions: View {
         .buttonStyle(.plain)
         .clipShape(Capsule())
         .glassBackgroundEffect(in: Capsule())
-        .contentShape(.hoverEffect, Capsule())
-        .hoverEffect(.automatic)
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverEffect(.automatic)
         .frame(minHeight: DesignTokens.Interactive.large)
         .disabled(!isEnabled)
         .accessibilityLabel(title)
@@ -1315,7 +1329,7 @@ struct PlaybackTopActions: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .hoverEffect(.highlight)
+                    .enchronHoverEffect(.highlight)
                     .accessibilityIdentifier("PlayerUI-DockMenu-\(environment.rawValue)")
                 }
             }
@@ -1652,12 +1666,12 @@ struct GridCard: View {
 
     // MARK: 悬停组(@Namespace 按实例隔离,id 字面量可复用)
 
-    private var hoverActivationGroup: HoverEffectGroup {
-        HoverEffectGroup(id: "grid-card-thumbnail-info", in: hoverNamespace, behavior: .activatesGroup)
+    private var hoverActivationGroup: EnchronHoverGroup {
+        EnchronHoverGroup(id: "grid-card-thumbnail-info", in: hoverNamespace, behavior: .activatesGroup)
     }
 
-    private var hoverRevealGroup: HoverEffectGroup {
-        HoverEffectGroup(id: "grid-card-thumbnail-info", in: hoverNamespace, behavior: .followsGroup)
+    private var hoverRevealGroup: EnchronHoverGroup {
+        EnchronHoverGroup(id: "grid-card-thumbnail-info", in: hoverNamespace, behavior: .followsGroup)
     }
 
     var body: some View {
@@ -1685,8 +1699,8 @@ struct GridCard: View {
                 .frame(height: DesignTokens.Card.thumbnailHeight)
                 .clipShape(shape)
                 .glassBackgroundEffect(in: shape)
-                .contentShape(.hoverEffect, shape)
-                .hoverEffect(.highlight, in: hoverActivationGroup)
+                .enchronHoverContentShape(shape)
+                .enchronHoverEffect(.highlight, in: hoverActivationGroup)
 
             Text(title)
                 .font(DesignTokens.Typography.headline)
@@ -1749,11 +1763,12 @@ struct GridCard: View {
         }
         .padding(DesignTokens.Spacing.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-            effect.animation(DesignTokens.AnimationToken.controlsTransition) {
-                $0.opacity(isActive ? 1 : 0)
-            }
-        }
+        .enchronHoverOpacity(
+            active: 1,
+            inactive: 0,
+            in: hoverRevealGroup,
+            animation: DesignTokens.AnimationToken.controlsTransition
+        )
         .allowsHitTesting(false)
     }
 
@@ -1764,11 +1779,12 @@ struct GridCard: View {
         }
         .padding(DesignTokens.Spacing.sm)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-        .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-            effect.animation(DesignTokens.AnimationToken.controlsTransition) {
-                $0.opacity(isActive ? 1 : 0)
-            }
-        }
+        .enchronHoverOpacity(
+            active: 1,
+            inactive: 0,
+            in: hoverRevealGroup,
+            animation: DesignTokens.AnimationToken.controlsTransition
+        )
         .allowsHitTesting(false)
     }
 
@@ -1785,11 +1801,12 @@ struct GridCard: View {
     // 仅 hover 时随缩略图 hover 组显隐;未 hover 不显示。视觉本体见 `watchedEdgeProgressVisual`。
     private func watchedProgressBar(_ progress: Double) -> some View {
         watchedEdgeProgressVisual(progress)
-            .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-                effect.animation(DesignTokens.AnimationToken.controlsTransition) {
-                    $0.opacity(isActive ? 1 : 0)
-                }
-            }
+            .enchronHoverOpacity(
+                active: 1,
+                inactive: 0,
+                in: hoverRevealGroup,
+                animation: DesignTokens.AnimationToken.controlsTransition
+            )
     }
 
     // 居中占位图标:无缩略图时的视频/文件夹标识。视频与文件夹共用同一尺寸与前景色,避免分叉。
@@ -1930,7 +1947,7 @@ struct EnvironmentCard: View {
         .overlay {
             shape.strokeBorder(DesignTokens.Surface.overlay, lineWidth: DesignTokens.Stroke.regular)
         }
-        .contentShape(.hoverEffect, shape)
+        .enchronHoverContentShape(shape)
         .contentShape(shape)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("DesignPreview-EnvironmentCard")
@@ -2109,7 +2126,7 @@ struct EnvironmentCardCarousel: View {
                     )
                     .allowsHitTesting(abs(item.visualPosition) < Metrics.centerHitTestingDistance)
                     .opacity(Double(cardOpacity(for: item.visualPosition)))
-                    .offset(z: zOffset(for: item.visualPosition))
+                    .enchronSpatialOffset(z: zOffset(for: item.visualPosition))
                     .offset(x: xOffset(for: item.visualPosition), y: yOffset(for: item.visualPosition))
                     .zIndex(zIndex(for: item.visualPosition))
                     .accessibilityHidden(abs(item.visualPosition) >= Metrics.centerHitTestingDistance)
@@ -2117,7 +2134,7 @@ struct EnvironmentCardCarousel: View {
             }
         }
         .frame(width: Metrics.stageWidth, height: Metrics.stageHeight)
-        .frame(depth: Metrics.stageDepth)
+        .enchronSpatialFrame(depth: Metrics.stageDepth)
         .contentShape(Rectangle())
         .gesture(dragGesture)
         .accessibilityIdentifier("DesignPreview-EnvironmentCardCarousel")
@@ -2546,7 +2563,7 @@ struct FileListGroupRow: View {
         }
     }
 
-    private func rowContent(reveal rowHoverGroup: HoverEffectGroup?) -> some View {
+    private func rowContent(reveal rowHoverGroup: EnchronHoverGroup?) -> some View {
         HStack(spacing: DesignTokens.Spacing.md) {
             Image(systemName: item.kind.icon)
                 .font(DesignTokens.SymbolSize.selectionHeaderIcon)
@@ -2566,7 +2583,7 @@ struct FileListGroupRow: View {
     }
 
     @ViewBuilder
-    private func metadataView(reveal rowHoverGroup: HoverEffectGroup?) -> some View {
+    private func metadataView(reveal rowHoverGroup: EnchronHoverGroup?) -> some View {
         let label = Text(item.metadata)
             .font(DesignTokens.Typography.metadata)
             .foregroundStyle(DesignTokens.Surface.accessoryText)
@@ -2574,11 +2591,12 @@ struct FileListGroupRow: View {
 
         if let rowHoverGroup {
             label
-                .hoverEffect(in: rowHoverGroup) { effect, isActive, _ in
-                    effect.animation(DesignTokens.AnimationToken.controlsTransition) {
-                        $0.opacity(isActive ? 1 : 0)
-                    }
-                }
+                .enchronHoverOpacity(
+                    active: 1,
+                    inactive: 0,
+                    in: rowHoverGroup,
+                    animation: DesignTokens.AnimationToken.controlsTransition
+                )
                 .allowsHitTesting(false)
         } else {
             label.allowsHitTesting(false)
@@ -2610,8 +2628,8 @@ struct GlassToggle: View {
         .buttonStyle(.plain)
         .clipShape(Capsule())
         .glassBackgroundEffect(in: Capsule())
-        .contentShape(.hoverEffect, Capsule())
-        .hoverEffect(.automatic)
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverEffect(.automatic)
         .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
         .padding(.horizontal, (DesignTokens.Interactive.large - 50) / 2)
         .contentShape(Capsule())
@@ -2643,8 +2661,8 @@ private struct BoundGlassToggle: View {
         .opacity(isEnabled ? 1 : 0.42)
         .clipShape(Capsule())
         .glassBackgroundEffect(in: Capsule())
-        .contentShape(.hoverEffect, Capsule())
-        .hoverEffect(.automatic, isEnabled: isEnabled)
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverEffect(.automatic, isEnabled: isEnabled)
         .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
         .padding(.horizontal, (DesignTokens.Interactive.large - 50) / 2)
         .contentShape(Capsule())
@@ -2712,8 +2730,8 @@ struct GlassSliderRail: View {
             }
             .clipShape(Capsule())
             .glassBackgroundEffect(in: Capsule())
-            .contentShape(.hoverEffect, Capsule())
-            .hoverEffect(.highlight)
+            .enchronHoverContentShape(Capsule())
+            .enchronHoverEffect(.highlight)
     }
 }
 
@@ -3057,9 +3075,8 @@ struct SearchInputCapsule: View {
                 .font(.body)
                 .foregroundStyle(.secondary)
                 .focused($isFocused)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled(true)
-                .hoverEffectDisabled()
+                .enchronLiteralTextInput()
+                .enchronHoverEffectDisabled()
                 .onTapGesture(perform: activateInput)
                 .accessibilityIdentifier(accessibilityIdentifier)
         }
@@ -3067,8 +3084,8 @@ struct SearchInputCapsule: View {
         .frame(width: width, height: DesignTokens.Interactive.regular)
         .clipShape(Capsule())
         .glassBackgroundEffect(in: Capsule())
-        .contentShape(.hoverEffect, Capsule())
-        .hoverEffect(.automatic)
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverEffect(.automatic)
         .contentShape(Capsule())
         .overlay {
             Capsule()
@@ -3384,8 +3401,8 @@ struct PrecisionTimelineView: View {
                 )
             }
             .clipShape(shape)
-            .contentShape(.hoverEffect, shape)
-            .hoverEffect(.automatic)
+            .enchronHoverContentShape(shape)
+            .enchronHoverEffect(.automatic)
             .contentShape(shape)
             .gesture(timelineDragGesture(pixelsPerSecond: safePixelsPerSecond))
         }
@@ -3903,6 +3920,8 @@ struct FusedPlayerPanelLive {
     var presentation: PlaybackPresentation
     var canDock: Bool
     var canEnterPanorama: Bool
+    var screenScale: Double
+    var recommendedScreenScale: Double
     var isPlaying: Bool
     var showsReplay: Bool
     var progress: CGFloat
@@ -3920,6 +3939,8 @@ struct FusedPlayerPanelLive {
     /// Dock 按钮进入当前或默认 Environment 的 Docked presentation。
     var onEnterImmersive: () -> Void
     var onExitSpatial: () -> Void
+    var onSetScreenScale: (Double) -> Void
+    var onResetScreenScale: () -> Void
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -3949,6 +3970,7 @@ struct FusedPlayerPanel: View {
     // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
     @State private var progress: CGFloat = 0.45
     @State private var isDragging = false
+    @State private var isProgressHovered = false
     @State private var isIgnoringDrag = false
     @State private var dragStartProgress: CGFloat = 0.45
     /// Seek 完成锁存:松手 onSeek 后,live.progress 异步才追上,锁存期内拇指钉在目标值,
@@ -3991,6 +4013,10 @@ struct FusedPlayerPanel: View {
         VStack(spacing: DesignTokens.Spacing.md) {
             controlsRow
 
+            if let live, live.presentation == .docked {
+                screenSizeControl(live)
+            }
+
             // 控件簇第二行(与按钮同属"播放控制",无分界线):时间轴收起时是进度条
             // ——进度条本身就是打开时间轴的按钮(双击展开);展开时同槽位换成时间轴本体。
             if timelineExpanded {
@@ -4023,6 +4049,41 @@ struct FusedPlayerPanel: View {
         }
     }
 
+    private func screenSizeControl(_ live: FusedPlayerPanelLive) -> some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            Text("Screen Size")
+                .font(DesignTokens.Typography.metadata)
+
+            Slider(
+                value: Binding(
+                    get: { live.screenScale },
+                    set: { live.onSetScreenScale($0) }
+                ),
+                in: PlaybackScreenSize.scaleRange,
+                step: PlaybackScreenSize.scaleStep,
+                onEditingChanged: { _ in onInteraction() }
+            )
+            .accessibilityIdentifier("PlayerPanel-ScreenSize-slider")
+            .accessibilityLabel("Screen Size")
+            .accessibilityValue("\(Int((live.screenScale * 100).rounded())) percent")
+
+            Text("\(Int((live.screenScale * 100).rounded()))%")
+                .font(DesignTokens.Typography.metadata.monospacedDigit())
+                .frame(minWidth: 52, alignment: .trailing)
+                .accessibilityIdentifier("PlayerPanel-ScreenSize-value")
+
+            Button("Reset") {
+                onInteraction()
+                live.onResetScreenScale()
+            }
+            .buttonStyle(.borderless)
+            .disabled(abs(live.screenScale - live.recommendedScreenScale) < 0.001)
+            .accessibilityIdentifier("PlayerPanel-ScreenSize-reset")
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerPanel-ScreenSize")
+    }
+
     @ViewBuilder
     private var controlsRow: some View {
         if (live?.presentation ?? .window) == .window {
@@ -4043,6 +4104,7 @@ struct FusedPlayerPanel: View {
                 rewindButton
                 playButton
                 forwardButton
+                #if os(visionOS)
                 GlassCircleIconButton(
                     systemName: "pano",
                     accessibilityLabel: "Panorama",
@@ -4050,6 +4112,7 @@ struct FusedPlayerPanel: View {
                     accessibilityIdentifier: "PlayerPanel-button-panorama"
                 )
                 .disabled(!(live?.canEnterPanorama ?? true))
+                #endif
                 moreMenu
             }
             .frame(width: clusterWidth)
@@ -4136,8 +4199,8 @@ struct FusedPlayerPanel: View {
                 .glassBackgroundEffect(in: Circle())
         }
         .buttonStyle(.plain)
-        .contentShape(.hoverEffect, Circle())
-        .hoverEffect(.lift)
+        .enchronHoverContentShape(Circle())
+        .enchronHoverEffect(.lift)
         .enchronPressFeedback(.icon)
         .accessibilityLabel(primaryPlayLabel)
         .accessibilityIdentifier("PlayerPanel-button-play")
@@ -4182,23 +4245,40 @@ struct FusedPlayerPanel: View {
     private func liveMoreMenuSections(_ live: FusedPlayerPanelLive) -> some View {
         Section("Playback Settings") {
             if !live.subtitleItems.isEmpty {
-                Menu("Subtitles") { liveMenuItems(live.subtitleItems) }
+                Menu("Subtitles") {
+                    liveMenuItems(live.subtitleItems, category: "subtitle")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-subtitles")
             }
             if !live.audioItems.isEmpty {
-                Menu("Audio Track") { liveMenuItems(live.audioItems) }
+                Menu("Audio Track") {
+                    liveMenuItems(live.audioItems, category: "audio")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-audio")
             }
-            Menu("Playback Speed") { liveMenuItems(live.speedItems) }
+            Menu("Playback Speed") {
+                liveMenuItems(live.speedItems, category: "speed")
+            }
+            .accessibilityIdentifier("PlayerPanel-menu-speed")
             if !live.episodeItems.isEmpty {
-                Menu("Episodes") { liveMenuItems(live.episodeItems) }
+                Menu("Episodes") {
+                    liveMenuItems(live.episodeItems, category: "episode")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-episodes")
             }
         }
     }
 
     @ViewBuilder
-    private func liveMenuItems(_ items: [DeckMenuItem]) -> some View {
+    private func liveMenuItems(
+        _ items: [DeckMenuItem],
+        category: String
+    ) -> some View {
         Picker("", selection: liveSelection(items)) {
             ForEach(items) { item in
-                Text(item.title).tag(item.id)
+                Text(item.title)
+                    .tag(item.id)
+                    .accessibilityIdentifier("PlayerPanel-menu-\(category)-\(item.id)")
             }
         }
         .pickerStyle(.inline)
@@ -4264,12 +4344,12 @@ struct FusedPlayerPanel: View {
         isDragging ? 1 : DesignTokens.ProgressBar.inactiveScale
     }
 
-    private var hoverActivationGroup: HoverEffectGroup {
-        HoverEffectGroup(id: "fused-progress-reveal", in: hoverNamespace, behavior: .activatesGroup)
+    private var hoverActivationGroup: EnchronHoverGroup {
+        EnchronHoverGroup(id: "fused-progress-reveal", in: hoverNamespace, behavior: .activatesGroup)
     }
 
-    private var hoverRevealGroup: HoverEffectGroup {
-        HoverEffectGroup(id: "fused-progress-reveal", in: hoverNamespace, behavior: .followsGroup)
+    private var hoverRevealGroup: EnchronHoverGroup {
+        EnchronHoverGroup(id: "fused-progress-reveal", in: hoverNamespace, behavior: .followsGroup)
     }
 
     private var progressBar: some View {
@@ -4307,11 +4387,14 @@ struct FusedPlayerPanel: View {
                     x: thumbX,
                     y: DesignTokens.ProgressBar.hitHeight / 2 - DesignTokens.ProgressBar.timeBubbleOffset
                 )
-                .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-                    effect.animation(DesignTokens.AnimationToken.selection) {
-                        $0.opacity(isActive || isDragging ? 1.0 : 0.0)
-                    }
-                }
+                .enchronHoverOpacity(
+                    active: 1,
+                    inactive: 0,
+                    in: hoverRevealGroup,
+                    forcedActive: isDragging || isProgressHovered,
+                    animation: DesignTokens.AnimationToken.selection,
+                    macUsesLocalHover: true
+                )
                 .allowsHitTesting(false)
 
             scrubberControl(width: width)
@@ -4322,6 +4405,7 @@ struct FusedPlayerPanel: View {
         }
         .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
         .contentShape(.interaction, Capsule())
+        .onHover { isProgressHovered = $0 }
         .gesture(dragGesture(width: width, thumbX: thumbX))
         // 双击进度条任意处展开时间轴。
         .simultaneousGesture(TapGesture(count: 2).onEnded { openTimeline() })
@@ -4331,12 +4415,15 @@ struct FusedPlayerPanel: View {
         Capsule()
             .fill(DesignTokens.ProgressBar.hoverCarrierFill)
             .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
-            .contentShape(.hoverEffect, Capsule())
-            .hoverEffect(in: hoverActivationGroup) { effect, isActive, _ in
-                effect.animation(DesignTokens.AnimationToken.selection) {
-                    $0.opacity(isActive ? 1.0 : DesignTokens.ProgressBar.hoverCarrierInactiveOpacity)
-                }
-            }
+            .enchronHoverContentShape(Capsule())
+            .enchronHoverOpacity(
+                active: 1,
+                inactive: DesignTokens.ProgressBar.hoverCarrierInactiveOpacity,
+                in: hoverActivationGroup,
+                forcedActive: isProgressHovered,
+                animation: DesignTokens.AnimationToken.selection,
+                macUsesLocalHover: true
+            )
             .contentShape(.interaction, Capsule())
             .accessibilityHidden(true)
     }
@@ -4369,11 +4456,14 @@ struct FusedPlayerPanel: View {
                     playedColor: DesignTokens.ProgressBar.playedHoverColor,
                     unplayedColor: DesignTokens.ProgressBar.unplayedHoverColor
                 )
-                .hoverEffect(in: hoverRevealGroup) { effect, isActive, _ in
-                    effect.animation(DesignTokens.AnimationToken.selection) {
-                        $0.opacity(isActive || isDragging ? 1.0 : 0.0)
-                    }
-                }
+                .enchronHoverOpacity(
+                    active: 1,
+                    inactive: 0,
+                    in: hoverRevealGroup,
+                    forcedActive: isDragging || isProgressHovered,
+                    animation: DesignTokens.AnimationToken.selection,
+                    macUsesLocalHover: true
+                )
             }
             .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
             .scaleEffect(y: scale)
@@ -4444,14 +4534,12 @@ struct FusedPlayerPanel: View {
                    height: DesignTokens.ProgressBar.thumbDiameter)
             .accessibilityIdentifier("PlayerPanel-thumb")
             .accessibilityLabel("Playback position thumb")
-            .contentShape(.hoverEffect, Circle())
-            .hoverEffect()
+            .enchronHoverContentShape(Circle())
+            .enchronHoverEffect()
             .frame(width: DesignTokens.ProgressBar.hitHeight,
                    height: DesignTokens.ProgressBar.hitHeight)
-            .contentShape(.hoverEffect, Circle())
-            .hoverEffect(in: hoverActivationGroup) { effect, _, _ in
-                effect.animation(DesignTokens.AnimationToken.selection) { $0.opacity(1.0) }
-            }
+            .enchronHoverContentShape(Circle())
+            .enchronHoverActivation(in: hoverActivationGroup)
             .contentShape(Circle())
     }
 

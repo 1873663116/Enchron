@@ -65,9 +65,10 @@ public final class AppModel {
     public var lastControlsInteractionAt: Date = .distantPast
 
     // MARK: - Screen Position State (Immersive Mode)
-    public var screenDistance: Double = 8.0
+    public var screenDepthOffset: Double = 0.0
     public var screenVerticalOffset: Double = 0.0
     public var screenViewAngle: Double = 0.0
+    public var screenScale: Double = 1.3
 
     // MARK: - Immersive Cinema State
     public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
@@ -121,6 +122,12 @@ public final class AppModel {
         }
     }
 
+    public func resetPlaybackPresentationForStoppedPlayback() {
+        playbackPresentationState.resetForPlaybackStop()
+        isTransitioningPlaybackPresentation = false
+        logger.notice("playback stopped; presentation normalized to window")
+    }
+
     public func registerControlsInteraction(at date: Date = Date()) {
         lastControlsInteractionAt = date
     }
@@ -152,31 +159,51 @@ public final class AppModel {
     public func loadScreenPosition() async {
         let envID = currentCinemaEnvironment.rawValue
         if let saved = await screenPositionStore.loadPosition(for: envID) {
-            screenDistance = saved.distanceMeters
+            screenDepthOffset = saved.depthOffsetMeters
             screenVerticalOffset = saved.verticalOffsetMeters
             screenViewAngle = saved.viewAngleDegrees
+            screenScale = saved.screenScale
         } else {
             // Reset to defaults when no saved position exists for this environment
-            screenDistance = 8.0
+            screenDepthOffset = 0.0
             screenVerticalOffset = 0.0
             screenViewAngle = 0.0
+            screenScale = EnvironmentSceneMapping.defaultScreenScale(forEnvironmentID: envID)
         }
     }
 
     public func saveScreenPosition() {
         let envID = currentCinemaEnvironment.rawValue
         let store = screenPositionStore
-        let distance = screenDistance
+        let depthOffset = screenDepthOffset
         let verticalOffset = screenVerticalOffset
         let viewAngle = screenViewAngle
+        let scale = screenScale
         Task.detached(priority: .utility) {
             await store.savePosition(
                 for: envID,
-                distanceMeters: distance,
+                depthOffsetMeters: depthOffset,
                 verticalOffsetMeters: verticalOffset,
-                angleDegrees: viewAngle
+                angleDegrees: viewAngle,
+                screenScale: scale
             )
         }
+    }
+
+    public func setScreenScale(_ scale: Double) {
+        screenScale = min(
+            max(scale, PlaybackScreenSize.scaleRange.lowerBound),
+            PlaybackScreenSize.scaleRange.upperBound
+        )
+        saveScreenPosition()
+    }
+
+    public func resetScreenScale() {
+        setScreenScale(
+            EnvironmentSceneMapping.defaultScreenScale(
+                forEnvironmentID: currentCinemaEnvironment.rawValue
+            )
+        )
     }
 
     /// Request to open the immersive space via the unified MainView handler.

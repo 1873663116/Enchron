@@ -31,7 +31,7 @@ extension View {
         return self
             .clipShape(shape)
             .glassBackgroundEffect(in: shape)
-            .contentShape(.hoverEffect, shape)
+            .enchronHoverContentShape(shape)
             .contentShape(shape)
     }
 
@@ -40,8 +40,8 @@ extension View {
         self
             .clipShape(Capsule())
             .glassBackgroundEffect(in: .capsule)
-            .contentShape(.hoverEffect, Capsule())
-            .hoverEffect(.automatic)
+            .enchronHoverContentShape(Capsule())
+            .enchronHoverEffect(.automatic)
             .contentShape(Capsule())
     }
 
@@ -51,7 +51,7 @@ extension View {
         return self
             .clipShape(shape)
             .background(.regularMaterial, in: shape)
-            .contentShape(.hoverEffect, shape)
+            .enchronHoverContentShape(shape)
             .contentShape(shape)
     }
 
@@ -63,9 +63,9 @@ extension View {
         return self
             .clipShape(shape)
             .glassBackgroundEffect(in: shape)
-            .contentShape(.hoverEffect, shape)
+            .enchronHoverContentShape(shape)
             .contentShape(shape)
-            .hoverEffect(.lift)
+            .enchronHoverEffect(.lift)
     }
 
     /// Menu/list items — glass with element radius + `.highlight` hover.
@@ -74,9 +74,9 @@ extension View {
         let shape = DesignTokens.ShapeToken.element
         return self
             .clipShape(shape)
-            .contentShape(.hoverEffect, shape)
+            .enchronHoverContentShape(shape)
             .contentShape(shape)
-            .hoverEffect(.highlight)
+            .enchronHoverEffect(.highlight)
     }
 
     /// Menu popover container — glass with card corner radius (no hover).
@@ -87,7 +87,7 @@ extension View {
         return self
             .clipShape(shape)
             .glassBackgroundEffect(in: shape)
-            .contentShape(.hoverEffect, shape)
+            .enchronHoverContentShape(shape)
             .contentShape(shape)
     }
 
@@ -98,7 +98,7 @@ extension View {
         return self
             .clipShape(shape)
             .glassBackgroundEffect(in: shape)
-            .contentShape(.hoverEffect, shape)
+            .enchronHoverContentShape(shape)
             .contentShape(shape)
     }
 
@@ -107,7 +107,7 @@ extension View {
         self
             .clipShape(Capsule())
             .background(.ultraThinMaterial, in: Capsule())
-            .contentShape(.hoverEffect, Capsule())
+            .enchronHoverContentShape(Capsule())
             .contentShape(Capsule())
     }
 
@@ -116,9 +116,9 @@ extension View {
         self
             .clipShape(Capsule())
             .background(.ultraThinMaterial, in: Capsule())
-            .contentShape(.hoverEffect, Capsule())
+            .enchronHoverContentShape(Capsule())
             .contentShape(Capsule())
-            .hoverEffect(.lift)
+            .enchronHoverEffect(.lift)
     }
 
     /// Sidebar — no explicit modifier; system NavigationSplitView provides glass.

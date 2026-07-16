@@ -15,6 +15,7 @@ public final class PlaybackCoreController {
     public var onStatusChange: ((PlaybackStatus) -> Void)?
     public var onDiagnosticsChange: ((PlaybackDiagnostics) -> Void)?
     public var onSessionChange: ((SampleBufferPlaybackSession?) -> Void)?
+    public var onSubtitleCuesChange: (([PlaybackSubtitleCue]) -> Void)?
 
     public var debugDirectoryURL: URL? {
         debugRecorder?.directoryURL
@@ -28,12 +29,14 @@ public final class PlaybackCoreController {
     private var debugRecorder: PlaybackDebugRecorder?
     private let sessionFactory: (PlaybackRoute, String) -> SampleBufferPlaybackSession
     private var activeSeekTask: Task<Void, Error>?
+    private var activeSubtitleSelectionTask: Task<Void, Error>?
     private var activeStereoTask: Task<UInt64, Error>?
     private var failedCleanupTask: Task<Void, Never>?
     private var pendingCleanupMediaSessionID: String?
     private var pendingCleanupWaiters: [CheckedContinuation<Void, Never>] = []
     private var latestRequestedSeekTime: CMTime?
     private var seekGeneration: UInt64 = 0
+    private var subtitleSelectionGeneration: UInt64 = 0
     private var stereoGeneration: UInt64 = 0
 
     public init() {
@@ -341,12 +344,62 @@ public final class PlaybackCoreController {
         try await activeSession.selectAudioTrack(streamIndex: streamIndex)
     }
 
+    public var availableSubtitleTracks: [PlaybackSubtitleTrack] {
+        activeSession?.availableSubtitleTracks ?? []
+    }
+
+    public var selectedSubtitleTrackID: PlaybackSubtitleTrack.ID? {
+        activeSession?.selectedSubtitleTrackID
+    }
+
+    public var activeSubtitleCues: [PlaybackSubtitleCue] {
+        activeSession?.activeSubtitleCues ?? []
+    }
+
+    public func selectSubtitleTrack(id: PlaybackSubtitleTrack.ID?) async throws {
+        guard let session = activeSession else {
+            throw PlaybackControlError.noActiveMediaSession
+        }
+        try rejectIfSeekIsInProgress()
+        subtitleSelectionGeneration &+= 1
+        let generation = subtitleSelectionGeneration
+        if let activeSubtitleSelectionTask {
+            activeSubtitleSelectionTask.cancel()
+            _ = try? await activeSubtitleSelectionTask.value
+        }
+        guard subtitleSelectionGeneration == generation,
+              activeSession === session else {
+            throw PlaybackControlError.openTerminatedByCleanup
+        }
+        let task = Task {
+            try await session.selectSubtitleTrack(id: id)
+        }
+        activeSubtitleSelectionTask = task
+        do {
+            try await task.value
+            if subtitleSelectionGeneration == generation {
+                activeSubtitleSelectionTask = nil
+            }
+        } catch {
+            if subtitleSelectionGeneration == generation {
+                activeSubtitleSelectionTask = nil
+            }
+            throw error
+        }
+    }
+
     public func seek(to time: CMTime, startsPaused: Bool? = nil) async throws {
         guard let session = activeSession else {
             throw PlaybackControlError.noActiveMediaSession
         }
         if activeStereoTask != nil {
             throw PlaybackControlError.operationInProgress(.setStereoLayout)
+        }
+        subtitleSelectionGeneration &+= 1
+        if let activeSubtitleSelectionTask {
+            activeSubtitleSelectionTask.cancel()
+            _ = try? await activeSubtitleSelectionTask.value
+            self.activeSubtitleSelectionTask = nil
         }
         let time = clampedSeekTime(time)
         latestRequestedSeekTime = time
@@ -492,6 +545,9 @@ public final class PlaybackCoreController {
         activeStereoTask = nil
         activeSeekTask?.cancel()
         activeSeekTask = nil
+        subtitleSelectionGeneration &+= 1
+        activeSubtitleSelectionTask?.cancel()
+        activeSubtitleSelectionTask = nil
         latestRequestedSeekTime = nil
         guard let session = activeSession else {
             setStatus(.idle)
@@ -508,6 +564,7 @@ public final class PlaybackCoreController {
             selectedAsset = nil
         }
         stereoGeneration &+= 1
+        subtitleSelectionGeneration &+= 1
         let closingStereoGeneration = stereoGeneration
         latestRequestedSeekTime = nil
         guard let session = activeSession else {
@@ -515,6 +572,8 @@ public final class PlaybackCoreController {
             activeSeekTask = nil
             activeStereoTask?.cancel()
             activeStereoTask = nil
+            activeSubtitleSelectionTask?.cancel()
+            activeSubtitleSelectionTask = nil
             setStatus(.idle)
             await waitForPendingCleanup()
             return
@@ -530,6 +589,11 @@ public final class PlaybackCoreController {
             if stereoGeneration == closingStereoGeneration {
                 self.activeStereoTask = nil
             }
+        }
+        if let activeSubtitleSelectionTask {
+            activeSubtitleSelectionTask.cancel()
+            _ = try? await activeSubtitleSelectionTask.value
+            self.activeSubtitleSelectionTask = nil
         }
         if activeSession === session {
             beginPendingCleanup(for: session)
@@ -581,6 +645,16 @@ public final class PlaybackCoreController {
                 }
                 self.diagnostics = diagnostics
                 self.onDiagnosticsChange?(diagnostics)
+            }
+        }
+        session.onSubtitleCuesChange = { [weak self, weak session] cues in
+            Task { @MainActor in
+                guard let self, let session else { return }
+                guard self.activeSession === session else {
+                    self.recordStaleCallback(from: session, kind: "subtitleCues")
+                    return
+                }
+                self.onSubtitleCuesChange?(cues)
             }
         }
     }
@@ -738,6 +812,7 @@ public enum PlaybackControlError: LocalizedError, Sendable {
     case invalidRate(Float)
     case invalidVolume(Float)
     case invalidAudioTrack(Int)
+    case invalidSubtitleTrack(String)
     case operationInProgress(PlaybackOperationKind)
     case mediaSessionClosed
 
@@ -763,6 +838,8 @@ public enum PlaybackControlError: LocalizedError, Sendable {
             "The requested audio volume \(volume) is outside 0...1."
         case .invalidAudioTrack(let streamIndex):
             "Audio stream \(streamIndex) is not available in this source."
+        case .invalidSubtitleTrack(let trackID):
+            "Subtitle track \(trackID) is not available in this source."
         case .operationInProgress(let kind):
             "The \(kind.rawValue) operation is still in progress."
         case .mediaSessionClosed:

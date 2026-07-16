@@ -97,15 +97,17 @@ public nonisolated final class SwiftDataStore: ProgressStoring, ScreenPositionSt
 
     public func savePosition(
         for environmentID: String,
-        distanceMeters: Double,
+        depthOffsetMeters: Double,
         verticalOffsetMeters: Double,
-        angleDegrees: Double
+        angleDegrees: Double,
+        screenScale: Double
     ) async {
         let key = Self.screenPositionPrefix + environmentID
         let entry = ScreenPositionEntry(
-            distanceMeters: distanceMeters,
+            depthOffsetMeters: depthOffsetMeters,
             verticalOffsetMeters: verticalOffsetMeters,
-            angleDegrees: angleDegrees
+            angleDegrees: angleDegrees,
+            screenScale: screenScale
         )
         if let data = try? JSONEncoder().encode(entry) {
             defaults.set(data, forKey: key)
@@ -120,9 +122,10 @@ public nonisolated final class SwiftDataStore: ProgressStoring, ScreenPositionSt
         }
         return PersistenceDomain.SavedScreenPosition(
             environmentID: environmentID,
-            distanceMeters: entry.distanceMeters,
+            depthOffsetMeters: entry.depthOffsetMeters ?? 0,
             verticalOffsetMeters: entry.verticalOffsetMeters,
-            viewAngleDegrees: entry.angleDegrees
+            viewAngleDegrees: entry.angleDegrees,
+            screenScale: entry.screenScale ?? 1.3
         )
     }
 }
@@ -135,7 +138,8 @@ private nonisolated struct ProgressEntry: Codable, Sendable {
 }
 
 private nonisolated struct ScreenPositionEntry: Codable, Sendable {
-    let distanceMeters: Double
+    let depthOffsetMeters: Double?
     let verticalOffsetMeters: Double
     let angleDegrees: Double
+    let screenScale: Double?
 }

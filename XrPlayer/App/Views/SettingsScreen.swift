@@ -1,5 +1,9 @@
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 struct SettingsScreen: View {
     @Environment(AppModel.self) private var appModel
@@ -305,7 +309,12 @@ struct SettingsScreen: View {
     }
 
     private func copy(_ string: String) {
+        #if canImport(UIKit)
         UIPasteboard.general.string = string
+        #elseif canImport(AppKit)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(string, forType: .string)
+        #endif
     }
 
     private func refreshCacheUsage() async {

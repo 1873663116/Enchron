@@ -793,13 +793,11 @@ private struct SourceConnectionSheet: View {
                     TextField("Display name (optional)", text: $name)
                         .accessibilityIdentifier("FileBrowsing-SourceConnection-name")
                     TextField(kind == .webDAV ? "https://server.example/dav/" : "192.168.1.20", text: $address)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                        .enchronLiteralTextInput()
                         .accessibilityIdentifier("FileBrowsing-SourceConnection-address")
                     if kind == .smb {
                         TextField("Share name", text: $share)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                            .enchronLiteralTextInput()
                             .accessibilityIdentifier("FileBrowsing-SourceConnection-share")
                         Toggle("Connect as Guest", isOn: $connectAsGuest)
                             .accessibilityIdentifier("FileBrowsing-SourceConnection-guest")
@@ -809,8 +807,7 @@ private struct SourceConnectionSheet: View {
                 if !connectAsGuest {
                     Section("Credentials") {
                         TextField("Username", text: $username)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
+                            .enchronLiteralTextInput()
                             .accessibilityIdentifier("FileBrowsing-SourceConnection-username")
                         SecureField("Password", text: $password)
                             .accessibilityIdentifier("FileBrowsing-SourceConnection-password")
@@ -865,18 +862,27 @@ private struct SourceConnectionSheet: View {
                 sourceType: kind.sourceType,
                 connectionInfo: connection
             )
-            viewModel.saveCredential(
-                for: source,
+            let credential = StorageCredential(
                 username: connectAsGuest ? "guest" : username,
                 password: connectAsGuest ? "" : password
             )
-            await viewModel.connectToDataSource(source)
+            await viewModel.connectToDataSource(source, credential: credential)
 
             guard viewModel.activeDataSource?.id == source.id else {
                 errorMessage = viewModel.lastErrorMessage ?? "Connection failed."
                 return
             }
 
+            do {
+                try viewModel.saveCredential(
+                    for: source,
+                    username: credential.username,
+                    password: credential.password
+                )
+            } catch {
+                await viewModel.useDefaultFolder()
+                throw error
+            }
             viewModel.addDataSource(source)
             dismiss()
         } catch {

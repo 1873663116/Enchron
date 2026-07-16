@@ -50,51 +50,21 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
         set { currentConnectionInfo = newValue }
     }
     private var connectedShareName: String?
-    private let playbackServersLock = NSLock()
-    private var playbackServers: [URL: HTTPRangeStreamingServer] = [:]
 
     public init(credentialStore: CredentialStoring? = nil) {
         self.credentialStore = credentialStore
+    }
+
+    deinit {
+        disconnect()
     }
 
     /// Connect and login to the SMB server (host-only, no share yet).
     public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
         connectionStatus = .connecting
 
-        guard let host = info.host?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !host.isEmpty else {
-            connectionStatus = .failed("Invalid host")
-            throw SMBError.invalidConnectionInfo
-        }
-
         do {
-            let sourceID = info.credentialSourceID
-            var username = info.username ?? "guest"
-            var password = ""
-
-            if let credentialStore,
-               let credential = try credentialStore.loadCredential(for: sourceID) {
-                username = credential.username.isEmpty ? "guest" : credential.username
-                password = credential.password
-            }
-
-            let port = info.port ?? 445
-            guard let serverURL = URL(string: "smb://\(host):\(port)") else {
-                throw SMBError.invalidConnectionInfo
-            }
-            guard let smb = SMB2Manager(
-                url: serverURL,
-                credential: URLCredential(
-                    user: username,
-                    password: password,
-                    persistence: .forSession
-                )
-            ) else {
-                throw SMBError.protocolFailed("Failed to initialize SMB client.")
-            }
-
-            smbManager = smb
-            connectionInfo = info
+            let smb = try makeManager(for: info)
 
             // If rootPath already has a share (e.g., reconnecting a saved source),
             // connect to that share immediately.
@@ -106,8 +76,13 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
                 _ = try await smb.listShares()
             }
 
+            smbManager = smb
+            connectionInfo = info
             connectionStatus = .connected
         } catch {
+            smbManager = nil
+            connectionInfo = nil
+            connectedShareName = nil
             let mappedError = Self.classify(error)
             connectionStatus = .failed(mappedError.localizedDescription)
             throw mappedError
@@ -150,12 +125,6 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
     }
 
     public func disconnect() {
-        let servers = playbackServersLock.withLock {
-            let servers = Array(playbackServers.values)
-            playbackServers.removeAll()
-            return servers
-        }
-        servers.forEach { $0.stop() }
         let manager = smbManager
         Task {
             try? await manager?.disconnectShare()
@@ -240,11 +209,13 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
         item.url
     }
 
-    public func resolvePlayableURL(for file: FileBrowsingDomain.MediaFile) async throws -> URL {
-        guard let smb = smbManager, let info = connectionInfo else {
+    public func resolvePlayableSource(
+        for file: FileBrowsingDomain.MediaFile
+    ) async throws -> FilePlaybackSource {
+        guard smbManager != nil, let info = connectionInfo else {
             throw SMBError.notConnected
         }
-        guard connectedShareName != nil else {
+        guard let shareName = connectedShareName else {
             throw SMBError.noShareSelected
         }
 
@@ -254,20 +225,57 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
         guard file.sizeInBytes > 0 else {
             throw SMBError.streamingFailed("The server did not report the remote file size.")
         }
-        let source = SMBByteRangeSource(
-            manager: smb,
-            path: remotePath,
-            contentLength: file.sizeInBytes
-        )
-        let server = HTTPRangeStreamingServer(source: source, filename: file.name)
+        let playbackManager = try makeManager(for: info)
         do {
+            try await playbackManager.connectShare(name: shareName)
+            let source = SMBByteRangeSource(
+                manager: playbackManager,
+                path: remotePath,
+                contentLength: file.sizeInBytes
+            )
+            let server = HTTPRangeStreamingServer(source: source, filename: file.name)
             let url = try await server.start()
-            playbackServersLock.withLock { playbackServers[url] = server }
-            return url
+            let resources = SMBPlaybackResources(manager: playbackManager, server: server)
+            return FilePlaybackSource(
+                url: url,
+                lease: FilePlaybackSourceLease { resources.stop() }
+            )
         } catch {
-            server.stop()
+            Task { try? await playbackManager.disconnectShare() }
             throw SMBError.streamingFailed(error.localizedDescription)
         }
+    }
+
+    private func makeManager(
+        for info: FileBrowsingDomain.ConnectionInfo
+    ) throws -> SMB2Manager {
+        guard let host = info.host?.trimmingCharacters(in: .whitespacesAndNewlines),
+              host.isEmpty == false else {
+            throw SMBError.invalidConnectionInfo
+        }
+
+        var username = info.username ?? "guest"
+        var password = ""
+        if let credentialStore,
+           let credential = try credentialStore.loadCredential(for: info.credentialSourceID) {
+            username = credential.username.isEmpty ? "guest" : credential.username
+            password = credential.password
+        }
+
+        guard let serverURL = URL(string: "smb://\(host):\(info.port ?? 445)") else {
+            throw SMBError.invalidConnectionInfo
+        }
+        guard let manager = SMB2Manager(
+            url: serverURL,
+            credential: URLCredential(
+                user: username,
+                password: password,
+                persistence: .forSession
+            )
+        ) else {
+            throw SMBError.protocolFailed("Failed to initialize SMB client.")
+        }
+        return manager
     }
 
     private static func classify(_ error: Error) -> SMBError {
@@ -360,6 +368,35 @@ private nonisolated final class SMBByteRangeSource: ByteRangeStreamingSource, @u
     }
 }
 
+private nonisolated final class SMBPlaybackResources: @unchecked Sendable {
+    private let lock = NSLock()
+    private let manager: SMB2Manager
+    private let server: HTTPRangeStreamingServer
+    private var isStopped = false
+
+    init(manager: SMB2Manager, server: HTTPRangeStreamingServer) {
+        self.manager = manager
+        self.server = server
+    }
+
+    func stop() {
+        let shouldStop = lock.withLock {
+            guard isStopped == false else { return false }
+            isStopped = true
+            return true
+        }
+        guard shouldStop else { return }
+        Task { [self] in
+            await server.stopAndWait()
+            try? await manager.disconnectShare()
+        }
+    }
+
+    deinit {
+        stop()
+    }
+}
+
 #else
 
 // Stub implementation for platforms without AMSMB2 (e.g., Linux)
@@ -405,7 +442,9 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
         throw SMBError.libraryNotAvailable
     }
 
-    public func resolvePlayableURL(for file: FileBrowsingDomain.MediaFile) async throws -> URL {
+    public func resolvePlayableSource(
+        for file: FileBrowsingDomain.MediaFile
+    ) async throws -> FilePlaybackSource {
         throw SMBError.libraryNotAvailable
     }
 }

@@ -304,8 +304,8 @@ struct SourceSidebar: View {
                 .frame(width: DesignTokens.Interactive.compact, height: DesignTokens.Interactive.compact)
         }
         .buttonStyle(.plain)
-        .contentShape(.hoverEffect, Circle())
-        .hoverEffect(.automatic)
+        .enchronHoverContentShape(Circle())
+        .enchronHoverEffect(.automatic)
         .accessibilityLabel(accessibilityLabel)
     }
 
@@ -583,8 +583,8 @@ struct EditableSourceSidebarRow: View {
                 .scaleEffect(rowScale)
                 .opacity(isAppearing ? 0 : 1)
                 .offset(y: isAppearing ? DesignTokens.SourceSidebar.rowInsertionOffset : 0)
-                .contentShape(.hoverEffect, rowShape)
-                .hoverEffect(.automatic, isEnabled: isHoverEnabled)
+                .enchronHoverContentShape(rowShape)
+                .enchronHoverEffect(.automatic, isEnabled: isHoverEnabled)
                 .gesture(rowInteractionGesture)
                 .animation(DesignTokens.AnimationToken.selection, value: isSwipeExpanded)
                 .animation(DesignTokens.AnimationToken.selection, value: isDragging)
@@ -711,8 +711,8 @@ struct EditableSourceSidebarRow: View {
                 width: DesignTokens.SourceSidebar.swipeActionWidth,
                 height: DesignTokens.SourceSidebar.rowHeight
             )
-            .contentShape(.hoverEffect, Rectangle())
-            .hoverEffect(.highlight)
+            .enchronHoverContentShape(Rectangle())
+            .enchronHoverEffect(.highlight)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

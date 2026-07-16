@@ -1,0 +1,16 @@
+1
+00:00:00,500 --> 00:00:29,500
+Enchron 字幕验证
+RealityKit TextComponent
+
+2
+00:00:08,000 --> 00:00:11,000
+Window playback subtitle
+
+3
+00:00:14,000 --> 00:00:17,000
+Seek 后只显示当前 cue
+
+4
+00:00:22,000 --> 00:00:26,000
+Docked scene subtitle

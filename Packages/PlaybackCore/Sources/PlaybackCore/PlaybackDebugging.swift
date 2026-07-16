@@ -53,6 +53,7 @@ public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var videoTrack: VideoTrackRecord?
     public var availableAudioTracks: [PlaybackAudioTrack] = []
     public var audioTrack: AudioTrackRecord?
+    public var subtitleState: SubtitleStateRecord?
     public var lastRouteEvent: RouteMediaEventRecord?
     public var lastVideoSample: VideoSampleRecord?
     public var lastAudioSample: AudioSampleRecord?
@@ -247,6 +248,12 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         currentSnapshot.availableAudioTracks = tracks
+    }
+
+    public func recordSubtitleState(_ record: SubtitleStateRecord?) {
+        lock.lock()
+        defer { lock.unlock() }
+        currentSnapshot.subtitleState = record
     }
 
     public func recordRouteEvent(_ record: RouteMediaEventRecord) {

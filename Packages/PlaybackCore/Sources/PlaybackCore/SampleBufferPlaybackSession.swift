@@ -31,6 +31,17 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         var isClosed = false
     }
 
+    private struct SubtitleState {
+        var availableTracks: [PlaybackSubtitleTrack] = []
+        var selectedTrackID: PlaybackSubtitleTrack.ID?
+        var cues: [PlaybackSubtitleCue] = []
+        var streamEpoch: UInt64 = 1
+        var selectionGeneration: UInt64 = 0
+        var suppressesActiveCues = false
+        var isClosed = false
+        var lastPublishedCueIDs: [PlaybackSubtitleCue.ID] = []
+    }
+
     public let route: PlaybackRoute
     public let traceID: String
     public let renderer = AVSampleBufferVideoRenderer()
@@ -40,9 +51,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     public var onStatusChange: (@Sendable (PlaybackStatus) -> Void)?
     public var onDiagnosticsChange: (@Sendable (PlaybackDiagnostics) -> Void)?
+    public var onSubtitleCuesChange: (@Sendable ([PlaybackSubtitleCue]) -> Void)?
 
     private let provider: VideoSampleProvider
     private let audioProvider: AudioSampleProvider
+    private let subtitleProvider: SubtitleProvider
     private let rendererSink: RendererInputSink
     private let audioRendererSink: AudioRendererInputSink
     private let videoSampleFormatOverride = VideoSampleFormatOverride()
@@ -102,24 +115,30 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     private var audioRendererError: String?
     public private(set) var selectedAudioStreamIndex: Int?
     public private(set) var availableAudioTracks: [PlaybackAudioTrack] = []
+    private let subtitleStateLock = NSLock()
+    private var subtitleState = SubtitleState()
     private let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
 
     public convenience init(route: PlaybackRoute, traceID: String = UUID().uuidString) {
         let provider: VideoSampleProvider
         let audioProvider: AudioSampleProvider
+        let subtitleProvider: SubtitleProvider
         switch route {
         case .appleCompressed:
             provider = AppleCompressedSampleProvider()
             audioProvider = AppleCompressedAudioSampleProvider()
+            subtitleProvider = NoSubtitleProvider()
         case .ffmpegCompressed:
             provider = FFmpegSampleProvider(route: route)
             audioProvider = FFmpegCompressedAudioSampleProvider()
+            subtitleProvider = FFmpegSubtitleProvider()
         }
         self.init(
             route: route,
             traceID: traceID,
             provider: provider,
             audioProvider: audioProvider,
+            subtitleProvider: subtitleProvider,
             rendererSink: nil
         )
     }
@@ -129,6 +148,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         traceID: String,
         provider: VideoSampleProvider,
         audioProvider: AudioSampleProvider = NoAudioSampleProvider(),
+        subtitleProvider: SubtitleProvider = NoSubtitleProvider(),
         rendererSink: RendererInputSink? = nil,
         audioRendererSink: AudioRendererInputSink? = nil,
         rendererFailureMonitor: RendererFailureMonitoring? = nil
@@ -139,6 +159,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         precondition(provider.route == route)
         self.provider = provider
         self.audioProvider = audioProvider
+        self.subtitleProvider = subtitleProvider
         if let rendererSink {
             self.rendererSink = rendererSink
         } else {
@@ -192,6 +213,27 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         sourceAsset = asset
         availableAudioTracks = try await audioProvider.tracks(in: url, asset: asset)
         debugStore.recordAvailableAudioTracks(availableAudioTracks)
+        let subtitleTracks = try await subtitleProvider.tracks(in: url, asset: asset)
+        subtitleStateLock.withLock {
+            subtitleState.availableTracks = subtitleTracks
+            subtitleState.selectedTrackID = nil
+            subtitleState.cues = []
+            subtitleState.streamEpoch = 1
+            subtitleState.selectionGeneration = 0
+            subtitleState.suppressesActiveCues = false
+            subtitleState.isClosed = false
+            subtitleState.lastPublishedCueIDs = []
+        }
+        recordSubtitleState(at: synchronizer.currentTime())
+        publishSubtitleCues(at: synchronizer.currentTime())
+        debugStore.emit(
+            mediaSessionID: traceID,
+            route: route,
+            node: .videoTrackModel,
+            kind: "subtitle.tracks.available",
+            outcome: .succeeded,
+            details: ["count": String(subtitleTracks.count)]
+        )
         requestedTimelineStart = startTime
         beginOperation(.open, targetTimeSeconds: startTime.seconds)
         let sourceRecord = MediaSourceRecord(
@@ -898,6 +940,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             ? 0
             : (currentRate > 0 ? currentRate : preferredPlaybackRate)
         beginOperation(.seek, targetTimeSeconds: target)
+        let subtitleSeekEpoch = beginSubtitleTimelineDiscontinuity()
         debugStore.emit(
             mediaSessionID: traceID,
             route: route,
@@ -1029,8 +1072,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                             "targetSeconds": String(target),
                             "streamEpoch": String(expectedEpoch),
                             "audioStreamEpoch": String(expectedAudioEpoch),
+                            "subtitleStreamEpoch": String(subtitleSeekEpoch),
                         ]
                     )
+                    completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
                     finishActiveOperation(.completed)
                     return
                 }
@@ -1198,6 +1243,195 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             outcome: .succeeded,
             details: ["streamIndex": String(streamIndex)]
         )
+    }
+
+    public var availableSubtitleTracks: [PlaybackSubtitleTrack] {
+        subtitleStateLock.withLock { subtitleState.availableTracks }
+    }
+
+    public var selectedSubtitleTrackID: PlaybackSubtitleTrack.ID? {
+        subtitleStateLock.withLock { subtitleState.selectedTrackID }
+    }
+
+    public var activeSubtitleCues: [PlaybackSubtitleCue] {
+        activeSubtitleCues(at: synchronizer.currentTime())
+    }
+
+    private func activeSubtitleCues(at time: CMTime) -> [PlaybackSubtitleCue] {
+        return subtitleStateLock.withLock {
+            Self.activeSubtitleCues(in: subtitleState, at: time)
+        }
+    }
+
+    public func selectSubtitleTrack(id: PlaybackSubtitleTrack.ID?) async throws {
+        guard let sourceURL else { throw PlaybackControlError.noActiveMediaSession }
+        if id == nil {
+            let state = try subtitleStateLock.withLock { () -> (UInt64, UInt64) in
+                guard !subtitleState.isClosed else {
+                    throw PlaybackControlError.mediaSessionClosed
+                }
+                subtitleState.selectionGeneration &+= 1
+                subtitleState.streamEpoch &+= 1
+                subtitleState.selectedTrackID = nil
+                subtitleState.cues = []
+                subtitleState.suppressesActiveCues = false
+                return (subtitleState.selectionGeneration, subtitleState.streamEpoch)
+            }
+            recordSubtitleState(at: synchronizer.currentTime())
+            publishSubtitleCues(at: synchronizer.currentTime())
+            debugStore.emit(
+                mediaSessionID: traceID,
+                route: route,
+                kind: "subtitle.selection.off",
+                outcome: .succeeded,
+                details: [
+                    "generation": String(state.0),
+                    "subtitleEpoch": String(state.1),
+                ]
+            )
+            return
+        }
+        guard let trackID = id else { return }
+        let selection = try subtitleStateLock.withLock {
+            guard !subtitleState.isClosed else {
+                throw PlaybackControlError.mediaSessionClosed
+            }
+            guard let track = subtitleState.availableTracks.first(where: { $0.id == trackID }) else {
+                throw PlaybackControlError.invalidSubtitleTrack(trackID)
+            }
+            subtitleState.selectionGeneration &+= 1
+            subtitleState.streamEpoch &+= 1
+            subtitleState.selectedTrackID = nil
+            subtitleState.cues = []
+            subtitleState.suppressesActiveCues = true
+            return (
+                track,
+                subtitleState.selectionGeneration,
+                subtitleState.streamEpoch
+            )
+        }
+        recordSubtitleState(at: synchronizer.currentTime())
+        publishSubtitleCues(at: synchronizer.currentTime())
+        do {
+            let cues = try await subtitleProvider.cues(
+                in: sourceURL,
+                asset: sourceAsset,
+                track: selection.0
+            )
+            try Task.checkCancellation()
+            let committed = subtitleStateLock.withLock {
+                guard !subtitleState.isClosed,
+                      subtitleState.selectionGeneration == selection.1,
+                      subtitleState.streamEpoch == selection.2 else { return false }
+                subtitleState.selectedTrackID = selection.0.id
+                subtitleState.cues = cues.sorted {
+                    CMTimeCompare($0.timeRange.start, $1.timeRange.start) < 0
+                }
+                subtitleState.suppressesActiveCues = false
+                return true
+            }
+            guard committed else { throw CancellationError() }
+            recordSubtitleState(at: synchronizer.currentTime())
+            publishSubtitleCues(at: synchronizer.currentTime())
+            debugStore.emit(
+                mediaSessionID: traceID,
+                route: route,
+                kind: "subtitle.selection.completed",
+                outcome: .succeeded,
+                details: [
+                    "trackID": selection.0.id,
+                    "cueCount": String(cues.count),
+                    "generation": String(selection.1),
+                    "subtitleEpoch": String(selection.2),
+                ]
+            )
+        } catch {
+            subtitleStateLock.withLock {
+                guard subtitleState.selectionGeneration == selection.1 else { return }
+                subtitleState.selectedTrackID = nil
+                subtitleState.cues = []
+                subtitleState.suppressesActiveCues = false
+            }
+            recordSubtitleState(at: synchronizer.currentTime())
+            publishSubtitleCues(at: synchronizer.currentTime())
+            throw error
+        }
+    }
+
+    private func beginSubtitleTimelineDiscontinuity() -> UInt64 {
+        let state = subtitleStateLock.withLock { () -> (UInt64, UInt64) in
+            subtitleState.selectionGeneration &+= 1
+            subtitleState.streamEpoch &+= 1
+            subtitleState.suppressesActiveCues = true
+            return (subtitleState.selectionGeneration, subtitleState.streamEpoch)
+        }
+        recordSubtitleState(at: synchronizer.currentTime())
+        publishSubtitleCues(at: synchronizer.currentTime())
+        debugStore.emit(
+            mediaSessionID: traceID,
+            route: route,
+            kind: "subtitle.cues.clearedForSeek",
+            outcome: .succeeded,
+            details: [
+                "generation": String(state.0),
+                "subtitleEpoch": String(state.1),
+            ]
+        )
+        return state.1
+    }
+
+    private func completeSubtitleTimelineDiscontinuity(epoch: UInt64) {
+        subtitleStateLock.withLock {
+            guard !subtitleState.isClosed,
+                  subtitleState.streamEpoch == epoch else { return }
+            subtitleState.suppressesActiveCues = false
+        }
+        recordSubtitleState(at: synchronizer.currentTime())
+        publishSubtitleCues(at: synchronizer.currentTime())
+    }
+
+    private func recordSubtitleState(at time: CMTime) {
+        let record = subtitleStateLock.withLock {
+            return SubtitleStateRecord(
+                availableTracks: subtitleState.availableTracks,
+                selectedTrackID: subtitleState.selectedTrackID,
+                activeCueIDs: Self.activeSubtitleCues(
+                    in: subtitleState,
+                    at: time
+                ).map(\.id),
+                streamEpoch: subtitleState.streamEpoch,
+                selectionGeneration: subtitleState.selectionGeneration,
+                suppressesActiveCues: subtitleState.suppressesActiveCues
+            )
+        }
+        debugStore.recordSubtitleState(record)
+    }
+
+    private func publishSubtitleCues(at time: CMTime) {
+        let cues = subtitleStateLock.withLock { () -> [PlaybackSubtitleCue]? in
+            let activeCues = Self.activeSubtitleCues(in: subtitleState, at: time)
+            let cueIDs = activeCues.map(\.id)
+            guard cueIDs != subtitleState.lastPublishedCueIDs else { return nil }
+            subtitleState.lastPublishedCueIDs = cueIDs
+            return activeCues
+        }
+        if let cues {
+            onSubtitleCuesChange?(cues)
+        }
+    }
+
+    private static func activeSubtitleCues(
+        in state: SubtitleState,
+        at time: CMTime
+    ) -> [PlaybackSubtitleCue] {
+        guard time.isNumeric,
+              !state.isClosed,
+              !state.suppressesActiveCues,
+              state.selectedTrackID != nil else { return [] }
+        return state.cues.filter { cue in
+            CMTimeCompare(time, cue.timeRange.start) >= 0 &&
+                CMTimeCompare(time, cue.timeRange.end) < 0
+        }
     }
 
     private func interruptionRecoveryRate() -> Float {
@@ -1516,6 +1750,18 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             audioProvider.cancel()
             debugStore.recordCleanupStep(.audioProviderCancelled)
         }
+        subtitleStateLock.withLock {
+            subtitleState.selectionGeneration &+= 1
+            subtitleState.streamEpoch &+= 1
+            subtitleState.availableTracks = []
+            subtitleState.selectedTrackID = nil
+            subtitleState.cues = []
+            subtitleState.suppressesActiveCues = true
+            subtitleState.isClosed = true
+        }
+        subtitleProvider.cancel()
+        recordSubtitleState(at: synchronizer.currentTime())
+        publishSubtitleCues(at: synchronizer.currentTime())
         audioRendererSink.flush()
         debugStore.recordCleanupStep(.audioRendererFlushed)
         Task { [self] in
@@ -1676,7 +1922,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 return
             }
             markAsPrerollIfNeeded(renderSample, presentationTime: presentationTime)
-            if !hasStartedTimeline {
+            let shouldActivateTimelineAfterEnqueue = !hasStartedTimeline
+            if shouldActivateTimelineAfterEnqueue {
                 let hasPreroll = requestedTimelineStart.isNumeric &&
                     requestedTimelineStart > presentationTime
                 let timelineStart = hasPreroll ? presentationTime : targetTimelineTime(
@@ -1741,7 +1988,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                !decodeTime.isNumeric || decodeTime >= decoderBootstrapTarget {
                 decoderBootstrapLock.withLock { decoderBootstrapComplete = true }
             }
-            if isFirstVideoSample {
+            if shouldActivateTimelineAfterEnqueue {
                 let activationRate: Float = isPrerolling ? 1 : timelineStartRate
                 synchronizer.rate = activationRate
                 if !isPrerolling {
@@ -2206,6 +2453,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     }
 
     private func updatePresentationStatus(at time: CMTime) {
+        recordSubtitleState(at: time)
+        publishSubtitleCues(at: time)
         publishDiagnostics(at: time)
         guard claimEndIfReady(at: time) else { return }
         synchronizer.rate = 0

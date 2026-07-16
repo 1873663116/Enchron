@@ -29,15 +29,24 @@ Core scenario 不是第二套长期应用控制。可复用的控制、状态投
 
 ### L2 visionOS Simulator
 
-Simulator 验证平台 API、Window/Docked/Panorama 状态机、失败回滚、来源与持久化、可访问交互和基础 RealityKit 生命周期。`RealityRenderer` 可以证明实体、材质、camera 与 texture 的程序化输出，但不能替代真实 sample renderer、系统空间切换或硬件画质。
+Simulator 验证平台 API、Window/Docked/Panorama 状态机、失败回滚、来源与持久化、可访问交互和基础 RealityKit 生命周期。自动验收分开报告两个不能互相替代的结果：
+
+- Structural Presentation Success：目标 scene、`PlaybackSurfaceAnchor`、Video Entity、同一 renderer binding、Media Session 连续性、RealityKit actual mode 与 rendering status 符合合同。
+- Rendered Presentation Success：真实产品 sample 路径进入 `VideoPlayerComponent` 后，在规定 camera pose 下通过 Diagnostic Media 的 Visual Oracle。
+
+`RealityRenderer` component probe 使用固定 camera 输出 texture，验证投影、方向、stereo、比例、裁剪与帧推进；完整 App integration 验证 WindowGroup / ImmersiveSpace、RCP anchor、Screen Size 和 Presentation Transition。若 `VideoPlayerComponent` 在离屏宿主中无法确认依赖 ImmersiveSpace 的 actual mode，该事实属于 probe 能力边界，actual mode 留在 App integration 断言，不扩建第二套 renderer。
 
 空间播放的标准验收入口是 `scripts/verify-spatial-presentations-simulator.zsh`。它必须用真实 FFmpeg → PlaybackCore 媒体而不是 `ENCHRON_UI_TESTING` fixture，在同一次 App 启动中完成 Window → Docked → Window → Panorama → Window，并同时保存三类不能相互替代的证据：XCUIAutomation 语义与截图、PlaybackCore/Presentation 机器状态、OSLog 与 `.xcresult`。点击先使用 accessibility identifier；元素存在但不可直接命中时，测试先保存当前截图，再以该语义元素的几何中心执行坐标 fallback，并继续以目标状态断言结果。无人值守测试没有语义目标或有效几何时必须失败；交互式 agent 可以基于当次截图视觉定位后点击，但必须保存点击前后截图、验证相同机器状态后置条件，并把结果标记为 `agent-assisted`，不能用盲点固定坐标或冒充无人值守绿色结果。
 
-Docked 只有在 planar surface 已 attach、同一 Media Session 仍为 playing 且连续截图发生变化时通过。Panorama 还必须观察 `VideoPlayerComponent` 的 rendering status ready，以及 desired/actual immersive、viewing、spatial video mode 全部收敛。测试宿主未启动、Simulator 未完成 BackBoard 启动或 XCTest worker 未 materialize 属于基础设施失败；它既不是产品失败，也不能标记 Simulator passed。
+Window、Docked 与 Panorama 都必须证明唯一 active consumer 是绑定当前 renderer 的 `VideoPlayerComponent`，不允许 `ModelComponent + VideoMaterial` 产品分支。Docked 还必须证明 Video Entity 是目标 `PlaybackSurfaceAnchor` 的子实体、local transform 符合用户 placement、scale 三轴一致，并由 `playerScreenSize × uniform scale` 得出最终尺寸。Panorama 必须观察 rendering status ready，以及 desired/actual immersive、viewing、spatial video mode 全部收敛。测试宿主未启动、Simulator 未完成 BackBoard 启动或 XCTest worker 未 materialize 属于基础设施失败；它既不是产品失败，也不能标记 Simulator passed。
+
+Visual Oracle 不使用普通电影画面或逐像素 golden image 作为主断言。标准 Diagnostic Media 必须提供可定位的四角与中心标记、圆形或网格、方向标记、左右眼标记和连续帧标记；断言标记存在与顺序、几何比例、方向、双眼归属、画面边界和时间推进，并为色彩转换、抗锯齿与 SDK renderer 差异保留明确容差。逐像素参考图只作为失败附件。
 
 ### L3 Vision Pro
 
-使用与 L2 相同的 fixture identity 和 oracle，在物理 Vision Pro 上证明硬件解码、HDR/EDR 与受支持 Dolby Vision profile、设备音频、Window/Docked/Panorama、空间舒适度、性能和最终交互。generic device build、Simulator、单张截图、日志无错误或可拖动进度条都不是 L3。
+使用与 L2 相同的 fixture identity 和 oracle，在物理 Vision Pro 上证明硬件解码、HDR/EDR 与受支持 Dolby Vision profile、设备音频、Window/Docked/Panorama、空间舒适度、性能和最终交互。该结论命名为 Wearer Experience Success，仅在里程碑、发布前及设备专属回归时要求人员佩戴；日常提交以 Structural Presentation Success 与 Rendered Presentation Success 为门槛。generic device build、Simulator、AirPlay、单张截图、日志无错误或可拖动进度条都不是 Wearer Experience Success。
+
+人工验收发现的可重复画面问题必须转化为 Diagnostic Media、Visual Oracle 或结构断言，使同类问题进入后续无人值守回归。
 
 ## 系统节点
 

@@ -105,11 +105,13 @@ public nonisolated final class LocalDataSourceAdapter: LocalFileSource, @uncheck
         }
     }
 
-    public func resolvePlayableURL(for file: FileBrowsingDomain.MediaFile) async throws -> URL {
+    public func resolvePlayableSource(
+        for file: FileBrowsingDomain.MediaFile
+    ) async throws -> FilePlaybackSource {
         guard filter.matches(fileURL: file.url) else {
             throw LocalDataSourceError.fileNotPlayable
         }
-        return try await resolveURL(for: file)
+        return FilePlaybackSource(url: try await resolveURL(for: file))
     }
 
     private func connectedBaseURL() throws -> URL {

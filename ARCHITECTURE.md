@@ -62,6 +62,8 @@ Source Admission -> Media Session -> Demux Provider
 - 产品只有一条 FFmpeg demux → compressed sample → AVFoundation renderer 路径；验证 route 不进入产品 UI，也不参与失败后的隐藏切换。
 - `Playback Lifecycle` 由 PlaybackCore 唯一发布；`Playback Presentation` 由 Entry App 管理，两者不能压成同一个“播放模式”。
 - Window、Docked、Panorama 迁移同一个 renderer。目标 surface 与 renderer binding 成功后才提交；失败回滚到原 Presentation，不重开 Media Session。
+- 三个 Playback Presentation 统一使用 `VideoPlayerComponent(videoRenderer:)`。每个 `RealityView` 拥有自己的 Video Entity；迁移的是 renderer binding，不把 Entity 实例跨 scene 搬移。Window 位于 WindowGroup 的 RealityView，Docked 与 Panorama 位于 ImmersiveSpace 的 RealityView。
+- Docked Video Entity 挂到 Xrplay_scene 交付的唯一 `PlaybackSurfaceAnchor` 下。场景拥有基准位置与朝向；Enchron 拥有 Screen Size uniform scale；RealityKit 拥有视频 mesh、material 与实际呈现模式。
 - Media Library 只保存引用。分类、移动或删除引用不得复制、移动或删除媒体字节。
 - DesignPreview、SwiftUI Preview 与测试复用生产组件和页面；fixture adapter 不维护平行产品行为。
 - L1、macOS L2 Core、macOS L2 App Adapter、visionOS Simulator 与 Vision Pro L3 是递进门槛，上层结果不能反推下层通过。

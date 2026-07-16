@@ -25,12 +25,39 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     @MainActor
     func testDockingWorldCanLoadFromProductResources() async throws {
         let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
+        let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
 
         XCTAssertFalse(world.name.isEmpty)
+        XCTAssertEqual(anchor.name, PlaybackSurfaceAnchorResolver.canonicalName)
+        XCTAssertNil(anchor.components[ModelComponent.self])
+        XCTAssertTrue(anchor.children.allSatisfy { $0.components[ModelComponent.self] == nil })
     }
 
     @MainActor
-    func testRealityRendererRendersVideoMaterialFromAReadySampleBuffer() throws {
+    func testLegacyPlaybackSurfaceIsMigratedAndStrippedOfGeometry() throws {
+        let world = Entity()
+        let legacy = ModelEntity(
+            mesh: .generatePlane(width: 1, depth: 1),
+            materials: [SimpleMaterial()]
+        )
+        legacy.name = PlaybackSurfaceAnchorResolver.legacyName
+        let legacyChild = ModelEntity(
+            mesh: .generatePlane(width: 1, depth: 1),
+            materials: [SimpleMaterial()]
+        )
+        legacy.addChild(legacyChild)
+        world.addChild(legacy)
+
+        let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
+
+        XCTAssertTrue(anchor === legacy)
+        XCTAssertEqual(anchor.name, PlaybackSurfaceAnchorResolver.canonicalName)
+        XCTAssertNil(anchor.components[ModelComponent.self])
+        XCTAssertNil(legacyChild.components[ModelComponent.self])
+    }
+
+    @MainActor
+    func testRealityRendererRendersVideoPlayerComponentFromAReadySampleBuffer() throws {
         guard let device = MTLCreateSystemDefaultDevice() else {
             throw XCTSkip("Metal is unavailable on this test host.")
         }
@@ -109,7 +136,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testWindowBindsTheActiveRendererToVideoMaterial() {
+    func testWindowBindsTheActiveRendererToVideoPlayerComponent() throws {
         let renderer = AVSampleBufferVideoRenderer()
         let entity = Entity()
 
@@ -121,12 +148,15 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         )
 
         XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .window))
-        XCTAssertNotNil(entity.components[ModelComponent.self])
-        XCTAssertNil(entity.components[VideoPlayerComponent.self])
+        XCTAssertNil(entity.components[ModelComponent.self])
+        let component = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
+        XCTAssertTrue(component.videoRenderer === renderer)
+        XCTAssertEqual(component.desiredViewingMode, .mono)
+        XCTAssertEqual(component.desiredImmersiveViewingMode, .portal)
     }
 
     @MainActor
-    func testRepeatedWindowConfigurationReusesTheExistingVideoMaterial() throws {
+    func testRepeatedWindowConfigurationReusesTheExistingVideoPlayerComponent() throws {
         let renderer = AVSampleBufferVideoRenderer()
         let entity = Entity()
         PlaybackRealityPresenter.configure(
@@ -135,21 +165,20 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             presentation: .window,
             stereoLayout: .mono
         )
-        var model = try XCTUnwrap(entity.components[ModelComponent.self])
-        model.materials.append(UnlitMaterial())
-        entity.components.set(model)
+        let firstComponent = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
 
         PlaybackRealityPresenter.configure(
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono
+            stereoLayout: .sideBySide
         )
 
-        model = try XCTUnwrap(entity.components[ModelComponent.self])
-        XCTAssertEqual(model.materials.count, 2)
-        let material = try XCTUnwrap(model.materials.first as? VideoMaterial)
-        XCTAssertTrue(material.videoRenderer === renderer)
+        let component = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
+        XCTAssertTrue(component.videoRenderer === firstComponent.videoRenderer)
+        XCTAssertTrue(component.videoRenderer === renderer)
+        XCTAssertEqual(component.desiredViewingMode, .stereo)
+        XCTAssertEqual(component.desiredImmersiveViewingMode, .portal)
     }
 
     @MainActor

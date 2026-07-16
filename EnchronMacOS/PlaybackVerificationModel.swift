@@ -14,10 +14,7 @@ final class PlaybackVerificationModel {
         case appAdapter
     }
 
-    let videoEntity = ModelEntity(
-        mesh: .generatePlane(width: 1.6, height: 0.9),
-        materials: [UnlitMaterial(color: .black)]
-    )
+    let videoEntity = Entity()
 
     private(set) var status: PlaybackStatus = .idle
     private(set) var diagnostics = PlaybackDiagnostics()
@@ -122,7 +119,12 @@ final class PlaybackVerificationModel {
                 session = openedSession
             }
             lastProbeSession = session
-            videoEntity.model?.materials = [VideoMaterial(videoRenderer: session.renderer)]
+            PlaybackRealityPresenter.configure(
+                videoEntity,
+                renderer: session.renderer,
+                presentation: .window,
+                stereoLayout: .mono
+            )
             if backend == .core {
                 session.recordRealityKitBinding(
                     entityIdentity: "EnchronMacOS.videoEntity",
@@ -315,7 +317,7 @@ final class PlaybackVerificationModel {
         } else if let controller {
             await controller.closeAndWait(clearSource: false)
         }
-        videoEntity.model?.materials = [UnlitMaterial(color: .black)]
+        videoEntity.components.remove(VideoPlayerComponent.self)
         securityScopedURL?.stopAccessingSecurityScopedResource()
         securityScopedURL = nil
         currentSeconds = 0
@@ -347,13 +349,12 @@ final class PlaybackVerificationModel {
 
     func realityKitBindingSnapshot() -> [String: String] {
         guard let session = activeSession,
-              let material = videoEntity.model?.materials
-                .compactMap({ $0 as? VideoMaterial }).first else {
-            return ["material": "missing"]
+              let component = videoEntity.components[VideoPlayerComponent.self] else {
+            return ["consumer": "missing"]
         }
         return [
-            "material": "present",
-            "rendererIdentityMatches": String(material.videoRenderer === session.renderer),
+            "consumer": "videoPlayerComponent",
+            "rendererIdentityMatches": String(component.videoRenderer === session.renderer),
             "entityActive": String(videoEntity.isActive),
         ]
     }

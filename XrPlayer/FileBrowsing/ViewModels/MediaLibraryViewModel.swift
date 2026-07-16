@@ -21,19 +21,6 @@ private struct SendablePHAsset: @unchecked Sendable {
     }
 }
 
-fileprivate struct ResolvedMediaSource {
-    let url: URL
-    let sourceAccess: PlaybackSourceAccess?
-
-    init(
-        url: URL,
-        sourceAccess: PlaybackSourceAccess? = nil
-    ) {
-        self.url = url
-        self.sourceAccess = sourceAccess
-    }
-}
-
 @MainActor
 final class MediaReferenceResolver {
     enum ResolutionError: LocalizedError {
@@ -57,7 +44,7 @@ final class MediaReferenceResolver {
         UUID,
         String,
         FileBrowsingDomain.MediaReference
-    ) async throws -> URL)?
+    ) async throws -> ResolvedPlaybackSource)?
 
     private let fileResolver = SecurityScopedFileReferenceResolver()
     private let fileManager: FileManager
@@ -68,11 +55,11 @@ final class MediaReferenceResolver {
         try? fileManager.removeItem(at: Self.photoStagingRoot(fileManager: fileManager))
     }
 
-    fileprivate func resolve(_ reference: FileBrowsingDomain.MediaReference) async throws -> ResolvedMediaSource {
+    fileprivate func resolve(_ reference: FileBrowsingDomain.MediaReference) async throws -> ResolvedPlaybackSource {
         switch reference.locator {
         case .file(let bookmark, let relativePath):
             let resolved = try fileResolver.resolve(bookmark: bookmark, relativePath: relativePath)
-            return ResolvedMediaSource(
+            return ResolvedPlaybackSource(
                 url: resolved.url,
                 sourceAccess: resolved.access
             )
@@ -80,13 +67,11 @@ final class MediaReferenceResolver {
             return try await resolvePhoto(localIdentifier: localIdentifier)
         case .sourceItem(let dataSourceID, let path):
             guard let resolveSourceItem else { throw ResolutionError.unavailableSource }
-            return ResolvedMediaSource(
-                url: try await resolveSourceItem(dataSourceID, path, reference)
-            )
+            return try await resolveSourceItem(dataSourceID, path, reference)
         }
     }
 
-    private func resolvePhoto(localIdentifier: String) async throws -> ResolvedMediaSource {
+    private func resolvePhoto(localIdentifier: String) async throws -> ResolvedPlaybackSource {
         let result = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
         guard let asset = result.firstObject else { throw ResolutionError.unavailablePhoto }
         let requestedAsset = await Self.requestOriginalAsset(SendablePHAsset(value: asset))
@@ -95,14 +80,14 @@ final class MediaReferenceResolver {
             let sourceAccess = PlaybackSourceAccess.retaining(avAsset, securityScoped: urlAsset.url)
             if (try? urlAsset.url.checkResourceIsReachable()) == true {
                 logger.info("Photos source resolved as a directly readable file URL")
-                return ResolvedMediaSource(url: urlAsset.url, sourceAccess: sourceAccess)
+                return ResolvedPlaybackSource(url: urlAsset.url, sourceAccess: sourceAccess)
             }
             sourceAccess.release()
         }
         return try await stageOriginalPhoto(asset)
     }
 
-    private func stageOriginalPhoto(_ asset: PHAsset) async throws -> ResolvedMediaSource {
+    private func stageOriginalPhoto(_ asset: PHAsset) async throws -> ResolvedPlaybackSource {
         let resources = PHAssetResource.assetResources(for: asset)
         guard let resource = resources.first(where: { $0.type == .fullSizeVideo })
             ?? resources.first(where: { $0.type == .video })
@@ -140,7 +125,7 @@ final class MediaReferenceResolver {
         }
 
         logger.info("Photos source staged for FFmpeg playback file=\(destination.lastPathComponent, privacy: .public)")
-        return ResolvedMediaSource(
+        return ResolvedPlaybackSource(
             url: destination,
             sourceAccess: PlaybackSourceAccess.temporaryFile(destination)
         )
@@ -278,7 +263,9 @@ final class MediaLibraryViewModel {
         mutate {
             let accessStarted = folderURL.startAccessingSecurityScopedResource()
             defer { if accessStarted { folderURL.stopAccessingSecurityScopedResource() } }
-            let bookmark = try folderURL.bookmarkData(options: .minimalBookmark)
+            let bookmark = try folderURL.bookmarkData(
+                options: SecurityScopedFileReferenceResolver.bookmarkCreationOptions
+            )
             let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
             guard let enumerator = fileManager.enumerator(
                 at: folderURL,
@@ -378,7 +365,9 @@ final class MediaLibraryViewModel {
         let reference = FileBrowsingDomain.MediaReference(
             name: url.lastPathComponent,
             locator: .file(
-                bookmark: try url.bookmarkData(options: .minimalBookmark),
+                bookmark: try url.bookmarkData(
+                    options: SecurityScopedFileReferenceResolver.bookmarkCreationOptions
+                ),
                 relativePath: ""
             ),
             sizeInBytes: Int64(values.fileSize ?? 0),

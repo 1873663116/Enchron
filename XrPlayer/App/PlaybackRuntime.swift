@@ -18,6 +18,7 @@ public final class PlaybackRuntime {
         case noSession
         case sourceAccessUnavailable
         case unsupportedProjection(PlaybackModel.ProjectionType)
+        case rendererConsumerBusy(PlaybackPresentation)
 
         public var errorDescription: String? {
             switch self {
@@ -27,6 +28,8 @@ public final class PlaybackRuntime {
                 "The original media source is no longer available. Choose it again to restore access."
             case .unsupportedProjection(let projection):
                 "PlaybackCore cannot currently represent the \(projection.rawValue) projection."
+            case .rendererConsumerBusy(let presentation):
+                "The \(presentation.rawValue) RealityView still owns the active video renderer."
             }
         }
     }
@@ -41,16 +44,19 @@ public final class PlaybackRuntime {
     public private(set) var diagnostics = PlaybackDiagnostics()
     public private(set) var availableAudioTracks: [PlaybackModel.AudioTrack] = []
     public private(set) var currentAudioTrackID: String?
+    public private(set) var availableSubtitleTracks: [PlaybackModel.SubtitleTrack] = []
+    public private(set) var currentSubtitleTrackID: String?
+    public private(set) var activeSubtitleCues: [PlaybackSubtitleCue] = []
     public private(set) var activeSessionID: String?
     public private(set) var renderer: AVSampleBufferVideoRenderer?
     public private(set) var attachedPresentation: PlaybackPresentation?
+    public private(set) var rendererConsumerPresentation: PlaybackPresentation?
+    public private(set) var rendererConsumerEntityID: String?
     public var lastErrorMessage: String?
 
     public var onPlaybackEnded: (() -> Void)?
     public var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)?
 
-    public var availableSubtitleTracks: [PlaybackModel.SubtitleTrack] { [] }
-    public var currentSubtitleTrackID: String? { nil }
     public var hasActivePlaybackRequest: Bool { currentLaunchRequest != nil }
     public var canPresentControls: Bool { currentLaunchRequest != nil }
     public var canEnterSpatialPresentation: Bool {
@@ -134,6 +140,9 @@ public final class PlaybackRuntime {
         controller.onDiagnosticsChange = { [weak self] diagnostics in
             self?.receive(diagnostics)
         }
+        controller.onSubtitleCuesChange = { [weak self] cues in
+            self?.activeSubtitleCues = cues
+        }
     }
 
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
@@ -186,7 +195,7 @@ public final class PlaybackRuntime {
             )
             guard generation == openGeneration else {
                 await controller.closeAndWait()
-                request.sourceAccess?.release()
+                releaseSourceAccessIfUnowned(request.sourceAccess)
                 return
             }
             session = newSession
@@ -200,10 +209,15 @@ public final class PlaybackRuntime {
                 )
             }
             currentAudioTrackID = selectedAudioStreamIndex.map(String.init)
+            availableSubtitleTracks = controller.availableSubtitleTracks.map(Self.subtitleTrack)
+            currentSubtitleTrackID = controller.selectedSubtitleTrackID
+            activeSubtitleCues = controller.activeSubtitleCues
             logger.info("session prepared id=\(newSession.traceID, privacy: .public)")
         } catch {
-            guard generation == openGeneration else { return }
-            request.sourceAccess?.release()
+            guard generation == openGeneration else {
+                releaseSourceAccessIfUnowned(request.sourceAccess)
+                return
+            }
             fail(error)
             throw error
         }
@@ -228,7 +242,9 @@ public final class PlaybackRuntime {
             return
         }
         guard let session else { throw RuntimeError.noSession }
-        if attachment?.entityID == entityID, attachment?.realityViewID == realityViewID { return }
+        if attachment?.entityID == entityID,
+           attachment?.realityViewID == realityViewID,
+           attachment?.presentation == presentation { return }
         detach()
         let shouldStart = startsWhenAttached
         session.recordRealityKitBinding(entityIdentity: entityID, active: true)
@@ -294,6 +310,46 @@ public final class PlaybackRuntime {
             return
         }
         detach()
+    }
+
+    func claimRendererConsumer(
+        presentation: PlaybackPresentation,
+        entityID: String
+    ) throws {
+        if let rendererConsumerEntityID, rendererConsumerEntityID != entityID {
+            throw RuntimeError.rendererConsumerBusy(rendererConsumerPresentation ?? presentation)
+        }
+        rendererConsumerPresentation = presentation
+        rendererConsumerEntityID = entityID
+    }
+
+    func releaseRendererConsumer(
+        presentation: PlaybackPresentation,
+        entityID: String
+    ) {
+        guard rendererConsumerPresentation == presentation,
+              rendererConsumerEntityID == entityID else { return }
+        rendererConsumerPresentation = nil
+        rendererConsumerEntityID = nil
+        logger.notice(
+            "renderer consumer released presentation=\(String(describing: presentation), privacy: .public) entity=\(entityID, privacy: .public)"
+        )
+    }
+
+    func waitUntilRendererConsumerIsReleased(
+        timeout: Duration = .seconds(2)
+    ) async -> Bool {
+        if rendererConsumerEntityID == nil { return true }
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(10))
+            if rendererConsumerEntityID == nil { return true }
+        }
+        logger.error(
+            "renderer consumer release timed out presentation=\(String(describing: self.rendererConsumerPresentation), privacy: .public)"
+        )
+        return false
     }
 
     public func pause() {
@@ -391,7 +447,21 @@ public final class PlaybackRuntime {
     }
 
     public func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) {
-        logger.notice("subtitle selection ignored because PlaybackCore does not expose subtitle tracks")
+        if isUITestFixture {
+            currentSubtitleTrackID = track?.id
+            activeSubtitleCues = []
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await controller.selectSubtitleTrack(id: track?.id)
+                currentSubtitleTrackID = controller.selectedSubtitleTrackID
+                activeSubtitleCues = controller.activeSubtitleCues
+            } catch {
+                fail(error)
+            }
+        }
     }
 
     public func replay() {
@@ -443,11 +513,13 @@ public final class PlaybackRuntime {
         }
     }
 
-    public func stop() {
+    public func stop(releasingSourceAccess: Bool = true) {
         generation += 1
         startsWhenAttached = false
         detach()
-        let sourceAccess = currentLaunchRequest?.sourceAccess
+        let sourceAccess = releasingSourceAccess
+            ? currentLaunchRequest?.sourceAccess
+            : nil
         if isUITestFixture == false {
             let controller = controller
             let previousClosingTask = closingTask
@@ -481,6 +553,9 @@ public final class PlaybackRuntime {
         prefetchedMetadata = nil
         availableAudioTracks = []
         currentAudioTrackID = nil
+        availableSubtitleTracks = []
+        currentSubtitleTrackID = nil
+        activeSubtitleCues = []
         playbackPosition = .init(seconds: 0, duration: 0)
         fixtureProjectionOverride = nil
         fixtureStereoOverride = nil
@@ -495,7 +570,12 @@ public final class PlaybackRuntime {
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
         while clock.now < deadline {
-            try? await Task.sleep(for: .milliseconds(25))
+            guard Task.isCancelled == false else { return false }
+            do {
+                try await Task.sleep(for: .milliseconds(25))
+            } catch {
+                return false
+            }
             if attachedPresentation == presentation { return true }
         }
         logger.error(
@@ -561,6 +641,16 @@ public final class PlaybackRuntime {
 
     private static func observedFact(_ value: String?) -> ObservedStringFact {
         value.map { .init(.known, value: $0) } ?? .init(.notExposed)
+    }
+
+    private static func subtitleTrack(
+        _ track: PlaybackSubtitleTrack
+    ) -> PlaybackModel.SubtitleTrack {
+        PlaybackModel.SubtitleTrack(
+            id: track.id,
+            languageCode: track.language,
+            displayName: track.label
+        )
     }
 
     private func frameStep(direction: Double) {
@@ -629,6 +719,12 @@ public final class PlaybackRuntime {
     private func fail(_ error: Error) {
         lastErrorMessage = error.localizedDescription
         logger.error("runtime operation failed error=\(error.localizedDescription, privacy: .public)")
+    }
+
+    private func releaseSourceAccessIfUnowned(_ sourceAccess: PlaybackSourceAccess?) {
+        guard let sourceAccess,
+              currentLaunchRequest?.sourceAccess !== sourceAccess else { return }
+        sourceAccess.release()
     }
 
     static func parseResolution(_ dimensions: String) -> PlaybackModel.MediaProfile.Resolution? {

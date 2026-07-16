@@ -34,7 +34,9 @@ stateDiagram-v2
 ## 呈现与场景
 
 - 所有媒体默认以 Flat + Mono 在 Window 显示。媒体元数据或用户选择只更新格式，不自动离开 Window。
+- Window、Docked 与 Panorama 使用同一个 `VideoPlayerComponent` consumer 合同；切换 Presentation 不重开 Media Session，也不建立 `VideoMaterial` 平行产品路径。
 - Window 顶部的 Dock 菜单选择场景后直接进入 Docked；Deck 的 Dock 使用当前场景，没有当前场景时使用默认场景。
+- Docked 使用 Environment 的唯一 `PlaybackSurfaceAnchor` 作为基准位置和朝向。Screen Size 以一米基准高度的百分比呈现并对整个 Video Entity 等比缩放；宽度由 RealityKit 根据视频宽高比生成。控制范围为 50%–250%，步进 5%；设置按 Environment 保存并可恢复该场景推荐值。当前天空盒的推荐值为 130%，anchor 距默认观看原点 4 米。
 - Window 顶部的 Video Format 菜单正交选择 Projection（Flat、180°、360°、Fisheye）和 Stereo Layout（Mono、Side-by-Side、Top-Bottom）。应用非 Flat 格式进入 Panorama；应用 Flat 保持 Window。
 - Fisheye 只在来源已经携带 Apple AIME 投影元数据时成立；缺少该事实时保持 Window 并显示错误，不能伪造投影。
 - Docked 和 Panorama 只显示 transport controls 与对应的返回动作，不显示互相冲突的空间入口。两者不能直接互转，必须先回到 Window。
@@ -44,6 +46,7 @@ stateDiagram-v2
 ## 设置与数据
 
 - 保存续播策略、播放结束行为、控件自动隐藏时长、默认场景和播放速度。
+- 保存每个 Environment 的 Screen Size 与相对 Playback Surface Anchor 的用户 placement 调整。
 - 显示并清理缩略图缓存与播放进度；清理不删除媒体文件或远程来源。
 - 提供隐私说明、版本与构建信息、反馈地址和开源许可。
 

@@ -6,6 +6,11 @@ public enum PlaybackPresentation: String, Codable, CaseIterable, Sendable {
     case panorama
 }
 
+public enum PlaybackScreenSize {
+    public static let scaleRange = 0.5...2.5
+    public static let scaleStep = 0.05
+}
+
 public enum EnvironmentContext: Equatable, Sendable {
     case none
     case active(SpatialSceneDomain.CinemaEnvironment)
@@ -123,5 +128,12 @@ public struct PlaybackPresentationState: Equatable, Sendable {
             throw PlaybackPresentationTransitionError.dockedPresentationRequiresEnvironment
         }
         self.environment = environment
+    }
+
+    public mutating func resetForPlaybackStop() {
+        if let transition {
+            rollback(transition.id)
+        }
+        presented = .window
     }
 }

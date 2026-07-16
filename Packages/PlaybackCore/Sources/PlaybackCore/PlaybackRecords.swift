@@ -570,6 +570,31 @@ public struct AudioTrackRecord: Codable, Equatable, Sendable {
     }
 }
 
+public struct SubtitleStateRecord: Codable, Equatable, Sendable {
+    public var availableTracks: [PlaybackSubtitleTrack]
+    public var selectedTrackID: PlaybackSubtitleTrack.ID?
+    public var activeCueIDs: [PlaybackSubtitleCue.ID]
+    public var streamEpoch: UInt64
+    public var selectionGeneration: UInt64
+    public var suppressesActiveCues: Bool
+
+    public init(
+        availableTracks: [PlaybackSubtitleTrack],
+        selectedTrackID: PlaybackSubtitleTrack.ID?,
+        activeCueIDs: [PlaybackSubtitleCue.ID],
+        streamEpoch: UInt64,
+        selectionGeneration: UInt64,
+        suppressesActiveCues: Bool
+    ) {
+        self.availableTracks = availableTracks
+        self.selectedTrackID = selectedTrackID
+        self.activeCueIDs = activeCueIDs
+        self.streamEpoch = streamEpoch
+        self.selectionGeneration = selectionGeneration
+        self.suppressesActiveCues = suppressesActiveCues
+    }
+}
+
 public struct AudioSampleRecord: Codable, Equatable, Sendable {
     public var mediaSessionID: String
     public var audioTrackID: String
@@ -1017,6 +1042,7 @@ private enum PlaybackDebugSnapshotV1CodingKey: String, CodingKey {
     case videoTrack
     case availableAudioTracks
     case audioTrack
+    case subtitleState
     case lastRouteEvent
     case lastVideoSample
     case lastAudioSample
@@ -1094,6 +1120,10 @@ extension PlaybackDebugSnapshotV1 {
             forKey: .availableAudioTracks
         ) ?? []
         audioTrack = try container.decodeIfPresent(AudioTrackRecord.self, forKey: .audioTrack)
+        subtitleState = try container.decodeIfPresent(
+            SubtitleStateRecord.self,
+            forKey: .subtitleState
+        )
         lastRouteEvent = try container.decodeIfPresent(
             RouteMediaEventRecord.self,
             forKey: .lastRouteEvent
