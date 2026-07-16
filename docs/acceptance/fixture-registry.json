@@ -23,7 +23,7 @@
     },
     {
       "id": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
-      "sha256": "9642fcd959b686cf619128cf9355c063179e7fddbfc488136b0120eefa6c2f54",
+      "sha256": "31444db5d84f3c8ea9af0f22a4d8602bd9bc2848d2e23ff857fbaf4ede9316aa",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
       "container": "ISO BMFF / MP4",
@@ -48,7 +48,7 @@
     },
     {
       "id": "generated-hlg-hevc10-avsync-10s-v1",
-      "sha256": "8f22cdec5d118682375d31a5ab965435471e846dff0b26b04289e201fee210e6",
+      "sha256": "e724f389d32d4308c4faaaf30808819edc939a8727d32fa97bc2f08574822e62",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
       "container": "ISO BMFF / MP4",
@@ -73,7 +73,7 @@
     },
     {
       "id": "generated-pq-hevc10-avsync-10s-v1",
-      "sha256": "12589cd7edf269c9ec7ee48791487b785002d80ab4d8b33be470620249e82957",
+      "sha256": "23802c30206507c7068ff3964898abf564080e2e03db86bba19380d2cbdad800",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
       "container": "ISO BMFF / MP4",
@@ -94,6 +94,33 @@
         "displayedTransferFunction": ["2084", "pq"],
         "displayedYCbCrMatrix": ["2020"],
         "displayedPixelFormats": ["&xv0"]
+      }
+    },
+    {
+      "id": "generated-sdr-avc-bframe-multiaudio-subrip-30s-v1",
+      "sha256": "9f504d56c2e5c91fbcd1948bcc60ba54a2db5c21d1ba8dc920fdecf1fe11f204",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "Matroska / MKV",
+      "videoCodec": "H.264 High, 1280x720, 30 fps, B-frames, BT.709, video range",
+      "audio": "two AAC LC 48 kHz stereo tracks copied from the deterministic SDR fixture",
+      "subtitles": "one embedded SubRip / S_TEXT/UTF8 track; zho; Chinese, English and multiline cues",
+      "durationSeconds": 30.0,
+      "generation": {
+        "script": "script/generate_acceptance_fixtures.sh",
+        "output": ".verification-fixtures/sdr-bframe-multiaudio-subrip-30s.mkv",
+        "ffmpegVersion": "8.0.1"
+      },
+      "oracle": {
+        "subtitleTrackCount": 1,
+        "subtitleCodec": "subrip",
+        "subtitleLanguage": "zho",
+        "cueTexts": [
+          "Enchron 字幕验证\nRealityKit TextComponent",
+          "Window playback subtitle",
+          "Seek 后只显示当前 cue",
+          "Docked scene subtitle"
+        ]
       }
     }
   ]

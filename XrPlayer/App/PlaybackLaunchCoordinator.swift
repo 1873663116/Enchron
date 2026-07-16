@@ -103,7 +103,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         persistCurrentSession()
         launchTask?.cancel()
         metadataTask?.cancel()
-        playbackRuntime.stop()
+        let reusesSourceAccess = request.sourceAccess != nil
+            && playbackRuntime.currentLaunchRequest?.sourceAccess === request.sourceAccess
+        playbackRuntime.stop(releasingSourceAccess: reusesSourceAccess == false)
 
         let preparedRequest = request.updating(metadata: request.initialMetadata)
         playbackRuntime.prepareForPlayback(preparedRequest)

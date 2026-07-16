@@ -121,7 +121,9 @@ struct MediaLibraryTests {
 
         let resolver = SecurityScopedFileReferenceResolver()
         let resolved = try resolver.resolve(
-            bookmark: root.bookmarkData(),
+            bookmark: root.bookmarkData(
+                options: SecurityScopedFileReferenceResolver.bookmarkCreationOptions
+            ),
             relativePath: "Season 1/Episode 01.mkv"
         )
 

@@ -23,4 +23,9 @@ struct EnvironmentSceneMappingTests {
         #expect(name == EnvironmentSceneMapping.worldSceneName)
         #expect(!name.isEmpty)
     }
+
+    @Test("the current shared environment recommends a 1.3 meter screen")
+    func defaultScreenScale() {
+        #expect(EnvironmentSceneMapping.defaultScreenScale(forEnvironmentID: "darkTheatre") == 1.3)
+    }
 }

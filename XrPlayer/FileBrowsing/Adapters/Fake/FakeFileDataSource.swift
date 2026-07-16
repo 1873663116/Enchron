@@ -77,8 +77,10 @@ public nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked S
         return sortBy.sorted(files)
     }
 
-    public func resolvePlayableURL(for file: FileBrowsingDomain.MediaFile) async throws -> URL {
-        file.url
+    public func resolvePlayableSource(
+        for file: FileBrowsingDomain.MediaFile
+    ) async throws -> FilePlaybackSource {
+        FilePlaybackSource(url: file.url)
     }
 
     // MARK: - Helpers

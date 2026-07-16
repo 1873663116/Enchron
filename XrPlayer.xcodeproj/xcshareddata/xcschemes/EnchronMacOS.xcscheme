@@ -28,6 +28,30 @@
       selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
       selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
       shouldUseLaunchSchemeArgsEnv = "YES">
+      <Testables>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "D41000010000000000CAFE01"
+               BuildableName = "EnchronMacOSTests.xctest"
+               BlueprintName = "EnchronMacOSTests"
+               ReferencedContainer = "container:XrPlayer.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+         <TestableReference
+            skipped = "NO"
+            parallelizable = "NO">
+            <BuildableReference
+               BuildableIdentifier = "primary"
+               BlueprintIdentifier = "D42000010000000000CAFE02"
+               BuildableName = "EnchronMacOSUITests.xctest"
+               BlueprintName = "EnchronMacOSUITests"
+               ReferencedContainer = "container:XrPlayer.xcodeproj">
+            </BuildableReference>
+         </TestableReference>
+      </Testables>
    </TestAction>
    <LaunchAction
       buildConfiguration = "Debug"

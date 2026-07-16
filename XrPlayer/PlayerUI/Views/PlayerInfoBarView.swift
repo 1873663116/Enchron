@@ -20,7 +20,7 @@ struct PlayerInfoBarView: View {
                     .contentShape(.rect(cornerRadius: 12))
             }
             .buttonStyle(.borderless)
-            .hoverEffect(.highlight)
+            .enchronHoverEffect(.highlight)
             .accessibilityLabel("Back")
             .accessibilityHint("Stops playback and returns to browser")
             .accessibilityIdentifier("PlayerUI-InfoBar-button-back")

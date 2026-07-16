@@ -36,7 +36,8 @@ let package = Package(
         ),
         .testTarget(
             name: "PlaybackCoreTests",
-            dependencies: ["PlaybackCore", "PlaybackFFmpegBridge"]
+            dependencies: ["PlaybackCore", "PlaybackFFmpegBridge"],
+            resources: [.copy("Fixtures")]
         ),
         .executableTarget(
             name: "HDRBoundaryProbe",

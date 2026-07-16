@@ -184,7 +184,7 @@ final class CorePlaybackScenario {
                    snapshot.lastAcceptedRendererInput?.outcome == .accepted,
                    snapshot.realityKitBinding?.active == true,
                    snapshot.presentationBinding?.entityAttached == true,
-                   material["material"] == "present",
+                   material["consumer"] == "videoPlayerComponent",
                    material["rendererIdentityMatches"] == "true",
                    material["entityActive"] == "true",
                    !expectsAudio || (

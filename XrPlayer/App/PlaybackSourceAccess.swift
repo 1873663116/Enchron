@@ -80,3 +80,20 @@ nonisolated final class PlaybackSourceAccess: @unchecked Sendable {
         release()
     }
 }
+
+nonisolated struct ResolvedPlaybackSource: @unchecked Sendable {
+    let url: URL
+    let sourceAccess: PlaybackSourceAccess?
+
+    init(url: URL, sourceAccess: PlaybackSourceAccess? = nil) {
+        self.url = url
+        self.sourceAccess = sourceAccess
+    }
+
+    init(_ source: FilePlaybackSource) {
+        url = source.url
+        sourceAccess = source.lease.map { lease in
+            PlaybackSourceAccess { lease.release() }
+        }
+    }
+}

@@ -15,4 +15,8 @@ public nonisolated enum EnvironmentSceneMapping {
     public static func sceneName(forEnvironmentID id: String) -> String {
         worldSceneName
     }
+
+    public static func defaultScreenScale(forEnvironmentID id: String) -> Double {
+        1.3
+    }
 }

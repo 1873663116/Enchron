@@ -16,6 +16,7 @@ typedef enum PBFFmpegReadResult {
 
 typedef struct PBFFmpegReader PBFFmpegReader;
 typedef struct PBFFmpegAudioReader PBFFmpegAudioReader;
+typedef struct PBFFmpegSubtitleReader PBFFmpegSubtitleReader;
 
 PBFFmpegReader *PBFFmpegReaderCreate(
     const char *path,
@@ -86,4 +87,32 @@ bool PBFFmpegAudioTrackCopyInfo(
     size_t languageBufferSize,
     char *titleBuffer,
     size_t titleBufferSize
+);
+
+int PBFFmpegSubtitleTrackCount(const char *path);
+bool PBFFmpegSubtitleTrackCopyInfo(
+    const char *path,
+    int ordinal,
+    int *streamIndexOut,
+    char *codecBuffer,
+    size_t codecBufferSize,
+    char *languageBuffer,
+    size_t languageBufferSize,
+    char *titleBuffer,
+    size_t titleBufferSize
+);
+PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(
+    const char *path,
+    int streamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+void PBFFmpegSubtitleReaderDestroy(PBFFmpegSubtitleReader *reader);
+PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
+    PBFFmpegSubtitleReader *reader,
+    double *startSecondsOut,
+    double *durationSecondsOut,
+    CFStringRef *textOut,
+    char *errorBuffer,
+    size_t errorBufferSize
 );

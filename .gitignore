@@ -19,6 +19,7 @@ build/
 
 # Local test media
 XrPlayer/86ForTest.mkv
+.verification-fixtures/
 
 # Local backup project
 XrPlayer/XrPlayer.xcodeproj.bak/

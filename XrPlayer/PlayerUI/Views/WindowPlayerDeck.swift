@@ -29,6 +29,10 @@ struct WindowPlayerDeckView: View {
             canDock: playbackRuntime.canEnterSpatialPresentation,
             canEnterPanorama: playbackRuntime.canEnterSpatialPresentation
                 && playbackRuntime.effectiveProjectionType.isPanoramic,
+            screenScale: appModel.screenScale,
+            recommendedScreenScale: EnvironmentSceneMapping.defaultScreenScale(
+                forEnvironmentID: appModel.currentCinemaEnvironment.rawValue
+            ),
             isPlaying: playbackRuntime.lifecycle == .playing,
             showsReplay: playbackRuntime.lifecycle == .ended,
             progress: duration > 0 ? CGFloat(position.seconds / duration) : 0,
@@ -54,6 +58,14 @@ struct WindowPlayerDeckView: View {
             onEnterPanorama: { self.enterPlaybackPresentation(.panorama) },
             onEnterImmersive: { self.enterPlaybackPresentation(.docked) },
             onExitSpatial: { self.enterPlaybackPresentation(.window) },
+            onSetScreenScale: { scale in
+                self.register()
+                self.appModel.setScreenScale(scale)
+            },
+            onResetScreenScale: {
+                self.register()
+                self.appModel.resetScreenScale()
+            },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,

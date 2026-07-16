@@ -46,6 +46,10 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         let exitSpatial = app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 30))
         XCTAssertEqual(exitSpatial.label, "Undock")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"]
+                .waitForExistence(timeout: 5)
+        )
         let dockedState = try waitForSpatialState(app, presentation: "docked")
         let dockedSession = try sessionID(from: dockedState)
         captureMotionEvidence(name: "02 Docked real playback")

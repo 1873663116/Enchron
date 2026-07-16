@@ -7,6 +7,7 @@ public nonisolated enum WebDAVError: LocalizedError, Sendable {
     case requestFailed(Int)
     case malformedResponse
     case emptyDirectoryListing
+    case streamingFailed(String)
 
     public var errorDescription: String? {
         switch self {
@@ -22,6 +23,8 @@ public nonisolated enum WebDAVError: LocalizedError, Sendable {
             return "WebDAV server returned malformed XML."
         case .emptyDirectoryListing:
             return "WebDAV server returned only the current directory entry. Directory listing could not be resolved."
+        case .streamingFailed(let reason):
+            return "WebDAV playback stream failed: \(reason)"
         }
     }
 }
@@ -147,40 +150,33 @@ public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, Fi
         item.url
     }
 
-    public func resolvePlayableURL(for file: FileBrowsingDomain.MediaFile) async throws -> URL {
-        guard let info = connectionInfo else {
-            return file.url
+    public func resolvePlayableSource(
+        for file: FileBrowsingDomain.MediaFile
+    ) async throws -> FilePlaybackSource {
+        guard connectionInfo != nil else {
+            throw WebDAVError.notConnected
+        }
+        guard file.sizeInBytes > 0 else {
+            throw WebDAVError.streamingFailed("The server did not report the remote file size.")
         }
 
-        // Load credentials from Keychain for the PlaybackCore source URL.
-        let sourceID = info.credentialSourceID
-        if let credentialStore,
-           let credential = try? credentialStore.loadCredential(for: sourceID),
-           !credential.username.isEmpty {
-            return embedCredentials(
-                in: file.url,
-                username: credential.username,
-                password: credential.password
+        let source = WebDAVByteRangeSource(
+            url: file.url,
+            contentLength: file.sizeInBytes,
+            authorizationHeader: authHeader,
+            session: session
+        )
+        let server = HTTPRangeStreamingServer(source: source, filename: file.name)
+        do {
+            let url = try await server.start()
+            return FilePlaybackSource(
+                url: url,
+                lease: FilePlaybackSourceLease { server.stop() }
             )
+        } catch {
+            server.stop()
+            throw WebDAVError.streamingFailed(error.localizedDescription)
         }
-
-        // Fallback: use username from ConnectionInfo
-        if let username = info.username, !username.isEmpty {
-            return embedCredentials(in: file.url, username: username, password: "")
-        }
-
-        return file.url
-    }
-
-    private func embedCredentials(in url: URL, username: String, password: String) -> URL {
-        guard var components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
-            return url
-        }
-        components.user = username
-        if !password.isEmpty {
-            components.password = password
-        }
-        return components.url ?? url
     }
 
     private func performPROPFIND(url: URL) async throws -> [PROPFINDParserDelegate.ResponseItem] {
@@ -431,6 +427,57 @@ public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, Fi
         formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss zzz"
         return formatter
     }()
+}
+
+private nonisolated final class WebDAVByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
+    let contentLength: Int64
+    private let url: URL
+    private let authorizationHeader: String?
+    private let session: URLSession
+
+    init(
+        url: URL,
+        contentLength: Int64,
+        authorizationHeader: String?,
+        session: URLSession
+    ) {
+        self.url = url
+        self.contentLength = contentLength
+        self.authorizationHeader = authorizationHeader
+        self.session = session
+    }
+
+    func read(in range: Range<Int64>) async throws -> Data {
+        var request = URLRequest(url: url)
+        request.setValue(
+            "bytes=\(range.lowerBound)-\(range.upperBound - 1)",
+            forHTTPHeaderField: "Range"
+        )
+        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+        if let authorizationHeader {
+            request.setValue(authorizationHeader, forHTTPHeaderField: "Authorization")
+        }
+
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse else {
+            throw WebDAVError.invalidResponse
+        }
+        guard response.statusCode == 206 else {
+            throw WebDAVError.requestFailed(response.statusCode)
+        }
+        let expectedContentRange = "bytes \(range.lowerBound)-\(range.upperBound - 1)/"
+        guard response.value(forHTTPHeaderField: "Content-Range")?
+            .lowercased()
+            .hasPrefix(expectedContentRange) == true else {
+            throw WebDAVError.streamingFailed("The server returned a mismatched byte range.")
+        }
+        guard data.count == range.count else {
+            throw WebDAVError.streamingFailed(
+                "Expected \(range.count) bytes but received \(data.count)."
+            )
+        }
+        return data
+    }
 }
 
 private nonisolated final class PROPFINDParserDelegate: NSObject, XMLParserDelegate {

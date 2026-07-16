@@ -47,9 +47,10 @@ public final class ThumbnailService {
         }
 
         // 2. Warm path: disk
-        if let diskImage = await Task.detached(priority: .utility) { [cache] in
-            cache.diskImage(forKey: key)
-        }.value {
+        if let diskImage = await Task.detached(
+            priority: .utility,
+            operation: { [cache] in cache.diskImage(forKey: key) }
+        ).value {
             cache.storeInMemory(diskImage, forKey: key)
             return diskImage
         }

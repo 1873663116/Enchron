@@ -45,13 +45,14 @@ struct FakeFileDataSourceTests {
         #expect(emptyFiles.count == 9)
     }
 
-    @Test("resolvePlayableURL returns the file's own URL")
-    func resolvePlayableURLReturnsFileURL() async throws {
+    @Test("resolvePlayableSource returns the file's own URL")
+    func resolvePlayableSourceReturnsFileURL() async throws {
         let source = FakeFileDataSource()
         let file = try await source.listContents(at: "/").first { $0.name == "Arrival.mkv" }
-        let resolved = try await source.resolvePlayableURL(for: try #require(file))
-        #expect(resolved == file?.url)
-        #expect(resolved.scheme == "fake")
+        let resolved = try await source.resolvePlayableSource(for: try #require(file))
+        #expect(resolved.url == file?.url)
+        #expect(resolved.url.scheme == "fake")
+        #expect(resolved.lease == nil)
     }
 
     @Test("listing fails when the failure mode is armed (UC-FILE-28)")

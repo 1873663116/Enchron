@@ -26,13 +26,16 @@ final class WebDAVLiveIntegrationTests: XCTestCase {
         try await adapter.connect(with: info)
         let files = try await adapter.listContents(at: "/")
         let media = try XCTUnwrap(files.first)
-        let playableURL = try await adapter.resolvePlayableURL(for: media)
+        let playableSource = try await adapter.resolvePlayableSource(for: media)
+        defer { playableSource.lease?.release() }
+        let playableURL = playableSource.url
 
         guard case .connected = adapter.connectionStatus else {
             return XCTFail("WebDAV adapter did not remain connected after listing.")
         }
         XCTAssertFalse(media.name.isEmpty)
-        XCTAssertEqual(playableURL.user, username)
+        XCTAssertNil(playableURL.user)
+        XCTAssertNil(playableURL.password)
 
         var request = URLRequest(url: playableURL)
         request.setValue("bytes=0-1023", forHTTPHeaderField: "Range")

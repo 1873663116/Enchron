@@ -7,6 +7,7 @@ import SwiftUI
 @MainActor
 private final class WorldSceneState {
     var entity: Entity?
+    var playbackSurfaceAnchor: Entity?
     var isLoading = false
     var hasFailed = false
 }
@@ -37,7 +38,7 @@ private final class SpatialPresentationObservation {
             },
             content.subscribe(to: VideoPlayerEvents.RenderingStatusDidChange.self, on: entity) { _ in
                 Task { @MainActor in onChange() }
-            },
+            }
         ]
     }
 
@@ -54,6 +55,7 @@ public struct ImmersiveSpaceView: View {
 
     @State private var world = WorldSceneState()
     @State private var videoEntity = Entity()
+    @State private var subtitleEntity = Entity()
     @State private var surfaceActivation = PlaybackSurfaceActivation()
     @State private var presentationObservation = SpatialPresentationObservation()
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
@@ -87,6 +89,7 @@ public struct ImmersiveSpaceView: View {
         .onDisappear {
             surfaceActivation.cancel()
             presentationObservation.cancel()
+            PlaybackSubtitlePresenter.remove(subtitleEntity)
             detachSpatialSurface()
         }
     }
@@ -107,7 +110,7 @@ public struct ImmersiveSpaceView: View {
             removeVideo(from: content, reason: "rendererUnavailable")
             return
         }
-        guard presentation != .docked || world.entity != nil else { return }
+        guard presentation != .docked || world.playbackSurfaceAnchor != nil else { return }
 
         presentVideo(in: content, with: renderer, as: presentation)
     }
@@ -117,6 +120,7 @@ public struct ImmersiveSpaceView: View {
         guard needsWorld else {
             if let entity = world.entity { content.remove(entity) }
             world.entity = nil
+            world.playbackSurfaceAnchor = nil
             world.hasFailed = false
             return
         }
@@ -144,25 +148,30 @@ public struct ImmersiveSpaceView: View {
             presentation: presentation,
             stereoLayout: playbackRuntime.effectiveStereoLayout
         )
+        PlaybackSubtitlePresenter.update(
+            subtitleEntity,
+            on: entity,
+            presentation: presentation,
+            screenSize: entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
+            cues: playbackRuntime.activeSubtitleCues
+        )
         surfaceActivation.observe(entity, in: content) {
             attachSpatialSurfaceIfReady()
         }
-        if presentation == .panorama {
-            presentationObservation.observe(entity, in: content) {
-                recordSpatialPresentationState()
-            }
-        } else {
-            presentationObservation.cancel()
+        presentationObservation.observe(entity, in: content) {
+            recordSpatialPresentationState()
         }
         if presentation == .docked {
-            positionDockedVideo(entity)
+            guard let anchor = world.playbackSurfaceAnchor else { return }
+            positionDockedVideo(entity, relativeTo: anchor)
         } else {
+            entity.removeFromParent()
             entity.position = .zero
             entity.orientation = .init()
             entity.scale = .one
-        }
-        if content.entities.contains(where: { $0 === entity }) == false {
-            content.add(entity)
+            if content.entities.contains(where: { $0 === entity }) == false {
+                content.add(entity)
+            }
         }
         attachSpatialSurfaceIfReady()
     }
@@ -195,8 +204,7 @@ public struct ImmersiveSpaceView: View {
         let presentation = requestedPresentation
         let realityViewID = realityViewID(for: presentation)
         let parentID = videoEntity.parent.map { String(describing: ObjectIdentifier($0)) }
-        guard presentation == .panorama,
-              let component = videoEntity.components[VideoPlayerComponent.self] else {
+        guard let component = videoEntity.components[VideoPlayerComponent.self] else {
             playbackRuntime.recordPresentationState(
                 presentation: presentation,
                 phase: "surfaceAttached",
@@ -205,8 +213,10 @@ public struct ImmersiveSpaceView: View {
             )
             return
         }
+        let immersiveModeIsSettled = presentation != .panorama
+            || component.immersiveViewingMode == component.desiredImmersiveViewingMode
         let isSettled = component.currentRenderingStatus == .ready
-            && component.immersiveViewingMode == component.desiredImmersiveViewingMode
+            && immersiveModeIsSettled
             && component.viewingMode == component.desiredViewingMode
             && component.spatialVideoMode == component.desiredSpatialVideoMode
         playbackRuntime.recordPresentationState(
@@ -231,8 +241,10 @@ public struct ImmersiveSpaceView: View {
         logger.notice("world load started")
         do {
             let entity = try await Entity(named: "world")
+            let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: entity)
             content.add(entity)
             world.entity = entity
+            world.playbackSurfaceAnchor = anchor
             logger.notice("world load completed")
             update(content)
         } catch {
@@ -245,7 +257,8 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     private func removeVideo(from content: RealityViewContent, reason: String) {
         logger.notice("video surface removed reason=\(reason, privacy: .public)")
-        content.remove(videoEntity)
+        PlaybackSubtitlePresenter.remove(subtitleEntity)
+        videoEntity.removeFromParent()
         detachSpatialSurface()
     }
 
@@ -266,15 +279,16 @@ public struct ImmersiveSpaceView: View {
         )
     }
 
-    private func positionDockedVideo(_ entity: Entity) {
-        entity.position = [
-            0,
-            Float(appModel.screenVerticalOffset),
-            -Float(appModel.screenDistance)
-        ]
-        entity.orientation = simd_quatf(
-            angle: Float(appModel.screenViewAngle * .pi / 180),
-            axis: [1, 0, 0]
+    private func positionDockedVideo(_ entity: Entity, relativeTo anchor: Entity) {
+        PlaybackSurfacePlacement.dock(
+            entity,
+            to: anchor,
+            transform: .init(
+                verticalOffset: appModel.screenVerticalOffset,
+                depthOffset: appModel.screenDepthOffset,
+                viewAngle: appModel.screenViewAngle,
+                scale: appModel.screenScale
+            )
         )
     }
 }

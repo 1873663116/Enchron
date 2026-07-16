@@ -123,6 +123,10 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         let exitSpatial = app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 20))
         XCTAssertEqual(exitSpatial.label, "Undock")
+        XCTAssertTrue(
+            app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"]
+                .waitForExistence(timeout: 5)
+        )
         XCTAssertEqual(app.state, .runningForeground)
     }
 

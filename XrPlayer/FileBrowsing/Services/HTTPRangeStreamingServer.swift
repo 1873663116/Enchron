@@ -37,6 +37,9 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
     private let queue = DispatchQueue(label: "app.enchron.range-stream")
     private let lock = NSLock()
     private var listener: NWListener?
+    private var connections: [ObjectIdentifier: NWConnection] = [:]
+    private var transferTasks: [ObjectIdentifier: Task<Void, Never>] = [:]
+    private var isStopping = false
     private var statistics = Statistics()
 
     init(
@@ -55,6 +58,7 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
 
     func start() async throws -> URL {
         guard source.contentLength >= 0 else { throw ServerError.invalidContentLength }
+        lock.withLock { isStopping = false }
 
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
@@ -97,9 +101,19 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
     }
 
     func stop() {
-        lock.withLock {
-            listener?.cancel()
-            listener = nil
+        let work = cancelActiveWork()
+        work.listener?.cancel()
+        work.tasks.forEach { $0.cancel() }
+        work.connections.forEach { $0.cancel() }
+    }
+
+    func stopAndWait() async {
+        let work = cancelActiveWork()
+        work.listener?.cancel()
+        work.tasks.forEach { $0.cancel() }
+        work.connections.forEach { $0.cancel() }
+        for task in work.tasks {
+            await task.value
         }
     }
 
@@ -108,8 +122,25 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
     }
 
     private func accept(_ connection: NWConnection) {
-        connection.stateUpdateHandler = { state in
-            if case .failed = state { connection.cancel() }
+        let connectionID = ObjectIdentifier(connection)
+        let accepted = lock.withLock {
+            guard isStopping == false else { return false }
+            connections[connectionID] = connection
+            return true
+        }
+        guard accepted else {
+            connection.cancel()
+            return
+        }
+        connection.stateUpdateHandler = { [weak self, weak connection] state in
+            guard let self else { return }
+            switch state {
+            case .failed, .cancelled:
+                self.connectionDidEnd(connectionID: connectionID)
+                connection?.cancel()
+            default:
+                break
+            }
         }
         connection.start(queue: queue)
         receiveRequest(on: connection, accumulated: Data())
@@ -177,12 +208,26 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
         }
         response += "Connection: close\r\n\r\n"
 
-        connection.send(content: Data(response.utf8), completion: .contentProcessed { [weak self] error in
+        connection.send(content: Data(response.utf8), completion: .contentProcessed { [weak self, connection] error in
             guard error == nil, let self, method == "GET" else {
                 connection.cancel()
                 return
             }
-            Task { await self.send(range: requestedRange, on: connection) }
+            let connectionID = ObjectIdentifier(connection)
+            let task = Task { [weak self, connection] in
+                guard let self else { return }
+                defer { self.finishTransfer(connectionID: connectionID) }
+                await self.send(range: requestedRange, on: connection)
+            }
+            let accepted = self.lock.withLock {
+                guard self.isStopping == false else { return false }
+                self.transferTasks[connectionID] = task
+                return true
+            }
+            if accepted == false {
+                task.cancel()
+                connection.cancel()
+            }
         })
     }
 
@@ -190,8 +235,10 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
         do {
             var offset = range.lowerBound
             while offset < range.upperBound {
+                try Task.checkCancellation()
                 let readEnd = min(offset + readChunkSize, range.upperBound)
                 let chunk = try await source.read(in: offset..<readEnd)
+                try Task.checkCancellation()
                 guard !chunk.isEmpty else {
                     connection.cancel()
                     return
@@ -206,6 +253,40 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
             connection.cancel()
         } catch {
             connection.cancel()
+        }
+    }
+
+    private func cancelActiveWork() -> (
+        listener: NWListener?,
+        connections: [NWConnection],
+        tasks: [Task<Void, Never>]
+    ) {
+        lock.withLock {
+            isStopping = true
+            let work = (
+                listener,
+                Array(connections.values),
+                Array(transferTasks.values)
+            )
+            listener = nil
+            connections.removeAll()
+            transferTasks.removeAll()
+            return work
+        }
+    }
+
+    private func connectionDidEnd(connectionID: ObjectIdentifier) {
+        let task = lock.withLock {
+            connections.removeValue(forKey: connectionID)
+            return transferTasks[connectionID]
+        }
+        task?.cancel()
+    }
+
+    private func finishTransfer(connectionID: ObjectIdentifier) {
+        lock.withLock {
+            transferTasks.removeValue(forKey: connectionID)
+            connections.removeValue(forKey: connectionID)
         }
     }
 

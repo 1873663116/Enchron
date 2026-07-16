@@ -15,11 +15,27 @@ final class SecurityScopedFileReferenceResolver {
         }
     }
 
+    static var bookmarkCreationOptions: URL.BookmarkCreationOptions {
+        #if os(macOS)
+        .withSecurityScope
+        #else
+        .minimalBookmark
+        #endif
+    }
+
+    private static var bookmarkResolutionOptions: URL.BookmarkResolutionOptions {
+        #if os(macOS)
+        .withSecurityScope
+        #else
+        []
+        #endif
+    }
+
     func resolve(bookmark: Data, relativePath: String) throws -> ResolvedSecurityScopedFile {
         var stale = false
         let selectedURL = try URL(
             resolvingBookmarkData: bookmark,
-            options: [],
+            options: Self.bookmarkResolutionOptions,
             relativeTo: nil,
             bookmarkDataIsStale: &stale
         )

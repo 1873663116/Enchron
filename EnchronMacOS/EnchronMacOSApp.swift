@@ -4,6 +4,7 @@ import SwiftUI
 @main
 struct EnchronMacOSApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @State private var application = EnchronApplication()
 
     var body: some Scene {
         WindowGroup("Enchron macOS") {
@@ -13,10 +14,11 @@ struct EnchronMacOSApp: App {
             case "app-adapter":
                 CorePlaybackScenarioView(backend: .appAdapter)
             default:
-                PlaybackVerificationView()
+                EnchronMacOSProductRoot()
+                    .enchronEnvironment(application)
             }
         }
-        .defaultSize(width: 1100, height: 760)
+        .defaultSize(width: 1280, height: 800)
         .windowResizability(.contentMinSize)
     }
 }

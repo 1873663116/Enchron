@@ -71,11 +71,15 @@ public final class FileBrowsingViewModel {
     // all files in the current folder so detail-page opens see instant metadata.
     private let prefetchService: MediaProfilePrefetchService?
 
-    /// Injectable remote-adapter factory (FILE-10 / 44 / 46 testability). When nil,
+    /// Injectable remote-adapter factory (FILE-10 / 44 / 46 testability). It receives
+    /// the credential view used for this connection, including any uncommitted overlay. When nil,
     /// `connectToDataSource` builds the real WebDAV / SMB / Photo adapters; tests
     /// inject a fake that times out / rejects credentials / succeeds deterministically.
     /// Returns nil to fall through to the built-in adapters (e.g. for `.local`).
-    private let makeRemoteAdapter: (@MainActor (FileBrowsingDomain.DataSource) -> (any DataSourceConnecting & FileProviding)?)?
+    private let makeRemoteAdapter: (@MainActor (
+        FileBrowsingDomain.DataSource,
+        any CredentialStoring
+    ) -> (any DataSourceConnecting & FileProviding)?)?
 
     public init(
         localDataSource: any LocalFileSource,
@@ -85,7 +89,10 @@ public final class FileBrowsingViewModel {
         progressStore: ProgressStoring = SwiftDataStore(),
         localDataSourceID: UUID = UUID(),
         prefetchService: MediaProfilePrefetchService? = nil,
-        makeRemoteAdapter: (@MainActor (FileBrowsingDomain.DataSource) -> (any DataSourceConnecting & FileProviding)?)? = nil,
+        makeRemoteAdapter: (@MainActor (
+            FileBrowsingDomain.DataSource,
+            any CredentialStoring
+        ) -> (any DataSourceConnecting & FileProviding)?)? = nil,
         onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void,
         onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)? = nil
     ) {
@@ -113,16 +120,15 @@ public final class FileBrowsingViewModel {
         loadSavedDataSources()
     }
 
-    public func saveCredential(for dataSource: FileBrowsingDomain.DataSource, username: String, password: String) {
-        let sourceID = dataSource.credentialSourceID
-        do {
-            try credentialStore.saveCredential(
-                for: sourceID,
-                credential: StorageCredential(username: username, password: password)
-            )
-        } catch {
-            print("[FileBrowser] Failed to save credential for \(sourceID): \(error)")
-        }
+    public func saveCredential(
+        for dataSource: FileBrowsingDomain.DataSource,
+        username: String,
+        password: String
+    ) throws {
+        try credentialStore.saveCredential(
+            for: dataSource.credentialSourceID,
+            credential: StorageCredential(username: username, password: password)
+        )
     }
 
     public func deleteCredential(for dataSource: FileBrowsingDomain.DataSource) {
@@ -155,7 +161,11 @@ public final class FileBrowsingViewModel {
             return
         }
         savedDataSources.removeAll { $0.id == id }
-        deleteCredential(for: removedSource)
+        if savedDataSources.contains(where: {
+            $0.credentialSourceID == removedSource.credentialSourceID
+        }) == false {
+            deleteCredential(for: removedSource)
+        }
         persistDataSources()
 
         if activeDataSource?.id == id {
@@ -174,7 +184,10 @@ public final class FileBrowsingViewModel {
         savedDataSources = records.compactMap(\.domainValue)
     }
 
-    public func connectToDataSource(_ ds: FileBrowsingDomain.DataSource) async {
+    public func connectToDataSource(
+        _ ds: FileBrowsingDomain.DataSource,
+        credential: StorageCredential? = nil
+    ) async {
         // Immediately update UI state so the caller sees a skeleton screen
         // rather than stale content from the previous data source.
         activeDataSource = ds
@@ -183,19 +196,30 @@ public final class FileBrowsingViewModel {
         folders = []
         currentRootDisplayName = ds.name
 
+        let adapterCredentialStore: any CredentialStoring
+        if let credential {
+            adapterCredentialStore = CredentialOverlayStore(
+                base: credentialStore,
+                sourceID: ds.credentialSourceID,
+                credential: credential
+            )
+        } else {
+            adapterCredentialStore = credentialStore
+        }
+
         let adapter: any DataSourceConnecting & FileProviding
         // FILE-10/44/46: an injected factory overrides the real adapters (e.g. a
         // fake that times out / rejects / succeeds). Returning nil falls through.
-        if let injected = makeRemoteAdapter?(ds) {
+        if let injected = makeRemoteAdapter?(ds, adapterCredentialStore) {
             adapter = injected
         } else {
             switch ds.connectionInfo.sourceType {
             case .webDAV:
-                let webDAV = WebDAVDataSourceAdapter(credentialStore: credentialStore)
+                let webDAV = WebDAVDataSourceAdapter(credentialStore: adapterCredentialStore)
                 webDAV.ownerDataSourceID = ds.id
                 adapter = webDAV
             case .smb:
-                let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
+                let smb = SMBDataSourceAdapter(credentialStore: adapterCredentialStore)
                 smb.ownerDataSourceID = ds.id
                 adapter = smb
             case .local:
@@ -225,6 +249,7 @@ public final class FileBrowsingViewModel {
             lastErrorMessage = nil
             isLoading = false
         } catch {
+            adapter.disconnect()
             isLoading = false
             activeRemoteAdapter = nil
             activeDataSource = nil
@@ -400,18 +425,23 @@ public final class FileBrowsingViewModel {
     public func playbackRequest(
         for file: FileBrowsingDomain.MediaFile
     ) async throws -> PlaybackLaunchRequest {
-        let playableURL: URL
+        let resolvedSource: ResolvedPlaybackSource
         if let activeRemoteAdapter {
-            playableURL = try await activeRemoteAdapter.resolvePlayableURL(for: file)
+            resolvedSource = ResolvedPlaybackSource(
+                try await activeRemoteAdapter.resolvePlayableSource(for: file)
+            )
         } else {
-            playableURL = try await localDataSource.resolvePlayableURL(for: file)
+            resolvedSource = ResolvedPlaybackSource(
+                try await localDataSource.resolvePlayableSource(for: file)
+            )
         }
 
+        let playableURL = resolvedSource.url
         let fileIdentifier = makeFileIdentifier(for: file, playableURL: playableURL)
         let metadata = PlaybackMediaMetadata(fileSizeInBytes: file.sizeInBytes)
-        let sourceAccess = playableURL.isFileURL
+        let sourceAccess = resolvedSource.sourceAccess ?? (playableURL.isFileURL
             ? PlaybackSourceAccess.securityScoped(securityScopedRootURL ?? playableURL)
-            : nil
+            : nil)
         return PlaybackLaunchRequest(
             url: playableURL,
             displayName: file.name,
@@ -421,14 +451,14 @@ public final class FileBrowsingViewModel {
         )
     }
 
-    public func resolveSourceItem(
+    func resolveSourceItem(
         dataSourceID: UUID,
         path: String,
         reference: FileBrowsingDomain.MediaReference
-    ) async throws -> URL {
+    ) async throws -> ResolvedPlaybackSource {
         if dataSourceID == localDataSourceID {
             guard let url = URL(string: path) else { throw LocalDataSourceError.itemNotReachable }
-            return url
+            return ResolvedPlaybackSource(url: url)
         }
         guard let dataSource = savedDataSources.first(where: { $0.id == dataSourceID }) else {
             throw MediaReferenceResolver.ResolutionError.unavailableSource
@@ -448,18 +478,25 @@ public final class FileBrowsingViewModel {
             throw MediaReferenceResolver.ResolutionError.unavailableSource
         }
 
-        try await adapter.connect(with: dataSource.connectionInfo)
-        guard let url = URL(string: path) else {
-            throw MediaReferenceResolver.ResolutionError.unavailableSource
+        do {
+            try await adapter.connect(with: dataSource.connectionInfo)
+            guard let url = URL(string: path) else {
+                throw MediaReferenceResolver.ResolutionError.unavailableSource
+            }
+            let file = FileBrowsingDomain.MediaFile(
+                name: reference.name,
+                sizeInBytes: reference.sizeInBytes,
+                modifiedAt: reference.modifiedAt,
+                fileExtension: reference.fileExtension,
+                url: url
+            )
+            let source = try await adapter.resolvePlayableSource(for: file)
+            adapter.disconnect()
+            return ResolvedPlaybackSource(source)
+        } catch {
+            adapter.disconnect()
+            throw error
         }
-        let file = FileBrowsingDomain.MediaFile(
-            name: reference.name,
-            sizeInBytes: reference.sizeInBytes,
-            modifiedAt: reference.modifiedAt,
-            fileExtension: reference.fileExtension,
-            url: url
-        )
-        return try await adapter.resolvePlayableURL(for: file)
     }
 
     public func navigateToFolder(_ folder: FileBrowsingDomain.MediaFolder) async {
@@ -683,7 +720,7 @@ public final class FileBrowsingViewModel {
     }
 
     /// Non-async file identifier construction for progress lookups.
-    /// Uses `file.url.path` for local files (same as `resolvePlayableURL` returns).
+    /// Uses `file.url.path` for local files (same as `resolvePlayableSource` returns).
     private func makeFileIdentifierForLookup(
         for file: FileBrowsingDomain.MediaFile
     ) -> PersistenceDomain.FileIdentifier {
@@ -743,17 +780,12 @@ public final class FileBrowsingViewModel {
     }
 
     /// Builds (PlaybackLaunchRequest, modifiedAt) pairs for all loaded video files.
-    /// Uses the local file URL for local sources, and the file's stored URL for remote sources.
-    /// Note: For remote sources the URL is the file's base URL, not a resolved stream URL.
-    /// AVFoundation will handle remote URLs (HTTP/WebDAV) natively.
-    ///
-    /// SMB URLs (smb://) are excluded because AVURLAsset does not support the SMB scheme.
+    /// Only local files are prefetched. Remote metadata must use the authenticated
+    /// playback lease; probing a bare WebDAV or SMB URL would either fail authentication
+    /// or duplicate network traffic outside the source lifecycle.
     private func buildPrefetchRequests() -> [(request: PlaybackLaunchRequest, modifiedAt: Date)] {
         files.compactMap { file -> (request: PlaybackLaunchRequest, modifiedAt: Date)? in
-            // AVFoundation only supports file://, http://, and https:// schemes.
-            // Filtering out smb:// prevents silent failures and wasted network probes.
-            let scheme = file.url.scheme?.lowercased() ?? ""
-            guard scheme == "file" || scheme == "http" || scheme == "https" else { return nil }
+            guard file.url.isFileURL else { return nil }
 
             let fileIdentifier = makeFileIdentifierForLookup(for: file)
             let metadata = PlaybackMediaMetadata(fileSizeInBytes: file.sizeInBytes)
@@ -782,6 +814,37 @@ public final class FileBrowsingViewModel {
             }
         }
         return (error as NSError).domain == NSURLErrorDomain
+    }
+}
+
+private nonisolated final class CredentialOverlayStore: CredentialStoring, @unchecked Sendable {
+    private let base: any CredentialStoring
+    private let sourceID: String
+    private let credential: StorageCredential
+
+    init(
+        base: any CredentialStoring,
+        sourceID: String,
+        credential: StorageCredential
+    ) {
+        self.base = base
+        self.sourceID = sourceID
+        self.credential = credential
+    }
+
+    func saveCredential(for sourceID: String, credential: StorageCredential) throws {
+        try base.saveCredential(for: sourceID, credential: credential)
+    }
+
+    func loadCredential(for sourceID: String) throws -> StorageCredential? {
+        if sourceID == self.sourceID {
+            return credential
+        }
+        return try base.loadCredential(for: sourceID)
+    }
+
+    func deleteCredential(for sourceID: String) throws {
+        try base.deleteCredential(for: sourceID)
     }
 }
 

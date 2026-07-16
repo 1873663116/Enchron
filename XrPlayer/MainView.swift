@@ -1,60 +1,53 @@
 import PlaybackCore
 import SwiftUI
+#if os(visionOS)
 import UIKit
+#endif
 
 public struct MainView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    #if os(visionOS)
     @Environment(\.openImmersiveSpace) private var openImmersiveSpace
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
+    #endif
 
     @State private var controlsTimer: Task<Void, Never>?
+    private let playbackSurfaceIsEnabled: Bool
+    private let macOSPlaybackPresentation: PlaybackPresentation
 
-    public init() {}
+    public init(
+        playbackSurfaceIsEnabled: Bool = true,
+        macOSPlaybackPresentation: PlaybackPresentation = .window
+    ) {
+        self.playbackSurfaceIsEnabled = playbackSurfaceIsEnabled
+        self.macOSPlaybackPresentation = macOSPlaybackPresentation
+    }
 
     private var showsWindowPlayback: Bool {
+        #if os(macOS)
+        playbackRuntime.hasActivePlaybackRequest && macOSPlaybackPresentation != .panorama
+        #else
         playbackRuntime.hasActivePlaybackRequest && appModel.playbackPresentation == .window
+        #endif
     }
 
     private var windowSurfaceIsActive: Bool {
-        showsWindowPlayback && appModel.presentationTransition == nil
+        #if os(macOS)
+        playbackSurfaceIsEnabled
+            && showsWindowPlayback
+        #else
+        playbackSurfaceIsEnabled
+            && showsWindowPlayback
+            && appModel.presentationTransition == nil
+        #endif
     }
 
     public var body: some View {
-        ZStack {
-            browser
-                .opacity(showsWindowPlayback ? 0 : 1)
-                .allowsHitTesting(!showsWindowPlayback)
-
-            windowPlayback
-                .opacity(showsWindowPlayback ? 1 : 0)
-                .allowsHitTesting(showsWindowPlayback)
-
-            if let decision = playbackLauncher.pendingResumeDecision {
-                PlaybackOverlayCard(
-                    systemImage: "clock.arrow.circlepath",
-                    title: "Resume Playback?",
-                    message: "Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.",
-                    primaryTitle: "Resume",
-                    primaryIcon: "play.fill",
-                    primaryAction: playbackLauncher.resumePendingPlayback,
-                    secondaryTitle: "Start Over",
-                    secondaryIcon: "backward.end.fill",
-                    secondaryAction: playbackLauncher.startPendingPlaybackFromBeginning,
-                    identifierPrefix: "PlayerUI-resume"
-                )
-            }
-        }
-        .ornament(
-            visibility: playbackRuntime.hasActivePlaybackRequest ? .hidden : .visible,
-            attachmentAnchor: .scene(.leading),
-            contentAlignment: .trailing
-        ) {
-            NavigationOrnament()
-        }
+        platformContent
         .onAppear {
             playbackRuntime.onPlaybackEnded = {
                 let showControls = playbackLauncher.handlePlaybackEnded()
@@ -83,11 +76,14 @@ public struct MainView: View {
             controlsTimer?.cancel()
         }
         .onChange(of: appModel.presentationTransition?.id) { _, _ in
+            #if os(visionOS)
             guard let transition = appModel.presentationTransition,
                   transition.targetPresentation != .window else { return }
             Task { await enterSpatialPresentation(transition) }
+            #endif
         }
         .onChange(of: appModel.immersiveSpaceRequest) { _, request in
+            #if os(visionOS)
             guard let request else { return }
             appModel.immersiveSpaceRequest = nil
             Task {
@@ -95,6 +91,61 @@ public struct MainView: View {
                 case .open: await openEnvironmentPreview()
                 case .dismiss: await closeEnvironmentPreview()
                 }
+            }
+            #endif
+        }
+    }
+
+    @ViewBuilder
+    private var platformContent: some View {
+        #if os(visionOS)
+        primaryContent
+            .ornament(
+                visibility: playbackRuntime.hasActivePlaybackRequest ? .hidden : .visible,
+                attachmentAnchor: .scene(.leading),
+                contentAlignment: .trailing
+            ) {
+                NavigationOrnament()
+            }
+        #else
+        ZStack(alignment: .leading) {
+            primaryContent
+            if playbackRuntime.hasActivePlaybackRequest == false {
+                NavigationOrnament()
+                    .padding(.leading, DesignTokens.Spacing.md)
+            }
+        }
+        #endif
+    }
+
+    private var primaryContent: some View {
+        ZStack {
+            browser
+                .opacity(showsWindowPlayback ? 0 : 1)
+                .allowsHitTesting(!showsWindowPlayback)
+
+            windowPlayback
+                .opacity(showsWindowPlayback ? 1 : 0)
+                .allowsHitTesting(showsWindowPlayback)
+
+            if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1",
+               playbackRuntime.hasActivePlaybackRequest {
+                PlaybackAutomationStateProbe()
+            }
+
+            if let decision = playbackLauncher.pendingResumeDecision {
+                PlaybackOverlayCard(
+                    systemImage: "clock.arrow.circlepath",
+                    title: "Resume Playback?",
+                    message: "Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.",
+                    primaryTitle: "Resume",
+                    primaryIcon: "play.fill",
+                    primaryAction: playbackLauncher.resumePendingPlayback,
+                    secondaryTitle: "Start Over",
+                    secondaryIcon: "backward.end.fill",
+                    secondaryAction: playbackLauncher.startPendingPlaybackFromBeginning,
+                    identifierPrefix: "PlayerUI-resume"
+                )
             }
         }
     }
@@ -104,14 +155,21 @@ public struct MainView: View {
         switch appModel.selectedTab {
         case .files: FilesScreen()
         case .settings: SettingsScreen()
-        case .environment: Color.clear
+        case .environment:
+            #if os(macOS)
+            MacEnvironmentSceneHostView()
+            #else
+            Color.clear
+            #endif
         }
     }
 
     private var windowPlayback: some View {
         ZStack {
-            Color.black
-            PlaybackVideoSurface(presentation: .window, isActive: windowSurfaceIsActive)
+            PlaybackVideoSurface(
+                presentation: hostedPlaybackPresentation,
+                isActive: windowSurfaceIsActive
+            )
 
             if playbackRuntime.presentationState == .placeholder || playbackRuntime.lifecycle == .loading {
                 ProgressView()
@@ -134,23 +192,8 @@ public struct MainView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("PlayerUI-window-playback")
+        .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
         .accessibilityValue(playbackRuntime.lifecycle.label)
-        .glassBackgroundEffect()
-        .overlay {
-            if appModel.showControls && showsWindowPlayback {
-                VStack(spacing: 0) {
-                    PlayerInfoBarView()
-                    Spacer(minLength: DesignTokens.Spacing.xl)
-                    WindowPlayerDeckView()
-                }
-                .padding(.horizontal, 28)
-                .padding(.top, 20)
-                .padding(.bottom, 28)
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("PlayerUI-window-control-plane")
-            }
-        }
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.25)) {
@@ -160,12 +203,21 @@ public struct MainView: View {
         }
     }
 
+    private var hostedPlaybackPresentation: PlaybackPresentation {
+        #if os(macOS)
+        macOSPlaybackPresentation
+        #else
+        .window
+        #endif
+    }
+
     private func retryPlayback() {
         playbackRuntime.lastErrorMessage = nil
         guard let request = playbackRuntime.currentLaunchRequest else { return }
         playbackLauncher.beginPlayback(request)
     }
 
+    #if os(visionOS)
     @MainActor
     private func enterSpatialPresentation(_ transition: PlaybackPresentationTransition) async {
         guard appModel.isTransitioningPlaybackPresentation == false else { return }
@@ -253,6 +305,7 @@ public struct MainView: View {
         appModel.isEnvironmentImmersiveActive = false
         try? appModel.updateEnvironmentContext(.none)
     }
+    #endif
 
     private func scheduleControlsAutoHide() {
         controlsTimer?.cancel()
@@ -270,15 +323,47 @@ public struct MainView: View {
     }
 
     private func updateWindowResizingRestrictions(isPlaying: Bool) {
+        #if os(visionOS)
         guard let windowScene = UIApplication.shared.connectedScenes
             .compactMap({ $0 as? UIWindowScene })
             .first else { return }
         windowScene.requestGeometryUpdate(
             .Vision(resizingRestrictions: isPlaying ? .uniform : .freeform)
         )
+        #endif
     }
 }
 
+private struct PlaybackAutomationStateProbe: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+
+    var body: some View {
+        Text(stateValue)
+            .font(.system(size: 1))
+            .frame(width: 1, height: 1)
+            .opacity(0.001)
+            .allowsHitTesting(false)
+            .accessibilityIdentifier("PlayerUI-playback-state")
+            .accessibilityLabel(stateValue)
+    }
+
+    private var stateValue: String {
+        let position = playbackRuntime.playbackPosition
+        return [
+            "presentation=\(appModel.playbackPresentation.rawValue)",
+            "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
+            "lifecycle=\(playbackRuntime.lifecycle.label)",
+            "session=\(playbackRuntime.activeSessionID ?? "none")",
+            "position=\(position.seconds)",
+            "duration=\(position.duration)",
+            "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
+            "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)"
+        ].joined(separator: ";")
+    }
+}
+
+#if os(visionOS)
 struct SpatialPlaybackControlsRoot: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -312,6 +397,7 @@ struct SpatialPlaybackControlsRoot: View {
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
+            "screenScale=\(String(format: "%.2f", appModel.screenScale))"
         ].joined(separator: ";")
     }
 
@@ -357,3 +443,4 @@ struct SpatialPlaybackControlsRoot: View {
         }
     }
 }
+#endif

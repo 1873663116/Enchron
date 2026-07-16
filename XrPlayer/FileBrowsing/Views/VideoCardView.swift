@@ -30,8 +30,8 @@ struct VideoCardView: View {
             }
             .background(Color.white.opacity(0.03))
             .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
-            .contentShape(.hoverEffect, RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
-            .hoverEffect(reduceMotion ? .highlight : .lift)
+            .enchronHoverContentShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+            .enchronHoverEffect(reduceMotion ? .highlight : .lift)
             .overlay(
                 RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
                     .stroke(Color.white.opacity(0.05), lineWidth: 0.5)
@@ -75,7 +75,7 @@ struct VideoCardView: View {
                 VStack {
                     HStack {
                         badgeLabel(formatText)
-                            .offset(z: 4)
+                            .enchronSpatialOffset(z: 4)
                         Spacer()
                     }
                     Spacer()
@@ -89,7 +89,7 @@ struct VideoCardView: View {
                 HStack {
                     Spacer()
                     badgeLabel(Self.byteFormatter.string(fromByteCount: file.sizeInBytes))
-                        .offset(z: 8)
+                        .enchronSpatialOffset(z: 8)
                 }
             }
             .padding(10)

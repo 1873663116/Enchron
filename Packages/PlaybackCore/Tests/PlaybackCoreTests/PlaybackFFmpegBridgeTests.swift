@@ -4,6 +4,79 @@ import Foundation
 import PlaybackFFmpegBridge
 import Testing
 
+@Test func embeddedSubRipTracksExposeStableMetadata() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try #require(
+        Bundle.module.url(
+            forResource: "subtitle-subrip",
+            withExtension: "mkv",
+            subdirectory: "Fixtures"
+        )
+    )
+
+    let count = fixture.path.withCString(PBFFmpegSubtitleTrackCount)
+    #expect(count == 2)
+
+    var streamIndex: Int32 = -1
+    var codec = [CChar](repeating: 0, count: 64)
+    var language = [CChar](repeating: 0, count: 64)
+    var title = [CChar](repeating: 0, count: 256)
+    let copied = fixture.path.withCString { path in
+        PBFFmpegSubtitleTrackCopyInfo(
+            path,
+            0,
+            &streamIndex,
+            &codec,
+            codec.count,
+            &language,
+            language.count,
+            &title,
+            title.count
+        )
+    }
+
+    #expect(copied)
+    #expect(streamIndex == 1)
+    #expect(cString(codec) == "subrip")
+    #expect(cString(language) == "zho")
+    #expect(cString(title) == "简体中文")
+}
+
+@Test func embeddedSubRipCuesPreserveTimingUTF8AndLineBreaks() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try #require(
+        Bundle.module.url(
+            forResource: "subtitle-subrip",
+            withExtension: "mkv",
+            subdirectory: "Fixtures"
+        )
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegSubtitleReaderCreate(path, 1, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegSubtitleReaderDestroy(activeReader) }
+
+    var startSeconds = 0.0
+    var durationSeconds = 0.0
+    var text: Unmanaged<CFString>?
+    let result = PBFFmpegSubtitleReaderCopyNextCue(
+        activeReader,
+        &startSeconds,
+        &durationSeconds,
+        &text,
+        &error,
+        error.count
+    )
+    #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+    let cueText = try #require(text?.takeRetainedValue()) as String
+
+    #expect(abs(startSeconds - 0.5) < 0.001)
+    #expect(abs(durationSeconds - 1.5) < 0.001)
+    #expect(cueText == "第一行\n第二行")
+}
+
 @Test func delayedAudioParametersAreDiscovered() throws {
     silenceFFmpegDiagnostics()
     let fixture = try delayedAACTransportStream()
@@ -103,4 +176,11 @@ private func avLogSetLevel(_ level: Int32)
 
 private func silenceFFmpegDiagnostics() {
     avLogSetLevel(-8)
+}
+
+private func cString(_ buffer: [CChar]) -> String {
+    String(
+        decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
+        as: UTF8.self
+    )
 }

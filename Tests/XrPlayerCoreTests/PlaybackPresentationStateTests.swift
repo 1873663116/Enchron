@@ -94,4 +94,32 @@ struct PlaybackPresentationStateTests {
             try state.begin(.panorama)
         }
     }
+
+    @Test("stopping playback restores window while retaining the chosen environment")
+    func playbackStopRestoresWindow() {
+        var state = PlaybackPresentationState(
+            presented: .docked,
+            environment: .active(.starryNight)
+        )
+
+        state.resetForPlaybackStop()
+
+        #expect(state.presented == .window)
+        #expect(state.environment == .active(.starryNight))
+        #expect(state.transition == nil)
+    }
+
+    @Test("stopping playback cancels an in-flight presentation transition")
+    func playbackStopCancelsTransition() throws {
+        var state = PlaybackPresentationState(
+            environment: .active(.darkTheatre)
+        )
+        _ = try state.begin(.docked, environment: .sunsetNature)
+
+        state.resetForPlaybackStop()
+
+        #expect(state.presented == .window)
+        #expect(state.environment == .active(.darkTheatre))
+        #expect(state.transition == nil)
+    }
 }
