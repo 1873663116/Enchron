@@ -29,12 +29,12 @@ flowchart LR
 | 来源与持久化 | 虚拟目录增删改、引用移动、三类 locator 持久化、bookmark 原址解析、搜索与排序；WebDAV 认证、列目录与 Range 读取由可选的真实服务测试验证 | Swift Testing / XCTest |
 | 产品组装 | XrPlayer 与 DesignPreview 对 device / Simulator SDK 编译；只链接仓库内 `Packages/PlaybackCore` | `xcodebuild` |
 | Window UI | 启动、媒体目录创建、来源入口、搜索、媒体引用直达播放、transport、Dock 菜单、正交 Video Format 菜单、Settings 分类 | XCUIAutomation / `.xcresult` |
-| 空间转换 | Window、Docked、Panorama 的状态转换、Environment Context 保留与失败回退由 Swift Testing 验证；Simulator XCUIAutomation 验证 Window 中可进入的菜单；实际进入 Full Space、空间面板与返回点击只由 Vision Pro 验证 | XCUIAutomation + Swift Testing + OSLog |
+| 空间转换 | Swift Testing 验证状态转换与回滚；Simulator 用真实 PlaybackCore session 进入 Docked/Panorama，组合语义点击、截图坐标 fallback、运动截图、Presentation state 与 OSLog；Vision Pro 再验收硬件与最终空间行为 | XCUIAutomation + 截图 + PlaybackCore events + OSLog |
 | RealityKit 通用渲染 | `RealityRenderer` 在不启动产品 App 时完成 Metal texture 输出；实体与 camera 可由测试程序化构造 | macOS / visionOS Simulator XCTest |
 | RealityKit 视频呈现 | PlaybackCore 的同一 `AVSampleBufferVideoRenderer` attach 到 `VideoPlayerComponent`；content type、rendering status、实际 immersive mode 与粗粒度方向图像共同构成组件证据 | 产品 `RealityView` Simulator 集成；最终以 Vision Pro 为准 |
 | 媒体质量 | 硬件解码、HDR/EDR、Dolby Vision、音画同步、AIME Fisheye、空间舒适度与性能 | Vision Pro + Instruments / RealityKit Trace |
 
-Simulator 通过不等于设备播放通过；设备不可用时必须把设备行保留为未执行边界，不能用 build、Preview 或请求状态代替。`RealityRenderer` 的 API、当前 Simulator 能力与 VideoPlayerComponent 探针边界记录在 [`docs/research/realityrenderer-programmatic-testing.md`](../research/realityrenderer-programmatic-testing.md)。visionOS 27 Simulator 当前会为 Full Space 内的控件返回全零 Accessibility 激活矩阵，因此 XCUIAutomation 可以确认 Undock / Exit Panorama 控件与语义，但不能代替真机点击返回。
+Simulator 通过不等于设备播放通过；设备不可用时必须把设备行保留为未执行边界，不能用 build、Preview 或请求状态代替。`RealityRenderer` 的 API、当前 Simulator 能力与 VideoPlayerComponent 探针边界记录在 [`docs/research/realityrenderer-programmatic-testing.md`](../research/realityrenderer-programmatic-testing.md)。Full Space 中 accessibility 元素若存在但不可直接命中，允许先保存截图，再按该元素的语义几何执行坐标 fallback；无人值守测试在全零或缺失几何时失败。交互式 agent 只有在查看当次截图、保存点击前后图并验证同一状态后置条件时，才可进行视觉坐标点击，结果单独标记为 `agent-assisted`。
 
 ## 2026-07-15 组装结果
 

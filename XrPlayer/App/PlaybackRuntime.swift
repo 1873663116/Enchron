@@ -504,6 +504,40 @@ public final class PlaybackRuntime {
         return false
     }
 
+    func recordPresentationState(
+        presentation: PlaybackPresentation,
+        phase: String,
+        realityViewID: String,
+        entityParentID: String? = nil,
+        desiredImmersiveViewingMode: String? = nil,
+        actualImmersiveViewingMode: String? = nil,
+        desiredViewingMode: String? = nil,
+        actualViewingMode: String? = nil,
+        desiredSpatialVideoMode: String? = nil,
+        actualSpatialVideoMode: String? = nil
+    ) {
+        guard let session else { return }
+        let record = PresentationStateRecord(
+            mediaSessionID: session.traceID,
+            route: session.route,
+            requestedMode: presentation.rawValue,
+            phase: phase,
+            platform: platformName,
+            sceneContainer: .init(.known, value: presentation.sceneContainer),
+            realityViewIdentity: .init(.known, value: realityViewID),
+            entityParentIdentity: Self.observedFact(entityParentID),
+            desiredImmersiveViewingMode: Self.observedFact(desiredImmersiveViewingMode),
+            actualImmersiveViewingMode: Self.observedFact(actualImmersiveViewingMode),
+            desiredViewingMode: Self.observedFact(desiredViewingMode),
+            actualViewingMode: Self.observedFact(actualViewingMode),
+            desiredSpatialVideoMode: Self.observedFact(desiredSpatialVideoMode),
+            actualSpatialVideoMode: Self.observedFact(actualSpatialVideoMode),
+            transitionResult: .init(.known, value: "succeeded")
+        )
+        guard session.debugSnapshot().presentationState != record else { return }
+        session.recordPresentationState(record)
+    }
+
     func debugSnapshot() -> PlaybackDebugSnapshotV1? {
         session?.debugSnapshot()
     }
@@ -523,6 +557,10 @@ public final class PlaybackRuntime {
 #else
         "visionOS"
 #endif
+    }
+
+    private static func observedFact(_ value: String?) -> ObservedStringFact {
+        value.map { .init(.known, value: $0) } ?? .init(.notExposed)
     }
 
     private func frameStep(direction: Double) {

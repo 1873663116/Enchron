@@ -62,6 +62,12 @@ struct PlaybackVideoSurface: View {
                 realityViewID: realityViewID,
                 presentation: presentation
             )
+            playbackRuntime.recordPresentationState(
+                presentation: presentation,
+                phase: "surfaceAttached",
+                realityViewID: realityViewID,
+                entityParentID: videoEntity.parent.map { String(describing: ObjectIdentifier($0)) }
+            )
         } catch {
             playbackRuntime.lastErrorMessage = error.localizedDescription
         }

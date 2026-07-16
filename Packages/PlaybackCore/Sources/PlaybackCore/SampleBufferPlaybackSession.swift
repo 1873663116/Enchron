@@ -1442,8 +1442,19 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             details: [
                 "requestedMode": record.requestedMode,
                 "phase": record.phase,
+                "sceneContainer": eventValue(record.sceneContainer),
+                "desiredImmersiveViewingMode": eventValue(record.desiredImmersiveViewingMode),
+                "actualImmersiveViewingMode": eventValue(record.actualImmersiveViewingMode),
+                "desiredViewingMode": eventValue(record.desiredViewingMode),
+                "actualViewingMode": eventValue(record.actualViewingMode),
+                "desiredSpatialVideoMode": eventValue(record.desiredSpatialVideoMode),
+                "actualSpatialVideoMode": eventValue(record.actualSpatialVideoMode),
             ]
         )
+    }
+
+    private func eventValue(_ fact: ObservedStringFact) -> String {
+        fact.value ?? fact.availability.rawValue
     }
 
     public func close() {

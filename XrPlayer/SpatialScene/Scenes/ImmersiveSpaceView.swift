@@ -11,6 +11,43 @@ private final class WorldSceneState {
     var hasFailed = false
 }
 
+@MainActor
+private final class SpatialPresentationObservation {
+    private var entityID: ObjectIdentifier?
+    private var subscriptions: [EventSubscription] = []
+
+    func observe(
+        _ entity: Entity,
+        in content: RealityViewContent,
+        onChange: @escaping @MainActor () -> Void
+    ) {
+        let nextEntityID = ObjectIdentifier(entity)
+        guard entityID != nextEntityID else { return }
+        cancel()
+        entityID = nextEntityID
+        subscriptions = [
+            content.subscribe(to: VideoPlayerEvents.ViewingModeDidChange.self, on: entity) { _ in
+                Task { @MainActor in onChange() }
+            },
+            content.subscribe(to: VideoPlayerEvents.ImmersiveViewingModeDidTransition.self, on: entity) { _ in
+                Task { @MainActor in onChange() }
+            },
+            content.subscribe(to: VideoPlayerEvents.SpatialVideoModeDidChange.self, on: entity) { _ in
+                Task { @MainActor in onChange() }
+            },
+            content.subscribe(to: VideoPlayerEvents.RenderingStatusDidChange.self, on: entity) { _ in
+                Task { @MainActor in onChange() }
+            },
+        ]
+    }
+
+    func cancel() {
+        subscriptions.forEach { $0.cancel() }
+        subscriptions.removeAll()
+        entityID = nil
+    }
+}
+
 public struct ImmersiveSpaceView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -18,6 +55,7 @@ public struct ImmersiveSpaceView: View {
     @State private var world = WorldSceneState()
     @State private var videoEntity = Entity()
     @State private var surfaceActivation = PlaybackSurfaceActivation()
+    @State private var presentationObservation = SpatialPresentationObservation()
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
 
     public init() {}
@@ -48,6 +86,7 @@ public struct ImmersiveSpaceView: View {
         )
         .onDisappear {
             surfaceActivation.cancel()
+            presentationObservation.cancel()
             detachSpatialSurface()
         }
     }
@@ -108,6 +147,13 @@ public struct ImmersiveSpaceView: View {
         surfaceActivation.observe(entity, in: content) {
             attachSpatialSurfaceIfReady()
         }
+        if presentation == .panorama {
+            presentationObservation.observe(entity, in: content) {
+                recordSpatialPresentationState()
+            }
+        } else {
+            presentationObservation.cancel()
+        }
         if presentation == .docked {
             positionDockedVideo(entity)
         } else {
@@ -138,9 +184,43 @@ public struct ImmersiveSpaceView: View {
                 realityViewID: realityViewID(for: presentation),
                 presentation: presentation
             )
+            recordSpatialPresentationState()
         } catch {
             playbackRuntime.lastErrorMessage = error.localizedDescription
         }
+    }
+
+    @MainActor
+    private func recordSpatialPresentationState() {
+        let presentation = requestedPresentation
+        let realityViewID = realityViewID(for: presentation)
+        let parentID = videoEntity.parent.map { String(describing: ObjectIdentifier($0)) }
+        guard presentation == .panorama,
+              let component = videoEntity.components[VideoPlayerComponent.self] else {
+            playbackRuntime.recordPresentationState(
+                presentation: presentation,
+                phase: "surfaceAttached",
+                realityViewID: realityViewID,
+                entityParentID: parentID
+            )
+            return
+        }
+        let isSettled = component.currentRenderingStatus == .ready
+            && component.immersiveViewingMode == component.desiredImmersiveViewingMode
+            && component.viewingMode == component.desiredViewingMode
+            && component.spatialVideoMode == component.desiredSpatialVideoMode
+        playbackRuntime.recordPresentationState(
+            presentation: presentation,
+            phase: isSettled ? "settled" : "surfaceAttached",
+            realityViewID: realityViewID,
+            entityParentID: parentID,
+            desiredImmersiveViewingMode: String(describing: component.desiredImmersiveViewingMode),
+            actualImmersiveViewingMode: component.immersiveViewingMode.map { String(describing: $0) },
+            desiredViewingMode: String(describing: component.desiredViewingMode),
+            actualViewingMode: component.viewingMode.map { String(describing: $0) },
+            desiredSpatialVideoMode: String(describing: component.desiredSpatialVideoMode),
+            actualSpatialVideoMode: String(describing: component.spatialVideoMode)
+        )
     }
 
     @MainActor

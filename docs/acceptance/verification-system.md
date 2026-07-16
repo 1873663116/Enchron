@@ -31,6 +31,10 @@ Core scenario 不是第二套长期应用控制。可复用的控制、状态投
 
 Simulator 验证平台 API、Window/Docked/Panorama 状态机、失败回滚、来源与持久化、可访问交互和基础 RealityKit 生命周期。`RealityRenderer` 可以证明实体、材质、camera 与 texture 的程序化输出，但不能替代真实 sample renderer、系统空间切换或硬件画质。
 
+空间播放的标准验收入口是 `scripts/verify-spatial-presentations-simulator.zsh`。它必须用真实 FFmpeg → PlaybackCore 媒体而不是 `ENCHRON_UI_TESTING` fixture，在同一次 App 启动中完成 Window → Docked → Window → Panorama → Window，并同时保存三类不能相互替代的证据：XCUIAutomation 语义与截图、PlaybackCore/Presentation 机器状态、OSLog 与 `.xcresult`。点击先使用 accessibility identifier；元素存在但不可直接命中时，测试先保存当前截图，再以该语义元素的几何中心执行坐标 fallback，并继续以目标状态断言结果。无人值守测试没有语义目标或有效几何时必须失败；交互式 agent 可以基于当次截图视觉定位后点击，但必须保存点击前后截图、验证相同机器状态后置条件，并把结果标记为 `agent-assisted`，不能用盲点固定坐标或冒充无人值守绿色结果。
+
+Docked 只有在 planar surface 已 attach、同一 Media Session 仍为 playing 且连续截图发生变化时通过。Panorama 还必须观察 `VideoPlayerComponent` 的 rendering status ready，以及 desired/actual immersive、viewing、spatial video mode 全部收敛。测试宿主未启动、Simulator 未完成 BackBoard 启动或 XCTest worker 未 materialize 属于基础设施失败；它既不是产品失败，也不能标记 Simulator passed。
+
 ### L3 Vision Pro
 
 使用与 L2 相同的 fixture identity 和 oracle，在物理 Vision Pro 上证明硬件解码、HDR/EDR 与受支持 Dolby Vision profile、设备音频、Window/Docked/Panorama、空间舒适度、性能和最终交互。generic device build、Simulator、单张截图、日志无错误或可拖动进度条都不是 L3。
