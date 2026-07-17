@@ -241,6 +241,7 @@ public final class PlaybackRuntime {
                 lifecycle = .playing
                 startsWhenAttached = false
             }
+            clearFailureIfPlaybackIsUsable()
             logger.notice(
                 "fixture surface attached presentation=\(String(describing: presentation), privacy: .public) entity=\(entityID, privacy: .public)"
             )
@@ -282,6 +283,7 @@ public final class PlaybackRuntime {
         attachment = Attachment(entityID: entityID, realityViewID: realityViewID, presentation: presentation)
         attachedPresentation = presentation
         presentationState = .videoVisible
+        clearFailureIfPlaybackIsUsable()
         logger.info("surface attached presentation=\(String(describing: presentation), privacy: .public) entity=\(entityID, privacy: .public)")
     }
 
@@ -688,8 +690,10 @@ public final class PlaybackRuntime {
     private func receive(_ status: PlaybackStatus) {
         lifecycle = status
         switch status {
-        case .idle, .loading, .ready, .playing, .paused:
+        case .idle, .loading:
             break
+        case .ready, .playing, .paused:
+            clearFailureIfPlaybackIsUsable()
         case .ended:
             audioSessionLifecycle.deactivate()
             onPlaybackEnded?()
@@ -697,6 +701,15 @@ public final class PlaybackRuntime {
             audioSessionLifecycle.deactivate()
             lastErrorMessage = message
             logger.error("playback failed message=\(message, privacy: .public)")
+        }
+    }
+
+    private func clearFailureIfPlaybackIsUsable() {
+        switch lifecycle {
+        case .ready, .playing, .paused:
+            lastErrorMessage = nil
+        case .idle, .loading, .ended, .failed:
+            break
         }
     }
 
