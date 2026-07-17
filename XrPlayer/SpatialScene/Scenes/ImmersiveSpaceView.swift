@@ -55,7 +55,7 @@ public struct ImmersiveSpaceView: View {
 
     @State private var world = WorldSceneState()
     @State private var videoEntity = Entity()
-    @State private var subtitleEntity = Entity()
+    @State private var subtitleSurface = PlaybackSubtitleSurface()
     @State private var surfaceActivation = PlaybackSurfaceActivation()
     @State private var presentationObservation = SpatialPresentationObservation()
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
@@ -89,7 +89,7 @@ public struct ImmersiveSpaceView: View {
         .onDisappear {
             surfaceActivation.cancel()
             presentationObservation.cancel()
-            PlaybackSubtitlePresenter.remove(subtitleEntity)
+            subtitleSurface.remove()
             detachSpatialSurface()
         }
     }
@@ -148,12 +148,12 @@ public struct ImmersiveSpaceView: View {
             presentation: presentation,
             stereoLayout: playbackRuntime.effectiveStereoLayout
         )
-        PlaybackSubtitlePresenter.update(
-            subtitleEntity,
+        subtitleSurface.update(
             on: entity,
             presentation: presentation,
             screenSize: entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
-            cues: playbackRuntime.activeSubtitleCues
+            reservedBottomFraction: 0,
+            frame: playbackRuntime.activeSubtitleFrame
         )
         surfaceActivation.observe(entity, in: content) {
             attachSpatialSurfaceIfReady()
@@ -257,7 +257,7 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     private func removeVideo(from content: RealityViewContent, reason: String) {
         logger.notice("video surface removed reason=\(reason, privacy: .public)")
-        PlaybackSubtitlePresenter.remove(subtitleEntity)
+        subtitleSurface.remove()
         videoEntity.removeFromParent()
         detachSpatialSurface()
     }

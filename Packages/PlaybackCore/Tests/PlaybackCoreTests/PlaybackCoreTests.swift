@@ -654,6 +654,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
     #expect(controller.activeSession === session)
     #expect(session.debugSnapshot().streamEpoch == 2)
+    #expect(session.debugSnapshot().rendererState?.rate == 1)
     #expect(session.debugSnapshot().lastCompletedOperation?.kind == .seek)
     #expect(session.debugSnapshot().lastCompletedOperation?.targetTimeSeconds == 5)
 }
@@ -1874,7 +1875,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
         audioProvider: FakeAudioSampleProvider(
             sampleAfterPrepare: audioSample,
-            repeatsSample: true
+            repeatsSample: false
         ),
         rendererSink: FakeRendererInputSink(automaticallyRunsRequests: false)
     )

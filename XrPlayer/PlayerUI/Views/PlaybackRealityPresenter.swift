@@ -116,57 +116,147 @@ enum PlaybackRealityPresenter {
     }
 }
 
-@MainActor
-enum PlaybackSubtitlePresenter {
-    private static let canvasSize = CGSize(width: 1_600, height: 220)
-    private static let pointsToMeters: Float = 0.0254 / 72
+struct PlaybackSubtitleLayout: Equatable {
+    let size: SIMD2<Float>
+    let position: SIMD3<Float>
+}
 
-    static func update(
-        _ subtitleEntity: Entity,
-        on videoEntity: Entity,
-        presentation: PlaybackPresentation,
+enum PlaybackSubtitlePlacement {
+    static func resolve(
+        frame: PlaybackSubtitleFrame,
         screenSize: SIMD2<Float>,
-        cues: [PlaybackSubtitleCue]
-    ) {
-        let text = cues
-            .map(\.text)
-            .filter { $0.isEmpty == false }
-            .joined(separator: "\n")
-        guard presentation != .panorama,
-              text.isEmpty == false else {
-            subtitleEntity.isEnabled = false
-            return
-        }
-
-        var attributedText = AttributedString(text)
-        attributedText.font = .system(size: 56, weight: .semibold)
-        attributedText.foregroundColor = .white
-
-        var component = TextComponent()
-        component.size = canvasSize
-        component.text = attributedText
-        component.backgroundColor = CGColor(gray: 0, alpha: 0.62)
-        component.cornerRadius = 24
-
-        subtitleEntity.name = "Enchron.ActiveSubtitles"
-        subtitleEntity.components.set(component)
-        if subtitleEntity.parent !== videoEntity {
-            videoEntity.addChild(subtitleEntity)
-        }
-
+        reservedBottomFraction: Float
+    ) -> PlaybackSubtitleLayout {
         let resolvedScreenSize = screenSize.x > 0 && screenSize.y > 0
             ? screenSize
             : SIMD2<Float>(16.0 / 9.0, 1)
-        let canvasWidth = Float(canvasSize.width) * pointsToMeters
-        let scale = resolvedScreenSize.x * 0.82 / canvasWidth
-        subtitleEntity.scale = .init(repeating: scale)
-        subtitleEntity.position = [0, -resolvedScreenSize.y * 0.35, 0.015]
-        subtitleEntity.isEnabled = true
+        let canvasWidth = Float(frame.canvasWidth)
+        let canvasHeight = Float(frame.canvasHeight)
+        let contentWidth = resolvedScreenSize.x * Float(frame.contentWidth) / canvasWidth
+        let contentHeight = resolvedScreenSize.y * Float(frame.contentHeight) / canvasHeight
+        let centerX = -resolvedScreenSize.x / 2 +
+            resolvedScreenSize.x * (Float(frame.contentX) + Float(frame.contentWidth) / 2) / canvasWidth
+        let centerY = resolvedScreenSize.y / 2 -
+            resolvedScreenSize.y * (Float(frame.contentY) + Float(frame.contentHeight) / 2) / canvasHeight
+        let contentBottomY = centerY - contentHeight / 2
+        let safeBottomY = -resolvedScreenSize.y / 2 +
+            resolvedScreenSize.y * min(max(reservedBottomFraction, 0), 0.5)
+        let safeCenterY = centerY + max(0, safeBottomY - contentBottomY)
+        return PlaybackSubtitleLayout(
+            size: [contentWidth, contentHeight],
+            position: [centerX, safeCenterY, 0.015]
+        )
+    }
+}
+
+@MainActor
+final class PlaybackSubtitleSurface {
+    let entity = Entity()
+
+    private var texture: TextureResource?
+    private var textureSize = SIMD2<Int>(repeating: 0)
+    private var changeIdentifier: UInt64?
+    private var layout: PlaybackSubtitleLayout?
+
+    func update(
+        on videoEntity: Entity,
+        presentation: PlaybackPresentation,
+        screenSize: SIMD2<Float>,
+        reservedBottomFraction: Float,
+        frame: PlaybackSubtitleFrame?
+    ) {
+        guard presentation != .panorama,
+              let frame,
+              frame.contentWidth > 0,
+              frame.contentHeight > 0,
+              frame.canvasWidth > 0,
+              frame.canvasHeight > 0 else {
+            if frame == nil || presentation == .panorama {
+                entity.isEnabled = false
+                changeIdentifier = nil
+                layout = nil
+            }
+            return
+        }
+        let nextLayout = PlaybackSubtitlePlacement.resolve(
+            frame: frame,
+            screenSize: screenSize,
+            reservedBottomFraction: reservedBottomFraction
+        )
+        let frameChanged = changeIdentifier != frame.changeIdentifier
+        guard frameChanged || layout != nextLayout else { return }
+        if frameChanged {
+            guard let image = Self.image(frame) else {
+                entity.isEnabled = false
+                return
+            }
+            let nextSize = SIMD2(frame.contentWidth, frame.contentHeight)
+            do {
+                if let texture, textureSize == nextSize {
+                    try texture.replace(
+                        withImage: image,
+                        options: .init(semantic: .color)
+                    )
+                } else {
+                    texture = try TextureResource(
+                        image: image,
+                        options: .init(semantic: .color)
+                    )
+                    textureSize = nextSize
+                }
+            } catch {
+                entity.isEnabled = false
+                return
+            }
+        }
+
+        guard let texture else { return }
+        var material = UnlitMaterial(texture: texture)
+        material.blending = .transparent(opacity: .init(scale: 1))
+        entity.name = "Enchron.ActiveSubtitleFrame.\(frame.kind.rawValue)"
+        entity.components.set(ModelComponent(
+            mesh: .generatePlane(width: nextLayout.size.x, height: nextLayout.size.y),
+            materials: [material]
+        ))
+        if entity.parent !== videoEntity {
+            videoEntity.addChild(entity)
+        }
+        entity.position = nextLayout.position
+        entity.isEnabled = true
+        changeIdentifier = frame.changeIdentifier
+        layout = nextLayout
     }
 
-    static func remove(_ subtitleEntity: Entity) {
-        subtitleEntity.removeFromParent()
-        subtitleEntity.components.remove(TextComponent.self)
-        subtitleEntity.isEnabled = false
+    func remove() {
+        entity.removeFromParent()
+        entity.components.remove(ModelComponent.self)
+        entity.isEnabled = false
+        texture = nil
+        textureSize = .zero
+        changeIdentifier = nil
+        layout = nil
+    }
+
+    private static func image(_ frame: PlaybackSubtitleFrame) -> CGImage? {
+        guard frame.premultipliedBGRA.count == frame.bytesPerRow * frame.contentHeight,
+              let provider = CGDataProvider(data: frame.premultipliedBGRA as CFData) else {
+            return nil
+        }
+        return CGImage(
+            width: frame.contentWidth,
+            height: frame.contentHeight,
+            bitsPerComponent: 8,
+            bitsPerPixel: 32,
+            bytesPerRow: frame.bytesPerRow,
+            space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGBitmapInfo(rawValue:
+                CGImageAlphaInfo.premultipliedFirst.rawValue |
+                CGBitmapInfo.byteOrder32Little.rawValue
+            ),
+            provider: provider,
+            decode: nil,
+            shouldInterpolate: true,
+            intent: .defaultIntent
+        )
     }
 }

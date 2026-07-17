@@ -36,6 +36,20 @@ flowchart LR
 
 Simulator 通过不等于设备播放通过；设备不可用时必须把设备行保留为未执行边界，不能用 build、Preview 或请求状态代替。`RealityRenderer` 的 API、当前 Simulator 能力与 VideoPlayerComponent 探针边界记录在 [`docs/research/realityrenderer-programmatic-testing.md`](../research/realityrenderer-programmatic-testing.md)。Full Space 中 accessibility 元素若存在但不可直接命中，允许先保存截图，再按该元素的语义几何执行坐标 fallback；无人值守测试在全零或缺失几何时失败。交互式 agent 只有在查看当次截图、保存点击前后图并验证同一状态后置条件时，才可进行视觉坐标点击，结果单独标记为 `agent-assisted`。
 
+## 2026-07-17 macOS 产品验收
+
+| 验证面 | 结果 |
+|---|---|
+| 本地来源与 transport | 真实 App 可从项目生成 fixture 直达播放；播放/暂停、前后 seek、slider 拖动、Back 与控制自动隐藏通过。seek 期间由 pending target 持有滑块，不再被旧 timeline 回写拉回 |
+| 音轨与字幕 | SubRip、ASS、DVB bitmap 均有真实像素差分；文本/ASS 为 libass frame，DVB 保持 bitmap frame；第二音轨与字幕在 Docked 后保持同一 session |
+| 空间状态 | 同一启动完成 Window → Docked → Window → Panorama simulation → Window；macOS host 显式报告 Panorama 是 Window consumer simulation，不冒充 visionOS `ImmersiveSpace` |
+| 交互回归 | 原生按钮使用共享 press-feedback style，点击不再被无效 primitive button style 吞掉；timeline、字幕安全带、presentation host 与同会话保持均有 focused regression tests |
+| 自动化证据 | `/tmp/EnchronMacOSBitmapSubtitle-20260717-1330/result.json` 与 `/tmp/EnchronMacOSTransportPanorama-20260717-1342/result.json` 通过，目录内保留逐步截图与 probe 后置条件 |
+| Xcode tests | macOS unit tests 8 项通过；全量和 UI-only 两次均在 UI test runner 建立连接前挂起，分别保存在 `/tmp/EnchronMacOSFull-20260717-1347.xcresult`、`/tmp/EnchronMacOSUIFull-20260717-1353.xcresult`。这是重复的 XCTest infrastructure failure，不是 UI assertion 通过，也不是产品 assertion 失败 |
+| 组装与性能 | 独立 Release bundle 嵌入 `AMSMB2.framework` 后可直接启动播放；Release Time Profiler 将 App 自有诊断记录器从 100 ms / 1.736% 降到 49 ms / 0.516% |
+
+macOS 结果是共享 SwiftUI、`PlaybackRuntime`、PlaybackCore 与 RealityKit consumer 的主要产品开发证据，但不能替代 visionOS Simulator 或 Vision Pro。特别是 Panorama simulation 只证明产品状态机、菜单、同一 session 和 Window host 收敛；最终投影几何、空间舒适度、硬件 HDR 与空间音频仍留在 visionOS 对应证据层。
+
 ## 2026-07-15 组装结果
 
 | 验证面 | 结果 |

@@ -15,6 +15,7 @@
 		C3D4A1012F90000100DA0D16 /* DesignPreview/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = C3D4A1002F90000100DA0D16 /* DesignPreview/Assets.xcassets */; };
 		D40000122FA0000100E1C001 /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = D40000112FA0000100E1C001 /* PlaybackCore */; };
 		D40000142FA0000100E1C001 /* AMSMB2 in Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; };
+		D40000152FA0000100E1C001 /* AMSMB2 in Embed Frameworks */ = {isa = PBXBuildFile; productRef = A4C19F9E2FD1000100AABBCC /* AMSMB2 */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,17 @@
 			dstSubfolderSpec = 10;
 			files = (
 				A4C19FA02FD1000100AABBCC /* AMSMB2 in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D40000162FA0000100E1C001 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				D40000152FA0000100E1C001 /* AMSMB2 in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -424,6 +436,7 @@
 			buildPhases = (
 				D40000042FA0000100E1C001 /* Sources */,
 				D40000052FA0000100E1C001 /* Frameworks */,
+				D40000162FA0000100E1C001 /* Embed Frameworks */,
 				D40000062FA0000100E1C001 /* Resources */,
 			);
 			buildRules = (

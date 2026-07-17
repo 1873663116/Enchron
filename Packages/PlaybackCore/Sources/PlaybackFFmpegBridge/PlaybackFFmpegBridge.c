@@ -58,15 +58,28 @@ struct PBFFmpegAudioReader {
 struct PBFFmpegSubtitleReader {
     AVFormatContext *formatContext;
     AVPacket *packet;
+    AVCodecContext *decoder;
     int subtitleStreamIndex;
+    enum AVCodecID codecID;
     AVRational timeBase;
     int64_t startTimestamp;
 };
 
 static bool subtitle_stream_is_supported(const AVStream *stream) {
-    return stream &&
-        stream->codecpar->codec_type == AVMEDIA_TYPE_SUBTITLE &&
-        stream->codecpar->codec_id == AV_CODEC_ID_SUBRIP;
+    if (!stream || stream->codecpar->codec_type != AVMEDIA_TYPE_SUBTITLE) return false;
+    switch (stream->codecpar->codec_id) {
+        case AV_CODEC_ID_ASS:
+        case AV_CODEC_ID_SSA:
+        case AV_CODEC_ID_SUBRIP:
+        case AV_CODEC_ID_WEBVTT:
+        case AV_CODEC_ID_MOV_TEXT:
+        case AV_CODEC_ID_HDMV_PGS_SUBTITLE:
+        case AV_CODEC_ID_DVD_SUBTITLE:
+        case AV_CODEC_ID_DVB_SUBTITLE:
+            return true;
+        default:
+            return false;
+    }
 }
 
 static AudioFormatID audio_format_id(enum AVCodecID codecID) {
@@ -1758,14 +1771,37 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(
         set_error(
             errorBuffer,
             errorBufferSize,
-            "The selected subtitle stream is not SubRip/S_TEXT/UTF8"
+            "The selected subtitle stream codec is unsupported"
         );
         PBFFmpegSubtitleReaderDestroy(reader);
         return NULL;
     }
     AVStream *stream = reader->formatContext->streams[streamIndex];
+    reader->codecID = stream->codecpar->codec_id;
     reader->timeBase = stream->time_base;
     reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
+    const AVCodec *decoder = avcodec_find_decoder(reader->codecID);
+    if (!decoder) {
+        set_error(errorBuffer, errorBufferSize, "The selected subtitle decoder is unavailable");
+        PBFFmpegSubtitleReaderDestroy(reader);
+        return NULL;
+    }
+    reader->decoder = avcodec_alloc_context3(decoder);
+    if (!reader->decoder) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg subtitle decoder");
+        PBFFmpegSubtitleReaderDestroy(reader);
+        return NULL;
+    }
+    result = avcodec_parameters_to_context(reader->decoder, stream->codecpar);
+    if (result >= 0) {
+        reader->decoder->pkt_timebase = stream->time_base;
+        result = avcodec_open2(reader->decoder, decoder, NULL);
+    }
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Open FFmpeg subtitle decoder", result);
+        PBFFmpegSubtitleReaderDestroy(reader);
+        return NULL;
+    }
     reader->packet = av_packet_alloc();
     if (!reader->packet) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg subtitle packet");
@@ -1778,8 +1814,76 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(
 void PBFFmpegSubtitleReaderDestroy(PBFFmpegSubtitleReader *reader) {
     if (!reader) return;
     av_packet_free(&reader->packet);
+    avcodec_free_context(&reader->decoder);
     avformat_close_input(&reader->formatContext);
     free(reader);
+}
+
+static CFStringRef decoded_ass_plain_text(const char *ass) {
+    const char *body = ass;
+    int commas = 0;
+    while (*body && commas < 8) {
+        if (*body++ == ',') commas++;
+    }
+    size_t length = strlen(body);
+    char *plain = calloc(length + 1, 1);
+    if (!plain) return NULL;
+    size_t output = 0;
+    bool inOverride = false;
+    for (size_t index = 0; index < length; index++) {
+        char value = body[index];
+        if (value == '{') {
+            inOverride = true;
+            continue;
+        }
+        if (value == '}' && inOverride) {
+            inOverride = false;
+            continue;
+        }
+        if (inOverride) continue;
+        if (value == '\\' && index + 1 < length) {
+            char escaped = body[index + 1];
+            if (escaped == 'N' || escaped == 'n') {
+                plain[output++] = '\n';
+                index++;
+                continue;
+            }
+            if (escaped == 'h') {
+                plain[output++] = ' ';
+                index++;
+                continue;
+            }
+        }
+        plain[output++] = value;
+    }
+    CFStringRef text = CFStringCreateWithCString(
+        kCFAllocatorDefault,
+        plain,
+        kCFStringEncodingUTF8
+    );
+    free(plain);
+    return text;
+}
+
+static CFStringRef subtitle_text(const AVSubtitle *subtitle) {
+    CFMutableStringRef text = CFStringCreateMutable(kCFAllocatorDefault, 0);
+    if (!text) return NULL;
+    for (unsigned int index = 0; index < subtitle->num_rects; index++) {
+        AVSubtitleRect *rect = subtitle->rects[index];
+        if (!rect) continue;
+        CFStringRef part = rect->text
+            ? CFStringCreateWithCString(
+                kCFAllocatorDefault,
+                rect->text,
+                kCFStringEncodingUTF8
+            )
+            : (rect->ass ? decoded_ass_plain_text(rect->ass) : NULL);
+        if (!part) continue;
+        if (CFStringGetLength(text) > 0) CFStringAppend(text, CFSTR("\n"));
+        CFStringAppend(text, part);
+        CFRelease(part);
+    }
+    return text;
 }
 
 PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
@@ -1800,28 +1904,51 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
             av_packet_unref(reader->packet);
             continue;
         }
-        if (reader->packet->pts == AV_NOPTS_VALUE || reader->packet->duration <= 0 ||
-            reader->packet->size <= 0 || !reader->packet->data) {
+        if (reader->packet->size <= 0 || !reader->packet->data) {
             av_packet_unref(reader->packet);
             continue;
         }
-        CFStringRef text = CFStringCreateWithBytes(
-            kCFAllocatorDefault,
-            reader->packet->data,
-            reader->packet->size,
-            kCFStringEncodingUTF8,
-            false
+        int64_t timestamp = reader->packet->pts != AV_NOPTS_VALUE
+            ? reader->packet->pts
+            : reader->packet->dts;
+        double packetStart = timestamp != AV_NOPTS_VALUE
+            ? (double)(timestamp - reader->startTimestamp) * av_q2d(reader->timeBase)
+            : 0;
+        AVSubtitle subtitle = {0};
+        int produced = 0;
+        double packetDuration = reader->packet->duration > 0
+            ? reader->packet->duration * av_q2d(reader->timeBase)
+            : 60.0;
+        int result = avcodec_decode_subtitle2(
+            reader->decoder,
+            &subtitle,
+            &produced,
+            reader->packet
         );
-        if (!text) {
+        if (result < 0) {
             av_packet_unref(reader->packet);
-            set_error(errorBuffer, errorBufferSize, "SubRip cue is not valid UTF-8");
+            set_av_error(errorBuffer, errorBufferSize, "Decode FFmpeg subtitle cue", result);
             return PBFFmpegReadResultError;
         }
-        *startSecondsOut = (double)(reader->packet->pts - reader->startTimestamp) *
-            av_q2d(reader->timeBase);
-        *durationSecondsOut = (double)reader->packet->duration * av_q2d(reader->timeBase);
-        *textOut = text;
         av_packet_unref(reader->packet);
+        if (!produced || subtitle.num_rects == 0) {
+            avsubtitle_free(&subtitle);
+            continue;
+        }
+        double start = packetStart + subtitle.start_display_time / 1000.0;
+        double end = packetStart + subtitle.end_display_time / 1000.0;
+        if (end <= start) {
+            end = start + packetDuration;
+        }
+        CFStringRef text = subtitle_text(&subtitle);
+        avsubtitle_free(&subtitle);
+        if (!text) {
+            set_error(errorBuffer, errorBufferSize, "Create decoded subtitle cue text");
+            return PBFFmpegReadResultError;
+        }
+        *startSecondsOut = start;
+        *durationSecondsOut = end - start;
+        *textOut = text;
         return PBFFmpegReadResultSample;
     }
     return PBFFmpegReadResultEnd;

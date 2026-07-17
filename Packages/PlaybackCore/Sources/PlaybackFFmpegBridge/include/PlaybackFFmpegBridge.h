@@ -3,6 +3,7 @@
 #include <CoreMedia/CoreMedia.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 typedef enum PBFFmpegMode {
     PBFFmpegModeCompressed = 0,
@@ -17,6 +18,30 @@ typedef enum PBFFmpegReadResult {
 typedef struct PBFFmpegReader PBFFmpegReader;
 typedef struct PBFFmpegAudioReader PBFFmpegAudioReader;
 typedef struct PBFFmpegSubtitleReader PBFFmpegSubtitleReader;
+typedef struct PBSubtitleFrameRenderer PBSubtitleFrameRenderer;
+
+typedef enum PBSubtitleFrameResult {
+    PBSubtitleFrameResultFrame = 0,
+    PBSubtitleFrameResultEmpty = 1,
+    PBSubtitleFrameResultError = -1,
+} PBSubtitleFrameResult;
+
+typedef enum PBSubtitleFrameKind {
+    PBSubtitleFrameKindLibass = 0,
+    PBSubtitleFrameKindBitmap = 1,
+} PBSubtitleFrameKind;
+
+typedef struct PBSubtitleFrameInfo {
+    PBSubtitleFrameKind kind;
+    int canvasWidth;
+    int canvasHeight;
+    int contentX;
+    int contentY;
+    int contentWidth;
+    int contentHeight;
+    int bytesPerRow;
+    uint64_t changeIdentifier;
+} PBSubtitleFrameInfo;
 
 PBFFmpegReader *PBFFmpegReaderCreate(
     const char *path,
@@ -113,6 +138,24 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
     double *startSecondsOut,
     double *durationSecondsOut,
     CFStringRef *textOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+
+PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
+    const char *path,
+    int streamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+void PBSubtitleFrameRendererDestroy(PBSubtitleFrameRenderer *renderer);
+PBSubtitleFrameResult PBSubtitleFrameRendererCopyFrame(
+    PBSubtitleFrameRenderer *renderer,
+    double timeSeconds,
+    int viewportWidth,
+    int viewportHeight,
+    CFDataRef *bgraDataOut,
+    PBSubtitleFrameInfo *infoOut,
     char *errorBuffer,
     size_t errorBufferSize
 );

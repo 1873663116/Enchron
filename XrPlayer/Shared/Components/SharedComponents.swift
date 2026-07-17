@@ -31,7 +31,6 @@ struct GlassCircleIconLabel: View {
             .glassBackgroundEffect(in: Circle())
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect(.automatic)
-            .enchronPressFeedback(.icon)
             .accessibilityLabel(accessibilityLabel)
             .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-label-\(systemName)")
             .opacity(isEnabled ? 1 : 0.32)
@@ -39,38 +38,32 @@ struct GlassCircleIconLabel: View {
 }
 
 struct GlassCircleIconButton: View {
-    @Environment(\.isEnabled) private var isEnabled
-
     let systemName: String
     let accessibilityLabel: String
     var action: () -> Void = {}
     var accessibilityIdentifier: String?
     var visualSize: CGFloat = DesignTokens.Interactive.regular
     var targetSize: CGFloat = DesignTokens.Interactive.large
+    var font: Font = DesignTokens.SymbolSize.control
 
     // iconColor 锁死:按钮永远白色图标,不暴露给调用点(Label 默认即 .white)。
-    // 不用 Button——Button 会把系统 hover 套到整个命中区。改用手势 + 外层静默扩展,
-    // hover 只留在 label 的视觉圆上(参照 NavBackForwardCapsuleControl)。
+    // 原生 Button 负责唯一的激活与辅助功能语义;视觉 label 自己限定 hover 圆,
+    // 外层 frame 只扩大静默命中区。
 
     var body: some View {
-        GlassCircleIconLabel(
-            systemName: systemName,
-            accessibilityLabel: accessibilityLabel,
-            visualSize: visualSize,
-            accessibilityIdentifier: accessibilityIdentifier ?? "DesignPreview-button-\(systemName)"
-        )
-        .frame(width: targetSize, height: targetSize)
+        Button(action: action) {
+            GlassCircleIconLabel(
+                systemName: systemName,
+                accessibilityLabel: accessibilityLabel,
+                visualSize: visualSize,
+                font: font
+            )
+            .accessibilityHidden(true)
+            .frame(width: targetSize, height: targetSize)
+            .contentShape(Circle())
+        }
+        .buttonStyle(EnchronPressFeedbackButtonStyle(.icon))
         .contentShape(Circle())
-        .onTapGesture {
-            guard isEnabled else { return }
-            action()
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityAddTraits(.isButton)
-        .accessibilityAction {
-            guard isEnabled else { return }
-            action()
-        }
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(systemName)")
     }
@@ -1196,14 +1189,13 @@ struct GlassCapsuleIconLabelButton: View {
                 .padding(.horizontal, DesignTokens.Spacing.md)
                 .frame(minWidth: minWidth, minHeight: DesignTokens.Interactive.regular)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(EnchronPressFeedbackButtonStyle(.control))
         .clipShape(Capsule())
         .glassBackgroundEffect(in: Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic)
         .padding(.vertical, (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
         .contentShape(Capsule())
-        .enchronPressFeedback(.control)
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(title)")
     }
@@ -3267,6 +3259,8 @@ struct PrecisionTimelineView: View {
 
     let duration: Double
     let framesPerSecond: Double
+    var onSeekBegan: () -> Void = {}
+    var onSeekEnded: (Double) -> Void = { _ in }
 
     @GestureState private var gestureStartPixelsPerSecond: CGFloat?
     @State private var isDraggingTimeline = false
@@ -3516,6 +3510,7 @@ struct PrecisionTimelineView: View {
                 if !isDraggingTimeline {
                     isDraggingTimeline = true
                     dragStartTime = currentTime
+                    onSeekBegan()
                 }
 
                 let delta = Double(value.translation.width / pixelsPerSecond)
@@ -3524,6 +3519,7 @@ struct PrecisionTimelineView: View {
             }
             .onEnded { _ in
                 isDraggingTimeline = false
+                onSeekEnded(currentTime)
             }
     }
 
@@ -3970,6 +3966,7 @@ struct FusedPlayerPanel: View {
     // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
     @State private var progress: CGFloat = 0.45
     @State private var isDragging = false
+    @State private var isTimelineDragging = false
     @State private var isProgressHovered = false
     @State private var isIgnoringDrag = false
     @State private var dragStartProgress: CGFloat = 0.45
@@ -3993,7 +3990,7 @@ struct FusedPlayerPanel: View {
     // 拖动中用本地 progress(视觉跟手);松手回调 onSeek。非拖动时镜像 live 位置;
     // 锁存期内钉在 pendingSeekTarget;live 为 nil 退化纯本地 @State(Canvas mock)。
     private var displayProgress: CGFloat {
-        if isDragging { return progress }
+        if isDragging || isTimelineDragging { return progress }
         if let pendingSeekTarget { return pendingSeekTarget }
         return live?.progress ?? progress
     }
@@ -4100,6 +4097,7 @@ struct FusedPlayerPanel: View {
                     action: { live?.onEnterImmersive() },
                     accessibilityIdentifier: "PlayerPanel-button-dock"
                 )
+                .keyboardShortcut("d", modifiers: [.command, .shift])
                 .disabled(!(live?.canDock ?? true))
                 rewindButton
                 playButton
@@ -4124,6 +4122,7 @@ struct FusedPlayerPanel: View {
                     action: live.onExitSpatial,
                     accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
                 )
+                .keyboardShortcut(.escape, modifiers: [])
                 rewindButton
                 playButton
                 forwardButton
@@ -4140,6 +4139,7 @@ struct FusedPlayerPanel: View {
             action: { timelineExpanded ? stepFrame(-1) : live?.onSkipBackward() },
             accessibilityIdentifier: "PlayerPanel-button-rewind"
         )
+        .keyboardShortcut(.leftArrow, modifiers: [])
     }
 
     private var forwardButton: some View {
@@ -4149,6 +4149,7 @@ struct FusedPlayerPanel: View {
             action: { timelineExpanded ? stepFrame(1) : live?.onSkipForward() },
             accessibilityIdentifier: "PlayerPanel-button-forward"
         )
+        .keyboardShortcut(.rightArrow, modifiers: [])
     }
 
     // ⋯ 菜单:玻璃圆(GlassCircleIconLabel)作 Menu label,内容 live 注入时来自产品层、
@@ -4190,20 +4191,16 @@ struct FusedPlayerPanel: View {
     }
 
     private var playButton: some View {
-        Button { live?.onPlayPause() } label: {
-            Image(systemName: primaryPlayIcon)
-                .font(DesignTokens.SymbolSize.action)
-                .foregroundStyle(.white)
-                .frame(width: DesignTokens.Interactive.xl, height: DesignTokens.Interactive.xl)
-                .clipShape(Circle())
-                .glassBackgroundEffect(in: Circle())
-        }
-        .buttonStyle(.plain)
-        .enchronHoverContentShape(Circle())
-        .enchronHoverEffect(.lift)
-        .enchronPressFeedback(.icon)
-        .accessibilityLabel(primaryPlayLabel)
-        .accessibilityIdentifier("PlayerPanel-button-play")
+        GlassCircleIconButton(
+            systemName: primaryPlayIcon,
+            accessibilityLabel: primaryPlayLabel,
+            action: { live?.onPlayPause() },
+            accessibilityIdentifier: "PlayerPanel-button-play",
+            visualSize: DesignTokens.Interactive.xl,
+            targetSize: DesignTokens.Interactive.xl,
+            font: DesignTokens.SymbolSize.action
+        )
+        .keyboardShortcut(.space, modifiers: [])
     }
 
     private var primaryPlayIcon: String {
@@ -4318,8 +4315,10 @@ struct FusedPlayerPanel: View {
         PrecisionTimelineView(
             currentTime: timelineCurrentTime,
             pixelsPerSecond: $pixelsPerSecond,
-            duration: DesignTokens.PrecisionTimeline.previewDuration,
-            framesPerSecond: DesignTokens.PrecisionTimeline.previewFrameRate
+            duration: timelineDuration,
+            framesPerSecond: timelineFramesPerSecond,
+            onSeekBegan: beginTimelineSeek,
+            onSeekEnded: commitTimelineSeek
         )
         .frame(width: expandedWidth, height: DesignTokens.PrecisionTimeline.expandedHeight)
         .transition(.opacity)
@@ -4330,12 +4329,40 @@ struct FusedPlayerPanel: View {
 
     private var timelineCurrentTime: Binding<Double> {
         Binding(
-            get: { Double(progress) * DesignTokens.PrecisionTimeline.previewDuration },
+            get: { Double(displayProgress) * timelineDuration },
             set: { newValue in
-                let duration = DesignTokens.PrecisionTimeline.previewDuration
-                progress = duration > 0 ? CGFloat(newValue / duration) : 0
+                progress = timelineDuration > 0 ? CGFloat(newValue / timelineDuration) : 0
             }
         )
+    }
+
+    private var timelineDuration: Double {
+        guard let duration = live?.duration, duration > 0 else {
+            return DesignTokens.PrecisionTimeline.previewDuration
+        }
+        return duration
+    }
+
+    private var timelineFramesPerSecond: Double {
+        guard let framesPerSecond = live?.framesPerSecond, framesPerSecond > 0 else {
+            return DesignTokens.PrecisionTimeline.previewFrameRate
+        }
+        return framesPerSecond
+    }
+
+    private func commitTimelineSeek(_ seconds: Double) {
+        isTimelineDragging = false
+        guard let live, timelineDuration > 0 else { return }
+        let target = CGFloat(min(max(seconds / timelineDuration, 0), 1))
+        progress = target
+        pendingSeekTarget = target
+        live.onSeek(target)
+    }
+
+    private func beginTimelineSeek() {
+        progress = displayProgress
+        isTimelineDragging = true
+        onInteraction()
     }
 
     // MARK: Progress bar(收起态;双击展开时间轴)—— 整套抄自 PlayerControlDeck

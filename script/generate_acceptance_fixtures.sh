@@ -5,9 +5,13 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 OUTPUT_DIR="${1:-$ROOT_DIR/.verification-fixtures}"
 FFMPEG="${FFMPEG:-ffmpeg}"
 FFPROBE="${FFPROBE:-ffprobe}"
+CC="${CC:-clang}"
+PKG_CONFIG="${PKG_CONFIG:-pkg-config}"
 
 command -v "$FFMPEG" >/dev/null
 command -v "$FFPROBE" >/dev/null
+command -v "$CC" >/dev/null
+command -v "$PKG_CONFIG" >/dev/null
 "$FFMPEG" -version | head -n 1 | grep -q 'ffmpeg version 8\.0\.1'
 
 mkdir -p "$OUTPUT_DIR"
@@ -36,6 +40,14 @@ generate_sdr() {
     -movflags +faststart -t 30 "$output"
 }
 
+generate_long_sdr() {
+  local output="$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-120s.mp4"
+  "$FFMPEG" -hide_banner -loglevel error -y \
+    -stream_loop 3 \
+    -i "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.mp4" \
+    -map 0 -map_metadata -1 -c copy -movflags +faststart -t 120 "$output"
+}
+
 generate_hdr() {
   local transfer="$1"
   local x265_transfer="$2"
@@ -53,19 +65,34 @@ generate_hdr() {
 }
 
 generate_subtitle() {
-  local output="$OUTPUT_DIR/sdr-bframe-multiaudio-subrip-30s.mkv"
+  local output="$OUTPUT_DIR/sdr-bframe-multiaudio-subtitles-30s.mkv"
+  local bitmap="$OUTPUT_DIR/generated-bitmap-subtitle.mks"
+  local generator="$OUTPUT_DIR/generate-bitmap-subtitle-fixture"
+  local ffmpeg_build_flags
+  read -r -a ffmpeg_build_flags <<< "$("$PKG_CONFIG" --cflags --libs libavformat libavcodec libavutil)"
+  "$CC" -std=c17 -Wall -Wextra \
+    "$ROOT_DIR/script/generate_bitmap_subtitle_fixture.c" \
+    "${ffmpeg_build_flags[@]}" \
+    -o "$generator"
+  "$generator" "$bitmap"
   "$FFMPEG" -hide_banner -loglevel error -y \
-    -fflags +bitexact \
     -i "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.mp4" \
     -f srt -i "$ROOT_DIR/script/fixtures/acceptance-subtitles.srt" \
-    -map 0:v:0 -map 0:a:0 -map 0:a:1 -map 1:s:0 \
-    -map_metadata -1 -c copy -c:s srt \
+    -f ass -i "$ROOT_DIR/script/fixtures/acceptance-subtitles.ass" \
+    -i "$bitmap" \
+    -map 0:v:0 -map 0:a:0 -map 0:a:1 -map 1:s:0 -map 2:s:0 -map 3:s:0 \
+    -map_metadata -1 -c copy -c:s:0 srt -c:s:1 ass -c:s:2 copy \
     -metadata:s:s:0 language=zho \
     -metadata:s:s:0 title='Enchron acceptance subtitles' \
-    -t 30 "$output"
+    -metadata:s:s:1 language=eng \
+    -metadata:s:s:1 title='Enchron styled libass proof' \
+    -metadata:s:s:2 language=eng \
+    -metadata:s:s:2 title='Enchron generated bitmap proof' \
+    -t 30 -bitexact "$output"
 }
 
 generate_sdr
+generate_long_sdr
 generate_hdr arib-std-b67 arib-std-b67 hlg-hevc-10bit-avsync-10s.mp4
 generate_hdr smpte2084 smpte2084 pq-hevc-10bit-avsync-10s.mp4
 generate_subtitle
@@ -87,7 +114,8 @@ verify_hash() {
 verify_hash 1 "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.mp4"
 verify_hash 2 "$OUTPUT_DIR/hlg-hevc-10bit-avsync-10s.mp4"
 verify_hash 3 "$OUTPUT_DIR/pq-hevc-10bit-avsync-10s.mp4"
-verify_hash 4 "$OUTPUT_DIR/sdr-bframe-multiaudio-subrip-30s.mkv"
+verify_hash 4 "$OUTPUT_DIR/sdr-bframe-multiaudio-subtitles-30s.mkv"
+verify_hash 5 "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-120s.mp4"
 
 for fixture in "$OUTPUT_DIR"/*.mp4 "$OUTPUT_DIR"/*.mkv; do
   hash="$(shasum -a 256 "$fixture" | awk '{print $1}')"

@@ -20,6 +20,7 @@ struct PlayerInfoBarView: View {
                     .contentShape(.rect(cornerRadius: 12))
             }
             .buttonStyle(.borderless)
+            .keyboardShortcut("[", modifiers: .command)
             .enchronHoverEffect(.highlight)
             .accessibilityLabel("Back")
             .accessibilityHint("Stops playback and returns to browser")

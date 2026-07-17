@@ -20,17 +20,38 @@ public enum EnchronPressFeedbackStyle {
     }
 }
 
-private struct EnchronPressFeedbackModifier: ViewModifier {
+public struct EnchronPressFeedbackButtonStyle: ButtonStyle {
     let style: EnchronPressFeedbackStyle
-    @State private var isPressed = false
+
+    public init(_ style: EnchronPressFeedbackStyle) {
+        self.style = style
+    }
+
+    public func makeBody(configuration: Configuration) -> some View {
+        EnchronPressFeedbackButtonStyleBody(
+            label: configuration.label,
+            isPressed: configuration.isPressed,
+            style: style
+        )
+    }
+}
+
+private struct EnchronPressFeedbackButtonStyleBody<Label: View>: View {
+    let label: Label
+    let isPressed: Bool
+    let style: EnchronPressFeedbackStyle
+
     @State private var measuredSize: CGSize = .zero
 
-    func body(content: Content) -> some View {
+    var body: some View {
         let spec = style.spec
 
-        content
+        label
             .scaleEffect(isPressed ? spec.effectivePressedScale(for: measuredSize) : 1.0)
-            .animation(spec.pressAnimation, value: isPressed)
+            .animation(
+                isPressed ? spec.pressAnimation : spec.releaseAnimation,
+                value: isPressed
+            )
             .background {
                 GeometryReader { proxy in
                     Color.clear
@@ -40,24 +61,5 @@ private struct EnchronPressFeedbackModifier: ViewModifier {
                         }
                 }
             }
-            .simultaneousGesture(
-                TapGesture().onEnded {
-                    withAnimation(spec.pressAnimation) {
-                        isPressed = true
-                    }
-
-                    Task {
-                        try? await Task.sleep(for: spec.holdDuration)
-                        withAnimation(spec.releaseAnimation) {
-                            isPressed = false
-                        }
-                    }
-                }
-            )
-    }
-}
-public extension View {
-    func enchronPressFeedback(_ style: EnchronPressFeedbackStyle) -> some View {
-        modifier(EnchronPressFeedbackModifier(style: style))
     }
 }
