@@ -18,9 +18,9 @@ nonisolated extension SpatialSceneDomain {
 
         public var displayName: String {
             switch self {
-            case .darkTheatre: return "暗黑影院"
-            case .starryNight: return "星空夜景"
-            case .sunsetNature: return "自然日落"
+            case .darkTheatre: return "Dark Theatre"
+            case .starryNight: return "Starry Night"
+            case .sunsetNature: return "Nature Sunset"
             }
         }
 
