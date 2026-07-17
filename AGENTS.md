@@ -10,4 +10,4 @@ Enchron 是最低运行于 visionOS 27 的唯一产品与代码仓库。`Package
 
 修改 PlaybackCore 后在 `Packages/PlaybackCore` 运行 `swift test`；修改纯 App 逻辑在仓库根运行 `swift test`；App、SwiftUI 或 RealityKit 变更构建对应 Xcode scheme。验证严格按 L1 → macOS L2 Core → macOS L2 App Adapter → visionOS Simulator → Vision Pro L3 升级。
 
-并行 bug 工作与所有 Apple 重型验证必须使用 `$enchron-local-validation`；Review Deadline 只升级给 controller，不得自动中断进程或释放槽位。
+跨线程的本地 Apple 重型验证：主控使用 `$enchron-validation-controller`，验证线程使用 `$enchron-validation-runner`，缺陷处理线程只提交验证需求；未明确角色的线程不得启动重型命令。Review Deadline 只升级给主控，不得自动中断进程或释放槽位。
