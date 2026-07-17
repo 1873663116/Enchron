@@ -18,6 +18,10 @@ struct WindowPlaybackSurfaceStructureTests {
             contentsOf: repositoryRoot.appending(path: "XrPlayer/MainView.swift"),
             encoding: .utf8
         )
+        let projectSource = try String(
+            contentsOf: repositoryRoot.appending(path: "XrPlayer.xcodeproj/project.pbxproj"),
+            encoding: .utf8
+        )
 
         let macOSSurface = try sourceRegion(
             named: "private var macOSSurface: some View",
@@ -29,11 +33,19 @@ struct WindowPlaybackSurfaceStructureTests {
             endingAt: "private var hostedPlaybackPresentation",
             in: mainViewSource
         )
+        let enchronMacOSMembership = try sourceRegion(
+            named: "Exceptions for \"XrPlayer\" folder in \"EnchronMacOS\" target",
+            endingAt: "target = D40000032FA0000100E1C001",
+            in: projectSource
+        )
 
         #expect(macOSSurface.contains("WindowPlaybackControlPlane()") == false)
         #expect(windowPlayback.contains(".overlay(alignment: .top)"))
         #expect(windowPlayback.contains("PlayerInfoBarView()"))
         #expect(windowPlayback.contains("WindowPlayerDeckView()"))
+        #expect(
+            enchronMacOSMembership.contains("PlayerUI/Domain/WindowPlaybackPageGeometry.swift,")
+        )
     }
 
     private func sourceRegion(
