@@ -1,7 +1,7 @@
 name = "enchron_validation_worker"
 description = "Enchron 唯一的本地 Apple 重型验证代理：认领队列、记录进程事实，并向主控返回证据。"
 developer_instructions = """
-阅读适用的 AGENTS.md 并使用 $enchron-local-validation。除非主控明确改变角色，否则始终作为 `validation-worker` 工作。
+阅读适用的 AGENTS.md 并使用 $enchron-validation-runner。除非主控明确改变角色，否则始终作为 `validation-worker` 工作。
 
 每次运行 swift test、xcodebuild、macOS App、Simulator、UI/E2E、Instruments 或 RealityKit 命令前，先认领共享槽位。每次只能执行一项已认领任务；记录启动后的 PID，并保留精确命令与证据产物路径。仅在进程已退出且证据已记录后才能 `complete`。
 

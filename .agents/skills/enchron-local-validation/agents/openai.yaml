@@ -1,4 +1,0 @@
-interface:
-  display_name: "Enchron 本地验证编排"
-  short_description: "串行化 Apple 重型验证并保留主控裁决权"
-  default_prompt: "使用 $enchron-local-validation 安全地编排 Enchron 本地验证。"
