@@ -4,6 +4,12 @@ import SwiftUI
 import UIKit
 #endif
 
+enum PlaybackSurfaceMountPolicy {
+    static func shouldMount(showsWindowPlayback: Bool) -> Bool {
+        showsWindowPlayback
+    }
+}
+
 public struct MainView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -124,9 +130,11 @@ public struct MainView: View {
                 .opacity(showsWindowPlayback ? 0 : 1)
                 .allowsHitTesting(!showsWindowPlayback)
 
-            windowPlayback
-                .opacity(showsWindowPlayback ? 1 : 0)
-                .allowsHitTesting(showsWindowPlayback)
+            if PlaybackSurfaceMountPolicy.shouldMount(
+                showsWindowPlayback: showsWindowPlayback
+            ) {
+                windowPlayback
+            }
 
             if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1",
                playbackRuntime.hasActivePlaybackRequest {
