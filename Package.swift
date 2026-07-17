@@ -64,6 +64,7 @@ let package = Package(
                 "Persistence/Domain/Ports/ScreenPositionStoring.swift",
                 "Persistence/Adapters/SwiftDataStore.swift",
                 "PlayerUI/Domain/ValueObjects/PlaybackPresentation.swift",
+                "PlayerUI/Domain/WindowPlaybackPageGeometry.swift",
                 "Shared/DesignSystem/DesignTokens.swift",
                 "Persistence/Domain/ValueObjects/ResumePolicy.swift",
                 "Persistence/Domain/ValueObjects/PlaybackEndBehavior.swift",

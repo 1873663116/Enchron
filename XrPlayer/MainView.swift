@@ -164,7 +164,37 @@ public struct MainView: View {
         }
     }
 
+    @ViewBuilder
     private var windowPlayback: some View {
+        #if os(macOS)
+        WindowPlaybackPageLayout(spacing: DesignTokens.Spacing.md) {
+            windowPlaybackCanvas
+                .overlay(alignment: .top) {
+                    if appModel.showControls, hostedPlaybackPresentation == .window {
+                        PlayerInfoBarView()
+                            .padding(.horizontal, 28)
+                            .padding(.top, 20)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityElement(children: .contain)
+                            .accessibilityIdentifier("PlayerUI-window-top-overlay")
+                    }
+                }
+
+            if appModel.showControls {
+                WindowPlayerDeckView()
+                    .padding(.bottom, DesignTokens.Spacing.md)
+                    .accessibilityIdentifier("PlayerUI-window-playback-deck")
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-window-control-plane")
+        .accessibilityValue(windowPlaybackStateValue)
+        #else
+        windowPlaybackCanvas
+        #endif
+    }
+
+    private var windowPlaybackCanvas: some View {
         ZStack {
             PlaybackVideoSurface(
                 presentation: hostedPlaybackPresentation,
@@ -194,6 +224,20 @@ public struct MainView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
         .accessibilityValue(playbackRuntime.lifecycle.label)
+    }
+
+    private var windowPlaybackStateValue: String {
+        let position = playbackRuntime.playbackPosition
+        return [
+            "presentation=\(appModel.playbackPresentation.rawValue)",
+            "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
+            "lifecycle=\(playbackRuntime.lifecycle.label)",
+            "session=\(playbackRuntime.activeSessionID ?? "none")",
+            "position=\(position.seconds)",
+            "duration=\(position.duration)",
+            "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
+            "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)"
+        ].joined(separator: ";")
     }
 
     private var hostedPlaybackPresentation: PlaybackPresentation {
@@ -326,6 +370,51 @@ public struct MainView: View {
         #endif
     }
 }
+
+#if os(macOS)
+private struct WindowPlaybackPageLayout: Layout {
+    let spacing: CGFloat
+
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        proposal.replacingUnspecifiedDimensions()
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard let canvas = subviews.first else { return }
+        let deck = subviews.count > 1 ? subviews[1] : nil
+        let deckSize = deck?.sizeThatFits(
+            ProposedViewSize(width: bounds.width, height: nil)
+        )
+        let geometry = WindowPlaybackPageGeometry.resolve(
+            in: bounds.size,
+            deckSize: deckSize,
+            spacing: spacing
+        )
+
+        canvas.place(
+            at: CGPoint(x: bounds.minX, y: bounds.minY),
+            anchor: .topLeading,
+            proposal: ProposedViewSize(geometry.canvasFrame.size)
+        )
+        if let deck, let deckFrame = geometry.deckFrame {
+            deck.place(
+                at: CGPoint(x: bounds.minX + deckFrame.minX, y: bounds.minY + deckFrame.minY),
+                anchor: .topLeading,
+                proposal: ProposedViewSize(deckFrame.size)
+            )
+        }
+    }
+}
+#endif
 
 private struct PlaybackAutomationStateProbe: View {
     @Environment(AppModel.self) private var appModel
