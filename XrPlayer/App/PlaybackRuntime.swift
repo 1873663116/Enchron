@@ -47,6 +47,7 @@ public final class PlaybackRuntime {
     public private(set) var availableSubtitleTracks: [PlaybackModel.SubtitleTrack] = []
     public private(set) var currentSubtitleTrackID: String?
     public private(set) var activeSubtitleCues: [PlaybackSubtitleCue] = []
+    public private(set) var activeSubtitleFrame: PlaybackSubtitleFrame?
     public private(set) var activeSessionID: String?
     public private(set) var renderer: AVSampleBufferVideoRenderer?
     public private(set) var attachedPresentation: PlaybackPresentation?
@@ -143,6 +144,9 @@ public final class PlaybackRuntime {
         controller.onSubtitleCuesChange = { [weak self] cues in
             self?.activeSubtitleCues = cues
         }
+        controller.onSubtitleFrameChange = { [weak self] frame in
+            self?.activeSubtitleFrame = frame
+        }
     }
 
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
@@ -212,6 +216,7 @@ public final class PlaybackRuntime {
             availableSubtitleTracks = controller.availableSubtitleTracks.map(Self.subtitleTrack)
             currentSubtitleTrackID = controller.selectedSubtitleTrackID
             activeSubtitleCues = controller.activeSubtitleCues
+            activeSubtitleFrame = controller.activeSubtitleFrame
             logger.info("session prepared id=\(newSession.traceID, privacy: .public)")
         } catch {
             guard generation == openGeneration else {
@@ -353,13 +358,33 @@ public final class PlaybackRuntime {
     }
 
     public func pause() {
-        if isUITestFixture { lifecycle = .paused; return }
-        do { try controller.pause() } catch { fail(error) }
+        PlaybackTrace.event("runtime.pause.request lifecycle=\(lifecycle.label)")
+        if isUITestFixture {
+            lifecycle = .paused
+            PlaybackTrace.event("runtime.pause.completed fixture=true")
+            return
+        }
+        do {
+            try controller.pause()
+            PlaybackTrace.event("runtime.pause.completed fixture=false")
+        } catch {
+            fail(error)
+        }
     }
 
     public func resume() {
-        if isUITestFixture { lifecycle = .playing; return }
-        do { try controller.play() } catch { fail(error) }
+        PlaybackTrace.event("runtime.resume.request lifecycle=\(lifecycle.label)")
+        if isUITestFixture {
+            lifecycle = .playing
+            PlaybackTrace.event("runtime.resume.completed fixture=true")
+            return
+        }
+        do {
+            try controller.play()
+            PlaybackTrace.event("runtime.resume.completed fixture=false")
+        } catch {
+            fail(error)
+        }
     }
 
     public func seek(to seconds: Double) {
@@ -450,6 +475,7 @@ public final class PlaybackRuntime {
         if isUITestFixture {
             currentSubtitleTrackID = track?.id
             activeSubtitleCues = []
+            activeSubtitleFrame = nil
             return
         }
         Task { [weak self] in
@@ -556,6 +582,7 @@ public final class PlaybackRuntime {
         availableSubtitleTracks = []
         currentSubtitleTrackID = nil
         activeSubtitleCues = []
+        activeSubtitleFrame = nil
         playbackPosition = .init(seconds: 0, duration: 0)
         fixtureProjectionOverride = nil
         fixtureStereoOverride = nil

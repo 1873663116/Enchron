@@ -18,15 +18,22 @@ let package = Package(
             name: "PlaybackFFmpeg",
             path: "Vendor/FFmpeg/PlaybackFFmpeg.xcframework"
         ),
+        .binaryTarget(
+            name: "PlaybackSubtitleRenderer",
+            path: "Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework"
+        ),
         .target(
             name: "PlaybackFFmpegBridge",
-            dependencies: ["PlaybackFFmpeg"],
+            dependencies: ["PlaybackFFmpeg", "PlaybackSubtitleRenderer"],
             path: "Sources/PlaybackFFmpegBridge",
             publicHeadersPath: "include",
             linkerSettings: [
                 .linkedFramework("AudioToolbox"),
                 .linkedFramework("CoreMedia"),
+                .linkedFramework("CoreText"),
                 .linkedFramework("Security"),
+                .linkedLibrary("c++"),
+                .linkedLibrary("iconv"),
             ]
         ),
         .target(

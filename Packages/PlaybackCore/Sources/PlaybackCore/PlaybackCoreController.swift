@@ -16,6 +16,7 @@ public final class PlaybackCoreController {
     public var onDiagnosticsChange: ((PlaybackDiagnostics) -> Void)?
     public var onSessionChange: ((SampleBufferPlaybackSession?) -> Void)?
     public var onSubtitleCuesChange: (([PlaybackSubtitleCue]) -> Void)?
+    public var onSubtitleFrameChange: ((PlaybackSubtitleFrame?) -> Void)?
 
     public var debugDirectoryURL: URL? {
         debugRecorder?.directoryURL
@@ -356,6 +357,10 @@ public final class PlaybackCoreController {
         activeSession?.activeSubtitleCues ?? []
     }
 
+    public var activeSubtitleFrame: PlaybackSubtitleFrame? {
+        activeSession?.activeSubtitleFrame
+    }
+
     public func selectSubtitleTrack(id: PlaybackSubtitleTrack.ID?) async throws {
         guard let session = activeSession else {
             throw PlaybackControlError.noActiveMediaSession
@@ -655,6 +660,16 @@ public final class PlaybackCoreController {
                     return
                 }
                 self.onSubtitleCuesChange?(cues)
+            }
+        }
+        session.onSubtitleFrameChange = { [weak self, weak session] frame in
+            Task { @MainActor in
+                guard let self, let session else { return }
+                guard self.activeSession === session else {
+                    self.recordStaleCallback(from: session, kind: "subtitleFrame")
+                    return
+                }
+                self.onSubtitleFrameChange?(frame)
             }
         }
     }

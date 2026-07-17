@@ -1,5 +1,18 @@
 # Enchron 播放系统证据
 
+## 2026-07-17 macOS 产品播放闭环
+
+- Scope：`EnchronMacOS` 现在以生产 `PlaybackRuntime` 和 in-tree `Packages/PlaybackCore` 作为本地媒体、文件夹、播放/暂停、seek、音轨、字幕与空间呈现状态机的主要开发宿主。产品媒体路线仍是 FFmpeg demux → compressed `CMSampleBuffer` → AVFoundation Receiver/synchronizer → RealityKit；没有把 Apple reference route 变成第二条产品路线。
+- Deterministic fixtures：120.064 秒双音轨音画同步 MP4 的 SHA-256 为 `9c318aac50d9c4d03c82b988ad0ae83a06403cf5d813622724da3f5eed4eb80e`。30 秒 H.264/AAC/双音轨/SubRip/ASS/DVB bitmap MKV 在两次独立生成后均为 `4877f4030938ccf9e58933112a15ae59db46f5206b823b092aea0398f3a0f1d2`；嵌入的最小 DVB bitmap oracle 两次生成均为 `e6d5a376afea6ce10ffba5c33b4877d92e59199e2617437d26d3bca02110cfad`。生成脚本把 output `-bitexact` 放在 Matroska 输出之前，fixture registry 同时记录三条字幕轨与 bitmap pixel oracle。
+- Subtitle architecture：文本、SubRip、WebVTT、MOV_TEXT 与 ASS 进入固定版本的 libass 0.17.4；HarfBuzz 14.2.0、FriBidi 1.0.16、FreeType 2.14.3 一并构建为 macOS、visionOS device 与 visionOS Simulator XCFramework slices。PGS/DVD/DVB 保持 decoder bitmap；两类输出统一为带 canvas/content rect、premultiplied BGRA 与 change ID 的 `PlaybackSubtitleFrame`，经共享 RealityKit transparent `UnlitMaterial` 纹理平面合成。底部安全带为控制层保留 32% 高度，避免字幕像素被 transport 覆盖。
+- Real App subtitle/audio evidence：`/tmp/EnchronMacOSBitmapSubtitle-20260717-1330/result.json` 通过。SubRip 为 libass frame，13,606 个变化像素、3,718,553 channel difference；ASS 为 libass frame，28,764 / 8,870,149；DVB 为 bitmap frame，53,567 / 16,977,422。切换第二音轨并进入 Docked 后仍保持同一 session `A7C72E2B-4B53-4567-9DC8-98C5D141F58D` 和 bitmap frame；对应透明合成截图保存在同目录。
+- Presentation/transport evidence：`/tmp/EnchronMacOSTransportPanorama-20260717-1342/result.json` 通过一次真实 App、真实鼠标流程：Window → Docked → Window → Panorama simulation → Window → pause → forward seek 约 10 秒 → resume → Back，全程 session `E41DBCEB-A2D6-455E-A375-12499122FE50`。macOS 的 Panorama 明确记录 `presentation=panorama / hosted=window / attached=window / simulation=panorama`，只模拟产品状态和同一 Window consumer，不宣称 macOS 创建了 `ImmersiveSpace`。
+- Remote sources：WebDAV/SMB 范围读取、目录、认证与 credential lifecycle 共 11 项 focused contract 加 Xcode credential tests 通过。本机未配置 `ENCHRON_WEBDAV_TEST_*`、SMB 或其他 live endpoint 环境，因此真实远端播放按设计跳过，没有用 localhost 或 mock 冒充外部服务通过。
+- Build and tests：PlaybackCore 81 tests 全部通过；Enchron 根包 48 项 Swift Testing 与 8 项 XCTest 通过，1 项未配置 live WebDAV 的测试按设计跳过。`EnchronMacOS` Release 构建、`XrPlayer` generic visionOS device 构建及 arm64 visionOS Simulator 构建通过。独立启动 Release bundle 还发现并修复了 `AMSMB2.framework` 只链接未嵌入的问题；最终 `Contents/Frameworks/AMSMB2.framework` 存在且 App 不依赖 Xcode 注入的 `DYLD` 路径即可播放。
+- XCUI infrastructure boundary：`/tmp/EnchronMacOSFull-20260717-1347.xcresult` 中 8 项 macOS unit tests 通过，UI runner 在建立 XCTest 连接前挂起；重置 `testmanagerd` 后 `/tmp/EnchronMacOSUIFull-20260717-1353.xcresult` 再次得到相同 runner infrastructure failure。没有 UI assertion 失败。真实鼠标 harness 的产品流程证据独立通过，但不能把它改写成 XCTest runner 通过。
+- Instruments：20 秒 Release Time Profiler 基线为 `/tmp/EnchronMacOSReleaseTimeProfiler-20260717-1420.trace`，最终为 `/tmp/EnchronMacOSReleaseTimeProfilerFinal-20260717-1437.trace`，两者 TOC 均指向 `/tmp/EnchronProfileBuild/Build/Products/Release/EnchronMacOS.app/Contents/MacOS/EnchronMacOS`。唯一可复现的 App 自有热点是 `PlaybackDebugRecorder` 对每个 heartbeat 重开事件文件并原子重写完整快照；改为会话内复用事件句柄、逐条保留 JSONL、首帧即时快照、其余快照 1 Hz 合并及显式/关闭强制刷新后，inclusive samples 从 100 ms / 1.736% 降至 49 ms / 0.516%，文件重开从 22 ms 降至 0。最终 trace 仍有一次 280.49 ms microhang；对应窗口只有 2 ms 样本回溯到 Enchron view，其余在 CoreRE、RealityFusion、SwiftUI/AttributeGraph，证据不足以归因给产品代码。
+- Remaining boundary：本节关闭 macOS 本地产品路径、字幕像素、控制、同会话模式转换、远端契约、独立 Release 打包与 App 自有 CPU 热点；不替代 visionOS Simulator 空间运行、真实 WebDAV/SMB endpoint、Vision Pro 硬件解码/HDR/最终空间呈现与物理听音证据。
+
 ## 2026-07-16 Simulator 空间播放验收入口
 
 - Code revision：本节对应的空间播放验收提交，基于 Enchron `889b19e832e5`。

@@ -1,0 +1,18 @@
+[binaries]
+c = ['/usr/bin/xcrun', '-sdk', '@SDK@', 'clang']
+cpp = ['/usr/bin/xcrun', '-sdk', '@SDK@', 'clang++']
+ar = ['/usr/bin/xcrun', '-sdk', '@SDK@', 'ar']
+strip = ['/usr/bin/xcrun', '-sdk', '@SDK@', 'strip']
+pkg-config = 'pkg-config'
+
+[host_machine]
+system = 'darwin'
+cpu_family = '@CPU_FAMILY@'
+cpu = '@CPU@'
+endian = 'little'
+
+[built-in options]
+c_args = ['-target', '@TARGET@', '-isysroot', '@SYSROOT@', '-Os']
+cpp_args = ['-target', '@TARGET@', '-isysroot', '@SYSROOT@', '-Os']
+c_link_args = ['-target', '@TARGET@', '-isysroot', '@SYSROOT@']
+cpp_link_args = ['-target', '@TARGET@', '-isysroot', '@SYSROOT@']

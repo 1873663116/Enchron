@@ -87,6 +87,7 @@ struct WindowPlayerDeckView: View {
     }
 
     private func togglePlayPause() {
+        PlaybackTrace.event("ui.playPause.request lifecycle=\(playbackRuntime.lifecycle.label)")
         switch playbackRuntime.lifecycle {
         case .ended: playbackRuntime.replay()
         case .playing: playbackRuntime.pause()

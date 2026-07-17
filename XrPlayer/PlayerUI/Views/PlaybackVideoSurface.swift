@@ -53,6 +53,7 @@ private final class PlaybackVideoComponentObservation {
 
 struct PlaybackVideoSurface: View {
     private static let windowControlsAttachmentID = "Enchron.WindowPlaybackControls"
+    private static let subtitleControlSafeAreaFraction: Float = 0.32
 
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -61,7 +62,7 @@ struct PlaybackVideoSurface: View {
     let isActive: Bool
 
     @State private var videoEntity = Entity()
-    @State private var subtitleEntity = Entity()
+    @State private var subtitleSurface = PlaybackSubtitleSurface()
     @State private var surfaceActivation = PlaybackSurfaceActivation()
     @State private var componentObservation = PlaybackVideoComponentObservation()
     @State private var componentRevision = 0
@@ -118,6 +119,7 @@ struct PlaybackVideoSurface: View {
                     }
                 }
             }
+            .gesture(surfaceTapGesture)
             .frame(depth: 0)
         }
         .onDisappear {
@@ -135,6 +137,8 @@ struct PlaybackVideoSurface: View {
             }
             .realityViewCameraControls(presentation == .docked ? .orbit : .none)
             .background(.black)
+            .gesture(surfaceTapGesture)
+            .allowsHitTesting(appModel.showControls == false)
 
             if presentation == .docked, isLoadingMacOSWorld {
                 ProgressView("Loading environment…")
@@ -149,6 +153,10 @@ struct PlaybackVideoSurface: View {
             }
 
             if appModel.showControls, isActive {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture(perform: toggleControlsFromSurface)
+
                 WindowPlaybackControlPlane()
             }
         }
@@ -160,6 +168,18 @@ struct PlaybackVideoSurface: View {
         }
     }
     #endif
+
+    private var surfaceTapGesture: some Gesture {
+        SpatialTapGesture()
+            .targetedToEntity(videoEntity)
+            .onEnded { _ in toggleControlsFromSurface() }
+    }
+
+    private func toggleControlsFromSurface() {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            appModel.toggleControlsFromPlaybackSurface()
+        }
+    }
 
     @MainActor
     private func prepareSurface<Content: RealityViewContentProtocol>(
@@ -196,12 +216,14 @@ struct PlaybackVideoSurface: View {
             presentation: presentation,
             stereoLayout: playbackRuntime.effectiveStereoLayout
         )
-        PlaybackSubtitlePresenter.update(
-            subtitleEntity,
+        subtitleSurface.update(
             on: videoEntity,
             presentation: presentation,
             screenSize: component?.playerScreenSize ?? .zero,
-            cues: playbackRuntime.activeSubtitleCues
+            reservedBottomFraction: appModel.showControls
+                ? Self.subtitleControlSafeAreaFraction
+                : 0,
+            frame: playbackRuntime.activeSubtitleFrame
         )
         componentObservation.observe(videoEntity, in: content) { reason in
             logComponentState(reason: reason)
@@ -259,13 +281,9 @@ struct PlaybackVideoSurface: View {
         entity.scale = .init(repeating: scale)
         let layoutSignature = "\(frameSize)-\(resolvedScreenSize)-\(scale)"
         if componentObservation.shouldLogLayout(layoutSignature) {
-            let message = "[DEBUG-VPC-4A92] layout " +
-                "frame=\(String(describing: frame)) " +
-                "sceneSize=\(String(describing: frameSize)) " +
-                "screenSize=\(String(describing: resolvedScreenSize)) " +
-                "position=\(String(describing: entity.position)) scale=\(scale)"
-            playbackVideoSurfaceLogger.notice("\(message, privacy: .public)")
-            print(message)
+            playbackVideoSurfaceLogger.notice(
+                "window layout sceneSize=\(String(describing: frameSize), privacy: .public) screenSize=\(String(describing: resolvedScreenSize), privacy: .public) scale=\(scale)"
+            )
         }
         return frameSize
     }
@@ -470,16 +488,15 @@ struct PlaybackVideoSurface: View {
 
     private func logComponentState(reason: String) {
         guard let component else { return }
-        let message = "[DEBUG-VPC-4A92] event=\(reason) " +
-            "active=\(videoEntity.isActive) " +
-            "rendering=\(String(describing: component.currentRenderingStatus)) " +
-            "desiredViewing=\(String(describing: component.desiredViewingMode)) " +
-            "actualViewing=\(String(describing: component.viewingMode)) " +
-            "screenSize=\(String(describing: component.playerScreenSize)) " +
-            "position=\(String(describing: videoEntity.position)) " +
-            "scale=\(String(describing: videoEntity.scale))"
-        playbackVideoSurfaceLogger.notice("\(message, privacy: .public)")
-        print(message)
+        playbackVideoSurfaceLogger.notice(
+            "component event=\(reason, privacy: .public) active=\(videoEntity.isActive) rendering=\(String(describing: component.currentRenderingStatus), privacy: .public)"
+        )
+        playbackVideoSurfaceLogger.notice(
+            "component desiredViewing=\(String(describing: component.desiredViewingMode), privacy: .public) actualViewing=\(String(describing: component.viewingMode), privacy: .public)"
+        )
+        playbackVideoSurfaceLogger.notice(
+            "component screenSize=\(String(describing: component.playerScreenSize), privacy: .public)"
+        )
     }
 
     private func detachSurface() {
@@ -494,7 +511,7 @@ struct PlaybackVideoSurface: View {
     private func releaseSurface() {
         surfaceActivation.cancel()
         componentObservation.cancel()
-        PlaybackSubtitlePresenter.remove(subtitleEntity)
+        subtitleSurface.remove()
         videoEntity.removeFromParent()
         videoEntity.components.remove(VideoPlayerComponent.self)
         playbackRuntime.releaseRendererConsumer(

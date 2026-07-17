@@ -31,6 +31,67 @@ import Testing
     #expect(abs(cues[1].timeRange.end.seconds - 4.25) < 0.001)
 }
 
+@Test func libassRendererProducesPremultipliedSubtitleFrameAtCueTime() async throws {
+    let fixture = try subtitleFixtureURL()
+    let provider = FFmpegSubtitleProvider()
+    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+
+    let renderedFrame = try renderer.frame(
+        at: CMTime(seconds: 1, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    )
+    let frame = try #require(renderedFrame)
+    #expect(frame.kind == .libass)
+    #expect(frame.canvasWidth == 1_920)
+    #expect(frame.canvasHeight == 1_080)
+    #expect(frame.contentWidth > 0)
+    #expect(frame.contentHeight > 0)
+    #expect(frame.premultipliedBGRA.count == frame.bytesPerRow * frame.contentHeight)
+    #expect(stride(from: 3, to: frame.premultipliedBGRA.count, by: 4).contains {
+        frame.premultipliedBGRA[$0] > 0
+    })
+
+    #expect(try renderer.frame(
+        at: CMTime(seconds: 2.5, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ) == nil)
+}
+
+@Test func bitmapSubtitleRendererPreservesDecodedPixelsAndCanvasPlacement() async throws {
+    let fixture = try bitmapSubtitleFixtureURL()
+    let provider = FFmpegSubtitleProvider()
+    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    #expect(track.codecName == "dvb_subtitle")
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+
+    let renderedFrame = try renderer.frame(
+        at: CMTime(seconds: 0.5, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    )
+    let frame = try #require(renderedFrame)
+    #expect(frame.kind == .bitmap)
+    #expect(frame.canvasWidth >= frame.contentX + frame.contentWidth)
+    #expect(frame.canvasHeight >= frame.contentY + frame.contentHeight)
+    #expect(frame.contentWidth > 0)
+    #expect(frame.contentHeight > 0)
+    #expect(frame.premultipliedBGRA.count == frame.bytesPerRow * frame.contentHeight)
+    #expect(stride(from: 3, to: frame.premultipliedBGRA.count, by: 4).contains {
+        frame.premultipliedBGRA[$0] > 0
+    })
+}
+
 @Test func mediaSessionSelectsSubtitlesAndUsesSynchronizerTimeForActiveCues() async throws {
     let session = SampleBufferPlaybackSession(
         route: .ffmpegCompressed,
@@ -323,6 +384,27 @@ private func subtitleFixtureURL() throws -> URL {
             subdirectory: "Fixtures"
         )
     )
+}
+
+private func bitmapSubtitleFixtureURL() throws -> URL {
+    let encodedPackets = try #require(
+        Bundle.module.url(
+            forResource: "bitmap-generated.mks",
+            withExtension: "base64",
+            subdirectory: "Fixtures"
+        )
+    )
+    let directory = FileManager.default.temporaryDirectory
+        .appending(path: "PlaybackCoreBitmapSubtitleFixture")
+    try FileManager.default.createDirectory(
+        at: directory,
+        withIntermediateDirectories: true
+    )
+    let fixture = directory.appending(path: "bitmap-generated.mks")
+    let encoded = try Data(contentsOf: encodedPackets)
+    let decoded = try #require(Data(base64Encoded: encoded, options: .ignoreUnknownCharacters))
+    try decoded.write(to: fixture, options: .atomic)
+    return fixture
 }
 
 private final class SubtitleTestVideoProvider: VideoSampleProvider {

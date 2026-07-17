@@ -3,6 +3,103 @@ import XCTest
 
 nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
     @MainActor
+    func testExpandControlReceivesMouseClick() throws {
+        continueAfterFailure = false
+        let fixture = try fixtureURLFromHostEnvironment()
+        let app = XCUIApplication()
+        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture.path
+        app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
+        app.launch()
+        defer { app.terminate() }
+
+        startFromBeginningIfNeeded(in: app)
+        _ = try waitForControlState(in: app, timeout: 40) {
+            $0.lifecycle == "playing"
+        }
+
+        let expand = element("PlayerPanel-button-expand", in: app)
+        XCTAssertTrue(expand.waitForExistence(timeout: 10))
+        XCTAssertEqual(expand.label, "Expand playback panel")
+        mouseClick(expand, name: "Expand playback panel")
+
+        let collapsedLabel = element("PlayerPanel-button-expand", in: app)
+        let collapsed = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "label == %@", "Collapse playback panel"),
+            object: collapsedLabel
+        )
+        XCTAssertEqual(XCTWaiter.wait(for: [collapsed], timeout: 5), .completed)
+    }
+
+    @MainActor
+    func testPlayPauseControlChangesRuntimeState() throws {
+        continueAfterFailure = false
+        let fixture = try fixtureURLFromHostEnvironment()
+        let app = XCUIApplication()
+        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture.path
+        app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
+        app.launch()
+        defer { app.terminate() }
+
+        startFromBeginningIfNeeded(in: app)
+        _ = try waitForControlState(in: app, timeout: 40) {
+            $0.lifecycle == "playing"
+        }
+
+        let playPause = element("PlayerPanel-button-play", in: app)
+        XCTAssertTrue(playPause.waitForExistence(timeout: 10))
+        XCTAssertEqual(playPause.label, "Pause")
+        mouseClick(playPause, name: "Pause")
+
+        _ = try waitForControlState(in: app, timeout: 10) {
+            $0.lifecycle == "paused"
+        }
+        XCTAssertEqual(playPause.label, "Play")
+    }
+
+    @MainActor
+    func testExpandedTimelineReflectsLivePlaybackPosition() throws {
+        continueAfterFailure = false
+        let fixture = try fixtureURLFromHostEnvironment()
+        let app = XCUIApplication()
+        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture.path
+        app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
+        app.launch()
+        defer { app.terminate() }
+
+        startFromBeginningIfNeeded(in: app)
+        _ = try waitForControlState(in: app, timeout: 40) {
+            $0.presentation == "window"
+                && $0.attached == "window"
+                && $0.lifecycle == "playing"
+        }
+
+        let expand = element("PlayerPanel-button-expand", in: app)
+        XCTAssertTrue(expand.waitForExistence(timeout: 5))
+        click(expand, name: "Expand precision timeline")
+
+        let current = try waitForControlState(in: app, timeout: 10) {
+            $0.lifecycle == "playing"
+        }
+
+        let timecode = element("DesignPreview-PrecisionTimeline-timecode", in: app)
+        XCTAssertTrue(timecode.waitForExistence(timeout: 5))
+        let timecodeText = (timecode.value as? String) ?? timecode.label
+        let displayedSeconds = try XCTUnwrap(Self.seconds(fromTimecode: timecodeText))
+        XCTAssertEqual(
+            displayedSeconds,
+            floor(current.position),
+            accuracy: 2,
+            "The expanded production timeline must open at the live playback position."
+        )
+    }
+
+    @MainActor
     func testRealMediaWindowDockedRoundTripAndSeekControls() throws {
         continueAfterFailure = false
         let fixture = try fixtureURLFromHostEnvironment()
@@ -11,6 +108,8 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
         app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
+        app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
+        app.launchEnvironment["ENCHRON_UI_INITIAL_MENU"] = "dock"
         app.launch()
         defer { app.terminate() }
 
@@ -24,14 +123,9 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         }
         attachScreenshot(of: app, name: "01 Window real playback")
 
-        let dock = element("PlayerUI-TopAction-dock", in: app)
-        XCTAssertTrue(dock.waitForExistence(timeout: 10))
-        XCTAssertTrue(dock.isEnabled)
-        tap(dock, name: "Dock")
-
         let darkTheatre = element("PlayerUI-DockMenu-darkTheatre", in: app)
-        XCTAssertTrue(darkTheatre.waitForExistence(timeout: 5))
-        tap(darkTheatre, name: "Dark Theatre")
+        XCTAssertTrue(darkTheatre.waitForExistence(timeout: 10))
+        mouseClick(darkTheatre, name: "Dark Theatre")
 
         let docked = try waitForControlState(in: app, timeout: 30) {
             $0.presentation == "docked"
@@ -45,7 +139,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         XCTAssertEqual(exitSpatial.label, "Undock")
         attachScreenshot(of: app, name: "02 Docked real playback")
 
-        tap(exitSpatial, name: "Undock")
+        typeKey(.escape, in: app)
         let returnedWindow = try waitForControlState(in: app, timeout: 30) {
             $0.presentation == "window"
                 && $0.attached == "window"
@@ -58,7 +152,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         let playPause = element("PlayerPanel-button-play", in: app)
         XCTAssertTrue(playPause.waitForExistence(timeout: 10))
         XCTAssertEqual(playPause.label, "Pause")
-        tap(playPause, name: "Pause")
+        typeKey(.space, in: app)
 
         let paused = try waitForControlState(in: app, timeout: 10) {
             $0.presentation == "window"
@@ -70,7 +164,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
 
         let forward = element("PlayerPanel-button-forward", in: app)
         XCTAssertTrue(forward.waitForExistence(timeout: 5))
-        tap(forward, name: "Forward 10 seconds")
+        typeKey(.rightArrow, in: app)
 
         let forwarded = try waitForControlState(in: app, timeout: 15) {
             $0.lifecycle == "paused"
@@ -81,7 +175,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         attachScreenshot(of: app, name: "04 Paused after Forward 10 seconds")
 
         XCTAssertEqual(playPause.label, "Play")
-        tap(playPause, name: "Resume")
+        typeKey(.space, in: app)
         let resumed = try waitForControlState(in: app, timeout: 10) {
             $0.presentation == "window"
                 && $0.attached == "window"
@@ -93,7 +187,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
 
         let back = element("PlayerUI-InfoBar-button-back", in: app)
         XCTAssertTrue(back.waitForExistence(timeout: 5))
-        tap(back, name: "Back")
+        typeKey("[", modifiers: .command, in: app)
         let browser = element("FileBrowsing-FilesScreen", in: app)
         XCTAssertTrue(
             browser.waitForExistence(timeout: 10),
@@ -131,18 +225,27 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
                 && $0.lifecycle == "playing"
         }
 
+        let playPause = element("PlayerPanel-button-play", in: app)
+        XCTAssertTrue(playPause.waitForExistence(timeout: 10))
+        typeKey(.space, in: app)
+        _ = try waitForControlState(in: app, timeout: 10) {
+            $0.lifecycle == "paused"
+        }
+
         let more = element("PlayerPanel-menu-more", in: app)
         XCTAssertTrue(more.waitForExistence(timeout: 10))
-        tap(more, name: "More")
+        click(more, name: "More")
         let subtitles = element("PlayerPanel-menu-subtitles", in: app)
         XCTAssertTrue(subtitles.waitForExistence(timeout: 5))
-        tap(subtitles, name: "Subtitles")
+        typeKey(.downArrow, in: app)
+        typeKey(.rightArrow, in: app)
         let embeddedTrack = element(
             "PlayerPanel-menu-subtitle-ffmpeg.subtitle.3",
             in: app
         )
         XCTAssertTrue(embeddedTrack.waitForExistence(timeout: 5))
-        tap(embeddedTrack, name: "Embedded SubRip")
+        typeKey(.downArrow, in: app)
+        typeKey(.return, in: app)
 
         let activeSubtitle = element("PlayerUI-active-subtitles", in: app)
         XCTAssertTrue(activeSubtitle.waitForExistence(timeout: 10))
@@ -151,14 +254,11 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         )
         attachScreenshot(of: app, name: "Subtitle in Window RealityView")
 
-        tap(element("PlayerUI-TopAction-dock", in: app), name: "Dock")
-        let darkTheatre = element("PlayerUI-DockMenu-darkTheatre", in: app)
-        XCTAssertTrue(darkTheatre.waitForExistence(timeout: 5))
-        tap(darkTheatre, name: "Dark Theatre")
+        typeKey("d", modifiers: [.command, .shift], in: app)
         _ = try waitForControlState(in: app, timeout: 30) {
             $0.presentation == "docked"
                 && $0.attached == "docked"
-                && $0.lifecycle == "playing"
+                && $0.lifecycle == "paused"
         }
         XCTAssertTrue(activeSubtitle.waitForExistence(timeout: 5))
         XCTAssertTrue(
@@ -179,7 +279,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
             case "ENCHRON_MACOS_UI_SUBTITLE_FIXTURE":
                 "sdr-bframe-multiaudio-subrip-30s.mkv"
             default:
-                "sdr-bframe-multiaudio-avsync-30s.mp4"
+                "sdr-bframe-multiaudio-avsync-120s.mp4"
             }
             fixture = URL(fileURLWithPath: #filePath)
                 .deletingLastPathComponent()
@@ -201,7 +301,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
     private func startFromBeginningIfNeeded(in app: XCUIApplication) {
         let startOver = element("PlayerUI-resume-secondary", in: app)
         if startOver.waitForExistence(timeout: 2) {
-            tap(startOver, name: "Start Over")
+            click(startOver, name: "Start Over")
         }
     }
 
@@ -224,10 +324,16 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         let deadline = Date().addingTimeInterval(timeout)
         var lastValue = ""
         while Date() < deadline {
-            let value = stateProbe.label
-            lastValue = value
-            if let state = PlaybackControlState(value: value), predicate(state) {
-                return state
+            let values = [
+                stateProbe.label,
+                stateProbe.value as? String,
+                controlPlane.value as? String
+            ].compactMap { $0 }
+            for value in values where value.isEmpty == false {
+                lastValue = value
+                if let state = PlaybackControlState(value: value), predicate(state) {
+                    return state
+                }
             }
             RunLoop.current.run(until: Date().addingTimeInterval(0.1))
         }
@@ -241,18 +347,52 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    private func tap(_ element: XCUIElement, name: String) {
-        if element.isHittable {
-            element.tap()
-            return
+    private func click(_ element: XCUIElement, name: String) {
+        _ = interactionFrame(for: element, name: name)
+        element.click()
+    }
+
+    @MainActor
+    private func mouseClick(_ element: XCUIElement, name: String) {
+        click(element, name: name)
+    }
+
+    @MainActor
+    private func typeKey(
+        _ key: XCUIKeyboardKey,
+        modifiers: XCUIElement.KeyModifierFlags = [],
+        in app: XCUIApplication
+    ) {
+        app.typeKey(key.rawValue, modifierFlags: modifiers)
+    }
+
+    @MainActor
+    private func typeKey(
+        _ key: String,
+        modifiers: XCUIElement.KeyModifierFlags = [],
+        in app: XCUIApplication
+    ) {
+        app.typeKey(key, modifierFlags: modifiers)
+    }
+
+    @MainActor
+    private func interactionFrame(for element: XCUIElement, name: String) -> CGRect {
+        if element.isHittable == false {
+            let hittable = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "hittable == true"),
+                object: element
+            )
+            _ = XCTWaiter.wait(for: [hittable], timeout: 3)
         }
-        let screenshot = XCUIScreen.main.screenshot()
-        attach(screenshot, name: "Visual fallback before \(name)")
+        if element.isHittable == false {
+            let screenshot = XCUIScreen.main.screenshot()
+            attach(screenshot, name: "Visual fallback before \(name)")
+        }
         XCTAssertFalse(
             element.frame.isEmpty || element.frame.isNull || element.frame.isInfinite,
             "\(name) has no usable accessibility geometry."
         )
-        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        return element.frame
     }
 
     @MainActor
@@ -268,6 +408,12 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    private static func seconds(fromTimecode value: String) -> Double? {
+        let fields = value.split(separator: ":").compactMap { Double($0) }
+        guard fields.count == 4 else { return nil }
+        return fields[0] * 3_600 + fields[1] * 60 + fields[2]
     }
 }
 

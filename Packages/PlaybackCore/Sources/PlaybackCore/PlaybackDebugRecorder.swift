@@ -7,8 +7,17 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
 
     private weak var session: SampleBufferPlaybackSession?
     private var observerID: UUID?
-    private let lock = NSLock()
+    private let queue = DispatchQueue(
+        label: "PlaybackCore.PlaybackDebugRecorder",
+        qos: .utility
+    )
+    private var eventsHandle: FileHandle?
+    private var pendingSnapshotWorkItem: DispatchWorkItem?
+    private var snapshotGeneration = 0
+    private var lastSnapshotWriteTime: UInt64 = 0
     private var isStopped = false
+
+    private static let snapshotIntervalNanoseconds: UInt64 = 1_000_000_000
 
     init(session: SampleBufferPlaybackSession, platform: String) {
         self.session = session
@@ -24,6 +33,7 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
                 withIntermediateDirectories: true
             )
             try Data().write(to: eventsURL, options: .atomic)
+            eventsHandle = try FileHandle(forWritingTo: eventsURL)
             try writeCurrentManifest(root: root, platform: platform, session: session)
             try writeSnapshot()
             PlaybackTrace.event(
@@ -36,17 +46,16 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
         }
 
         observerID = session.debugStore.addEventObserver { [weak self] event in
-            guard let self else { return }
-            self.append(event)
-            try? self.writeSnapshot()
+            self?.record(event)
         }
     }
 
     func writeSnapshot() throws {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !isStopped, let session else { return }
-        try writeSnapshotLocked(session: session)
+        try queue.sync {
+            guard !isStopped, let session else { return }
+            cancelPendingSnapshotLocked()
+            try writeSnapshotLocked(session: session)
+        }
     }
 
     private func writeSnapshotLocked(session: SampleBufferPlaybackSession) throws {
@@ -55,6 +64,7 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         let data = try encoder.encode(session.debugSnapshot())
         try data.write(to: snapshotURL, options: .atomic)
+        lastSnapshotWriteTime = DispatchTime.now().uptimeNanoseconds
     }
 
     func stop() {
@@ -62,38 +72,87 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
             session.debugStore.removeEventObserver(observerID)
         }
         observerID = nil
-        lock.lock()
-        if !isStopped, let session {
+        queue.sync {
+            guard !isStopped else { return }
+            cancelPendingSnapshotLocked()
+            if let session {
+                try? writeSnapshotLocked(session: session)
+            }
+            try? eventsHandle?.close()
+            eventsHandle = nil
             isStopped = true
-            try? writeSnapshotLocked(session: session)
         }
-        lock.unlock()
     }
 
     func writeSnapshotIgnoringErrors() {
         try? writeSnapshot()
     }
 
-    private func append(_ event: PlaybackDebugEvent) {
+    private func record(_ event: PlaybackDebugEvent) {
+        queue.sync {
+            guard !isStopped else { return }
+            appendLocked(event)
+            if event.kind == "audioRenderer.firstEnqueue"
+                || event.kind == "renderer.firstEnqueue" {
+                cancelPendingSnapshotLocked()
+                if let session {
+                    try? writeSnapshotLocked(session: session)
+                }
+            } else {
+                refreshSnapshotLocked()
+            }
+        }
+    }
+
+    private func appendLocked(_ event: PlaybackDebugEvent) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
         guard var data = try? encoder.encode(event) else { return }
         data.append(0x0A)
 
-        lock.lock()
-        defer { lock.unlock() }
-        guard !isStopped else { return }
         do {
-            let handle = try FileHandle(forWritingTo: eventsURL)
-            try handle.seekToEnd()
-            try handle.write(contentsOf: data)
-            try handle.close()
+            try eventsHandle?.write(contentsOf: data)
         } catch {
             PlaybackTrace.event(
                 "debug.recorder.appendFailed error=\(error.localizedDescription)"
             )
         }
+    }
+
+    private func refreshSnapshotLocked() {
+        let now = DispatchTime.now().uptimeNanoseconds
+        let deadline = lastSnapshotWriteTime + Self.snapshotIntervalNanoseconds
+        if now >= deadline {
+            cancelPendingSnapshotLocked()
+            if let session {
+                try? writeSnapshotLocked(session: session)
+            }
+            return
+        }
+
+        guard pendingSnapshotWorkItem == nil else { return }
+        snapshotGeneration += 1
+        let generation = snapshotGeneration
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self,
+                  !self.isStopped,
+                  self.snapshotGeneration == generation,
+                  let session = self.session else { return }
+            self.pendingSnapshotWorkItem = nil
+            try? self.writeSnapshotLocked(session: session)
+        }
+        pendingSnapshotWorkItem = workItem
+        queue.asyncAfter(
+            deadline: DispatchTime(uptimeNanoseconds: deadline),
+            execute: workItem
+        )
+    }
+
+    private func cancelPendingSnapshotLocked() {
+        snapshotGeneration += 1
+        pendingSnapshotWorkItem?.cancel()
+        pendingSnapshotWorkItem = nil
     }
 
     private func writeCurrentManifest(

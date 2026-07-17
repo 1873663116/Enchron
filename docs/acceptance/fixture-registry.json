@@ -97,30 +97,62 @@
       }
     },
     {
-      "id": "generated-sdr-avc-bframe-multiaudio-subrip-30s-v1",
-      "sha256": "9f504d56c2e5c91fbcd1948bcc60ba54a2db5c21d1ba8dc920fdecf1fe11f204",
+      "id": "generated-sdr-avc-bframe-multiaudio-subtitles-30s-v3",
+      "sha256": "4877f4030938ccf9e58933112a15ae59db46f5206b823b092aea0398f3a0f1d2",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
       "container": "Matroska / MKV",
       "videoCodec": "H.264 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "two AAC LC 48 kHz stereo tracks copied from the deterministic SDR fixture",
-      "subtitles": "one embedded SubRip / S_TEXT/UTF8 track; zho; Chinese, English and multiline cues",
+      "subtitles": "one embedded SubRip / S_TEXT/UTF8 track, one styled ASS / S_TEXT/ASS track, and one generated DVB bitmap track",
       "durationSeconds": 30.0,
       "generation": {
         "script": "script/generate_acceptance_fixtures.sh",
-        "output": ".verification-fixtures/sdr-bframe-multiaudio-subrip-30s.mkv",
+        "output": ".verification-fixtures/sdr-bframe-multiaudio-subtitles-30s.mkv",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
-        "subtitleTrackCount": 1,
-        "subtitleCodec": "subrip",
-        "subtitleLanguage": "zho",
+        "subtitleTrackCount": 3,
+        "subtitleCodecs": ["subrip", "ass", "dvb_subtitle"],
+        "subtitleLanguages": ["zho", "eng", "eng"],
         "cueTexts": [
-          "Enchron 字幕验证\nRealityKit TextComponent",
+          "Enchron 字幕验证\nlibass GPU SubtitleFrame",
           "Window playback subtitle",
           "Seek 后只显示当前 cue",
-          "Docked scene subtitle"
-        ]
+          "Docked scene subtitle",
+          "Enchron GPU PIXEL PROOF"
+        ],
+        "bitmapCue": {
+          "trackTitle": "Enchron generated bitmap proof",
+          "codec": "dvb_subtitle",
+          "kind": "bitmap",
+          "pixelContent": "top-safe-area project-generated color bars"
+        }
+      }
+    },
+    {
+      "id": "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
+      "sha256": "9c318aac50d9c4d03c82b988ad0ae83a06403cf5d813622724da3f5eed4eb80e",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "ISO BMFF / MP4",
+      "videoCodec": "H.264 avc1 High, 1280x720, 30 fps, B-frames, BT.709, video range",
+      "audio": "two AAC LC 48 kHz stereo tracks; 880 Hz and 440 Hz 80 ms pulses aligned with a white video flash every second",
+      "durationSeconds": 120.064063,
+      "generation": {
+        "script": "script/generate_acceptance_fixtures.sh",
+        "output": ".verification-fixtures/sdr-bframe-multiaudio-avsync-120s.mp4",
+        "ffmpegVersion": "8.0.1"
+      },
+      "oracle": {
+        "sampleColorPrimaries": ["709"],
+        "sampleTransferFunction": ["709"],
+        "sampleYCbCrMatrix": ["709"],
+        "sampleRange": ["video", "tv"],
+        "displayedColorPrimaries": ["709"],
+        "displayedTransferFunction": ["709"],
+        "displayedYCbCrMatrix": ["709"],
+        "displayedPixelFormats": ["&8v0"]
       }
     }
   ]

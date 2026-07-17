@@ -54,7 +54,20 @@ protocol SubtitleProvider: AnyObject {
         asset: PlaybackAsset?,
         track: PlaybackSubtitleTrack
     ) async throws -> [PlaybackSubtitleCue]
+    func frameRenderer(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack
+    ) async throws -> SubtitleFrameRendering?
     func cancel()
+}
+
+extension SubtitleProvider {
+    func frameRenderer(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack
+    ) async throws -> SubtitleFrameRendering? { nil }
 }
 
 final class NoSubtitleProvider: SubtitleProvider {
@@ -160,6 +173,14 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
     }
 
     func cancel() {}
+
+    func frameRenderer(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack
+    ) async throws -> SubtitleFrameRendering? {
+        try FFmpegSubtitleFrameRenderer(url: url, track: track)
+    }
 
     private static func string(_ buffer: [CChar]) -> String? {
         let value = errorMessage(buffer)

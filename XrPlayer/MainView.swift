@@ -130,7 +130,7 @@ public struct MainView: View {
 
             if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1",
                playbackRuntime.hasActivePlaybackRequest {
-                PlaybackAutomationStateProbe()
+                PlaybackAutomationStateProbe(hostedPresentation: hostedPlaybackPresentation)
             }
 
             if let decision = playbackLauncher.pendingResumeDecision {
@@ -194,13 +194,6 @@ public struct MainView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
         .accessibilityValue(playbackRuntime.lifecycle.label)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                appModel.toggleControlsFromPlaybackSurface()
-            }
-            if appModel.showControls { scheduleControlsAutoHide() }
-        }
     }
 
     private var hostedPlaybackPresentation: PlaybackPresentation {
@@ -337,6 +330,7 @@ public struct MainView: View {
 private struct PlaybackAutomationStateProbe: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
+    let hostedPresentation: PlaybackPresentation
 
     var body: some View {
         Text(stateValue)
@@ -352,14 +346,29 @@ private struct PlaybackAutomationStateProbe: View {
         let position = playbackRuntime.playbackPosition
         return [
             "presentation=\(appModel.playbackPresentation.rawValue)",
+            "hosted=\(hostedPresentation.rawValue)",
+            "simulation=\(simulatedPresentation)",
             "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
             "position=\(position.seconds)",
             "duration=\(position.duration)",
+            "audioTrack=\(playbackRuntime.currentAudioTrackID ?? "none")",
             "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
-            "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)"
+            "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
+            "subtitleFrame=\(playbackRuntime.activeSubtitleFrame?.kind.rawValue ?? "none")",
+            "controls=\(appModel.showControls ? "shown" : "hidden")"
         ].joined(separator: ";")
+    }
+
+    private var simulatedPresentation: String {
+        #if os(macOS)
+        if appModel.playbackPresentation == .panorama,
+           hostedPresentation == .window {
+            return PlaybackPresentation.panorama.rawValue
+        }
+        #endif
+        return "none"
     }
 }
 

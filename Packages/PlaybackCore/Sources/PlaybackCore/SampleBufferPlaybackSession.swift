@@ -35,6 +35,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         var availableTracks: [PlaybackSubtitleTrack] = []
         var selectedTrackID: PlaybackSubtitleTrack.ID?
         var cues: [PlaybackSubtitleCue] = []
+        var frameRenderer: SubtitleFrameRendering?
+        var activeFrame: PlaybackSubtitleFrame?
         var streamEpoch: UInt64 = 1
         var selectionGeneration: UInt64 = 0
         var suppressesActiveCues = false
@@ -52,6 +54,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     public var onStatusChange: (@Sendable (PlaybackStatus) -> Void)?
     public var onDiagnosticsChange: (@Sendable (PlaybackDiagnostics) -> Void)?
     public var onSubtitleCuesChange: (@Sendable ([PlaybackSubtitleCue]) -> Void)?
+    public var onSubtitleFrameChange: (@Sendable (PlaybackSubtitleFrame?) -> Void)?
 
     private let provider: VideoSampleProvider
     private let audioProvider: AudioSampleProvider
@@ -218,6 +221,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             subtitleState.availableTracks = subtitleTracks
             subtitleState.selectedTrackID = nil
             subtitleState.cues = []
+            subtitleState.frameRenderer = nil
+            subtitleState.activeFrame = nil
             subtitleState.streamEpoch = 1
             subtitleState.selectionGeneration = 0
             subtitleState.suppressesActiveCues = false
@@ -1257,6 +1262,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         activeSubtitleCues(at: synchronizer.currentTime())
     }
 
+    public var activeSubtitleFrame: PlaybackSubtitleFrame? {
+        subtitleStateLock.withLock { subtitleState.activeFrame }
+    }
+
     private func activeSubtitleCues(at time: CMTime) -> [PlaybackSubtitleCue] {
         return subtitleStateLock.withLock {
             Self.activeSubtitleCues(in: subtitleState, at: time)
@@ -1274,6 +1283,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 subtitleState.streamEpoch &+= 1
                 subtitleState.selectedTrackID = nil
                 subtitleState.cues = []
+                subtitleState.frameRenderer = nil
                 subtitleState.suppressesActiveCues = false
                 return (subtitleState.selectionGeneration, subtitleState.streamEpoch)
             }
@@ -1303,6 +1313,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             subtitleState.streamEpoch &+= 1
             subtitleState.selectedTrackID = nil
             subtitleState.cues = []
+            subtitleState.frameRenderer = nil
             subtitleState.suppressesActiveCues = true
             return (
                 track,
@@ -1318,6 +1329,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 asset: sourceAsset,
                 track: selection.0
             )
+            let frameRenderer = try await subtitleProvider.frameRenderer(
+                in: sourceURL,
+                asset: sourceAsset,
+                track: selection.0
+            )
             try Task.checkCancellation()
             let committed = subtitleStateLock.withLock {
                 guard !subtitleState.isClosed,
@@ -1327,6 +1343,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 subtitleState.cues = cues.sorted {
                     CMTimeCompare($0.timeRange.start, $1.timeRange.start) < 0
                 }
+                subtitleState.frameRenderer = frameRenderer
+                subtitleState.activeFrame = nil
                 subtitleState.suppressesActiveCues = false
                 return true
             }
@@ -1350,6 +1368,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 guard subtitleState.selectionGeneration == selection.1 else { return }
                 subtitleState.selectedTrackID = nil
                 subtitleState.cues = []
+                subtitleState.frameRenderer = nil
+                subtitleState.activeFrame = nil
                 subtitleState.suppressesActiveCues = false
             }
             recordSubtitleState(at: synchronizer.currentTime())
@@ -1417,6 +1437,49 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         }
         if let cues {
             onSubtitleCuesChange?(cues)
+        }
+        publishSubtitleFrame(at: time)
+    }
+
+    private func publishSubtitleFrame(at time: CMTime) {
+        let snapshot = subtitleStateLock.withLock {
+            guard time.isNumeric,
+                  !subtitleState.isClosed,
+                  !subtitleState.suppressesActiveCues,
+                  subtitleState.selectedTrackID != nil,
+                  let renderer = subtitleState.frameRenderer else {
+                return (nil as SubtitleFrameRendering?, subtitleState.selectionGeneration)
+            }
+            return (renderer, subtitleState.selectionGeneration)
+        }
+        let frame: PlaybackSubtitleFrame?
+        do {
+            frame = try snapshot.0?.frame(
+                at: time,
+                viewportWidth: 1_920,
+                viewportHeight: 1_080
+            )
+        } catch {
+            debugStore.emit(
+                mediaSessionID: traceID,
+                route: route,
+                kind: "subtitle.frame.failed",
+                outcome: .failed,
+                details: ["error": error.localizedDescription]
+            )
+            frame = nil
+        }
+        let shouldPublish = subtitleStateLock.withLock {
+            guard subtitleState.selectionGeneration == snapshot.1 else { return false }
+            let current = subtitleState.activeFrame
+            let changed = current?.changeIdentifier != frame?.changeIdentifier ||
+                current?.kind != frame?.kind
+            guard changed else { return false }
+            subtitleState.activeFrame = frame
+            return true
+        }
+        if shouldPublish {
+            onSubtitleFrameChange?(frame)
         }
     }
 
@@ -1756,6 +1819,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             subtitleState.availableTracks = []
             subtitleState.selectedTrackID = nil
             subtitleState.cues = []
+            subtitleState.frameRenderer = nil
+            subtitleState.activeFrame = nil
             subtitleState.suppressesActiveCues = true
             subtitleState.isClosed = true
         }

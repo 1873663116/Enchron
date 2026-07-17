@@ -7,6 +7,35 @@ import XCTest
 
 nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
     @MainActor
+    func testMacPresentationHostMakesPanoramaAnExplicitWindowSimulation() {
+        XCTAssertEqual(
+            MacPlaybackPresentationHost.surfacePresentation(for: .window),
+            .window
+        )
+        XCTAssertEqual(
+            MacPlaybackPresentationHost.surfacePresentation(for: .docked),
+            .docked
+        )
+        XCTAssertEqual(
+            MacPlaybackPresentationHost.surfacePresentation(for: .panorama),
+            .window
+        )
+        XCTAssertEqual(
+            MacPlaybackPresentationHost.simulatedPresentation(
+                productPresentation: .panorama,
+                surfacePresentation: .window
+            ),
+            .panorama
+        )
+        XCTAssertNil(
+            MacPlaybackPresentationHost.simulatedPresentation(
+                productPresentation: .window,
+                surfacePresentation: .window
+            )
+        )
+    }
+
+    @MainActor
     func testWindowAndDockedPlacementReparentsTheSameVideoEntity() {
         let windowRoot = Entity()
         let anchor = Entity()
@@ -112,33 +141,44 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
     }
 
     @MainActor
-    func testSubtitleTextComponentFollowsTheSharedVideoEntityIntoDockedScene() throws {
+    func testSubtitleGPUFrameFollowsTheSharedVideoEntityAndRelayoutsForControls() throws {
         let videoEntity = Entity()
-        let subtitleEntity = Entity()
+        let surface = PlaybackSubtitleSurface()
         let anchor = Entity()
-        let cue = PlaybackSubtitleCue(
-            id: "cue-1",
-            trackID: "subtitle-1",
-            timeRange: CMTimeRange(
-                start: CMTime(seconds: 1, preferredTimescale: 600),
-                duration: CMTime(seconds: 2, preferredTimescale: 600)
-            ),
-            text: "第一行\nSecond line"
+        let frame = PlaybackSubtitleFrame(
+            kind: .libass,
+            canvasWidth: 1_920,
+            canvasHeight: 1_080,
+            contentX: 639,
+            contentY: 904,
+            contentWidth: 658,
+            contentHeight: 132,
+            bytesPerRow: 2_632,
+            premultipliedBGRA: Data(repeating: 255, count: 347_424),
+            changeIdentifier: 1
         )
 
-        PlaybackSubtitlePresenter.update(
-            subtitleEntity,
+        surface.update(
             on: videoEntity,
             presentation: .window,
             screenSize: [16.0 / 9.0, 1],
-            cues: [cue]
+            reservedBottomFraction: 0.32,
+            frame: frame
         )
 
-        let component = try XCTUnwrap(subtitleEntity.components[TextComponent.self])
-        let renderedText = component.text.map { String($0.characters) } ?? ""
-        XCTAssertTrue(subtitleEntity.parent === videoEntity)
-        XCTAssertTrue(subtitleEntity.isEnabled)
-        XCTAssertTrue(renderedText.contains("第一行"))
+        XCTAssertTrue(surface.entity.parent === videoEntity)
+        XCTAssertTrue(surface.entity.isEnabled)
+        XCTAssertNotNil(surface.entity.components[ModelComponent.self])
+        let elevatedY = surface.entity.position.y
+
+        surface.update(
+            on: videoEntity,
+            presentation: .window,
+            screenSize: [16.0 / 9.0, 1],
+            reservedBottomFraction: 0,
+            frame: frame
+        )
+        XCTAssertLessThan(surface.entity.position.y, elevatedY)
 
         PlaybackSurfacePlacement.dock(
             videoEntity,
@@ -152,7 +192,7 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
         )
 
         XCTAssertTrue(videoEntity.parent === anchor)
-        XCTAssertTrue(subtitleEntity.parent === videoEntity)
-        XCTAssertNotNil(subtitleEntity.components[TextComponent.self])
+        XCTAssertTrue(surface.entity.parent === videoEntity)
+        XCTAssertNotNil(surface.entity.components[ModelComponent.self])
     }
 }
