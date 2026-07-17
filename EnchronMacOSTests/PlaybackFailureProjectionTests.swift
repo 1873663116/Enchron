@@ -24,6 +24,37 @@ nonisolated final class PlaybackFailureProjectionTests: XCTestCase {
     }
 
     @MainActor
+    func testLateTimelineControlFailureDoesNotRecreateFailureAfterPlaybackIsUsable() async throws {
+        let controller = PlaybackCoreController()
+        let runtime = PlaybackRuntime(
+            controller: controller,
+            isUITestFixture: true,
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle()
+        )
+        let receiveStatus = try XCTUnwrap(controller.onStatusChange)
+
+        try await runtime.open(request(named: "Late Control Video"))
+        receiveStatus(.playing)
+        runtime.fail(PlaybackControlError.timelineNotReady)
+
+        XCTAssertEqual(runtime.lifecycle, .playing)
+        XCTAssertNil(runtime.lastErrorMessage)
+
+        runtime.fail(PlaybackControlError.invalidRate(-1))
+        XCTAssertEqual(
+            runtime.lastErrorMessage,
+            "The requested playback rate -1.0 is invalid."
+        )
+
+        receiveStatus(.failed("The renderer stopped accepting samples."))
+        XCTAssertEqual(
+            runtime.lifecycle,
+            .failed("The renderer stopped accepting samples.")
+        )
+        XCTAssertEqual(runtime.lastErrorMessage, "The renderer stopped accepting samples.")
+    }
+
+    @MainActor
     func testSuccessfulSurfaceAttachRemovesAnEarlierAttachFailure() async throws {
         let runtime = PlaybackRuntime(isUITestFixture: true)
         try await runtime.open(request(named: "Attached Video"))

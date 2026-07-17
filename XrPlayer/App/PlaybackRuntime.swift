@@ -756,7 +756,18 @@ public final class PlaybackRuntime {
         )
     }
 
-    private func fail(_ error: Error) {
+    func fail(_ error: Error) {
+        if case PlaybackControlError.timelineNotReady = error {
+            switch lifecycle {
+            case .ready, .playing, .paused:
+                logger.notice(
+                    "stale timeline control failure ignored lifecycle=\(self.lifecycle.label, privacy: .public)"
+                )
+                return
+            case .idle, .loading, .ended, .failed:
+                break
+            }
+        }
         lastErrorMessage = error.localizedDescription
         logger.error("runtime operation failed error=\(error.localizedDescription, privacy: .public)")
     }
