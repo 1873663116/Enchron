@@ -7,6 +7,16 @@ import XCTest
 
 nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
     @MainActor
+    func testPlaybackSurfaceMountPolicyFollowsVisiblePlaybackLifecycle() {
+        XCTAssertFalse(
+            PlaybackSurfaceMountPolicy.shouldMount(showsWindowPlayback: false)
+        )
+        XCTAssertTrue(
+            PlaybackSurfaceMountPolicy.shouldMount(showsWindowPlayback: true)
+        )
+    }
+
+    @MainActor
     func testMacPresentationHostMakesPanoramaAnExplicitWindowSimulation() {
         XCTAssertEqual(
             MacPlaybackPresentationHost.surfacePresentation(for: .window),
