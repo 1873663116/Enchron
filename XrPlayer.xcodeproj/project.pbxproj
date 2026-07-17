@@ -202,6 +202,7 @@
 				PlaybackModel/Domain/ValueObjects/PlaybackSpeed.swift,
 				PlaybackModel/Domain/ValueObjects/ProjectionType.swift,
 				PlaybackModel/Domain/ValueObjects/StereoLayout.swift,
+				PlayerUI/Domain/WindowPlaybackPageGeometry.swift,
 				PlayerUI/Domain/ValueObjects/PlaybackPresentation.swift,
 				PlayerUI/UseCases/PlaybackInfoFormatter.swift,
 				PlayerUI/UseCases/PlaybackTimeFormatter.swift,
