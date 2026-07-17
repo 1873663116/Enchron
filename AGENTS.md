@@ -9,3 +9,5 @@ Enchron 是最低运行于 visionOS 27 的唯一产品与代码仓库。`Package
 产品运行只通过 `PlaybackRuntime` 接入 `Packages/PlaybackCore`。`PlaybackRuntime` 只负责来源交接、产品策略和核心状态投影，不复制 Media Session、seek 调度、timeline、renderer queue 或 Playback Lifecycle。Apple compressed 等对照路线只存在于验证入口，不进入产品 UI 或失败 fallback。
 
 修改 PlaybackCore 后在 `Packages/PlaybackCore` 运行 `swift test`；修改纯 App 逻辑在仓库根运行 `swift test`；App、SwiftUI 或 RealityKit 变更构建对应 Xcode scheme。验证严格按 L1 → macOS L2 Core → macOS L2 App Adapter → visionOS Simulator → Vision Pro L3 升级。
+
+并行 bug 工作与所有 Apple 重型验证必须使用 `$enchron-local-validation`；Review Deadline 只升级给 controller，不得自动中断进程或释放槽位。
