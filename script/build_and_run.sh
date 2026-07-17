@@ -12,6 +12,18 @@ APP_BINARY="$APP_BUNDLE/Contents/MacOS/$APP_NAME"
 SIGNING_MODE="${ENCHRON_MACOS_SIGNING:-auto}"
 SIGNING_ARGS=(CODE_SIGN_STYLE=Automatic)
 
+if [[ -z "${DEVELOPER_DIR:-}" && "$(/usr/bin/xcode-select -p 2>/dev/null || true)" == "/Library/Developer/CommandLineTools" ]]; then
+  for xcode_app in \
+    /Applications/Xcode.app \
+    /Volumes/MacDev/Applications/Xcode.app \
+    /Volumes/MacDev/Applications/Xcode-beta3.app; do
+    if [[ -d "$xcode_app/Contents/Developer" ]]; then
+      export DEVELOPER_DIR="$xcode_app/Contents/Developer"
+      break
+    fi
+  done
+fi
+
 case "$SIGNING_MODE" in
   auto)
     if ! /usr/bin/security find-identity -p codesigning -v 2>/dev/null \

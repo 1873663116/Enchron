@@ -547,11 +547,26 @@ struct SettingListGroupRow: View {
             showsHighlight: usesRowHover,
             isInteractive: usesWholeRowButton,
             accessibilityLabel: title,
-            accessibilityValue: isExpandable ? (isExpanded ? "Expanded" : "Collapsed") : "",
+            accessibilityValue: rowAccessibilityValue,
             action: handleTap
         ) { _ in
             rowSurfaceContent
         }
+    }
+
+    private var rowAccessibilityValue: String {
+        guard isExpandable else { return "" }
+        guard isExpanded else { return "Collapsed" }
+        if let keyValueDetail {
+            let values = keyValueDetail
+                .map { "\($0.key): \($0.value)" }
+                .joined(separator: ", ")
+            return "Expanded, \(values)"
+        }
+        if let detail {
+            return "Expanded, \(detail)"
+        }
+        return "Expanded"
     }
 
     private var rowSurfaceContent: some View {
@@ -1103,6 +1118,8 @@ private struct SettingListActionChip: View {
         .enchronHoverEffect(.automatic)
         .contentShape(.interaction, Capsule())
         .animation(DesignTokens.AnimationToken.selection, value: title)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(title)
     }
 }
 
@@ -2087,6 +2104,53 @@ struct EnvironmentCard: View {
     }
 }
 
+struct EnvironmentCarouselRenderSlot: Identifiable, Equatable {
+    struct ID: Hashable {
+        let environmentIndex: Int
+        let cycle: Int
+    }
+
+    let id: ID
+    let environmentIndex: Int
+    let visualPosition: CGFloat
+}
+
+enum EnvironmentCarouselLayout {
+    static func renderSlots(
+        environmentCount: Int,
+        scrollPosition: CGFloat,
+        maximumDistance: CGFloat
+    ) -> [EnvironmentCarouselRenderSlot] {
+        guard environmentCount > 0 else { return [] }
+        if environmentCount == 1 {
+            return [
+                EnvironmentCarouselRenderSlot(
+                    id: .init(environmentIndex: 0, cycle: 0),
+                    environmentIndex: 0,
+                    visualPosition: 0
+                )
+            ]
+        }
+
+        let count = CGFloat(environmentCount)
+
+        return (0..<environmentCount).flatMap { index -> [EnvironmentCarouselRenderSlot] in
+            let basePosition = CGFloat(index) - scrollPosition
+            let minimumCycle = Int(ceil((-maximumDistance - basePosition) / count))
+            let maximumCycle = Int(floor((maximumDistance - basePosition) / count))
+            guard minimumCycle <= maximumCycle else { return [] }
+
+            return (minimumCycle...maximumCycle).map { cycle in
+                EnvironmentCarouselRenderSlot(
+                    id: .init(environmentIndex: index, cycle: cycle),
+                    environmentIndex: index,
+                    visualPosition: basePosition + CGFloat(cycle) * count
+                )
+            }
+        }
+    }
+}
+
 struct EnvironmentCardCarousel: View {
     var environments: [FeaturedEnvironment] = FeaturedEnvironment.catalog
     var onReturn: () -> Void = {}
@@ -2133,15 +2197,15 @@ struct EnvironmentCardCarousel: View {
     }
 
     private var renderItems: [RenderItem] {
-        environments.indices.compactMap { index in
-            let visualPosition = visualPosition(for: index)
-            guard abs(visualPosition) <= activeRenderCardDistance else {
-                return nil
-            }
-
+        EnvironmentCarouselLayout.renderSlots(
+            environmentCount: environments.count,
+            scrollPosition: currentScrollPosition,
+            maximumDistance: activeRenderCardDistance
+        ).map { slot in
             return RenderItem(
-                visualPosition: visualPosition,
-                environment: environments[index]
+                id: slot.id,
+                visualPosition: slot.visualPosition,
+                environment: environments[slot.environmentIndex]
             )
         }
     }
@@ -2227,13 +2291,6 @@ struct EnvironmentCardCarousel: View {
     private func detailRevealDelay(for stepDistance: CGFloat) -> UInt64 {
         Metrics.detailRevealDelayNanoseconds
             + UInt64(max(0, stepDistance.rounded(.down))) * Metrics.detailRevealDelayPerStepNanoseconds
-    }
-
-    private func visualPosition(for index: Int) -> CGFloat {
-        guard !environments.isEmpty else { return 0 }
-        let environmentCount = CGFloat(environments.count)
-        let rawPosition = CGFloat(index) - currentScrollPosition
-        return rawPosition - (rawPosition / environmentCount).rounded() * environmentCount
     }
 
     private func normalizedScrollPosition(_ position: CGFloat) -> CGFloat {
@@ -2406,12 +2463,9 @@ struct EnvironmentCardCarousel: View {
     }
 
     private struct RenderItem: Identifiable {
+        let id: EnvironmentCarouselRenderSlot.ID
         let visualPosition: CGFloat
         let environment: FeaturedEnvironment
-
-        var id: String {
-            environment.id
-        }
     }
 }
 
@@ -3218,6 +3272,8 @@ struct CategorySidebar: View {
                         )
                         .contentShape(DesignTokens.SourceSidebar.rowShape)
                         .onTapGesture { selection = item.id }
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityLabel(item.title)
                         .accessibilityAddTraits(selection == item.id ? [.isButton, .isSelected] : .isButton)
                         .accessibilityIdentifier("\(identifierPrefix)-category-\(item.id)")
                     }
