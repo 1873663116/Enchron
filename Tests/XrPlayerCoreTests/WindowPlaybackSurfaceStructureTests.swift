@@ -18,6 +18,12 @@ struct WindowPlaybackSurfaceStructureTests {
             contentsOf: repositoryRoot.appending(path: "XrPlayer/MainView.swift"),
             encoding: .utf8
         )
+        let geometrySource = try String(
+            contentsOf: repositoryRoot.appending(
+                path: "XrPlayer/PlayerUI/Domain/WindowPlaybackPageGeometry.swift"
+            ),
+            encoding: .utf8
+        )
         let projectSource = try String(
             contentsOf: repositoryRoot.appending(path: "XrPlayer.xcodeproj/project.pbxproj"),
             encoding: .utf8
@@ -43,6 +49,7 @@ struct WindowPlaybackSurfaceStructureTests {
         #expect(windowPlayback.contains(".overlay(alignment: .top)"))
         #expect(windowPlayback.contains("PlayerInfoBarView()"))
         #expect(windowPlayback.contains("WindowPlayerDeckView()"))
+        #expect(geometrySource.contains("nonisolated static func resolve("))
         #expect(
             enchronMacOSMembership.contains("PlayerUI/Domain/WindowPlaybackPageGeometry.swift,")
         )
