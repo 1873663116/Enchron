@@ -66,6 +66,7 @@ public final class FileBrowsingViewModel {
     /// Levels popped by `navigateUp`, available to redo via `navigateForward` (UC-FILE-37).
     private var forwardPathStack: [String] = []
     private var reconnectAttempted: Bool = false
+    private var sourceGeneration: UInt64 = 0
 
     // §5.6 Background profile prefetch service — warms the metadata cache for
     // all files in the current folder so detail-page opens see instant metadata.
@@ -135,14 +136,8 @@ public final class FileBrowsingViewModel {
         }
     }
 
-    public func disconnectAndResetToLocal() {
-        activeRemoteAdapter?.disconnect()
-        activeRemoteAdapter = nil
-        activeDataSource = nil
+    public func dismissCurrentError() {
         lastErrorMessage = nil
-        Task { [weak self] in
-            await self?.useDefaultFolder()
-        }
     }
 
     public func addDataSource(_ ds: FileBrowsingDomain.DataSource) {
@@ -184,6 +179,7 @@ public final class FileBrowsingViewModel {
         _ ds: FileBrowsingDomain.DataSource,
         credential: StorageCredential? = nil
     ) async {
+        let generation = beginSourceGeneration()
         // Immediately update UI state so the caller sees a skeleton screen
         // rather than stale content from the previous data source.
         activeDataSource = ds
@@ -191,6 +187,12 @@ public final class FileBrowsingViewModel {
         files = []
         folders = []
         currentRootDisplayName = ds.name
+        let rootPath = ds.connectionInfo.rootPath
+        remotePathStack = [rootPath]
+        forwardPathStack = []
+        currentRemotePath = rootPath
+        canNavigateUp = false
+        canNavigateForward = false
 
         let adapterCredentialStore: any CredentialStoring
         if let credential {
@@ -231,14 +233,18 @@ public final class FileBrowsingViewModel {
         activeRemoteAdapter?.disconnect()
         do {
             try await adapter.connect(with: ds.connectionInfo)
+            guard isCurrentSource(generation, dataSourceID: ds.id) else {
+                adapter.disconnect()
+                return
+            }
             activeRemoteAdapter = adapter
-            let rootPath = ds.connectionInfo.rootPath
-            remotePathStack = [rootPath]
-            currentRemotePath = rootPath
-            canNavigateUp = false
 
             let remoteFiles = try await adapter.listContents(at: rootPath)
             let remoteFolders = try await adapter.listFolders(at: rootPath)
+            guard isCurrentSource(generation, dataSourceID: ds.id) else {
+                adapter.disconnect()
+                return
+            }
             files = remoteFiles
             folders = remoteFolders
             currentRootDisplayName = ds.name
@@ -246,9 +252,9 @@ public final class FileBrowsingViewModel {
             isLoading = false
         } catch {
             adapter.disconnect()
+            guard isCurrentSource(generation, dataSourceID: ds.id) else { return }
             isLoading = false
             activeRemoteAdapter = nil
-            activeDataSource = nil
             lastErrorMessage = Self.friendlyErrorMessage(for: error)
         }
     }
@@ -284,19 +290,29 @@ public final class FileBrowsingViewModel {
     }
 
     public func loadFiles() async {
+        let generation = sourceGeneration
         isLoading = true
-        defer { isLoading = false }
+        defer {
+            if sourceGeneration == generation {
+                isLoading = false
+            }
+        }
 
         if let remoteAdapter = activeRemoteAdapter {
+            let dataSourceID = activeDataSource?.id
             do {
                 let newFiles = try await remoteAdapter.listContents(at: currentRemotePath)
                 let newFolders = try await remoteAdapter.listFolders(at: currentRemotePath)
+                guard sourceGeneration == generation,
+                      activeDataSource?.id == dataSourceID else { return }
                 // §5.7c: Incremental update — replace with new data only on success,
                 // preserving stable UUIDs so SwiftUI diffs without rebuilding the whole list.
                 mergeFiles(newFiles)
                 mergeFolders(newFolders)
                 lastErrorMessage = nil
             } catch {
+                guard sourceGeneration == generation,
+                      activeDataSource?.id == dataSourceID else { return }
                 if !reconnectAttempted,
                    Self.isNetworkRecoverableError(error),
                    let ds = activeDataSource {
@@ -316,15 +332,22 @@ public final class FileBrowsingViewModel {
             return
         }
 
+        if let dataSource = activeDataSource {
+            await connectToDataSource(dataSource)
+            return
+        }
+
         let localPath = remotePathStack.isEmpty ? "." : currentRemotePath
         do {
             let newFiles = try await localDataSource.listContents(at: localPath)
             let newFolders = try await localDataSource.listFolders(at: localPath)
+            guard sourceGeneration == generation, activeDataSource == nil else { return }
             // §5.7c: Same incremental merge for local data source.
             mergeFiles(newFiles)
             mergeFolders(newFolders)
             lastErrorMessage = nil
         } catch {
+            guard sourceGeneration == generation, activeDataSource == nil else { return }
             // §5.7c: On failure, preserve current list and surface the error.
             lastErrorMessage = "Failed to load files: \(error.localizedDescription)"
             print("[FileBrowser] loadFiles failed: \(error)")
@@ -603,6 +626,7 @@ public final class FileBrowsingViewModel {
     }
 
     public func selectLocalFolder(_ folderURL: URL) async {
+        let generation = beginSourceGeneration()
         let normalizedURL = folderURL.standardizedFileURL
         activeDataSource = nil
         activeRemoteAdapter?.disconnect()
@@ -633,10 +657,11 @@ public final class FileBrowsingViewModel {
 
         rootURL = normalizedURL
         currentRootDisplayName = normalizedURL.lastPathComponent.isEmpty ? normalizedURL.path : normalizedURL.lastPathComponent
-        await connectAndLoad()
+        await connectAndLoad(generation: generation)
     }
 
     public func useDefaultFolder() async {
+        let generation = beginSourceGeneration()
         activeDataSource = nil
         activeRemoteAdapter?.disconnect()
         activeRemoteAdapter = nil
@@ -647,22 +672,33 @@ public final class FileBrowsingViewModel {
         securityScopedRootURL = nil
         rootURL = defaultRootURL
         currentRootDisplayName = defaultRootURL.lastPathComponent.isEmpty ? defaultRootURL.path : defaultRootURL.lastPathComponent
-        await connectAndLoad()
+        await connectAndLoad(generation: generation)
     }
 
-    private func connectAndLoad() async {
+    private func connectAndLoad(generation: UInt64) async {
         activeRemoteAdapter?.disconnect()
         activeRemoteAdapter = nil
         do {
             try await localDataSource.connect(
                 with: .init(sourceType: .local, rootPath: rootURL.path)
             )
+            guard sourceGeneration == generation, activeDataSource == nil else { return }
             await loadFiles()
         } catch {
+            guard sourceGeneration == generation, activeDataSource == nil else { return }
             files = []
             lastErrorMessage = "Failed to connect local data source: \(error.localizedDescription)"
             print("[FileBrowser] connect failed: \(error)")
         }
+    }
+
+    private func beginSourceGeneration() -> UInt64 {
+        sourceGeneration &+= 1
+        return sourceGeneration
+    }
+
+    private func isCurrentSource(_ generation: UInt64, dataSourceID: UUID) -> Bool {
+        sourceGeneration == generation && activeDataSource?.id == dataSourceID
     }
 
     private func persistDataSources() {
