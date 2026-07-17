@@ -113,10 +113,6 @@ public final class FileBrowsingViewModel {
         self.currentRootDisplayName = documentsURL.lastPathComponent.isEmpty ? documentsURL.path : documentsURL.lastPathComponent
         self.localDataSource.ownerDataSourceID = localDataSourceID
 
-        Task { [weak self] in
-            await self?.connectAndLoad()
-        }
-
         loadSavedDataSources()
     }
 
