@@ -4,7 +4,7 @@ struct WindowPlaybackPageGeometry: Equatable {
     let canvasFrame: CGRect
     let deckFrame: CGRect?
 
-    static func resolve(
+    nonisolated static func resolve(
         in containerSize: CGSize,
         deckSize: CGSize?,
         spacing: CGFloat
