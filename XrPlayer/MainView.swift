@@ -174,32 +174,31 @@ public struct MainView: View {
 
     @ViewBuilder
     private var windowPlayback: some View {
-        #if os(macOS)
         WindowPlaybackPageLayout(spacing: DesignTokens.Spacing.md) {
-            windowPlaybackCanvas
-                .overlay(alignment: .top) {
-                    if appModel.showControls, hostedPlaybackPresentation == .window {
-                        PlayerInfoBarView()
-                            .padding(.horizontal, 28)
-                            .padding(.top, 20)
-                            .frame(maxWidth: .infinity)
-                            .accessibilityElement(children: .contain)
-                            .accessibilityIdentifier("PlayerUI-window-top-overlay")
-                    }
-                }
+            windowPlaybackCanvasWithTopBar
 
             if appModel.showControls {
                 WindowPlayerDeckView()
-                    .padding(.bottom, DesignTokens.Spacing.md)
                     .accessibilityIdentifier("PlayerUI-window-playback-deck")
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-control-plane")
         .accessibilityValue(windowPlaybackStateValue)
-        #else
+    }
+
+    private var windowPlaybackCanvasWithTopBar: some View {
         windowPlaybackCanvas
-        #endif
+            .overlay(alignment: .top) {
+                if appModel.showControls, hostedPlaybackPresentation == .window {
+                    PlayerInfoBarView()
+                        .padding(.horizontal, 28)
+                        .padding(.top, 20)
+                        .frame(maxWidth: .infinity)
+                        .accessibilityElement(children: .contain)
+                        .accessibilityIdentifier("PlayerUI-window-top-overlay")
+                }
+            }
     }
 
     private var windowPlaybackCanvas: some View {
@@ -379,7 +378,6 @@ public struct MainView: View {
     }
 }
 
-#if os(macOS)
 private struct WindowPlaybackPageLayout: Layout {
     let spacing: CGFloat
 
@@ -422,7 +420,6 @@ private struct WindowPlaybackPageLayout: Layout {
         }
     }
 }
-#endif
 
 private struct PlaybackAutomationStateProbe: View {
     @Environment(AppModel.self) private var appModel
@@ -473,25 +470,61 @@ private struct PlaybackAutomationStateProbe: View {
 struct SpatialPlaybackControlsRoot: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
+    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
     @Environment(\.openWindow) private var openWindow
     @Environment(\.dismissWindow) private var dismissWindow
+    @State private var isStoppingPlayback = false
 
     var body: some View {
-        WindowPlayerDeckView()
-            .accessibilityIdentifier("PlayerUI-spatial-control-plane")
-            .accessibilityValue(spatialAcceptanceValue)
-            .onChange(of: appModel.presentationTransition?.id) { _, _ in
-                guard let transition = appModel.presentationTransition,
-                      transition.targetPresentation == .window else { return }
-                Task { await returnToWindow(transition) }
+        VStack(alignment: .trailing, spacing: DesignTokens.Spacing.xs) {
+            Button {
+                Task { await stopSpatialPlayback() }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.caption.weight(.semibold))
+                    .frame(width: 28, height: 28)
             }
-            .onChange(of: appModel.immersiveSpaceState) { _, state in
-                guard state == .closed,
-                      appModel.playbackPresentation != .window,
-                      appModel.presentationTransition == nil else { return }
-                recoverFromSystemDismissal()
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .frame(minWidth: 44, minHeight: 44)
+            .contentShape(Rectangle())
+            .accessibilityLabel("Stop Playback")
+            .accessibilityHint("Stops playback and returns to the browser")
+            .accessibilityIdentifier("PlayerUI-spatial-button-stop")
+            .disabled(isStoppingPlayback)
+
+            WindowPlayerDeckView()
+        }
+        .overlay {
+            if let message = playbackRuntime.lastErrorMessage {
+                PlaybackOverlayCard(
+                    systemImage: "exclamationmark.triangle",
+                    title: "Playback Error",
+                    message: message,
+                    primaryTitle: "Retry",
+                    primaryIcon: "arrow.clockwise",
+                    primaryAction: retryPlayback,
+                    secondaryTitle: "Close",
+                    secondaryIcon: "xmark",
+                    secondaryAction: { Task { await stopSpatialPlayback() } },
+                    identifierPrefix: "PlayerUI-spatialFailure"
+                )
             }
+        }
+        .accessibilityIdentifier("PlayerUI-spatial-control-plane")
+        .accessibilityValue(spatialAcceptanceValue)
+        .onChange(of: appModel.presentationTransition?.id) { _, _ in
+            guard let transition = appModel.presentationTransition,
+                  transition.targetPresentation == .window else { return }
+            Task { await returnToWindow(transition) }
+        }
+        .onChange(of: appModel.immersiveSpaceState) { _, state in
+            guard state == .closed,
+                  appModel.playbackPresentation != .window,
+                  appModel.presentationTransition == nil else { return }
+            recoverFromSystemDismissal()
+        }
     }
 
     private var spatialAcceptanceValue: String {
@@ -505,6 +538,28 @@ struct SpatialPlaybackControlsRoot: View {
             "session=\(playbackRuntime.activeSessionID ?? "none")",
             "screenScale=\(String(format: "%.2f", appModel.screenScale))"
         ].joined(separator: ";")
+    }
+
+    @MainActor
+    private func stopSpatialPlayback() async {
+        guard isStoppingPlayback == false else { return }
+        isStoppingPlayback = true
+        defer { isStoppingPlayback = false }
+
+        await playbackLauncher.stopPlaybackAndWait()
+        appModel.resetPlaybackPresentationForStoppedPlayback()
+        appModel.isEnvironmentImmersiveActive = false
+        appModel.isFullImmersion = false
+        await dismissImmersiveSpace()
+        appModel.immersiveSpaceState = .closed
+        openWindow(id: "main")
+        dismissWindow(id: "playerControls")
+    }
+
+    private func retryPlayback() {
+        guard let request = playbackRuntime.currentLaunchRequest else { return }
+        playbackRuntime.lastErrorMessage = nil
+        playbackLauncher.beginPlayback(request)
     }
 
     @MainActor

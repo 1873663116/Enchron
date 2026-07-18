@@ -21,13 +21,12 @@ struct WindowPlaybackPageGeometry: Equatable {
         let deckWidth = min(containerWidth, max(0, deckSize.width))
         let deckHeight = min(containerHeight, max(0, deckSize.height))
         let resolvedSpacing = min(max(0, spacing), max(0, containerHeight - deckHeight))
-        let canvasHeight = max(0, containerHeight - deckHeight - resolvedSpacing)
 
         return Self(
-            canvasFrame: CGRect(x: 0, y: 0, width: containerWidth, height: canvasHeight),
+            canvasFrame: CGRect(x: 0, y: 0, width: containerWidth, height: containerHeight),
             deckFrame: CGRect(
                 x: (containerWidth - deckWidth) / 2,
-                y: canvasHeight + resolvedSpacing,
+                y: containerHeight - deckHeight - resolvedSpacing,
                 width: deckWidth,
                 height: deckHeight
             )

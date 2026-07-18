@@ -542,6 +542,16 @@ public final class PlaybackRuntime {
     }
 
     public func stop(releasingSourceAccess: Bool = true) {
+        beginStop(releasingSourceAccess: releasingSourceAccess)
+    }
+
+    public func stopAndWait(releasingSourceAccess: Bool = true) async {
+        let closeTask = beginStop(releasingSourceAccess: releasingSourceAccess)
+        await closeTask?.value
+    }
+
+    @discardableResult
+    private func beginStop(releasingSourceAccess: Bool) -> Task<Void, Never>? {
         generation += 1
         startsWhenAttached = false
         detach()
@@ -552,19 +562,24 @@ public final class PlaybackRuntime {
             let controller = controller
             let previousClosingTask = closingTask
             let audioSessionLifecycle = audioSessionLifecycle
-            closingTask = Task { @MainActor in
+            let closeTask = Task { @MainActor in
                 await previousClosingTask?.value
                 await controller.closeAndWait()
                 audioSessionLifecycle.deactivate()
                 sourceAccess?.release()
             }
+            closingTask = closeTask
+            clearPresentation()
+            logger.info("session stopped")
+            return closeTask
         } else {
             audioSessionLifecycle.deactivate()
             sourceAccess?.release()
+            clearPresentation()
+            lifecycle = .idle
+            logger.info("session stopped")
+            return nil
         }
-        clearPresentation()
-        if isUITestFixture { lifecycle = .idle }
-        logger.info("session stopped")
     }
 
     public func clearPresentationForTeardown() {

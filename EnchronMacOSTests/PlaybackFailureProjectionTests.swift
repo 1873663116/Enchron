@@ -92,6 +92,37 @@ nonisolated final class PlaybackFailureProjectionTests: XCTestCase {
         XCTAssertNil(runtime.lastErrorMessage)
     }
 
+    @MainActor
+    func testWaitingForStopAfterOpenFailureClosesPlaybackCoreAndClearsProjection() async throws {
+        let runtime = PlaybackRuntime()
+        let launcher = PlaybackLaunchCoordinator(playbackRuntime: runtime)
+        let missingURL = FileManager.default.temporaryDirectory
+            .appending(path: "missing-\(UUID().uuidString).mkv")
+
+        launcher.beginPlayback(.init(url: missingURL, displayName: "Missing Video"))
+
+        let deadline = ContinuousClock.now + .seconds(5)
+        while runtime.lastErrorMessage == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        guard case .failed = runtime.lifecycle else {
+            return XCTFail("Expected PlaybackCore to publish failed, got \(runtime.lifecycle)")
+        }
+        XCTAssertTrue(runtime.hasActivePlaybackRequest)
+
+        await launcher.stopPlaybackAndWait()
+
+        XCTAssertEqual(runtime.lifecycle, .idle)
+        XCTAssertFalse(runtime.hasActivePlaybackRequest)
+        XCTAssertNil(runtime.currentLaunchRequest)
+        XCTAssertNil(runtime.activeSessionID)
+        XCTAssertNil(runtime.renderer)
+        XCTAssertNil(runtime.attachedPresentation)
+        XCTAssertNil(runtime.rendererConsumerPresentation)
+        XCTAssertNil(runtime.rendererConsumerEntityID)
+    }
+
     private func request(named name: String) -> PlaybackLaunchRequest {
         PlaybackLaunchRequest(
             url: URL(fileURLWithPath: "/tmp/\(name).mkv"),

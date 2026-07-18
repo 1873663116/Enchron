@@ -17,18 +17,14 @@ final class SecurityScopedFileReferenceResolver {
 
     static var bookmarkCreationOptions: URL.BookmarkCreationOptions {
         #if os(macOS)
-        .withSecurityScope
+        []
         #else
         .minimalBookmark
         #endif
     }
 
     private static var bookmarkResolutionOptions: URL.BookmarkResolutionOptions {
-        #if os(macOS)
-        .withSecurityScope
-        #else
         []
-        #endif
     }
 
     func resolve(bookmark: Data, relativePath: String) throws -> ResolvedSecurityScopedFile {
@@ -39,7 +35,11 @@ final class SecurityScopedFileReferenceResolver {
             relativeTo: nil,
             bookmarkDataIsStale: &stale
         )
+        #if os(macOS)
+        let access: PlaybackSourceAccess? = nil
+        #else
         let access = PlaybackSourceAccess.securityScoped(selectedURL)
+        #endif
         let playableURL = relativePath.isEmpty
             ? selectedURL
             : selectedURL.appending(path: relativePath)

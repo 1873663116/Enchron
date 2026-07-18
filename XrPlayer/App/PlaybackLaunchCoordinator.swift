@@ -148,6 +148,16 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func stopPlayback() {
+        cancelPlaybackLaunchAndPersistProgress()
+        playbackRuntime.stop()
+    }
+
+    public func stopPlaybackAndWait() async {
+        cancelPlaybackLaunchAndPersistProgress()
+        await playbackRuntime.stopAndWait()
+    }
+
+    private func cancelPlaybackLaunchAndPersistProgress() {
         generation += 1
         launchTask?.cancel()
         metadataTask?.cancel()
@@ -155,7 +165,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         metadataTask = nil
         pendingResumeDecision = nil
         persistCurrentSession()
-        playbackRuntime.stop()
     }
 
     public func handlePlaybackEnded(onFallbackShowControls: (@MainActor () -> Void)? = nil) -> Bool {

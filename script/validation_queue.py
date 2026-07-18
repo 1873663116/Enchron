@@ -247,7 +247,12 @@ def change_state(args: argparse.Namespace, connection: sqlite3.Connection, path:
         "UPDATE validation_tasks SET state = ?, reason = ?, review_at = ?, updated_at = ? WHERE task_id = ?",
         (state, reason, review_at, timestamp(), args.task_id),
     )
-    emit(args, {"message": f"task {args.action}d", "task": row_dict(require_task(connection, args.task_id))})
+    action_label = {
+        "escalate": "escalated",
+        "block": "blocked",
+        "resume": "resumed",
+    }[args.action]
+    emit(args, {"message": f"task {action_label}", "task": row_dict(require_task(connection, args.task_id))})
 
 
 def complete(args: argparse.Namespace, connection: sqlite3.Connection, path: Path) -> None:
@@ -323,6 +328,7 @@ def parser() -> argparse.ArgumentParser:
 
     for action in ("escalate", "block", "resume"):
         action_parser = commands.add_parser(action)
+        action_parser.set_defaults(action=action)
         action_parser.add_argument("task_id")
         action_parser.add_argument("--reason")
 
