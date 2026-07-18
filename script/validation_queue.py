@@ -104,8 +104,8 @@ def row_dict(row: sqlite3.Row | None) -> dict[str, Any] | None:
     if review_at and result["state"] in ACTIVE_STATES:
         review_due = datetime.fromisoformat(review_at) <= now()
     result["review_due"] = review_due
-    result["controller_attention_required"] = review_due or (
-        result["pid"] is not None and not result["process_alive"]
+    result["controller_attention_required"] = result["state"] in ACTIVE_STATES and (
+        review_due or (result["pid"] is not None and not result["process_alive"])
     )
     return result
 
