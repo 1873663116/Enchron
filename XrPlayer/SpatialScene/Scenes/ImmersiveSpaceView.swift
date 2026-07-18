@@ -87,10 +87,7 @@ public struct ImmersiveSpaceView: View {
                 }
         )
         .onDisappear {
-            surfaceActivation.cancel()
-            presentationObservation.cancel()
-            subtitleSurface.remove()
-            detachSpatialSurface()
+            releaseSpatialSurface()
         }
     }
 
@@ -257,8 +254,25 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     private func removeVideo(from content: RealityViewContent, reason: String) {
         logger.notice("video surface removed reason=\(reason, privacy: .public)")
+        content.remove(videoEntity)
+        releaseSpatialSurface()
+    }
+
+    @MainActor
+    private func releaseSpatialSurface() {
+        let presentation = playbackRuntime.rendererConsumerPresentation
+            ?? playbackRuntime.attachedPresentation
         subtitleSurface.remove()
+        surfaceActivation.cancel()
+        presentationObservation.cancel()
         videoEntity.removeFromParent()
+        videoEntity.components.remove(VideoPlayerComponent.self)
+        if let presentation, presentation != .window {
+            playbackRuntime.releaseRendererConsumer(
+                presentation: presentation,
+                entityID: entityID(for: presentation)
+            )
+        }
         detachSpatialSurface()
     }
 

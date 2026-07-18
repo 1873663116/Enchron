@@ -84,6 +84,32 @@ class ValidationQueueTests(unittest.TestCase):
         )
         self.assertIn("still alive", denied["error"])
 
+    def test_active_task_can_be_blocked_resumed_and_escalated(self):
+        self.submit("state-transitions")
+        self.invoke("claim", "--worker", "validator-a")
+
+        blocked = self.invoke(
+            "block",
+            "state-transitions",
+            "--reason",
+            "simulator unavailable",
+        )
+        self.assertEqual(blocked["message"], "task blocked")
+        self.assertEqual(blocked["task"]["state"], "blocked")
+        self.assertEqual(blocked["task"]["reason"], "simulator unavailable")
+
+        resumed = self.invoke("resume", "state-transitions")
+        self.assertEqual(resumed["task"]["state"], "running")
+
+        escalated = self.invoke(
+            "escalate",
+            "state-transitions",
+            "--reason",
+            "controller decision required",
+        )
+        self.assertEqual(escalated["task"]["state"], "attention_required")
+        self.assertEqual(escalated["task"]["reason"], "controller decision required")
+
     def test_terminal_task_with_exited_process_does_not_request_attention(self):
         self.submit("finished-process")
         self.invoke("claim", "--worker", "validator-a")

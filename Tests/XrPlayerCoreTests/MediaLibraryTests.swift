@@ -130,4 +130,15 @@ struct MediaLibraryTests {
         #expect(resolved.url.standardizedFileURL == video.standardizedFileURL)
         #expect(fileManager.fileExists(atPath: unrelatedDestination.path) == false)
     }
+
+    @Test("the unsandboxed macOS host does not request a sandbox security scope")
+    @MainActor
+    func macOSBookmarkMatchesTheTargetSandboxModel() {
+        #if os(macOS)
+        #expect(
+            SecurityScopedFileReferenceResolver.bookmarkCreationOptions
+                .contains(.withSecurityScope) == false
+        )
+        #endif
+    }
 }

@@ -8,6 +8,33 @@ struct PlaybackSurfaceTransform: Equatable, Sendable {
     let scale: Double
 }
 
+struct MacWindowPlaybackCameraGeometry: Equatable, Sendable {
+    nonisolated static let fieldOfViewInDegrees: Float = 50
+    nonisolated static let fillFraction: Float = 0.98
+
+    nonisolated let screenSize: SIMD2<Float>
+    nonisolated let distance: Float
+
+    nonisolated static func resolve(
+        screenSize: SIMD2<Float>,
+        canvasSize: CGSize
+    ) -> Self {
+        let resolvedScreenSize = screenSize.x > 0 && screenSize.y > 0
+            ? screenSize
+            : SIMD2<Float>(16.0 / 9.0, 1)
+        let canvasAspect = max(Float(canvasSize.width), 1)
+            / max(Float(canvasSize.height), 1)
+        let verticalTangent = tan(fieldOfViewInDegrees * .pi / 360)
+        let verticalDistance = resolvedScreenSize.y / 2 / verticalTangent
+        let horizontalDistance = resolvedScreenSize.x / 2 / (verticalTangent * canvasAspect)
+
+        return Self(
+            screenSize: resolvedScreenSize,
+            distance: max(verticalDistance, horizontalDistance) / fillFraction
+        )
+    }
+}
+
 @MainActor
 enum PlaybackSurfaceAnchorResolver {
     static let canonicalName = "PlaybackSurfaceAnchor"

@@ -52,7 +52,6 @@ private final class PlaybackVideoComponentObservation {
 }
 
 struct PlaybackVideoSurface: View {
-    private static let windowControlsAttachmentID = "Enchron.WindowPlaybackControls"
     private static let subtitleControlSafeAreaFraction: Float = 0.32
 
     @Environment(AppModel.self) private var appModel
@@ -67,6 +66,7 @@ struct PlaybackVideoSurface: View {
     @State private var componentObservation = PlaybackVideoComponentObservation()
     @State private var componentRevision = 0
     #if os(macOS)
+    @State private var macOSWindowCamera = Entity()
     @State private var macOSWorld: Entity?
     @State private var macOSPlaybackSurfaceAnchor: Entity?
     @State private var isLoadingMacOSWorld = false
@@ -98,26 +98,18 @@ struct PlaybackVideoSurface: View {
     #if os(visionOS)
     private var visionSurface: some View {
         GeometryReader3D { geometry in
-            RealityView { content, attachments in
+            RealityView { content in
                 updateVisionSurface(
                     content,
-                    attachments: attachments,
                     proxy: geometry,
                     revision: componentRevision
                 )
-            } update: { content, attachments in
+            } update: { content in
                 updateVisionSurface(
                     content,
-                    attachments: attachments,
                     proxy: geometry,
                     revision: componentRevision
                 )
-            } attachments: {
-                if presentation == .window {
-                    Attachment(id: Self.windowControlsAttachmentID) {
-                        VisionWindowPlaybackControlPlane()
-                    }
-                }
             }
             .gesture(surfaceTapGesture)
             .frame(depth: 0)
@@ -128,34 +120,48 @@ struct PlaybackVideoSurface: View {
     }
     #else
     private var macOSSurface: some View {
-        ZStack {
-            RealityView { content in
+        GeometryReader { geometry in
+            ZStack {
+                RealityView { content in
+                    updateMacOSSurface(
+                        &content,
+                        canvasSize: geometry.size,
+                        revision: componentRevision
+                    )
+                } update: { content in
+                    updateMacOSSurface(
+                        &content,
+                        canvasSize: geometry.size,
+                        revision: componentRevision
+                    )
+                }
+                .realityViewCameraControls(presentation == .docked ? .orbit : .none)
+                .background(.black)
+                .gesture(surfaceTapGesture)
+                .allowsHitTesting(appModel.showControls == false)
+
+                if presentation == .docked, isLoadingMacOSWorld {
+                    ProgressView("Loading environment…")
+                }
+
+                if presentation == .docked, let macOSWorldLoadError {
+                    ContentUnavailableView(
+                        "Environment Unavailable",
+                        systemImage: "cube.transparent",
+                        description: Text(macOSWorldLoadError)
+                    )
+                }
+
+                if appModel.showControls, isActive {
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .onTapGesture(perform: toggleControlsFromSurface)
+                }
+            }
+            .task(id: presentation) {
+                guard presentation == .docked else { return }
                 await loadMacOSWorldIfNeeded()
-                updateMacOSSurface(&content, revision: componentRevision)
-            } update: { content in
-                updateMacOSSurface(&content, revision: componentRevision)
-            }
-            .realityViewCameraControls(presentation == .docked ? .orbit : .none)
-            .background(.black)
-            .gesture(surfaceTapGesture)
-            .allowsHitTesting(appModel.showControls == false)
-
-            if presentation == .docked, isLoadingMacOSWorld {
-                ProgressView("Loading environment…")
-            }
-
-            if presentation == .docked, let macOSWorldLoadError {
-                ContentUnavailableView(
-                    "Environment Unavailable",
-                    systemImage: "cube.transparent",
-                    description: Text(macOSWorldLoadError)
-                )
-            }
-
-            if appModel.showControls, isActive {
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture(perform: toggleControlsFromSurface)
+                componentRevision &+= 1
             }
         }
         .accessibilityElement(children: .contain)
@@ -242,20 +248,11 @@ struct PlaybackVideoSurface: View {
     @MainActor
     private func updateVisionSurface(
         _ content: RealityViewContent,
-        attachments: RealityViewAttachments,
         proxy: GeometryProxy3D,
         revision: Int
     ) {
-        guard prepareSurface(in: content, revision: revision) else {
-            setWindowControlsEnabled(false, attachments: attachments)
-            return
-        }
-        let sceneSize = scaleToFitWindow(videoEntity, proxy: proxy, content: content)
-        layoutWindowControls(
-            attachments: attachments,
-            content: content,
-            sceneSize: sceneSize
-        )
+        guard prepareSurface(in: content, revision: revision) else { return }
+        _ = scaleToFitWindow(videoEntity, proxy: proxy, content: content)
     }
 
     @MainActor
@@ -286,42 +283,11 @@ struct PlaybackVideoSurface: View {
         return frameSize
     }
 
-    @MainActor
-    private func layoutWindowControls(
-        attachments: RealityViewAttachments,
-        content: RealityViewContent,
-        sceneSize: SIMD3<Float>?
-    ) {
-        guard presentation == .window,
-              let controls = attachments.entity(for: Self.windowControlsAttachmentID),
-              let sceneSize else { return }
-
-        if content.entities.contains(where: { $0 === controls }) == false {
-            content.add(controls)
-        }
-
-        controls.isEnabled = appModel.showControls && isActive
-        let localBounds = controls.visualBounds(relativeTo: controls)
-        guard localBounds.extents.x.isFinite, localBounds.extents.x > 0 else { return }
-
-        let scale = sceneSize.x * 0.96 / localBounds.extents.x
-        controls.scale = .init(repeating: scale)
-        controls.position = [0, 0, 0.01]
-    }
-
-    @MainActor
-    private func setWindowControlsEnabled(
-        _ isEnabled: Bool,
-        attachments: RealityViewAttachments
-    ) {
-        guard presentation == .window,
-              let controls = attachments.entity(for: Self.windowControlsAttachmentID) else { return }
-        controls.isEnabled = isEnabled
-    }
     #else
     @MainActor
     private func updateMacOSSurface(
         _ content: inout RealityViewCameraContent,
+        canvasSize: CGSize,
         revision: Int
     ) {
         content.camera = .virtual
@@ -336,8 +302,9 @@ struct PlaybackVideoSurface: View {
             return
         }
         if presentation == .docked, macOSPlaybackSurfaceAnchor == nil {
-            playbackRuntime.lastErrorMessage = macOSWorldLoadError
-                ?? "The selected environment does not contain PlaybackSurfaceAnchor."
+            if let macOSWorldLoadError {
+                playbackRuntime.lastErrorMessage = macOSWorldLoadError
+            }
             return
         }
         guard prepareSurface(in: content, revision: revision) else {
@@ -350,7 +317,9 @@ struct PlaybackVideoSurface: View {
                 content.add(videoEntity)
             }
             PlaybackSurfacePlacement.window(videoEntity)
+            configureMacOSWindowCamera(in: &content, canvasSize: canvasSize)
         case .docked:
+            content.remove(macOSWindowCamera)
             guard let macOSPlaybackSurfaceAnchor else { return }
             PlaybackSurfacePlacement.dock(
                 videoEntity,
@@ -365,8 +334,58 @@ struct PlaybackVideoSurface: View {
         case .panorama:
             return
         }
-        content.cameraTarget = videoEntity
+        content.cameraTarget = presentation == .docked ? videoEntity : nil
         attachSurfaceIfReady()
+    }
+
+    @MainActor
+    private func configureMacOSWindowCamera(
+        in content: inout RealityViewCameraContent,
+        canvasSize: CGSize
+    ) {
+        let geometry = MacWindowPlaybackCameraGeometry.resolve(
+            screenSize: macOSWindowScreenSize,
+            canvasSize: canvasSize
+        )
+        if content.entities.contains(where: { $0 === macOSWindowCamera }) == false {
+            content.add(macOSWindowCamera)
+        }
+        macOSWindowCamera.components.set(
+            PerspectiveCameraComponent(
+                near: 0.01,
+                far: 100,
+                fieldOfViewInDegrees: MacWindowPlaybackCameraGeometry.fieldOfViewInDegrees,
+                fieldOfViewOrientation: .vertical
+            )
+        )
+        macOSWindowCamera.look(
+            at: .zero,
+            from: [0, 0, geometry.distance],
+            relativeTo: nil
+        )
+        let signature = "macOS-window-\(canvasSize)-\(geometry.screenSize)-\(geometry.distance)"
+        if componentObservation.shouldLogLayout(signature) {
+            playbackVideoSurfaceLogger.notice(
+                "macOS window camera canvasSize=\(String(describing: canvasSize), privacy: .public) screenSize=\(String(describing: geometry.screenSize), privacy: .public) distance=\(geometry.distance)"
+            )
+        }
+    }
+
+    private var macOSWindowScreenSize: SIMD2<Float> {
+        if let componentSize = component?.playerScreenSize,
+           componentSize.x > 0,
+           componentSize.y > 0 {
+            return componentSize
+        }
+        guard let resolution = playbackRuntime.displayMediaProfile?.resolution,
+              resolution.width > 0,
+              resolution.height > 0 else { return .zero }
+        let output = playbackRuntime.effectiveStereoLayout.outputDimensions(
+            inputWidth: resolution.width,
+            inputHeight: resolution.height
+        )
+        guard output.width > 0, output.height > 0 else { return .zero }
+        return [Float(output.width) / Float(output.height), 1]
     }
 
     @MainActor
@@ -525,39 +544,5 @@ struct PlaybackVideoSurface: View {
             .filter { $0.isEmpty == false }
             .joined(separator: "\n")
         return text.isEmpty ? nil : text
-    }
-}
-
-struct VisionWindowPlaybackControlPlane: View {
-    @Environment(AppModel.self) private var appModel
-    @Environment(PlaybackRuntime.self) private var playbackRuntime
-
-    var body: some View {
-        VStack(spacing: 0) {
-            PlayerInfoBarView()
-            Spacer(minLength: DesignTokens.Spacing.xl)
-            WindowPlayerDeckView()
-        }
-        .padding(.horizontal, 28)
-        .padding(.top, 20)
-        .padding(.bottom, 28)
-        .frame(width: 1_000, height: 562.5)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("PlayerUI-window-control-plane")
-        .accessibilityValue(playbackStateValue)
-    }
-
-    private var playbackStateValue: String {
-        let position = playbackRuntime.playbackPosition
-        return [
-            "presentation=\(appModel.playbackPresentation.rawValue)",
-            "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
-            "lifecycle=\(playbackRuntime.lifecycle.label)",
-            "session=\(playbackRuntime.activeSessionID ?? "none")",
-            "position=\(position.seconds)",
-            "duration=\(position.duration)",
-            "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
-            "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)"
-        ].joined(separator: ";")
     }
 }

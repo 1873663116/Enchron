@@ -116,6 +116,44 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testWaitingForStopAfterOpenFailureClearsThePlaybackProjection() async throws {
+        let suiteName = "app.enchron.tests.waiting-stop.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let runtime = PlaybackRuntime()
+        let launcher = PlaybackLaunchCoordinator(
+            playbackRuntime: runtime,
+            progressStore: SwiftDataStore(defaults: defaults),
+            preferencesStore: UserDefaultsStore(defaults: defaults)
+        )
+        let missingURL = FileManager.default.temporaryDirectory
+            .appending(path: "missing-\(UUID().uuidString).mkv")
+
+        launcher.beginPlayback(.init(url: missingURL, displayName: "Missing Video"))
+
+        let deadline = ContinuousClock.now + .seconds(5)
+        while runtime.lastErrorMessage == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(25))
+        }
+
+        guard case .failed = runtime.lifecycle else {
+            return XCTFail("Expected PlaybackCore to publish a failed lifecycle, got \(runtime.lifecycle)")
+        }
+        XCTAssertTrue(runtime.hasActivePlaybackRequest)
+
+        await launcher.stopPlaybackAndWait()
+
+        XCTAssertFalse(runtime.hasActivePlaybackRequest)
+        XCTAssertNil(runtime.currentLaunchRequest)
+        XCTAssertNil(runtime.activeSessionID)
+        XCTAssertNil(runtime.renderer)
+        XCTAssertNil(runtime.attachedPresentation)
+        XCTAssertNil(runtime.rendererConsumerPresentation)
+        XCTAssertNil(runtime.rendererConsumerEntityID)
+        XCTAssertEqual(runtime.lifecycle, .idle)
+    }
+
+    @MainActor
     func testPlaybackCoreDimensionSeparatorsProduceTheSameResolution() {
         let ascii = PlaybackRuntime.parseResolution("3840x2160")
         let typographic = PlaybackRuntime.parseResolution("3840×2160")

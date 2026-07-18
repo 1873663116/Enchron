@@ -89,6 +89,39 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
     }
 
     @MainActor
+    func testWindowCameraFitsLandscapeVideoToCanvas() {
+        let geometry = MacWindowPlaybackCameraGeometry.resolve(
+            screenSize: [16.0 / 9.0, 1],
+            canvasSize: CGSize(width: 1280, height: 720)
+        )
+        let visibleHeight = 2 * geometry.distance
+            * tan(MacWindowPlaybackCameraGeometry.fieldOfViewInDegrees * .pi / 360)
+
+        XCTAssertEqual(
+            geometry.screenSize.y / visibleHeight,
+            MacWindowPlaybackCameraGeometry.fillFraction,
+            accuracy: 0.0001
+        )
+    }
+
+    @MainActor
+    func testWindowCameraFitsWideVideoByHorizontalDimension() {
+        let geometry = MacWindowPlaybackCameraGeometry.resolve(
+            screenSize: [2.4, 1],
+            canvasSize: CGSize(width: 1024, height: 768)
+        )
+        let visibleHeight = 2 * geometry.distance
+            * tan(MacWindowPlaybackCameraGeometry.fieldOfViewInDegrees * .pi / 360)
+        let visibleWidth = visibleHeight * Float(1024.0 / 768.0)
+
+        XCTAssertEqual(
+            geometry.screenSize.x / visibleWidth,
+            MacWindowPlaybackCameraGeometry.fillFraction,
+            accuracy: 0.0001
+        )
+    }
+
+    @MainActor
     func testProductRCPWorldLoadsWithCanonicalPlaybackSurfaceAnchor() async throws {
         let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
         let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
