@@ -172,7 +172,7 @@ struct FilesScreen: View {
             ),
             identifierPrefix: "FileBrowsing-error",
             onPrimary: { Task { await viewModel.loadFiles() } },
-            onSecondary: { viewModel.disconnectAndResetToLocal() }
+            onSecondary: { viewModel.dismissCurrentError() }
         )
         .enchronErrorDialog(
             "Media Library Error",

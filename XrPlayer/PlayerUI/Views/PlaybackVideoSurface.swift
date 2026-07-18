@@ -115,7 +115,7 @@ struct PlaybackVideoSurface: View {
             } attachments: {
                 if presentation == .window {
                     Attachment(id: Self.windowControlsAttachmentID) {
-                        WindowPlaybackControlPlane()
+                        VisionWindowPlaybackControlPlane()
                     }
                 }
             }
@@ -156,8 +156,6 @@ struct PlaybackVideoSurface: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture(perform: toggleControlsFromSurface)
-
-                WindowPlaybackControlPlane()
             }
         }
         .accessibilityElement(children: .contain)
@@ -530,7 +528,7 @@ struct PlaybackVideoSurface: View {
     }
 }
 
-struct WindowPlaybackControlPlane: View {
+struct VisionWindowPlaybackControlPlane: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
 

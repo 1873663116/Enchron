@@ -61,6 +61,16 @@
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		C3A35AAE2F85415E00DA0D16 /* Embed ExtensionKit Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
+			dstSubfolderSpec = 16;
+			files = (
+			);
+			name = "Embed ExtensionKit Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		D40000162FA0000100E1C001 /* Embed Frameworks */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
@@ -70,16 +80,6 @@
 				D40000152FA0000100E1C001 /* AMSMB2 in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		C3A35AAE2F85415E00DA0D16 /* Embed ExtensionKit Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "$(EXTENSIONS_FOLDER_PATH)";
-			dstSubfolderSpec = 16;
-			files = (
-			);
-			name = "Embed ExtensionKit Extensions";
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXCopyFilesBuildPhase section */
@@ -202,6 +202,7 @@
 				PlaybackModel/Domain/ValueObjects/PlaybackSpeed.swift,
 				PlaybackModel/Domain/ValueObjects/ProjectionType.swift,
 				PlaybackModel/Domain/ValueObjects/StereoLayout.swift,
+				PlayerUI/Domain/WindowPlaybackPageGeometry.swift,
 				PlayerUI/Domain/ValueObjects/PlaybackPresentation.swift,
 				PlayerUI/UseCases/PlaybackInfoFormatter.swift,
 				PlayerUI/UseCases/PlaybackTimeFormatter.swift,

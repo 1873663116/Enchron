@@ -71,6 +71,21 @@ _Avoid_：屏幕宽度、非等比缩放、Window 尺寸、Panorama 尺寸
 
 ## 验证
 
+**无人值守测试宿主**：完成一次性系统授权与预检后，能够在不需要用户介入的情况下持续运行 Enchron 验证的 macOS 图形会话；宿主可用性本身不构成产品通过证据。
+_Avoid_：CI runner、产品运行环境、测试已通过
+
+**真实用户旅程 E2E**：从正常 Entry App 用户状态出发，所有来源创建、媒体选择和播放操作都经过公开产品界面完成的端到端验证。
+_Avoid_：autoplay 注入、直接调用 ViewModel、单按钮冒烟测试
+
+**真实 UI 输入**：由 Computer Use 或操作系统鼠标、键盘、滚动与拖动事件经过正常 hit testing 触发生产 UI action 的用户输入；自动化只能替代用户执行输入，不能替代产品 UI 或业务入口。
+_Avoid_：Accessibility action 直调、测试 command、内部状态注入
+
+**协议远程源 E2E**：通过生产 SMB 或 WebDAV adapter 完成来源创建、浏览、读取与播放的端到端验证；协议服务器可以与 Entry App 位于同一台 Mac。
+_Avoid_：跨设备网络 E2E、直接文件读取、远程协议单元测试
+
+**跨设备网络 E2E**：协议服务器位于另一台设备或独立网络环境中的远程源端到端验证，用于补充本机协议远程源 E2E 无法证明的网络行为。
+_Avoid_：loopback 测试、本机共享、协议远程源 E2E
+
 **L1 Core Contract**：不依赖产品 surface 的核心合同、container 与 sample 验证。
 
 **L2 Enchron Integration**：macOS Entry App 以真实 renderer、RealityKit consumer 和产品 adapter 证明可播放与接入等价性的验证层。
@@ -91,6 +106,9 @@ _Avoid_：Rendered Presentation Success、AirPlay 画面正确
 
 **Diagnostic Media**：通过真实产品播放路径进入 RealityKit、并以方向、几何、双眼与时间标记提供机器视觉 oracle 的专用验收媒体。
 _Avoid_：普通电影画面、UI fixture、静态占位图
+
+**真实世界媒体**：来自实际制作或发行流程、用于观察格式兼容性和真实观看表现的媒体；它补充 Diagnostic Media，但不单独提供确定性的机器视觉 oracle。
+_Avoid_：Diagnostic Media、生成 fixture、静态占位图
 
 **Visual Oracle**：根据 Diagnostic Media 的语义标记、方向与几何关系判断渲染结果的机器合同；逐像素参考图只作为诊断附件。
 _Avoid_：像素完全一致、无黑屏即正确、普通截图目测

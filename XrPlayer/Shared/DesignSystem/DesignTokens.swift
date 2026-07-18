@@ -258,23 +258,23 @@ public enum DesignTokens {
     /// Elevation tiers for subtle depth on glass backgrounds.
     public enum Surface {
         /// Card background
-        public static let card: Color = .white.opacity(0.03)
+        public static let card: Color = .primary.opacity(0.03)
         /// Elevated panel background
-        public static let elevated: Color = .white.opacity(0.04)
+        public static let elevated: Color = .primary.opacity(0.04)
         /// Overlay / brighter surface
-        public static let overlay: Color = .white.opacity(0.06)
+        public static let overlay: Color = .primary.opacity(0.06)
         /// Selected state background
-        public static let selected: Color = .white.opacity(0.08)
+        public static let selected: Color = .primary.opacity(0.08)
         /// Subtle border
-        public static let border: Color = .white.opacity(0.05)
+        public static let border: Color = .primary.opacity(0.05)
         /// Visible separators inside translucent list containers.
-        public static let divider: Color = .white.opacity(0.14)
+        public static let divider: Color = .primary.opacity(0.14)
         /// Secondary explanatory text that must remain readable on material lists.
-        public static let supportingText: Color = .white.opacity(0.72)
+        public static let supportingText: Color = .primary.opacity(0.72)
         /// Trailing values, chips, and metadata that should read above descriptions.
-        public static let accessoryText: Color = .white.opacity(0.88)
+        public static let accessoryText: Color = .primary.opacity(0.88)
         /// Bright selection-row labels using the section header text scale.
-        public static let selectionHeaderText: Color = .white
+        public static let selectionHeaderText: Color = .primary
         /// Focused input/control border, using Enchron's single theme accent.
         public static let focusBorder: Color = Theme.accent
     }

@@ -81,7 +81,7 @@ struct SettingsScreen: View {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                     Text(selectedCategory.title)
                         .font(DesignTokens.Typography.title)
-                        .foregroundStyle(.white)
+                        .foregroundStyle(.primary)
                     Text(selectedCategory.summary)
                         .font(DesignTokens.Typography.metadata)
                         .foregroundStyle(DesignTokens.Surface.supportingText)
