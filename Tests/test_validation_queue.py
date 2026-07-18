@@ -84,6 +84,30 @@ class ValidationQueueTests(unittest.TestCase):
         )
         self.assertIn("still alive", denied["error"])
 
+    def test_terminal_task_with_exited_process_does_not_request_attention(self):
+        self.submit("finished-process")
+        self.invoke("claim", "--worker", "validator-a")
+        process = subprocess.Popen([sys.executable, "-c", "pass"])
+        process.wait()
+        with sqlite3.connect(self.database) as connection:
+            connection.execute(
+                "UPDATE validation_tasks SET pid = ? WHERE task_id = 'finished-process'",
+                (process.pid,),
+            )
+        self.invoke(
+            "complete",
+            "finished-process",
+            "--outcome",
+            "passed",
+            "--evidence",
+            "proof/finished",
+        )
+
+        status = self.invoke("status")
+        task = next(item for item in status["history"] if item["task_id"] == "finished-process")
+        self.assertFalse(task["controller_attention_required"])
+        self.assertEqual(status["notifications"], [])
+
 
 if __name__ == "__main__":
     unittest.main()
