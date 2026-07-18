@@ -93,7 +93,7 @@ final class AVSampleBufferRendererInputSink: RendererInputSink, @unchecked Senda
         case .cancelledDueToFlush:
             return .cancelledByFlush
         case .cancelledDueToFlushRequiredToResume(let error):
-            return .requiresFlush(error?.localizedDescription)
+            return .requiresFlush(error.localizedDescription)
         case .cancelledDueToError(let error):
             return .failed(error.localizedDescription)
         @unknown default:
