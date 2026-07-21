@@ -6,6 +6,8 @@ Enchron 是最低运行于 visionOS 27 的唯一产品与代码仓库。`Package
 
 前端页面组装所属 feature 的生产组件和 `Modules/DesignSystem` 的通用视觉原语，并绑定产品状态。跨 feature 的视觉变化修改 DesignSystem；feature 行为与组件修改其所有者；页面特有布局修改生产页面。DesignPreview 只陈列这些生产实现，不维护平行页面或产品状态。
 
+`Modules/MediaLibrary`、`Modules/PlaybackFeature`、`Modules/PlaybackPresentation` 与 `Modules/DesignSystem` 当前是源码所有权边界，尚未全部成为独立编译 target。编译器暂时允许的跨目录访问不自动构成架构许可；新增依赖前按 `ARCHITECTURE.md` 确认所有者，并保持依赖无环。不要用 target membership、复制源码或新增全局容器绕过所有权。
+
 产品运行只通过 `PlaybackRuntime` 接入 `Packages/PlaybackCore`。`PlaybackRuntime` 只负责来源交接、产品策略和核心状态投影，不复制 Media Session、seek 调度、timeline、renderer queue 或 Playback Lifecycle。PlaybackCore 只有一条 FFmpeg demux → compressed sample → AVFoundation renderer 管线，失败不会切换到另一套媒体实现。
 
 修改 PlaybackCore 后在 `Packages/PlaybackCore` 运行 `swift test`；App 模块、SwiftUI 或 RealityKit 变更通过 `Enchron.xcodeproj` 的对应 test target 与 scheme 验证。根目录不维护手工挑选源码的 SwiftPM 测试替身。验证严格按 L1 → macOS L2 Core → macOS L2 App Adapter → visionOS Simulator → Vision Pro L3 升级。

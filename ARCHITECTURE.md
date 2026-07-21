@@ -1,12 +1,12 @@
 # Enchron 架构
 
-Enchron 是唯一产品与代码仓库。`Packages/PlaybackCore` 是仓库内独立 Swift Package，拥有媒体会话、时间线、sample 与 renderer graph；Enchron App 拥有来源、产品策略、SwiftUI、RealityKit 和空间呈现。模块独立不产生第二套产品、状态机或文档体系。
+Enchron 是唯一产品与代码仓库。`Packages/PlaybackCore` 是仓库内独立 Swift Package，拥有媒体会话、时间线、sample 与 renderer graph；Enchron App 拥有来源、产品策略、SwiftUI、RealityKit 和空间呈现。产品所有者的分离不产生第二套产品、状态机或文档体系。
 
 ## 仓库地图
 
 ```text
 Apps/       可运行入口，只负责平台生命周期与产品组装
-Modules/    MediaLibrary、PlaybackFeature、PlaybackPresentation、DesignSystem 四个产品所有者
+Modules/    MediaLibrary、PlaybackFeature、PlaybackPresentation、DesignSystem 四个源码所有者
 Packages/   有独立编译边界的 PlaybackCore 与 RealityKitContent
 Tests/      按被验证的 App 入口和证据层组织；PlaybackCore 测试留在 package 内
 Scripts/    build、fixture、verification 三类机械执行工具
@@ -15,6 +15,21 @@ docs/       当前合同、验收规则与历史 ADR
 ```
 
 寻找代码时先确定谁拥有这个产品事实，再进入对应目录；仓库不使用 `Shared`、`Utils` 或全局 `Persistence` 作为模糊归宿。模块内部以一个可完整叙述的行为或组件族为文件边界：相互依赖才能表达完整含义的代码保持在一起，拥有独立状态、约束或复用方向时才拆开。文件行数只用于提示审查，不构成架构规则。
+
+## 当前边界与下一阶段
+
+目录重建已经建立源码所有权，但没有自动建立编译隔离。当前只有 `Packages/PlaybackCore` 与 `Packages/RealityKitContent` 是独立 Swift Package；`Modules/MediaLibrary`、`Modules/PlaybackFeature`、`Modules/PlaybackPresentation` 与 `Modules/DesignSystem` 仍由 Xcode App target 通过源码 membership 共同编译。因此，四个目录目前是查找与放置代码的权威边界，不是编译器已经强制的 import 边界。
+
+现阶段不能因为同一 target 允许直接访问，就把这种访问视为架构许可。新增跨所有者关系前必须先确认事实和行为的归属，并通过最小接口表达。下一阶段要把以下约束逐步移入构建图、Swift access control、类型系统与测试，而不是继续增加文件放置说明：
+
+- `Apps` 只组装依赖、声明平台生命周期、导航和 scene，不吸收 feature 状态或核心播放行为。
+- `DesignSystem` 不依赖任何产品 feature；feature 可以使用它的视觉原语。
+- `MediaLibrary` 交付已经解析且带访问事实的媒体，不启动或调度 PlaybackCore。
+- `PlaybackFeature` 拥有产品播放请求、策略和核心事实投影；它不能复制 PlaybackCore 的生命周期、时间线或 renderer queue。
+- `PlaybackPresentation` 消费应用播放能力并拥有 Window、Docked、Panorama 的 transition 与 surface binding；它不能进入 demux、sample 或 Media Session 内部。
+- `DesignPreview` 与 `EnchronMacOS` 复用相同生产所有者，不形成逐渐漂移的源码副本或平行业务实现。
+
+最终的依赖图必须无环。使用本地 Swift Package targets 还是 Xcode framework targets 属于下一阶段需要确认的构建决策；在决定并完成迁移前，本文不会把四个源码目录描述成已经独立编译的模块。
 
 Bundle ID 以及已有 UserDefaults、Keychain key 中的 `XrPlayer`/`xrplayer` 字符串属于安装身份和用户数据兼容标识，不代表产品或模块名称。只有设计并验证数据迁移时才能替换这些标识。
 
@@ -56,9 +71,9 @@ Source Admission -> Media Session -> Demux Provider
 - `Renderer Graph` 组合 video renderer、audio renderer 与共享 synchronizer。AVFoundation 拥有解码、HDR/Dolby Vision 解释和最终渲染。
 - `Diagnostics` 发布与当前 Media Session 可关联的 records、事件和 Debug Snapshot；Snapshot 不是第二套状态机。
 
-## 模块所有权
+## 产品所有权
 
-| 模块 | 拥有 | 不拥有 |
+| 所有者 | 拥有 | 不拥有 |
 |---|---|---|
 | `Packages/PlaybackCore` | container、track、sample、Media Session、播放生命周期、seek/rate/track transaction、renderer graph、诊断事实 | SwiftUI、来源长期授权、续播/下一项策略、RealityKit entity、窗口和空间 |
 | `Apps/Enchron` | App 入口、页面组装、导航与全局产品策略 | feature 内部状态、demux、sample、renderer queue |
@@ -71,6 +86,8 @@ Source Admission -> Media Session -> Demux Provider
 ## Enchron App 与验证入口
 
 历史 Verify App 的非 SwiftUI 播放控制和断言是 Enchron App 播放功能的基准。macOS target 是同一 Enchron App application control 的 L2 平台入口；Core scenario 只是绕过产品来源和页面的验证模式，App Adapter scenario 使用生产 `PlaybackRuntime`。二者共享 fixture、renderer consumer、控制矩阵和节点断言，不形成平行 App。
+
+当前 Enchron、EnchronMacOS 与 DesignPreview 对生产源码的复用仍包含 Xcode target membership。它是目录迁移后的过渡组装方式，不是长期模块合同；建立编译边界后，各入口应依赖同一生产模块产品，而不是继续维护逐文件 membership 清单。
 
 系统节点 01–09 统一位于 `docs/acceptance/nodes/`。节点描述完整产品链，文件位置不随实现模块拆分；每个节点分别声明实现所有者、证据所有者和完成边界。
 
