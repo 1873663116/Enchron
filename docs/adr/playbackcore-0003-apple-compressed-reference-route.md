@@ -1,5 +1,5 @@
 ---
-status: superseded in route count by ADR 0005
+status: superseded by ADR 0017
 ---
 
 # Apple 参考路线改为 storage-format compressed sample

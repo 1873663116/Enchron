@@ -1,5 +1,5 @@
 ---
-status: superseded by ADR 0003
+status: superseded by ADR 0017
 ---
 
 # 以共同 renderer seam 承载三条显式路线

@@ -1,13 +1,13 @@
 # Enchron 验证规则
 
-这是 Enchron 从来源到 Vision Pro 的唯一验证系统。验证对象是完整产品播放链，而不是某个仓库、target 或构建结果；任何上层证据都不能替代尚未通过的下层门槛。
+这是 Enchron 从来源到 Vision Pro 的唯一验证系统。验证对象是完整产品播放链，而不是某个仓库、target 或构建结果；任何上层证据都不能替代尚未通过的下层门槛。跨任务共享本地 Apple 重型验证槽位时，操作协议见 [`validation-queue.md`](validation-queue.md)。
 
 ## 顺序与门槛
 
 ```mermaid
 flowchart LR
-    L1["L1 PlaybackCore\n合同 · container · sample"] --> M1["L2 macOS Entry App\nCore scenario"]
-    M1 --> M2["L2 macOS Entry App\nApp Adapter scenario"]
+    L1["L1 PlaybackCore\n合同 · container · sample"] --> M1["L2 macOS Enchron App\nCore scenario"]
+    M1 --> M2["L2 macOS Enchron App\nApp Adapter scenario"]
     M2 --> Sim["L2 visionOS Simulator\n平台 API · UI · scene lifecycle"]
     Sim --> L3["L3 Vision Pro\n设备画质 · 音频 · 空间 · 性能"]
 ```
@@ -18,12 +18,12 @@ flowchart LR
 
 真实 container probe 仍属于 L1：它可以证明 FFmpeg demux 与 compressed `CMSampleBuffer` 的 payload、timing、codec configuration、color/HDR signaling 和世代归属，但不能证明 renderer 已显示画面或输出声音。
 
-### L2 macOS Entry App
+### L2 macOS Enchron App
 
-`EnchronMacOS` 是 Entry App 播放功能的 macOS platform entry，不是平行 Verify App。它使用真实媒体、真实 `AVSampleBufferVideoRenderer`、`AVSampleBufferAudioRenderer`、共享 synchronizer、AVFoundation Receiver 和 RealityKit consumer，并提供两个按顺序执行的 verification scenario：
+`EnchronMacOS` 是 Enchron App 播放功能的 macOS platform entry，不是平行 Verify App。它使用真实媒体、真实 `AVSampleBufferVideoRenderer`、`AVSampleBufferAudioRenderer`、共享 synchronizer、AVFoundation Receiver 和 RealityKit consumer，并提供两个按顺序执行的 verification scenario：
 
 1. Core scenario 直接连接 PlaybackCore，隔离产品来源、持久化、SwiftUI 页面和空间转换，先证明核心可播放。
-2. App Adapter scenario 使用生产 `PlaybackRuntime` 连接同一 fixture、renderer consumer 和断言，证明 Entry App 接入没有改变时间线、sample、颜色或控制语义。
+2. App Adapter scenario 使用生产 `PlaybackRuntime` 连接同一 fixture、renderer consumer 和断言，证明 Enchron App 接入没有改变时间线、sample、颜色或控制语义。
 
 Core scenario 不是第二套长期应用控制。可复用的控制、状态投影与 attach 规则必须迁入生产 application control；scenario 只保留驱动和断言。Core scenario 未通过时不得修改 App UI 掩盖失败，App Adapter scenario 未通过时不得进入 visionOS 首验。
 
@@ -36,7 +36,7 @@ Simulator 验证平台 API、Window/Docked/Panorama 状态机、失败回滚、�
 
 `RealityRenderer` component probe 使用固定 camera 输出 texture，验证投影、方向、stereo、比例、裁剪与帧推进；完整 App integration 验证 WindowGroup / ImmersiveSpace、RCP anchor、Screen Size 和 Presentation Transition。若 `VideoPlayerComponent` 在离屏宿主中无法确认依赖 ImmersiveSpace 的 actual mode，该事实属于 probe 能力边界，actual mode 留在 App integration 断言，不扩建第二套 renderer。
 
-空间播放的标准验收入口是 `scripts/verify-spatial-presentations-simulator.zsh`。它必须用真实 FFmpeg → PlaybackCore 媒体而不是 `ENCHRON_UI_TESTING` fixture，在同一次 App 启动中完成 Window → Docked → Window → Panorama → Window，并同时保存三类不能相互替代的证据：XCUIAutomation 语义与截图、PlaybackCore/Presentation 机器状态、OSLog 与 `.xcresult`。点击先使用 accessibility identifier；元素存在但不可直接命中时，测试先保存当前截图，再以该语义元素的几何中心执行坐标 fallback，并继续以目标状态断言结果。无人值守测试没有语义目标或有效几何时必须失败；交互式 agent 可以基于当次截图视觉定位后点击，但必须保存点击前后截图、验证相同机器状态后置条件，并把结果标记为 `agent-assisted`，不能用盲点固定坐标或冒充无人值守绿色结果。
+空间播放的标准验收入口是 `Scripts/verification/verify-spatial-presentations-simulator.zsh`。它必须用真实 FFmpeg → PlaybackCore 媒体而不是 `ENCHRON_UI_TESTING` fixture，在同一次 App 启动中完成 Window → Docked → Window → Panorama → Window，并同时保存三类不能相互替代的证据：XCUIAutomation 语义与截图、PlaybackCore/Presentation 机器状态、OSLog 与 `.xcresult`。点击先使用 accessibility identifier；元素存在但不可直接命中时，测试先保存当前截图，再以该语义元素的几何中心执行坐标 fallback，并继续以目标状态断言结果。无人值守测试没有语义目标或有效几何时必须失败；交互式 agent 可以基于当次截图视觉定位后点击，但必须保存点击前后截图、验证相同机器状态后置条件，并把结果标记为 `agent-assisted`，不能用盲点固定坐标或冒充无人值守绿色结果。
 
 Window、Docked 与 Panorama 都必须证明唯一 active consumer 是绑定当前 renderer 的 `VideoPlayerComponent`，不允许 `ModelComponent + VideoMaterial` 产品分支。Docked 还必须证明 Video Entity 是目标 `PlaybackSurfaceAnchor` 的子实体、local transform 符合用户 placement、scale 三轴一致，并由 `playerScreenSize × uniform scale` 得出最终尺寸。Panorama 必须观察 rendering status ready，以及 desired/actual immersive、viewing、spatial video mode 全部收敛。测试宿主未启动、Simulator 未完成 BackBoard 启动或 XCTest worker 未 materialize 属于基础设施失败；它既不是产品失败，也不能标记 Simulator passed。
 
@@ -54,27 +54,25 @@ Visual Oracle 不使用普通电影画面或逐像素 golden image 作为主断�
 
 | 节点 | 完成事实 | 实现所有者 | 最低证据 |
 |---|---|---|---|
-| [01 Source](nodes/01-source.md) | 来源身份、授权范围与访问事实交给公开 open | Entry App → PlaybackCore seam | L1 + App integration |
+| [01 Source](nodes/01-source.md) | 来源身份、授权范围与访问事实交给公开 open | Enchron App → PlaybackCore seam | L1 + App integration |
 | [02 Media Session](nodes/02-session.md) | open 被接受，唯一 session 与初始播放意图成立 | PlaybackCore | L1 |
 | [03 Provider Open](nodes/03-provider-open.md) | container、duration、seekability、轨道与 codec facts 固定 | PlaybackCore | L1 |
 | [04 Track Model](nodes/04-track-model.md) | video/audio 稳定身份、格式与选择正确 | PlaybackCore | L1 |
 | [05 Media Events](nodes/05-media-events.md) | sample/format/flush/end/error 带正确 epoch/revision | PlaybackCore | L1 |
 | [06 Compressed Sample](nodes/06-compressed-sample-stream.md) | payload、timing、dependency、codec config、color/HDR signaling 正确 | PlaybackCore | L1 |
 | [07 Renderer Input](nodes/07-avfoundation-renderer-input.md) | 当前 sample 被 Receiver 接受，共享 timeline 正确推进 | PlaybackCore | L1 seam + macOS L2 |
-| [08 RealityKit Binding](nodes/08-realitykit-renderer-binding.md) | 当前 renderer 只有一个 active RealityKit consumer | Entry App | macOS L2 |
-| [09 Entry App Presentation](nodes/09-entry-app-presentation.md) | entity 位于目标 surface，displayed frame 与音频持续推进 | Entry App | macOS L2；设备事实升 L3 |
+| [08 RealityKit Binding](nodes/08-realitykit-renderer-binding.md) | 当前 renderer 只有一个 active RealityKit consumer | Enchron App | macOS L2 |
+| [09 Enchron App Presentation](nodes/09-enchron-app-presentation.md) | entity 位于目标 surface，displayed frame 与音频持续推进 | Enchron App | macOS L2；设备事实升 L3 |
 
 证据必须报告第一处失败节点。Provider metadata 正确不等于 sample 或 displayed pixel 正确；renderer enqueue、renderer rendering、displayed pixel、持续推进、可听输出和颜色正确是独立事实。
 
-## 路线边界
+## 播放管线边界
 
-产品只使用 FFmpeg demux → compressed sample → AVFoundation renderer 路线。Apple compressed route 使用 `AVAssetReaderTrackOutput(outputSettings: nil)` 生成 storage-format sample，是同一 downstream renderer 的验证参考，不是产品 route、fallback 或第二套 App。
-
-两条验证路线在 Provider seam 前可以不同；从节点 7 开始必须复用相同 renderer graph、RealityKit consumer、控制矩阵和断言。Apple reference 通过不能替 FFmpeg 产品路线出具通过结论。
+产品与验证只使用 FFmpeg demux → compressed sample → AVFoundation renderer 管线。验证入口可以绕过产品来源与页面来隔离 PlaybackCore，但不得替换 provider 或把另一套实现的结果当作当前管线的证据。
 
 ## L2 控制与媒体矩阵
 
-每个会影响 sample assembly、Receiver、timeline、renderer graph 或 App Adapter 的 revision，都必须在 FFmpeg 产品路线验证：
+每个会影响 sample assembly、Receiver、timeline、renderer graph 或 App Adapter 的 revision，都必须通过当前播放管线验证：
 
 | 切片 | 唯一通过条件 |
 |---|---|
@@ -91,7 +89,7 @@ Visual Oracle 不使用普通电影画面或逐像素 golden image 作为主断�
 
 最低媒体集合覆盖 SDR、HDR10/PQ、HLG、受支持的 Dolby Vision profile、B-frame、至少双音轨、可 seek 长媒体与远程 range source。每种媒体必须在 `fixture-registry.json` 中具有稳定 ID、hash、许可、codec/container、颜色/HDR、音轨、时长和 oracle；许可或 oracle 不完整的素材只能作为 diagnostic，不能让完整矩阵标记为 passed。
 
-## Entry App 等价性
+## Enchron App 等价性
 
 App Adapter scenario 必须证明：
 
@@ -109,7 +107,7 @@ App Adapter scenario 必须证明：
 
 ## 回归路由
 
-- 节点 01 失败：检查 Entry App 来源授权、Media Reference 解析或远程 range bridge。
+- 节点 01 失败：检查 Enchron App 来源授权、Media Reference 解析或远程 range bridge。
 - 节点 02–06 失败：留在 PlaybackCore L1，不修改 UI。
 - 节点 07 在 Core scenario 失败：检查 sample、Receiver、timeline 与 renderer graph。
 - Core scenario 通过而节点 08–09 或 App Adapter 失败：检查 `PlaybackRuntime`、consumer binding 与状态投影。

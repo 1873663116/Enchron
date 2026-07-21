@@ -31,8 +31,8 @@
       "audio": "two AAC LC 48 kHz stereo tracks; 880 Hz and 440 Hz 80 ms pulses aligned with a white video flash every second",
       "durationSeconds": 30.0,
       "generation": {
-        "script": "script/generate_acceptance_fixtures.sh",
-        "output": ".verification-fixtures/sdr-bframe-multiaudio-avsync-30s.mp4",
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "../TestMedia/Generated/sdr-bframe-multiaudio-avsync-30s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -56,8 +56,8 @@
       "audio": "AAC LC 48 kHz stereo; 660 Hz 80 ms pulses aligned with a white video flash every second",
       "durationSeconds": 10.0,
       "generation": {
-        "script": "script/generate_acceptance_fixtures.sh",
-        "output": ".verification-fixtures/hlg-hevc-10bit-avsync-10s.mp4",
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "../TestMedia/Generated/hlg-hevc-10bit-avsync-10s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -81,8 +81,8 @@
       "audio": "AAC LC 48 kHz stereo; 660 Hz 80 ms pulses aligned with a white video flash every second",
       "durationSeconds": 10.0,
       "generation": {
-        "script": "script/generate_acceptance_fixtures.sh",
-        "output": ".verification-fixtures/pq-hevc-10bit-avsync-10s.mp4",
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "../TestMedia/Generated/pq-hevc-10bit-avsync-10s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -107,8 +107,8 @@
       "subtitles": "one embedded SubRip / S_TEXT/UTF8 track, one styled ASS / S_TEXT/ASS track, and one generated DVB bitmap track",
       "durationSeconds": 30.0,
       "generation": {
-        "script": "script/generate_acceptance_fixtures.sh",
-        "output": ".verification-fixtures/sdr-bframe-multiaudio-subtitles-30s.mkv",
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "../TestMedia/Generated/sdr-bframe-multiaudio-subtitles-30s.mkv",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -140,8 +140,8 @@
       "audio": "two AAC LC 48 kHz stereo tracks; 880 Hz and 440 Hz 80 ms pulses aligned with a white video flash every second",
       "durationSeconds": 120.064063,
       "generation": {
-        "script": "script/generate_acceptance_fixtures.sh",
-        "output": ".verification-fixtures/sdr-bframe-multiaudio-avsync-120s.mp4",
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "../TestMedia/Generated/sdr-bframe-multiaudio-avsync-120s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {

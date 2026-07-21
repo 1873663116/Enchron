@@ -3,7 +3,7 @@
 PlaybackCore 是 Enchron 内部的 macOS/visionOS Swift Package，负责 container、Media Session、compressed sample、控制语义与 AVFoundation renderer graph。
 
 ```sh
-./script/build_ffmpeg.sh
+./Scripts/build_ffmpeg.sh
 swift test
 ```
 

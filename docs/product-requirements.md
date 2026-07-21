@@ -27,7 +27,7 @@ stateDiagram-v2
 - Add Files 和 Add Folder Contents 保存系统文件 bookmark；Add from Photos 保存 `PHAsset.localIdentifier`；Add to Media Library 保存 SMB 或 WebDAV 来源 ID 与远程路径。播放时才把引用解析为原始 URL；解析失败时保留引用并给出恢复来源的反馈。
 - 来源浏览器支持用户授权的本地文件、Photos 视频选择、SMB 和 WebDAV；远程目录支持导航、刷新和添加到 Media Library。Media Library 支持目录导航、搜索、排序与网格/列表显示。
 - 远程凭据只存入 Keychain；权限、认证、网络和文件错误给出可恢复反馈。
-- 选择媒体直接进入播放。一个产品播放对应一个 PlaybackCore Media Session，不用第二播放路线静默回退。
+- 选择媒体直接进入播放。一个产品播放对应一个 PlaybackCore Media Session，失败时不静默切换到另一套媒体实现。
 - 提供播放、暂停、重播、前后跳转、seek、时间反馈、倍速、可用音轨与逐帧操作；可用能力只来自当前会话。
 - 保存进度并支持询问续播、总是续播、总是从头开始；播放结束支持停止、单集循环或播放下一项。
 

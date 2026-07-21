@@ -56,7 +56,7 @@ P0 不是单元测试集合，而是三条真实来源到播放的最短闭环�
 
 ## 交互驱动与动作记录
 
-每条 P0 来源旅程至少执行一次 `computer-use` 驱动；P1/P2 的稳定重跑使用 XCUIAutomation 或现有 `script/macos_ui_acceptance.swift` 扩展后的 AX + `CGEvent` 驱动。两类结果分别记录，不能把 agent-assisted 通过改写成无人值守回归通过。
+每条 P0 来源旅程至少执行一次 `computer-use` 驱动；P1/P2 的稳定重跑使用 XCUIAutomation 或现有 `Scripts/verification/macos_ui_acceptance.swift` 扩展后的 AX + `CGEvent` 驱动。两类结果分别记录，不能把 agent-assisted 通过改写成无人值守回归通过。
 
 `actions.jsonl` 每个动作一行，包含：
 
@@ -138,7 +138,7 @@ P1 运行在 Files、Settings、Window、Docked 和 Panorama simulation 的每�
 | PLAY-04 / P1 | 短媒体接近结束 | 依次在 Stop、Loop Single Episode、Play Next 设置下播放到结束并操作 Replay（若出现） | ended 仅在 active lanes 完成后发布；Stop、repeat、next 各自执行且不出现两个 active session；Replay 创建符合合同的新播放 | 结束前后与下一项/重播 | product-policy、product-playback |
 | PRESENT-01 / P0 | Window playing | 点击 Dock → environment；在 Docked 调 Screen Size、Reset；Undock；打开 Video Format，选择 360° 并 Apply；Exit Panorama；另一次 Cancel | 全程同一 Media Session；Window/Docked binding 唯一；Screen Size 三轴等比且 reset 为推荐值；macOS Panorama 必须记录 `hosted=window`、`attached=window`、`simulation=panorama`；Cancel 不改变格式 | Window、Docked、尺寸、返回、simulation、最终 Window | product-presentation、product-control |
 | PRESENT-02 / P1 | Window playing，使用 Flat/Mono 普通媒体 | 遍历 Projection 与 Stereo Layout 可见选项并 Apply；对缺少 AIME 的 Fisheye 执行 Apply | 格式 revision/错误符合来源事实；不允许用错误 metadata 假成功；失败保持 Window 和同一 session | 每个菜单选择及失败反馈 | product-format、product-error-ui |
-| ERROR-01 / P1 | 准备不支持/损坏或暂时不可读的 TestMedia 对象 | 通过 UI 选择对象；点击 Retry 和 Close/Back | 第一个失败节点、error domain/code 和 cleanup 可关联；无隐藏 Apple route 或其他媒体 fallback；Retry 行为确定 | 失败、Retry、返回 | product-source、product-playback、test-data |
+| ERROR-01 / P1 | 准备不支持/损坏或暂时不可读的 TestMedia 对象 | 通过 UI 选择对象；点击 Retry 和 Close/Back | 第一个失败节点、error domain/code 和 cleanup 可关联；无隐藏替代媒体管线；Retry 行为确定 | 失败、Retry、返回 | product-source、product-playback、test-data |
 
 同一控件如果在 Window、Docked、Panorama simulation、playing、paused、ended、loading、failed 中语义或可用性不同，必须在对应稳定状态分别记录。禁用控件需要断言其不可操作及原因；不存在的能力不能通过点击无反应来算覆盖。
 

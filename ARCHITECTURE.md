@@ -1,6 +1,22 @@
 # Enchron 架构
 
-Enchron 是唯一产品与代码仓库。`Packages/PlaybackCore` 是仓库内独立 Swift Package，拥有媒体会话、时间线、sample 与 renderer graph；Entry App 拥有来源、产品策略、SwiftUI、RealityKit 和空间呈现。模块独立不产生第二套产品、状态机或文档体系。
+Enchron 是唯一产品与代码仓库。`Packages/PlaybackCore` 是仓库内独立 Swift Package，拥有媒体会话、时间线、sample 与 renderer graph；Enchron App 拥有来源、产品策略、SwiftUI、RealityKit 和空间呈现。模块独立不产生第二套产品、状态机或文档体系。
+
+## 仓库地图
+
+```text
+Apps/       可运行入口，只负责平台生命周期与产品组装
+Modules/    MediaLibrary、PlaybackFeature、PlaybackPresentation、DesignSystem 四个产品所有者
+Packages/   有独立编译边界的 PlaybackCore 与 RealityKitContent
+Tests/      按被验证的 App 入口和证据层组织；PlaybackCore 测试留在 package 内
+Scripts/    build、fixture、verification 三类机械执行工具
+Config/     构建元数据
+docs/       当前合同、验收规则与历史 ADR
+```
+
+寻找代码时先确定谁拥有这个产品事实，再进入对应目录；仓库不使用 `Shared`、`Utils` 或全局 `Persistence` 作为模糊归宿。模块内部以一个可完整叙述的行为或组件族为文件边界：相互依赖才能表达完整含义的代码保持在一起，拥有独立状态、约束或复用方向时才拆开。文件行数只用于提示审查，不构成架构规则。
+
+Bundle ID 以及已有 UserDefaults、Keychain key 中的 `XrPlayer`/`xrplayer` 字符串属于安装身份和用户数据兼容标识，不代表产品或模块名称。只有设计并验证数据迁移时才能替换这些标识。
 
 ## 系统主线
 
@@ -13,7 +29,7 @@ flowchart LR
     Runtime --> Core["Packages/PlaybackCore\n唯一 Media Session 与 timeline"]
     Core --> Binding["Renderer Consumer Binding\nRealityKit entity"]
     Binding --> Presentation["Playback Presentation\nWindow · Docked · Panorama"]
-    Presentation --> UI["Enchron Entry App\nSwiftUI 与场景卡片"]
+    Presentation --> UI["Enchron App\nSwiftUI 与场景卡片"]
 ```
 
 一次产品播放只有一个 `PlaybackCoreController`、一个 Current Media Slot、一个 Media Session 和一个 renderer graph。`PlaybackRuntime` 负责把 App 请求交给核心并把核心状态投影给产品；它不得自行决定 seek 先后、推进媒体时间、伪造 ready/playing/ended，或维护第二个播放会话。
@@ -33,9 +49,9 @@ Source Admission -> Media Session -> Demux Provider
  AVSampleBufferVideoRenderer + AVSampleBufferAudioRenderer + Synchronizer
 ```
 
-- `Source Admission` 接受 Entry App 已解析的来源与访问事实，并管理唯一 Current Media Slot。
+- `Source Admission` 接受 Enchron App 已解析的来源与访问事实，并管理唯一 Current Media Slot。
 - `Media Session` 拥有一次 accepted open 到 close/failed 的身份、控制操作、Stream Epoch、Format Revision 与 stale rejection。
-- `Demux Provider` 打开容器、建立轨道模型并组装 sample。产品路径由 FFmpeg 解封装；Apple compressed route 只作为验证参考，不是产品 fallback。
+- `Demux Provider` 使用 FFmpeg 打开容器、建立轨道模型并组装 compressed sample。核心只维护这一种 provider。
 - `Renderer Input Coordination` 通过 AVFoundation Receiver 管理 audio/video backpressure、timeline、enqueue、flush、end 和 error。
 - `Renderer Graph` 组合 video renderer、audio renderer 与共享 synchronizer。AVFoundation 拥有解码、HDR/Dolby Vision 解释和最终渲染。
 - `Diagnostics` 发布与当前 Media Session 可关联的 records、事件和 Debug Snapshot；Snapshot 不是第二套状态机。
@@ -45,22 +61,23 @@ Source Admission -> Media Session -> Demux Provider
 | 模块 | 拥有 | 不拥有 |
 |---|---|---|
 | `Packages/PlaybackCore` | container、track、sample、Media Session、播放生命周期、seek/rate/track transaction、renderer graph、诊断事实 | SwiftUI、来源长期授权、续播/下一项策略、RealityKit entity、窗口和空间 |
-| `XrPlayer/App` | 来源交接、产品策略、核心控制入口、核心状态只读投影、错误呈现协调 | demux、sample、timeline、renderer queue、第二 Media Session |
-| `XrPlayer/PlayerUI` | 生产 SwiftUI 页面、transport 输入、Window 播放 surface | 播放事实与核心调度 |
-| `XrPlayer/SpatialScene` | Environment Context、Docked/Panorama 生命周期、目标 surface attach/rollback | renderer graph 与媒体时间线 |
-| `XrPlayer/FileBrowsing` | Media Library、本地/Photos/SMB/WebDAV 来源和持久引用 | 媒体字节所有权与播放状态 |
+| `Apps/Enchron` | App 入口、页面组装、导航与全局产品策略 | feature 内部状态、demux、sample、renderer queue |
+| `Modules/MediaLibrary` | Media Library、本地/Photos/SMB/WebDAV 来源、授权与持久引用 | 媒体字节所有权与播放调度 |
+| `Modules/PlaybackFeature` | 播放请求、应用控制边界、核心状态投影、续播与结束策略 | demux、sample、renderer queue、空间呈现 |
+| `Modules/PlaybackPresentation` | transport UI、Environment Context、Window/Docked/Panorama 与 surface attach/rollback | renderer graph 与媒体时间线 |
+| `Modules/DesignSystem` | 生产视觉 token、通用控件与平台外观适配 | feature 状态和产品流程 |
 | `Packages/RealityKitContent` | Enchron 使用的 RCP 场景交付 | 播放行为 |
 
-## Entry App 与验证入口
+## Enchron App 与验证入口
 
-历史 Verify App 的非 SwiftUI 播放控制和断言是 Entry App 播放功能的基准。macOS target 是同一 Entry App application control 的 L2 平台入口；Core scenario 只是绕过产品来源和页面的验证模式，App Adapter scenario 使用生产 `PlaybackRuntime`。二者共享 fixture、renderer consumer、控制矩阵和节点断言，不形成平行 App。
+历史 Verify App 的非 SwiftUI 播放控制和断言是 Enchron App 播放功能的基准。macOS target 是同一 Enchron App application control 的 L2 平台入口；Core scenario 只是绕过产品来源和页面的验证模式，App Adapter scenario 使用生产 `PlaybackRuntime`。二者共享 fixture、renderer consumer、控制矩阵和节点断言，不形成平行 App。
 
 系统节点 01–09 统一位于 `docs/acceptance/nodes/`。节点描述完整产品链，文件位置不随实现模块拆分；每个节点分别声明实现所有者、证据所有者和完成边界。
 
 ## 不变量
 
-- 产品只有一条 FFmpeg demux → compressed sample → AVFoundation renderer 路径；验证 route 不进入产品 UI，也不参与失败后的隐藏切换。
-- `Playback Lifecycle` 由 PlaybackCore 唯一发布；`Playback Presentation` 由 Entry App 管理，两者不能压成同一个“播放模式”。
+- 产品与验证共用一条 FFmpeg demux → compressed sample → AVFoundation renderer 路径；失败不会切换到另一套媒体实现。
+- `Playback Lifecycle` 由 PlaybackCore 唯一发布；`Playback Presentation` 由 Enchron App 管理，两者不能压成同一个“播放模式”。
 - Window、Docked、Panorama 迁移同一个 renderer。目标 surface 与 renderer binding 成功后才提交；失败回滚到原 Presentation，不重开 Media Session。
 - 三个 Playback Presentation 统一使用 `VideoPlayerComponent(videoRenderer:)`。每个 `RealityView` 拥有自己的 Video Entity；迁移的是 renderer binding，不把 Entity 实例跨 scene 搬移。Window 位于 WindowGroup 的 RealityView，Docked 与 Panorama 位于 ImmersiveSpace 的 RealityView。
 - Docked Video Entity 挂到 Xrplay_scene 交付的唯一 `PlaybackSurfaceAnchor` 下。场景拥有基准位置与朝向；Enchron 拥有 Screen Size uniform scale；RealityKit 拥有视频 mesh、material 与实际呈现模式。

@@ -1,0 +1,245 @@
+import SwiftUI
+
+enum PlaybackTopSecondaryMenu: String {
+    case dock
+    case videoFormat
+}
+
+struct PlaybackTopActions: View {
+    private let canDock: Bool
+    private let canApplyFormat: Bool
+    private let onDock: ((SpatialSceneDomain.CinemaEnvironment) -> Void)?
+    private let onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)?
+
+    @State private var presentedMenu: PlaybackTopSecondaryMenu?
+    @State private var selectedEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
+    @State private var projection: PlaybackModel.ProjectionType = .flat
+    @State private var stereoLayout: PlaybackModel.StereoLayout = .mono
+
+    init(
+        initialPresentedMenu: PlaybackTopSecondaryMenu? = nil,
+        canDock: Bool = true,
+        canApplyFormat: Bool = true,
+        onDock: ((SpatialSceneDomain.CinemaEnvironment) -> Void)? = nil,
+        onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)? = nil
+    ) {
+        self.canDock = canDock
+        self.canApplyFormat = canApplyFormat
+        self.onDock = onDock
+        self.onApplyFormat = onApplyFormat
+        _presentedMenu = State(initialValue: initialPresentedMenu)
+    }
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            topActionButton(
+                title: "Dock",
+                systemName: "square.stack.3d.up",
+                menu: .dock,
+                isEnabled: canDock
+            )
+
+            topActionButton(
+                title: "Video Format",
+                systemName: "pano",
+                menu: .videoFormat,
+                isEnabled: canApplyFormat
+            )
+        }
+        .overlay(alignment: .topTrailing) {
+            Group {
+                switch presentedMenu {
+                case .dock: dockMenu
+                case .videoFormat: videoFormatMenu
+                case nil: EmptyView()
+                }
+            }
+            .offset(y: DesignTokens.Interactive.large)
+            .zIndex(10)
+        }
+        .onChange(of: canDock) { _, available in
+            if available == false, presentedMenu == .dock { presentedMenu = nil }
+        }
+        .onChange(of: canApplyFormat) { _, available in
+            if available == false, presentedMenu == .videoFormat { presentedMenu = nil }
+        }
+    }
+
+    private func topActionButton(
+        title: String,
+        systemName: String,
+        menu: PlaybackTopSecondaryMenu,
+        isEnabled: Bool
+    ) -> some View {
+        Button {
+            presentedMenu = presentedMenu == menu ? nil : menu
+        } label: {
+            Label(title, systemImage: systemName)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(isEnabled ? .white : .secondary)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .frame(minHeight: DesignTokens.Interactive.regular)
+        }
+        .buttonStyle(.plain)
+        .clipShape(Capsule())
+        .glassBackgroundEffect(in: Capsule())
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverEffect(.automatic)
+        .frame(minHeight: DesignTokens.Interactive.large)
+        .disabled(!isEnabled)
+        .accessibilityLabel(title)
+        .accessibilityIdentifier("PlayerUI-TopAction-\(menu.rawValue)")
+    }
+
+    private var dockMenu: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            menuHeading("Dock", supporting: "Choose an environment")
+
+            VStack(spacing: DesignTokens.Spacing.xs) {
+                ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { environment in
+                    Button {
+                        selectedEnvironment = environment
+                        presentedMenu = nil
+                        onDock?(environment)
+                    } label: {
+                        HStack(spacing: DesignTokens.Spacing.md) {
+                            Image(systemName: environmentIcon(environment))
+                                .frame(width: DesignTokens.Interactive.regular)
+
+                            Text(environmentTitle(environment))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+
+                            if selectedEnvironment == environment {
+                                Image(systemName: "checkmark")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .font(DesignTokens.Typography.metadata)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                        .frame(minHeight: DesignTokens.Interactive.large)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .enchronHoverEffect(.highlight)
+                    .accessibilityIdentifier("PlayerUI-DockMenu-\(environment.rawValue)")
+                }
+            }
+        }
+        .padding(DesignTokens.Spacing.lg)
+        .frame(width: 320)
+        .fixedSize(horizontal: false, vertical: true)
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+    }
+
+    private var videoFormatMenu: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            menuHeading("Video Format", supporting: "Choose how the video is presented")
+
+            formatPicker(
+                title: "Projection",
+                selection: $projection,
+                options: [
+                    PlaybackModel.ProjectionType.flat,
+                    .equirectangular180,
+                    .equirectangular360,
+                    .fisheye
+                ],
+                label: projectionTitle
+            )
+
+            formatPicker(
+                title: "Stereo Layout",
+                selection: $stereoLayout,
+                options: PlaybackModel.StereoLayout.allCases,
+                label: stereoTitle
+            )
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    presentedMenu = nil
+                }
+                .accessibilityIdentifier("PlayerUI-VideoFormat-cancel")
+                Button("Apply") {
+                    presentedMenu = nil
+                    onApplyFormat?(projection, stereoLayout)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("PlayerUI-VideoFormat-apply")
+            }
+        }
+        .padding(DesignTokens.Spacing.lg)
+        .frame(width: 520)
+        .fixedSize(horizontal: false, vertical: true)
+        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+    }
+
+    private func menuHeading(_ title: String, supporting: String) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(title)
+                .font(DesignTokens.Typography.headline)
+            Text(supporting)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formatPicker<Value: Hashable>(
+        title: String,
+        selection: Binding<Value>,
+        options: [Value],
+        label: @escaping (Value) -> String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+            Picker(title, selection: selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(label(option))
+                        .tag(option)
+                        .accessibilityIdentifier("PlayerUI-VideoFormat-\(title)-\(label(option))")
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel(title)
+        }
+    }
+
+    private func environmentTitle(_ environment: SpatialSceneDomain.CinemaEnvironment) -> String {
+        switch environment {
+        case .darkTheatre: "Dark Theatre"
+        case .starryNight: "Starry Night"
+        case .sunsetNature: "Sunset Nature"
+        }
+    }
+
+    private func environmentIcon(_ environment: SpatialSceneDomain.CinemaEnvironment) -> String {
+        switch environment {
+        case .darkTheatre: "theatermasks"
+        case .starryNight: "sparkles"
+        case .sunsetNature: "sun.horizon"
+        }
+    }
+
+    private func projectionTitle(_ projection: PlaybackModel.ProjectionType) -> String {
+        switch projection {
+        case .flat: "Flat"
+        case .equirectangular180: "180°"
+        case .equirectangular360: "360°"
+        case .fisheye: "Fisheye"
+        }
+    }
+
+    private func stereoTitle(_ stereoLayout: PlaybackModel.StereoLayout) -> String {
+        switch stereoLayout {
+        case .mono: "Mono"
+        case .sideBySide: "Side-by-Side"
+        case .topBottom: "Top-Bottom"
+        }
+    }
+}
+
