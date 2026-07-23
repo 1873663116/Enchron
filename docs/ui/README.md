@@ -1,48 +1,64 @@
 # Enchron UI 结构规格
 
-本文件以 UI 模块为主语，描述模块拥有的状态、输入与结果。按钮的精确外观、顺序、参数和 accessibility identifier 由生产 Swift 代码表达。
+本文件描述产品 surface 的职责与状态投影。完整行为以 [`../product-requirements.md`](../product-requirements.md) 为准；术语以 [`../../CONTEXT.md`](../../CONTEXT.md) 为准。视觉参数、布局细节与 accessibility identifier 由生产组件表达。
 
 ```mermaid
 flowchart TD
     App["Enchron"] --> Main["Main Window"]
     App --> Volume["Environment Volume"]
     App --> Space["Immersive Space"]
-    App --> Controls["Spatial Controls Window"]
+    App --> Controls["Spatial Playback Controls"]
 
     Main --> Nav["Navigation Ornament\nFiles · Settings · Environments"]
-    Main --> Files["Media Library Screen\nVirtual folders · References · Sources"]
-    Main --> Settings["Settings Screen\nPlayback · Spatial · Storage & Privacy · About"]
-    Main --> WindowPlayback["Window Playback Surface"]
+    Main --> Files["Media Library\nVirtual folders · References · Sources"]
+    Main --> Settings["Settings"]
+    Main --> WindowPlayback["Window Playback"]
 
-    WindowPlayback --> Top["Information Bar\nBack · Title · Media Facts · Dock · Video Format"]
-    WindowPlayback --> Deck["Playback Deck\nTransport · Timeline · Audio · Speed · Dock · Panorama"]
-    WindowPlayback --> Overlay["Resume · Loading · Buffering · Failure"]
+    WindowPlayback --> Top["Window Chrome\nBack · Facts · Docking · Panorama"]
+    WindowPlayback --> Deck["Playback Deck\nSettings · -10 · Play · +10 · More"]
+    WindowPlayback --> Overlay["Resume / Start Over · Loading · Failure"]
 
-    Volume --> Carousel["Environment Carousel\nReturn · Select · Open"]
-    Space --> Environment["RCP Environment"]
+    Volume --> Carousel["Environment Selection"]
+    Space --> Environment["Active Environment · Day/Night"]
     Space --> Docked["Docked VideoPlayerComponent"]
     Space --> Panorama["Panorama VideoPlayerComponent"]
-    Controls --> SpatialDeck["Transport · Undock / Exit Panorama"]
+    Controls --> DockedDeck["Docked\nReturn to Window · Transport"]
+    Controls --> PanoramaDeck["Panorama\nBack · Return to Window · Transport"]
 ```
 
 ```mermaid
 stateDiagram-v2
     [*] --> Browser
-    Browser --> ResumePrompt: media has saved progress and policy asks
-    Browser --> WindowLoading: play media
-    ResumePrompt --> WindowLoading: Resume / Start Over
-    ResumePrompt --> Browser: Cancel playback
+    Browser --> ResumeDecision: valid progress and Ask policy
+    Browser --> WindowLoading: no Resume Decision
+    ResumeDecision --> WindowLoading: Resume / Start Over
     WindowLoading --> WindowPlaying: renderer attached
     WindowLoading --> WindowFailed: open or attach fails
     WindowFailed --> WindowLoading: Retry
     WindowFailed --> Browser: Close
-    WindowPlaying --> Docked: Dock
-    WindowPlaying --> Panorama: Apply non-flat format
-    Docked --> WindowPlaying: Undock
-    Panorama --> WindowPlaying: Exit Panorama
+    WindowPlaying --> Docked: Apply Day/Night Docking
+    WindowPlaying --> Panorama: Apply panoramic Media Format
+    Docked --> WindowPlaying: Return to Window
+    Panorama --> WindowPlaying: Return to Window
+    Panorama --> Browser: Back
     WindowPlaying --> Browser: Back
 ```
 
-Media Library Screen 默认展示 `MediaLibraryViewModel` 的虚拟目录和引用；切换到远程来源时才展示 `FileBrowsingViewModel` 的来源目录。Add Files、Add Folder Contents、Add from Photos 和远程 Add to Media Library 只建立持久引用。Settings Screen 只展示真实持久化选项；Window Playback、Docked 与 Panorama 共享 `PlaybackRuntime` 和同一个 deck 语义；Environment Volume 只选择和打开场景，不拥有播放行为。
+## Surface ownership
 
-页面不能读取 PlaybackCore 私有对象，也不能建立第二套媒体状态。组件无法满足明确的新视觉角色时才新增组件，并使用 `DesignTokens`。DesignPreview 陈列各模块的生产组件；产品页面本身即功能内容。
+- Media Library 展示虚拟 Library Folder、Media Reference 与只读 Source Directory。它不拥有媒体字节、播放策略或观看状态写入。
+- Window chrome 拥有退出当前媒体、Docking 二级菜单和首次 Panorama 格式菜单。Docking/Panorama 入口不进入 Playback Deck。
+- Playback Deck 的收起顺序固定为 Settings、后退 10 秒、Play/Pause/Replay、前进 10 秒、More，并显示 Progress Bar。
+- Settings 展开 Advanced Settings：所有 Presentation 提供 Precision Timeline；Docked 增加 Screen Size、Distance、Elevation、Restore Defaults；Panorama 增加 Projection、Stereo Layout、Apply 和 Reset to Flat + Mono。
+- More 只提供 Subtitles、Audio Track、Playback Speed 与 Episodes。HDR、Codec、Resolution 是只读信息；App 不提供 Volume/Mute。
+- Docked Video Entity/Mesh 不承载按钮；空间 Deck 只有 Return to Window。Panorama 空间 Deck 同时提供 Return to Window 与 Back-to-Library。
+- Resume Decision 只有 Resume 与 Start Over。用户选择媒体已经承诺打开，不提供 Cancel。
+- Window、Docked、Panorama 共享同一 Media Session 与 renderer；页面不得读取 PlaybackCore 私有对象、建立第二套 lifecycle 或在 fixture 中复制产品行为。
+
+## Interaction constraints
+
+- Progress Bar seek 到结尾之前后开始或继续播放；Precision Timeline 和逐帧完成后保持暂停。
+- ended 时画面纯黑。召唤 Deck 后显示 Replay；位于结尾时前进与下一帧禁用。
+- 从 Panorama 返回 Window 保留 panoramic Media Format，隐藏 Docking，并让 Panorama 按钮直接恢复刚才格式。
+- 卡片 Gaze/Hover 的底边进度图只读取文件夹进入后预取的内存 projection，不触发 I/O。
+- DesignPreview 只陈列生产组件，不拥有导航、产品状态或平行交互。

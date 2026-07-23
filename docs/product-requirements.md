@@ -1,6 +1,17 @@
 # Enchron V1 产品规格
 
-V1 是 Enchron 第一个完整可组装版本，不是只验证单一路径的演示。最低运行系统为 visionOS 27，不提供 visionOS 26 兼容路径。具体按钮、布局和组件参数以生产代码为准；本文件只保留产品能力与不可破坏的行为。
+V1 是 Enchron 第一个完整可组装版本，不是单一路径演示。最低运行系统为 visionOS 27，不提供 visionOS 26 兼容路径。本文定义产品能力和不可破坏的行为；领域术语以 [`CONTEXT.md`](../CONTEXT.md) 为准，视觉参数与组件样式由生产组件负责。
+
+## 产品状态
+
+Playback Lifecycle、Media Format、Playback Presentation 与 Environment Context 是四个正交状态轴：
+
+- Playback Lifecycle 说明 Media Session 当前处于 loading、playing、paused、ended 等哪个阶段。
+- Media Format 说明如何解释画面，只由 Projection 与 Stereo Layout 组成。
+- Playback Presentation 说明视频位于 Window、Docked 或 Panorama。
+- Environment Context 说明当前是否存在一个活动 Environment 及其 Environment Effect。
+
+Presentation 转换不得重新打开媒体或更换 Media Session。每次转换先捕获转换前的播放意图；原本正在播放时，转换期间暂停媒体，目标 Presentation settled 后恢复播放。原本处于 ready、paused 或 ended 时不自动开始播放。播放中的转换只有在目标画面稳定后提交；Ready、Paused 与 Ended 没有新帧时，以目标 surface 已绑定同一 Media Session 的 renderer 作为提交条件。任何失败都回滚到转换前的稳定 Presentation、Environment Context 与播放意图，保留同一 Media Session 并给出可重试反馈。
 
 ```mermaid
 stateDiagram-v2
@@ -12,49 +23,125 @@ stateDiagram-v2
 
     W0 --> W1: Open Environment
     W1 --> W0: Close Environment
-    W0 --> D: Dock with default or selected Environment
-    W1 --> D: Dock in active or selected Environment
-    D --> W1: Undock
-    W0 --> P0: Apply panoramic format
-    W1 --> P1: Apply panoramic format
-    P0 --> W0: Exit Panorama
-    P1 --> W1: Exit Panorama
+    W0 --> D: Dock in Default Environment
+    W1 --> D: Dock in Active Environment
+    D --> W1: Return to Window
+    W0 --> P0: Apply panoramic Media Format
+    W1 --> P1: Apply panoramic Media Format
+    P0 --> W0: Return to Window
+    P1 --> W1: Return to Window
 ```
 
 ## 媒体与来源
 
-- Media Library 是 App 管理的虚拟目录，只保存分类、媒体引用和播放状态，不保存媒体字节。用户可以创建、重命名、嵌套和移除 Library Folder，并在目录间移动 Media Reference；这些操作不得移动、复制或删除原始媒体。
-- Add Files 和 Add Folder Contents 保存系统文件 bookmark；Add from Photos 保存 `PHAsset.localIdentifier`；Add to Media Library 保存 SMB 或 WebDAV 来源 ID 与远程路径。播放时才把引用解析为原始 URL；解析失败时保留引用并给出恢复来源的反馈。
-- 来源浏览器支持用户授权的本地文件、Photos 视频选择、SMB 和 WebDAV；远程目录支持导航、刷新和添加到 Media Library。Media Library 支持目录导航、搜索、排序与网格/列表显示。
-- 远程凭据只存入 Keychain；权限、认证、网络和文件错误给出可恢复反馈。
-- 选择媒体直接进入播放。一个产品播放对应一个 PlaybackCore Media Session，失败时不静默切换到另一套媒体实现。
-- 提供播放、暂停、重播、前后跳转、seek、时间反馈、倍速、可用音轨与逐帧操作；可用能力只来自当前会话。
-- 保存进度并支持询问续播、总是续播、总是从头开始；播放结束支持停止、单集循环或播放下一项。
+- Media Library 是 Enchron 管理的虚拟分类器，只保存 Library Folder 与 Media Reference，不保存媒体字节，也不是文件管理系统。
+- 用户可以创建、重命名、嵌套和移除 Library Folder，并在其中移动或移除 Media Reference；这些操作不得移动、复制或删除原始媒体。
+- Local Source 的媒体由 visionOS 文件系统或 Photos 拥有。Add Files 和 Add Folder Contents 保存系统 bookmark；Add from Photos 保存 Photos identifier。
+- Remote Source 的媒体与目录由 SMB 或 WebDAV 服务拥有。Enchron 按其原有 Source Directory 只读浏览、刷新和播放，不创建、重命名、移动或删除远程文件与目录。
+- Add to Media Library 只保存 Remote Source ID 与远程路径。播放时才解析真实来源；解析失败时保留 Media Reference 并提供恢复来源的操作。
+- 远程凭据只存入 Keychain，并按服务器与账号命名空间隔离；同一 SMB 账号的不同 share 可以共享凭据，不同账号不得互相覆盖。旧版服务器级 Keychain 记录在账号匹配时迁移到账号命名空间。权限、认证、网络与文件错误必须给出可恢复反馈。
+- 选择媒体直接承诺打开它。一次产品播放对应一个 PlaybackCore Media Session；失败时不静默切换到另一套播放实现。
 
-## 呈现与场景
+## Playback Collection 与 Play Next
 
-- 所有媒体默认以 Flat + Mono 在 Window 显示。媒体元数据或用户选择只更新格式，不自动离开 Window。
-- Window、Docked 与 Panorama 使用同一个 `VideoPlayerComponent` consumer 合同；切换 Presentation 不重开 Media Session，也不建立 `VideoMaterial` 平行产品路径。
-- Window 顶部的 Dock 菜单选择场景后直接进入 Docked；Deck 的 Dock 使用当前场景，没有当前场景时使用默认场景。
-- Docked 使用 Environment 的唯一 `PlaybackSurfaceAnchor` 作为基准位置和朝向。Screen Size 以一米基准高度的百分比呈现并对整个 Video Entity 等比缩放；宽度由 RealityKit 根据视频宽高比生成。控制范围为 50%–250%，步进 5%；设置按 Environment 保存并可恢复该场景推荐值。当前天空盒的推荐值为 130%，anchor 距默认观看原点 4 米。
-- Window 顶部的 Video Format 菜单正交选择 Projection（Flat、180°、360°、Fisheye）和 Stereo Layout（Mono、Side-by-Side、Top-Bottom）。应用非 Flat 格式进入 Panorama；应用 Flat 保持 Window。
-- Fisheye 只在来源已经携带 Apple AIME 投影元数据时成立；缺少该事实时保持 Window 并显示错误，不能伪造投影。
-- Docked 和 Panorama 只显示 transport controls 与对应的返回动作，不显示互相冲突的空间入口。两者不能直接互转，必须先回到 Window。
-- Undock 回到 Window 并保留已打开的 Environment。退出 Panorama 恢复进入前的 Environment Context。
-- 平台打开、场景加载或 renderer attach 失败时保留同一媒体会话，恢复转换前稳定状态，并给出可重试反馈。
+- 用户选择媒体时，以它所在的 Library Folder 或 Source Directory 建立 Playback Collection。两者都是队列范围，但所有权不同。
+- Playback Queue 在开始播放时从该 Collection 按名称自然升序生成并固定。数字按数值比较，因此 `Episode 2` 位于 `Episode 10` 之前。
+- Library 搜索、浏览排序和后续目录变化不修改当前 Playback Queue；用户从另一个 Collection 或另一媒体重新开始时建立新队列。
+- Episodes 与 Play Next 使用同一个固定队列，不提供独立排序，也不跨目录按相似名称自动拼接。
+- 当前项已是队尾时，Play Next 回到 ended 控制语义，不跳到其他来源或旧 Library 游标。
+- 队列切换为每个新媒体重新读取它自己的 Media Format Preference。当前 Presentation 与新格式兼容时保留：Docked 可继续呈现 Flat，Panorama 可继续呈现 panoramic；不兼容时先回 Window，再根据新媒体的格式决定是否进入 Panorama。Docked 不因此成为持久化偏好。
+
+## Persistent Viewing State
+
+Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、Recently Played 或可扩展观看状态机。
+
+- 状态属于 Media Identity，不属于 Media Reference；相同底层媒体从不同 Library Folder 或来源入口打开时共享一份状态。
+- Media Identity 与 Content Revision 由一套共享权威生成。播放进度和 Media Format Preference 可以分别存储，但不得分别实现媒体身份或文件变化算法。
+- 总时长不足 15 分钟的媒体不保存可恢复位置，也不保存已看完。
+- 当前 Media Session 累计至少 15 秒有效播放后才算真正开始。只有 Lifecycle 为 playing 且媒体时间线实际前进才累计；暂停、缓冲和 seek 跳跃不计入。
+- 剩余时间不超过 `min(duration × 10%, 5 minutes)` 时不保存 Resume。仅进入这个区间不等于已看完。
+- 保存位置时同时保存 position、duration 与 Content Revision。再次打开时只有版本一致才允许 Resume；版本变化或无法可靠取得时清除旧状态并从头播放。
+- Resume Policy 为询问时只提供 Resume 与 Start Over。媒体选择已经表达打开意图，因此不提供 Cancel 或 Back-to-Browser。
+- 总时长不少于 15 分钟的媒体只有自然播放结束才标记已看完；seek 或退出时接近结尾不标记。已看完媒体再次打开时从头播放且不询问 Resume。
+- 新一轮观看达到可恢复条件时可以用新的可恢复位置替换已看完；用户清除单项或全部进度时同时清除已看完。
+- Persistent Viewing State 不自动过期。
+- 文件夹进入后，Viewing Progress Projection 以批量后台操作读入并按 Media Identity 缓存。卡片 Gaze/Hover 只读取内存，不触发磁盘、媒体解析或网络 I/O。
+- 卡片底边图形按保存的 `position / duration` 绘制，表示上次已知观看进度；打开媒体时才执行 Content Revision 的最终 Resume 验证。已看完显示完整进度。
+
+## Media Format
+
+- Media Format 由 Projection 与 Stereo Layout 正交组成。Enchron 当前不自动识别、推断或应用这两个维度。
+- 没有有效用户偏好时使用 Flat + Mono。
+- Window 的 Panorama 二级菜单提供 Projection：180°、360°、Fisheye；Stereo Layout：Mono、Side-by-Side、Top-Bottom。用户选择完整组合后点击 Apply，成功后关闭 Window 并进入 Panorama。
+- Fisheye 只有来源携带 Apple Immersive Media Experience（AIME）投影事实时才可应用。该事实只验证资格，不替用户选择格式。
+- 用户选择按 Media Identity 与 Content Revision 保存为 Media Format Preference，不受 15 分钟观看状态门槛影响。
+- 相同媒体版本再次打开时，在完成 Resume 或 Start Over 决策后自动进入保存的 Panorama 格式。Docked 不自动恢复；转换失败时以同一 Media Session 回退 Window。
+- 初始或保存的 Media Format 必须先在当前 Media Session 内完成应用，随后才允许 RealityKit surface 挂载和播放启动；不得让默认画面抢先启动后再异步改格式。
+- 从 Panorama 返回 Window 只改变 Playback Presentation，不清除 panoramic Media Format。此时不提供 Docking；Panorama 按钮直接恢复刚才的格式。用户在 Panorama Advanced Settings 中修改格式。
+- Panorama Advanced Settings 提供 Reset to Flat + Mono。成功后删除该媒体的 Media Format Preference、返回 Window 并恢复 Docking 与首次 Panorama 格式入口；不清除观看状态。
+- HDR、Codec 与 Resolution 是只读媒体/渲染事实。V1 不提供 HDR 开关，也不声称在没有正式 tone mapping 能力时把 HDR 转换为 SDR。
+
+## Environment 与 Docked Placement
+
+- V1 正式交付一个 Environment Identity 及 Day/Night 两个 Environment Effect。开发阶段可以使用占位资源，V1 验收时二者必须成为真实可区分内容。
+- Day 与 Night 是同一 Environment 内部的视觉特效状态，共享 Environment Identity、等价的 Playback Surface Anchor 语义和同一份用户摆位，不形成两个 Environment。
+- Window 界面的 Environment Tab 激活独立的 Environment Card Volume；它是所有非 Docking 场景操作的统一入口。该 Volume 必须使用 visionOS 26 起提供单例语义的 `Window` Scene 并保持 volumetric window style；所有入口都聚焦同一个实例，不使用 `WindowGroup` 创建副本。
+- Environment Card 按 Environment Identity 展示卡片，不把 Day/Night 拆成两个浏览项。卡片提供 Environment 的打开/关闭操作以及 Day/Night Environment Effect 控制。
+- Environment Card 不提供 App 内 Return 按钮；用户通过 visionOS Window Bar 关闭 Volume。它不进入 Playback Deck，也不在 Panorama 中出现。
+- Default Environment 只选择一个特定 Environment Identity，不包含 Environment Effect。
+- Window 的 Docking 二级菜单不列出 Environment Identity。存在活动 Environment 时继承它；不存在时临时使用 Default Environment；菜单选择本次 Docked Presentation 使用的 Day 或 Night，然后进入 Docked。这个选择不修改独立活动 Environment 的 Environment Effect。
+- 未来新增 Environment 仍由独立 Environment 入口激活；Docking 不展示 Environment × Environment Effect 的组合列表。
+- Docked Video Entity 使用 Environment 的 Playback Surface Anchor 作为基准，并由 Screen Size、Distance 与 Elevation 表达用户调整。
+- Screen Size 是相对一米基准高度的等比缩放，范围 50%–250%、步进 5%；宽度由视频宽高比生成。
+- Distance 是用户到屏幕的半径，默认 4 米，与当前场景交付的 Playback Surface Anchor 基准距离一致。Elevation 以用户为球心、当前 Distance 为半径沿垂直圆弧调节，屏幕始终朝向用户；不得把相对 anchor 的局部偏移误当作用户距离，也不得退化为世界坐标 Y 平移。
+- Screen Size、Distance 与 Elevation 按 Environment 保存并由 Day/Night Environment Effect 共享。Restore Defaults 恢复该 Environment 的完整推荐摆位。
+
+## Window 与 Playback Deck
+
+- Window 视频界面拥有 Back、Docking 二级菜单和 Panorama 二级菜单。Docking/Panorama 入口不属于 Playback Deck。
+- 收起的 Playback Deck 从左到右固定为 Settings、后退 10 秒、Play/Pause/Replay、前进 10 秒、More，下面显示 Progress Bar。
+- Settings 展开 Advanced Settings；More 负责 Subtitles、Audio Track、Playback Speed 与 Episodes。
+- Advanced Settings 的通用内容只有 Precision Timeline。Docked 增加 Screen Size、Distance、Elevation、Restore Defaults；Panorama 增加 Projection、Stereo Layout 与 Apply。
+- Precision Timeline 支持精确 seek 与逐帧，完成后保持暂停。Progress Bar seek 到结尾之前后开始或继续播放，即使拖动前处于 paused；从 ended 拖动同样开始播放。
+- 前后 10 秒保持原来的 playing/paused 意图；从 ended 后退会离开结尾并保持暂停。逐帧始终保持暂停。
+- Enchron 不提供 App 内 Volume 或 Mute，不保存相对音量。播放保持正常基准增益，最终音量与静音由 visionOS、Digital Crown 和系统音频界面控制。
+
+## Docked、Panorama 与退出
+
+- Docked 的 Video Entity/Mesh 不承载可点击按钮。召唤 Playback Deck 后提供播放控制和 Return to Window，不提供直接 Back-to-Library。
+- Panorama 召唤 Playback Deck 后提供播放控制、Return to Window 和 Back-to-Library。Back 关闭当前 Media Session 并回到 Window Media Library。
+- Window Back 关闭当前 Media Session 并回到 Media Library。
+- 返回 Window 或 Media Library 时结束本次 Docked Environment Effect，并恢复进入 Docked 前的 Environment Context。此前存在 Enchron Environment 时继续保留它原有的 Environment Effect；此前不存在时仍保持没有活动 Enchron Environment，System Surroundings 由 visionOS 决定。
+- Docked 与 Panorama 不直接互转，必须经过 Window。
+
+## 系统关闭空间与同进程恢复
+
+- Home View 或其他 visionOS 系统行为使 Enchron Immersive Space 消失时，Enchron 释放已经失效的空间资源，并仅在当前 App 进程的内存中保留 Spatial Recovery Intent。它记录原来的 Docked 或 Panorama、Media Session 身份和转换前的播放意图，但不形成第四种 Playback Presentation，也不写入 Resume、UserDefaults、SceneStorage、数据库或文件。
+- 用户在同一 App 进程仍存活时重新激活 Enchron，Enchron 显式重新打开 Immersive Space，重建 RealityKit 内容并重新绑定原 Media Session 的 renderer；目标 surface settled 后恢复原来的 Docked 或 Panorama 以及播放意图。恢复失败时安全回到 Window，并停止自动重试。
+- visionOS 终止 App 进程后，内存中的 Spatial Recovery Intent 随进程消失。下一次启动按冷启动和普通 Resume 规则处理，不自动恢复 Docked 或 Panorama；Enchron 不尝试检测即将发生的进程终止，也不持久化空间形态来模拟同进程恢复。
+
+## Ended
+
+- End Behavior 支持 Stop、Repeat One 与 Play Next。Stop 表示不自动重播或播放下一项，不等于关闭 Media Session。
+- Stop 后保留当前 Media Session 与 Playback Presentation；视频画面为纯黑，不自动显示结束信息或播放控件。
+- 用户召唤 Playback Deck 后，主按钮显示 Replay。Replay 从零开始播放。
+- ended 时后退、拖动到结尾之前、Precision Timeline 和上一帧可用；位于结尾时前进与下一帧禁用，不能保留可点击但无效果的操作。
+- Progress Bar seek 到结尾之前后开始播放；后退 10 秒、Precision Timeline 或上一帧从 ended 定位后保持暂停。seek 到结尾本身仍为 ended、纯黑和 Replay。
+- 所有这些操作继续使用同一 Media Session。
 
 ## 设置与数据
 
-- 保存续播策略、播放结束行为、控件自动隐藏时长、默认场景和播放速度。
-- 保存每个 Environment 的 Screen Size 与相对 Playback Surface Anchor 的用户 placement 调整。
-- 显示并清理缩略图缓存与播放进度；清理不删除媒体文件或远程来源。
+- 保存 Resume Policy、End Behavior、控件自动隐藏时长、Default Environment 与默认播放速度。Default Environment 只保存 Environment Identity；V1 只有一个 Environment Identity，因此不提供无意义的选择器。
+- 默认播放速度是打开 Media Session 时的初始 rate，不是在 timeline 尚未建立时发送的第二条播放控制命令；自动化覆盖值只影响该次验证启动，不写入用户设置。
+- 显示并清理缩略图缓存与 Persistent Viewing State；清理不得删除媒体文件、Media Reference 或 Remote Source。
 - 提供隐私说明、版本与构建信息、反馈地址和开源许可。
 
 ## 组装与验证
 
-- 产品页面只组装生产组件并绑定产品状态。新 UI 先搜索现有组件；共享变化修改组件，页面特有变化修改页面。
-- DesignPreview、SwiftUI Preview 与测试可以注入确定性 fixture，但不得维护平行页面或第二套产品行为。
-- 运行事实通过 OSLog 和 signpost 暴露；不建设 Enchron CLI、自定义调试协议、Debug Overlay 或产品内日志面板。
-- 验证严格按 PlaybackCore L1 → Enchron macOS App L2 Core scenario → Enchron macOS App L2 App Adapter scenario → visionOS Simulator → L3 Vision Pro 执行。前一门槛未通过时，不用后一层结果代替。
-- Enchron macOS App 使用真实视频与音频、真实 AVFoundation renderer、共享 synchronizer 和 RealityKit consumer，证明持续播放、seek、连续 seek、快进、快退、rate、音量、静音、音画同步、close/reopen、颜色/HDR 信令与稳定性；Core scenario 通过后才能接入 `PlaybackRuntime`。
-- Swift Testing / XCTest 验证纯逻辑和适配边界，XCUIAutomation 验证可访问交互，`xcodebuild` 与 `.xcresult` 保存结果。Simulator 验证 UI、平台 API 和基础 RealityKit 生命周期；硬件解码、HDR/EDR、最终 Panorama、空间舒适度和性能必须在 Vision Pro 验证。完整门槛见 [`acceptance/verification-system.md`](acceptance/verification-system.md)。
+- 产品页面只组装生产组件并绑定产品状态。DesignPreview、SwiftUI Preview 与测试可以注入确定性依赖，但不得维护平行页面、测试专用产品行为或第二套状态机。
+- 产品规则必须由唯一状态 owner、最小跨边界 API、编译依赖方向和自动化测试共同约束，不能只依赖目录、注释或代码审查。
+- 运行事实通过 OSLog、signpost、Xcode、LLDB、Console 与 Instruments 暴露；不建设 Enchron CLI、自定义调试协议、Debug Overlay 或产品内日志面板。
+- 验证依次运行 PlaybackCore 单元与合同验证、macOS 播放核心场景、macOS 产品适配场景、visionOS Simulator 验证和 Vision Pro 真机验收；前一阶段未通过时，不能用后一阶段的结果代替。
+- macOS 验证使用真实媒体、真实音频和视频 Renderer、共享时间同步器与 RealityKit 渲染接收方，证明持续播放、音画同步、Seek、连续 Seek、快进、快退、播放速度、关闭后重新打开、颜色与 HDR 信令和稳定性。App 不模拟系统音量界面；底层增益测试不代表产品提供了音量或静音功能。
+- Swift Testing / XCTest 验证纯逻辑、状态转换和适配边界；XCUIAutomation 验证可访问交互；`xcodebuild` 与 `.xcresult` 保存结果。
+- Simulator 验证 UI、平台 API 与基础 RealityKit 生命周期。硬件解码、HDR/EDR、最终 Panorama、空间舒适度、系统音量体验和性能必须在 Vision Pro 验收。完整门槛见 [`acceptance/verification-system.md`](acceptance/verification-system.md)。

@@ -8,11 +8,11 @@
 
 | Presentation | Surface | Consumer | 提交条件 |
 |---|---|---|---|
-| Window | playback window `RealityView` | planar `VideoMaterial` | window、entity、binding 与当前 renderer 全部 active |
-| Docked | active environment 的 docking surface | planar `VideoMaterial` | environment、目标 anchor、entity 与 binding 全部 active |
+| Window | playback window `RealityView` | `VideoPlayerComponent` | window、entity、binding 与当前 renderer 全部 active |
+| Docked | active environment 的 docking surface | `VideoPlayerComponent` | environment、目标 anchor、entity 与 binding 全部 active |
 | Panorama | playback `ImmersiveSpace` | `VideoPlayerComponent` | immersive space、actual viewing behavior、entity 与 binding 全部 settled |
 
-Environment Context 与 Playback Presentation 独立。Window 可以在 Environment 打开时继续存在；Docked 要求 Environment；Panorama 不使用 docking anchor。Docked 与 Panorama 不直接互转，必须先回到 Window。
+Environment Context 与 Playback Presentation 独立。V1 只有一个正式 Environment identity，Day/Night 是同一场景与同一 anchor 语义的 Appearance。Window 可以在 Environment 打开时继续存在；Docked 继承当前 Environment，没有当前 Environment 时使用默认 Environment；Panorama 不使用 docking anchor。Docked 与 Panorama 不直接互转，必须先回到 Window。
 
 ## 稳定规则
 
