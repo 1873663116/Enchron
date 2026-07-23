@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="Enchron 产品语义、状态、责任边界与交付证据的可视化图谱。">
+  <title>Enchron Product Atlas</title>
+  <style>
+/*__ATLAS_CSS__*/
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#atlas-main">跳到图谱内容</a>
+  <div class="atlas-shell">
+    <header class="atlas-header">
+      <div>
+        <p class="eyebrow">Enchron · Human Memory Model</p>
+        <h1>Product Atlas</h1>
+        <p class="lede">从真实产品表面进入，用状态变化、空间迁移与责任边界复习 Enchron。图谱只解释一手文档，不产生产品事实。</p>
+      </div>
+      <div class="header-tools">
+        <button class="icon-button" id="toggle-delivery" type="button" aria-pressed="false">
+          <span class="status-dot" aria-hidden="true"></span>
+          交付状态
+        </button>
+        <button class="icon-button" id="open-help" type="button" aria-expanded="false" aria-controls="help-panel">如何阅读</button>
+      </div>
+    </header>
+
+    <aside class="help-panel" id="help-panel" hidden>
+      <p><strong>先看真实产品在哪里发生，再看为什么。</strong> 连续线表示保持不变的身份；断开的生命周期线表示资源确实消失；正交坐标表示可以自由组合、不能压成单一模式的状态。</p>
+      <p>“已确认”“实现状态”“验证状态”彼此独立。点击来源可以回到一手文档核对。</p>
+    </aside>
+
+    <nav class="atlas-nav" aria-label="Product Atlas 主视图">
+      <button type="button" data-view="world" aria-current="page">产品世界</button>
+      <button type="button" data-view="journeys">行为路径</button>
+      <button type="button" data-view="states">状态与边界</button>
+      <button type="button" data-view="gaps">
+        未决问题
+        <span id="gap-count" class="count"></span>
+      </button>
+    </nav>
+
+    <main id="atlas-main">
+      <section class="atlas-view is-active" id="view-world" data-view-panel="world" tabindex="-1">
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">WHERE THE PRODUCT HAPPENS</p>
+            <h2>产品世界</h2>
+          </div>
+          <p>容器位置接近真实 visionOS 产品。选择界面中的操作，进入与其逻辑相匹配的讲解视图。</p>
+        </div>
+        <div id="world-map" class="world-map" aria-label="Enchron 产品表面地图"></div>
+        <div class="world-legend" aria-label="图例">
+          <span><i class="legend-system"></i>visionOS 管理</span>
+          <span><i class="legend-product"></i>Enchron 管理</span>
+          <span><i class="legend-session"></i>同一 Media Session</span>
+        </div>
+      </section>
+
+      <section class="atlas-view" id="view-journeys" data-view-panel="journeys" tabindex="-1" hidden>
+        <div class="journey-layout">
+          <article class="journey-stage" id="journey-stage" tabindex="-1" aria-live="polite"></article>
+          <aside class="journey-index" aria-label="产品操作目录">
+            <div class="journey-index-head">
+              <p class="section-kicker">PRODUCT ACTION REGISTRY</p>
+              <h2>行为路径</h2>
+              <label class="search-field">
+                <span class="sr-only">搜索产品操作</span>
+                <input id="action-search" type="search" placeholder="搜索操作、界面或所有者">
+              </label>
+            </div>
+            <div id="action-groups"></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="atlas-view" id="view-states" data-view-panel="states" tabindex="-1" hidden>
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">WHAT CAN CHANGE INDEPENDENTLY</p>
+            <h2>状态与边界</h2>
+          </div>
+          <p>每条轴独立变化；不变量与禁止组合定义架构必须守住的边界。</p>
+        </div>
+        <div id="state-map" class="state-map"></div>
+      </section>
+
+      <section class="atlas-view" id="view-gaps" data-view-panel="gaps" tabindex="-1" hidden>
+        <div class="section-heading">
+          <div>
+            <p class="section-kicker">VISIBLE UNCERTAINTY</p>
+            <h2>未决问题</h2>
+          </div>
+          <p>这里的缺口不会由代码或 Atlas 擅自补成产品事实。它们需要先进入一手文档。</p>
+        </div>
+        <div id="gap-list" class="gap-list"></div>
+      </section>
+    </main>
+
+    <footer>
+      <span>Enchron Product Atlas · 手工维护的派生视图</span>
+      <span id="source-status">正在核对来源基线…</span>
+    </footer>
+  </div>
+
+  <dialog id="source-dialog" class="source-dialog">
+    <form method="dialog">
+      <button class="dialog-close" aria-label="关闭来源详情">×</button>
+    </form>
+    <div id="source-dialog-content"></div>
+  </dialog>
+
+  <script id="atlas-model" type="application/json">/*__ATLAS_MODEL__*/</script>
+  <script>
+/*__ATLAS_JS__*/
+  </script>
+</body>
+</html>
