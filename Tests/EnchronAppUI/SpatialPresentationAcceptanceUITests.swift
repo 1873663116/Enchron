@@ -16,6 +16,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
         app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
         app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixtureURL.absoluteString
         app.launch()
 

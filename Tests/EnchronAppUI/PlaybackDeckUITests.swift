@@ -177,6 +177,7 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
     private func launchPlayer() -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
         app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] =
             "http://enchrolab:verification@127.0.0.1:18737/spatial-acceptance.mp4"
         app.launch()

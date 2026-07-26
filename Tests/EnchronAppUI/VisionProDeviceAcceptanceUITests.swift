@@ -18,6 +18,7 @@ nonisolated final class VisionProDeviceAcceptanceUITests: XCTestCase {
         }
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
         app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture
         app.launch()
 

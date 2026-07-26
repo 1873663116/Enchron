@@ -36,6 +36,9 @@ def main() -> None:
     spatial_acceptance = read(
         "Tests/EnchronAppUI/SpatialPresentationAcceptanceUITests.swift"
     )
+    playback_deck_acceptance = read(
+        "Tests/EnchronAppUI/PlaybackDeckUITests.swift"
+    )
     app_scene = read("Apps/Enchron/EnchronApp.swift")
     application = read("Apps/Enchron/EnchronApplication.swift")
     architecture = read("ARCHITECTURE.md")
@@ -98,6 +101,12 @@ def main() -> None:
         and "value CONTAINS 'attached=window'" in spatial_acceptance
         and "value == 'playing'" not in spatial_acceptance,
         "spatial acceptance relies on a system-formatted accessibility value instead of structured playback facts",
+    )
+    require(
+        '"ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"' in spatial_acceptance
+        and '"ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"'
+            in playback_deck_acceptance,
+        "spatial UI acceptance races the unrelated production controls auto-hide timer",
     )
     require(
         "PlayerUI-window-playback-deck" not in window_playback,
