@@ -4,7 +4,7 @@
 
 节点 03 让当前 Media Sample Provider 打开来源，并把 open-time container、轨道、codec、timing、color、HDR、projection 与 stereo 事实固化为不可变 Provider Open Snapshot。连续事件从节点 05 开始。
 
-产品 provider 使用 FFmpeg 读取 container 并解封装。Apple compressed provider 只存在于 verification scenario，用于生成 AVFoundation storage-format 对照 sample；provider provenance 必须进入证据，但不得进入产品路线选择。
+Provider 使用 FFmpeg 读取 container 并解封装；provider provenance 必须进入证据。验证入口调用同一个 provider，不维护替代实现。
 
 ## Snapshot
 
@@ -22,4 +22,4 @@
 
 ## 验收
 
-L1 对产品 FFmpeg provider 和 Apple reference provider 分别验证真实 container、缺轨、损坏来源、网络 read failure、color/HDR facts 与 provider provenance。
+L1 对当前 FFmpeg provider 验证真实 container、缺轨、损坏来源、网络 read failure、color/HDR facts 与 provider provenance。

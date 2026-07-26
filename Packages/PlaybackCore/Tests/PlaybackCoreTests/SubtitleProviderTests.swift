@@ -94,7 +94,6 @@ import Testing
 
 @Test func mediaSessionSelectsSubtitlesAndUsesSynchronizerTimeForActiveCues() async throws {
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "subtitle-selection",
         provider: SubtitleTestVideoProvider(),
         subtitleProvider: FFmpegSubtitleProvider()
@@ -130,9 +129,8 @@ import Testing
 
 @MainActor
 @Test func controllerPublishesSubtitleSelectionAndOffState() async throws {
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
             provider: SubtitleTestVideoProvider(),
             subtitleProvider: FFmpegSubtitleProvider()
@@ -140,7 +138,6 @@ import Testing
     }
     let session = try await controller.open(
         try subtitleFixtureURL(),
-        route: .ffmpegCompressed
     )
 
     #expect(controller.availableSubtitleTracks.map(\.id) == [
@@ -164,9 +161,8 @@ import Testing
 @Test func seekSuppressesOldCueUntilTheNewSynchronizerPositionCommits() async throws {
     let sink = SubtitleTestRendererInputSink(flushDelay: .milliseconds(100))
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "subtitle-seek",
-        provider: FFmpegSampleProvider(route: .ffmpegCompressed),
+        provider: FFmpegSampleProvider(),
         subtitleProvider: FFmpegSubtitleProvider(),
         rendererSink: sink
     )
@@ -196,18 +192,16 @@ import Testing
 @MainActor
 @Test func rapidSeeksOnlyPublishCuesAtTheNewestCommittedPosition() async throws {
     let sink = SubtitleTestRendererInputSink(flushDelay: .milliseconds(100))
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
-            provider: FFmpegSampleProvider(route: route),
+            provider: FFmpegSampleProvider(),
             subtitleProvider: FFmpegSubtitleProvider(),
             rendererSink: sink
         )
     }
     let session = try await controller.open(
         try subtitleFixtureURL(),
-        route: .ffmpegCompressed
     )
     try controller.start()
     try await waitForSubtitleTestSample(in: session)
@@ -248,7 +242,6 @@ import Testing
 @Test func closeClearsSubtitleStateAndRejectsLateCueLoad() async throws {
     let subtitleProvider = DelayedSubtitleTestProvider()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "subtitle-close",
         provider: SubtitleTestVideoProvider(),
         subtitleProvider: subtitleProvider,
@@ -270,7 +263,6 @@ import Testing
 
 @Test func debugSnapshotCorrelatesSubtitleSelectionGenerationAndEpoch() async throws {
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "subtitle-diagnostics",
         provider: SubtitleTestVideoProvider(),
         subtitleProvider: FFmpegSubtitleProvider(),
@@ -310,7 +302,6 @@ import Testing
 @Test func subtitleCueChangesArePublishedFromSynchronizerTime() async throws {
     let recorder = SubtitleCueRecorder()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "subtitle-callback",
         provider: SubtitleTestVideoProvider(),
         subtitleProvider: FFmpegSubtitleProvider(),
@@ -348,7 +339,6 @@ import Testing
 @Test func changingSubtitleSelectionClearsThePreviousCueBeforeLoadingCompletes() async throws {
     let recorder = SubtitleCueRecorder()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "subtitle-selection-stale",
         provider: SubtitleTestVideoProvider(),
         subtitleProvider: DelayedSubtitleTestProvider(),
@@ -408,7 +398,6 @@ private func bitmapSubtitleFixtureURL() throws -> URL {
 }
 
 private final class SubtitleTestVideoProvider: VideoSampleProvider {
-    let route = PlaybackRoute.ffmpegCompressed
     let info = VideoSampleProviderInfo(
         providerKind: "SubtitleTestVideo",
         containerFormat: "matroska",

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Enchron 验证执行"
-  short_description: "安全认领、执行、记录并交付本地 Apple 重型验证的完整证据"
-  default_prompt: "使用 $enchron-validation-runner 执行一项 Enchron 本地验证任务。"

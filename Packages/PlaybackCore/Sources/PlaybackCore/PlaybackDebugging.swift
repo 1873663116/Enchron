@@ -5,7 +5,6 @@ public struct PlaybackDebugEvent: Codable, Equatable, Sendable {
     public var sequenceNumber: UInt64
     public var timestamp: Date
     public var mediaSessionID: String?
-    public var route: PlaybackRoute?
     public var node: PlaybackNode?
     public var kind: String
     public var outcome: NodeOutcome?
@@ -17,7 +16,6 @@ public struct MediaSessionDebugSummary: Codable, Equatable, Sendable {
     public var sourceSummary: String
     public var sourceProvenance: String
     public var accessRequirement: String
-    public var route: PlaybackRoute
     public var initialTimeSeconds: Double
     public var startsPaused: Bool
     public var initialRate: Float
@@ -28,7 +26,6 @@ public struct MediaSessionDebugSummary: Codable, Equatable, Sendable {
         sourceSummary = session.source.privacySafeSummary
         sourceProvenance = session.source.provenance
         accessRequirement = session.source.accessRequirement
-        route = session.route
         initialTimeSeconds = session.initialTimeSeconds
         startsPaused = session.startsPaused
         initialRate = session.initialRate
@@ -48,13 +45,12 @@ public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var currentOperation: PlaybackOperationRecord?
     public var lastCompletedOperation: PlaybackOperationRecord?
     public var lastOpenOperation: PlaybackOperationRecord?
-    public var lastRouteSwitchOperation: PlaybackOperationRecord?
     public var providerOpen: ProviderOpenSnapshot?
     public var videoTrack: VideoTrackRecord?
     public var availableAudioTracks: [PlaybackAudioTrack] = []
     public var audioTrack: AudioTrackRecord?
     public var subtitleState: SubtitleStateRecord?
-    public var lastRouteEvent: RouteMediaEventRecord?
+    public var lastMediaEvent: MediaEventRecord?
     public var lastVideoSample: VideoSampleRecord?
     public var lastAudioSample: AudioSampleRecord?
     public var lastRendererInput: RendererInputRecord?
@@ -128,7 +124,6 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
     @discardableResult
     public func emit(
         mediaSessionID: String? = nil,
-        route: PlaybackRoute? = nil,
         node: PlaybackNode? = nil,
         kind: String,
         outcome: NodeOutcome? = nil,
@@ -141,7 +136,6 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
             sequenceNumber: sequenceNumber,
             timestamp: Date(),
             mediaSessionID: mediaSessionID,
-            route: route,
             node: node,
             kind: kind,
             outcome: outcome,
@@ -226,9 +220,6 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
             if record.kind == .open {
                 currentSnapshot.lastOpenOperation = record
             }
-            if record.kind == .switchRoute {
-                currentSnapshot.lastRouteSwitchOperation = record
-            }
         }
     }
 
@@ -256,10 +247,10 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         currentSnapshot.subtitleState = record
     }
 
-    public func recordRouteEvent(_ record: RouteMediaEventRecord) {
+    public func recordMediaEvent(_ record: MediaEventRecord) {
         lock.lock()
         defer { lock.unlock() }
-        currentSnapshot.lastRouteEvent = record
+        currentSnapshot.lastMediaEvent = record
         currentSnapshot.streamEpoch = record.streamEpoch
         currentSnapshot.formatRevision = record.formatRevision
     }

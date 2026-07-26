@@ -1,4 +1,0 @@
-interface:
-  display_name: "Enchron 主控编排"
-  short_description: "主控负责分派并行缺陷工作、驱动验证队列与裁决异常情况"
-  default_prompt: "使用 $enchron-validation-controller 编排 Enchron 并行缺陷与本地验证。"

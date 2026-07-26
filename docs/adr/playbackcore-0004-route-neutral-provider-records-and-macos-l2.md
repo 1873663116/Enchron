@@ -1,5 +1,5 @@
 ---
-status: partially superseded by ADR 0005
+status: route model superseded by ADR 0017; records and macOS L2 remain active
 date: 2026-07-13
 ---
 

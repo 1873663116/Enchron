@@ -163,7 +163,6 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
         let manifest: [String: String] = [
             "mediaSessionID": session.traceID,
             "platform": platform,
-            "route": session.route.rawValue,
             "events": eventsURL.path,
             "snapshot": snapshotURL.path,
         ]

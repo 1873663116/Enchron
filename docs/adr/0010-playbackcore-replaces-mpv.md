@@ -11,7 +11,7 @@ Enchron 内部长期维护 `MPVPlayerAdapter`、MPVKit、Metal texture bridge、
 
 ## 决策
 
-Enchron 作为产品 composition root，直接依赖当时独立的 PlaybackCore。Enchron 只保留 Playback App Adapter、产品启动协调、SwiftUI、文件来源、持久化和空间呈现。内部 mpv 播放核心、MPVKit 依赖、Metal texture bridge 和 engine routing 全部退役，不建立兼容层或备用产品核心。
+Enchron 作为最终产品和依赖组装入口，直接依赖当时独立的 PlaybackCore。Enchron 只保留 PlaybackCore 接入代码、产品启动协调、SwiftUI、文件来源、持久化和空间呈现。内部 mpv 播放核心、MPVKit 依赖、Metal 纹理桥接和播放引擎选择逻辑全部退役，不建立兼容层或备用产品核心。
 
 Xrplay_scene 继续作为独立场景创作仓，只向 Enchron 交付 RealityKitContent / USD，不参与播放实现。
 

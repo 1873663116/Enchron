@@ -1,0 +1,390 @@
+Building for debugging...
+[Pre-planning 1 / 273]
+[Planning deferred tasks]
+[49 / 130] PlaybackCore_PlaybackCoreTests
+[52 / 130]
+[74 / 130]
+[81 / 135] PlaybackFFmpegBridge
+[88 / 173]
+[100 / 269]
+[108 / 269]
+[118 / 269]
+[121 / 269]
+[128 / 269]
+[139 / 269]
+[146 / 269]
+[152 / 269]
+[161 / 269]
+[164 / 269]
+[171 / 269]
+[172 / 269]
+[183 / 269]
+[187 / 269]
+[192 / 269]
+[198 / 269]
+[199 / 269]
+[209 / 269] PlaybackCore
+[210 / 269] HDRBoundaryProbe-product
+[211 / 269] PlaybackCore
+[219 / 269] DolbyVisionCompressedProbe-product
+[220 / 269] HDRBoundaryProbe
+[227 / 269] PlaybackCore
+[229 / 269] DolbyVisionCompressedProbe
+[235 / 269] HDRBoundaryProbe-product
+[237 / 269] DolbyVisionCompressedProbe
+[242 / 269] PlaybackCore
+[247 / 270] PlaybackCore-product
+[247 / 270] PlaybackCoreTests-product
+[248 / 278]
+[255 / 278] DolbyVisionCompressedProbe
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/DolbyVisionCompressedProbe/main.swift:101:29: warning: left side of nil coalescing operator '??' has non-optional type 'any Error', so the right side is never used
+ 99 |                 throw ProbeError.rendererCancelled
+100 |             case .cancelledDueToFlushRequiredToResume(let error):
+101 |                 throw error ?? ProbeError.rendererRequiresFlush
+    |                             `- warning: left side of nil coalescing operator '??' has non-optional type 'any Error', so the right side is never used
+102 |             case .cancelledDueToError(let error):
+103 |                 throw error
+
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/DolbyVisionCompressedProbe/main.swift:82:21: warning: returning main actor-isolated '$0' as a 'sending' result risks causing data races [#RegionIsolation]
+ 80 |             }
+ 81 |             let sample = try readySample.withUnsafeSampleBuffer {
+ 82 |                 try CMSampleBuffer(copying: $0)
+    |                     |- warning: returning main actor-isolated '$0' as a 'sending' result risks causing data races [#RegionIsolation]
+    |                     `- note: returning main actor-isolated '$0' risks causing data races since the caller assumes that '$0' can be safely sent to other isolation domains
+ 83 |             }
+ 84 |             guard CMSampleBufferGetNumSamples(sample) > 0,
+
+[#RegionIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/region-isolation>
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/DolbyVisionCompressedProbe/main.swift:101:29: warning: left side of nil coalescing operator '??' has non-optional type 'any Error', so the right side is never used
+ 99 |                 throw ProbeError.rendererCancelled
+100 |             case .cancelledDueToFlushRequiredToResume(let error):
+101 |                 throw error ?? ProbeError.rendererRequiresFlush
+    |                             `- warning: left side of nil coalescing operator '??' has non-optional type 'any Error', so the right side is never used
+102 |             case .cancelledDueToError(let error):
+103 |                 throw error
+
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/DolbyVisionCompressedProbe/main.swift:82:21: warning: returning main actor-isolated '$0' as a 'sending' result risks causing data races [#RegionIsolation]
+ 80 |             }
+ 81 |             let sample = try readySample.withUnsafeSampleBuffer {
+ 82 |                 try CMSampleBuffer(copying: $0)
+    |                     |- warning: returning main actor-isolated '$0' as a 'sending' result risks causing data races [#RegionIsolation]
+    |                     `- note: returning main actor-isolated '$0' risks causing data races since the caller assumes that '$0' can be safely sent to other isolation domains
+ 83 |             }
+ 84 |             guard CMSampleBufferGetNumSamples(sample) > 0,
+
+[#RegionIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/region-isolation>
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/HDRBoundaryProbe/main.swift:211:25: warning: left side of nil coalescing operator '??' has non-optional type 'any Error', so the right side is never used
+209 |             throw ProbeError.rendererCancelled
+210 |         case .cancelledDueToFlushRequiredToResume(let error):
+211 |             throw error ?? ProbeError.rendererRequiresFlush
+    |                         `- warning: left side of nil coalescing operator '??' has non-optional type 'any Error', so the right side is never used
+212 |         case .cancelledDueToError(let error):
+213 |             throw error
+
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/HDRBoundaryProbe/main.swift:198:76: warning: sending 'sample' risks causing data races [#RegionIsolation::SendingRisksDataRace]
+196 |         let receiver = synchronizer.sampleBufferReceiver(adding: renderer)
+197 |         synchronizer.setRate(0, time: CMSampleBufferGetPresentationTimeStamp(sample))
+198 |         let readySample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
+    |                                                                            |- warning: sending 'sample' risks causing data races [#RegionIsolation::SendingRisksDataRace]
+    |                                                                            `- note: main actor-isolated 'sample' is passed as a 'sending' parameter; Uses in callee may race with later main actor-isolated uses
+199 |             unsafeBuffer: sample
+200 |         )
+
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/HDRBoundaryProbe/main.swift:54:17: warning: returning main actor-isolated '$0' as a 'sending' result risks causing data races [#RegionIsolation]
+ 52 |         }
+ 53 |         let sourceSample = try readySample.withUnsafeSampleBuffer {
+ 54 |             try CMSampleBuffer(copying: $0)
+    |                 |- warning: returning main actor-isolated '$0' as a 'sending' result risks causing data races [#RegionIsolation]
+    |                 `- note: returning main actor-isolated '$0' risks causing data races since the caller assumes that '$0' can be safely sent to other isolation domains
+ 55 |         }
+ 56 |         guard let source = CMSampleBufferGetImageBuffer(sourceSample) else {
+
+[#RegionIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/region-isolation>
+[#SendingRisksDataRace]: <https://docs.swift.org/compiler/documentation/diagnostics/sending-risks-data-race>
+[259 / 278] HDRBoundaryProbe-product
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/HDRBoundaryProbe/main.swift:211:25: warning: left side of nil coalescing operator '??' has non-optional type 'any Error', so the right side is never used
+209 |             throw ProbeError.rendererCancelled
+210 |         case .cancelledDueToFlushRequiredToResume(let error):
+211 |             throw error ?? ProbeError.rendererRequiresFlush
+    |                         `- warning: left side of nil coalescing operator '??' has non-optional type 'any Error', so the right side is never used
+212 |         case .cancelledDueToError(let error):
+213 |             throw error
+
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/HDRBoundaryProbe/main.swift:198:76: warning: sending 'sample' risks causing data races [#RegionIsolation::SendingRisksDataRace]
+196 |         let receiver = synchronizer.sampleBufferReceiver(adding: renderer)
+197 |         synchronizer.setRate(0, time: CMSampleBufferGetPresentationTimeStamp(sample))
+198 |         let readySample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
+    |                                                                            |- warning: sending 'sample' risks causing data races [#RegionIsolation::SendingRisksDataRace]
+    |                                                                            `- note: main actor-isolated 'sample' is passed as a 'sending' parameter; Uses in callee may race with later main actor-isolated uses
+199 |             unsafeBuffer: sample
+200 |         )
+
+/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Packages/PlaybackCore/Tools/HDRBoundaryProbe/main.swift:54:17: warning: returning main actor-isolated '$0' as a 'sending' result risks causing data races [#RegionIsolation]
+ 52 |         }
+ 53 |         let sourceSample = try readySample.withUnsafeSampleBuffer {
+ 54 |             try CMSampleBuffer(copying: $0)
+    |                 |- warning: returning main actor-isolated '$0' as a 'sending' result risks causing data races [#RegionIsolation]
+    |                 `- note: returning main actor-isolated '$0' risks causing data races since the caller assumes that '$0' can be safely sent to other isolation domains
+ 55 |         }
+ 56 |         guard let source = CMSampleBufferGetImageBuffer(sourceSample) else {
+
+[#RegionIsolation]: <https://docs.swift.org/compiler/documentation/diagnostics/region-isolation>
+[#SendingRisksDataRace]: <https://docs.swift.org/compiler/documentation/diagnostics/sending-risks-data-race>
+[263 / 278] PlaybackCoreTests-product
+[269 / 278] DolbyVisionCompressedProbe-product
+[272 / 278] HDRBoundaryProbe-product
+[272 / 278] PlaybackCoreTests-product
+[274 / 278] PlaybackCoreTests-product
+Build complete! (14.08秒)
+Test Suite 'All tests' started at 2026-07-23 06:48:52.721.
+Test Suite 'All tests' passed at 2026-07-23 06:48:52.722.
+	 Executed 0 tests, with 0 failures (0 unexpected) in 0.000 (0.001) seconds
+􀟈  Test run started.
+􀄵  Testing Library Version: 2073
+􀄵  Target Platform: arm64e-apple-macos14.0
+􀟈  Test playResumesPreferredRateAfterPause() started.
+􀟈  Test controllerRejectsSecondOpenAndRecordsTheRejection() started.
+􀟈  Test acceptedOpenBindsSourceToOneSession() started.
+􀟈  Test liveStereoOverrideUsesSharedSeamWithoutChangingTimeline() started.
+􀟈  Test providerFormatChangeAdvancesRevisionAndFlushesRenderer() started.
+􀟈  Test stereoOverrideAfterProviderResetDoesNotOwnItsFlush(reset:) started.
+􀟈  Test staleRejectionIsCountedInSnapshot() started.
+􀟈  Test occupiedSlotRejectsSecondOpenWithoutCreatingSession() started.
+􀟈  Test closeReleasesSlotAndLateUpdateIsStale() started.
+􀟈  Test terminalRendererFailurePublishesFailedOnce(_:) started.
+􀟈  Test startWithoutActiveSessionIsRejected() started.
+􀟈  Test closeClearsSubtitleStateAndRejectsLateCueLoad() started.
+􀟈  Test controllerPublishesSubtitleSelectionAndOffState() started.
+􀟈  Test debugEventStreamUsesMonotonicSequenceNumbers() started.
+􀟈  Test changingSubtitleSelectionClearsThePreviousCueBeforeLoadingCompletes() started.
+􀟈  Test providerOpenContractRecordsTheActiveProvider() started.
+􀟈  Test bitmapSubtitleRendererPreservesDecodedPixelsAndCanvasPlacement() started.
+􀟈  Test seekSuppressesOldCueUntilTheNewSynchronizerPositionCommits() started.
+􀟈  Test closingCurrentSessionRetainsPrivacySafeLastSessionSummary() started.
+􀟈  Test liveProjectionOverrideUsesSharedSeamWithoutChangingTimeline() started.
+􀟈  Test injectedProviderProducesMediaEventSampleAndRendererIntent() started.
+􀟈  Test markerOnlySampleDoesNotBlockFollowingVideoSample() started.
+􀟈  Test debugSnapshotV1DecodesBeforeAudioTrackCatalogWasAdded() started.
+􀟈  Test threeRapidSeeksOnlyAllowNewestWaiterToEnterSession() started.
+􀟈  Test invalidRateIsRejectedAndRecorded() started.
+􀟈  Test declaredAudioWithoutParametersIsNotReportedAsNoAudio() started.
+􀟈  Test decoderPrerollBootstrapsBeforeReceiverBackpressure() started.
+􀟈  Test seekFailsImmediatelyWhenTargetEpochEndsBeforeTarget() started.
+􀟈  Test panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeline() started.
+􀟈  Test projectionFieldsRemainBackwardCompatibleWithDebugSnapshotV1() started.
+􀟈  Test receiverDecodeWarningsAcceptTheVideoSample() started.
+􀟈  Test receiverRequiresFlushPublishesTerminalVideoFailure() started.
+􀟈  Test bindingRecordsRejectSecondActiveIdentity() started.
+􀟈  Test audioSampleRecordPreservesLaneDetailsAndDecodesLegacyV1() started.
+􀟈  Test controllerSeekKeepsSessionAndAdvancesStreamEpoch() started.
+􀟈  Test newerSeekSupersedesOlderSeekAndOwnsFinalTarget() started.
+􀟈  Test failedAudioTrackSelectionPreservesActiveTrackAndPlaybackState() started.
+􀟈  Test audioOpenFailureIsNotClassifiedByMessageText() started.
+􀟈  Test snapshotPreservesMediaEventEpochRevisionAndTypedCounts() started.
+􀟈  Test rapidSeeksOnlyPublishCuesAtTheNewestCommittedPosition() started.
+􀟈  Test firstAudioEnqueueEventPersistsTheUpdatedRendererState() started.
+􀟈  Test delayedAudioParametersAreDiscovered() started.
+􀟈  Test unrecoverableProviderFailureReleasesCurrentMediaSlot() started.
+􀟈  Test clearingStereoOverrideWaitsForASourceFormatSample() started.
+􀟈  Test stereoOverrideBeforeFirstSampleKeepsInitialRevision() started.
+􀟈  Test ffmpegSourceLocatorPreservesRemoteSchemeHostAndCredentials() started.
+􀟈  Test libassRendererProducesPremultipliedSubtitleFrameAtCueTime() started.
+􀟈  Test providerFlushAdvancesStreamEpoch() started.
+􀟈  Test repeatedSessionStartDoesNotRestartThePreparedProvider() started.
+􀟈  Test ffmpegSubtitleProviderBuildsStableTracksAndTimedCuesFromSubRip() started.
+􀟈  Test closeSnapshotRecordsTheCompleteCleanupBarrier() started.
+􀟈  Test case passing 1 argument reset → .formatChanged to stereoOverrideAfterProviderResetDoesNotOwnItsFlush(reset:) started.
+􀟈  Test presentationStateIsRetainedByDebugSnapshot() started.
+􀟈  Test videoOnlySessionRetainsAudioRendererPreferencesInSnapshot() started.
+􀟈  Test embeddedSubRipTracksExposeStableMetadata() started.
+􀟈  Test mediaSessionSelectsSubtitlesAndUsesSynchronizerTimeForActiveCues() started.
+􀟈  Test receiverFlushCancellationDoesNotAcceptOrFailTheVideoSample() started.
+􀟈  Test audioTrackSelectionAndRendererControlsStayInsideCurrentSession() started.
+􀟈  Test case passing 1 argument reset → .flush to stereoOverrideAfterProviderResetDoesNotOwnItsFlush(reset:) started.
+􀟈  Test synchronousEventObserverSeesBoundaryBeforeEmitReturns() started.
+􀟈  Test case passing 1 argument rendererKind → .video to terminalRendererFailurePublishesFailedOnce(_:) started.
+􀟈  Test failedSessionCleanupBlocksNewOpenUntilFlushCompletes(_:) started.
+􀟈  Test subtitleCueChangesArePublishedFromSynchronizerTime() started.
+􀟈  Test case passing 1 argument rendererKind → .audio to terminalRendererFailurePublishesFailedOnce(_:) started.
+􀟈  Test endedUsesVideoPresentationEndWhenNoAudioIsSelected() started.
+􀟈  Test delayedAudioParametersProduceCompressedAACSample() started.
+􀟈  Test productOpenKeepsSuppliedAVAssetsOnTheFFmpegProvider() started.
+􀟈  Test debugSnapshotCorrelatesSubtitleSelectionGenerationAndEpoch() started.
+􀟈  Test cancelledStereoCommandCannotMutateANewControllerSession() started.
+􀟈  Test rapidRelativeSeeksAccumulateInsideTheCore() started.
+􀟈  Test debugSnapshotDecodesBeforeSubtitleStateWasAdded() started.
+􀟈  Test openWaitsForPendingSynchronousCloseCleanup() started.
+􀟈  Test completedOperationMovesFromCurrentToStableHistory() started.
+􀟈  Test endedWaitsForLongerSelectedAudioPresentation() started.
+􀟈  Test zeroRequestedStartOwnsTimelineWhenFirstVideoSampleStartsLater() started.
+􀟈  Test audioRendererStateDecodesBeforeGraphIdentitiesWereAdded() started.
+􀟈  Test embeddedSubRipCuesPreserveTimingUTF8AndLineBreaks() started.
+􀟈  Test productOpenUsesTheDemuxProviderForURLSources() started.
+[ass] libass API version: 0x1704000
+[ass] libass source: tarball: 0.17.4
+[ass] Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 14.2.0 (COMPLEX)
+[ass] Using font provider coretext
+􀟈  Test case passing 1 argument recovery → .open to failedSessionCleanupBlocksNewOpenUntilFlushCompletes(_:) started.
+􀟈  Test case passing 1 argument recovery → .reopen to failedSessionCleanupBlocksNewOpenUntilFlushCompletes(_:) started.
+􁁛  Test staleRejectionIsCountedInSnapshot() passed after 0.125 seconds.
+􁁛  Test occupiedSlotRejectsSecondOpenWithoutCreatingSession() passed after 0.125 seconds.
+􁁛  Test closeReleasesSlotAndLateUpdateIsStale() passed after 0.124 seconds.
+􁁛  Test acceptedOpenBindsSourceToOneSession() passed after 0.125 seconds.
+[ass] libass API version: 0x1704000
+[ass] libass source: tarball: 0.17.4
+[ass] Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 14.2.0 (COMPLEX)
+[ass] Using font provider coretext
+􁁛  Test bitmapSubtitleRendererPreservesDecodedPixelsAndCanvasPlacement() passed after 0.126 seconds.
+[ass] libass API version: 0x1704000
+[ass] libass source: tarball: 0.17.4
+[ass] libass API version: 0x1704000
+[ass] libass source: tarball: 0.17.4
+[ass] Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 14.2.0 (COMPLEX)
+[ass] Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 14.2.0 (COMPLEX)
+[ass] Using font provider coretext
+[ass] Using font provider coretext
+􁁛  Test closingCurrentSessionRetainsPrivacySafeLastSessionSummary() passed after 0.130 seconds.
+􁁛  Test debugSnapshotV1DecodesBeforeAudioTrackCatalogWasAdded() passed after 0.131 seconds.
+􁁛  Test providerOpenContractRecordsTheActiveProvider() passed after 0.131 seconds.
+􁁛  Test projectionFieldsRemainBackwardCompatibleWithDebugSnapshotV1() passed after 0.132 seconds.
+􁁛  Test snapshotPreservesMediaEventEpochRevisionAndTypedCounts() passed after 0.134 seconds.
+􁁛  Test bindingRecordsRejectSecondActiveIdentity() passed after 0.135 seconds.
+􁁛  Test ffmpegSourceLocatorPreservesRemoteSchemeHostAndCredentials() passed after 0.135 seconds.
+􁁛  Test audioSampleRecordPreservesLaneDetailsAndDecodesLegacyV1() passed after 0.135 seconds.
+􁁛  Test audioOpenFailureIsNotClassifiedByMessageText() passed after 0.136 seconds.
+􁁛  Test presentationStateIsRetainedByDebugSnapshot() passed after 0.138 seconds.
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/Fonts/HelveticaNeue.ttc, -1, HelveticaNeue
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/Fonts/HelveticaNeue.ttc, -1, HelveticaNeue
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/Fonts/HelveticaNeue.ttc, -1, HelveticaNeue
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/Fonts/HelveticaNeue.ttc, -1, HelveticaNeue
+[ass] Glyph 0x7B2C not found, selecting one more font for (Helvetica Neue, 400, 0)
+[ass] [ass] Glyph 0x7B2C not found, selecting one more font for (Helvetica Neue, 400, 0)
+Glyph 0x7B2C not found, selecting one more font for (Helvetica Neue, 400, 0)
+[ass] Glyph 0x7B2C not found, selecting one more font for (Helvetica Neue, 400, 0)
+􁁛  Test repeatedSessionStartDoesNotRestartThePreparedProvider() passed after 0.171 seconds.
+􁁛  Test embeddedSubRipTracksExposeStableMetadata() passed after 0.171 seconds.
+􁁛  Test synchronousEventObserverSeesBoundaryBeforeEmitReturns() passed after 0.173 seconds.
+􁁛  Test ffmpegSubtitleProviderBuildsStableTracksAndTimedCuesFromSubRip() passed after 0.173 seconds.
+􁁛  Test videoOnlySessionRetainsAudioRendererPreferencesInSnapshot() passed after 0.173 seconds.
+􁁛  Test debugSnapshotDecodesBeforeSubtitleStateWasAdded() passed after 0.173 seconds.
+􁁛  Test completedOperationMovesFromCurrentToStableHistory() passed after 0.173 seconds.
+􁁛  Test audioTrackSelectionAndRendererControlsStayInsideCurrentSession() passed after 0.173 seconds.
+􁁛  Test audioRendererStateDecodesBeforeGraphIdentitiesWereAdded() passed after 0.173 seconds.
+􁁛  Test embeddedSubRipCuesPreserveTimingUTF8AndLineBreaks() passed after 0.194 seconds.
+􁁛  Test delayedAudioParametersAreDiscovered() passed after 0.195 seconds.
+􁁛  Test declaredAudioWithoutParametersIsNotReportedAsNoAudio() passed after 0.196 seconds.
+􁁛  Test startWithoutActiveSessionIsRejected() passed after 0.196 seconds.
+􁁛  Test delayedAudioParametersProduceCompressedAACSample() passed after 0.196 seconds.
+􁁛  Test debugEventStreamUsesMonotonicSequenceNumbers() passed after 0.197 seconds.
+[ass] libass API version: 0x1704000
+[ass] libass source: tarball: 0.17.4
+[ass] Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 14.2.0 (COMPLEX)
+[ass] Using font provider coretext
+[ass] libass API version: 0x1704000
+[ass] libass source: tarball: 0.17.4
+[ass] Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 14.2.0 (COMPLEX)
+[ass] Using font provider coretext
+􁁛  Test controllerRejectsSecondOpenAndRecordsTheRejection() passed after 0.205 seconds.
+􁁛  Test closeSnapshotRecordsTheCompleteCleanupBarrier() passed after 0.205 seconds.
+􁁛  Test playResumesPreferredRateAfterPause() passed after 0.206 seconds.
+􁁛  Test invalidRateIsRejectedAndRecorded() passed after 0.206 seconds.
+􁁛  Test injectedProviderProducesMediaEventSampleAndRendererIntent() passed after 0.206 seconds.
+􁁛  Test markerOnlySampleDoesNotBlockFollowingVideoSample() passed after 0.207 seconds.
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+􁁛  Test receiverDecodeWarningsAcceptTheVideoSample() passed after 0.207 seconds.
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+􁁛  Test receiverRequiresFlushPublishesTerminalVideoFailure() passed after 0.207 seconds.
+􁁛  Test providerFlushAdvancesStreamEpoch() passed after 0.207 seconds.
+􁁛  Test stereoOverrideBeforeFirstSampleKeepsInitialRevision() passed after 0.207 seconds.
+􁁛  Test receiverFlushCancellationDoesNotAcceptOrFailTheVideoSample() passed after 0.207 seconds.
+􁁛  Test zeroRequestedStartOwnsTimelineWhenFirstVideoSampleStartsLater() passed after 0.207 seconds.
+􁁛  Test productOpenKeepsSuppliedAVAssetsOnTheFFmpegProvider() passed after 0.208 seconds.
+􁁛  Test decoderPrerollBootstrapsBeforeReceiverBackpressure() passed after 0.209 seconds.
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/Fonts/HelveticaNeue.ttc, -1, HelveticaNeue
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Glyph 0x7B2C not found, selecting one more font for (Helvetica Neue, 400, 0)
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/Fonts/HelveticaNeue.ttc, -1, HelveticaNeue
+[ass] Glyph 0x7B2C not found, selecting one more font for (Helvetica Neue, 400, 0)
+􁁛  Test providerFormatChangeAdvancesRevisionAndFlushesRenderer() passed after 0.213 seconds.
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/AssetsV2/com_apple_MobileAsset_Font8/86ba2c91f017a3749571a82f2c6d890ac7ffb2fb.asset/AssetData/PingFang.ttc, -1, PingFangSC-Regular
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/AssetsV2/com_apple_MobileAsset_Font8/86ba2c91f017a3749571a82f2c6d890ac7ffb2fb.asset/AssetData/PingFang.ttc, -1, PingFangSC-Regular
+􁁛  Test seekFailsImmediatelyWhenTargetEpochEndsBeforeTarget() passed after 0.225 seconds.
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/AssetsV2/com_apple_MobileAsset_Font8/86ba2c91f017a3749571a82f2c6d890ac7ffb2fb.asset/AssetData/PingFang.ttc, -1, PingFangSC-Regular
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/AssetsV2/com_apple_MobileAsset_Font8/86ba2c91f017a3749571a82f2c6d890ac7ffb2fb.asset/AssetData/PingFang.ttc, -1, PingFangSC-Regular
+􁁛  Test libassRendererProducesPremultipliedSubtitleFrameAtCueTime() passed after 0.229 seconds.
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+􁁛  Test debugSnapshotCorrelatesSubtitleSelectionGenerationAndEpoch() passed after 0.229 seconds.
+􁁛  Test mediaSessionSelectsSubtitlesAndUsesSynchronizerTimeForActiveCues() passed after 0.229 seconds.
+􁁛  Test subtitleCueChangesArePublishedFromSynchronizerTime() passed after 0.229 seconds.
+􁁛  Test stereoOverrideAfterProviderResetDoesNotOwnItsFlush(reset:) with 2 test cases passed after 0.230 seconds.
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/AssetsV2/com_apple_MobileAsset_Font8/86ba2c91f017a3749571a82f2c6d890ac7ffb2fb.asset/AssetData/PingFang.ttc, -1, PingFangSC-Regular
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/AssetsV2/com_apple_MobileAsset_Font8/86ba2c91f017a3749571a82f2c6d890ac7ffb2fb.asset/AssetData/PingFang.ttc, -1, PingFangSC-Regular
+􁁛  Test productOpenUsesTheDemuxProviderForURLSources() passed after 0.236 seconds.
+􁁛  Test unrecoverableProviderFailureReleasesCurrentMediaSlot() passed after 0.237 seconds.
+􁁛  Test controllerPublishesSubtitleSelectionAndOffState() passed after 0.238 seconds.
+[ass] libass API version: 0x1704000
+[ass] libass source: tarball: 0.17.4
+[ass] Shaper: FriBidi 1.0.16 (SIMPLE) HarfBuzz-ng 14.2.0 (COMPLEX)
+[ass] Using font provider coretext
+􁁛  Test openWaitsForPendingSynchronousCloseCleanup() passed after 0.238 seconds.
+􁁛  Test clearingStereoOverrideWaitsForASourceFormatSample() passed after 0.240 seconds.
+􁁛  Test liveProjectionOverrideUsesSharedSeamWithoutChangingTimeline() passed after 0.240 seconds.
+􁁛  Test panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeline() passed after 0.242 seconds.
+􁁛  Test controllerSeekKeepsSessionAndAdvancesStreamEpoch() passed after 0.247 seconds.
+􁁛  Test liveStereoOverrideUsesSharedSeamWithoutChangingTimeline() passed after 0.273 seconds.
+􁁛  Test endedUsesVideoPresentationEndWhenNoAudioIsSelected() passed after 0.277 seconds.
+􁁛  Test cancelledStereoCommandCannotMutateANewControllerSession() passed after 0.281 seconds.
+􁁛  Test failedSessionCleanupBlocksNewOpenUntilFlushCompletes(_:) with 2 test cases passed after 0.293 seconds.
+􁁛  Test closeClearsSubtitleStateAndRejectsLateCueLoad() passed after 0.303 seconds.
+􁁛  Test changingSubtitleSelectionClearsThePreviousCueBeforeLoadingCompletes() passed after 0.336 seconds.
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/Fonts/HelveticaNeue.ttc, -1, HelveticaNeue
+[ass] Glyph 0x518D not found, selecting one more font for (Helvetica Neue, 400, 0)
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] Error opening font: '/System/Library/PrivateFrameworks/FontServices.framework/Resources/Reserved/PingFangUI.ttc', 0
+[ass] fontselect: (Helvetica Neue, 400, 0) -> /System/Library/AssetsV2/com_apple_MobileAsset_Font8/86ba2c91f017a3749571a82f2c6d890ac7ffb2fb.asset/AssetData/PingFang.ttc, -1, PingFangSC-Regular
+􁁛  Test newerSeekSupersedesOlderSeekAndOwnsFinalTarget() passed after 0.422 seconds.
+􁁛  Test rapidRelativeSeeksAccumulateInsideTheCore() passed after 0.421 seconds.
+􁁛  Test seekSuppressesOldCueUntilTheNewSynchronizerPositionCommits() passed after 0.455 seconds.
+􁁛  Test rapidSeeksOnlyPublishCuesAtTheNewestCommittedPosition() passed after 0.496 seconds.
+􁁛  Test terminalRendererFailurePublishesFailedOnce(_:) with 2 test cases passed after 0.510 seconds.
+􁁛  Test firstAudioEnqueueEventPersistsTheUpdatedRendererState() passed after 0.510 seconds.
+􁁛  Test threeRapidSeeksOnlyAllowNewestWaiterToEnterSession() passed after 0.553 seconds.
+􁁛  Test failedAudioTrackSelectionPreservesActiveTrackAndPlaybackState() passed after 0.584 seconds.
+􁁛  Test endedWaitsForLongerSelectedAudioPresentation() passed after 1.023 seconds.
+􁁛  Test run with 74 tests in 0 suites passed after 1.024 seconds.

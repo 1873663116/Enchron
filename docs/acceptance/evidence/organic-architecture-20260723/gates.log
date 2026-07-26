@@ -1,0 +1,9 @@
+Playback surface structure constraints passed
+Enchron excludes all 46 package-owned Swift sources
+Config/Enchron-Info.plist: OK
+Apps/DesignPreview/Info.plist: OK
+Building for debugging...
+[Pre-planning 1 / 240]
+[Planning deferred tasks]
+Build complete! (0.43秒)
+Enchron domain contracts passed

@@ -1,0 +1,2270 @@
+{
+  "artifacts": [
+    {
+      "bytes": 81371986,
+      "files": 1684,
+      "path": "/private/tmp/enchron-validation-evidence/organic-architecture-20260723-final-macos-v2/EnchronMacOS-tests.xcresult",
+      "sha256": "2504792f9c67c2d0076efeaedb96b6f1f9ec857d38c8d7c5c436d5d9a7792880"
+    },
+    {
+      "bytes": 4217443,
+      "files": 464,
+      "path": "/private/tmp/enchron-validation-evidence/organic-architecture-20260723-final-vision-v2",
+      "sha256": "0c0aaa8ff0c94e18a83537dbb6e3281bfb138c944c3fe3e781eb3c73cfcae0c5"
+    },
+    {
+      "bytes": 256212,
+      "files": 21,
+      "path": "/private/tmp/enchron-validation-evidence/organic-architecture-20260723-final-builds-v2",
+      "sha256": "6f0da4159b56544002dcb94df88bed2344cff3aeb9dba95194bd5dc051c508aa"
+    },
+    {
+      "bytes": 299,
+      "files": 1,
+      "path": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/docs/acceptance/evidence/organic-architecture-20260723/gates.log",
+      "sha256": "688da5d781876d711c85f7e29c6ad7cc70463915d5daae3457bbd4aad3609e64"
+    },
+    {
+      "bytes": 31900,
+      "files": 1,
+      "path": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/docs/acceptance/evidence/organic-architecture-20260723/playbackcore-swift-test.log",
+      "sha256": "a7831a756d919da9aa82e559de93a8b35a267e804cd93a860d4f0e885cb6ae3e"
+    }
+  ],
+  "capturedAt": "2026-07-22T22:59:14.221210+00:00",
+  "commands": [
+    "swift test --disable-sandbox --scratch-path /private/tmp/EnchronOrganicFinalPlaybackCoreSwiftPM",
+    "xcodebuild test -scheme EnchronMacOS -destination platform=macOS",
+    "Scripts/verification/verify_vision_test_suites.sh",
+    "Scripts/verification/verify_organic_architecture_xcode.sh",
+    "swift run --disable-sandbox --scratch-path /private/tmp/EnchronOrganicFinalSwiftPM EnchronDomainChecks",
+    "git diff --check; verify_playback_surface_structure.py; verify_package_membership.py; plutil -lint"
+  ],
+  "git": {
+    "head": "711d528371e7a103619dda17324bcf013d7ef81d",
+    "status": "M AGENTS.md\n M ARCHITECTURE.md\n M Apps/DesignPreview/ComponentLibrary.swift\n M Apps/DesignPreview/ComponentPreviews.swift\n M Apps/DesignPreview/Components/EmptyPanelWindowContent.swift\n M Apps/DesignPreview/ContentView.swift\n M Apps/DesignPreview/TokenPreviews.swift\n D Apps/Enchron/AppConstants.swift\n M Apps/Enchron/AppModel.swift\n M Apps/Enchron/EnchronApp.swift\n M Apps/Enchron/EnchronApplication.swift\n M Apps/Enchron/MainView.swift\n M Apps/Enchron/Navigation/NavigationOrnament.swift\n M Apps/Enchron/Screens/FilesScreen.swift\n M Apps/Enchron/Screens/SettingsScreen.swift\n M Apps/Enchron/Settings/PreferencesStore.swift\n M Apps/Enchron/Settings/SettingsModel.swift\n M Apps/EnchronMacOS/EnchronMacOSProductRoot.swift\n M Apps/EnchronMacOS/MacRealitySceneHost.swift\n M Apps/EnchronMacOS/PlaybackVerificationModel.swift\n M CONTEXT.md\n M Config/Enchron-Info.plist\n M Enchron.xcodeproj/project.pbxproj\n M Modules/DesignSystem/Components/InputComponents.swift\n M Modules/DesignSystem/Components/SettingsComponents.swift\n M Modules/DesignSystem/DesignTokens.swift\n M Modules/DesignSystem/View+EnchronGlass.swift\n M Modules/DesignSystem/View+Platform.swift\n M Modules/DesignSystem/View+PressFeedback.swift\n M Modules/MediaLibrary/FileBrowsingViewModel.swift\n M Modules/MediaLibrary/MediaLibraryViewModel.swift\n M Modules/MediaLibrary/Model/MediaBrowsing.swift\n M Modules/MediaLibrary/Model/MediaLibrary.swift\n M Modules/MediaLibrary/Model/MediaSource.swift\n M Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift\n D Modules/MediaLibrary/Services/NetworkMonitor.swift\n D Modules/MediaLibrary/Services/PlaybackSourceAccess.swift\n M Modules/MediaLibrary/Services/ThumbnailService.swift\n M Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift\n M Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift\n M Modules/MediaLibrary/Sources/Local/SecurityScopedFileReferenceResolver.swift\n M Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift\n M Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift\n M Modules/MediaLibrary/Storage/KeychainStore.swift\n M Modules/MediaLibrary/Storage/SavedDataSourceStore.swift\n M Modules/MediaLibrary/Storage/UserDefaultsMediaLibraryStore.swift\n M Modules/MediaLibrary/Views/BreadcrumbView.swift\n M Modules/MediaLibrary/Views/FileBrowserSidebar.swift\n M Modules/MediaLibrary/Views/FolderListView.swift\n M Modules/MediaLibrary/Views/LibraryGridComponents.swift\n M Modules/MediaLibrary/Views/LibraryListComponents.swift\n M Modules/MediaLibrary/Views/LibraryNavigationComponents.swift\n M Modules/MediaLibrary/Views/LibraryToolbarComponents.swift\n M Modules/MediaLibrary/Views/LibraryViewControls.swift\n M Modules/MediaLibrary/Views/SkeletonCardView.swift\n M Modules/MediaLibrary/Views/SourceSidebar.swift\n M Modules/MediaLibrary/Views/VideoCardView.swift\n D Modules/PlaybackFeature/MediaProfilePrefetchService.swift\n M Modules/PlaybackFeature/Model/MediaProfile.swift\n M Modules/PlaybackFeature/PlaybackAudioSession.swift\n M Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift\n M Modules/PlaybackFeature/PlaybackLaunchRequest.swift\n M Modules/PlaybackFeature/PlaybackMediaMetadataService.swift\n M Modules/PlaybackFeature/PlaybackRuntime.swift\n D Modules/PlaybackFeature/Storage/PlaybackProgressStore.swift\n M Modules/PlaybackPresentation/Model/CinemaEnvironment.swift\n M Modules/PlaybackPresentation/Model/PlaybackPresentation.swift\n M Modules/PlaybackPresentation/Model/PlaybackSurfacePlacement.swift\n M Modules/PlaybackPresentation/Model/WindowPlaybackPageGeometry.swift\n M Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift\n M Modules/PlaybackPresentation/Storage/ScreenPositionStore.swift\n M Modules/PlaybackPresentation/Views/DragRotationModifier.swift\n M Modules/PlaybackPresentation/Views/EnvironmentComponents.swift\n M Modules/PlaybackPresentation/Views/PlaybackFormatters.swift\n M Modules/PlaybackPresentation/Views/PlaybackPanel.swift\n M Modules/PlaybackPresentation/Views/PlaybackRealityPresenter.swift\n M Modules/PlaybackPresentation/Views/PlaybackTimeline.swift\n M Modules/PlaybackPresentation/Views/PlaybackTopActions.swift\n M Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift\n M Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift\n M Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift\n M Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift\n M Packages/PlaybackCore/Sources/PlaybackCore/PlaybackCoreController.swift\n M Tests/EnchronApp/EnvironmentSceneMappingTests.swift\n M Tests/EnchronApp/FakeFileDataSourceTests.swift\n M Tests/EnchronApp/LocalDataSourceAdapterTests.swift\n M Tests/EnchronApp/MediaLibraryTests.swift\n M Tests/EnchronApp/PlaybackPresentationStateTests.swift\n M Tests/EnchronApp/PlaybackRealityPresenterTests.swift\n M Tests/EnchronApp/PlaybackSourceAccessTests.swift\n M Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift\n M Tests/EnchronApp/SMBDataSourceAdapterTests.swift\n M Tests/EnchronApp/ScreenPositionPersistenceTests.swift\n M Tests/EnchronApp/SortCriteriaTests.swift\n M Tests/EnchronApp/WebDAVDataSourceAdapterTests.swift\n M Tests/EnchronApp/WebDAVLiveIntegrationTests.swift\n M Tests/EnchronApp/WindowPlaybackPageGeometryTests.swift\n D Tests/EnchronApp/WindowPlaybackSurfaceStructureTests.swift\n M Tests/EnchronAppUI/PlaybackDeckUITests.swift\n M Tests/EnchronAppUI/SpatialPresentationAcceptanceUITests.swift\n M Tests/EnchronAppUI/VisionProDeviceAcceptanceUITests.swift\n M Tests/EnchronMacOS/FileBrowsingStartupAccessTests.swift\n M Tests/EnchronMacOS/MacRealityPlaybackContractTests.swift\n M Tests/EnchronMacOS/PlaybackFailureProjectionTests.swift\n M Tests/EnchronMacOS/RemoteCredentialLifecycleTests.swift\n M Tests/EnchronMacOS/RemoteSourceIsolationTests.swift\n M Tests/EnchronMacOSUI/EnchronMacOSPlaybackJourneyUITests.swift\n M docs/acceptance/macos-e2e-test-matrix.md\n M docs/acceptance/nodes/08-realitykit-renderer-binding.md\n M docs/acceptance/nodes/09-enchron-app-presentation.md\n M docs/acceptance/verification-system.md\n M docs/product-requirements.md\n M docs/ui/README.md\n M docs/ui/acceptance.md\n?? Modules/MediaLibrary/MediaLibraryFeature.swift\n?? Modules/MediaLibrary/Model/MediaPlaybackItem.swift\n?? Modules/MediaSource/\n?? Modules/PlaybackFeature/Domain/\n?? Package.resolved\n?? Package.swift\n?? Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+Display.swift\n?? Scripts/domain-checks/\n?? Scripts/verification/capture_validation_manifest.py\n?? Scripts/verification/verify_organic_architecture_xcode.sh\n?? Scripts/verification/verify_package_membership.py\n?? Scripts/verification/verify_playback_surface_structure.py\n?? Scripts/verification/verify_vision_test_suites.sh\n?? Tests/EnchronMacOS/EnchronApplicationAutoplayTests.swift\n?? docs/acceptance/evidence/\n?? docs/adr/0018-acyclic-product-targets-around-media-source-authority.md"
+  },
+  "productTree": {
+    "excludedPrefix": "docs/acceptance/evidence/",
+    "files": [
+      {
+        "bytes": 20,
+        "kind": "symlink",
+        "path": ".claude/skills",
+        "sha256": "52f3e155c1677e1863acbfcb0c47adf2716a1bc3e67a7c6c89269bd0d90217d2"
+      },
+      {
+        "bytes": 761,
+        "kind": "file",
+        "path": ".codex/agents/enchron_bug_worker.toml",
+        "sha256": "ce8dbe4f60afbfaeaadce586bf1a702d896bfb81daec3499c31a4e2489d98593"
+      },
+      {
+        "bytes": 464,
+        "kind": "file",
+        "path": ".codex/agents/enchron_validation_worker.toml",
+        "sha256": "e73be81cb71a6f8e7e14b4290a5c95345bd8b208a6d958d26f8ed5fcd6ff54e5"
+      },
+      {
+        "bytes": 173,
+        "kind": "file",
+        "path": ".codex/environments/environment.toml",
+        "sha256": "989e990abab5d94c9193a39b93f6a36970da6c01657ad6c43a3b60edbf6c2ff1"
+      },
+      {
+        "bytes": 487,
+        "kind": "file",
+        "path": ".gitignore",
+        "sha256": "44bdc8943af2ae894c54700452ce637b6e31734389eaee395c4d2dcdaaaae011"
+      },
+      {
+        "bytes": 307,
+        "kind": "file",
+        "path": ".mcp.json",
+        "sha256": "14e79df24c86a89f005dade9f15dc9741f2c74284a62dba8eda6f59626bd28e3"
+      },
+      {
+        "bytes": 2490,
+        "kind": "file",
+        "path": ".swiftlint.yml",
+        "sha256": "c3fbb3315a317eabb7c8b89b2849d14bb7928e2206f7d1b88acfd32706dc5554"
+      },
+      {
+        "bytes": 2990,
+        "kind": "file",
+        "path": "AGENTS.md",
+        "sha256": "98287cc2fa33a19cd99e3370709d916a22a252e648e03abc1b7d7947b5fc1b1c"
+      },
+      {
+        "bytes": 13246,
+        "kind": "file",
+        "path": "ARCHITECTURE.md",
+        "sha256": "608f316a7e106514a0fd9f313f1ec795be70284e7f6d27a31b921c355e0ef212"
+      },
+      {
+        "bytes": 1203,
+        "kind": "file",
+        "path": "Apps/DesignPreview/AGENTS.md",
+        "sha256": "e0824422fafc7acc47ff07162b1f33acfec5f1f37d1cae19cfd156c6b96c1a90"
+      },
+      {
+        "bytes": 123,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/AccentColor.colorset/Contents.json",
+        "sha256": "9af65086fa30b49252fae1a1225731691de794f7775af74d71befeb507d12b7c"
+      },
+      {
+        "bytes": 142,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/AppIcon.solidimagestack/Back.solidimagestacklayer/Content.imageset/Contents.json",
+        "sha256": "01823ecdf9796dce7cec68f1299cb5741cb2f418ae29a9929fc3910649d5db49"
+      },
+      {
+        "bytes": 63,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/AppIcon.solidimagestack/Back.solidimagestacklayer/Contents.json",
+        "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b"
+      },
+      {
+        "bytes": 265,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/AppIcon.solidimagestack/Contents.json",
+        "sha256": "60aae858c779266495b7722d6a3c29ee2a981159e55f9139b12994d29db089c0"
+      },
+      {
+        "bytes": 142,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/AppIcon.solidimagestack/Front.solidimagestacklayer/Content.imageset/Contents.json",
+        "sha256": "01823ecdf9796dce7cec68f1299cb5741cb2f418ae29a9929fc3910649d5db49"
+      },
+      {
+        "bytes": 63,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/AppIcon.solidimagestack/Front.solidimagestacklayer/Contents.json",
+        "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b"
+      },
+      {
+        "bytes": 142,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/AppIcon.solidimagestack/Middle.solidimagestacklayer/Content.imageset/Contents.json",
+        "sha256": "01823ecdf9796dce7cec68f1299cb5741cb2f418ae29a9929fc3910649d5db49"
+      },
+      {
+        "bytes": 63,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/AppIcon.solidimagestack/Middle.solidimagestacklayer/Contents.json",
+        "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b"
+      },
+      {
+        "bytes": 63,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/Contents.json",
+        "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b"
+      },
+      {
+        "bytes": 162,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureCard.imageset/Contents.json",
+        "sha256": "f67f1fc92fef22dc6a1340f46bdb3ef288451b538bcd2b41a27df9f0660b044d"
+      },
+      {
+        "bytes": 2291329,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureCard.imageset/scene-feature-card.png",
+        "sha256": "58eade71bb4e258e1ae6191b2359ba09de7ff2a401d594dcdc31faf7e3c16dae"
+      },
+      {
+        "bytes": 164,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureCinema.imageset/Contents.json",
+        "sha256": "003624c8bacb9eb92971a7b22e66424580fe95f153c53261d2da65aa4d06c8cb"
+      },
+      {
+        "bytes": 2369434,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureCinema.imageset/scene-feature-cinema.png",
+        "sha256": "57baf39b9c6f838c8f8ca9a8890a6eb5aed44941d915265811590fa88b301714"
+      },
+      {
+        "bytes": 164,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureDesert.imageset/Contents.json",
+        "sha256": "8b80943efe5deca80fa27a0c25e43ecbe777d2c337e848c947fb3de0e136e5d7"
+      },
+      {
+        "bytes": 2306929,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureDesert.imageset/scene-feature-desert.png",
+        "sha256": "eba66b3ef83c3b0fadd1943ac176aa6369b21d1db1441a9738ea245937f5cea3"
+      },
+      {
+        "bytes": 171,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureForestShrine.imageset/Contents.json",
+        "sha256": "cfe042a5052e6dd1286edc0dc34e9f0b7c63817118a80b75d1987b18c4e2b6a3"
+      },
+      {
+        "bytes": 3217647,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureForestShrine.imageset/scene-feature-forest-shrine.png",
+        "sha256": "17f4564aa5588ca7430b8dfd93f83f9e84b3589e5544f511ed92df2299b2b903"
+      },
+      {
+        "bytes": 167,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureNeonCity.imageset/Contents.json",
+        "sha256": "73132aaa5b1ee50c0f0c99c2e49875814d66adb09ce8120a940fae88307a287f"
+      },
+      {
+        "bytes": 2575556,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureNeonCity.imageset/scene-feature-neon-city.png",
+        "sha256": "a1730b0afad4a4b8db958240c098aa5d159ee538bdea666d7cbc156eebb89438"
+      },
+      {
+        "bytes": 170,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureOceanTemple.imageset/Contents.json",
+        "sha256": "3cffbf2bc0b7be13fe560335ea4d6a484dce7e450fccfccfafb7e7f1821be80e"
+      },
+      {
+        "bytes": 2939045,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureOceanTemple.imageset/scene-feature-ocean-temple.png",
+        "sha256": "ba74f4cc037b373e50ad591d3c045695b704a11eb892179b1f530634c837beec"
+      },
+      {
+        "bytes": 172,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureOrbitalGarden.imageset/Contents.json",
+        "sha256": "94ecf1a702ab3c59259fd0e2bb71fa2236af740ef902d89f360619edf976adf9"
+      },
+      {
+        "bytes": 2841022,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/SceneFeatureOrbitalGarden.imageset/scene-feature-orbital-garden.png",
+        "sha256": "e9e8d25b79f72d8e2c34fafd00199b50cedb596e456ff2ff09a4dd0e6571bf31"
+      },
+      {
+        "bytes": 175,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/WindowPlaybackDaylightAction.imageset/Contents.json",
+        "sha256": "f05cdd6e8509ee05212470eee116ea39b0eaf5d4df28373c324882048d90fbb2"
+      },
+      {
+        "bytes": 2913852,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Assets.xcassets/WindowPlaybackDaylightAction.imageset/window-playback-daylight-action.png",
+        "sha256": "057c4896053b053072449ee87dd6ae35c6195abae684dec06a67fea3833346af"
+      },
+      {
+        "bytes": 17989,
+        "kind": "file",
+        "path": "Apps/DesignPreview/ComponentLibrary.swift",
+        "sha256": "2d1ed68550e1fc621376910adced44c51e693e4c5b1f581d92b6be94f56e9f7a"
+      },
+      {
+        "bytes": 34100,
+        "kind": "file",
+        "path": "Apps/DesignPreview/ComponentPreviews.swift",
+        "sha256": "1d66ba93cf58914e268c97f5d52befa06b8c1011f40c161b48312e61bca21525"
+      },
+      {
+        "bytes": 2075,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
+        "sha256": "3be0372cf6db1f9991bf372fc94fc92ac2d6bc8fb7888615b9edb6448bad18d3"
+      },
+      {
+        "bytes": 3184,
+        "kind": "file",
+        "path": "Apps/DesignPreview/ContentView.swift",
+        "sha256": "52a453974e330b890b812860f7337f703ab4aed5af12df9d2d448c5955e37115"
+      },
+      {
+        "bytes": 126,
+        "kind": "file",
+        "path": "Apps/DesignPreview/DesignPreviewApp.swift",
+        "sha256": "88a34fa79f3d4a33f6ae8cd42e6f7c0ccc4fd94c16d3a44829c4a83298394fcc"
+      },
+      {
+        "bytes": 462,
+        "kind": "file",
+        "path": "Apps/DesignPreview/Info.plist",
+        "sha256": "3fbe8586e1a449935e5921c44f49b9bfe33382bffc7d394df2ea99bdd821650b"
+      },
+      {
+        "bytes": 37162,
+        "kind": "file",
+        "path": "Apps/DesignPreview/TokenPreviews.swift",
+        "sha256": "05067a467ebe077b7031b26f0f3adb07af6907376a462e6b66ec606541428602"
+      },
+      {
+        "bytes": 0,
+        "kind": "deleted",
+        "path": "Apps/Enchron/AppConstants.swift",
+        "sha256": "-"
+      },
+      {
+        "bytes": 10032,
+        "kind": "file",
+        "path": "Apps/Enchron/AppModel.swift",
+        "sha256": "c0fab617159acbbf45a84051633476eaf82d7b97b6b6941345ff1a4aff4ae9a0"
+      },
+      {
+        "bytes": 2438,
+        "kind": "file",
+        "path": "Apps/Enchron/EnchronApp.swift",
+        "sha256": "8ab94b6dc6e76c7238fc16a771c96c0e1d650ae9accf4412e496cacb5002d234"
+      },
+      {
+        "bytes": 11678,
+        "kind": "file",
+        "path": "Apps/Enchron/EnchronApplication.swift",
+        "sha256": "597c66ecb8e8246fc16a6e705e803a2d189fc60ced8a0d370c5abb7465d44a58"
+      },
+      {
+        "bytes": 24911,
+        "kind": "file",
+        "path": "Apps/Enchron/MainView.swift",
+        "sha256": "5fe55f30302ecb3985c0ea7f9e6159ad0ae41a5d977b708dbcaae7a3fd21ef10"
+      },
+      {
+        "bytes": 3371,
+        "kind": "file",
+        "path": "Apps/Enchron/Navigation/NavigationOrnament.swift",
+        "sha256": "9595c160efee63b551167d0663d6064e0b58e74ec004e0e51590e54a618d60d9"
+      },
+      {
+        "bytes": 123,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/AccentColor.colorset/Contents.json",
+        "sha256": "9af65086fa30b49252fae1a1225731691de794f7775af74d71befeb507d12b7c"
+      },
+      {
+        "bytes": 142,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/AppIcon.solidimagestack/Back.solidimagestacklayer/Content.imageset/Contents.json",
+        "sha256": "01823ecdf9796dce7cec68f1299cb5741cb2f418ae29a9929fc3910649d5db49"
+      },
+      {
+        "bytes": 63,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/AppIcon.solidimagestack/Back.solidimagestacklayer/Contents.json",
+        "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b"
+      },
+      {
+        "bytes": 265,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/AppIcon.solidimagestack/Contents.json",
+        "sha256": "60aae858c779266495b7722d6a3c29ee2a981159e55f9139b12994d29db089c0"
+      },
+      {
+        "bytes": 142,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/AppIcon.solidimagestack/Front.solidimagestacklayer/Content.imageset/Contents.json",
+        "sha256": "01823ecdf9796dce7cec68f1299cb5741cb2f418ae29a9929fc3910649d5db49"
+      },
+      {
+        "bytes": 63,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/AppIcon.solidimagestack/Front.solidimagestacklayer/Contents.json",
+        "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b"
+      },
+      {
+        "bytes": 142,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/AppIcon.solidimagestack/Middle.solidimagestacklayer/Content.imageset/Contents.json",
+        "sha256": "01823ecdf9796dce7cec68f1299cb5741cb2f418ae29a9929fc3910649d5db49"
+      },
+      {
+        "bytes": 63,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/AppIcon.solidimagestack/Middle.solidimagestacklayer/Contents.json",
+        "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b"
+      },
+      {
+        "bytes": 60,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/Contents.json",
+        "sha256": "f5fb0e1f3a8142892ed092efb5955c1c2cc537003a89ad7bbdb9dade7fe8985f"
+      },
+      {
+        "bytes": 317,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/enchronOnPrimary.colorset/Contents.json",
+        "sha256": "f72f5e57894e189276d14b1c9ef0e3f7b0c9bba480243d7fad067726c8fd969a"
+      },
+      {
+        "bytes": 317,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/enchronOnSurface.colorset/Contents.json",
+        "sha256": "f7be474645b916d3562225dbe8cba9361998c959cafe0a1e3fd7931bae22238c"
+      },
+      {
+        "bytes": 317,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/enchronOnSurfaceVariant.colorset/Contents.json",
+        "sha256": "d1f456c9730ad0af449932165bd09ea5ff3ff9daec7f0b884e130a4bab2e69a2"
+      },
+      {
+        "bytes": 317,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/enchronOnTertiary.colorset/Contents.json",
+        "sha256": "8909301c6471f29c5234d71e71e77ee7cb97cc287f19f70cd125b8035aefb811"
+      },
+      {
+        "bytes": 317,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/enchronPrimary.colorset/Contents.json",
+        "sha256": "9433d0ac37d0b90432c01a1dd5c99643317119c19957a4e7cb4579f9e6922d6b"
+      },
+      {
+        "bytes": 317,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/enchronSurface.colorset/Contents.json",
+        "sha256": "5b6e4b3fd5cd3c7eb3c93f0d9698c1c77c8107c8076ac34f953b29a20b0b0bc9"
+      },
+      {
+        "bytes": 317,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/enchronSurfaceContainerHighest.colorset/Contents.json",
+        "sha256": "f775de53204093d82d538e8ca4cb4d83feb38160264720bac9d2799858b34be7"
+      },
+      {
+        "bytes": 317,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/enchronSurfaceContainerLow.colorset/Contents.json",
+        "sha256": "463629329b6690e170c581efb5321a70ece6a23e01afd0da4ed2dc23870cbba8"
+      },
+      {
+        "bytes": 317,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Colors/enchronTertiary.colorset/Contents.json",
+        "sha256": "65de362d0316597270273b7634edc5df7f3d5b05ec1c367f7e10628204e9d3e8"
+      },
+      {
+        "bytes": 63,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/Contents.json",
+        "sha256": "0fd49ba3c3585c709678e0046a821c3c60685ec7063720d30d3a3448be3a208b"
+      },
+      {
+        "bytes": 162,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureCard.imageset/Contents.json",
+        "sha256": "f67f1fc92fef22dc6a1340f46bdb3ef288451b538bcd2b41a27df9f0660b044d"
+      },
+      {
+        "bytes": 2291329,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureCard.imageset/scene-feature-card.png",
+        "sha256": "58eade71bb4e258e1ae6191b2359ba09de7ff2a401d594dcdc31faf7e3c16dae"
+      },
+      {
+        "bytes": 164,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureCinema.imageset/Contents.json",
+        "sha256": "003624c8bacb9eb92971a7b22e66424580fe95f153c53261d2da65aa4d06c8cb"
+      },
+      {
+        "bytes": 2369434,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureCinema.imageset/scene-feature-cinema.png",
+        "sha256": "57baf39b9c6f838c8f8ca9a8890a6eb5aed44941d915265811590fa88b301714"
+      },
+      {
+        "bytes": 164,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureDesert.imageset/Contents.json",
+        "sha256": "8b80943efe5deca80fa27a0c25e43ecbe777d2c337e848c947fb3de0e136e5d7"
+      },
+      {
+        "bytes": 2306929,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureDesert.imageset/scene-feature-desert.png",
+        "sha256": "eba66b3ef83c3b0fadd1943ac176aa6369b21d1db1441a9738ea245937f5cea3"
+      },
+      {
+        "bytes": 171,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureForestShrine.imageset/Contents.json",
+        "sha256": "cfe042a5052e6dd1286edc0dc34e9f0b7c63817118a80b75d1987b18c4e2b6a3"
+      },
+      {
+        "bytes": 3217647,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureForestShrine.imageset/scene-feature-forest-shrine.png",
+        "sha256": "17f4564aa5588ca7430b8dfd93f83f9e84b3589e5544f511ed92df2299b2b903"
+      },
+      {
+        "bytes": 167,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureNeonCity.imageset/Contents.json",
+        "sha256": "73132aaa5b1ee50c0f0c99c2e49875814d66adb09ce8120a940fae88307a287f"
+      },
+      {
+        "bytes": 2575556,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureNeonCity.imageset/scene-feature-neon-city.png",
+        "sha256": "a1730b0afad4a4b8db958240c098aa5d159ee538bdea666d7cbc156eebb89438"
+      },
+      {
+        "bytes": 170,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureOceanTemple.imageset/Contents.json",
+        "sha256": "3cffbf2bc0b7be13fe560335ea4d6a484dce7e450fccfccfafb7e7f1821be80e"
+      },
+      {
+        "bytes": 2939045,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureOceanTemple.imageset/scene-feature-ocean-temple.png",
+        "sha256": "ba74f4cc037b373e50ad591d3c045695b704a11eb892179b1f530634c837beec"
+      },
+      {
+        "bytes": 172,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureOrbitalGarden.imageset/Contents.json",
+        "sha256": "94ecf1a702ab3c59259fd0e2bb71fa2236af740ef902d89f360619edf976adf9"
+      },
+      {
+        "bytes": 2841022,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SceneFeatureOrbitalGarden.imageset/scene-feature-orbital-garden.png",
+        "sha256": "e9e8d25b79f72d8e2c34fafd00199b50cedb596e456ff2ff09a4dd0e6571bf31"
+      },
+      {
+        "bytes": 161,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/StarryNight.imageset/Contents.json",
+        "sha256": "fd4371a908734b457d89a5cd885ae3f225b601004cf9e483a8412cb1cc1f927d"
+      },
+      {
+        "bytes": 353506,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/StarryNight.imageset/StarryNight.jpg",
+        "sha256": "375a234c5e56a96814a9638519e693e1488881341d71e11784d10fe06f5d496b"
+      },
+      {
+        "bytes": 162,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SunsetNature.imageset/Contents.json",
+        "sha256": "348458c1d874bd05b40e56c90366ef57e8b4fc01dde7fece4528906c2fed1836"
+      },
+      {
+        "bytes": 295459,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Assets.xcassets/SunsetNature.imageset/SunsetNature.jpg",
+        "sha256": "9db9223593c6461df018509eb2c6dc5474e518508fe07dc74884621fcf186193"
+      },
+      {
+        "bytes": 8331336,
+        "kind": "file",
+        "path": "Apps/Enchron/Resources/Fonts/NotoSansSC-Regular.otf",
+        "sha256": "faa6c9df652116dde789d351359f3d7e5d2285a2b2a1f04a2d7244df706d5ea9"
+      },
+      {
+        "bytes": 35323,
+        "kind": "file",
+        "path": "Apps/Enchron/Screens/FilesScreen.swift",
+        "sha256": "4ec0809f1dc41918c6b26263565ee93c27d8123eb95334f21e59da764504d4fc"
+      },
+      {
+        "bytes": 13384,
+        "kind": "file",
+        "path": "Apps/Enchron/Screens/SettingsScreen.swift",
+        "sha256": "a0ee059db6a23c76f0158b89cd7a046036c0c5ab6aaeb38e01f84c3f89529af0"
+      },
+      {
+        "bytes": 5050,
+        "kind": "file",
+        "path": "Apps/Enchron/Settings/PreferencesStore.swift",
+        "sha256": "f1a635ef437bb8ba05bd74b70d26e28585b12acdde3be3a682fb9c79962cd85a"
+      },
+      {
+        "bytes": 1808,
+        "kind": "file",
+        "path": "Apps/Enchron/Settings/SettingsModel.swift",
+        "sha256": "4270ef4407e7e5c15bc0ac647ebb17e771a6ad0242eb597ebe1b0f0eed29d228"
+      },
+      {
+        "bytes": 30623,
+        "kind": "file",
+        "path": "Apps/EnchronMacOS/CorePlaybackScenario.swift",
+        "sha256": "3bc6c6ee83062b2bf95be75cdcf4ca8bdcf68564111ac8e73cdea5b3826e2585"
+      },
+      {
+        "bytes": 951,
+        "kind": "file",
+        "path": "Apps/EnchronMacOS/EnchronMacOSApp.swift",
+        "sha256": "5dba7f6c2b8a85325d24f4551fc5d5f744cb4e763d6b04c921810dfcc74a1797"
+      },
+      {
+        "bytes": 4900,
+        "kind": "file",
+        "path": "Apps/EnchronMacOS/EnchronMacOSProductRoot.swift",
+        "sha256": "c711da37506e8c8f2f2670f03289b575f3bf0f04e4f64041a35c77208ac87c22"
+      },
+      {
+        "bytes": 600,
+        "kind": "file",
+        "path": "Apps/EnchronMacOS/MacOSPlatformStyle.swift",
+        "sha256": "e10cde6450e65afd148667251d4add904c71d22cbe094c4c63119c3a92b7ea04"
+      },
+      {
+        "bytes": 2704,
+        "kind": "file",
+        "path": "Apps/EnchronMacOS/MacRealitySceneHost.swift",
+        "sha256": "8307aed1af3df66484e0c2aebdad73482580f9cd9b977714361cdd6d1e6c06b4"
+      },
+      {
+        "bytes": 14211,
+        "kind": "file",
+        "path": "Apps/EnchronMacOS/PlaybackVerificationModel.swift",
+        "sha256": "40478f1adfc38ceb0b742858797836d35befd0d7e7ddeb65dce1ba9cd75de979"
+      },
+      {
+        "bytes": 5314,
+        "kind": "file",
+        "path": "Apps/EnchronMacOS/PlaybackVerificationView.swift",
+        "sha256": "5e0306c308d3b0ac4f710920ae67ce9a68a94f55c0fdbb2690ed35ce03d770fc"
+      },
+      {
+        "bytes": 9,
+        "kind": "symlink",
+        "path": "CLAUDE.md",
+        "sha256": "a54ff182c7e8acf56acfd6e4b9c3ff41e2c41a31c9b211b2deb9df75d9a478f9"
+      },
+      {
+        "bytes": 23220,
+        "kind": "file",
+        "path": "CONTEXT.md",
+        "sha256": "ad654cae66ca0277ad35c8e79e0d0bb7cc0eb60b3decdee770f748f99141aa85"
+      },
+      {
+        "bytes": 1990,
+        "kind": "file",
+        "path": "Config/Enchron-Info.plist",
+        "sha256": "c6f24509fa64e72d5c6159ec4085469d54dd1e0fbe32fd3d79e5f9105bd285f7"
+      },
+      {
+        "bytes": 58007,
+        "kind": "file",
+        "path": "Enchron.xcodeproj/project.pbxproj",
+        "sha256": "6305eb05c7972a862a9dfa26457fed1e2da41b1d0fb61f3b0e37f6081aed5081"
+      },
+      {
+        "bytes": 135,
+        "kind": "file",
+        "path": "Enchron.xcodeproj/project.xcworkspace/contents.xcworkspacedata",
+        "sha256": "7f3b00b5c3fdb45242d7b87e1e5c4e25d1fa8129a16c94295ecc4e8ea2235c5f"
+      },
+      {
+        "bytes": 939,
+        "kind": "file",
+        "path": "Enchron.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved",
+        "sha256": "acc5e84317b74055a2528d3a7857993b85db149fba3476e1c0b7f90396e4b0e7"
+      },
+      {
+        "bytes": 2817,
+        "kind": "file",
+        "path": "Enchron.xcodeproj/xcshareddata/xcschemes/DesignPreview.xcscheme",
+        "sha256": "8e741c028ba38ec4befeea52aa21d7718280912fe49e3febbc343ef91b803da8"
+      },
+      {
+        "bytes": 3611,
+        "kind": "file",
+        "path": "Enchron.xcodeproj/xcshareddata/xcschemes/Enchron.xcscheme",
+        "sha256": "ecab0dc8afbb3ac7a31e6b9f2737520e69036e7855541876435d47f24c777003"
+      },
+      {
+        "bytes": 3837,
+        "kind": "file",
+        "path": "Enchron.xcodeproj/xcshareddata/xcschemes/EnchronMacOS.xcscheme",
+        "sha256": "a5c2bc6d0fee429695e7aef0261e0bb7c189009b3e1c9ac15edb22ba41451802"
+      },
+      {
+        "bytes": 1226,
+        "kind": "file",
+        "path": "Enchron.xcodeproj/xcuserdata/xiongzhipeng.xcuserdatad/xcschemes/xcschememanagement.plist",
+        "sha256": "054e4128598ea68e2e99b79819786974e6aae8a6848a0dc79092c1fc5b1e96cc"
+      },
+      {
+        "bytes": 760,
+        "kind": "file",
+        "path": "Enchron.xctestplan",
+        "sha256": "40906f2b535f16c2641827413a84c5c44b53d05b112ed8456d37cb553262fdee"
+      },
+      {
+        "bytes": 35149,
+        "kind": "file",
+        "path": "LICENSE",
+        "sha256": "3972dc9744f6499f0f9b2dbf76696f2ae7ad8af9b23dde66d6af86c9dfb36986"
+      },
+      {
+        "bytes": 18918,
+        "kind": "file",
+        "path": "Modules/DesignSystem/Components/InputComponents.swift",
+        "sha256": "1d662cbc8f34453240e70e1c9b539ee107d6d53e5f2a752cd8d9e5fb6784f4b0"
+      },
+      {
+        "bytes": 45274,
+        "kind": "file",
+        "path": "Modules/DesignSystem/Components/SettingsComponents.swift",
+        "sha256": "db3d46c1d4c7e9a40dd24c7c8e44b0068ad35d5cf1e8febc5617e3905a13c00d"
+      },
+      {
+        "bytes": 34264,
+        "kind": "file",
+        "path": "Modules/DesignSystem/DesignTokens.swift",
+        "sha256": "2a20bffad4681fecde31f9c9ce28c5655c262ae339266d1eeed1a8cedfe9a23a"
+      },
+      {
+        "bytes": 4844,
+        "kind": "file",
+        "path": "Modules/DesignSystem/View+EnchronGlass.swift",
+        "sha256": "6988842573930bf30b9fc49203c9428732a189906f2d9cff69cb359a214385bc"
+      },
+      {
+        "bytes": 7254,
+        "kind": "file",
+        "path": "Modules/DesignSystem/View+Platform.swift",
+        "sha256": "6a06744c7d4fa81715c44724a62505c17df19cc016acf8010eb78fd0bcecee6f"
+      },
+      {
+        "bytes": 2782,
+        "kind": "file",
+        "path": "Modules/DesignSystem/View+PressFeedback.swift",
+        "sha256": "4f2ddd36207a612e778513401120b825f26129e60053bf2cd130001b8f7bea42"
+      },
+      {
+        "bytes": 38255,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/FileBrowsingViewModel.swift",
+        "sha256": "193b104f5df18a64a2fd6c7ba6e789600649b3cdd951d817d2d5186cd40a03eb"
+      },
+      {
+        "bytes": 2692,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/MediaLibraryFeature.swift",
+        "sha256": "cf69f0bde56524d822fa3a581e68b0a9525ed3ca0d238e7a47bbf47718dd3cba"
+      },
+      {
+        "bytes": 20316,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/MediaLibraryViewModel.swift",
+        "sha256": "5a877e1100dcbb2e1d0c1a1889d729e6720f665b97e88b5c5311f3b9578a2bf4"
+      },
+      {
+        "bytes": 5162,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Model/MediaBrowsing.swift",
+        "sha256": "c6121210ab6dbc70b5f2b8d876c9f40e8f8a68929ca43026547de87d6cb08207"
+      },
+      {
+        "bytes": 5997,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Model/MediaLibrary.swift",
+        "sha256": "c5e17ae81853854cfa38e5484ee5480c38ad9b0b250db36ebd065d03b5f8d44b"
+      },
+      {
+        "bytes": 2878,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Model/MediaPlaybackItem.swift",
+        "sha256": "faedbf6a30794c55edd4849083e3fa6d8886dc9cfba9796bb099ca2720a446bf"
+      },
+      {
+        "bytes": 8824,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Model/MediaSource.swift",
+        "sha256": "bf3fa9e60a468613f9b1e405051ffe2102ae6aa0cc5203c478fba6848b484f6b"
+      },
+      {
+        "bytes": 14362,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift",
+        "sha256": "eaac43477a1ec880d3a81a3dd0e4073cad1bb2442da1b0d38b0759d5ca593f1d"
+      },
+      {
+        "bytes": 0,
+        "kind": "deleted",
+        "path": "Modules/MediaLibrary/Services/NetworkMonitor.swift",
+        "sha256": "-"
+      },
+      {
+        "bytes": 0,
+        "kind": "deleted",
+        "path": "Modules/MediaLibrary/Services/PlaybackSourceAccess.swift",
+        "sha256": "-"
+      },
+      {
+        "bytes": 5699,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Services/ThumbnailCache.swift",
+        "sha256": "f3bb7c18b525ff42594afd7c4a5caa46fefc0f8ccf6ba181ae4ffe608ea57c99"
+      },
+      {
+        "bytes": 5545,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Services/ThumbnailService.swift",
+        "sha256": "54f07045620a036bc334c4b75582ab0170dd831e373238d981ed6ca3aeaa3b98"
+      },
+      {
+        "bytes": 10437,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift",
+        "sha256": "22d23cf5f652c8d07e1e8ad67451d783ee9c9f240517d86fab07092fdf8293a1"
+      },
+      {
+        "bytes": 5746,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift",
+        "sha256": "c60e021ccfce3ac250e8ca3310dada818fae191e9c99b4ff2aac8b3eeaca03af"
+      },
+      {
+        "bytes": 1537,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Sources/Local/SecurityScopedFileReferenceResolver.swift",
+        "sha256": "62b28cf38bb8cbd37da54bc643a19446c0320cf88df85582528e01e546182109"
+      },
+      {
+        "bytes": 16339,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift",
+        "sha256": "63a98e27d05b9479d58f613407343d0dc2497c3d7b41112ca17208ecde32d3db"
+      },
+      {
+        "bytes": 22496,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift",
+        "sha256": "048ef8cfbce53cee4528ca34cf3b5601b3d110003288f2bf1f0855734a5a3b4e"
+      },
+      {
+        "bytes": 4858,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Storage/KeychainStore.swift",
+        "sha256": "f3eed4e4b0de3d1e3772485892b5f867acda58fa2514ffbbf64f207ae67daa04"
+      },
+      {
+        "bytes": 738,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Storage/SavedDataSourceStore.swift",
+        "sha256": "549119cbbac8676b521cde1ca91c4fb2544e65500dd6bf7d8aa4be74bcd09bf2"
+      },
+      {
+        "bytes": 1017,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Storage/UserDefaultsMediaLibraryStore.swift",
+        "sha256": "201014144b86422027a908f28e30c44ba215a267a22d7fc20cdf8f9598a1f80b"
+      },
+      {
+        "bytes": 2028,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/BreadcrumbView.swift",
+        "sha256": "438d9ebea47a4fa2555708cea7eabf8afe5fee3399e4df124de0f4710d61b0f0"
+      },
+      {
+        "bytes": 6725,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/FileBrowserSidebar.swift",
+        "sha256": "997112c166c3068afc57f47ac60d71fec568026ce055089a820f02580047fa0a"
+      },
+      {
+        "bytes": 9503,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/FolderListView.swift",
+        "sha256": "cf1d75f6c8d13aa0e469f77e52c3a3be67df40f77e61eb62034debefb81ffd71"
+      },
+      {
+        "bytes": 11495,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/LibraryGridComponents.swift",
+        "sha256": "d13a6e37e1230e3decb0a720d6163811f5bc28367b713e2fb70dc29db5d3da3e"
+      },
+      {
+        "bytes": 5559,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/LibraryListComponents.swift",
+        "sha256": "59106f685ddf710f71c9e7a77242f4299142b6103bc8bc63304f13700c1cf85d"
+      },
+      {
+        "bytes": 8910,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/LibraryNavigationComponents.swift",
+        "sha256": "4ac9fa122606ff01b6f9fa9a0504638da5d6a0cfc31c663b9f05eabf6253b778"
+      },
+      {
+        "bytes": 2852,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/LibraryToolbarComponents.swift",
+        "sha256": "8bfd469756e83df9c2bbb0917f693991fc9cbd76ac7c602d737aa20efc7c7116"
+      },
+      {
+        "bytes": 6049,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/LibraryViewControls.swift",
+        "sha256": "cb2779c9dd45275bb355a407a2ccaa0ab5f221e8bce8eb243d4dd0f401569662"
+      },
+      {
+        "bytes": 1553,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/SkeletonCardView.swift",
+        "sha256": "5e1a7f96be1235a73f54dfce9bd6b4c9f1168f2fe2b724e0ee5f798e91525815"
+      },
+      {
+        "bytes": 33811,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/SourceSidebar.swift",
+        "sha256": "9b6484e65aa592cc1b2b8cb7716eae54e6f29bb7860e632513b5f30cd15a7dab"
+      },
+      {
+        "bytes": 7710,
+        "kind": "file",
+        "path": "Modules/MediaLibrary/Views/VideoCardView.swift",
+        "sha256": "176bb9b675eda2d547905eb0429300d3577cde0a2250a2d484035cdfccda5cbe"
+      },
+      {
+        "bytes": 2464,
+        "kind": "file",
+        "path": "Modules/MediaSource/MediaAccessLease.swift",
+        "sha256": "0fc9f03bd69c89237e3c17b70530968da60b1122ba70b3f22a35f3928c00e4c8"
+      },
+      {
+        "bytes": 444,
+        "kind": "file",
+        "path": "Modules/MediaSource/NaturalMediaNameOrder.swift",
+        "sha256": "93b44fcdf8713eedc2afc50837e7a8f62920171d92c131c3b901114d83875a9b"
+      },
+      {
+        "bytes": 1608,
+        "kind": "file",
+        "path": "Modules/MediaSource/NetworkMonitor.swift",
+        "sha256": "f1d0adee5166611e8c51036fb54a3300ba2cd8bb08ea3447af76d4f4d9a7776d"
+      },
+      {
+        "bytes": 283,
+        "kind": "file",
+        "path": "Modules/MediaSource/ResolvedMediaSource.swift",
+        "sha256": "64f634cb0f5a1ba8361506c73004a2b654f94bec63154af0828c2a34a0b7c835"
+      },
+      {
+        "bytes": 6611,
+        "kind": "file",
+        "path": "Modules/MediaSource/VersionedMediaIdentity.swift",
+        "sha256": "d19ac1cd551241a1927b20944d41bab5fc00e0d4c2889ebb59ccc3a8dcc1d552"
+      },
+      {
+        "bytes": 1585,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/Domain/MediaFormat.swift",
+        "sha256": "a8ca82b1c1d3744ae35d6eb711e52aa6b7ab79bc0fbe4f1ba9907b0054e6fcad"
+      },
+      {
+        "bytes": 4118,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/Domain/MediaStateStore.swift",
+        "sha256": "80b4227d1497e4ea7c7305c454e3b74a5a2a0b417b628f99bfc7626769749c05"
+      },
+      {
+        "bytes": 1422,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/Domain/PlaybackPreferences.swift",
+        "sha256": "11d31d8e0c5fc14db23a722159b1ff6b345b9a4a111c0688eac0d13961679988"
+      },
+      {
+        "bytes": 603,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/Domain/PlaybackQueue.swift",
+        "sha256": "ea1d44507b35ec0ba277e8c49f60007353cccbbe6aff7190029807f888f7be99"
+      },
+      {
+        "bytes": 1472,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/Domain/PlaybackRuntimeControlling.swift",
+        "sha256": "20d7475530d94b7b0490e2bc99e21d13809733156afa4e472d016ce98c579e57"
+      },
+      {
+        "bytes": 3767,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/Domain/ViewingState.swift",
+        "sha256": "0464da9a7826cb3c7bec3e59e7f00cd4e40b28ec610da899b36d0615a7c1a780"
+      },
+      {
+        "bytes": 0,
+        "kind": "deleted",
+        "path": "Modules/PlaybackFeature/MediaProfilePrefetchService.swift",
+        "sha256": "-"
+      },
+      {
+        "bytes": 5382,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/Model/MediaProfile.swift",
+        "sha256": "1c46822e2c6cf05a30dcc801dac62320f13225d7331aa8bfdce6b8eebf055293"
+      },
+      {
+        "bytes": 2444,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/Model/PlaybackState.swift",
+        "sha256": "b247f4e4195eb30d291f98792118d7655ea807196c5d86ee403e8cfe67dc05f7"
+      },
+      {
+        "bytes": 2037,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/PlaybackAudioSession.swift",
+        "sha256": "3f90dc18c65198bde6174c886a671bb8c315637d8110ac4d2cacb823ef9ed2fa"
+      },
+      {
+        "bytes": 17447,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift",
+        "sha256": "267bd86414ba436151ce5df920b3fe964aea0ca0d0c73cc48f9b7186d15e7c51"
+      },
+      {
+        "bytes": 4462,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/PlaybackLaunchRequest.swift",
+        "sha256": "e5a9799accfac3f1a924a2d89c6008421a678298334acef05cc2a8c47dfdfa4c"
+      },
+      {
+        "bytes": 2629,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/PlaybackMediaMetadataService.swift",
+        "sha256": "3a3f8b00294391f7a98fd96776fb43c5095159f1f38c7cb9c174c129356720b9"
+      },
+      {
+        "bytes": 41160,
+        "kind": "file",
+        "path": "Modules/PlaybackFeature/PlaybackRuntime.swift",
+        "sha256": "58eb13f241ce9d1dcf960a105d7491c38e8ee9c1030d13d1e096c77e4b43324f"
+      },
+      {
+        "bytes": 0,
+        "kind": "deleted",
+        "path": "Modules/PlaybackFeature/Storage/PlaybackProgressStore.swift",
+        "sha256": "-"
+      },
+      {
+        "bytes": 987,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Model/CinemaEnvironment.swift",
+        "sha256": "5c6c285ed999e0398ffe4e8d9088e1ccd8d8e454d6428b2e4e9d8e3a28d948a2"
+      },
+      {
+        "bytes": 6562,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Model/PlaybackPresentation.swift",
+        "sha256": "8fa21df7d8408b2431ca66838a36dc28c69ba23a0b7230c78b8df8a166662c12"
+      },
+      {
+        "bytes": 3343,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Model/PlaybackSurfacePlacement.swift",
+        "sha256": "1c9022b0de013a36cc2ca988646936c91282c102f22e891b930b78b719e0b4b3"
+      },
+      {
+        "bytes": 1214,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Model/WindowPlaybackPageGeometry.swift",
+        "sha256": "80c692198cd5202ef764c0ac35bb786817b0be5a53d9f2a907b0e19ee95c301d"
+      },
+      {
+        "bytes": 11540,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift",
+        "sha256": "9feac25afe569793543a5aec8f64422752a13057f6f365d2e1b5f7ccf38bd1de"
+      },
+      {
+        "bytes": 3603,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Storage/ScreenPositionStore.swift",
+        "sha256": "f7fcd70cdd12200d3bb0504d422885b182b679b7f3fabfd017449b248e1333a9"
+      },
+      {
+        "bytes": 4535,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/DragRotationModifier.swift",
+        "sha256": "ad2996efd63d97a7fd5c7da2f4105111e5fbfda6c0092fb8c5e369486c90acfb"
+      },
+      {
+        "bytes": 24011,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/EnvironmentComponents.swift",
+        "sha256": "323f73a0e8e56744bb48580926059f8fd7729c6185272c28bd457e12d28a7785"
+      },
+      {
+        "bytes": 2756,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/PlaybackFormatters.swift",
+        "sha256": "d1468c96f8268b64caae383b7b7da9284717978b73d3afd627f9be8f6587de30"
+      },
+      {
+        "bytes": 33846,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/PlaybackPanel.swift",
+        "sha256": "d4af9e7fd227b0d252488855cc154ef09cc46252d738a924db1c712efb859709"
+      },
+      {
+        "bytes": 9405,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/PlaybackRealityPresenter.swift",
+        "sha256": "8e2079ed806154c0cf24014f136426dfc206ceb8088c4ca01e45b85121aa7942"
+      },
+      {
+        "bytes": 25936,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/PlaybackTimeline.swift",
+        "sha256": "7d3551be4fc2636990aa3f66059285c6b62526beacb9c45018a9ce04cb1f0b61"
+      },
+      {
+        "bytes": 9911,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/PlaybackTopActions.swift",
+        "sha256": "2c35944faed0cf975dcb018e818dee42189fdd7bb5d438c18d0ef5757af7f2b0"
+      },
+      {
+        "bytes": 20013,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift",
+        "sha256": "9a64d8b22d04a066d4cbc5a1c877967f181a23306bd0ac74dbd3727f3966cbcd"
+      },
+      {
+        "bytes": 6286,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/PlayerInfoBarView.swift",
+        "sha256": "0ea13bf0ce04ba0903440b40e93e59034249c0eb285eb328558a6b3cc393d587"
+      },
+      {
+        "bytes": 1085,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/SenseZoneVolumeRoot.swift",
+        "sha256": "ab3ecf6b9c3c3f6a4d0ab5b03b5a2cf37dba5646cb376d6f7c722051bfc4e905"
+      },
+      {
+        "bytes": 10985,
+        "kind": "file",
+        "path": "Modules/PlaybackPresentation/Views/WindowPlayerDeck.swift",
+        "sha256": "0fe8d5398245c2cee300e1dbaa9ee42b3341dec55a06879adc10ce5be49b0556"
+      },
+      {
+        "bytes": 383,
+        "kind": "file",
+        "path": "Package.resolved",
+        "sha256": "b4c4ea2e377613820bba05921f98f52d8894920420c9a63953557a0148014cff"
+      },
+      {
+        "bytes": 1987,
+        "kind": "file",
+        "path": "Package.swift",
+        "sha256": "ea3ff7f36873001195faf3ea9526032b7251a05ea52f5808b11e0b64d9a3e09d"
+      },
+      {
+        "bytes": 233,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/.gitignore",
+        "sha256": "81f282f66216a664b95050eab2fb4060700971d23d6ee0f0137a048654d44561"
+      },
+      {
+        "bytes": 771,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/AGENTS.md",
+        "sha256": "606a09301b1b1e5c1f299b9ca5c93ddff48022b9195163492d24781c4fd82504"
+      },
+      {
+        "bytes": 1067,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/LICENSE",
+        "sha256": "34c19498579a69f64a762a854172c75712447866dd931e8a23ade8275d9f0f6f"
+      },
+      {
+        "bytes": 2233,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Package.swift",
+        "sha256": "73c10a33258e985d6bffa37507308ad15af1836ae4206f5fb35fcbbd87b8e0c5"
+      },
+      {
+        "bytes": 434,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/README.md",
+        "sha256": "01d215944cc5af12bfda1d4672fd19ec5fe21d9a91a9f453de06ad517a5c906d"
+      },
+      {
+        "bytes": 3914,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Scripts/build_ffmpeg.sh",
+        "sha256": "08d2a93cf4de3795995600159132455408f22143cf9eeee960fed6df020c5721"
+      },
+      {
+        "bytes": 7525,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Scripts/build_subtitle_renderer.sh",
+        "sha256": "dd73e0ec05029d609f3abac2d4c2f39491e30ee34d4835118a5cbaa6790cd08f"
+      },
+      {
+        "bytes": 617,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Scripts/harfbuzz-apple-cross.ini.in",
+        "sha256": "9f3d42a49d70f0542e6f54ffb88704762112b3f47da8d26377f0fad7a7b92b01"
+      },
+      {
+        "bytes": 153,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Scripts/hdr_boundary_probe.sh",
+        "sha256": "8952f744d3ceafcb168e22338e0ecaaa9ab1850d792050307c34eef5dcf1e0bd"
+      },
+      {
+        "bytes": 516,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Scripts/probe_dolby_vision_compressed.sh",
+        "sha256": "506442c1fa78536a372e9db9b367ac2411923c6822b4fe3b46aeb929979d0913"
+      },
+      {
+        "bytes": 332,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Scripts/test_video_sample_format_override.sh",
+        "sha256": "9e3ac7f6e8fd8cdbf4ea9e5c90ba8c2d98ef891c42615d3b31f3666a7efabcf0"
+      },
+      {
+        "bytes": 6520,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/AudioSampleProvider.swift",
+        "sha256": "c315db51d90643245bd6a49efa44eee8eda337f0e5548220ec7f8f6f3084a2b2"
+      },
+      {
+        "bytes": 1561,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/CorePlaybackError.swift",
+        "sha256": "62f97c225cdb82e74747bf15ce2a0fce0c8e027c37d3d9ca1d89d8de304dbede"
+      },
+      {
+        "bytes": 2244,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/MediaSessionState.swift",
+        "sha256": "9f5d9b1ad35153d4ebd3e430864fcfe8fc76f1ca2e10386cb738352ab1535299"
+      },
+      {
+        "bytes": 215,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackAsset.swift",
+        "sha256": "9404f38cd8f86e89688ac556de763ab28a8057baae0f6279c2b04809d937e446"
+      },
+      {
+        "bytes": 27994,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackCoreController.swift",
+        "sha256": "76a499eea376761c09ad6e237793e479f248cb17cfeff12e0317c9fd9185a968"
+      },
+      {
+        "bytes": 6128,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackDebugRecorder.swift",
+        "sha256": "32ce203ff28d39417b2556fdb10278552b5fb9a4a1a79bcba6a44d4b92422714"
+      },
+      {
+        "bytes": 5940,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackDebugSnapshot+Codable.swift",
+        "sha256": "2191025825c0c7ed4a2d0accf992e9de1ab8205fe6e843572bd793cfc946a8a0"
+      },
+      {
+        "bytes": 12584,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackDebugging.swift",
+        "sha256": "045e16ac544e17cfad5e2610d31b23b55aea9226727a0307ce910c7d1cbdba33"
+      },
+      {
+        "bytes": 4387,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackDiagnostics.swift",
+        "sha256": "a9ed4048d5a2baab3e534417d93a402745e8434287fbefafb9e4165c31dddab5"
+      },
+      {
+        "bytes": 6344,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackFacts.swift",
+        "sha256": "4a93810a3092e107205dbd010fb122c23b492759b76152ff40044694e01b7544"
+      },
+      {
+        "bytes": 9611,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackRendererRecords.swift",
+        "sha256": "989efe823c80f89103093b643b385100a54eb8aec3bd422525053b2119a1464d"
+      },
+      {
+        "bytes": 10250,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackSessionRecords.swift",
+        "sha256": "fce3f9c269faa1fd77de599de96fcd4c9f05df8d3dab2f4d3abbcee8af728e32"
+      },
+      {
+        "bytes": 467,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackTrace.swift",
+        "sha256": "0aedb1af71b69c51b4b2badb8c06e22d177f62612888ee8aad41bb983d8acf60"
+      },
+      {
+        "bytes": 8887,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/PlaybackTrackRecords.swift",
+        "sha256": "c5b842e815ebafc0016b6f6f95343a812ca172558edc0d44f78c66bbcf383533"
+      },
+      {
+        "bytes": 8411,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/RendererInputSink.swift",
+        "sha256": "da933373c18829a6df876d88548faf3bb1d979d9e22d73d92e5a73d0f3ebcce4"
+      },
+      {
+        "bytes": 8554,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+Bindings.swift",
+        "sha256": "c1330b4a0534762d28f3ce141ac4aed65a4bffce150a1448b7236b6eb915f39e"
+      },
+      {
+        "bytes": 29227,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+Delivery.swift",
+        "sha256": "8c0cd80aed6e701848f97e4c3fd93e460c108d0c5ffddc89699244647605f36b"
+      },
+      {
+        "bytes": 25062,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+Diagnostics.swift",
+        "sha256": "74e32ccdc959d0e671dffc79869da5f8804323a58b7f4653c55997c76e5ab4bd"
+      },
+      {
+        "bytes": 162,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+Display.swift",
+        "sha256": "2e86d5db0c6e317373ccba2f7b9301d64ddbb488f98ac9ece03e3a47be45b699"
+      },
+      {
+        "bytes": 16973,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+FormatOverrides.swift",
+        "sha256": "ba22777368296c31213ed108323c9d6ac974730925808d5d7887eb4613848b2d"
+      },
+      {
+        "bytes": 12100,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+SeekingAudio.swift",
+        "sha256": "53b01c1bf6fe2c34ed50a1de6a55328bb9ed314cb3bceddf3a262578c13656b7"
+      },
+      {
+        "bytes": 9926,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+Subtitles.swift",
+        "sha256": "5fae5fa6048439ee03466c7392fa15db20378899ac6667913a6763ad11068c02"
+      },
+      {
+        "bytes": 17635,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession.swift",
+        "sha256": "bdb2f1c2c38291c4cc3c6b54b666e4c5d52e42ef010e02b633a79421d8a303a9"
+      },
+      {
+        "bytes": 4235,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SubtitleFrameRenderer.swift",
+        "sha256": "cae06ecd9fedd151997ba2997cb07c017839293fa12a4f9c9d378aa273923932"
+      },
+      {
+        "bytes": 6650,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/SubtitleProvider.swift",
+        "sha256": "450dffd81baa74d3d5b63ba12b7218afde270d0c079630568fd795fb8e82365f"
+      },
+      {
+        "bytes": 10835,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift",
+        "sha256": "2f5e35d862e076f688d9a2a46d5294e24706fd3f8c3882ebba1490d2f003d883"
+      },
+      {
+        "bytes": 7821,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
+        "sha256": "c119c4c5ec6f8b346bfecdfd50dba8944ef7643d3ce17a7ae42db0be0f991447"
+      },
+      {
+        "bytes": 73075,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
+        "sha256": "5ca2686209f7ce7b92592f6e0f1363e94bad69a1b1a10e694c4f5aea50a08fb6"
+      },
+      {
+        "bytes": 23609,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/SubtitleFrameRenderer.c",
+        "sha256": "cd66b0c65aa03be391dd57187e9ca10039d909c46fd383e5e6af2a964360f6c2"
+      },
+      {
+        "bytes": 5182,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
+        "sha256": "dc7548575c93bc24492f27741677a92f1a41aaa1a471728ffac78a311bdaec75"
+      },
+      {
+        "bytes": 4393,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tests/PlaybackCoreTests/Fixtures/bitmap-generated.mks.base64",
+        "sha256": "be5cd1381a7c0815ba37b7f4626def46ca94b35e82b3cce00a5fead09bbd9bf8"
+      },
+      {
+        "bytes": 50,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tests/PlaybackCoreTests/Fixtures/subtitle-en.srt",
+        "sha256": "180cb0730d511ec70d05a43cd6865bf00e65a3a684fe7f24ed1fc4a66d9189fd"
+      },
+      {
+        "bytes": 3724,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tests/PlaybackCoreTests/Fixtures/subtitle-subrip.mkv",
+        "sha256": "8112539684ffe45aae86c82144732fb9ba7f8e7d342ef33dfe3eb37d5e5b2c5f"
+      },
+      {
+        "bytes": 93,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tests/PlaybackCoreTests/Fixtures/subtitle-zh.srt",
+        "sha256": "c86b54a1a7ba64102c9d83bc1a999c3a140b869e5d04ac9598eb64f01d360f4f"
+      },
+      {
+        "bytes": 96683,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackCoreTests.swift",
+        "sha256": "79a7bfa4e3b7c4291a4ba3c71019fe21a5844f17008dcbd356cbed6c7487f7aa"
+      },
+      {
+        "bytes": 16142,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackFFmpegBridgeTests.swift",
+        "sha256": "5964d8f4d6f24717826e038fc7b5daec9a21d17532bad2c548b4d4bf9cf177c5"
+      },
+      {
+        "bytes": 17424,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tests/PlaybackCoreTests/SubtitleProviderTests.swift",
+        "sha256": "6555dd087217b6ac3c5e65ddc49c578c1c54b6c3dc74bf1e875d2030fe003fbb"
+      },
+      {
+        "bytes": 20151,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tests/Standalone/VideoSampleFormatOverrideTests.swift",
+        "sha256": "30d1fe4dc32566989c4c80cbe8e0e9d58f26d76c4bf31b2806dafd81ceab5b9b"
+      },
+      {
+        "bytes": 8903,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tools/DolbyVisionCompressedProbe/main.swift",
+        "sha256": "4cfaecb3cd1216146880717ba265cb3ea4b2b8a5235d5972fad08874c24a89fd"
+      },
+      {
+        "bytes": 20521,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Tools/HDRBoundaryProbe/main.swift",
+        "sha256": "c7792245c5b74709ffd7bb4bc9abe098317c40fce1e12cd94b93f08141e653d6"
+      },
+      {
+        "bytes": 1761,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/Info.plist",
+        "sha256": "fd6b3ea1c9f74219dff847d644f45f1007850be16b1698473a3fa99dacd35e21"
+      },
+      {
+        "bytes": 32518,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/macos-arm64/Headers/ass/ass.h",
+        "sha256": "53f3314eea4c63756819581c3f37c9f5f1707f922adf4a78c6999c08bc39dd7e"
+      },
+      {
+        "bytes": 13383,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/macos-arm64/Headers/ass/ass_types.h",
+        "sha256": "b3ac4ad4d655f4d90e5e8d05cc2868ce17e5ff89ef1fe76cabcc8f3093e6134b"
+      },
+      {
+        "bytes": 3481360,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/macos-arm64/libPlaybackSubtitleRenderer.a",
+        "sha256": "fdbba42f78d66d050657fd5e1e7315a40c36b0cff31f9f582067633a14de5bbb"
+      },
+      {
+        "bytes": 32518,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/xros-arm64/Headers/ass/ass.h",
+        "sha256": "53f3314eea4c63756819581c3f37c9f5f1707f922adf4a78c6999c08bc39dd7e"
+      },
+      {
+        "bytes": 13383,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/xros-arm64/Headers/ass/ass_types.h",
+        "sha256": "b3ac4ad4d655f4d90e5e8d05cc2868ce17e5ff89ef1fe76cabcc8f3093e6134b"
+      },
+      {
+        "bytes": 3491912,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/xros-arm64/libPlaybackSubtitleRenderer.a",
+        "sha256": "f5f28d9fa4090a26c2f76a114113372020ee817a6440d1ba0696554c8157f87b"
+      },
+      {
+        "bytes": 32518,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/xros-arm64_x86_64-simulator/Headers/ass/ass.h",
+        "sha256": "53f3314eea4c63756819581c3f37c9f5f1707f922adf4a78c6999c08bc39dd7e"
+      },
+      {
+        "bytes": 13383,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/xros-arm64_x86_64-simulator/Headers/ass/ass_types.h",
+        "sha256": "b3ac4ad4d655f4d90e5e8d05cc2868ce17e5ff89ef1fe76cabcc8f3093e6134b"
+      },
+      {
+        "bytes": 7208296,
+        "kind": "file",
+        "path": "Packages/PlaybackCore/Vendor/SubtitleRenderer/PlaybackSubtitleRenderer.xcframework/xros-arm64_x86_64-simulator/libPlaybackSubtitleRenderer.a",
+        "sha256": "cf3e8c15736181c3491457f75b38b70038abf6bd007934400eaab59cd4fb9ca8"
+      },
+      {
+        "bytes": 1028,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Package.realitycomposerpro/ProjectData/main.json",
+        "sha256": "4ac9a3966b9ddd92fbae917290ba2a4fac5323548838503bc0af5a4c21e7e6c9"
+      },
+      {
+        "bytes": 3265,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Package.realitycomposerpro/WorkspaceData/SceneMetadataList.json",
+        "sha256": "2c5dc22ded41971a1a90c4fdc06fd906e36498c35b0f0e0ac9eff2c2b5b0683e"
+      },
+      {
+        "bytes": 256,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Package.realitycomposerpro/WorkspaceData/Settings.rcprojectdata",
+        "sha256": "636063246c8664e7fb6091ee7ab172756de0a03d6ee8b1f138740e55e81b2e5d"
+      },
+      {
+        "bytes": 3383,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Package.realitycomposerpro/WorkspaceData/xiongzhipeng.rcuserdata",
+        "sha256": "abe530c1e3f20ab72652f15e5a965c4e9ca0c32a221b34bf25b90060b302af90"
+      },
+      {
+        "bytes": 1178,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Package.swift",
+        "sha256": "7c425e69cc8a576092b69f141975a51e8959c299c12b892e01d31b260a47a8d7"
+      },
+      {
+        "bytes": 264,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/README.md",
+        "sha256": "549727ab5e63bc8d8ac1dd3aa69dfeff419b5e3ca93b9d164f4402182115c774"
+      },
+      {
+        "bytes": 179530,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Sources/RealityKitContent/RealityKitContent.rkassets/Ground/DefaultAttenuationMap.exr",
+        "sha256": "4d6fa014d631f3740e9dd636582b5408178f8a4498570c6ebf60546644399e7d"
+      },
+      {
+        "bytes": 206631,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Sources/RealityKitContent/RealityKitContent.rkassets/Ground/Ground.usda",
+        "sha256": "f18c0f72656a6c632893ad4dbc762bd5135ccf9e64634098f0dbeb288a80ca2b"
+      },
+      {
+        "bytes": 637,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Sources/RealityKitContent/RealityKitContent.rkassets/Immersive.usda",
+        "sha256": "4e9babfa4cdd7404a9f0e24308fabddfe0c06adae9523fa77e5d24b3023d1555"
+      },
+      {
+        "bytes": 8820,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Sources/RealityKitContent/RealityKitContent.rkassets/Materials/GridMaterial.usda",
+        "sha256": "7c8a8886dd5446f294f87fe1cd399f3395fcc6fa245b155a56e649e778b39658"
+      },
+      {
+        "bytes": 1559,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Sources/RealityKitContent/RealityKitContent.rkassets/Scene.usda",
+        "sha256": "62c55e8d4cfc5d3b696465ee93fc97fde1fd59f05e412f985a1044ecc32d15c7"
+      },
+      {
+        "bytes": 1039592,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Sources/RealityKitContent/RealityKitContent.rkassets/SkyDome.usdz",
+        "sha256": "cf7673529ceb8aaa742c051ce82dcf747bae176393f9506542349b0a6ed3c672"
+      },
+      {
+        "bytes": 115,
+        "kind": "file",
+        "path": "Packages/RealityKitContent/Sources/RealityKitContent/RealityKitContent.swift",
+        "sha256": "1e09556faceade53bb46c7eb5dc9fc9755423058c8182bd52288735b09e59ffb"
+      },
+      {
+        "bytes": 8818,
+        "kind": "file",
+        "path": "Scripts/domain-checks/main.swift",
+        "sha256": "d9171a6916917cf88160d5084cd294d667c88179b637d65c3f6816fbf9f0d58f"
+      },
+      {
+        "bytes": 618,
+        "kind": "file",
+        "path": "Scripts/fixtures/acceptance-subtitles.ass",
+        "sha256": "866aa669d2f360cdf3f82f4a083ba5ba482ef4ef4a4a3439f56c3068acc0a1fa"
+      },
+      {
+        "bytes": 252,
+        "kind": "file",
+        "path": "Scripts/fixtures/acceptance-subtitles.srt",
+        "sha256": "58c642420420f5cb795c35696de3df714c6dd2ede7dc220c88f0384abb677556"
+      },
+      {
+        "bytes": 5208,
+        "kind": "file",
+        "path": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "sha256": "3149ad70c379045f01c596a875116cfd65368fb4b2c3b58f025feb8556733895"
+      },
+      {
+        "bytes": 4847,
+        "kind": "file",
+        "path": "Scripts/fixtures/generate_bitmap_subtitle_fixture.c",
+        "sha256": "ef4e8afd7efa0f01f5969a2facab8606ba99af8476012549682242cda125d8b9"
+      },
+      {
+        "bytes": 3508,
+        "kind": "file",
+        "path": "Scripts/fixtures/range-http-server.py",
+        "sha256": "abcd3dc8ea21049f4b2d485bf6d4107d645bf6f1e9f1f0c2fcc70568374b9718"
+      },
+      {
+        "bytes": 5027,
+        "kind": "file",
+        "path": "Scripts/verification/capture_validation_manifest.py",
+        "sha256": "76800af0bc3298fb2de28233384994f5eb723b046cc6fcd6537ba489b73eb4ee"
+      },
+      {
+        "bytes": 30593,
+        "kind": "file",
+        "path": "Scripts/verification/macos_ui_acceptance.swift",
+        "sha256": "70206dedddff7de2352f4a458f23d4e8621815cbf1a7caec8fd6f1c188c76038"
+      },
+      {
+        "bytes": 13777,
+        "kind": "file",
+        "path": "Scripts/verification/validation_queue.py",
+        "sha256": "aae8f9fae639ea23b656874562507b38b030a577e2db1e58034ecd2f87ed16f9"
+      },
+      {
+        "bytes": 3785,
+        "kind": "file",
+        "path": "Scripts/verification/verify-photos-simulator.zsh",
+        "sha256": "98fb35d1a8741beb5e469b828ac7cac573165ccb9d937f77d9e5ea8cd45df0db"
+      },
+      {
+        "bytes": 7398,
+        "kind": "file",
+        "path": "Scripts/verification/verify-real-media-simulator.zsh",
+        "sha256": "89456be1a559a37626750091f0cc286bc72c88e5b112814fec8eaa0af7fedf20"
+      },
+      {
+        "bytes": 6855,
+        "kind": "file",
+        "path": "Scripts/verification/verify-spatial-presentations-simulator.zsh",
+        "sha256": "ec41a778c70b330b8d30cccf9375d822107231744fe3e9c2dd82243db8873b17"
+      },
+      {
+        "bytes": 2170,
+        "kind": "file",
+        "path": "Scripts/verification/verify_idle_reality_rendering.sh",
+        "sha256": "faf45e4763a5eb144b85e17cdedb182bc9374aa13293da917594f5f71ecfdd5c"
+      },
+      {
+        "bytes": 1475,
+        "kind": "file",
+        "path": "Scripts/verification/verify_organic_architecture_xcode.sh",
+        "sha256": "2109f6cc390b00816d3c3a9f31eb53c6e97fa6dba2befd10133f669186ab76c1"
+      },
+      {
+        "bytes": 2835,
+        "kind": "file",
+        "path": "Scripts/verification/verify_package_membership.py",
+        "sha256": "131efea2fecdb37aaccd58e2be1cf5ffe3581dc211495edef6c115b4a1cc2b6e"
+      },
+      {
+        "bytes": 4541,
+        "kind": "file",
+        "path": "Scripts/verification/verify_playback_surface_structure.py",
+        "sha256": "5ca506b0985d1710da811e7186153f792f943de8af266d4374822d7e5abcdd7f"
+      },
+      {
+        "bytes": 1439,
+        "kind": "file",
+        "path": "Scripts/verification/verify_vision_test_suites.sh",
+        "sha256": "3f968acfd71cabe55fd410929d876d8939c1392d84aef248e87a9fe4b4257d9f"
+      },
+      {
+        "bytes": 1213,
+        "kind": "file",
+        "path": "Tests/EnchronApp/EnvironmentSceneMappingTests.swift",
+        "sha256": "bd90a6d0fcc5edf634214414c6c6c4be784f2fb81d0d81103aa6b5e366930a4c"
+      },
+      {
+        "bytes": 4949,
+        "kind": "file",
+        "path": "Tests/EnchronApp/FakeFileDataSourceTests.swift",
+        "sha256": "fbd5d95e19cec91ccd059f960ad38c3285ba3261c7be5f1c0c85300b25dceac0"
+      },
+      {
+        "bytes": 2888,
+        "kind": "file",
+        "path": "Tests/EnchronApp/LocalDataSourceAdapterTests.swift",
+        "sha256": "476b1e8d522474fd997445fc62c089394e4f6b845cec08e8fb8c0111f4b5311a"
+      },
+      {
+        "bytes": 6179,
+        "kind": "file",
+        "path": "Tests/EnchronApp/MediaLibraryTests.swift",
+        "sha256": "7b538bb05c4d237286feefd51b91c26000d84eba082f3f71a7d0dccfef9f5a38"
+      },
+      {
+        "bytes": 4444,
+        "kind": "file",
+        "path": "Tests/EnchronApp/PlaybackPresentationStateTests.swift",
+        "sha256": "9c8e10c0db6563b562c58e68bef2c968d22d53de41ada0f85b32ba8d3cb65d04"
+      },
+      {
+        "bytes": 11550,
+        "kind": "file",
+        "path": "Tests/EnchronApp/PlaybackRealityPresenterTests.swift",
+        "sha256": "2e2d6d1b087e532058fbd43ff9ac2067c6d457e172b4e0a9acd238e48d1fb40c"
+      },
+      {
+        "bytes": 3428,
+        "kind": "file",
+        "path": "Tests/EnchronApp/PlaybackSourceAccessTests.swift",
+        "sha256": "aa674d3f01a5ed53cf24ee33368ddbb8ced07c5bab79cdaa41b1de6097cdc6b3"
+      },
+      {
+        "bytes": 10797,
+        "kind": "file",
+        "path": "Tests/EnchronApp/PlaybackSourceAndAudioSessionTests.swift",
+        "sha256": "08eba042d6977632e5a00b4b75424903eb7a9445eafc45a9692a7335bd64bbbe"
+      },
+      {
+        "bytes": 1760,
+        "kind": "file",
+        "path": "Tests/EnchronApp/PreferencesPersistenceTests.swift",
+        "sha256": "c46e91a4f7b7ad2eecd24797edde20d7d407ab283f48e030930505db2f2c7a0c"
+      },
+      {
+        "bytes": 7503,
+        "kind": "file",
+        "path": "Tests/EnchronApp/SMBDataSourceAdapterTests.swift",
+        "sha256": "bafe790bac815e7c05d3d2a1acee641957fa7051cc34d3cd85da2848a8f7c8f4"
+      },
+      {
+        "bytes": 1988,
+        "kind": "file",
+        "path": "Tests/EnchronApp/ScreenPositionPersistenceTests.swift",
+        "sha256": "f06e3994f9a745a18d0d70d6f1235691e9b4abe287d230d3aa6f09b1ff152f42"
+      },
+      {
+        "bytes": 1764,
+        "kind": "file",
+        "path": "Tests/EnchronApp/SortCriteriaTests.swift",
+        "sha256": "50484f300bc4f95e46927bbe4686b84837f74700bb279600080e8bbc5f2ef100"
+      },
+      {
+        "bytes": 13839,
+        "kind": "file",
+        "path": "Tests/EnchronApp/WebDAVDataSourceAdapterTests.swift",
+        "sha256": "c4fbc9897abdc6487ccbfe51c100cb97b370cccbe0e91fac15fdd046b0c13410"
+      },
+      {
+        "bytes": 2586,
+        "kind": "file",
+        "path": "Tests/EnchronApp/WebDAVLiveIntegrationTests.swift",
+        "sha256": "e8dc1ad43bbfbacd8dd0fc22287ffd8bae7236fb7c568e3bb6a35931e610df06"
+      },
+      {
+        "bytes": 1144,
+        "kind": "file",
+        "path": "Tests/EnchronApp/WindowPlaybackPageGeometryTests.swift",
+        "sha256": "a7df08c1512fe104ea4283a69efd8734ef08b16d82be73d4e96c3b6525d20f96"
+      },
+      {
+        "bytes": 0,
+        "kind": "deleted",
+        "path": "Tests/EnchronApp/WindowPlaybackSurfaceStructureTests.swift",
+        "sha256": "-"
+      },
+      {
+        "bytes": 4757,
+        "kind": "file",
+        "path": "Tests/EnchronAppUI/FilesBrowsingUITests.swift",
+        "sha256": "3fd327dd1918a063bb41aa15737ead41665aeed2a0c8a00d4251f6fb7a486aac"
+      },
+      {
+        "bytes": 1588,
+        "kind": "file",
+        "path": "Tests/EnchronAppUI/FilesPlaybackUITests.swift",
+        "sha256": "eb92fce8e2e3de9e526650cd934acfabb581ef1a035077aa82e8e662656fed10"
+      },
+      {
+        "bytes": 8771,
+        "kind": "file",
+        "path": "Tests/EnchronAppUI/PlaybackDeckUITests.swift",
+        "sha256": "c408b3fe40a03684cc2cac624b39e84b358440d4401d536d5da329f5174ec2a5"
+      },
+      {
+        "bytes": 1561,
+        "kind": "file",
+        "path": "Tests/EnchronAppUI/SettingsUITests.swift",
+        "sha256": "8de85b006bb6983ae1cd4e4417edb7b9c541df931d8f6643aeb2afac844d99b9"
+      },
+      {
+        "bytes": 1167,
+        "kind": "file",
+        "path": "Tests/EnchronAppUI/SmokeLaunchUITests.swift",
+        "sha256": "55e17e17ba4cea4d07742b98d4efe05a567b818b9a1e90debe85905257a51df0"
+      },
+      {
+        "bytes": 8446,
+        "kind": "file",
+        "path": "Tests/EnchronAppUI/SpatialPresentationAcceptanceUITests.swift",
+        "sha256": "2d9d68cc01bfc1c1bd83cca81b05b096c1cc487a8d9a5f8f0e077a2653729cc2"
+      },
+      {
+        "bytes": 6284,
+        "kind": "file",
+        "path": "Tests/EnchronAppUI/VisionProDeviceAcceptanceUITests.swift",
+        "sha256": "9044d506b5f231f1ac83a2085aafd8a3dae2e3991faa11efc697833db813f71f"
+      },
+      {
+        "bytes": 1372,
+        "kind": "file",
+        "path": "Tests/EnchronMacOS/EnchronApplicationAutoplayTests.swift",
+        "sha256": "a4dd9807806815307163c18d16ab00ae64225c8cfad173095a57b7b0ccc63402"
+      },
+      {
+        "bytes": 1262,
+        "kind": "file",
+        "path": "Tests/EnchronMacOS/EnvironmentCarouselLayoutTests.swift",
+        "sha256": "e8eac2a6b6daaa42ada519e9e2cea35398c39e33702d986adc1d294f9a6de4dc"
+      },
+      {
+        "bytes": 2552,
+        "kind": "file",
+        "path": "Tests/EnchronMacOS/FileBrowsingStartupAccessTests.swift",
+        "sha256": "d69be995e3a0162cea9b6ba4438039226362ef81b767f6575b90f671d3a5133f"
+      },
+      {
+        "bytes": 9700,
+        "kind": "file",
+        "path": "Tests/EnchronMacOS/MacRealityPlaybackContractTests.swift",
+        "sha256": "b1a26b91d1e7148861927a0f89894cf00c89b51747b584891c84bff5f9f67e60"
+      },
+      {
+        "bytes": 4981,
+        "kind": "file",
+        "path": "Tests/EnchronMacOS/PlaybackFailureProjectionTests.swift",
+        "sha256": "a666bb34b8006f43f76cdef2fac2e26e402ff3db73c870698d96a11d6fb3b1d1"
+      },
+      {
+        "bytes": 8678,
+        "kind": "file",
+        "path": "Tests/EnchronMacOS/RemoteCredentialLifecycleTests.swift",
+        "sha256": "a081f04dd9e1c1bcbad3430aad734c92a191cbc08c2ab6e1e6319d9281d8d27d"
+      },
+      {
+        "bytes": 10476,
+        "kind": "file",
+        "path": "Tests/EnchronMacOS/RemoteSourceIsolationTests.swift",
+        "sha256": "286c04438b6bbcfd25f5581875a3756fb20ef5d21b00606bf0d13fe720aabf7b"
+      },
+      {
+        "bytes": 20392,
+        "kind": "file",
+        "path": "Tests/EnchronMacOSUI/EnchronMacOSPlaybackJourneyUITests.swift",
+        "sha256": "7b4c3868aaa5a8b09b74c1c3c5e54686a604a82fd8b07ba92d078e0209488b0b"
+      },
+      {
+        "bytes": 5079,
+        "kind": "file",
+        "path": "Tests/Infrastructure/test_validation_queue.py",
+        "sha256": "106cb2efd2a52a433b6b66f7b3343e7f4d072fd4a398f85771d70e3b827bff7b"
+      },
+      {
+        "bytes": 17405,
+        "kind": "file",
+        "path": "docs/acceptance/evidence.md",
+        "sha256": "45815bb65963d51c033396dbd526183914298e70b3361dc3454d567d6bb63b7f"
+      },
+      {
+        "bytes": 6924,
+        "kind": "file",
+        "path": "docs/acceptance/fixture-registry.json",
+        "sha256": "78d8160a05c2711460c0a58b65d2bfe0f2275886152f116b4fee4f2fa0c2a8a8"
+      },
+      {
+        "bytes": 28575,
+        "kind": "file",
+        "path": "docs/acceptance/macos-e2e-test-matrix.md",
+        "sha256": "abe7e40a02c8cb3fa7a30e7bdcfa73a1d720a96d7a4c539f2b9639821e09ccb7"
+      },
+      {
+        "bytes": 1340,
+        "kind": "file",
+        "path": "docs/acceptance/nodes/01-source.md",
+        "sha256": "6db190cc6917ae83cf180a6db94a425c7e69706a5d6788a826b3dc585dbaa4a9"
+      },
+      {
+        "bytes": 1380,
+        "kind": "file",
+        "path": "docs/acceptance/nodes/02-session.md",
+        "sha256": "f4bcb5a55d7e8eaf3c828aaa07f17fe50d6812bc7106c2c49ece7b508b7f646e"
+      },
+      {
+        "bytes": 1376,
+        "kind": "file",
+        "path": "docs/acceptance/nodes/03-provider-open.md",
+        "sha256": "e5e0951e4e21d8b310f9a3f61283d6daba09687309b13b177552c62f204f1c3a"
+      },
+      {
+        "bytes": 1184,
+        "kind": "file",
+        "path": "docs/acceptance/nodes/04-track-model.md",
+        "sha256": "dc87223eda5f3c6c54c80550dbb00ca3d9ff1043c581e0a62d86399f80f3a0e5"
+      },
+      {
+        "bytes": 1350,
+        "kind": "file",
+        "path": "docs/acceptance/nodes/05-media-events.md",
+        "sha256": "208ca883b3033c326ea404c2e7e58d24a141a0a8d0e9ac91aacb1a18faadc01f"
+      },
+      {
+        "bytes": 1434,
+        "kind": "file",
+        "path": "docs/acceptance/nodes/06-compressed-sample-stream.md",
+        "sha256": "d9275375e9150eeea86ca82106493a7e1d1cd811548895e148245ef725424bc1"
+      },
+      {
+        "bytes": 1775,
+        "kind": "file",
+        "path": "docs/acceptance/nodes/07-avfoundation-renderer-input.md",
+        "sha256": "788e08eacca23e90f759d8d1e014dbc02b3e306694cb165c15389c1f19918418"
+      },
+      {
+        "bytes": 1741,
+        "kind": "file",
+        "path": "docs/acceptance/nodes/08-realitykit-renderer-binding.md",
+        "sha256": "e66d83bcb3ad5857dc9e5b8c357d7a9f6730cc6df5b388b07b93c9d0f31f582d"
+      },
+      {
+        "bytes": 2785,
+        "kind": "file",
+        "path": "docs/acceptance/nodes/09-enchron-app-presentation.md",
+        "sha256": "b9b5adbf268b8ca093d68e4ae366bf1a3a751a68451ed05e52381fec73d52740"
+      },
+      {
+        "bytes": 5259,
+        "kind": "file",
+        "path": "docs/acceptance/validation-queue.md",
+        "sha256": "fdfa82c5a611be6bd222e540451f11a11a0c6228b8373d6db02e0b098b932b3b"
+      },
+      {
+        "bytes": 12989,
+        "kind": "file",
+        "path": "docs/acceptance/verification-system.md",
+        "sha256": "0f0ba73e16c64211f2adb4ae8d861e0c1692b75afca134b81033dce2ca0e1134"
+      },
+      {
+        "bytes": 3108,
+        "kind": "file",
+        "path": "docs/adr/0001-collaboration-constitution.md",
+        "sha256": "be9be6f9419609d4bfb76a53c5243ab7781437b1b01a01db9d7899fc62f319b0"
+      },
+      {
+        "bytes": 2395,
+        "kind": "file",
+        "path": "docs/adr/0002-narrow-visionos-platform-trigger.md",
+        "sha256": "adae3bf8bde68edf2165a26664cc49d517744bae4700066cc7f4dc88709aabc2"
+      },
+      {
+        "bytes": 1182,
+        "kind": "file",
+        "path": "docs/adr/0010-playbackcore-replaces-mpv.md",
+        "sha256": "4e861f66f8258c19c5d045f860fbea2e9ecd711069a04add5779d6fb8b919698"
+      },
+      {
+        "bytes": 567,
+        "kind": "file",
+        "path": "docs/adr/0011-enchron-owns-product-requirements.md",
+        "sha256": "c6bceba5d6458f50dbf8ba6d279c42d5a9a81dad93fd6604425ce4550ca3e5e5"
+      },
+      {
+        "bytes": 697,
+        "kind": "file",
+        "path": "docs/adr/0012-product-runtime-observability.md",
+        "sha256": "13ffb68edab80552066c4d0a1b8dd2f8fdc36667f4c6cacc9cfac94e266da1fa"
+      },
+      {
+        "bytes": 971,
+        "kind": "file",
+        "path": "docs/adr/0013-use-apple-debugging-toolchain.md",
+        "sha256": "d152797beaff4b384dcf376582b58edfa047a9c0bd722eeb0ff80432f3410f97"
+      },
+      {
+        "bytes": 1661,
+        "kind": "file",
+        "path": "docs/adr/0014-enchron-macos-gates-visionos-integration.md",
+        "sha256": "b69990c5dd38a520bd8102d11c31ce3baf242797eae3be229ebee0c347ae1e70"
+      },
+      {
+        "bytes": 1390,
+        "kind": "file",
+        "path": "docs/adr/0015-enchron-monorepo-and-unified-playback-docs.md",
+        "sha256": "9c10c2780ff75490a7a1bdaf60679af2f63816aa3376a5d829834a22f6dfb106"
+      },
+      {
+        "bytes": 1560,
+        "kind": "file",
+        "path": "docs/adr/0016-unified-realitykit-video-player-consumer.md",
+        "sha256": "2cfe9ffd09cf30c406b2d8c76b953ffe780f65e1c2fc27f798c60a84b693c6a4"
+      },
+      {
+        "bytes": 1554,
+        "kind": "file",
+        "path": "docs/adr/0017-single-playback-pipeline-without-route-abstraction.md",
+        "sha256": "f488aadf97603d4382c5af8f80505cd0a0f24098766f43f5f9bce0f23dbcd6fe"
+      },
+      {
+        "bytes": 5687,
+        "kind": "file",
+        "path": "docs/adr/0018-acyclic-product-targets-around-media-source-authority.md",
+        "sha256": "331f77ea112d0c51b65a2e622e9f586b1d0da313c3e37aca7dc23b85db4fe1f9"
+      },
+      {
+        "bytes": 615,
+        "kind": "file",
+        "path": "docs/adr/README.md",
+        "sha256": "41faf8bfd5daaecc6d44e409c9cea1b9e03fd5cd0ba12d8ad37d41c9c0004034"
+      },
+      {
+        "bytes": 1710,
+        "kind": "file",
+        "path": "docs/adr/design-preview-0001-variant-recipes-in-static-factories.md",
+        "sha256": "19aa2425f3249c93919f39868baf8066cd087c6ee13ee726999f768e361821fd"
+      },
+      {
+        "bytes": 1341,
+        "kind": "file",
+        "path": "docs/adr/playbackcore-0001-decoded-video-samples-first.md",
+        "sha256": "02ef250f73bc4fff0e58083c16158f52717e90948e227e54d81649632ba99acf"
+      },
+      {
+        "bytes": 1447,
+        "kind": "file",
+        "path": "docs/adr/playbackcore-0002-three-explicit-playback-routes.md",
+        "sha256": "9f23fbb78a45a51457794ac1d3066269ea61fc0fc40b9e5e344b78d6caaf6a62"
+      },
+      {
+        "bytes": 1114,
+        "kind": "file",
+        "path": "docs/adr/playbackcore-0003-apple-compressed-reference-route.md",
+        "sha256": "a28fd071ad7eda82132ac299e2d2fd5caf7c6fa1e192bd1ee059e81dcf222ce7"
+      },
+      {
+        "bytes": 2618,
+        "kind": "file",
+        "path": "docs/adr/playbackcore-0004-route-neutral-provider-records-and-macos-l2.md",
+        "sha256": "ab7c4dd00feeefa426b141ebf5c9566fd961ff27c1f705a9e5454d17534c9063"
+      },
+      {
+        "bytes": 1337,
+        "kind": "file",
+        "path": "docs/adr/playbackcore-0005-two-compressed-routes-and-shared-audio.md",
+        "sha256": "38505f6e84ac4825bda926b1aef33b11391eea073b4ba770cd96aeff43136056"
+      },
+      {
+        "bytes": 1039,
+        "kind": "file",
+        "path": "docs/adr/playbackcore-0006-core-library-and-archived-lab.md",
+        "sha256": "fe46fa87261379d1c126d0d621cd65b4f4203d552e7fbb6175068e6e5299beb7"
+      },
+      {
+        "bytes": 796,
+        "kind": "file",
+        "path": "docs/adr/playbackcore-0007-avfoundation-owns-decode-and-render.md",
+        "sha256": "283978046ec9d7eb9ab24222e4b1550ce3f99360c530698e69c4faeea7c6dfe1"
+      },
+      {
+        "bytes": 2321,
+        "kind": "file",
+        "path": "docs/adr/playbackcore-0008-restore-enchron-macos-as-playability-gate.md",
+        "sha256": "ecaf6e9d6077d2eaea8cc0243dbce946a9565b1b99c8d316984324e293a4922c"
+      },
+      {
+        "bytes": 6807,
+        "kind": "file",
+        "path": "docs/core-spec.md",
+        "sha256": "69b1361b2ec66255640c3d652bcd7be13d813716eb8f92fed7dc67813714fbd7"
+      },
+      {
+        "bytes": 14199,
+        "kind": "file",
+        "path": "docs/product-requirements.md",
+        "sha256": "ad8234d12e6aeb74b9c37428b2bb3e1edd81285df30f94a665e3878d26bc2c2e"
+      },
+      {
+        "bytes": 16620,
+        "kind": "file",
+        "path": "docs/research/apple-official-visionos-debugging-and-automation.md",
+        "sha256": "c110502c7e5b11620a80f8d3ec7e55f5f2f52960769b6a5bf967afd44ef4e916"
+      },
+      {
+        "bytes": 13152,
+        "kind": "file",
+        "path": "docs/research/realityrenderer-programmatic-testing.md",
+        "sha256": "c46be7a97da9d7476bd815ad759b7b33a7fc81ecc3fbb03c89224e3459698464"
+      },
+      {
+        "bytes": 3908,
+        "kind": "file",
+        "path": "docs/ui/README.md",
+        "sha256": "82c9990c16959137e309c3d290886bfcfdf5b7b0910c7fbc401f6a7cd92841f0"
+      },
+      {
+        "bytes": 5277,
+        "kind": "file",
+        "path": "docs/ui/acceptance.md",
+        "sha256": "3206aefe1bafd6f5708780e9c6aa35e3435f85388b180e57995ba4d74471b165"
+      },
+      {
+        "bytes": 1508039,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/compspreview-main-fullscreen.png",
+        "sha256": "1e43f9031aa4332b90c42294c6e745ae4321c22a5ec3ceabe6c1dcd8275b6b60"
+      },
+      {
+        "bytes": 1110290,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/display1.png",
+        "sha256": "b34ebb72c5a2bcd922899c00cf5e6700a7f7e362ec588f8d5159dfec2fddb965"
+      },
+      {
+        "bytes": 1513990,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/files-toolbar-viewmode-sort-search.png",
+        "sha256": "d1bd8aaa5330256947e8d3f31726c0b3ca509b0d8d75b0ede9acc49f7274478e"
+      },
+      {
+        "bytes": 1511264,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-more-shared-label.png",
+        "sha256": "4779559c76dc67dd3e7139c9b2c3cd9bcb855665569d15e5c38898ce17c0fc6b"
+      },
+      {
+        "bytes": 6950302,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-delete-reorder-default.png",
+        "sha256": "07567eefb7b6aba274b290ed54bf4778226e26134a187bed59875037146d1d92"
+      },
+      {
+        "bytes": 1510127,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-header-padding.png",
+        "sha256": "aed6946ff4f60a026baec0d1867b264b274cc0561aaccb33a9ff99abe2c0091d"
+      },
+      {
+        "bytes": 1511496,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-inset-plate-glass.png",
+        "sha256": "33504d0c2719bee82e00bdc3910a2b00c98944e495822a2e4a9b92f7afbb67e2"
+      },
+      {
+        "bytes": 1514014,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-interactions-default.png",
+        "sha256": "c4025b72686c611b6041b91754fe39b7245e25169c7f415b5d9725057b6451f6"
+      },
+      {
+        "bytes": 1510527,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-plate-glass.png",
+        "sha256": "7051026f19dc7525893ec9b8e7964072ca3c990e1c3d73dd50be8847b0e886ac"
+      },
+      {
+        "bytes": 1511971,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-row-48-padding-fixed.png",
+        "sha256": "e81db648e305b8df35f24b44ff5cab5e85cd9c60c53c411b49f5820bfaab757c"
+      },
+      {
+        "bytes": 1510089,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-special-list-insets.png",
+        "sha256": "b609f7cdfe7a27ed75c3cab7062205e3fbb2e83d2c61b9d11e81dc8b9f9590c8"
+      },
+      {
+        "bytes": 1510210,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-title-font.png",
+        "sha256": "7311ec623d0dffd7f7189802cb27fb58284ebd38090d6b449218fb95af4bed49"
+      },
+      {
+        "bytes": 1511485,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-width-224-gap-20.png",
+        "sha256": "c7f3b6ccc6f9d878020b25dee2fbfefdcc3d89aacd96c3ab950ef91833142821"
+      },
+      {
+        "bytes": 1511799,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-window-inset-16.png",
+        "sha256": "b8f3c5809fbe61335e1a445a01f3b8b25dfab0558d79ceb806853afeab9e1380"
+      },
+      {
+        "bytes": 1511796,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/source-sidebar-window-inset-8.png",
+        "sha256": "54cb9b2e5c0b70d605c4ffbfbbdb15fd2662cb08484c78acb3876ce705409255"
+      },
+      {
+        "bytes": 1110108,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/window-playback-canvas-full.png",
+        "sha256": "821233d94c7e5602bf238015629f25207513ffffd9cf3c55ac7a08f18992ab06"
+      },
+      {
+        "bytes": 1074038,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/window-playback-page.png",
+        "sha256": "db49b5a0b22354430a205211dc4d2c0372d0451ccaaff4a8147c589832da9609"
+      },
+      {
+        "bytes": 2192754,
+        "kind": "file",
+        "path": "docs/ui/screenshots/design-preview/xcode-window-playback-full.png",
+        "sha256": "37223d57941a91d3e70fc428cc2315b73424523fddbc01cb6053dad3d846e0dd"
+      }
+    ],
+    "identityAlgorithm": "sha256 of sorted kind, path, byte count, and file sha256 records",
+    "sha256": "d1260372b388a7d6cab3d13694affc8d7354809baa73186b06cdf8dba09029cb"
+  },
+  "repository": "/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron",
+  "results": [
+    "PlaybackCore SwiftPM: 74 passed, 0 failed, 0 skipped",
+    "EnchronMacOS: 32 passed (26 unit/integration + 6 UI), 0 failed, 0 skipped",
+    "visionOS simulator: 52 passed across 9 suites, 0 failed, 0 skipped",
+    "Product builds: Enchron visionOS, EnchronMacOS, DesignPreview succeeded",
+    "Gates: diff, playback surface, package membership, plist, and domain contracts passed"
+  ],
+  "schemaVersion": 1,
+  "toolchain": {
+    "os": "ProductName:\t\tmacOS\nProductVersion:\t\t27.0\nBuildVersion:\t\t26A5388g",
+    "swift": "swift-driver version: 1.168.4 Apple Swift version 6.4 (swiftlang-6.4.0.25.4 clang-2100.3.25.1)\nTarget: arm64-apple-macosx27.0.0",
+    "xcode": "Xcode 27.0\nBuild version 27A5218g"
+  }
+}
