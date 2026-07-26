@@ -126,6 +126,7 @@
 				MediaLibrary/Views/SourceSidebar.swift,
 				MediaLibrary/Views/VideoCardView.swift,
 				PlaybackFeature/PlaybackRuntime.swift,
+				PlaybackPresentation/Platform/PlaybackSurfaceRealityKitAdapter.swift,
 				PlaybackPresentation/Resources/Immersive_Space.reality,
 				PlaybackPresentation/Views/EnvironmentComponents.swift,
 				PlaybackPresentation/Views/PlaybackFormatters.swift,
