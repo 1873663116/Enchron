@@ -1,4 +1,5 @@
 import DesignSystem
+import PlaybackFeature
 import SwiftUI
 
 /// Vertical pill navigation for the main window's leading edge.
