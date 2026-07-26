@@ -21,12 +21,11 @@ struct PlaybackPresentationStateTests {
             playbackContext: playingContext()
         )
         let requestA = try #require(model.pendingSpatialPlatformEffect)
-        let claimA = try #require(
-            registry.claim(
-                requestID: requestA.id,
-                mediaSessionID: requestA.playbackTransportPlan?.mediaSessionID
-            )
+        let claimAValue = registry.claim(
+            requestID: requestA.id,
+            mediaSessionID: requestA.playbackTransportPlan?.mediaSessionID
         )
+        let claimA = try #require(claimAValue)
         #expect(
             model.claimSpatialPlatformEffect(
                 requestA.id,
@@ -56,9 +55,8 @@ struct PlaybackPresentationStateTests {
             actions.append("A-after-invalidation")
         }
 
-        let claimB = try #require(
-            registry.claim(requestID: requestB.id, mediaSessionID: nil)
-        )
+        let claimBValue = registry.claim(requestID: requestB.id, mediaSessionID: nil)
+        let claimB = try #require(claimBValue)
         #expect(
             model.claimSpatialPlatformEffect(
                 requestB.id,
@@ -113,9 +111,8 @@ struct PlaybackPresentationStateTests {
         )
         let request = try #require(model.pendingSpatialPlatformEffect)
         registry.register("first-root", id: firstRootID)
-        let firstClaim = try #require(
-            registry.claim(requestID: request.id, mediaSessionID: nil)
-        )
+        let firstClaimValue = registry.claim(requestID: request.id, mediaSessionID: nil)
+        let firstClaim = try #require(firstClaimValue)
         #expect(
             model.claimSpatialPlatformEffect(
                 request.id,
@@ -123,7 +120,8 @@ struct PlaybackPresentationStateTests {
             )
         )
 
-        let invalidated = try #require(registry.unregister(id: firstRootID))
+        let invalidatedValue = registry.unregister(id: firstRootID)
+        let invalidated = try #require(invalidatedValue)
         #expect(invalidated == firstClaim.lease)
         #expect(!registry.isLive(firstClaim.lease))
         #expect(
@@ -137,9 +135,8 @@ struct PlaybackPresentationStateTests {
         #expect(model.pendingSpatialPlatformEffect?.id == request.id)
 
         registry.register("second-root", id: secondRootID)
-        let secondClaim = try #require(
-            registry.claim(requestID: request.id, mediaSessionID: nil)
-        )
+        let secondClaimValue = registry.claim(requestID: request.id, mediaSessionID: nil)
+        let secondClaim = try #require(secondClaimValue)
         #expect(secondClaim.capability == "second-root")
         #expect(
             model.claimSpatialPlatformEffect(
