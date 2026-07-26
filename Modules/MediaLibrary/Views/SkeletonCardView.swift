@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 /// Placeholder card displayed in the grid while a data source is connecting.
@@ -7,7 +9,7 @@ struct SkeletonCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             // Thumbnail placeholder (16:9 aspect ratio, matches VideoCardView)
             RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-                .fill(Color.enchronSurfaceContainerHighest)
+                .fill(DesignTokens.Theme.surfaceContainerHighest)
                 .aspectRatio(16.0 / 9.0, contentMode: .fit)
 
             // Metadata placeholder rows

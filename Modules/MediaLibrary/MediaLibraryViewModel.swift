@@ -1,8 +1,8 @@
 @preconcurrency import AVFoundation
 import Foundation
+import MediaSource
 import Observation
 import OSLog
-import PlaybackCore
 @preconcurrency import Photos
 
 private struct SendableAVAsset: @unchecked Sendable {
@@ -21,14 +21,38 @@ private struct SendablePHAsset: @unchecked Sendable {
     }
 }
 
+private enum PhotoMediaVersionResolver {
+    @MainActor
+    static func resolve(localIdentifier: String) -> VersionedMediaIdentity? {
+        guard let asset = PHAsset.fetchAssets(
+            withLocalIdentifiers: [localIdentifier],
+            options: nil
+        ).firstObject,
+              let modifiedAt = asset.modificationDate else { return nil }
+        let versionToken = [
+            String(modifiedAt.timeIntervalSince1970.bitPattern),
+            String(asset.duration.bitPattern),
+            String(asset.pixelWidth),
+            String(asset.pixelHeight),
+        ].joined(separator: ":")
+        return VersionedMediaIdentity(
+            mediaIdentity: .photo(localIdentifier: localIdentifier),
+            contentRevision: .photo(
+                localIdentifier: localIdentifier,
+                versionToken: versionToken
+            )
+        )
+    }
+}
+
 @MainActor
 final class MediaReferenceResolver {
-    enum ResolutionError: LocalizedError {
+    public enum ResolutionError: LocalizedError {
         case unavailableFile
         case unavailablePhoto
         case unavailableSource
 
-        var errorDescription: String? {
+        public var errorDescription: String? {
             switch self {
             case .unavailableFile:
                 return "The original file is unavailable. Choose it again to restore access."
@@ -40,11 +64,11 @@ final class MediaReferenceResolver {
         }
     }
 
-    var resolveSourceItem: (@MainActor (
+    public var resolveSourceItem: (@MainActor (
         UUID,
         String,
         FileBrowsingDomain.MediaReference
-    ) async throws -> ResolvedPlaybackSource)?
+    ) async throws -> ResolvedMediaSource)?
 
     private let fileResolver = SecurityScopedFileReferenceResolver()
     private let fileManager: FileManager
@@ -55,13 +79,13 @@ final class MediaReferenceResolver {
         try? fileManager.removeItem(at: Self.photoStagingRoot(fileManager: fileManager))
     }
 
-    fileprivate func resolve(_ reference: FileBrowsingDomain.MediaReference) async throws -> ResolvedPlaybackSource {
+    fileprivate func resolve(_ reference: FileBrowsingDomain.MediaReference) async throws -> ResolvedMediaSource {
         switch reference.locator {
         case .file(let bookmark, let relativePath):
             let resolved = try fileResolver.resolve(bookmark: bookmark, relativePath: relativePath)
-            return ResolvedPlaybackSource(
+            return ResolvedMediaSource(
                 url: resolved.url,
-                sourceAccess: resolved.access
+                accessLease: resolved.access
             )
         case .photoAsset(let localIdentifier):
             return try await resolvePhoto(localIdentifier: localIdentifier)
@@ -71,23 +95,23 @@ final class MediaReferenceResolver {
         }
     }
 
-    private func resolvePhoto(localIdentifier: String) async throws -> ResolvedPlaybackSource {
+    private func resolvePhoto(localIdentifier: String) async throws -> ResolvedMediaSource {
         let result = PHAsset.fetchAssets(withLocalIdentifiers: [localIdentifier], options: nil)
         guard let asset = result.firstObject else { throw ResolutionError.unavailablePhoto }
         let requestedAsset = await Self.requestOriginalAsset(SendablePHAsset(value: asset))
         guard let avAsset = requestedAsset.value else { throw ResolutionError.unavailablePhoto }
         if let urlAsset = avAsset as? AVURLAsset {
-            let sourceAccess = PlaybackSourceAccess.retaining(avAsset, securityScoped: urlAsset.url)
+            let sourceAccess = MediaAccessLease.retaining(avAsset, securityScoped: urlAsset.url)
             if (try? urlAsset.url.checkResourceIsReachable()) == true {
                 logger.info("Photos source resolved as a directly readable file URL")
-                return ResolvedPlaybackSource(url: urlAsset.url, sourceAccess: sourceAccess)
+                return ResolvedMediaSource(url: urlAsset.url, accessLease: sourceAccess)
             }
             sourceAccess.release()
         }
         return try await stageOriginalPhoto(asset)
     }
 
-    private func stageOriginalPhoto(_ asset: PHAsset) async throws -> ResolvedPlaybackSource {
+    private func stageOriginalPhoto(_ asset: PHAsset) async throws -> ResolvedMediaSource {
         let resources = PHAssetResource.assetResources(for: asset)
         guard let resource = resources.first(where: { $0.type == .fullSizeVideo })
             ?? resources.first(where: { $0.type == .video })
@@ -125,9 +149,9 @@ final class MediaReferenceResolver {
         }
 
         logger.info("Photos source staged for FFmpeg playback file=\(destination.lastPathComponent, privacy: .public)")
-        return ResolvedPlaybackSource(
+        return ResolvedMediaSource(
             url: destination,
-            sourceAccess: PlaybackSourceAccess.temporaryFile(destination)
+            accessLease: MediaAccessLease.temporaryFile(destination)
         )
     }
 
@@ -156,102 +180,112 @@ final class MediaReferenceResolver {
 
 @MainActor
 @Observable
-final class MediaLibraryViewModel {
-    private(set) var library: FileBrowsingDomain.MediaLibrary
-    private(set) var currentFolderID: UUID?
-    private(set) var folderPath: [UUID] = []
-    var lastErrorMessage: String?
-    private(set) var currentReferenceID: UUID?
+public final class MediaLibraryViewModel {
+    public private(set) var library: FileBrowsingDomain.MediaLibrary
+    public private(set) var currentFolderID: UUID?
+    public private(set) var folderPath: [UUID] = []
+    public var lastErrorMessage: String?
+    public private(set) var currentReferenceID: UUID?
+    private var playbackCollection: [FileBrowsingDomain.MediaReference] = []
+    public private(set) var referenceViewingStates: [UUID: VideoCardViewingState] = [:]
 
     private let store: MediaLibraryStoring
     private let resolver: MediaReferenceResolver
     private let fileManager: FileManager
-    private let onPlay: @MainActor (PlaybackLaunchRequest) -> Void
+    private let viewingStateProvider: MediaViewingStateProvider
+    private let onPlay: @MainActor (MediaPlaybackItem) -> Void
 
     init(
         store: MediaLibraryStoring = UserDefaultsMediaLibraryStore(),
         resolver: MediaReferenceResolver,
         fileManager: FileManager = .default,
+        viewingStateProvider: @escaping MediaViewingStateProvider = { _ in nil },
         initialLibrary: FileBrowsingDomain.MediaLibrary? = nil,
-        onPlay: @escaping @MainActor (PlaybackLaunchRequest) -> Void
+        onPlay: @escaping @MainActor (MediaPlaybackItem) -> Void
     ) {
         self.store = store
         self.resolver = resolver
         self.fileManager = fileManager
+        self.viewingStateProvider = viewingStateProvider
         self.onPlay = onPlay
         if let initialLibrary {
             self.library = initialLibrary
         } else {
             self.library = (try? store.load()) ?? .init()
         }
+        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
     }
 
-    var folders: [FileBrowsingDomain.LibraryFolder] {
+    public var folders: [FileBrowsingDomain.LibraryFolder] {
         library.folders(in: currentFolderID)
     }
 
-    var references: [FileBrowsingDomain.MediaReference] {
+    public var references: [FileBrowsingDomain.MediaReference] {
         library.references(in: currentFolderID)
     }
 
-    var allFolders: [FileBrowsingDomain.LibraryFolder] {
+    public var allFolders: [FileBrowsingDomain.LibraryFolder] {
         collectFolders(in: nil)
     }
 
-    var currentFolderName: String {
+    public var currentFolderName: String {
         currentFolderID.flatMap { library.folder(id: $0)?.name } ?? "Media Library"
     }
 
-    var canNavigateUp: Bool { !folderPath.isEmpty }
+    public var canNavigateUp: Bool { !folderPath.isEmpty }
 
-    var breadcrumbFolders: [FileBrowsingDomain.LibraryFolder] {
+    public var breadcrumbFolders: [FileBrowsingDomain.LibraryFolder] {
         (folderPath + [currentFolderID].compactMap { $0 }).compactMap { library.folder(id: $0) }
     }
 
-    func createFolder(named name: String) {
+    public func createFolder(named name: String) {
         mutate {
             _ = try library.createFolder(named: name, in: currentFolderID)
         }
     }
 
-    func open(_ folder: FileBrowsingDomain.LibraryFolder) {
+    public func open(_ folder: FileBrowsingDomain.LibraryFolder) {
         if let currentFolderID { folderPath.append(currentFolderID) }
         currentFolderID = folder.id
+        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
     }
 
-    func navigateUp() {
+    public func navigateUp() {
         currentFolderID = folderPath.popLast()
+        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
     }
 
-    func navigateToRoot() {
+    public func navigateToRoot() {
         currentFolderID = nil
         folderPath.removeAll()
+        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
     }
 
-    func navigate(to folderID: UUID) {
+    public func navigate(to folderID: UUID) {
         guard let index = breadcrumbFolders.firstIndex(where: { $0.id == folderID }) else { return }
         let ids = breadcrumbFolders.prefix(index + 1).map(\.id)
         currentFolderID = ids.last
         folderPath = Array(ids.dropLast())
+        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
     }
 
-    func remove(_ reference: FileBrowsingDomain.MediaReference) {
+    public func remove(_ reference: FileBrowsingDomain.MediaReference) {
         mutate { library.removeReference(reference.id) }
     }
 
-    func rename(_ folder: FileBrowsingDomain.LibraryFolder, to name: String) {
+    public func rename(_ folder: FileBrowsingDomain.LibraryFolder, to name: String) {
         mutate { try library.renameFolder(folder.id, to: name) }
     }
 
-    func remove(_ folder: FileBrowsingDomain.LibraryFolder) {
+    public func remove(_ folder: FileBrowsingDomain.LibraryFolder) {
         mutate { library.removeFolder(folder.id) }
     }
 
-    func move(_ reference: FileBrowsingDomain.MediaReference, to folderID: UUID?) {
+    public func move(_ reference: FileBrowsingDomain.MediaReference, to folderID: UUID?) {
         mutate { try library.moveReference(reference.id, to: folderID) }
     }
 
-    func addFiles(_ urls: [URL]) {
+    public func addFiles(_ urls: [URL]) {
         mutate {
             for url in urls {
                 try addFile(url)
@@ -259,7 +293,7 @@ final class MediaLibraryViewModel {
         }
     }
 
-    func addFolder(_ folderURL: URL) {
+    public func addFolder(_ folderURL: URL) {
         mutate {
             let accessStarted = folderURL.startAccessingSecurityScopedResource()
             defer { if accessStarted { folderURL.stopAccessingSecurityScopedResource() } }
@@ -290,7 +324,7 @@ final class MediaLibraryViewModel {
         }
     }
 
-    func addPhotoItems(_ items: [(localIdentifier: String, name: String)]) {
+    public func addPhotoItems(_ items: [(localIdentifier: String, name: String)]) {
         mutate {
             for item in items {
                 try library.add(
@@ -301,25 +335,32 @@ final class MediaLibraryViewModel {
         }
     }
 
-    func addSourceFile(_ file: FileBrowsingDomain.MediaFile, dataSourceID: UUID, path: String) {
+    public func addSourceFile(
+        _ file: FileBrowsingDomain.MediaFile,
+        dataSource: FileBrowsingDomain.DataSource,
+        path: String
+    ) {
         mutate {
             try library.add(
                 .init(
                     name: file.name,
-                    locator: .sourceItem(dataSourceID: dataSourceID, path: path),
+                    locator: .sourceItem(dataSourceID: dataSource.id, path: path),
                     sizeInBytes: file.sizeInBytes,
                     modifiedAt: file.modifiedAt,
-                    fileExtension: file.fileExtension
+                    fileExtension: file.fileExtension,
+                    remoteEntityTag: file.remoteEntityTag,
+                    remoteSourceKey: dataSource.connectionInfo.mediaIdentitySourceKey
                 ),
                 to: currentFolderID
             )
         }
     }
 
-    func play(_ reference: FileBrowsingDomain.MediaReference) {
+    public func play(_ reference: FileBrowsingDomain.MediaReference) {
+        playbackCollection = Self.naturalPlaybackCollection(from: references)
         Task {
             do {
-                let request = try await playbackRequest(for: reference)
+                let request = try await playbackItem(for: reference)
                 currentReferenceID = reference.id
                 onPlay(request)
             } catch {
@@ -328,11 +369,13 @@ final class MediaLibraryViewModel {
         }
     }
 
-    func nextPlaybackRequest() async -> PlaybackLaunchRequest? {
+    public func nextPlaybackItem() async -> MediaPlaybackItem? {
         guard let currentReferenceID,
-              let next = library.nextReference(after: currentReferenceID) else { return nil }
+              let currentIndex = playbackCollection.firstIndex(where: { $0.id == currentReferenceID }),
+              playbackCollection.indices.contains(currentIndex + 1) else { return nil }
+        let next = playbackCollection[currentIndex + 1]
         do {
-            let request = try await playbackRequest(for: next)
+            let request = try await playbackItem(for: next)
             self.currentReferenceID = next.id
             return request
         } catch {
@@ -341,20 +384,98 @@ final class MediaLibraryViewModel {
         }
     }
 
-    private func playbackRequest(for reference: FileBrowsingDomain.MediaReference) async throws -> PlaybackLaunchRequest {
+    public var mediaCollectionSnapshot: MediaCollectionSnapshot {
+        MediaCollectionSnapshot(entries: playbackCollection.map {
+            MediaCollectionEntry(
+                id: $0.id,
+                displayName: $0.name,
+                isCurrent: $0.id == currentReferenceID
+            )
+        })
+    }
+
+    public func playbackItem(forCollectionItemID id: UUID) async -> MediaPlaybackItem? {
+        guard let reference = playbackCollection.first(where: { $0.id == id }) else { return nil }
+        do {
+            let request = try await playbackItem(for: reference)
+            currentReferenceID = reference.id
+            return request
+        } catch {
+            lastErrorMessage = error.localizedDescription
+            return nil
+        }
+    }
+
+    private func playbackItem(for reference: FileBrowsingDomain.MediaReference) async throws -> MediaPlaybackItem {
         let source = try await resolver.resolve(reference)
-        let identifier = PlaybackFileIdentifier.make(
-            path: "media-library/\(reference.id.uuidString)",
-            sizeInBytes: reference.sizeInBytes,
-            serverFingerprint: nil
-        )
-        return PlaybackLaunchRequest(
+        let versionedIdentity: VersionedMediaIdentity? = switch reference.locator {
+        case .file:
+            VersionedMediaIdentity.local(source.url)
+        case .sourceItem(let dataSourceID, let path):
+            VersionedMediaIdentity.remote(
+                sourceKey: reference.remoteSourceKey
+                    ?? "legacy:\(dataSourceID.uuidString.lowercased())",
+                canonicalPath: path,
+                entityTag: reference.remoteEntityTag,
+                sizeInBytes: reference.sizeInBytes,
+                modifiedAt: reference.modifiedAt
+            )
+        case .photoAsset(let localIdentifier):
+            PhotoMediaVersionResolver.resolve(localIdentifier: localIdentifier)
+        }
+        let stableIdentifier = "media-library/\(reference.id.uuidString)|\(reference.sizeInBytes)|local"
+        return MediaPlaybackItem(
+            id: reference.id,
             url: source.url,
             displayName: reference.name,
-            fileIdentifier: identifier,
-            initialMetadata: .init(fileSizeInBytes: reference.sizeInBytes),
-            sourceAccess: source.sourceAccess
+            stableIdentifier: stableIdentifier,
+            sizeInBytes: reference.sizeInBytes,
+            collectionOrigin: .mediaLibrary,
+            versionedIdentity: versionedIdentity,
+            accessLease: source.accessLease
         )
+    }
+
+    private static func naturalPlaybackCollection(
+        from references: [FileBrowsingDomain.MediaReference]
+    ) -> [FileBrowsingDomain.MediaReference] {
+        references.sorted {
+            NaturalMediaNameOrder.lessThan($0.name, id: $0.id, $1.name, id: $1.id)
+        }
+    }
+
+    private func loadViewingStatesForCurrentFolder() async {
+        let snapshot = references
+        var states: [UUID: VideoCardViewingState] = [:]
+        for reference in snapshot {
+            let identity: MediaIdentity?
+            switch reference.locator {
+            case .file:
+                if let source = try? await resolver.resolve(reference) {
+                    identity = VersionedMediaIdentity.localIdentity(source.url)
+                    source.accessLease?.release()
+                } else {
+                    identity = nil
+                }
+            case .sourceItem(let dataSourceID, let path):
+                identity = .remote(
+                    sourceKey: reference.remoteSourceKey
+                        ?? "legacy:\(dataSourceID.uuidString.lowercased())",
+                    canonicalPath: path
+                )
+            case .photoAsset(let localIdentifier):
+                identity = .photo(localIdentifier: localIdentifier)
+            }
+            guard let identity,
+                  let state = await viewingStateProvider(identity) else { continue }
+            states[reference.id] = state
+        }
+        guard snapshot.map(\.id) == references.map(\.id) else { return }
+        referenceViewingStates = states
+    }
+
+    public func refreshViewingStates() {
+        Task { await loadViewingStatesForCurrentFolder() }
     }
 
     private func addFile(_ url: URL) throws {

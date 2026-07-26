@@ -1,51 +1,39 @@
 import Foundation
 
-
 public nonisolated enum SpatialSceneDomain {}
 
 nonisolated extension SpatialSceneDomain {
     public enum CinemaEnvironment: String, Sendable, CaseIterable, Codable {
-        case darkTheatre
-        case starryNight
-        case sunsetNature
+        case enchron
 
         public init?(preferenceValue: String?) {
-            guard let preferenceValue else { return nil }
-            switch preferenceValue {
-            case Self.darkTheatre.rawValue, "Dark Cinema": self = .darkTheatre
-            case Self.starryNight.rawValue, "Starry Night": self = .starryNight
-            case Self.sunsetNature.rawValue, "Nature Sunset": self = .sunsetNature
-            default: return nil
-            }
+            guard preferenceValue != nil else { return nil }
+            self = .enchron
         }
+
+        public var displayName: String { "Enchron Environment" }
+    }
+
+    public enum EnvironmentEffect: String, Sendable, CaseIterable, Codable {
+        case day
+        case night
+
+        public static let inactiveFallback: Self = .day
 
         public var displayName: String {
             switch self {
-            case .darkTheatre: return "Dark Theatre"
-            case .starryNight: return "Starry Night"
-            case .sunsetNature: return "Nature Sunset"
-            }
-        }
-
-        public var skyboxAssetName: String? {
-            switch self {
-            case .darkTheatre: return nil
-            case .starryNight: return "StarryNight"
-            case .sunsetNature: return "SunsetNature"
+            case .day: "Day"
+            case .night: "Night"
             }
         }
     }
-}
 
+    public typealias EnvironmentAppearance = EnvironmentEffect
+}
 
 public nonisolated enum EnvironmentSceneMapping {
     public static let worldSceneName = "world"
 
-    public static func sceneName(forEnvironmentID _: String) -> String {
-        worldSceneName
-    }
-
-    public static func defaultScreenScale(forEnvironmentID _: String) -> Double {
-        1.3
-    }
+    public static func sceneName(forEnvironmentID _: String) -> String { worldSceneName }
+    public static func defaultScreenScale(forEnvironmentID _: String) -> Double { 1.3 }
 }

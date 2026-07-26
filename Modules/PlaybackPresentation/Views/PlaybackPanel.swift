@@ -1,3 +1,6 @@
+import DesignSystem
+import PlaybackFeature
+import PlaybackPresentation
 import SwiftUI
 
 
@@ -11,8 +14,15 @@ struct FusedPlayerPanelLive {
     var canEnterPanorama: Bool
     var screenScale: Double
     var recommendedScreenScale: Double
+    var screenDistance: Double
+    var screenElevationDegrees: Double
+    var projection: PlaybackModel.ProjectionType
+    var stereoLayout: PlaybackModel.StereoLayout
+    var canUseFisheye: Bool
     var isPlaying: Bool
     var showsReplay: Bool
+    var canSkipForward: Bool
+    var canStepForward: Bool
     var progress: CGFloat
     var elapsedLabel: String
     var remainingLabel: String
@@ -22,12 +32,18 @@ struct FusedPlayerPanelLive {
     var onSkipBackward: () -> Void
     var onSkipForward: () -> Void
     var onSeek: (CGFloat) -> Void
+    var onPrecisionSeek: (CGFloat) -> Void
     var onFrameStep: (Int) -> Void
     var onEnterPanorama: () -> Void
     var onEnterImmersive: () -> Void
     var onExitSpatial: () -> Void
-    var onSetScreenScale: (Double) -> Void
-    var onResetScreenScale: () -> Void
+    var onExitPlayback: () -> Void
+    var onSetScreenScale: @MainActor @Sendable (Double) -> Void
+    var onSetScreenDistance: @MainActor @Sendable (Double) -> Void
+    var onSetScreenElevation: @MainActor @Sendable (Double) -> Void
+    var onResetDockedPlacement: () -> Void
+    var onApplyFormat: (PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void
+    var onResetFormat: () -> Void
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -40,12 +56,10 @@ struct FusedPlayerPanel: View {
 
     init(
         live: FusedPlayerPanelLive? = nil,
-        onInteraction: @escaping () -> Void = {},
-        initialTimelineExpanded: Bool = false
+        onInteraction: @escaping () -> Void = {}
     ) {
         self.live = live
         self.onInteraction = onInteraction
-        _timelineExpanded = State(initialValue: initialTimelineExpanded)
     }
 
     @State private var timelineExpanded = false
@@ -70,6 +84,8 @@ struct FusedPlayerPanel: View {
     @State private var selectedSubtitle = "Off"
     @State private var selectedAudioTrack = "English 5.1"
     @State private var selectedSpeed = "1×"
+    @State private var advancedProjection: PlaybackModel.ProjectionType = .flat
+    @State private var advancedStereoLayout: PlaybackModel.StereoLayout = .mono
     @Namespace private var hoverNamespace
 
     private enum ProgressBoundary { case minimum, maximum }
@@ -97,8 +113,12 @@ struct FusedPlayerPanel: View {
         VStack(spacing: DesignTokens.Spacing.md) {
             controlsRow
 
-            if let live, live.presentation == .docked {
-                screenSizeControl(live)
+            if timelineExpanded, let live, live.presentation == .docked {
+                dockedPlacementControls(live)
+            }
+
+            if timelineExpanded, let live, live.presentation == .panorama {
+                panoramaFormatControls(live)
             }
 
             // 控件簇第二行(与按钮同属"播放控制",无分界线):时间轴收起时是进度条
@@ -112,13 +132,13 @@ struct FusedPlayerPanel: View {
         }
         .padding(DesignTokens.Spacing.xl)
         .clipShape(shape)
-        .glassBackgroundEffect(in: shape)
+        .enchronGlassBackground(in: shape)
         // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
         .animation(DesignTokens.AnimationToken.panelSpring, value: timelineExpanded)
-        .sensoryFeedback(.press(.slider), trigger: scrubFeedbackTrigger)
-        .sensoryFeedback(.selection(.minimum), trigger: minimumBoundaryFeedbackTrigger)
-        .sensoryFeedback(.selection(.maximum), trigger: maximumBoundaryFeedbackTrigger)
-        .sensoryFeedback(.selection(.on), trigger: timelineFeedbackTrigger)
+        .enchronPressSensoryFeedback(.slider, trigger: scrubFeedbackTrigger)
+        .enchronPressSensoryFeedback(.selectionMinimum, trigger: minimumBoundaryFeedbackTrigger)
+        .enchronPressSensoryFeedback(.selectionMaximum, trigger: maximumBoundaryFeedbackTrigger)
+        .enchronPressSensoryFeedback(.selectionOn, trigger: timelineFeedbackTrigger)
         .onChange(of: live?.progress) { _, newValue in
             // 锁存释放:player 报告的位置追上(容差内)目标即放行。
             guard let target = pendingSeekTarget, let newValue else { return }
@@ -133,39 +153,108 @@ struct FusedPlayerPanel: View {
         }
     }
 
-    private func screenSizeControl(_ live: FusedPlayerPanelLive) -> some View {
-        HStack(spacing: DesignTokens.Spacing.md) {
-            Text("Screen Size")
-                .font(DesignTokens.Typography.metadata)
-
-            Slider(
-                value: Binding(
-                    get: { live.screenScale },
-                    set: { live.onSetScreenScale($0) }
-                ),
-                in: PlaybackScreenSize.scaleRange,
-                step: PlaybackScreenSize.scaleStep,
-                onEditingChanged: { _ in onInteraction() }
-            )
-            .accessibilityIdentifier("PlayerPanel-ScreenSize-slider")
-            .accessibilityLabel("Screen Size")
-            .accessibilityValue("\(Int((live.screenScale * 100).rounded())) percent")
-
-            Text("\(Int((live.screenScale * 100).rounded()))%")
-                .font(DesignTokens.Typography.metadata.monospacedDigit())
-                .frame(minWidth: 52, alignment: .trailing)
-                .accessibilityIdentifier("PlayerPanel-ScreenSize-value")
-
-            Button("Reset") {
-                onInteraction()
-                live.onResetScreenScale()
+    private func panoramaFormatControls(_ live: FusedPlayerPanelLive) -> some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            Picker("Projection", selection: $advancedProjection) {
+                Text("180°").tag(PlaybackModel.ProjectionType.equirectangular180)
+                Text("360°").tag(PlaybackModel.ProjectionType.equirectangular360)
+                if live.canUseFisheye {
+                    Text("Fisheye").tag(PlaybackModel.ProjectionType.fisheye)
+                }
             }
-            .buttonStyle(.borderless)
-            .disabled(abs(live.screenScale - live.recommendedScreenScale) < 0.001)
-            .accessibilityIdentifier("PlayerPanel-ScreenSize-reset")
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("PlayerPanel-Advanced-Projection")
+
+            Picker("Stereo Layout", selection: $advancedStereoLayout) {
+                Text("Mono").tag(PlaybackModel.StereoLayout.mono)
+                Text("Side-by-Side").tag(PlaybackModel.StereoLayout.sideBySide)
+                Text("Top-Bottom").tag(PlaybackModel.StereoLayout.topBottom)
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("PlayerPanel-Advanced-StereoLayout")
+
+            HStack {
+                Button("Reset to Flat + Mono") { live.onResetFormat() }
+                    .accessibilityIdentifier("PlayerPanel-Advanced-ResetFormat")
+                Spacer()
+                Button("Apply") {
+                    live.onApplyFormat(advancedProjection, advancedStereoLayout)
+                }
+                .buttonStyle(.borderedProminent)
+                .accessibilityIdentifier("PlayerPanel-Advanced-ApplyFormat")
+            }
+        }
+    }
+
+    private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            placementSlider(
+                title: "Screen Size",
+                value: live.screenScale,
+                range: PlaybackScreenSize.scaleRange,
+                step: PlaybackScreenSize.scaleStep,
+                valueLabel: "\(Int((live.screenScale * 100).rounded()))%",
+                identifier: "ScreenSize",
+                onChange: live.onSetScreenScale
+            )
+            placementSlider(
+                title: "Distance",
+                value: live.screenDistance,
+                range: PlaybackDockedPlacement.distanceRange,
+                step: PlaybackDockedPlacement.distanceStep,
+                valueLabel: String(format: "%.1f m", live.screenDistance),
+                identifier: "Distance",
+                onChange: live.onSetScreenDistance
+            )
+            placementSlider(
+                title: "Elevation",
+                value: live.screenElevationDegrees,
+                range: PlaybackDockedPlacement.elevationRange,
+                step: PlaybackDockedPlacement.elevationStep,
+                valueLabel: "\(Int(live.screenElevationDegrees.rounded()))°",
+                identifier: "Elevation",
+                onChange: live.onSetScreenElevation
+            )
+            HStack {
+                Spacer()
+                Button("Restore Defaults") {
+                    onInteraction()
+                    live.onResetDockedPlacement()
+                }
+                .buttonStyle(.borderless)
+                .accessibilityIdentifier("PlayerPanel-DockedPlacement-reset")
+            }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("PlayerPanel-ScreenSize")
+        .accessibilityIdentifier("PlayerPanel-DockedPlacement")
+    }
+
+    private func placementSlider(
+        title: String,
+        value: Double,
+        range: ClosedRange<Double>,
+        step: Double,
+        valueLabel: String,
+        identifier: String,
+        onChange: @escaping @MainActor @Sendable (Double) -> Void
+    ) -> some View {
+        HStack(spacing: DesignTokens.Spacing.md) {
+            Text(title)
+                .font(DesignTokens.Typography.metadata)
+                .frame(width: 100, alignment: .leading)
+            Slider(
+                value: Binding(get: { value }, set: onChange),
+                in: range,
+                step: step,
+                onEditingChanged: { _ in onInteraction() }
+            )
+            .accessibilityIdentifier("PlayerPanel-\(identifier)-slider")
+            .accessibilityLabel(title)
+            .accessibilityValue(valueLabel)
+            Text(valueLabel)
+                .font(DesignTokens.Typography.metadata.monospacedDigit())
+                .frame(minWidth: 64, alignment: .trailing)
+        }
     }
 
     @ViewBuilder
@@ -174,42 +263,39 @@ struct FusedPlayerPanel: View {
             HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
                 GlassCircleIconButton(
                     systemName: "slider.horizontal.3",
-                    accessibilityLabel: timelineExpanded ? "Collapse playback panel" : "Expand playback panel",
+                    accessibilityLabel: timelineExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
                     action: { timelineExpanded ? closeTimeline() : openTimeline() },
                     accessibilityIdentifier: "PlayerPanel-button-expand"
                 )
-                GlassCircleIconButton(
-                    systemName: "square.stack.3d.up",
-                    accessibilityLabel: "Docking",
-                    action: { live?.onEnterImmersive() },
-                    accessibilityIdentifier: "PlayerPanel-button-dock"
-                )
-                .keyboardShortcut("d", modifiers: [.command, .shift])
-                .disabled(!(live?.canDock ?? true))
                 rewindButton
                 playButton
                 forwardButton
-                #if os(visionOS)
-                GlassCircleIconButton(
-                    systemName: "pano",
-                    accessibilityLabel: "Panorama",
-                    action: { live?.onEnterPanorama() },
-                    accessibilityIdentifier: "PlayerPanel-button-panorama"
-                )
-                .disabled(!(live?.canEnterPanorama ?? true))
-                #endif
                 moreMenu
             }
             .frame(width: clusterWidth)
         } else if let live {
             HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                if live.presentation == .panorama {
+                    GlassCircleIconButton(
+                        systemName: "chevron.left",
+                        accessibilityLabel: "Back to Media Library",
+                        action: live.onExitPlayback,
+                        accessibilityIdentifier: "PlayerPanel-button-back"
+                    )
+                }
                 GlassCircleIconButton(
-                    systemName: live.presentation == .docked ? "rectangle.portrait.and.arrow.forward" : "pano",
-                    accessibilityLabel: live.presentation == .docked ? "Undock" : "Exit Panorama",
+                    systemName: "rectangle.portrait.and.arrow.forward",
+                    accessibilityLabel: "Return to Window",
                     action: live.onExitSpatial,
                     accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
                 )
                 .keyboardShortcut(.escape, modifiers: [])
+                GlassCircleIconButton(
+                    systemName: "slider.horizontal.3",
+                    accessibilityLabel: timelineExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
+                    action: { timelineExpanded ? closeTimeline() : openTimeline() },
+                    accessibilityIdentifier: "PlayerPanel-button-expand"
+                )
                 rewindButton
                 playButton
                 forwardButton
@@ -237,6 +323,11 @@ struct FusedPlayerPanel: View {
             accessibilityIdentifier: "PlayerPanel-button-forward"
         )
         .keyboardShortcut(.rightArrow, modifiers: [])
+        .disabled(
+            timelineExpanded
+                ? live?.canStepForward == false
+                : live?.canSkipForward == false
+        )
     }
 
     // ⋯ 菜单:玻璃圆(GlassCircleIconLabel)作 Menu label,内容 live 注入时来自产品层、
@@ -443,7 +534,7 @@ struct FusedPlayerPanel: View {
         let target = CGFloat(min(max(seconds / timelineDuration, 0), 1))
         progress = target
         pendingSeekTarget = target
-        live.onSeek(target)
+        live.onPrecisionSeek(target)
     }
 
     private func beginTimelineSeek() {
@@ -553,7 +644,7 @@ struct FusedPlayerPanel: View {
                 Capsule()
                     .fill(.clear)
                     .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
-                    .glassBackgroundEffect(in: Capsule())
+                    .enchronGlassBackground(in: Capsule())
 
                 progressTrackLayer(
                     railWidth: overlayWidth,
@@ -632,7 +723,7 @@ struct FusedPlayerPanel: View {
         .monospacedDigit()
         .padding(.horizontal, DesignTokens.ProgressBar.timeBubblePaddingH)
         .padding(.vertical, DesignTokens.ProgressBar.timeBubblePaddingV)
-        .glassBackgroundEffect(in: bubbleShape)
+        .enchronGlassBackground(in: bubbleShape)
     }
 
     private func scrubberControl(width: CGFloat) -> some View {
@@ -729,7 +820,10 @@ struct FusedPlayerPanel: View {
     }
 
     private func openTimeline() {
-        onInteraction()
+        if let live {
+            advancedProjection = live.projection
+            advancedStereoLayout = live.stereoLayout
+        }
         var transaction = Transaction()
         transaction.animation = nil
         withTransaction(transaction) {
@@ -738,11 +832,12 @@ struct FusedPlayerPanel: View {
         }
         timelineFeedbackTrigger += 1
         withAnimation(DesignTokens.AnimationToken.panelSpring) { timelineExpanded = true }
+        onInteraction()
     }
 
     private func closeTimeline() {
-        onInteraction()
         withAnimation(DesignTokens.AnimationToken.panelSpring) { timelineExpanded = false }
+        onInteraction()
     }
 
     private func isThumbHit(_ location: CGPoint, thumbX: CGFloat) -> Bool {

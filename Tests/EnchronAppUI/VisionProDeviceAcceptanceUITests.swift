@@ -19,17 +19,21 @@ nonisolated final class VisionProDeviceAcceptanceUITests: XCTestCase {
         XCTAssertTrue(dock.waitForExistence(timeout: 20))
         dock.tap()
 
-        let environment = app.descendants(matching: .any)["PlayerUI-DockMenu-darkTheatre"].firstMatch
+        let environment = app.descendants(matching: .any)["PlayerUI-DockMenu-day"].firstMatch
         XCTAssertTrue(environment.waitForExistence(timeout: 5))
         environment.tap()
 
         let exitSpatial = app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 20))
-        XCTAssertEqual(exitSpatial.label, "Undock")
+        XCTAssertEqual(exitSpatial.label, "Return to Window")
+        let settings = app.descendants(matching: .any)["PlayerPanel-button-expand"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"]
                 .waitForExistence(timeout: 5)
         )
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
         exitSpatial.tap()
         XCTAssertTrue(dock.waitForExistence(timeout: 20))
 
@@ -43,9 +47,14 @@ nonisolated final class VisionProDeviceAcceptanceUITests: XCTestCase {
         app.buttons["PlayerUI-VideoFormat-apply"].tap()
 
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 20))
-        XCTAssertEqual(exitSpatial.label, "Exit Panorama")
+        XCTAssertEqual(exitSpatial.label, "Return to Window")
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
         exitSpatial.tap()
-        XCTAssertTrue(format.waitForExistence(timeout: 20))
+        XCTAssertTrue(
+            app.descendants(matching: .any)["PlayerUI-TopAction-resumePanorama"]
+                .waitForExistence(timeout: 20)
+        )
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-TopAction-dock"].exists)
     }
 
 }

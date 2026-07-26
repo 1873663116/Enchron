@@ -1,5 +1,9 @@
 import Foundation
+import MediaLibrary
+import MediaSource
 import Observation
+import PlaybackFeature
+import PlaybackPresentation
 import PlaybackCore
 @preconcurrency import Photos
 import SwiftUI
@@ -12,15 +16,19 @@ final class EnchronApplication {
     let fileBrowsingViewModel: FileBrowsingViewModel
     let mediaLibraryViewModel: MediaLibraryViewModel
     let playbackLauncher: PlaybackLaunchCoordinator
+    let settingsViewModel: SettingsViewModel
     let thumbnailService: ThumbnailService
+    #if os(visionOS)
+    let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
+    #endif
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let isUITesting = environment["ENCHRON_UI_TESTING"] == "1"
+        let defaultsSuiteName = isUITesting ? "app.enchron.ui-testing" : nil
         let defaults: UserDefaults
-        if isUITesting {
-            let suiteName = "app.enchron.ui-testing"
-            defaults = UserDefaults(suiteName: suiteName) ?? .standard
-            defaults.removePersistentDomain(forName: suiteName)
+        if let defaultsSuiteName {
+            defaults = UserDefaults(suiteName: defaultsSuiteName) ?? .standard
+            defaults.removePersistentDomain(forName: defaultsSuiteName)
         } else {
             defaults = .standard
         }
@@ -28,65 +36,109 @@ final class EnchronApplication {
             defaults.removeObject(forKey: "enchron.mediaLibrary")
         }
 
-        let progressStore = PlaybackProgressStore(defaults: defaults)
-        let screenPositionStore = ScreenPositionStore(defaults: defaults)
-        let preferencesStore = UserDefaultsStore(defaults: defaults)
+        let screenPositionStore = PlaybackPresentationStorage.makeScreenPositionStore(
+            suiteName: defaultsSuiteName
+        )
+        let playbackSpeedOverride = environment["ENCHRON_PLAYBACK_SPEED_OVERRIDE"].flatMap(Double.init)
+            .map { PlaybackModel.PlaybackSpeed($0).value }
+        let preferencesStore = UserDefaultsStore(
+            defaults: defaults,
+            playbackSpeedOverride: playbackSpeedOverride
+        )
         if isUITesting {
             preferencesStore.savePreferences(
                 .init(resumePolicy: .alwaysStartFromBeginning)
             )
         }
-
-        let appModel = AppModel(screenPositionStore: screenPositionStore)
-        let playbackRuntime = PlaybackRuntime(isUITestFixture: isUITesting)
-        let metadataService = PlaybackMediaMetadataService()
-        let prefetchService = MediaProfilePrefetchService(metadataService: metadataService)
+        let appModel = AppModel(
+            playbackPresentationModel: PlaybackPresentationModel(
+                screenPositionStore: screenPositionStore
+            )
+        )
+        let playbackRuntime = PlaybackRuntime(
+            isUITestFixture: isUITesting,
+            fixtureStartsEnded: isUITesting && environment["ENCHRON_UI_TEST_ENDED"] == "1"
+        )
         let launcher = PlaybackLaunchCoordinator(
             playbackRuntime: playbackRuntime,
-            progressStore: progressStore,
-            preferencesStore: preferencesStore,
-            metadataService: metadataService,
-            prefetchService: prefetchService
+            mediaStateSuiteName: defaultsSuiteName,
+            preferencesProvider: preferencesStore
         )
-        let mediaReferenceResolver = MediaReferenceResolver()
-        let fixtureSourceID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
-        let mediaLibraryStore = UserDefaultsMediaLibraryStore(defaults: defaults)
-        let mediaLibrary = MediaLibraryViewModel(
-            store: mediaLibraryStore,
-            resolver: mediaReferenceResolver,
-            initialLibrary: isUITesting ? Self.makeUITestLibrary(sourceID: fixtureSourceID) : nil,
-            onPlay: launcher.requestPlayback
-        )
-        let dataSource: any LocalFileSource = isUITesting
-            ? FakeFileDataSource(catalog: .demo)
-            : LocalDataSourceAdapter()
-        let browser = FileBrowsingViewModel(
-            localDataSource: dataSource,
-            localDataSourceID: fixtureSourceID,
-            prefetchService: prefetchService,
-            onPlayFile: launcher.requestPlayback
-        )
-
-        mediaReferenceResolver.resolveSourceItem = { [weak browser] sourceID, path, reference in
-            guard let browser else {
-                throw MediaReferenceResolver.ResolutionError.unavailableSource
+        launcher.onResolvedLaunchFormatApplied = { [weak appModel] format in
+            guard let appModel,
+                  appModel.pendingSpatialPlatformEffect == nil else { return }
+            if format.projection.isPanoramic {
+                switch appModel.playbackPresentation {
+                case .window:
+                    _ = try? appModel.requestPlaybackPresentation(
+                        .panorama,
+                        mediaSessionID: playbackRuntime.activeSessionID,
+                        wasPlaying: playbackRuntime.productLifecycle == .playing
+                    )
+                case .docked:
+                    appModel.setAutomaticPanoramaEntryPending(true)
+                    _ = try? appModel.requestPlaybackPresentation(
+                        .window,
+                        mediaSessionID: playbackRuntime.activeSessionID,
+                        wasPlaying: playbackRuntime.productLifecycle == .playing
+                    )
+                case .panorama:
+                    appModel.setAutomaticPanoramaEntryPending(false)
+                }
+            } else {
+                appModel.setAutomaticPanoramaEntryPending(false)
+                if appModel.playbackPresentation == .panorama {
+                    _ = try? appModel.requestPlaybackPresentation(
+                        .window,
+                        mediaSessionID: playbackRuntime.activeSessionID,
+                        wasPlaying: playbackRuntime.productLifecycle == .playing
+                    )
+                }
             }
-            return try await browser.resolveSourceItem(
-                dataSourceID: sourceID,
-                path: path,
-                reference: reference
-            )
         }
+        let fixtureSourceID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
+        let mediaLibraryFeature = MediaLibraryFeature(
+            sourceMode: isUITesting ? .uiTestFixture(sourceID: fixtureSourceID) : .production,
+            defaultsSuiteName: defaultsSuiteName,
+            viewingStateProvider: Self.viewingStateProvider(launcher),
+            onPlay: { launcher.requestPlayback($0.playbackLaunchRequest) }
+        )
+        let mediaLibrary = mediaLibraryFeature.library
+        let browser = mediaLibraryFeature.browser
 
         launcher.nextFileProvider = { [weak mediaLibrary, weak browser, weak playbackRuntime] in
-            if let next = await mediaLibrary?.nextPlaybackRequest() {
-                return next
+            switch playbackRuntime?.currentLaunchRequest?.collectionOrigin {
+            case .mediaLibrary:
+                return await mediaLibrary?.nextPlaybackItem()?.playbackLaunchRequest
+            case .sourceDirectory:
+                return await browser?.nextPlaybackItem()?.playbackLaunchRequest
+            case .standalone, nil:
+                return nil
             }
-            guard let browser,
-                  let request = playbackRuntime?.currentLaunchRequest,
-                  let index = browser.files.firstIndex(where: { $0.name == request.displayName }),
-                  browser.files.indices.contains(index + 1) else { return nil }
-            return try? await browser.playbackRequest(for: browser.files[index + 1])
+        }
+        launcher.playbackQueueProvider = { [weak mediaLibrary, weak browser, weak playbackRuntime] in
+            switch playbackRuntime?.currentLaunchRequest?.collectionOrigin {
+            case .mediaLibrary:
+                return mediaLibrary?.mediaCollectionSnapshot.playbackQueueSnapshot ?? .empty
+            case .sourceDirectory:
+                return browser?.mediaCollectionSnapshot.playbackQueueSnapshot ?? .empty
+            case .standalone, nil:
+                return .empty
+            }
+        }
+        launcher.queueSelectionProvider = { [weak mediaLibrary, weak browser, weak playbackRuntime] id in
+            switch playbackRuntime?.currentLaunchRequest?.collectionOrigin {
+            case .mediaLibrary:
+                return await mediaLibrary?.playbackItem(forCollectionItemID: id)?.playbackLaunchRequest
+            case .sourceDirectory:
+                return await browser?.playbackItem(forCollectionItemID: id)?.playbackLaunchRequest
+            case .standalone, nil:
+                return nil
+            }
+        }
+        launcher.onViewingStatesCleared = { [weak mediaLibrary, weak browser] in
+            mediaLibrary?.refreshViewingStates()
+            browser?.refreshViewingStates()
         }
 
         let preferences = preferencesStore.loadPreferences()
@@ -96,22 +148,29 @@ final class EnchronApplication {
         } else {
             appModel.controlsAutoHideSeconds = preferences.controlsAutoHideSeconds
         }
-        if let environment = SpatialSceneDomain.CinemaEnvironment(
+        let configuredEnvironment = SpatialSceneDomain.CinemaEnvironment(
             preferenceValue: preferences.defaultEnvironmentID
-        ) {
-            appModel.currentCinemaEnvironment = environment
-        }
+        ) ?? appModel.currentCinemaEnvironment
+        appModel.configureDefaultEnvironment(configuredEnvironment)
 
         self.appModel = appModel
         self.playbackRuntime = playbackRuntime
+        #if os(visionOS)
+        let spatialPlatformEffectCoordinator = SpatialPlatformEffectCoordinator(
+            appModel: appModel,
+            playbackRuntime: playbackRuntime
+        )
+        self.spatialPlatformEffectCoordinator = spatialPlatformEffectCoordinator
+        playbackRuntime.setSessionLifecycleHandler {
+            [weak spatialPlatformEffectCoordinator] event in
+            spatialPlatformEffectCoordinator?.playbackSessionLifecycleChanged(event)
+        }
+        #endif
         fileBrowsingViewModel = browser
         mediaLibraryViewModel = mediaLibrary
         playbackLauncher = launcher
+        settingsViewModel = SettingsViewModel(store: preferencesStore)
         thumbnailService = .shared
-
-        Task.detached(priority: .background) {
-            await progressStore.cleanExpiredProgress(olderThan: 5)
-        }
 
         Self.beginAutoplayIfRequested(
             environment: environment,
@@ -190,17 +249,54 @@ final class EnchronApplication {
         }
     }
 
-    private static func makeUITestLibrary(sourceID: UUID) -> FileBrowsingDomain.MediaLibrary {
-        var library = FileBrowsingDomain.MediaLibrary()
-        for name in ["Interstellar.mkv", "The Matrix.mkv", "Arrival.mkv"] {
-            try? library.add(
-                .init(
-                    name: name,
-                    locator: .sourceItem(dataSourceID: sourceID, path: "fake:///\(name)")
+    private static func viewingStateProvider(
+        _ launcher: PlaybackLaunchCoordinator
+    ) -> MediaViewingStateProvider {
+        { identity in
+            switch await launcher.viewingState(for: identity) {
+            case .resumable(let position, let duration):
+                VideoCardViewingState(
+                    positionSeconds: position,
+                    durationSeconds: duration,
+                    isCompleted: false
                 )
-            )
+            case .completed(let duration):
+                VideoCardViewingState(
+                    positionSeconds: duration,
+                    durationSeconds: duration,
+                    isCompleted: true
+                )
+            case nil:
+                nil
+            }
         }
-        return library
+    }
+}
+
+private extension MediaPlaybackItem {
+    var playbackLaunchRequest: PlaybackLaunchRequest {
+        let playbackOrigin: PlaybackCollectionOrigin = switch collectionOrigin {
+        case .standalone: .standalone
+        case .mediaLibrary: .mediaLibrary
+        case .sourceDirectory: .sourceDirectory
+        }
+        return PlaybackLaunchRequest(
+            url: url,
+            displayName: displayName,
+            fileIdentifier: stableIdentifier.map(PlaybackFileIdentifier.init(rawValue:)),
+            initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: sizeInBytes),
+            collectionOrigin: playbackOrigin,
+            versionedIdentity: versionedIdentity,
+            sourceAccess: accessLease
+        )
+    }
+}
+
+private extension MediaCollectionSnapshot {
+    var playbackQueueSnapshot: PlaybackQueueSnapshot {
+        PlaybackQueueSnapshot(entries: entries.map {
+            PlaybackQueueEntry(id: $0.id, displayName: $0.displayName, isCurrent: $0.isCurrent)
+        })
     }
 }
 
@@ -208,9 +304,13 @@ extension View {
     func enchronEnvironment(_ application: EnchronApplication) -> some View {
         environment(application.appModel)
             .environment(application.playbackRuntime)
+            #if os(visionOS)
+            .environment(application.spatialPlatformEffectCoordinator)
+            #endif
             .environment(application.fileBrowsingViewModel)
             .environment(application.mediaLibraryViewModel)
             .environment(application.playbackLauncher)
+            .environment(application.settingsViewModel)
             .environment(application.thumbnailService)
     }
 }

@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 /// A card component displaying a video file with thumbnail placeholder,
@@ -6,7 +8,7 @@ import SwiftUI
 /// Badge Z offsets create parallax bounce on visionOS hover (system behavior).
 struct VideoCardView: View {
     let file: FileBrowsingDomain.MediaFile
-    let watchedSeconds: Double?
+    let viewingState: VideoCardViewingState?
     let onTap: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -53,7 +55,7 @@ struct VideoCardView: View {
         ZStack {
             // Placeholder or loaded thumbnail (16:9 aspect)
             RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous)
-                .fill(Color.enchronSurfaceContainerHighest)
+                .fill(DesignTokens.Theme.surfaceContainerHighest)
                 .aspectRatio(16.0 / 9.0, contentMode: .fit)
                 .overlay {
                     if let cgImage = thumbnail {
@@ -65,7 +67,7 @@ struct VideoCardView: View {
                     } else {
                         Image(systemName: fileIcon)
                             .font(DesignTokens.SymbolSize.card)
-                            .foregroundStyle(Color.enchronOnSurfaceVariant.opacity(0.5))
+                            .foregroundStyle(DesignTokens.Theme.onSurfaceVariant.opacity(0.5))
                     }
                 }
                 .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
@@ -95,10 +97,10 @@ struct VideoCardView: View {
             .padding(10)
 
             // Watched progress bar
-            if let seconds = watchedSeconds, seconds > 0 {
+            if let viewingState, viewingState.progress > 0 {
                 VStack {
                     Spacer()
-                    ProgressView(value: min(seconds / 3600.0, 1.0))
+                    ProgressView(value: viewingState.progress)
                         .tint(.orange)
                         .padding(.horizontal, 6)
                         .padding(.bottom, 4)
@@ -122,14 +124,14 @@ struct VideoCardView: View {
                 Text(formattedDate)
             }
             .font(DesignTokens.Typography.metadata)
-            .foregroundStyle(Color.enchronOnSurfaceVariant.opacity(0.6))
+            .foregroundStyle(DesignTokens.Theme.onSurfaceVariant.opacity(0.6))
 
-            if let seconds = watchedSeconds, seconds > 0 {
+            if let viewingState, viewingState.progress > 0 {
                 HStack(spacing: 4) {
                     Circle()
                         .fill(.orange)
                         .frame(width: 6, height: 6)
-                    Text("Watched \(Self.formatTime(seconds))")
+                    Text(viewingState.isCompleted ? "Completed" : "Resume at \(Self.formatTime(viewingState.positionSeconds))")
                         .font(.caption2)
                         .foregroundStyle(.orange)
                 }
@@ -151,7 +153,7 @@ struct VideoCardView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous))
-            .foregroundStyle(Color.enchronTertiary)
+            .foregroundStyle(DesignTokens.Theme.tertiary)
     }
 
     // MARK: - Helpers
@@ -192,8 +194,8 @@ struct VideoCardView: View {
         if let badge = formatBadgeText {
             parts.append(badge)
         }
-        if let seconds = watchedSeconds, seconds > 0 {
-            parts.append("watched \(Self.formatTime(seconds))")
+        if let viewingState, viewingState.progress > 0 {
+            parts.append(viewingState.isCompleted ? "completed" : "resume at \(Self.formatTime(viewingState.positionSeconds))")
         }
         return parts.joined(separator: ", ")
     }

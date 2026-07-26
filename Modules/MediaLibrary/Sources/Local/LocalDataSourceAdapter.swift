@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 
 public nonisolated enum LocalDataSourceError: Error, Sendable {
     case notConnected
@@ -7,7 +8,7 @@ public nonisolated enum LocalDataSourceError: Error, Sendable {
     case itemNotReachable
 }
 
-public nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Sendable {
+nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Sendable {
     private let fileManager: FileManager
     private let filter: FileBrowsingDomain.FileFilter
     private let ioQueue = DispatchQueue(label: "xrplayer.localdatasource.io", qos: .userInitiated)
@@ -16,7 +17,7 @@ public nonisolated final class LocalDataSourceAdapter: LocalFileSource, @uncheck
     public private(set) var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     public var ownerDataSourceID: UUID = UUID()
 
-    public init(
+    init(
         fileManager: FileManager = .default,
         filter: FileBrowsingDomain.FileFilter = .playable
     ) {
@@ -107,11 +108,11 @@ public nonisolated final class LocalDataSourceAdapter: LocalFileSource, @uncheck
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource {
+    ) async throws -> ResolvedMediaSource {
         guard filter.matches(fileURL: file.url) else {
             throw LocalDataSourceError.fileNotPlayable
         }
-        return FilePlaybackSource(url: try await resolveURL(for: file))
+        return ResolvedMediaSource(url: try await resolveURL(for: file))
     }
 
     private func connectedBaseURL() throws -> URL {

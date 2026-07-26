@@ -3,6 +3,7 @@ import CoreMedia
 import CoreVideo
 import Dispatch
 import Metal
+import PlaybackPresentation
 import RealityKit
 import XCTest
 @testable import Enchron

@@ -1,3 +1,6 @@
+import DesignSystem
+import PlaybackFeature
+import PlaybackPresentation
 import SwiftUI
 
 /// Top info bar for the player control pill.
@@ -40,12 +43,32 @@ struct PlayerInfoBarView: View {
 
             PlaybackTopActions(
                 initialPresentedMenu: initialPresentedMenu,
-                canDock: playbackRuntime.canEnterSpatialPresentation,
+                canDock: playbackRuntime.canEnterSpatialPresentation
+                    && PlaybackPresentationAvailability.canDock(
+                        in: appModel.playbackPresentation,
+                        isPanoramic: playbackRuntime.effectiveProjectionType.isPanoramic
+                    ),
                 canApplyFormat: playbackRuntime.canEnterSpatialPresentation,
+                canUseFisheye: playbackRuntime.supportsFisheyePresentation,
+                resumesPanorama: PlaybackPresentationAvailability.windowShowsPanoramaResume(
+                    in: appModel.playbackPresentation,
+                    isPanoramic: playbackRuntime.effectiveProjectionType.isPanoramic
+                ),
                 onDock: dock,
-                onApplyFormat: applyFormat
+                onApplyFormat: applyFormat,
+                onResumePanorama: resumePanorama
             )
         }
+    }
+
+    private func resumePanorama() {
+        guard playbackRuntime.canEnterSpatialPresentation,
+              playbackRuntime.effectiveProjectionType.isPanoramic else { return }
+        _ = try? appModel.requestPlaybackPresentation(
+            .panorama,
+            mediaSessionID: playbackRuntime.activeSessionID,
+            wasPlaying: playbackRuntime.productLifecycle == .playing
+        )
     }
 
     private var videoTitle: String {
@@ -59,10 +82,15 @@ struct PlayerInfoBarView: View {
         return PlaybackTopSecondaryMenu(rawValue: rawValue)
     }
 
-    private func dock(in environment: SpatialSceneDomain.CinemaEnvironment) {
+    private func dock(in effect: SpatialSceneDomain.EnvironmentEffect) {
         guard playbackRuntime.canEnterSpatialPresentation else { return }
         do {
-            _ = try appModel.requestPlaybackPresentation(.docked, environment: environment)
+            _ = try appModel.requestPlaybackPresentation(
+                .docked,
+                effect: effect,
+                mediaSessionID: playbackRuntime.activeSessionID,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
         } catch {
             playbackRuntime.lastErrorMessage = error.localizedDescription
         }
@@ -75,9 +103,13 @@ struct PlayerInfoBarView: View {
         guard playbackRuntime.canEnterSpatialPresentation else { return }
         Task {
             do {
-                try await playbackRuntime.setFormat(projection: projection, stereo: stereo)
+                try await launcher.applyFormat(projection: projection, stereo: stereo)
                 if projection != .flat {
-                    _ = try appModel.requestPlaybackPresentation(.panorama)
+                    _ = try appModel.requestPlaybackPresentation(
+                        .panorama,
+                        mediaSessionID: playbackRuntime.activeSessionID,
+                        wasPlaying: playbackRuntime.productLifecycle == .playing
+                    )
                 }
             } catch {
                 playbackRuntime.lastErrorMessage = error.localizedDescription

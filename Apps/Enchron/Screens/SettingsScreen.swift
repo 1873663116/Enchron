@@ -1,3 +1,6 @@
+import DesignSystem
+import MediaLibrary
+import PlaybackFeature
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -7,22 +10,18 @@ import AppKit
 
 struct SettingsScreen: View {
     @Environment(AppModel.self) private var appModel
-    @State private var viewModel: SettingsViewModel
+    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @Environment(SettingsViewModel.self) private var viewModel
     @State private var selectedCategoryID: String = Category.playback.rawValue
     @State private var cacheUsageInBytes: Int64 = 0
     @State private var showsLicenses = false
 
-    init(store: PreferencesStoring = UserDefaultsStore()) {
-        _viewModel = State(initialValue: SettingsViewModel(store: store))
-    }
-
     private enum Category: String, CaseIterable {
-        case playback, spatial, storagePrivacy, about
+        case playback, storagePrivacy, about
 
         var title: String {
             switch self {
             case .playback: "Playback"
-            case .spatial: "Spatial Content"
             case .storagePrivacy: "Storage & Privacy"
             case .about: "About"
             }
@@ -31,7 +30,6 @@ struct SettingsScreen: View {
         var summary: String {
             switch self {
             case .playback: "Resume behavior, end behavior, and control timing"
-            case .spatial: "Default environments and immersive entry for spatial media"
             case .storagePrivacy: "Rebuildable cache, playback history, and data handling"
             case .about: "Version, support, and feedback"
             }
@@ -40,7 +38,6 @@ struct SettingsScreen: View {
         var icon: String {
             switch self {
             case .playback: "play.circle.fill"
-            case .spatial: "visionpro.fill"
             case .storagePrivacy: "internaldrive.fill"
             case .about: "info.circle.fill"
             }
@@ -108,8 +105,6 @@ struct SettingsScreen: View {
         switch category {
         case .playback:
             SettingListGroup(accessibilityIdentifier: "Settings-Playback-group", items: playbackItems)
-        case .spatial:
-            SettingListGroup(accessibilityIdentifier: "Settings-SpatialContent-picker-environment", items: spatialItems)
         case .storagePrivacy:
             SettingListGroup(accessibilityIdentifier: "Settings-StoragePrivacy-group", items: storagePrivacyItems)
         case .about:
@@ -164,24 +159,6 @@ struct SettingsScreen: View {
                     SettingListGroup.MenuOption("15 Seconds") { setAutoHide(15) },
                     SettingListGroup.MenuOption("Never") { setAutoHide(0) }
                 ])
-            )
-        ]
-    }
-
-    // MARK: - Spatial Content
-
-    private var spatialItems: [SettingListGroup.Item] {
-        [
-            SettingListGroup.Item(
-                id: "default-environment",
-                title: "Default Environment",
-                systemName: "mountain.2",
-                accessory: .menu(title: environmentTitle, options: SpatialSceneDomain.CinemaEnvironment.allCases.map { environment in
-                    SettingListGroup.MenuOption(environment.displayName) {
-                        viewModel.update { $0.defaultEnvironmentID = environment.rawValue }
-                        appModel.currentCinemaEnvironment = environment
-                    }
-                })
             )
         ]
     }
@@ -294,12 +271,6 @@ struct SettingsScreen: View {
         speed == speed.rounded() ? "\(Int(speed))×" : "\(String(format: "%g", speed))×"
     }
 
-    private var environmentTitle: String {
-        SpatialSceneDomain.CinemaEnvironment(
-            preferenceValue: viewModel.preferences.defaultEnvironmentID
-        )?.displayName ?? SpatialSceneDomain.CinemaEnvironment.darkTheatre.displayName
-    }
-
     private let feedbackEmail = "feedback@enchron.app"
     private var appVersion: String {
         let info = Bundle.main.infoDictionary
@@ -329,7 +300,7 @@ struct SettingsScreen: View {
     }
 
     private func clearProgress() {
-        Task { await PlaybackProgressStore().clearAllProgress() }
+        playbackLauncher.clearViewingStates()
     }
 }
 

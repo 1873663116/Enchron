@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 #if canImport(AMSMB2)
 import AMSMB2
 #endif
@@ -37,7 +38,7 @@ public nonisolated enum SMBError: LocalizedError, Sendable {
 
 #if canImport(AMSMB2)
 
-public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
+nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     private let credentialStore: CredentialStoring?
     private let filter = FileBrowsingDomain.FileFilter.playable
@@ -51,7 +52,7 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
     }
     private var connectedShareName: String?
 
-    public init(credentialStore: CredentialStoring? = nil) {
+    init(credentialStore: CredentialStoring? = nil) {
         self.credentialStore = credentialStore
     }
 
@@ -211,7 +212,7 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource {
+    ) async throws -> ResolvedMediaSource {
         guard smbManager != nil, let info = connectionInfo else {
             throw SMBError.notConnected
         }
@@ -236,9 +237,9 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
             let server = HTTPRangeStreamingServer(source: source, filename: file.name)
             let url = try await server.start()
             let resources = SMBPlaybackResources(manager: playbackManager, server: server)
-            return FilePlaybackSource(
+            return ResolvedMediaSource(
                 url: url,
-                lease: FilePlaybackSourceLease { resources.stop() }
+                accessLease: MediaAccessLease { resources.stop() }
             )
         } catch {
             Task { try? await playbackManager.disconnectShare() }
@@ -257,7 +258,7 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
         var username = info.username ?? "guest"
         var password = ""
         if let credentialStore,
-           let credential = try credentialStore.loadCredential(for: info.credentialSourceID) {
+           let credential = try credentialStore.loadCredential(for: info) {
             username = credential.username.isEmpty ? "guest" : credential.username
             password = credential.password
         }
@@ -400,12 +401,12 @@ private nonisolated final class SMBPlaybackResources: @unchecked Sendable {
 #else
 
 // Stub implementation for platforms without AMSMB2 (e.g., Linux)
-public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
+nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
     public var ownerDataSourceID: UUID = UUID()
     public private(set) var currentConnectionInfo: FileBrowsingDomain.ConnectionInfo?
 
-    public init(credentialStore: CredentialStoring? = nil) {
+    init(credentialStore: CredentialStoring? = nil) {
         _ = credentialStore
     }
 
@@ -444,7 +445,7 @@ public nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileP
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource {
+    ) async throws -> ResolvedMediaSource {
         throw SMBError.libraryNotAvailable
     }
 }

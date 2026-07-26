@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 // MARK: - Source Sidebar
@@ -71,7 +73,7 @@ struct SourceSidebar: View {
         .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
         .frame(width: DesignTokens.SourceSidebar.width)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .glassBackgroundEffect(.plate, in: shape, displayMode: .always)
+        .enchronPlateGlassBackground(in: shape)
         .padding(.leading, DesignTokens.SourceSidebar.windowInset)
         .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
         .contentShape(Rectangle())

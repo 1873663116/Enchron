@@ -1,16 +1,19 @@
 import Foundation
+import PlaybackFeature
 
 
-public nonisolated final class UserDefaultsStore: PreferencesStoring, @unchecked Sendable {
+public nonisolated final class UserDefaultsStore: PreferencesStoring, PlaybackPreferencesProviding, @unchecked Sendable {
     private let defaults: UserDefaults
+    private let playbackSpeedOverride: Double?
     private static let resumePolicyKey = "xrplayer.preferences.resumePolicy"
     private static let defaultEnvironmentKey = "xrplayer.preferences.defaultEnvironment"
     private static let endBehaviorKey = "xrplayer.preferences.endBehavior"
     private static let defaultSpeedKey = "xrplayer.preferences.defaultSpeed"
     private static let controlsAutoHideKey = "xrplayer.preferences.controlsAutoHideSeconds"
 
-    public init(defaults: UserDefaults = .standard) {
+    public init(defaults: UserDefaults = .standard, playbackSpeedOverride: Double? = nil) {
         self.defaults = defaults
+        self.playbackSpeedOverride = playbackSpeedOverride
     }
 
     public func loadPreferences() -> UserPreferences {
@@ -75,11 +78,20 @@ public nonisolated final class UserDefaultsStore: PreferencesStoring, @unchecked
         defaults.set(preferences.defaultEnvironmentID, forKey: Self.defaultEnvironmentKey)
         defaults.set(preferences.controlsAutoHideSeconds, forKey: Self.controlsAutoHideKey)
     }
+
+    public func loadPlaybackPreferences() -> PlaybackPreferences {
+        let preferences = loadPreferences()
+        return PlaybackPreferences(
+            resumePolicy: preferences.resumePolicy,
+            endBehavior: preferences.playbackEndBehavior,
+            defaultSpeed: playbackSpeedOverride ?? preferences.defaultPlaybackSpeed
+        )
+    }
 }
 
 
 /// In-memory `PreferencesStoring` fixture for tests and previews.
-public nonisolated final class FakePreferencesStore: PreferencesStoring, @unchecked Sendable {
+public nonisolated final class FakePreferencesStore: PreferencesStoring, PlaybackPreferencesProviding, @unchecked Sendable {
     private let lock = NSLock()
     private var preferences: UserPreferences
 
@@ -94,5 +106,13 @@ public nonisolated final class FakePreferencesStore: PreferencesStoring, @unchec
     public func savePreferences(_ preferences: UserPreferences) {
         lock.withLock { self.preferences = preferences }
     }
-}
 
+    public func loadPlaybackPreferences() -> PlaybackPreferences {
+        let preferences = loadPreferences()
+        return PlaybackPreferences(
+            resumePolicy: preferences.resumePolicy,
+            endBehavior: preferences.playbackEndBehavior,
+            defaultSpeed: preferences.defaultPlaybackSpeed
+        )
+    }
+}

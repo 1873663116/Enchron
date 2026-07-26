@@ -1,7 +1,9 @@
 import Foundation
 import Testing
+@testable import MediaLibrary
 @testable import Enchron
 
+@Suite(.serialized)
 struct SMBDataSourceAdapterTests {
     @Test("SMB paths remove only the connected share prefix")
     func shareRelativePaths() {
@@ -36,8 +38,15 @@ struct SMBDataSourceAdapterTests {
         let selectedShare = host.withSMBShare("Media")
 
         #expect(host.credentialSourceID == selectedShare.credentialSourceID)
-        #expect(host.credentialSourceID == "smb:192.168.1.20:0")
+        #expect(host.credentialSourceID == "smb:192.168.1.20:0:viewer")
         #expect(selectedShare.rootPath == "/Media")
+
+        let otherAccount = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "192.168.1.20",
+            username: "other-viewer"
+        )
+        #expect(host.credentialSourceID != otherAccount.credentialSourceID)
 
         let dataSource = FileBrowsingDomain.DataSource(
             name: "Living Room NAS",
@@ -130,7 +139,11 @@ struct SMBDataSourceAdapterTests {
             try await URLSession.shared.data(from: url)
         }
 
-        #expect(source.waitUntilReadStarts())
+        let deadline = ContinuousClock.now + .seconds(2)
+        while source.hasStarted == false, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(source.hasStarted)
         await server.stopAndWait()
         _ = try? await request.value
 
@@ -161,20 +174,20 @@ private final class RecordingByteRangeSource: ByteRangeStreamingSource, @uncheck
 
 private final class CancellationAwareByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
     let contentLength: Int64 = 1_024
-    private let started = DispatchSemaphore(value: 0)
     private let lock = NSLock()
+    private var readStarted = false
     private var cancellationObserved = false
+
+    var hasStarted: Bool {
+        lock.withLock { readStarted }
+    }
 
     var wasCancelled: Bool {
         lock.withLock { cancellationObserved }
     }
 
-    func waitUntilReadStarts() -> Bool {
-        started.wait(timeout: .now() + 2) == .success
-    }
-
     func read(in range: Range<Int64>) async throws -> Data {
-        started.signal()
+        lock.withLock { readStarted = true }
         do {
             try await Task.sleep(for: .seconds(30))
             return Data(repeating: 0, count: range.count)

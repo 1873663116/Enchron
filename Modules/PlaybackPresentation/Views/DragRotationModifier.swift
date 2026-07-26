@@ -1,4 +1,5 @@
 import SwiftUI
+import PlaybackPresentation
 import RealityKit
 
 extension View {

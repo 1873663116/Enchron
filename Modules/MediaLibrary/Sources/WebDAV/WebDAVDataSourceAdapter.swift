@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 
 public nonisolated enum WebDAVError: LocalizedError, Sendable {
     case invalidConnectionInfo
@@ -29,7 +30,7 @@ public nonisolated enum WebDAVError: LocalizedError, Sendable {
     }
 }
 
-public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
+nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
     /// Stable DataSource ID for folder identity pass-through.
     public var ownerDataSourceID: UUID = UUID()
     private var baseURL: URL?
@@ -40,7 +41,7 @@ public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, Fi
     private let credentialStore: CredentialStoring?
     private let filter = FileBrowsingDomain.FileFilter.playable
 
-    public init(credentialStore: CredentialStoring? = nil, session: URLSession? = nil) {
+    init(credentialStore: CredentialStoring? = nil, session: URLSession? = nil) {
         self.credentialStore = credentialStore
         self.session = session ?? URLSession(configuration: .default)
     }
@@ -101,7 +102,8 @@ public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, Fi
                 sizeInBytes: sizeInBytes,
                 modifiedAt: modifiedAt,
                 fileExtension: fileURL.pathExtension,
-                url: fileURL
+                url: fileURL,
+                remoteEntityTag: responseItem.entityTag
             )
         }
     }
@@ -152,7 +154,7 @@ public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, Fi
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource {
+    ) async throws -> ResolvedMediaSource {
         guard connectionInfo != nil else {
             throw WebDAVError.notConnected
         }
@@ -169,9 +171,9 @@ public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, Fi
         let server = HTTPRangeStreamingServer(source: source, filename: file.name)
         do {
             let url = try await server.start()
-            return FilePlaybackSource(
+            return ResolvedMediaSource(
                 url: url,
-                lease: FilePlaybackSourceLease { server.stop() }
+                accessLease: MediaAccessLease { server.stop() }
             )
         } catch {
             server.stop()
@@ -277,10 +279,8 @@ public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, Fi
     private func buildAuthHeader(
         info: FileBrowsingDomain.ConnectionInfo
     ) throws -> String? {
-        let sourceID = info.credentialSourceID
-
         if let credentialStore,
-           let credential = try credentialStore.loadCredential(for: sourceID),
+           let credential = try credentialStore.loadCredential(for: info),
            !credential.username.isEmpty {
             let token = Data("\(credential.username):\(credential.password)".utf8).base64EncodedString()
             return "Basic \(token)"
@@ -415,6 +415,7 @@ public nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, Fi
         <d:href/>
         <d:getcontentlength/>
         <d:getlastmodified/>
+        <d:getetag/>
         <d:resourcetype/>
       </d:prop>
     </d:propfind>
@@ -485,6 +486,7 @@ private nonisolated final class PROPFINDParserDelegate: NSObject, XMLParserDeleg
         var href: String?
         var contentLength: String?
         var lastModified: String?
+        var entityTag: String?
         var isCollection: Bool = false
     }
 
@@ -492,6 +494,7 @@ private nonisolated final class PROPFINDParserDelegate: NSObject, XMLParserDeleg
         var statusCode: Int?
         var contentLength: String?
         var lastModified: String?
+        var entityTag: String?
         var isCollection: Bool = false
     }
 
@@ -523,7 +526,7 @@ private nonisolated final class PROPFINDParserDelegate: NSObject, XMLParserDeleg
             currentPropstat?.isCollection = true
         }
 
-        if name == "href" || name == "getcontentlength" || name == "getlastmodified" || name == "status" {
+        if name == "href" || name == "getcontentlength" || name == "getlastmodified" || name == "getetag" || name == "status" {
             buffer = ""
         }
     }
@@ -534,6 +537,7 @@ private nonisolated final class PROPFINDParserDelegate: NSObject, XMLParserDeleg
               currentElement == "href"
                 || currentElement == "getcontentlength"
                 || currentElement == "getlastmodified"
+                || currentElement == "getetag"
                 || currentElement == "status"
         else {
             return
@@ -566,6 +570,11 @@ private nonisolated final class PROPFINDParserDelegate: NSObject, XMLParserDeleg
                     propstat.lastModified = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
                     currentPropstat = propstat
                 }
+            case "getetag":
+                if var propstat = currentPropstat {
+                    propstat.entityTag = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+                    currentPropstat = propstat
+                }
             case "status":
                 if var propstat = currentPropstat {
                     propstat.statusCode = parseStatusCode(buffer)
@@ -578,6 +587,9 @@ private nonisolated final class PROPFINDParserDelegate: NSObject, XMLParserDeleg
                     }
                     if let lastModified = propstat.lastModified {
                         response.lastModified = lastModified
+                    }
+                    if let entityTag = propstat.entityTag {
+                        response.entityTag = entityTag
                     }
                     if propstat.isCollection {
                         response.isCollection = true

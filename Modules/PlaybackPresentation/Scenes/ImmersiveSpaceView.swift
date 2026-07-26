@@ -1,5 +1,7 @@
 import AVFoundation
 import OSLog
+import PlaybackFeature
+import PlaybackPresentation
 import RealityKit
 import RealityKitScripting
 import SwiftUI
@@ -92,7 +94,9 @@ public struct ImmersiveSpaceView: View {
     }
 
     private var needsWorld: Bool {
-        requestedPresentation == .docked || appModel.isEnvironmentImmersiveActive
+        requestedPresentation == .docked
+            || (requestedPresentation == .window
+                && appModel.environmentContext.environment != nil)
     }
 
     @MainActor
@@ -298,9 +302,8 @@ public struct ImmersiveSpaceView: View {
             entity,
             to: anchor,
             transform: .init(
-                verticalOffset: appModel.screenVerticalOffset,
-                depthOffset: appModel.screenDepthOffset,
-                viewAngle: appModel.screenViewAngle,
+                distance: appModel.screenDepthOffset,
+                elevationDegrees: appModel.screenViewAngle,
                 scale: appModel.screenScale
             )
         )

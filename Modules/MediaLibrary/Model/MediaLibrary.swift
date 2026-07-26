@@ -26,6 +26,8 @@ nonisolated extension FileBrowsingDomain {
         public let sizeInBytes: Int64
         public let modifiedAt: Date
         public let fileExtension: String
+        public let remoteEntityTag: String?
+        public let remoteSourceKey: String?
 
         public init(
             id: UUID = UUID(),
@@ -33,7 +35,9 @@ nonisolated extension FileBrowsingDomain {
             locator: Locator,
             sizeInBytes: Int64 = 0,
             modifiedAt: Date = .distantPast,
-            fileExtension: String? = nil
+            fileExtension: String? = nil,
+            remoteEntityTag: String? = nil,
+            remoteSourceKey: String? = nil
         ) {
             self.id = id
             self.name = name
@@ -41,6 +45,8 @@ nonisolated extension FileBrowsingDomain {
             self.sizeInBytes = sizeInBytes
             self.modifiedAt = modifiedAt
             self.fileExtension = (fileExtension ?? (name as NSString).pathExtension).lowercased()
+            self.remoteEntityTag = remoteEntityTag
+            self.remoteSourceKey = remoteSourceKey
         }
     }
 

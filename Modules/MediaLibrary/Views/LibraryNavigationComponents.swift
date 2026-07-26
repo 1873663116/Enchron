@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 struct PathBreadcrumbMenu: View {
@@ -78,7 +80,7 @@ struct SearchInputCapsule: View {
         .padding(.horizontal, DesignTokens.Spacing.md)
         .frame(width: width, height: DesignTokens.Interactive.regular)
         .clipShape(Capsule())
-        .glassBackgroundEffect(in: Capsule())
+        .enchronGlassBackground(in: Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic)
         .contentShape(Capsule())
@@ -95,7 +97,7 @@ struct SearchInputCapsule: View {
                 activateInput()
             }
         )
-        .sensoryFeedback(.press(.button), trigger: pressFeedbackTrigger)
+        .enchronPressSensoryFeedback(.button, trigger: pressFeedbackTrigger)
         .onChange(of: isFocused) { _, focused in
             if !focused {
                 setInputActive(false)
@@ -235,7 +237,7 @@ struct CategorySidebar: View {
         .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
         .frame(width: width)
         .frame(maxHeight: height ?? .infinity, alignment: .topLeading)
-        .glassBackgroundEffect(.plate, in: shape, displayMode: .always)
+        .enchronPlateGlassBackground(in: shape)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(containerIdentifier)
     }

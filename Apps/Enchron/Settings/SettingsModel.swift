@@ -1,18 +1,6 @@
 import Foundation
+import PlaybackFeature
 import Observation
-
-
-public nonisolated enum PlaybackEndBehavior: Sendable, Hashable {
-    case stop
-    case repeatOne
-    case playNext
-}
-
-public nonisolated enum ResumePolicy: Sendable, Hashable {
-    case askEveryTime
-    case alwaysResume
-    case alwaysStartFromBeginning
-}
 
 public nonisolated struct UserPreferences: Sendable, Equatable {
     public var resumePolicy: ResumePolicy

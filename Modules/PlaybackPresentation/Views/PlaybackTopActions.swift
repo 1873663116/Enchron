@@ -1,3 +1,6 @@
+import DesignSystem
+import PlaybackFeature
+import PlaybackPresentation
 import SwiftUI
 
 enum PlaybackTopSecondaryMenu: String {
@@ -8,43 +11,67 @@ enum PlaybackTopSecondaryMenu: String {
 struct PlaybackTopActions: View {
     private let canDock: Bool
     private let canApplyFormat: Bool
-    private let onDock: ((SpatialSceneDomain.CinemaEnvironment) -> Void)?
+    private let canUseFisheye: Bool
+    private let resumesPanorama: Bool
+    private let onDock: ((SpatialSceneDomain.EnvironmentEffect) -> Void)?
     private let onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)?
+    private let onResumePanorama: (() -> Void)?
 
     @State private var presentedMenu: PlaybackTopSecondaryMenu?
-    @State private var selectedEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
-    @State private var projection: PlaybackModel.ProjectionType = .flat
+    @State private var selectedEffect: SpatialSceneDomain.EnvironmentEffect = .day
+    @State private var projection: PlaybackModel.ProjectionType = .equirectangular180
     @State private var stereoLayout: PlaybackModel.StereoLayout = .mono
 
     init(
         initialPresentedMenu: PlaybackTopSecondaryMenu? = nil,
         canDock: Bool = true,
         canApplyFormat: Bool = true,
-        onDock: ((SpatialSceneDomain.CinemaEnvironment) -> Void)? = nil,
-        onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)? = nil
+        canUseFisheye: Bool = false,
+        resumesPanorama: Bool = false,
+        onDock: ((SpatialSceneDomain.EnvironmentEffect) -> Void)? = nil,
+        onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)? = nil,
+        onResumePanorama: (() -> Void)? = nil
     ) {
         self.canDock = canDock
         self.canApplyFormat = canApplyFormat
+        self.canUseFisheye = canUseFisheye
+        self.resumesPanorama = resumesPanorama
         self.onDock = onDock
         self.onApplyFormat = onApplyFormat
+        self.onResumePanorama = onResumePanorama
         _presentedMenu = State(initialValue: initialPresentedMenu)
     }
 
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            topActionButton(
-                title: "Dock",
-                systemName: "square.stack.3d.up",
-                menu: .dock,
-                isEnabled: canDock
-            )
+            if canDock {
+                topActionButton(
+                    title: "Dock",
+                    systemName: "square.stack.3d.up",
+                    menu: .dock,
+                    isEnabled: true
+                )
+            }
 
-            topActionButton(
-                title: "Video Format",
-                systemName: "pano",
-                menu: .videoFormat,
-                isEnabled: canApplyFormat
-            )
+            if resumesPanorama {
+                Button(action: { onResumePanorama?() }) {
+                    Label("Return to Panorama", systemImage: "pano")
+                        .font(DesignTokens.Typography.metadata)
+                        .padding(.horizontal, DesignTokens.Spacing.md)
+                        .frame(minHeight: DesignTokens.Interactive.regular)
+                }
+                .buttonStyle(.plain)
+                .clipShape(Capsule())
+                .enchronGlassBackground(in: Capsule())
+                .accessibilityIdentifier("PlayerUI-TopAction-resumePanorama")
+            } else {
+                topActionButton(
+                    title: "Panorama",
+                    systemName: "pano",
+                    menu: .videoFormat,
+                    isEnabled: canApplyFormat
+                )
+            }
         }
         .overlay(alignment: .topTrailing) {
             Group {
@@ -82,7 +109,7 @@ struct PlaybackTopActions: View {
         }
         .buttonStyle(.plain)
         .clipShape(Capsule())
-        .glassBackgroundEffect(in: Capsule())
+        .enchronGlassBackground(in: Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic)
         .frame(minHeight: DesignTokens.Interactive.large)
@@ -93,23 +120,23 @@ struct PlaybackTopActions: View {
 
     private var dockMenu: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            menuHeading("Dock", supporting: "Choose an environment")
+            menuHeading("Dock", supporting: "Use the active environment, or Enchron Environment by default")
 
             VStack(spacing: DesignTokens.Spacing.xs) {
-                ForEach(SpatialSceneDomain.CinemaEnvironment.allCases, id: \.self) { environment in
+                ForEach(SpatialSceneDomain.EnvironmentEffect.allCases, id: \.self) { effect in
                     Button {
-                        selectedEnvironment = environment
+                        selectedEffect = effect
                         presentedMenu = nil
-                        onDock?(environment)
+                        onDock?(effect)
                     } label: {
                         HStack(spacing: DesignTokens.Spacing.md) {
-                            Image(systemName: environmentIcon(environment))
+                            Image(systemName: effect == .day ? "sun.max" : "moon.stars")
                                 .frame(width: DesignTokens.Interactive.regular)
 
-                            Text(environmentTitle(environment))
+                            Text(effect.displayName)
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
-                            if selectedEnvironment == environment {
+                            if selectedEffect == effect {
                                 Image(systemName: "checkmark")
                                     .foregroundStyle(.secondary)
                             }
@@ -121,7 +148,7 @@ struct PlaybackTopActions: View {
                     }
                     .buttonStyle(.plain)
                     .enchronHoverEffect(.highlight)
-                    .accessibilityIdentifier("PlayerUI-DockMenu-\(environment.rawValue)")
+                    .accessibilityIdentifier("PlayerUI-DockMenu-\(effect.rawValue)")
                 }
             }
         }
@@ -129,7 +156,7 @@ struct PlaybackTopActions: View {
         .frame(width: 320)
         .fixedSize(horizontal: false, vertical: true)
         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
-        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .enchronGlassBackground(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
     }
 
     private var videoFormatMenu: some View {
@@ -140,11 +167,9 @@ struct PlaybackTopActions: View {
                 title: "Projection",
                 selection: $projection,
                 options: [
-                    PlaybackModel.ProjectionType.flat,
-                    .equirectangular180,
-                    .equirectangular360,
-                    .fisheye
-                ],
+                    PlaybackModel.ProjectionType.equirectangular180,
+                    .equirectangular360
+                ] + (canUseFisheye ? [.fisheye] : []),
                 label: projectionTitle
             )
 
@@ -173,7 +198,7 @@ struct PlaybackTopActions: View {
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
         .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
-        .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .enchronGlassBackground(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
     }
 
     private func menuHeading(_ title: String, supporting: String) -> some View {
@@ -209,22 +234,6 @@ struct PlaybackTopActions: View {
         }
     }
 
-    private func environmentTitle(_ environment: SpatialSceneDomain.CinemaEnvironment) -> String {
-        switch environment {
-        case .darkTheatre: "Dark Theatre"
-        case .starryNight: "Starry Night"
-        case .sunsetNature: "Sunset Nature"
-        }
-    }
-
-    private func environmentIcon(_ environment: SpatialSceneDomain.CinemaEnvironment) -> String {
-        switch environment {
-        case .darkTheatre: "theatermasks"
-        case .starryNight: "sparkles"
-        case .sunsetNature: "sun.horizon"
-        }
-    }
-
     private func projectionTitle(_ projection: PlaybackModel.ProjectionType) -> String {
         switch projection {
         case .flat: "Flat"
@@ -242,4 +251,3 @@ struct PlaybackTopActions: View {
         }
     }
 }
-

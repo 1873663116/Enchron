@@ -3,12 +3,25 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="color-scheme" content="dark">
+  <meta name="color-scheme" content="light dark">
   <meta name="description" content="Enchron 产品语义、状态、责任边界与交付证据的可视化图谱。">
   <title>Enchron Product Atlas</title>
   <style>
 /*__ATLAS_CSS__*/
   </style>
+  <script>
+    (() => {
+      const requested = new URLSearchParams(location.search).get("theme");
+      const preference = ["light", "dark"].includes(requested)
+        ? requested
+        : (localStorage.getItem("atlas-theme") || "system");
+      const resolved = preference === "system"
+        ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+        : preference;
+      document.documentElement.dataset.theme = resolved;
+      document.documentElement.dataset.themePreference = preference;
+    })();
+  </script>
 </head>
 <body>
   <a class="skip-link" href="#atlas-main">跳到图谱内容</a>
@@ -20,6 +33,10 @@
         <p class="lede">从真实产品表面进入，用状态变化、空间迁移与责任边界复习 Enchron。图谱只解释一手文档，不产生产品事实。</p>
       </div>
       <div class="header-tools">
+        <button class="icon-button" id="toggle-theme" type="button" aria-label="切换白天或暗夜外观">
+          <span aria-hidden="true">◐</span>
+          <span id="theme-label">跟随系统</span>
+        </button>
         <button class="icon-button" id="toggle-delivery" type="button" aria-pressed="false">
           <span class="status-dot" aria-hidden="true"></span>
           交付状态
@@ -29,14 +46,14 @@
     </header>
 
     <aside class="help-panel" id="help-panel" hidden>
-      <p><strong>先看真实产品在哪里发生，再看为什么。</strong> 连续线表示保持不变的身份；断开的生命周期线表示资源确实消失；正交坐标表示可以自由组合、不能压成单一模式的状态。</p>
+      <p><strong>先沿 A 空间旅程理解产品行为，再下钻到 B 系统蓝图和 C 状态机器。</strong> 三种表达由信息性质决定，不是给同一内容换皮的主题。</p>
       <p>“已确认”“实现状态”“验证状态”彼此独立。点击来源可以回到一手文档核对。</p>
     </aside>
 
     <nav class="atlas-nav" aria-label="Product Atlas 主视图">
-      <button type="button" data-view="world" aria-current="page">产品世界</button>
-      <button type="button" data-view="journeys">行为路径</button>
-      <button type="button" data-view="states">状态与边界</button>
+      <button type="button" data-view="journeys" aria-current="page">产品行为</button>
+      <button type="button" data-view="world">系统结构</button>
+      <button type="button" data-view="states">状态词典</button>
       <button type="button" data-view="gaps">
         未决问题
         <span id="gap-count" class="count"></span>
@@ -44,13 +61,13 @@
     </nav>
 
     <main id="atlas-main">
-      <section class="atlas-view is-active" id="view-world" data-view-panel="world" tabindex="-1">
+      <section class="atlas-view" id="view-world" data-view-panel="world" tabindex="-1" hidden>
         <div class="section-heading">
           <div>
-            <p class="section-kicker">WHERE THE PRODUCT HAPPENS</p>
-            <h2>产品世界</h2>
+            <p class="section-kicker">PRODUCT STRUCTURE</p>
+            <h2>系统结构</h2>
           </div>
-          <p>容器位置接近真实 visionOS 产品。选择界面中的操作，进入与其逻辑相匹配的讲解视图。</p>
+          <p>沿真实承载关系查看 Scene 容器、产品表面和责任边界。选择界面操作后，先回到它的产品旅程。</p>
         </div>
         <div id="world-map" class="world-map" aria-label="Enchron 产品表面地图"></div>
         <div class="world-legend" aria-label="图例">
@@ -60,13 +77,13 @@
         </div>
       </section>
 
-      <section class="atlas-view" id="view-journeys" data-view-panel="journeys" tabindex="-1" hidden>
+      <section class="atlas-view is-active" id="view-journeys" data-view-panel="journeys" tabindex="-1">
         <div class="journey-layout">
           <article class="journey-stage" id="journey-stage" tabindex="-1" aria-live="polite"></article>
           <aside class="journey-index" aria-label="产品操作目录">
             <div class="journey-index-head">
-              <p class="section-kicker">PRODUCT ACTION REGISTRY</p>
-              <h2>行为路径</h2>
+              <p class="section-kicker">PRODUCT ACTIONS</p>
+              <h2>产品行为</h2>
               <label class="search-field">
                 <span class="sr-only">搜索产品操作</span>
                 <input id="action-search" type="search" placeholder="搜索操作、界面或所有者">
@@ -80,10 +97,10 @@
       <section class="atlas-view" id="view-states" data-view-panel="states" tabindex="-1" hidden>
         <div class="section-heading">
           <div>
-            <p class="section-kicker">WHAT CAN CHANGE INDEPENDENTLY</p>
-            <h2>状态与边界</h2>
+            <p class="section-kicker">PRODUCT STATE REGISTRY</p>
+            <h2>产品状态地景</h2>
           </div>
-          <p>每条轴独立变化；不变量与禁止组合定义架构必须守住的边界。</p>
+          <p>先从两个无方向场域中的代表性稳定快照回答四个自然问题，再下钻到状态补丁、正式状态轴与约束；它们不是必经顺序。</p>
         </div>
         <div id="state-map" class="state-map"></div>
       </section>

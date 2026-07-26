@@ -1,10 +1,12 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 public struct FolderListView: View {
     public let folders: [FileBrowsingDomain.MediaFolder]
     public let files: [FileBrowsingDomain.MediaFile]
     public let isLoading: Bool
-    public let fileWatchedSeconds: [UUID: Double]
+    let fileViewingStates: [UUID: VideoCardViewingState]
     public let onFolderSelected: (FileBrowsingDomain.MediaFolder) -> Void
     public let onFileSelected: (FileBrowsingDomain.MediaFile) -> Void
     public let onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)?
@@ -27,7 +29,7 @@ public struct FolderListView: View {
         folders: [FileBrowsingDomain.MediaFolder] = [],
         files: [FileBrowsingDomain.MediaFile],
         isLoading: Bool = false,
-        fileWatchedSeconds: [UUID: Double] = [:],
+        fileViewingStates: [UUID: VideoCardViewingState] = [:],
         onFolderSelected: @escaping (FileBrowsingDomain.MediaFolder) -> Void = { _ in },
         onFileSelected: @escaping (FileBrowsingDomain.MediaFile) -> Void,
         onFileDeleted: ((FileBrowsingDomain.MediaFile) -> Void)? = nil
@@ -35,7 +37,7 @@ public struct FolderListView: View {
         self.folders = folders
         self.files = files
         self.isLoading = isLoading
-        self.fileWatchedSeconds = fileWatchedSeconds
+        self.fileViewingStates = fileViewingStates
         self.onFolderSelected = onFolderSelected
         self.onFileSelected = onFileSelected
         self.onFileDeleted = onFileDeleted
@@ -60,7 +62,7 @@ public struct FolderListView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding()
-            .glassBackgroundEffect(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+            .enchronGlassBackground(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
         } else {
             List {
                 if folders.isEmpty == false {
@@ -127,12 +129,12 @@ public struct FolderListView: View {
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
 
-                                        if let seconds = fileWatchedSeconds[file.id] {
+                                        if let state = fileViewingStates[file.id] {
                                             HStack(spacing: 4) {
                                                 Circle()
                                                     .fill(.orange)
                                                     .frame(width: 6, height: 6)
-                                                Text("Watched \(Self.formatWatchedTime(seconds))")
+                                                Text(state.isCompleted ? "Completed" : "Resume at \(Self.formatWatchedTime(state.positionSeconds))")
                                                     .font(.caption2)
                                                     .foregroundStyle(.orange)
                                             }
@@ -144,8 +146,8 @@ public struct FolderListView: View {
                             }
                             .accessibilityLabel({
                                 var label = file.name
-                                if let seconds = fileWatchedSeconds[file.id] {
-                                    label += ", watched \(Self.formatWatchedTime(seconds))"
+                                if let state = fileViewingStates[file.id] {
+                                    label += state.isCompleted ? ", completed" : ", resume at \(Self.formatWatchedTime(state.positionSeconds))"
                                 }
                                 return label
                             }())
@@ -191,6 +193,7 @@ public struct FolderListView: View {
     }
 }
 
+#if canImport(PreviewsMacros)
 #Preview {
     FolderListView(
         folders: [
@@ -214,3 +217,4 @@ public struct FolderListView: View {
         onFileSelected: { _ in }
     )
 }
+#endif

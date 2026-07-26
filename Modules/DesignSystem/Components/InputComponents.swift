@@ -1,9 +1,13 @@
 import SwiftUI
 
-struct GlassToggle: View {
+public struct GlassToggle: View {
     @State var isOn: Bool
 
-    var body: some View {
+    public init(isOn: Bool) {
+        self.isOn = isOn
+    }
+
+    public var body: some View {
         Button {
             withAnimation(DesignTokens.AnimationToken.selection) {
                 isOn.toggle()
@@ -21,7 +25,7 @@ struct GlassToggle: View {
         }
         .buttonStyle(.plain)
         .clipShape(Capsule())
-        .glassBackgroundEffect(in: Capsule())
+        .enchronGlassBackground(in: Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic)
         .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
@@ -30,11 +34,16 @@ struct GlassToggle: View {
     }
 }
 
-struct BoundGlassToggle: View {
+public struct BoundGlassToggle: View {
     @Binding var isOn: Bool
     var isEnabled = true
 
-    var body: some View {
+    public init(isOn: Binding<Bool>, isEnabled: Bool = true) {
+        _isOn = isOn
+        self.isEnabled = isEnabled
+    }
+
+    public var body: some View {
         Button {
             withAnimation(DesignTokens.AnimationToken.selection) {
                 isOn.toggle()
@@ -54,7 +63,7 @@ struct BoundGlassToggle: View {
         .disabled(!isEnabled)
         .opacity(isEnabled ? 1 : 0.42)
         .clipShape(Capsule())
-        .glassBackgroundEffect(in: Capsule())
+        .enchronGlassBackground(in: Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic, isEnabled: isEnabled)
         .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
@@ -90,7 +99,7 @@ private extension VerticalAlignment {
 /// knob/lit geometry and attaches the drag gesture, so both sliders render
 /// identically. The accent capsule carries its own `glassBackgroundEffect` so
 /// the glass rim follows the lit shape rather than reading as flat paint.
-struct GlassSliderRail: View {
+public struct GlassSliderRail: View {
     let trackWidth: CGFloat
     let trackHeight: CGFloat
     let knobSize: CGFloat
@@ -103,7 +112,27 @@ struct GlassSliderRail: View {
     let litVisible: Bool
     let isDragging: Bool
 
-    var body: some View {
+    public init(
+        trackWidth: CGFloat,
+        trackHeight: CGFloat,
+        knobSize: CGFloat,
+        knobOffsetX: CGFloat,
+        litCenterX: CGFloat,
+        litWidth: CGFloat,
+        litVisible: Bool,
+        isDragging: Bool
+    ) {
+        self.trackWidth = trackWidth
+        self.trackHeight = trackHeight
+        self.knobSize = knobSize
+        self.knobOffsetX = knobOffsetX
+        self.litCenterX = litCenterX
+        self.litWidth = litWidth
+        self.litVisible = litVisible
+        self.isDragging = isDragging
+    }
+
+    public var body: some View {
         Capsule()
             .fill(DesignTokens.Surface.elevated)
             .frame(width: trackWidth, height: trackHeight)
@@ -111,7 +140,7 @@ struct GlassSliderRail: View {
                 Capsule()
                     .fill(DesignTokens.Theme.accent)
                     .frame(width: max(litWidth, 0), height: trackHeight)
-                    .glassBackgroundEffect(in: Capsule())
+                    .enchronGlassBackground(in: Capsule())
                     .offset(x: litCenterX)
                     .opacity(litVisible ? 1 : 0)
             }
@@ -123,7 +152,7 @@ struct GlassSliderRail: View {
                     .offset(x: knobOffsetX)
             }
             .clipShape(Capsule())
-            .glassBackgroundEffect(in: Capsule())
+            .enchronGlassBackground(in: Capsule())
             .enchronHoverContentShape(Capsule())
             .enchronHoverEffect(.highlight)
     }
@@ -131,7 +160,7 @@ struct GlassSliderRail: View {
 
 /// `CenterSlider` is the macro component; a `CenterDetentSlider` specialization
 /// can be split out later if a non-detented (continuous) variant is needed.
-struct CenterSlider: View {
+public struct CenterSlider: View {
     @Binding var value: Int
     var range: ClosedRange<Int> = -5...5
     let leadingSystemImage: String
@@ -173,7 +202,27 @@ struct CenterSlider: View {
         offset(for: Double(value))
     }
 
-    var body: some View {
+    public init(
+        value: Binding<Int>,
+        range: ClosedRange<Int> = -5...5,
+        leadingSystemImage: String,
+        trailingSystemImage: String,
+        accessibilityLabel: String = "Center slider",
+        accessibilityIdentifier: String = "DesignPreview-CenterSlider",
+        trackWidth: CGFloat = 450,
+        onDraggingChanged: @escaping (Bool) -> Void = { _ in }
+    ) {
+        _value = value
+        self.range = range
+        self.leadingSystemImage = leadingSystemImage
+        self.trailingSystemImage = trailingSystemImage
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.trackWidth = trackWidth
+        self.onDraggingChanged = onDraggingChanged
+    }
+
+    public var body: some View {
         HStack(alignment: .trackCenter, spacing: DesignTokens.Spacing.md) {
             Image(systemName: leadingSystemImage)
                 .font(DesignTokens.SymbolSize.selectionHeaderIcon)
@@ -306,7 +355,7 @@ struct CenterSlider: View {
 /// leading-origin lit-fill geometry with the timeline zoom slider; unlike
 /// `CenterSlider` it is not detented and maps a finger position straight onto the
 /// value domain. Press feedback and motion all read from `DesignTokens`.
-struct RangeSlider: View {
+public struct RangeSlider: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
     var accessibilityLabel: String = "Range slider"
@@ -334,7 +383,25 @@ struct RangeSlider: View {
         CGFloat((value - range.lowerBound) / span)
     }
 
-    var body: some View {
+    public init(
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        accessibilityLabel: String = "Range slider",
+        accessibilityValue: String = "",
+        accessibilityIdentifier: String = "DesignPreview-RangeSlider",
+        trackWidth: CGFloat = 450,
+        onDraggingChanged: @escaping (Bool) -> Void = { _ in }
+    ) {
+        _value = value
+        self.range = range
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityValue = accessibilityValue
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.trackWidth = trackWidth
+        self.onDraggingChanged = onDraggingChanged
+    }
+
+    public var body: some View {
         let travel = trackWidth - knobSize
         let knobOffsetX = -travel / 2 + normalized * travel
         let radius = trackHeight / 2

@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 /// Tappable path breadcrumb showing the current navigation hierarchy.

@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 enum SortMenuKey {
@@ -70,7 +72,7 @@ struct GlassCapsuleIconLabelButton: View {
         }
         .buttonStyle(EnchronPressFeedbackButtonStyle(.control))
         .clipShape(Capsule())
-        .glassBackgroundEffect(in: Capsule())
+        .enchronGlassBackground(in: Capsule())
         .enchronHoverContentShape(Capsule())
         .enchronHoverEffect(.automatic)
         .padding(.vertical, (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
@@ -79,4 +81,3 @@ struct GlassCapsuleIconLabelButton: View {
         .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(title)")
     }
 }
-

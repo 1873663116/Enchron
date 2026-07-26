@@ -206,6 +206,11 @@ public final class PlaybackCoreController {
         activeSession.setMuted(muted)
     }
 
+    public func clearDisplayedVideoImage(forMediaSessionID mediaSessionID: String) async {
+        guard let activeSession, activeSession.traceID == mediaSessionID else { return }
+        await activeSession.clearDisplayedVideoImage()
+    }
+
     @discardableResult
     public func setStereoLayout(_ layout: VideoStereoLayout) async throws -> UInt64 {
         try await updateStereoLayout(layout)

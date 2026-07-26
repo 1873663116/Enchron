@@ -1,3 +1,4 @@
+import MediaLibrary
 import XCTest
 @testable import Enchron
 

@@ -1406,7 +1406,7 @@
           },
           {
             "dimensionId": "state.mediaSessionResidency",
-            "equals": "none"
+            "notEquals": "active"
           }
         ],
         "sourceRefs": [
@@ -1656,6 +1656,1171 @@
         ]
       }
     ],
+    "structureMap": {
+      "systemContext": {
+        "id": "structure.systemContext",
+        "label": "visionOS · System Surroundings",
+        "kind": "system",
+        "responsibility": "visionOS 管理 Enchron 之外的周围环境与系统呈现。",
+        "sceneId": "scene.system",
+        "sourceRefs": [
+          {
+            "sourceId": "context",
+            "heading": "## 来源与产品策略"
+          }
+        ]
+      },
+      "nodes": [
+        {
+          "id": "structure.mainWindow",
+          "label": "Main Window",
+          "kind": "window",
+          "role": "main",
+          "responsibility": "承载 Media Library、Settings 与 Window Playback，是产品行为进入空间呈现的起点。",
+          "sceneId": "scene.mainWindow",
+          "relatedActions": {
+            "bySceneId": "scene.mainWindow"
+          },
+          "sourceRefs": [
+            {
+              "sourceId": "ui-spec",
+              "heading": "## Surface ownership"
+            }
+          ]
+        },
+        {
+          "id": "structure.environmentCard",
+          "label": "Environment Card Volume",
+          "kind": "volume",
+          "role": "volume",
+          "responsibility": "以独立单例 Volume 控制 Enchron Environment 的打开、关闭与 Effect。",
+          "sceneId": "scene.environmentVolume",
+          "relatedActions": {
+            "bySceneId": "scene.environmentVolume"
+          },
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Environment 与 Docked Placement"
+            }
+          ]
+        },
+        {
+          "id": "structure.immersiveSpace",
+          "label": "Enchron Immersive Space",
+          "kind": "immersive",
+          "role": "immersive",
+          "responsibility": "作为 Enchron 的空间容器，承载 Environment 与空间 Playback Presentation。",
+          "sceneId": "scene.immersiveSpace",
+          "relatedActions": {
+            "bySceneId": "scene.immersiveSpace"
+          },
+          "sourceRefs": [
+            {
+              "sourceId": "context",
+              "heading": "## 来源与产品策略"
+            }
+          ]
+        },
+        {
+          "id": "structure.environmentContent",
+          "label": "Enchron Environment · Effect",
+          "kind": "controlled-content",
+          "role": "environment-port",
+          "responsibility": "Immersive Space 内实际被 Environment Card 控制的 Enchron Environment 与昼夜 Effect。",
+          "parentNodeId": "structure.immersiveSpace",
+          "surfaceId": "surface.enchronImmersiveSpace",
+          "relatedActions": {
+            "actionIds": [
+              "environment.open",
+              "environment.close",
+              "environment.setDay",
+              "environment.setNight"
+            ]
+          },
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Environment 与 Docked Placement"
+            }
+          ]
+        },
+        {
+          "id": "structure.spatialPlayback",
+          "label": "Spatial Playback Presentation",
+          "kind": "controlled-content",
+          "role": "playback-port",
+          "responsibility": "Immersive Space 内实际被 Player Controls 操作的 Docked 或 Panorama 播放呈现。",
+          "parentNodeId": "structure.immersiveSpace",
+          "surfaceId": "surface.enchronImmersiveSpace",
+          "relatedActions": {
+            "actionIds": [
+              "docked.returnWindow",
+              "panorama.returnWindow",
+              "panorama.backToLibrary",
+              "controls.summonOrHide",
+              "controls.openAdvanced",
+              "controls.openMore",
+              "transport.play",
+              "transport.pause",
+              "transport.replay",
+              "transport.back10",
+              "transport.forward10",
+              "transport.progressSeek",
+              "transport.precisionSeek",
+              "transport.previousFrame",
+              "transport.nextFrame",
+              "docked.adjustSize",
+              "docked.adjustDistance",
+              "docked.adjustElevation",
+              "docked.restorePlacement",
+              "panorama.changeProjection",
+              "panorama.changeStereo",
+              "panorama.applyFormat",
+              "panorama.resetFlatMono",
+              "controls.autoHide"
+            ]
+          },
+          "sourceRefs": [
+            {
+              "sourceId": "ui-spec",
+              "heading": "## Surface ownership"
+            }
+          ]
+        },
+        {
+          "id": "structure.playerControls",
+          "label": "Player Controls Window",
+          "kind": "window",
+          "role": "controls",
+          "responsibility": "承载空间播放操作，并控制当前的空间 Playback Presentation；不拥有 Media Session。",
+          "sceneId": "scene.playerControls",
+          "relatedActions": {
+            "bySceneId": "scene.playerControls"
+          },
+          "sourceRefs": [
+            {
+              "sourceId": "ui-spec",
+              "heading": "## Surface ownership"
+            }
+          ]
+        }
+      ],
+      "relations": [
+        {
+          "id": "structure.presentationMigration",
+          "label": "Presentation 迁移",
+          "kind": "transition",
+          "role": "presentation",
+          "fromNodeId": "structure.mainWindow",
+          "toNodeId": "structure.spatialPlayback",
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 产品状态"
+            }
+          ]
+        },
+        {
+          "id": "structure.environmentControl",
+          "label": "Environment 控制",
+          "kind": "control",
+          "role": "environment",
+          "fromNodeId": "structure.environmentCard",
+          "toNodeId": "structure.environmentContent",
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Environment 与 Docked Placement"
+            }
+          ]
+        },
+        {
+          "id": "structure.playbackControl",
+          "label": "空间播放控制",
+          "kind": "control",
+          "role": "controls",
+          "fromNodeId": "structure.playerControls",
+          "toNodeId": "structure.spatialPlayback",
+          "sourceRefs": [
+            {
+              "sourceId": "ui-spec",
+              "heading": "## Surface ownership"
+            }
+          ]
+        },
+        {
+          "id": "structure.mediaSessionContinuity",
+          "label": "Media Session",
+          "detail": "Presentation 改变，Session 身份保持连续",
+          "kind": "continuity",
+          "role": "session",
+          "fromNodeId": "structure.mainWindow",
+          "toNodeId": "structure.spatialPlayback",
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 产品状态"
+            }
+          ]
+        }
+      ]
+    },
+    "stateLandscape": {
+      "fields": [
+        {
+          "id": "field.noSession",
+          "label": "没有活动 Media Session",
+          "summary": "Media Library 与 Environment Context 可以同时存在；两者不是播放流程的先后步骤。",
+          "snapshotIds": [
+            "snapshot.mediaLibrary",
+            "snapshot.environmentOnly"
+          ],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 产品状态"
+            },
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Environment 与 Docked Placement"
+            }
+          ]
+        },
+        {
+          "id": "field.activeSession",
+          "label": "同一个活动 Media Session",
+          "summary": "Window、Docked 与 Panorama 是同一 Session 的三种互斥 Presentation，不是必经顺序。",
+          "snapshotIds": [
+            "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+          "centerLabel": "Media Session identity",
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 产品状态"
+            },
+            {
+              "sourceId": "architecture",
+              "heading": "## 不变量"
+            }
+          ]
+        }
+      ],
+      "questions": [
+        {
+          "id": "question.picture",
+          "label": "画面在哪里？",
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 产品状态"
+            }
+          ]
+        },
+        {
+          "id": "question.playback",
+          "label": "视频在做什么？",
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 产品状态"
+            }
+          ]
+        },
+        {
+          "id": "question.surroundings",
+          "label": "用户周围是什么？",
+          "sourceRefs": [
+            {
+              "sourceId": "context",
+              "heading": "## 来源与产品策略"
+            }
+          ]
+        },
+        {
+          "id": "question.actions",
+          "label": "现在能操作什么？",
+          "sourceRefs": [
+            {
+              "sourceId": "ui-spec",
+              "heading": "## Surface ownership"
+            }
+          ]
+        }
+      ],
+      "snapshots": [
+        {
+          "id": "snapshot.mediaLibrary",
+          "label": "Media Library",
+          "summary": "用户在 Main Window 浏览虚拟分类、媒体引用与来源。",
+          "landmark": {
+            "x": 8,
+            "y": 64,
+            "shape": "window"
+          },
+          "state": {
+            "state.appDestination": "mediaLibrary",
+            "state.mediaSessionResidency": "none",
+            "state.playbackLifecycle": "idle",
+            "state.playbackPresentation": "none",
+            "state.immersiveSpaceResidency": "closed",
+            "state.immersiveContent": "none",
+            "state.environmentCardResidency": "closed",
+            "state.endedSurface": "inactive",
+            "state.formatPreference": "none",
+            "state.rendererConsumerBinding": "none"
+          },
+          "answers": {
+            "question.picture": "Main Window 显示 Media Library，没有视频画面。",
+            "question.playback": "没有活动 Media Session。",
+            "question.surroundings": "周围由 visionOS 管理；Enchron Environment 可以独立打开。",
+            "question.actions": "浏览来源与虚拟分类、选择媒体、打开 Settings 或 Environment Card。"
+          },
+          "drilldown": [
+            {
+              "id": "visible",
+              "label": "可见结果",
+              "description": "窗口中是媒体引用与来源结构，不是 Enchron 拥有的媒体文件。"
+            },
+            {
+              "id": "product",
+              "label": "产品状态",
+              "description": "Main Window 停留在 Media Library，播放与空间呈现都不存在。",
+              "dimensionIds": [
+                "state.appDestination",
+                "state.mediaSessionResidency",
+                "state.playbackPresentation"
+              ]
+            },
+            {
+              "id": "mechanism",
+              "label": "底层机制",
+              "description": "Media Library 只保存引用；来源访问与内容版本由 MediaSource 管理。",
+              "dimensionIds": [
+                "state.sourceAccess",
+                "state.contentRevision"
+              ]
+            }
+          ],
+          "invariantIds": [
+            "invariant.libraryReferencesOnly"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 媒体与来源"
+            }
+          ]
+        },
+        {
+          "id": "snapshot.environmentOnly",
+          "label": "Environment Only",
+          "summary": "没有打开视频时，Enchron Environment 也可以独立存在。",
+          "landmark": {
+            "x": 30,
+            "y": 25,
+            "shape": "environment"
+          },
+          "state": {
+            "state.appDestination": "mediaLibrary",
+            "state.mediaSessionResidency": "none",
+            "state.playbackLifecycle": "idle",
+            "state.playbackPresentation": "none",
+            "state.environmentContext": "active",
+            "state.environmentEffect": "day",
+            "state.immersiveSpaceResidency": "open",
+            "state.immersiveContent": "environmentOnly",
+            "state.environmentCardResidency": "closed",
+            "state.endedSurface": "inactive",
+            "state.formatPreference": "none",
+            "state.rendererConsumerBinding": "none"
+          },
+          "answers": {
+            "question.picture": "Main Window 仍可显示 Media Library；空间中没有视频画面。",
+            "question.playback": "没有活动 Media Session。",
+            "question.surroundings": "Enchron Immersive Space 显示已打开的 Enchron Environment 与 Day Effect。",
+            "question.actions": "继续浏览媒体，或通过唯一 Environment Card 切换 Effect、关闭 Environment。"
+          },
+          "drilldown": [
+            {
+              "id": "visible",
+              "label": "可见结果",
+              "description": "用户周围出现 Enchron Environment，但 Main Window 没有被替代。"
+            },
+            {
+              "id": "product",
+              "label": "产品状态",
+              "description": "Environment Context 独立于 Media Session 与 Playback Presentation。",
+              "dimensionIds": [
+                "state.environmentContext",
+                "state.environmentEffect",
+                "state.playbackPresentation"
+              ]
+            },
+            {
+              "id": "mechanism",
+              "label": "底层机制",
+              "description": "Enchron 打开自己的 Immersive Space，并只承载 Environment 内容。",
+              "dimensionIds": [
+                "state.immersiveSpaceResidency",
+                "state.immersiveContent"
+              ]
+            }
+          ],
+          "invariantIds": [
+            "invariant.singleEnvironmentIdentity",
+            "invariant.environmentCardSingleton"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Environment 与 Docked Placement"
+            }
+          ]
+        },
+        {
+          "id": "snapshot.windowPlayback",
+          "label": "Window Playback",
+          "summary": "活动 Media Session 的 renderer 绑定到 Main Window。",
+          "landmark": {
+            "x": 50,
+            "y": 62,
+            "shape": "window"
+          },
+          "state": {
+            "state.appDestination": "windowPlayback",
+            "state.mediaSessionResidency": "active",
+            "state.playbackLifecycle": "playing",
+            "state.playbackPresentation": "window",
+            "state.presentationTransition": "idle",
+            "state.immersiveSpaceResidency": "closed",
+            "state.immersiveContent": "none",
+            "state.environmentCardResidency": "closed",
+            "state.endedSurface": "inactive",
+            "state.formatPreference": "none",
+            "state.controlsPresentation": "collapsed",
+            "state.queue": "active",
+            "state.rendererConsumerBinding": "window"
+          },
+          "answers": {
+            "question.picture": "视频位于 Main Window 的 Window Playback。",
+            "question.playback": "同一个 Media Session 正在播放。",
+            "question.surroundings": "System Surroundings 由 visionOS 管理；活动 Enchron Environment 可独立保留。",
+            "question.actions": "使用 Window chrome、Playback Deck、Docking 与 Panorama 入口。"
+          },
+          "drilldown": [
+            {
+              "id": "visible",
+              "label": "可见结果",
+              "description": "窗口显示视频，并提供窗口级退出与空间呈现入口。"
+            },
+            {
+              "id": "product",
+              "label": "产品状态",
+              "description": "Playback Lifecycle 与 Playback Presentation 分别说明播放阶段和画面位置。",
+              "dimensionIds": [
+                "state.playbackLifecycle",
+                "state.playbackPresentation",
+                "state.controlsPresentation"
+              ]
+            },
+            {
+              "id": "mechanism",
+              "label": "底层机制",
+              "description": "当前 renderer 的唯一 consumer binding 指向 Window。",
+              "dimensionIds": [
+                "state.mediaSessionResidency",
+                "state.rendererConsumerBinding",
+                "state.presentationTransition"
+              ]
+            }
+          ],
+          "invariantIds": [
+            "invariant.oneSession",
+            "invariant.sameRenderer",
+            "invariant.fixedNaturalQueue"
+          ],
+          "constraintIds": [
+            "constraint.presentationNeedsSession"
+          ],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Window 与 Playback Deck"
+            }
+          ]
+        },
+        {
+          "id": "snapshot.dockedPlayback",
+          "label": "Docked Playback",
+          "summary": "同一 Media Session 的 renderer 位于 Enchron Environment 的 Playback Surface。",
+          "landmark": {
+            "x": 72,
+            "y": 40,
+            "shape": "docked"
+          },
+          "state": {
+            "state.mediaSessionResidency": "active",
+            "state.playbackLifecycle": "playing",
+            "state.playbackPresentation": "docked",
+            "state.presentationTransition": "idle",
+            "state.environmentContext": "active",
+            "state.dockingEnvironmentSource": "inheritedActive",
+            "state.dockingEffect": "day",
+            "state.immersiveSpaceResidency": "open",
+            "state.immersiveContent": "dockedSurface",
+            "state.environmentCardResidency": "closed",
+            "state.endedSurface": "inactive",
+            "state.formatPreference": "none",
+            "state.controlsPresentation": "collapsed",
+            "state.dockedPlacement": "environmentDefault",
+            "state.rendererConsumerBinding": "docked"
+          },
+          "answers": {
+            "question.picture": "视频位于 Enchron Immersive Space 的 Docked Surface。",
+            "question.playback": "同一个 Media Session 正在播放；转换没有重开媒体。",
+            "question.surroundings": "本快照继承已经活动的 Enchron Environment，并使用本次 Docking 的 Day Effect。",
+            "question.actions": "召唤 Player Controls，调节播放、Screen Size、Distance、Elevation，或返回 Window。"
+          },
+          "drilldown": [
+            {
+              "id": "visible",
+              "label": "可见结果",
+              "description": "视频像屏幕一样停靠在 Environment 的 Playback Surface Anchor。"
+            },
+            {
+              "id": "product",
+              "label": "产品状态",
+              "description": "Presentation 是 Docked；Environment 身份与本次 Docking Effect 分开表达。",
+              "dimensionIds": [
+                "state.playbackPresentation",
+                "state.dockingEnvironmentSource",
+                "state.dockingEffect",
+                "state.dockedPlacement"
+              ]
+            },
+            {
+              "id": "mechanism",
+              "label": "底层机制",
+              "description": "Immersive Space 保持打开，唯一 renderer consumer 绑定 Docked Surface。",
+              "dimensionIds": [
+                "state.immersiveSpaceResidency",
+                "state.immersiveContent",
+                "state.rendererConsumerBinding"
+              ]
+            }
+          ],
+          "invariantIds": [
+            "invariant.oneSession",
+            "invariant.sameRenderer",
+            "invariant.dockedPlacementGeometry"
+          ],
+          "constraintIds": [
+            "constraint.presentationNeedsSession",
+            "constraint.dockedNeedsSpace",
+            "constraint.dockedNeedsSurface"
+          ],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Environment 与 Docked Placement"
+            }
+          ]
+        },
+        {
+          "id": "snapshot.panoramaPlayback",
+          "label": "Panorama Playback",
+          "summary": "同一 Media Session 的 renderer 使用 Panorama 空间呈现。",
+          "landmark": {
+            "x": 91,
+            "y": 62,
+            "shape": "panorama"
+          },
+          "state": {
+            "state.mediaSessionResidency": "active",
+            "state.playbackLifecycle": "playing",
+            "state.playbackPresentation": "panorama",
+            "state.presentationTransition": "idle",
+            "state.mediaProjection": "360",
+            "state.stereoLayout": "mono",
+            "state.formatPreference": "valid",
+            "state.environmentContext": "none",
+            "state.immersiveSpaceResidency": "open",
+            "state.immersiveContent": "panoramaSurface",
+            "state.environmentCardResidency": "closed",
+            "state.endedSurface": "inactive",
+            "state.controlsPresentation": "collapsed",
+            "state.rendererConsumerBinding": "panorama"
+          },
+          "answers": {
+            "question.picture": "视频包围用户，位于 Enchron Immersive Space 的 Panorama Surface。",
+            "question.playback": "同一个 Media Session 正在播放。",
+            "question.surroundings": "本快照没有活动 Enchron Environment，Panorama 独占空间视频呈现。",
+            "question.actions": "召唤 Player Controls，调节播放或 Panorama Format，返回 Window 或回到 Media Library。"
+          },
+          "drilldown": [
+            {
+              "id": "visible",
+              "label": "可见结果",
+              "description": "当前 360° + Mono 格式被投影为空间画面。"
+            },
+            {
+              "id": "product",
+              "label": "产品状态",
+              "description": "Projection 与 Stereo Layout 决定画面解释；Panorama 只说明呈现位置。",
+              "dimensionIds": [
+                "state.playbackPresentation",
+                "state.mediaProjection",
+                "state.stereoLayout"
+              ]
+            },
+            {
+              "id": "mechanism",
+              "label": "底层机制",
+              "description": "唯一 renderer consumer 绑定 Panorama Surface，Environment Card 必须关闭。",
+              "dimensionIds": [
+                "state.immersiveSpaceResidency",
+                "state.immersiveContent",
+                "state.rendererConsumerBinding",
+                "state.environmentCardResidency"
+              ]
+            }
+          ],
+          "invariantIds": [
+            "invariant.oneSession",
+            "invariant.sameRenderer",
+            "invariant.noAutomaticFormatDetection"
+          ],
+          "constraintIds": [
+            "constraint.presentationNeedsSession",
+            "constraint.panoramaNeedsSpace",
+            "constraint.panoramaNeedsSurface",
+            "constraint.panoramaNoEnvironmentCard"
+          ],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Media Format"
+            }
+          ]
+        }
+      ],
+      "branches": [
+      {
+        "id": "branch.resumeDecision",
+          "label": "Resume Decision",
+          "kind": "decision",
+          "summary": "有效进度且策略要求询问时，只提供 Resume 与 Start Over。",
+        "applicableSnapshotIds": [
+          "snapshot.mediaLibrary",
+          "snapshot.environmentOnly"
+        ],
+          "state": {
+            "state.resumeDecision": "pending",
+            "state.playbackEligibility": "eligible",
+          "state.contentRevision": "current"
+        },
+        "answers": {
+          "question.picture": "当前 Presentation 尚未改变；Resume Decision 覆盖在媒体打开流程之上。",
+          "question.playback": "媒体正在等待用户选择 Resume 或 Start Over，还没有开始播放。",
+          "question.actions": "只选择 Resume 或 Start Over；这里没有 Cancel。"
+        },
+          "invariantIds": [
+            "invariant.sharedIdentityRevision"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Persistent Viewing State"
+            }
+          ]
+        },
+      {
+        "id": "branch.loading",
+        "label": "Loading",
+        "kind": "temporary",
+          "summary": "打开、来源解析或 renderer attach 尚未完成，失败时提供恢复或退出。",
+        "applicableSnapshotIds": [
+          "snapshot.mediaLibrary",
+          "snapshot.environmentOnly"
+        ],
+        "state": {
+          "state.mediaSessionResidency": "opening",
+          "state.playbackLifecycle": "loading",
+          "state.sourceAccess": "available"
+        },
+        "answers": {
+          "question.picture": "当前 Presentation 保持原位，并显示媒体打开或加载反馈。",
+          "question.playback": "来源可访问，Media Session 正在打开和加载。",
+          "question.actions": "等待 Media Session 准备完成。"
+        },
+          "invariantIds": [
+            "invariant.oneSession"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 媒体与来源"
+            }
+          ]
+        },
+        {
+          "id": "branch.recoverableFailure",
+          "label": "Recoverable Failure",
+          "kind": "failure",
+          "summary": "媒体打开或来源访问失败，但用户仍可修复来源并重试。",
+          "applicableSnapshotIds": [
+          "snapshot.mediaLibrary",
+          "snapshot.environmentOnly"
+          ],
+          "state": {
+            "state.mediaSessionResidency": "failed",
+            "state.playbackLifecycle": "failed",
+            "state.sourceAccess": "recoverableFailure"
+          },
+          "answers": {
+            "question.picture": "当前 Presentation 保持原位，并显示可恢复的打开失败反馈。",
+            "question.playback": "Media Session 打开失败；来源访问失败仍允许重试。",
+            "question.actions": "检查来源后重试，或返回媒体浏览。"
+          },
+          "invariantIds": [
+            "invariant.libraryReferencesOnly"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "ui-spec",
+              "heading": "## Surface ownership"
+            }
+          ]
+        },
+        {
+          "id": "branch.presentationTransition",
+          "label": "Presentation Transition",
+          "kind": "temporary",
+          "summary": "转换期间捕获播放意图，暂停正在播放的媒体，并在 settled 后提交或回滚。",
+          "applicableSnapshotIds": [
+            "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+        "state": {
+          "state.presentationTransition": "attaching",
+          "state.presentationPlaybackIntent": "playing",
+          "state.playbackLifecycle": "paused"
+        },
+        "answers": {
+          "question.picture": "画面正在从当前稳定 Presentation 迁移到目标 Surface。",
+          "question.playback": "同一 Media Session 在转换期间暂停；目标稳定后恢复转换前的播放意图。",
+          "question.actions": "等待转换提交；失败时回滚到转换前的稳定 Presentation。"
+        },
+          "invariantIds": [
+            "invariant.transitionRollback",
+            "invariant.sameRenderer"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 产品状态"
+            }
+          ]
+        },
+        {
+          "id": "branch.paused",
+          "label": "Paused",
+          "kind": "stable-variation",
+          "summary": "画面位置不变，只改变 Playback Lifecycle 与可用 transport 意图。",
+          "applicableSnapshotIds": [
+            "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+        "state": {
+          "state.playbackLifecycle": "paused"
+        },
+        "answers": {
+          "question.playback": "同一个 Media Session 已暂停。",
+          "question.actions": "可以继续播放、seek，或使用当前 Presentation 提供的其他操作。"
+        },
+          "invariantIds": [
+            "invariant.oneSession"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Window 与 Playback Deck"
+            }
+          ]
+        },
+        {
+          "id": "branch.ended",
+          "label": "Ended",
+          "kind": "terminal",
+          "summary": "Media Session 与 Presentation 继续存在，视频画面纯黑，Controls 显示 Replay。",
+          "applicableSnapshotIds": [
+            "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+        "state": {
+          "state.playbackLifecycle": "ended",
+          "state.endedSurface": "black"
+        },
+        "answers": {
+          "question.picture": "当前 Presentation 保持存在，但视频画面为纯黑。",
+          "question.playback": "同一个 Media Session 已自然播放结束。",
+          "question.actions": "可 Replay、后退或 seek 离开结尾；是否 Play Next 由独立 End Behavior 决定。"
+        },
+          "invariantIds": [
+            "invariant.oneSession"
+          ],
+          "constraintIds": [
+            "constraint.endedSurfaceBlack"
+          ],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Ended"
+            }
+          ]
+        },
+        {
+          "id": "branch.systemInterruptedDocked",
+          "label": "System Interrupted · Docked",
+          "kind": "system-interruption",
+          "summary": "visionOS 关闭空间后，只在当前进程内保留恢复意图；重建失败则回 Window。",
+          "applicableSnapshotIds": [
+            "snapshot.dockedPlayback"
+          ],
+        "state": {
+          "state.presentationTransition": "interrupted",
+          "state.immersiveSpaceResidency": "closed",
+          "state.immersiveContent": "none",
+          "state.playbackPresentation": "none",
+          "state.rendererConsumerBinding": "none",
+          "state.playbackLifecycle": "paused",
+          "state.environmentContext": "none",
+          "state.environmentEffect": "none",
+          "state.dockingEnvironmentSource": "none",
+          "state.dockingEffect": "none",
+          "state.controlsPresentation": "hidden",
+          "state.spatialRecoveryIntent": "dockedPlayingSameSession",
+          "state.presentationPlaybackIntent": "playing"
+        },
+        "answers": {
+          "question.picture": "原 Docked Surface 已随 Immersive Space 消失，当前没有空间视频画面。",
+          "question.playback": "Media Session 仍在当前进程中，但播放已暂停并等待同进程恢复。",
+          "question.surroundings": "Enchron Immersive Space 已被系统关闭；System Surroundings 由 visionOS 管理。",
+          "question.actions": "重新激活 Enchron 时尝试重建 Docked；失败则安全回到 Window。"
+        },
+          "invariantIds": [
+            "invariant.warmRecoveryMemoryOnly",
+            "invariant.transitionRollback"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 系统关闭空间与同进程恢复"
+            }
+          ]
+        },
+        {
+          "id": "branch.systemInterruptedPanorama",
+          "label": "System Interrupted · Panorama",
+          "kind": "system-interruption",
+          "summary": "visionOS 关闭空间后，只在当前进程内保留 Panorama 恢复意图；重建失败则回 Window。",
+          "applicableSnapshotIds": [
+            "snapshot.panoramaPlayback"
+          ],
+        "state": {
+          "state.presentationTransition": "interrupted",
+          "state.immersiveSpaceResidency": "closed",
+          "state.immersiveContent": "none",
+          "state.playbackPresentation": "none",
+          "state.rendererConsumerBinding": "none",
+          "state.playbackLifecycle": "paused",
+          "state.controlsPresentation": "hidden",
+          "state.spatialRecoveryIntent": "panoramaPlayingSameSession",
+          "state.presentationPlaybackIntent": "playing"
+        },
+        "answers": {
+          "question.picture": "原 Panorama Surface 已随 Immersive Space 消失，当前没有空间视频画面。",
+          "question.playback": "Media Session 仍在当前进程中，但播放已暂停并等待同进程恢复。",
+          "question.surroundings": "Enchron Immersive Space 已被系统关闭；System Surroundings 由 visionOS 管理。",
+          "question.actions": "重新激活 Enchron 时尝试重建 Panorama；失败则安全回到 Window。"
+        },
+          "invariantIds": [
+            "invariant.warmRecoveryMemoryOnly",
+            "invariant.transitionRollback"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 系统关闭空间与同进程恢复"
+            }
+          ]
+        },
+        {
+          "id": "branch.formatChoice",
+          "label": "Media Format Choice",
+          "kind": "decision",
+          "summary": "Projection 与 Stereo Layout 必须由用户明确选择；没有自动检测。",
+          "applicableSnapshotIds": [
+            "snapshot.windowPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+        "state": {
+          "state.mediaProjection": "180",
+          "state.stereoLayout": "sideBySide",
+          "state.formatPreference": "valid"
+        },
+        "answers": {
+          "question.picture": "画面使用用户已应用的 180° Projection 与 Side-by-Side Stereo Layout。",
+          "question.actions": "可以在允许的入口重新选择 Projection 与 Stereo Layout，并再次应用。"
+        },
+          "invariantIds": [
+            "invariant.noAutomaticFormatDetection",
+            "invariant.sharedIdentityRevision"
+          ],
+          "constraintIds": [
+            "constraint.invalidPreferenceNotApplied"
+          ],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Media Format"
+            }
+          ]
+        },
+        {
+          "id": "branch.environmentCard",
+          "label": "Environment Card Focus",
+          "kind": "temporary",
+          "summary": "入口只聚焦唯一 Volume；关闭 Volume 不等于关闭 Environment。",
+          "applicableSnapshotIds": [
+            "snapshot.mediaLibrary",
+            "snapshot.environmentOnly",
+            "snapshot.windowPlayback"
+          ],
+        "state": {
+          "state.environmentCardResidency": "focused"
+        },
+        "answers": {
+          "question.actions": "Environment Card 已聚焦；可打开或关闭 Environment，并切换 Day / Night Effect。"
+        },
+          "invariantIds": [
+            "invariant.environmentCardSingleton"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Environment 与 Docked Placement"
+            }
+          ]
+        },
+        {
+          "id": "branch.defaultDockingEnvironment",
+          "label": "Default Environment Docking",
+          "kind": "stable-variation",
+          "summary": "没有活动 Environment 时临时使用 Default Environment，不把它保存为 Presentation 偏好。",
+          "applicableSnapshotIds": [
+            "snapshot.dockedPlayback"
+          ],
+        "state": {
+          "state.environmentContext": "none",
+          "state.environmentEffect": "none",
+          "state.dockingEnvironmentSource": "temporaryDefault",
+          "state.dockingEffect": "day",
+          "state.immersiveSpaceResidency": "open",
+          "state.immersiveContent": "dockedSurface"
+        },
+        "answers": {
+          "question.surroundings": "用户此前没有活动 Enchron Environment；Docking 临时打开 Default Environment，并只为本次 Docked 使用 Day Effect。",
+          "question.actions": "可使用 Docked 播放与摆位操作；返回 Window 后临时 Environment 与本次 Effect 一同结束。"
+        },
+          "invariantIds": [
+            "invariant.singleEnvironmentIdentity"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Environment 与 Docked Placement"
+            }
+          ]
+        }
+      ],
+      "sharedScopes": [
+        {
+          "id": "shared.viewingAndRevision",
+          "label": "Viewing State 与 Content Revision",
+          "summary": "观看状态与格式偏好共享 Media Identity 和 Content Revision，只登记一次。",
+        "applicableSnapshotIds": [
+          "snapshot.mediaLibrary",
+          "snapshot.environmentOnly",
+          "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+          "dimensionIds": [
+            "state.viewingState",
+            "state.playbackEligibility",
+            "state.contentDurationClass",
+            "state.effectivePlaybackTime",
+            "state.nearEnd",
+            "state.contentRevision",
+            "state.formatPreference"
+          ],
+          "invariantIds": [
+            "invariant.sharedIdentityRevision"
+          ],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Persistent Viewing State"
+            }
+          ]
+        },
+        {
+          "id": "shared.queue",
+          "label": "Playback Queue",
+          "summary": "队列在开始播放时按名称自然升序固定，不随浏览排序变化。",
+          "applicableSnapshotIds": [
+            "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+          "dimensionIds": [
+            "state.queue"
+          ],
+          "relatedActionIds": [
+            "queue.selectEpisode"
+          ],
+          "invariantIds": [
+            "invariant.fixedNaturalQueue"
+          ],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## Playback Collection 与 Play Next"
+            }
+          ]
+        },
+        {
+          "id": "shared.environmentContext",
+          "label": "Environment Context",
+          "summary": "Environment Context 与播放和 Presentation 正交；快照只展示其中一个稳定组合。",
+          "applicableSnapshotIds": [
+            "snapshot.mediaLibrary",
+            "snapshot.environmentOnly",
+            "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+          "dimensionIds": [
+            "state.environmentContext",
+            "state.environmentEffect"
+          ],
+          "invariantIds": [
+            "invariant.orthogonalAxes",
+            "invariant.singleEnvironmentIdentity"
+          ],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 产品状态"
+            }
+          ]
+        },
+        {
+          "id": "shared.sourceAccess",
+          "label": "Source Access",
+          "summary": "来源解析与访问租约贯穿 Media Library 选择和活动 Media Session。",
+        "applicableSnapshotIds": [
+          "snapshot.mediaLibrary",
+          "snapshot.environmentOnly",
+          "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+          "dimensionIds": [
+            "state.sourceAccess"
+          ],
+          "invariantIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 媒体与来源"
+            }
+          ]
+        },
+        {
+          "id": "shared.controls",
+          "label": "Playback Controls",
+          "summary": "Controls 的 hidden、collapsed、advanced 与 moreMenu 适用于三个 Playback Presentation。",
+          "applicableSnapshotIds": [
+            "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+          "dimensionIds": [
+            "state.controlsPresentation"
+          ],
+          "invariantIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "ui-spec",
+              "heading": "## Surface ownership"
+            }
+          ]
+        },
+        {
+          "id": "shared.systemSurroundings",
+          "label": "System Surroundings",
+          "summary": "外部周围环境始终由 visionOS 管理，不成为 Enchron 的状态组合。",
+          "applicableSnapshotIds": [
+            "snapshot.mediaLibrary",
+            "snapshot.environmentOnly",
+            "snapshot.windowPlayback",
+            "snapshot.dockedPlayback",
+            "snapshot.panoramaPlayback"
+          ],
+          "dimensionIds": [
+            "state.systemSurroundings"
+          ],
+        "invariantIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "context",
+              "heading": "## 来源与产品策略"
+            }
+          ]
+        }
+      ],
+      "reference": {
+        "id": "reference.allDimensions",
+        "label": "全部状态维度",
+        "dimensionQuery": "all",
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## 产品状态"
+          }
+        ]
+      }
+    },
     "surfaces": [
       {
         "id": "surface.systemSurroundings",
@@ -2085,7 +3250,13 @@
           "sourceId": "ui-spec",
           "heading": "# Enchron UI 结构规格"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "nav.openSettings",
@@ -2131,7 +3302,13 @@
           "sourceId": "ui-spec",
           "heading": "# Enchron UI 结构规格"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "nav.openEnvironmentCard",
@@ -2196,7 +3373,8 @@
                     "state.environmentCardResidency": "focused"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -2206,7 +3384,16 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "environmentCard.systemClose",
@@ -2265,7 +3452,16 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "library.enterFolder",
@@ -2316,7 +3512,8 @@
             {
               "label": "读取失败",
               "result": "显示可恢复反馈；不触碰媒体字节。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -2330,7 +3527,16 @@
           "sourceId": "product-requirements",
           "heading": "## Persistent Viewing State"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "library.createFolder",
@@ -2373,7 +3579,8 @@
             {
               "label": "名称或保存失败",
               "result": "反馈形式尚未定义。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -2383,7 +3590,13 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "library.renameFolder",
@@ -2430,7 +3643,13 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "library.nestOrMoveFolder",
@@ -2473,7 +3692,8 @@
             {
               "label": "名称冲突",
               "result": "反馈策略尚未定义。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -2483,7 +3703,13 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "library.removeFolder",
@@ -2526,7 +3752,8 @@
             {
               "label": "未决",
               "result": "Folder 内 Media Reference 的去向尚未进入产品规格。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -2536,7 +3763,13 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "library.moveReference",
@@ -2583,7 +3816,13 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "library.removeReference",
@@ -2636,7 +3875,13 @@
           "sourceId": "context",
           "heading": "## 来源与产品策略"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "library.search",
@@ -2685,7 +3930,13 @@
           "sourceId": "product-requirements",
           "heading": "## Playback Collection 与 Play Next"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "library.changeBrowseSort",
@@ -2730,7 +3981,8 @@
             {
               "label": "未决",
               "result": "产品尚未规定可用排序集合。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -2740,7 +3992,13 @@
           "sourceId": "product-requirements",
           "heading": "## Playback Collection 与 Play Next"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "library.gazeProgress",
@@ -2791,7 +4049,8 @@
             {
               "label": "没有缓存",
               "result": "显示空状态，不发起持久化、解析或网络查询。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -2801,7 +4060,16 @@
           "sourceId": "product-requirements",
           "heading": "## Persistent Viewing State"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "source.addFiles",
@@ -2873,7 +4141,8 @@
                     "state.sourceAccess": "recoverableFailure"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -2883,7 +4152,16 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "source.addFolderContents",
@@ -2942,7 +4220,8 @@
             {
               "label": "部分文件失败",
               "result": "保留已确认事实；批次反馈策略未决。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -2952,7 +4231,16 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "source.addPhotos",
@@ -3019,7 +4307,8 @@
                     "state.sourceAccess": "recoverableFailure"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -3029,7 +4318,16 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "source.connectSMB",
@@ -3090,7 +4388,8 @@
                     "state.sourceAccess": "recoverableFailure"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -3100,7 +4399,16 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "source.connectWebDAV",
@@ -3161,7 +4469,8 @@
                     "state.sourceAccess": "recoverableFailure"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -3171,7 +4480,16 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "source.browseDirectory",
@@ -3226,7 +4544,16 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "source.refreshDirectory",
@@ -3280,7 +4607,13 @@
           "sourceId": "product-requirements",
           "heading": "## Playback Collection 与 Play Next"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "source.addRemoteToLibrary",
@@ -3332,7 +4665,13 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "source.recoverReference",
@@ -3389,7 +4728,16 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "source.removeOrDisconnect",
@@ -3435,7 +4783,8 @@
             {
               "label": "未决",
               "result": "Media Reference、Keychain 凭据与活动 lease 的处理待定义。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -3445,7 +4794,16 @@
           "sourceId": "product-requirements",
           "heading": "## 媒体与来源"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "playback.selectMedia",
@@ -3570,7 +4928,8 @@
                     "state.rendererConsumerBinding": "none"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         },
@@ -3653,7 +5012,8 @@
                     "state.resumeDecision": "startOver"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "alternativeOutcome"
             }
           ]
         },
@@ -3744,7 +5104,8 @@
                     "state.playbackPresentation": "window"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -3770,7 +5131,21 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.queue",
+            "state.sourceAccess",
+            "state.contentRevision"
+          ]
+        }
+      }
     },
     {
       "id": "playback.resume",
@@ -3832,7 +5207,13 @@
           "sourceId": "product-requirements",
           "heading": "## Persistent Viewing State"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "playback.startOver",
@@ -3888,7 +5269,13 @@
           "sourceId": "product-requirements",
           "heading": "## Persistent Viewing State"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "playback.applyResumePolicy",
@@ -3941,7 +5328,8 @@
             {
               "label": "Always Resume / Always Start Over",
               "result": "代码存在，但正式枚举需要补入产品规格。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -3955,7 +5343,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "playback.invalidateStaleState",
@@ -4020,7 +5414,24 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.viewingState",
+            "state.formatPreference",
+            "state.resumeDecision"
+          ]
+        }
+      }
     },
     {
       "id": "playback.applyInitialFormat",
@@ -4075,12 +5486,14 @@
             {
               "label": "存在有效偏好",
               "result": "应用用户保存的两个正交维度。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "alternativeOutcome"
             },
             {
               "label": "应用失败",
               "result": "产品反馈仍需完善，不允许默认画面抢先开始。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -4090,7 +5503,23 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.mediaProjection",
+            "state.stereoLayout"
+          ]
+        }
+      }
     },
     {
       "id": "playback.autoEnterSavedPanorama",
@@ -4192,7 +5621,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "rollback"
             }
           ]
         }
@@ -4202,7 +5632,24 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.playbackLifecycle",
+            "state.presentationPlaybackIntent"
+          ]
+        }
+      }
     },
     {
       "id": "playback.retryLoad",
@@ -4266,7 +5713,8 @@
                     "state.playbackLifecycle": "failed"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -4280,7 +5728,23 @@
           "sourceId": "core-spec",
           "heading": "## Media Session"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.mediaSessionResidency",
+            "state.playbackLifecycle"
+          ]
+        }
+      }
     },
     {
       "id": "playback.closeFailure",
@@ -4344,7 +5808,8 @@
             {
               "label": "Cleanup 未完成",
               "result": "不能开放新的 Current Media Slot。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -4358,7 +5823,24 @@
           "sourceId": "core-spec",
           "heading": "## Media Session"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.mediaSessionResidency",
+            "state.playbackLifecycle",
+            "state.appDestination"
+          ]
+        }
+      }
     },
     {
       "id": "viewing.accumulateEffectivePlayback",
@@ -4411,7 +5893,8 @@
             {
               "label": "暂停、缓冲或 seek",
               "result": "不累计有效播放时间。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -4421,7 +5904,19 @@
           "sourceId": "product-requirements",
           "heading": "## Persistent Viewing State"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.effectivePlaybackTime"
+          ]
+        }
+      }
     },
     {
       "id": "viewing.evaluatePersistenceEligibility",
@@ -4514,7 +6009,19 @@
           "sourceId": "product-requirements",
           "heading": "## Persistent Viewing State"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackEligibility"
+          ]
+        }
+      }
     },
     {
       "id": "viewing.saveProgress",
@@ -4577,7 +6084,8 @@
             {
               "label": "内容不足 15 分钟、有效播放不足 15 秒或接近结尾",
               "result": "不保存 Resume 位置。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -4587,7 +6095,19 @@
           "sourceId": "product-requirements",
           "heading": "## Persistent Viewing State"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.viewingState"
+          ]
+        }
+      }
     },
     {
       "id": "viewing.markCompleted",
@@ -4647,7 +6167,8 @@
             {
               "label": "seek 到结尾或内容少于 15 分钟",
               "result": "不持久化 completed。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -4661,7 +6182,19 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.viewingState"
+          ]
+        }
+      }
     },
     {
       "id": "viewing.replaceCompletedWithProgress",
@@ -4726,7 +6259,19 @@
           "sourceId": "product-requirements",
           "heading": "## Persistent Viewing State"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.viewingState"
+          ]
+        }
+      }
     },
     {
       "id": "queue.selectEpisode",
@@ -4784,7 +6329,8 @@
             {
               "label": "Presentation 与新格式不兼容",
               "result": "先回 Window，再决定是否进入 Panorama。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -4794,7 +6340,20 @@
           "sourceId": "product-requirements",
           "heading": "## Playback Collection 与 Play Next"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.mediaSessionResidency",
+            "state.playbackLifecycle"
+          ]
+        }
+      }
     },
     {
       "id": "queue.playNext",
@@ -4862,7 +6421,8 @@
                     "state.endedSurface": "black"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -4876,7 +6436,21 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.mediaSessionResidency",
+            "state.playbackLifecycle",
+            "state.queue"
+          ]
+        }
+      }
     },
     {
       "id": "queue.repeatOne",
@@ -4930,7 +6504,8 @@
             {
               "label": "未决",
               "result": "复用当前 Session 还是 close/reopen 需要 Core 合同决定。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -4940,7 +6515,20 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackLifecycle",
+            "state.endedSurface"
+          ]
+        }
+      }
     },
     {
       "id": "queue.stopAtEnd",
@@ -4994,7 +6582,13 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "window.backToLibrary",
@@ -5062,7 +6656,8 @@
               "label": "Cleanup 失败",
               "decisionStatus": "unresolved",
               "result": "反馈形式尚未定义；不能伪装完成。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -5072,7 +6667,24 @@
           "sourceId": "product-requirements",
           "heading": "## Docked、Panorama 与退出"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.mediaSessionResidency",
+            "state.playbackPresentation",
+            "state.playbackLifecycle"
+          ]
+        }
+      }
     },
     {
       "id": "window.openDockMenu",
@@ -5122,7 +6734,8 @@
             {
               "label": "当前格式是 panoramic",
               "result": "Docking 入口不可用。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -5132,7 +6745,13 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "window.enterDockedDay",
@@ -5206,7 +6825,8 @@
             "label": "提交 Docked 并恢复原播放意图",
             "actorId": "enchron"
           }
-        ]
+        ],
+        "transactionLabel": "Attach · Settle · Commit / Rollback"
       },
       "demonstrations": [
         {
@@ -5295,7 +6915,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "rollback"
             }
           ]
         },
@@ -5360,7 +6981,24 @@
           "sourceId": "architecture",
           "heading": "## 不变量"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.playbackLifecycle",
+            "state.presentationPlaybackIntent"
+          ]
+        }
+      }
     },
     {
       "id": "window.enterDockedNight",
@@ -5473,7 +7111,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "rollback"
             }
           ]
         }
@@ -5487,7 +7126,24 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.playbackLifecycle",
+            "state.presentationPlaybackIntent"
+          ]
+        }
+      }
     },
     {
       "id": "window.openPanoramaMenu",
@@ -5542,7 +7198,16 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "window.selectProjection",
@@ -5592,7 +7257,8 @@
             {
               "label": "Fisheye 无 AIME 资格",
               "result": "选项禁用，不能伪造资格。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -5602,7 +7268,13 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "window.selectStereoLayout",
@@ -5656,7 +7328,13 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "window.applyPanoramaFormat",
@@ -5815,7 +7493,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -5833,7 +7512,24 @@
           "sourceId": "architecture",
           "heading": "## 不变量"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.playbackLifecycle",
+            "state.presentationPlaybackIntent"
+          ]
+        }
+      }
     },
     {
       "id": "window.resumePanorama",
@@ -5926,7 +7622,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "rollback"
             }
           ]
         }
@@ -5936,7 +7633,24 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.immersiveSpaceResidency",
+            "state.presentationPlaybackIntent"
+          ]
+        }
+      }
     },
     {
       "id": "docked.returnWindow",
@@ -6031,7 +7745,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "rollback"
             }
           ]
         }
@@ -6045,7 +7760,24 @@
           "sourceId": "architecture",
           "heading": "## 不变量"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.playbackLifecycle",
+            "state.presentationPlaybackIntent"
+          ]
+        }
+      }
     },
     {
       "id": "panorama.returnWindow",
@@ -6135,7 +7867,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "rollback"
             }
           ]
         }
@@ -6149,7 +7882,24 @@
           "sourceId": "product-requirements",
           "heading": "## Docked、Panorama 与退出"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.rendererConsumerBinding",
+            "state.presentationPlaybackIntent"
+          ]
+        }
+      }
     },
     {
       "id": "panorama.backToLibrary",
@@ -6222,7 +7972,8 @@
               "label": "Cleanup 或 space close 失败",
               "decisionStatus": "unresolved",
               "result": "反馈策略尚未定义。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -6232,7 +7983,24 @@
           "sourceId": "product-requirements",
           "heading": "## Docked、Panorama 与退出"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.mediaSessionResidency",
+            "state.playbackPresentation",
+            "state.playbackLifecycle"
+          ]
+        }
+      }
     },
     {
       "id": "presentation.rollback",
@@ -6299,7 +8067,20 @@
           "sourceId": "architecture",
           "heading": "## 不变量"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackPresentation",
+            "state.presentationTransition"
+          ]
+        }
+      }
     },
     {
       "id": "controls.summonOrHide",
@@ -6361,12 +8142,14 @@
                     "state.endedSurface": "black"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "guardedOutcome"
             },
             {
               "label": "手势细节未决",
               "result": "产品规格尚未定义 gaze/tap 的精确入口。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -6380,7 +8163,23 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.controlsPresentation",
+            "state.endedSurface"
+          ]
+        }
+      }
     },
     {
       "id": "controls.openAdvanced",
@@ -6435,7 +8234,13 @@
           "sourceId": "product-requirements",
           "heading": "## Window 与 Playback Deck"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "controls.openMore",
@@ -6490,7 +8295,13 @@
           "sourceId": "product-requirements",
           "heading": "## Window 与 Playback Deck"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "transport.play",
@@ -6563,7 +8374,16 @@
           "sourceId": "product-requirements",
           "heading": "## Window 与 Playback Deck"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "transport.pause",
@@ -6621,7 +8441,8 @@
             {
               "label": "Presentation 正在转换",
               "result": "用户控制是否禁用尚未正式定义。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -6635,7 +8456,16 @@
           "sourceId": "product-requirements",
           "heading": "## 产品状态"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "transport.replay",
@@ -6699,7 +8529,23 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackLifecycle",
+            "state.endedSurface"
+          ]
+        }
+      }
     },
     {
       "id": "transport.back10",
@@ -6763,7 +8609,8 @@
                     "state.endedSurface": "inactive"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -6777,7 +8624,23 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackLifecycle",
+            "state.endedSurface"
+          ]
+        }
+      }
     },
     {
       "id": "transport.forward10",
@@ -6845,7 +8708,8 @@
                     "state.endedSurface": "black"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -6859,7 +8723,23 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackLifecycle",
+            "state.endedSurface"
+          ]
+        }
+      }
     },
     {
       "id": "transport.progressSeek",
@@ -6926,7 +8806,8 @@
                     "state.endedSurface": "black"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -6940,7 +8821,23 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackLifecycle",
+            "state.endedSurface"
+          ]
+        }
+      }
     },
     {
       "id": "transport.precisionSeek",
@@ -7010,7 +8907,23 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackLifecycle",
+            "state.endedSurface"
+          ]
+        }
+      }
     },
     {
       "id": "transport.previousFrame",
@@ -7077,7 +8990,23 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackLifecycle",
+            "state.endedSurface"
+          ]
+        }
+      }
     },
     {
       "id": "transport.nextFrame",
@@ -7149,7 +9078,8 @@
                     "state.endedSurface": "black"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -7159,7 +9089,23 @@
           "sourceId": "product-requirements",
           "heading": "## Ended"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.playbackLifecycle",
+            "state.endedSurface"
+          ]
+        }
+      }
     },
     {
       "id": "more.selectSubtitle",
@@ -7212,7 +9158,8 @@
             {
               "label": "Core 拒绝",
               "result": "显示拒绝原因，不静默改用 UI index。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -7226,7 +9173,16 @@
           "sourceId": "core-spec",
           "heading": "## 控制"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "more.selectAudioTrack",
@@ -7279,7 +9235,8 @@
             {
               "label": "Core 拒绝",
               "result": "显示拒绝原因。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -7293,7 +9250,16 @@
           "sourceId": "core-spec",
           "heading": "## 控制"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "more.selectSpeed",
@@ -7358,7 +9324,16 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "more.selectEpisode",
@@ -7424,7 +9399,13 @@
           "sourceId": "product-requirements",
           "heading": "## Window 与 Playback Deck"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "docked.adjustSize",
@@ -7481,7 +9462,8 @@
             {
               "label": "超出范围",
               "result": "Clamp 到 50%–250%；Day/Night 共享。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -7491,7 +9473,13 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "docked.adjustDistance",
@@ -7552,7 +9540,13 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "docked.adjustElevation",
@@ -7613,7 +9607,13 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "docked.restorePlacement",
@@ -7669,7 +9669,13 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "panorama.changeProjection",
@@ -7723,7 +9729,8 @@
             {
               "label": "Fisheye 无 AIME 资格",
               "result": "选项禁用。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -7733,7 +9740,13 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "panorama.changeStereo",
@@ -7791,7 +9804,13 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "panorama.applyFormat",
@@ -7867,7 +9886,8 @@
                     "state.stereoLayout": "mono"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -7877,7 +9897,21 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.mediaProjection",
+            "state.stereoLayout",
+            "state.formatPreference"
+          ]
+        }
+      }
     },
     {
       "id": "panorama.resetFlatMono",
@@ -7986,7 +10020,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "rollback"
             }
           ]
         }
@@ -7996,7 +10031,24 @@
           "sourceId": "product-requirements",
           "heading": "## Media Format"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.playbackLifecycle",
+            "state.presentationPlaybackIntent"
+          ]
+        }
+      }
     },
     {
       "id": "controls.autoHide",
@@ -8048,12 +10100,14 @@
             {
               "label": "Never",
               "result": "不自动隐藏。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
             },
             {
               "label": "选项未决",
               "result": "具体时长与空间 gaze/focus 合同尚未进入规格。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -8067,7 +10121,22 @@
           "sourceId": "ui-spec",
           "heading": "## Interaction constraints"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.controlsPresentation"
+          ]
+        }
+      }
     },
     {
       "id": "environment.open",
@@ -8152,7 +10221,8 @@
                     "state.environmentEffect": "none"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "rollback"
             }
           ]
         }
@@ -8162,7 +10232,24 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.immersiveSpaceResidency",
+            "state.immersiveContent",
+            "state.environmentContext"
+          ]
+        }
+      }
     },
     {
       "id": "environment.close",
@@ -8229,7 +10316,8 @@
             {
               "label": "当前 Docked",
               "result": "直接关闭操作不可用。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -8239,7 +10327,24 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.environmentContext",
+            "state.environmentEffect",
+            "state.immersiveContent"
+          ]
+        }
+      }
     },
     {
       "id": "environment.setDay",
@@ -8306,7 +10411,8 @@
               "label": "资源切换失败",
               "decisionStatus": "unresolved",
               "result": "反馈形式尚未定义；保持原 Effect。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -8316,7 +10422,16 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "environment.setNight",
@@ -8383,7 +10498,8 @@
               "label": "资源切换失败",
               "decisionStatus": "unresolved",
               "result": "反馈形式尚未定义；保持原 Effect。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -8393,7 +10509,16 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "environment.focusExistingCard",
@@ -8446,7 +10571,8 @@
             {
               "label": "当前实现落后",
               "result": "WindowGroup 允许副本，不能声称已经实现单例。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "recoverableFailure"
             }
           ]
         }
@@ -8456,7 +10582,16 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "environment.requestCardWhileDocked",
@@ -8563,7 +10698,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "rollback"
             }
           ]
         },
@@ -8634,7 +10770,21 @@
           "sourceId": "product-requirements",
           "heading": "## 产品状态"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationPlaybackIntent",
+            "state.presentationTransition",
+            "state.playbackLifecycle"
+          ]
+        }
+      }
     },
     {
       "id": "environment.chooseSpatialCardEntry",
@@ -8692,7 +10842,8 @@
               "label": "未决",
               "decisionStatus": "unresolved",
               "result": "入口的 Entity、手势和状态反馈未确认；一旦请求产生，Docked → Window → 唯一 Card 的后续行为已经确认。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -8702,7 +10853,13 @@
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "system.homeViewDismissesSpatial",
@@ -8832,7 +10989,8 @@
             {
               "label": "无法可靠识别关闭原因",
               "result": "按 Immersive Space disappearance 统一处理，不猜测 Home View。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "systemInterruption"
             }
           ]
         },
@@ -8966,7 +11124,24 @@
           "sourceId": "product-requirements",
           "heading": "## 系统关闭空间与同进程恢复"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.immersiveSpaceResidency",
+            "state.playbackLifecycle",
+            "state.presentationPlaybackIntent"
+          ]
+        }
+      }
     },
     {
       "id": "system.warmReactivateSpatial",
@@ -9075,7 +11250,8 @@
                     "state.presentationTransition": "rolledBack"
                   }
                 }
-              ]
+              ],
+              "visualSemantic": "guardedOutcome"
             }
           ]
         },
@@ -9197,7 +11373,24 @@
           "sourceId": "product-requirements",
           "heading": "## 系统关闭空间与同进程恢复"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.immersiveSpaceResidency",
+            "state.immersiveContent"
+          ]
+        }
+      }
     },
     {
       "id": "system.coldLaunchAfterTermination",
@@ -9257,7 +11450,24 @@
           "sourceId": "product-requirements",
           "heading": "## 系统关闭空间与同进程恢复"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.spatialRecoveryIntent",
+            "state.presentationPlaybackIntent",
+            "state.immersiveSpaceResidency"
+          ]
+        }
+      }
     },
     {
       "id": "settings.setResumePolicy",
@@ -9305,7 +11515,8 @@
             {
               "label": "枚举待固化",
               "result": "当前实现选项不能自动升级为产品事实。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -9315,7 +11526,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "settings.setEndBehavior",
@@ -9371,7 +11588,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "settings.setDefaultSpeed",
@@ -9423,7 +11646,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "settings.setControlsAutoHide",
@@ -9472,7 +11701,8 @@
             {
               "label": "选项待固化",
               "result": "具体时长不能从当前 UI 反推为规格。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -9482,7 +11712,16 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
     },
     {
       "id": "settings.clearThumbnailCache",
@@ -9534,7 +11773,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "settings.clearAllViewingState",
@@ -9594,7 +11839,13 @@
           "sourceId": "product-requirements",
           "heading": "## Persistent Viewing State"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "settings.clearSingleViewingState",
@@ -9639,7 +11890,8 @@
             {
               "label": "入口未决",
               "result": "术语允许，Settings 当前只正式定义 Clear All。",
-              "steps": []
+              "steps": [],
+              "visualSemantic": "unresolved"
             }
           ]
         }
@@ -9653,7 +11905,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "settings.viewPrivacy",
@@ -9700,7 +11958,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "settings.copyVersionBuild",
@@ -9747,7 +12011,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "settings.copyFeedbackAddress",
@@ -9794,7 +12064,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     },
     {
       "id": "settings.viewLicenses",
@@ -9841,7 +12117,13 @@
           "sourceId": "product-requirements",
           "heading": "## 设置与数据"
         }
-      ]
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        }
+      }
     }
   ]
 }

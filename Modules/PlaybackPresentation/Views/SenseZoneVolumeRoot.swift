@@ -1,29 +1,48 @@
 import SwiftUI
+import PlaybackPresentation
 
 struct SenseZoneVolumeRoot: View {
     @Environment(AppModel.self) private var appModel
-    @Environment(\.dismissWindow) private var dismissWindow
 
     var body: some View {
         EnvironmentCardCarousel(
-            onReturn: returnToMain,
-            onExpand: enterImmersive
+            activeEnvironment: appModel.environmentContext.environment,
+            defaultEffect: appModel.currentEnvironmentEffect,
+            onEffectChange: updateEnvironmentEffect,
+            onExpand: toggleEnvironment
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("SenseZone-VolumeRoot")
         .accessibilityLabel("SenseZone environments")
+        .background { SpatialPlatformEffectExecutor() }
     }
 
-    private func returnToMain() {
-        guard !appModel.isEnvironmentTransitionInFlight else { return }
-        appModel.isEnvironmentTransitionInFlight = true
-        dismissWindow(id: AppModel.senseZoneVolumeID)
-        appModel.isEnvironmentTransitionInFlight = false
+    private func updateEnvironmentEffect(
+        _ featured: FeaturedEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect
+    ) {
+        guard appModel.environmentContext.environment == featured.environment else {
+            return
+        }
+        appModel.setActiveEnvironmentEffect(effect)
     }
 
-    private func enterImmersive(_ featured: FeaturedEnvironment) {
-        appModel.currentCinemaEnvironment = featured.environment
-        appModel.isEnvironmentImmersiveActive = true
-        appModel.requestImmersiveSpace()
+    private func toggleEnvironment(
+        _ featured: FeaturedEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect
+    ) {
+        do {
+            if appModel.environmentContext.environment == featured.environment {
+                try appModel.requestEnvironmentPreviewDismissal()
+            } else {
+                guard appModel.immersiveSpaceResidency == .closed else { return }
+                try appModel.requestEnvironmentPreview(
+                    environment: featured.environment,
+                    effect: effect
+                )
+            }
+        } catch {
+            return
+        }
     }
 }

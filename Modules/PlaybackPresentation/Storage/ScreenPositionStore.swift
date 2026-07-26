@@ -1,61 +1,61 @@
 import Foundation
 
-
 public nonisolated struct SavedScreenPosition: Sendable, Equatable {
     public let environmentID: String
-    public let depthOffsetMeters: Double
-    public let verticalOffsetMeters: Double
-    public let viewAngleDegrees: Double
+    public let distanceMeters: Double
+    public let elevationDegrees: Double
     public let screenScale: Double
 
     public init(
         environmentID: String,
-        depthOffsetMeters: Double,
-        verticalOffsetMeters: Double,
-        viewAngleDegrees: Double,
+        distanceMeters: Double,
+        elevationDegrees: Double,
         screenScale: Double
     ) {
         self.environmentID = environmentID
-        self.depthOffsetMeters = min(max(depthOffsetMeters, -2.0), 2.0)
-        self.verticalOffsetMeters = min(max(verticalOffsetMeters, -5.0), 5.0)
-        self.viewAngleDegrees = min(max(viewAngleDegrees, -45.0), 45.0)
-        self.screenScale = min(max(screenScale, 0.5), 2.5)
+        self.distanceMeters = min(max(
+            distanceMeters,
+            PlaybackDockedPlacement.distanceRange.lowerBound
+        ), PlaybackDockedPlacement.distanceRange.upperBound)
+        self.elevationDegrees = min(max(
+            elevationDegrees,
+            PlaybackDockedPlacement.elevationRange.lowerBound
+        ), PlaybackDockedPlacement.elevationRange.upperBound)
+        self.screenScale = min(max(
+            screenScale,
+            PlaybackScreenSize.scaleRange.lowerBound
+        ), PlaybackScreenSize.scaleRange.upperBound)
     }
 }
-
 
 public nonisolated protocol ScreenPositionStoring: Sendable {
     func savePosition(
         for environmentID: String,
-        depthOffsetMeters: Double,
-        verticalOffsetMeters: Double,
-        angleDegrees: Double,
+        distanceMeters: Double,
+        elevationDegrees: Double,
         screenScale: Double
     ) async
 
     func loadPosition(for environmentID: String) async -> SavedScreenPosition?
 }
 
-
-public nonisolated final class ScreenPositionStore: ScreenPositionStoring, @unchecked Sendable {
+nonisolated final class ScreenPositionStore: ScreenPositionStoring, @unchecked Sendable {
     private let defaults: UserDefaults
     private static let keyPrefix = "xrplayer.screenPos."
 
-    public init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
     }
 
-    public func savePosition(
+    func savePosition(
         for environmentID: String,
-        depthOffsetMeters: Double,
-        verticalOffsetMeters: Double,
-        angleDegrees: Double,
+        distanceMeters: Double,
+        elevationDegrees: Double,
         screenScale: Double
     ) async {
         let entry = Entry(
-            depthOffsetMeters: depthOffsetMeters,
-            verticalOffsetMeters: verticalOffsetMeters,
-            angleDegrees: angleDegrees,
+            distanceMeters: distanceMeters,
+            elevationDegrees: elevationDegrees,
             screenScale: screenScale
         )
         if let data = try? JSONEncoder().encode(entry) {
@@ -63,26 +63,43 @@ public nonisolated final class ScreenPositionStore: ScreenPositionStoring, @unch
         }
     }
 
-    public func loadPosition(
-        for environmentID: String
-    ) async -> SavedScreenPosition? {
+    func loadPosition(for environmentID: String) async -> SavedScreenPosition? {
         guard let data = defaults.data(forKey: Self.keyPrefix + environmentID),
               let entry = try? JSONDecoder().decode(Entry.self, from: data) else {
             return nil
         }
         return .init(
             environmentID: environmentID,
-            depthOffsetMeters: entry.depthOffsetMeters ?? 0,
-            verticalOffsetMeters: entry.verticalOffsetMeters,
-            viewAngleDegrees: entry.angleDegrees,
+            distanceMeters: entry.distanceMeters ?? PlaybackDockedPlacement.defaultDistance,
+            elevationDegrees: entry.elevationDegrees ?? PlaybackDockedPlacement.defaultElevationDegrees,
             screenScale: entry.screenScale ?? 1.3
         )
     }
 
     private struct Entry: Codable, Sendable {
-        let depthOffsetMeters: Double?
-        let verticalOffsetMeters: Double
-        let angleDegrees: Double
+        let distanceMeters: Double?
+        let elevationDegrees: Double?
         let screenScale: Double?
+        let depthOffsetMeters: Double?
+        let verticalOffsetMeters: Double?
+        let angleDegrees: Double?
+
+        init(distanceMeters: Double, elevationDegrees: Double, screenScale: Double) {
+            self.distanceMeters = distanceMeters
+            self.elevationDegrees = elevationDegrees
+            self.screenScale = screenScale
+            depthOffsetMeters = nil
+            verticalOffsetMeters = nil
+            angleDegrees = nil
+        }
+    }
+}
+
+public nonisolated enum PlaybackPresentationStorage {
+    public static func makeScreenPositionStore(
+        suiteName: String? = nil
+    ) -> any ScreenPositionStoring {
+        let defaults = suiteName.flatMap(UserDefaults.init(suiteName:)) ?? .standard
+        return ScreenPositionStore(defaults: defaults)
     }
 }

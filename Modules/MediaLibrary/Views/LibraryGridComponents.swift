@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 struct GridCard: View {
@@ -111,7 +113,7 @@ struct GridCard: View {
             thumbnailContent(shape)
                 .frame(height: DesignTokens.Card.thumbnailHeight)
                 .clipShape(shape)
-                .glassBackgroundEffect(in: shape)
+                .enchronGlassBackground(in: shape)
                 .enchronHoverContentShape(shape)
                 .enchronHoverEffect(.highlight, in: hoverActivationGroup)
 
@@ -276,7 +278,7 @@ private struct WatchedEdgeProgressDemo: View {
                         .overlay { watchedEdgeProgressVisual(p) }
                         .frame(width: DesignTokens.Card.gridMin, height: DesignTokens.Card.thumbnailHeight)
                         .clipShape(shape)
-                        .glassBackgroundEffect(in: shape)
+                        .enchronGlassBackground(in: shape)
 
                     Text("\(Int(p * 100))%")
                         .font(DesignTokens.Typography.metadata)
@@ -288,7 +290,8 @@ private struct WatchedEdgeProgressDemo: View {
     }
 }
 
+#if canImport(PreviewsMacros)
 #Preview("Watched edge · 25/50/100") {
     WatchedEdgeProgressDemo()
 }
-
+#endif

@@ -1,10 +1,10 @@
 import CoreGraphics
 
-struct WindowPlaybackPageGeometry: Equatable {
-    let canvasFrame: CGRect
-    let deckFrame: CGRect?
+public struct WindowPlaybackPageGeometry: Equatable {
+    public let canvasFrame: CGRect
+    public let deckFrame: CGRect?
 
-    nonisolated static func resolve(
+    public nonisolated static func resolve(
         in containerSize: CGSize,
         deckSize: CGSize?,
         spacing: CGFloat

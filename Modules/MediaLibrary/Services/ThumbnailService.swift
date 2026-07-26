@@ -13,6 +13,7 @@ import Foundation
 /// Concurrency limits:
 ///   - Local files: up to 3 concurrent extractions
 ///   - Remote files (smb:// / http:// / https://): up to 2 concurrent extractions
+@MainActor
 @Observable
 public final class ThumbnailService {
 

@@ -1,3 +1,4 @@
+import DesignSystem
 import SwiftUI
 
 /// Vertical pill navigation for the main window's leading edge.
@@ -8,7 +9,7 @@ import SwiftUI
 public struct NavigationOrnament: View {
     @Environment(AppModel.self) private var appModel
     #if os(visionOS)
-    @Environment(\.openWindow) private var openWindow
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
     #endif
     @AccessibilityFocusState private var focusedTab: AppModel.NavigationTab?
 
@@ -28,8 +29,10 @@ public struct NavigationOrnament: View {
                             // Environments opens its own destination — the SenseZone
                             // volume with the polished EnvironmentCardCarousel — without
                             // parking the main window on a blank tab (LNCH-03 / ENV-13).
-                            appModel.environmentReturnTab = appModel.selectedTab
-                            openWindow(id: AppModel.senseZoneVolumeID)
+                            try? appModel.requestEnvironmentCard(
+                                mediaSessionID: playbackRuntime.activeSessionID,
+                                wasPlaying: playbackRuntime.productLifecycle == .playing
+                            )
                             #else
                             appModel.selectedTab = .environment
                             focusedTab = .environment
@@ -40,8 +43,8 @@ public struct NavigationOrnament: View {
                             .font(.title2)
                             .foregroundStyle(
                                 appModel.selectedTab == tab
-                                    ? Color.enchronTertiary
-                                    : Color.enchronOnSurfaceVariant
+                                    ? DesignTokens.Theme.tertiary
+                                    : DesignTokens.Theme.onSurfaceVariant
                             )
                             .frame(width: 60, height: 60)
                             .contentShape(.rect)

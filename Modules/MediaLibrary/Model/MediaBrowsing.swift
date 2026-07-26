@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 
 
 nonisolated extension FileBrowsingDomain {
@@ -9,6 +10,7 @@ nonisolated extension FileBrowsingDomain {
         public let modifiedAt: Date
         public let fileExtension: String
         public let url: URL
+        public let remoteEntityTag: String?
 
         public init(
             id: UUID = UUID(),
@@ -16,7 +18,8 @@ nonisolated extension FileBrowsingDomain {
             sizeInBytes: Int64,
             modifiedAt: Date,
             fileExtension: String,
-            url: URL
+            url: URL,
+            remoteEntityTag: String? = nil
         ) {
             self.id = id
             self.name = name
@@ -24,6 +27,7 @@ nonisolated extension FileBrowsingDomain {
             self.modifiedAt = modifiedAt
             self.fileExtension = fileExtension.lowercased()
             self.url = url
+            self.remoteEntityTag = remoteEntityTag
         }
     }
 }
@@ -120,39 +124,7 @@ nonisolated extension FileBrowsingDomain {
 }
 
 
-public nonisolated final class FilePlaybackSourceLease: @unchecked Sendable {
-    private let lock = NSLock()
-    private var releaseAction: (@Sendable () -> Void)?
-
-    public init(release: @escaping @Sendable () -> Void) {
-        releaseAction = release
-    }
-
-    public func release() {
-        let action = lock.withLock {
-            let action = releaseAction
-            releaseAction = nil
-            return action
-        }
-        action?()
-    }
-
-    deinit {
-        release()
-    }
-}
-
-public nonisolated struct FilePlaybackSource: @unchecked Sendable {
-    public let url: URL
-    public let lease: FilePlaybackSourceLease?
-
-    public init(url: URL, lease: FilePlaybackSourceLease? = nil) {
-        self.url = url
-        self.lease = lease
-    }
-}
-
-public nonisolated protocol FileProviding {
+public nonisolated protocol FileProviding: Sendable {
     func listFiles(
         in folder: FileBrowsingDomain.MediaFolder,
         sortBy: FileBrowsingDomain.SortCriteria
@@ -160,11 +132,11 @@ public nonisolated protocol FileProviding {
 
     func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource
+    ) async throws -> ResolvedMediaSource
 }
 
 
-public nonisolated protocol DataSourceConnecting {
+public nonisolated protocol DataSourceConnecting: Sendable {
     func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws
     func disconnect()
 
@@ -187,4 +159,3 @@ public nonisolated protocol DataSourceConnecting {
 public nonisolated protocol LocalFileSource: AnyObject, FileProviding, DataSourceConnecting {
     var ownerDataSourceID: UUID { get set }
 }
-

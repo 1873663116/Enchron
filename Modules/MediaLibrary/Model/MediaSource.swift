@@ -109,6 +109,10 @@ nonisolated extension FileBrowsingDomain {
         }
 
         public var credentialSourceID: String {
+            "\(legacyCredentialSourceID):\(accountNamespace)"
+        }
+
+        var legacyCredentialSourceID: String {
             let type = sourceType.rawValue
             let host = host ?? ""
             let port = port ?? 0
@@ -118,6 +122,34 @@ nonisolated extension FileBrowsingDomain {
             }
 
             return "\(type):\(host):\(port):\(rootPath)"
+        }
+
+        public var mediaIdentitySourceKey: String {
+            let normalizedHost = (host ?? "").lowercased()
+            let normalizedScheme = (scheme ?? "").lowercased()
+            let normalizedPort = port ?? Self.defaultPort(for: normalizedScheme)
+            return [
+                sourceType.rawValue,
+                normalizedScheme,
+                normalizedHost,
+                String(normalizedPort),
+                accountNamespace,
+            ]
+                .joined(separator: ":")
+        }
+
+        private var accountNamespace: String {
+            let value = username?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return value.isEmpty ? "guest" : value
+        }
+
+        private static func defaultPort(for scheme: String) -> Int {
+            switch scheme {
+            case "http": 80
+            case "https": 443
+            case "smb": 445
+            default: 0
+            }
         }
 
         public var displayAddress: String {
@@ -233,4 +265,3 @@ nonisolated extension FileBrowsingDomain {
         }
     }
 }
-

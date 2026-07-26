@@ -1,5 +1,29 @@
 import Foundation
-import PlaybackCore
+import MediaSource
+
+public nonisolated enum PlaybackCollectionOrigin: String, Sendable, Equatable {
+    case standalone
+    case mediaLibrary
+    case sourceDirectory
+}
+
+public nonisolated struct PlaybackFileIdentifier: Sendable, Equatable, Hashable {
+    public let rawValue: String
+
+    public init(rawValue: String) {
+        self.rawValue = rawValue
+    }
+
+    public static func make(
+        path: String,
+        sizeInBytes: Int64,
+        serverFingerprint: String?
+    ) -> PlaybackFileIdentifier {
+        PlaybackFileIdentifier(
+            rawValue: "\(path)|\(sizeInBytes)|\(serverFingerprint ?? "local")"
+        )
+    }
+}
 
 public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
     public let mediaProfile: PlaybackModel.MediaProfile?
@@ -40,34 +64,44 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public let displayName: String
     public let fileIdentifier: PlaybackFileIdentifier?
     public let initialMetadata: PlaybackMediaMetadata?
-    let sourceAccess: PlaybackSourceAccess?
+    public let collectionOrigin: PlaybackCollectionOrigin
+    public let versionedIdentity: VersionedMediaIdentity?
+    public let sourceAccess: MediaAccessLease?
 
     public init(
         url: URL,
         displayName: String,
         fileIdentifier: PlaybackFileIdentifier? = nil,
-        initialMetadata: PlaybackMediaMetadata? = nil
+        initialMetadata: PlaybackMediaMetadata? = nil,
+        collectionOrigin: PlaybackCollectionOrigin = .standalone,
+        versionedIdentity: VersionedMediaIdentity? = nil
     ) {
         self.id = url
         self.url = url
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier
         self.initialMetadata = initialMetadata
+        self.collectionOrigin = collectionOrigin
+        self.versionedIdentity = versionedIdentity
         self.sourceAccess = nil
     }
 
-    init(
+    public init(
         url: URL,
         displayName: String,
         fileIdentifier: PlaybackFileIdentifier? = nil,
         initialMetadata: PlaybackMediaMetadata? = nil,
-        sourceAccess: PlaybackSourceAccess?
+        collectionOrigin: PlaybackCollectionOrigin = .standalone,
+        versionedIdentity: VersionedMediaIdentity? = nil,
+        sourceAccess: MediaAccessLease?
     ) {
         self.id = url
         self.url = url
         self.displayName = displayName
         self.fileIdentifier = fileIdentifier
         self.initialMetadata = initialMetadata
+        self.collectionOrigin = collectionOrigin
+        self.versionedIdentity = versionedIdentity
         self.sourceAccess = sourceAccess
     }
 
@@ -77,6 +111,8 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             displayName: displayName,
             fileIdentifier: fileIdentifier,
             initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata,
+            collectionOrigin: collectionOrigin,
+            versionedIdentity: versionedIdentity,
             sourceAccess: sourceAccess
         )
     }
@@ -86,6 +122,8 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             lhs.url == rhs.url &&
             lhs.displayName == rhs.displayName &&
             lhs.fileIdentifier == rhs.fileIdentifier &&
-            lhs.initialMetadata == rhs.initialMetadata
+            lhs.initialMetadata == rhs.initialMetadata &&
+            lhs.collectionOrigin == rhs.collectionOrigin &&
+            lhs.versionedIdentity == rhs.versionedIdentity
     }
 }

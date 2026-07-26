@@ -1,4 +1,6 @@
+import Foundation
 import OSLog
+import PlaybackPresentation
 import SwiftUI
 
 private let macPresentationLogger = Logger(
@@ -30,17 +32,20 @@ struct EnchronMacOSProductRoot: View {
 
     var body: some View {
         MainView(macOSPlaybackPresentation: visiblePresentation)
-        .onChange(of: appModel.presentationTransition?.id) { _, _ in
+        .onChange(of: appModel.pendingSpatialPlatformEffect?.id) { _, _ in
             transitionTask?.cancel()
-            guard let transition = appModel.presentationTransition else { return }
-            transitionTask = Task { await complete(transition) }
+            guard let request = appModel.pendingSpatialPlatformEffect else { return }
+            let executionID = UUID()
+            transitionTask = Task {
+                await complete(request, executionID: executionID)
+            }
         }
         .onChange(of: playbackRuntime.hasActivePlaybackRequest) { _, isActive in
             guard isActive == false else { return }
             transitionTask?.cancel()
             transitionTask = nil
             visiblePresentation = .window
-            appModel.resetPlaybackPresentationForStoppedPlayback()
+            appModel.requestStoppedPlaybackCleanup()
             macPresentationLogger.notice("playback stopped; host restored window presentation")
         }
         .onDisappear {
@@ -49,17 +54,67 @@ struct EnchronMacOSProductRoot: View {
     }
 
     @MainActor
-    private func complete(_ transition: PlaybackPresentationTransition) async {
+    private func complete(
+        _ request: SpatialPlatformEffectRequest,
+        executionID: UUID
+    ) async {
+        guard appModel.claimSpatialPlatformEffect(
+            request.id,
+            executionID: executionID
+        ) else { return }
+        if let mediaSessionID = request.playbackTransportPlan?.mediaSessionID,
+           playbackRuntime.activeSessionID != mediaSessionID {
+            finish(
+                request,
+                executionID: executionID,
+                outcome: .failed(.mediaSessionChanged),
+                performsAfterTransport: false
+            )
+            return
+        }
+        if let beforeEffect = request.playbackTransportPlan?.beforeEffect {
+            do {
+                try playbackRuntime.performSpatialPlaybackTransport(beforeEffect)
+            } catch {
+                playbackRuntime.lastErrorMessage = error.localizedDescription
+                let failure: SpatialPlatformEffectFailure =
+                    playbackRuntime.activeSessionID == beforeEffect.mediaSessionID
+                        ? .playbackPauseFailed
+                        : .mediaSessionChanged
+                finish(
+                    request,
+                    executionID: executionID,
+                    outcome: .failed(failure),
+                    performsAfterTransport: false
+                )
+                return
+            }
+        }
+        if case .normalizeStoppedSpatialPlayback = request.effect {
+            visiblePresentation = .window
+            finish(request, executionID: executionID, outcome: .succeeded)
+            return
+        }
+        if case .recoverSpatialPlayback = request.effect {
+            visiblePresentation = .window
+            finish(
+                request,
+                executionID: executionID,
+                outcome: .failed(.executionCancelled)
+            )
+            return
+        }
         guard Task.isCancelled == false,
-              playbackRuntime.hasActivePlaybackRequest else {
-            appModel.resetPlaybackPresentationForStoppedPlayback()
+              playbackRuntime.hasActivePlaybackRequest,
+              let transition = appModel.presentationTransition else {
+            finish(
+                request,
+                executionID: executionID,
+                outcome: .failed(.executionCancelled)
+            )
             visiblePresentation = .window
             return
         }
-        guard appModel.isTransitioningPlaybackPresentation == false else { return }
-
-        appModel.isTransitioningPlaybackPresentation = true
-        defer { appModel.isTransitioningPlaybackPresentation = false }
 
         let previousSurfacePresentation = visiblePresentation
         let targetSurfacePresentation = MacPlaybackPresentationHost.surfacePresentation(
@@ -70,33 +125,115 @@ struct EnchronMacOSProductRoot: View {
         )
         visiblePresentation = targetSurfacePresentation
         await Task.yield()
-        guard Task.isCancelled == false else { return }
+        guard Task.isCancelled == false else {
+            finish(
+                request,
+                executionID: executionID,
+                outcome: .failed(.executionCancelled)
+            )
+            return
+        }
 
-        let attached = await playbackRuntime.waitUntilAttached(to: targetSurfacePresentation)
-        guard Task.isCancelled == false else { return }
+        let attached = await playbackRuntime.waitUntilPresentationSettled(
+            to: targetSurfacePresentation
+        )
+        guard Task.isCancelled == false else {
+            finish(
+                request,
+                executionID: executionID,
+                outcome: .failed(.executionCancelled)
+            )
+            return
+        }
         guard attached else {
             macPresentationLogger.error(
                 "transition attach timed out target=\(transition.targetPresentation.rawValue, privacy: .public) hosted=\(targetSurfacePresentation.rawValue, privacy: .public)"
             )
             await restore(previousSurfacePresentation)
-            appModel.rollbackPlaybackPresentation(transition.id)
+            finish(
+                request,
+                executionID: executionID,
+                outcome: .failed(.spatialPlaybackSurfaceUnavailable)
+            )
             playbackRuntime.lastErrorMessage = "The macOS RealityView surface could not attach to PlaybackCore."
             return
         }
 
-        do {
-            try appModel.commitPlaybackPresentation(transition.id)
+        let resolution = finish(
+            request,
+            executionID: executionID,
+            outcome: .succeeded
+        )
+        if resolution == .presentationCommitted(transition.targetPresentation) {
             macPresentationLogger.notice(
                 "transition committed presentation=\(transition.targetPresentation.rawValue, privacy: .public) hosted=\(targetSurfacePresentation.rawValue, privacy: .public) simulated=\(transition.targetPresentation == .panorama, privacy: .public) session=\(playbackRuntime.activeSessionID ?? "none", privacy: .public)"
             )
-        } catch {
+        } else {
             macPresentationLogger.error(
-                "transition commit failed error=\(error.localizedDescription, privacy: .public)"
+                "transition result ignored or rolled back target=\(transition.targetPresentation.rawValue, privacy: .public)"
             )
             await restore(previousSurfacePresentation)
-            appModel.rollbackPlaybackPresentation(transition.id)
-            playbackRuntime.lastErrorMessage = error.localizedDescription
         }
+    }
+
+    @discardableResult
+    private func finish(
+        _ request: SpatialPlatformEffectRequest,
+        executionID: UUID,
+        outcome: SpatialPlatformEffectOutcome,
+        performsAfterTransport: Bool = true
+    ) -> SpatialPlatformEffectResolution {
+        let resolvedOutcome: SpatialPlatformEffectOutcome
+        if let mediaSessionID = request.playbackTransportPlan?.mediaSessionID,
+           playbackRuntime.activeSessionID != mediaSessionID {
+            resolvedOutcome = .failed(.mediaSessionChanged)
+        } else {
+            resolvedOutcome = outcome
+        }
+        let resolution = appModel.receiveSpatialPlatformResult(
+            .effectCompleted(
+                SpatialPlatformEffectResult(
+                    requestID: request.id,
+                    executionID: executionID,
+                    mediaSessionID: request.playbackTransportPlan?.mediaSessionID,
+                    outcome: resolvedOutcome
+                )
+            )
+        )
+        guard performsAfterTransport else { return resolution }
+        if resolvedOutcome == .failed(.mediaSessionChanged) {
+            return resolution
+        }
+        let transportIntent: SpatialPlaybackTransportIntent?
+        switch resolvedOutcome {
+        case .succeeded:
+            transportIntent = request.playbackTransportPlan?.afterSuccess
+        case .failed:
+            transportIntent = request.playbackTransportPlan?.afterFailure
+        }
+        if let transportIntent {
+            do {
+                try playbackRuntime.performSpatialPlaybackTransport(transportIntent)
+            } catch {
+                playbackRuntime.lastErrorMessage = error.localizedDescription
+                let reason: SpatialPlaybackTransportFailureReason =
+                    playbackRuntime.activeSessionID == transportIntent.mediaSessionID
+                        ? .operationRejected
+                        : .mediaSessionChanged
+                appModel.receiveSpatialPlatformResult(
+                    .playbackTransportFailed(
+                        SpatialPlaybackTransportFailure(
+                            requestID: request.id,
+                            executionID: executionID,
+                            mediaSessionID: transportIntent.mediaSessionID,
+                            intent: transportIntent,
+                            reason: reason
+                        )
+                    )
+                )
+            }
+        }
+        return resolution
     }
 
     @MainActor
@@ -106,6 +243,6 @@ struct EnchronMacOSProductRoot: View {
         )
         visiblePresentation = presentation
         await Task.yield()
-        _ = await playbackRuntime.waitUntilAttached(to: presentation)
+        _ = await playbackRuntime.waitUntilPresentationSettled(to: presentation)
     }
 }

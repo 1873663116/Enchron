@@ -157,6 +157,9 @@ _Avoid_：Environment Appearance、独立场景身份、Default Environment 的�
 **Environment Card**：用户浏览、打开或关闭 Enchron Environment，并调节其 Environment Effect 的独立 Volume；Environment Tab 是它在 Window 界面中的入口。系统中只存在一个 Environment Card 实例，它不属于 Playback Deck、Media Session 或 Playback Presentation，也不是 Panorama 的控制界面。
 _Avoid_：把 Day/Night 拆成两张 Environment Card、重复创建多个 Environment Card Volume、在卡片内提供替代系统 Window Bar 的返回按钮、从 Panorama 打开 Environment Card
 
+**Environment Card Residency**：同一个 Environment Card singleton Window 当前为 closed、正在 opening，或已经 open 的空间事实。它由空间体验 owner 独立持有，并由 Window Scene 的出现与消失事件结算；重复入口只聚焦现有实例，不创建第二个 Card，也不改变 Playback Presentation。
+_Avoid_：AppModel 的第二个布尔标记、用 Card residency 推断 Playback Presentation、把聚焦现有 Card 当成新建实例
+
 **Default Environment**：当用户没有活动 Enchron Environment 时，Docking 临时打开的特定 Environment 身份。它只选择 Environment，不包含 Day/Night 等 Environment Effect。
 _Avoid_：Default Environment Appearance、Environment 与 Effect 的组合预设
 
@@ -192,7 +195,11 @@ _Avoid_：仅返回 Window却保留偏好、把 Flat 混入首次 Panorama 投�
 
 **Panorama Presentation Actions**：召唤 Playback Deck 后提供播放控制、返回 Window，以及直接退出当前媒体并回到 Window Media Library 的 Back。退出媒体不主动关闭已经存在的 Environment Context。
 
-**Presentation Transition**：从一个稳定 Playback Presentation 到另一个稳定 Presentation 的暂态；成功提交，失败回滚。
+**Presentation Transition**：从一个稳定 Playback Presentation 到另一个稳定 Presentation 的暂态。它绑定发起时的 Media Session；原先 Playing 时在平台效果前暂停，暂停失败则平台效果不开始并回滚。平台效果结算后按 owner 的策略恢复；若效果已经提交而恢复播放失败，保留已提交的 Presentation 并显式记录失败，不能伪装成平台回滚。原先 Paused、Ready 或 Ended 时不改变播放状态。
+
+**Spatial Platform Effect**：空间体验所有者要求 App 平台层执行的 visionOS 或 RealityKit 操作，例如打开 Immersive Space、聚焦 Window、切换 immersion style 或绑定当前 Scene 的播放表面。同一时刻只有一个待执行效果；每个请求具有稳定身份，平台层只有在当前存在可执行 SwiftUI Scene action 的根时才认领，否则请求继续留在 owner，待可执行根再次出现后处理。空间体验所有者忽略重复或迟到结果，并独自决定提交或回滚 Presentation Transition；平台层不决定目标 Presentation，也不直接改写 Environment Context。
+
+**Spatial Recovery Intent**：Home View 或其他系统行为非预期关闭 Enchron Immersive Space 后，仅存在于当前 App 进程内存中的恢复事务值。它保存仍然有效的 Docked 或 Panorama、Media Session 身份与关闭前是否 Playing；owner 保持原稳定 Presentation，要求 App 暂停原 session 并显式重建同一空间呈现，成功后只有原先 Playing 才恢复播放。旧 session 的 intent/result 不作用于新媒体；失败时清除 intent、一次性收敛到 Window 且不自动重试。主动返回 Window、停止播放、Environment preview/Card 和 Window residency 不创建该 intent。它不是第四种 Playback Presentation，也不写入 Resume、UserDefaults、SceneStorage、数据库或文件。
 
 ## 验证
 

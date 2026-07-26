@@ -1,17 +1,26 @@
 import AVFoundation
 import CoreMedia
 import Foundation
+import MediaSource
 import Observation
 import OSLog
 import PlaybackCore
+import PlaybackFeature
+import PlaybackPresentation
 
 @MainActor
 @Observable
-public final class PlaybackRuntime {
+public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public enum PresentationState: Sendable {
         case hidden
         case placeholder
         case videoVisible
+    }
+
+    public enum SessionLifecycleEvent: Equatable, Sendable {
+        case activated(id: String)
+        case replaced(previousID: String, currentID: String)
+        case ended(id: String)
     }
 
     public enum RuntimeError: LocalizedError {
@@ -19,6 +28,9 @@ public final class PlaybackRuntime {
         case sourceAccessUnavailable
         case unsupportedProjection(PlaybackModel.ProjectionType)
         case rendererConsumerBusy(PlaybackPresentation)
+        case mediaSessionChanged
+        case spatialPlaybackTransportUnavailable(ProductPlaybackLifecycle)
+        case formatRollbackFailed
 
         public var errorDescription: String? {
             switch self {
@@ -30,6 +42,12 @@ public final class PlaybackRuntime {
                 "PlaybackCore cannot currently represent the \(projection.rawValue) projection."
             case .rendererConsumerBusy(let presentation):
                 "The \(presentation.rawValue) RealityView still owns the active video renderer."
+            case .mediaSessionChanged:
+                "The media session changed before the operation completed."
+            case .spatialPlaybackTransportUnavailable(let lifecycle):
+                "Playback cannot be paused or resumed while it is \(String(describing: lifecycle))."
+            case .formatRollbackFailed:
+                "The media format could not be restored after a failed update. Reopen the media before changing its format again."
             }
         }
     }
@@ -49,6 +67,9 @@ public final class PlaybackRuntime {
     public private(set) var activeSubtitleCues: [PlaybackSubtitleCue] = []
     public private(set) var activeSubtitleFrame: PlaybackSubtitleFrame?
     public private(set) var activeSessionID: String?
+    public private(set) var actualPlaybackSeconds: Double = 0
+    public private(set) var didEndNaturally = false
+    public private(set) var mediaFormatIsKnown = false
     public private(set) var renderer: AVSampleBufferVideoRenderer?
     public private(set) var attachedPresentation: PlaybackPresentation?
     public private(set) var rendererConsumerPresentation: PlaybackPresentation?
@@ -57,8 +78,21 @@ public final class PlaybackRuntime {
 
     public var onPlaybackEnded: (() -> Void)?
     public var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)?
+    @ObservationIgnored
+    private var sessionLifecycleHandler: ((SessionLifecycleEvent) -> Void)?
 
     public var hasActivePlaybackRequest: Bool { currentLaunchRequest != nil }
+    public var productLifecycle: ProductPlaybackLifecycle {
+        switch lifecycle {
+        case .idle: .idle
+        case .loading: .loading
+        case .ready: .ready
+        case .playing: .playing
+        case .paused: .paused
+        case .ended: .ended
+        case .failed: .failed
+        }
+    }
     public var canPresentControls: Bool { currentLaunchRequest != nil }
     public var canEnterSpatialPresentation: Bool {
         guard currentLaunchRequest != nil,
@@ -76,18 +110,11 @@ public final class PlaybackRuntime {
     }
     public var effectiveProjectionType: PlaybackModel.ProjectionType {
         if isUITestFixture, let fixtureProjectionOverride { return fixtureProjectionOverride }
-        return Self.projectionType(from: session?.effectiveProjectionKind ?? "")
-            ?? displayMediaProfile?.projectionType
-            ?? .flat
+        return selectedProjectionType
     }
     public var effectiveStereoLayout: PlaybackModel.StereoLayout {
         if isUITestFixture, let fixtureStereoOverride { return fixtureStereoOverride }
-        switch controller.selectedStereoLayout {
-        case .sideBySide: return .sideBySide
-        case .overUnder: return .topBottom
-        case .mono: return .mono
-        case nil: return displayMediaProfile?.stereoLayout ?? .mono
-        }
+        return selectedStereoLayout
     }
     public var displayMediaProfile: PlaybackModel.MediaProfile? {
         profile(from: diagnostics) ?? prefetchedMetadata?.mediaProfile
@@ -97,6 +124,7 @@ public final class PlaybackRuntime {
 
     private let controller: PlaybackCoreController
     private let isUITestFixture: Bool
+    private let fixtureStartsEnded: Bool
     private let audioSessionLifecycle: PlaybackAudioSessionLifecycle
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackRuntime")
     private let signposter: OSSignposter
@@ -105,9 +133,13 @@ public final class PlaybackRuntime {
     private var generation = 0
     private var fixtureProjectionOverride: PlaybackModel.ProjectionType?
     private var fixtureStereoOverride: PlaybackModel.StereoLayout?
+    private var selectedProjectionType: PlaybackModel.ProjectionType = .flat
+    private var selectedStereoLayout: PlaybackModel.StereoLayout = .mono
+    private var displayedImageGeneration = 0
     private var lastResolvedProfile: PlaybackModel.MediaProfile?
     private var closingTask: Task<Void, Never>?
     private var startsWhenAttached = false
+    private var actualPlaybackAccumulator = ActualPlaybackAccumulator()
 
     private struct Attachment {
         let entityID: String
@@ -122,17 +154,29 @@ public final class PlaybackRuntime {
         self.init(
             controller: controller,
             isUITestFixture: isUITestFixture,
-            audioSessionLifecycle: PlaybackAudioSessionLifecycle()
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(),
+            fixtureStartsEnded: false
+        )
+    }
+
+    convenience init(isUITestFixture: Bool, fixtureStartsEnded: Bool) {
+        self.init(
+            controller: PlaybackCoreController(),
+            isUITestFixture: isUITestFixture,
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle(),
+            fixtureStartsEnded: fixtureStartsEnded
         )
     }
 
     init(
         controller: PlaybackCoreController,
         isUITestFixture: Bool,
-        audioSessionLifecycle: PlaybackAudioSessionLifecycle
+        audioSessionLifecycle: PlaybackAudioSessionLifecycle,
+        fixtureStartsEnded: Bool = false
     ) {
         self.controller = controller
         self.isUITestFixture = isUITestFixture
+        self.fixtureStartsEnded = fixtureStartsEnded
         self.audioSessionLifecycle = audioSessionLifecycle
         self.signposter = OSSignposter(logger: logger)
         controller.onStatusChange = { [weak self] status in
@@ -153,19 +197,34 @@ public final class PlaybackRuntime {
         currentLaunchRequest = request
         prefetchedMetadata = request.initialMetadata
         playbackPosition = .init(seconds: 0, duration: 0)
+        currentPlaybackSpeed = .default
         presentationState = .placeholder
         lastErrorMessage = nil
         lastResolvedProfile = nil
         startsWhenAttached = true
+        actualPlaybackSeconds = 0
+        didEndNaturally = false
+        actualPlaybackAccumulator.reset()
+        selectedProjectionType = .flat
+        selectedStereoLayout = .mono
+        mediaFormatIsKnown = false
+        invalidatePendingDisplayedImageClear()
     }
 
     public func applyPrefetchedMetadata(_ metadata: PlaybackMediaMetadata) {
         prefetchedMetadata = prefetchedMetadata?.merging(with: metadata) ?? metadata
     }
 
+    public func setSessionLifecycleHandler(
+        _ handler: ((SessionLifecycleEvent) -> Void)?
+    ) {
+        sessionLifecycleHandler = handler
+    }
+
     public func open(
         _ request: PlaybackLaunchRequest,
-        startTimeSeconds: Double = 0
+        startTimeSeconds: Double = 0,
+        initialSpeed: PlaybackModel.PlaybackSpeed = .default
     ) async throws {
         let interval = signposter.beginInterval("OpenPlayback")
         defer { signposter.endInterval("OpenPlayback", interval) }
@@ -173,11 +232,12 @@ public final class PlaybackRuntime {
         let openGeneration = generation
         let startTimeSeconds = max(0, startTimeSeconds)
         prepareForPlayback(request)
+        currentPlaybackSpeed = initialSpeed
         logger.info("open requested source=\(request.displayName, privacy: .public)")
 
         if isUITestFixture {
             renderer = AVSampleBufferVideoRenderer()
-            activeSessionID = "ui-test-fixture"
+            updateActiveSessionID("ui-test-fixture-\(openGeneration)")
             playbackPosition = .init(seconds: startTimeSeconds, duration: 7_200)
             lifecycle = .ready
             presentationState = .videoVisible
@@ -193,7 +253,7 @@ public final class PlaybackRuntime {
             let newSession = try await controller.open(
                 request.url,
                 startTime: CMTime(seconds: startTimeSeconds, preferredTimescale: 60_000),
-                initialRate: Float(currentPlaybackSpeed.value),
+                initialRate: Float(initialSpeed.value),
                 provenance: "Enchron",
                 accessRequirement: request.url.isFileURL ? "securityScopedFile" : "networkSource"
             )
@@ -203,7 +263,7 @@ public final class PlaybackRuntime {
                 return
             }
             session = newSession
-            activeSessionID = newSession.traceID
+            updateActiveSessionID(newSession.traceID)
             renderer = newSession.renderer
             let selectedAudioStreamIndex = newSession.selectedAudioStreamIndex
             availableAudioTracks = controller.availableAudioTracks.map {
@@ -238,7 +298,13 @@ public final class PlaybackRuntime {
             attachedPresentation = presentation
             presentationState = .videoVisible
             if startsWhenAttached {
-                lifecycle = .playing
+                if fixtureStartsEnded {
+                    playbackPosition = .init(seconds: playbackPosition.duration, duration: playbackPosition.duration)
+                    lifecycle = .ended
+                    didEndNaturally = true
+                } else {
+                    lifecycle = .playing
+                }
                 startsWhenAttached = false
             }
             clearFailureIfPlaybackIsUsable()
@@ -361,14 +427,9 @@ public final class PlaybackRuntime {
 
     public func pause() {
         PlaybackTrace.event("runtime.pause.request lifecycle=\(lifecycle.label)")
-        if isUITestFixture {
-            lifecycle = .paused
-            PlaybackTrace.event("runtime.pause.completed fixture=true")
-            return
-        }
         do {
-            try controller.pause()
-            PlaybackTrace.event("runtime.pause.completed fixture=false")
+            guard let activeSessionID else { throw RuntimeError.noSession }
+            try performSpatialPlaybackTransport(.pause(mediaSessionID: activeSessionID))
         } catch {
             fail(error)
         }
@@ -376,32 +437,76 @@ public final class PlaybackRuntime {
 
     public func resume() {
         PlaybackTrace.event("runtime.resume.request lifecycle=\(lifecycle.label)")
-        if isUITestFixture {
-            lifecycle = .playing
-            PlaybackTrace.event("runtime.resume.completed fixture=true")
-            return
-        }
         do {
-            try controller.play()
-            PlaybackTrace.event("runtime.resume.completed fixture=false")
+            guard let activeSessionID else { throw RuntimeError.noSession }
+            try performSpatialPlaybackTransport(.resume(mediaSessionID: activeSessionID))
         } catch {
             fail(error)
         }
     }
 
-    public func seek(to seconds: Double) {
+    public func performSpatialPlaybackTransport(
+        _ intent: SpatialPlaybackTransportIntent
+    ) throws {
+        guard activeSessionID == intent.mediaSessionID else {
+            throw RuntimeError.mediaSessionChanged
+        }
+
+        switch intent {
+        case .pause:
+            if productLifecycle == .paused { return }
+            guard productLifecycle == .playing else {
+                throw RuntimeError.spatialPlaybackTransportUnavailable(productLifecycle)
+            }
+            PlaybackTrace.event("runtime.pause.request lifecycle=\(lifecycle.label)")
+            if isUITestFixture {
+                lifecycle = .paused
+            } else {
+                try controller.pause()
+            }
+            PlaybackTrace.event("runtime.pause.completed fixture=\(isUITestFixture)")
+        case .resume:
+            if productLifecycle == .playing { return }
+            guard productLifecycle == .paused || productLifecycle == .ready else {
+                throw RuntimeError.spatialPlaybackTransportUnavailable(productLifecycle)
+            }
+            PlaybackTrace.event("runtime.resume.request lifecycle=\(lifecycle.label)")
+            if isUITestFixture {
+                lifecycle = .playing
+            } else {
+                try controller.play()
+            }
+            PlaybackTrace.event("runtime.resume.completed fixture=\(isUITestFixture)")
+        }
+
+        guard activeSessionID == intent.mediaSessionID else {
+            throw RuntimeError.mediaSessionChanged
+        }
+    }
+
+    public func seek(to seconds: Double, startsPaused: Bool? = nil) {
+        resetActualPlaybackSampling()
+        invalidatePendingDisplayedImageClear()
         let nonnegativeTarget = max(0, seconds)
         let target = playbackPosition.duration > 0
             ? min(playbackPosition.duration, nonnegativeTarget)
             : nonnegativeTarget
         if isUITestFixture {
             playbackPosition = .init(seconds: target, duration: playbackPosition.duration)
+            if startsPaused == true {
+                lifecycle = .paused
+            } else if startsPaused == false {
+                lifecycle = .playing
+            }
             return
         }
         Task { [weak self] in
             guard let self else { return }
             do {
-                try await controller.seek(to: CMTime(seconds: target, preferredTimescale: 600))
+                try await controller.seek(
+                    to: CMTime(seconds: target, preferredTimescale: 600),
+                    startsPaused: startsPaused
+                )
             } catch let error as PlaybackControlError {
                 if case .seekSuperseded = error { return }
                 fail(error)
@@ -412,15 +517,19 @@ public final class PlaybackRuntime {
     }
 
     public func skip(by delta: Double) {
+        resetActualPlaybackSampling()
+        invalidatePendingDisplayedImageClear()
+        let startsPaused = lifecycle == .ended ? true : nil
         if isUITestFixture {
-            seek(to: playbackPosition.seconds + delta)
+            seek(to: playbackPosition.seconds + delta, startsPaused: startsPaused)
             return
         }
         Task { [weak self] in
             guard let self else { return }
             do {
                 try await controller.seek(
-                    by: CMTime(seconds: delta, preferredTimescale: 600)
+                    by: CMTime(seconds: delta, preferredTimescale: 600),
+                    startsPaused: startsPaused
                 )
             } catch let error as PlaybackControlError {
                 if case .seekSuperseded = error { return }
@@ -432,6 +541,7 @@ public final class PlaybackRuntime {
     }
 
     public func setSpeed(_ speed: PlaybackModel.PlaybackSpeed) {
+        resetActualPlaybackSampling()
         if isUITestFixture { currentPlaybackSpeed = speed; return }
         do {
             try controller.setRate(Float(speed.value))
@@ -441,7 +551,7 @@ public final class PlaybackRuntime {
         }
     }
 
-    public func setVolume(_ volume: Float) {
+    func setVolume(_ volume: Float) {
         if isUITestFixture { return }
         do {
             try controller.setVolume(volume)
@@ -450,7 +560,7 @@ public final class PlaybackRuntime {
         }
     }
 
-    public func setMuted(_ muted: Bool) {
+    func setMuted(_ muted: Bool) {
         if isUITestFixture { return }
         do {
             try controller.setMuted(muted)
@@ -493,6 +603,8 @@ public final class PlaybackRuntime {
     }
 
     public func replay() {
+        resetActualPlaybackSampling()
+        invalidatePendingDisplayedImageClear()
         if isUITestFixture {
             playbackPosition = .init(seconds: 0, duration: playbackPosition.duration)
             lifecycle = .playing
@@ -516,29 +628,62 @@ public final class PlaybackRuntime {
         projection: PlaybackModel.ProjectionType,
         stereo: PlaybackModel.StereoLayout
     ) async throws {
-        if projection == .fisheye,
-           displayMediaProfile?.projectionType != .fisheye {
+        if projection == .fisheye, supportsFisheyePresentation == false {
             throw RuntimeError.unsupportedProjection(.fisheye)
         }
         if isUITestFixture {
             fixtureProjectionOverride = projection
             fixtureStereoOverride = stereo
+            selectedProjectionType = projection
+            selectedStereoLayout = stereo
+            mediaFormatIsKnown = true
             return
         }
-        switch stereo {
-        case .mono: _ = try await controller.setStereoLayout(.mono)
-        case .sideBySide: _ = try await controller.setStereoLayout(.sideBySide)
-        case .topBottom: _ = try await controller.setStereoLayout(.overUnder)
+        let formatGeneration = generation
+        let formatSessionID = activeSessionID
+        let previousProjection = selectedProjectionType
+        let previousStereo = selectedStereoLayout
+        do {
+            try await applyStereoLayout(stereo)
+            guard generation == formatGeneration,
+                  activeSessionID == formatSessionID else {
+                throw RuntimeError.mediaSessionChanged
+            }
+            try await applyProjection(projection)
+            guard generation == formatGeneration,
+                  activeSessionID == formatSessionID else {
+                throw RuntimeError.mediaSessionChanged
+            }
+            selectedProjectionType = projection
+            selectedStereoLayout = stereo
+            mediaFormatIsKnown = true
+        } catch {
+            guard generation == formatGeneration,
+                  activeSessionID == formatSessionID else { throw error }
+            do {
+                try await applyStereoLayout(previousStereo)
+                guard generation == formatGeneration,
+                      activeSessionID == formatSessionID else {
+                    throw RuntimeError.mediaSessionChanged
+                }
+                try await applyProjection(previousProjection)
+                guard generation == formatGeneration,
+                      activeSessionID == formatSessionID else {
+                    throw RuntimeError.mediaSessionChanged
+                }
+            } catch RuntimeError.mediaSessionChanged {
+                throw RuntimeError.mediaSessionChanged
+            } catch {
+                mediaFormatIsKnown = false
+                lastErrorMessage = RuntimeError.formatRollbackFailed.localizedDescription
+                throw RuntimeError.formatRollbackFailed
+            }
+            throw error
         }
-        switch projection {
-        case .flat: _ = try await controller.setProjectionOverride(.rectilinear)
-        case .equirectangular180: _ = try await controller.setProjectionOverride(.halfEquirectangular)
-        case .equirectangular360: _ = try await controller.setProjectionOverride(.equirectangular)
-        case .fisheye:
-            // Apple fisheye playback requires source AIME metadata; retaining it
-            // means removing any app-supplied projection override.
-            _ = try await controller.clearProjectionOverride()
-        }
+    }
+
+    public var supportsFisheyePresentation: Bool {
+        Self.hasAIME(from: diagnostics.projectionKind)
     }
 
     public func stop(releasingSourceAccess: Bool = true) {
@@ -591,7 +736,7 @@ public final class PlaybackRuntime {
         clearPresentationForTeardown()
         session = nil
         renderer = nil
-        activeSessionID = nil
+        updateActiveSessionID(nil)
         currentLaunchRequest = nil
         prefetchedMetadata = nil
         availableAudioTracks = []
@@ -603,14 +748,39 @@ public final class PlaybackRuntime {
         playbackPosition = .init(seconds: 0, duration: 0)
         fixtureProjectionOverride = nil
         fixtureStereoOverride = nil
+        selectedProjectionType = .flat
+        selectedStereoLayout = .mono
+        mediaFormatIsKnown = false
         lastResolvedProfile = nil
     }
 
-    public func waitUntilAttached(
+    private func updateActiveSessionID(_ newSessionID: String?) {
+        let previousSessionID = activeSessionID
+        guard previousSessionID != newSessionID else { return }
+        activeSessionID = newSessionID
+
+        switch (previousSessionID, newSessionID) {
+        case (nil, let currentID?):
+            sessionLifecycleHandler?(.activated(id: currentID))
+        case (let previousID?, let currentID?):
+            sessionLifecycleHandler?(
+                .replaced(
+                    previousID: previousID,
+                    currentID: currentID
+                )
+            )
+        case (let previousID?, nil):
+            sessionLifecycleHandler?(.ended(id: previousID))
+        case (nil, nil):
+            break
+        }
+    }
+
+    public func waitUntilPresentationSettled(
         to presentation: PlaybackPresentation,
         timeout: Duration = .seconds(5)
     ) async -> Bool {
-        if attachedPresentation == presentation { return true }
+        if presentationIsSettled(presentation) { return true }
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
         while clock.now < deadline {
@@ -620,12 +790,42 @@ public final class PlaybackRuntime {
             } catch {
                 return false
             }
-            if attachedPresentation == presentation { return true }
+            if presentationIsSettled(presentation) { return true }
         }
         logger.error(
-            "surface attachment timed out expected=\(String(describing: presentation), privacy: .public) actual=\(String(describing: self.attachedPresentation), privacy: .public)"
+            "presentation settlement timed out expected=\(String(describing: presentation), privacy: .public) actual=\(String(describing: self.attachedPresentation), privacy: .public)"
         )
         return false
+    }
+
+    private func presentationIsSettled(_ presentation: PlaybackPresentation) -> Bool {
+        if isUITestFixture { return attachedPresentation == presentation }
+        guard attachedPresentation == presentation,
+              let record = session?.debugSnapshot().presentationState else { return false }
+        return Self.presentationTransitionCanCommit(
+            record: record,
+            presentation: presentation,
+            activeSessionID: activeSessionID,
+            lifecycle: productLifecycle
+        )
+    }
+
+    static func presentationTransitionCanCommit(
+        record: PresentationStateRecord,
+        presentation: PlaybackPresentation,
+        activeSessionID: String?,
+        lifecycle: ProductPlaybackLifecycle
+    ) -> Bool {
+        guard record.mediaSessionID == activeSessionID,
+              record.requestedMode == presentation.rawValue else { return false }
+        if record.phase == "settled" { return true }
+        guard record.phase == "surfaceAttached" else { return false }
+        switch lifecycle {
+        case .ready, .paused, .ended:
+            return true
+        case .idle, .loading, .playing, .failed:
+            return false
+        }
     }
 
     func recordPresentationState(
@@ -697,8 +897,28 @@ public final class PlaybackRuntime {
     }
 
     private func frameStep(direction: Double) {
+        resetActualPlaybackSampling()
+        invalidatePendingDisplayedImageClear()
         let rate = diagnostics.nominalFrameRate > 0 ? diagnostics.nominalFrameRate : 30
-        skip(by: direction / rate)
+        let offset = direction / rate
+        if isUITestFixture {
+            seek(to: playbackPosition.seconds + offset, startsPaused: true)
+            return
+        }
+        Task { [weak self] in
+            guard let self else { return }
+            do {
+                try await controller.seek(
+                    by: CMTime(seconds: offset, preferredTimescale: 60_000),
+                    startsPaused: true
+                )
+            } catch let error as PlaybackControlError {
+                if case .seekSuperseded = error { return }
+                fail(error)
+            } catch {
+                fail(error)
+            }
+        }
     }
 
     private func receive(_ status: PlaybackStatus) {
@@ -709,7 +929,19 @@ public final class PlaybackRuntime {
         case .ready, .playing, .paused:
             clearFailureIfPlaybackIsUsable()
         case .ended:
+            didEndNaturally = true
             audioSessionLifecycle.deactivate()
+            let endedSessionID = activeSessionID
+            displayedImageGeneration += 1
+            let clearGeneration = displayedImageGeneration
+            Task { [weak self] in
+                guard let self, let endedSessionID else { return }
+                await Task.yield()
+                guard lifecycle == .ended,
+                      activeSessionID == endedSessionID,
+                      displayedImageGeneration == clearGeneration else { return }
+                await controller.clearDisplayedVideoImage(forMediaSessionID: endedSessionID)
+            }
             onPlaybackEnded?()
         case .failed(let message):
             audioSessionLifecycle.deactivate()
@@ -728,6 +960,7 @@ public final class PlaybackRuntime {
     }
 
     private func receive(_ diagnostics: PlaybackDiagnostics) {
+        recordActualPlayback(until: diagnostics.currentSeconds)
         self.diagnostics = diagnostics
         playbackPosition = .init(
             seconds: diagnostics.currentSeconds,
@@ -738,6 +971,43 @@ public final class PlaybackRuntime {
         guard profile != lastResolvedProfile else { return }
         lastResolvedProfile = profile
         onMediaProfileResolved?(request, profile)
+    }
+
+    private func recordActualPlayback(until position: Double, at date: Date = Date()) {
+        actualPlaybackSeconds = actualPlaybackAccumulator.record(
+            positionSeconds: position,
+            at: date,
+            isPlaying: lifecycle == .playing,
+            playbackRate: currentPlaybackSpeed.value
+        )
+    }
+
+    private func resetActualPlaybackSampling() {
+        actualPlaybackAccumulator.markDiscontinuity()
+    }
+
+    private func invalidatePendingDisplayedImageClear() {
+        displayedImageGeneration += 1
+    }
+
+    private func applyStereoLayout(_ stereo: PlaybackModel.StereoLayout) async throws {
+        switch stereo {
+        case .mono: _ = try await controller.setStereoLayout(.mono)
+        case .sideBySide: _ = try await controller.setStereoLayout(.sideBySide)
+        case .topBottom: _ = try await controller.setStereoLayout(.overUnder)
+        }
+    }
+
+    private func applyProjection(_ projection: PlaybackModel.ProjectionType) async throws {
+        switch projection {
+        case .flat: _ = try await controller.setProjectionOverride(.rectilinear)
+        case .equirectangular180: _ = try await controller.setProjectionOverride(.halfEquirectangular)
+        case .equirectangular360: _ = try await controller.setProjectionOverride(.equirectangular)
+        case .fisheye:
+            // Apple fisheye playback requires source AIME metadata; retaining it
+            // means removing any app-supplied projection override.
+            _ = try await controller.clearProjectionOverride()
+        }
     }
 
     private func profile(from diagnostics: PlaybackDiagnostics) -> PlaybackModel.MediaProfile? {
@@ -786,7 +1056,7 @@ public final class PlaybackRuntime {
         logger.error("runtime operation failed error=\(error.localizedDescription, privacy: .public)")
     }
 
-    private func releaseSourceAccessIfUnowned(_ sourceAccess: PlaybackSourceAccess?) {
+    private func releaseSourceAccessIfUnowned(_ sourceAccess: MediaAccessLease?) {
         guard let sourceAccess,
               currentLaunchRequest?.sourceAccess !== sourceAccess else { return }
         sourceAccess.release()
@@ -813,6 +1083,15 @@ public final class PlaybackRuntime {
         return nil
     }
 
+    static func projectionType(from value: VideoProjectionOverride?) -> PlaybackModel.ProjectionType? {
+        switch value {
+        case .rectilinear: .flat
+        case .equirectangular: .equirectangular360
+        case .halfEquirectangular: .equirectangular180
+        case nil: nil
+        }
+    }
+
     static func stereoLayout(from value: String) -> PlaybackModel.StereoLayout? {
         let normalized = value.lowercased().filter { $0.isLetter || $0.isNumber }
         if normalized.contains("sidebyside") || normalized.contains("leftright") {
@@ -822,6 +1101,12 @@ public final class PlaybackRuntime {
             return .topBottom
         }
         return nil
+    }
+
+    static func hasAIME(from projectionKind: String) -> Bool {
+        let normalized = projectionKind.lowercased().filter { $0.isLetter || $0.isNumber }
+        return normalized == "parametricimmersive"
+            || normalized == "appleimmersivevideo"
     }
 
     private static func audioTrack(

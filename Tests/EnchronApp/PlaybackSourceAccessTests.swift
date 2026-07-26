@@ -1,4 +1,6 @@
 import Foundation
+import MediaLibrary
+import MediaSource
 import Testing
 @testable import Enchron
 
@@ -6,7 +8,7 @@ struct PlaybackSourceAccessTests {
     @Test("source access releases its security scope exactly once")
     func releaseIsIdempotent() {
         let counter = ReleaseCounter()
-        let access = PlaybackSourceAccess {
+        let access = MediaAccessLease {
             counter.increment()
         }
 
@@ -20,7 +22,7 @@ struct PlaybackSourceAccessTests {
     func releasedAccessCanBeReacquired() throws {
         let acquireCounter = ReleaseCounter()
         let releaseCounter = ReleaseCounter()
-        let candidate = PlaybackSourceAccess(
+        let candidate = MediaAccessLease(
             acquire: {
                 acquireCounter.increment()
                 return true
@@ -42,7 +44,7 @@ struct PlaybackSourceAccessTests {
     @Test("file playback lease releases exactly once under concurrent teardown")
     func filePlaybackLeaseConcurrentRelease() {
         let counter = ReleaseCounter()
-        let lease = FilePlaybackSourceLease {
+        let lease = MediaAccessLease {
             counter.increment()
         }
 
@@ -56,49 +58,46 @@ struct PlaybackSourceAccessTests {
     @Test("file playback source owns its lease until the final source is released")
     func filePlaybackSourceOwnsLease() {
         let counter = ReleaseCounter()
-        var lease: FilePlaybackSourceLease? = FilePlaybackSourceLease {
+        var lease: MediaAccessLease? = MediaAccessLease {
             counter.increment()
         }
-        var source: FilePlaybackSource? = FilePlaybackSource(
+        var source: ResolvedMediaSource? = ResolvedMediaSource(
             url: URL(string: "http://127.0.0.1/media")!,
-            lease: lease
+            accessLease: lease
         )
 
         lease = nil
-        #expect(source?.lease != nil)
+        #expect(source?.accessLease != nil)
         #expect(counter.value == 0)
 
         source = nil
         #expect(counter.value == 1)
     }
 
-    @Test("resolved playback access releases the transferred file lease")
-    func resolvedSourceTransfersLeaseRelease() throws {
+    @Test("resolved media source owns and releases its access lease")
+    func resolvedSourceOwnsAccessLease() throws {
         let counter = ReleaseCounter()
-        var source: FilePlaybackSource? = FilePlaybackSource(
+        var source: ResolvedMediaSource? = ResolvedMediaSource(
             url: URL(string: "http://127.0.0.1/media")!,
-            lease: FilePlaybackSourceLease {
+            accessLease: MediaAccessLease {
                 counter.increment()
             }
         )
-        let resolved = ResolvedPlaybackSource(try #require(source))
+        let access = try #require(source?.accessLease)
+        access.release()
+        access.release()
         source = nil
-
-        #expect(counter.value == 0)
-        let access = try #require(resolved.sourceAccess)
-        access.release()
-        access.release()
 
         #expect(counter.value == 1)
     }
 
     @Test("released file lease cannot report itself active again")
     func transferredFileLeaseIsOneShot() throws {
-        let source = FilePlaybackSource(
+        let source = ResolvedMediaSource(
             url: URL(string: "http://127.0.0.1/media")!,
-            lease: FilePlaybackSourceLease {}
+            accessLease: MediaAccessLease {}
         )
-        let access = try #require(ResolvedPlaybackSource(source).sourceAccess)
+        let access = try #require(source.accessLease)
 
         access.release()
         let didReacquire = access.ensureActive()

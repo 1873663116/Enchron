@@ -1,4 +1,5 @@
 import Foundation
+@testable import MediaLibrary
 import XCTest
 @testable import Enchron
 
@@ -27,7 +28,7 @@ nonisolated final class WebDAVLiveIntegrationTests: XCTestCase {
         let files = try await adapter.listContents(at: "/")
         let media = try XCTUnwrap(files.first)
         let playableSource = try await adapter.resolvePlayableSource(for: media)
-        defer { playableSource.lease?.release() }
+        defer { playableSource.accessLease?.release() }
         let playableURL = playableSource.url
 
         guard case .connected = adapter.connectionStatus else {

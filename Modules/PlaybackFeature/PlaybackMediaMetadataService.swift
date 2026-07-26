@@ -1,10 +1,10 @@
 import Foundation
 
-public actor PlaybackMediaMetadataStore {
+actor PlaybackMediaMetadataStore {
     private let defaults: UserDefaults
     private static let keyPrefix = "xrplayer.mediaMetadata."
 
-    public init(defaults: UserDefaults = .standard) {
+    init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
     }
 
@@ -23,10 +23,10 @@ public actor PlaybackMediaMetadataStore {
     }
 }
 
-public actor PlaybackMediaMetadataService {
+actor PlaybackMediaMetadataService {
     private let store: PlaybackMediaMetadataStore
 
-    public init(store: PlaybackMediaMetadataStore = PlaybackMediaMetadataStore()) {
+    init(store: PlaybackMediaMetadataStore = PlaybackMediaMetadataStore()) {
         self.store = store
     }
 

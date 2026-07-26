@@ -18,7 +18,7 @@ import SwiftUI
 ///
 /// **Philosophy:** Glass everywhere. Every surface that can carry glass, should.
 /// CTA / emphasis buttons use `.borderless` with custom backgrounds instead.
-extension View {
+public extension View {
 
     // ── Container-level glass ──
 
@@ -26,27 +26,27 @@ extension View {
     /// Note: visionOS window chrome is system-managed; use this for large
     /// sub-panels inside a window, not for the window itself.
     /// Prefer `enchronGlassPanel()` for content panels with regularMaterial.
-    public func enchronGlassWindow() -> some View {
+    func enchronGlassWindow() -> some View {
         let shape = DesignTokens.ShapeToken.panel
         return self
             .clipShape(shape)
-            .glassBackgroundEffect(in: shape)
+            .enchronGlassBackground(in: shape)
             .enchronHoverContentShape(shape)
             .contentShape(shape)
     }
 
     /// Control bar / ornament — pill-shaped glass capsule.
-    public func enchronGlassControl() -> some View {
+    func enchronGlassControl() -> some View {
         self
             .clipShape(Capsule())
-            .glassBackgroundEffect(in: .capsule)
+            .enchronGlassBackground(in: Capsule())
             .enchronHoverContentShape(Capsule())
             .enchronHoverEffect(.automatic)
             .contentShape(Capsule())
     }
 
     /// Content panels, popovers — regular material for readable content areas.
-    public func enchronGlassPanel() -> some View {
+    func enchronGlassPanel() -> some View {
         let shape = DesignTokens.ShapeToken.panel
         return self
             .clipShape(shape)
@@ -58,11 +58,11 @@ extension View {
     // ── Interactive element glass (shape + hover bound together) ──
 
     /// Video/folder cards — glass with card corner radius + `.lift` hover.
-    public func enchronGlassCard() -> some View {
+    func enchronGlassCard() -> some View {
         let shape = DesignTokens.ShapeToken.card
         return self
             .clipShape(shape)
-            .glassBackgroundEffect(in: shape)
+            .enchronGlassBackground(in: shape)
             .enchronHoverContentShape(shape)
             .contentShape(shape)
             .enchronHoverEffect(.lift)
@@ -70,7 +70,7 @@ extension View {
 
     /// Menu/list items — glass with element radius + `.highlight` hover.
     /// Use for rows in menus, popovers, and dense lists.
-    public func enchronGlassMenuItem() -> some View {
+    func enchronGlassMenuItem() -> some View {
         let shape = DesignTokens.ShapeToken.element
         return self
             .clipShape(shape)
@@ -82,28 +82,28 @@ extension View {
     /// Menu popover container — glass with card corner radius (no hover).
     /// MenuItems inside use `element` radius, creating concentric nesting
     /// with `Menu.glassPadding` (8pt) between them: card(32) − 8 = element(24).
-    public func enchronGlassMenu() -> some View {
+    func enchronGlassMenu() -> some View {
         let shape = DesignTokens.ShapeToken.card
         return self
             .clipShape(shape)
-            .glassBackgroundEffect(in: shape)
+            .enchronGlassBackground(in: shape)
             .enchronHoverContentShape(shape)
             .contentShape(shape)
     }
 
     /// Toolbar / timeline / ruler strips — compact glass with element radius (no hover).
     /// Use for narrow tool strips embedded within panels.
-    public func enchronGlassToolbar() -> some View {
+    func enchronGlassToolbar() -> some View {
         let shape = DesignTokens.ShapeToken.element
         return self
             .clipShape(shape)
-            .glassBackgroundEffect(in: shape)
+            .enchronGlassBackground(in: shape)
             .enchronHoverContentShape(shape)
             .contentShape(shape)
     }
 
     /// Badges, tags, small labels — ultra-thin material in capsule shape.
-    public func enchronGlassBadge() -> some View {
+    func enchronGlassBadge() -> some View {
         self
             .clipShape(Capsule())
             .background(.ultraThinMaterial, in: Capsule())
@@ -112,7 +112,7 @@ extension View {
     }
 
     /// Filter pills / capsule buttons — capsule glass + `.lift` hover.
-    public func enchronGlassPill() -> some View {
+    func enchronGlassPill() -> some View {
         self
             .clipShape(Capsule())
             .background(.ultraThinMaterial, in: Capsule())
@@ -122,7 +122,7 @@ extension View {
     }
 
     /// Sidebar — no explicit modifier; system NavigationSplitView provides glass.
-    public func enchronGlassSidebar() -> some View {
+    func enchronGlassSidebar() -> some View {
         self
     }
 }

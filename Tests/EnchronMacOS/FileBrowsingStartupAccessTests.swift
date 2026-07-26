@@ -1,4 +1,6 @@
 import Foundation
+@testable import MediaLibrary
+import MediaSource
 import XCTest
 @testable import EnchronMacOS
 
@@ -11,7 +13,6 @@ nonisolated final class FileBrowsingStartupAccessTests: XCTestCase {
             localDataSource: localSource,
             credentialStore: StartupCredentialStore(),
             savedDataSourceStore: StartupSavedDataSourceStore(),
-            progressStore: StartupProgressStore(),
             onPlayFile: { _ in }
         )
 
@@ -53,8 +54,8 @@ private nonisolated final class LocalAccessSpy: LocalFileSource, @unchecked Send
 
     func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource {
-        FilePlaybackSource(url: file.url)
+    ) async throws -> ResolvedMediaSource {
+        ResolvedMediaSource(url: file.url)
     }
 }
 
@@ -70,12 +71,4 @@ private nonisolated final class StartupSavedDataSourceStore:
 {
     func loadSavedDataSourceRecords() -> Data? { nil }
     func saveSavedDataSourceRecords(_ data: Data?) {}
-}
-
-private nonisolated final class StartupProgressStore: ProgressStoring, @unchecked Sendable {
-    func saveProgress(_ progress: PlaybackProgress) async {}
-    func loadProgress(
-        for fileID: PlaybackFileIdentifier
-    ) async -> PlaybackProgress? { nil }
-    func cleanExpiredProgress(olderThan days: Int) async {}
 }

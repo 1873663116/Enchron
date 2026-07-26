@@ -5,7 +5,7 @@ import AVFAudio
 #endif
 
 @MainActor
-protocol PlaybackAudioSessionManaging: AnyObject {
+public protocol PlaybackAudioSessionManaging: AnyObject {
     func activateForMoviePlayback() throws
     func deactivate() throws
 }
@@ -30,17 +30,21 @@ final class SystemPlaybackAudioSession: PlaybackAudioSessionManaging {
 }
 
 @MainActor
-final class PlaybackAudioSessionLifecycle {
-    private(set) var isActive = false
+public final class PlaybackAudioSessionLifecycle {
+    public private(set) var isActive = false
 
     private let session: any PlaybackAudioSessionManaging
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackAudioSession")
 
-    init(session: any PlaybackAudioSessionManaging = SystemPlaybackAudioSession()) {
+    public init() {
+        session = SystemPlaybackAudioSession()
+    }
+
+    public init(session: any PlaybackAudioSessionManaging) {
         self.session = session
     }
 
-    func activateIfNeeded(hasAudio: Bool) throws {
+    public func activateIfNeeded(hasAudio: Bool) throws {
         guard hasAudio else {
             deactivate()
             return
@@ -56,7 +60,7 @@ final class PlaybackAudioSessionLifecycle {
         }
     }
 
-    func deactivate() {
+    public func deactivate() {
         guard isActive else { return }
         do {
             try session.deactivate()

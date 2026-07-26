@@ -1,9 +1,14 @@
+import DesignSystem
 import PlaybackCore
+import PlaybackFeature
+import PlaybackPresentation
 import SwiftUI
 
 struct WindowPlayerDeckView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
+    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    var onExitPlayback: (() -> Void)? = nil
 
     var body: some View {
         FusedPlayerPanel(
@@ -24,6 +29,9 @@ struct WindowPlayerDeckView: View {
         let position = playbackRuntime.playbackPosition
         let duration = position.duration
         let remaining = max(0, duration - position.seconds)
+        let transport = PlaybackTransportAvailability(
+            lifecycle: playbackRuntime.productLifecycle
+        )
         return FusedPlayerPanelLive(
             presentation: appModel.playbackPresentation,
             canDock: playbackRuntime.canEnterSpatialPresentation,
@@ -33,8 +41,15 @@ struct WindowPlayerDeckView: View {
             recommendedScreenScale: EnvironmentSceneMapping.defaultScreenScale(
                 forEnvironmentID: appModel.currentCinemaEnvironment.rawValue
             ),
-            isPlaying: playbackRuntime.lifecycle == .playing,
-            showsReplay: playbackRuntime.lifecycle == .ended,
+            screenDistance: appModel.screenDepthOffset,
+            screenElevationDegrees: appModel.screenViewAngle,
+            projection: playbackRuntime.effectiveProjectionType,
+            stereoLayout: playbackRuntime.effectiveStereoLayout,
+            canUseFisheye: playbackRuntime.supportsFisheyePresentation,
+            isPlaying: transport.primaryAction == .pause,
+            showsReplay: transport.primaryAction == .replay,
+            canSkipForward: transport.canSkipForward,
+            canStepForward: transport.canStepForward,
             progress: duration > 0 ? CGFloat(position.seconds / duration) : 0,
             elapsedLabel: PlaybackTimeFormatter.clock(position.seconds),
             remainingLabel: "-" + PlaybackTimeFormatter.clock(remaining),
@@ -45,7 +60,11 @@ struct WindowPlayerDeckView: View {
             onSkipForward: { self.register(); self.playbackRuntime.skip(by: 10) },
             onSeek: { p in
                 self.register()
-                self.playbackRuntime.seek(to: Double(p) * duration)
+                self.playbackRuntime.seek(to: Double(p) * duration, startsPaused: false)
+            },
+            onPrecisionSeek: { p in
+                self.register()
+                self.playbackRuntime.seek(to: Double(p) * duration, startsPaused: true)
             },
             onFrameStep: { direction in
                 self.register()
@@ -58,40 +77,82 @@ struct WindowPlayerDeckView: View {
             onEnterPanorama: { self.enterPlaybackPresentation(.panorama) },
             onEnterImmersive: { self.enterPlaybackPresentation(.docked) },
             onExitSpatial: { self.enterPlaybackPresentation(.window) },
+            onExitPlayback: {
+                if let onExitPlayback = self.onExitPlayback {
+                    onExitPlayback()
+                } else {
+                    self.playbackLauncher.stopPlayback()
+                }
+            },
             onSetScreenScale: { scale in
                 self.register()
                 self.appModel.setScreenScale(scale)
             },
-            onResetScreenScale: {
+            onSetScreenDistance: { distance in
                 self.register()
-                self.appModel.resetScreenScale()
+                self.appModel.setScreenDistance(distance)
+            },
+            onSetScreenElevation: { elevation in
+                self.register()
+                self.appModel.setScreenElevation(elevation)
+            },
+            onResetDockedPlacement: {
+                self.register()
+                self.appModel.resetDockedPlacement()
+            },
+            onApplyFormat: { projection, stereo in
+                self.register()
+                Task {
+                    do {
+                        try await self.playbackLauncher.applyFormat(projection: projection, stereo: stereo)
+                    } catch {
+                        self.playbackRuntime.lastErrorMessage = error.localizedDescription
+                    }
+                }
+            },
+            onResetFormat: {
+                self.register()
+                Task {
+                    do {
+                        try await self.playbackLauncher.resetFormat()
+                        self.enterPlaybackPresentation(.window)
+                    } catch {
+                        self.playbackRuntime.lastErrorMessage = error.localizedDescription
+                    }
+                }
             },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
-            episodeItems: []
+            episodeItems: episodeItems
         )
     }
 
     private func enterPlaybackPresentation(_ presentation: PlaybackPresentation) {
         register()
         guard presentation != appModel.playbackPresentation,
-              appModel.immersiveSpaceState != .inTransition else { return }
+              appModel.pendingSpatialPlatformEffect == nil else { return }
         if presentation != .window {
             guard playbackRuntime.canEnterSpatialPresentation else { return }
         }
         if presentation == .panorama {
             guard playbackRuntime.effectiveProjectionType.isPanoramic else { return }
         }
-        _ = try? appModel.requestPlaybackPresentation(presentation)
+        _ = try? appModel.requestPlaybackPresentation(
+            presentation,
+            mediaSessionID: playbackRuntime.activeSessionID,
+            wasPlaying: playbackRuntime.productLifecycle == .playing
+        )
     }
 
     private func togglePlayPause() {
         PlaybackTrace.event("ui.playPause.request lifecycle=\(playbackRuntime.lifecycle.label)")
-        switch playbackRuntime.lifecycle {
-        case .ended: playbackRuntime.replay()
-        case .playing: playbackRuntime.pause()
-        default: playbackRuntime.resume()
+        switch PlaybackTransportAvailability(
+            lifecycle: playbackRuntime.productLifecycle
+        ).primaryAction {
+        case .replay: playbackRuntime.replay()
+        case .pause: playbackRuntime.pause()
+        case .play: playbackRuntime.resume()
         }
     }
 
@@ -131,6 +192,19 @@ struct WindowPlayerDeckView: View {
             ) {
                 self.register()
                 self.playbackRuntime.setSpeed(speed)
+            }
+        }
+    }
+
+    private var episodeItems: [DeckMenuItem] {
+        playbackLauncher.playbackQueue.entries.map { entry in
+            DeckMenuItem(
+                id: entry.id.uuidString,
+                title: entry.displayName,
+                isSelected: entry.isCurrent
+            ) {
+                self.register()
+                self.playbackLauncher.selectPlaybackQueueItem(entry.id)
             }
         }
     }

@@ -1,3 +1,5 @@
+import DesignSystem
+import PlaybackPresentation
 import SwiftUI
 
 struct DeckMenuItem: Identifiable {
@@ -641,7 +643,7 @@ struct LoadingSpinner: View {
             }
         }
         .clipShape(Circle())
-        .glassBackgroundEffect(in: Circle())
+        .enchronGlassBackground(in: Circle())
         .onAppear { runLoop() }
     }
 

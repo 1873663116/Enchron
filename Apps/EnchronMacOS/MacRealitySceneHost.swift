@@ -1,4 +1,5 @@
 import OSLog
+import PlaybackPresentation
 import RealityKit
 import SwiftUI
 
@@ -15,9 +16,22 @@ struct MacEnvironmentSceneHostView: View {
             MacEnvironmentRealityScene()
 
             EnvironmentCardCarousel(
-                onReturn: { appModel.selectedTab = appModel.environmentReturnTab },
-                onExpand: { featured in
-                    appModel.currentCinemaEnvironment = featured.environment
+                activeEnvironment: appModel.environmentContext.environment,
+                defaultEffect: appModel.currentEnvironmentEffect,
+                onEffectChange: { featured, effect in
+                    guard appModel.environmentContext.environment
+                            == featured.environment else { return }
+                    appModel.setActiveEnvironmentEffect(effect)
+                },
+                onExpand: { featured, effect in
+                    if appModel.environmentContext.environment == featured.environment {
+                        try? appModel.deactivateEnvironment()
+                    } else {
+                        try? appModel.activateEnvironment(
+                            featured.environment,
+                            effect: effect
+                        )
+                    }
                 }
             )
         }

@@ -1,6 +1,7 @@
 import SwiftUI
 import Observation
 import OSLog
+import PlaybackPresentation
 
 @MainActor
 @Observable
@@ -16,116 +17,236 @@ public final class AppModel {
         }
     }
     public var selectedTab: NavigationTab = .files
-    // MARK: - SenseZone Volume (Environments destination)
-    /// Volumetric WindowGroup id hosting the polished EnvironmentCardCarousel.
+    // MARK: - Environment Card
+    /// Singleton volumetric Window id hosting the Environment Card.
     public static let senseZoneVolumeID = "senseZoneVolume"
-    /// Tab to restore in the main window when the SenseZone volume closes (ENV-14).
-    public var environmentReturnTab: NavigationTab = .files
-    /// Guards against re-entrant volume open/close during a transition (ENV-15).
-    public var isEnvironmentTransitionInFlight: Bool = false
 
-    // MARK: - Immersive Space State
+    // MARK: - Spatial Platform Execution Facts
     public let immersiveSpaceID = "ImmersiveSpace"
 
-    public enum ImmersiveSpaceState: Equatable, Sendable {
-        case closed
-        case inTransition
-        case open
+    public var pendingSpatialPlatformEffect: SpatialPlatformEffectRequest? {
+        playbackPresentationModel.pendingSpatialPlatformEffect
     }
-    public var immersiveSpaceState: ImmersiveSpaceState = .closed
 
-    /// Pending immersive space action requested by sub-views.
-    /// MainView observes this and executes the actual open/dismiss call,
-    /// then resets it to nil. This ensures a single canonical entry point.
-    public enum ImmersiveSpaceRequest {
-        case open
-        case dismiss
+    public var immersiveSpaceResidency: SpatialPlatformImmersiveSpaceResidency {
+        playbackPresentationModel.immersiveSpaceResidency
     }
-    public var immersiveSpaceRequest: ImmersiveSpaceRequest? = nil
 
-    /// True while a playback-presentation transition is in progress (immersive space
-    /// opening or closing). Gates playerControls window open/close and
-    /// prevents concurrent menu operations.
-    public var isTransitioningPlaybackPresentation: Bool = false
-    
+    public var environmentCardResidency: EnvironmentCardResidency {
+        playbackPresentationModel.environmentCardResidency
+    }
+
+    /// Executor-owned input to the SwiftUI immersion-style binding. Product
+    /// presentation remains owned by `PlaybackPresentationModel`.
+    public private(set) var platformPrefersFullImmersion = true
+
     // MARK: - Playback Presentation
-    public var playbackPresentationState = PlaybackPresentationState()
+    public let playbackPresentationModel: PlaybackPresentationModel
+
     public var playbackPresentation: PlaybackPresentation {
-        playbackPresentationState.presented
+        playbackPresentationModel.presentation
     }
+
     public var presentationTransition: PlaybackPresentationTransition? {
-        playbackPresentationState.transition
+        playbackPresentationModel.transition
     }
+
     public var environmentContext: EnvironmentContext {
-        playbackPresentationState.environment
+        playbackPresentationModel.environmentContext
     }
+
+    public var isTransitioningPlaybackPresentation: Bool {
+        playbackPresentationModel.isTransitionExecutionOccupied
+    }
+
     public var showControls: Bool = true
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
 
     // MARK: - Screen Position State (Immersive Mode)
-    public var screenDepthOffset: Double = 0.0
-    public var screenVerticalOffset: Double = 0.0
-    public var screenViewAngle: Double = 0.0
-    public var screenScale: Double = 1.3
+    public var screenDepthOffset: Double {
+        playbackPresentationModel.dockedPlacement.distanceMeters
+    }
+
+    public var screenVerticalOffset: Double { 0 }
+
+    public var screenViewAngle: Double {
+        playbackPresentationModel.dockedPlacement.elevationDegrees
+    }
+
+    public var screenScale: Double {
+        playbackPresentationModel.dockedPlacement.screenScale
+    }
 
     // MARK: - Immersive Cinema State
-    public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment = .darkTheatre
-    public var isFullImmersion: Bool = true
+    public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        playbackPresentationModel.currentEnvironment
+    }
 
-    /// True while the immersive space is presenting the RCP `world` for
-    /// environment-expand browsing (ENV-18) rather than video playback. Drives
-    /// `ImmersiveSpaceView` to load the `world` even though presentation stays
-    /// `.window`, and selects mixed immersion so the SenseZone volume stays open.
-    public var isEnvironmentImmersiveActive: Bool = false
+    public var currentEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect {
+        playbackPresentationModel.currentEnvironmentEffect
+    }
 
-    private let screenPositionStore: ScreenPositionStoring
+    public var automaticPanoramaEntryPending: Bool {
+        playbackPresentationModel.automaticPanoramaEntryPending
+    }
+
+    @ObservationIgnored
+    private var spatialPlatformEffectReplacementHandler: (() -> Void)?
+
     private let logger = Logger(subsystem: "app.enchron", category: "Presentation")
 
-    public init(screenPositionStore: ScreenPositionStoring = ScreenPositionStore()) {
-        self.screenPositionStore = screenPositionStore
+    public init(
+        playbackPresentationModel: PlaybackPresentationModel = PlaybackPresentationModel()
+    ) {
+        self.playbackPresentationModel = playbackPresentationModel
     }
     
     // MARK: - Actions
     @discardableResult
     public func requestPlaybackPresentation(
         _ presentation: PlaybackPresentation,
-        environment: SpatialSceneDomain.CinemaEnvironment? = nil
+        effect: SpatialSceneDomain.EnvironmentEffect? = nil,
+        mediaSessionID: String?,
+        wasPlaying: Bool
     ) throws -> PlaybackPresentationTransition {
-        let transition = try playbackPresentationState.begin(
+        guard let mediaSessionID, mediaSessionID.isEmpty == false else {
+            throw PlaybackPresentationTransitionError.mediaSessionRequired
+        }
+        let transition = try playbackPresentationModel.requestPresentation(
             presentation,
-            environment: environment,
-            defaultEnvironment: currentCinemaEnvironment
+            effect: effect,
+            playbackContext: SpatialPlaybackTransitionContext(
+                mediaSessionID: mediaSessionID,
+                wasPlaying: wasPlaying
+            )
         )
         logger.info("transition requested id=\(transition.id.uuidString, privacy: .public) from=\(String(describing: transition.previousPresentation), privacy: .public) to=\(String(describing: transition.targetPresentation), privacy: .public)")
         return transition
     }
 
-    public func commitPlaybackPresentation(_ transitionID: UUID) throws {
-        try playbackPresentationState.commit(transitionID)
-        logger.info("transition committed id=\(transitionID.uuidString, privacy: .public)")
-        if let environment = playbackPresentationState.environment.environment {
-            currentCinemaEnvironment = environment
+    public func activateEnvironment(
+        _ environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect
+    ) throws {
+        try playbackPresentationModel.activateEnvironment(
+            environment,
+            effect: effect
+        )
+    }
+
+    public func deactivateEnvironment() throws {
+        try playbackPresentationModel.deactivateEnvironment()
+    }
+
+    public func requestEnvironmentPreview(
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect
+    ) throws {
+        try playbackPresentationModel.requestEnvironmentPreview(
+            environment: environment,
+            effect: effect
+        )
+    }
+
+    public func requestEnvironmentPreviewDismissal() throws {
+        try playbackPresentationModel.requestEnvironmentPreviewDismissal()
+    }
+
+    @discardableResult
+    public func requestEnvironmentCard(
+        mediaSessionID: String? = nil,
+        wasPlaying: Bool = false
+    ) throws -> Bool {
+        let playbackContext = mediaSessionID.map {
+            SpatialPlaybackTransitionContext(
+                mediaSessionID: $0,
+                wasPlaying: wasPlaying
+            )
         }
+        return try playbackPresentationModel.requestEnvironmentCard(
+            playbackContext: playbackContext
+        )
     }
 
-    public func rollbackPlaybackPresentation(_ transitionID: UUID) {
-        playbackPresentationState.rollback(transitionID)
-        logger.error("transition rolled back id=\(transitionID.uuidString, privacy: .public)")
+    public func requestStoppedPlaybackCleanup() {
+        playbackPresentationModel.requestStoppedPlaybackCleanup()
+        spatialPlatformEffectReplacementHandler?()
+        logger.notice("playback stopped; spatial platform cleanup requested")
     }
 
-    public func updateEnvironmentContext(_ context: EnvironmentContext) throws {
-        try playbackPresentationState.setEnvironment(context)
-        if let environment = context.environment {
-            currentCinemaEnvironment = environment
+    @discardableResult
+    public func claimSpatialPlatformEffect(
+        _ requestID: UUID,
+        executionID: UUID
+    ) -> Bool {
+        playbackPresentationModel.claimSpatialPlatformEffect(
+            requestID,
+            executionID: executionID
+        )
+    }
+
+    public func isSpatialPlatformEffectCurrent(
+        _ requestID: UUID,
+        executionID: UUID
+    ) -> Bool {
+        playbackPresentationModel.isSpatialPlatformEffectCurrent(
+            requestID,
+            executionID: executionID
+        )
+    }
+
+    func setSpatialPlatformEffectReplacementHandler(
+        _ handler: @escaping () -> Void
+    ) {
+        spatialPlatformEffectReplacementHandler = handler
+    }
+
+    @discardableResult
+    public func receiveSpatialPlatformResult(
+        _ event: SpatialPlatformResultEvent
+    ) -> SpatialPlatformEffectResolution {
+        let resolution = playbackPresentationModel.receiveSpatialPlatformResult(event)
+        switch resolution {
+        case .presentationCommitted(let presentation):
+            logger.info("platform result committed presentation=\(presentation.rawValue, privacy: .public)")
+        case .presentationRolledBack(let failure):
+            logger.error("platform result rolled back transition failure=\(String(describing: failure), privacy: .public)")
+        case .spatialRecoveryRequested(let presentation):
+            logger.notice("unexpected immersive dismissal; recovery requested presentation=\(presentation.rawValue, privacy: .public)")
+        case .spatialRecoveryCompleted(let presentation):
+            logger.notice("spatial recovery completed presentation=\(presentation.rawValue, privacy: .public)")
+        case .spatialRecoveryFailed(let failure):
+            logger.error("spatial recovery failed; settled in Window failure=\(String(describing: failure), privacy: .public)")
+        case .playbackTransportFailureRecorded:
+            logger.error("playback transport failed after platform effect settlement")
+        case .ignored:
+            logger.info("stale or duplicate platform result ignored")
+        case .platformFactRecorded, .effectCompleted:
+            break
         }
+        return resolution
     }
 
-    public func resetPlaybackPresentationForStoppedPlayback() {
-        playbackPresentationState.resetForPlaybackStop()
-        isTransitioningPlaybackPresentation = false
-        logger.notice("playback stopped; presentation normalized to window")
+    public func setPlatformPrefersFullImmersion(_ full: Bool) {
+        platformPrefersFullImmersion = full
+    }
+
+    public func configureDefaultEnvironment(
+        _ environment: SpatialSceneDomain.CinemaEnvironment
+    ) {
+        playbackPresentationModel.configureDefaultEnvironment(environment)
+    }
+
+    public func setActiveEnvironmentEffect(
+        _ effect: SpatialSceneDomain.EnvironmentEffect
+    ) {
+        playbackPresentationModel.setActiveEnvironmentEffect(effect)
+    }
+
+    public func setAutomaticPanoramaEntryPending(_ pending: Bool) {
+        playbackPresentationModel.setAutomaticPanoramaEntryPending(pending)
     }
 
     public func registerControlsInteraction(at date: Date = Date()) {
@@ -157,71 +278,35 @@ public final class AppModel {
     // MARK: - Screen Position Persistence
 
     public func loadScreenPosition() async {
-        let envID = currentCinemaEnvironment.rawValue
-        if let saved = await screenPositionStore.loadPosition(for: envID) {
-            screenDepthOffset = saved.depthOffsetMeters
-            screenVerticalOffset = saved.verticalOffsetMeters
-            screenViewAngle = saved.viewAngleDegrees
-            screenScale = saved.screenScale
-        } else {
-            // Reset to defaults when no saved position exists for this environment
-            screenDepthOffset = 0.0
-            screenVerticalOffset = 0.0
-            screenViewAngle = 0.0
-            screenScale = EnvironmentSceneMapping.defaultScreenScale(forEnvironmentID: envID)
-        }
+        await playbackPresentationModel.loadDockedPlacement()
     }
 
     public func saveScreenPosition() {
-        let envID = currentCinemaEnvironment.rawValue
-        let store = screenPositionStore
-        let depthOffset = screenDepthOffset
-        let verticalOffset = screenVerticalOffset
-        let viewAngle = screenViewAngle
-        let scale = screenScale
-        Task.detached(priority: .utility) {
-            await store.savePosition(
-                for: envID,
-                depthOffsetMeters: depthOffset,
-                verticalOffsetMeters: verticalOffset,
-                angleDegrees: viewAngle,
-                screenScale: scale
-            )
-        }
+        playbackPresentationModel.saveDockedPlacement()
     }
 
     public func setScreenScale(_ scale: Double) {
-        screenScale = min(
-            max(scale, PlaybackScreenSize.scaleRange.lowerBound),
-            PlaybackScreenSize.scaleRange.upperBound
-        )
-        saveScreenPosition()
+        playbackPresentationModel.setScreenScale(scale)
     }
 
     public func resetScreenScale() {
-        setScreenScale(
+        playbackPresentationModel.setScreenScale(
             EnvironmentSceneMapping.defaultScreenScale(
                 forEnvironmentID: currentCinemaEnvironment.rawValue
             )
         )
     }
 
-    /// Request to open the immersive space via the unified MainView handler.
-    public func requestImmersiveSpace() {
-        guard immersiveSpaceState == .closed else { return }
-        immersiveSpaceRequest = .open
+    public func setScreenDistance(_ distance: Double) {
+        playbackPresentationModel.setScreenDistance(distance)
     }
 
-    /// Request to dismiss the immersive space via the unified MainView handler.
-    public func requestDismissImmersiveSpace() {
-        guard immersiveSpaceState == .open else { return }
-        immersiveSpaceRequest = .dismiss
+    public func setScreenElevation(_ degrees: Double) {
+        playbackPresentationModel.setScreenElevation(degrees)
     }
 
-    public func switchEnvironment(to environment: SpatialSceneDomain.CinemaEnvironment) async {
-        guard environment != currentCinemaEnvironment else { return }
-        saveScreenPosition()
-        currentCinemaEnvironment = environment
-        await loadScreenPosition()
+    public func resetDockedPlacement() {
+        playbackPresentationModel.resetDockedPlacement()
     }
+
 }

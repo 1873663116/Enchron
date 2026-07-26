@@ -1,4 +1,6 @@
 import Foundation
+@testable import MediaLibrary
+import MediaSource
 import XCTest
 @testable import EnchronMacOS
 
@@ -92,7 +94,6 @@ nonisolated final class RemoteSourceIsolationTests: XCTestCase {
             localDataSource: localSource,
             credentialStore: SourceIsolationCredentialStore(),
             savedDataSourceStore: SourceIsolationSavedDataSourceStore(),
-            progressStore: SourceIsolationProgressStore(),
             localDataSourceID: localSource.ownerDataSourceID,
             makeRemoteAdapter: makeRemoteAdapter,
             onPlayFile: { _ in }
@@ -165,8 +166,8 @@ private nonisolated final class SourceIsolationLocalSource: LocalFileSource, @un
 
     func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource {
-        FilePlaybackSource(url: file.url)
+    ) async throws -> ResolvedMediaSource {
+        ResolvedMediaSource(url: file.url)
     }
 }
 
@@ -250,8 +251,8 @@ private nonisolated final class SourceIsolationRemoteAdapter:
 
     func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource {
-        FilePlaybackSource(url: file.url)
+    ) async throws -> ResolvedMediaSource {
+        ResolvedMediaSource(url: file.url)
     }
 }
 
@@ -273,12 +274,4 @@ private nonisolated final class SourceIsolationSavedDataSourceStore:
 {
     func loadSavedDataSourceRecords() -> Data? { nil }
     func saveSavedDataSourceRecords(_ data: Data?) {}
-}
-
-private nonisolated final class SourceIsolationProgressStore: ProgressStoring, @unchecked Sendable {
-    func saveProgress(_ progress: PlaybackProgress) async {}
-    func loadProgress(
-        for fileID: PlaybackFileIdentifier
-    ) async -> PlaybackProgress? { nil }
-    func cleanExpiredProgress(olderThan days: Int) async {}
 }

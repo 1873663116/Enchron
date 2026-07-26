@@ -1,8 +1,9 @@
 import Foundation
+import MediaSource
 
 struct ResolvedSecurityScopedFile {
     let url: URL
-    let access: PlaybackSourceAccess?
+    let access: MediaAccessLease?
 }
 
 @MainActor
@@ -36,9 +37,9 @@ final class SecurityScopedFileReferenceResolver {
             bookmarkDataIsStale: &stale
         )
         #if os(macOS)
-        let access: PlaybackSourceAccess? = nil
+        let access: MediaAccessLease? = nil
         #else
-        let access = PlaybackSourceAccess.securityScoped(selectedURL)
+        let access = MediaAccessLease.securityScoped(selectedURL)
         #endif
         let playableURL = relativePath.isEmpty
             ? selectedURL

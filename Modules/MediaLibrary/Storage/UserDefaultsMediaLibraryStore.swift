@@ -1,17 +1,17 @@
 import Foundation
 
-public nonisolated protocol MediaLibraryStoring: Sendable {
+nonisolated protocol MediaLibraryStoring: Sendable {
     func load() throws -> FileBrowsingDomain.MediaLibrary
     func save(_ library: FileBrowsingDomain.MediaLibrary) throws
 }
 
-public nonisolated final class UserDefaultsMediaLibraryStore: MediaLibraryStoring, @unchecked Sendable {
+nonisolated final class UserDefaultsMediaLibraryStore: MediaLibraryStoring, @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
-    public init(defaults: UserDefaults = .standard, key: String = "enchron.mediaLibrary") {
+    init(defaults: UserDefaults = .standard, key: String = "enchron.mediaLibrary") {
         self.defaults = defaults
         self.key = key
     }

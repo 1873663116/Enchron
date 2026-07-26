@@ -1,3 +1,6 @@
+import DesignSystem
+import MediaLibrary
+import PlaybackPresentation
 import SwiftUI
 
 // MARK: - Bare button style (no built-in hover, no chrome)

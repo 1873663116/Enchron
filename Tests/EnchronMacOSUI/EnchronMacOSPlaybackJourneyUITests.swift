@@ -3,13 +3,15 @@ import XCTest
 
 nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
     @MainActor
-    func testExpandControlReceivesMouseClick() throws {
+    func testAdvancedSettingsControlReceivesMouseClick() throws {
         continueAfterFailure = false
         let fixture = try fixtureURLFromHostEnvironment()
         let app = XCUIApplication()
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture.path
         app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        app.launchEnvironment["ENCHRON_PLAYBACK_SPEED_OVERRIDE"] = "1"
         app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
         app.launch()
         defer { app.terminate() }
@@ -19,17 +21,13 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
             $0.lifecycle == "playing"
         }
 
-        let expand = element("PlayerPanel-button-expand", in: app)
-        XCTAssertTrue(expand.waitForExistence(timeout: 10))
-        XCTAssertEqual(expand.label, "Expand playback panel")
-        mouseClick(expand, name: "Expand playback panel")
+        let settings = app.buttons["Open Advanced Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 10))
+        mouseClick(settings, name: "Open Advanced Settings")
 
-        let collapsedLabel = element("PlayerPanel-button-expand", in: app)
-        let collapsed = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "label == %@", "Collapse playback panel"),
-            object: collapsedLabel
+        XCTAssertTrue(
+            app.buttons["Close Advanced Settings"].firstMatch.waitForExistence(timeout: 5)
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [collapsed], timeout: 5), .completed)
     }
 
     @MainActor
@@ -37,9 +35,11 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         continueAfterFailure = false
         let fixture = try fixtureURLFromHostEnvironment()
         let app = XCUIApplication()
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture.path
         app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        app.launchEnvironment["ENCHRON_PLAYBACK_SPEED_OVERRIDE"] = "1"
         app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
         app.launch()
         defer { app.terminate() }
@@ -49,15 +49,14 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
             $0.lifecycle == "playing"
         }
 
-        let playPause = element("PlayerPanel-button-play", in: app)
+        let playPause = app.buttons["Pause"].firstMatch
         XCTAssertTrue(playPause.waitForExistence(timeout: 10))
-        XCTAssertEqual(playPause.label, "Pause")
         mouseClick(playPause, name: "Pause")
 
         _ = try waitForControlState(in: app, timeout: 10) {
             $0.lifecycle == "paused"
         }
-        XCTAssertEqual(playPause.label, "Play")
+        XCTAssertTrue(app.buttons["Play"].firstMatch.waitForExistence(timeout: 5))
     }
 
     @MainActor
@@ -65,9 +64,11 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         continueAfterFailure = false
         let fixture = try fixtureURLFromHostEnvironment()
         let app = XCUIApplication()
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture.path
         app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        app.launchEnvironment["ENCHRON_PLAYBACK_SPEED_OVERRIDE"] = "1"
         app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
         app.launch()
         defer { app.terminate() }
@@ -79,9 +80,9 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
                 && $0.lifecycle == "playing"
         }
 
-        let expand = element("PlayerPanel-button-expand", in: app)
-        XCTAssertTrue(expand.waitForExistence(timeout: 5))
-        click(expand, name: "Expand precision timeline")
+        let settings = app.buttons["Open Advanced Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        click(settings, name: "Open Advanced Settings")
 
         let current = try waitForControlState(in: app, timeout: 10) {
             $0.lifecycle == "playing"
@@ -104,9 +105,11 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         continueAfterFailure = false
         let fixture = try fixtureURLFromHostEnvironment()
         let app = XCUIApplication()
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture.path
         app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        app.launchEnvironment["ENCHRON_PLAYBACK_SPEED_OVERRIDE"] = "1"
         app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
         app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
         app.launchEnvironment["ENCHRON_UI_INITIAL_MENU"] = "dock"
@@ -123,9 +126,9 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         }
         attachScreenshot(of: app, name: "01 Window real playback")
 
-        let darkTheatre = element("PlayerUI-DockMenu-darkTheatre", in: app)
-        XCTAssertTrue(darkTheatre.waitForExistence(timeout: 10))
-        mouseClick(darkTheatre, name: "Dark Theatre")
+        let dayAppearance = element("PlayerUI-DockMenu-day", in: app)
+        XCTAssertTrue(dayAppearance.waitForExistence(timeout: 10))
+        mouseClick(dayAppearance, name: "Day")
 
         let docked = try waitForControlState(in: app, timeout: 30) {
             $0.presentation == "docked"
@@ -134,9 +137,8 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
                 && $0.session == initial.session
         }
         XCTAssertEqual(docked.session, initial.session)
-        let exitSpatial = element("PlayerPanel-button-exit-spatial", in: app)
+        let exitSpatial = app.buttons["Return to Window"].firstMatch
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 10))
-        XCTAssertEqual(exitSpatial.label, "Undock")
         attachScreenshot(of: app, name: "02 Docked real playback")
 
         typeKey(.escape, in: app)
@@ -149,9 +151,8 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         XCTAssertEqual(returnedWindow.session, initial.session)
         attachScreenshot(of: app, name: "03 Window after Docked")
 
-        let playPause = element("PlayerPanel-button-play", in: app)
+        let playPause = app.buttons["Pause"].firstMatch
         XCTAssertTrue(playPause.waitForExistence(timeout: 10))
-        XCTAssertEqual(playPause.label, "Pause")
         typeKey(.space, in: app)
 
         let paused = try waitForControlState(in: app, timeout: 10) {
@@ -162,7 +163,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         }
         XCTAssertGreaterThan(paused.duration - paused.position, 10)
 
-        let forward = element("PlayerPanel-button-forward", in: app)
+        let forward = app.buttons["Forward 10 seconds"].firstMatch
         XCTAssertTrue(forward.waitForExistence(timeout: 5))
         typeKey(.rightArrow, in: app)
 
@@ -174,7 +175,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         XCTAssertEqual(forwarded.position, paused.position + 10, accuracy: 2)
         attachScreenshot(of: app, name: "04 Paused after Forward 10 seconds")
 
-        XCTAssertEqual(playPause.label, "Play")
+        XCTAssertTrue(app.buttons["Play"].firstMatch.waitForExistence(timeout: 5))
         typeKey(.space, in: app)
         let resumed = try waitForControlState(in: app, timeout: 10) {
             $0.presentation == "window"
@@ -185,9 +186,9 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         XCTAssertEqual(resumed.session, initial.session)
         attachScreenshot(of: app, name: "05 Resumed real playback")
 
-        let back = element("PlayerUI-InfoBar-button-back", in: app)
+        let back = app.buttons["Back"].firstMatch
         XCTAssertTrue(back.waitForExistence(timeout: 5))
-        typeKey("[", modifiers: .command, in: app)
+        click(back, name: "Back")
         let browser = element("FileBrowsing-FilesScreen", in: app)
         XCTAssertTrue(
             browser.waitForExistence(timeout: 10),
@@ -211,9 +212,11 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
             key: "ENCHRON_MACOS_UI_SUBTITLE_FIXTURE"
         )
         let app = XCUIApplication()
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
         app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture.path
         app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        app.launchEnvironment["ENCHRON_PLAYBACK_SPEED_OVERRIDE"] = "1"
         app.launchEnvironment["ENCHRON_AUTOMATION_PROBE"] = "1"
         app.launch()
         defer { app.terminate() }
@@ -225,27 +228,22 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
                 && $0.lifecycle == "playing"
         }
 
-        let playPause = element("PlayerPanel-button-play", in: app)
+        let playPause = app.buttons["Pause"].firstMatch
         XCTAssertTrue(playPause.waitForExistence(timeout: 10))
         typeKey(.space, in: app)
         _ = try waitForControlState(in: app, timeout: 10) {
             $0.lifecycle == "paused"
         }
 
-        let more = element("PlayerPanel-menu-more", in: app)
+        let more = app.menuButtons["More playback settings"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 10))
         click(more, name: "More")
-        let subtitles = element("PlayerPanel-menu-subtitles", in: app)
+        let subtitles = app.menuItems["Subtitles"].firstMatch
         XCTAssertTrue(subtitles.waitForExistence(timeout: 5))
-        typeKey(.downArrow, in: app)
-        typeKey(.rightArrow, in: app)
-        let embeddedTrack = element(
-            "PlayerPanel-menu-subtitle-ffmpeg.subtitle.3",
-            in: app
-        )
+        click(subtitles, name: "Subtitles")
+        let embeddedTrack = app.menuItems["Enchron acceptance subtitles"].firstMatch
         XCTAssertTrue(embeddedTrack.waitForExistence(timeout: 5))
-        typeKey(.downArrow, in: app)
-        typeKey(.return, in: app)
+        click(embeddedTrack, name: "Enchron acceptance subtitles")
 
         let activeSubtitle = element("PlayerUI-active-subtitles", in: app)
         XCTAssertTrue(activeSubtitle.waitForExistence(timeout: 10))
@@ -254,7 +252,12 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         )
         attachScreenshot(of: app, name: "Subtitle in Window RealityView")
 
-        typeKey("d", modifiers: [.command, .shift], in: app)
+        let dock = app.buttons["Dock"].firstMatch
+        XCTAssertTrue(dock.waitForExistence(timeout: 5))
+        click(dock, name: "Dock")
+        let day = app.buttons["Day"].firstMatch
+        XCTAssertTrue(day.waitForExistence(timeout: 5))
+        click(day, name: "Day")
         _ = try waitForControlState(in: app, timeout: 30) {
             $0.presentation == "docked"
                 && $0.attached == "docked"
@@ -265,6 +268,38 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
             String(describing: activeSubtitle.value).contains("Enchron 字幕验证")
         )
         attachScreenshot(of: app, name: "Subtitle in Docked RealityView")
+    }
+
+    @MainActor
+    func testEndedStopExposesReplayAndDisablesForwardOnly() {
+        continueAfterFailure = false
+        let app = XCUIApplication()
+        app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
+        app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
+        app.launchEnvironment["ENCHRON_UI_TEST_ENDED"] = "1"
+        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = "/tmp/EnchronUITest.mkv"
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        app.launch()
+        defer { app.terminate() }
+
+        let replay = app.buttons["Replay"].firstMatch
+        let rewind = app.buttons["Rewind 10 seconds"].firstMatch
+        let forward = app.buttons["Forward 10 seconds"].firstMatch
+        XCTAssertTrue(replay.waitForExistence(timeout: 20))
+        XCTAssertTrue(rewind.isEnabled)
+        XCTAssertFalse(forward.isEnabled)
+
+        let settings = app.buttons["Open Advanced Settings"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        click(settings, name: "Open Advanced Settings from Ended")
+
+        XCTAssertTrue(app.buttons["Close Advanced Settings"].waitForExistence(timeout: 5))
+        let previousFrame = app.buttons["Previous frame"].firstMatch
+        let nextFrame = app.buttons["Next frame"].firstMatch
+        XCTAssertTrue(previousFrame.waitForExistence(timeout: 5))
+        XCTAssertTrue(previousFrame.isEnabled)
+        XCTAssertTrue(nextFrame.waitForExistence(timeout: 5))
+        XCTAssertFalse(nextFrame.isEnabled)
     }
 
     @MainActor
@@ -282,6 +317,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
                 "sdr-bframe-multiaudio-avsync-120s.mp4"
             }
             fixture = URL(fileURLWithPath: #filePath)
+                .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .deletingLastPathComponent()
                 .appending(path: "../TestMedia/Generated")
@@ -311,15 +347,16 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         timeout: TimeInterval,
         matching predicate: (PlaybackControlState) -> Bool
     ) throws -> PlaybackControlState {
+        let stateProbe = element("PlayerUI-playback-state", in: app)
+        guard stateProbe.waitForExistence(timeout: min(timeout, 10)) else {
+            let hierarchy = app.debugDescription
+            XCTFail("The external playback state probe did not appear. Hierarchy: \(hierarchy)")
+            throw PlaybackJourneyError.stateTimeout(hierarchy)
+        }
         let controlPlane = element("PlayerUI-window-control-plane", in: app)
         XCTAssertTrue(
-            controlPlane.waitForExistence(timeout: timeout),
-            "The production playback control plane did not appear."
-        )
-        let stateProbe = element("PlayerUI-playback-state", in: app)
-        XCTAssertTrue(
-            stateProbe.waitForExistence(timeout: timeout),
-            "The external playback state probe did not appear."
+            controlPlane.waitForExistence(timeout: min(timeout, 10)),
+            "The production playback control plane did not appear. State: \(stateProbe.label)"
         )
         let deadline = Date().addingTimeInterval(timeout)
         var lastValue = ""

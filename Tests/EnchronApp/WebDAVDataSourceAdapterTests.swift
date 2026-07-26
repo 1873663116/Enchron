@@ -1,4 +1,5 @@
 import Foundation
+@testable import MediaLibrary
 import Testing
 @testable import Enchron
 
@@ -44,6 +45,7 @@ struct WebDAVDataSourceAdapterTests {
         let movie = try #require(files.first)
         #expect(files.map(\.name) == ["Movie One.mkv"])
         #expect(movie.sizeInBytes == 12_345)
+        #expect(movie.remoteEntityTag == "\"movie-one-v3\"")
         #expect(folders.map(\.name) == ["Season 1"])
         #expect(folders.first?.dataSourceID == ownerID)
 
@@ -58,7 +60,7 @@ struct WebDAVDataSourceAdapterTests {
         })
 
         let playableSource = try await adapter.resolvePlayableSource(for: movie)
-        defer { playableSource.lease?.release() }
+        defer { playableSource.accessLease?.release() }
         #expect(playableSource.url.scheme == "http")
         #expect(playableSource.url.host == "127.0.0.1")
         #expect(playableSource.url.user == nil)
@@ -114,7 +116,7 @@ struct WebDAVDataSourceAdapterTests {
             url: fileURL
         )
         let playableSource = try await adapter.resolvePlayableSource(for: file)
-        defer { playableSource.lease?.release() }
+        defer { playableSource.accessLease?.release() }
 
         var request = URLRequest(url: playableSource.url)
         request.setValue("bytes=3-6", forHTTPHeaderField: "Range")
@@ -179,7 +181,7 @@ struct WebDAVDataSourceAdapterTests {
                 url: fileURL
             )
         )
-        defer { source.lease?.release() }
+        defer { source.accessLease?.release() }
 
         adapter.disconnect()
 
@@ -249,6 +251,7 @@ struct WebDAVDataSourceAdapterTests {
           <d:prop>
             <d:getcontentlength>12345</d:getcontentlength>
             <d:getlastmodified>Wed, 15 Jul 2026 10:00:00 GMT</d:getlastmodified>
+            <d:getetag>"movie-one-v3"</d:getetag>
             <d:resourcetype/>
           </d:prop>
           <d:status>HTTP/1.1 200 OK</d:status>

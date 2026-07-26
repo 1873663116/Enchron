@@ -1,13 +1,13 @@
 import Foundation
 
 
-public nonisolated protocol SavedDataSourceRecordStoring: Sendable {
+nonisolated protocol SavedDataSourceRecordStoring: Sendable {
     func loadSavedDataSourceRecords() -> Data?
     func saveSavedDataSourceRecords(_ data: Data?)
 }
 
 
-public nonisolated final class SavedDataSourceStore: SavedDataSourceRecordStoring, @unchecked Sendable {
+nonisolated final class SavedDataSourceStore: SavedDataSourceRecordStoring, @unchecked Sendable {
     private let defaults: UserDefaults
     private let key: String
 
@@ -27,4 +27,3 @@ public nonisolated final class SavedDataSourceStore: SavedDataSourceRecordStorin
         defaults.set(data, forKey: key)
     }
 }
-

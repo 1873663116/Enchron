@@ -4,6 +4,7 @@ import CoreVideo
 import Foundation
 import Observation
 import PlaybackCore
+import PlaybackFeature
 import RealityKit
 
 @MainActor

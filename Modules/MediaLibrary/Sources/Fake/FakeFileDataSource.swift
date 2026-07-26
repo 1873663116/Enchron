@@ -1,16 +1,17 @@
 import Foundation
+import MediaSource
 
 /// In-memory file source fixture for UI tests and previews.
 ///
 /// Conforms to the same `FileProviding` + `DataSourceConnecting` ports as the
 /// production `LocalDataSourceAdapter`, but serves a fixed in-memory catalog
 /// instead of touching disk or the network. This lets the browsing UI run
-/// end-to-end against deterministic data; the composition root swaps in a real
+/// end-to-end against deterministic data; the App's dependency assembly swaps in a real
 /// adapter in production.
 ///
 /// Optional `latency` and `failureMode` drive the loading / disconnect use
 /// cases (UC-FILE-24 / UC-FILE-28) without real I/O.
-public nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable {
+nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable {
 
     public enum FailureMode: Sendable {
         case none
@@ -25,7 +26,7 @@ public nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked S
     private let failureMode: FailureMode
     private let catalog: Catalog
 
-    public init(
+    init(
         ownerDataSourceID: UUID = UUID(),
         latency: Duration? = nil,
         failureMode: FailureMode = .none,
@@ -79,8 +80,8 @@ public nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked S
 
     public func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource {
-        FilePlaybackSource(url: file.url)
+    ) async throws -> ResolvedMediaSource {
+        ResolvedMediaSource(url: file.url)
     }
 
     // MARK: - Helpers

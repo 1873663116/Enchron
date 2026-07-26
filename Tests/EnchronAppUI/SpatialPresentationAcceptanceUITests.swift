@@ -39,23 +39,29 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         XCTAssertTrue(dock.waitForExistence(timeout: 10))
         XCTAssertTrue(dock.isEnabled)
         tapSemanticallyWithScreenshotFallback(dock, name: "Dock")
-        let environment = app.descendants(matching: .any)["PlayerUI-DockMenu-darkTheatre"].firstMatch
+        let environment = app.descendants(matching: .any)["PlayerUI-DockMenu-day"].firstMatch
         XCTAssertTrue(environment.waitForExistence(timeout: 5))
-        tapSemanticallyWithScreenshotFallback(environment, name: "Dark Theatre")
+        tapSemanticallyWithScreenshotFallback(environment, name: "Day")
 
         let exitSpatial = app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 30))
-        XCTAssertEqual(exitSpatial.label, "Undock")
+        XCTAssertEqual(exitSpatial.label, "Return to Window")
+        let settings = app.descendants(matching: .any)["PlayerPanel-button-expand"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        tapSemanticallyWithScreenshotFallback(settings, name: "Advanced Settings")
         XCTAssertTrue(
             app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"]
                 .waitForExistence(timeout: 5)
         )
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Distance-slider"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Elevation-slider"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
         let dockedState = try waitForSpatialState(app, presentation: "docked")
         let dockedSession = try sessionID(from: dockedState)
         captureMotionEvidence(name: "02 Docked real playback")
 
-        tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Undock")
-        XCTAssertTrue(windowPlayback.waitForExistence(timeout: 30), "Undock did not restore Window playback.")
+        tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
+        XCTAssertTrue(windowPlayback.waitForExistence(timeout: 30), "Docked playback did not restore Window playback.")
         captureScreen(name: "03 Window after Docked")
 
         let format = app.descendants(matching: .any)["PlayerUI-TopAction-videoFormat"].firstMatch
@@ -69,13 +75,16 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         tapSemanticallyWithScreenshotFallback(apply, name: "Apply video format")
 
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 30))
-        XCTAssertEqual(exitSpatial.label, "Exit Panorama")
+        XCTAssertEqual(exitSpatial.label, "Return to Window")
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
         let panoramaState = try waitForSpatialState(app, presentation: "panorama")
         XCTAssertEqual(try sessionID(from: panoramaState), dockedSession)
         captureMotionEvidence(name: "04 Panorama real playback")
 
-        tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Exit Panorama")
-        XCTAssertTrue(format.waitForExistence(timeout: 30), "Exit Panorama did not restore Window playback.")
+        tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
+        let resumePanorama = app.descendants(matching: .any)["PlayerUI-TopAction-resumePanorama"].firstMatch
+        XCTAssertTrue(resumePanorama.waitForExistence(timeout: 30), "Panorama did not restore its Window portal state.")
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-TopAction-dock"].exists)
         XCTAssertEqual(windowPlayback.value as? String, "playing")
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].exists)
         captureScreen(name: "05 Window after Panorama")

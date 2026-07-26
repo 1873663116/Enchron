@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+@testable import MediaLibrary
 @testable import Enchron
 
 struct MediaLibraryTests {

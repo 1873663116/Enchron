@@ -10,7 +10,7 @@ macOS 是 Enchron 的近产品开发宿主。它可以证明共享来源、Media
 - **无人值守回归**：XCUIAutomation 或确定性的 AX + `CGEvent` harness。语义元素没有可用几何时立即失败；不能盲点固定坐标。
 - **机器 oracle**：Accessibility 后置状态、`PlayerUI-playback-state`、PlaybackCore `snapshot.json`/`events.jsonl`、OSLog、远程服务器访问日志、媒体 hash 和进程退出状态。日志无错误本身不等于通过。
 - **视觉证据**：每个状态变化保存点击前、点击后截图；播放还需两个有时间间隔的画面或短录屏证明可见画面持续变化。普通电影画面只能证明可见播放，不是投影、立体或色彩的 Visual Oracle。
-- **真实世界媒体**：直接来自仓库根 `TestMedia/` 的现有媒体；不能用项目生成 fixture 冒充真实世界媒体兼容性。
+- **真实世界媒体**：直接来自 workspace 根 `../TestMedia/` 的现有媒体；不能用项目生成 fixture 冒充真实世界媒体兼容性。
 - **确定性媒体**：`docs/acceptance/fixture-registry.json` 中的项目生成 fixture 只用于时间、字幕、颜色信令等可计算 oracle；不能替代真实世界媒体旅程。
 - **远程来源**：SMB 使用与 Local 逐字节一致的完整 fixture corpus；只读 WebDAV 使用夸克现有媒体建立独立的不可变 registry，记录稳定路径、大小、hash、媒体事实和能力覆盖。只有实际 hash 相同的对象才断言跨来源字节身份；否则分别证明来源旅程与共用播放合同。`file://`、直接打开共享目录的本地挂载路径或 App 内 mock 不能算远程来源。localhost AList/SMB 可以证明协议实现，但必须标记 `loopback`，不能冒充跨主机网络证据。
 
@@ -29,7 +29,7 @@ P0 不是单元测试集合，而是三条真实来源到播放的最短闭环�
 每轮运行使用唯一 `run-id = <UTC timestamp>-<Enchron short SHA>-<sequence>`。正式证据不得只保存在 `/tmp`；固定根目录为：
 
 ```text
-/Volumes/MacDev/Workspace/EnchronWorkspace/TestMedia/e2e-evidence/macos/<run-id>/
+../TestMedia/e2e-evidence/macos/<run-id>/
 ├── manifest.json
 ├── host-preflight.json
 ├── actions.jsonl
@@ -98,8 +98,8 @@ P0 不是单元测试集合，而是三条真实来源到播放的最短闭环�
 | 播放根与状态 | `PlayerUI-window-playback`、`PlayerUI-window-control-plane`、`PlayerUI-playback-state` | 可见播放和只读机器状态 |
 | 播放控制 | `PlayerPanel-button-expand`、`-rewind`、`-play`、`-forward`、`PlayerPanel-thumb` | 时间线、逐帧、transport、seek |
 | 播放菜单 | `PlayerPanel-menu-more`、`-subtitles`、`-audio`、`-speed`、`-episodes`、`PlayerPanel-menu-<category>-<item id>` | 字幕、音轨、速度、剧集 |
-| 呈现 | `PlayerUI-TopAction-dock`、`PlayerPanel-button-dock`、`PlayerUI-DockMenu-<environment>`、`PlayerUI-TopAction-videoFormat`、`PlayerUI-VideoFormat-<group>-<option>`、`-apply`、`-cancel`、`PlayerPanel-button-exit-spatial` | Window/Docked/Panorama simulation |
-| Docked 尺寸 | `PlayerPanel-ScreenSize-slider`、`-value`、`-reset` | 等比尺寸和推荐值恢复 |
+| 呈现 | `PlayerUI-TopAction-dock`、`PlayerUI-DockMenu-<day|night>`、`PlayerUI-TopAction-videoFormat`、`PlayerUI-VideoFormat-<group>-<option>`、`-apply`、`PlayerPanel-button-exit-spatial`、`PlayerPanel-button-back` | Window/Docked/Panorama 与返回语义；Deck 不出现 Dock/Panorama 入口 |
+| Docked placement | `PlayerPanel-ScreenSize-slider`、`PlayerPanel-Distance-slider`、`PlayerPanel-Elevation-slider`、`PlayerPanel-DockedPlacement-reset` | 尺寸、用户中心距离、球面仰角、始终朝向用户与默认值恢复 |
 | 退出播放 | `PlayerUI-InfoBar-button-back` | close 当前 session 并回到浏览器 |
 | 播放覆盖层 | `PlayerUI-resume-primary`、`-secondary`；错误面板以运行时发现的 `PlayerUI-loadFailure-*` 为准 | 续播、从头、失败和重试 |
 | Settings | `Settings-SettingsScreen`、`Settings-category-<playback|spatial|storagePrivacy|about>`、各 `Settings-*-group` | 设置分类与持久化 |
@@ -111,8 +111,8 @@ P1 运行在 Files、Settings、Window、Docked 和 Panorama simulation 的每�
 | ID / 层级 | 前置状态 | 真实用户操作 | 机器 oracle | 视觉证据 | 主要失败分类 |
 |---|---|---|---|---|---|
 | NAV-01 / P0 | 全新启动，未播放 | Computer Use 依次点击 Files、Settings、Environments，再回 Files | 对应根表面出现；选中 trait 唯一；无空白页面 | 每个 tab 点击后截图 | product-ui、permission、coverage-gap |
-| LOCAL-01 / P0 | Media Library 清空；`TestMedia/Apple/IMG_6340.MOV` 存在且 hash 已登记 | 点击 Manage → Add Files；在系统 Open Panel 逐级进入 `TestMedia/Apple`，选择文件并 Open；点击新增 `MediaLibrary-grid-video-IMG_6340.MOV` | Media Reference locator 为 security-scoped bookmark；生命周期到 playing；session 非 none；两个采样点 position/frame 递增；Back 后 session cleanup 且引用仍存在 | Open Panel 路径、Library 卡片、首帧、持续播放、Back 后浏览器 | product-source、product-playback、system-panel、permission |
-| LOCAL-02 / P1 | Library 清空；`TestMedia/CodecContainerMatrix` 可读 | Manage → Add Folder Contents；在 Open Panel 选择目录；搜索一个文件、切 grid/list、排序并播放；退出 App 后重开并再次播放 | 只创建 Media Reference，不复制媒体；引用数与可播放文件集合一致；bookmark 在重启后解析原路径；原目录 inode/size/hash 不变 | 选择目录、导入结果、搜索/排序、重启后卡片和播放 | product-library、product-source、system-panel |
+| LOCAL-01 / P0 | Media Library 清空；`../TestMedia/Apple/IMG_6340.MOV` 存在且 hash 已登记 | 点击 Manage → Add Files；在系统 Open Panel 逐级进入 `../TestMedia/Apple`，选择文件并 Open；点击新增 `MediaLibrary-grid-video-IMG_6340.MOV` | Media Reference locator 为 security-scoped bookmark；生命周期到 playing；session 非 none；两个采样点 position/frame 递增；Back 后 session cleanup 且引用仍存在 | Open Panel 路径、Library 卡片、首帧、持续播放、Back 后浏览器 | product-source、product-playback、system-panel、permission |
+| LOCAL-02 / P1 | Library 清空；`../TestMedia/CodecContainerMatrix` 可读 | Manage → Add Folder Contents；在 Open Panel 选择目录；搜索一个文件、切 grid/list、排序并播放；退出 App 后重开并再次播放 | 只创建 Media Reference，不复制媒体；引用数与可播放文件集合一致；bookmark 在重启后解析原路径；原目录 inode/size/hash 不变 | 选择目录、导入结果、搜索/排序、重启后卡片和播放 | product-library、product-source、system-panel |
 | LOCAL-03 / P1 | LOCAL-01 引用已持久化 | 暂时使源不可访问后点击引用；在错误 UI 点击恢复/确认；恢复源后重试 | 不创建第二 session；错误可恢复；引用没有被删除；恢复后建立新 session 并播放 | 错误、恢复动作、成功首帧 | product-source、permission、test-data |
 | WEBDAV-01 / P0 | 只读夸克 WebDAV registry 已固定；Library 不含该来源 | Computer Use 点击来源 More → Add → WebDAV；填写名称、URL、用户名和密码并 Connect；逐级点击远程文件夹和真实媒体卡片 | 来源保存且凭据只进入 Keychain；目录来自真实 PROPFIND；播放产生 GET/Range；对象路径、大小和 hash 等于 WebDAV registry；position/frame 递增；seek 产生符合实现的后续 range 访问；不修改远端内容 | 表单（密码遮盖）、远程目录、播放前后帧、seek 后画面 | product-remote、credential、endpoint、network |
 | WEBDAV-02 / P1 | WEBDAV-01 来源已存在 | 对远程文件执行 Add to Media Library；回 Media Library 播放；退出重开后从引用播放；刷新来源 | locator 为 source ID + 远程路径；重启后从 Keychain 重连；没有把整个媒体复制进 App container；服务器日志可关联两次 session | 加入前后、Library 卡片、重启后播放 | product-library、product-remote、credential |
@@ -130,21 +130,21 @@ P1 运行在 Files、Settings、Window、Docked 和 Panorama simulation 的每�
 |---|---|---|---|---|---|
 | LIB-01 / P1 | Media Library 根，至少两个引用 | New Library Folder；输入名称并 Create；重命名；进入目录；把引用移入；搜索；返回；移除目录并确认 | 文件夹层级和引用关系按操作持久化；原始文件/远程对象 size/hash 不变；移除只删除引用 | 每个结构变化前后 | product-library、coverage-gap |
 | LIB-02 / P1 | 本地、WebDAV、SMB 来源均已保存 | 选择来源、进入子目录、breadcrumb 返回、back/forward、refresh、grid/list、name/date/size 与升降序切换、搜索 | 路径栈和选择状态唯一；刷新不重复对象；排序结果与元数据一致；搜索结果全集正确 | 每种视图及排序结果 | product-ui、product-remote、coverage-gap |
-| SETTINGS-01 / P1 | 非播放状态 | 进入四个 Settings category；逐项选择 Resume、End、Default Speed、Auto-Hide、Default Environment；退出并重启 | UserDefaults/产品状态与可见选项一致；重启后保持；设置不会创建 Media Session | 每个 category 与重启后的选中值 | product-settings、coverage-gap |
+| SETTINGS-01 / P1 | 非播放状态 | 进入四个 Settings category；逐项选择 Resume、End、Default Speed、Auto-Hide、Default Environment Appearance；退出并重启 | UserDefaults/产品状态与可见选项一致；Day/Night 不产生第二个 Environment identity；设置不会创建 Media Session | 每个 category 与重启后的选中值 | product-settings、coverage-gap |
 | SETTINGS-02 / P1 | cache/progress 均有可测数据 | 点击 Clear Thumbnail Cache、Clear All Progress、Copy Version、Copy Feedback、View Licenses 和 Done | cache/progress 的指定数据清除且原媒体不变；剪贴板内容精确；licenses sheet 正常关闭 | 操作前后值和 sheet | product-settings、permission、coverage-gap |
-| PLAY-01 / P0 | LOCAL-01、WEBDAV-01 或 SMB-01 已 playing，剩余时长 > 30 秒 | 点击 Pause、Rewind 10s、Forward 10s、Play，拖动 timeline thumb 后释放，最后 Back | lifecycle 与 label 在 playing/paused 间收敛；position 在容差内到目标；旧 seek epoch 不再更新 UI；同一 session；Back 后 controls 消失并完成 cleanup | 每步截图和一次 timeline 拖动录屏 | product-control、product-playback、input |
+| PLAY-01 / P0 | LOCAL-01、WEBDAV-01 或 SMB-01 已 playing，剩余时长 > 30 秒 | 点击 Pause、Rewind 10s、Forward 10s、Play，拖动 Progress Bar thumb 后释放，最后 Back | lifecycle 与 label 在 playing/paused 间收敛；Progress Bar seek 后 playing；position 在容差内到目标；旧 seek epoch 不再更新 UI；同一 session；Back 后 controls 消失并完成 cleanup | 每步截图和一次 Progress Bar 拖动录屏 | product-control、product-playback、input |
 | PLAY-02 / P1 | 含双音轨、字幕且可逐帧的媒体 | 展开面板；点击前一帧/后一帧；拖 precision timeline 和 zoom；收起；More 中遍历字幕、音轨、全部速度与可用 episode | frame step 只改变一帧语义；timecode/position 一致；每个菜单选择投影到当前核心状态；音轨/字幕切换不换 session；速度恢复 1× | 展开/收起、每类菜单、字幕像素、轨道切换短录屏 | product-control、product-track、coverage-gap |
-| PLAY-03 / P1 | Resume policy 为 Ask；有非零保存进度 | 再次点击媒体；分别执行 Resume、Start Over；另一次取消/Back | Resume 从保存点容差内开始；Start Over 从零开始；取消不创建 session；保存进度与 policy 一致 | 三个 overlay 结果 | product-policy、product-playback |
-| PLAY-04 / P1 | 短媒体接近结束 | 依次在 Stop、Loop Single Episode、Play Next 设置下播放到结束并操作 Replay（若出现） | ended 仅在 active lanes 完成后发布；Stop、repeat、next 各自执行且不出现两个 active session；Replay 创建符合合同的新播放 | 结束前后与下一项/重播 | product-policy、product-playback |
-| PRESENT-01 / P0 | Window playing | 点击 Dock → environment；在 Docked 调 Screen Size、Reset；Undock；打开 Video Format，选择 360° 并 Apply；Exit Panorama；另一次 Cancel | 全程同一 Media Session；Window/Docked binding 唯一；Screen Size 三轴等比且 reset 为推荐值；macOS Panorama 必须记录 `hosted=window`、`attached=window`、`simulation=panorama`；Cancel 不改变格式 | Window、Docked、尺寸、返回、simulation、最终 Window | product-presentation、product-control |
-| PRESENT-02 / P1 | Window playing，使用 Flat/Mono 普通媒体 | 遍历 Projection 与 Stereo Layout 可见选项并 Apply；对缺少 AIME 的 Fisheye 执行 Apply | 格式 revision/错误符合来源事实；不允许用错误 metadata 假成功；失败保持 Window 和同一 session | 每个菜单选择及失败反馈 | product-format、product-error-ui |
+| PLAY-03 / P1 | 同一 Media Identity 与 Content Revision 有有效 Resume | 再次点击媒体；分别执行 Resume、Start Over | Prompt 只有 Resume 与 Start Over，没有 Cancel；Resume 从保存点容差内开始；Start Over 从零开始；格式偏好在决策后应用 | 两个 overlay 结果 | product-policy、product-playback |
+| PLAY-04 / P1 | 短媒体接近结束 | 依次在 Stop、Loop Single Episode、Play Next 设置下播放到结束；在 Stop 下召唤 Deck，检查 Replay、前后 10 秒，展开 Advanced Settings 检查前后帧并操作 Replay | ended 仅在 active lanes 完成后发布；Stop 保留同一 Media Session 与纯黑画面，不自动显示控件；Replay 与后退可用，结尾处前进禁用；Advanced Settings 可打开，上一帧可用而下一帧禁用；Replay 在同一 Session 从零开始；repeat、next 各自执行且不出现两个 active session | 结束前后、Stop 控件状态、下一项/重播 | product-policy、product-playback |
+| PRESENT-01 / P0 | Window playing | 点击 Dock → Day/Night；在 Docked 调 Screen Size、Distance、Elevation、Restore Defaults；Return Window；打开 Panorama，选择 360° × Mono 并 Apply；Return Window 后再次点 Panorama；最终 Back | 全程同一 Media Session；Window/Docked/Panorama binding 唯一；Day/Night 共用 placement；返回 Window 保留 panoramic format、隐藏 Dock，Panorama 按钮直接恢复；Back 才结束播放 | Window、Docked、placement、Panorama、返回与最终 Library | product-presentation、product-control |
+| PRESENT-02 / P1 | Window playing，使用 Flat/Mono 普通媒体 | 遍历 Projection 与 Stereo Layout 可见选项并 Apply；分别用缺少和包含 AIME 事实的媒体检查 Fisheye | 缺少 AIME 时不显示 Fisheye；包含 AIME 时仅解锁选项、不自动选择或应用；格式 revision/错误符合来源事实；失败保持 Window 和同一 session | 每个菜单选择及失败反馈 | product-format、product-error-ui |
 | ERROR-01 / P1 | 准备不支持/损坏或暂时不可读的 TestMedia 对象 | 通过 UI 选择对象；点击 Retry 和 Close/Back | 第一个失败节点、error domain/code 和 cleanup 可关联；无隐藏替代媒体管线；Retry 行为确定 | 失败、Retry、返回 | product-source、product-playback、test-data |
 
 同一控件如果在 Window、Docked、Panorama simulation、playing、paused、ended、loading、failed 中语义或可用性不同，必须在对应稳定状态分别记录。禁用控件需要断言其不可操作及原因；不存在的能力不能通过点击无反应来算覆盖。
 
 ## TestMedia 真实媒体矩阵
 
-`TestMedia/fixture-registry.local.json` 目前含旧绝对路径和历史仓库信息，不能作为当前通过依据。首次执行前必须根据当前相对路径重建 remote staging manifest：记录大小、SHA-256、`ffprobe` container/codec/profile、duration、轨道、color/HDR/projection/stereo 事实、许可边界和期望结果。未知事实保持 unknown，不能从目录名推断。
+`../TestMedia/fixture-registry.local.json` 目前含旧绝对路径和历史仓库信息，不能作为当前通过依据。首次执行前必须根据当前相对路径重建 remote staging manifest：记录大小、SHA-256、`ffprobe` container/codec/profile、duration、轨道、color/HDR/projection/stereo 事实、许可边界和期望结果。未知事实保持 unknown，不能从目录名推断。
 
 | 类别 | 当前相对路径 | 层级与用途 | 最低断言 |
 |---|---|---|---|
@@ -162,7 +162,7 @@ P1 运行在 Files、Settings、Window、Docked 和 Panorama simulation 的每�
 
 ## Local/SMB 同源 corpus 与只读 WebDAV registry
 
-Local 直接使用 `TestMedia`；SMB 把相同字节复制到本轮隔离目录 `TestMedia/e2e-staging/<run-id>/media/` 并通过生产 SMB adapter 暴露。首轮快速闭环使用下列子集，完整矩阵按 registry 扩展到整个 corpus：
+Local 直接使用 `../TestMedia`；SMB 把相同字节复制到本轮隔离目录 `../TestMedia/e2e-staging/<run-id>/media/` 并通过生产 SMB adapter 暴露。首轮快速闭环使用下列子集，完整矩阵按 registry 扩展到整个 corpus：
 
 ```text
 Apple/IMG_6340.MOV

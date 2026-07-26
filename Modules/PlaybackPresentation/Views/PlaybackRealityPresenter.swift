@@ -1,5 +1,7 @@
 import AVFoundation
 import PlaybackCore
+import PlaybackFeature
+import PlaybackPresentation
 import RealityKit
 import SwiftUI
 

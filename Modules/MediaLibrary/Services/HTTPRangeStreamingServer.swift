@@ -62,7 +62,6 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
 
         let parameters = NWParameters.tcp
         parameters.requiredLocalEndpoint = .hostPort(host: "127.0.0.1", port: .any)
-        parameters.acceptLocalOnly = true
         let listener = try NWListener(using: parameters, on: .any)
         self.listener = listener
 
@@ -208,27 +207,31 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
         }
         response += "Connection: close\r\n\r\n"
 
-        connection.send(content: Data(response.utf8), completion: .contentProcessed { [weak self, connection] error in
-            guard error == nil, let self, method == "GET" else {
-                connection.cancel()
-                return
+        connection.send(
+            content: Data(response.utf8),
+            contentContext: .defaultStream,
+            isComplete: method == "HEAD",
+            completion: .contentProcessed { [connection] error in
+                if error != nil { connection.cancel() }
             }
-            let connectionID = ObjectIdentifier(connection)
-            let task = Task { [weak self, connection] in
-                guard let self else { return }
-                defer { self.finishTransfer(connectionID: connectionID) }
-                await self.send(range: requestedRange, on: connection)
-            }
-            let accepted = self.lock.withLock {
-                guard self.isStopping == false else { return false }
-                self.transferTasks[connectionID] = task
-                return true
-            }
-            if accepted == false {
-                task.cancel()
-                connection.cancel()
-            }
-        })
+        )
+        guard method == "GET" else { return }
+
+        let connectionID = ObjectIdentifier(connection)
+        let task = Task { [weak self, connection] in
+            guard let self else { return }
+            defer { self.finishTransfer(connectionID: connectionID) }
+            await self.send(range: requestedRange, on: connection)
+        }
+        let accepted = lock.withLock {
+            guard isStopping == false else { return false }
+            transferTasks[connectionID] = task
+            return true
+        }
+        if accepted == false {
+            task.cancel()
+            connection.cancel()
+        }
     }
 
     private func send(range: Range<Int64>, on connection: NWConnection) async {
@@ -245,12 +248,15 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
                 }
                 let remaining = range.upperBound - offset
                 let payload = chunk.prefix(Int(min(Int64(chunk.count), remaining)))
-                try await send(Data(payload), on: connection)
+                try await send(
+                    Data(payload),
+                    isComplete: readEnd == range.upperBound,
+                    on: connection
+                )
                 let sent = Int64(payload.count)
                 offset += sent
                 lock.withLock { statistics.bytesRead += sent }
             }
-            connection.cancel()
         } catch {
             connection.cancel()
         }
@@ -284,36 +290,50 @@ nonisolated final class HTTPRangeStreamingServer: @unchecked Sendable {
     }
 
     private func finishTransfer(connectionID: ObjectIdentifier) {
-        lock.withLock {
+        _ = lock.withLock {
             transferTasks.removeValue(forKey: connectionID)
-            connections.removeValue(forKey: connectionID)
         }
     }
 
-    private func send(_ data: Data, on connection: NWConnection) async throws {
+    private func send(
+        _ data: Data,
+        isComplete: Bool,
+        on connection: NWConnection
+    ) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, any Error>) in
-            connection.send(content: data, completion: .contentProcessed { error in
-                if let error {
-                    continuation.resume(throwing: error)
-                } else {
-                    continuation.resume()
+            connection.send(
+                content: data,
+                contentContext: .defaultStream,
+                isComplete: isComplete,
+                completion: .contentProcessed { error in
+                    if let error {
+                        continuation.resume(throwing: error)
+                    } else {
+                        continuation.resume()
+                    }
                 }
-            })
+            )
         }
     }
 
     private func sendRangeNotSatisfiable(on connection: NWConnection) {
         let response = "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */\(source.contentLength)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-        connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in
-            connection.cancel()
-        })
+        connection.send(
+            content: Data(response.utf8),
+            contentContext: .defaultStream,
+            isComplete: true,
+            completion: .contentProcessed { _ in }
+        )
     }
 
     private func sendError(_ status: Int, message: String, on connection: NWConnection) {
         let response = "HTTP/1.1 \(status) \(message)\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-        connection.send(content: Data(response.utf8), completion: .contentProcessed { _ in
-            connection.cancel()
-        })
+        connection.send(
+            content: Data(response.utf8),
+            contentContext: .defaultStream,
+            isComplete: true,
+            completion: .contentProcessed { _ in }
+        )
     }
 
     private static func headers(from request: String) -> [String: String] {

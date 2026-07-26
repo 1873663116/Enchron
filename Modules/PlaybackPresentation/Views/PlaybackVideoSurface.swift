@@ -1,6 +1,8 @@
 import RealityKit
 import OSLog
 import PlaybackCore
+import PlaybackFeature
+import PlaybackPresentation
 import SwiftUI
 
 private let playbackVideoSurfaceLogger = Logger(
@@ -191,7 +193,9 @@ struct PlaybackVideoSurface: View {
         revision: Int
     ) -> Bool {
         _ = revision
-        guard isActive, let renderer = playbackRuntime.renderer else {
+        guard isActive,
+              playbackRuntime.mediaFormatIsKnown,
+              let renderer = playbackRuntime.renderer else {
             releaseSurface(from: content)
             return false
         }
@@ -325,9 +329,8 @@ struct PlaybackVideoSurface: View {
                 videoEntity,
                 to: macOSPlaybackSurfaceAnchor,
                 transform: .init(
-                    verticalOffset: appModel.screenVerticalOffset,
-                    depthOffset: appModel.screenDepthOffset,
-                    viewAngle: appModel.screenViewAngle,
+                    distance: appModel.screenDepthOffset,
+                    elevationDegrees: appModel.screenViewAngle,
                     scale: appModel.screenScale
                 )
             )
@@ -412,14 +415,19 @@ struct PlaybackVideoSurface: View {
 
     @MainActor
     private func attachSurfaceIfReady() {
-        guard videoEntity.isActive,
-              let renderer = playbackRuntime.renderer,
-              isActive,
-              PlaybackRealityPresenter.isBound(
+        let renderer = playbackRuntime.renderer
+        let isBound = renderer.map {
+            PlaybackRealityPresenter.isBound(
                 videoEntity,
-                to: renderer,
+                to: $0,
                 presentation: presentation
-              ) else { return }
+            )
+        } ?? false
+        guard videoEntity.isActive,
+              renderer != nil,
+              isActive,
+              playbackRuntime.mediaFormatIsKnown,
+              isBound else { return }
         do {
             try playbackRuntime.attach(
                 entityID: entityID,
@@ -440,6 +448,9 @@ struct PlaybackVideoSurface: View {
             )
         } catch {
             playbackRuntime.lastErrorMessage = error.localizedDescription
+            playbackVideoSurfaceLogger.error(
+                "surface attach failed error=\(error.localizedDescription, privacy: .public)"
+            )
         }
     }
 

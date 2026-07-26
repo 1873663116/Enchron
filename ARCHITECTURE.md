@@ -49,8 +49,8 @@ flowchart LR
 - `MediaSource` 是 Media Identity、Content Revision、`ResolvedMediaSource`/`MediaAccessLease`、稳定自然名称顺序与 access lifetime 的唯一权威。远程身份使用协议、主机、规范端口、账号命名空间与媒体路径；等价来源配置共享身份，不同账号默认隔离。MediaLibrary 的 Keychain 键使用相同账号边界，并兼容迁移旧服务器级记录。
 - `MediaLibrary` 交付中立的 `MediaPlaybackItem` 与不可变 `MediaCollectionSnapshot`，不创建 Playback 请求、不读写观看策略。
 - `PlaybackFeature` 拥有 Queue、Viewing State、Media Format Preference、媒体元数据、播放请求与 launch coordinator；其唯一 Core adapter 是实现 `PlaybackRuntimeControlling` 的 Xcode-only `PlaybackRuntime`，不进入其他 feature。
-- `PlaybackPresentation` 拥有 Window/Docked/Panorama、Environment/Appearance、placement 与 transition transaction；具体 Scene/View 壳消费这些状态，不直接定义来源或观看策略。
-- `Apps` 只组装各产品状态的所有者，并执行系统提供的 Scene 和 Window 操作；操作结果交回 `PlaybackPresentation` 提交或回滚。
+- `PlaybackPresentation` 是应用生命周期内唯一的空间体验产品状态所有者。它拥有 Window/Docked/Panorama、Environment Context、Docked Placement、Presentation Transition 与同进程空间恢复；具体 Scene/View 壳消费只读状态并发送命令，不直接定义来源或观看策略。
+- `Apps` 只组装各产品状态的所有者，并执行系统提供的 Scene、Window、Immersive Space 与 RealityKit 效果；系统结果交回 `PlaybackPresentation`，由后者提交、继续或回滚产品状态。
 - `DesignSystem` 不依赖产品 feature，只提供稳定复用的视觉原语。
 
 访问控制默认使用 `internal`。只有其他 Target 确实需要调用的入口 View、不可变状态值、操作命令、查询和值类型，以及 App 组装依赖时必须实现的少量协议，才声明为 `public`。只供同一 Package 内验证代码使用、但不属于 App 接口的声明使用 `package`。Media Library 的两个 `@Observable` 模型可以被 SwiftUI 读取，但只能由 `MediaLibraryFeature` 统一创建，外部代码不能自行拼装它们。持久化实现、具体数据源实现、地址解析实现、来源专用身份算法、PlaybackCore Session、页面内部 View 与测试数据不向 App 公开。
@@ -63,7 +63,7 @@ flowchart LR
 4. 建立五个具有明确单向依赖关系的核心 Target，并删除这些源码在 App Target 中的重复编译。
 5. 让 visionOS Scene、页面组装与 PlaybackCore 接入代码继续由 App Target 编译；把 `PlaybackLaunchCoordinator` 编入 `PlaybackFeature`，并通过只包含必要操作的协议连接 `PlaybackRuntime`。App Target 中的平台代码不能反过来拥有产品规则。
 
-`AppModel` 仍同时向界面提供播放呈现状态和少量 App 导航状态；这是下一轮可以继续拆分的已知边界，不代表其他产品状态也可以继续放入 App Target。App Target 中的平台代码只能分别通过 `MediaLibraryFeature`、`PlaybackLaunchCoordinator` 与 `PlaybackPresentationStorage` 访问媒体来源、Resume 与屏幕摆位持久化；具体持久化实现和数据源实现不能被它直接访问。
+`PlaybackPresentationModel` 已收敛 Playback Presentation、Environment Context、Immersive Space residency、Docked Placement、Presentation Transition 与当前待执行平台效果。`AppModel` 只组合这个所有者，并保留导航、控件和平台 executor 输入等普通界面临时状态。SwiftUI 页面只发送产品命令；唯一的平台 executor 串行认领当前效果，调用系统 Scene action 和 renderer surface 操作，再把带请求身份的结果交回所有者。App Target 中的平台代码只能分别通过 `MediaLibraryFeature`、`PlaybackLaunchCoordinator` 与空间体验公开合同访问媒体来源、Playback 产品行为和空间状态；具体持久化实现和数据源实现不能被它直接访问。
 
 完整取舍见 [`ADR 0018`](docs/adr/0018-one-way-target-dependencies-and-media-source-ownership.md)。
 
@@ -116,9 +116,42 @@ Source Admission -> Media Session -> Demux Provider
 | `MediaSource` | Media Identity、Content Revision、来源选择/解析与 access lifetime | Library 分类、播放策略、UI |
 | `MediaLibrary` | 虚拟 Library、Source Directory 浏览、Playback Collection 与用户选择 | 媒体字节所有权、进度策略、PlaybackCore 调度 |
 | `PlaybackFeature` | Queue、Viewing State、Media Format Preference、媒体元数据、launch coordinator 与 Runtime contract；语义上拥有唯一 Core adapter | demux、sample、renderer queue、空间呈现 |
-| `PlaybackPresentation` | Environment/Appearance、placement、Window/Docked/Panorama transaction | renderer graph、媒体 timeline、来源身份算法 |
+| `PlaybackPresentation` | Environment Context、Docked Placement、Window/Docked/Panorama、Presentation Transition、同进程空间恢复，以及 Environment Card 的独立 residency 协调 | renderer graph、媒体 timeline、来源身份算法、SwiftUI Scene、RealityKit Entity |
 | `Modules/DesignSystem` | 生产视觉 token、通用控件与平台外观适配 | feature 状态和产品流程 |
 | `Packages/RealityKitContent` | Enchron 使用的 RCP 场景交付 | 播放行为与 Environment 产品状态 |
+
+## 空间体验合同
+
+`PlaybackPresentation` 协调 Environment 与播放呈现，但不因此拥有媒体播放或 Apple 平台对象。Environment Card 不属于 Playback Presentation；它是由同一个空间体验所有者协调的独立平台 Scene，因此打开或聚焦卡片不会直接改变 Window、Docked 或 Panorama。
+
+```mermaid
+flowchart LR
+    UI["SwiftUI 界面\n发送产品命令"]
+    Spatial["PlaybackPresentation\n空间状态与转换"]
+    Playback["PlaybackFeature 合同\n播放事实与转换协作"]
+    Effects["App 平台效果执行器\nSwiftUI · RealityKit"]
+    System["visionOS"]
+
+    UI -->|命令| Spatial
+    Spatial -->|暂停、恢复、释放或绑定请求| Playback
+    Spatial -->|平台效果请求| Effects
+    Effects -->|系统 API| System
+    System -->|成功、取消、失败与生命周期事实| Effects
+    Effects -->|带请求身份的结果事件| Spatial
+```
+
+空间体验所有者公开的表面保持最小：
+
+- 界面读取不可变空间快照和操作可用性，并发送进入 Window、Docked、Panorama，打开或关闭 Environment，选择 Environment Effect，修改 Docked Placement 或请求 Environment Card 的命令。
+- Playback 只提供当前 Media Session 身份、Playback Lifecycle、转换期间暂停与恢复播放意图，以及 renderer consumer 释放、绑定和 settled 结果。每次 Window、Docked 或 Panorama 转换都绑定发起时的 Media Session；原先正在播放时通过 App 边界的 throwing transport bridge 先暂停，暂停失败时平台效果不得开始且 Transition 回滚。平台效果结算后才按 owner 给出的结果策略恢复；提交后的恢复播放失败会被记录并向用户暴露，但不能虚构已经发生的平台回滚。原先 Paused、Ready 或 Ended 时不发播放控制。空间体验所有者不能 seek、切换媒体、修改 Queue、写 Resume 或创建和关闭 Media Session。
+- App 平台层执行打开、聚焦或关闭 Window 与 Volume，打开或关闭 Enchron Immersive Space，设置 immersion style，以及创建、释放和绑定当前 Scene 的 RealityKit 内容。它只能报告系统结果，不能自行提交 Playback Presentation、清除 Environment Context 或决定恢复目标。
+- 每个待执行效果有一个稳定 `requestID`，每次 coordinator 认领都会生成独立 `executionID` 并绑定当时的 Scene action capability generation。App 生命周期 coordinator 只保存由当前活跃 SwiftUI 根注册的能力和执行租约，不拥有产品状态；没有活跃根时 request 留在 owner。根消失或 capability 被替换会使当前执行尝试失效并放弃该尝试，同一产品 request 可以在可执行根再次出现后用新的 `executionID` 重试。At-most-once 只约束每个仍然有效的执行尝试；只有同时匹配当前 `requestID` 与 `executionID` 的结果才能结算，旧尝试的重复、迟到结果或 transport failure 均被忽略。目标 Presentation 仍保存在 request 对应的当前 Transition 中，Playback 的 renderer settled 事实由 executor 在报告成功前验证。
+
+稳定空间产品状态包含 Playback Presentation、Environment Context、Docked Placement，以及与播放呈现正交的 Environment Card residency。进入 Docked 时 owner 暂存进入前的 Environment Context：原先为 `none` 时 Default Environment 只在本次 Docked 内临时活动，原先 active 时连同 Environment Effect 原样保存；返回 Window、回到 Media Library 或停止时恢复并清除该暂存值，失败回滚不会泄漏或丢弃它。Environment Card 使用 singleton `Window` Scene，residency 由 Scene appeared/disappeared 事实结算；重复打开只发布聚焦同一实例的效果。Docked 请求 Card 时 owner 串行排入 Window → Card，Panorama 不提供该入口。
+
+Presentation Transition 保存转换前状态、目标状态、播放意图和当前等待的效果；`Spatial Recovery Intent` 只在同一进程内保存被系统关闭前的 Docked 或 Panorama、Media Session 身份与播放意图。系统非预期关闭 Enchron Immersive Space 时，稳定 Presentation 保持不变，owner 发布同一 Presentation 的恢复效果；成功后才清除 intent，并且只有原先 Playing 才恢复播放。旧 Media Session 的执行或结果被拒绝。恢复失败时 intent 被清除、产品一次性收敛到 Window 且不自动重试；进程终止时 intent 随内存自然消失，不进入 Preferences、Resume 或其他持久化。主动返回 Window、停止播放、关闭 Environment preview，以及 Window/Environment Card 的 residency 变化都不会创建恢复事务。Transition 和 Recovery 都不是第四种 Playback Presentation。
+
+该合同要求 `PlaybackPresentation` 的 Package 源码不依赖 SwiftUI、RealityKit、AVFoundation 或 PlaybackCore。纯值状态、转换规则、命令、平台效果请求和结果事件留在 Package Target；RealityKit Entity 查找、transform 应用、renderer consumer 绑定和 SwiftUI Scene 调用留在 App Target。`PlaybackSurfacePlacement.swift` 只保留纯值摆位数学，RealityKit Entity 与 Transform 应用由 App 编译边界中的平台 adapter 执行。
 
 ## Enchron App 与验证入口
 

@@ -4,7 +4,7 @@ import SwiftUI
 
 // MARK: - Reusable controls
 
-struct GlassCircleIconLabel: View {
+public struct GlassCircleIconLabel: View {
     @Environment(\.isEnabled) private var isEnabled
 
     let systemName: String
@@ -17,13 +17,29 @@ struct GlassCircleIconLabel: View {
     // 纯视觉:玻璃圆 + 注视高亮 + press,命中区恒等于视觉圆。命中区的静默扩展由
     // 手势包装层(GlassCircleIconButton)负责——不在 label 内撑大 interaction 区,
     // 否则外层 Button/Menu 会把 hover 套到扩展区,产生一圈多余的注视高亮。
-    var body: some View {
+    public init(
+        systemName: String,
+        accessibilityLabel: String,
+        iconColor: Color = .white,
+        visualSize: CGFloat = DesignTokens.Interactive.regular,
+        font: Font = DesignTokens.SymbolSize.control,
+        accessibilityIdentifier: String? = nil
+    ) {
+        self.systemName = systemName
+        self.accessibilityLabel = accessibilityLabel
+        self.iconColor = iconColor
+        self.visualSize = visualSize
+        self.font = font
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
+
+    public var body: some View {
         Image(systemName: systemName)
             .font(font)
             .foregroundStyle(iconColor)
             .frame(width: visualSize, height: visualSize)
             .clipShape(Circle())
-            .glassBackgroundEffect(in: Circle())
+            .enchronGlassBackground(in: Circle())
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect(.automatic)
             .accessibilityLabel(accessibilityLabel)
@@ -32,7 +48,7 @@ struct GlassCircleIconLabel: View {
     }
 }
 
-struct GlassCircleIconButton: View {
+public struct GlassCircleIconButton: View {
     let systemName: String
     let accessibilityLabel: String
     var action: () -> Void = {}
@@ -45,7 +61,25 @@ struct GlassCircleIconButton: View {
     // 原生 Button 负责唯一的激活与辅助功能语义;视觉 label 自己限定 hover 圆,
     // 外层 frame 只扩大静默命中区。
 
-    var body: some View {
+    public init(
+        systemName: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil,
+        visualSize: CGFloat = DesignTokens.Interactive.regular,
+        targetSize: CGFloat = DesignTokens.Interactive.large,
+        font: Font = DesignTokens.SymbolSize.control
+    ) {
+        self.systemName = systemName
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.visualSize = visualSize
+        self.targetSize = targetSize
+        self.font = font
+    }
+
+    public var body: some View {
         Button(action: action) {
             GlassCircleIconLabel(
                 systemName: systemName,
@@ -65,7 +99,7 @@ struct GlassCircleIconButton: View {
 
     // MARK: 具名图标预设(组装约定:优先调预设;没有预设才传裸 systemName,且顺手补一个预设)
 
-    static func back(
+    public static func back(
         accessibilityLabel: String = "Back",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
@@ -78,7 +112,7 @@ struct GlassCircleIconButton: View {
         )
     }
 
-    static func expand(
+    public static func expand(
         accessibilityLabel: String = "Expand",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
@@ -91,7 +125,7 @@ struct GlassCircleIconButton: View {
         )
     }
 
-    static func more(
+    public static func more(
         accessibilityLabel: String = "More",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
@@ -104,7 +138,7 @@ struct GlassCircleIconButton: View {
         )
     }
 
-    static func close(
+    public static func close(
         accessibilityLabel: String = "Close",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
@@ -118,7 +152,7 @@ struct GlassCircleIconButton: View {
     }
 }
 
-extension View {
+public extension View {
     /// Presents a system confirmation alert for a destructive or sensitive action.
     ///
     /// Built on visionOS's native `.alert`, so the system owns presentation,
@@ -172,7 +206,7 @@ extension View {
     }
 }
 
-extension View {
+public extension View {
     /// The translucent rounded-rect surface shared by `SettingListGroup` and the
     /// expanded precision-timeline card: `.regularMaterial` fill, clipped to a
     /// continuous rounded rectangle, with a 1pt divider stroke. Centralised so
@@ -193,13 +227,13 @@ extension View {
     }
 }
 
-struct SettingListGroup: View {
+public struct SettingListGroup: View {
     /// Where an expanding row's detail panel visually originates. A row near the
     /// top of a container grows *downward* from its top edge; one near the bottom
     /// grows *upward* from its bottom edge; a middle row scales out from its
     /// centre. Only the disclosure motion differs — the panel always lays out
     /// below the row header.
-    enum ExpansionOrigin {
+    public enum ExpansionOrigin {
         case top
         case bottom
         case center
@@ -213,18 +247,18 @@ struct SettingListGroup: View {
         }
     }
 
-    enum ActionRole {
+    public enum ActionRole {
         case normal
         case destructive
     }
 
-    struct MenuOption: Identifiable {
-        let id: String
-        let title: String
-        var role: ButtonRole?
-        var action: () -> Void
+    public struct MenuOption: Identifiable {
+        public let id: String
+        public let title: String
+        public var role: ButtonRole?
+        public var action: () -> Void
 
-        init(_ title: String, id: String? = nil, role: ButtonRole? = nil, action: @escaping () -> Void = {}) {
+        public init(_ title: String, id: String? = nil, role: ButtonRole? = nil, action: @escaping () -> Void = {}) {
             self.id = id ?? title
             self.title = title
             self.role = role
@@ -232,7 +266,7 @@ struct SettingListGroup: View {
         }
     }
 
-    enum Accessory {
+    public enum Accessory {
         case none
         case automatic
         case menu(title: String, options: [MenuOption], role: ActionRole = .normal)
@@ -259,19 +293,19 @@ struct SettingListGroup: View {
         )
     }
 
-    struct CardOption: Identifiable {
-        let id: String
-        let title: String
-        let systemName: String
+    public struct CardOption: Identifiable {
+        public let id: String
+        public let title: String
+        public let systemName: String
 
-        init(id: String? = nil, title: String, systemName: String) {
+        public init(id: String? = nil, title: String, systemName: String) {
             self.id = id ?? title
             self.title = title
             self.systemName = systemName
         }
     }
 
-    enum EmbeddedControl {
+    public enum EmbeddedControl {
         case cardSelection(options: [CardOption], selectedID: Binding<String>)
         case centerSlider(
             value: Binding<Int>,
@@ -294,29 +328,34 @@ struct SettingListGroup: View {
     }
 
     /// One row of an expandable key-value detail panel (diagnostic disclosures).
-    struct KeyValue: Identifiable {
-        let key: String
-        let value: String
-        var id: String { "\(key)-\(value)" }
+    public struct KeyValue: Identifiable {
+        public let key: String
+        public let value: String
+        public var id: String { "\(key)-\(value)" }
+
+        public init(key: String, value: String) {
+            self.key = key
+            self.value = value
+        }
     }
 
-    struct Item: Identifiable {
-        let id: String
-        let title: String
-        let systemName: String?
-        var supportingText: String? = nil
+    public struct Item: Identifiable {
+        public let id: String
+        public let title: String
+        public let systemName: String?
+        public var supportingText: String? = nil
         /// Descriptive copy revealed when the row expands. `nil` keeps the row a
         /// plain tappable entry that fires `action` instead of disclosing.
-        var detail: String? = nil
+        public var detail: String? = nil
         /// Key-value rows revealed when the row expands, used for diagnostic
         /// disclosures. Takes precedence over `detail` when both are set.
-        var keyValueDetail: [KeyValue]? = nil
-        var expansion: ExpansionOrigin = .top
-        var accessory: Accessory = .automatic
-        var embeddedControl: EmbeddedControl?
-        var action: () -> Void = {}
+        public var keyValueDetail: [KeyValue]? = nil
+        public var expansion: ExpansionOrigin = .top
+        public var accessory: Accessory = .automatic
+        public var embeddedControl: EmbeddedControl?
+        public var action: () -> Void = {}
 
-        init(
+        public init(
             id: String? = nil,
             title: String,
             systemName: String? = nil,
@@ -341,7 +380,7 @@ struct SettingListGroup: View {
         }
     }
 
-    var accessibilityIdentifier: String = "DesignPreview-SettingListGroup"
+    public var accessibilityIdentifier: String = "DesignPreview-SettingListGroup"
     let items: [Item]
 
     private var cornerRadius: CGFloat {
@@ -357,7 +396,15 @@ struct SettingListGroup: View {
     // namespace; visionOS does not expose gaze hover state to app code).
     @Namespace private var hoverNamespace
 
-    var body: some View {
+    public init(
+        accessibilityIdentifier: String = "DesignPreview-SettingListGroup",
+        items: [Item]
+    ) {
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.items = items
+    }
+
+    public var body: some View {
         VStack(spacing: 0) {
             ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                 SettingListGroupRow(
@@ -393,7 +440,7 @@ struct SettingListGroup: View {
 /// The content closure receives this row's `followsGroup` handle so a child
 /// (e.g. a file row's trailing metadata) can fade in sync with the same gaze
 /// the shell highlights on.
-struct ListGroupRowShell<Content: View>: View {
+public struct ListGroupRowShell<Content: View>: View {
     let index: Int
     let count: Int
     let cornerRadius: CGFloat
@@ -429,8 +476,32 @@ struct ListGroupRowShell<Content: View>: View {
         return EnchronHoverGroup(id: "listGroupRow\(rowIndex)", in: hoverNamespace, behavior: behavior)
     }
 
+    public init(
+        index: Int,
+        count: Int,
+        cornerRadius: CGFloat,
+        hoverNamespace: Namespace.ID? = nil,
+        showsHighlight: Bool = true,
+        isInteractive: Bool = true,
+        accessibilityLabel: String = "",
+        accessibilityValue: String = "",
+        action: @escaping () -> Void = {},
+        @ViewBuilder content: @escaping (_ rowHoverGroup: EnchronHoverGroup?) -> Content
+    ) {
+        self.index = index
+        self.count = count
+        self.cornerRadius = cornerRadius
+        self.hoverNamespace = hoverNamespace
+        self.showsHighlight = showsHighlight
+        self.isInteractive = isInteractive
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityValue = accessibilityValue
+        self.action = action
+        self.content = content
+    }
+
     @ViewBuilder
-    var body: some View {
+    public var body: some View {
         if isInteractive {
             Button(action: action) { surface }
                 .buttonStyle(.plain)
@@ -827,8 +898,10 @@ struct SettingListGroupRow: View {
     }
 }
 
-struct SettingListGroupDivider: View {
-    var body: some View {
+public struct SettingListGroupDivider: View {
+    public init() {}
+
+    public var body: some View {
         Rectangle()
             .fill(DesignTokens.Surface.divider)
             .frame(height: DesignTokens.Stroke.regular)
@@ -1078,7 +1151,7 @@ private struct SettingListSelectionIndicator: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.white)
                 }
-                .glassBackgroundEffect(in: Circle())
+                .enchronGlassBackground(in: Circle())
         } else {
             Circle()
                 .stroke(DesignTokens.SourceSidebar.selectionIndicator, lineWidth: DesignTokens.Stroke.regular)
@@ -1132,4 +1205,3 @@ private struct SettingListAccessoryButton<Label: View>: View {
         .accessibilityLabel(accessibilityLabel)
     }
 }
-

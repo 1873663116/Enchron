@@ -1,4 +1,7 @@
 import Foundation
+@testable import MediaLibrary
+import MediaSource
+import PlaybackFeature
 import XCTest
 @testable import Enchron
 
@@ -10,7 +13,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         try Data([0x00, 0x01, 0x02]).write(to: file)
 
-        let access = PlaybackSourceAccess.temporaryFile(file)
+        let access = MediaAccessLease.temporaryFile(file)
 
         XCTAssertTrue(access.ensureActive())
         XCTAssertTrue(FileManager.default.fileExists(atPath: file.path))
@@ -47,13 +50,13 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         try Data([0x00, 0x01, 0x02]).write(to: source)
         defer { try? FileManager.default.removeItem(at: root) }
 
-        var launchRequest: PlaybackLaunchRequest?
+        var playbackItem: MediaPlaybackItem?
         let launched = expectation(description: "Media Library emitted a playback request")
         let viewModel = MediaLibraryViewModel(
             store: store,
             resolver: MediaReferenceResolver(),
-            onPlay: { request in
-                launchRequest = request
+            onPlay: { item in
+                playbackItem = item
                 launched.fulfill()
             }
         )
@@ -63,8 +66,8 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         viewModel.play(reference)
         await fulfillment(of: [launched], timeout: 2)
 
-        XCTAssertEqual(launchRequest?.url.standardizedFileURL, source.standardizedFileURL)
-        XCTAssertEqual(launchRequest?.displayName, source.lastPathComponent)
+        XCTAssertEqual(playbackItem?.url.standardizedFileURL, source.standardizedFileURL)
+        XCTAssertEqual(playbackItem?.displayName, source.lastPathComponent)
         XCTAssertNil(viewModel.lastErrorMessage)
         XCTAssertEqual(try store.load().references(in: nil), [reference])
     }
@@ -86,6 +89,36 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testPlaybackRuntimeReportsSessionReplacementAtTheAuthoritativeMutation() async throws {
+        let runtime = PlaybackRuntime(isUITestFixture: true)
+        var events: [PlaybackRuntime.SessionLifecycleEvent] = []
+        runtime.setSessionLifecycleHandler { events.append($0) }
+
+        try await runtime.open(
+            .init(
+                url: URL(fileURLWithPath: "/tmp/session-a.mp4"),
+                displayName: "Session A"
+            )
+        )
+        let sessionA = try XCTUnwrap(runtime.activeSessionID)
+        try await runtime.open(
+            .init(
+                url: URL(fileURLWithPath: "/tmp/session-b.mp4"),
+                displayName: "Session B"
+            )
+        )
+        let sessionB = try XCTUnwrap(runtime.activeSessionID)
+
+        XCTAssertEqual(
+            events,
+            [
+                .activated(id: sessionA),
+                .replaced(previousID: sessionA, currentID: sessionB),
+            ]
+        )
+    }
+
+    @MainActor
     func testOpenFailureKeepsPlayerVisibleForRetry() async throws {
         let suiteName = "app.enchron.tests.open-failure.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -93,8 +126,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         let runtime = PlaybackRuntime()
         let launcher = PlaybackLaunchCoordinator(
             playbackRuntime: runtime,
-            progressStore: PlaybackProgressStore(defaults: defaults),
-            preferencesStore: UserDefaultsStore(defaults: defaults)
+            preferencesProvider: UserDefaultsStore(defaults: defaults)
         )
         let missingURL = FileManager.default.temporaryDirectory
             .appending(path: "missing-\(UUID().uuidString).mkv")
@@ -123,8 +155,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         let runtime = PlaybackRuntime()
         let launcher = PlaybackLaunchCoordinator(
             playbackRuntime: runtime,
-            progressStore: PlaybackProgressStore(defaults: defaults),
-            preferencesStore: UserDefaultsStore(defaults: defaults)
+            preferencesProvider: UserDefaultsStore(defaults: defaults)
         )
         let missingURL = FileManager.default.temporaryDirectory
             .appending(path: "missing-\(UUID().uuidString).mkv")

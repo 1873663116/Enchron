@@ -1,5 +1,41 @@
 import SwiftUI
 
+public enum EnchronPressSensoryFeedback {
+    case button
+    case iconOnly
+    case slider
+    case selectionMinimum
+    case selectionMaximum
+    case selectionOn
+}
+
+public extension View {
+    @ViewBuilder
+    func enchronPressSensoryFeedback<T: Equatable>(
+        _ feedback: EnchronPressSensoryFeedback,
+        trigger: T
+    ) -> some View {
+        #if os(visionOS)
+        switch feedback {
+        case .button:
+            sensoryFeedback(.press(.button), trigger: trigger)
+        case .iconOnly:
+            sensoryFeedback(.press(.buttonIconOnly), trigger: trigger)
+        case .slider:
+            sensoryFeedback(.press(.slider), trigger: trigger)
+        case .selectionMinimum:
+            sensoryFeedback(.selection(.minimum), trigger: trigger)
+        case .selectionMaximum:
+            sensoryFeedback(.selection(.maximum), trigger: trigger)
+        case .selectionOn:
+            sensoryFeedback(.selection(.on), trigger: trigger)
+        }
+        #else
+        self
+        #endif
+    }
+}
+
 public enum EnchronPressFeedbackStyle {
     case card
     case row

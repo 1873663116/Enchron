@@ -1,4 +1,5 @@
 import Foundation
+@testable import MediaLibrary
 import Testing
 @testable import Enchron
 
@@ -52,7 +53,7 @@ struct FakeFileDataSourceTests {
         let resolved = try await source.resolvePlayableSource(for: try #require(file))
         #expect(resolved.url == file?.url)
         #expect(resolved.url.scheme == "fake")
-        #expect(resolved.lease == nil)
+        #expect(resolved.accessLease == nil)
     }
 
     @Test("listing fails when the failure mode is armed (UC-FILE-28)")

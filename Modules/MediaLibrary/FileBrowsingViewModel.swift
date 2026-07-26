@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 import Observation
 import OSLog
 
@@ -21,10 +22,10 @@ public final class FileBrowsingViewModel {
 
     /// Set by the app layer when navigating to the detail page for a file.
     /// The detail view reads this to know which file is being inspected.
-    public var detailNavigationRequest: PlaybackLaunchRequest?
+    public var detailNavigationRequest: MediaPlaybackItem?
 
-    /// Watched seconds keyed by MediaFile.id (UUID) for progress indicators in file list.
-    public var fileWatchedSeconds: [UUID: Double] = [:]
+    /// Last-known viewing state loaded in one folder-entry background pass.
+    public private(set) var fileViewingStates: [UUID: VideoCardViewingState] = [:]
 
     /// Live search query (UC-FILE-33). Filters the displayed file/folder lists by
     /// name; the underlying `files`/`folders` arrays are untouched, so clearing the
@@ -51,12 +52,12 @@ public final class FileBrowsingViewModel {
     private let localDataSource: any LocalFileSource
     private let logger = Logger(subsystem: "app.enchron", category: "FileBrowser")
     private let fileManager: FileManager
-    public let credentialStoreForConfig: CredentialStoring
+    private let credentialStoreForConfig: CredentialStoring
     private let savedDataSourceStore: SavedDataSourceRecordStoring
-    private let progressStore: ProgressStoring
+    private let viewingStateProvider: MediaViewingStateProvider
     private var credentialStore: CredentialStoring { credentialStoreForConfig }
-    private let onPlayFile: @MainActor (PlaybackLaunchRequest) -> Void
-    private let onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)?
+    private let onPlayFile: @MainActor (MediaPlaybackItem) -> Void
+    private let onPrepareFile: (@MainActor (MediaPlaybackItem) -> Void)?
     private let defaultRootURL: URL
     public let localDataSourceID: UUID
     private var rootURL: URL
@@ -67,10 +68,8 @@ public final class FileBrowsingViewModel {
     private var forwardPathStack: [String] = []
     private var reconnectAttempted: Bool = false
     private var sourceGeneration: UInt64 = 0
-
-    // §5.6 Background profile prefetch service — warms the metadata cache for
-    // all files in the current folder so detail-page opens see instant metadata.
-    private let prefetchService: MediaProfilePrefetchService?
+    private var playbackCollection: [FileBrowsingDomain.MediaFile] = []
+    private var currentPlaybackFileID: UUID?
 
     /// Injectable remote-adapter factory (FILE-10 / 44 / 46 testability). It receives
     /// the credential view used for this connection, including any uncommitted overlay. When nil,
@@ -82,28 +81,26 @@ public final class FileBrowsingViewModel {
         any CredentialStoring
     ) -> (any DataSourceConnecting & FileProviding)?)?
 
-    public init(
+    init(
         localDataSource: any LocalFileSource,
         fileManager: FileManager = .default,
         credentialStore: CredentialStoring = KeychainStore(),
         savedDataSourceStore: SavedDataSourceRecordStoring = SavedDataSourceStore(),
-        progressStore: ProgressStoring = PlaybackProgressStore(),
+        viewingStateProvider: @escaping MediaViewingStateProvider = { _ in nil },
         localDataSourceID: UUID = UUID(),
-        prefetchService: MediaProfilePrefetchService? = nil,
         makeRemoteAdapter: (@MainActor (
             FileBrowsingDomain.DataSource,
             any CredentialStoring
         ) -> (any DataSourceConnecting & FileProviding)?)? = nil,
-        onPlayFile: @escaping @MainActor (PlaybackLaunchRequest) -> Void,
-        onPrepareFile: (@MainActor (PlaybackLaunchRequest) -> Void)? = nil
+        onPlayFile: @escaping @MainActor (MediaPlaybackItem) -> Void,
+        onPrepareFile: (@MainActor (MediaPlaybackItem) -> Void)? = nil
     ) {
         self.localDataSource = localDataSource
         self.fileManager = fileManager
         self.credentialStoreForConfig = credentialStore
         self.savedDataSourceStore = savedDataSourceStore
-        self.progressStore = progressStore
+        self.viewingStateProvider = viewingStateProvider
         self.localDataSourceID = localDataSourceID
-        self.prefetchService = prefetchService
         self.makeRemoteAdapter = makeRemoteAdapter
         self.onPlayFile = onPlayFile
         self.onPrepareFile = onPrepareFile
@@ -328,7 +325,6 @@ public final class FileBrowsingViewModel {
             applySortToFiles()
             loadProgressForFiles()
             // §5.6: Warm metadata cache for all video files in this remote folder.
-            triggerPrefetch()
             return
         }
 
@@ -355,7 +351,6 @@ public final class FileBrowsingViewModel {
         applySortToFiles()
         loadProgressForFiles()
         // §5.6: Warm metadata cache for all video files in this local folder.
-        triggerPrefetch()
     }
 
     /// §5.7c: Diff-update the files array in-place.
@@ -421,11 +416,13 @@ public final class FileBrowsingViewModel {
     }
 
     public func selectFile(_ file: FileBrowsingDomain.MediaFile) {
+        playbackCollection = Self.naturalPlaybackCollection(from: files)
+        currentPlaybackFileID = file.id
         Task { [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: .milliseconds(20))
             do {
-                let request = try await playbackRequest(for: file)
+                let request = try await playbackItem(for: file)
                 logger.info("file selected name=\(file.name, privacy: .public)")
                 if let onPrepareFile {
                     self.detailNavigationRequest = request
@@ -441,43 +438,100 @@ public final class FileBrowsingViewModel {
         }
     }
 
-    public func playbackRequest(
+    public func playbackItem(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> PlaybackLaunchRequest {
-        let resolvedSource: ResolvedPlaybackSource
+    ) async throws -> MediaPlaybackItem {
+        let resolvedSource: ResolvedMediaSource
         if let activeRemoteAdapter {
-            resolvedSource = ResolvedPlaybackSource(
-                try await activeRemoteAdapter.resolvePlayableSource(for: file)
-            )
+            resolvedSource = try await activeRemoteAdapter.resolvePlayableSource(for: file)
         } else {
-            resolvedSource = ResolvedPlaybackSource(
-                try await localDataSource.resolvePlayableSource(for: file)
-            )
+            resolvedSource = try await localDataSource.resolvePlayableSource(for: file)
         }
 
         let playableURL = resolvedSource.url
-        let fileIdentifier = makeFileIdentifier(for: file, playableURL: playableURL)
-        let metadata = PlaybackMediaMetadata(fileSizeInBytes: file.sizeInBytes)
-        let sourceAccess = resolvedSource.sourceAccess ?? (playableURL.isFileURL
-            ? PlaybackSourceAccess.securityScoped(securityScopedRootURL ?? playableURL)
+        let stableIdentifier = makeStableIdentifier(for: file, playableURL: playableURL)
+        let sourceAccess = resolvedSource.accessLease ?? (playableURL.isFileURL
+            ? MediaAccessLease.securityScoped(securityScopedRootURL ?? playableURL)
             : nil)
-        return PlaybackLaunchRequest(
+        let versionedIdentity: VersionedMediaIdentity?
+        if let dataSource = activeDataSource {
+            versionedIdentity = VersionedMediaIdentity.remote(
+                sourceKey: dataSource.connectionInfo.mediaIdentitySourceKey,
+                canonicalPath: file.url.path,
+                entityTag: file.remoteEntityTag,
+                sizeInBytes: file.sizeInBytes,
+                modifiedAt: file.modifiedAt
+            )
+        } else if activeDataSource == nil {
+            versionedIdentity = VersionedMediaIdentity.local(playableURL)
+        } else {
+            versionedIdentity = nil
+        }
+        return MediaPlaybackItem(
+            id: file.id,
             url: playableURL,
             displayName: file.name,
-            fileIdentifier: fileIdentifier,
-            initialMetadata: metadata,
-            sourceAccess: sourceAccess
+            stableIdentifier: stableIdentifier,
+            sizeInBytes: file.sizeInBytes,
+            collectionOrigin: .sourceDirectory,
+            versionedIdentity: versionedIdentity,
+            accessLease: sourceAccess
         )
     }
 
-    func resolveSourceItem(
+    public func nextPlaybackItem() async -> MediaPlaybackItem? {
+        guard let currentPlaybackFileID,
+              let index = playbackCollection.firstIndex(where: { $0.id == currentPlaybackFileID }),
+              playbackCollection.indices.contains(index + 1) else { return nil }
+        let next = playbackCollection[index + 1]
+        do {
+            let request = try await playbackItem(for: next)
+            self.currentPlaybackFileID = next.id
+            return request
+        } catch {
+            lastErrorMessage = "Failed to open \"\(next.name)\": \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    public var mediaCollectionSnapshot: MediaCollectionSnapshot {
+        MediaCollectionSnapshot(entries: playbackCollection.map {
+            MediaCollectionEntry(
+                id: $0.id,
+                displayName: $0.name,
+                isCurrent: $0.id == currentPlaybackFileID
+            )
+        })
+    }
+
+    public func playbackItem(forCollectionItemID id: UUID) async -> MediaPlaybackItem? {
+        guard let file = playbackCollection.first(where: { $0.id == id }) else { return nil }
+        do {
+            let request = try await playbackItem(for: file)
+            currentPlaybackFileID = file.id
+            return request
+        } catch {
+            lastErrorMessage = "Failed to open \"\(file.name)\": \(error.localizedDescription)"
+            return nil
+        }
+    }
+
+    private static func naturalPlaybackCollection(
+        from files: [FileBrowsingDomain.MediaFile]
+    ) -> [FileBrowsingDomain.MediaFile] {
+        files.sorted {
+            NaturalMediaNameOrder.lessThan($0.name, id: $0.id, $1.name, id: $1.id)
+        }
+    }
+
+    public func resolveSourceItem(
         dataSourceID: UUID,
         path: String,
         reference: FileBrowsingDomain.MediaReference
-    ) async throws -> ResolvedPlaybackSource {
+    ) async throws -> ResolvedMediaSource {
         if dataSourceID == localDataSourceID {
             guard let url = URL(string: path) else { throw LocalDataSourceError.itemNotReachable }
-            return ResolvedPlaybackSource(url: url)
+            return ResolvedMediaSource(url: url)
         }
         guard let dataSource = savedDataSources.first(where: { $0.id == dataSourceID }) else {
             throw MediaReferenceResolver.ResolutionError.unavailableSource
@@ -511,7 +565,7 @@ public final class FileBrowsingViewModel {
             )
             let source = try await adapter.resolvePlayableSource(for: file)
             adapter.disconnect()
-            return ResolvedPlaybackSource(source)
+            return source
         } catch {
             adapter.disconnect()
             throw error
@@ -726,10 +780,10 @@ public final class FileBrowsingViewModel {
         }
     }
 
-    private func makeFileIdentifier(
+    private func makeStableIdentifier(
         for file: FileBrowsingDomain.MediaFile,
         playableURL: URL
-    ) -> PlaybackFileIdentifier {
+    ) -> String {
         let path: String
         let serverFingerprint: String?
 
@@ -744,91 +798,39 @@ public final class FileBrowsingViewModel {
             serverFingerprint = nil
         }
 
-        return PlaybackFileIdentifier.make(
-            path: path,
-            sizeInBytes: file.sizeInBytes,
-            serverFingerprint: serverFingerprint
-        )
-    }
-
-    /// Non-async file identifier construction for progress lookups.
-    /// Uses `file.url.path` for local files (same as `resolvePlayableSource` returns).
-    private func makeFileIdentifierForLookup(
-        for file: FileBrowsingDomain.MediaFile
-    ) -> PlaybackFileIdentifier {
-        let path: String
-        let serverFingerprint: String?
-
-        if let dataSource = activeDataSource {
-            let logicalDirectory = currentRemotePath == "/" ? "" : currentRemotePath
-            path = "\(logicalDirectory)/\(file.name)"
-            let host = dataSource.connectionInfo.host ?? dataSource.name
-            let port = dataSource.connectionInfo.port.map(String.init) ?? "-"
-            serverFingerprint = "\(dataSource.sourceType.rawValue):\(host):\(port)"
-        } else {
-            path = file.url.path
-            serverFingerprint = nil
-        }
-
-        return PlaybackFileIdentifier.make(
-            path: path,
-            sizeInBytes: file.sizeInBytes,
-            serverFingerprint: serverFingerprint
-        )
+        return "\(path)|\(file.sizeInBytes)|\(serverFingerprint ?? "local")"
     }
 
     private func loadProgressForFiles() {
         let currentFiles = files
+        let currentGeneration = sourceGeneration
         Task { [weak self] in
             guard let self else { return }
-            var map: [UUID: Double] = [:]
+            var map: [UUID: VideoCardViewingState] = [:]
             for file in currentFiles {
-                let fileID = self.makeFileIdentifierForLookup(for: file)
-                if let progress = await self.progressStore.loadProgress(for: fileID),
-                   progress.position.seconds > 5 {
-                    map[file.id] = progress.position.seconds
+                let identity: MediaIdentity?
+                if let dataSource = self.activeDataSource {
+                    identity = .remote(
+                        sourceKey: dataSource.connectionInfo.mediaIdentitySourceKey,
+                        canonicalPath: file.url.path
+                    )
+                } else if self.activeDataSource == nil {
+                    identity = VersionedMediaIdentity.localIdentity(file.url)
+                } else {
+                    identity = nil
                 }
+                guard let identity,
+                      let state = await self.viewingStateProvider(identity) else { continue }
+                map[file.id] = state
             }
-            self.fileWatchedSeconds = map
+            guard self.sourceGeneration == currentGeneration,
+                  self.files.map(\.id) == currentFiles.map(\.id) else { return }
+            self.fileViewingStates = map
         }
     }
 
-    // §5.6 Background metadata prefetch
-
-    /// Queues all currently loaded video files for background MediaProfile detection.
-    /// Called after every successful file list load. The prefetch service deduplicates
-    /// by (fileIdentifier, modifiedAt) so files already in cache are skipped cheaply.
-    private func triggerPrefetch() {
-        guard let service = prefetchService else { return }
-
-        // Build prefetch requests using the sync identifier (no async URL resolution needed
-        // for local files; remote files use their already-resolved URL from the file list).
-        let requests = buildPrefetchRequests()
-        guard !requests.isEmpty else { return }
-
-        Task { [weak service] in
-            await service?.prefetchProfiles(for: requests)
-        }
-    }
-
-    /// Builds (PlaybackLaunchRequest, modifiedAt) pairs for all loaded video files.
-    /// Only local files are prefetched. Remote metadata must use the authenticated
-    /// playback lease; probing a bare WebDAV or SMB URL would either fail authentication
-    /// or duplicate network traffic outside the source lifecycle.
-    private func buildPrefetchRequests() -> [(request: PlaybackLaunchRequest, modifiedAt: Date)] {
-        files.compactMap { file -> (request: PlaybackLaunchRequest, modifiedAt: Date)? in
-            guard file.url.isFileURL else { return nil }
-
-            let fileIdentifier = makeFileIdentifierForLookup(for: file)
-            let metadata = PlaybackMediaMetadata(fileSizeInBytes: file.sizeInBytes)
-            let request = PlaybackLaunchRequest(
-                url: file.url,
-                displayName: file.name,
-                fileIdentifier: fileIdentifier,
-                initialMetadata: metadata
-            )
-            return (request: request, modifiedAt: file.modifiedAt)
-        }
+    public func refreshViewingStates() {
+        loadProgressForFiles()
     }
 
     private static func isNetworkRecoverableError(_ error: Error) -> Bool {

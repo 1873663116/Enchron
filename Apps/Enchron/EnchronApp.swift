@@ -1,4 +1,5 @@
 import RealityKitScripting
+import PlaybackPresentation
 import SwiftUI
 
 @main
@@ -30,9 +31,19 @@ struct EnchronApp: App {
         .defaultSize(width: 760, height: 220)
         .windowResizability(.contentSize)
 
-        WindowGroup(id: AppModel.senseZoneVolumeID) {
+        Window("Environment", id: AppModel.senseZoneVolumeID) {
             SenseZoneVolumeRoot()
-                .environment(application.appModel)
+                .enchronEnvironment(application)
+                .onAppear {
+                    application.appModel.receiveSpatialPlatformResult(
+                        .environmentCardAppeared
+                    )
+                }
+                .onDisappear {
+                    application.appModel.receiveSpatialPlatformResult(
+                        .environmentCardDisappeared
+                    )
+                }
         }
         .windowStyle(.volumetric)
         .defaultSize(width: 1.4, height: 0.9, depth: 0.8, in: .meters)
@@ -42,23 +53,32 @@ struct EnchronApp: App {
                 .environment(application.appModel)
                 .environment(application.playbackRuntime)
                 .onAppear {
-                    application.appModel.immersiveSpaceState = .open
+                    application.spatialPlatformEffectCoordinator
+                        .recordImmersiveSpaceResidency(.open)
+                    application.appModel.receiveSpatialPlatformResult(
+                        .immersiveSpaceAppeared
+                    )
                     Task { await application.appModel.loadScreenPosition() }
                 }
                 .onDisappear {
+                    application.spatialPlatformEffectCoordinator
+                        .recordImmersiveSpaceResidency(.closed)
+                    let playbackContext = application.playbackRuntime.activeSessionID.map {
+                        SpatialPlaybackTransitionContext(
+                            mediaSessionID: $0,
+                            wasPlaying: application.playbackRuntime.productLifecycle == .playing
+                        )
+                    }
                     if application.playbackRuntime.attachedPresentation != .window {
                         application.playbackRuntime.detach()
                     }
-                    application.appModel.immersiveSpaceState = .closed
-                    if let transition = application.appModel.presentationTransition,
-                       transition.targetPresentation != .window {
-                        application.appModel.rollbackPlaybackPresentation(transition.id)
-                    }
-                    application.appModel.isEnvironmentImmersiveActive = false
+                    application.appModel.receiveSpatialPlatformResult(
+                        .immersiveSpaceDisappeared(playbackContext)
+                    )
                 }
         }
         .immersionStyle(selection: $immersionStyle, in: .mixed, .full)
-        .onChange(of: application.appModel.isFullImmersion) { _, full in
+        .onChange(of: application.appModel.platformPrefersFullImmersion) { _, full in
             immersionStyle = full ? .full : .mixed
         }
     }

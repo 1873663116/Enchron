@@ -1,4 +1,6 @@
 import Foundation
+@testable import MediaLibrary
+import MediaSource
 import XCTest
 @testable import EnchronMacOS
 
@@ -58,6 +60,57 @@ nonisolated final class RemoteCredentialLifecycleTests: XCTestCase {
     }
 
     @MainActor
+    func testLegacyHostCredentialMigratesIntoTheAccountNamespace() throws {
+        let persistentStore = InMemoryCredentialStore()
+        let source = try makeSMBSource(share: "Movies")
+        let legacySourceID = source.connectionInfo.legacyCredentialSourceID
+        let credential = StorageCredential(username: "viewer", password: "secret")
+        try persistentStore.saveCredential(for: legacySourceID, credential: credential)
+
+        XCTAssertEqual(
+            try persistentStore.loadCredential(for: source.connectionInfo),
+            credential
+        )
+        XCTAssertEqual(
+            try persistentStore.loadCredential(for: source.credentialSourceID),
+            credential
+        )
+        XCTAssertNil(try persistentStore.loadCredential(for: legacySourceID))
+    }
+
+    @MainActor
+    func testGuestDoesNotMigrateAnotherAccountsLegacyCredential() throws {
+        let persistentStore = InMemoryCredentialStore()
+        let connection = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "192.168.1.20"
+        ).withSMBShare("Movies")
+        let legacySourceID = connection.legacyCredentialSourceID
+        let otherAccount = StorageCredential(username: "viewer", password: "secret")
+        try persistentStore.saveCredential(for: legacySourceID, credential: otherAccount)
+
+        XCTAssertNil(try persistentStore.loadCredential(for: connection))
+        XCTAssertNil(try persistentStore.loadCredential(for: connection.credentialSourceID))
+        XCTAssertEqual(try persistentStore.loadCredential(for: legacySourceID), otherAccount)
+    }
+
+    @MainActor
+    func testGuestMigratesItsCompatibleLegacyCredential() throws {
+        let persistentStore = InMemoryCredentialStore()
+        let connection = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "192.168.1.20"
+        ).withSMBShare("Movies")
+        let legacySourceID = connection.legacyCredentialSourceID
+        let guest = StorageCredential(username: "guest", password: "")
+        try persistentStore.saveCredential(for: legacySourceID, credential: guest)
+
+        XCTAssertEqual(try persistentStore.loadCredential(for: connection), guest)
+        XCTAssertEqual(try persistentStore.loadCredential(for: connection.credentialSourceID), guest)
+        XCTAssertNil(try persistentStore.loadCredential(for: legacySourceID))
+    }
+
+    @MainActor
     private func makeViewModel(
         credentialStore: InMemoryCredentialStore,
         makeRemoteAdapter: (@MainActor (
@@ -69,7 +122,6 @@ nonisolated final class RemoteCredentialLifecycleTests: XCTestCase {
             localDataSource: FakeFileDataSource(),
             credentialStore: credentialStore,
             savedDataSourceStore: InMemorySavedDataSourceStore(),
-            progressStore: NoopProgressStore(),
             makeRemoteAdapter: makeRemoteAdapter,
             onPlayFile: { _ in }
         )
@@ -126,8 +178,8 @@ private nonisolated final class CredentialReadingRemoteAdapter:
 
     func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
-    ) async throws -> FilePlaybackSource {
-        FilePlaybackSource(url: file.url)
+    ) async throws -> ResolvedMediaSource {
+        ResolvedMediaSource(url: file.url)
     }
 }
 
@@ -170,12 +222,4 @@ private nonisolated final class InMemorySavedDataSourceStore:
     func saveSavedDataSourceRecords(_ data: Data?) {
         lock.withLock { self.data = data }
     }
-}
-
-private nonisolated final class NoopProgressStore: ProgressStoring, @unchecked Sendable {
-    func saveProgress(_ progress: PlaybackProgress) async {}
-    func loadProgress(
-        for fileID: PlaybackFileIdentifier
-    ) async -> PlaybackProgress? { nil }
-    func cleanExpiredProgress(olderThan days: Int) async {}
 }

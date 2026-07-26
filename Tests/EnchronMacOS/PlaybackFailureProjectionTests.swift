@@ -1,4 +1,5 @@
 import PlaybackCore
+import PlaybackFeature
 import XCTest
 @testable import EnchronMacOS
 

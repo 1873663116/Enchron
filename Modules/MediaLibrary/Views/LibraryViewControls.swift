@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 struct NavBackForwardCapsuleControl: View {
@@ -51,7 +53,7 @@ struct NavBackForwardCapsuleControl: View {
                 if tapped == .back { onBack() } else { onForward() }
             }
         )
-        .sensoryFeedback(.press(.buttonIconOnly), trigger: pressFeedbackTrigger)
+        .enchronPressSensoryFeedback(.iconOnly, trigger: pressFeedbackTrigger)
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(accessibilityLabel)
@@ -100,7 +102,7 @@ struct ViewModeCapsuleControl: View {
                 }
             }
         )
-        .sensoryFeedback(.press(.buttonIconOnly), trigger: pressFeedbackTrigger)
+        .enchronPressSensoryFeedback(.iconOnly, trigger: pressFeedbackTrigger)
         .accessibilityElement(children: .ignore)
         .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(accessibilityLabel)

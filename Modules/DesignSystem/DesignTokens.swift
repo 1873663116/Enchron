@@ -153,6 +153,9 @@ public enum DesignTokens {
     /// Enchron's single theme accent, used for focused and active states.
     public enum Theme {
         public static let accent: Color = Color(red: 0.224, green: 0.773, blue: 0.733)
+        public static let surfaceContainerHighest: Color = .white.opacity(0.12)
+        public static let onSurfaceVariant: Color = .white.opacity(0.68)
+        public static let tertiary: Color = accent
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -407,11 +410,11 @@ public enum DesignTokens {
         public static let trailingContentGap: CGFloat = Spacing.lg
         /// Inner horizontal padding between sidebar content and its glass panel.
         public static let contentPaddingH: CGFloat = Spacing.lg
-        /// Horizontal inset for source and favorite row groups inside the glass panel.
+        /// Horizontal inset for source row groups inside the glass panel.
         public static let listPaddingH: CGFloat = Spacing.xs
         /// Inner vertical padding between sidebar content and its glass panel.
         public static let contentPaddingV: CGFloat = Spacing.lg
-        /// Compact visual height for source and favorite rows.
+        /// Compact visual height for source rows.
         public static let rowHeight: CGFloat = 48
         /// Vertical spacing between adjacent source rows.
         public static let rowSpacing: CGFloat = 0

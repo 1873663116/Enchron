@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 import PhotosUI
 @preconcurrency import Photos
@@ -488,6 +490,7 @@ struct FilesScreen: View {
                             title: displayTitle(file),
                             fileSize: fileSizeText(file),
                             duration: "",
+                            watchedProgress: viewModel.fileViewingStates[file.id]?.progress,
                             accessibilityIdentifier: "FileBrowsing-grid-video-\(file.name)",
                             action: { viewModel.selectFile(file) }
                         )
@@ -496,8 +499,8 @@ struct FilesScreen: View {
                                 Button("Add to Media Library", systemImage: "plus.rectangle.on.folder") {
                                     mediaLibrary.addSourceFile(
                                         file,
-                                        dataSourceID: source.id,
-                                        path: file.url.absoluteString
+                                        dataSource: source,
+                                        path: file.url.path
                                     )
                                 }
                             }
@@ -518,6 +521,7 @@ struct FilesScreen: View {
                             title: displayTitle(reference),
                             fileSize: fileSizeText(reference),
                             duration: "",
+                            watchedProgress: mediaLibrary.referenceViewingStates[reference.id]?.progress,
                             accessibilityIdentifier: "MediaLibrary-grid-video-\(reference.name)",
                             action: { mediaLibrary.play(reference) }
                         )
@@ -687,8 +691,8 @@ struct FilesScreen: View {
             action: {
                 mediaLibrary.addSourceFile(
                     file,
-                    dataSourceID: source.id,
-                    path: file.url.absoluteString
+                    dataSource: source,
+                    path: file.url.path
                 )
             }
         )]

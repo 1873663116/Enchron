@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreMedia
 import PlaybackCore
+import PlaybackPresentation
 import RealityKit
 import XCTest
 @testable import EnchronMacOS
@@ -63,9 +64,8 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
             videoEntity,
             to: anchor,
             transform: .init(
-                verticalOffset: 0.25,
-                depthOffset: -0.5,
-                viewAngle: 12,
+                distance: 0.5,
+                elevationDegrees: 30,
                 scale: 1.3
             )
         )
@@ -74,7 +74,7 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
         XCTAssertTrue(videoEntity.parent === anchor)
         XCTAssertEqual(videoEntity.position.x, 0, accuracy: 0.0001)
         XCTAssertEqual(videoEntity.position.y, 0.25, accuracy: 0.0001)
-        XCTAssertEqual(videoEntity.position.z, -0.5, accuracy: 0.0001)
+        XCTAssertEqual(videoEntity.position.z, -0.433_012_7, accuracy: 0.0001)
         XCTAssertEqual(videoEntity.scale.x, 1.3, accuracy: 0.0001)
         XCTAssertEqual(videoEntity.scale.y, 1.3, accuracy: 0.0001)
         XCTAssertEqual(videoEntity.scale.z, 1.3, accuracy: 0.0001)
@@ -153,9 +153,8 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
             videoEntity,
             to: anchor,
             transform: .init(
-                verticalOffset: 0,
-                depthOffset: 0,
-                viewAngle: 0,
+                distance: 2,
+                elevationDegrees: 0,
                 scale: 1.3
             )
         )
@@ -181,6 +180,52 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
         XCTAssertTrue(videoEntity.parent === anchor)
         XCTAssertNil(videoEntity.components[ModelComponent.self])
         XCTAssertEqual(dockedComponent.desiredViewingMode, .mono)
+    }
+
+    @MainActor
+    func testPausedPresentationCanCommitAfterTheRendererSurfaceAttaches() {
+        let record = PresentationStateRecord(
+            mediaSessionID: "session",
+            requestedMode: PlaybackPresentation.docked.rawValue,
+            phase: "surfaceAttached",
+            platform: "macOS"
+        )
+
+        XCTAssertTrue(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: record,
+                presentation: .docked,
+                activeSessionID: "session",
+                lifecycle: .paused
+            )
+        )
+        XCTAssertFalse(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: record,
+                presentation: .docked,
+                activeSessionID: "session",
+                lifecycle: .playing
+            )
+        )
+    }
+
+    @MainActor
+    func testPresentationCommitRejectsTheWrongSessionAndTarget() {
+        let record = PresentationStateRecord(
+            mediaSessionID: "stale-session",
+            requestedMode: PlaybackPresentation.window.rawValue,
+            phase: "settled",
+            platform: "macOS"
+        )
+
+        XCTAssertFalse(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: record,
+                presentation: .docked,
+                activeSessionID: "current-session",
+                lifecycle: .paused
+            )
+        )
     }
 
     @MainActor
@@ -227,9 +272,8 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
             videoEntity,
             to: anchor,
             transform: .init(
-                verticalOffset: 0,
-                depthOffset: 0,
-                viewAngle: 0,
+                distance: 2,
+                elevationDegrees: 0,
                 scale: 1.3
             )
         )

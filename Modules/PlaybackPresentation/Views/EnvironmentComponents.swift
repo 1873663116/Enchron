@@ -1,8 +1,11 @@
+import DesignSystem
+import PlaybackPresentation
 import SwiftUI
 
 struct FeaturedEnvironment: Identifiable {
     let environment: SpatialSceneDomain.CinemaEnvironment
-    let imageName: String
+    let dayImageName: String
+    let nightImageName: String
     let title: String
     let environmentNumber: String
     let quote: String
@@ -11,42 +14,34 @@ struct FeaturedEnvironment: Identifiable {
 
     var id: String { environment.rawValue }
 
+    func imageName(for effect: SpatialSceneDomain.EnvironmentEffect) -> String {
+        switch effect {
+        case .day: dayImageName
+        case .night: nightImageName
+        }
+    }
+
     static let catalog: [FeaturedEnvironment] = [
         .init(
-            environment: .darkTheatre,
-            imageName: "SceneFeatureCinema",
-            title: "Dark Theatre",
+            environment: .enchron,
+            dayImageName: "SceneFeatureCinema",
+            nightImageName: "SceneFeatureOrbitalGarden",
+            title: "Enchron Environment",
             environmentNumber: "Environment 01",
-            quote: "\"A focused private theatre with the world held outside.\"",
-            mode: "Classic theatre",
-            atmosphere: "Dark / quiet"
-        ),
-        .init(
-            environment: .starryNight,
-            imageName: "SceneFeatureOrbitalGarden",
-            title: "Starry Night",
-            environmentNumber: "Environment 02",
-            quote: "\"A quiet screen beneath an open night sky.\"",
-            mode: "Open-air cinema",
-            atmosphere: "Night / starlight"
-        ),
-        .init(
-            environment: .sunsetNature,
-            imageName: "SceneFeatureDesert",
-            title: "Sunset Nature",
-            environmentNumber: "Environment 03",
-            quote: "\"Warm horizon light surrounds a calm viewing space.\"",
-            mode: "Nature cinema",
-            atmosphere: "Sunset / warm air"
+            quote: "\"One viewing environment with Day and Night effects.\"",
+            mode: "Same scene and anchors",
+            atmosphere: "Day / Night"
         )
     ]
 }
 
 struct EnvironmentCard: View {
     var environment: FeaturedEnvironment = .catalog[0]
+    var effect: SpatialSceneDomain.EnvironmentEffect = .day
+    var isEnvironmentActive = false
     var detailVisibility: CGFloat = 1
     var atmosphericFade: CGFloat = 0
-    var onReturn: () -> Void = {}
+    var onEffectChange: (SpatialSceneDomain.EnvironmentEffect) -> Void = { _ in }
     var onExpand: () -> Void = {}
     var onMore: () -> Void = {}
 
@@ -64,7 +59,7 @@ struct EnvironmentCard: View {
         }
         .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
         .clipShape(shape)
-        .glassBackgroundEffect(in: shape)
+        .enchronGlassBackground(in: shape)
         .overlay {
             shape.strokeBorder(DesignTokens.Surface.overlay, lineWidth: DesignTokens.Stroke.regular)
         }
@@ -84,7 +79,7 @@ struct EnvironmentCard: View {
     }
 
     private var backgroundImage: some View {
-        Image(environment.imageName)
+        Image(environment.imageName(for: effect))
             .resizable()
             .scaledToFill()
             .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
@@ -97,18 +92,16 @@ struct EnvironmentCard: View {
     private var topControls: some View {
         VStack {
             HStack(spacing: DesignTokens.Spacing.sm) {
-                GlassCircleIconButton(
-                    systemName: "chevron.left",
-                    accessibilityLabel: "Return to window",
-                    action: onReturn,
-                    accessibilityIdentifier: "DesignPreview-EnvironmentCard-button-return"
-                )
                 Spacer()
                 GlassCircleIconButton(
-                    systemName: "arrow.up.left.and.arrow.down.right",
-                    accessibilityLabel: "Expand environment",
+                    systemName: isEnvironmentActive
+                        ? "xmark"
+                        : "arrow.up.left.and.arrow.down.right",
+                    accessibilityLabel: isEnvironmentActive
+                        ? "Close environment"
+                        : "Open environment",
                     action: onExpand,
-                    accessibilityIdentifier: "DesignPreview-EnvironmentCard-button-expand"
+                    accessibilityIdentifier: "DesignPreview-EnvironmentCard-button-environment"
                 )
             }
             .padding(Metrics.chromePadding)
@@ -154,6 +147,20 @@ struct EnvironmentCard: View {
             }
             .font(DesignTokens.Typography.metadata)
             .foregroundStyle(.white.opacity(0.72))
+
+            Picker(
+                "Environment effect",
+                selection: Binding(
+                    get: { effect },
+                    set: onEffectChange
+                )
+            ) {
+                ForEach(SpatialSceneDomain.EnvironmentEffect.allCases, id: \.self) {
+                    Text($0.displayName).tag($0)
+                }
+            }
+            .pickerStyle(.segmented)
+            .accessibilityIdentifier("DesignPreview-EnvironmentCard-effect")
         }
         .padding(.horizontal, Metrics.infoPaddingH)
         .padding(.top, Metrics.infoPaddingTop)
@@ -265,10 +272,14 @@ enum EnvironmentCarouselLayout {
 
 struct EnvironmentCardCarousel: View {
     var environments: [FeaturedEnvironment] = FeaturedEnvironment.catalog
-    var onReturn: () -> Void = {}
+    var activeEnvironment: SpatialSceneDomain.CinemaEnvironment?
+    var defaultEffect: SpatialSceneDomain.EnvironmentEffect = .inactiveFallback
+    var onEffectChange:
+        (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
     /// Center-card expand (enter immersive). Forwarded from the focused card's
     /// expand control; defaults to no-op for Canvas review (ENV-18).
-    var onExpand: (FeaturedEnvironment) -> Void = { _ in }
+    var onExpand:
+        (FeaturedEnvironment, SpatialSceneDomain.EnvironmentEffect) -> Void = { _, _ in }
 
     @State private var scrollPosition: CGFloat = 0
     @State private var dragTranslation: CGFloat = 0
@@ -277,6 +288,8 @@ struct EnvironmentCardCarousel: View {
     @State private var detailsVisible = true
     @State private var motionGeneration = 0
     @State private var detailRevealTask: Task<Void, Never>?
+    @State private var selectedEffects:
+        [SpatialSceneDomain.CinemaEnvironment: SpatialSceneDomain.EnvironmentEffect] = [:]
 
     var body: some View {
         ZStack {
@@ -286,10 +299,21 @@ struct EnvironmentCardCarousel: View {
                 ForEach(renderItems) { item in
                     EnvironmentCard(
                         environment: item.environment,
+                        effect: selectedEffect(for: item.environment),
+                        isEnvironmentActive:
+                            activeEnvironment == item.environment.environment,
                         detailVisibility: interactionDetailVisibility(for: item.visualPosition),
                         atmosphericFade: atmosphericFade(for: item.visualPosition),
-                        onReturn: onReturn,
-                        onExpand: { onExpand(item.environment) },
+                        onEffectChange: {
+                            selectedEffects[item.environment.environment] = $0
+                            onEffectChange(item.environment, $0)
+                        },
+                        onExpand: {
+                            onExpand(
+                                item.environment,
+                                selectedEffect(for: item.environment)
+                            )
+                        },
                         onMore: {}
                     )
                     .allowsHitTesting(abs(item.visualPosition) < Metrics.centerHitTestingDistance)
@@ -306,6 +330,12 @@ struct EnvironmentCardCarousel: View {
         .contentShape(Rectangle())
         .gesture(dragGesture)
         .accessibilityIdentifier("DesignPreview-EnvironmentCardCarousel")
+    }
+
+    private func selectedEffect(
+        for environment: FeaturedEnvironment
+    ) -> SpatialSceneDomain.EnvironmentEffect {
+        selectedEffects[environment.environment] ?? defaultEffect
     }
 
     private var renderItems: [RenderItem] {

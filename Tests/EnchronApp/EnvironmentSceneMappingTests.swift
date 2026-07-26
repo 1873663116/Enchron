@@ -1,31 +1,27 @@
+import PlaybackPresentation
 import Testing
 @testable import Enchron
 
-/// Verifies the card → scene mapping for the immersive entry path (ENV-18 prereq):
-/// every featured-environment card resolves to the single `world` scene, and the
-/// mapping is total (never nil).
+/// Verifies that Day and Night are effects of one Environment identity.
 struct EnvironmentSceneMappingTests {
 
-    @Test("every featured environment card maps to the world scene")
-    func allCardsMapToWorld() {
-        let cardIDs = [
-            "snow-village", "dune-observatory", "neon-canopy", "forest-shrine",
-            "ocean-temple", "orbital-garden", "dream-cinema"
-        ]
-        for id in cardIDs {
-            #expect(EnvironmentSceneMapping.sceneName(forEnvironmentID: id) == "world")
-        }
+    @Test("the catalog exposes one card per environment identity")
+    func catalogUsesOneEnvironmentIdentity() {
+        #expect(FeaturedEnvironment.catalog.map(\.environment) == [.enchron])
+        #expect(FeaturedEnvironment.catalog.map(\.id) == ["enchron"])
+        #expect(SpatialSceneDomain.EnvironmentEffect.allCases == [.day, .night])
     }
 
-    @Test("an unknown card id still resolves to a non-empty scene name")
-    func unknownIDStillResolves() {
-        let name = EnvironmentSceneMapping.sceneName(forEnvironmentID: "does-not-exist")
+    @Test("the environment identity resolves to the current placeholder scene")
+    func environmentResolvesToPlaceholderScene() {
+        let name = EnvironmentSceneMapping.sceneName(forEnvironmentID: SpatialSceneDomain.CinemaEnvironment.enchron.rawValue)
         #expect(name == EnvironmentSceneMapping.worldSceneName)
         #expect(!name.isEmpty)
     }
 
-    @Test("the current shared environment recommends a 1.3 meter screen")
+    @Test("Day and Night share the environment placement recommendation")
     func defaultScreenScale() {
-        #expect(EnvironmentSceneMapping.defaultScreenScale(forEnvironmentID: "darkTheatre") == 1.3)
+        let environmentID = SpatialSceneDomain.CinemaEnvironment.enchron.rawValue
+        #expect(EnvironmentSceneMapping.defaultScreenScale(forEnvironmentID: environmentID) == 1.3)
     }
 }

@@ -1,4 +1,7 @@
+import DesignSystem
 import PlaybackCore
+import PlaybackFeature
+import PlaybackPresentation
 import SwiftUI
 #if os(visionOS)
 import UIKit
@@ -14,12 +17,6 @@ public struct MainView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
-    #if os(visionOS)
-    @Environment(\.openImmersiveSpace) private var openImmersiveSpace
-    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
-    #endif
 
     @State private var controlsTimer: Task<Void, Never>?
     private let playbackSurfaceIsEnabled: Bool
@@ -37,7 +34,9 @@ public struct MainView: View {
         #if os(macOS)
         playbackRuntime.hasActivePlaybackRequest && macOSPlaybackPresentation != .panorama
         #else
-        playbackRuntime.hasActivePlaybackRequest && appModel.playbackPresentation == .window
+        playbackRuntime.hasActivePlaybackRequest
+            && (appModel.playbackPresentation == .window
+                || appModel.presentationTransition?.targetPresentation == .window)
         #endif
     }
 
@@ -48,7 +47,8 @@ public struct MainView: View {
         #else
         playbackSurfaceIsEnabled
             && showsWindowPlayback
-            && appModel.presentationTransition == nil
+            && (appModel.presentationTransition == nil
+                || appModel.presentationTransition?.targetPresentation == .window)
         #endif
     }
 
@@ -56,7 +56,10 @@ public struct MainView: View {
         platformContent
         .onAppear {
             playbackRuntime.onPlaybackEnded = {
-                let showControls = playbackLauncher.handlePlaybackEnded()
+                let showControls = playbackLauncher.handlePlaybackEnded {
+                    appModel.showControls = true
+                    controlsTimer?.cancel()
+                }
                 if showControls {
                     appModel.showControls = true
                     controlsTimer?.cancel()
@@ -81,25 +84,11 @@ public struct MainView: View {
         .onDisappear {
             controlsTimer?.cancel()
         }
-        .onChange(of: appModel.presentationTransition?.id) { _, _ in
-            #if os(visionOS)
-            guard let transition = appModel.presentationTransition,
-                  transition.targetPresentation != .window else { return }
-            Task { await enterSpatialPresentation(transition) }
-            #endif
+        #if os(visionOS)
+        .background {
+            SpatialPlatformEffectExecutor()
         }
-        .onChange(of: appModel.immersiveSpaceRequest) { _, request in
-            #if os(visionOS)
-            guard let request else { return }
-            appModel.immersiveSpaceRequest = nil
-            Task {
-                switch request {
-                case .open: await openEnvironmentPreview()
-                case .dismiss: await closeEnvironmentPreview()
-                }
-            }
-            #endif
-        }
+        #endif
     }
 
     @ViewBuilder
@@ -136,8 +125,7 @@ public struct MainView: View {
                 windowPlayback
             }
 
-            if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1",
-               playbackRuntime.hasActivePlaybackRequest {
+            if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1" {
                 PlaybackAutomationStateProbe(hostedPresentation: hostedPlaybackPresentation)
             }
 
@@ -179,7 +167,6 @@ public struct MainView: View {
 
             if appModel.showControls {
                 WindowPlayerDeckView()
-                    .accessibilityIdentifier("PlayerUI-window-playback-deck")
             }
         }
         .accessibilityElement(children: .contain)
@@ -236,6 +223,8 @@ public struct MainView: View {
     private var windowPlaybackStateValue: String {
         let position = playbackRuntime.playbackPosition
         return [
+            "active=\(playbackRuntime.hasActivePlaybackRequest)",
+            "formatReady=\(playbackRuntime.mediaFormatIsKnown)",
             "presentation=\(appModel.playbackPresentation.rawValue)",
             "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
@@ -257,99 +246,8 @@ public struct MainView: View {
 
     private func retryPlayback() {
         playbackRuntime.lastErrorMessage = nil
-        guard let request = playbackRuntime.currentLaunchRequest else { return }
-        playbackLauncher.beginPlayback(request)
+        playbackLauncher.retryPlayback()
     }
-
-    #if os(visionOS)
-    @MainActor
-    private func enterSpatialPresentation(_ transition: PlaybackPresentationTransition) async {
-        guard appModel.isTransitioningPlaybackPresentation == false else { return }
-        appModel.isTransitioningPlaybackPresentation = true
-        let reusedEnvironmentSpace = appModel.immersiveSpaceState == .open
-            && appModel.isEnvironmentImmersiveActive
-        if reusedEnvironmentSpace == false {
-            appModel.immersiveSpaceState = .inTransition
-        }
-        appModel.isEnvironmentImmersiveActive = false
-        appModel.isFullImmersion = true
-        await Task.yield()
-
-        let opened: Bool
-        if reusedEnvironmentSpace {
-            opened = true
-        } else {
-            if case .opened = await openImmersiveSpace(id: appModel.immersiveSpaceID) {
-                opened = true
-            } else {
-                opened = false
-            }
-        }
-
-        guard opened else {
-            appModel.rollbackPlaybackPresentation(transition.id)
-            appModel.immersiveSpaceState = .closed
-            appModel.isEnvironmentImmersiveActive = false
-            appModel.isTransitioningPlaybackPresentation = false
-            return
-        }
-
-        guard await playbackRuntime.waitUntilAttached(to: transition.targetPresentation) else {
-            if reusedEnvironmentSpace {
-                appModel.isEnvironmentImmersiveActive = true
-                appModel.isFullImmersion = false
-            } else {
-                await dismissImmersiveSpace()
-                appModel.immersiveSpaceState = .closed
-            }
-            appModel.rollbackPlaybackPresentation(transition.id)
-            playbackRuntime.lastErrorMessage = "The spatial playback surface could not attach to PlaybackCore."
-            appModel.isTransitioningPlaybackPresentation = false
-            return
-        }
-
-        do {
-            try appModel.commitPlaybackPresentation(transition.id)
-            appModel.immersiveSpaceState = .open
-            openWindow(id: "playerControls")
-            dismissWindow(id: "main")
-        } catch {
-            if reusedEnvironmentSpace {
-                appModel.isEnvironmentImmersiveActive = true
-                appModel.isFullImmersion = false
-            } else {
-                await dismissImmersiveSpace()
-                appModel.immersiveSpaceState = .closed
-            }
-            appModel.rollbackPlaybackPresentation(transition.id)
-            playbackRuntime.lastErrorMessage = error.localizedDescription
-        }
-        appModel.isTransitioningPlaybackPresentation = false
-    }
-
-    @MainActor
-    private func openEnvironmentPreview() async {
-        guard appModel.immersiveSpaceState == .closed else { return }
-        appModel.immersiveSpaceState = .inTransition
-        appModel.isFullImmersion = false
-        if case .opened = await openImmersiveSpace(id: appModel.immersiveSpaceID) {
-            appModel.immersiveSpaceState = .open
-            appModel.isEnvironmentImmersiveActive = true
-            try? appModel.updateEnvironmentContext(.active(appModel.currentCinemaEnvironment))
-        } else {
-            appModel.immersiveSpaceState = .closed
-        }
-    }
-
-    @MainActor
-    private func closeEnvironmentPreview() async {
-        guard appModel.immersiveSpaceState == .open else { return }
-        await dismissImmersiveSpace()
-        appModel.immersiveSpaceState = .closed
-        appModel.isEnvironmentImmersiveActive = false
-        try? appModel.updateEnvironmentContext(.none)
-    }
-    #endif
 
     private func scheduleControlsAutoHide() {
         controlsTimer?.cancel()
@@ -451,7 +349,8 @@ private struct PlaybackAutomationStateProbe: View {
             "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
             "subtitleFrame=\(playbackRuntime.activeSubtitleFrame?.kind.rawValue ?? "none")",
-            "controls=\(appModel.showControls ? "shown" : "hidden")"
+            "controls=\(appModel.showControls ? "shown" : "hidden")",
+            "error=\((playbackRuntime.lastErrorMessage ?? "none").replacingOccurrences(of: ";", with: ","))"
         ].joined(separator: ";")
     }
 
@@ -471,31 +370,13 @@ struct SpatialPlaybackControlsRoot: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
-    @Environment(\.dismissImmersiveSpace) private var dismissImmersiveSpace
-    @Environment(\.openWindow) private var openWindow
-    @Environment(\.dismissWindow) private var dismissWindow
     @State private var isStoppingPlayback = false
 
     var body: some View {
-        VStack(alignment: .trailing, spacing: DesignTokens.Spacing.xs) {
-            Button {
-                Task { await stopSpatialPlayback() }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.caption.weight(.semibold))
-                    .frame(width: 28, height: 28)
-            }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
-            .frame(minWidth: 44, minHeight: 44)
-            .contentShape(Rectangle())
-            .accessibilityLabel("Stop Playback")
-            .accessibilityHint("Stops playback and returns to the browser")
-            .accessibilityIdentifier("PlayerUI-spatial-button-stop")
-            .disabled(isStoppingPlayback)
-
-            WindowPlayerDeckView()
-        }
+        WindowPlayerDeckView(
+            onExitPlayback: { Task { await stopSpatialPlayback() } }
+        )
+        .disabled(isStoppingPlayback)
         .overlay {
             if let message = playbackRuntime.lastErrorMessage {
                 PlaybackOverlayCard(
@@ -514,16 +395,8 @@ struct SpatialPlaybackControlsRoot: View {
         }
         .accessibilityIdentifier("PlayerUI-spatial-control-plane")
         .accessibilityValue(spatialAcceptanceValue)
-        .onChange(of: appModel.presentationTransition?.id) { _, _ in
-            guard let transition = appModel.presentationTransition,
-                  transition.targetPresentation == .window else { return }
-            Task { await returnToWindow(transition) }
-        }
-        .onChange(of: appModel.immersiveSpaceState) { _, state in
-            guard state == .closed,
-                  appModel.playbackPresentation != .window,
-                  appModel.presentationTransition == nil else { return }
-            recoverFromSystemDismissal()
+        .background {
+            SpatialPlatformEffectExecutor()
         }
     }
 
@@ -547,61 +420,13 @@ struct SpatialPlaybackControlsRoot: View {
         defer { isStoppingPlayback = false }
 
         await playbackLauncher.stopPlaybackAndWait()
-        appModel.resetPlaybackPresentationForStoppedPlayback()
-        appModel.isEnvironmentImmersiveActive = false
-        appModel.isFullImmersion = false
-        await dismissImmersiveSpace()
-        appModel.immersiveSpaceState = .closed
-        openWindow(id: "main")
-        dismissWindow(id: "playerControls")
+        appModel.requestStoppedPlaybackCleanup()
     }
 
     private func retryPlayback() {
-        guard let request = playbackRuntime.currentLaunchRequest else { return }
         playbackRuntime.lastErrorMessage = nil
-        playbackLauncher.beginPlayback(request)
+        playbackLauncher.retryPlayback()
     }
 
-    @MainActor
-    private func returnToWindow(_ transition: PlaybackPresentationTransition) async {
-        guard appModel.isTransitioningPlaybackPresentation == false else { return }
-        appModel.isTransitioningPlaybackPresentation = true
-        playbackRuntime.detach()
-        let keepsEnvironmentOpen = transition.targetEnvironment.environment != nil
-        if keepsEnvironmentOpen {
-            appModel.isEnvironmentImmersiveActive = true
-            appModel.isFullImmersion = false
-            await Task.yield()
-        } else {
-            await dismissImmersiveSpace()
-        }
-        do {
-            try appModel.commitPlaybackPresentation(transition.id)
-            appModel.immersiveSpaceState = keepsEnvironmentOpen ? .open : .closed
-            openWindow(id: "main")
-            dismissWindow(id: "playerControls")
-        } catch {
-            appModel.rollbackPlaybackPresentation(transition.id)
-            playbackRuntime.lastErrorMessage = error.localizedDescription
-        }
-        appModel.isTransitioningPlaybackPresentation = false
-    }
-
-    @MainActor
-    private func recoverFromSystemDismissal() {
-        do {
-            let transition = try appModel.requestPlaybackPresentation(.window)
-            try appModel.commitPlaybackPresentation(transition.id)
-            try appModel.updateEnvironmentContext(.none)
-            appModel.isEnvironmentImmersiveActive = false
-            openWindow(id: "main")
-            dismissWindow(id: "playerControls")
-        } catch {
-            if let transition = appModel.presentationTransition {
-                appModel.rollbackPlaybackPresentation(transition.id)
-            }
-            playbackRuntime.lastErrorMessage = error.localizedDescription
-        }
-    }
 }
 #endif

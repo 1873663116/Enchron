@@ -37,28 +37,28 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
     }
 
     @MainActor
-    func testWindowDeckHasCanonicalOrderAndDisablesUnsupportedPanorama() {
+    func testWindowDeckHasCanonicalOrderAndKeepsPresentationActionsOutsideDeck() {
         let app = launchPlayer()
         let identifiers = [
             "PlayerPanel-button-expand",
-            "PlayerPanel-button-dock",
             "PlayerPanel-button-rewind",
             "PlayerPanel-button-play",
             "PlayerPanel-button-forward",
-            "PlayerPanel-button-panorama",
             "PlayerPanel-menu-more",
         ]
         let controls = identifiers.map { app.descendants(matching: .any)[$0].firstMatch }
 
-        XCTAssertTrue(controls[3].waitForExistence(timeout: 20))
+        XCTAssertTrue(controls[2].waitForExistence(timeout: 20))
         for (identifier, control) in zip(identifiers, controls) {
             XCTAssertTrue(control.exists, "Missing canonical playback control: \(identifier)")
         }
 
         let centers = controls.map { $0.frame.midX }
         XCTAssertEqual(centers, centers.sorted(), "Playback controls must appear in canonical left-to-right order.")
-        XCTAssertTrue(controls[1].isEnabled, "Dock is available when the playback surface is ready.")
-        XCTAssertFalse(controls[5].isEnabled, "Flat mono media must not enter Panorama directly.")
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-dock"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-panorama"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerUI-TopAction-dock"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerUI-TopAction-videoFormat"].exists)
         attachScreenshot(app, name: "Window playback canonical controls")
     }
 
@@ -83,13 +83,17 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
     }
 
     @MainActor
-    func testDisabledPanoramaCannotLeaveWindowPresentation() {
+    func testWindowFormatMenuRequiresAnExplicitApply() {
         let app = launchPlayer()
-        let panorama = app.descendants(matching: .any)["PlayerPanel-button-panorama"].firstMatch
-        XCTAssertTrue(panorama.waitForExistence(timeout: 20))
-        XCTAssertFalse(panorama.isEnabled)
+        let format = app.descendants(matching: .any)["PlayerUI-TopAction-videoFormat"].firstMatch
+        XCTAssertTrue(format.waitForExistence(timeout: 20))
+        format.tap()
 
-        panorama.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(app.buttons["PlayerUI-VideoFormat-apply"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerUI-VideoFormat-Projection-180°"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerUI-VideoFormat-Projection-360°"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerUI-VideoFormat-Stereo Layout-Mono"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-VideoFormat-Projection-Flat"].exists)
 
         XCTAssertTrue(app.descendants(matching: .any)["PlayerUI-window-playback"].firstMatch.exists)
         XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch.exists)
@@ -103,7 +107,7 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         XCTAssertTrue(dock.waitForExistence(timeout: 20))
         dock.tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["PlayerUI-DockMenu-darkTheatre"]
+            app.descendants(matching: .any)["PlayerUI-DockMenu-day"]
                 .waitForExistence(timeout: 5)
         )
         attachScreenshot(app, name: "Docking menu")
@@ -116,17 +120,24 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         XCTAssertTrue(dock.waitForExistence(timeout: 20))
         dock.tap()
 
-        let environment = app.descendants(matching: .any)["PlayerUI-DockMenu-darkTheatre"].firstMatch
+        let environment = app.descendants(matching: .any)["PlayerUI-DockMenu-day"].firstMatch
         XCTAssertTrue(environment.waitForExistence(timeout: 5))
         environment.tap()
 
         let exitSpatial = app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 20))
-        XCTAssertEqual(exitSpatial.label, "Undock")
+        XCTAssertEqual(exitSpatial.label, "Return to Window")
+        let settings = app.descendants(matching: .any)["PlayerPanel-button-expand"].firstMatch
+        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        settings.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"]
                 .waitForExistence(timeout: 5)
         )
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Distance-slider"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Elevation-slider"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-spatial-button-stop"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
 
@@ -137,7 +148,7 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         XCTAssertTrue(format.waitForExistence(timeout: 5))
         format.tap()
         XCTAssertTrue(app.buttons["PlayerUI-VideoFormat-apply"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.descendants(matching: .any)["PlayerUI-VideoFormat-Projection-Flat"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-VideoFormat-Projection-Flat"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["PlayerUI-VideoFormat-Stereo Layout-Mono"].exists)
         attachScreenshot(app, name: "Video format menu")
     }
@@ -156,7 +167,9 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
 
         let exitSpatial = app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 20))
-        XCTAssertEqual(exitSpatial.label, "Exit Panorama")
+        XCTAssertEqual(exitSpatial.label, "Return to Window")
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-spatial-button-stop"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
 

@@ -1,14 +1,14 @@
 import SwiftUI
 
 
-enum EnchronHoverStyle {
+public enum EnchronHoverStyle {
     case automatic
     case lift
     case highlight
 }
 
-struct EnchronHoverGroup {
-    enum Behavior {
+public struct EnchronHoverGroup {
+    public enum Behavior {
         case activatesGroup
         case followsGroup
         case ignoresGroup
@@ -19,7 +19,7 @@ struct EnchronHoverGroup {
     let systemValue: HoverEffectGroup
     #endif
 
-    init(
+    public init(
         id: String? = nil,
         in namespace: Namespace.ID,
         behavior: Behavior = .activatesGroup
@@ -36,7 +36,25 @@ struct EnchronHoverGroup {
     }
 }
 
-extension View {
+public extension View {
+    @ViewBuilder
+    func enchronGlassBackground<S: InsettableShape>(in shape: S) -> some View {
+        #if os(visionOS)
+        glassBackgroundEffect(in: shape)
+        #else
+        background(.regularMaterial, in: shape)
+        #endif
+    }
+
+    @ViewBuilder
+    func enchronPlateGlassBackground<S: InsettableShape>(in shape: S) -> some View {
+        #if os(visionOS)
+        glassBackgroundEffect(.plate, in: shape, displayMode: .always)
+        #else
+        background(.regularMaterial, in: shape)
+        #endif
+    }
+
     @ViewBuilder
     func enchronHoverContentShape<S: Shape>(_ shape: S) -> some View {
         #if os(visionOS)
@@ -208,7 +226,7 @@ private struct MacPointerOpacityModifier: ViewModifier {
 #endif
 
 
-extension View {
+public extension View {
     @ViewBuilder
     func enchronSpatialOffset(z: CGFloat) -> some View {
         #if os(visionOS)
@@ -229,7 +247,7 @@ extension View {
 }
 
 
-extension View {
+public extension View {
     @ViewBuilder
     func enchronLiteralTextInput() -> some View {
         #if os(visionOS)
@@ -240,4 +258,3 @@ extension View {
         #endif
     }
 }
-

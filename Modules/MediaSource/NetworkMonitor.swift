@@ -1,8 +1,12 @@
 import Foundation
 import Network
 
+public nonisolated protocol NetworkConnectivityWaiting: Sendable {
+    func waitForConnection(timeout: Duration) async -> Bool
+}
+
 /// Observes network connectivity via NWPathMonitor.
-public nonisolated final class NetworkMonitor: @unchecked Sendable {
+nonisolated final class NetworkMonitor: NetworkConnectivityWaiting, @unchecked Sendable {
     public var isConnected: Bool {
         stateLock.withLock { _isConnected }
     }
@@ -12,7 +16,7 @@ public nonisolated final class NetworkMonitor: @unchecked Sendable {
     private let stateLock = NSLock()
     private var _isConnected: Bool = true
 
-    public init() {
+    init() {
         monitor.pathUpdateHandler = { [weak self] path in
             self?.setIsConnected(path.status == .satisfied)
         }
@@ -24,7 +28,7 @@ public nonisolated final class NetworkMonitor: @unchecked Sendable {
     }
 
     /// Suspends until the network becomes available, or returns immediately if already connected.
-    public func waitForConnection(timeout: Duration = .seconds(30)) async -> Bool {
+    func waitForConnection(timeout: Duration) async -> Bool {
         if isConnected { return true }
         let deadline = ContinuousClock.now + timeout
         while ContinuousClock.now < deadline {
@@ -39,5 +43,11 @@ public nonisolated final class NetworkMonitor: @unchecked Sendable {
         stateLock.withLock {
             _isConnected = value
         }
+    }
+}
+
+public nonisolated enum MediaSourceServices {
+    public static func makeNetworkConnectivityWaiter() -> any NetworkConnectivityWaiting {
+        NetworkMonitor()
     }
 }

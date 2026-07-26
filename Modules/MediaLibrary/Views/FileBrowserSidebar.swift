@@ -1,3 +1,5 @@
+import DesignSystem
+import MediaLibrary
 import SwiftUI
 
 /// Finder-style sidebar for the file browser NavigationSplitView.
