@@ -131,7 +131,7 @@ def main() -> None:
         and '"simulatorConfigured"' in immersive
         and "testPanoramaRequiresObservedVideoPlayerModesBeforeCommit"
             in read("Tests/EnchronMacOS/MacRealityPlaybackContractTests.swift"),
-        "Panorama can commit without device settlement or an explicit Simulator-ready fact",
+        "Panorama can commit without device settlement or an explicit Simulator configuration fact",
     )
     fixture_duration = re.search(r"^[ \t]*-t[ \t]+(\d+)", spatial_verifier, re.MULTILINE)
     require(

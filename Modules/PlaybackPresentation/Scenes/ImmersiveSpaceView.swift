@@ -222,7 +222,6 @@ public struct ImmersiveSpaceView: View {
             && component.spatialVideoMode == component.desiredSpatialVideoMode
         #if targetEnvironment(simulator)
         let simulatorIsConfigured = presentation == .panorama
-            && component.currentRenderingStatus == .ready
             && (component.immersiveViewingMode == nil
                 || component.immersiveViewingMode == component.desiredImmersiveViewingMode)
             && (component.viewingMode == nil

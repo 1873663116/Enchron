@@ -185,7 +185,7 @@ observed = [
     and state.get("phase") in {"settled", "simulatorConfigured"}
 ]
 if not observed:
-    raise SystemExit("panorama never reached a ready VideoPlayerComponent observation")
+    raise SystemExit("panorama never reached a configured VideoPlayerComponent observation")
 state = observed[-1]
 desired = {
     "desiredImmersiveViewingMode": "progressive",
