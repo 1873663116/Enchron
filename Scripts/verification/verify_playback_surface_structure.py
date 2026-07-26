@@ -33,6 +33,9 @@ def main() -> None:
     launch = read("Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift")
     runtime = read("Modules/PlaybackFeature/PlaybackRuntime.swift")
     immersive = read("Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift")
+    spatial_acceptance = read(
+        "Tests/EnchronAppUI/SpatialPresentationAcceptanceUITests.swift"
+    )
     app_scene = read("Apps/Enchron/EnchronApp.swift")
     application = read("Apps/Enchron/EnchronApplication.swift")
     architecture = read("ARCHITECTURE.md")
@@ -90,12 +93,11 @@ def main() -> None:
     require("attachments:" not in vision_surface, "vision window controls use a RealityView attachment")
     require("VisionWindowPlaybackControlPlane" not in surface, "duplicate vision window controls remain")
     require(
-        ".onChange(of: surfaceUpdateKey" in vision_surface
-        and "mediaSessionID: playbackRuntime.activeSessionID" in surface
-        and "mediaFormatIsKnown: playbackRuntime.mediaFormatIsKnown" in surface
-        and "projection: playbackRuntime.effectiveProjectionType" in surface
-        and "stereoLayout: playbackRuntime.effectiveStereoLayout" in surface,
-        "async playback readiness or format changes do not invalidate the vision RealityView surface",
+        '"PlayerUI-window-control-plane"' in spatial_acceptance
+        and "value CONTAINS 'lifecycle=playing'" in spatial_acceptance
+        and "value CONTAINS 'attached=window'" in spatial_acceptance
+        and "value == 'playing'" not in spatial_acceptance,
+        "spatial acceptance relies on a system-formatted accessibility value instead of structured playback facts",
     )
     require(
         "PlayerUI-window-playback-deck" not in window_playback,

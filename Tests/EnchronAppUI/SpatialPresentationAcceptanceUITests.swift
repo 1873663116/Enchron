@@ -21,16 +21,20 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
 
         let windowPlayback = app.descendants(matching: .any)["PlayerUI-window-playback"].firstMatch
         XCTAssertTrue(windowPlayback.waitForExistence(timeout: 30))
+        let windowState = app.descendants(matching: .any)["PlayerUI-window-control-plane"].firstMatch
+        XCTAssertTrue(windowState.waitForExistence(timeout: 10))
         XCTAssertEqual(
             XCTWaiter.wait(
                 for: [XCTNSPredicateExpectation(
-                    predicate: NSPredicate(format: "value == 'playing'"),
-                    object: windowPlayback
+                    predicate: NSPredicate(
+                        format: "value CONTAINS 'lifecycle=playing' AND value CONTAINS 'attached=window'"
+                    ),
+                    object: windowState
                 )],
                 timeout: 30
             ),
             .completed,
-            "Real PlaybackCore media never reached playing in Window."
+            "Real PlaybackCore media never reached playing with its renderer attached to Window. Current state: \(String(describing: windowState.value))"
         )
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].exists)
         captureScreen(name: "01 Window real playback")
@@ -85,7 +89,12 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         let resumePanorama = app.descendants(matching: .any)["PlayerUI-TopAction-resumePanorama"].firstMatch
         XCTAssertTrue(resumePanorama.waitForExistence(timeout: 30), "Panorama did not restore its Window portal state.")
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-TopAction-dock"].exists)
-        XCTAssertEqual(windowPlayback.value as? String, "playing")
+        XCTAssertTrue(
+            (windowState.value as? String)?.contains("lifecycle=playing") == true
+        )
+        XCTAssertTrue(
+            (windowState.value as? String)?.contains("attached=window") == true
+        )
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].exists)
         captureScreen(name: "05 Window after Panorama")
     }
