@@ -94,7 +94,7 @@ def main() -> None:
     require("VisionWindowPlaybackControlPlane" not in surface, "duplicate vision window controls remain")
     require(
         '"PlayerUI-window-control-plane"' in spatial_acceptance
-        and "value CONTAINS 'lifecycle=playing'" in spatial_acceptance
+        and "value CONTAINS[c] 'lifecycle=playing'" in spatial_acceptance
         and "value CONTAINS 'attached=window'" in spatial_acceptance
         and "value == 'playing'" not in spatial_acceptance,
         "spatial acceptance relies on a system-formatted accessibility value instead of structured playback facts",

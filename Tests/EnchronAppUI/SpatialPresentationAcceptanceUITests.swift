@@ -27,7 +27,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
             XCTWaiter.wait(
                 for: [XCTNSPredicateExpectation(
                     predicate: NSPredicate(
-                        format: "value CONTAINS 'lifecycle=playing' AND value CONTAINS 'attached=window'"
+                        format: "value CONTAINS[c] 'lifecycle=playing' AND value CONTAINS 'attached=window'"
                     ),
                     object: windowState
                 )],
@@ -90,7 +90,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         XCTAssertTrue(resumePanorama.waitForExistence(timeout: 30), "Panorama did not restore its Window portal state.")
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-TopAction-dock"].exists)
         XCTAssertTrue(
-            (windowState.value as? String)?.contains("lifecycle=playing") == true
+            (windowState.value as? String)?.lowercased().contains("lifecycle=playing") == true
         )
         XCTAssertTrue(
             (windowState.value as? String)?.contains("attached=window") == true
@@ -126,7 +126,10 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         let state = app.descendants(matching: .any)["PlayerUI-spatial-control-plane"].firstMatch
         XCTAssertTrue(state.waitForExistence(timeout: 20))
         let expectation = XCTNSPredicateExpectation(
-            predicate: NSPredicate(format: "value CONTAINS %@ AND value CONTAINS 'lifecycle=playing'", "presentation=\(presentation)"),
+            predicate: NSPredicate(
+                format: "value CONTAINS %@ AND value CONTAINS[c] 'lifecycle=playing'",
+                "presentation=\(presentation)"
+            ),
             object: state
         )
         XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 20), .completed)

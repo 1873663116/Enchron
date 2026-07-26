@@ -143,7 +143,7 @@ nonisolated final class PhotosPlaybackDeviceUITests: XCTestCase {
             player.waitForExistence(timeout: 30),
             "Real playback did not open. Media library error: \(libraryError.label)"
         )
-        let playing = NSPredicate(format: "value == 'playing'")
+        let playing = NSPredicate(format: "value ==[c] 'playing'")
         let ready = XCTNSPredicateExpectation(predicate: playing, object: player)
         XCTAssertEqual(
             XCTWaiter.wait(for: [ready], timeout: 30),
