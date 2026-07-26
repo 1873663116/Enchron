@@ -17,6 +17,10 @@ __pycache__/
 
 # Xcode local build output
 build/
+**/xcuserdata/
+
+# Local validation output
+test-results/
 
 # Overnight runtime artifacts
 morning-report.md
