@@ -410,11 +410,14 @@ struct SpatialPlaybackControlsRoot: View {
     }
 
     private var spatialAcceptanceValue: String {
+        let position = playbackRuntime.playbackPosition
         return [
             "presentation=\(appModel.playbackPresentation.rawValue)",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
+            "position=\(position.seconds)",
+            "duration=\(position.duration)",
             "screenScale=\(String(format: "%.2f", appModel.screenScale))"
         ].joined(separator: ";")
     }

@@ -117,6 +117,13 @@ def main() -> None:
         and '"PlayerUI-spatial-control-plane"' not in main_view,
         "spatial acceptance state collapses or replaces the real Player Control Deck accessibility tree",
     )
+    require(
+        '"position=\\(position.seconds)"' in main_view
+        and "verifySpatialPlaybackAdvances" in spatial_acceptance
+        and "XCTAssertGreaterThan(" in spatial_acceptance
+        and "first.pngRepresentation" not in spatial_acceptance,
+        "spatial playback motion is inferred from unsupported Simulator screenshots instead of the real timeline",
+    )
     fixture_duration = re.search(r"^[ \t]*-t[ \t]+(\d+)", spatial_verifier, re.MULTILINE)
     require(
         fixture_duration is not None

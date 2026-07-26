@@ -76,7 +76,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Distance-slider"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Elevation-slider"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
-        captureMotionEvidence(name: "02 Docked real playback")
+        try verifySpatialPlaybackAdvances(app, name: "Docked real playback")
 
         tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
         _ = try waitForWindowState(
@@ -117,7 +117,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         )
         XCTAssertEqual(exitSpatial.label, "Return to Window")
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
-        captureMotionEvidence(name: "04 Panorama real playback")
+        try verifySpatialPlaybackAdvances(app, name: "Panorama real playback")
 
         tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
         let restoredWindowState = try waitForWindowState(
@@ -248,17 +248,28 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
     }
 
     @MainActor
-    private func captureMotionEvidence(name: String) {
-        let first = XCUIScreen.main.screenshot()
-        attach(first, name: "\(name) first frame")
+    private func verifySpatialPlaybackAdvances(
+        _ app: XCUIApplication,
+        name: String
+    ) throws {
+        let state = app.descendants(matching: .any)["PlayerUI-spatial-state"].firstMatch
+        let firstState = try XCTUnwrap(state.value as? String)
+        let firstPosition = try position(from: firstState)
         Thread.sleep(forTimeInterval: 1)
-        let second = XCUIScreen.main.screenshot()
-        attach(second, name: "\(name) second frame")
-        XCTAssertNotEqual(
-            first.pngRepresentation,
-            second.pngRepresentation,
-            "The Simulator screen did not change while \(name) was expected to be playing."
+        let secondState = try XCTUnwrap(state.value as? String)
+        let secondPosition = try position(from: secondState)
+        XCTAssertGreaterThan(
+            secondPosition,
+            firstPosition,
+            "\(name) did not advance on the real PlaybackCore timeline. First: \(firstState), second: \(secondState)"
         )
+    }
+
+    private func position(from state: String) throws -> Double {
+        let value = state.split(separator: ";")
+            .first { $0.hasPrefix("position=") }?
+            .dropFirst("position=".count)
+        return try XCTUnwrap(value.flatMap { Double($0) })
     }
 
     @MainActor
