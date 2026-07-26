@@ -1,6 +1,7 @@
 import CoreMedia
 import Foundation
 
+/// Owns PlaybackCore's single current media slot and the only product playback control path.
 @MainActor
 public final class PlaybackCoreController {
     public private(set) var activeSession: SampleBufferPlaybackSession?
@@ -51,6 +52,7 @@ public final class PlaybackCoreController {
         self.sessionFactory = sessionFactory
     }
 
+    /// Opens one media session after pending cleanup, applying initial rate and format before playback starts.
     @discardableResult
     public func open(
         _ url: URL,
@@ -365,7 +367,11 @@ public final class PlaybackCoreController {
         }
     }
 
-    public func seek(to time: CMTime, startsPaused: Bool? = nil) async throws {
+    /// Seeks the current media session and applies an explicit after-seek playback behavior.
+    public func seek(
+        to time: CMTime,
+        after behavior: PlaybackAfterSeekBehavior = .preserveCurrentPauseState
+    ) async throws {
         guard let session = activeSession else {
             throw PlaybackControlError.noActiveMediaSession
         }
@@ -393,7 +399,7 @@ public final class PlaybackCoreController {
         guard activeSession === session else {
             throw PlaybackControlError.noActiveMediaSession
         }
-        let paused = startsPaused ?? (status == .paused)
+        let paused = behavior.resolvesStartsPaused(for: status)
         let task = Task {
             try await session.seek(to: time, startsPaused: paused)
         }
@@ -421,7 +427,11 @@ public final class PlaybackCoreController {
         }
     }
 
-    public func seek(by offset: CMTime, startsPaused: Bool? = nil) async throws {
+    /// Seeks relative to the latest requested position and applies an explicit after-seek behavior.
+    public func seek(
+        by offset: CMTime,
+        after behavior: PlaybackAfterSeekBehavior = .preserveCurrentPauseState
+    ) async throws {
         guard let session = activeSession else {
             throw PlaybackControlError.noActiveMediaSession
         }
@@ -430,7 +440,19 @@ public final class PlaybackCoreController {
             seconds: base.seconds + offset.seconds,
             preferredTimescale: max(base.timescale, 600)
         )
-        try await seek(to: target, startsPaused: startsPaused)
+        try await seek(to: target, after: behavior)
+    }
+
+    /// Preserves source compatibility while callers migrate from the nullable pause flag.
+    @available(*, deprecated, message: "Use seek(to:after:) with PlaybackAfterSeekBehavior.")
+    public func seek(to time: CMTime, startsPaused: Bool?) async throws {
+        try await seek(to: time, after: Self.afterSeekBehavior(startsPaused: startsPaused))
+    }
+
+    /// Preserves source compatibility while callers migrate from the nullable pause flag.
+    @available(*, deprecated, message: "Use seek(by:after:) with PlaybackAfterSeekBehavior.")
+    public func seek(by offset: CMTime, startsPaused: Bool?) async throws {
+        try await seek(by: offset, after: Self.afterSeekBehavior(startsPaused: startsPaused))
     }
 
     private func clampedSeekTime(_ time: CMTime) -> CMTime {
@@ -439,6 +461,16 @@ public final class PlaybackCoreController {
             seconds: max(0, seconds),
             preferredTimescale: max(time.timescale, 600)
         )
+    }
+
+    private static func afterSeekBehavior(
+        startsPaused: Bool?
+    ) -> PlaybackAfterSeekBehavior {
+        switch startsPaused {
+        case nil: .preserveCurrentPauseState
+        case false: .play
+        case true: .pause
+        }
     }
 
     @discardableResult

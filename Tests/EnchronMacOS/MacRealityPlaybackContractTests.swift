@@ -7,6 +7,21 @@ import XCTest
 @testable import EnchronMacOS
 
 nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
+    func testPresentationSettlementPhasePreservesDiagnosticArtifactValues() {
+        XCTAssertEqual(
+            PlaybackPresentationSettlementPhase.surfaceAttached.rawValue,
+            "surfaceAttached"
+        )
+        XCTAssertEqual(
+            PlaybackPresentationSettlementPhase.simulatorConfigured.rawValue,
+            "simulatorConfigured"
+        )
+        XCTAssertEqual(
+            PlaybackPresentationSettlementPhase.settled.rawValue,
+            "settled"
+        )
+    }
+
     @MainActor
     func testPlaybackSurfaceMountPolicyFollowsVisiblePlaybackLifecycle() {
         XCTAssertFalse(
@@ -187,7 +202,7 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
         let record = PresentationStateRecord(
             mediaSessionID: "session",
             requestedMode: PlaybackPresentation.docked.rawValue,
-            phase: "surfaceAttached",
+            phase: PlaybackPresentationSettlementPhase.surfaceAttached.rawValue,
             platform: "macOS"
         )
 
@@ -214,13 +229,13 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
         let attached = PresentationStateRecord(
             mediaSessionID: "session",
             requestedMode: PlaybackPresentation.panorama.rawValue,
-            phase: "surfaceAttached",
+            phase: PlaybackPresentationSettlementPhase.surfaceAttached.rawValue,
             platform: "visionOS"
         )
         let settled = PresentationStateRecord(
             mediaSessionID: "session",
             requestedMode: PlaybackPresentation.panorama.rawValue,
-            phase: "settled",
+            phase: PlaybackPresentationSettlementPhase.settled.rawValue,
             platform: "visionOS"
         )
 
@@ -243,7 +258,7 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
         let simulatorConfigured = PresentationStateRecord(
             mediaSessionID: "session",
             requestedMode: PlaybackPresentation.panorama.rawValue,
-            phase: "simulatorConfigured",
+            phase: PlaybackPresentationSettlementPhase.simulatorConfigured.rawValue,
             platform: "visionOS"
         )
         #if targetEnvironment(simulator)
@@ -280,7 +295,7 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
         let record = PresentationStateRecord(
             mediaSessionID: "stale-session",
             requestedMode: PlaybackPresentation.window.rawValue,
-            phase: "settled",
+            phase: PlaybackPresentationSettlementPhase.settled.rawValue,
             platform: "macOS"
         )
 

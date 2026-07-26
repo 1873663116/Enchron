@@ -3,11 +3,11 @@ import Foundation
 import OSLog
 
 extension SampleBufferPlaybackSession {
-    public func close() {
+    func close() {
         close(completion: {})
     }
 
-    public func closeAndWait() async {
+    func closeAndWait() async {
         await withCheckedContinuation { continuation in
             close {
                 continuation.resume()
@@ -607,7 +607,7 @@ extension SampleBufferPlaybackSession {
         debugStore.emit(
             mediaSessionID: traceID,
             node: .mediaEventStream,
-            kind: "provider.\(kind.rawValue)",
+            kind: PlaybackArtifactEventName.providerControl(kind).rawValue,
             outcome: .succeeded,
             details: [
                 "streamEpoch": String(streamEpoch),

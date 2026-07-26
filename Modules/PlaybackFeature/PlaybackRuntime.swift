@@ -700,26 +700,33 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         lifecycle: ProductPlaybackLifecycle
     ) -> Bool {
         guard record.mediaSessionID == activeSessionID,
-              record.requestedMode == presentation.rawValue else { return false }
-        if record.phase == "settled" { return true }
-        #if targetEnvironment(simulator)
-        if record.phase == "simulatorConfigured" {
-            return presentation == .panorama
-        }
-        #endif
-        guard record.phase == "surfaceAttached" else { return false }
-        guard presentation != .panorama else { return false }
-        switch lifecycle {
-        case .ready, .paused, .ended:
-            return true
-        case .idle, .loading, .playing, .failed:
+              record.requestedMode == presentation.rawValue,
+              let phase = PlaybackPresentationSettlementPhase(rawValue: record.phase) else {
             return false
+        }
+        switch phase {
+        case .settled:
+            return true
+        case .simulatorConfigured:
+            #if targetEnvironment(simulator)
+            return presentation == .panorama
+            #else
+            return false
+            #endif
+        case .surfaceAttached:
+            guard presentation != .panorama else { return false }
+            switch lifecycle {
+            case .ready, .paused, .ended:
+                return true
+            case .idle, .loading, .playing, .failed:
+                return false
+            }
         }
     }
 
     func recordPresentationState(
         presentation: PlaybackPresentation,
-        phase: String,
+        phase: PlaybackPresentationSettlementPhase,
         realityViewID: String,
         entityParentID: String? = nil,
         desiredImmersiveViewingMode: String? = nil,
@@ -733,10 +740,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let record = PresentationStateRecord(
             mediaSessionID: session.traceID,
             requestedMode: presentation.rawValue,
-            phase: phase,
+            phase: phase.rawValue,
             platform: platformName,
-            sceneContainer: .init(.known, value: presentation.sceneContainer),
-            realityViewIdentity: .init(.known, value: realityViewID),
+            sceneContainer: .init(known: presentation.sceneContainer),
+            realityViewIdentity: .init(known: realityViewID),
             entityParentIdentity: Self.observedFact(entityParentID),
             desiredImmersiveViewingMode: Self.observedFact(desiredImmersiveViewingMode),
             actualImmersiveViewingMode: Self.observedFact(actualImmersiveViewingMode),
@@ -744,7 +751,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             actualViewingMode: Self.observedFact(actualViewingMode),
             desiredSpatialVideoMode: Self.observedFact(desiredSpatialVideoMode),
             actualSpatialVideoMode: Self.observedFact(actualSpatialVideoMode),
-            transitionResult: .init(.known, value: "succeeded")
+            transitionResult: .init(known: "succeeded")
         )
         guard session.debugSnapshot().presentationState != record else { return }
         session.recordPresentationState(record)
@@ -772,7 +779,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private static func observedFact(_ value: String?) -> ObservedStringFact {
-        value.map { .init(.known, value: $0) } ?? .init(.notExposed)
+        value.map { .init(known: $0) } ?? .init(.notExposed)
     }
 
     private static func subtitleTrack(

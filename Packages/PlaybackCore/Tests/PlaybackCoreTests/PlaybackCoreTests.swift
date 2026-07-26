@@ -162,14 +162,14 @@ import Testing
         requestedMode: "panorama",
         phase: "active",
         platform: "visionOS",
-        sceneContainer: .init(.known, value: "ImmersiveSpace(PlaybackImmersiveSpace)"),
-        desiredImmersiveViewingMode: .init(.known, value: "progressive"),
-        actualImmersiveViewingMode: .init(.known, value: "progressive"),
-        desiredViewingMode: .init(.known, value: "mono"),
-        actualViewingMode: .init(.known, value: "mono"),
-        desiredSpatialVideoMode: .init(.known, value: "screen"),
-        actualSpatialVideoMode: .init(.known, value: "screen"),
-        transitionResult: .init(.known, value: "opened")
+        sceneContainer: .init(known: "ImmersiveSpace(PlaybackImmersiveSpace)"),
+        desiredImmersiveViewingMode: .init(known: "progressive"),
+        actualImmersiveViewingMode: .init(known: "progressive"),
+        desiredViewingMode: .init(known: "mono"),
+        actualViewingMode: .init(known: "mono"),
+        desiredSpatialVideoMode: .init(known: "screen"),
+        actualSpatialVideoMode: .init(known: "screen"),
+        transitionResult: .init(known: "opened")
     )
 
     store.recordPresentationState(record)
@@ -270,9 +270,9 @@ import Testing
         dimensions: "3840x2160",
         formatSignaling: VideoFormatSignalingSummary(
             provenance: "testFormat",
-            transferFunction: .init(.known, value: "PQ"),
-            hvcC: .init(.known, value: true),
-            dvcC: .init(.none, value: false)
+            transferFunction: .init(known: "PQ"),
+            hvcC: .init(known: true),
+            dvcC: .init(.none)
         ),
         payloadOwnershipState: "retainedCMSampleBuffer"
     )
@@ -1899,18 +1899,18 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
             transferFunction: "SMPTE_ST_2084_PQ",
             yCbCrMatrix: "ITU_R_2020",
             range: "video",
-            seekability: .init(.known, value: "providerRebuild"),
-            selectedRawTrackMapping: .init(.known, value: "fake.video.0"),
-            timebase: .init(.known, value: "1/600"),
+            seekability: .init(known: "providerRebuild"),
+            selectedRawTrackMapping: .init(known: "fake.video.0"),
+            timebase: .init(known: "1/600"),
             codecConfigurationSummary: .init(.none),
             formatSignaling: VideoFormatSignalingSummary(
                 provenance: "fakeProvider",
-                colorPrimaries: .init(.known, value: "ITU_R_2020"),
-                transferFunction: .init(.known, value: "SMPTE_ST_2084_PQ"),
-                yCbCrMatrix: .init(.known, value: "ITU_R_2020"),
-                range: .init(.known, value: "video"),
+                colorPrimaries: .init(known: "ITU_R_2020"),
+                transferFunction: .init(known: "SMPTE_ST_2084_PQ"),
+                yCbCrMatrix: .init(known: "ITU_R_2020"),
+                range: .init(known: "video"),
                 projectionKind: projectionKind.map {
-                    .init(.known, value: $0)
+                    .init(known: $0)
                 } ?? .init(.notExposed)
             )
         )

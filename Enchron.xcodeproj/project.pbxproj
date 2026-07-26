@@ -230,6 +230,7 @@
 				PlaybackFeature/PlaybackMediaMetadataService.swift,
 				PlaybackPresentation/Model/CinemaEnvironment.swift,
 				PlaybackPresentation/Model/PlaybackPresentation.swift,
+				PlaybackPresentation/Model/PlaybackPresentationSettlementPhase.swift,
 				PlaybackPresentation/Model/PlaybackSurfacePlacement.swift,
 				PlaybackPresentation/Model/WindowPlaybackPageGeometry.swift,
 				PlaybackPresentation/Storage/ScreenPositionStore.swift,
