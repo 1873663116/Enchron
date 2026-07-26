@@ -39,6 +39,9 @@ def main() -> None:
     playback_deck_acceptance = read(
         "Tests/EnchronAppUI/PlaybackDeckUITests.swift"
     )
+    spatial_verifier = read(
+        "Scripts/verification/verify-spatial-presentations-simulator.zsh"
+    )
     app_scene = read("Apps/Enchron/EnchronApp.swift")
     application = read("Apps/Enchron/EnchronApplication.swift")
     architecture = read("ARCHITECTURE.md")
@@ -107,6 +110,23 @@ def main() -> None:
         and '"ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"'
             in playback_deck_acceptance,
         "spatial UI acceptance races the unrelated production controls auto-hide timer",
+    )
+    fixture_duration = re.search(r"^[ \t]*-t[ \t]+(\d+)", spatial_verifier, re.MULTILINE)
+    require(
+        fixture_duration is not None
+        and int(fixture_duration.group(1)) >= 180,
+        "the real-media spatial fixture can end before cold spatial round trips finish",
+    )
+    docked_state_gate = spatial_acceptance.index(
+        "let dockedState = try waitForSpatialState("
+    )
+    docked_exit_gate = spatial_acceptance.index(
+        '["PlayerPanel-button-exit-spatial"].firstMatch'
+    )
+    require(
+        docked_state_gate < docked_exit_gate
+        and "throw AcceptanceFailure.unmetCondition" in spatial_acceptance,
+        "spatial acceptance can operate stale UI before the presentation transaction settles",
     )
     require(
         "PlayerUI-window-playback-deck" not in window_playback,

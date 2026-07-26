@@ -2,6 +2,10 @@ import Foundation
 import XCTest
 
 nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
+    private enum AcceptanceFailure: Error {
+        case unmetCondition
+    }
+
     private let fixtureURL = URL(
         string: "http://enchrolab:verification@127.0.0.1:18737/spatial-acceptance.mp4"
     )!
@@ -48,53 +52,91 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         XCTAssertTrue(environment.waitForExistence(timeout: 5))
         tapSemanticallyWithScreenshotFallback(environment, name: "Day")
 
+        let dockedState = try waitForSpatialState(
+            app,
+            presentation: "docked",
+            timeout: 90
+        )
+        let dockedSession = try sessionID(from: dockedState)
         let exitSpatial = app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch
-        XCTAssertTrue(exitSpatial.waitForExistence(timeout: 30))
+        try requireExistence(
+            exitSpatial,
+            timeout: 10,
+            message: "Docked playback committed, but its Player Control Deck did not appear."
+        )
         XCTAssertEqual(exitSpatial.label, "Return to Window")
         let settings = app.descendants(matching: .any)["PlayerPanel-button-expand"].firstMatch
-        XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        try requireExistence(settings, timeout: 5, message: "Docked playback settings did not appear.")
         tapSemanticallyWithScreenshotFallback(settings, name: "Advanced Settings")
-        XCTAssertTrue(
-            app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"]
-                .waitForExistence(timeout: 5)
+        try requireExistence(
+            app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"].firstMatch,
+            timeout: 5,
+            message: "Docked Screen Size control did not appear."
         )
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Distance-slider"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Elevation-slider"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
-        let dockedState = try waitForSpatialState(app, presentation: "docked")
-        let dockedSession = try sessionID(from: dockedState)
         captureMotionEvidence(name: "02 Docked real playback")
 
         tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
-        XCTAssertTrue(windowPlayback.waitForExistence(timeout: 30), "Docked playback did not restore Window playback.")
+        _ = try waitForWindowState(
+            app,
+            timeout: 90,
+            message: "Docked playback did not restore Window playback."
+        )
         captureScreen(name: "03 Window after Docked")
 
         let format = app.descendants(matching: .any)["PlayerUI-TopAction-videoFormat"].firstMatch
-        XCTAssertTrue(format.waitForExistence(timeout: 10))
+        try requireExistence(
+            format,
+            timeout: 10,
+            message: "Video Format action did not appear after returning from Docked playback."
+        )
         tapSemanticallyWithScreenshotFallback(format, name: "Video Format")
         let panorama360 = app.descendants(matching: .any)["PlayerUI-VideoFormat-Projection-360°"].firstMatch
-        XCTAssertTrue(panorama360.waitForExistence(timeout: 5))
+        try requireExistence(
+            panorama360,
+            timeout: 5,
+            message: "The 360° projection option did not appear."
+        )
         tapSemanticallyWithScreenshotFallback(panorama360, name: "360° projection")
         let apply = app.buttons["PlayerUI-VideoFormat-apply"]
-        XCTAssertTrue(apply.waitForExistence(timeout: 5))
+        try requireExistence(apply, timeout: 5, message: "The video format Apply action did not appear.")
         tapSemanticallyWithScreenshotFallback(apply, name: "Apply video format")
 
-        XCTAssertTrue(exitSpatial.waitForExistence(timeout: 30))
+        let panoramaState = try waitForSpatialState(
+            app,
+            presentation: "panorama",
+            timeout: 90
+        )
+        XCTAssertEqual(try sessionID(from: panoramaState), dockedSession)
+        try requireExistence(
+            exitSpatial,
+            timeout: 10,
+            message: "Panorama committed, but its Player Control Deck did not appear."
+        )
         XCTAssertEqual(exitSpatial.label, "Return to Window")
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
-        let panoramaState = try waitForSpatialState(app, presentation: "panorama")
-        XCTAssertEqual(try sessionID(from: panoramaState), dockedSession)
         captureMotionEvidence(name: "04 Panorama real playback")
 
         tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
+        let restoredWindowState = try waitForWindowState(
+            app,
+            timeout: 90,
+            message: "Panorama did not restore Window playback."
+        )
         let resumePanorama = app.descendants(matching: .any)["PlayerUI-TopAction-resumePanorama"].firstMatch
-        XCTAssertTrue(resumePanorama.waitForExistence(timeout: 30), "Panorama did not restore its Window portal state.")
+        try requireExistence(
+            resumePanorama,
+            timeout: 10,
+            message: "Panorama did not restore its Window portal action."
+        )
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-TopAction-dock"].exists)
         XCTAssertTrue(
-            (windowState.value as? String)?.lowercased().contains("lifecycle=playing") == true
+            restoredWindowState.lowercased().contains("lifecycle=playing")
         )
         XCTAssertTrue(
-            (windowState.value as? String)?.contains("attached=window") == true
+            restoredWindowState.contains("attached=window")
         )
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].exists)
         captureScreen(name: "05 Window after Panorama")
@@ -122,10 +164,15 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
     @MainActor
     private func waitForSpatialState(
         _ app: XCUIApplication,
-        presentation: String
+        presentation: String,
+        timeout: TimeInterval
     ) throws -> String {
         let state = app.descendants(matching: .any)["PlayerUI-spatial-control-plane"].firstMatch
-        XCTAssertTrue(state.waitForExistence(timeout: 20))
+        try requireExistence(
+            state,
+            timeout: timeout,
+            message: "\(presentation) did not expose its spatial control plane."
+        )
         let expectation = XCTNSPredicateExpectation(
             predicate: NSPredicate(
                 format: "value CONTAINS %@ AND value CONTAINS[c] 'lifecycle=playing'",
@@ -133,8 +180,46 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
             ),
             object: state
         )
-        XCTAssertEqual(XCTWaiter.wait(for: [expectation], timeout: 20), .completed)
+        guard XCTWaiter.wait(for: [expectation], timeout: 20) == .completed else {
+            XCTFail(
+                "\(presentation) did not settle with real playback still playing. Current state: \(String(describing: state.value))"
+            )
+            throw AcceptanceFailure.unmetCondition
+        }
         return try XCTUnwrap(state.value as? String)
+    }
+
+    @MainActor
+    private func waitForWindowState(
+        _ app: XCUIApplication,
+        timeout: TimeInterval,
+        message: String
+    ) throws -> String {
+        let state = app.descendants(matching: .any)["PlayerUI-window-control-plane"].firstMatch
+        try requireExistence(state, timeout: timeout, message: message)
+        let expectation = XCTNSPredicateExpectation(
+            predicate: NSPredicate(
+                format: "value CONTAINS 'presentation=window' AND value CONTAINS 'attached=window' AND value CONTAINS[c] 'lifecycle=playing'"
+            ),
+            object: state
+        )
+        guard XCTWaiter.wait(for: [expectation], timeout: 20) == .completed else {
+            XCTFail("\(message) Current state: \(String(describing: state.value))")
+            throw AcceptanceFailure.unmetCondition
+        }
+        return try XCTUnwrap(state.value as? String)
+    }
+
+    @MainActor
+    private func requireExistence(
+        _ element: XCUIElement,
+        timeout: TimeInterval,
+        message: String
+    ) throws {
+        guard element.waitForExistence(timeout: timeout) else {
+            XCTFail(message)
+            throw AcceptanceFailure.unmetCondition
+        }
     }
 
     private func sessionID(from state: String) throws -> String {

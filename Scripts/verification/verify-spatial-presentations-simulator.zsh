@@ -43,9 +43,9 @@ done
 
 mkdir -p $work
 ffmpeg -hide_banner -loglevel error -y \
-    -f lavfi -i 'testsrc2=size=1280x720:rate=30,hue=H=PI*t/2:s=1' \
+    -f lavfi -i 'testsrc2=size=640x360:rate=30,hue=H=PI*t/2:s=1' \
     -f lavfi -i 'sine=frequency=440:sample_rate=48000' \
-    -t 30 -c:v libx264 -preset ultrafast -g 30 -pix_fmt yuv420p \
+    -t 240 -c:v libx264 -preset ultrafast -crf 28 -g 30 -pix_fmt yuv420p \
     -c:a aac -b:a 128k -movflags +faststart $fixture
 
 python3 $repo/Scripts/fixtures/range-http-server.py \
