@@ -20,6 +20,8 @@ result_bundle=$work/SpatialPresentationAcceptance.xcresult
 snapshot_evidence=$work/snapshot.json
 events_evidence=$work/events.jsonl
 test_timeout_seconds=${ENCHRON_SPATIAL_TEST_TIMEOUT_SECONDS:-600}
+ui_test_selection=${ENCHRON_SPATIAL_UI_TEST_SELECTION:-EnchronAppUITests/SpatialPresentationAcceptanceUITests/testRealPlaybackDockedAndPanoramaRoundTrips}
+verify_spatial_binding=${ENCHRON_SPATIAL_VERIFY_BINDING:-1}
 server_pid=''
 test_pid=''
 
@@ -80,7 +82,7 @@ xcodebuild test \
     -test-timeouts-enabled YES \
     -default-test-execution-time-allowance 300 \
     -maximum-test-execution-time-allowance 420 \
-    -only-testing:EnchronAppUITests/SpatialPresentationAcceptanceUITests/testRealPlaybackDockedAndPanoramaRoundTrips \
+    -only-testing:$ui_test_selection \
     >$test_log 2>&1 &
 test_pid=$!
 test_deadline=$(( SECONDS + test_timeout_seconds ))
@@ -123,6 +125,13 @@ if (( test_status != 0 )); then
     print -u2 "Spatial UI test failed; runtime log: $runtime_log"
     print -u2 "Result bundle: $result_bundle"
     exit $test_status
+fi
+
+if [[ $verify_spatial_binding != 1 ]]; then
+    print "PASS real PlaybackCore UI tests: $ui_test_selection"
+    print "Result bundle: $result_bundle"
+    print "Runtime log: $runtime_log"
+    exit 0
 fi
 
 if rg -q 'fixture surface attached' $runtime_log; then
