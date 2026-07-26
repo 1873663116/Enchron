@@ -703,6 +703,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
               record.requestedMode == presentation.rawValue else { return false }
         if record.phase == "settled" { return true }
         guard record.phase == "surfaceAttached" else { return false }
+        guard presentation != .panorama else { return false }
         switch lifecycle {
         case .ready, .paused, .ended:
             return true

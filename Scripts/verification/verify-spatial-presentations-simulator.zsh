@@ -138,7 +138,7 @@ if rg -q 'fixture surface attached' $runtime_log; then
     print -u2 "FAIL spatial acceptance used the UI-test PlaybackRuntime fixture"
     exit 1
 fi
-rg -q 'session prepared id=' $runtime_log
+rg -q 'session.prepare.end id=' $runtime_log
 rg -q 'world load completed' $runtime_log
 
 snapshot_source=$(rg -o 'snapshot=[^ ]+' $runtime_log | tail -1 | cut -d= -f2)

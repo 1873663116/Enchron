@@ -124,6 +124,12 @@ def main() -> None:
         and "first.pngRepresentation" not in spatial_acceptance,
         "spatial playback motion is inferred from unsupported Simulator screenshots instead of the real timeline",
     )
+    require(
+        "guard presentation != .panorama else { return false }" in runtime
+        and "testPanoramaRequiresObservedVideoPlayerModesBeforeCommit"
+            in read("Tests/EnchronMacOS/MacRealityPlaybackContractTests.swift"),
+        "Panorama can commit before RealityKit reports its actual viewing modes as settled",
+    )
     fixture_duration = re.search(r"^[ \t]*-t[ \t]+(\d+)", spatial_verifier, re.MULTILINE)
     require(
         fixture_duration is not None

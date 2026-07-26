@@ -210,6 +210,39 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
     }
 
     @MainActor
+    func testPanoramaRequiresObservedVideoPlayerModesBeforeCommit() {
+        let attached = PresentationStateRecord(
+            mediaSessionID: "session",
+            requestedMode: PlaybackPresentation.panorama.rawValue,
+            phase: "surfaceAttached",
+            platform: "visionOS"
+        )
+        let settled = PresentationStateRecord(
+            mediaSessionID: "session",
+            requestedMode: PlaybackPresentation.panorama.rawValue,
+            phase: "settled",
+            platform: "visionOS"
+        )
+
+        XCTAssertFalse(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: attached,
+                presentation: .panorama,
+                activeSessionID: "session",
+                lifecycle: .paused
+            )
+        )
+        XCTAssertTrue(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: settled,
+                presentation: .panorama,
+                activeSessionID: "session",
+                lifecycle: .paused
+            )
+        )
+    }
+
+    @MainActor
     func testPresentationCommitRejectsTheWrongSessionAndTarget() {
         let record = PresentationStateRecord(
             mediaSessionID: "stale-session",
