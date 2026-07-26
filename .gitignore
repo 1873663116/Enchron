@@ -18,13 +18,6 @@ __pycache__/
 # Xcode local build output
 build/
 
-# Local test media
-XrPlayer/86ForTest.mkv
-.verification-fixtures/
-
-# Local backup project
-XrPlayer/XrPlayer.xcodeproj.bak/
-
 # Overnight runtime artifacts
 morning-report.md
 overnight-log.md
@@ -33,4 +26,4 @@ TODOS.md
 logs/
 
 # RCP immersive scene binary (~42MB) — local-only per ADR-0008, not committed
-XrPlayer/SpatialScene/Resources/Immersive_Space.reality
+Modules/PlaybackPresentation/Resources/Immersive_Space.reality

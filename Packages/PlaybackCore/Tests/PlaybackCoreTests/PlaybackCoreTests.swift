@@ -4,16 +4,6 @@ import CoreVideo
 import Testing
 @testable import PlaybackCore
 
-@Test func routeInputKindsAreStable() {
-    #expect(PlaybackRoute.appleCompressed.rendererInputKind == .compressed)
-    #expect(PlaybackRoute.ffmpegCompressed.rendererInputKind == .compressed)
-}
-
-@MainActor
-@Test func productControllerDefaultsToTheFFmpegProvider() {
-    #expect(PlaybackCoreController().selectedRoute == .ffmpegCompressed)
-}
-
 @Test func ffmpegSourceLocatorPreservesRemoteSchemeHostAndCredentials() throws {
     let remote = try #require(URL(string: "http://user:pass@example.test:5244/dav/video.mkv"))
     #expect(
@@ -27,34 +17,32 @@ import Testing
 
 @MainActor
 @Test func productOpenUsesTheDemuxProviderForURLSources() async throws {
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
-            provider: FakeVideoSampleProvider(route: route, events: [.end]),
+            provider: FakeVideoSampleProvider(events: [.end]),
             rendererSink: FakeRendererInputSink()
         )
     }
 
     let localSession = try await controller.open(URL(fileURLWithPath: "/fixtures/movie.mkv"))
 
-    #expect(localSession.route == .ffmpegCompressed)
+    #expect(localSession.debugSnapshot().providerOpen?.providerKind == "Fake")
     await controller.closeAndWait()
 
     let remoteURL = try #require(URL(string: "https://example.test/media/movie.mkv"))
     let remoteSession = try await controller.open(remoteURL)
 
-    #expect(remoteSession.route == .ffmpegCompressed)
+    #expect(remoteSession.debugSnapshot().providerOpen?.providerKind == "Fake")
     await controller.closeAndWait()
 }
 
 @MainActor
 @Test func productOpenKeepsSuppliedAVAssetsOnTheFFmpegProvider() async throws {
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
-            provider: FakeVideoSampleProvider(route: route, events: [.end]),
+            provider: FakeVideoSampleProvider(events: [.end]),
             rendererSink: FakeRendererInputSink()
         )
     }
@@ -62,7 +50,7 @@ import Testing
 
     let session = try await controller.open(url, asset: PlaybackAsset(AVURLAsset(url: url)))
 
-    #expect(session.route == .ffmpegCompressed)
+    #expect(session.debugSnapshot().providerOpen?.providerKind == "Fake")
     await controller.closeAndWait()
 }
 
@@ -171,7 +159,6 @@ import Testing
     let store = PlaybackDiagnosticsStore()
     let record = PresentationStateRecord(
         mediaSessionID: "session-1",
-        route: .ffmpegCompressed,
         requestedMode: "panorama",
         phase: "active",
         platform: "visionOS",
@@ -190,13 +177,12 @@ import Testing
     #expect(store.snapshot().presentationState == record)
 }
 
-@Test func acceptedOpenBindsSourceAndRouteToOneSession() {
+@Test func acceptedOpenBindsSourceToOneSession() {
     var state = MediaSessionState()
     let source = fixtureSource("one.mp4")
 
     let admission = state.admitOpen(
         source: source,
-        route: .appleCompressed,
         initialTimeSeconds: 2.5,
         startsPaused: true,
         mediaSessionID: "session-1"
@@ -209,7 +195,6 @@ import Testing
     #expect(session.mediaSessionID == "session-1")
     #expect(session.source == source)
     #expect(session.source.accessRequirement == "notRequired")
-    #expect(session.route == .appleCompressed)
     #expect(session.initialTimeSeconds == 2.5)
     #expect(session.startsPaused)
     #expect(state.current == session)
@@ -219,13 +204,11 @@ import Testing
     var state = MediaSessionState()
     _ = state.admitOpen(
         source: fixtureSource("one.mp4"),
-        route: .appleCompressed,
         mediaSessionID: "session-1"
     )
 
     let second = state.admitOpen(
         source: fixtureSource("two.mkv"),
-        route: .ffmpegCompressed,
         mediaSessionID: "session-2"
     )
 
@@ -242,7 +225,6 @@ import Testing
     var state = MediaSessionState()
     _ = state.admitOpen(
         source: fixtureSource("one.mp4"),
-        route: .appleCompressed,
         mediaSessionID: "session-1"
     )
 
@@ -255,7 +237,6 @@ import Testing
 
     let next = state.admitOpen(
         source: fixtureSource("two.mkv"),
-        route: .ffmpegCompressed,
         mediaSessionID: "session-2"
     )
     guard case .accepted(let session) = next else {
@@ -265,12 +246,11 @@ import Testing
     #expect(session.mediaSessionID == "session-2")
 }
 
-@Test func snapshotPreservesRouteEpochRevisionAndTypedCounts() async throws {
+@Test func snapshotPreservesMediaEventEpochRevisionAndTypedCounts() async throws {
     let store = PlaybackDiagnosticsStore()
-    let event = RouteMediaEventRecord(
+    let event = MediaEventRecord(
         eventID: "event-1",
         mediaSessionID: "session-1",
-        route: .ffmpegCompressed,
         videoTrackID: "video-1",
         streamEpoch: 4,
         formatRevision: 2,
@@ -278,7 +258,6 @@ import Testing
     )
     let sample = VideoSampleRecord(
         mediaSessionID: "session-1",
-        route: .ffmpegCompressed,
         videoTrackID: "video-1",
         sourceEventID: "event-1",
         streamEpoch: 4,
@@ -297,11 +276,10 @@ import Testing
         ),
         payloadOwnershipState: "retainedCMSampleBuffer"
     )
-    store.recordRouteEvent(event)
+    store.recordMediaEvent(event)
     store.recordVideoSample(sample)
     store.recordRendererInput(RendererInputRecord(
         mediaSessionID: "session-1",
-        route: .ffmpegCompressed,
         sourceEventID: "event-1",
         streamEpoch: 4,
         graphRevision: 1,
@@ -362,7 +340,6 @@ import Testing
     let session = MediaSessionRecord(
         mediaSessionID: "session-1",
         source: fixtureSource("private-name.mp4"),
-        route: .appleCompressed,
         initialTimeSeconds: 0,
         startsPaused: false,
         lifecycle: .playing
@@ -407,9 +384,8 @@ import Testing
 
 @MainActor
 @Test func controllerRejectsSecondOpenAndRecordsTheRejection() async throws {
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
             provider: FakeVideoSampleProvider(events: [.end]),
             rendererSink: FakeRendererInputSink()
@@ -418,11 +394,11 @@ import Testing
     defer { controller.close() }
     let source = URL(fileURLWithPath: "/fixtures/fake.mov")
 
-    let first = try await controller.open(source, route: .ffmpegCompressed)
+    let first = try await controller.open(source)
     #expect(first.debugSnapshot().platform == "macOS")
     #expect(first.debugSnapshot().hardwareDisplayFacts == .notAvailable)
     do {
-        _ = try await controller.open(source, route: .ffmpegCompressed)
+        _ = try await controller.open(source)
         Issue.record("Expected second open to be rejected")
     } catch let error as PlaybackControlError {
         guard case .openRejected(let rejection) = error else {
@@ -455,17 +431,16 @@ import Testing
 @Test func openWaitsForPendingSynchronousCloseCleanup() async throws {
     let sink = FakeRendererInputSink(completesFlushImmediately: false)
     let sessionCreationCount = LockedBox(0)
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         sessionCreationCount.withLock { $0 += 1 }
         return SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
-            provider: FakeVideoSampleProvider(route: route, events: [.end]),
+            provider: FakeVideoSampleProvider(events: [.end]),
             rendererSink: sink
         )
     }
     let source = URL(fileURLWithPath: "/fixtures/fake.mov")
-    let first = try await controller.open(source, route: .appleCompressed)
+    let first = try await controller.open(source)
 
     controller.close(clearSource: false)
     try await waitForFlushCount(1, in: sink)
@@ -475,7 +450,7 @@ import Testing
     let secondOpen = Task { @MainActor in
         secondOpenStartedContinuation.yield()
         secondOpenStartedContinuation.finish()
-        let session = try await controller.open(source, route: .ffmpegCompressed)
+        let session = try await controller.open(source)
         didFinishSecondOpen.withLock { $0 = true }
         return session
     }
@@ -494,9 +469,8 @@ import Testing
 
 @Test func closeSnapshotRecordsTheCompleteCleanupBarrier() async throws {
     let session = SampleBufferPlaybackSession(
-        route: .appleCompressed,
         traceID: "cleanup-barrier-session",
-        provider: FakeVideoSampleProvider(route: .appleCompressed, events: [.end]),
+        provider: FakeVideoSampleProvider(events: [.end]),
         rendererSink: FakeRendererInputSink()
     )
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/cleanup.mov"))
@@ -515,12 +489,10 @@ import Testing
 
 @MainActor
 @Test func unrecoverableProviderFailureReleasesCurrentMediaSlot() async throws {
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                route: route,
                 events: [],
                 readError: FakeSampleError.providerRead
             ),
@@ -530,7 +502,6 @@ import Testing
     defer { controller.close() }
     let session = try await controller.open(
         URL(fileURLWithPath: "/fixtures/failing.mov"),
-        route: .ffmpegCompressed
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
@@ -551,7 +522,6 @@ import Testing
 
     let reopened = try await controller.open(
         URL(fileURLWithPath: "/fixtures/reopen.mov"),
-        route: .ffmpegCompressed
     )
     #expect(reopened.traceID != session.traceID)
 }
@@ -563,16 +533,14 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 ) async throws {
     let sink = FakeRendererInputSink(completesFlushImmediately: false)
     let sessionCreationCount = LockedBox(0)
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         let creation = sessionCreationCount.withLock { count in
             count += 1
             return count
         }
         return SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                route: route,
                 events: creation == 1 ? [] : [.end],
                 readError: creation == 1 ? FakeSampleError.providerRead : nil
             ),
@@ -580,7 +548,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         )
     }
     let source = URL(fileURLWithPath: "/fixtures/failing.mov")
-    let failedSession = try await controller.open(source, route: .ffmpegCompressed)
+    let failedSession = try await controller.open(source)
     failedSession.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
         platform: "macOS",
@@ -599,7 +567,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     let nextOpen = Task { @MainActor in
         let session = switch recovery {
         case .open:
-            try await controller.open(source, route: .ffmpegCompressed)
+            try await controller.open(source)
         case .reopen:
             try await controller.reopen()
         }
@@ -625,9 +593,8 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 @MainActor
 @Test func controllerSeekKeepsSessionAndAdvancesStreamEpoch() async throws {
     let sample = try makeCompressedH264Sample(presentationTimeSeconds: 10)
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
             provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
             rendererSink: FakeRendererInputSink()
@@ -636,7 +603,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     defer { controller.close() }
     let session = try await controller.open(
         URL(fileURLWithPath: "/fixtures/fake.mov"),
-        route: .ffmpegCompressed
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
@@ -674,7 +640,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         }
         let lastPTSLabel = expectedLastPTS.map { String($0) } ?? "none"
         let session = SampleBufferPlaybackSession(
-            route: .ffmpegCompressed,
             traceID: "seek-target-unavailable-\(lastPTSLabel)",
             provider: FakeVideoSampleProvider(events: events),
             rendererSink: FakeRendererInputSink()
@@ -708,61 +673,10 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 }
 
 @MainActor
-@Test func coldRouteSwitchCreatesNewSessionAndCompletesAtPresentation() async throws {
-    let controller = PlaybackCoreController { route, sessionID in
-        SampleBufferPlaybackSession(
-            route: route,
-            traceID: sessionID,
-            provider: FakeVideoSampleProvider(route: route, events: [.end]),
-            audioProvider: FakeAudioSampleProvider(),
-            rendererSink: FakeRendererInputSink()
-        )
-    }
-    defer { controller.close() }
-    let first = try await controller.open(
-        URL(fileURLWithPath: "/fixtures/fake.mov"),
-        route: .appleCompressed,
-        initialRate: 0.5,
-        accessRequirement: "securityScopedURL"
-    )
-    #expect(first.debugSnapshot().mediaSession?.accessRequirement == "securityScopedURL")
-    #expect(controller.availableAudioTracks.map(\.streamIndex) == [1, 2])
-    first.recordPresentationBinding(
-        realityViewIdentity: "testRealityView",
-        platform: "macOS",
-        attached: true
-    )
-    try await first.selectAudioTrack(streamIndex: 2)
-    try first.setVolume(0.35)
-    first.setMuted(true)
-
-    let second = try await controller.switchRoute(to: .ffmpegCompressed)
-    #expect(second !== first)
-    #expect(second.debugSnapshot().lastRouteSwitchOperation == nil)
-    second.recordPresentationBinding(
-        realityViewIdentity: "testRealityView",
-        platform: "macOS",
-        attached: true
-    )
-
-    let operation = second.debugSnapshot().lastRouteSwitchOperation
-    #expect(operation?.state == .completed)
-    #expect(operation?.sourceRoute == .appleCompressed)
-    #expect(operation?.targetRoute == .ffmpegCompressed)
-    #expect(second.debugSnapshot().mediaSession?.initialRate == 0.5)
-    #expect(second.debugSnapshot().mediaSession?.accessRequirement == "securityScopedURL")
-    #expect(controller.availableAudioTracks == second.availableAudioTracks)
-    #expect(second.selectedAudioStreamIndex == 2)
-    #expect(second.currentVolume == 0.35)
-    #expect(second.isMuted)
-}
-
-@MainActor
 @Test func newerSeekSupersedesOlderSeekAndOwnsFinalTarget() async throws {
     let sample = try makeCompressedH264Sample(presentationTimeSeconds: 20)
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
                 events: [.sample(sample), .end],
@@ -774,7 +688,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     defer { controller.close() }
     let session = try await controller.open(
         URL(fileURLWithPath: "/fixtures/fake.mov"),
-        route: .ffmpegCompressed
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
@@ -814,9 +727,8 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 @MainActor
 @Test func threeRapidSeeksOnlyAllowNewestWaiterToEnterSession() async throws {
     let sample = try makeCompressedH264Sample(presentationTimeSeconds: 20)
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
                 events: [.sample(sample), .end],
@@ -829,7 +741,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     defer { controller.close() }
     let session = try await controller.open(
         URL(fileURLWithPath: "/fixtures/fake.mov"),
-        route: .ffmpegCompressed
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
@@ -875,9 +786,8 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 @MainActor
 @Test func rapidRelativeSeeksAccumulateInsideTheCore() async throws {
     let sample = try makeCompressedH264Sample(presentationTimeSeconds: 30)
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
                 events: [.sample(sample), .end],
@@ -889,7 +799,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     defer { controller.close() }
     let session = try await controller.open(
         URL(fileURLWithPath: "/fixtures/fake.mov"),
-        route: .ffmpegCompressed
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
@@ -927,13 +836,12 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(abs(finalTarget - (baseSeconds + 20)) < 0.001)
 }
 
-@Test func injectedProviderProducesRouteEventSampleAndRendererIntent() async throws {
+@Test func injectedProviderProducesMediaEventSampleAndRendererIntent() async throws {
     let sample = try makeCompressedH264Sample()
     try expectCompressedH264Contract(sample)
     let provider = FakeVideoSampleProvider(events: [.sample(sample), .end])
     let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "fake-compressed-session",
         provider: provider,
         rendererSink: sink
@@ -948,7 +856,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         let snapshot = session.debugSnapshot()
         if snapshot.sampleCount == 1,
            snapshot.acceptedRendererInputCount == 1,
-           snapshot.lastRouteEvent?.kind == .end {
+           snapshot.lastMediaEvent?.kind == .end {
             #expect(snapshot.lastVideoSample?.inputKind == .compressed)
             #expect(snapshot.lastVideoSample?.mediaSubtype == "avc1")
             #expect(snapshot.lastVideoSample?.dimensions == "640x360")
@@ -982,7 +890,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 @Test func zeroRequestedStartOwnsTimelineWhenFirstVideoSampleStartsLater() async throws {
     let sample = try makeCompressedH264Sample(presentationTimeSeconds: 0.021)
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "offset-first-video-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: FakeRendererInputSink()
@@ -1031,7 +938,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
     let sink = FakeRendererInputSink(automaticallyRunsRequests: false)
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "first-video-preroll-session",
         provider: FakeVideoSampleProvider(
             events: [
@@ -1063,10 +969,8 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     let video = try makeCompressedH264Sample(presentationTimeSeconds: 1.0 / 15.0)
     let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
-        route: .appleCompressed,
         traceID: "marker-then-video-session",
         provider: FakeVideoSampleProvider(
-            route: .appleCompressed,
             events: [.sample(marker), .sample(video), .end]
         ),
         rendererSink: sink
@@ -1081,31 +985,9 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(sink.enqueuedSampleCount == 1)
 }
 
-@Test func appleProviderCopyOwnsCompressedBytesAcrossAsyncHandoff() throws {
-    let source = try makeCompressedH264Sample(
-        presentationTimeSeconds: 1.25,
-        durationSeconds: 1.0 / 24.0
-    )
-    let copy = try AppleCompressedSampleProvider.independentCopy(of: source)
-    let sourceData = try #require(CMSampleBufferGetDataBuffer(source))
-    let copiedData = try #require(CMSampleBufferGetDataBuffer(copy))
-
-    #expect(sourceData !== copiedData)
-    #expect(CMBlockBufferGetDataLength(sourceData) == CMBlockBufferGetDataLength(copiedData))
-    #expect(CMSampleBufferGetPresentationTimeStamp(copy) == CMSampleBufferGetPresentationTimeStamp(source))
-
-    let length = CMBlockBufferGetDataLength(sourceData)
-    var sourceBytes = [UInt8](repeating: 0, count: length)
-    var copiedBytes = [UInt8](repeating: 0, count: length)
-    #expect(CMBlockBufferCopyDataBytes(sourceData, atOffset: 0, dataLength: length, destination: &sourceBytes) == noErr)
-    #expect(CMBlockBufferCopyDataBytes(copiedData, atOffset: 0, dataLength: length, destination: &copiedBytes) == noErr)
-    #expect(sourceBytes == copiedBytes)
-}
-
 @Test func invalidRateIsRejectedAndRecorded() async throws {
     let sample = try makeCompressedH264Sample()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "invalid-rate-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: FakeRendererInputSink()
@@ -1135,7 +1017,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 @Test func playResumesPreferredRateAfterPause() async throws {
     let sample = try makeCompressedH264Sample()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "preferred-rate-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: FakeRendererInputSink()
@@ -1156,135 +1037,10 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 }
 
 @MainActor
-@Test func pausedColdRouteSwitchPreservesPreferredRate() async throws {
-    let sample = try makeCompressedH264Sample()
-    let controller = PlaybackCoreController { route, sessionID in
-        SampleBufferPlaybackSession(
-            route: route,
-            traceID: sessionID,
-            provider: FakeVideoSampleProvider(
-                route: route,
-                events: [.sample(sample), .end]
-            ),
-            rendererSink: FakeRendererInputSink()
-        )
-    }
-    defer { controller.close() }
-
-    let first = try await controller.open(
-        URL(fileURLWithPath: "/fixtures/fake.mov"),
-        route: .appleCompressed
-    )
-    try controller.start()
-    try await waitForSampleCount(1, in: first)
-    try controller.setRate(1.5)
-    try controller.pause()
-
-    let second = try await controller.switchRoute(to: .ffmpegCompressed)
-    #expect(second.currentRate() == 0)
-    #expect(second.preferredPlaybackRate == 1.5)
-    #expect(second.debugSnapshot().mediaSession?.startsPaused == true)
-    #expect(second.debugSnapshot().mediaSession?.initialRate == 1.5)
-}
-
-@MainActor
-@Test func controllerStereoOverrideSurvivesColdSwitchAndReopenButNotExternalOpen() async throws {
-    let sample = try makeCompressedH264Sample()
-    let controller = PlaybackCoreController { route, sessionID in
-        SampleBufferPlaybackSession(
-            route: route,
-            traceID: sessionID,
-            provider: FakeVideoSampleProvider(
-                route: route,
-                events: Array(repeating: .sample(sample), count: 8) + [.end]
-            ),
-            rendererSink: FakeRendererInputSink(pausesAfterEachEnqueue: true)
-        )
-    }
-    defer { controller.close() }
-
-    let url = URL(fileURLWithPath: "/fixtures/stereo-controller.mov")
-    let first = try await controller.open(url, route: .appleCompressed)
-    try controller.start()
-    try await waitForSampleCount(1, in: first)
-    try await controller.setStereoLayout(.sideBySide)
-    #expect(controller.selectedStereoLayout == .sideBySide)
-    #expect(first.effectiveStereoLayout == .sideBySide)
-
-    let switched = try await controller.switchRoute(to: .ffmpegCompressed)
-    #expect(controller.selectedStereoLayout == .sideBySide)
-    #expect(switched.effectiveStereoLayout == .sideBySide)
-    try controller.start()
-    try await waitForSampleCount(1, in: switched)
-    #expect(switched.debugSnapshot().formatRevision == 1)
-    #expect(
-        switched.debugSnapshot().lastVideoSample?.formatSignaling.viewPackingKind.value
-            == kCMFormatDescriptionViewPackingKind_SideBySide as String
-    )
-
-    let reopened = try await controller.reopen()
-    #expect(controller.selectedStereoLayout == .sideBySide)
-    #expect(reopened.effectiveStereoLayout == .sideBySide)
-
-    await controller.closeAndWait()
-    let external = try await controller.open(url, route: .appleCompressed)
-    #expect(controller.selectedStereoLayout == nil)
-    #expect(external.effectiveStereoLayout == .mono)
-}
-
-@MainActor
-@Test func controllerProjectionOverrideSurvivesColdSwitchAndReopenButNotExternalOpen() async throws {
-    let sourceProjection = kCMFormatDescriptionProjectionKind_Equirectangular as String
-    let sample = try makeCompressedH264Sample(
-        projectionKind: kCMFormatDescriptionProjectionKind_Equirectangular
-    )
-    let controller = PlaybackCoreController { route, sessionID in
-        SampleBufferPlaybackSession(
-            route: route,
-            traceID: sessionID,
-            provider: FakeVideoSampleProvider(
-                route: route,
-                events: Array(repeating: .sample(sample), count: 8) + [.end],
-                projectionKind: sourceProjection
-            ),
-            rendererSink: FakeRendererInputSink(pausesAfterEachEnqueue: true)
-        )
-    }
-    defer { controller.close() }
-
-    let url = URL(fileURLWithPath: "/fixtures/projection-controller.mov")
-    let first = try await controller.open(
-        url,
-        route: .appleCompressed,
-        initialProjectionOverride: .rectilinear
-    )
-    #expect(controller.selectedProjectionOverride == .rectilinear)
-    try controller.start()
-    try await waitForSampleCount(1, in: first)
-    #expect(
-        first.debugSnapshot().lastVideoSample?.formatSignaling.projectionKind.value
-            == kCMFormatDescriptionProjectionKind_Rectilinear as String
-    )
-
-    let switched = try await controller.switchRoute(to: .ffmpegCompressed)
-    #expect(controller.selectedProjectionOverride == .rectilinear)
-    #expect(switched.effectiveProjectionKind == kCMFormatDescriptionProjectionKind_Rectilinear as String)
-
-    let reopened = try await controller.reopen()
-    #expect(controller.selectedProjectionOverride == .rectilinear)
-    #expect(reopened.effectiveProjectionKind == kCMFormatDescriptionProjectionKind_Rectilinear as String)
-
-    await controller.closeAndWait()
-    let external = try await controller.open(url, route: .appleCompressed)
-    #expect(controller.selectedProjectionOverride == nil)
-    #expect(external.effectiveProjectionKind == sourceProjection)
-}
-
 @Test func providerFormatChangeAdvancesRevisionAndFlushesRenderer() async throws {
     let sample = try makeCompressedH264Sample()
     let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "format-change-session",
         provider: FakeVideoSampleProvider(
             events: [.formatChanged, .sample(sample), .end]
@@ -1306,7 +1062,6 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 @Test func providerFlushAdvancesStreamEpoch() async throws {
     let sample = try makeCompressedH264Sample()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "provider-flush-session",
         provider: FakeVideoSampleProvider(events: [.flush, .sample(sample), .end]),
         rendererSink: FakeRendererInputSink()
@@ -1322,14 +1077,13 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(snapshot.lastVideoSample?.streamEpoch == 2)
 }
 
-@Test(arguments: PlaybackRoute.allCases)
-func stereoOverrideBeforeFirstSampleKeepsInitialRevision(route: PlaybackRoute) async throws {
+@Test
+func stereoOverrideBeforeFirstSampleKeepsInitialRevision() async throws {
     let sample = try makeCompressedH264Sample()
     let sink = FakeRendererInputSink()
     let session = SampleBufferPlaybackSession(
-        route: route,
-        traceID: "stereo-before-start-\(route.rawValue)",
-        provider: FakeVideoSampleProvider(route: route, events: [.sample(sample), .end]),
+        traceID: "stereo-before-start",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: sink
     )
     defer { session.close() }
@@ -1350,16 +1104,14 @@ func stereoOverrideBeforeFirstSampleKeepsInitialRevision(route: PlaybackRoute) a
     )
 }
 
-@Test(arguments: PlaybackRoute.allCases)
-func liveStereoOverrideUsesSharedSeamWithoutChangingTimeline(route: PlaybackRoute) async throws {
+@Test
+func liveStereoOverrideUsesSharedSeamWithoutChangingTimeline() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 30)
     let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
     let session = SampleBufferPlaybackSession(
-        route: route,
-        traceID: "stereo-live-\(route.rawValue)",
+        traceID: "stereo-live",
         provider: FakeVideoSampleProvider(
-            route: route,
-            events: Array(repeating: .sample(sample), count: 5) + [.end]
+            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
         ),
         rendererSink: sink
     )
@@ -1410,19 +1162,17 @@ func liveStereoOverrideUsesSharedSeamWithoutChangingTimeline(route: PlaybackRout
     #expect(PlaybackTrace.identity(session.renderer) == rendererIdentity)
 }
 
-@Test(arguments: PlaybackRoute.allCases)
-func liveProjectionOverrideUsesSharedSeamWithoutChangingTimeline(route: PlaybackRoute) async throws {
+@Test
+func liveProjectionOverrideUsesSharedSeamWithoutChangingTimeline() async throws {
     let sourceProjection = kCMFormatDescriptionProjectionKind_Equirectangular as String
     let sample = try makeCompressedH264Sample(
         projectionKind: kCMFormatDescriptionProjectionKind_Equirectangular
     )
     let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
     let session = SampleBufferPlaybackSession(
-        route: route,
-        traceID: "projection-live-\(route.rawValue)",
+        traceID: "projection-live",
         provider: FakeVideoSampleProvider(
-            route: route,
-            events: Array(repeating: .sample(sample), count: 4) + [.end],
+            events: Array(repeating: .sample(sample), count: 1_000) + [.end],
             projectionKind: sourceProjection
         ),
         rendererSink: sink
@@ -1460,18 +1210,14 @@ func liveProjectionOverrideUsesSharedSeamWithoutChangingTimeline(route: Playback
     #expect(PlaybackTrace.identity(session.renderer) == rendererIdentity)
 }
 
-@Test(arguments: PlaybackRoute.allCases)
-func panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeline(
-    route: PlaybackRoute
-) async throws {
+@Test
+func panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeline() async throws {
     let sample = try makeCompressedH264Sample()
     let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
     let session = SampleBufferPlaybackSession(
-        route: route,
-        traceID: "projection-panorama-\(route.rawValue)",
+        traceID: "projection-panorama",
         provider: FakeVideoSampleProvider(
-            route: route,
-            events: Array(repeating: .sample(sample), count: 4) + [.end]
+            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
         ),
         rendererSink: sink
     )
@@ -1512,7 +1258,6 @@ func panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeli
         automaticallyRunsRequests: false
     )
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "stereo-clear-source-format",
         provider: FakeVideoSampleProvider(
             events: Array(repeating: .sample(sample), count: 3) + [.end]
@@ -1584,7 +1329,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         automaticallyRunsRequests: false
     )
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "stereo-provider-reset",
         provider: FakeVideoSampleProvider(
             events: [.sample(sample), reset.event, .sample(sample), .end]
@@ -1658,16 +1402,14 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     )
     let laterSink = FakeRendererInputSink()
     let sessionCreationCount = LockedBox(0)
-    let controller = PlaybackCoreController { route, sessionID in
+    let controller = PlaybackCoreController { sessionID in
         let creation = sessionCreationCount.withLock { count in
             count += 1
             return count
         }
         return SampleBufferPlaybackSession(
-            route: route,
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                route: route,
                 events: Array(repeating: .sample(sample), count: 3) + [.end]
             ),
             rendererSink: creation == 1 ? firstSink : laterSink
@@ -1676,7 +1418,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     defer { controller.close() }
 
     let url = URL(fileURLWithPath: "/fixtures/stereo-controller.mov")
-    let first = try await controller.open(url, route: .appleCompressed)
+    let first = try await controller.open(url)
     try controller.start()
     try await waitForPendingRequestCount(1, in: firstSink)
     firstSink.runNextPendingRequest()
@@ -1700,7 +1442,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(!didFinishOldCommand.withLock { $0 })
 
     controller.close(clearSource: false)
-    let second = try await controller.open(url, route: .ffmpegCompressed)
+    let second = try await controller.open(url)
     firstSink.runNextPendingRequest()
 
     do {
@@ -1723,7 +1465,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 
 @Test func bindingRecordsRejectSecondActiveIdentity() async throws {
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "binding-identity-session",
         provider: FakeVideoSampleProvider(events: [.end]),
         rendererSink: FakeRendererInputSink()
@@ -1753,7 +1494,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 @Test func audioTrackSelectionAndRendererControlsStayInsideCurrentSession() async throws {
     let audio = FakeAudioSampleProvider()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "audio-control-session",
         provider: FakeVideoSampleProvider(events: [.end]),
         audioProvider: audio,
@@ -1790,7 +1530,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     let videoSample = try makeCompressedH264Sample(durationSeconds: 0.05)
     let audioSample = try makeAudioSample(durationSeconds: 0.75)
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "longer-audio-session",
         provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
         audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
@@ -1822,7 +1561,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 @Test func endedUsesVideoPresentationEndWhenNoAudioIsSelected() async throws {
     let videoSample = try makeCompressedH264Sample(durationSeconds: 0.05)
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "video-only-end-session",
         provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
         rendererSink: FakeRendererInputSink()
@@ -1844,7 +1582,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 
 @Test func videoOnlySessionRetainsAudioRendererPreferencesInSnapshot() async throws {
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "video-only-audio-preferences-session",
         provider: FakeVideoSampleProvider(events: [.end]),
         rendererSink: FakeRendererInputSink()
@@ -1870,7 +1607,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     let videoSample = try makeCompressedH264Sample(durationSeconds: 5)
     let audioSample = try makeAudioSample(durationSeconds: 5)
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "first-audio-enqueue-snapshot",
         provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
         audioProvider: FakeAudioSampleProvider(
@@ -1909,7 +1645,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
 
 @Test func audioOpenFailureIsNotClassifiedByMessageText() async throws {
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "audio-open-error-session",
         provider: FakeVideoSampleProvider(events: [.end]),
         audioProvider: FailingAudioOpenProvider(),
@@ -1934,7 +1669,6 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     )
     let sample = try makeCompressedH264Sample(durationSeconds: 10)
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "failed-audio-selection-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         audioProvider: audio,
@@ -1974,7 +1708,6 @@ func terminalRendererFailurePublishesFailedOnce(
     let sink = FakeRendererInputSink()
     let monitor = FakeRendererFailureMonitor()
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "\(rendererKind.rawValue)-renderer-failure-session",
         provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
         audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
@@ -2031,7 +1764,6 @@ func terminalRendererFailurePublishesFailedOnce(
         enqueueOutcomes: [.acceptedWithWarnings(["Injected decode warning"])]
     )
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "receiver-warning-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: sink
@@ -2053,7 +1785,6 @@ func terminalRendererFailurePublishesFailedOnce(
     let sample = try makeCompressedH264Sample(durationSeconds: 5)
     let sink = FakeRendererInputSink(enqueueOutcomes: [.cancelledByFlush])
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "receiver-flush-cancellation-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: sink
@@ -2076,7 +1807,6 @@ func terminalRendererFailurePublishesFailedOnce(
         enqueueOutcomes: [.requiresFlush("Injected flush requirement")]
     )
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "receiver-requires-flush-session",
         provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
         rendererSink: sink
@@ -2093,22 +1823,19 @@ func terminalRendererFailurePublishesFailedOnce(
     #expect(snapshot.lastFailure?.requiresFlushToResumeDecoding == true)
 }
 
-@Test(arguments: PlaybackRoute.allCases)
-func providerOpenContractPreservesExplicitRoute(_ route: PlaybackRoute) async throws {
+@Test
+func providerOpenContractRecordsTheActiveProvider() async throws {
     let session = SampleBufferPlaybackSession(
-        route: route,
-        traceID: "provider-open-\(route.rawValue)",
-        provider: FakeVideoSampleProvider(route: route, events: [.end]),
+        traceID: "provider-open",
+        provider: FakeVideoSampleProvider(events: [.end]),
         rendererSink: FakeRendererInputSink()
     )
     defer { session.close() }
 
-    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/\(route.rawValue).mov"))
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/movie.mov"))
     let snapshot = session.debugSnapshot()
-    #expect(snapshot.providerOpen?.route == route)
-    #expect(snapshot.providerOpen?.providerKind == "Fake-\(route.rawValue)")
+    #expect(snapshot.providerOpen?.providerKind == "Fake")
     #expect(snapshot.providerOpen?.openStatus == "opened")
-    #expect(snapshot.videoTrack?.route == route)
     #expect(snapshot.videoTrack?.selected == true)
 }
 
@@ -2116,7 +1843,6 @@ func providerOpenContractPreservesExplicitRoute(_ route: PlaybackRoute) async th
 func repeatedSessionStartDoesNotRestartThePreparedProvider() async throws {
     let provider = FakeVideoSampleProvider(events: [.end])
     let session = SampleBufferPlaybackSession(
-        route: .ffmpegCompressed,
         traceID: "idempotent-session-start",
         provider: provider,
         rendererSink: FakeRendererInputSink(automaticallyRunsRequests: false)
@@ -2145,7 +1871,6 @@ private func fixtureSource(_ name: String) -> MediaSourceRecord {
 }
 
 private final class FakeVideoSampleProvider: VideoSampleProvider {
-    let route: PlaybackRoute
     let info: VideoSampleProviderInfo
 
     private var events: [VideoSampleProviderEvent]
@@ -2156,16 +1881,14 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
     private(set) var startCount = 0
 
     init(
-        route: PlaybackRoute = .ffmpegCompressed,
         events: [VideoSampleProviderEvent],
         seekPrepareDelay: Duration? = nil,
         seekPrepareIgnoresCancellation: Bool = false,
         readError: Error? = nil,
         projectionKind: String? = nil
     ) {
-        self.route = route
         info = VideoSampleProviderInfo(
-            providerKind: "Fake-\(route.rawValue)",
+            providerKind: "Fake",
             containerFormat: "fixture",
             durationSeconds: 1,
             nominalFrameRate: 30,

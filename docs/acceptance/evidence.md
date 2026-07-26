@@ -1,5 +1,14 @@
 # Enchron 播放系统证据
 
+## 2026-07-26 有机架构与空间结算边界
+
+- Code revision：Enchron `34f9e17`，Git tree `7c647c363d045f3bdbee089362ca812eaf55d80d`；聚焦验证期间 revision 与 tree 均未变化。
+- PlaybackCore：在 `Packages/PlaybackCore` 完整执行 `swift test`，74 tests、0 failures。
+- Platform contract：完整 `MacRealityPlaybackContractTests` 为 11 tests、0 failures；`testPanoramaRequiresObservedVideoPlayerModesBeforeCommit` 明确证明非 Simulator 编译分支拒绝 `simulatorConfigured`。
+- Simulator configuration acceptance：visionOS Simulator build 通过；真实 FFmpeg → PlaybackCore 媒体在同一 Media Session 中完成 Window → Docked → Window → Panorama → Window，Docked 与 Panorama 时间线均推进。Panorama desired modes 为 progressive / mono / screen，Simulator 暴露的 actual modes 为 notExposed / notExposed / screen，最终 snapshot 无错误。
+- Device boundary：`simulatorConfigured` 的生产与消费均受 `targetEnvironment(simulator)` 编译条件限制。Vision Pro 只接受由 rendering ready 与 desired/actual immersive、viewing、spatial video mode 收敛产生的 `settled`；实际画面、模式收敛、Home View 中断、物理音频与最终空间交互尚未验收。
+- Preceding full matrix：紧邻的 `da459a79` 在冻结 tree 上完成 3 个产品 build、9 个 visionOS suites（71 tests、0 failures）、EnchronMacOS（31 tests、0 failures）、macOS L2 Core 与 App Adapter，以及 diff、surface、membership、domain、plist 与 Atlas 门禁。`34f9e17` 只收紧 Panorama 的平台编译边界并校正相应合同；本节的聚焦验证覆盖该差异，不把前一 revision 的结果改写为当前 revision 的重复执行。
+
 ## 2026-07-17 macOS 产品播放闭环
 
 - Scope：`EnchronMacOS` 现在以生产 `PlaybackRuntime` 和 in-tree `Packages/PlaybackCore` 作为本地媒体、文件夹、播放/暂停、seek、音轨、字幕与空间呈现状态机的主要开发宿主。产品媒体路线仍是 FFmpeg demux → compressed `CMSampleBuffer` → AVFoundation Receiver/synchronizer → RealityKit；没有把 Apple reference route 变成第二条产品路线。
@@ -24,8 +33,8 @@
 ## 2026-07-16 单仓迁移与应用控制收敛
 
 - Verified code revision：Enchron `e6d32e86e3d9`；该 revision 已包含完整 PlaybackCore 导入历史与应用控制重构。
-- Scope：PlaybackCore 以保留 Git 历史的方式进入 `Packages/PlaybackCore`；核心行为 spec、节点 01–09、fixture registry 和 evidence 进入 Enchron 的统一 `docs/`。macOS `EnchronMacOS` 同时保留 Core scenario 与生产 App Adapter scenario，二者是同一 Entry App 的递进验证入口。
-- State ownership：删除 Entry App 的重复 `PlaybackState`、`PlaybackSession`、媒体格式副本与 seek generation。`PlaybackRuntime` 直接投影 PlaybackCore 的 `PlaybackStatus`；连续相对 seek 在 `PlaybackCoreController` 内基于最新请求目标累计，App 不再推测核心时间线。
+- Scope：PlaybackCore 以保留 Git 历史的方式进入 `Packages/PlaybackCore`；核心行为 spec、节点 01–09、fixture registry 和 evidence 进入 Enchron 的统一 `docs/`。macOS `EnchronMacOS` 同时保留 Core scenario 与生产 App Adapter scenario，二者是同一 Enchron App 的递进验证入口。
+- State ownership：删除 Enchron App 的重复 `PlaybackState`、`PlaybackSession`、媒体格式副本与 seek generation。`PlaybackRuntime` 直接投影 PlaybackCore 的 `PlaybackStatus`；连续相对 seek 在 `PlaybackCoreController` 内基于最新请求目标累计，App 不再推测核心时间线。
 - L1：`Packages/PlaybackCore` 的 `swift test` 共 67 项全部通过，新增 `rapidRelativeSeeksAccumulateInsideTheCore`；Enchron 根包 30 项 Swift Testing 与 6 项 XCTest 通过，其中 1 项未配置外部 WebDAV 环境而按设计跳过。
 - Build：`EnchronMacOS` macOS target 与 `XrPlayer` `generic/platform=visionOS` 无签名构建通过。Xcode 直接从 `Packages/PlaybackCore` 解析本地 package，不再依赖兄弟仓库路径。
 - Core L2：`script/build_and_run.sh --l2-core /Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4 /tmp/enchron-l2-core-e6d32e8.json` 通过。Apple compressed 与 FFmpeg compressed 两条路线均完成真实播放推进、audio renderer enqueue、暂停/恢复、音量/静音、速率恢复、前后 seek、三次连续 seek、cleanup 与 reopen；sample 与 displayed pixel 均符合 BT.2020/PQ/video-range oracle，displayed pixel format 为 `&xv0`。artifact 内嵌 Enchron/PlaybackCore revision 均为 `e6d32e86e3d9`。

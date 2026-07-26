@@ -3,13 +3,13 @@
 
 # ── 基础配置 ──────────────────────────────────
 included:
-  - XrPlayer
+  - Apps
+  - Modules
+  - Packages/PlaybackCore/Sources
+  - Tests
 excluded:
   - .build
-  - Packages
-  - XrPlayer/Libraries
-  - XrPlayer/third_party
-  - XrPlayer/XrPlayer.xcodeproj.bak
+  - Packages/PlaybackCore/.build
 
 # ── 内置规则 ──────────────────────────────────
 opt_in_rules:
@@ -17,17 +17,17 @@ opt_in_rules:
 
 disabled_rules:
   - trailing_whitespace
-  - type_body_length        # 大型 View 文件不适合行数限制
+  - type_body_length
+  - file_length
+  - function_body_length
+  - cyclomatic_complexity
 
 # 放宽内置规则，避免误报
 identifier_name:
   min_length: 1             # 允许 h/m/s 等业界惯用单字母（时间格式化）
   max_length: 80
   allowed_symbols: ["_"]   # 允许下划线（如 speed0_5 枚举值）
-line_length: 200            # Metal renderer / WebDAV 适配器里有合理的长行
-file_length:
-  warning: 600
-  error: 1500               # MPVPlayerAdapter 是大型适配器，暂不拆分
+line_length: 200            # 可读性信号，不作为构建阻断条件
 
 # ── 自定义架构守卫 ────────────────────────────
 custom_rules:
@@ -51,13 +51,13 @@ custom_rules:
   # 防止确认组件回归到一次性参数）。仅限组件库文件，不波及页面层约定。
   components_use_animation_tokens:
     regex: '\.(easeOut|easeIn|spring)\(|\.animation\(\.default'
-    included: ".*/Shared/Components/.*\\.swift"
+    included: ".*/Components/.*\\.swift"
     message: "稳定组件动效须走 DesignTokens.AnimationToken，不要用裸 .easeOut/.spring/.default"
     severity: error
 
   # 稳定组件库禁止硬编码颜色字面量，颜色须走 design tokens。
   components_no_hardcoded_color:
     regex: 'Color\(red:|Color\(hex:'
-    included: ".*/Shared/Components/.*\\.swift"
+    included: ".*/Components/.*\\.swift"
     message: "稳定组件颜色须走 design tokens，禁止 Color(red:/Color(hex: 硬编码"
     severity: error

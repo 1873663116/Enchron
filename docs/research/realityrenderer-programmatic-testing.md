@@ -65,9 +65,9 @@ XCTAssertEqual(component.desiredImmersiveViewingMode, .full)
 
 Enchron 没有使用 `RealityRenderer` 作为产品运行时，也没有使用名为 `VideoPlayerRenderer` 的 API。当前链路是：
 
-- `Enchron/XrPlayer/App/PlaybackRuntime.swift` 持有 `AVSampleBufferVideoRenderer?`；fixture 路径创建该 renderer，真实运行时由 PlaybackCore session 提供。
-- `Enchron/XrPlayer/PlayerUI/Views/PlaybackVideoSurface.swift` 使用 `VideoPlayerComponent(videoRenderer: renderer)`，并请求 panorama `.full`、其他模式 `.portal`。
-- `Enchron/XrPlayer/SpatialScene/Scenes/ImmersiveSpaceView.swift` 使用相同 initializer，并请求 panorama `.full`、docked `.portal`。
+- `Modules/PlaybackFeature/PlaybackRuntime.swift` 持有 `AVSampleBufferVideoRenderer?`；fixture 路径创建该 renderer，真实运行时由 PlaybackCore session 提供。
+- `Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift` 使用 `VideoPlayerComponent(videoRenderer: renderer)`，并请求 panorama `.full`、其他模式 `.portal`。
+- `Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift` 使用相同 initializer，并请求 panorama `.full`、docked `.portal`。
 
 这已经符合“AVFoundation/RealityKit 负责视频呈现与投影，Enchron 负责组合和请求模式”的边界。当前缺口不是再造一个 renderer，而是没有把实际 `immersiveViewingMode`、内容类型、rendering status 和模式变化事件纳入可观测证据。单独的 `print` 或 desired property 断言不足以填补这个缺口。
 

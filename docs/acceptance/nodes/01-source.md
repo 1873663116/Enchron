@@ -2,7 +2,7 @@
 
 ## 边界
 
-节点 01 从 Enchron 的 Media Reference 开始，在 PlaybackCore 的公开 open 接口结束。Entry App 负责解析系统文件、Photos、SMB 或 WebDAV 引用，取得本次访问所需授权，并形成核心可消费的 Media Source；PlaybackCore 只接受已经解析的来源事实，不负责长期授权或远程目录语义。
+节点 01 从 Enchron 的 Media Reference 开始，在 PlaybackCore 的公开 open 接口结束。Enchron App 负责解析系统文件、Photos、SMB 或 WebDAV 引用，取得本次访问所需授权，并形成核心可消费的 Media Source；PlaybackCore 只接受已经解析的来源事实，不负责长期授权或远程目录语义。
 
 ## 必须记录
 

@@ -1,6 +1,6 @@
 # ADR-0008：恢复 Enchron macOS App 作为核心可播放门槛
 
-- 状态：accepted
+- 状态：route comparison superseded by ADR 0017; macOS gate remains active
 - 日期：2026-07-16
 - 取代：ADR-0006 中“核心完成只需 library 测试与低层 probe”的部分
 

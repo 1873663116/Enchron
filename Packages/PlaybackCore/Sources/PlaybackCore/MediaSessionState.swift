@@ -1,5 +1,27 @@
 import Foundation
 
+public enum PlaybackStatus: Equatable, Sendable {
+    case idle
+    case loading
+    case ready
+    case playing
+    case paused
+    case ended
+    case failed(String)
+
+    public var label: String {
+        switch self {
+        case .idle: "No video"
+        case .loading: "Loading"
+        case .ready: "Ready"
+        case .playing: "Playing"
+        case .paused: "Paused"
+        case .ended: "Ended"
+        case .failed(let message): "Failed: \(message)"
+        }
+    }
+}
+
 public struct MediaSessionState: Sendable {
     public private(set) var current: MediaSessionRecord?
     public private(set) var lastRejection: OpenRejectionRecord?
@@ -9,7 +31,6 @@ public struct MediaSessionState: Sendable {
 
     public mutating func admitOpen(
         source: MediaSourceRecord,
-        route: PlaybackRoute,
         initialTimeSeconds: Double = 0,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
@@ -17,7 +38,6 @@ public struct MediaSessionState: Sendable {
     ) -> OpenAdmission {
         if let current {
             let rejection = OpenRejectionRecord(
-                requestedRoute: route,
                 sourceSummary: source.privacySafeSummary,
                 reason: "currentMediaSlotOccupied",
                 occupyingMediaSessionID: current.mediaSessionID
@@ -29,7 +49,6 @@ public struct MediaSessionState: Sendable {
         let session = MediaSessionRecord(
             mediaSessionID: mediaSessionID,
             source: source,
-            route: route,
             initialTimeSeconds: initialTimeSeconds,
             startsPaused: startsPaused,
             initialRate: initialRate

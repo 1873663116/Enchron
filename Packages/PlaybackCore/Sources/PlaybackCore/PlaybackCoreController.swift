@@ -6,7 +6,6 @@ public final class PlaybackCoreController {
     public private(set) var activeSession: SampleBufferPlaybackSession?
     public private(set) var status = PlaybackStatus.idle
     public private(set) var diagnostics = PlaybackDiagnostics()
-    public private(set) var selectedRoute = PlaybackRoute.ffmpegCompressed
     public private(set) var selectedURL: URL?
     public private(set) var selectedAsset: PlaybackAsset?
     public private(set) var selectedStereoLayout: VideoStereoLayout?
@@ -28,7 +27,7 @@ public final class PlaybackCoreController {
 
     private var mediaSlot = MediaSessionState()
     private var debugRecorder: PlaybackDebugRecorder?
-    private let sessionFactory: (PlaybackRoute, String) -> SampleBufferPlaybackSession
+    private let sessionFactory: (String) -> SampleBufferPlaybackSession
     private var activeSeekTask: Task<Void, Error>?
     private var activeSubtitleSelectionTask: Task<Void, Error>?
     private var activeStereoTask: Task<UInt64, Error>?
@@ -41,13 +40,13 @@ public final class PlaybackCoreController {
     private var stereoGeneration: UInt64 = 0
 
     public init() {
-        sessionFactory = { route, sessionID in
-            SampleBufferPlaybackSession(route: route, traceID: sessionID)
+        sessionFactory = { sessionID in
+            SampleBufferPlaybackSession(traceID: sessionID)
         }
     }
 
     init(
-        sessionFactory: @escaping (PlaybackRoute, String) -> SampleBufferPlaybackSession
+        sessionFactory: @escaping (String) -> SampleBufferPlaybackSession
     ) {
         self.sessionFactory = sessionFactory
     }
@@ -56,33 +55,6 @@ public final class PlaybackCoreController {
     public func open(
         _ url: URL,
         asset: PlaybackAsset? = nil,
-        startTime: CMTime = .zero,
-        startsPaused: Bool = false,
-        initialRate: Float? = nil,
-        initialStereoLayout: VideoStereoLayout? = nil,
-        initialProjectionOverride: VideoProjectionOverride? = nil,
-        provenance: String = "appOpen",
-        accessRequirement: String = "appAdapterManaged"
-    ) async throws -> SampleBufferPlaybackSession {
-        try await open(
-            url,
-            asset: asset,
-            route: Self.providerRoute(for: url, asset: asset),
-            startTime: startTime,
-            startsPaused: startsPaused,
-            initialRate: initialRate,
-            initialStereoLayout: initialStereoLayout,
-            initialProjectionOverride: initialProjectionOverride,
-            provenance: provenance,
-            accessRequirement: accessRequirement
-        )
-    }
-
-    @discardableResult
-    public func open(
-        _ url: URL,
-        asset: PlaybackAsset? = nil,
-        route: PlaybackRoute,
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
@@ -101,7 +73,6 @@ public final class PlaybackCoreController {
         let sessionID = UUID().uuidString
         switch mediaSlot.admitOpen(
             source: source,
-            route: route,
             initialTimeSeconds: startTime.seconds,
             startsPaused: startsPaused,
             initialRate: initialRate,
@@ -111,8 +82,7 @@ public final class PlaybackCoreController {
             activeSession?.debugStore.recordOpenRejection(rejection)
             activeSession?.debugStore.emit(
                 mediaSessionID: activeSession?.traceID,
-                route: activeSession?.route,
-                node: .mediaSessionAndRouteBinding,
+                node: .mediaSessionBinding,
                 kind: "open.rejected",
                 outcome: .failed,
                 details: ["reason": rejection.reason]
@@ -124,9 +94,8 @@ public final class PlaybackCoreController {
 
         selectedURL = url
         selectedAsset = asset
-        selectedRoute = route
         setStatus(.loading)
-        let session = sessionFactory(route, sessionID)
+        let session = sessionFactory(sessionID)
         if let initialStereoLayout {
             _ = try await session.setStereoLayout(initialStereoLayout)
         }
@@ -144,7 +113,6 @@ public final class PlaybackCoreController {
 
         session.debugStore.emit(
             mediaSessionID: sessionID,
-            route: route,
             node: .sourceAcquisition,
             kind: "source.acquired",
             outcome: .succeeded,
@@ -155,8 +123,7 @@ public final class PlaybackCoreController {
         )
         session.debugStore.emit(
             mediaSessionID: sessionID,
-            route: route,
-            node: .mediaSessionAndRouteBinding,
+            node: .mediaSessionBinding,
             kind: "open.admitted",
             outcome: .succeeded
         )
@@ -237,6 +204,11 @@ public final class PlaybackCoreController {
         guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
         try rejectIfSeekIsInProgress()
         activeSession.setMuted(muted)
+    }
+
+    public func clearDisplayedVideoImage(forMediaSessionID mediaSessionID: String) async {
+        guard let activeSession, activeSession.traceID == mediaSessionID else { return }
+        await activeSession.clearDisplayedVideoImage()
     }
 
     @discardableResult
@@ -470,58 +442,10 @@ public final class PlaybackCoreController {
     }
 
     @discardableResult
-    public func switchRoute(to route: PlaybackRoute) async throws -> SampleBufferPlaybackSession {
-        guard route != selectedRoute else {
-            throw PlaybackControlError.routeAlreadySelected(route)
-        }
-        guard let url = selectedURL else {
-            throw PlaybackControlError.noActiveMediaSession
-        }
-        let startTime = activeSession?.currentTime() ?? .zero
-        let startsPaused = activeSession.map { $0.currentRate() == 0 } ?? (status == .paused)
-        let initialRate = activeSession?.preferredPlaybackRate ?? 1
-        let volume = activeSession?.currentVolume ?? 1
-        let muted = activeSession?.isMuted ?? false
-        let audioStreamIndex = activeSession?.selectedAudioStreamIndex
-        let stereoLayout = selectedStereoLayout
-        let projectionOverride = selectedProjectionOverride
-        let accessRequirement = mediaSlot.current?.source.accessRequirement
-            ?? "appAdapterManaged"
-        let sourceRoute = selectedRoute
-        let startedAt = Date()
-        await closeAndWait(clearSource: false)
-        let session = try await open(
-            url,
-            asset: selectedAsset,
-            route: route,
-            startTime: startTime,
-            startsPaused: startsPaused,
-            initialRate: initialRate,
-            initialStereoLayout: stereoLayout,
-            initialProjectionOverride: projectionOverride,
-            provenance: "coldRouteSwitch",
-            accessRequirement: accessRequirement
-        )
-        try session.setVolume(volume)
-        session.setMuted(muted)
-        if let audioStreamIndex,
-           session.availableAudioTracks.contains(where: { $0.streamIndex == audioStreamIndex }) {
-            try await session.selectAudioTrack(streamIndex: audioStreamIndex)
-        }
-        session.registerPendingRouteSwitch(from: sourceRoute, startedAt: startedAt)
-        return session
-    }
-
-    private static func providerRoute(for _: URL, asset _: PlaybackAsset?) -> PlaybackRoute {
-        .ffmpegCompressed
-    }
-
-    @discardableResult
     public func reopen() async throws -> SampleBufferPlaybackSession {
         guard let url = selectedURL else {
             throw PlaybackControlError.noActiveMediaSession
         }
-        let route = selectedRoute
         let stereoLayout = selectedStereoLayout
         let projectionOverride = selectedProjectionOverride
         let accessRequirement = mediaSlot.current?.source.accessRequirement
@@ -530,7 +454,6 @@ public final class PlaybackCoreController {
         return try await open(
             url,
             asset: selectedAsset,
-            route: route,
             initialStereoLayout: stereoLayout,
             initialProjectionOverride: projectionOverride,
             provenance: "reopen",
@@ -773,7 +696,6 @@ public final class PlaybackCoreController {
         activeSession.debugStore.recordStaleRejection()
         activeSession.debugStore.emit(
             mediaSessionID: activeSession.traceID,
-            route: activeSession.route,
             kind: "callback.rejectedAsStale",
             outcome: .terminatedByCleanup,
             details: [
@@ -818,7 +740,6 @@ public final class PlaybackCoreController {
 
 public enum PlaybackControlError: LocalizedError, Sendable {
     case noActiveMediaSession
-    case routeAlreadySelected(PlaybackRoute)
     case openRejected(OpenRejectionRecord)
     case openTerminatedByCleanup
     case presentationNotAttached
@@ -835,8 +756,6 @@ public enum PlaybackControlError: LocalizedError, Sendable {
         switch self {
         case .noActiveMediaSession:
             "There is no active media session."
-        case .routeAlreadySelected(let route):
-            "The \(route.label) route is already selected."
         case .openRejected(let rejection):
             "Open was rejected: \(rejection.reason)."
         case .openTerminatedByCleanup:
