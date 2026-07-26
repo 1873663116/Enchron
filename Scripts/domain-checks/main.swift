@@ -302,14 +302,14 @@ try await MainActor.run {
     )
     require(
         sessionReplacementModel.receiveSpatialPlatformResult(
-            .mediaSessionReplaced(
+            .mediaSessionInvalidated(
                 requestID: replacedSessionRequest.id,
                 executionID: replacedSessionExecutionID,
                 requiresPlatformNormalization: true
             )
         ) == .presentationRolledBack(.mediaSessionChanged)
             && sessionReplacementModel.presentation == .window,
-        "Media Session replacement must invalidate the old transition and settle Window"
+        "Media Session invalidation must invalidate the old transition and settle Window"
     )
     let sessionCleanupRequest = pendingRequest(sessionReplacementModel)
     require(

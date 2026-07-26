@@ -7,6 +7,26 @@ import Testing
 @Suite("Playback presentation")
 struct PlaybackPresentationStateTests {
     #if os(visionOS)
+    @Test("ended and replaced sessions invalidate the previous Media Session")
+    @MainActor
+    func lifecycleEventsShareTheProductionInvalidationPath() {
+        #expect(
+            SpatialPlatformEffectCoordinator.invalidatedMediaSessionID(
+                for: .ended(id: "session-a")
+            ) == "session-a"
+        )
+        #expect(
+            SpatialPlatformEffectCoordinator.invalidatedMediaSessionID(
+                for: .replaced(previousID: "session-a", currentID: "session-b")
+            ) == "session-a"
+        )
+        #expect(
+            SpatialPlatformEffectCoordinator.invalidatedMediaSessionID(
+                for: .activated(id: "session-b")
+            ) == nil
+        )
+    }
+
     @Test("stop invalidates an in-flight execution and cleanup executes once")
     @MainActor
     func stopReplacesInFlightExecution() throws {
@@ -523,9 +543,9 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
     }
 
-    @Test("Media Session replacement normalizes issued spatial effects before new work")
+    @Test("Media Session invalidation normalizes issued spatial effects before new work")
     @MainActor
-    func mediaSessionReplacementQueuesNormalization() throws {
+    func mediaSessionInvalidationQueuesNormalization() throws {
         let model = PlaybackPresentationModel()
         _ = try model.requestPresentation(
             .panorama,
@@ -542,7 +562,7 @@ struct PlaybackPresentationStateTests {
 
         #expect(
             model.receiveSpatialPlatformResult(
-                .mediaSessionReplaced(
+                .mediaSessionInvalidated(
                     requestID: requestA.id,
                     executionID: executionA,
                     requiresPlatformNormalization: true
@@ -574,9 +594,9 @@ struct PlaybackPresentationStateTests {
         #expect(model.pendingSpatialPlatformEffect == nil)
     }
 
-    @Test("Media Session replacement without issued platform effects needs no cleanup")
+    @Test("Media Session invalidation without issued platform effects needs no cleanup")
     @MainActor
-    func mediaSessionReplacementBeforePlatformEffects() throws {
+    func mediaSessionInvalidationBeforePlatformEffects() throws {
         let model = PlaybackPresentationModel()
         _ = try model.requestPresentation(
             .panorama,
@@ -593,7 +613,7 @@ struct PlaybackPresentationStateTests {
 
         #expect(
             model.receiveSpatialPlatformResult(
-                .mediaSessionReplaced(
+                .mediaSessionInvalidated(
                     requestID: request.id,
                     executionID: executionID,
                     requiresPlatformNormalization: false

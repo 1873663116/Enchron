@@ -202,10 +202,11 @@ def main() -> None:
                 flags=re.MULTILINE,
             )
         ) == 1
-        and runtime.count("updateActiveSessionID(") == 3
+        and "updateActiveSessionID(newSession.traceID)" in runtime
+        and "updateActiveSessionID(nil)" in runtime
         and "playbackSessionLifecycleChanged" in platform_executor
         and "setSessionLifecycleHandler" in application,
-        "Media Session replacement has no direct PlaybackRuntime-to-coordinator lifecycle hook",
+        "Media Session invalidation has no direct PlaybackRuntime-to-coordinator lifecycle hook",
     )
     require(
         all(
@@ -220,10 +221,37 @@ def main() -> None:
         "production playback contains a test-only behavior path",
     )
     require(
-        "case mediaSessionReplaced(" in presentation_model
+        len(
+            re.findall(
+                r"^[ \t]*lifecycle[ \t]*=[ \t]*(?!=)",
+                runtime,
+                flags=re.MULTILINE,
+            )
+        ) == 1
+        and "private func receive(_ status: PlaybackStatus)" in runtime
+        and "lifecycle = status" in runtime
+        and "renderer = AVSampleBufferVideoRenderer()" not in runtime
+        and "ProcessInfo" not in runtime
+        and application.count("PlaybackRuntime(") == 1
+        and "let playbackRuntime = PlaybackRuntime()" in application,
+        "PlaybackRuntime state can bypass PlaybackCore callbacks or production assembly",
+    )
+    require(
+        "case mediaSessionInvalidated(" in presentation_model
         and "normalizeInvalidatedSpatialPlayback" in presentation_model
         and "didIssueVisibleSpatialSideEffect" in platform_executor,
-        "session replacement cannot enqueue owner-coordinated platform normalization",
+        "session invalidation cannot enqueue owner-coordinated platform normalization",
+    )
+    lifecycle_handler = region(
+        platform_executor,
+        "static func invalidatedMediaSessionID",
+        "func requestDrain()",
+    )
+    require(
+        "case .replaced(let previousID, _), .ended(let previousID):"
+        in lifecycle_handler
+        and "case .activated:" in lifecycle_handler,
+        "ended and replaced Media Sessions do not share the production invalidation path",
     )
     require(
         "根消失不会取消已经由 coordinator 认领的执行" not in architecture
@@ -238,9 +266,9 @@ def main() -> None:
     )
     require(
         session_invalidation.index("invalidateActiveExecution()")
-        < session_invalidation.index(".mediaSessionReplaced(")
+        < session_invalidation.index(".mediaSessionInvalidated(")
         < session_invalidation.index("requestDrain()"),
-        "session replacement does not invalidate A before owner cleanup and prompt drain",
+        "session invalidation does not invalidate A before owner cleanup and prompt drain",
     )
     session_cleanup = region(
         platform_executor,

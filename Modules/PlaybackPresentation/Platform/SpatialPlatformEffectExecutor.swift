@@ -114,12 +114,23 @@ final class SpatialPlatformEffectCoordinator {
     func playbackSessionLifecycleChanged(
         _ event: PlaybackRuntime.SessionLifecycleEvent
     ) {
-        guard case .replaced(let previousID, _) = event,
+        guard let previousID = Self.invalidatedMediaSessionID(for: event),
               let lease = leaseRegistry.activeLease,
               lease.mediaSessionID == previousID else {
             return
         }
         invalidateExecutionForMediaSessionChange(lease)
+    }
+
+    static func invalidatedMediaSessionID(
+        for event: PlaybackRuntime.SessionLifecycleEvent
+    ) -> String? {
+        switch event {
+        case .replaced(let previousID, _), .ended(let previousID):
+            previousID
+        case .activated:
+            nil
+        }
     }
 
     func requestDrain() {
@@ -223,7 +234,7 @@ final class SpatialPlatformEffectCoordinator {
         }
         executionProgress[lease.executionID] = nil
         appModel.receiveSpatialPlatformResult(
-            .mediaSessionReplaced(
+            .mediaSessionInvalidated(
                 requestID: lease.requestID,
                 executionID: lease.executionID,
                 requiresPlatformNormalization: requiresPlatformNormalization

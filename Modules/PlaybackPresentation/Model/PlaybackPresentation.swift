@@ -254,7 +254,7 @@ public struct SpatialPlatformEffectResult: Equatable, Sendable {
 public enum SpatialPlatformResultEvent: Equatable, Sendable {
     case effectCompleted(SpatialPlatformEffectResult)
     case effectExecutionAbandoned(requestID: UUID, executionID: UUID)
-    case mediaSessionReplaced(
+    case mediaSessionInvalidated(
         requestID: UUID,
         executionID: UUID,
         requiresPlatformNormalization: Bool
@@ -764,12 +764,12 @@ public final class PlaybackPresentationModel {
             activeSpatialPlatformEffectID = nil
             activeSpatialPlatformExecutionID = nil
             return .platformFactRecorded
-        case .mediaSessionReplaced(
+        case .mediaSessionInvalidated(
             let requestID,
             let executionID,
             let requiresPlatformNormalization
         ):
-            return settleMediaSessionReplacement(
+            return settleMediaSessionInvalidation(
                 requestID: requestID,
                 executionID: executionID,
                 requiresPlatformNormalization: requiresPlatformNormalization
@@ -830,7 +830,7 @@ public final class PlaybackPresentationModel {
         }
     }
 
-    private func settleMediaSessionReplacement(
+    private func settleMediaSessionInvalidation(
         requestID: UUID,
         executionID: UUID,
         requiresPlatformNormalization: Bool
