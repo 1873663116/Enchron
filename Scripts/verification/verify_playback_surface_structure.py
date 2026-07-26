@@ -90,6 +90,14 @@ def main() -> None:
     require("attachments:" not in vision_surface, "vision window controls use a RealityView attachment")
     require("VisionWindowPlaybackControlPlane" not in surface, "duplicate vision window controls remain")
     require(
+        ".onChange(of: surfaceUpdateKey" in vision_surface
+        and "mediaSessionID: playbackRuntime.activeSessionID" in surface
+        and "mediaFormatIsKnown: playbackRuntime.mediaFormatIsKnown" in surface
+        and "projection: playbackRuntime.effectiveProjectionType" in surface
+        and "stereoLayout: playbackRuntime.effectiveStereoLayout" in surface,
+        "async playback readiness or format changes do not invalidate the vision RealityView surface",
+    )
+    require(
         "PlayerUI-window-playback-deck" not in window_playback,
         "window deck container overrides the identities of its child controls",
     )

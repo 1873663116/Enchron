@@ -10,6 +10,14 @@ private let playbackVideoSurfaceLogger = Logger(
     category: "PlaybackVideoSurface"
 )
 
+private struct PlaybackSurfaceUpdateKey: Equatable {
+    let isActive: Bool
+    let mediaSessionID: String?
+    let mediaFormatIsKnown: Bool
+    let projection: PlaybackModel.ProjectionType
+    let stereoLayout: PlaybackModel.StereoLayout
+}
+
 @MainActor
 private final class PlaybackVideoComponentObservation {
     private var entityID: ObjectIdentifier?
@@ -118,6 +126,9 @@ struct PlaybackVideoSurface: View {
         }
         .onDisappear {
             releaseSurface()
+        }
+        .onChange(of: surfaceUpdateKey, initial: true) {
+            componentRevision &+= 1
         }
     }
     #else
@@ -472,6 +483,16 @@ struct PlaybackVideoSurface: View {
 
     private var component: VideoPlayerComponent? {
         videoEntity.components[VideoPlayerComponent.self]
+    }
+
+    private var surfaceUpdateKey: PlaybackSurfaceUpdateKey {
+        PlaybackSurfaceUpdateKey(
+            isActive: isActive,
+            mediaSessionID: playbackRuntime.activeSessionID,
+            mediaFormatIsKnown: playbackRuntime.mediaFormatIsKnown,
+            projection: playbackRuntime.effectiveProjectionType,
+            stereoLayout: playbackRuntime.effectiveStereoLayout
+        )
     }
 
     private var desiredImmersiveViewingMode: String? {
