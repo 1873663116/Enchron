@@ -1,5 +1,14 @@
 # Enchron 播放系统证据
 
+## 2026-07-26 有机架构与空间结算边界
+
+- Code revision：Enchron `34f9e17`，Git tree `7c647c363d045f3bdbee089362ca812eaf55d80d`；聚焦验证期间 revision 与 tree 均未变化。
+- PlaybackCore：在 `Packages/PlaybackCore` 完整执行 `swift test`，74 tests、0 failures。
+- Platform contract：完整 `MacRealityPlaybackContractTests` 为 11 tests、0 failures；`testPanoramaRequiresObservedVideoPlayerModesBeforeCommit` 明确证明非 Simulator 编译分支拒绝 `simulatorConfigured`。
+- Simulator configuration acceptance：visionOS Simulator build 通过；真实 FFmpeg → PlaybackCore 媒体在同一 Media Session 中完成 Window → Docked → Window → Panorama → Window，Docked 与 Panorama 时间线均推进。Panorama desired modes 为 progressive / mono / screen，Simulator 暴露的 actual modes 为 notExposed / notExposed / screen，最终 snapshot 无错误。
+- Device boundary：`simulatorConfigured` 的生产与消费均受 `targetEnvironment(simulator)` 编译条件限制。Vision Pro 只接受由 rendering ready 与 desired/actual immersive、viewing、spatial video mode 收敛产生的 `settled`；实际画面、模式收敛、Home View 中断、物理音频与最终空间交互尚未验收。
+- Preceding full matrix：紧邻的 `da459a79` 在冻结 tree 上完成 3 个产品 build、9 个 visionOS suites（71 tests、0 failures）、EnchronMacOS（31 tests、0 failures）、macOS L2 Core 与 App Adapter，以及 diff、surface、membership、domain、plist 与 Atlas 门禁。`34f9e17` 只收紧 Panorama 的平台编译边界并校正相应合同；本节的聚焦验证覆盖该差异，不把前一 revision 的结果改写为当前 revision 的重复执行。
+
 ## 2026-07-17 macOS 产品播放闭环
 
 - Scope：`EnchronMacOS` 现在以生产 `PlaybackRuntime` 和 in-tree `Packages/PlaybackCore` 作为本地媒体、文件夹、播放/暂停、seek、音轨、字幕与空间呈现状态机的主要开发宿主。产品媒体路线仍是 FFmpeg demux → compressed `CMSampleBuffer` → AVFoundation Receiver/synchronizer → RealityKit；没有把 Apple reference route 变成第二条产品路线。

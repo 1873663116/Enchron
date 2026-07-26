@@ -1383,7 +1383,7 @@
       },
       {
         "id": "invariant.evidenceLayers",
-        "label": "实现、当前验证与历史证据分别表达，上层证据不能代替下层门槛。",
+        "label": "实现、当前验证与历史证据分别表达；Simulator 配置验收不能代替 Vision Pro 实际模式验收，上层证据不能代替下层门槛。",
         "ownerIds": [
           "apps"
         ],
