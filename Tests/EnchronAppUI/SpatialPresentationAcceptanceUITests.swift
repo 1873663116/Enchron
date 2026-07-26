@@ -167,7 +167,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         presentation: String,
         timeout: TimeInterval
     ) throws -> String {
-        let state = app.descendants(matching: .any)["PlayerUI-spatial-control-plane"].firstMatch
+        let state = app.descendants(matching: .any)["PlayerUI-spatial-state"].firstMatch
         try requireExistence(
             state,
             timeout: timeout,

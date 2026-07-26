@@ -111,6 +111,12 @@ def main() -> None:
             in playback_deck_acceptance,
         "spatial UI acceptance races the unrelated production controls auto-hide timer",
     )
+    require(
+        '"PlayerUI-spatial-state"' in main_view
+        and '"PlayerUI-spatial-state"' in spatial_acceptance
+        and '"PlayerUI-spatial-control-plane"' not in main_view,
+        "spatial acceptance state collapses or replaces the real Player Control Deck accessibility tree",
+    )
     fixture_duration = re.search(r"^[ \t]*-t[ \t]+(\d+)", spatial_verifier, re.MULTILINE)
     require(
         fixture_duration is not None

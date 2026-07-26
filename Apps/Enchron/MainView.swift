@@ -393,17 +393,23 @@ struct SpatialPlaybackControlsRoot: View {
                 )
             }
         }
-        .accessibilityIdentifier("PlayerUI-spatial-control-plane")
-        .accessibilityValue(spatialAcceptanceValue)
+        .overlay {
+            if ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" {
+                Text("Spatial playback state")
+                    .font(.system(size: 1))
+                    .frame(width: 1, height: 1)
+                    .opacity(0.001)
+                    .allowsHitTesting(false)
+                    .accessibilityIdentifier("PlayerUI-spatial-state")
+                    .accessibilityValue(spatialAcceptanceValue)
+            }
+        }
         .background {
             SpatialPlatformEffectExecutor()
         }
     }
 
     private var spatialAcceptanceValue: String {
-        guard ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" else {
-            return ""
-        }
         return [
             "presentation=\(appModel.playbackPresentation.rawValue)",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
