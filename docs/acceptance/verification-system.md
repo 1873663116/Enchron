@@ -31,7 +31,7 @@ Core scenario 不是第二套长期应用控制。可复用的控制、状态投
 
 Simulator 验证平台 API、Window/Docked/Panorama 状态机、失败回滚、来源与持久化、可访问交互和基础 RealityKit 生命周期。自动验收分开报告两个不能互相替代的结果：
 
-- 空间呈现结构验证通过：目标 Scene、`PlaybackSurfaceAnchor`、Video Entity、同一 Renderer 绑定、Media Session 连续性、RealityKit 实际模式与渲染状态符合合同。
+- 空间呈现结构验证通过：目标 Scene、`PlaybackSurfaceAnchor`、Video Entity、同一 Renderer 绑定与 Media Session 连续性符合合同。Simulator 必须证明 Panorama 的 desired immersive、viewing、spatial video mode 已写入真实 `VideoPlayerComponent`；若该 Simulator 运行时不暴露 actual mode 或 rendering ready，则结果只能记为 `Simulator configuration acceptance`，不能记为实际模式收敛或渲染就绪。
 - RealityKit 渲染结果验证通过：真实产品 Sample 进入 `VideoPlayerComponent` 后，在规定摄像机位置与朝向下，输出符合测试媒体预先定义的方向和几何标记。
 
 可访问元素存在、标识和状态可以在 Simulator 中自动断言；但只有合成点击确实触发了产品操作，并使产品状态达到预期结果时，才能把该交互记为 Simulator 通过。当前 visionOS Simulator 的 XCUI 合成点击不能可靠激活 Playback Deck 与 Dock 二级菜单，因此这些点击不进入本轮自动交互通过结论，必须分别由 macOS 上的共享控件逻辑回归与 Vision Pro 真机上的真实注视和点按验收覆盖。元素可见、发送了合成事件或测试进程没有报错，都不能替代操作后的状态验证。
@@ -40,7 +40,7 @@ Simulator 验证平台 API、Window/Docked/Panorama 状态机、失败回滚、�
 
 空间播放的标准验收入口是 `Scripts/verification/verify-spatial-presentations-simulator.zsh`。它必须用真实 FFmpeg → PlaybackCore 媒体而不是 `ENCHRON_UI_TESTING` fixture，在同一次 App 启动中完成 Window → Docked → Window → Panorama → Window，并同时保存三类不能相互替代的证据：XCUIAutomation 语义与截图、PlaybackCore/Presentation 机器状态、OSLog 与 `.xcresult`。点击先使用 accessibility identifier；元素存在但不可直接命中时，测试先保存当前截图，再以该语义元素的几何中心执行坐标 fallback，并继续以目标状态断言结果。无人值守测试没有语义目标或有效几何时必须失败；交互式 agent 可以基于当次截图视觉定位后点击，但必须保存点击前后截图、验证相同机器状态后置条件，并把结果标记为 `agent-assisted`，不能用盲点固定坐标或冒充无人值守绿色结果。
 
-Window、Docked 与 Panorama 都必须证明唯一 active consumer 是绑定当前 renderer 的 `VideoPlayerComponent`，不允许 `ModelComponent + VideoMaterial` 产品分支。Docked 还必须证明 Video Entity 是目标 `PlaybackSurfaceAnchor` 的子实体、world position 与用户原点的距离符合 Distance、Elevation 符合球面角度、屏幕始终朝向用户、scale 三轴一致，并由 `playerScreenSize × uniform scale` 得出最终尺寸。Panorama 必须观察 rendering status ready，以及 desired/actual immersive、viewing、spatial video mode 全部收敛。测试宿主未启动、Simulator 未完成 BackBoard 启动或 XCTest worker 未 materialize 属于基础设施失败；它既不是产品失败，也不能标记 Simulator passed。
+Window、Docked 与 Panorama 都必须证明唯一 active consumer 是绑定当前 renderer 的 `VideoPlayerComponent`，不允许 `ModelComponent + VideoMaterial` 产品分支。Docked 还必须证明 Video Entity 是目标 `PlaybackSurfaceAnchor` 的子实体、world position 与用户原点的距离符合 Distance、Elevation 符合球面角度、屏幕始终朝向用户、scale 三轴一致，并由 `playerScreenSize × uniform scale` 得出最终尺寸。Panorama 在 Vision Pro 上必须观察 rendering status ready，以及 desired/actual immersive、viewing、spatial video mode 全部收敛；只有这个结果可记为 `device actual-mode acceptance`。Simulator 若不暴露这些 actual facts，只能在确认真实 Renderer、Entity 和 `VideoPlayerComponent` 绑定且 desired modes 正确后产生编译期限定的 `simulatorConfigured`，并记为 `Simulator configuration acceptance`。真机构建不得接受该事实作为转换结算依据。测试宿主未启动、Simulator 未完成 BackBoard 启动或 XCTest worker 未 materialize 属于基础设施失败；它既不是产品失败，也不能标记 Simulator passed。
 
 Visual Oracle 不使用普通电影画面或逐像素 golden image 作为主断言。标准 Diagnostic Media 必须提供可定位的四角与中心标记、圆形或网格、方向标记、左右眼标记和连续帧标记；断言标记存在与顺序、几何比例、方向、双眼归属、画面边界和时间推进，并为色彩转换、抗锯齿与 SDK renderer 差异保留明确容差。逐像素参考图只作为失败附件。
 

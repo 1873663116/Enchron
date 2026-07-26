@@ -126,7 +126,15 @@ def main() -> None:
     )
     require(
         "guard presentation != .panorama else { return false }" in runtime
-        and 'record.phase == "simulatorConfigured"' in runtime
+        and (
+            '#if targetEnvironment(simulator)\n'
+            '        if record.phase == "simulatorConfigured"'
+        ) in runtime
+        and (
+            '        }\n'
+            '        #endif\n'
+            '        guard record.phase == "surfaceAttached"'
+        ) in runtime
         and "#if targetEnvironment(simulator)" in immersive
         and '"simulatorConfigured"' in immersive
         and "testPanoramaRequiresObservedVideoPlayerModesBeforeCommit"

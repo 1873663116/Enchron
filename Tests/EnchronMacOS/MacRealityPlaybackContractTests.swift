@@ -246,6 +246,7 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
             phase: "simulatorConfigured",
             platform: "visionOS"
         )
+        #if targetEnvironment(simulator)
         XCTAssertTrue(
             PlaybackRuntime.presentationTransitionCanCommit(
                 record: simulatorConfigured,
@@ -254,6 +255,16 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
                 lifecycle: .paused
             )
         )
+        #else
+        XCTAssertFalse(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: simulatorConfigured,
+                presentation: .panorama,
+                activeSessionID: "session",
+                lifecycle: .paused
+            )
+        )
+        #endif
         XCTAssertFalse(
             PlaybackRuntime.presentationTransitionCanCommit(
                 record: simulatorConfigured,

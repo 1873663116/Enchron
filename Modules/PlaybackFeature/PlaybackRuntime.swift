@@ -702,9 +702,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard record.mediaSessionID == activeSessionID,
               record.requestedMode == presentation.rawValue else { return false }
         if record.phase == "settled" { return true }
+        #if targetEnvironment(simulator)
         if record.phase == "simulatorConfigured" {
             return presentation == .panorama
         }
+        #endif
         guard record.phase == "surfaceAttached" else { return false }
         guard presentation != .panorama else { return false }
         switch lifecycle {
