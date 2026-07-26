@@ -25,7 +25,7 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    public func selectSubtitleTrack(id: PlaybackSubtitleTrack.ID?) async throws {
+    func selectSubtitleTrack(id: PlaybackSubtitleTrack.ID?) async throws {
         guard let sourceURL else { throw PlaybackControlError.noActiveMediaSession }
         if id == nil {
             let state = try subtitleStateLock.withLock { () -> (UInt64, UInt64) in

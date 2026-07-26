@@ -83,18 +83,16 @@ final class FFmpegSampleProvider: VideoSampleProvider {
             transferFunction: String(cString: PBFFmpegReaderGetTransferFunction(newReader)),
             yCbCrMatrix: String(cString: PBFFmpegReaderGetYCbCrMatrix(newReader)),
             range: String(cString: PBFFmpegReaderGetColorRange(newReader)),
-            seekability: .init(.known, value: "providerRebuild"),
+            seekability: .init(known: "providerRebuild"),
             selectedRawTrackMapping: .init(
-                .known,
-                value: "stream:\(PBFFmpegReaderGetVideoStreamIndex(newReader))"
+                known: "stream:\(PBFFmpegReaderGetVideoStreamIndex(newReader))"
             ),
             timebase: .init(
-                .known,
-                value: "\(PBFFmpegReaderGetTimeBaseNumerator(newReader))/\(PBFFmpegReaderGetTimeBaseDenominator(newReader))"
+                known: "\(PBFFmpegReaderGetTimeBaseNumerator(newReader))/\(PBFFmpegReaderGetTimeBaseDenominator(newReader))"
             ),
             codecConfigurationSummary: configurationAtoms.isEmpty
                 ? .init(.none)
-                : .init(.known, value: configurationAtoms.joined(separator: ",")),
+                : .init(known: configurationAtoms.joined(separator: ",")),
             formatSignaling: VideoFormatSignalingSummary(
                 provenance: "FFmpeg.codecParameters",
                 colorPrimaries: Self.ffmpegStringFact(
@@ -116,14 +114,14 @@ final class FFmpegSampleProvider: VideoSampleProvider {
                     String(cString: PBFFmpegReaderGetViewPackingKind(newReader))
                 ),
                 hvcC: PBFFmpegReaderFormatHasHvcC(newReader)
-                    ? .init(.known, value: true)
-                    : .init(.none, value: false),
+                    ? .init(known: true)
+                    : .init(.none),
                 dvcC: PBFFmpegReaderFormatHasDvcC(newReader)
-                    ? .init(.known, value: true)
-                    : .init(.none, value: false),
+                    ? .init(known: true)
+                    : .init(.none),
                 dvvC: PBFFmpegReaderFormatHasDvvC(newReader)
-                    ? .init(.known, value: true)
-                    : .init(.none, value: false)
+                    ? .init(known: true)
+                    : .init(.none)
             )
         )
         readerLock.withLock {
@@ -176,7 +174,7 @@ final class FFmpegSampleProvider: VideoSampleProvider {
         guard !normalized.isEmpty, normalized != "unknown", normalized != "unspecified" else {
             return .init(.unknown)
         }
-        return .init(.known, value: value)
+        return .init(known: value)
     }
 }
 

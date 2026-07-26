@@ -506,12 +506,12 @@ struct PlaybackVideoSurface: View {
         #endif
     }
 
-    private var presentationPhase: String {
-        guard let component else { return "surfaceAttached" }
+    private var presentationPhase: PlaybackPresentationSettlementPhase {
+        guard let component else { return .surfaceAttached }
         return component.currentRenderingStatus == .ready
             && component.viewingMode == component.desiredViewingMode
-            ? "settled"
-            : "surfaceAttached"
+            ? .settled
+            : .surfaceAttached
     }
 
     private func logComponentState(reason: String) {

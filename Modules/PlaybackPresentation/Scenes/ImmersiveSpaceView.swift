@@ -208,7 +208,7 @@ public struct ImmersiveSpaceView: View {
         guard let component = videoEntity.components[VideoPlayerComponent.self] else {
             playbackRuntime.recordPresentationState(
                 presentation: presentation,
-                phase: "surfaceAttached",
+                phase: .surfaceAttached,
                 realityViewID: realityViewID,
                 entityParentID: parentID
             )
@@ -234,8 +234,8 @@ public struct ImmersiveSpaceView: View {
         playbackRuntime.recordPresentationState(
             presentation: presentation,
             phase: isSettled
-                ? "settled"
-                : simulatorIsConfigured ? "simulatorConfigured" : "surfaceAttached",
+                ? .settled
+                : simulatorIsConfigured ? .simulatorConfigured : .surfaceAttached,
             realityViewID: realityViewID,
             entityParentID: parentID,
             desiredImmersiveViewingMode: String(describing: component.desiredImmersiveViewingMode),

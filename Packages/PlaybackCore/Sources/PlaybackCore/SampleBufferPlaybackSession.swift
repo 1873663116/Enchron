@@ -19,6 +19,7 @@ protocol RendererFailureMonitoring: AnyObject {
     func stop()
 }
 
+/// Exposes one media session's renderer, read-only facts, and consumer binding evidence.
 public final class SampleBufferPlaybackSession: @unchecked Sendable {
     struct EndState {
         var requiresAudio = false
@@ -46,14 +47,14 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     public let traceID: String
     public let renderer = AVSampleBufferVideoRenderer()
-    public let audioRenderer = AVSampleBufferAudioRenderer()
-    public let synchronizer = AVSampleBufferRenderSynchronizer()
+    let audioRenderer = AVSampleBufferAudioRenderer()
+    let synchronizer = AVSampleBufferRenderSynchronizer()
     let debugStore = PlaybackDiagnosticsStore()
 
-    public var onStatusChange: (@Sendable (PlaybackStatus) -> Void)?
-    public var onDiagnosticsChange: (@Sendable (PlaybackDiagnostics) -> Void)?
-    public var onSubtitleCuesChange: (@Sendable ([PlaybackSubtitleCue]) -> Void)?
-    public var onSubtitleFrameChange: (@Sendable (PlaybackSubtitleFrame?) -> Void)?
+    var onStatusChange: (@Sendable (PlaybackStatus) -> Void)?
+    var onDiagnosticsChange: (@Sendable (PlaybackDiagnostics) -> Void)?
+    var onSubtitleCuesChange: (@Sendable ([PlaybackSubtitleCue]) -> Void)?
+    var onSubtitleFrameChange: (@Sendable (PlaybackSubtitleFrame?) -> Void)?
 
     let provider: VideoSampleProvider
     let audioProvider: AudioSampleProvider
@@ -120,7 +121,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var subtitleState = SubtitleState()
     let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
 
-    public convenience init(traceID: String = UUID().uuidString) {
+    convenience init(traceID: String = UUID().uuidString) {
         self.init(
             traceID: traceID,
             provider: FFmpegSampleProvider(),
@@ -171,7 +172,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         }
     }
 
-    public func prepare(
+    func prepare(
         url: URL,
         asset: PlaybackAsset? = nil,
         startTime: CMTime = .zero,
@@ -357,7 +358,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         startRendererFailureMonitoring()
     }
 
-    public func start() throws {
+    func start() throws {
         guard !isClosed else { return }
         let shouldStart = deliveryQueue.sync {
             guard !hasRequestedVideoData else { return false }
@@ -382,7 +383,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         PlaybackTrace.event("session.start.end id=\(traceID)")
     }
 
-    public func play() throws {
+    func play() throws {
         try admitTimelineControl(.play)
         beginOperation(.play, targetRate: preferredPlaybackRate)
         synchronizer.rate = preferredPlaybackRate
@@ -398,7 +399,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         onStatusChange?(.playing)
     }
 
-    public func pause() throws {
+    func pause() throws {
         try admitTimelineControl(.pause)
         beginOperation(.pause, targetRate: 0)
         synchronizer.rate = 0
@@ -415,7 +416,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         onStatusChange?(.paused)
     }
 
-    public func setRate(_ rate: Float) throws {
+    func setRate(_ rate: Float) throws {
         guard rate.isFinite, rate >= 0 else {
             rejectControl(.setRate, reason: "invalidRate", targetRate: rate)
             throw PlaybackControlError.invalidRate(rate)

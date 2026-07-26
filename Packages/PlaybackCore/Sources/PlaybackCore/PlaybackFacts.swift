@@ -36,28 +36,169 @@ public enum FactAvailability: String, Codable, Sendable {
     case notAvailable
 }
 
+/// Names the reasons an observed fact has no value; known facts use init(known:) instead.
+public enum FactUnavailability: String, Codable, Sendable {
+    case none
+    case unknown
+    case notExposed
+    case unsupported
+    case notAvailable
+
+    fileprivate var availability: FactAvailability {
+        switch self {
+        case .none: .none
+        case .unknown: .unknown
+        case .notExposed: .notExposed
+        case .unsupported: .unsupported
+        case .notAvailable: .notAvailable
+        }
+    }
+
+    fileprivate init(_ availability: FactAvailability) {
+        switch availability {
+        case .known:
+            preconditionFailure("Known facts require init(known:).")
+        case .none: self = .none
+        case .unknown: self = .unknown
+        case .notExposed: self = .notExposed
+        case .unsupported: self = .unsupported
+        case .notAvailable: self = .notAvailable
+        }
+    }
+}
+
 public enum RendererInputKind: String, Codable, Sendable {
     case compressed
     case pixelBuffer
 }
 
+/// Records a string fact as either one known value or one explicit unavailability reason.
 public struct ObservedStringFact: Codable, Equatable, Sendable {
-    public var availability: FactAvailability
-    public var value: String?
+    private enum Storage: Equatable, Sendable {
+        case known(String)
+        case unavailable(FactUnavailability)
+    }
 
-    public init(_ availability: FactAvailability, value: String? = nil) {
-        self.availability = availability
-        self.value = value
+    private let storage: Storage
+
+    /// Reports whether a string fact is known without allowing availability and value to diverge.
+    public var availability: FactAvailability {
+        switch storage {
+        case .known: .known
+        case .unavailable(let unavailability): unavailability.availability
+        }
+    }
+
+    /// Returns the observed string only when availability is known.
+    public var value: String? {
+        guard case .known(let value) = storage else { return nil }
+        return value
+    }
+
+    /// Creates an observed string whose value is known.
+    public init(known value: String) {
+        storage = .known(value)
+    }
+
+    /// Creates an unavailable observed string fact.
+    public init(_ unavailability: FactUnavailability) {
+        storage = .unavailable(unavailability)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case availability
+        case value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let availability = try values.decode(FactAvailability.self, forKey: .availability)
+        let value = try values.decodeIfPresent(String.self, forKey: .value)
+        if availability == .known {
+            guard let value else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .value,
+                    in: values,
+                    debugDescription: "A known observed string fact requires a value."
+                )
+            }
+            storage = .known(value)
+        } else {
+            storage = .unavailable(FactUnavailability(availability))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(availability, forKey: .availability)
+        if let value {
+            try values.encode(value, forKey: .value)
+        }
     }
 }
 
+/// Records a Boolean fact as either one known value or one explicit unavailability reason.
 public struct ObservedBooleanFact: Codable, Equatable, Sendable {
-    public var availability: FactAvailability
-    public var value: Bool?
+    private enum Storage: Equatable, Sendable {
+        case known(Bool)
+        case unavailable(FactUnavailability)
+    }
 
-    public init(_ availability: FactAvailability, value: Bool? = nil) {
-        self.availability = availability
-        self.value = value
+    private let storage: Storage
+
+    /// Reports whether a Boolean fact is known without allowing availability and value to diverge.
+    public var availability: FactAvailability {
+        switch storage {
+        case .known: .known
+        case .unavailable(let unavailability): unavailability.availability
+        }
+    }
+
+    /// Returns the observed Boolean only when availability is known.
+    public var value: Bool? {
+        guard case .known(let value) = storage else { return nil }
+        return value
+    }
+
+    /// Creates an observed Boolean whose value is known.
+    public init(known value: Bool) {
+        storage = .known(value)
+    }
+
+    /// Creates an unavailable observed Boolean fact.
+    public init(_ unavailability: FactUnavailability) {
+        storage = .unavailable(unavailability)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case availability
+        case value
+    }
+
+    public init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        let availability = try values.decode(FactAvailability.self, forKey: .availability)
+        let value = try values.decodeIfPresent(Bool.self, forKey: .value)
+        if availability == .known {
+            guard let value else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .value,
+                    in: values,
+                    debugDescription: "A known observed Boolean fact requires a value."
+                )
+            }
+            storage = .known(value)
+        } else {
+            storage = .unavailable(FactUnavailability(availability))
+        }
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(availability, forKey: .availability)
+        if let value {
+            try values.encode(value, forKey: .value)
+        }
     }
 }
 

@@ -3,7 +3,7 @@ import Foundation
 import OSLog
 
 extension SampleBufferPlaybackSession {
-    public func seek(to time: CMTime, startsPaused: Bool) async throws {
+    func seek(to time: CMTime, startsPaused: Bool) async throws {
         guard !isClosed, let sourceURL else { return }
         try Task.checkCancellation()
         let target = max(0, time.seconds.isFinite ? time.seconds : 0)
@@ -205,7 +205,7 @@ extension SampleBufferPlaybackSession {
         audioRenderer.isMuted
     }
 
-    public func setVolume(_ volume: Float) throws {
+    func setVolume(_ volume: Float) throws {
         guard volume.isFinite, (0...1).contains(volume) else {
             throw PlaybackControlError.invalidVolume(volume)
         }
@@ -213,12 +213,12 @@ extension SampleBufferPlaybackSession {
         recordAudioRendererState()
     }
 
-    public func setMuted(_ muted: Bool) {
+    func setMuted(_ muted: Bool) {
         audioRenderer.isMuted = muted
         recordAudioRendererState()
     }
 
-    public func selectAudioTrack(streamIndex: Int) async throws {
+    func selectAudioTrack(streamIndex: Int) async throws {
         guard let sourceURL else { throw PlaybackControlError.noActiveMediaSession }
         guard availableAudioTracks.contains(where: { $0.streamIndex == streamIndex }) else {
             throw PlaybackControlError.invalidAudioTrack(streamIndex)

@@ -18,6 +18,147 @@ public enum PlaybackOperationState: String, Codable, Sendable {
     case terminatedByCleanup
 }
 
+enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
+    case operationOpenStarted = "operation.open.started"
+    case operationOpenCompleted = "operation.open.completed"
+    case operationOpenFailed = "operation.open.failed"
+    case operationOpenTerminatedByCleanup = "operation.open.terminatedByCleanup"
+    case operationPlayStarted = "operation.play.started"
+    case operationPlayCompleted = "operation.play.completed"
+    case operationPlayFailed = "operation.play.failed"
+    case operationPlayTerminatedByCleanup = "operation.play.terminatedByCleanup"
+    case operationPauseStarted = "operation.pause.started"
+    case operationPauseCompleted = "operation.pause.completed"
+    case operationPauseFailed = "operation.pause.failed"
+    case operationPauseTerminatedByCleanup = "operation.pause.terminatedByCleanup"
+    case operationSetRateStarted = "operation.setRate.started"
+    case operationSetRateCompleted = "operation.setRate.completed"
+    case operationSetRateFailed = "operation.setRate.failed"
+    case operationSetRateTerminatedByCleanup = "operation.setRate.terminatedByCleanup"
+    case operationSetStereoLayoutStarted = "operation.setStereoLayout.started"
+    case operationSetStereoLayoutCompleted = "operation.setStereoLayout.completed"
+    case operationSetStereoLayoutFailed = "operation.setStereoLayout.failed"
+    case operationSetStereoLayoutTerminatedByCleanup =
+        "operation.setStereoLayout.terminatedByCleanup"
+    case operationSetProjectionStarted = "operation.setProjection.started"
+    case operationSetProjectionCompleted = "operation.setProjection.completed"
+    case operationSetProjectionFailed = "operation.setProjection.failed"
+    case operationSetProjectionTerminatedByCleanup =
+        "operation.setProjection.terminatedByCleanup"
+    case operationSeekStarted = "operation.seek.started"
+    case operationSeekCompleted = "operation.seek.completed"
+    case operationSeekFailed = "operation.seek.failed"
+    case operationSeekTerminatedByCleanup = "operation.seek.terminatedByCleanup"
+    case operationCloseStarted = "operation.close.started"
+    case operationCloseCompleted = "operation.close.completed"
+    case operationCloseFailed = "operation.close.failed"
+    case operationCloseTerminatedByCleanup = "operation.close.terminatedByCleanup"
+    case controlOpenRejected = "control.open.rejected"
+    case controlPlayRejected = "control.play.rejected"
+    case controlPauseRejected = "control.pause.rejected"
+    case controlSetRateRejected = "control.setRate.rejected"
+    case controlSetStereoLayoutRejected = "control.setStereoLayout.rejected"
+    case controlSetProjectionRejected = "control.setProjection.rejected"
+    case controlSeekRejected = "control.seek.rejected"
+    case controlCloseRejected = "control.close.rejected"
+    case providerFormatChanged = "provider.formatChanged"
+    case providerFlush = "provider.flush"
+    case videoRendererFailed = "videoRenderer.failed"
+    case audioRendererFailed = "audioRenderer.failed"
+    case videoRendererWarning = "videoRenderer.warning"
+    case audioRendererWarning = "audioRenderer.warning"
+
+    /// Resolves an operation kind to one complete, searchable started-event name.
+    static func operationStarted(_ kind: PlaybackOperationKind) -> Self {
+        switch kind {
+        case .open: .operationOpenStarted
+        case .play: .operationPlayStarted
+        case .pause: .operationPauseStarted
+        case .setRate: .operationSetRateStarted
+        case .setStereoLayout: .operationSetStereoLayoutStarted
+        case .setProjection: .operationSetProjectionStarted
+        case .seek: .operationSeekStarted
+        case .close: .operationCloseStarted
+        }
+    }
+
+    /// Resolves an operation kind and terminal state to one complete event name.
+    static func operationFinished(
+        _ kind: PlaybackOperationKind,
+        as state: PlaybackOperationState
+    ) -> Self {
+        switch (kind, state) {
+        case (_, .running):
+            preconditionFailure("A running playback operation cannot be finished.")
+        case (.open, .completed): .operationOpenCompleted
+        case (.open, .failed): .operationOpenFailed
+        case (.open, .terminatedByCleanup): .operationOpenTerminatedByCleanup
+        case (.play, .completed): .operationPlayCompleted
+        case (.play, .failed): .operationPlayFailed
+        case (.play, .terminatedByCleanup): .operationPlayTerminatedByCleanup
+        case (.pause, .completed): .operationPauseCompleted
+        case (.pause, .failed): .operationPauseFailed
+        case (.pause, .terminatedByCleanup): .operationPauseTerminatedByCleanup
+        case (.setRate, .completed): .operationSetRateCompleted
+        case (.setRate, .failed): .operationSetRateFailed
+        case (.setRate, .terminatedByCleanup): .operationSetRateTerminatedByCleanup
+        case (.setStereoLayout, .completed): .operationSetStereoLayoutCompleted
+        case (.setStereoLayout, .failed): .operationSetStereoLayoutFailed
+        case (.setStereoLayout, .terminatedByCleanup):
+            .operationSetStereoLayoutTerminatedByCleanup
+        case (.setProjection, .completed): .operationSetProjectionCompleted
+        case (.setProjection, .failed): .operationSetProjectionFailed
+        case (.setProjection, .terminatedByCleanup):
+            .operationSetProjectionTerminatedByCleanup
+        case (.seek, .completed): .operationSeekCompleted
+        case (.seek, .failed): .operationSeekFailed
+        case (.seek, .terminatedByCleanup): .operationSeekTerminatedByCleanup
+        case (.close, .completed): .operationCloseCompleted
+        case (.close, .failed): .operationCloseFailed
+        case (.close, .terminatedByCleanup): .operationCloseTerminatedByCleanup
+        }
+    }
+
+    /// Resolves a rejected control to one complete, searchable event name.
+    static func controlRejected(_ kind: PlaybackOperationKind) -> Self {
+        switch kind {
+        case .open: .controlOpenRejected
+        case .play: .controlPlayRejected
+        case .pause: .controlPauseRejected
+        case .setRate: .controlSetRateRejected
+        case .setStereoLayout: .controlSetStereoLayoutRejected
+        case .setProjection: .controlSetProjectionRejected
+        case .seek: .controlSeekRejected
+        case .close: .controlCloseRejected
+        }
+    }
+
+    /// Resolves provider control events without constructing their names dynamically.
+    static func providerControl(_ kind: MediaEventKind) -> Self {
+        switch kind {
+        case .formatChanged: .providerFormatChanged
+        case .flush: .providerFlush
+        case .sample, .end, .error:
+            preconditionFailure(
+                "Only provider formatChanged and flush events are control events."
+            )
+        }
+    }
+
+    /// Resolves renderer failures and warnings without constructing their names dynamically.
+    static func renderer(
+        _ kind: RendererFailureKind,
+        warning: Bool
+    ) -> Self {
+        switch (kind, warning) {
+        case (.video, false): .videoRendererFailed
+        case (.audio, false): .audioRendererFailed
+        case (.video, true): .videoRendererWarning
+        case (.audio, true): .audioRendererWarning
+        }
+    }
+}
+
 public struct PlaybackOperationRecord: Codable, Equatable, Sendable {
     public var operationID: String
     public var mediaSessionID: String

@@ -235,11 +235,10 @@ extension SampleBufferPlaybackSession {
         if let fullRange = formatExtensions[
             kCMFormatDescriptionExtension_FullRangeVideo as String
         ] as? Bool {
-            rangeFact = .init(.known, value: fullRange ? "full" : "video")
+            rangeFact = .init(known: fullRange ? "full" : "video")
         } else if let imageBuffer {
             rangeFact = .init(
-                .known,
-                value: pixelRange(CVPixelBufferGetPixelFormatType(imageBuffer))
+                known: pixelRange(CVPixelBufferGetPixelFormatType(imageBuffer))
             )
         } else {
             rangeFact = .init(.unknown)
@@ -307,7 +306,7 @@ extension SampleBufferPlaybackSession {
         key: CFString
     ) -> ObservedStringFact {
         guard let value = values[key as String] else { return .init(.none) }
-        return .init(.known, value: normalized(String(describing: value)))
+        return .init(known: normalized(String(describing: value)))
     }
 
     func observedBooleanFact(
@@ -315,11 +314,11 @@ extension SampleBufferPlaybackSession {
         key: CFString
     ) -> ObservedBooleanFact {
         guard let value = values[key as String] as? Bool else { return .init(.none) }
-        return .init(.known, value: value)
+        return .init(known: value)
     }
 
     func presenceFact(_ value: Any?) -> ObservedBooleanFact {
-        value == nil ? .init(.none, value: false) : .init(.known, value: true)
+        value == nil ? .init(.none) : .init(known: true)
     }
 
     func sampleAttachmentDictionary(_ sample: CMSampleBuffer) -> [String: Any] {
@@ -429,7 +428,10 @@ extension SampleBufferPlaybackSession {
             setAudioRendererError(fact.message)
         }
         updateLifecycle(.failed)
-        let stage = "\(fact.rendererKind.rawValue)Renderer.failed"
+        let stage = PlaybackArtifactEventName.renderer(
+            fact.rendererKind,
+            warning: false
+        ).rawValue
         debugStore.recordFailure(PlaybackFailureRecord(
             mediaSessionID: traceID,
             node: .rendererInputCoordination,
@@ -487,7 +489,10 @@ extension SampleBufferPlaybackSession {
             debugStore.emit(
                 mediaSessionID: traceID,
                 node: .rendererInputCoordination,
-                kind: "\(rendererKind.rawValue)Renderer.warning",
+                kind: PlaybackArtifactEventName.renderer(
+                    rendererKind,
+                    warning: true
+                ).rawValue,
                 outcome: .failed,
                 details: ["message": message]
             )
@@ -526,7 +531,7 @@ extension SampleBufferPlaybackSession {
         debugStore.recordOperation(operation)
         debugStore.emit(
             mediaSessionID: traceID,
-            kind: "operation.\(kind.rawValue).started",
+            kind: PlaybackArtifactEventName.operationStarted(kind).rawValue,
             outcome: .succeeded,
             details: ["operationID": operation.operationID]
         )
@@ -548,7 +553,10 @@ extension SampleBufferPlaybackSession {
         }
         debugStore.emit(
             mediaSessionID: traceID,
-            kind: "operation.\(operation.kind.rawValue).\(state.rawValue)",
+            kind: PlaybackArtifactEventName.operationFinished(
+                operation.kind,
+                as: state
+            ).rawValue,
             outcome: outcome,
             details: ["operationID": operation.operationID]
         )

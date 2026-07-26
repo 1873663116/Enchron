@@ -65,13 +65,13 @@ extension SampleBufferPlaybackSession {
         debugStore.recordControlRejection(rejection)
         debugStore.emit(
             mediaSessionID: traceID,
-            kind: "control.\(kind.rawValue).rejected",
+            kind: PlaybackArtifactEventName.controlRejected(kind).rawValue,
             outcome: .failed,
             details: ["reason": reason]
         )
     }
 
-    public func recordSupersededSeekRequest(targetSeconds: Double) {
+    func recordSupersededSeekRequest(targetSeconds: Double) {
         let operation = PlaybackOperationRecord(
             mediaSessionID: traceID,
             kind: .seek,
@@ -164,8 +164,8 @@ extension SampleBufferPlaybackSession {
             platform: platform,
             provenance: "appAdapter",
             appAdapterKind: "externalAppAdapter",
-            sceneContainer: .init(.known, value: sceneContainer),
-            sceneLifecycle: .init(.known, value: sceneLifecycle)
+            sceneContainer: .init(known: sceneContainer),
+            sceneLifecycle: .init(known: sceneLifecycle)
         ) : nil
         debugStore.recordPresentationBinding(record)
         debugStore.emit(
