@@ -240,6 +240,28 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
                 lifecycle: .paused
             )
         )
+        let simulatorConfigured = PresentationStateRecord(
+            mediaSessionID: "session",
+            requestedMode: PlaybackPresentation.panorama.rawValue,
+            phase: "simulatorConfigured",
+            platform: "visionOS"
+        )
+        XCTAssertTrue(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: simulatorConfigured,
+                presentation: .panorama,
+                activeSessionID: "session",
+                lifecycle: .paused
+            )
+        )
+        XCTAssertFalse(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: simulatorConfigured,
+                presentation: .docked,
+                activeSessionID: "session",
+                lifecycle: .paused
+            )
+        )
     }
 
     @MainActor

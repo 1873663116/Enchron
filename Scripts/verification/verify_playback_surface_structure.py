@@ -126,9 +126,12 @@ def main() -> None:
     )
     require(
         "guard presentation != .panorama else { return false }" in runtime
+        and 'record.phase == "simulatorConfigured"' in runtime
+        and "#if targetEnvironment(simulator)" in immersive
+        and '"simulatorConfigured"' in immersive
         and "testPanoramaRequiresObservedVideoPlayerModesBeforeCommit"
             in read("Tests/EnchronMacOS/MacRealityPlaybackContractTests.swift"),
-        "Panorama can commit before RealityKit reports its actual viewing modes as settled",
+        "Panorama can commit without device settlement or an explicit Simulator-ready fact",
     )
     fixture_duration = re.search(r"^[ \t]*-t[ \t]+(\d+)", spatial_verifier, re.MULTILINE)
     require(

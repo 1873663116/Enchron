@@ -179,28 +179,41 @@ for state in states:
 expected = ["window", "docked", "window", "panorama", "window"]
 if modes != expected:
     raise SystemExit(f"presentation sequence mismatch: expected {expected}, got {modes}")
-settled = [
+observed = [
     state for state in states
-    if state.get("requestedMode") == "panorama" and state.get("phase") == "settled"
+    if state.get("requestedMode") == "panorama"
+    and state.get("phase") in {"settled", "simulatorConfigured"}
 ]
-if not settled:
-    raise SystemExit("panorama never reached a settled VideoPlayerComponent observation")
-state = settled[-1]
-required = {
+if not observed:
+    raise SystemExit("panorama never reached a ready VideoPlayerComponent observation")
+state = observed[-1]
+desired = {
     "desiredImmersiveViewingMode": "progressive",
-    "actualImmersiveViewingMode": "progressive",
     "desiredViewingMode": "mono",
-    "actualViewingMode": "mono",
     "desiredSpatialVideoMode": "screen",
-    "actualSpatialVideoMode": "screen",
 }
-unexpected = {key: state.get(key) for key, value in required.items() if state.get(key) != value}
+unexpected = {key: state.get(key) for key, value in desired.items() if state.get(key) != value}
 if unexpected:
-    raise SystemExit(f"panorama settled with unexpected modes: {unexpected}")
+    raise SystemExit(f"panorama configured with unexpected desired modes: {unexpected}")
+if state["phase"] == "settled":
+    actual = {
+        "actualImmersiveViewingMode": "progressive",
+        "actualViewingMode": "mono",
+        "actualSpatialVideoMode": "screen",
+    }
+else:
+    actual = {
+        "actualImmersiveViewingMode": "notExposed",
+        "actualViewingMode": "notExposed",
+        "actualSpatialVideoMode": "screen",
+    }
+unexpected = {key: state.get(key) for key, value in actual.items() if state.get(key) != value}
+if unexpected:
+    raise SystemExit(f"panorama reported unexpected actual modes: {unexpected}")
 PY
 
 print "PASS real PlaybackCore Window -> Docked -> Window -> Panorama -> Window"
-print "stateBinding=passed simulatorVisual=evidence-captured deviceL3=not-run"
+print "stateBinding=passed simulatorModeObservation=configured deviceActualModes=not-run"
 print "Result bundle: $result_bundle"
 print "Runtime log: $runtime_log"
 print "PlaybackCore snapshot: $snapshot_evidence"

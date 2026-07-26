@@ -220,9 +220,23 @@ public struct ImmersiveSpaceView: View {
             && immersiveModeIsSettled
             && component.viewingMode == component.desiredViewingMode
             && component.spatialVideoMode == component.desiredSpatialVideoMode
+        #if targetEnvironment(simulator)
+        let simulatorIsConfigured = presentation == .panorama
+            && component.currentRenderingStatus == .ready
+            && (component.immersiveViewingMode == nil
+                || component.immersiveViewingMode == component.desiredImmersiveViewingMode)
+            && (component.viewingMode == nil
+                || component.viewingMode == component.desiredViewingMode)
+            && (component.spatialVideoMode == nil
+                || component.spatialVideoMode == component.desiredSpatialVideoMode)
+        #else
+        let simulatorIsConfigured = false
+        #endif
         playbackRuntime.recordPresentationState(
             presentation: presentation,
-            phase: isSettled ? "settled" : "surfaceAttached",
+            phase: isSettled
+                ? "settled"
+                : simulatorIsConfigured ? "simulatorConfigured" : "surfaceAttached",
             realityViewID: realityViewID,
             entityParentID: parentID,
             desiredImmersiveViewingMode: String(describing: component.desiredImmersiveViewingMode),
