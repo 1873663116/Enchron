@@ -1,4 +1,5 @@
 import RealityKitScripting
+import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
 
