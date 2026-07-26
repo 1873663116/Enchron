@@ -2,8 +2,8 @@ import XCTest
 
 /// UI tests for Files → playback against the live app process.
 ///
-/// Exercises the assembled `FilesScreen` virtual library and the direct-play
-/// path through `PlaybackLaunchCoordinator` and the test runtime fixture.
+/// Exercises the assembled `FilesScreen` virtual library and verifies that a
+/// selected reference reaches the production playback surface.
 ///
 /// `nonisolated` matches `SmokeLaunchUITests`: it opts the class out of the
 /// project-wide default `MainActor` isolation; the test methods opt back in for

@@ -9,7 +9,6 @@ public enum PlaybackLifecycle: String, Codable, Sendable {
     case ended
     case failed
 }
-
 public enum NodeOutcome: String, Codable, Sendable {
     case succeeded
     case failed
@@ -171,4 +170,3 @@ public struct VideoFormatSignalingSummary: Codable, Equatable, Sendable {
         )
     }
 }
-

@@ -929,45 +929,6 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("the concrete playback transport bridge is throwing and session-bound")
-    @MainActor
-    func playbackTransportBridgeVerifiesSession() async throws {
-        let runtime = PlaybackRuntime(
-            isUITestFixture: true,
-            fixtureStartsEnded: false
-        )
-        let request = PlaybackLaunchRequest(
-            url: URL(fileURLWithPath: "/tmp/spatial-transport-fixture.mp4"),
-            displayName: "Spatial Transport Fixture"
-        )
-        try await runtime.open(request)
-        try runtime.attach(
-            entityID: "transport-test-entity",
-            realityViewID: "transport-test-reality-view",
-            presentation: .window
-        )
-        let sessionID = try #require(runtime.activeSessionID)
-
-        try runtime.performSpatialPlaybackTransport(
-            .pause(mediaSessionID: sessionID)
-        )
-        #expect(runtime.productLifecycle == .paused)
-
-        do {
-            try runtime.performSpatialPlaybackTransport(
-                .resume(mediaSessionID: "stale-session")
-            )
-            Issue.record("a stale Media Session resumed playback")
-        } catch PlaybackRuntime.RuntimeError.mediaSessionChanged {
-        }
-        #expect(runtime.productLifecycle == .paused)
-
-        try runtime.performSpatialPlaybackTransport(
-            .resume(mediaSessionID: sessionID)
-        )
-        #expect(runtime.productLifecycle == .playing)
-    }
-
     @MainActor
     private func completePendingEffect(
         _ model: PlaybackPresentationModel,

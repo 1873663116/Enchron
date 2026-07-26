@@ -202,10 +202,22 @@ def main() -> None:
                 flags=re.MULTILINE,
             )
         ) == 1
-        and runtime.count("updateActiveSessionID(") == 4
+        and runtime.count("updateActiveSessionID(") == 3
         and "playbackSessionLifecycleChanged" in platform_executor
         and "setSessionLifecycleHandler" in application,
         "Media Session replacement has no direct PlaybackRuntime-to-coordinator lifecycle hook",
+    )
+    require(
+        all(
+            forbidden not in runtime + application
+            for forbidden in (
+                "isUITestFixture",
+                "fixtureStartsEnded",
+                "ui-test-fixture",
+                "ENCHRON_UI_TEST_ENDED",
+            )
+        ),
+        "production playback contains a test-only behavior path",
     )
     require(
         "case mediaSessionReplaced(" in presentation_model

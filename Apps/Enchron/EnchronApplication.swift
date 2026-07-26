@@ -55,10 +55,7 @@ final class EnchronApplication {
                 screenPositionStore: screenPositionStore
             )
         )
-        let playbackRuntime = PlaybackRuntime(
-            isUITestFixture: isUITesting,
-            fixtureStartsEnded: isUITesting && environment["ENCHRON_UI_TEST_ENDED"] == "1"
-        )
+        let playbackRuntime = PlaybackRuntime()
         let launcher = PlaybackLaunchCoordinator(
             playbackRuntime: playbackRuntime,
             mediaStateSuiteName: defaultsSuiteName,

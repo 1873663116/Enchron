@@ -73,52 +73,6 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testStaleSurfaceCannotDetachItsReplacement() throws {
-        let runtime = PlaybackRuntime(isUITestFixture: true)
-        try runtime.attach(
-            entityID: "new-surface",
-            realityViewID: "new-reality-view",
-            presentation: .docked
-        )
-
-        runtime.detachSurface(entityID: "old-surface", realityViewID: "old-reality-view")
-
-        XCTAssertEqual(runtime.attachedPresentation, .docked)
-        runtime.detachSurface(entityID: "new-surface", realityViewID: "new-reality-view")
-        XCTAssertNil(runtime.attachedPresentation)
-    }
-
-    @MainActor
-    func testPlaybackRuntimeReportsSessionReplacementAtTheAuthoritativeMutation() async throws {
-        let runtime = PlaybackRuntime(isUITestFixture: true)
-        var events: [PlaybackRuntime.SessionLifecycleEvent] = []
-        runtime.setSessionLifecycleHandler { events.append($0) }
-
-        try await runtime.open(
-            .init(
-                url: URL(fileURLWithPath: "/tmp/session-a.mp4"),
-                displayName: "Session A"
-            )
-        )
-        let sessionA = try XCTUnwrap(runtime.activeSessionID)
-        try await runtime.open(
-            .init(
-                url: URL(fileURLWithPath: "/tmp/session-b.mp4"),
-                displayName: "Session B"
-            )
-        )
-        let sessionB = try XCTUnwrap(runtime.activeSessionID)
-
-        XCTAssertEqual(
-            events,
-            [
-                .activated(id: sessionA),
-                .replaced(previousID: sessionA, currentID: sessionB),
-            ]
-        )
-    }
-
-    @MainActor
     func testOpenFailureKeepsPlayerVisibleForRetry() async throws {
         let suiteName = "app.enchron.tests.open-failure.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
@@ -212,63 +166,6 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         XCTAssertEqual(PlaybackRuntime.stereoLayout(from: "OverUnder"), .topBottom)
         XCTAssertNil(PlaybackRuntime.projectionType(from: "missing"))
         XCTAssertNil(PlaybackRuntime.stereoLayout(from: "missing"))
-    }
-
-    @MainActor
-    func testResumePositionIsAppliedWhenTheSessionOpens() async throws {
-        let runtime = PlaybackRuntime(isUITestFixture: true)
-        let request = PlaybackLaunchRequest(
-            url: URL(fileURLWithPath: "/tmp/resume-test.mkv"),
-            displayName: "Resume Test"
-        )
-
-        try await runtime.open(request, startTimeSeconds: 42)
-
-        XCTAssertEqual(runtime.playbackPosition.seconds, 42)
-        XCTAssertEqual(runtime.lifecycle, .ready)
-        try runtime.attach(
-            entityID: "resume-surface",
-            realityViewID: "resume-reality-view",
-            presentation: .window
-        )
-        XCTAssertEqual(runtime.lifecycle, .playing)
-        runtime.stop()
-    }
-
-    @MainActor
-    func testSpatialPresentationStaysDisabledUntilThePlaybackSurfaceIsAttached() async throws {
-        let runtime = PlaybackRuntime(isUITestFixture: true)
-        let request = PlaybackLaunchRequest(
-            url: URL(fileURLWithPath: "/tmp/spatial-gate-test.mkv"),
-            displayName: "Spatial Gate Test"
-        )
-
-        XCTAssertFalse(runtime.canEnterSpatialPresentation)
-        try await runtime.open(request)
-        XCTAssertFalse(runtime.canEnterSpatialPresentation)
-
-        try runtime.attach(
-            entityID: "spatial-gate-surface",
-            realityViewID: "spatial-gate-reality-view",
-            presentation: .window
-        )
-        XCTAssertTrue(runtime.canEnterSpatialPresentation)
-        runtime.stop()
-    }
-
-    @MainActor
-    func testRepeatedSkipAccumulatesInsteadOfReusingStalePosition() async throws {
-        let runtime = PlaybackRuntime(isUITestFixture: true)
-        try await runtime.open(.init(
-            url: URL(fileURLWithPath: "/tmp/skip-test.mkv"),
-            displayName: "Skip Test"
-        ))
-
-        runtime.skip(by: 10)
-        runtime.skip(by: 10)
-
-        XCTAssertEqual(runtime.playbackPosition.seconds, 20)
-        runtime.stop()
     }
 
     @MainActor

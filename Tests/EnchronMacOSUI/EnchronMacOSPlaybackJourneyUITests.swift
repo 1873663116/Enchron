@@ -271,13 +271,14 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
     }
 
     @MainActor
-    func testEndedStopExposesReplayAndDisablesForwardOnly() {
+    func testEndedStopExposesReplayAndDisablesForwardOnly() throws {
         continueAfterFailure = false
+        let fixture = try fixtureURLFromHostEnvironment(
+            key: "ENCHRON_MACOS_UI_ENDED_FIXTURE"
+        )
         let app = XCUIApplication()
         app.launchArguments = ["-ApplePersistenceIgnoreState", "YES"]
-        app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
-        app.launchEnvironment["ENCHRON_UI_TEST_ENDED"] = "1"
-        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = "/tmp/EnchronUITest.mkv"
+        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture.path
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
         app.launch()
         defer { app.terminate() }
@@ -285,7 +286,7 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         let replay = app.buttons["Replay"].firstMatch
         let rewind = app.buttons["Rewind 10 seconds"].firstMatch
         let forward = app.buttons["Forward 10 seconds"].firstMatch
-        XCTAssertTrue(replay.waitForExistence(timeout: 20))
+        XCTAssertTrue(replay.waitForExistence(timeout: 45))
         XCTAssertTrue(rewind.isEnabled)
         XCTAssertFalse(forward.isEnabled)
 
@@ -313,6 +314,8 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
             let fileName = switch key {
             case "ENCHRON_MACOS_UI_SUBTITLE_FIXTURE":
                 "sdr-bframe-multiaudio-subrip-30s.mkv"
+            case "ENCHRON_MACOS_UI_ENDED_FIXTURE":
+                "sdr-bframe-multiaudio-avsync-30s.mp4"
             default:
                 "sdr-bframe-multiaudio-avsync-120s.mp4"
             }

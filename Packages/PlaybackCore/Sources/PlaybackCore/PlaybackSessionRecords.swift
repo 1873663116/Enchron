@@ -11,7 +11,6 @@ public enum PlaybackOperationKind: String, Codable, Sendable {
     case seek
     case close
 }
-
 public enum PlaybackOperationState: String, Codable, Sendable {
     case running
     case completed
@@ -310,4 +309,3 @@ public struct ProviderOpenSnapshot: Codable, Equatable, Sendable {
         self.formatSignaling = formatSignaling
     }
 }
-

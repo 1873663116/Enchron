@@ -102,7 +102,7 @@ public final class AppModel {
     ) {
         self.playbackPresentationModel = playbackPresentationModel
     }
-    
+
     // MARK: - Actions
     @discardableResult
     public func requestPlaybackPresentation(

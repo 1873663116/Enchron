@@ -8,7 +8,6 @@ public enum MediaEventKind: String, Codable, Sendable {
     case end
     case error
 }
-
 public struct MediaEventRecord: Codable, Equatable, Sendable {
     public var eventID: String
     public var mediaSessionID: String
@@ -258,4 +257,3 @@ public struct PresentationStateRecord: Codable, Equatable, Sendable {
         self.transitionError = transitionError
     }
 }
-

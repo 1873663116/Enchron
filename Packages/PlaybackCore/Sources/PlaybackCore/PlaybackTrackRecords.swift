@@ -40,7 +40,6 @@ public struct VideoTrackRecord: Codable, Equatable, Sendable {
         self.notSelectedReason = notSelectedReason
     }
 }
-
 public struct AudioTrackRecord: Codable, Equatable, Sendable {
     public var mediaSessionID: String
     public var audioTrackID: String
@@ -247,4 +246,3 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
         error = try container.decodeIfPresent(String.self, forKey: .error)
     }
 }
-

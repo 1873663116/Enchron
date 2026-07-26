@@ -18,7 +18,6 @@ nonisolated extension PlaybackModel {
     }
 }
 
-
 nonisolated extension PlaybackModel {
     public struct PlaybackSpeed: Sendable, Equatable, Hashable {
         public let value: Double
@@ -75,4 +74,3 @@ public nonisolated protocol PlaybackEventListening: AnyObject {
     func playbackDidSwitchTrack()
     func playbackDidEncounterError(_ error: PlaybackError)
 }
-

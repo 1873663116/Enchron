@@ -9,10 +9,16 @@ nonisolated final class VisionProDeviceAcceptanceUITests: XCTestCase {
     }
 
     @MainActor
-    func testDockAndPanoramaRoundTripsInOneLaunch() {
+    func testDockAndPanoramaRoundTripsInOneLaunch() throws {
+        guard let fixture = ProcessInfo.processInfo
+            .environment["ENCHRON_DEVICE_ACCEPTANCE_FIXTURE_URL"] else {
+            throw XCTSkip(
+                "Set ENCHRON_DEVICE_ACCEPTANCE_FIXTURE_URL to a media URL reachable from Apple Vision Pro."
+            )
+        }
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
-        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = "/tmp/EnchronUITest.mkv"
+        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture
         app.launch()
 
         let dock = app.descendants(matching: .any)["PlayerUI-TopAction-dock"].firstMatch
