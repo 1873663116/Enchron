@@ -13,21 +13,15 @@ struct PlayerInfoBarView: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Button {
-                launcher.stopPlayback()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                    .frame(width: 60, height: 60)
-                    .contentShape(.rect(cornerRadius: 12))
-            }
-            .buttonStyle(.borderless)
+            GlassCircleIconButton.back(
+                accessibilityLabel: "Back",
+                action: {
+                    launcher.stopPlayback()
+                },
+                accessibilityIdentifier: "PlayerUI-InfoBar-button-back"
+            )
             .keyboardShortcut("[", modifiers: .command)
-            .enchronHoverEffect(.highlight)
-            .accessibilityLabel("Back")
             .accessibilityHint("Stops playback and returns to browser")
-            .accessibilityIdentifier("PlayerUI-InfoBar-button-back")
 
             Text(videoTitle)
                 .font(DesignTokens.Typography.headline)

@@ -10,6 +10,9 @@ import sys
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 PROJECT_FILE = REPOSITORY_ROOT / "Enchron.xcodeproj" / "project.pbxproj"
+DESIGN_SOURCE_ARCHITECTURE_CHECKER = (
+    REPOSITORY_ROOT / "Scripts" / "verification" / "verify_design_source_architecture.py"
+)
 APP_EXCEPTION_ID = "E10000162FA1000100E1C001"
 PRODUCT_TARGETS = {
     "MediaSource",
@@ -135,6 +138,13 @@ def playback_presentation_import_violations(description: dict) -> list[tuple[Pat
 
 
 def main() -> int:
+    design_check = subprocess.run(
+        [sys.executable, str(DESIGN_SOURCE_ARCHITECTURE_CHECKER)],
+        cwd=REPOSITORY_ROOT,
+    )
+    if design_check.returncode != 0:
+        return design_check.returncode
+
     verify_import_parser()
     description = package_description()
     package_sources = package_module_sources(description)

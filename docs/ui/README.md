@@ -15,7 +15,7 @@ flowchart TD
     Main --> WindowPlayback["Window Playback"]
 
     WindowPlayback --> Top["Window Chrome\nBack · Facts · Docking · Panorama"]
-    WindowPlayback --> Deck["Playback Deck\nSettings · -10 · Play · +10 · More"]
+    WindowPlayback --> Deck["Playback Deck\nSettings · -15 · Play · +15 · More"]
     WindowPlayback --> Overlay["Resume / Start Over · Loading · Failure"]
 
     Volume --> Carousel["Environment Selection"]
@@ -48,8 +48,8 @@ stateDiagram-v2
 
 - Media Library 展示虚拟 Library Folder、Media Reference 与只读 Source Directory。它不拥有媒体字节、播放策略或观看状态写入。
 - Window chrome 拥有退出当前媒体、Docking 二级菜单和首次 Panorama 格式菜单。Docking/Panorama 入口不进入 Playback Deck。
-- Playback Deck 的收起顺序固定为 Settings、后退 10 秒、Play/Pause/Replay、前进 10 秒、More，并显示 Progress Bar。
-- Settings 展开 Advanced Settings：所有 Presentation 提供 Precision Timeline；Docked 增加 Screen Size、Distance、Elevation、Restore Defaults；Panorama 增加 Projection、Stereo Layout、Apply 和 Reset to Flat + Mono。
+- Playback Deck 将 Settings 与 More 分置两端，后退 15 秒、Play/Pause/Replay、前进 15 秒组成居中的 transport group，并显示 Progress Bar。
+- Settings 展开 Advanced Settings；Docked 提供 Screen Size、Distance、Elevation、Restore Defaults，Panorama 提供 Projection、Stereo Layout、Apply 和 Reset to Flat + Mono。Precision Timeline 由长按激活后的 Progress Bar scrubber 双击打开，不再由 Settings 打开。
 - More 只提供 Subtitles、Audio Track、Playback Speed 与 Episodes。HDR、Codec、Resolution 是只读信息；App 不提供 Volume/Mute。
 - Docked Video Entity/Mesh 不承载按钮；空间 Deck 只有 Return to Window。Panorama 空间 Deck 同时提供 Return to Window 与 Back-to-Library。
 - Resume Decision 只有 Resume 与 Start Over。用户选择媒体已经承诺打开，不提供 Cancel。

@@ -28,7 +28,6 @@ struct WindowPlayerDeckView: View {
     private var live: FusedPlayerPanelLive {
         let position = playbackRuntime.playbackPosition
         let duration = position.duration
-        let remaining = max(0, duration - position.seconds)
         let transport = PlaybackTransportAvailability(
             lifecycle: playbackRuntime.productLifecycle
         )
@@ -52,12 +51,12 @@ struct WindowPlayerDeckView: View {
             canStepForward: transport.canStepForward,
             progress: duration > 0 ? CGFloat(position.seconds / duration) : 0,
             elapsedLabel: PlaybackTimeFormatter.clock(position.seconds),
-            remainingLabel: "-" + PlaybackTimeFormatter.clock(remaining),
+            durationLabel: PlaybackTimeFormatter.clock(duration),
             duration: duration,
             framesPerSecond: playbackRuntime.displayMediaProfile?.frameRate ?? 0,
             onPlayPause: { self.register(); self.togglePlayPause() },
-            onSkipBackward: { self.register(); self.playbackRuntime.skip(by: -10) },
-            onSkipForward: { self.register(); self.playbackRuntime.skip(by: 10) },
+            onSkipBackward: { self.register(); self.playbackRuntime.skip(by: -15) },
+            onSkipForward: { self.register(); self.playbackRuntime.skip(by: 15) },
             onSeek: { p in
                 self.register()
                 self.playbackRuntime.seek(to: Double(p) * duration, startsPaused: false)

@@ -11,7 +11,7 @@ public struct GlassCircleIconLabel: View {
     let accessibilityLabel: String
     var iconColor: Color = .white
     var visualSize: CGFloat = DesignTokens.Interactive.regular
-    var font: Font = DesignTokens.SymbolSize.control
+    var iconTier: ButtonIconTier = .standard
     var accessibilityIdentifier: String?
 
     // 纯视觉:玻璃圆 + 注视高亮 + press,命中区恒等于视觉圆。命中区的静默扩展由
@@ -22,20 +22,19 @@ public struct GlassCircleIconLabel: View {
         accessibilityLabel: String,
         iconColor: Color = .white,
         visualSize: CGFloat = DesignTokens.Interactive.regular,
-        font: Font = DesignTokens.SymbolSize.control,
+        iconTier: ButtonIconTier = .standard,
         accessibilityIdentifier: String? = nil
     ) {
         self.systemName = systemName
         self.accessibilityLabel = accessibilityLabel
         self.iconColor = iconColor
         self.visualSize = visualSize
-        self.font = font
+        self.iconTier = iconTier
         self.accessibilityIdentifier = accessibilityIdentifier
     }
 
     public var body: some View {
-        Image(systemName: systemName)
-            .font(font)
+        ButtonSymbol(systemName: systemName, tier: iconTier)
             .foregroundStyle(iconColor)
             .frame(width: visualSize, height: visualSize)
             .clipShape(Circle())
@@ -55,7 +54,7 @@ public struct GlassCircleIconButton: View {
     var accessibilityIdentifier: String?
     var visualSize: CGFloat = DesignTokens.Interactive.regular
     var targetSize: CGFloat = DesignTokens.Interactive.large
-    var font: Font = DesignTokens.SymbolSize.control
+    var iconTier: ButtonIconTier = .standard
 
     // iconColor 锁死:按钮永远白色图标,不暴露给调用点(Label 默认即 .white)。
     // 原生 Button 负责唯一的激活与辅助功能语义;视觉 label 自己限定 hover 圆,
@@ -68,7 +67,7 @@ public struct GlassCircleIconButton: View {
         accessibilityIdentifier: String? = nil,
         visualSize: CGFloat = DesignTokens.Interactive.regular,
         targetSize: CGFloat = DesignTokens.Interactive.large,
-        font: Font = DesignTokens.SymbolSize.control
+        iconTier: ButtonIconTier = .standard
     ) {
         self.systemName = systemName
         self.accessibilityLabel = accessibilityLabel
@@ -76,7 +75,7 @@ public struct GlassCircleIconButton: View {
         self.accessibilityIdentifier = accessibilityIdentifier
         self.visualSize = visualSize
         self.targetSize = targetSize
-        self.font = font
+        self.iconTier = iconTier
     }
 
     public var body: some View {
@@ -85,7 +84,7 @@ public struct GlassCircleIconButton: View {
                 systemName: systemName,
                 accessibilityLabel: accessibilityLabel,
                 visualSize: visualSize,
-                font: font
+                iconTier: iconTier
             )
             .accessibilityHidden(true)
             .frame(width: targetSize, height: targetSize)
@@ -119,6 +118,58 @@ public struct GlassCircleIconButton: View {
     ) -> GlassCircleIconButton {
         GlassCircleIconButton(
             systemName: "arrow.up.left.and.arrow.down.right",
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+
+    public static func collapse(
+        accessibilityLabel: String = "Collapse",
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            systemName: "arrow.down.forward.and.arrow.up.backward",
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+
+    public static func environment(
+        accessibilityLabel: String = "Environment",
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            systemName: "mountain.2.fill",
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+
+    public static func expandVertically(
+        accessibilityLabel: String = "Expand Vertically",
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            systemName: "rectangle.arrowtriangle.2.outward",
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+
+    public static func collapseVertically(
+        accessibilityLabel: String = "Collapse Vertically",
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            systemName: "rectangle.arrowtriangle.2.inward",
             accessibilityLabel: accessibilityLabel,
             action: action,
             accessibilityIdentifier: accessibilityIdentifier
@@ -207,16 +258,15 @@ public extension View {
 }
 
 public extension View {
-    /// The translucent rounded-rect surface shared by `SettingListGroup` and the
-    /// expanded precision-timeline card: `.regularMaterial` fill, clipped to a
-    /// continuous rounded rectangle, with a 1pt divider stroke. Centralised so
-    /// both containers stay identical instead of re-implementing the treatment.
-    func enchronListGroupSurface(
-        cornerRadius: CGFloat = DesignTokens.Radius.element
+    /// The material-and-divider treatment used by inset list-group containers.
+    /// The generic form lets feature components reuse the exact same recessed
+    /// surface without introducing a glass background.
+    func enchronListGroupSurface<S: InsettableShape>(
+        in shape: S,
+        material: Material = .regular
     ) -> some View {
-        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-        return self
-            .background(.regularMaterial, in: shape)
+        self
+            .background(material, in: shape)
             .clipShape(shape)
             .overlay {
                 shape.stroke(
@@ -224,6 +274,17 @@ public extension View {
                     lineWidth: DesignTokens.Stroke.subtle
                 )
             }
+    }
+
+    /// A translucent rounded-rect surface with a system material and divider.
+    /// `SettingListGroup` keeps the regular default; content that needs stronger
+    /// separation can explicitly request a thicker system material.
+    func enchronListGroupSurface(
+        cornerRadius: CGFloat = DesignTokens.Radius.element,
+        material: Material = .regular
+    ) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return enchronListGroupSurface(in: shape, material: material)
     }
 }
 
@@ -1168,8 +1229,7 @@ private struct SettingListActionChip: View {
     var body: some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
             if let systemName {
-                Image(systemName: systemName)
-                    .font(DesignTokens.Typography.sectionHeader)
+                ButtonSymbol(systemName: systemName, tier: .label)
             }
 
             Text(title)

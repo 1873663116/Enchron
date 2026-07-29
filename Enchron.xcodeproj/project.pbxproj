@@ -420,6 +420,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = C3A35ABF2F85429300DA0D16 /* Build configuration list for PBXNativeTarget "DesignPreview" */;
 			buildPhases = (
+				E30000012FA3000100E1C001 /* Design Source Architecture */,
 				C3A35AAF2F85429300DA0D16 /* Sources */,
 				C3A35AB02F85429300DA0D16 /* Frameworks */,
 				C3A35AB12F85429300DA0D16 /* Resources */,
@@ -443,6 +444,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = C3B0F9992F5726B40064596E /* Build configuration list for PBXNativeTarget "Enchron" */;
 			buildPhases = (
+				E30000022FA3000100E1C001 /* Design Source Architecture */,
 				C3B0F97C2F5726B30064596E /* Sources */,
 				C3B0F97D2F5726B30064596E /* Frameworks */,
 				A4C19FA12FD1000100AABBCC /* Embed Frameworks */,
@@ -478,6 +480,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = D400000A2FA0000100E1C001 /* Build configuration list for PBXNativeTarget "EnchronMacOS" */;
 			buildPhases = (
+				E30000032FA3000100E1C001 /* Design Source Architecture */,
 				D40000042FA0000100E1C001 /* Sources */,
 				D40000052FA0000100E1C001 /* Frameworks */,
 				D40000162FA0000100E1C001 /* Embed Frameworks */,
@@ -711,6 +714,90 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		E30000012FA3000100E1C001 /* Design Source Architecture */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
+				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
+				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
+				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
+				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
+				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
+				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
+				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
+				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
+			);
+			name = "Design Source Architecture";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
+		};
+		E30000022FA3000100E1C001 /* Design Source Architecture */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
+				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
+				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
+				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
+				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
+				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
+				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
+				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
+				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
+			);
+			name = "Design Source Architecture";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
+		};
+		E30000032FA3000100E1C001 /* Design Source Architecture */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
+				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
+				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
+				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
+				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
+				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
+				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
+				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
+				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
+			);
+			name = "Design Source Architecture";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
+		};
 		A1B2C3D42F600000DEADBEEF /* SwiftLint */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;

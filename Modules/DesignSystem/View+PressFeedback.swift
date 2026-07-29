@@ -78,16 +78,15 @@ private struct EnchronPressFeedbackButtonStyleBody<Label: View>: View {
     let style: EnchronPressFeedbackStyle
 
     @State private var measuredSize: CGSize = .zero
+    @State private var isVisuallyPressed = false
+    @State private var pressStartedAt: ContinuousClock.Instant?
+    @State private var transitionGeneration = 0
 
     var body: some View {
         let spec = style.spec
 
         label
-            .scaleEffect(isPressed ? spec.effectivePressedScale(for: measuredSize) : 1.0)
-            .animation(
-                isPressed ? spec.pressAnimation : spec.releaseAnimation,
-                value: isPressed
-            )
+            .scaleEffect(isVisuallyPressed ? spec.effectivePressedScale(for: measuredSize) : 1.0)
             .background {
                 GeometryReader { proxy in
                     Color.clear
@@ -95,6 +94,35 @@ private struct EnchronPressFeedbackButtonStyleBody<Label: View>: View {
                         .onChange(of: proxy.size) { _, newSize in
                             measuredSize = newSize
                         }
+                }
+            }
+            .onChange(of: isPressed, initial: true) { _, newValue in
+                transitionGeneration += 1
+                let generation = transitionGeneration
+                let clock = ContinuousClock()
+
+                if newValue {
+                    pressStartedAt = clock.now
+                    withAnimation(spec.pressAnimation) {
+                        isVisuallyPressed = true
+                    }
+                } else if isVisuallyPressed {
+                    let elapsed = pressStartedAt?.duration(to: clock.now) ?? spec.holdDuration
+                    let remaining = elapsed < spec.holdDuration
+                        ? spec.holdDuration - elapsed
+                        : .zero
+                    pressStartedAt = nil
+
+                    Task { @MainActor in
+                        if remaining > .zero {
+                            try? await Task.sleep(for: remaining)
+                        }
+                        guard generation == transitionGeneration else { return }
+
+                        withAnimation(spec.releaseAnimation) {
+                            isVisuallyPressed = false
+                        }
+                    }
                 }
             }
     }
