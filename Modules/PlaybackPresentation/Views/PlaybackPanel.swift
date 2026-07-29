@@ -1,4 +1,5 @@
 import DesignSystem
+import Foundation
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
@@ -25,7 +26,7 @@ struct FusedPlayerPanelLive {
     var canStepForward: Bool
     var progress: CGFloat
     var elapsedLabel: String
-    var remainingLabel: String
+    var durationLabel: String
     var duration: Double
     var framesPerSecond: Double
     var onPlayPause: () -> Void
@@ -63,13 +64,19 @@ struct FusedPlayerPanel: View {
     }
 
     @State private var timelineExpanded = false
+    @State private var settingsExpanded = false
 
     // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
     @State private var progress: CGFloat = 0.45
     @State private var isDragging = false
     @State private var isTimelineDragging = false
     @State private var isProgressHovered = false
-    @State private var isIgnoringDrag = false
+    @State private var scrubberActivation: ScrubberActivation = .idle
+    @State private var activationOrigin: CGPoint?
+    @State private var activationCurrentLocation: CGPoint?
+    @State private var seekOrigin: CGPoint?
+    @State private var activationGeneration = 0
+    @State private var lastScrubberPress: (time: Date, location: CGPoint)?
     @State private var dragStartProgress: CGFloat = 0.45
     /// Seek 完成锁存:松手 onSeek 后,live.progress 异步才追上,锁存期内拇指钉在目标值,
     /// 避免"跳回旧位再闪到目标"。live 追上(或超时兜底)即释放。
@@ -89,6 +96,13 @@ struct FusedPlayerPanel: View {
     @Namespace private var hoverNamespace
 
     private enum ProgressBoundary { case minimum, maximum }
+    private enum ScrubberActivation {
+        case idle
+        case activating
+        case unlocked
+        case seeking
+        case cancelled
+    }
 
     // 拖动中用本地 progress(视觉跟手);松手回调 onSeek。非拖动时镜像 live 位置;
     // 锁存期内钉在 pendingSeekTarget;live 为 nil 退化纯本地 @State(Canvas mock)。
@@ -100,7 +114,7 @@ struct FusedPlayerPanel: View {
 
     private let expandedWidth: CGFloat = 880
 
-    private var isExpanded: Bool { timelineExpanded }
+    private var isExpanded: Bool { timelineExpanded || settingsExpanded }
     private var clusterWidth: CGFloat {
         isExpanded ? expandedWidth : DesignTokens.ProgressBar.previewWidth
     }
@@ -113,11 +127,11 @@ struct FusedPlayerPanel: View {
         VStack(spacing: DesignTokens.Spacing.md) {
             controlsRow
 
-            if timelineExpanded, let live, live.presentation == .docked {
+            if settingsExpanded, let live, live.presentation == .docked {
                 dockedPlacementControls(live)
             }
 
-            if timelineExpanded, let live, live.presentation == .panorama {
+            if settingsExpanded, let live, live.presentation == .panorama {
                 panoramaFormatControls(live)
             }
 
@@ -135,6 +149,7 @@ struct FusedPlayerPanel: View {
         .enchronGlassBackground(in: shape)
         // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
         .animation(DesignTokens.AnimationToken.panelSpring, value: timelineExpanded)
+        .animation(DesignTokens.AnimationToken.panelSpring, value: settingsExpanded)
         .enchronPressSensoryFeedback(.slider, trigger: scrubFeedbackTrigger)
         .enchronPressSensoryFeedback(.selectionMinimum, trigger: minimumBoundaryFeedbackTrigger)
         .enchronPressSensoryFeedback(.selectionMaximum, trigger: maximumBoundaryFeedbackTrigger)
@@ -260,17 +275,23 @@ struct FusedPlayerPanel: View {
     @ViewBuilder
     private var controlsRow: some View {
         if (live?.presentation ?? .window) == .window {
-            HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-                GlassCircleIconButton(
-                    systemName: "slider.horizontal.3",
-                    accessibilityLabel: timelineExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
-                    action: { timelineExpanded ? closeTimeline() : openTimeline() },
-                    accessibilityIdentifier: "PlayerPanel-button-expand"
-                )
-                rewindButton
-                playButton
-                forwardButton
-                moreMenu
+            ZStack {
+                HStack {
+                    GlassCircleIconButton(
+                        systemName: "gearshape",
+                        accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
+                        action: toggleSettings,
+                        accessibilityIdentifier: "PlayerPanel-button-settings"
+                    )
+                    Spacer()
+                    moreMenu
+                }
+
+                HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                    rewindButton
+                    playButton
+                    forwardButton
+                }
             }
             .frame(width: clusterWidth)
         } else if let live {
@@ -291,10 +312,10 @@ struct FusedPlayerPanel: View {
                 )
                 .keyboardShortcut(.escape, modifiers: [])
                 GlassCircleIconButton(
-                    systemName: "slider.horizontal.3",
-                    accessibilityLabel: timelineExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
-                    action: { timelineExpanded ? closeTimeline() : openTimeline() },
-                    accessibilityIdentifier: "PlayerPanel-button-expand"
+                    systemName: "gearshape",
+                    accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
+                    action: toggleSettings,
+                    accessibilityIdentifier: "PlayerPanel-button-settings"
                 )
                 rewindButton
                 playButton
@@ -307,8 +328,8 @@ struct FusedPlayerPanel: View {
 
     private var rewindButton: some View {
         GlassCircleIconButton(
-            systemName: timelineExpanded ? "backward.frame" : "gobackward.10",
-            accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 10 seconds",
+            systemName: timelineExpanded ? "backward.frame" : "gobackward.15",
+            accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 15 seconds",
             action: { timelineExpanded ? stepFrame(-1) : live?.onSkipBackward() },
             accessibilityIdentifier: "PlayerPanel-button-rewind"
         )
@@ -317,8 +338,8 @@ struct FusedPlayerPanel: View {
 
     private var forwardButton: some View {
         GlassCircleIconButton(
-            systemName: timelineExpanded ? "forward.frame" : "goforward.10",
-            accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 10 seconds",
+            systemName: timelineExpanded ? "forward.frame" : "goforward.15",
+            accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 15 seconds",
             action: { timelineExpanded ? stepFrame(1) : live?.onSkipForward() },
             accessibilityIdentifier: "PlayerPanel-button-forward"
         )
@@ -376,7 +397,7 @@ struct FusedPlayerPanel: View {
             accessibilityIdentifier: "PlayerPanel-button-play",
             visualSize: DesignTokens.Interactive.xl,
             targetSize: DesignTokens.Interactive.xl,
-            font: DesignTokens.SymbolSize.action
+            iconTier: .primary
         )
         .keyboardShortcut(.space, modifiers: [])
     }
@@ -546,7 +567,12 @@ struct FusedPlayerPanel: View {
     // MARK: Progress bar(收起态;双击展开时间轴)—— 整套抄自 PlayerControlDeck
 
     private var trackScale: CGFloat {
-        isDragging ? 1 : DesignTokens.ProgressBar.inactiveScale
+        switch scrubberActivation {
+        case .activating, .unlocked, .seeking:
+            return 1
+        case .idle, .cancelled:
+            return DesignTokens.ProgressBar.inactiveScale
+        }
     }
 
     private var hoverActivationGroup: EnchronHoverGroup {
@@ -590,7 +616,7 @@ struct FusedPlayerPanel: View {
             timeBubble
                 .position(
                     x: thumbX,
-                    y: DesignTokens.ProgressBar.hitHeight / 2 - DesignTokens.ProgressBar.timeBubbleOffset
+                    y: DesignTokens.ProgressBar.hitHeight / 2 + DesignTokens.ProgressBar.timeBubbleOffset
                 )
                 .enchronHoverOpacity(
                     active: 1,
@@ -610,10 +636,7 @@ struct FusedPlayerPanel: View {
         }
         .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
         .contentShape(.interaction, Capsule())
-        .onHover { isProgressHovered = $0 }
         .gesture(dragGesture(width: width, thumbX: thumbX))
-        // 双击进度条任意处展开时间轴。
-        .simultaneousGesture(TapGesture(count: 2).onEnded { openTimeline() })
     }
 
     private func hoverCarrier(width: CGFloat) -> some View {
@@ -624,7 +647,7 @@ struct FusedPlayerPanel: View {
             .enchronHoverOpacity(
                 active: 1,
                 inactive: DesignTokens.ProgressBar.hoverCarrierInactiveOpacity,
-                in: hoverActivationGroup,
+                in: nil,
                 forcedActive: isProgressHovered,
                 animation: DesignTokens.AnimationToken.selection,
                 macUsesLocalHover: true
@@ -641,25 +664,18 @@ struct FusedPlayerPanel: View {
     ) -> some View {
         ZStack(alignment: .leading) {
             ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(.clear)
-                    .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
-                    .enchronGlassBackground(in: Capsule())
-
                 progressTrackLayer(
                     railWidth: overlayWidth,
                     playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
                     scale: scale,
-                    playedColor: DesignTokens.ProgressBar.playedColor,
-                    unplayedColor: DesignTokens.ProgressBar.unplayedColor
+                    playedColor: DesignTokens.ProgressBar.playedColor
                 )
 
                 progressTrackLayer(
                     railWidth: overlayWidth,
                     playedWidth: DesignTokens.ProgressBar.thumbDiameter / 2 + width * progress,
                     scale: scale,
-                    playedColor: DesignTokens.ProgressBar.playedHoverColor,
-                    unplayedColor: DesignTokens.ProgressBar.unplayedHoverColor
+                    playedColor: DesignTokens.ProgressBar.playedHoverColor
                 )
                 .enchronHoverOpacity(
                     active: 1,
@@ -672,7 +688,6 @@ struct FusedPlayerPanel: View {
             }
             .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)
             .scaleEffect(y: scale)
-            .animation(DesignTokens.PressFeedback.control.pressAnimation, value: scale)
         }
         .frame(width: overlayWidth, height: DesignTokens.ProgressBar.hitHeight)
         .allowsHitTesting(false)
@@ -682,8 +697,7 @@ struct FusedPlayerPanel: View {
         railWidth: CGFloat,
         playedWidth: CGFloat,
         scale: CGFloat,
-        playedColor: Color,
-        unplayedColor: Color
+        playedColor: Color
     ) -> some View {
         let visualHeight = DesignTokens.ProgressBar.trackHeight * scale
         let trackShape = RoundedRectangle(
@@ -695,9 +709,9 @@ struct FusedPlayerPanel: View {
         )
 
         return ZStack(alignment: .leading) {
-            trackShape
-                .fill(unplayedColor)
+            Color.clear
                 .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
+                .enchronListGroupSurface(in: trackShape, material: .thick)
             trackShape
                 .fill(playedColor)
                 .frame(width: railWidth, height: DesignTokens.ProgressBar.trackHeight)
@@ -717,7 +731,7 @@ struct FusedPlayerPanel: View {
 
         return HStack(spacing: DesignTokens.Spacing.xs) {
             Text(live?.elapsedLabel ?? "6:21").foregroundStyle(.primary)
-            Text(live?.remainingLabel ?? "-7:54").foregroundStyle(.secondary)
+            Text(live?.durationLabel ?? "14:15").foregroundStyle(.secondary)
         }
         .font(DesignTokens.Typography.monospacedDetail)
         .monospacedDigit()
@@ -746,46 +760,128 @@ struct FusedPlayerPanel: View {
             .enchronHoverContentShape(Circle())
             .enchronHoverActivation(in: hoverActivationGroup)
             .contentShape(Circle())
+            .onHover { isProgressHovered = $0 }
     }
 
     private func dragGesture(width: CGFloat, thumbX: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: DesignTokens.Stroke.regular)
+        DragGesture(minimumDistance: 0)
             .onChanged { value in
-                guard !isIgnoringDrag else { return }
-                if !isDragging {
+                switch scrubberActivation {
+                case .idle:
                     guard isThumbHit(value.startLocation, thumbX: thumbX) else {
-                        isIgnoringDrag = true
+                        lastScrubberPress = nil
+                        scrubberActivation = .cancelled
                         return
                     }
-                    // live 注入时进度起点取自当前播放位置(displayProgress),避免从陈旧
-                    // 本地 @State 起跳;mock 时 displayProgress == progress,行为不变。
-                    dragStartProgress = displayProgress
-                    progress = displayProgress
-                    beginScrubbing()
+                    beginScrubberActivation(at: value.location)
+                case .activating:
+                    guard let origin = activationOrigin else { return }
+                    if distance(from: origin, to: value.location) > DesignTokens.ProgressBar.activationSlop {
+                        cancelScrubberActivation()
+                    } else {
+                        activationCurrentLocation = value.location
+                    }
+                case .unlocked:
+                    beginScrubbing(at: value.location)
+                case .seeking:
+                    guard let seekOrigin else { return }
+                    updateProgress(
+                        forTranslation: value.location.x - seekOrigin.x,
+                        width: width
+                    )
+                case .cancelled:
+                    return
                 }
-                updateProgress(forTranslation: value.translation.width, width: width)
             }
-            .onEnded { _ in
-                if isDragging {
+            .onEnded { value in
+                if scrubberActivation == .seeking {
+                    lastScrubberPress = nil
                     endScrubbing()
                     if live != nil {
                         // 锁存到目标值,跨过异步 seek 往返;live 追上后释放(见 body 的 onChange)。
                         pendingSeekTarget = progress
                     }
                     live?.onSeek(progress)
+                } else if scrubberActivation == .activating {
+                    completeShortScrubberPress(at: value.location, time: value.time)
+                    resetScrubberActivation()
+                } else {
+                    resetScrubberActivation()
                 }
-                isIgnoringDrag = false
             }
     }
 
-    private func beginScrubbing() {
-        withAnimation(DesignTokens.PressFeedback.control.pressAnimation) { isDragging = true }
-        scrubFeedbackTrigger += 1
+    private func completeShortScrubberPress(at location: CGPoint, time: Date) {
+        if let previous = lastScrubberPress,
+           time.timeIntervalSince(previous.time) <= DesignTokens.ProgressBar.doublePressInterval,
+           distance(from: previous.location, to: location) <= DesignTokens.ProgressBar.activationSlop {
+            lastScrubberPress = nil
+            openTimeline()
+        } else {
+            lastScrubberPress = (time, location)
+        }
+    }
+
+    private func beginScrubberActivation(at location: CGPoint) {
+        activationGeneration += 1
+        let generation = activationGeneration
+        activationOrigin = location
+        activationCurrentLocation = location
+        seekOrigin = nil
+        dragStartProgress = displayProgress
+        progress = displayProgress
+        withAnimation(DesignTokens.ProgressBar.activationAnimation) {
+            scrubberActivation = .activating
+        }
+        Task { @MainActor in
+            try? await Task.sleep(for: DesignTokens.ProgressBar.activationDuration)
+            guard Task.isCancelled == false else { return }
+            guard activationGeneration == generation else { return }
+            guard scrubberActivation == .activating else { return }
+            lastScrubberPress = nil
+            seekOrigin = activationCurrentLocation
+            scrubberActivation = .unlocked
+            scrubFeedbackTrigger += 1
+        }
+    }
+
+    private func cancelScrubberActivation() {
+        activationGeneration += 1
+        lastScrubberPress = nil
+        activationOrigin = nil
+        activationCurrentLocation = nil
+        seekOrigin = nil
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            scrubberActivation = .cancelled
+            isDragging = false
+        }
+    }
+
+    private func beginScrubbing(at location: CGPoint) {
+        seekOrigin = location
+        dragStartProgress = displayProgress
+        scrubberActivation = .seeking
+        isDragging = true
     }
 
     private func endScrubbing() {
-        withAnimation(DesignTokens.AnimationToken.selection) { isDragging = false }
+        resetScrubberActivation()
         announcedBoundary = nil
+    }
+
+    private func resetScrubberActivation() {
+        activationGeneration += 1
+        activationOrigin = nil
+        activationCurrentLocation = nil
+        seekOrigin = nil
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            scrubberActivation = .idle
+            isDragging = false
+        }
+    }
+
+    private func distance(from start: CGPoint, to end: CGPoint) -> CGFloat {
+        hypot(end.x - start.x, end.y - start.y)
     }
 
     private func progressValue(forTranslation translationX: CGFloat, width: CGFloat) -> CGFloat {
@@ -820,6 +916,7 @@ struct FusedPlayerPanel: View {
     }
 
     private func openTimeline() {
+        settingsExpanded = false
         if let live {
             advancedProjection = live.projection
             advancedStereoLayout = live.stereoLayout
@@ -837,6 +934,20 @@ struct FusedPlayerPanel: View {
 
     private func closeTimeline() {
         withAnimation(DesignTokens.AnimationToken.panelSpring) { timelineExpanded = false }
+        onInteraction()
+    }
+
+    private func toggleSettings() {
+        if settingsExpanded {
+            withAnimation(DesignTokens.AnimationToken.panelSpring) {
+                settingsExpanded = false
+            }
+        } else {
+            timelineExpanded = false
+            withAnimation(DesignTokens.AnimationToken.panelSpring) {
+                settingsExpanded = true
+            }
+        }
         onInteraction()
     }
 

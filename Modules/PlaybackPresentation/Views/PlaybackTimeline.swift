@@ -30,11 +30,9 @@ struct PrecisionTimelineView: View {
     @State private var dragStartTime: Double = 0
     @State private var isDraggingZoom = false
 
-    // EXPLORATORY: zoom slider track dimensions not yet promoted to DesignTokens;
-    // they mirror CenterSlider's track/knob so the two read as the same control.
-    private let zoomTrackWidth: CGFloat = 360
-    private let zoomTrackHeight: CGFloat = 30
-    private let zoomKnobSize: CGFloat = 26
+    private var zoomTrackWidth: CGFloat { DesignTokens.PrecisionTimeline.zoomRailWidth }
+    private var zoomTrackHeight: CGFloat { DesignTokens.PrecisionTimeline.zoomRailHeight }
+    private var zoomKnobSize: CGFloat { DesignTokens.PrecisionTimeline.zoomRailThumbSize }
 
     // Four-row card: zoom slider, timecode, then ruler + film strip. The card
     // surface is shared with `SettingListGroup` (no extra glass layer). The
@@ -134,8 +132,17 @@ struct PrecisionTimelineView: View {
             let shape = RoundedRectangle(cornerRadius: DesignTokens.Radius.element, style: .continuous)
 
             ZStack(alignment: .topLeading) {
-                Rectangle()
-                    .fill(DesignTokens.PrecisionTimeline.emptyAreaFill)
+                shape
+                    .fill(DesignTokens.PrecisionTimeline.viewportFill)
+
+                shape
+                    .stroke(
+                        DesignTokens.PrecisionTimeline.viewportInnerShadow,
+                        lineWidth: DesignTokens.PrecisionTimeline.viewportInnerShadowWidth
+                    )
+                    .blur(radius: DesignTokens.PrecisionTimeline.viewportInnerShadowRadius)
+                    .offset(y: DesignTokens.PrecisionTimeline.viewportInnerShadowOffsetY)
+                    .mask(shape)
 
                 timelineRuler(
                     viewportWidth: viewportWidth,
@@ -158,6 +165,13 @@ struct PrecisionTimelineView: View {
                 )
             }
             .clipShape(shape)
+            .overlay {
+                shape.stroke(
+                    DesignTokens.Surface.divider,
+                    lineWidth: DesignTokens.Stroke.subtle
+                )
+            }
+            .brightness(DesignTokens.PrecisionTimeline.viewportRestingBrightness)
             .enchronHoverContentShape(shape)
             .enchronHoverEffect(.automatic)
             .contentShape(shape)
@@ -237,6 +251,12 @@ struct PrecisionTimelineView: View {
         Rectangle()
             .fill(DesignTokens.PrecisionTimeline.playheadColor)
             .frame(width: DesignTokens.PrecisionTimeline.playheadWidth)
+            .frame(height: height)
+            .shadow(
+                color: DesignTokens.PrecisionTimeline.playheadShadow,
+                radius: DesignTokens.PrecisionTimeline.playheadShadowRadius,
+                x: DesignTokens.PrecisionTimeline.playheadShadowOffsetX
+            )
             .overlay(alignment: .top) {
                 Circle()
                     .fill(DesignTokens.PrecisionTimeline.playheadAccent)
@@ -246,7 +266,6 @@ struct PrecisionTimelineView: View {
                     )
                     .offset(y: -DesignTokens.Spacing.xs)
             }
-            .frame(height: height)
             .position(
                 x: x,
                 y: height / 2
@@ -344,6 +363,25 @@ struct PrecisionTimelineView: View {
         context.fill(
             Path(visibleFilmRect),
             with: .color(DesignTokens.PrecisionTimeline.filmStripBase)
+        )
+        let bandHeight = min(DesignTokens.PrecisionTimeline.filmImageInset, size.height / 2)
+        context.fill(
+            Path(CGRect(
+                x: visibleFilmRect.minX,
+                y: visibleFilmRect.minY,
+                width: visibleFilmRect.width,
+                height: bandHeight
+            )),
+            with: .color(DesignTokens.PrecisionTimeline.filmStripBand)
+        )
+        context.fill(
+            Path(CGRect(
+                x: visibleFilmRect.minX,
+                y: visibleFilmRect.maxY - bandHeight,
+                width: visibleFilmRect.width,
+                height: bandHeight
+            )),
+            with: .color(DesignTokens.PrecisionTimeline.filmStripBand)
         )
 
         // segmentWidth 不整除 contentWidth 时,末尾会余下一截。把它并入最后一个完整格

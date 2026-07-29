@@ -161,19 +161,19 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
                 && $0.lifecycle == "paused"
                 && $0.session == initial.session
         }
-        XCTAssertGreaterThan(paused.duration - paused.position, 10)
+        XCTAssertGreaterThan(paused.duration - paused.position, 15)
 
-        let forward = app.buttons["Forward 10 seconds"].firstMatch
+        let forward = app.buttons["Forward 15 seconds"].firstMatch
         XCTAssertTrue(forward.waitForExistence(timeout: 5))
         typeKey(.rightArrow, in: app)
 
         let forwarded = try waitForControlState(in: app, timeout: 15) {
             $0.lifecycle == "paused"
                 && $0.session == initial.session
-                && abs($0.position - (paused.position + 10)) <= 2
+                && abs($0.position - (paused.position + 15)) <= 2
         }
-        XCTAssertEqual(forwarded.position, paused.position + 10, accuracy: 2)
-        attachScreenshot(of: app, name: "04 Paused after Forward 10 seconds")
+        XCTAssertEqual(forwarded.position, paused.position + 15, accuracy: 2)
+        attachScreenshot(of: app, name: "04 Paused after Forward 15 seconds")
 
         XCTAssertTrue(app.buttons["Play"].firstMatch.waitForExistence(timeout: 5))
         typeKey(.space, in: app)
@@ -284,8 +284,8 @@ nonisolated final class EnchronMacOSPlaybackJourneyUITests: XCTestCase {
         defer { app.terminate() }
 
         let replay = app.buttons["Replay"].firstMatch
-        let rewind = app.buttons["Rewind 10 seconds"].firstMatch
-        let forward = app.buttons["Forward 10 seconds"].firstMatch
+        let rewind = app.buttons["Rewind 15 seconds"].firstMatch
+        let forward = app.buttons["Forward 15 seconds"].firstMatch
         XCTAssertTrue(replay.waitForExistence(timeout: 45))
         XCTAssertTrue(rewind.isEnabled)
         XCTAssertFalse(forward.isEnabled)

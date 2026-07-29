@@ -99,11 +99,11 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 ## Window 与 Playback Deck
 
 - Window 视频界面拥有 Back、Docking 二级菜单和 Panorama 二级菜单。Docking/Panorama 入口不属于 Playback Deck。
-- 收起的 Playback Deck 从左到右固定为 Settings、后退 10 秒、Play/Pause/Replay、前进 10 秒、More，下面显示 Progress Bar。
+- 收起的 Playback Deck 将 Settings 与 More 分置两端，后退 15 秒、Play/Pause/Replay、前进 15 秒组成居中的 transport group，下面显示 Progress Bar。
 - Settings 展开 Advanced Settings；More 负责 Subtitles、Audio Track、Playback Speed 与 Episodes。
-- Advanced Settings 的通用内容只有 Precision Timeline。Docked 增加 Screen Size、Distance、Elevation、Restore Defaults；Panorama 增加 Projection、Stereo Layout 与 Apply。
+- Advanced Settings 在 Docked 提供 Screen Size、Distance、Elevation、Restore Defaults，在 Panorama 提供 Projection、Stereo Layout 与 Apply。Precision Timeline 由 Progress Bar 的圆形 scrubber 双击打开，不属于 Settings。
 - Precision Timeline 支持精确 seek 与逐帧，完成后保持暂停。Progress Bar seek 到结尾之前后开始或继续播放，即使拖动前处于 paused；从 ended 拖动同样开始播放。
-- 前后 10 秒保持原来的 playing/paused 意图；从 ended 后退会离开结尾并保持暂停。逐帧始终保持暂停。
+- 前后 15 秒保持原来的 playing/paused 意图；从 ended 后退会离开结尾并保持暂停。逐帧始终保持暂停。
 - Enchron 不提供 App 内 Volume 或 Mute，不保存相对音量。播放保持正常基准增益，最终音量与静音由 visionOS、Digital Crown 和系统音频界面控制。
 
 ## Docked、Panorama 与退出
@@ -126,7 +126,7 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 - Stop 后保留当前 Media Session 与 Playback Presentation；视频画面为纯黑，不自动显示结束信息或播放控件。
 - 用户召唤 Playback Deck 后，主按钮显示 Replay。Replay 从零开始播放。
 - ended 时后退、拖动到结尾之前、Precision Timeline 和上一帧可用；位于结尾时前进与下一帧禁用，不能保留可点击但无效果的操作。
-- Progress Bar seek 到结尾之前后开始播放；后退 10 秒、Precision Timeline 或上一帧从 ended 定位后保持暂停。seek 到结尾本身仍为 ended、纯黑和 Replay。
+- Progress Bar seek 到结尾之前后开始播放；后退 15 秒、Precision Timeline 或上一帧从 ended 定位后保持暂停。seek 到结尾本身仍为 ended、纯黑和 Replay。
 - 所有这些操作继续使用同一 Media Session。
 
 ## 设置与数据

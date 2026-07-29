@@ -55,8 +55,10 @@ struct PlaybackTopActions: View {
 
             if resumesPanorama {
                 Button(action: { onResumePanorama?() }) {
-                    Label("Return to Panorama", systemImage: "pano")
-                        .font(DesignTokens.Typography.metadata)
+                    ButtonIconLabel(
+                        title: "Return to Panorama",
+                        systemName: "pano"
+                    )
                         .padding(.horizontal, DesignTokens.Spacing.md)
                         .frame(minHeight: DesignTokens.Interactive.regular)
                 }
@@ -101,8 +103,7 @@ struct PlaybackTopActions: View {
         Button {
             presentedMenu = presentedMenu == menu ? nil : menu
         } label: {
-            Label(title, systemImage: systemName)
-                .font(DesignTokens.Typography.metadata)
+            ButtonIconLabel(title: title, systemName: systemName)
                 .foregroundStyle(isEnabled ? .white : .secondary)
                 .padding(.horizontal, DesignTokens.Spacing.md)
                 .frame(minHeight: DesignTokens.Interactive.regular)
@@ -130,14 +131,17 @@ struct PlaybackTopActions: View {
                         onDock?(effect)
                     } label: {
                         HStack(spacing: DesignTokens.Spacing.md) {
-                            Image(systemName: effect == .day ? "sun.max" : "moon.stars")
+                            ButtonSymbol(
+                                systemName: effect == .day ? "sun.max" : "moon.stars",
+                                tier: .label
+                            )
                                 .frame(width: DesignTokens.Interactive.regular)
 
                             Text(effect.displayName)
                                 .frame(maxWidth: .infinity, alignment: .leading)
 
                             if selectedEffect == effect {
-                                Image(systemName: "checkmark")
+                                ButtonSymbol(systemName: "checkmark", tier: .label)
                                     .foregroundStyle(.secondary)
                             }
                         }

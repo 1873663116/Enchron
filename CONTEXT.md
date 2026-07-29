@@ -104,7 +104,7 @@ _Avoid_：所有 seek 一律播放、所有 seek 一律暂停、让 paused 状�
 **Ended Transport Availability**：Ended 时 Replay 可用；后退、向结尾之前拖动进度条、向结尾之前操作精确时间轴和上一帧可用。后退、精确时间轴与上一帧定位后保持暂停，Progress Bar 定位后播放。已经位于结尾时，前进跳转与下一帧禁用。离开结尾后不再是 ended，但继续使用同一 Media Session。
 _Avoid_：可点击但无效果的前进按钮、seek 后重开媒体、把 ended 当成已关闭 Session
 
-**Collapsed Playback Deck**：未展开 Advanced Settings 时的固定控制序列，从左到右为 Settings、后退 10 秒、Play/Pause/Replay、前进 10 秒、More。Settings 展开 Advanced Settings；More 打开离散播放选项菜单。
+**Collapsed Playback Deck**：未展开 Advanced Settings 或 Precision Timeline 时的播放控制面板。Settings 与 More 分置两端，后退 15 秒、Play/Pause/Replay、前进 15 秒组成居中的 transport group。Settings 展开 Advanced Settings；More 打开离散播放选项菜单；双击 Progress Bar 的圆形 scrubber 打开 Precision Timeline。
 _Avoid_：在 Deck 中加入 Docking/Panorama 入口、改变固定控制顺序、把 Settings 与 More 合并
 
 **Progress Bar**：Playback Deck 中按媒体总时长显示与调节当前位置的常规进度控件。Enchron 另有 Precision Timeline；两者是不同控件，不使用“粗略进度条”一词。

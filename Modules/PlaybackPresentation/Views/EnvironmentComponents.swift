@@ -92,6 +92,16 @@ struct EnvironmentCard: View {
     private var topControls: some View {
         VStack {
             HStack(spacing: DesignTokens.Spacing.sm) {
+                AppearanceModeButton(
+                    isActive: effect == .night,
+                    accessibilityLabel: effect == .day
+                        ? "Switch environment to Night"
+                        : "Switch environment to Day",
+                    action: {
+                        onEffectChange(effect == .day ? .night : .day)
+                    },
+                    accessibilityIdentifier: "DesignPreview-EnvironmentCard-effect"
+                )
                 Spacer()
                 GlassCircleIconButton(
                     systemName: isEnvironmentActive
@@ -147,20 +157,6 @@ struct EnvironmentCard: View {
             }
             .font(DesignTokens.Typography.metadata)
             .foregroundStyle(.white.opacity(0.72))
-
-            Picker(
-                "Environment effect",
-                selection: Binding(
-                    get: { effect },
-                    set: onEffectChange
-                )
-            ) {
-                ForEach(SpatialSceneDomain.EnvironmentEffect.allCases, id: \.self) {
-                    Text($0.displayName).tag($0)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("DesignPreview-EnvironmentCard-effect")
         }
         .padding(.horizontal, Metrics.infoPaddingH)
         .padding(.top, Metrics.infoPaddingTop)

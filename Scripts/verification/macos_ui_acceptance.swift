@@ -202,11 +202,11 @@ private final class AcceptanceHarness {
             throw AcceptanceError.assertion("The long fixture ended before the forward-seek assertion.")
         }
 
-        try click(identifier: "PlayerPanel-button-forward", name: "Forward 10 seconds")
+        try click(identifier: "PlayerPanel-button-forward", name: "Forward 15 seconds")
         let forwarded = try waitForState(timeout: 20) {
             $0.lifecycle == "paused"
                 && $0.session == initial.session
-                && abs($0.position - (paused.position + 10)) <= 2
+                && abs($0.position - (paused.position + 15)) <= 2
         }
         try record("06-paused-forward-10", state: forwarded)
 

@@ -23,14 +23,12 @@ struct NavBackForwardCapsuleControl: View {
 
         ZStack {
             HStack(spacing: 0) {
-                Image(systemName: "chevron.left")
-                    .font(DesignTokens.SymbolSize.control)
+                ButtonSymbol(systemName: "chevron.left")
                     .foregroundStyle(iconColor)
                     .scaleEffect(pressedSide == .back ? press.pressedScale : 1.0)
                     .frame(width: DesignTokens.Interactive.regular,
                            height: DesignTokens.Interactive.regular)
-                Image(systemName: "chevron.right")
-                    .font(DesignTokens.SymbolSize.control)
+                ButtonSymbol(systemName: "chevron.right")
                     .foregroundStyle(iconColor.opacity(trailingOpacity))
                     .scaleEffect(pressedSide == .forward ? press.pressedScale : 1.0)
                     .frame(width: DesignTokens.Interactive.regular,
@@ -122,8 +120,7 @@ struct ViewModeCapsuleControl: View {
                     .matchedGeometryEffect(id: "viewModeIndicator", in: indicatorNamespace)
             }
 
-            Image(systemName: icon)
-                .font(DesignTokens.SymbolSize.control)
+            ButtonSymbol(systemName: icon)
                 .foregroundStyle(isSelected ? iconColor : iconColor.opacity(unselectedOpacity))
                 .scaleEffect(isPressed ? press.pressedScale : 1.0)
                 .frame(width: DesignTokens.Interactive.regular,

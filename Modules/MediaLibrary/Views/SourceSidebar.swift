@@ -250,7 +250,7 @@ struct SourceSidebar: View {
                 accessibilityLabel: "More source actions",
                 iconColor: .secondary,
                 visualSize: DesignTokens.Interactive.compact,
-                font: DesignTokens.Typography.headline,
+                iconTier: .compact,
                 accessibilityIdentifier: "\(identifierPrefix)-sourceMoreLabel"
             )
         }
@@ -300,8 +300,7 @@ struct SourceSidebar: View {
         action: @escaping () -> Void
     ) -> some View {
         Button(action: action) {
-            Image(systemName: systemName)
-                .font(DesignTokens.Typography.headline)
+            ButtonSymbol(systemName: systemName, tier: .compact)
                 .foregroundStyle(tint)
                 .frame(width: DesignTokens.Interactive.compact, height: DesignTokens.Interactive.compact)
         }
@@ -705,8 +704,7 @@ struct EditableSourceSidebarRow: View {
         } label: {
             ZStack {
                 Color.red.opacity(0.82)
-                Image(systemName: "trash.fill")
-                    .font(DesignTokens.Typography.headline)
+                ButtonSymbol(systemName: "trash.fill")
                     .foregroundStyle(.white)
             }
             .frame(

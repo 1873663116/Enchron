@@ -1,0 +1,174 @@
+{
+  "version": 1,
+  "purpose": "Exact historical DesignPreview source-architecture violations. New occurrences are forbidden; remove entries when the underlying code is fixed.",
+  "allowances": [
+    {
+      "rule": "preview-hardcoded-visual",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": ".frame(height: 420)",
+      "count": 1
+    },
+    {
+      "rule": "preview-hardcoded-visual",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": ".opacity(configuration.isPressed ? 0.6 : 1.0)",
+      "count": 1
+    },
+    {
+      "rule": "preview-hardcoded-visual",
+      "path": "Apps/DesignPreview/ComponentPreviews.swift",
+      "signature": ".frame(width: 420, alignment: .top)",
+      "count": 1
+    },
+    {
+      "rule": "preview-hardcoded-visual",
+      "path": "Apps/DesignPreview/ComponentPreviews.swift",
+      "signature": ".frame(width: 580)",
+      "count": 5
+    },
+    {
+      "rule": "preview-hardcoded-visual",
+      "path": "Apps/DesignPreview/ComponentPreviews.swift",
+      "signature": ".frame(width: 720)",
+      "count": 1
+    },
+    {
+      "rule": "preview-hardcoded-visual",
+      "path": "Apps/DesignPreview/ComponentPreviews.swift",
+      "signature": ".opacity(connectDisabled ? 0.5 : 1)",
+      "count": 1
+    },
+    {
+      "rule": "preview-hardcoded-visual",
+      "path": "Apps/DesignPreview/ComponentPreviews.swift",
+      "signature": "VStack(alignment: .leading, spacing: 0) {",
+      "count": 1
+    },
+    {
+      "rule": "preview-parallel-style",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "private struct BareButtonStyle: ButtonStyle {",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button {",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"Add SMB Server...\") {}",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"Add WebDAV Server...\") {}",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"Choose Folder...\") {}",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"Disconnect\", role: .destructive) {}",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"Import Video...\") {}",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"Photo Library...\") {}",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"Remove Source\") { isPresented = true }",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"SMB://NAS\") {}",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"Use App Documents\") {}",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Button(\"WebDAV://Drive\") {}",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Menu {",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentLibrary.swift",
+      "signature": "Menu(\"Reconnect\") {",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentPreviews.swift",
+      "signature": "Button(buttonTitle, action: action)",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentPreviews.swift",
+      "signature": "TextField(placeholder, text: $text)",
+      "count": 1
+    },
+    {
+      "rule": "preview-raw-control",
+      "path": "Apps/DesignPreview/ComponentPreviews.swift",
+      "signature": "Toggle(\"以访客身份连接\", isOn: $connectAsGuest)",
+      "count": 1
+    },
+    {
+      "rule": "token-layer-structure",
+      "path": "Modules/DesignSystem/DesignTokens.swift",
+      "signature": "public static let card = RoundedRectangle(cornerRadius: Radius.card, style: .continuous)",
+      "count": 1
+    },
+    {
+      "rule": "token-layer-structure",
+      "path": "Modules/DesignSystem/DesignTokens.swift",
+      "signature": "public static let element = RoundedRectangle(cornerRadius: Radius.element, style: .continuous)",
+      "count": 1
+    },
+    {
+      "rule": "token-layer-structure",
+      "path": "Modules/DesignSystem/DesignTokens.swift",
+      "signature": "public static let panel = RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)",
+      "count": 1
+    },
+    {
+      "rule": "token-layer-structure",
+      "path": "Modules/DesignSystem/DesignTokens.swift",
+      "signature": "public static let rowShape = RoundedRectangle(cornerRadius: Radius.small, style: .continuous)",
+      "count": 1
+    }
+  ]
+}

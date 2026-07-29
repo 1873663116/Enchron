@@ -55,6 +55,8 @@ flowchart LR
 
 访问控制默认使用 `internal`。只有其他 Target 确实需要调用的入口 View、不可变状态值、操作命令、查询和值类型，以及 App 组装依赖时必须实现的少量协议，才声明为 `public`。只供同一 Package 内验证代码使用、但不属于 App 接口的声明使用 `package`。Media Library 的两个 `@Observable` 模型可以被 SwiftUI 读取，但只能由 `MediaLibraryFeature` 统一创建，外部代码不能自行拼装它们。持久化实现、具体数据源实现、地址解析实现、来源专用身份算法、PlaybackCore Session、页面内部 View 与测试数据不向 App 公开。
 
+UI 源码继续分为四层：`DesignTokens.swift` 只表达颜色、间距、圆角、字体、尺寸和动效等视觉值；`DesignSystem` 与 feature 模块中的生产组件表达结构、交互和具名变体；生产页面只组合这些组件并绑定产品状态；DesignPreview 只用 fixture 状态陈列相同的生产组件。`Scripts/verification/verify_design_source_architecture.py` 检查类型系统尚不能表达的这部分关系，并在 Enchron、EnchronMacOS 和 DesignPreview 的 Xcode 构建开始时运行。规则、历史基线和边界见 [`UI 源码架构检查`](docs/ui/source-architecture-checks.md)。
+
 本轮已经完成以下收敛：
 
 1. 建立统一 Media Identity、Content Revision、MediaAccessLease 与稳定远程来源身份；删除未进入生产路径的平行 Media Selection/Resolved Media 模型。

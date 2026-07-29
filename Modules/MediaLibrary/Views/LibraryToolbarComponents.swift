@@ -45,7 +45,7 @@ struct SortMenuButton: View {
                 iconColor: iconColor
             )
         }
-        .buttonStyle(.plain)
+        .buttonStyle(EnchronPressFeedbackButtonStyle(.icon))
         .accessibilityLabel("Sort")
         .accessibilityIdentifier(accessibilityIdentifier)
     }
@@ -64,17 +64,16 @@ struct GlassCapsuleIconLabelButton: View {
 
     var body: some View {
         Button(action: action) {
-            Label(title, systemImage: systemName)
-                .font(DesignTokens.Typography.metadata)
+            ButtonIconLabel(title: title, systemName: systemName)
                 .foregroundStyle(iconColor)
                 .padding(.horizontal, DesignTokens.Spacing.md)
                 .frame(minWidth: minWidth, minHeight: DesignTokens.Interactive.regular)
+                .clipShape(Capsule())
+                .enchronGlassBackground(in: Capsule())
+                .enchronHoverContentShape(Capsule())
+                .enchronHoverEffect(.automatic)
         }
         .buttonStyle(EnchronPressFeedbackButtonStyle(.control))
-        .clipShape(Capsule())
-        .enchronGlassBackground(in: Capsule())
-        .enchronHoverContentShape(Capsule())
-        .enchronHoverEffect(.automatic)
         .padding(.vertical, (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
         .contentShape(Capsule())
         .accessibilityLabel(accessibilityLabel)

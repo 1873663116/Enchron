@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 
 // MARK: - Design Tokens
@@ -337,16 +338,43 @@ public enum DesignTokens {
     // MARK: - Symbol Sizes
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+    public enum ButtonIcon {
+        /// 36pt compact button with 10pt optical padding on each edge.
+        public static let compactArtwork: CGFloat = 16
+        /// 44pt standard button with 12pt optical padding on each edge.
+        public static let standardArtwork: CGFloat = 20
+        /// 64pt primary button with 16pt optical padding on each edge.
+        public static let primaryArtwork: CGFloat = 32
+        /// Icon paired with text inside a 44pt-high button.
+        public static let labelArtwork: CGFloat = 14
+    }
+
     /// SF Symbol font tokens — centralized sizing for icon consistency.
     public enum SymbolSize {
-        /// Control icons: skip, seek buttons (24pt semibold)
-        public static let control: Font = .system(size: 24, weight: .semibold)
+        /// Compact icon-only buttons (16pt semibold).
+        public static let compact: Font = .system(
+            size: ButtonIcon.compactArtwork,
+            weight: .semibold
+        )
+        /// Standard icon-only controls (20pt semibold).
+        public static let control: Font = .system(
+            size: ButtonIcon.standardArtwork,
+            weight: .semibold
+        )
+        /// Icons paired with text inside buttons (14pt semibold).
+        public static let label: Font = .system(
+            size: ButtonIcon.labelArtwork,
+            weight: .semibold
+        )
         /// Setting list row leading icons, slightly larger than selection-row labels.
         public static let selectionHeaderIcon: Font = .system(size: 22, weight: .regular)
         /// Card and folder icons (36pt)
         public static let card: Font = .system(size: 36)
-        /// Play/pause primary action (36pt medium)
-        public static let action: Font = .system(size: 36, weight: .medium)
+        /// Play/pause primary action (32pt medium).
+        public static let action: Font = .system(
+            size: ButtonIcon.primaryArtwork,
+            weight: .medium
+        )
         /// Scene selector, large UI icons (44pt)
         public static let feature: Font = .system(size: 44)
         /// Hero detail view icons (48pt)
@@ -482,12 +510,20 @@ public enum DesignTokens {
     public enum ProgressBar {
         /// Standard draggable scrubber button.
         public static let thumbDiameter: CGFloat = Interactive.mini - 4
-        /// Main progress track in active drag mode.
+        /// Main progress track after the scrubber has been deliberately activated.
         public static let trackHeight: CGFloat = thumbDiameter
-        /// Track scale before the scrubber is clicked into active drag mode.
-        public static let inactiveScale: CGFloat = 0.66
-        /// Track height before active drag mode.
+        /// Resting track is half the activated height.
+        public static let inactiveScale: CGFloat = 0.5
+        /// Track height before the scrubber activation animation completes.
         public static let inactiveTrackHeight: CGFloat = trackHeight * inactiveScale
+        /// Movement tolerated while the scrubber is waiting to unlock.
+        public static let activationSlop: CGFloat = Spacing.lg
+        /// Wall-clock gate before seeking is unlocked.
+        public static let activationDuration: Duration = .milliseconds(200)
+        /// Height transition paired with the activation gate.
+        public static let activationAnimation: Animation = .easeOut(duration: 0.2)
+        /// Maximum interval between two completed short presses on the scrubber.
+        public static let doublePressInterval: TimeInterval = 0.35
         /// Watched-progress edge stroke height on grid cards — sits on the card's
         /// bottom edge like a thin stroke (hover-revealed), not a full track.
         public static let watchedEdgeHeight: CGFloat = 3
@@ -515,10 +551,6 @@ public enum DesignTokens {
         public static let playedColor: Color = .white.opacity(0.72)
         /// Played portion in hover/drag state.
         public static let playedHoverColor: Color = .white.opacity(0.95)
-        /// Unplayed portion in normal state.
-        public static let unplayedColor: Color = .white.opacity(0.16)
-        /// Unplayed portion in hover/drag state.
-        public static let unplayedHoverColor: Color = .white.opacity(0.24)
     }
 
     /// DesignPreview precision timeline prototype.
@@ -549,11 +581,11 @@ public enum DesignTokens {
         /// Film strip image inset from sprocket rows.
         public static let filmImageInset: CGFloat = Spacing.sm
         /// Zoom rail width.
-        public static let zoomRailWidth: CGFloat = 148
+        public static let zoomRailWidth: CGFloat = 360
         /// Zoom rail height.
-        public static let zoomRailHeight: CGFloat = Spacing.xs
+        public static let zoomRailHeight: CGFloat = 22.5
         /// Zoom rail thumb size.
-        public static let zoomRailThumbSize: CGFloat = Spacing.sm
+        public static let zoomRailThumbSize: CGFloat = 19.5
         /// Zoom control button size.
         public static let zoomButtonSize: CGFloat = Interactive.compact
         /// Frame-step button visual size.
@@ -563,7 +595,7 @@ public enum DesignTokens {
         /// Horizontal space around the center playhead for frame-step buttons.
         public static let frameButtonCenterGap: CGFloat = Spacing.xxl
         /// Center playhead line width.
-        public static let playheadWidth: CGFloat = Stroke.bold
+        public static let playheadWidth: CGFloat = 2
         /// Major tick height.
         public static let majorTickHeight: CGFloat = Spacing.lg
         /// Minor tick height.
@@ -604,28 +636,41 @@ public enum DesignTokens {
         public static let playheadColor: Color = .white.opacity(0.95)
         /// Timeline center accent.
         public static let playheadAccent: Color = Theme.accent
-        /// Empty timeline area.
-        public static let emptyAreaFill: Color = .white.opacity(0.025)
+        /// Subtle viewport tint beneath the thick timeline container.
+        public static let viewportFill: Color = .white.opacity(0.025)
+        /// Baseline lift that matches the former hover-highlight luminance.
+        public static let viewportRestingBrightness: Double = 0.06
+        /// Inner occlusion that makes the viewport read as inset.
+        public static let viewportInnerShadow: Color = .black.opacity(0.09)
+        public static let viewportInnerShadowWidth: CGFloat = 3
+        public static let viewportInnerShadowRadius: CGFloat = 1.5
+        public static let viewportInnerShadowOffsetY: CGFloat = 1
+        /// Rightward cast shadow for the playhead line.
+        public static let playheadShadow: Color = .black.opacity(0.5)
+        public static let playheadShadowRadius: CGFloat = 0.5
+        public static let playheadShadowOffsetX: CGFloat = 1.5
         /// Film strip top highlight.
-        public static let filmStripHighlight: Color = .white.opacity(0.08)
+        public static let filmStripHighlight: Color = .white.opacity(0.092)
         /// Film strip body fill.
-        public static let filmStripBase: Color = .black.opacity(0.42)
+        public static let filmStripBase: Color = .black.opacity(0.38)
+        /// Dark perforated bands above and below the image area.
+        public static let filmStripBand: Color = .black.opacity(0.472)
         /// Film strip sprocket fill.
-        public static let sprocketFill: Color = .black.opacity(0.58)
+        public static let sprocketFill: Color = .black.opacity(0.648)
         /// Film strip separator.
-        public static let filmStripSeparator: Color = .black.opacity(0.32)
+        public static let filmStripSeparator: Color = .black.opacity(0.348)
         /// Zoom rail fill.
         public static let zoomRailFill: Color = .white.opacity(0.12)
         /// Zoom rail active fill.
         public static let zoomRailActiveFill: Color = Theme.accent.opacity(0.72)
         /// Simulated thumbnail palette.
         public static let thumbnailPalette: [Color] = [
-            Color(red: 0.10, green: 0.20, blue: 0.26),
-            Color(red: 0.19, green: 0.16, blue: 0.25),
-            Color(red: 0.25, green: 0.18, blue: 0.12),
-            Color(red: 0.14, green: 0.24, blue: 0.18),
-            Color(red: 0.28, green: 0.23, blue: 0.12),
-            Color(red: 0.16, green: 0.14, blue: 0.28)
+            Color(red: 0.104, green: 0.244, blue: 0.324),
+            Color(red: 0.228, green: 0.176, blue: 0.324),
+            Color(red: 0.316, green: 0.208, blue: 0.128),
+            Color(red: 0.148, green: 0.288, blue: 0.204),
+            Color(red: 0.340, green: 0.274, blue: 0.128),
+            Color(red: 0.192, green: 0.158, blue: 0.348)
         ]
     }
 }

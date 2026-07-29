@@ -41,6 +41,7 @@ struct ComponentLibraryView: View {
 
 private struct CircleButtonsSection: View {
     @State private var selected: String?
+    @State private var isAppearanceModeActive = false
     @State private var viewMode = 0
     @State private var sortKey: SortMenuKey = .name
     @State private var sortOrder: SortMenuOrder = .ascending
@@ -66,25 +67,37 @@ private struct CircleButtonsSection: View {
                     labeledComponent("Source Menu") {
                         sourceMenuButton
                     }
-                    labeledComponent("Expand") {
-                        GlassCapsuleIconLabelButton(
-                            title: "Expand",
-                            systemName: "arrow.up.left.and.arrow.down.right",
-                            accessibilityLabel: "Expand",
-                            accessibilityIdentifier: "DesignPreview-ComponentLibrary-button-expand"
-                        )
-                    }
                     labeledComponent("Expand Icon") {
-                        GlassCircleIconButton(
-                            systemName: "arrow.up.left.and.arrow.down.right",
-                            accessibilityLabel: "Expand",
+                        GlassCircleIconButton.expand(
                             accessibilityIdentifier: "DesignPreview-ComponentLibrary-button-expand-icon"
                         )
                     }
+                    labeledComponent("Collapse Icon") {
+                        GlassCircleIconButton.collapse(
+                            accessibilityIdentifier:
+                                "DesignPreview-ComponentLibrary-button-collapse-icon"
+                        )
+                    }
+                    labeledComponent("Environment") {
+                        GlassCircleIconButton.environment(
+                            accessibilityIdentifier:
+                                "DesignPreview-ComponentLibrary-button-environment"
+                        )
+                    }
+                    labeledComponent("Expand Vertically") {
+                        GlassCircleIconButton.expandVertically(
+                            accessibilityIdentifier:
+                                "DesignPreview-ComponentLibrary-button-expandVertically"
+                        )
+                    }
+                    labeledComponent("Collapse Vertically") {
+                        GlassCircleIconButton.collapseVertically(
+                            accessibilityIdentifier:
+                                "DesignPreview-ComponentLibrary-button-collapseVertically"
+                        )
+                    }
                     labeledComponent("More") {
-                        GlassCircleIconButton(
-                            systemName: "ellipsis",
-                            accessibilityLabel: "More",
+                        GlassCircleIconButton.more(
                             accessibilityIdentifier: "DesignPreview-ComponentLibrary-button-more"
                         )
                     }
@@ -111,6 +124,24 @@ private struct CircleButtonsSection: View {
                         )
                     }
                 }
+
+                Text("SPECIAL ANIMATED BUTTONS")
+                    .font(DesignTokens.Typography.sectionHeader)
+                    .foregroundStyle(.secondary)
+
+                HStack(spacing: DesignTokens.Spacing.xl) {
+                    labeledComponent("Appearance Mode (tap)") {
+                        AppearanceModeButton(
+                            isActive: isAppearanceModeActive,
+                            accessibilityLabel: "Toggle appearance mode",
+                            action: {
+                                isAppearanceModeActive.toggle()
+                            },
+                            accessibilityIdentifier:
+                                "DesignPreview-ComponentLibrary-button-appearanceMode"
+                        )
+                    }
+                }
             }
 
             Text("44pt glass circle · hover + selected · tap to toggle")
@@ -126,19 +157,21 @@ private struct CircleButtonsSection: View {
                 selected = isSelected ? nil : id
             }
         } label: {
-            Image(systemName: icon)
-                .font(DesignTokens.SymbolSize.control)
-                .foregroundStyle(isSelected ? .primary : .secondary)
-                .frame(width: DesignTokens.Interactive.regular,
-                       height: DesignTokens.Interactive.regular)
+            GlassCircleIconLabel(
+                systemName: icon,
+                accessibilityLabel: id.capitalized,
+                iconColor: isSelected ? .white : .secondary
+            )
+            .accessibilityHidden(true)
+            .frame(
+                width: DesignTokens.Interactive.large,
+                height: DesignTokens.Interactive.large
+            )
+            .contentShape(Circle())
         }
         .buttonStyle(EnchronPressFeedbackButtonStyle(.icon))
-        .clipShape(Circle())
-        .glassBackgroundEffect(in: Circle())
-        .contentShape(.hoverEffect, Circle())
-        .hoverEffect(.automatic)
-        .padding((DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
         .contentShape(Circle())
+        .accessibilityLabel(id.capitalized)
     }
 
     @ViewBuilder
@@ -168,8 +201,7 @@ private struct CircleButtonsSection: View {
             }
             Button("Disconnect", role: .destructive) {}
         } label: {
-            Image(systemName: "ellipsis")
-                .font(DesignTokens.SymbolSize.control)
+            ButtonSymbol(systemName: "ellipsis")
                 .foregroundStyle(.secondary)
                 .frame(width: DesignTokens.Interactive.regular,
                        height: DesignTokens.Interactive.regular)
