@@ -3206,33 +3206,7 @@ html[data-theme="dark"] main {
       <p>“已确认”“实现状态”“验证状态”彼此独立。点击来源可以回到一手文档核对。</p>
     </aside>
 
-    <nav class="atlas-nav" aria-label="Product Atlas 主视图">
-      <button type="button" data-view="journeys" aria-current="page">产品行为</button>
-      <button type="button" data-view="world">系统结构</button>
-      <button type="button" data-view="states">状态词典</button>
-      <button type="button" data-view="gaps">
-        未决问题
-        <span id="gap-count" class="count"></span>
-      </button>
-    </nav>
-
     <main id="atlas-main">
-      <section class="atlas-view" id="view-world" data-view-panel="world" tabindex="-1" hidden>
-        <div class="section-heading">
-          <div>
-            <p class="section-kicker">PRODUCT STRUCTURE</p>
-            <h2>系统结构</h2>
-          </div>
-          <p>沿真实承载关系查看 Scene 容器、产品表面和责任边界。选择界面操作后，先回到它的产品旅程。</p>
-        </div>
-        <div id="world-map" class="world-map" aria-label="Enchron 产品表面地图"></div>
-        <div class="world-legend" aria-label="图例">
-          <span><i class="legend-system"></i>visionOS 管理</span>
-          <span><i class="legend-product"></i>Enchron 管理</span>
-          <span><i class="legend-session"></i>同一 Media Session</span>
-        </div>
-      </section>
-
       <section class="atlas-view is-active" id="view-journeys" data-view-panel="journeys" tabindex="-1">
         <div class="journey-layout">
           <article class="journey-stage" id="journey-stage" tabindex="-1" aria-live="polite"></article>
@@ -3248,28 +3222,6 @@ html[data-theme="dark"] main {
             <div id="action-groups"></div>
           </aside>
         </div>
-      </section>
-
-      <section class="atlas-view" id="view-states" data-view-panel="states" tabindex="-1" hidden>
-        <div class="section-heading">
-          <div>
-            <p class="section-kicker">PRODUCT STATE REGISTRY</p>
-            <h2>产品状态地景</h2>
-          </div>
-          <p>先从两个无方向场域中的代表性稳定快照回答四个自然问题，再下钻到状态补丁、正式状态轴与约束；它们不是必经顺序。</p>
-        </div>
-        <div id="state-map" class="state-map"></div>
-      </section>
-
-      <section class="atlas-view" id="view-gaps" data-view-panel="gaps" tabindex="-1" hidden>
-        <div class="section-heading">
-          <div>
-            <p class="section-kicker">VISIBLE UNCERTAINTY</p>
-            <h2>未决问题</h2>
-          </div>
-          <p>这里的缺口不会由代码或 Atlas 擅自补成产品事实。它们需要先进入一手文档。</p>
-        </div>
-        <div id="gap-list" class="gap-list"></div>
       </section>
     </main>
 
@@ -3306,9 +3258,7 @@ html[data-theme="dark"] main {
   const entities = new Map((stateRegistry.entities || []).map((item) => [item.id, item]));
   const actionsById = new Map(actions.map((item) => [item.id, item]));
   const initialQuery = new URLSearchParams(window.location.search);
-  const initialView = ["journeys", "world", "states", "gaps"].includes(initialQuery.get("view"))
-    ? initialQuery.get("view")
-    : "journeys";
+  const initialView = "journeys";
 
   const viewButtons = [...document.querySelectorAll("[data-view]")];
   const viewPanels = [...document.querySelectorAll("[data-view-panel]")];
@@ -4685,12 +4635,9 @@ html[data-theme="dark"] main {
       }
     });
 
-    renderWorld();
     renderActionIndex();
     if (currentActionId) renderAction(actionsById.get(currentActionId));
     else stage.innerHTML = `<p class="journey-summary">Product Action Registry 为空。</p>`;
-    renderStates();
-    renderGaps();
     document.getElementById("source-status").textContent = `${sources.size} 份一手来源 · ${actions.length} 项产品操作`;
   }
 
