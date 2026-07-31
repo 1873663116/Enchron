@@ -36,9 +36,11 @@ public final class AppModel {
         playbackPresentationModel.environmentCardResidency
     }
 
-    /// Executor-owned input to the SwiftUI immersion-style binding. Product
-    /// presentation remains owned by `PlaybackPresentationModel`.
-    public private(set) var platformPrefersFullImmersion = true
+    /// Process-local observation used to preserve the system's progressive
+    /// immersion amount across Immersive Space open cycles.
+    public private(set) var lastObservedImmersionAmount: Double?
+    public private(set) var immersiveSpaceOpeningInitialAmount: Double?
+    public private(set) var immersiveSpaceStyleRevision = 0
 
     // MARK: - Playback Presentation
     public let playbackPresentationModel: PlaybackPresentationModel
@@ -229,8 +231,17 @@ public final class AppModel {
         return resolution
     }
 
-    public func setPlatformPrefersFullImmersion(_ full: Bool) {
-        platformPrefersFullImmersion = full
+    public func recordImmersionAmount(_ amount: Double?) {
+        guard let normalized = SpatialImmersiveSpacePolicy.normalized(amount) else {
+            return
+        }
+        lastObservedImmersionAmount = normalized
+    }
+
+    public func prepareImmersiveSpaceOpening(initialAmount: Double?) {
+        immersiveSpaceOpeningInitialAmount =
+            SpatialImmersiveSpacePolicy.normalized(initialAmount)
+        immersiveSpaceStyleRevision &+= 1
     }
 
     public func configureDefaultEnvironment(

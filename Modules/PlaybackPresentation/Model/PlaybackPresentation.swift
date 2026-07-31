@@ -8,6 +8,38 @@ public enum PlaybackPresentation: String, Codable, CaseIterable, Sendable {
     case panorama
 }
 
+public enum SpatialImmersiveSpaceOpeningContext: Equatable, Sendable {
+    case environment
+    case playback(PlaybackPresentation)
+}
+
+public enum SpatialImmersiveSpacePolicy {
+    public static let progressiveImmersionRange = 0.3...1.0
+    public static let panoramaOpeningInitialAmount = 1.0
+
+    public static func openingInitialAmount(
+        for context: SpatialImmersiveSpaceOpeningContext,
+        lastObservedAmount: Double?
+    ) -> Double? {
+        switch context {
+        case .environment:
+            normalized(lastObservedAmount)
+        case .playback(.panorama):
+            panoramaOpeningInitialAmount
+        case .playback(.window), .playback(.docked):
+            normalized(lastObservedAmount)
+        }
+    }
+
+    public static func normalized(_ amount: Double?) -> Double? {
+        guard let amount, amount.isFinite else { return nil }
+        return min(
+            max(amount, progressiveImmersionRange.lowerBound),
+            progressiveImmersionRange.upperBound
+        )
+    }
+}
+
 public enum PlaybackPresentationAvailability {
     public static func canDock(
         in presentation: PlaybackPresentation,

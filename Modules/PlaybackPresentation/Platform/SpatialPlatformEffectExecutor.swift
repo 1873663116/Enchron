@@ -294,9 +294,7 @@ final class SpatialPlatformEffectCoordinator {
             _ = complete(execution, outcome: .succeeded)
         case .normalizeStoppedSpatialPlayback(let keepsEnvironmentOpen):
             guard openWindow(id: "main", execution: execution) else { return }
-            if keepsEnvironmentOpen {
-                guard setFullImmersion(false, execution: execution) else { return }
-            } else {
+            if keepsEnvironmentOpen == false {
                 guard await dismissImmersiveSpace(execution: execution) else { return }
             }
             let resolution = complete(execution, outcome: .succeeded)
@@ -320,8 +318,7 @@ final class SpatialPlatformEffectCoordinator {
         keepsEnvironmentOpen: Bool
     ) async {
         guard await waitForImmersiveActionLane(execution: execution),
-              openWindow(id: "main", execution: execution),
-              setFullImmersion(false, execution: execution) else {
+              openWindow(id: "main", execution: execution) else {
             return
         }
         if keepsEnvironmentOpen == false {
@@ -343,8 +340,7 @@ final class SpatialPlatformEffectCoordinator {
         _ presentation: PlaybackPresentation,
         execution: Execution
     ) async {
-        guard setFullImmersion(true, execution: execution),
-              await yieldExecution(execution),
+        guard await yieldExecution(execution),
               let openDisposition = await openImmersiveSpaceIfNeeded(
                 execution: execution
               ) else {
@@ -364,9 +360,7 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
         guard settled else {
-            if openDisposition == .preexisting {
-                guard setFullImmersion(false, execution: execution) else { return }
-            } else {
+            if openDisposition != .preexisting {
                 guard await dismissImmersiveSpace(execution: execution) else {
                     return
                 }
@@ -402,8 +396,7 @@ final class SpatialPlatformEffectCoordinator {
         _ presentation: PlaybackPresentation,
         execution: Execution
     ) async {
-        guard setFullImmersion(true, execution: execution),
-              await yieldExecution(execution),
+        guard await yieldExecution(execution),
               let openDisposition = await openImmersiveSpaceIfNeeded(
                 execution: execution
               ) else {
@@ -457,7 +450,6 @@ final class SpatialPlatformEffectCoordinator {
         _ execution: Execution,
         failure: SpatialPlatformEffectFailure
     ) {
-        guard setFullImmersion(false, execution: execution) else { return }
         let resolution = complete(execution, outcome: .failed(failure))
         guard case .spatialRecoveryFailed = resolution,
               openWindow(
@@ -498,12 +490,6 @@ final class SpatialPlatformEffectCoordinator {
         }
 
         guard openWindow(id: "main", execution: execution) else { return }
-        if keepsEnvironmentOpen {
-            guard setFullImmersion(false, execution: execution),
-                  await yieldExecution(execution) else {
-                return
-            }
-        }
         guard let settled = await waitUntilPresentationSettled(
             to: .window,
             execution: execution
@@ -511,8 +497,7 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
         guard settled else {
-            guard setFullImmersion(true, execution: execution),
-                  dismissWindow(id: "main", execution: execution) else {
+            guard dismissWindow(id: "main", execution: execution) else {
                 return
             }
             let message = immersiveSpaceAlreadyClosed
@@ -542,8 +527,7 @@ final class SpatialPlatformEffectCoordinator {
     }
 
     private func presentEnvironmentPreview(_ execution: Execution) async {
-        guard setFullImmersion(false, execution: execution),
-              await yieldExecution(execution) else {
+        guard await yieldExecution(execution) else {
             return
         }
         guard let openDisposition = await openImmersiveSpaceIfNeeded(
@@ -591,18 +575,6 @@ final class SpatialPlatformEffectCoordinator {
             }
             return false
         }
-        return true
-    }
-
-    private func setFullImmersion(
-        _ full: Bool,
-        execution: Execution,
-        phase: ExecutionPhase = .currentRequest
-    ) -> Bool {
-        guard executionIsLive(execution, phase: phase) else { return false }
-        guard appModel.platformPrefersFullImmersion != full else { return true }
-        markVisibleSpatialSideEffect(execution)
-        appModel.setPlatformPrefersFullImmersion(full)
         return true
     }
 
@@ -670,6 +642,21 @@ final class SpatialPlatformEffectCoordinator {
                         ? .openedByRequest
                         : .preexisting
                 }
+                guard let openingContext = self.immersiveSpaceOpeningContext(
+                    for: execution.request.effect
+                ) else {
+                    return .unavailable
+                }
+                self.appModel.prepareImmersiveSpaceOpening(
+                    initialAmount: SpatialImmersiveSpacePolicy.openingInitialAmount(
+                        for: openingContext,
+                        lastObservedAmount: self.appModel.lastObservedImmersionAmount
+                    )
+                )
+                await Task.yield()
+                guard self.executionIsLive(execution) else {
+                    return .unavailable
+                }
                 self.markVisibleSpatialSideEffect(execution)
                 let result = await execution.actions.openImmersiveSpace(
                     id: self.appModel.immersiveSpaceID
@@ -692,6 +679,24 @@ final class SpatialPlatformEffectCoordinator {
         }
         guard executionIsLive(execution) else { return nil }
         return disposition
+    }
+
+    private func immersiveSpaceOpeningContext(
+        for effect: SpatialPlatformEffect
+    ) -> SpatialImmersiveSpaceOpeningContext? {
+        switch effect {
+        case .presentEnvironmentPreview:
+            .environment
+        case .presentSpatialPlayback(let presentation),
+             .recoverSpatialPlayback(let presentation):
+            .playback(presentation)
+        case .presentWindowPlayback(_, _),
+             .dismissEnvironmentPreview,
+             .presentEnvironmentCard,
+             .normalizeStoppedSpatialPlayback(_),
+             .normalizeInvalidatedSpatialPlayback(_):
+            nil
+        }
     }
 
     private func dismissImmersiveSpace(execution: Execution) async -> Bool {

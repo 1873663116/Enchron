@@ -6,6 +6,44 @@ import Testing
 
 @Suite("Playback presentation")
 struct PlaybackPresentationStateTests {
+    @Test("progressive immersion preserves open-cycle amount policy")
+    func progressiveImmersionOpeningPolicy() {
+        #expect(
+            SpatialImmersiveSpacePolicy.progressiveImmersionRange
+                == (0.3...1.0)
+        )
+        #expect(
+            SpatialImmersiveSpacePolicy.openingInitialAmount(
+                for: .environment,
+                lastObservedAmount: nil
+            ) == nil
+        )
+        #expect(
+            SpatialImmersiveSpacePolicy.openingInitialAmount(
+                for: .environment,
+                lastObservedAmount: 0.62
+            ) == 0.62
+        )
+        #expect(
+            SpatialImmersiveSpacePolicy.openingInitialAmount(
+                for: .playback(.docked),
+                lastObservedAmount: 0.62
+            ) == 0.62
+        )
+        #expect(
+            SpatialImmersiveSpacePolicy.openingInitialAmount(
+                for: .playback(.panorama),
+                lastObservedAmount: 0.62
+            ) == 1.0
+        )
+        #expect(
+            SpatialImmersiveSpacePolicy.normalized(-1.0) == 0.3
+        )
+        #expect(
+            SpatialImmersiveSpacePolicy.normalized(2.0) == 1.0
+        )
+    }
+
     #if os(visionOS)
     @Test("ended and replaced sessions invalidate the previous Media Session")
     @MainActor

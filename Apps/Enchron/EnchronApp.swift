@@ -6,7 +6,9 @@ import SwiftUI
 @main
 struct EnchronApp: App {
     @State private var application: EnchronApplication
-    @State private var immersionStyle: ImmersionStyle = .full
+    @State private var immersionStyle: ImmersionStyle = .progressive(
+        SpatialImmersiveSpacePolicy.progressiveImmersionRange
+    )
 
     init() {
         do {
@@ -61,6 +63,9 @@ struct EnchronApp: App {
             ImmersiveSpaceView()
                 .environment(application.appModel)
                 .environment(application.playbackRuntime)
+                .onImmersionChange { _, newImmersion in
+                    application.appModel.recordImmersionAmount(newImmersion.amount)
+                }
                 .onAppear {
                     application.spatialPlatformEffectCoordinator
                         .recordImmersiveSpaceResidency(.open)
@@ -86,9 +91,12 @@ struct EnchronApp: App {
                     )
                 }
         }
-        .immersionStyle(selection: $immersionStyle, in: .mixed, .full)
-        .onChange(of: application.appModel.platformPrefersFullImmersion) { _, full in
-            immersionStyle = full ? .full : .mixed
+        .immersionStyle(selection: $immersionStyle, in: .progressive)
+        .onChange(of: application.appModel.immersiveSpaceStyleRevision) { _, _ in
+            immersionStyle = .progressive(
+                SpatialImmersiveSpacePolicy.progressiveImmersionRange,
+                initialAmount: application.appModel.immersiveSpaceOpeningInitialAmount
+            )
         }
     }
 }
