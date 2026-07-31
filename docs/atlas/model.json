@@ -765,6 +765,34 @@
         ]
       },
       {
+        "id": "state.progressiveImmersion",
+        "label": "Progressive Immersion",
+        "values": [
+          {
+            "id": "inactive",
+            "label": "Inactive · Immersive Space Closed"
+          },
+          {
+            "id": "userControlled",
+            "label": "User Controlled · 0.3–1.0"
+          }
+        ],
+        "ownerIds": [
+          "visionos",
+          "apps"
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## Environment 与 Docked Placement"
+          },
+          {
+            "sourceId": "context",
+            "heading": "## 来源与产品策略"
+          }
+        ]
+      },
+      {
         "id": "state.controlsPresentation",
         "label": "Playback Controls",
         "values": [
@@ -1342,6 +1370,21 @@
         ]
       },
       {
+        "id": "invariant.progressiveImmersionContinuity",
+        "label": "Environment、Docked 与 Panorama 统一使用 0.3–1.0 的 Progressive immersion；同一 Immersive Space Open Cycle 内切换空间内容不得重置用户当前沉浸量。",
+        "ownerIds": [
+          "apps",
+          "visionos",
+          "playback-presentation"
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## Environment 与 Docked Placement"
+          }
+        ]
+      },
+      {
         "id": "invariant.systemVolume",
         "label": "最终音量与静音由 visionOS 管理；Enchron 不提供产品状态。",
         "ownerIds": [
@@ -1433,6 +1476,46 @@
           {
             "sourceId": "architecture",
             "heading": "## 不变量"
+          }
+        ]
+      },
+      {
+        "id": "constraint.closedSpaceHasNoProgressiveImmersion",
+        "label": "关闭的 Immersive Space 没有正在生效的 Progressive immersion amount。",
+        "whenAll": [
+          {
+            "dimensionId": "state.immersiveSpaceResidency",
+            "equals": "closed"
+          },
+          {
+            "dimensionId": "state.progressiveImmersion",
+            "notEquals": "inactive"
+          }
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## Environment 与 Docked Placement"
+          }
+        ]
+      },
+      {
+        "id": "constraint.openSpaceHasUserControlledProgressiveImmersion",
+        "label": "打开的 Immersive Space 必须提供 0.3–1.0 的用户可调 Progressive immersion。",
+        "whenAll": [
+          {
+            "dimensionId": "state.immersiveSpaceResidency",
+            "equals": "open"
+          },
+          {
+            "dimensionId": "state.progressiveImmersion",
+            "notEquals": "userControlled"
+          }
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## Environment 与 Docked Placement"
           }
         ]
       },
@@ -10134,6 +10217,93 @@
           "basis": "state-demonstrations-and-branches",
           "summaryDimensions": [
             "state.controlsPresentation"
+          ]
+        }
+      }
+    },
+    {
+      "id": "immersive.adjustProgressiveAmount",
+      "label": "调节空间沉浸量",
+      "summary": "在 Environment、Docked 或 Panorama 中转动 Digital Crown，在 0.3–1.0 内调节同一个 Progressive immersion amount；切换空间内容不重置当前值。",
+      "visualGrammar": "state-axis",
+      "causalSubject": "Progressive Immersion Amount",
+      "ownerIds": [
+        "visionos",
+        "apps"
+      ],
+      "decisionStatus": "confirmed",
+      "delivery": {
+        "implementation": "observed",
+        "verification": "notEvidenced"
+      },
+      "placements": [
+        {
+          "surfaceId": "surface.enchronImmersiveSpace",
+          "regionId": "environment-scene"
+        },
+        {
+          "surfaceId": "surface.enchronImmersiveSpace",
+          "regionId": "docked-surface"
+        },
+        {
+          "surfaceId": "surface.enchronImmersiveSpace",
+          "regionId": "panorama-surface"
+        }
+      ],
+      "availableWhen": [
+        {
+          "dimensionId": "state.immersiveSpaceResidency",
+          "equals": "open"
+        }
+      ],
+      "demonstrations": [
+        {
+          "id": "digital-crown",
+          "initialState": {
+            "state.immersiveSpaceResidency": "open",
+            "state.progressiveImmersion": "userControlled"
+          },
+          "steps": [
+            {
+              "label": "转动 Digital Crown",
+              "actorId": "user",
+              "patch": {}
+            },
+            {
+              "label": "在 0.3–1.0 内更新当前沉浸量",
+              "actorId": "visionos",
+              "patch": {
+                "state.progressiveImmersion": "userControlled"
+              }
+            },
+            {
+              "label": "记录当前进程内的最近观察值",
+              "actorId": "enchron",
+              "patch": {}
+            }
+          ],
+          "branches": []
+        }
+      ],
+      "sourceRefs": [
+        {
+          "sourceId": "product-requirements",
+          "heading": "## Environment 与 Docked Placement"
+        }
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.immersiveSpaceResidency",
+            "state.progressiveImmersion"
           ]
         }
       }
