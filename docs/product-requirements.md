@@ -88,6 +88,10 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 - Window 界面的 Environment Tab 激活独立的 Environment Card Volume；它是所有非 Docking 场景操作的统一入口。该 Volume 必须使用 visionOS 26 起提供单例语义的 `Window` Scene 并保持 volumetric window style；所有入口都聚焦同一个实例，不使用 `WindowGroup` 创建副本。
 - Environment Card 按 Environment Identity 展示卡片，不把 Day/Night 拆成两个浏览项。卡片提供 Environment 的打开/关闭操作以及 Day/Night Environment Effect 控制。
 - Environment Card 不提供 App 内 Return 按钮；用户通过 visionOS Window Bar 关闭 Volume。它不进入 Playback Deck，也不在 Panorama 中出现。
+- Environment Card 是 volumetric `Window`，不具有 Immersive Space 的 immersion style。它打开的 Enchron Immersive Space 在 Environment、Docked 与 Panorama 中统一使用 Progressive immersion，用户在三种空间内容中都可以通过 Digital Crown 调节沉浸量。
+- Progressive immersion amount 的允许范围为 `0.3...1.0`。visionOS 拥有当前值，Enchron 观察并在当前 App 进程内记住最近值；该值不写入 Preferences、Resume、数据库或文件。
+- 一次 Immersive Space Open Cycle 从 Scene 确认出现开始，到同一个 Scene 确认消失结束。同一 Open Cycle 内 Environment、Docked 与 Panorama 的合法切换不得重置用户当前的 Progressive immersion amount；Digital Crown 调节后的值立即成为后续空间内容继续使用的当前值。
+- 当 Environment 或 Docked 使一个 closed Immersive Space 重新打开时，初始沉浸量使用当前进程内最近观察值；没有最近值时使用 visionOS 的系统默认值。只有 Panorama 使 closed Immersive Space 重新打开时，初始沉浸量为 `1.0`；打开以后仍允许用户通过 Digital Crown 调低。已经 open 时进入 Panorama 不重新应用 `1.0`。
 - Default Environment 只选择一个特定 Environment Identity，不包含 Environment Effect。
 - Window 的 Docking 二级菜单不列出 Environment Identity。存在活动 Environment 时继承它；不存在时临时使用 Default Environment；菜单选择本次 Docked Presentation 使用的 Day 或 Night，然后进入 Docked。这个选择不修改独立活动 Environment 的 Environment Effect。
 - 未来新增 Environment 仍由独立 Environment 入口激活；Docking 不展示 Environment × Environment Effect 的组合列表。
@@ -98,8 +102,9 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 
 ## Window 与 Playback Deck
 
-- Window 视频界面拥有 Back、Docking 二级菜单和 Panorama 二级菜单。Docking/Panorama 入口不属于 Playback Deck。
-- 收起的 Playback Deck 将 Settings 与 More 分置两端，后退 15 秒、Play/Pause/Replay、前进 15 秒组成居中的 transport group，下面显示 Progress Bar。
+- Window 视频界面左上角拥有 Back，右上角依次放置 Dock、Video Format 与 More；视频标题和媒体信息位于左下角。
+- Window 播放控件以底部 Ornament 呈现，不显示 Settings 与 More。同尺寸的后退 15 秒、Play/Pause/Replay、前进 15 秒位于左侧，并与 Progress Bar 保持同一行。
+- Window Playback 的宽高比来自 PlaybackCore 报告的当前视频显示尺寸；Side-by-Side 与 Top-Bottom 先按 Stereo Layout 换算单眼显示尺寸。只有播放头尚未交付有效尺寸时，启动占位才临时使用 16:9。PlayerControls Ornament 的稳定外部宽度是 Window 宽度范围的唯一基准：最小、默认和最大宽度分别为其 1.25、1.75 和 2.50 倍，并对齐到 16pt；对应高度始终由当前视频宽高比计算。Precision Timeline 展开不得改变 Ornament 的外部宽度或触发 Window 尺寸跳变。
 - Settings 展开 Advanced Settings；More 负责 Subtitles、Audio Track、Playback Speed 与 Episodes。
 - Advanced Settings 在 Docked 提供 Screen Size、Distance、Elevation、Restore Defaults，在 Panorama 提供 Projection、Stereo Layout 与 Apply。Precision Timeline 由 Progress Bar 的圆形 scrubber 双击打开，不属于 Settings。
 - Precision Timeline 支持精确 seek 与逐帧，完成后保持暂停。Progress Bar seek 到结尾之前后开始或继续播放，即使拖动前处于 paused；从 ended 拖动同样开始播放。
@@ -108,8 +113,8 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 
 ## Docked、Panorama 与退出
 
-- Docked 的 Video Entity/Mesh 不承载可点击按钮。召唤 Playback Deck 后提供播放控制和 Return to Window，不提供直接 Back-to-Library。
-- Panorama 召唤 Playback Deck 后提供播放控制、Return to Window 和 Back-to-Library。Back 关闭当前 Media Session 并回到 Window Media Library。
+- Docked 的 Video Entity/Mesh 不承载可点击按钮。Docked 与 Panorama 召唤同一个 `PlayerControlDock`，均提供播放控制、Settings 与 Return to Window，不提供直接 Back-to-Library。
+- `PlayerControlDock` 的外部结构在 Docked 与 Panorama 中保持一致；只有 Settings 展开内容不同：Docked 调整 Screen Size、Distance、Elevation 与 Restore Defaults，Panorama 调整 Projection、Stereo Layout、Apply 与 Reset。
 - Window Back 关闭当前 Media Session 并回到 Media Library。
 - 返回 Window 或 Media Library 时结束本次 Docked Environment Effect，并恢复进入 Docked 前的 Environment Context。此前存在 Enchron Environment 时继续保留它原有的 Environment Effect；此前不存在时仍保持没有活动 Enchron Environment，System Surroundings 由 visionOS 决定。
 - Docked 与 Panorama 不直接互转，必须经过 Window。

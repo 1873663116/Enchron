@@ -47,6 +47,9 @@ _Avoid_：HDR 开关、把标签选择当成 SDR 重映射、没有 tone mapping
 _Avoid_：App 音量滑杆、App 静音状态、把 Core 测试能力当成产品要求
 
 **Portal / Window**：用户所说的 Portal 返回状态在 Enchron 领域模型中仍是 Window Playback Presentation，不增加第四种 Presentation。界面文案和图标可以表达“返回窗口”。
+
+**Window Playback Ornament**：附着在当前 Window Playback 系统窗口底边的 PlayerControls。它与所属窗口保持平行并略微位于其前方，随窗口一起移动，但不属于 Window 内容平面，也不是独立 Window。它的稳定外部宽度是 Window Playback 宽度范围的尺寸基准；Docked 与 Panorama 的 Player Control Dock 不使用这个术语。
+_Avoid_：Window 内 overlay、RealityView attachment、独立 PlayerControls Window、与视频共面
 _Avoid_：把 Portal 建模为独立于 Window 的播放状态
 
 **Media Session**：一次 accepted open 到 close 或 failed 的唯一核心身份范围。
@@ -144,6 +147,12 @@ _Avoid_：Enchron Environment、Apple Immersive Space、由 Enchron 恢复具体
 
 **Enchron Immersive Space**：Enchron 使用 visionOS `ImmersiveSpace` Scene 打开的无窗口边界空间，是承载 Enchron Environment 与空间播放呈现的平台容器，不是 Environment 身份。
 _Avoid_：Apple System Environment、Enchron Environment、第四种 Playback Presentation
+
+**Immersive Space Open Cycle**：同一个 Enchron Immersive Space 从 Scene 确认出现到确认消失之间的连续生命周期。Environment、Docked 与 Panorama 是这个 Open Cycle 内可以变化的空间内容；它们的切换不重新打开 Scene，也不重置用户当前的 Progressive Immersion Amount。Scene 消失即结束当前 Open Cycle，后续恢复或产品入口重新打开时形成新的 Open Cycle。
+_Avoid_：一次 Playback Presentation、一次 Media Session、把 Environment/Docked/Panorama 切换当成新的 Open Cycle、把 Digital Crown 调到最小值当成关闭 Scene
+
+**Progressive Immersion Amount**：Enchron Immersive Space 统一采用 Progressive immersion 时，由 visionOS 持有并允许用户通过 Digital Crown 在 `0.3...1.0` 内调节的当前沉浸量。Enchron 只观察该系统事实并在当前 App 进程内记住最近值；同一 Immersive Space Open Cycle 内切换 Environment、Docked 或 Panorama 不改变它。Environment 或 Docked 新开空间时使用最近值，没有最近值时使用系统默认；Panorama 新开空间时从 `1.0` 开始，但已经打开的空间进入 Panorama 时保持当前值。
+_Avoid_：Playback Presentation、Environment Effect、App 内滑杆、跨进程偏好、Panorama 始终强制为 `1.0`、把 `.mixed` 或 `.full` 当成 Enchron 的空间内容状态
 
 **Environment Context**：当前没有活动观影场景，或某个 Environment 及其 Environment Effect 已经打开。它独立于 Media Session 与 Playback Presentation：用户可以在 Media Library 阶段先打开 Environment，退出当前媒体也不会自动关闭它。
 _Avoid_：只有播放视频后才存在的场景状态、退出媒体时自动关闭 Environment、把 Environment Context 并入 Playback Presentation
