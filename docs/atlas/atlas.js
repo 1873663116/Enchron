@@ -16,9 +16,7 @@
   const entities = new Map((stateRegistry.entities || []).map((item) => [item.id, item]));
   const actionsById = new Map(actions.map((item) => [item.id, item]));
   const initialQuery = new URLSearchParams(window.location.search);
-  const initialView = ["journeys", "world", "states", "gaps"].includes(initialQuery.get("view"))
-    ? initialQuery.get("view")
-    : "journeys";
+  const initialView = "journeys";
 
   const viewButtons = [...document.querySelectorAll("[data-view]")];
   const viewPanels = [...document.querySelectorAll("[data-view-panel]")];
@@ -1395,12 +1393,9 @@
       }
     });
 
-    renderWorld();
     renderActionIndex();
     if (currentActionId) renderAction(actionsById.get(currentActionId));
     else stage.innerHTML = `<p class="journey-summary">Product Action Registry 为空。</p>`;
-    renderStates();
-    renderGaps();
     document.getElementById("source-status").textContent = `${sources.size} 份一手来源 · ${actions.length} 项产品操作`;
   }
 
