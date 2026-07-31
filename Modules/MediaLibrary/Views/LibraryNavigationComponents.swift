@@ -49,90 +49,12 @@ struct SearchInputCapsule: View {
     var placeholder = "Search"
     var accessibilityIdentifier = "DesignPreview-input-search"
 
-    // 锁死:宽度恒 Card.gridMin,尺寸归容器管,不暴露。
-    private let width: CGFloat = DesignTokens.Card.gridMin
-
-    @State private var pressFeedbackTrigger = 0
-    @State private var isInputActive = false
-    @FocusState private var isFocused: Bool
-
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            Image(systemName: "magnifyingglass")
-                .font(.body)
-                .foregroundStyle(.tertiary)
-
-            TextField(
-                placeholder,
-                text: $text,
-                onEditingChanged: handleEditingChanged,
-                onCommit: deactivateInput
-            )
-                .textFieldStyle(.plain)
-                .font(.body)
-                .foregroundStyle(.secondary)
-                .focused($isFocused)
-                .enchronLiteralTextInput()
-                .enchronHoverEffectDisabled()
-                .onTapGesture(perform: activateInput)
-                .accessibilityIdentifier(accessibilityIdentifier)
-        }
-        .padding(.horizontal, DesignTokens.Spacing.md)
-        .frame(width: width, height: DesignTokens.Interactive.regular)
-        .clipShape(Capsule())
-        .enchronGlassBackground(in: Capsule())
-        .enchronHoverContentShape(Capsule())
-        .enchronHoverEffect(.automatic)
-        .contentShape(Capsule())
-        .overlay {
-            Capsule()
-                .strokeBorder(
-                    DesignTokens.Surface.focusBorder.opacity(isInputActive ? 1 : 0),
-                    lineWidth: DesignTokens.Stroke.bold
-                )
-                .animation(DesignTokens.AnimationToken.selection, value: isInputActive)
-        }
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                activateInput()
-            }
+        GlassSearchField(
+            text: $text,
+            placeholder: placeholder,
+            accessibilityIdentifier: accessibilityIdentifier
         )
-        .enchronPressSensoryFeedback(.button, trigger: pressFeedbackTrigger)
-        .onChange(of: isFocused) { _, focused in
-            if !focused {
-                setInputActive(false)
-            }
-        }
-        .onSubmit(deactivateInput)
-        .accessibilityIdentifier(accessibilityIdentifier)
-        .accessibilityLabel(placeholder)
-    }
-
-    private func activateInput() {
-        if !isInputActive {
-            pressFeedbackTrigger += 1
-        }
-        setInputActive(true)
-        isFocused = true
-    }
-
-    private func handleEditingChanged(_ isEditing: Bool) {
-        if isEditing {
-            setInputActive(true)
-        } else {
-            deactivateInput()
-        }
-    }
-
-    private func deactivateInput() {
-        setInputActive(false)
-        isFocused = false
-    }
-
-    private func setInputActive(_ active: Bool) {
-        withAnimation(DesignTokens.AnimationToken.selection) {
-            isInputActive = active
-        }
     }
 }
 

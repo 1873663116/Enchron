@@ -190,6 +190,8 @@
 		E10000162FA1000100E1C001 /* Exceptions for "Modules" folder in "Enchron" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
+				DesignSystem/Components/AppearanceModeButton.swift,
+				DesignSystem/Components/ButtonIcon.swift,
 				DesignSystem/Components/InputComponents.swift,
 				DesignSystem/Components/SettingsComponents.swift,
 				DesignSystem/DesignTokens.swift,
@@ -717,6 +719,30 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
+		A1B2C3D42F600000DEADBEEF /* SwiftLint */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.swiftlint.yml",
+				"$(SRCROOT)/Apps",
+				"$(SRCROOT)/Modules",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources",
+				"$(SRCROOT)/Tests",
+			);
+			name = SwiftLint;
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --quiet --working-directory \"$SRCROOT\" --config \"$SRCROOT/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint not installed, run 'brew install swiftlint'\"\nfi\n";
+		};
 		E30000012FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
@@ -732,6 +758,7 @@
 				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
 				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
 				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
+				"$(SRCROOT)/Apps/DesignPreview/WindowPlaybackPreview.swift",
 				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
 				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
 				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
@@ -760,6 +787,7 @@
 				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
 				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
 				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
+				"$(SRCROOT)/Apps/DesignPreview/WindowPlaybackPreview.swift",
 				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
 				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
 				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
@@ -788,6 +816,7 @@
 				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
 				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
 				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
+				"$(SRCROOT)/Apps/DesignPreview/WindowPlaybackPreview.swift",
 				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
 				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
 				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
@@ -800,30 +829,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
-		};
-		A1B2C3D42F600000DEADBEEF /* SwiftLint */ = {
-			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputFileListPaths = (
-			);
-			inputPaths = (
-				"$(SRCROOT)/.swiftlint.yml",
-				"$(SRCROOT)/Apps",
-				"$(SRCROOT)/Modules",
-				"$(SRCROOT)/Packages/PlaybackCore/Sources",
-				"$(SRCROOT)/Tests",
-			);
-			name = SwiftLint;
-			outputFileListPaths = (
-			);
-			outputPaths = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "if command -v swiftlint >/dev/null 2>&1; then\n  swiftlint lint --quiet --working-directory \"$SRCROOT\" --config \"$SRCROOT/.swiftlint.yml\"\nelse\n  echo \"warning: SwiftLint not installed, run 'brew install swiftlint'\"\nfi\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
