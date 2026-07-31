@@ -50,33 +50,3 @@ struct SortMenuButton: View {
         .accessibilityIdentifier(accessibilityIdentifier)
     }
 }
-
-struct GlassCapsuleIconLabelButton: View {
-    let title: String
-    let systemName: String
-    let accessibilityLabel: String
-    var action: () -> Void = {}
-    var accessibilityIdentifier: String?
-
-    // 锁死:图标恒白、最小宽度恒 regular*2,不暴露。
-    private let iconColor: Color = .white
-    private let minWidth: CGFloat = DesignTokens.Interactive.regular * 2
-
-    var body: some View {
-        Button(action: action) {
-            ButtonIconLabel(title: title, systemName: systemName)
-                .foregroundStyle(iconColor)
-                .padding(.horizontal, DesignTokens.Spacing.md)
-                .frame(minWidth: minWidth, minHeight: DesignTokens.Interactive.regular)
-                .clipShape(Capsule())
-                .enchronGlassBackground(in: Capsule())
-                .enchronHoverContentShape(Capsule())
-                .enchronHoverEffect(.automatic)
-        }
-        .buttonStyle(EnchronPressFeedbackButtonStyle(.control))
-        .padding(.vertical, (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2)
-        .contentShape(Capsule())
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(title)")
-    }
-}

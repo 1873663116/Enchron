@@ -1,5 +1,100 @@
 import SwiftUI
 
+public struct GlassSearchField: View {
+    @Binding private var text: String
+    private let placeholder: String
+    private let accessibilityIdentifier: String
+
+    @State private var pressFeedbackTrigger = 0
+    @State private var isInputActive = false
+    @FocusState private var isFocused: Bool
+
+    public init(
+        text: Binding<String>,
+        placeholder: String = "Search",
+        accessibilityIdentifier: String = "DesignPreview-input-search"
+    ) {
+        _text = text
+        self.placeholder = placeholder
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
+
+    public var body: some View {
+        HStack(spacing: DesignTokens.Spacing.xs) {
+            Image(systemName: "magnifyingglass")
+                .font(.body)
+                .foregroundStyle(.tertiary)
+
+            TextField(
+                placeholder,
+                text: $text,
+                onEditingChanged: handleEditingChanged,
+                onCommit: deactivateInput
+            )
+            .textFieldStyle(.plain)
+            .font(.body)
+            .foregroundStyle(.secondary)
+            .focused($isFocused)
+            .enchronLiteralTextInput()
+            .enchronHoverEffectDisabled()
+            .onTapGesture(perform: activateInput)
+            .accessibilityIdentifier(accessibilityIdentifier)
+        }
+        .padding(.horizontal, DesignTokens.Spacing.md)
+        .frame(width: DesignTokens.Card.gridMin, height: DesignTokens.Interactive.regular)
+        .clipShape(Capsule())
+        .enchronGlassBackground(in: Capsule())
+        .enchronHoverContentShape(Capsule())
+        .enchronHoverEffect(.automatic)
+        .contentShape(Capsule())
+        .overlay {
+            Capsule()
+                .strokeBorder(
+                    DesignTokens.Surface.focusBorder.opacity(isInputActive ? 1 : 0),
+                    lineWidth: DesignTokens.Stroke.bold
+                )
+                .animation(DesignTokens.AnimationToken.selection, value: isInputActive)
+        }
+        .simultaneousGesture(TapGesture().onEnded(activateInput))
+        .enchronPressSensoryFeedback(.button, trigger: pressFeedbackTrigger)
+        .onChange(of: isFocused) { _, focused in
+            if !focused {
+                setInputActive(false)
+            }
+        }
+        .onSubmit(deactivateInput)
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel(placeholder)
+    }
+
+    private func activateInput() {
+        if !isInputActive {
+            pressFeedbackTrigger += 1
+        }
+        setInputActive(true)
+        isFocused = true
+    }
+
+    private func handleEditingChanged(_ isEditing: Bool) {
+        if isEditing {
+            setInputActive(true)
+        } else {
+            deactivateInput()
+        }
+    }
+
+    private func deactivateInput() {
+        setInputActive(false)
+        isFocused = false
+    }
+
+    private func setInputActive(_ active: Bool) {
+        withAnimation(DesignTokens.AnimationToken.selection) {
+            isInputActive = active
+        }
+    }
+}
+
 public struct GlassToggle: View {
     @State var isOn: Bool
 

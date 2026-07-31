@@ -16,6 +16,7 @@ class DesignSourceArchitectureTests(unittest.TestCase):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary_directory.name)
         (self.root / "Apps/DesignPreview").mkdir(parents=True)
+        (self.root / "Apps/Enchron").mkdir(parents=True)
         (self.root / "Modules/DesignSystem").mkdir(parents=True)
         (self.root / "Config").mkdir()
         self.write("Config/baseline.json", '{"version": 1, "allowances": []}\n')
@@ -71,6 +72,82 @@ class DesignSourceArchitectureTests(unittest.TestCase):
         )
         result = self.invoke()
         self.assertIn("Design source architecture passed", result.stdout)
+
+    def test_production_feature_must_not_construct_parallel_glass_capsule(self):
+        self.write(
+            "Apps/Enchron/PlayerControls.swift",
+            "import DesignSystem\n"
+            "import SwiftUI\n"
+            "struct PlayerControls: View {\n"
+            "    var body: some View {\n"
+            "        Button(\"More\") {}\n"
+            "            .enchronGlassBackground(in: Capsule())\n"
+            "    }\n"
+            "}\n",
+        )
+        result = self.invoke(expected_code=1)
+        self.assertIn(
+            "Apps/Enchron/PlayerControls.swift:6: error: "
+            "[production-parallel-glass-component]",
+            result.stderr,
+        )
+
+    def test_production_feature_can_compose_design_system_component(self):
+        self.write(
+            "Apps/Enchron/PlayerControls.swift",
+            "import DesignSystem\n"
+            "import SwiftUI\n"
+            "struct PlayerControls: View {\n"
+            "    var body: some View { GlassCircleIconButton.environment() }\n"
+            "}\n",
+        )
+        result = self.invoke()
+        self.assertIn("Design source architecture passed", result.stdout)
+
+    def test_design_system_owns_raw_glass_capsule_construction(self):
+        self.write(
+            "Modules/DesignSystem/GlassButton.swift",
+            "import SwiftUI\n"
+            "public struct GlassButton: View {\n"
+            "    public var body: some View {\n"
+            "        Button(\"More\") {}\n"
+            "            .enchronGlassBackground(in: Capsule())\n"
+            "    }\n"
+            "}\n",
+        )
+        result = self.invoke()
+        self.assertIn("Design source architecture passed", result.stdout)
+
+    def test_xcode_mode_also_checks_production_sources(self):
+        self.write(
+            "Apps/Enchron/PlayerControls.swift",
+            "import DesignSystem\n"
+            "import SwiftUI\n"
+            "struct PlayerControls: View {\n"
+            "    var body: some View {\n"
+            "        Button(\"More\") {}\n"
+            "            .enchronGlassBackground(in: Capsule())\n"
+            "    }\n"
+            "}\n",
+        )
+        self.write(
+            "Apps/DesignPreview/CardPreview.swift",
+            "import DesignSystem\n"
+            "import SwiftUI\n"
+            "struct CardPreview: View {\n"
+            "    var body: some View { ProductionCard.sample() }\n"
+            "}\n",
+        )
+        result = self.invoke(
+            "--xcode-inputs",
+            expected_code=1,
+            environment=self.xcode_environment(
+                "Apps/DesignPreview/CardPreview.swift",
+                "Config/baseline.json",
+                "Modules/DesignSystem/DesignTokens.swift",
+            ),
+        )
+        self.assertIn("[production-parallel-glass-component]", result.stderr)
 
     def test_parallel_style_raw_control_and_literal_report_file_and_line(self):
         self.write(

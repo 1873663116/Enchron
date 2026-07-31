@@ -4,6 +4,130 @@ import SwiftUI
 
 // MARK: - Reusable controls
 
+public enum PlaybackEdgePosition {
+    case top
+    case bottom
+}
+
+/// A noninteractive backdrop treatment for controls placed directly over video.
+/// The effect is strongest at the window edge and feathers into the picture.
+public struct PlaybackEdgeEmphasis: View {
+    private let position: PlaybackEdgePosition
+
+    public init(_ position: PlaybackEdgePosition) {
+        self.position = position
+    }
+
+    public var body: some View {
+        Rectangle()
+            .fill(.regularMaterial)
+            .overlay {
+                Rectangle()
+                    .fill(scrimGradient)
+            }
+            .mask(materialMask)
+            .frame(maxWidth: .infinity)
+            .frame(height: DesignTokens.PlaybackEdge.depth)
+            .allowsHitTesting(false)
+            .accessibilityHidden(true)
+    }
+
+    private var materialMask: LinearGradient {
+        LinearGradient(
+            stops: [
+                .init(
+                    color: .black.opacity(DesignTokens.PlaybackEdge.maskEdgeOpacity),
+                    location: 0
+                ),
+                .init(
+                    color: .black.opacity(DesignTokens.PlaybackEdge.maskEdgeOpacity),
+                    location: DesignTokens.PlaybackEdge.maskPlateauEndLocation
+                ),
+                .init(
+                    color: .black.opacity(DesignTokens.PlaybackEdge.maskLowLevelOpacity),
+                    location: DesignTokens.PlaybackEdge.maskLowLevelLocation
+                ),
+                .init(
+                    color: .black.opacity(DesignTokens.PlaybackEdge.maskTailMiddleOpacity),
+                    location: DesignTokens.PlaybackEdge.maskTailMiddleLocation
+                ),
+                .init(
+                    color: .black.opacity(DesignTokens.PlaybackEdge.maskTailEndOpacity),
+                    location: DesignTokens.PlaybackEdge.maskTailEndLocation
+                ),
+                .init(color: .clear, location: 1)
+            ],
+            startPoint: edgeStartPoint,
+            endPoint: edgeEndPoint
+        )
+    }
+
+    private var scrimGradient: LinearGradient {
+        LinearGradient(
+            colors: [
+                .black.opacity(DesignTokens.PlaybackEdge.edgeScrimOpacity),
+                .clear
+            ],
+            startPoint: edgeStartPoint,
+            endPoint: edgeEndPoint
+        )
+    }
+
+    private var edgeStartPoint: UnitPoint {
+        position == .top ? .top : .bottom
+    }
+
+    private var edgeEndPoint: UnitPoint {
+        position == .top ? .bottom : .top
+    }
+}
+
+public struct GlassCapsuleIconLabelButton: View {
+    let title: String
+    let systemName: String
+    let accessibilityLabel: String
+    var action: () -> Void
+    var accessibilityIdentifier: String?
+
+    public init(
+        title: String,
+        systemName: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) {
+        self.title = title
+        self.systemName = systemName
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+        self.accessibilityIdentifier = accessibilityIdentifier
+    }
+
+    public var body: some View {
+        Button(action: action) {
+            ButtonIconLabel(title: title, systemName: systemName)
+                .foregroundStyle(.white)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .frame(
+                    minWidth: DesignTokens.Interactive.regular * 2,
+                    minHeight: DesignTokens.Interactive.regular
+                )
+                .clipShape(Capsule())
+                .enchronGlassBackground(in: Capsule())
+                .enchronHoverContentShape(Capsule())
+                .enchronHoverEffect(.automatic)
+        }
+        .buttonStyle(EnchronPressFeedbackButtonStyle(.control))
+        .padding(
+            .vertical,
+            (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2
+        )
+        .contentShape(Capsule())
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(title)")
+    }
+}
+
 public struct GlassCircleIconLabel: View {
     @Environment(\.isEnabled) private var isEnabled
 

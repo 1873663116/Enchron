@@ -169,7 +169,7 @@ Enchron、EnchronMacOS 与 DesignPreview 通过同一组 Package Library Product
 - `Playback Lifecycle` 由 PlaybackCore 唯一发布；`Playback Presentation` 由 Enchron App 管理，两者不能压成同一个“播放模式”。
 - Window、Docked、Panorama 迁移同一个 renderer。目标 surface 必须绑定同一 Media Session 的 renderer 才能提交；播放中还必须等 RealityKit 报告画面 settled。Paused、Ready 与 Ended 没有新帧可推动该报告，renderer surface 已绑定即为可提交，不得因等待新帧超时而回滚。真正的绑定失败回滚到原 Presentation，不重开 Media Session。
 - 媒体的初始或持久化 Media Format 必须在任何 RealityKit surface 挂载和播放启动前完成同一 Session 内的设置；默认播放速度作为打开 Session 的初始 rate 输入，不在 timeline 尚未建立时补发控制命令。
-- 三个 Playback Presentation 统一使用 `VideoPlayerComponent(videoRenderer:)`。每个 `RealityView` 拥有自己的 Video Entity；迁移的是 renderer binding，不把 Entity 实例跨 scene 搬移。Window 位于 WindowGroup 的 RealityView，Docked 与 Panorama 位于 ImmersiveSpace 的 RealityView。
+- 三个 Playback Presentation 统一使用 `VideoPlayerComponent(videoRenderer:)`。每个 `RealityView` 拥有自己的 Video Entity；迁移的是 renderer binding，不把 Entity 实例跨 scene 搬移。Window Playback 位于单例 `Window` Scene 的 RealityView，Docked 与 Panorama 位于 ImmersiveSpace 的 RealityView。
 - Docked Video Entity 挂到 Xrplay_scene 交付的唯一 `PlaybackSurfaceAnchor` 下。场景拥有推荐基准位置与朝向；Enchron 以用户原点计算 Distance/Elevation 球面位置并转换为该 parent 下的 transform，同时拥有 Screen Size uniform scale；RealityKit 拥有视频 mesh、material 与实际呈现模式。
 - Media Library 只保存引用。分类、移动或删除引用不得复制、移动或删除媒体字节。
 - DesignPreview、SwiftUI Preview 与测试复用生产组件和页面；fixture adapter 不维护平行产品行为。

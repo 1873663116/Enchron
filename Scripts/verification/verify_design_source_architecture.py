@@ -80,6 +80,10 @@ VISUAL_LITERAL_PATTERNS = (
     re.compile(r"\.font\s*\(\s*\.system\s*\([^)]*\bsize:\s*\d+(?:\.\d+)?"),
     re.compile(r"\.stroke(?:Border)?\s*\([^)]*\blineWidth:\s*\d+(?:\.\d+)?"),
 )
+PRODUCTION_GLASS_CAPSULE_PATTERN = re.compile(
+    r"\.enchronGlassBackground\s*\(\s*in:\s*Capsule\s*\(\s*\)\s*\)",
+    flags=re.MULTILINE,
+)
 
 
 @dataclass(frozen=True)
@@ -322,11 +326,46 @@ def find_preview_violations(
     return findings
 
 
+def find_production_component_bypasses(root: Path) -> list[Finding]:
+    findings = []
+    sources = (
+        relative_swift_files(root, "Apps/Enchron")
+        + relative_swift_files(root, "Modules")
+    )
+    design_system_root = Path("Modules/DesignSystem")
+    for relative_path in sources:
+        if relative_path.is_relative_to(design_system_root):
+            continue
+        path = root / relative_path
+        source = path.read_text(encoding="utf-8")
+        masked_source = mask_swift_comments(source)
+        lines = source.splitlines()
+        for match in PRODUCTION_GLASS_CAPSULE_PATTERN.finditer(masked_source):
+            line_number = finding_line(masked_source, match.start())
+            findings.append(
+                Finding(
+                    rule="production-parallel-glass-component",
+                    path=relative_path.as_posix(),
+                    line=line_number,
+                    signature=signature_at(lines, line_number),
+                    message=(
+                        "production features must compose a DesignSystem glass component; "
+                        "raw glass capsule construction belongs in Modules/DesignSystem"
+                    ),
+                )
+            )
+    return findings
+
+
 def collect_findings(
     root: Path,
     preview_sources: list[Path] | None = None,
 ) -> list[Finding]:
-    return find_token_layer_violations(root) + find_preview_violations(root, preview_sources)
+    return (
+        find_token_layer_violations(root)
+        + find_preview_violations(root, preview_sources)
+        + find_production_component_bypasses(root)
+    )
 
 
 def xcode_preview_sources(root: Path) -> list[Path]:
