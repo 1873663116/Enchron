@@ -136,6 +136,7 @@
 				PlaybackPresentation/Views/PlaybackTopActions.swift,
 				PlaybackPresentation/Views/PlaybackVideoSurface.swift,
 				PlaybackPresentation/Views/PlayerInfoBarView.swift,
+				PlaybackPresentation/Views/WindowPlaybackRootView.swift,
 				PlaybackPresentation/Views/WindowPlayerDeck.swift,
 			);
 			target = D40000032FA0000100E1C001 /* EnchronMacOS */;
@@ -153,6 +154,7 @@
 				PlaybackPresentation/Views/PlaybackPanel.swift,
 				PlaybackPresentation/Views/PlaybackTimeline.swift,
 				PlaybackPresentation/Views/PlaybackTopActions.swift,
+				PlaybackPresentation/Views/WindowPlaybackRootView.swift,
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};
@@ -165,6 +167,7 @@
 				ContentView.swift,
 				DesignPreviewApp.swift,
 				TokenPreviews.swift,
+				WindowPlaybackPreview.swift,
 			);
 			target = C3A35AB22F85429300DA0D16 /* DesignPreview */;
 		};

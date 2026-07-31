@@ -51,9 +51,41 @@ struct FusedPlayerPanelLive {
     var episodeItems: [DeckMenuItem]
 }
 
+fileprivate enum PlaybackControlPanelSurface {
+    case windowOrnament
+    case playerControlDock
+}
+
+struct WindowPlaybackControls: View {
+    let live: FusedPlayerPanelLive
+    var onInteraction: () -> Void = {}
+
+    var body: some View {
+        FusedPlayerPanel(
+            live: live,
+            onInteraction: onInteraction,
+            surface: .windowOrnament
+        )
+    }
+}
+
+struct PlayerControlDock: View {
+    let live: FusedPlayerPanelLive
+    var onInteraction: () -> Void = {}
+
+    var body: some View {
+        FusedPlayerPanel(
+            live: live,
+            onInteraction: onInteraction,
+            surface: .playerControlDock
+        )
+    }
+}
+
 struct FusedPlayerPanel: View {
     var live: FusedPlayerPanelLive?
     var onInteraction: () -> Void = {}
+    private let surface: PlaybackControlPanelSurface
 
     init(
         live: FusedPlayerPanelLive? = nil,
@@ -61,6 +93,21 @@ struct FusedPlayerPanel: View {
     ) {
         self.live = live
         self.onInteraction = onInteraction
+        self.surface = (
+            (live?.presentation ?? .window) == .window
+                ? .windowOrnament
+                : .playerControlDock
+        )
+    }
+
+    fileprivate init(
+        live: FusedPlayerPanelLive,
+        onInteraction: @escaping () -> Void,
+        surface: PlaybackControlPanelSurface
+    ) {
+        self.live = live
+        self.onInteraction = onInteraction
+        self.surface = surface
     }
 
     @State private var timelineExpanded = false
@@ -116,7 +163,14 @@ struct FusedPlayerPanel: View {
 
     private var isExpanded: Bool { timelineExpanded || settingsExpanded }
     private var clusterWidth: CGFloat {
-        isExpanded ? expandedWidth : DesignTokens.ProgressBar.previewWidth
+        switch surface {
+        case .windowOrnament:
+            DesignTokens.ControlBar.contentWidth
+        case .playerControlDock:
+            isExpanded
+                ? expandedWidth
+                : DesignTokens.ControlBar.contentWidth
+        }
     }
 
     private var shape: RoundedRectangle {
@@ -124,27 +178,17 @@ struct FusedPlayerPanel: View {
     }
 
     var body: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            controlsRow
-
-            if settingsExpanded, let live, live.presentation == .docked {
-                dockedPlacementControls(live)
+        Group {
+            switch surface {
+            case .windowOrnament:
+                windowOrnamentContent
+            case .playerControlDock:
+                playerControlDockContent
             }
-
-            if settingsExpanded, let live, live.presentation == .panorama {
-                panoramaFormatControls(live)
-            }
-
-            // 控件簇第二行(与按钮同属"播放控制",无分界线):时间轴收起时是进度条
-            // ——进度条本身就是打开时间轴的按钮(双击展开);展开时同槽位换成时间轴本体。
-            if timelineExpanded {
-                timelineBlock
-            } else {
-                progressBar
-            }
-
         }
-        .padding(DesignTokens.Spacing.xl)
+        .frame(width: clusterWidth)
+        .padding(.horizontal, DesignTokens.ControlBar.paddingH)
+        .padding(.vertical, DesignTokens.ControlBar.paddingV)
         .clipShape(shape)
         .enchronGlassBackground(in: shape)
         // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
@@ -166,6 +210,48 @@ struct FusedPlayerPanel: View {
             guard !Task.isCancelled else { return }
             pendingSeekTarget = nil
         }
+    }
+
+    @ViewBuilder
+    private var windowOrnamentContent: some View {
+        if timelineExpanded {
+            VStack(spacing: DesignTokens.Spacing.md) {
+                windowTransportControls
+                timelineBlock
+            }
+        } else {
+            HStack(spacing: DesignTokens.Spacing.md) {
+                windowTransportControls
+                progressBar(width: windowProgressWidth)
+            }
+        }
+    }
+
+    private var playerControlDockContent: some View {
+        VStack(spacing: DesignTokens.Spacing.md) {
+            playerControlDockControls
+
+            if settingsExpanded, let live, live.presentation == .docked {
+                dockedPlacementControls(live)
+            }
+
+            if settingsExpanded, let live, live.presentation == .panorama {
+                panoramaFormatControls(live)
+            }
+
+            if timelineExpanded {
+                timelineBlock
+            } else {
+                progressBar(width: clusterWidth)
+            }
+        }
+    }
+
+    private var windowProgressWidth: CGFloat {
+        clusterWidth
+            - DesignTokens.Interactive.large * 3
+            - DesignTokens.ControlBar.buttonSpacing * 2
+            - DesignTokens.Spacing.md
     }
 
     private func panoramaFormatControls(_ live: FusedPlayerPanelLive) -> some View {
@@ -272,38 +358,18 @@ struct FusedPlayerPanel: View {
         }
     }
 
-    @ViewBuilder
-    private var controlsRow: some View {
-        if (live?.presentation ?? .window) == .window {
-            ZStack {
-                HStack {
-                    GlassCircleIconButton(
-                        systemName: "gearshape",
-                        accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
-                        action: toggleSettings,
-                        accessibilityIdentifier: "PlayerPanel-button-settings"
-                    )
-                    Spacer()
-                    moreMenu
-                }
+    private var windowTransportControls: some View {
+        HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+            windowRewindButton
+            windowPlayButton
+            windowForwardButton
+        }
+    }
 
-                HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-                    rewindButton
-                    playButton
-                    forwardButton
-                }
-            }
-            .frame(width: clusterWidth)
-        } else if let live {
+    @ViewBuilder
+    private var playerControlDockControls: some View {
+        if let live {
             HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-                if live.presentation == .panorama {
-                    GlassCircleIconButton(
-                        systemName: "chevron.left",
-                        accessibilityLabel: "Back to Media Library",
-                        action: live.onExitPlayback,
-                        accessibilityIdentifier: "PlayerPanel-button-back"
-                    )
-                }
                 GlassCircleIconButton(
                     systemName: "rectangle.portrait.and.arrow.forward",
                     accessibilityLabel: "Return to Window",
@@ -324,6 +390,50 @@ struct FusedPlayerPanel: View {
             }
             .frame(width: clusterWidth)
         }
+    }
+
+    private var windowRewindButton: some View {
+        GlassCircleIconButton(
+            systemName: timelineExpanded ? "backward.frame" : "gobackward.15",
+            accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 15 seconds",
+            action: { timelineExpanded ? stepFrame(-1) : live?.onSkipBackward() },
+            accessibilityIdentifier: "PlayerPanel-button-rewind",
+            visualSize: DesignTokens.Interactive.regular,
+            targetSize: DesignTokens.Interactive.large,
+            iconTier: .standard
+        )
+        .keyboardShortcut(.leftArrow, modifiers: [])
+    }
+
+    private var windowForwardButton: some View {
+        GlassCircleIconButton(
+            systemName: timelineExpanded ? "forward.frame" : "goforward.15",
+            accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 15 seconds",
+            action: { timelineExpanded ? stepFrame(1) : live?.onSkipForward() },
+            accessibilityIdentifier: "PlayerPanel-button-forward",
+            visualSize: DesignTokens.Interactive.regular,
+            targetSize: DesignTokens.Interactive.large,
+            iconTier: .standard
+        )
+        .keyboardShortcut(.rightArrow, modifiers: [])
+        .disabled(
+            timelineExpanded
+                ? live?.canStepForward == false
+                : live?.canSkipForward == false
+        )
+    }
+
+    private var windowPlayButton: some View {
+        GlassCircleIconButton(
+            systemName: primaryPlayIcon,
+            accessibilityLabel: primaryPlayLabel,
+            action: { live?.onPlayPause() },
+            accessibilityIdentifier: "PlayerPanel-button-play",
+            visualSize: DesignTokens.Interactive.regular,
+            targetSize: DesignTokens.Interactive.large,
+            iconTier: .standard
+        )
+        .keyboardShortcut(.space, modifiers: [])
     }
 
     private var rewindButton: some View {
@@ -519,7 +629,10 @@ struct FusedPlayerPanel: View {
             onSeekBegan: beginTimelineSeek,
             onSeekEnded: commitTimelineSeek
         )
-        .frame(width: expandedWidth, height: DesignTokens.PrecisionTimeline.expandedHeight)
+        .frame(
+            width: clusterWidth,
+            height: DesignTokens.PrecisionTimeline.expandedHeight
+        )
         .transition(.opacity)
         // 对称:双击进度条展开,双击时间轴收起。
         .contentShape(Rectangle())
@@ -583,8 +696,7 @@ struct FusedPlayerPanel: View {
         EnchronHoverGroup(id: "fused-progress-reveal", in: hoverNamespace, behavior: .followsGroup)
     }
 
-    private var progressBar: some View {
-        let overlayWidth = clusterWidth
+    private func progressBar(width overlayWidth: CGFloat) -> some View {
         let width = max(overlayWidth - DesignTokens.ProgressBar.thumbDiameter, 0)
         let clampedProgress = min(max(displayProgress, 0), 1)
         let thumbX = DesignTokens.ProgressBar.thumbDiameter / 2 + clampedProgress * width
@@ -604,7 +716,7 @@ struct FusedPlayerPanel: View {
         overlayWidth: CGFloat
     ) -> some View {
         ZStack(alignment: .leading) {
-            hoverCarrier(width: overlayWidth)
+            progressInteractionRegion(width: overlayWidth)
 
             progressHub(
                 width: width,
@@ -639,20 +751,11 @@ struct FusedPlayerPanel: View {
         .gesture(dragGesture(width: width, thumbX: thumbX))
     }
 
-    private func hoverCarrier(width: CGFloat) -> some View {
-        Capsule()
-            .fill(DesignTokens.ProgressBar.hoverCarrierFill)
+    private func progressInteractionRegion(width: CGFloat) -> some View {
+        Color.clear
             .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
-            .enchronHoverContentShape(Capsule())
-            .enchronHoverOpacity(
-                active: 1,
-                inactive: DesignTokens.ProgressBar.hoverCarrierInactiveOpacity,
-                in: nil,
-                forcedActive: isProgressHovered,
-                animation: DesignTokens.AnimationToken.selection,
-                macUsesLocalHover: true
-            )
             .contentShape(.interaction, Capsule())
+            .onHover { isProgressHovered = $0 }
             .accessibilityHidden(true)
     }
 

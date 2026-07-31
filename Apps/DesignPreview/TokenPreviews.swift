@@ -119,7 +119,7 @@ struct TokenSpecGroup: View {
 
 /// A token section: an uppercase title with the namespace prefix shown once,
 /// an optional `hero` demo (for tokens too large to fit a row swatch, e.g.
-/// `playerControlsWidth`), and the spec group.
+/// `playerControlsContentWidth`), and the spec group.
 struct TokenSpecSection<Hero: View>: View {
     let title: String
     let namespace: String
@@ -435,8 +435,8 @@ struct InteractionLayoutPreview: View {
 
     private var layoutSpecs: [TokenSpec] {
         [
-            .spec("playerControlsWidth", "680pt", "PlayerControlsView and NLETimelineView panel width") {
-                tokenBarSwatch(DesignTokens.Layout.playerControlsWidth, max: 680)
+            .spec("playerControlsContentWidth", "680pt", "PlayerControls content width before outer padding") {
+                tokenBarSwatch(DesignTokens.Layout.playerControlsContentWidth, max: 680)
             },
             .spec("ornamentGap", "20pt", "ornament overlap with window bottom edge") {
                 tokenBarSwatch(DesignTokens.Layout.ornamentGap, max: 680)
@@ -497,7 +497,7 @@ struct InteractionLayoutPreview: View {
                 specs: layoutSpecs
             ) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                    dimensionBar("playerControlsWidth", DesignTokens.Layout.playerControlsWidth, maxWidth: 680)
+                    dimensionBar("playerControlsContentWidth", DesignTokens.Layout.playerControlsContentWidth, maxWidth: 680)
                     dimensionBar("ornamentGap", DesignTokens.Layout.ornamentGap, maxWidth: 220)
                 }
             }
@@ -879,13 +879,16 @@ struct ComponentStandardsPreview: View {
 
     private var controlSpecs: [TokenSpec] {
         [
-            .spec("width", "680pt", "matches Layout.playerControlsWidth") {
-                tokenBarSwatch(DesignTokens.ControlBar.width, max: 680)
+            .spec("contentWidth", "680pt", "matches Layout.playerControlsContentWidth") {
+                tokenBarSwatch(DesignTokens.ControlBar.contentWidth, max: 680)
+            },
+            .spec("outerWidth", "728pt", "rendered ornament width including horizontal padding") {
+                tokenBarSwatch(DesignTokens.ControlBar.outerWidth, max: 728)
             },
             .spec("buttonSpacing", "24pt", "spacing between playback controls") {
                 tokenBarSwatch(DesignTokens.ControlBar.buttonSpacing, max: 48)
             },
-            .spec("paddingH", "32pt", "horizontal padding inside control capsule") {
+            .spec("paddingH", "24pt", "horizontal padding inside control capsule") {
                 tokenBarSwatch(DesignTokens.ControlBar.paddingH, max: 48)
             },
             .spec("paddingV", "12pt", "vertical padding inside control capsule") {
@@ -916,7 +919,8 @@ struct ComponentStandardsPreview: View {
                 specs: controlSpecs
             ) {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                    dimensionBar("width", DesignTokens.ControlBar.width, maxWidth: 360)
+                    dimensionBar("contentWidth", DesignTokens.ControlBar.contentWidth, maxWidth: 360)
+                    dimensionBar("outerWidth", DesignTokens.ControlBar.outerWidth, maxWidth: 360)
                     FusedPlayerPanel()
                 }
             }

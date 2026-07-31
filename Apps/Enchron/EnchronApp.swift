@@ -18,19 +18,27 @@ struct EnchronApp: App {
     }
 
     var body: some Scene {
-        WindowGroup(id: "main") {
+        Window("Enchron", id: "main") {
             MainView()
                 .enchronEnvironment(application)
         }
-        .defaultSize(width: 1280, height: 720)
+        .defaultSize(
+            width: WindowPlaybackLayout.fallback.defaultSize.width,
+            height: WindowPlaybackLayout.fallback.defaultSize.height
+        )
+        // Playback supplies the visible video surface. Browser pages restore
+        // the system-shaped glass explicitly inside MainView.
+        .windowStyle(.plain)
         .windowResizability(.contentSize)
 
-        WindowGroup(id: "playerControls") {
+        Window("Player Controls", id: "playerControls") {
             SpatialPlaybackControlsRoot()
                 .enchronEnvironment(application)
         }
         .defaultSize(width: 760, height: 220)
         .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
 
         Window("Environment", id: AppModel.senseZoneVolumeID) {
             SenseZoneVolumeRoot()

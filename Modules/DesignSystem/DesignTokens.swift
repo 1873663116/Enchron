@@ -303,8 +303,8 @@ public enum DesignTokens {
 
     /// Shared layout dimension tokens.
     public enum Layout {
-        /// Width shared by PlayerControlsView and NLETimelineView panels.
-        public static let playerControlsWidth: CGFloat = 680
+        /// Width available to the PlayerControls content before outer padding.
+        public static let playerControlsContentWidth: CGFloat = 680
         /// Ornament overlap with window bottom edge (Apple HIG: 20pt).
         public static let ornamentGap: CGFloat = 20
         /// Softens content clipping at the top and bottom of the main WindowGroup.
@@ -492,30 +492,50 @@ public enum DesignTokens {
 
     /// Player control bar standard dimensions.
     public enum ControlBar {
-        /// Panel width (matches Layout.playerControlsWidth)
-        public static let width: CGFloat = Layout.playerControlsWidth
+        /// Width available to controls inside the ornament capsule.
+        public static let contentWidth: CGFloat = Layout.playerControlsContentWidth
         /// Spacing between control buttons (≥16pt per Apple HIG)
         public static let buttonSpacing: CGFloat = Spacing.xl
         /// Horizontal padding inside player control capsule.
-        public static let paddingH: CGFloat = Spacing.xxl
+        public static let paddingH: CGFloat = Spacing.xl
         /// Vertical padding inside player control capsule.
-        public static let paddingV: CGFloat = Spacing.sm
+        public static let paddingV: CGFloat = Spacing.md
+        /// Rendered width of the complete ornament capsule.
+        public static let outerWidth: CGFloat = contentWidth + paddingH * 2
         /// Primary play button fill.
         public static let primaryFill: Color = .white.opacity(0.72)
         /// Primary play symbol color.
         public static let primarySymbol: Color = .black.opacity(0.78)
     }
 
+    public enum PlaybackEdge {
+        /// Covers the control and its window-edge padding without reaching the center.
+        public static let depth: CGFloat = 132
+        /// A short edge plateau preserves the strongest material treatment.
+        public static let maskEdgeOpacity: CGFloat = 0.75
+        public static let maskPlateauEndLocation: CGFloat = 0.15
+        /// The material falls quickly to a low-interference level.
+        public static let maskLowLevelLocation: CGFloat = 0.30
+        public static let maskLowLevelOpacity: CGFloat = 0.20
+        /// A long ease-out tail restores clarity gradually toward the center.
+        public static let maskTailMiddleLocation: CGFloat = 0.55
+        public static let maskTailMiddleOpacity: CGFloat = 0.10
+        public static let maskTailEndLocation: CGFloat = 0.78
+        public static let maskTailEndOpacity: CGFloat = 0.04
+        /// A restrained darkening layer preserves white control contrast.
+        public static let edgeScrimOpacity: CGFloat = 0.05
+    }
+
     /// Playback progress bar dimensions.
     public enum ProgressBar {
-        /// Standard draggable scrubber button.
-        public static let thumbDiameter: CGFloat = Interactive.mini - 4
-        /// Main progress track after the scrubber has been deliberately activated.
-        public static let trackHeight: CGFloat = thumbDiameter
-        /// Resting track is half the activated height.
-        public static let inactiveScale: CGFloat = 0.5
-        /// Track height before the scrubber activation animation completes.
-        public static let inactiveTrackHeight: CGFloat = trackHeight * inactiveScale
+        /// Resting track height.
+        public static let inactiveTrackHeight: CGFloat = (Interactive.mini - 4) * 0.5 * 0.75
+        /// Activated track height.
+        public static let trackHeight: CGFloat = (Interactive.mini - 4) * 0.5 * 1.25
+        /// The scrubber aligns exactly with the activated track.
+        public static let thumbDiameter: CGFloat = trackHeight
+        /// Scale from the activated track to its resting height.
+        public static let inactiveScale: CGFloat = inactiveTrackHeight / trackHeight
         /// Movement tolerated while the scrubber is waiting to unlock.
         public static let activationSlop: CGFloat = Spacing.lg
         /// Wall-clock gate before seeking is unlocked.
@@ -529,12 +549,8 @@ public enum DesignTokens {
         public static let watchedEdgeHeight: CGFloat = 3
         /// Interactive strip height that contains hover target, track, and scrubber.
         public static let hitHeight: CGFloat = Interactive.large
-        /// Near-invisible fill that lets the system own the 60pt hover carrier without drawing a visible control.
-        public static let hoverCarrierFill: Color = .white.opacity(0.01)
-        /// Imperceptible inactive opacity that keeps the carrier as a real system hover effect.
-        public static let hoverCarrierInactiveOpacity: CGFloat = 0.999
         /// Review/demo width for player progress components.
-        public static let previewWidth: CGFloat = Layout.playerControlsWidth
+        public static let previewWidth: CGFloat = ControlBar.contentWidth
         /// Height reserved above the track for hover time readout.
         public static let timeBubbleOffset: CGFloat = Spacing.xl
         /// Padding inside hover time readout.

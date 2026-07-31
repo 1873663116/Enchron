@@ -3,9 +3,6 @@ import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
-#if os(visionOS)
-import UIKit
-#endif
 
 enum PlaybackSurfaceMountPolicy {
     static func shouldMount(showsWindowPlayback: Bool) -> Bool {
@@ -69,7 +66,6 @@ public struct MainView: View {
         .onChange(of: playbackRuntime.hasActivePlaybackRequest) { _, hasActivePlaybackRequest in
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(20))
-                updateWindowResizingRestrictions(isPlaying: hasActivePlaybackRequest)
                 if hasActivePlaybackRequest {
                     scheduleControlsAutoHide()
                 } else {
@@ -102,6 +98,15 @@ public struct MainView: View {
             ) {
                 NavigationOrnament()
             }
+            .ornament(
+                visibility: showsWindowPlayback && appModel.showControls
+                    ? .visible
+                    : .hidden,
+                attachmentAnchor: .scene(.bottom)
+            ) {
+                WindowPlayerDeckView(presentationOverride: .window)
+                    .accessibilityIdentifier("PlayerUI-window-controls-ornament")
+            }
         #else
         ZStack(alignment: .leading) {
             primaryContent
@@ -110,19 +115,23 @@ public struct MainView: View {
                     .padding(.leading, DesignTokens.Spacing.md)
             }
         }
+        .overlay(alignment: .bottom) {
+            if showsWindowPlayback && appModel.showControls {
+                WindowPlayerDeckView(presentationOverride: .window)
+                    .padding(.bottom, DesignTokens.Spacing.xl)
+            }
+        }
         #endif
     }
 
     private var primaryContent: some View {
         ZStack {
-            browser
-                .opacity(showsWindowPlayback ? 0 : 1)
-                .allowsHitTesting(!showsWindowPlayback)
-
             if PlaybackSurfaceMountPolicy.shouldMount(
                 showsWindowPlayback: showsWindowPlayback
             ) {
                 windowPlayback
+            } else {
+                browserWindowSurface
             }
 
             if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1" {
@@ -147,6 +156,16 @@ public struct MainView: View {
     }
 
     @ViewBuilder
+    private var browserWindowSurface: some View {
+        #if os(visionOS)
+        browser
+            .glassBackgroundEffect(in: ContainerRelativeShape())
+        #else
+        browser
+        #endif
+    }
+
+    @ViewBuilder
     private var browser: some View {
         switch appModel.selectedTab {
         case .files: FilesScreen()
@@ -162,30 +181,25 @@ public struct MainView: View {
 
     @ViewBuilder
     private var windowPlayback: some View {
-        WindowPlaybackPageLayout(spacing: DesignTokens.Spacing.md) {
-            windowPlaybackCanvasWithTopBar
-
-            if appModel.showControls {
-                WindowPlayerDeckView()
-            }
+        WindowPlaybackRootView(
+            layout: windowPlaybackLayout,
+            showsWindowChrome: appModel.showControls
+                && hostedPlaybackPresentation == .window
+        ) {
+            windowPlaybackCanvas
+        } topChrome: {
+            PlayerInfoBarView()
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("PlayerUI-window-top-overlay")
+        } mediaFacts: {
+            PlayerMediaInfoView()
+                .accessibilityElement(children: .contain)
+                .accessibilityIdentifier("PlayerUI-window-media-overlay")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-control-plane")
         .accessibilityValue(windowPlaybackStateValue)
-    }
-
-    private var windowPlaybackCanvasWithTopBar: some View {
-        windowPlaybackCanvas
-            .overlay(alignment: .top) {
-                if appModel.showControls, hostedPlaybackPresentation == .window {
-                    PlayerInfoBarView()
-                        .padding(.horizontal, 28)
-                        .padding(.top, 20)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityElement(children: .contain)
-                        .accessibilityIdentifier("PlayerUI-window-top-overlay")
-                }
-            }
     }
 
     private var windowPlaybackCanvas: some View {
@@ -244,6 +258,13 @@ public struct MainView: View {
         #endif
     }
 
+    private var windowPlaybackLayout: WindowPlaybackLayout {
+        WindowPlaybackLayout(
+            resolution: playbackRuntime.displayMediaProfile?.resolution,
+            stereoLayout: playbackRuntime.effectiveStereoLayout
+        )
+    }
+
     private func retryPlayback() {
         playbackRuntime.lastErrorMessage = nil
         playbackLauncher.retryPlayback()
@@ -264,59 +285,6 @@ public struct MainView: View {
         }
     }
 
-    private func updateWindowResizingRestrictions(isPlaying: Bool) {
-        #if os(visionOS)
-        guard let windowScene = UIApplication.shared.connectedScenes
-            .compactMap({ $0 as? UIWindowScene })
-            .first else { return }
-        windowScene.requestGeometryUpdate(
-            .Vision(resizingRestrictions: isPlaying ? .uniform : .freeform)
-        )
-        #endif
-    }
-}
-
-private struct WindowPlaybackPageLayout: Layout {
-    let spacing: CGFloat
-
-    func sizeThatFits(
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) -> CGSize {
-        proposal.replacingUnspecifiedDimensions()
-    }
-
-    func placeSubviews(
-        in bounds: CGRect,
-        proposal: ProposedViewSize,
-        subviews: Subviews,
-        cache: inout ()
-    ) {
-        guard let canvas = subviews.first else { return }
-        let deck = subviews.count > 1 ? subviews[1] : nil
-        let deckSize = deck?.sizeThatFits(
-            ProposedViewSize(width: bounds.width, height: nil)
-        )
-        let geometry = WindowPlaybackPageGeometry.resolve(
-            in: bounds.size,
-            deckSize: deckSize,
-            spacing: spacing
-        )
-
-        canvas.place(
-            at: CGPoint(x: bounds.minX, y: bounds.minY),
-            anchor: .topLeading,
-            proposal: ProposedViewSize(geometry.canvasFrame.size)
-        )
-        if let deck, let deckFrame = geometry.deckFrame {
-            deck.place(
-                at: CGPoint(x: bounds.minX + deckFrame.minX, y: bounds.minY + deckFrame.minY),
-                anchor: .topLeading,
-                proposal: ProposedViewSize(deckFrame.size)
-            )
-        }
-    }
 }
 
 private struct PlaybackAutomationStateProbe: View {
@@ -366,16 +334,33 @@ private struct PlaybackAutomationStateProbe: View {
 }
 
 #if os(visionOS)
+enum SpatialPlaybackControlsScenePolicy {
+    static func shouldHostControls(
+        for presentation: PlaybackPresentation
+    ) -> Bool {
+        presentation != .window
+    }
+}
+
 struct SpatialPlaybackControlsRoot: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @Environment(\.dismissWindow) private var dismissWindow
     @State private var isStoppingPlayback = false
+
+    private var shouldHostControls: Bool {
+        SpatialPlaybackControlsScenePolicy.shouldHostControls(
+            for: appModel.playbackPresentation
+        )
+    }
 
     var body: some View {
         WindowPlayerDeckView(
             onExitPlayback: { Task { await stopSpatialPlayback() } }
         )
+        .opacity(shouldHostControls ? 1 : 0)
+        .allowsHitTesting(shouldHostControls)
         .disabled(isStoppingPlayback)
         .overlay {
             if let message = playbackRuntime.lastErrorMessage {
@@ -406,6 +391,10 @@ struct SpatialPlaybackControlsRoot: View {
         }
         .background {
             SpatialPlatformEffectExecutor()
+        }
+        .onChange(of: shouldHostControls, initial: true) { _, shouldHost in
+            guard shouldHost == false else { return }
+            dismissWindow(id: "playerControls")
         }
     }
 

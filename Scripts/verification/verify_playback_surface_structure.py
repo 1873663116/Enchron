@@ -29,6 +29,14 @@ def require(condition: bool, message: str) -> None:
 def main() -> None:
     surface = read("Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift")
     main_view = read("Apps/Enchron/MainView.swift")
+    window_root = read(
+        "Modules/PlaybackPresentation/Views/WindowPlaybackRootView.swift"
+    )
+    window_preview = read("Apps/DesignPreview/WindowPlaybackPreview.swift")
+    design_preview_app = read("Apps/DesignPreview/DesignPreviewApp.swift")
+    playback_panel = read(
+        "Modules/PlaybackPresentation/Views/PlaybackPanel.swift"
+    )
     geometry = read("Modules/PlaybackPresentation/Model/WindowPlaybackPageGeometry.swift")
     launch = read("Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift")
     runtime = read("Modules/PlaybackFeature/PlaybackRuntime.swift")
@@ -90,14 +98,106 @@ def main() -> None:
         "content.cameraTarget = presentation == .docked ? videoEntity : nil" in surface,
         "camera target does not follow presentation",
     )
-    require(".overlay(alignment: .top)" in window_playback, "window chrome does not overlay video")
+    require(
+        ".overlay(alignment: .top)" in window_root,
+        "window chrome does not overlay video",
+    )
+    require(
+        ".overlay(alignment: .bottomLeading)" in window_root,
+        "window media facts do not overlay the video plane",
+    )
     require("PlayerInfoBarView()" in window_playback, "window info bar is missing")
-    require("WindowPlayerDeckView()" in window_playback, "window deck is missing")
-    require("WindowPlaybackPageLayout(" in window_playback, "shared window geometry is unused")
+    require(
+        "WindowPlayerDeckView(" in main_view,
+        "window playback ornament is missing",
+    )
+    require(
+        "WindowPlayerDeckView(" not in window_playback,
+        "window playback controls are still inside the window content plane",
+    )
+    require(
+        "attachmentAnchor: .scene(.bottom)" in main_view,
+        "window playback controls are not attached as a bottom ornament",
+    )
+    require(
+        "WindowPlaybackRootView(" in window_playback,
+        "the App does not use the shared window playback root",
+    )
+    require(
+        "playbackRuntime.displayMediaProfile?.resolution" in main_view
+        and "playbackRuntime.effectiveStereoLayout" in main_view,
+        "window playback geometry does not use the current displayed media dimensions",
+    )
+    require(
+        "minimumWidthMultiplier: CGFloat = 1.25" in window_root
+        and "defaultWidthMultiplier: CGFloat = 1.75" in window_root
+        and "maximumWidthMultiplier: CGFloat = 2.50" in window_root
+        and "DesignTokens.ControlBar.outerWidth" in window_root,
+        "window playback bounds are not derived from the rendered ornament width",
+    )
+    require(
+        "UIWindowScene.GeometryPreferences.Vision(" in window_root
+        and "resizingRestrictions: .uniform" in window_root
+        and "minimumSize: layout.minimumSize" in window_root
+        and "maximumSize: layout.maximumSize" in window_root
+        and "requestGeometryUpdate(preferences)" in window_root,
+        "the shared window playback root does not own the system uniform resize contract",
+    )
+    require(
+        "requestGeometryUpdate(" not in main_view,
+        "the production host duplicates the shared window playback resize contract",
+    )
+    require(
+        ".frame(width: clusterWidth)" in playback_panel
+        and "case .windowOrnament:" in playback_panel
+        and "DesignTokens.ControlBar.contentWidth" in playback_panel,
+        "the window ornament does not have a stable rendered outer width",
+    )
+    require(
+        "WindowPlaybackPageLayout(" not in window_playback,
+        "window playback still divides video and controls into separate layout regions",
+    )
     require("VStack(spacing: DesignTokens.Spacing.md)" not in window_playback, "deck shrinks video canvas")
-    require("nonisolated static func resolve(" in geometry, "window geometry is not independently callable")
     require("attachments:" not in vision_surface, "vision window controls use a RealityView attachment")
     require("VisionWindowPlaybackControlPlane" not in surface, "duplicate vision window controls remain")
+    require(
+        vision_surface.count(
+            ".frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)"
+        ) >= 2,
+        "the RealityView and its 3D reader are not constrained to the window plane",
+    )
+    require(
+        "PlaybackSurfacePlacement.window(" in surface
+        and "sceneCenter: layout.sceneCenter" in surface
+        and "sceneExtents: sceneBounds.extents" in surface,
+        "window playback does not center and scale the video entity from the same RealityView bounds",
+    )
+    require(
+        window_preview.count("#Preview(") == 1,
+        "window playback Canvas exposes more than one system preview window",
+    )
+    require(
+        "WindowPlaybackRootView(" in window_preview
+        and "WindowPlaybackLayout(" in window_preview
+        and ".ornament(" in window_preview
+        and "attachmentAnchor: .scene(.bottom)" in window_preview,
+        "window playback Canvas does not use the source-aspect production composition and ornament",
+    )
+    require(
+        "WindowPlaybackAcceptancePreset" not in window_preview
+        and "WindowPlaybackAcceptanceBadge" not in window_preview,
+        "window playback Canvas exposes test-only resize controls",
+    )
+    require(
+        "WindowPlaybackCanvasHost" not in window_preview,
+        "window playback Canvas still fixes the preview to a single non-resizable size",
+    )
+    require(
+        'Window("Window Playback", id: "windowPlayback")' in design_preview_app
+        and "WindowPlaybackPreview()" in design_preview_app
+        and ".windowResizability(.contentSize)" in design_preview_app,
+        "DesignPreview cannot exercise WindowPlayback in a real resizable Simulator scene",
+    )
     require(
         '"PlayerUI-window-control-plane"' in spatial_acceptance
         and "value CONTAINS[c] 'lifecycle=playing'" in spatial_acceptance
@@ -217,6 +317,31 @@ def main() -> None:
         and "WindowGroup(id: AppModel.senseZoneVolumeID)" not in app_scene
         and ".windowStyle(.volumetric)" in app_scene,
         "Environment Card is not a singleton volumetric Window Scene",
+    )
+    player_controls_scene = region(
+        app_scene,
+        'Window("Player Controls", id: "playerControls")',
+        'Window("Environment", id: AppModel.senseZoneVolumeID)',
+    )
+    require(
+        ".restorationBehavior(.disabled)" in player_controls_scene
+        and ".defaultLaunchBehavior(.suppressed)" in player_controls_scene,
+        "the context-only spatial controls window can restore or launch by itself",
+    )
+    present_window_playback = region(
+        platform_executor,
+        "private func presentWindowPlayback(",
+        "private func presentEnvironmentPreview(",
+    )
+    require(
+        "case .presentationCommitted(.window)" in present_window_playback
+        and 'id: "playerControls"' in present_window_playback,
+        "committing Window Playback does not dismiss the spatial controls window",
+    )
+    require(
+        "SpatialPlaybackControlsScenePolicy.shouldHostControls(" in main_view
+        and 'dismissWindow(id: "playerControls")' in main_view,
+        "the spatial controls scene does not dismiss itself when Window Playback is already committed",
     )
     require(
         ".environmentCardAppeared" in app_scene

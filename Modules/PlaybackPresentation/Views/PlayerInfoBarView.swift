@@ -3,16 +3,15 @@ import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
 
-/// Top info bar for the player control pill.
-/// Shows back button, video title, and format metadata badges.
+/// Window playback chrome. Navigation stays at the top while media facts are
+/// rendered by `PlayerMediaInfoView` at the lower leading edge of the video.
 struct PlayerInfoBarView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var launcher
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        HStack(spacing: 12) {
+        WindowPlaybackTopChrome {
             GlassCircleIconButton.back(
                 accessibilityLabel: "Back",
                 action: {
@@ -22,19 +21,7 @@ struct PlayerInfoBarView: View {
             )
             .keyboardShortcut("[", modifiers: .command)
             .accessibilityHint("Stops playback and returns to browser")
-
-            Text(videoTitle)
-                .font(DesignTokens.Typography.headline)
-                .foregroundStyle(.primary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-
-            Spacer(minLength: 4)
-
-            if let profile = playbackRuntime.displayMediaProfile {
-                formatMetadataView(profile)
-            }
-
+        } spatialActions: {
             PlaybackTopActions(
                 initialPresentedMenu: initialPresentedMenu,
                 canDock: playbackRuntime.canEnterSpatialPresentation
@@ -52,6 +39,8 @@ struct PlayerInfoBarView: View {
                 onApplyFormat: applyFormat,
                 onResumePanorama: resumePanorama
             )
+        } moreControl: {
+            ProductionPlaybackMoreMenu()
         }
     }
 
@@ -63,10 +52,6 @@ struct PlayerInfoBarView: View {
             mediaSessionID: playbackRuntime.activeSessionID,
             wasPlaying: playbackRuntime.productLifecycle == .playing
         )
-    }
-
-    private var videoTitle: String {
-        playbackRuntime.currentPlaybackURL?.deletingPathExtension().lastPathComponent ?? "Unknown"
     }
 
     private var initialPresentedMenu: PlaybackTopSecondaryMenu? {
@@ -111,15 +96,31 @@ struct PlayerInfoBarView: View {
         }
     }
 
-    @ViewBuilder
-    private func formatMetadataView(_ profile: PlaybackModel.MediaProfile) -> some View {
-        HStack(spacing: 6) {
-            let parts = formatParts(profile)
-            Text(parts.joined(separator: " \u{00B7} "))
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
+}
+
+struct PlayerMediaInfoView: View {
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(videoTitle)
+                .font(DesignTokens.Typography.headline)
+                .foregroundStyle(.primary)
                 .lineLimit(1)
+                .truncationMode(.middle)
+
+            if let profile = playbackRuntime.displayMediaProfile {
+                let parts = formatParts(profile)
+                Text(parts.joined(separator: " \u{00B7} "))
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
         }
+    }
+
+    private var videoTitle: String {
+        playbackRuntime.currentPlaybackURL?.deletingPathExtension().lastPathComponent ?? "Unknown"
     }
 
     private func formatParts(_ profile: PlaybackModel.MediaProfile) -> [String] {
