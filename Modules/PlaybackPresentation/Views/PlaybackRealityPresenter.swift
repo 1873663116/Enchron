@@ -65,6 +65,16 @@ enum PlaybackRealityPresenter {
         )
         entity.components.set(InputTargetComponent())
         #if os(visionOS)
+        if presentation == .window {
+            entity.components.set(
+                ModelSortGroupComponent(
+                    group: .planarUIAlwaysBehind,
+                    order: WindowPlaybackSurfaceGeometry.backgroundSortOrder
+                )
+            )
+        } else {
+            entity.components.remove(ModelSortGroupComponent.self)
+        }
         let collisionShape: ShapeResource = presentation == .panorama
             ? .generateSphere(radius: 1)
             : .generateBox(size: [1.8, 1, 0.01])

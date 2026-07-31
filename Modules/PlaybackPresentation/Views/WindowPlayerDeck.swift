@@ -8,14 +8,24 @@ struct WindowPlayerDeckView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    var presentationOverride: PlaybackPresentation? = nil
     var onExitPlayback: (() -> Void)? = nil
 
+    @ViewBuilder
     var body: some View {
-        FusedPlayerPanel(
-            live: live,
-            onInteraction: register
-        )
-        .onHover { appModel.setControlsFocused($0) }
+        if resolvedPresentation == .window {
+            WindowPlaybackControls(
+                live: live,
+                onInteraction: register
+            )
+            .onHover { appModel.setControlsFocused($0) }
+        } else {
+            PlayerControlDock(
+                live: live,
+                onInteraction: register
+            )
+            .onHover { appModel.setControlsFocused($0) }
+        }
     }
 
     private func register() {
@@ -32,7 +42,7 @@ struct WindowPlayerDeckView: View {
             lifecycle: playbackRuntime.productLifecycle
         )
         return FusedPlayerPanelLive(
-            presentation: appModel.playbackPresentation,
+            presentation: resolvedPresentation,
             canDock: playbackRuntime.canEnterSpatialPresentation,
             canEnterPanorama: playbackRuntime.canEnterSpatialPresentation
                 && playbackRuntime.effectiveProjectionType.isPanoramic,
@@ -127,6 +137,10 @@ struct WindowPlayerDeckView: View {
         )
     }
 
+    private var resolvedPresentation: PlaybackPresentation {
+        presentationOverride ?? appModel.playbackPresentation
+    }
+
     private func enterPlaybackPresentation(_ presentation: PlaybackPresentation) {
         register()
         guard presentation != appModel.playbackPresentation,
@@ -204,6 +218,136 @@ struct WindowPlayerDeckView: View {
             ) {
                 self.register()
                 self.playbackLauncher.selectPlaybackQueueItem(entry.id)
+            }
+        }
+    }
+
+    private static func formatSpeed(_ value: Double) -> String {
+        if value == value.rounded() {
+            return "\(Int(value))×"
+        }
+        return "\(String(format: "%g", value))×"
+    }
+}
+
+/// Production More menu shared by the window chrome. Its label uses the
+/// DesignSystem circle control while the menu contents remain feature-owned.
+struct ProductionPlaybackMoreMenu: View {
+    @Environment(AppModel.self) private var appModel
+    @Environment(PlaybackRuntime.self) private var playbackRuntime
+    @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+
+    var body: some View {
+        Menu {
+            if !subtitleItems.isEmpty {
+                menuSection("Subtitles", items: subtitleItems)
+            }
+            if !audioItems.isEmpty {
+                menuSection("Audio Track", items: audioItems)
+            }
+            menuSection("Playback Speed", items: speedItems)
+            if !episodeItems.isEmpty {
+                menuSection("Episodes", items: episodeItems)
+            }
+        } label: {
+            GlassCircleIconLabel(
+                systemName: "ellipsis",
+                accessibilityLabel: "More",
+                accessibilityIdentifier: "PlayerUI-TopAction-more"
+            )
+        }
+        .buttonStyle(.plain)
+        .frame(
+            width: DesignTokens.Interactive.large,
+            height: DesignTokens.Interactive.large
+        )
+        .contentShape(Circle())
+        .accessibilityIdentifier("PlayerUI-TopAction-more")
+        .accessibilityLabel("More playback settings")
+    }
+
+    @ViewBuilder
+    private func menuSection(_ title: String, items: [DeckMenuItem]) -> some View {
+        Menu(title) {
+            Picker("", selection: selection(items)) {
+                ForEach(items) { item in
+                    Text(item.title)
+                        .tag(item.id)
+                }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        }
+    }
+
+    private func selection(_ items: [DeckMenuItem]) -> Binding<String> {
+        Binding(
+            get: { items.first(where: \.isSelected)?.id ?? "" },
+            set: { id in items.first(where: { $0.id == id })?.action() }
+        )
+    }
+
+    private func register() {
+        appModel.registerControlsInteraction()
+    }
+
+    private var subtitleItems: [DeckMenuItem] {
+        let current = playbackRuntime.currentSubtitleTrackID
+        var items = playbackRuntime.availableSubtitleTracks.map { track in
+            DeckMenuItem(
+                id: track.id,
+                title: track.displayName,
+                isSelected: current == track.id
+            ) {
+                register()
+                playbackRuntime.selectSubtitleTrack(track)
+            }
+        }
+        items.append(
+            DeckMenuItem(id: "off", title: "Off", isSelected: current == nil) {
+                register()
+                playbackRuntime.selectSubtitleTrack(nil)
+            }
+        )
+        return items
+    }
+
+    private var audioItems: [DeckMenuItem] {
+        let current = playbackRuntime.currentAudioTrackID
+        return playbackRuntime.availableAudioTracks.map { track in
+            DeckMenuItem(
+                id: track.id,
+                title: track.displayName,
+                isSelected: current == track.id
+            ) {
+                register()
+                playbackRuntime.selectAudioTrack(track)
+            }
+        }
+    }
+
+    private var speedItems: [DeckMenuItem] {
+        PlaybackModel.PlaybackSpeed.allCases.map { speed in
+            DeckMenuItem(
+                id: String(speed.value),
+                title: Self.formatSpeed(speed.value),
+                isSelected: playbackRuntime.currentPlaybackSpeed == speed
+            ) {
+                register()
+                playbackRuntime.setSpeed(speed)
+            }
+        }
+    }
+
+    private var episodeItems: [DeckMenuItem] {
+        playbackLauncher.playbackQueue.entries.map { entry in
+            DeckMenuItem(
+                id: entry.id.uuidString,
+                title: entry.displayName,
+                isSelected: entry.isCurrent
+            ) {
+                register()
+                playbackLauncher.selectPlaybackQueueItem(entry.id)
             }
         }
     }

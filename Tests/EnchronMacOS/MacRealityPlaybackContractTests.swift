@@ -114,7 +114,7 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
 
         XCTAssertEqual(
             geometry.screenSize.y / visibleHeight,
-            MacWindowPlaybackCameraGeometry.fillFraction,
+            MacWindowPlaybackCameraGeometry.safeFillFraction,
             accuracy: 0.0001
         )
     }
@@ -131,7 +131,59 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
 
         XCTAssertEqual(
             geometry.screenSize.x / visibleWidth,
-            MacWindowPlaybackCameraGeometry.fillFraction,
+            MacWindowPlaybackCameraGeometry.safeFillFraction,
+            accuracy: 0.0001
+        )
+    }
+
+    func testWindowSurfaceUsesUniformScaleWithinAvailableBounds() throws {
+        let scale = try XCTUnwrap(
+            WindowPlaybackSurfaceGeometry.uniformScale(
+                surfaceSize: [16.0 / 9.0, 1],
+                availableSize: [0.8, 0.45]
+            )
+        )
+
+        XCTAssertEqual(
+            scale,
+            0.45,
+            accuracy: 0.0001
+        )
+        XCTAssertNil(
+            WindowPlaybackSurfaceGeometry.uniformScale(
+                surfaceSize: .zero,
+                availableSize: [0.8, 0.45]
+            )
+        )
+    }
+
+    func testWindowSurfaceLayoutCentersAndScalesAtEveryBound() throws {
+        let surfaceSize = SIMD2<Float>(16.0 / 9.0, 1)
+        let center = SIMD3<Float>(0.15, -0.08, 0)
+        let extents = SIMD3<Float>(1.6, 0.9, 0)
+        let layout = try XCTUnwrap(
+            WindowPlaybackSurfaceGeometry.layout(
+                surfaceSize: surfaceSize,
+                sceneCenter: center,
+                sceneExtents: extents
+            )
+        )
+
+        XCTAssertEqual(layout.sceneCenter, center)
+        XCTAssertEqual(layout.availableSize, [1.6, 0.9])
+        XCTAssertEqual(
+            layout.renderedSize.x / layout.renderedSize.y,
+            surfaceSize.x / surfaceSize.y,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            layout.renderedSize.x,
+            layout.availableSize.x,
+            accuracy: 0.0001
+        )
+        XCTAssertEqual(
+            layout.renderedSize.y,
+            layout.availableSize.y,
             accuracy: 0.0001
         )
     }
@@ -163,6 +215,9 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
             videoEntity.components[VideoPlayerComponent.self]
         )
         XCTAssertTrue(windowComponent.videoRenderer === renderer)
+        #if os(visionOS)
+        XCTAssertNotNil(videoEntity.components[ModelSortGroupComponent.self])
+        #endif
 
         PlaybackSurfacePlacement.dock(
             videoEntity,
@@ -183,6 +238,9 @@ nonisolated final class MacRealityPlaybackContractTests: XCTestCase {
         let dockedComponent = try XCTUnwrap(
             videoEntity.components[VideoPlayerComponent.self]
         )
+        #if os(visionOS)
+        XCTAssertNil(videoEntity.components[ModelSortGroupComponent.self])
+        #endif
         XCTAssertTrue(dockedComponent.videoRenderer === windowComponent.videoRenderer)
         XCTAssertTrue(dockedComponent.videoRenderer === renderer)
         XCTAssertTrue(

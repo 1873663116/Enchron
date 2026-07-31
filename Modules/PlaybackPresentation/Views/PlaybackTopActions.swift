@@ -43,48 +43,43 @@ struct PlaybackTopActions: View {
     }
 
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
+        WindowPlaybackSpatialActions {
             if canDock {
-                topActionButton(
-                    title: "Dock",
-                    systemName: "square.stack.3d.up",
-                    menu: .dock,
-                    isEnabled: true
+                GlassCircleIconButton.environment(
+                    accessibilityLabel: "Dock",
+                    action: { toggle(.dock) },
+                    accessibilityIdentifier: "PlayerUI-TopAction-dock"
                 )
+                .overlay(alignment: .topLeading) {
+                    if presentedMenu == .dock {
+                        dockMenu
+                            .offset(y: DesignTokens.Interactive.large)
+                            .zIndex(10)
+                    }
+                }
             }
-
+        } formatControl: {
             if resumesPanorama {
-                Button(action: { onResumePanorama?() }) {
-                    ButtonIconLabel(
-                        title: "Return to Panorama",
-                        systemName: "pano"
-                    )
-                        .padding(.horizontal, DesignTokens.Spacing.md)
-                        .frame(minHeight: DesignTokens.Interactive.regular)
-                }
-                .buttonStyle(.plain)
-                .clipShape(Capsule())
-                .enchronGlassBackground(in: Capsule())
-                .accessibilityIdentifier("PlayerUI-TopAction-resumePanorama")
-            } else {
-                topActionButton(
-                    title: "Panorama",
-                    systemName: "pano",
-                    menu: .videoFormat,
-                    isEnabled: canApplyFormat
+                GlassCircleIconButton.expandVertically(
+                    accessibilityLabel: "Return to Panorama",
+                    action: { onResumePanorama?() },
+                    accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
                 )
-            }
-        }
-        .overlay(alignment: .topTrailing) {
-            Group {
-                switch presentedMenu {
-                case .dock: dockMenu
-                case .videoFormat: videoFormatMenu
-                case nil: EmptyView()
+            } else {
+                GlassCircleIconButton.expandVertically(
+                    accessibilityLabel: "Video Format",
+                    action: { toggle(.videoFormat) },
+                    accessibilityIdentifier: "PlayerUI-TopAction-videoFormat"
+                )
+                .disabled(!canApplyFormat)
+                .overlay(alignment: .topTrailing) {
+                    if presentedMenu == .videoFormat {
+                        videoFormatMenu
+                            .offset(y: DesignTokens.Interactive.large)
+                            .zIndex(10)
+                    }
                 }
             }
-            .offset(y: DesignTokens.Interactive.large)
-            .zIndex(10)
         }
         .onChange(of: canDock) { _, available in
             if available == false, presentedMenu == .dock { presentedMenu = nil }
@@ -94,29 +89,8 @@ struct PlaybackTopActions: View {
         }
     }
 
-    private func topActionButton(
-        title: String,
-        systemName: String,
-        menu: PlaybackTopSecondaryMenu,
-        isEnabled: Bool
-    ) -> some View {
-        Button {
-            presentedMenu = presentedMenu == menu ? nil : menu
-        } label: {
-            ButtonIconLabel(title: title, systemName: systemName)
-                .foregroundStyle(isEnabled ? .white : .secondary)
-                .padding(.horizontal, DesignTokens.Spacing.md)
-                .frame(minHeight: DesignTokens.Interactive.regular)
-        }
-        .buttonStyle(.plain)
-        .clipShape(Capsule())
-        .enchronGlassBackground(in: Capsule())
-        .enchronHoverContentShape(Capsule())
-        .enchronHoverEffect(.automatic)
-        .frame(minHeight: DesignTokens.Interactive.large)
-        .disabled(!isEnabled)
-        .accessibilityLabel(title)
-        .accessibilityIdentifier("PlayerUI-TopAction-\(menu.rawValue)")
+    private func toggle(_ menu: PlaybackTopSecondaryMenu) {
+        presentedMenu = presentedMenu == menu ? nil : menu
     }
 
     private var dockMenu: some View {

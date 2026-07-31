@@ -31,8 +31,11 @@ enum PlaybackSurfaceAnchorResolver {
 
 @MainActor
 enum PlaybackSurfacePlacement {
-    static func window(_ entity: Entity) {
-        entity.position = .zero
+    static func window(
+        _ entity: Entity,
+        sceneCenter: SIMD3<Float> = .zero
+    ) {
+        entity.position = sceneCenter
         entity.orientation = simd_quatf(angle: 0, axis: [0, 1, 0])
         entity.scale = .one
     }

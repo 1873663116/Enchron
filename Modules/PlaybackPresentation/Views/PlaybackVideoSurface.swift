@@ -114,8 +114,9 @@ struct PlaybackVideoSurface: View {
                 )
             }
             .gesture(surfaceTapGesture)
-            .frame(depth: 0)
+            .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
         }
+        .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
         .onDisappear {
             releaseSurface()
         }
@@ -269,22 +270,36 @@ struct PlaybackVideoSurface: View {
         let screenSize = component.playerScreenSize
         let resolvedScreenSize = screenSize.x > 0 && screenSize.y > 0
             ? screenSize
-            : SIMD2<Float>(16.0 / 9.0, 1)
-        let frame = proxy.frame(in: .local)
-        let frameSize = abs(content.convert(frame.size, from: .local, to: .scene))
-        let scale = min(
-            Float(frameSize.x) / resolvedScreenSize.x,
-            Float(frameSize.y) / resolvedScreenSize.y
-        ) * 0.98
-        guard scale.isFinite, scale > 0 else { return nil }
-        entity.scale = .init(repeating: scale)
-        let layoutSignature = "\(frameSize)-\(resolvedScreenSize)-\(scale)"
+            : WindowPlaybackSurfaceGeometry.defaultSurfaceSize
+        let sceneBounds = content.convert(
+            proxy.frame(in: .local),
+            from: .local,
+            to: .scene
+        )
+        guard let layout = WindowPlaybackSurfaceGeometry.layout(
+            surfaceSize: resolvedScreenSize,
+            sceneCenter: sceneBounds.center,
+            sceneExtents: sceneBounds.extents
+        ) else {
+            return nil
+        }
+        PlaybackSurfacePlacement.window(
+            entity,
+            sceneCenter: layout.sceneCenter
+        )
+        entity.scale = .init(repeating: layout.scale)
+        let layoutSignature =
+            "\(layout.sceneCenter)-\(layout.availableSize)-\(resolvedScreenSize)-\(layout.scale)"
         if componentObservation.shouldLogLayout(layoutSignature) {
             playbackVideoSurfaceLogger.notice(
-                "window layout sceneSize=\(String(describing: frameSize), privacy: .public) screenSize=\(String(describing: resolvedScreenSize), privacy: .public) scale=\(scale)"
+                "window layout sceneCenter=\(String(describing: layout.sceneCenter), privacy: .public) sceneSize=\(String(describing: layout.availableSize), privacy: .public) screenSize=\(String(describing: resolvedScreenSize), privacy: .public) renderedSize=\(String(describing: layout.renderedSize), privacy: .public) scale=\(layout.scale)"
             )
         }
-        return frameSize
+        return [
+            layout.availableSize.x,
+            layout.availableSize.y,
+            Float(sceneBounds.extents.z)
+        ]
     }
 
     #else
