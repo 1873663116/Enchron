@@ -215,8 +215,6 @@ struct FusedPlayerPanel: View {
     @State private var announcedBoundary: ProgressBoundary?
     @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
     // ⋯ 菜单 Canvas mock 选择态(live 为 nil 时)。
-    @State private var selectedSubtitle = "Off"
-    @State private var selectedAudioTrack = "English 5.1"
     @State private var selectedSpeed = "1×"
     @State private var advancedProjection: PlaybackModel.ProjectionType = .flat
     @State private var advancedStereoLayout: PlaybackModel.StereoLayout = .mono
@@ -478,10 +476,7 @@ struct FusedPlayerPanel: View {
 
                     Spacer(minLength: 0)
 
-                    HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-                        tracksMenu
-                        moreMenu
-                    }
+                    moreMenu
                 }
 
                 HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
@@ -505,7 +500,27 @@ struct FusedPlayerPanel: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .padding(.horizontal, DesignTokens.Spacing.xl)
-                .offset(y: mediaInfoHovered ? -DesignTokens.Spacing.sm : 0)
+                .enchronHoverOpacity(
+                    active: 0,
+                    inactive: 1,
+                    in: mediaInfoHoverRevealGroup,
+                    forcedActive: mediaInfoHovered,
+                    animation: DesignTokens.AnimationToken.selection
+                )
+
+            Text(live?.mediaName ?? "Unknown")
+                .font(DesignTokens.Typography.headline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .padding(.horizontal, DesignTokens.Spacing.xl)
+                .offset(y: -DesignTokens.Spacing.sm)
+                .enchronHoverOpacity(
+                    active: 1,
+                    inactive: 0,
+                    in: mediaInfoHoverRevealGroup,
+                    forcedActive: mediaInfoHovered,
+                    animation: DesignTokens.AnimationToken.selection
+                )
 
             HStack(spacing: DesignTokens.Spacing.xl) {
                 Text(spatialMetadataLabel)
@@ -520,14 +535,22 @@ struct FusedPlayerPanel: View {
             .padding(.horizontal, DesignTokens.Spacing.xl)
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.bottom, DesignTokens.Spacing.sm)
-            .opacity(mediaInfoHovered ? 1 : 0)
+            .enchronHoverOpacity(
+                active: 1,
+                inactive: 0,
+                in: mediaInfoHoverRevealGroup,
+                forcedActive: mediaInfoHovered,
+                animation: DesignTokens.AnimationToken.selection
+            )
         }
         .frame(width: clusterWidth, height: DesignTokens.Layout.playbackMediaInfoHeight)
-        .background(.regularMaterial, in: shape)
+        .background(.thickMaterial, in: shape)
         .overlay {
             shape.stroke(.white.opacity(0.08), lineWidth: DesignTokens.Stroke.subtle)
         }
-        .contentShape(shape)
+        .contentShape(.interaction, shape)
+        .enchronHoverContentShape(shape)
+        .enchronHoverActivation(in: mediaInfoHoverActivationGroup)
         .onHover { hovering in
             withAnimation(DesignTokens.AnimationToken.panelSpring) {
                 mediaInfoHovered = hovering
@@ -537,6 +560,14 @@ struct FusedPlayerPanel: View {
         .accessibilityLabel(live?.mediaName ?? "Unknown media")
         .accessibilityValue("\(spatialMetadataLabel), \(technicalMetadataLabel)")
         .accessibilityIdentifier("PlayerPanel-media-information")
+    }
+
+    private var mediaInfoHoverActivationGroup: EnchronHoverGroup {
+        EnchronHoverGroup(id: "media-information", in: hoverNamespace, behavior: .activatesGroup)
+    }
+
+    private var mediaInfoHoverRevealGroup: EnchronHoverGroup {
+        EnchronHoverGroup(id: "media-information", in: hoverNamespace, behavior: .followsGroup)
     }
 
     private var spatialMetadataLabel: String {
@@ -726,27 +757,6 @@ struct FusedPlayerPanel: View {
         }
     }
 
-    private var tracksMenu: some View {
-        Menu {
-            if let live {
-                liveTracksMenuSections(live)
-            } else {
-                mockTracksMenuSections
-            }
-        } label: {
-            GlassCircleIconLabel(
-                systemName: "list.bullet",
-                accessibilityLabel: "Tracks",
-                accessibilityIdentifier: "PlayerPanel-menu-tracks"
-            )
-        }
-        .buttonStyle(.plain)
-        .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)
-        .contentShape(Circle())
-        .accessibilityIdentifier("PlayerPanel-menu-tracks")
-        .accessibilityLabel("Subtitle and audio tracks")
-    }
-
     // ⋯ 菜单:玻璃圆(GlassCircleIconLabel)作 Menu label,内容 live 注入时来自产品层、
     // 否则 Canvas mock。命中尺寸对齐其它 transport 玻璃圆(large 60)。
     private var moreMenu: some View {
@@ -808,34 +818,6 @@ struct FusedPlayerPanel: View {
         guard let live else { return "Play" }
         if live.showsReplay { return "Replay" }
         return live.isPlaying ? "Pause" : "Play"
-    }
-
-    // MARK: Tracks 与 More 菜单内容(live 注入 / Canvas mock)
-
-    @ViewBuilder
-    private var mockTracksMenuSections: some View {
-        Section("Tracks") {
-            mockSelectableMenu("Subtitles", ["Off", "English CC", "中文简体", "Auto"], selection: $selectedSubtitle)
-            mockSelectableMenu("Audio Track", ["English 5.1", "Japanese 2.0", "Commentary"], selection: $selectedAudioTrack)
-        }
-    }
-
-    @ViewBuilder
-    private func liveTracksMenuSections(_ live: FusedPlayerPanelLive) -> some View {
-        Section("Tracks") {
-            if !live.subtitleItems.isEmpty {
-                Menu("Subtitles") {
-                    liveMenuItems(live.subtitleItems, category: "subtitle")
-                }
-                .accessibilityIdentifier("PlayerPanel-menu-subtitles")
-            }
-            if !live.audioItems.isEmpty {
-                Menu("Audio Track") {
-                    liveMenuItems(live.audioItems, category: "audio")
-                }
-                .accessibilityIdentifier("PlayerPanel-menu-audio")
-            }
-        }
     }
 
     @ViewBuilder

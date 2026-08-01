@@ -127,10 +127,8 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         XCTAssertEqual(exitSpatial.label, "Return to Window")
         let settings = app.descendants(matching: .any)["PlayerPanel-button-settings"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
-        let tracks = app.descendants(matching: .any)["PlayerPanel-menu-tracks"].firstMatch
         let more = app.descendants(matching: .any)["PlayerPanel-menu-more"].firstMatch
         let mediaInformation = app.descendants(matching: .any)["PlayerPanel-media-information"].firstMatch
-        XCTAssertTrue(tracks.exists)
         XCTAssertTrue(more.exists)
         XCTAssertTrue(mediaInformation.exists)
 
@@ -143,8 +141,7 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         )
         XCTAssertLessThan(settings.frame.midX, exitSpatial.frame.midX)
         XCTAssertLessThan(exitSpatial.frame.midX, play.frame.midX)
-        XCTAssertLessThan(play.frame.midX, tracks.frame.midX)
-        XCTAssertLessThan(tracks.frame.midX, more.frame.midX)
+        XCTAssertLessThan(play.frame.midX, more.frame.midX)
         settings.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"]
@@ -185,7 +182,7 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 20))
         XCTAssertEqual(exitSpatial.label, "Return to Window")
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-settings"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-menu-tracks"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-menu-tracks"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-spatial-button-stop"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }
