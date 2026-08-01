@@ -309,8 +309,8 @@ public enum DesignTokens {
         public static let playerControlsContentWidth: CGFloat = 680
         /// Shared width for Precision Timeline and expanded playback settings.
         public static let expandedPlayerControlsContentWidth: CGFloat = 880
-        /// Fixed height of the read-only spatial playback media-information well.
-        public static let playbackMediaInfoHeight: CGFloat = 88
+        /// Compact height of the read-only playback media-information well.
+        public static let playbackMediaInfoHeight: CGFloat = 72
         /// Ornament overlap with window bottom edge (Apple HIG: 20pt).
         public static let ornamentGap: CGFloat = 20
         /// Softens content clipping at the top and bottom of the main WindowGroup.
@@ -505,7 +505,7 @@ public enum DesignTokens {
         /// Horizontal padding inside player control capsule.
         public static let paddingH: CGFloat = Spacing.xl
         /// Vertical padding inside player control capsule.
-        public static let paddingV: CGFloat = Spacing.md
+        public static let paddingV: CGFloat = Spacing.sm
         /// Rendered width of the complete ornament capsule.
         public static let outerWidth: CGFloat = contentWidth + paddingH * 2
         /// Primary play button fill.
@@ -553,8 +553,8 @@ public enum DesignTokens {
         /// Watched-progress edge stroke height on grid cards — sits on the card's
         /// bottom edge like a thin stroke (hover-revealed), not a full track.
         public static let watchedEdgeHeight: CGFloat = 3
-        /// Interactive strip height that contains hover target, track, and scrubber.
-        public static let hitHeight: CGFloat = Interactive.large
+        /// Compact interactive strip containing hover target, track, and scrubber.
+        public static let hitHeight: CGFloat = Interactive.regular
         /// Review/demo width for player progress components.
         public static let previewWidth: CGFloat = ControlBar.contentWidth
         /// Height reserved above the track for hover time readout.
