@@ -1,19 +1,136 @@
 import DesignSystem
 import MediaLibrary
+import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
 
 
-struct FusedPlayerPanelPreview: View {
+struct PlaybackControlsPreview: View {
+    @State private var isPlaying = true
+    @State private var progress: CGFloat = 0.45
+    @State private var screenScale = 1.0
+    @State private var screenDistance = 4.0
+    @State private var screenElevation = 0.0
+    @State private var projection: PlaybackModel.ProjectionType = .equirectangular180
+    @State private var stereoLayout: PlaybackModel.StereoLayout = .sideBySide
+
     var body: some View {
-        VStack {
-            Spacer(minLength: 0)
-            FusedPlayerPanel()
-            Spacer(minLength: 0)
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+                Text("PLAYBACK CONTROLS BY PRESENTATION")
+                    .font(DesignTokens.Typography.sectionHeader)
+                    .foregroundStyle(.secondary)
+
+                playbackControl(
+                    title: "Window",
+                    supporting: "Window Playback Ornament · transport and progress",
+                    presentation: .window
+                )
+
+                playbackControl(
+                    title: "Docked",
+                    supporting: "Collapse returns to Window · Settings opens placement controls",
+                    presentation: .docked
+                )
+
+                playbackControl(
+                    title: "Panorama",
+                    supporting: "Collapse Vertically returns to Window · Settings opens media format controls",
+                    presentation: .panorama
+                )
+            }
+            .padding(DesignTokens.Spacing.xxl)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .padding(DesignTokens.Spacing.xxl)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .navigationTitle("Fused Panel")
+        .navigationTitle("Playback Controls")
+    }
+
+    private func playbackControl(
+        title: String,
+        supporting: String,
+        presentation: PlaybackPresentation
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                Text(title)
+                    .font(DesignTokens.Typography.title)
+                Text(supporting)
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(.secondary)
+            }
+
+            if presentation == .window {
+                WindowPlaybackControls(live: live(presentation: presentation))
+            } else {
+                PlayerControlDock(live: live(presentation: presentation))
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("DesignPreview-PlaybackControls-\(presentation.rawValue)")
+    }
+
+    private func live(presentation: PlaybackPresentation) -> FusedPlayerPanelLive {
+        FusedPlayerPanelLive(
+            presentation: presentation,
+            canDock: true,
+            canEnterPanorama: true,
+            screenScale: screenScale,
+            recommendedScreenScale: 1.0,
+            screenDistance: screenDistance,
+            screenElevationDegrees: screenElevation,
+            projection: projection,
+            stereoLayout: stereoLayout,
+            canUseFisheye: true,
+            isPlaying: isPlaying,
+            showsReplay: false,
+            canSkipForward: true,
+            canStepForward: true,
+            progress: progress,
+            elapsedLabel: PlaybackTimeFormatter.clock(Double(progress) * 855),
+            durationLabel: "14:15",
+            duration: 855,
+            framesPerSecond: 23.976,
+            onPlayPause: { isPlaying.toggle() },
+            onSkipBackward: { progress = max(0, progress - CGFloat(15.0 / 855.0)) },
+            onSkipForward: { progress = min(1, progress + CGFloat(15.0 / 855.0)) },
+            onSeek: { progress = $0 },
+            onPrecisionSeek: { progress = $0 },
+            onFrameStep: { direction in
+                progress = min(max(progress + CGFloat(direction) / CGFloat(855 * 24), 0), 1)
+            },
+            onEnterPanorama: {},
+            onEnterImmersive: {},
+            onExitSpatial: {},
+            onExitPlayback: {},
+            onSetScreenScale: { screenScale = $0 },
+            onSetScreenDistance: { screenDistance = $0 },
+            onSetScreenElevation: { screenElevation = $0 },
+            onResetDockedPlacement: {
+                screenScale = 1.0
+                screenDistance = 4.0
+                screenElevation = 0.0
+            },
+            onApplyFormat: { projection = $0; stereoLayout = $1 },
+            onResetFormat: {
+                projection = .flat
+                stereoLayout = .mono
+            },
+            subtitleItems: menuItems(["Off", "English CC"], selected: "Off"),
+            audioItems: menuItems(["English 5.1", "Japanese 2.0"], selected: "English 5.1"),
+            speedItems: menuItems(["0.5×", "1×", "1.5×", "2×"], selected: "1×"),
+            episodeItems: menuItems(["Episode 1", "Episode 2"], selected: "Episode 1")
+        )
+    }
+
+    private func menuItems(_ titles: [String], selected: String) -> [DeckMenuItem] {
+        titles.map { title in
+            DeckMenuItem(
+                id: title,
+                title: title,
+                isSelected: title == selected,
+                action: {}
+            )
+        }
     }
 }
 
