@@ -151,10 +151,6 @@ public struct MainView: View {
                 .frame(maxWidth: .infinity)
                 .accessibilityElement(children: .contain)
                 .accessibilityIdentifier("PlayerUI-window-top-overlay")
-        } mediaFacts: {
-            PlayerMediaInfoView()
-                .accessibilityElement(children: .contain)
-                .accessibilityIdentifier("PlayerUI-window-media-overlay")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-control-plane")

@@ -33,16 +33,6 @@ struct WindowPlaybackPreview: View {
                     accessibilityLabel: "More"
                 )
             }
-        } mediaFacts: {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                Text("The Weight of Greatness")
-                    .font(DesignTokens.Typography.headline)
-                    .foregroundStyle(.primary)
-
-                Text("4K · HDR · HEVC · Spatial Audio")
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(.secondary)
-            }
         }
         .ornament(
             visibility: showsControls ? .visible : .hidden,

@@ -101,7 +101,7 @@ _Avoid_：所有 seek 一律播放、所有 seek 一律暂停、从 ended 推断
 **Ended Transport Availability**：Ended 时 Replay 可用；后退、向结尾之前拖动进度条、向结尾之前操作精确时间轴和上一帧可用。这些 seek 从 Ended 离开结尾后都保持暂停。已经位于结尾时，前进跳转与下一帧禁用。离开结尾后不再是 ended，但继续使用同一 Media Session。
 _Avoid_：可点击但无效果的前进按钮、seek 后重开媒体、把 ended 当成已关闭 Session
 
-**Collapsed Playback Deck**：未展开 Advanced Settings 或 Precision Timeline 时的播放控制面板。空间 Player Control Dock 的只读 Thick Material 信息区在普通状态显示去掉扩展名的文件名，Hover 时同时显示左侧 Projection/Stereo Layout 与右侧 Resolution/HDR/Codec/Frame Rate；它不可点击且没有进一步展开状态。Settings 与 Return to Window 位于左侧，More 位于右侧，后退 15 秒、Play/Pause/Replay、前进 15 秒组成以 Play 为面板几何中心的独立 transport group。Settings 展开 Advanced Settings；More 打开 Playback Speed 与 Episodes；双击 Progress Bar 的圆形 scrubber 打开 Precision Timeline。
+**Collapsed Playback Deck**：未展开 Advanced Settings 或 Precision Timeline 时的播放控制面板。只读 Thick Material 信息区在普通状态显示去掉扩展名的文件名，Hover 时同时显示左侧 Projection/Stereo Layout 与右侧 Resolution/HDR/Codec/Frame Rate；它不可点击且没有进一步展开状态。Window Ornament 第一行左侧是同尺寸的 transport group，右侧是信息区，第二行是 Progress Bar。空间 Player Control Dock 把 Settings 与 Return to Window 放在左侧，More 放在右侧，transport group 以 Play 为面板几何中心。Settings 展开 Advanced Settings；More 打开 Playback Speed 与 Episodes；双击 Progress Bar 的圆形 scrubber 打开 Precision Timeline。
 _Avoid_：在 Deck 中加入 Docking/Panorama 入口或额外 Tracks 按钮、让外围按钮推动 transport group、把信息材质区做成按钮、把 Settings 与 More 合并
 
 **Progress Bar**：Playback Deck 中按媒体总时长显示与调节当前位置的常规进度控件。Enchron 另有 Precision Timeline；两者是不同控件，不使用“粗略进度条”一词。
