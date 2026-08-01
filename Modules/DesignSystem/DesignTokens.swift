@@ -134,6 +134,8 @@ public enum DesignTokens {
         public static let sceneCarouselSettle: Animation = .spring(response: 0.34, dampingFraction: 0.94)
         /// Content fade-in
         public static let fadeIn: Animation = .easeIn(duration: 0.25)
+        /// Read-only information revealed by gaze or pointer hover.
+        public static let informationReveal: Animation = .easeOut(duration: 0.2)
         /// Skeleton loading pulse
         public static let skeleton: Animation = .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
     }

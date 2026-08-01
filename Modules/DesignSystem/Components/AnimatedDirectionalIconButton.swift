@@ -4,17 +4,17 @@ public enum DirectionalIconDirection: Sendable, Equatable {
     case backward
     case forward
 
-    fileprivate var revealAlignment: Alignment {
+    fileprivate var actionRotation: Double {
         switch self {
-        case .backward: .trailing
-        case .forward: .leading
+        case .backward: -22
+        case .forward: 22
         }
     }
 
-    fileprivate var settleRotation: Double {
+    fileprivate var arrowSystemName: String {
         switch self {
-        case .backward: -9
-        case .forward: 9
+        case .backward: "gobackward"
+        case .forward: "goforward"
         }
     }
 }
@@ -24,9 +24,8 @@ public enum DirectionalIconDirection: Sendable, Equatable {
 /// the button instead of translating the control itself.
 public struct AnimatedDirectionalIconButton: View {
     private struct AnimationValues {
-        var reveal: CGFloat = 1
-        var opacity: CGFloat = 1
         var rotation: Double = 0
+        var scale: CGFloat = 1
     }
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
@@ -85,53 +84,50 @@ public struct AnimatedDirectionalIconButton: View {
 
     @ViewBuilder
     private var artwork: some View {
-        let revealAlignment = direction.revealAlignment
-        let settleRotation = direction.settleRotation
+        ZStack {
+            animatedArrow
+            Text("15")
+                .font(.system(size: numberSize, weight: .semibold, design: .rounded))
+                .monospacedDigit()
+        }
+        .frame(width: iconTier.artworkSize, height: iconTier.artworkSize)
+    }
 
+    @ViewBuilder
+    private var animatedArrow: some View {
         if accessibilityReduceMotion {
-            staticArtwork
+            arrowArtwork
         } else {
-            staticArtwork
+            arrowArtwork
                 .keyframeAnimator(
                     initialValue: AnimationValues(),
                     trigger: trigger
                 ) { content, value in
                     content
-                        .opacity(value.opacity)
                         .rotationEffect(.degrees(value.rotation))
-                        .mask {
-                            GeometryReader { proxy in
-                                Rectangle()
-                                    .frame(width: proxy.size.width * value.reveal)
-                                    .frame(
-                                        maxWidth: .infinity,
-                                        alignment: revealAlignment
-                                    )
-                            }
-                        }
+                        .scaleEffect(value.scale)
                 } keyframes: { _ in
-                    KeyframeTrack(\.reveal) {
-                        LinearKeyframe(0.08, duration: 0.02)
-                        CubicKeyframe(0.52, duration: 0.08)
-                        CubicKeyframe(1, duration: 0.15)
-                    }
-                    KeyframeTrack(\.opacity) {
-                        LinearKeyframe(0.18, duration: 0.02)
-                        CubicKeyframe(1, duration: 0.16)
-                    }
                     KeyframeTrack(\.rotation) {
-                        CubicKeyframe(settleRotation, duration: 0.16)
-                        CubicKeyframe(settleRotation * -0.22, duration: 0.06)
-                        CubicKeyframe(0, duration: 0.07)
+                        CubicKeyframe(direction.actionRotation, duration: 0.11)
+                        CubicKeyframe(direction.actionRotation * -0.12, duration: 0.08)
+                        CubicKeyframe(0, duration: 0.09)
+                    }
+                    KeyframeTrack(\.scale) {
+                        CubicKeyframe(0.92, duration: 0.1)
+                        CubicKeyframe(1, duration: 0.18)
                     }
                 }
         }
     }
 
-    private var staticArtwork: some View {
-        Image(systemName: systemName)
+    private var arrowArtwork: some View {
+        Image(systemName: direction.arrowSystemName)
             .font(iconTier.font)
             .frame(width: iconTier.artworkSize, height: iconTier.artworkSize)
+    }
+
+    private var numberSize: CGFloat {
+        max(7, iconTier.artworkSize * 0.3)
     }
 
 }
