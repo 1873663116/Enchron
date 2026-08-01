@@ -6,8 +6,15 @@ public enum DirectionalIconDirection: Sendable, Equatable {
 
     fileprivate var actionRotation: Double {
         switch self {
-        case .backward: -22
-        case .forward: 22
+        case .backward: -382
+        case .forward: 382
+        }
+    }
+
+    fileprivate var settleRotation: Double {
+        switch self {
+        case .backward: 3
+        case .forward: -3
         }
     }
 
@@ -108,13 +115,13 @@ public struct AnimatedDirectionalIconButton: View {
                         .scaleEffect(value.scale)
                 } keyframes: { _ in
                     KeyframeTrack(\.rotation) {
-                        CubicKeyframe(direction.actionRotation, duration: 0.11)
-                        CubicKeyframe(direction.actionRotation * -0.12, duration: 0.08)
-                        CubicKeyframe(0, duration: 0.09)
+                        CubicKeyframe(direction.actionRotation, duration: 0.32)
+                        CubicKeyframe(direction.settleRotation, duration: 0.08)
+                        CubicKeyframe(0, duration: 0.08)
                     }
                     KeyframeTrack(\.scale) {
-                        CubicKeyframe(0.92, duration: 0.1)
-                        CubicKeyframe(1, duration: 0.18)
+                        CubicKeyframe(0.92, duration: 0.12)
+                        CubicKeyframe(1, duration: 0.36)
                     }
                 }
         }
