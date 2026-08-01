@@ -500,26 +500,11 @@ struct FusedPlayerPanel: View {
                 .lineLimit(1)
                 .truncationMode(.middle)
                 .padding(.horizontal, DesignTokens.Spacing.xl)
-                .enchronHoverOpacity(
-                    active: 0,
-                    inactive: 1,
+                .enchronHoverOffset(
+                    activeY: -DesignTokens.Spacing.sm,
                     in: mediaInfoHoverRevealGroup,
                     forcedActive: mediaInfoHovered,
-                    animation: DesignTokens.AnimationToken.selection
-                )
-
-            Text(live?.mediaName ?? "Unknown")
-                .font(DesignTokens.Typography.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .padding(.horizontal, DesignTokens.Spacing.xl)
-                .offset(y: -DesignTokens.Spacing.sm)
-                .enchronHoverOpacity(
-                    active: 1,
-                    inactive: 0,
-                    in: mediaInfoHoverRevealGroup,
-                    forcedActive: mediaInfoHovered,
-                    animation: DesignTokens.AnimationToken.selection
+                    animation: DesignTokens.AnimationToken.informationReveal
                 )
 
             HStack(spacing: DesignTokens.Spacing.xl) {
@@ -535,12 +520,19 @@ struct FusedPlayerPanel: View {
             .padding(.horizontal, DesignTokens.Spacing.xl)
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.bottom, DesignTokens.Spacing.sm)
+            .enchronHoverOffset(
+                activeY: 0,
+                inactiveY: DesignTokens.Spacing.xxs,
+                in: mediaInfoHoverRevealGroup,
+                forcedActive: mediaInfoHovered,
+                animation: DesignTokens.AnimationToken.informationReveal
+            )
             .enchronHoverOpacity(
                 active: 1,
                 inactive: 0,
                 in: mediaInfoHoverRevealGroup,
                 forcedActive: mediaInfoHovered,
-                animation: DesignTokens.AnimationToken.selection
+                animation: DesignTokens.AnimationToken.informationReveal
             )
         }
         .frame(width: clusterWidth, height: DesignTokens.Layout.playbackMediaInfoHeight)
@@ -552,7 +544,7 @@ struct FusedPlayerPanel: View {
         .enchronHoverContentShape(shape)
         .enchronHoverActivation(in: mediaInfoHoverActivationGroup)
         .onHover { hovering in
-            withAnimation(DesignTokens.AnimationToken.panelSpring) {
+            withAnimation(DesignTokens.AnimationToken.informationReveal) {
                 mediaInfoHovered = hovering
             }
         }

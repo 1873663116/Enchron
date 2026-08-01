@@ -141,6 +141,32 @@ public extension View {
     }
 
     @ViewBuilder
+    func enchronHoverOffset(
+        activeY: CGFloat,
+        inactiveY: CGFloat = 0,
+        in group: EnchronHoverGroup? = nil,
+        forcedActive: Bool = false,
+        animation: Animation? = nil
+    ) -> some View {
+        #if os(visionOS)
+        if let animation {
+            hoverEffect(in: group?.systemValue) { effect, isActive, _ in
+                effect.animation(animation) {
+                    $0.offset(y: isActive || forcedActive ? activeY : inactiveY)
+                }
+            }
+        } else {
+            hoverEffect(in: group?.systemValue) { effect, isActive, _ in
+                effect.offset(y: isActive || forcedActive ? activeY : inactiveY)
+            }
+        }
+        #else
+        offset(y: forcedActive ? activeY : inactiveY)
+            .animation(animation ?? .easeOut(duration: 0.16), value: forcedActive)
+        #endif
+    }
+
+    @ViewBuilder
     func enchronHoverActivation(in group: EnchronHoverGroup?) -> some View {
         #if os(visionOS)
         hoverEffect(in: group?.systemValue) { effect, _, _ in effect }
