@@ -31,6 +31,8 @@ extension SampleBufferPlaybackSession {
         closeLock.unlock()
 
         stopRendererFailureMonitoring()
+        activationObservation.invalidateReapplyVerification(outcome: .invalidatedByClose)
+        activationObservation.stop()
 
         PlaybackTrace.event(
             "session.close.begin id=\(traceID) samples=\(diagnostics.enqueuedSampleCount) " +
@@ -160,12 +162,47 @@ extension SampleBufferPlaybackSession {
 
     func deliverSamples(generation: UInt64) async {
         while isCurrentVideoDelivery(generation), !isClosed, !isResetting {
+            let sampleOrdinal = UInt64(diagnostics.enqueuedSampleCount + 1)
             let sourceSample: CMSampleBuffer
             if let pendingSample = currentPendingVideoSample() {
                 sourceSample = pendingSample
             } else {
                 do {
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "providerRead.enter",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal
+                    )
+                    if sampleOrdinal <= 8 {
+                        debugStore.emit(
+                            mediaSessionID: traceID,
+                            node: .mediaEventStream,
+                            kind: "videoProvider.read.started",
+                            outcome: .succeeded,
+                            details: ["sampleOrdinal": String(sampleOrdinal)]
+                        )
+                    }
                     let event = try await provider.nextEvent()
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "providerRead.returned",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        outcome: providerEventKind(event)
+                    )
+                    if sampleOrdinal <= 8 {
+                        debugStore.emit(
+                            mediaSessionID: traceID,
+                            node: .mediaEventStream,
+                            kind: "videoProvider.read.completed",
+                            outcome: .succeeded,
+                            details: [
+                                "eventKind": providerEventKind(event),
+                                "sampleOrdinal": String(sampleOrdinal),
+                            ]
+                        )
+                    }
                     switch event {
                     case .sample(let sample):
                         sourceSample = sample
@@ -233,9 +270,13 @@ extension SampleBufferPlaybackSession {
                 onStatusChange?(.failed(error.localizedDescription))
                 return
             }
-            markAsPrerollIfNeeded(renderSample, presentationTime: presentationTime)
-            let shouldActivateTimelineAfterEnqueue = !hasStartedTimeline
-            if shouldActivateTimelineAfterEnqueue {
+            markAsPrerollIfNeeded(
+                renderSample,
+                presentationTime: presentationTime,
+                presentationEnd: presentationEnd
+            )
+            let shouldAnchorTimeline = !hasStartedTimeline
+            if shouldAnchorTimeline {
                 let hasPreroll = requestedTimelineStart.isNumeric &&
                     requestedTimelineStart > presentationTime
                 let timelineStart = hasPreroll ? presentationTime : targetTimelineTime(
@@ -248,39 +289,137 @@ extension SampleBufferPlaybackSession {
                 )
                 synchronizer.setRate(0, time: timelineStart)
                 hasStartedTimeline = true
-                isPrerolling = hasPreroll
+                // The timeline must remain stopped until decoder bootstrap and,
+                // when present, audio preroll have both crossed the start point.
+                // This is also required when the first video PTS equals the
+                // requested start: a nonzero PTS/DTS decode pipeline can still
+                // need the bootstrap gate.
+                isPrerolling = true
+                beginDecoderBootstrap(
+                    target: targetTimelineTime(fallback: presentationTime)
+                )
+                ensureAudioDeliveryStarted()
                 PlaybackTrace.event(
                     "session.timeline.set id=\(traceID) rate=0.0 " +
                     "time=\(timelineStart.seconds)"
                 )
                 publishDiagnostics(at: timelineStart, force: true)
-            } else if isPrerolling,
-                      requestedTimelineStart.isNumeric,
-                      presentationTime >= requestedTimelineStart {
-                synchronizer.setRate(timelineStartRate, time: requestedTimelineStart)
-                isPrerolling = false
-                publishTargetTimelineState(at: requestedTimelineStart)
-                publishDiagnostics(at: requestedTimelineStart, force: true)
             }
             if diagnostics.enqueuedSampleCount == 0 {
                 diagnostics.timelineConfiguredBeforeFirstEnqueue = hasStartedTimeline
                 dumpVideoSampleIfRequested(renderSample)
             }
-            let isFirstVideoSample = diagnostics.enqueuedSampleCount == 0
             let decodeTime = CMSampleBufferGetDecodeTimeStamp(renderSample)
             let decoderBootstrapTarget = targetTimelineTime(fallback: presentationTime)
             let bootstrapIncomplete = !decoderBootstrapLock.withLock { decoderBootstrapComplete }
-            let requiresImmediateDecoderBootstrap = bootstrapIncomplete && (
-                isFirstVideoSample || !decodeTime.isNumeric || decodeTime <= decoderBootstrapTarget
-            )
+            // The first DTS after the target is the sample that completes bootstrap.
+            // Waiting for renderer backpressure before submitting that crossing sample
+            // can deadlock while the synchronizer is intentionally held at rate zero.
+            let requiresImmediateDecoderBootstrap = bootstrapIncomplete
             let outcome: RendererEnqueueOutcome
             do {
                 let enqueueSample = try CMSampleBuffer(copying: renderSample)
                 let input = RendererInputSample(sampleBuffer: enqueueSample)
-                if requiresImmediateDecoderBootstrap {
+                if sampleOrdinal <= 8 {
+                    debugStore.emit(
+                        mediaSessionID: traceID,
+                        node: .rendererInputCoordination,
+                        kind: "videoRenderer.enqueue.started",
+                        outcome: .succeeded,
+                        details: [
+                            "decodeTimeSeconds": String(decodeTime.seconds),
+                            "immediate": String(requiresImmediateDecoderBootstrap),
+                            "presentationTimeSeconds": String(presentationTime.seconds),
+                            "sampleOrdinal": String(sampleOrdinal),
+                        ]
+                    )
+                }
+                switch rendererSink.enqueueStrategy {
+                case .boundedImmediateLead:
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "boundedLead.enter",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    try await waitForBoundedRendererLead(presentationTime: presentationTime)
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "boundedLead.returned",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "enqueueImmediately.enter",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
                     outcome = try rendererSink.enqueueImmediately(input)
-                } else {
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "enqueueImmediately.returned",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "enqueueImmediately.outcome",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime,
+                        outcome: String(describing: outcome)
+                    )
+                case .receiverBackpressure where requiresImmediateDecoderBootstrap:
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "enqueueImmediately.enter",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    outcome = try rendererSink.enqueueImmediately(input)
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "enqueueImmediately.returned",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "enqueueImmediately.outcome",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime,
+                        outcome: String(describing: outcome)
+                    )
+                case .receiverBackpressure:
                     outcome = try await rendererSink.enqueue(input)
+                }
+                if sampleOrdinal <= 8 {
+                    debugStore.emit(
+                        mediaSessionID: traceID,
+                        node: .rendererInputCoordination,
+                        kind: "videoRenderer.enqueue.completed",
+                        outcome: .succeeded,
+                        details: [
+                            "result": String(describing: outcome),
+                            "sampleOrdinal": String(sampleOrdinal),
+                        ]
+                    )
                 }
             } catch {
                 guard isCurrentVideoDelivery(generation), !isClosed else { return }
@@ -296,20 +435,88 @@ extension SampleBufferPlaybackSession {
                 return
             }
             guard handleVideoEnqueueOutcome(outcome) else { return }
-            if bootstrapIncomplete,
-               !decodeTime.isNumeric || decodeTime >= decoderBootstrapTarget {
-                decoderBootstrapLock.withLock { decoderBootstrapComplete = true }
-            }
-            if shouldActivateTimelineAfterEnqueue {
-                let activationRate: Float = isPrerolling ? 1 : timelineStartRate
-                synchronizer.rate = activationRate
-                if !isPrerolling {
-                    publishTargetTimelineState(
-                        at: targetTimelineTime(fallback: presentationTime)
+            activationObservation.recordAcceptedVideo(
+                epoch: streamEpoch,
+                presentationTime: presentationTime,
+                decodeTime: decodeTime,
+                presentationEnd: presentationEnd
+            )
+            let bootstrap = recordAcceptedDecoderBootstrapSample(
+                decodeTime: decodeTime,
+                target: decoderBootstrapTarget,
+                usedImmediateEnqueue: requiresImmediateDecoderBootstrap
+            )
+            let targetReached = requestedTimelineStart.isNumeric == false
+                || presentationTime >= requestedTimelineStart
+                || presentationEnd >= requestedTimelineStart
+            if isPrerolling, bootstrap.complete, targetReached {
+                let activationTime = targetTimelineTime(fallback: presentationTime)
+                do {
+                    try await waitForAudioPreroll(through: activationTime)
+                } catch {
+                    guard isCurrentVideoDelivery(generation), !isClosed else { return }
+                    recordFailure(
+                        error,
+                        node: .rendererInputCoordination,
+                        kind: "audioRenderer.prerollFailed"
+                    )
+                    onStatusChange?(.failed(error.localizedDescription))
+                    return
+                }
+                let activationSequence = activationObservation.beginActivation(
+                    requestedRate: timelineStartRate,
+                    anchorTime: activationTime
+                )
+                // Re-anchor the stopped timebase immediately before activation
+                // so the rate change is applied to the same media position after
+                // the preroll queues have been populated. Applying it against a
+                // near-future host time avoids the visionOS race where an
+                // asynchronous media-time update leaves the underlying timebase
+                // stopped even though synchronizer.rate already reports 1.
+                synchronizer.setRate(0, time: activationTime)
+                setRateAtHostTime(timelineStartRate, time: activationTime)
+                if let activationSequence {
+                    activationObservation.rateApplicationReturned(
+                        sequence: activationSequence
                     )
                 }
+                recordAudioRateActivation(
+                    rate: timelineStartRate,
+                    time: activationTime,
+                    reason: "decoderBootstrap"
+                )
+                isPrerolling = false
+                publishTargetTimelineState(at: activationTime)
+                publishDiagnostics(at: activationTime, force: true)
                 PlaybackTrace.event(
-                    "session.timeline.activated id=\(traceID) rate=\(activationRate)"
+                    "session.timeline.activated id=\(traceID) rate=\(timelineStartRate) " +
+                    "bootstrapComplete=true immediateSamples=\(bootstrap.immediateEnqueueCount)"
+                )
+            } else if shouldAnchorTimeline, !isPrerolling {
+                let activationTime = targetTimelineTime(fallback: presentationTime)
+                let activationSequence = activationObservation.beginActivation(
+                    requestedRate: timelineStartRate,
+                    anchorTime: activationTime
+                )
+                // A normal open has no future timeline target to preroll toward.
+                // Start the synchronizer after the first accepted sample, matching
+                // the established AVSampleBufferRenderSynchronizer startup path.
+                setRateAtHostTime(timelineStartRate, time: activationTime)
+                if let activationSequence {
+                    activationObservation.rateApplicationReturned(
+                        sequence: activationSequence
+                    )
+                }
+                recordAudioRateActivation(
+                    rate: timelineStartRate,
+                    time: activationTime,
+                    reason: "firstSample"
+                )
+                publishTargetTimelineState(at: activationTime)
+                publishDiagnostics(at: activationTime, force: true)
+                PlaybackTrace.event(
+                    "session.timeline.activated id=\(traceID) rate=\(timelineStartRate) " +
+                    "bootstrapComplete=\(bootstrap.complete) immediateSamples=\(bootstrap.immediateEnqueueCount)"
                 )
             }
             clearPendingVideoSample(sourceSample)
@@ -377,10 +584,55 @@ extension SampleBufferPlaybackSession {
         pendingVideoSampleLock.withLock { pendingVideoSample = nil }
     }
 
+    private func providerEventKind(_ event: VideoSampleProviderEvent) -> String {
+        switch event {
+        case .sample: "sample"
+        case .formatChanged: "formatChanged"
+        case .flush: "flush"
+        case .end: "end"
+        }
+    }
+
     func deliverAudioSamples() async {
         while !Task.isCancelled, !isClosed, !isResetting {
             do {
-                guard let sample = try await audioProvider.copyNextSample() else {
+                let sampleOrdinal = audioSampleBufferCount + 1
+                emitPlaybackDeliveryStage(
+                    lane: "audio",
+                    stage: "providerRead.enter",
+                    epoch: audioStreamEpoch,
+                    sampleOrdinal: sampleOrdinal
+                )
+                if sampleOrdinal <= 64 {
+                    debugStore.emit(
+                        mediaSessionID: traceID,
+                        node: .mediaEventStream,
+                        kind: "audioProvider.read.started",
+                        outcome: .succeeded,
+                        details: ["sampleOrdinal": String(sampleOrdinal)]
+                    )
+                }
+                let nextSample = try await audioProvider.copyNextSample()
+                emitPlaybackDeliveryStage(
+                    lane: "audio",
+                    stage: "providerRead.returned",
+                    epoch: audioStreamEpoch,
+                    sampleOrdinal: sampleOrdinal,
+                    outcome: nextSample == nil ? "end" : "sample"
+                )
+                if sampleOrdinal <= 64 {
+                    debugStore.emit(
+                        mediaSessionID: traceID,
+                        node: .mediaEventStream,
+                        kind: "audioProvider.read.completed",
+                        outcome: .succeeded,
+                        details: [
+                            "hasSample": String(nextSample != nil),
+                            "sampleOrdinal": String(sampleOrdinal),
+                        ]
+                    )
+                }
+                guard let sourceSample = nextSample else {
                     markAudioProviderEnded()
                     audioRendererSink.observeRenderingEventsAfterFinishedEnqueuing(
                         handler: rendererInputEventHandler()
@@ -392,12 +644,13 @@ extension SampleBufferPlaybackSession {
                     )
                     return
                 }
+                let sample = normalizeAudioSampleTimeline(sourceSample)
                 let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample)
+                let decodeTime = CMSampleBufferGetDecodeTimeStamp(sample)
                 let duration = CMSampleBufferGetDuration(sample)
                 let presentationEnd = duration.isNumeric
                     ? CMTimeAdd(presentationTime, duration)
                     : presentationTime
-                recordAudioPresentationEnd(presentationEnd)
                 let audioInfo = audioProvider.info
                 let rawStreamIndex = audioInfo?.streamIndex
                     ?? selectedAudioStreamIndex
@@ -418,19 +671,103 @@ extension SampleBufferPlaybackSession {
                     payloadOwnershipState: "retainedCMSampleBuffer"
                 )
                 debugStore.recordAudioSample(record)
-                let outcome = try await audioRendererSink.enqueue(
-                    RendererInputSample(sampleBuffer: sample)
-                )
+                if sampleOrdinal <= 64 {
+                    debugStore.emit(
+                        mediaSessionID: traceID,
+                        node: .rendererInputCoordination,
+                        kind: "audioRenderer.enqueue.started",
+                        outcome: .succeeded,
+                        details: ["sampleOrdinal": String(sampleOrdinal)]
+                    )
+                }
+                let input = RendererInputSample(sampleBuffer: sample)
+                let outcome: RendererEnqueueOutcome
+                switch audioRendererSink.enqueueStrategy {
+                case .boundedImmediateLead:
+                    emitPlaybackDeliveryStage(
+                        lane: "audio",
+                        stage: "boundedLead.enter",
+                        epoch: audioStreamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    try await waitForBoundedRendererLead(presentationTime: presentationTime)
+                    emitPlaybackDeliveryStage(
+                        lane: "audio",
+                        stage: "boundedLead.returned",
+                        epoch: audioStreamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    emitPlaybackDeliveryStage(
+                        lane: "audio",
+                        stage: "enqueueImmediately.enter",
+                        epoch: audioStreamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    outcome = try audioRendererSink.enqueueImmediately(input)
+                    emitPlaybackDeliveryStage(
+                        lane: "audio",
+                        stage: "enqueueImmediately.returned",
+                        epoch: audioStreamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    emitPlaybackDeliveryStage(
+                        lane: "audio",
+                        stage: "enqueueImmediately.outcome",
+                        epoch: audioStreamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime,
+                        outcome: String(describing: outcome)
+                    )
+                case .receiverBackpressure:
+                    outcome = try await audioRendererSink.enqueue(input)
+                }
+                if sampleOrdinal <= 64 {
+                    debugStore.emit(
+                        mediaSessionID: traceID,
+                        node: .rendererInputCoordination,
+                        kind: "audioRenderer.enqueue.completed",
+                        outcome: .succeeded,
+                        details: [
+                            "result": String(describing: outcome),
+                            "sampleOrdinal": String(sampleOrdinal),
+                        ]
+                    )
+                }
                 guard handleAudioEnqueueOutcome(outcome) else { return }
+                activationObservation.recordAcceptedAudio(
+                    epoch: audioStreamEpoch,
+                    presentationTime: presentationTime,
+                    presentationEnd: presentationEnd
+                )
                 audioSampleBufferCount += 1
                 audioFrameCount += UInt64(max(0, record.sampleCount))
+                recordAudioPresentationEnd(presentationEnd)
                 recordAudioRendererState()
                 if audioSampleBufferCount == 1 {
+                    var details = audioSampleFormatDetails(sample)
+                    details["audioTrackID"] = trackID
+                    details["streamEpoch"] = String(audioStreamEpoch)
+                    details["timelineOffsetSeconds"] = String(audioTimestampOffset.seconds)
+                    details["rendererStatus"] = audioRendererStatusLabel
+                    details["rendererError"] = audioRenderer.error?.localizedDescription
+                        ?? currentAudioRendererError
+                        ?? "none"
+                    details["rendererVolume"] = String(audioRenderer.volume)
+                    details["rendererMuted"] = String(audioRenderer.isMuted)
                     debugStore.emit(
                         mediaSessionID: traceID,
                         kind: "audioRenderer.firstEnqueue",
                         outcome: .succeeded,
-                        details: ["audioTrackID": trackID]
+                        details: details
                     )
                 }
             } catch {
@@ -440,6 +777,43 @@ extension SampleBufferPlaybackSession {
                 return
             }
         }
+    }
+
+    func normalizeAudioSampleTimeline(_ sample: CMSampleBuffer) -> CMSampleBuffer {
+        let presentationTime = CMSampleBufferGetPresentationTimeStamp(sample)
+        guard presentationTime.isNumeric else { return sample }
+
+        let offset: CMTime = audioTimestampOffsetLock.withLock {
+            if audioTimestampOffsetEpoch != audioStreamEpoch {
+                audioTimestampOffsetEpoch = audioStreamEpoch
+                audioTimestampOffset = presentationTime < .zero
+                    ? CMTimeSubtract(.zero, presentationTime)
+                    : .zero
+            }
+            return audioTimestampOffset
+        }
+        guard offset.isNumeric, offset != .zero else { return sample }
+
+        var timing = CMSampleTimingInfo()
+        guard CMSampleBufferGetSampleTimingInfo(
+            sample,
+            at: 0,
+            timingInfoOut: &timing
+        ) == noErr else { return sample }
+        timing.presentationTimeStamp = CMTimeAdd(timing.presentationTimeStamp, offset)
+        if timing.decodeTimeStamp.isNumeric {
+            timing.decodeTimeStamp = CMTimeAdd(timing.decodeTimeStamp, offset)
+        }
+
+        var adjustedSample: CMSampleBuffer?
+        let status = CMSampleBufferCreateCopyWithNewTiming(
+            allocator: kCFAllocatorDefault,
+            sampleBuffer: sample,
+            sampleTimingEntryCount: 1,
+            sampleTimingArray: &timing,
+            sampleBufferOut: &adjustedSample
+        )
+        return status == noErr ? (adjustedSample ?? sample) : sample
     }
 
     func handleVideoEnqueueOutcome(_ outcome: RendererEnqueueOutcome) -> Bool {
@@ -514,6 +888,192 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    func waitForBoundedRendererLead(presentationTime: CMTime) async throws {
+        guard presentationTime.isNumeric else { return }
+        while true {
+            try Task.checkCancellation()
+            guard !isClosed, !isResetting else { throw CancellationError() }
+            let current = synchronizer.currentTime()
+            let target = targetTimelineTime(fallback: current)
+            let referenceSeconds = max(
+                current.isNumeric ? current.seconds : 0,
+                target.isNumeric ? target.seconds : 0
+            )
+            if presentationTime.seconds <= referenceSeconds + 1 {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+    }
+
+    func emitPlaybackDeliveryStage(
+        lane: String,
+        stage: String,
+        epoch: UInt64,
+        sampleOrdinal: UInt64,
+        presentationTime: CMTime? = nil,
+        decodeTime: CMTime? = nil,
+        outcome: String? = nil
+    ) {
+        var details = [
+            "streamEpoch": String(epoch),
+            "sampleOrdinal": String(sampleOrdinal),
+            "presentationTimeSeconds": presentationTime.flatMap { numericSeconds($0) }
+                .map { String($0) } ?? "unavailable",
+            "decodeTimeSeconds": decodeTime.flatMap { numericSeconds($0) }
+                .map { String($0) } ?? "unavailable",
+        ]
+        if let outcome {
+            details["outcome"] = outcome
+        }
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "playbackDelivery.stage.\(lane).\(stage)",
+            outcome: .succeeded,
+            details: details
+        )
+    }
+
+    func ensureAudioDeliveryStarted() {
+        guard hasAudio else { return }
+        let needsStart = deliveryTaskLock.withLock { audioDeliveryTask == nil }
+        if needsStart {
+            startAudioDelivery()
+        }
+    }
+
+    func waitForAudioPreroll(through activationTime: CMTime) async throws {
+        guard hasAudio, activationTime.isNumeric else { return }
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            try Task.checkCancellation()
+            guard !isClosed, !isResetting else { throw CancellationError() }
+            if audioHasPrerolled(through: activationTime) {
+                let accumulatedPresentationEnd = endStateLock.withLock {
+                    endState.audioPresentationEnd
+                }
+                let accumulatedPresentationEndSeconds = accumulatedPresentationEnd
+                    .flatMap(numericSeconds)
+                    .map { String($0) } ?? "none"
+                debugStore.emit(
+                    mediaSessionID: traceID,
+                    node: .rendererInputCoordination,
+                    kind: "audioRenderer.prerollCompleted",
+                    outcome: .succeeded,
+                    details: [
+                        "activationTimeSeconds": String(activationTime.seconds),
+                        "accumulatedPresentationEndSeconds": accumulatedPresentationEndSeconds,
+                        "streamEpoch": String(audioStreamEpoch),
+                        "rendererStatus": audioRendererStatusLabel,
+                        "rendererError": audioRenderer.error?.localizedDescription
+                            ?? currentAudioRendererError
+                            ?? "none",
+                    ]
+                )
+                return
+            }
+            if debugStore.snapshot().lifecycle == .failed {
+                throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
+            }
+            try await Task.sleep(for: .milliseconds(5))
+        }
+        throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
+    }
+
+    func audioHasPrerolled(through activationTime: CMTime) -> Bool {
+        let minimumEnd = CMTimeAdd(
+            activationTime,
+            CMTime(seconds: 0.25, preferredTimescale: 48_000)
+        )
+        return endStateLock.withLock {
+            guard let audioEnd = endState.audioPresentationEnd,
+                  audioEnd.isNumeric else { return false }
+            if CMTimeCompare(audioEnd, minimumEnd) >= 0 { return true }
+            return endState.audioProviderEnded
+                && CMTimeCompare(audioEnd, activationTime) > 0
+        }
+    }
+
+    func audioSampleFormatDetails(_ sample: CMSampleBuffer) -> [String: String] {
+        var details: [String: String] = [
+            "sampleCount": String(CMSampleBufferGetNumSamples(sample)),
+            "dataReady": String(CMSampleBufferDataIsReady(sample)),
+        ]
+        if let dataBuffer = CMSampleBufferGetDataBuffer(sample) {
+            details["dataByteCount"] = String(CMBlockBufferGetDataLength(dataBuffer))
+        }
+        guard let format = CMSampleBufferGetFormatDescription(sample) else {
+            details["format"] = "missing"
+            return details
+        }
+        details["formatIdentity"] = PlaybackTrace.identity(format)
+        details["mediaSubtype"] = fourCC(CMFormatDescriptionGetMediaSubType(format))
+        if let stream = CMAudioFormatDescriptionGetStreamBasicDescription(format) {
+            let value = stream.pointee
+            details["asbd.sampleRate"] = String(value.mSampleRate)
+            details["asbd.formatID"] = fourCC(value.mFormatID)
+            details["asbd.formatFlags"] = String(value.mFormatFlags)
+            details["asbd.bytesPerPacket"] = String(value.mBytesPerPacket)
+            details["asbd.framesPerPacket"] = String(value.mFramesPerPacket)
+            details["asbd.bytesPerFrame"] = String(value.mBytesPerFrame)
+            details["asbd.channelsPerFrame"] = String(value.mChannelsPerFrame)
+            details["asbd.bitsPerChannel"] = String(value.mBitsPerChannel)
+            details["asbd.reserved"] = String(value.mReserved)
+        }
+        var cookieSize = 0
+        let cookie = CMAudioFormatDescriptionGetMagicCookie(format, sizeOut: &cookieSize)
+        details["magicCookieSize"] = String(cookieSize)
+        details["hasMagicCookie"] = String(cookie != nil)
+        if let cookie, cookieSize > 0 {
+            details["magicCookieHash"] = stableDiagnosticHash(
+                UnsafeRawBufferPointer(start: cookie, count: cookieSize)
+            )
+        } else {
+            details["magicCookieHash"] = "none"
+        }
+        var channelLayoutSize = 0
+        let channelLayout = CMAudioFormatDescriptionGetChannelLayout(
+            format,
+            sizeOut: &channelLayoutSize
+        )
+        details["channelLayoutSize"] = String(channelLayoutSize)
+        details["hasChannelLayout"] = String(channelLayout != nil)
+        if let channelLayout {
+            details["channelLayout.tag"] = String(channelLayout.pointee.mChannelLayoutTag)
+            details["channelLayout.bitmap"] = String(
+                channelLayout.pointee.mChannelBitmap.rawValue
+            )
+            details["channelLayout.descriptionCount"] = String(
+                channelLayout.pointee.mNumberChannelDescriptions
+            )
+        }
+        if let metadata = CMGetAttachment(
+            sample,
+            key: "com.enchron.playbackcore.ffmpegAudioMetadata" as CFString,
+            attachmentModeOut: nil
+        ) as? [String: Any] {
+            for (key, value) in metadata {
+                details["ffmpeg.\(key)"] = String(describing: value)
+            }
+        }
+        details["presentationTime.value"] = String(CMSampleBufferGetPresentationTimeStamp(sample).value)
+        details["presentationTime.timescale"] = String(CMSampleBufferGetPresentationTimeStamp(sample).timescale)
+        details["decodeTime.value"] = String(CMSampleBufferGetDecodeTimeStamp(sample).value)
+        details["decodeTime.timescale"] = String(CMSampleBufferGetDecodeTimeStamp(sample).timescale)
+        details["duration.value"] = String(CMSampleBufferGetDuration(sample).value)
+        details["duration.timescale"] = String(CMSampleBufferGetDuration(sample).timescale)
+        return details
+    }
+
+    func stableDiagnosticHash(_ bytes: UnsafeRawBufferPointer) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in bytes {
+            hash = (hash ^ UInt64(byte)) &* 1_099_511_628_211
+        }
+        return String(format: "fnv1a64:%016llx", hash)
+    }
+
     var isVideoRendererFailed: Bool {
         rendererStateLock.withLock { videoRendererStatus == "failed" }
     }
@@ -542,6 +1102,16 @@ extension SampleBufferPlaybackSession {
     }
 
     func recordAudioRendererState() {
+        let rendererError = audioRenderer.error?.localizedDescription
+            ?? currentAudioRendererError
+        let rendererStatus = audioRendererStatusLabel
+        let didChange = rendererStateLock.withLock {
+            let changed = lastRecordedAudioRendererStatus != rendererStatus
+                || lastRecordedAudioRendererError != rendererError
+            lastRecordedAudioRendererStatus = rendererStatus
+            lastRecordedAudioRendererError = rendererError
+            return changed
+        }
         debugStore.recordAudioRendererState(AudioRendererStateRecord(
             mediaSessionID: traceID,
             graphID: "\(traceID).rendererGraph",
@@ -551,10 +1121,64 @@ extension SampleBufferPlaybackSession {
             streamEpoch: audioStreamEpoch,
             enqueuedSampleBufferCount: audioSampleBufferCount,
             enqueuedAudioFrameCount: audioFrameCount,
+            status: rendererStatus,
             volume: audioRenderer.volume,
             muted: audioRenderer.isMuted,
-            error: currentAudioRendererError
+            error: rendererError
         ))
+        if didChange {
+            debugStore.emit(
+                mediaSessionID: traceID,
+                node: .rendererInputCoordination,
+                kind: "audioRenderer.statusChanged",
+                outcome: rendererStatus == "failed" ? .failed : .succeeded,
+                details: [
+                    "streamEpoch": String(audioStreamEpoch),
+                    "status": rendererStatus,
+                    "error": rendererError ?? "none",
+                    "volume": String(audioRenderer.volume),
+                    "muted": String(audioRenderer.isMuted),
+                ]
+            )
+        }
+    }
+
+    func recordAudioRateActivation(rate: Float, time: CMTime, reason: String) {
+        guard hasAudio else { return }
+        let actualTime = synchronizer.currentTime()
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "audioRenderer.rateActivated",
+            outcome: .succeeded,
+            details: [
+                "streamEpoch": String(describing: audioStreamEpoch),
+                "rate": String(rate),
+                "timeSeconds": numericSeconds(time).map { String($0) } ?? "invalid",
+                "application": "setRateAtHostTime",
+                "immediateActualRate": String(CMTimebaseGetRate(synchronizer.timebase)),
+                "immediateCurrentTimeSeconds": numericSeconds(actualTime)
+                    .map { String($0) } ?? "invalid",
+                "reason": reason,
+                "rendererStatus": audioRendererStatusLabel,
+                "rendererError": audioRenderer.error?.localizedDescription
+                    ?? currentAudioRendererError
+                    ?? "none",
+            ]
+        )
+    }
+
+    var audioRendererStatusLabel: String {
+        switch audioRenderer.status {
+        case .unknown:
+            "unknown"
+        case .rendering:
+            "rendering"
+        case .failed:
+            "failed"
+        @unknown default:
+            "unrecognized"
+        }
     }
 
 
@@ -586,8 +1210,10 @@ extension SampleBufferPlaybackSession {
         isResetting = true
         switch kind {
         case .formatChanged:
+            activationObservation.invalidateReapplyVerification(outcome: .invalidatedByEpochChange)
             formatRevision += 1
         case .flush:
+            activationObservation.invalidateReapplyVerification(outcome: .invalidatedByEpochChange)
             streamEpoch += 1
             lastRecordedSampleEpoch = 0
         case .sample, .end, .error:
@@ -693,12 +1319,12 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func targetEpochEndedBeforeVideoPTS(_ targetSeconds: Double) -> Bool {
+    func targetEpochEndedBeforeVideoPresentation(_ targetSeconds: Double) -> Bool {
         endStateLock.withLock {
             guard endState.videoProviderEnded else { return false }
-            guard let maximumPTS = endState.maximumVideoPresentationTime,
-                  maximumPTS.isNumeric else { return true }
-            return maximumPTS.seconds < targetSeconds
+            guard let presentationEnd = endState.videoPresentationEnd,
+                  presentationEnd.isNumeric else { return true }
+            return presentationEnd.seconds < targetSeconds
         }
     }
 

@@ -23,6 +23,7 @@ private enum PlaybackDebugSnapshotV1CodingKey: String, CodingKey {
     case lastAudioSample
     case lastRendererInput
     case lastAcceptedRendererInput
+    case decoderBootstrap
     case rendererState
     case audioRendererState
     case realityKitBinding
@@ -114,6 +115,10 @@ extension PlaybackDebugSnapshotV1 {
         lastAcceptedRendererInput = try container.decodeIfPresent(
             RendererInputRecord.self,
             forKey: .lastAcceptedRendererInput
+        )
+        decoderBootstrap = try container.decodeIfPresent(
+            DecoderBootstrapRecord.self,
+            forKey: .decoderBootstrap
         )
         rendererState = try container.decodeIfPresent(
             RendererStateRecord.self,

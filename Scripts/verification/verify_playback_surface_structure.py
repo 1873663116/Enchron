@@ -40,6 +40,15 @@ def main() -> None:
     geometry = read("Modules/PlaybackPresentation/Model/WindowPlaybackPageGeometry.swift")
     launch = read("Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift")
     runtime = read("Modules/PlaybackFeature/PlaybackRuntime.swift")
+    seek_policy = read(
+        "Modules/PlaybackFeature/Domain/PlaybackSeekPolicy.swift"
+    )
+    output_verification = read(
+        "Modules/PlaybackFeature/Domain/PlaybackOutputVerification.swift"
+    )
+    core_delivery = read(
+        "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+Delivery.swift"
+    )
     immersive = read("Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift")
     spatial_acceptance = read(
         "Tests/EnchronAppUI/SpatialPresentationAcceptanceUITests.swift"
@@ -78,7 +87,6 @@ def main() -> None:
     )
     execution_lease = execution_lease_path.read_text()
 
-    mac_surface = region(surface, "private var macOSSurface: some View", "#endif")
     window_playback = region(
         main_view,
         "private var windowPlayback: some View",
@@ -87,13 +95,12 @@ def main() -> None:
     vision_surface = region(surface, "private var visionSurface: some View", "#else")
     spatial_controls = region(main_view, "struct SpatialPlaybackControlsRoot: View", "#endif")
 
-    require("WindowPlaybackControlPlane()" not in mac_surface, "macOS surface owns duplicate controls")
-    require(".task(id: presentation)" in mac_surface, "macOS surface does not track presentation")
-    require(
-        "guard presentation == .docked else { return }" in mac_surface,
-        "macOS surface does not constrain the docking camera target",
-    )
     require("PerspectiveCameraComponent(" in surface, "window camera is missing")
+    require(
+        "Color.clear" not in vision_surface
+        and ".allowsHitTesting(appModel.showControls == false)" in vision_surface,
+        "a full-window transparent hit plane can intercept Window chrome gaze",
+    )
     require(
         "content.cameraTarget = presentation == .docked ? videoEntity : nil" in surface,
         "camera target does not follow presentation",
@@ -219,26 +226,28 @@ def main() -> None:
     )
     require(
         '"position=\\(position.seconds)"' in main_view
-        and "verifySpatialPlaybackAdvances" in spatial_acceptance
+        and '"streamEpoch=\\(output.streamEpoch)"' in main_view
+        and '"videoSamples=\\(output.videoSampleCount)"' in main_view
+        and '"rendererInputs=\\(output.acceptedRendererInputCount)"' in main_view
+        and '"displayedPixel=\\(output.displayedPixelBuffer)"' in main_view
+        and '"audioSessionActive=\\(output.audioSessionActive)"' in main_view
+        and "verifyPlaybackAdvances" in spatial_acceptance
         and "XCTAssertGreaterThan(" in spatial_acceptance
+        and "dock.isHittable" in spatial_acceptance
+        and "format.isHittable" in spatial_acceptance
         and "first.pngRepresentation" not in spatial_acceptance,
-        "spatial playback motion is inferred from unsupported Simulator screenshots instead of the real timeline",
+        "spatial acceptance does not verify continuous production output and Window hit testing",
     )
     require(
-        "guard presentation != .panorama else { return false }" in runtime
-        and (
-            '#if targetEnvironment(simulator)\n'
-            '        if record.phase == "simulatorConfigured"'
-        ) in runtime
-        and (
-            '        }\n'
-            '        #endif\n'
-            '        guard record.phase == "surfaceAttached"'
-        ) in runtime
+        "case .simulatorConfigured:" in runtime
+        and "return presentation == .panorama" in runtime
+        and "case .surfaceAttached:" in runtime
+        and "guard presentation != .panorama else { return false }" in runtime
+        and "case .ready, .paused, .ended:" in runtime
         and "#if targetEnvironment(simulator)" in immersive
-        and '"simulatorConfigured"' in immersive
-        and "testPanoramaRequiresObservedVideoPlayerModesBeforeCommit"
-            in read("Tests/EnchronMacOS/MacRealityPlaybackContractTests.swift"),
+        and ".simulatorConfigured" in immersive
+        and "testDockAndPanoramaRoundTripsInOneLaunch"
+            in read("Tests/EnchronAppUI/VisionProDeviceAcceptanceUITests.swift"),
         "Panorama can commit without device settlement or an explicit Simulator configuration fact",
     )
     fixture_duration = re.search(r"^[ \t]*-t[ \t]+(\d+)", spatial_verifier, re.MULTILINE)
@@ -340,8 +349,9 @@ def main() -> None:
     )
     require(
         "SpatialPlaybackControlsScenePolicy.shouldHostControls(" in main_view
-        and 'dismissWindow(id: "playerControls")' in main_view,
-        "the spatial controls scene does not dismiss itself when Window Playback is already committed",
+        and ".allowsHitTesting(shouldHostControls)" in main_view
+        and '@Environment(\\.dismissWindow)' not in main_view,
+        "the spatial controls scene bypasses the platform executor while Window Playback is committed",
     )
     require(
         ".environmentCardAppeared" in app_scene
@@ -431,6 +441,36 @@ def main() -> None:
         "PlaybackRuntime state can bypass PlaybackCore callbacks or production assembly",
     )
     require(
+        "PlaybackSeekPolicy.intent(" in runtime
+        and "startsPaused:" not in region(
+            runtime,
+            "public func seek(",
+            "public func setSpeed(",
+        )
+        and "case .progressBar, .skip:" in seek_policy
+        and "case .precisionTimeline, .frameStep:" in seek_policy,
+        "seek controls bypass the event-by-lifecycle intent matrix",
+    )
+    require(
+        "let requiresImmediateDecoderBootstrap = bootstrapIncomplete" in core_delivery
+        and "if isPrerolling, bootstrap.complete, targetReached" in core_delivery
+        and "synchronizer.setRate(timelineStartRate, time: activationTime)"
+        in core_delivery,
+        "decoder bootstrap can deadlock before the crossing sample reaches the renderer",
+    )
+    require(
+        runtime.count("presentationState = .videoVisible") == 1
+        and "phase == .settled && displayedPixelBuffer == true" in runtime
+        and "productLifecycle == .ended" in runtime
+        and "PlaybackOutputVerification.firstIncompleteBoundary" in main_view
+        and "case displayedVideo" in output_verification
+        and "case decoderBootstrap" in output_verification
+        and "case timelineRate" in output_verification
+        and "case audioSession" in output_verification
+        and "case timelineAdvancement" in output_verification,
+        "App presentation success has no displayed-pixel and continuous-output diagnostic gate",
+    )
+    require(
         "case mediaSessionInvalidated(" in presentation_model
         and "normalizeInvalidatedSpatialPlayback" in presentation_model
         and "didIssueVisibleSpatialSideEffect" in platform_executor,
@@ -472,7 +512,7 @@ def main() -> None:
     require(
         session_cleanup.index("waitForImmersiveActionLane")
         < session_cleanup.index('openWindow(id: "main"')
-        < session_cleanup.index("setFullImmersion(false")
+        < session_cleanup.index("dismissImmersiveSpace(execution: execution)")
         < session_cleanup.index("complete(execution"),
         "session cleanup is not serialized before normalizing Window and immersion",
     )
@@ -497,7 +537,7 @@ def main() -> None:
         "private func recoverSpatialPlayback(",
     )
     require(
-        "openDisposition == .preexisting" in present_spatial
+        "openDisposition != .preexisting" in present_spatial
         and "dismissImmersiveSpace(execution: execution)" in present_spatial,
         "spatial presentation failure does not distinguish pre-existing from request-opened space",
     )
@@ -535,7 +575,6 @@ def main() -> None:
         "actions.dismissImmersiveSpace",
         "actions.openWindow",
         "actions.dismissWindow",
-        "setPlatformPrefersFullImmersion",
         "playbackRuntime.detach()",
         "performSpatialPlaybackTransport(",
     ):
@@ -556,11 +595,6 @@ def main() -> None:
             f"{action_token} is not immediately protected by the execution lease",
         )
 
-    require_action_guard(
-        "private func setFullImmersion(",
-        "private func openWindow(",
-        "appModel.setPlatformPrefersFullImmersion",
-    )
     require_action_guard(
         "private func openWindow(",
         "private func dismissWindow(",

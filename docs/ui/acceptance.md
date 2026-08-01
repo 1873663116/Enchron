@@ -1,12 +1,10 @@
 # Enchron V1 验收矩阵
 
-本文件记录产品 UI 用例与阶段性结果；跨 PlaybackCore、macOS App、Simulator 与 Vision Pro 的门槛以 [`../acceptance/verification-system.md`](../acceptance/verification-system.md) 为准。下方 2026-07-15 结果发生在 Receiver/API 迁移之后、Enchron macOS L2 恢复之前，因此只能作为 build、logic、UI 与局部 RealityKit 证据，不能证明当前 PlaybackCore 可持续播放、音频或颜色正确。
+本文件记录产品 UI 用例与阶段性结果；跨 PlaybackCore、visionOS Simulator 与 Vision Pro 的门槛以 [`../acceptance/verification-system.md`](../acceptance/verification-system.md) 为准。历史阶段性结果只保留其原始证据范围，不能替代当前产品树上的完整验证。
 
 ```mermaid
 flowchart LR
-    Core["PlaybackCore L1"] --> MacCore["Enchron macOS L2\nCore"]
-    MacCore --> MacAdapter["Enchron macOS L2\nApp Adapter"]
-    MacAdapter --> Spec["产品与 UI 规格"]
+    Core["PlaybackCore L1"] --> Spec["产品与 UI 规格"]
     Spec --> Logic["Swift Testing\n状态机 · 偏好 · 来源"]
     Spec --> Build["Xcode Build\nDevice · Simulator · DesignPreview"]
     Spec --> E2E["XCUIAutomation\n真实 App 进程"]
@@ -23,14 +21,14 @@ flowchart LR
 
 | 边界 | 自动化必须证明 | 最终证据 |
 |---|---|---|
-| PlaybackCore 可播放 | Enchron macOS Core scenario 完成真实视频、音频、控制、颜色/HDR 信令与 RealityKit displayed-frame 矩阵 | macOS L2 evidence |
-| App Adapter 等价 | 相同 fixture 与断言经 `PlaybackRuntime` 运行，renderer identity、timeline、控制和颜色不改变 | macOS L2 evidence |
+| PlaybackCore 可播放 | PlaybackCore 合同验证完成真实视频、音频、控制、颜色/HDR 信令与时间线矩阵 | PlaybackCore test evidence |
+| 产品集成等价 | Enchron App 经生产 `PlaybackRuntime` 连接同一媒体与 renderer consumer，状态投影、renderer identity、timeline、控制和颜色符合合同 | visionOS Simulator / Vision Pro `.xcresult` |
 | Presentation 状态机 | Window、Docked、Panorama 合法转换；Environment 独立；重复命令、直接空间互转、失败回滚 | Swift Testing |
 | 来源与持久化 | 虚拟目录只管理引用；Media Identity 与 Content Revision 匹配后才读取 Viewing State / Media Format Preference；文件替换使旧记录失效；WebDAV 认证、列目录与 Range 读取由真实服务测试验证 | Swift Testing / XCTest |
 | 产品组装 | Enchron 与 DesignPreview 对 device / Simulator SDK 编译；只链接仓库内 `Packages/PlaybackCore` | `xcodebuild` |
 | Window UI | Window chrome 拥有 Back、Dock 与 Panorama；Deck 将 Settings 与 More 分置两端，后退 15 秒、Play/Pause/Replay、前进 15 秒组成居中 transport group；Panorama 格式采用 Projection × Stereo Layout 后 Apply | XCUIAutomation / `.xcresult` |
 | 空间转换 | Swift Testing 验证状态转换与回滚；Simulator 用真实 PlaybackCore session 进入 Docked/Panorama，组合语义点击、截图坐标 fallback、运动截图、Presentation state 与 OSLog；Vision Pro 再验收硬件与最终空间行为 | XCUIAutomation + 截图 + PlaybackCore events + OSLog |
-| RealityKit 通用渲染 | `RealityRenderer` 在不启动产品 App 时完成 Metal texture 输出；实体与 camera 可由测试程序化构造 | macOS / visionOS Simulator XCTest |
+| RealityKit 通用渲染 | `RealityRenderer` 在不启动产品 App 时完成 Metal texture 输出；实体与 camera 可由测试程序化构造 | visionOS Simulator XCTest |
 | RealityKit 视频呈现 | PlaybackCore 的同一 `AVSampleBufferVideoRenderer` attach 到 `VideoPlayerComponent`；content type、rendering status、实际 immersive mode 与粗粒度方向图像共同构成组件证据 | 产品 `RealityView` Simulator 集成；最终以 Vision Pro 为准 |
 | 媒体质量 | 硬件解码、HDR/EDR、Dolby Vision、音画同步、AIME Fisheye、空间舒适度与性能 | Vision Pro + Instruments / RealityKit Trace |
 

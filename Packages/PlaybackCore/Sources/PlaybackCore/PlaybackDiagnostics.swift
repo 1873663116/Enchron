@@ -56,7 +56,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
         time: \(String(format: "%.6f", currentSeconds)) s / \(String(format: "%.6f", durationSeconds)) s
         estimatedFrame: \(estimatedFrameNumber) @ \(String(format: "%.3f", nominalFrameRate)) fps
         enqueuedSamples: \(enqueuedSampleCount)
-        timelineConfiguredBeforeFirstEnqueue: \(timelineConfiguredBeforeFirstEnqueue.map(String.init) ?? "notObserved")
+        timelineConfiguredBeforeFirstEnqueue: \(timelineConfiguredBeforeFirstEnqueue.map { String($0) } ?? "notObserved")
         pixelFormat: \(sourcePixelFormat) -> \(destinationPixelFormat)
         dimensions: \(dimensions)
         color: primaries=\(colorPrimaries), transfer=\(transferFunction), matrix=\(yCbCrMatrix), range=\(range)

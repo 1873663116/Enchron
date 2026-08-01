@@ -14,6 +14,7 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
     private var eventsHandle: FileHandle?
     private var pendingSnapshotWorkItem: DispatchWorkItem?
     private var snapshotGeneration = 0
+    private var diagnosticEvents: [PlaybackDebugEvent] = []
     private var lastSnapshotWriteTime: UInt64 = 0
     private var isStopped = false
 
@@ -88,12 +89,31 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
         try? writeSnapshot()
     }
 
+    func diagnosticEvidenceJSON() -> String? {
+        queue.sync {
+            guard let session else { return nil }
+            struct Evidence: Codable {
+                let snapshot: PlaybackDebugSnapshotV1
+                let events: [PlaybackDebugEvent]
+            }
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            encoder.outputFormatting = [.sortedKeys]
+            return try? String(
+                decoding: encoder.encode(Evidence(
+                    snapshot: session.debugSnapshot(),
+                    events: diagnosticEvents
+                )),
+                as: UTF8.self
+            )
+        }
+    }
+
     private func record(_ event: PlaybackDebugEvent) {
         queue.sync {
             guard !isStopped else { return }
             appendLocked(event)
-            if event.kind == "audioRenderer.firstEnqueue"
-                || event.kind == "renderer.firstEnqueue" {
+            if Self.requiresImmediateSnapshot(event.kind) {
                 cancelPendingSnapshotLocked()
                 if let session {
                     try? writeSnapshotLocked(session: session)
@@ -104,7 +124,21 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
         }
     }
 
+    private static func requiresImmediateSnapshot(_ kind: String) -> Bool {
+        kind == "audioRenderer.firstEnqueue"
+            || kind == "renderer.firstEnqueue"
+            || kind == "audioRenderer.prerollCompleted"
+            || kind == "audioRenderer.rateActivated"
+            || kind == "audioRenderer.statusChanged"
+            || kind == "playbackActivation.observation"
+            || kind.contains("flushed")
+            || kind.contains("outputConfiguration")
+    }
+
     private func appendLocked(_ event: PlaybackDebugEvent) {
+        if Self.isDiagnosticEvent(event.kind) {
+            diagnosticEvents.append(event)
+        }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
@@ -118,6 +152,18 @@ final class PlaybackDebugRecorder: @unchecked Sendable {
                 "debug.recorder.appendFailed error=\(error.localizedDescription)"
             )
         }
+    }
+
+    private static func isDiagnosticEvent(_ kind: String) -> Bool {
+        kind == "audioRenderer.firstEnqueue"
+            || kind == "audioRenderer.prerollCompleted"
+            || kind == "audioRenderer.rateActivated"
+            || kind == "audioRenderer.statusChanged"
+            || kind.hasPrefix("playbackActivation.")
+            || kind.hasPrefix("playbackDelivery.stage.")
+            || kind.contains("flush")
+            || kind.contains("outputConfiguration")
+            || kind.contains("warning")
     }
 
     private func refreshSnapshotLocked() {

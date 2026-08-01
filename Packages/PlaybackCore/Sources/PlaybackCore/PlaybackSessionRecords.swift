@@ -215,6 +215,8 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
     public var timelineConfigured: Bool
     public var currentTimeSeconds: Double
     public var rate: Float
+    public var actualTimebaseRate: Float?
+    public var effectiveTimebaseRate: Float?
     public var rendererStatus: String
     public var rendererError: String?
     public var inputModel: String?
@@ -231,6 +233,8 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
         timelineConfigured: Bool = false,
         currentTimeSeconds: Double,
         rate: Float,
+        actualTimebaseRate: Float? = nil,
+        effectiveTimebaseRate: Float? = nil,
         rendererStatus: String,
         rendererError: String?,
         inputModel: String?,
@@ -246,6 +250,8 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
         self.timelineConfigured = timelineConfigured
         self.currentTimeSeconds = currentTimeSeconds
         self.rate = rate
+        self.actualTimebaseRate = actualTimebaseRate
+        self.effectiveTimebaseRate = effectiveTimebaseRate
         self.rendererStatus = rendererStatus
         self.rendererError = rendererError
         self.inputModel = inputModel

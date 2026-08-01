@@ -69,11 +69,17 @@ struct WindowPlayerDeckView: View {
             onSkipForward: { self.register(); self.playbackRuntime.skip(by: 15) },
             onSeek: { p in
                 self.register()
-                self.playbackRuntime.seek(to: Double(p) * duration, startsPaused: false)
+                self.playbackRuntime.seek(
+                    to: Double(p) * duration,
+                    event: .progressBar
+                )
             },
             onPrecisionSeek: { p in
                 self.register()
-                self.playbackRuntime.seek(to: Double(p) * duration, startsPaused: true)
+                self.playbackRuntime.seek(
+                    to: Double(p) * duration,
+                    event: .precisionTimeline
+                )
             },
             onFrameStep: { direction in
                 self.register()

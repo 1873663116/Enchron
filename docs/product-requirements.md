@@ -107,7 +107,7 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 - Window Playback 的宽高比来自 PlaybackCore 报告的当前视频显示尺寸；Side-by-Side 与 Top-Bottom 先按 Stereo Layout 换算单眼显示尺寸。只有播放头尚未交付有效尺寸时，启动占位才临时使用 16:9。PlayerControls Ornament 的稳定外部宽度是 Window 宽度范围的唯一基准：最小、默认和最大宽度分别为其 1.25、1.75 和 2.50 倍，并对齐到 16pt；对应高度始终由当前视频宽高比计算。Precision Timeline 展开不得改变 Ornament 的外部宽度或触发 Window 尺寸跳变。
 - Settings 展开 Advanced Settings；More 负责 Subtitles、Audio Track、Playback Speed 与 Episodes。
 - Advanced Settings 在 Docked 提供 Screen Size、Distance、Elevation、Restore Defaults，在 Panorama 提供 Projection、Stereo Layout 与 Apply。Precision Timeline 由 Progress Bar 的圆形 scrubber 双击打开，不属于 Settings。
-- Precision Timeline 支持精确 seek 与逐帧，完成后保持暂停。Progress Bar seek 到结尾之前后开始或继续播放，即使拖动前处于 paused；从 ended 拖动同样开始播放。
+- Precision Timeline 支持精确 seek 与逐帧，完成后保持暂停。Progress Bar 拖动期间的时间标识随本地预览位置连续更新，松手才提交 seek；seek 到结尾之前保持拖动前的 playing/paused 意图，从 ended 拖动离开结尾后保持暂停。
 - 前后 15 秒保持原来的 playing/paused 意图；从 ended 后退会离开结尾并保持暂停。逐帧始终保持暂停。
 - Enchron 不提供 App 内 Volume 或 Mute，不保存相对音量。播放保持正常基准增益，最终音量与静音由 visionOS、Digital Crown 和系统音频界面控制。
 
@@ -131,7 +131,7 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 - Stop 后保留当前 Media Session 与 Playback Presentation；视频画面为纯黑，不自动显示结束信息或播放控件。
 - 用户召唤 Playback Deck 后，主按钮显示 Replay。Replay 从零开始播放。
 - ended 时后退、拖动到结尾之前、Precision Timeline 和上一帧可用；位于结尾时前进与下一帧禁用，不能保留可点击但无效果的操作。
-- Progress Bar seek 到结尾之前后开始播放；后退 15 秒、Precision Timeline 或上一帧从 ended 定位后保持暂停。seek 到结尾本身仍为 ended、纯黑和 Replay。
+- Progress Bar、后退 15 秒、Precision Timeline 或上一帧从 ended 定位离开结尾后都保持暂停。seek 到结尾本身仍为 ended、纯黑和 Replay，并且不构成自然播放结束。
 - 所有这些操作继续使用同一 Media Session。
 
 ## 设置与数据
@@ -146,7 +146,7 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 - 产品页面只组装生产组件并绑定产品状态。DesignPreview、SwiftUI Preview 与测试可以注入确定性依赖，但不得维护平行页面、测试专用产品行为或第二套状态机。
 - 产品规则必须由唯一状态 owner、最小跨边界 API、编译依赖方向和自动化测试共同约束，不能只依赖目录、注释或代码审查。
 - 运行事实通过 OSLog、signpost、Xcode、LLDB、Console 与 Instruments 暴露；不建设 Enchron CLI、自定义调试协议、Debug Overlay 或产品内日志面板。
-- 验证依次运行 PlaybackCore 单元与合同验证、macOS 播放核心场景、macOS 产品适配场景、visionOS Simulator 验证和 Vision Pro 真机验收；前一阶段未通过时，不能用后一阶段的结果代替。
-- macOS 验证使用真实媒体、真实音频和视频 Renderer、共享时间同步器与 RealityKit 渲染接收方，证明持续播放、音画同步、Seek、连续 Seek、快进、快退、播放速度、关闭后重新打开、颜色与 HDR 信令和稳定性。App 不模拟系统音量界面；底层增益测试不代表产品提供了音量或静音功能。
+- 验证依次运行 PlaybackCore 单元与合同验证、visionOS Simulator 验证和 Vision Pro 真机验收；前一阶段未通过时，不能用后一阶段的结果代替。
+- visionOS 产品集成验证使用真实媒体、生产 `PlaybackRuntime`、真实音频和视频 Renderer、共享时间同步器与 RealityKit 渲染接收方，证明持续播放、音画同步、Seek、连续 Seek、快进、快退、播放速度、关闭后重新打开、颜色与 HDR 信令和稳定性。App 不模拟系统音量界面；底层增益测试不代表产品提供了音量或静音功能。
 - Swift Testing / XCTest 验证纯逻辑、状态转换和适配边界；XCUIAutomation 验证可访问交互；`xcodebuild` 与 `.xcresult` 保存结果。
 - Simulator 验证 UI、平台 API 与基础 RealityKit 生命周期。硬件解码、HDR/EDR、最终 Panorama、空间舒适度、系统音量体验和性能必须在 Vision Pro 验收。完整门槛见 [`acceptance/verification-system.md`](acceptance/verification-system.md)。

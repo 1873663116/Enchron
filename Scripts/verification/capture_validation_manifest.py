@@ -32,10 +32,12 @@ def digest_file(path: pathlib.Path) -> str:
     return digest.hexdigest()
 
 
-def repository_files() -> list[pathlib.Path]:
+def repository_files(
+    repository_root: pathlib.Path = REPOSITORY_ROOT,
+) -> list[pathlib.Path]:
     output = subprocess.run(
         ["git", "ls-files", "-co", "--exclude-standard", "-z"],
-        cwd=REPOSITORY_ROOT,
+        cwd=repository_root,
         check=True,
         stdout=subprocess.PIPE,
     ).stdout
@@ -50,11 +52,13 @@ def repository_files() -> list[pathlib.Path]:
     return sorted(set(paths), key=lambda path: path.as_posix())
 
 
-def capture_tree() -> tuple[str, list[dict[str, object]]]:
+def capture_tree(
+    repository_root: pathlib.Path = REPOSITORY_ROOT,
+) -> tuple[str, list[dict[str, object]]]:
     aggregate = hashlib.sha256()
     entries = []
-    for relative_path in repository_files():
-        absolute_path = REPOSITORY_ROOT / relative_path
+    for relative_path in repository_files(repository_root):
+        absolute_path = repository_root / relative_path
         if absolute_path.is_symlink():
             kind = "symlink"
             content_digest = hashlib.sha256(os.readlink(absolute_path).encode()).hexdigest()

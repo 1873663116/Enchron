@@ -109,6 +109,7 @@ import Testing
     object.removeValue(forKey: "graphID")
     object.removeValue(forKey: "videoRendererIdentity")
     object.removeValue(forKey: "synchronizerIdentity")
+    object.removeValue(forKey: "status")
     let legacy = try JSONSerialization.data(withJSONObject: object)
 
     let decoded = try JSONDecoder().decode(
@@ -118,6 +119,7 @@ import Testing
     #expect(decoded.graphID == "unknown")
     #expect(decoded.videoRendererIdentity == "unknown")
     #expect(decoded.synchronizerIdentity == "unknown")
+    #expect(decoded.status == "unknown")
 }
 
 @Test func audioSampleRecordPreservesLaneDetailsAndDecodesLegacyV1() throws {
@@ -407,6 +409,58 @@ import Testing
         }
         #expect(rejection.occupyingMediaSessionID == first.traceID)
         #expect(first.debugSnapshot().lastOpenRejection == rejection)
+    }
+}
+
+@Test func debugRecorderModeRequiresTheExplicitVerificationEnvironmentValue() {
+    #expect(PlaybackDebugRecorderMode(environment: [:]) == .enabled)
+    #expect(PlaybackDebugRecorderMode(environment: [
+        PlaybackDebugRecorderMode.verificationDisableEnvironmentKey: "0",
+    ]) == .enabled)
+    #expect(PlaybackDebugRecorderMode(environment: [
+        PlaybackDebugRecorderMode.verificationDisableEnvironmentKey: "1",
+    ]) == .disabledForVerification)
+}
+
+@MainActor
+@Test(arguments: [
+    PlaybackDebugRecorderMode.enabled,
+    PlaybackDebugRecorderMode.disabledForVerification,
+])
+func controllerDebugRecorderModeControlsRealRecorderLifecycle(
+    _ mode: PlaybackDebugRecorderMode
+) async throws {
+    let controller = PlaybackCoreController(
+        sessionFactory: { sessionID in
+            SampleBufferPlaybackSession(
+                traceID: sessionID,
+                provider: FakeVideoSampleProvider(events: [.end]),
+                rendererSink: FakeRendererInputSink()
+            )
+        },
+        debugRecorderMode: mode
+    )
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/debug-recorder-mode.mov")
+    )
+    let recorderDirectory = controller.debugDirectoryURL
+    let observed = LockedBox<PlaybackDebugEvent?>(nil)
+    let observerID = session.debugStore.addEventObserver { event in
+        observed.withLock { $0 = event }
+    }
+    let event = session.debugStore.emit(kind: "verification.inMemoryStore")
+    session.debugStore.removeEventObserver(observerID)
+
+    #expect(observed.withLock { $0 } == event)
+    #expect((recorderDirectory != nil) == (mode == .enabled))
+    #if DEBUG
+    #expect((controller.debugEvidenceJSON() != nil) == (mode == .enabled))
+    #endif
+
+    await controller.closeAndWait()
+    #expect(controller.debugDirectoryURL == nil)
+    if let recorderDirectory {
+        try? FileManager.default.removeItem(at: recorderDirectory)
     }
 }
 
@@ -964,6 +1018,162 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(sink.immediateEnqueueCount == 3)
 }
 
+@Test func boundedImmediateStrategyDoesNotWaitForReceiverReadiness() async throws {
+    let samples = try [
+        makeCompressedH264Sample(
+            presentationTimeSeconds: 0,
+            decodeTimeSeconds: 0
+        ),
+        makeCompressedH264Sample(
+            presentationTimeSeconds: 0.033,
+            decodeTimeSeconds: 0.033
+        ),
+    ]
+    let sink = FakeRendererInputSink(
+        enqueueStrategy: .boundedImmediateLead,
+        automaticallyRunsRequests: false
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "bounded-immediate-strategy",
+        provider: FakeVideoSampleProvider(
+            events: samples.map { .sample($0) } + [.end]
+        ),
+        rendererSink: sink
+    )
+    defer { session.close() }
+    let events = LockedBox<[PlaybackDebugEvent]>([])
+    let observerID = session.debugStore.addEventObserver { event in
+        events.withLock { $0.append(event) }
+    }
+    defer { session.debugStore.removeEventObserver(observerID) }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/bounded-immediate.mkv"))
+    try session.start()
+    try await waitForSampleCount(2, in: session)
+
+    #expect(sink.immediateEnqueueCount == 2)
+    #expect(sink.pendingRequestCount == 0)
+    let firstSampleStages = events.withLock { events in
+        events.compactMap { event -> String? in
+            guard event.kind.hasPrefix("playbackDelivery.stage.video."),
+                  event.details["sampleOrdinal"] == "1",
+                  event.kind.contains("boundedLead")
+                    || event.kind.contains("enqueueImmediately") else { return nil }
+            return String(event.kind.dropFirst("playbackDelivery.stage.video.".count))
+        }
+    }
+    #expect(firstSampleStages == [
+        "boundedLead.enter",
+        "boundedLead.returned",
+        "enqueueImmediately.enter",
+        "enqueueImmediately.returned",
+        "enqueueImmediately.outcome",
+    ])
+}
+
+@Test func timelineRemainsStoppedUntilDecodeBootstrapReachesTheRequestedTime() async throws {
+    let samples = try [
+        makeCompressedH264Sample(
+            presentationTimeSeconds: 0.021,
+            decodeTimeSeconds: -0.066
+        ),
+        makeCompressedH264Sample(
+            presentationTimeSeconds: 0.054,
+            decodeTimeSeconds: -0.033
+        ),
+        makeCompressedH264Sample(
+            presentationTimeSeconds: 0.087,
+            decodeTimeSeconds: 0.033
+        ),
+    ]
+    let sink = FakeRendererInputSink()
+    let session = SampleBufferPlaybackSession(
+        traceID: "timeline-bootstrap-gate",
+        provider: FakeVideoSampleProvider(
+            events: samples.map { .sample($0) } + [.end],
+            eventDelay: .milliseconds(100)
+        ),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/bootstrap-gate.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    #expect(session.synchronizer.rate == 0)
+    #expect(session.debugSnapshot().decoderBootstrap?.complete == false)
+
+    try await waitForSampleCount(3, in: session)
+    let bootstrap = try #require(session.debugSnapshot().decoderBootstrap)
+    #expect(abs(bootstrap.targetDecodeTimeSeconds) < 0.000_001)
+    let crossingDecodeTime = CMSampleBufferGetDecodeTimeStamp(samples[2]).seconds
+    #expect(
+        abs((bootstrap.lastDecodeTimeSeconds ?? 0) - crossingDecodeTime) < 0.000_001
+    )
+    #expect(bootstrap.immediateEnqueueCount == 3)
+    #expect(bootstrap.complete)
+    #expect(sink.immediateEnqueueCount == 3)
+    #expect(session.synchronizer.rate == 1)
+}
+
+@Test func seekToExactDurationPublishesEndedWithoutReopeningTheProvider() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 1)
+    let provider = FakeVideoSampleProvider(events: [.sample(sample), .end])
+    let session = SampleBufferPlaybackSession(
+        traceID: "seek-to-end-session",
+        provider: provider,
+        rendererSink: FakeRendererInputSink()
+    )
+    let statuses = LockedBox<[PlaybackStatus]>([])
+    session.onStatusChange = { status in
+        statuses.withLock { $0.append(status) }
+    }
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/seek-to-end.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    let startCount = provider.startCount
+
+    try await session.seek(
+        to: CMTime(seconds: 1, preferredTimescale: 600),
+        startsPaused: false
+    )
+
+    #expect(provider.startCount == startCount)
+    #expect(session.debugSnapshot().lifecycle == .ended)
+    #expect(statuses.withLock { $0.last } == .ended(.seekToEnd))
+    #expect(session.renderer.displayedPixelBuffer() == nil)
+}
+
+@Test func seekToTargetCoveredByFinalVideoSampleDoesNotFail() async throws {
+    let sample = try makeCompressedH264Sample(
+        presentationTimeSeconds: 0.96,
+        durationSeconds: 0.04
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "seek-to-final-sample-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/seek-to-final-sample.mkv"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    try await session.seek(
+        to: CMTime(seconds: 0.99, preferredTimescale: 600),
+        startsPaused: true
+    )
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.lastFailure == nil)
+    #expect(snapshot.lastCompletedOperation?.kind == .seek)
+    #expect(snapshot.lastCompletedOperation?.state == .completed)
+    #expect(snapshot.lastVideoSample?.presentationTimeSeconds == 0.96)
+}
+
 @Test func markerOnlySampleDoesNotBlockFollowingVideoSample() async throws {
     let marker = try makeMarkerOnlySample(presentationTimeSeconds: 1.0 / 15.0)
     let video = try makeCompressedH264Sample(presentationTimeSeconds: 1.0 / 15.0)
@@ -1034,6 +1244,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
     try session.play()
     #expect(session.currentRate() == 2)
+    #expect(CMTimebaseGetRate(session.synchronizer.timebase) == 2)
 }
 
 @MainActor
@@ -1516,6 +1727,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.mediaSession?.mediaSessionID == "audio-control-session")
     #expect(snapshot.audioTrack?.rawStreamIndex == 2)
     #expect(snapshot.audioRendererState?.streamEpoch == 2)
+    #expect(snapshot.audioRendererState?.status == "unknown")
     #expect(snapshot.streamEpoch == videoEpochBeforeSelection)
     #expect(snapshot.audioRendererState?.volume == 0.35)
     #expect(snapshot.audioRendererState?.muted == true)
@@ -1641,6 +1853,277 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     let capturedSnapshot = try #require(persisted)
     #expect(capturedSnapshot.audioRendererState?.enqueuedSampleBufferCount == 1)
     #expect(capturedSnapshot.audioRendererState?.enqueuedAudioFrameCount == 240_000)
+}
+
+@Test func firstAudioSampleDiagnosticDetailsIncludeCompleteASBDAndStableHash() throws {
+    let sample = try makeAudioSample(durationSeconds: 0.5)
+    let session = SampleBufferPlaybackSession(traceID: "audio-format-diagnostics")
+    defer { session.close() }
+
+    let details = session.audioSampleFormatDetails(sample)
+
+    #expect(details["asbd.sampleRate"] == "48000.0")
+    #expect(details["asbd.channelsPerFrame"] == "2")
+    #expect(details["asbd.bitsPerChannel"] == "32")
+    #expect(details["asbd.reserved"] == "0")
+    #expect(details["magicCookieSize"] == "0")
+    #expect(details["magicCookieHash"] == "none")
+    #expect(details["duration.value"] != nil)
+    #expect(details["duration.timescale"] != nil)
+}
+
+@Test func audioPrerollsBeforeTimelineStartsAndResumeKeepsQueuedAudio() async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 5)
+    let audioSample = try makeAudioSample(durationSeconds: 0.5)
+    let audioSink = FakeAudioRendererInputSink()
+    var session: SampleBufferPlaybackSession!
+    audioSink.rateProvider = { session.synchronizer.rate }
+    session = SampleBufferPlaybackSession(
+        traceID: "audio-preroll-session",
+        provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
+        audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
+        rendererSink: FakeRendererInputSink(),
+        audioRendererSink: audioSink
+    )
+    defer { session.close() }
+    let events = LockedBox<[PlaybackDebugEvent]>([])
+    let observerID = session.debugStore.addEventObserver { event in
+        events.withLock { $0.append(event) }
+    }
+    defer { session.debugStore.removeEventObserver(observerID) }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-preroll.mp4"))
+    try session.start()
+    try await waitForAudioSampleCount(1, in: session)
+    let playbackDeadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < playbackDeadline,
+          session.synchronizer.rate != 1 {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+    while ContinuousClock.now < playbackDeadline,
+          events.withLock({ events in
+              !events.contains {
+                  $0.kind == "audioRenderer.rateActivated"
+                      && $0.details["reason"] == "decoderBootstrap"
+              }
+          }) {
+        try await Task.sleep(for: .milliseconds(5))
+    }
+
+    #expect(audioSink.ratesAtEnqueue == [0])
+    #expect(session.synchronizer.rate == 1)
+    let capturedEvents = events.withLock { $0 }
+    let prerollIndex = try #require(
+        capturedEvents.firstIndex { $0.kind == "audioRenderer.prerollCompleted" }
+    )
+    let activationIndex = try #require(
+        capturedEvents.firstIndex {
+            $0.kind == "audioRenderer.rateActivated"
+                && $0.details["reason"] == "decoderBootstrap"
+        }
+    )
+    #expect(prerollIndex < activationIndex)
+    let activation = capturedEvents[activationIndex]
+    #expect(activation.details["rate"] == "1.0")
+    #expect(activation.details["timeSeconds"] == "0.0")
+    #expect(activation.details["application"] == "setRateAtHostTime")
+    #expect(activation.details["immediateActualRate"] != nil)
+    #expect(activation.details["immediateCurrentTimeSeconds"] != nil)
+
+    try session.pause()
+    let flushCountBeforeResume = audioSink.flushCount
+    try session.play()
+
+    #expect(audioSink.flushCount == flushCountBeforeResume)
+}
+
+@Test func activationObservationPlanUsesOrderedBoundedSamplingPhases() {
+    #expect(
+        PlaybackActivationObservation.samplingPhases == [
+            PlaybackActivationObservationPhase(
+                phase: "call.before",
+                delayMilliseconds: 0
+            ),
+            PlaybackActivationObservationPhase(
+                phase: "call.returned",
+                delayMilliseconds: 0
+            ),
+            PlaybackActivationObservationPhase(
+                phase: "scheduledSample",
+                delayMilliseconds: 10
+            ),
+            PlaybackActivationObservationPhase(
+                phase: "scheduledSample",
+                delayMilliseconds: 50
+            ),
+            PlaybackActivationObservationPhase(
+                phase: "scheduledSample",
+                delayMilliseconds: 100
+            ),
+            PlaybackActivationObservationPhase(
+                phase: "scheduledSample",
+                delayMilliseconds: 500
+            ),
+            PlaybackActivationObservationPhase(
+                phase: "scheduledSample",
+                delayMilliseconds: 2_000
+            ),
+        ]
+    )
+    #expect(PlaybackActivationObservation.delayedTaskMarkerPhases == [
+        "delayedTask.enter",
+        "delayedTask.sleepReturned",
+        "delayedTask.beforeStateRead",
+    ])
+}
+
+@Test func activationObservationUnregistersNotificationCallbacks() throws {
+    let session = SampleBufferPlaybackSession(traceID: "activation-observer-unregister")
+    defer { session.close() }
+    let center = NotificationCenter()
+    let observation = PlaybackActivationObservation(
+        session: session,
+        notificationCenter: center
+    )
+    observation.start()
+    let events = LockedBox<[PlaybackDebugEvent]>([])
+    let observerID = session.debugStore.addEventObserver { event in
+        events.withLock { $0.append(event) }
+    }
+    defer { session.debugStore.removeEventObserver(observerID) }
+    _ = try #require(observation.beginActivation(requestedRate: 1, anchorTime: .zero))
+
+    center.post(
+        name: AVSampleBufferRenderSynchronizer.rateDidChangeNotification,
+        object: session.synchronizer
+    )
+    observation.stop()
+    center.post(
+        name: AVSampleBufferRenderSynchronizer.rateDidChangeNotification,
+        object: session.synchronizer
+    )
+
+    let notificationEvents = events.withLock { events in
+        events.filter {
+            $0.kind == "playbackActivation.observation"
+                && $0.details["phase"] == "notification.synchronizerRateDidChange"
+        }
+    }
+    #expect(notificationEvents.count == 1)
+}
+
+@Test func activationObservationRejectsOldActivationAfterEpochChange() throws {
+    let session = SampleBufferPlaybackSession(traceID: "activation-observer-epoch")
+    defer { session.close() }
+    let center = NotificationCenter()
+    let observation = PlaybackActivationObservation(
+        session: session,
+        notificationCenter: center
+    )
+    observation.start()
+    defer { observation.stop() }
+    let events = LockedBox<[PlaybackDebugEvent]>([])
+    let observerID = session.debugStore.addEventObserver { event in
+        events.withLock { $0.append(event) }
+    }
+    defer { session.debugStore.removeEventObserver(observerID) }
+    let sequence = try #require(
+        observation.beginActivation(requestedRate: 1, anchorTime: .zero)
+    )
+
+    session.streamEpoch &+= 1
+    session.audioStreamEpoch &+= 1
+    #expect(observation.recordStageMarkerIfCurrent(
+        sequence: sequence,
+        phase: "delayedTask.beforeStateRead",
+        delayMilliseconds: 500
+    ) == false)
+    observation.recordScheduledSample(sequence: sequence, delayMilliseconds: 500)
+    observation.recordScheduledSample(sequence: sequence, delayMilliseconds: 2_000)
+    center.post(
+        name: AVSampleBufferRenderSynchronizer.rateDidChangeNotification,
+        object: session.synchronizer
+    )
+
+    let oldActivationEvents = events.withLock { events in
+        events.filter {
+            $0.kind == "playbackActivation.observation"
+                && ($0.details["phase"] == "scheduledSample"
+                    || $0.details["phase"] == "notification.synchronizerRateDidChange")
+        }
+    }
+    #expect(oldActivationEvents.isEmpty)
+    #expect(events.withLock { events in
+        events.contains { $0.kind == "playbackActivation.stageMarker" }
+    } == false)
+}
+
+@Test func activationStageMarkerDoesNotWriteAfterObservationStops() throws {
+    let session = SampleBufferPlaybackSession(traceID: "activation-stage-stop")
+    defer { session.close() }
+    let observation = PlaybackActivationObservation(
+        session: session,
+        notificationCenter: NotificationCenter()
+    )
+    observation.start()
+    let sequence = try #require(
+        observation.beginActivation(requestedRate: 1, anchorTime: .zero)
+    )
+    let events = LockedBox<[PlaybackDebugEvent]>([])
+    let observerID = session.debugStore.addEventObserver { event in
+        events.withLock { $0.append(event) }
+    }
+    defer { session.debugStore.removeEventObserver(observerID) }
+
+    observation.stop()
+
+    #expect(observation.recordStageMarkerIfCurrent(
+        sequence: sequence,
+        phase: "delayedTask.beforeStateRead",
+        delayMilliseconds: 2_000
+    ) == false)
+    #expect(events.withLock { events in
+        events.contains { $0.kind == "playbackActivation.stageMarker" }
+    } == false)
+}
+
+@Test func activationObservationRecordsRuntimePolicyAndCurrentEpochCoverage() throws {
+    let session = SampleBufferPlaybackSession(traceID: "activation-observer-coverage")
+    defer { session.close() }
+    let observation = PlaybackActivationObservation(session: session)
+    defer { observation.stop() }
+    let events = LockedBox<[PlaybackDebugEvent]>([])
+    let observerID = session.debugStore.addEventObserver { event in
+        events.withLock { $0.append(event) }
+    }
+    defer { session.debugStore.removeEventObserver(observerID) }
+    observation.recordAcceptedVideo(
+        epoch: session.streamEpoch,
+        presentationTime: CMTime(value: 12, timescale: 10),
+        decodeTime: CMTime(value: 10, timescale: 10),
+        presentationEnd: CMTime(value: 13, timescale: 10)
+    )
+    observation.recordAcceptedVideo(
+        epoch: session.streamEpoch,
+        presentationTime: CMTime(value: 8, timescale: 10),
+        decodeTime: CMTime(value: 6, timescale: 10),
+        presentationEnd: CMTime(value: 9, timescale: 10)
+    )
+    _ = try #require(observation.beginActivation(requestedRate: 1, anchorTime: .zero))
+
+    let event = try #require(events.withLock { events in
+        events.last { event in
+            event.kind == "playbackActivation.observation"
+                && event.details["phase"] == "call.before"
+        }
+    })
+    #expect(event.details["delaysRateChangeUntilHasSufficientMediaData"] == "false")
+    #expect(event.details["videoAcceptedMinPTSSeconds"] == "0.8")
+    #expect(event.details["videoAcceptedMaxPTSSeconds"] == "1.2")
+    #expect(event.details["videoAcceptedMinDTSSeconds"] == "0.6")
+    #expect(event.details["videoAcceptedMaxDTSSeconds"] == "1.0")
+    #expect(event.details["videoAcceptedMaxEndSeconds"] == "1.3")
+    #expect(event.details["videoAcceptedCount"] == "2")
 }
 
 @Test func audioOpenFailureIsNotClassifiedByMessageText() async throws {
@@ -1878,6 +2361,7 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
     private let seekPrepareDelay: Duration?
     private let seekPrepareIgnoresCancellation: Bool
     private let readError: Error?
+    private let eventDelay: Duration?
     private(set) var startCount = 0
 
     init(
@@ -1885,6 +2369,7 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
         seekPrepareDelay: Duration? = nil,
         seekPrepareIgnoresCancellation: Bool = false,
         readError: Error? = nil,
+        eventDelay: Duration? = nil,
         projectionKind: String? = nil
     ) {
         info = VideoSampleProviderInfo(
@@ -1918,6 +2403,7 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
         self.seekPrepareDelay = seekPrepareDelay
         self.seekPrepareIgnoresCancellation = seekPrepareIgnoresCancellation
         self.readError = readError
+        self.eventDelay = eventDelay
     }
 
     func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
@@ -1937,6 +2423,9 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
 
     func nextEvent() async throws -> VideoSampleProviderEvent {
         if let readError { throw readError }
+        if let eventDelay {
+            try await Task.sleep(for: eventDelay)
+        }
         guard index < events.count else { return .end }
         defer { index += 1 }
         return events[index]
@@ -1947,6 +2436,7 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
 
 private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendable {
     private let lock = NSLock()
+    let enqueueStrategy: RendererEnqueueStrategy
     private let completesFlushImmediately: Bool
     private let pausesAfterEachEnqueue: Bool
     private let automaticallyRunsRequests: Bool
@@ -1963,11 +2453,13 @@ private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendabl
     private var eventObservationStartedWithoutSample = false
 
     init(
+        enqueueStrategy: RendererEnqueueStrategy = .receiverBackpressure,
         completesFlushImmediately: Bool = true,
         pausesAfterEachEnqueue: Bool = false,
         automaticallyRunsRequests: Bool = true,
         enqueueOutcomes: [RendererEnqueueOutcome] = []
     ) {
+        self.enqueueStrategy = enqueueStrategy
         self.completesFlushImmediately = completesFlushImmediately
         self.pausesAfterEachEnqueue = pausesAfterEachEnqueue
         self.automaticallyRunsRequests = automaticallyRunsRequests
@@ -2190,6 +2682,52 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
     func cancel() {
         info = nil
         nextSample = nil
+    }
+}
+
+private final class FakeAudioRendererInputSink: AudioRendererInputSink, @unchecked Sendable {
+    let enqueueStrategy: RendererEnqueueStrategy = .receiverBackpressure
+    var rateProvider: (() -> Float)?
+
+    private let lock = NSLock()
+    private var enqueueRates: [Float] = []
+    private var rendererFlushCount = 0
+
+    var ratesAtEnqueue: [Float] {
+        lock.withLock { enqueueRates }
+    }
+
+    var flushCount: Int {
+        lock.withLock { rendererFlushCount }
+    }
+
+    func enqueueImmediately(
+        _ sample: RendererInputSample
+    ) throws -> RendererEnqueueOutcome {
+        recordEnqueue()
+        return .accepted
+    }
+
+    func enqueue(
+        _ sample: RendererInputSample
+    ) async throws -> RendererEnqueueOutcome {
+        recordEnqueue()
+        return .accepted
+    }
+
+    func flush() {
+        lock.withLock { rendererFlushCount += 1 }
+    }
+
+    func observeRenderingEventsAfterFinishedEnqueuing(
+        handler: @escaping @Sendable (RendererInputEventFact) -> Void
+    ) {}
+
+    func stopRenderingEventObservation() {}
+
+    private func recordEnqueue() {
+        let rate = rateProvider?() ?? -.infinity
+        lock.withLock { enqueueRates.append(rate) }
     }
 }
 

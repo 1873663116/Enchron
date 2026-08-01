@@ -137,6 +137,7 @@ public struct GlassCircleIconLabel: View {
     var visualSize: CGFloat = DesignTokens.Interactive.regular
     var iconTier: ButtonIconTier = .standard
     var accessibilityIdentifier: String?
+    var symbolContentTransition: ContentTransition = .identity
 
     // 纯视觉:玻璃圆 + 注视高亮 + press,命中区恒等于视觉圆。命中区的静默扩展由
     // 手势包装层(GlassCircleIconButton)负责——不在 label 内撑大 interaction 区,
@@ -147,7 +148,8 @@ public struct GlassCircleIconLabel: View {
         iconColor: Color = .white,
         visualSize: CGFloat = DesignTokens.Interactive.regular,
         iconTier: ButtonIconTier = .standard,
-        accessibilityIdentifier: String? = nil
+        accessibilityIdentifier: String? = nil,
+        symbolContentTransition: ContentTransition = .identity
     ) {
         self.systemName = systemName
         self.accessibilityLabel = accessibilityLabel
@@ -155,10 +157,12 @@ public struct GlassCircleIconLabel: View {
         self.visualSize = visualSize
         self.iconTier = iconTier
         self.accessibilityIdentifier = accessibilityIdentifier
+        self.symbolContentTransition = symbolContentTransition
     }
 
     public var body: some View {
         ButtonSymbol(systemName: systemName, tier: iconTier)
+            .contentTransition(symbolContentTransition)
             .foregroundStyle(iconColor)
             .frame(width: visualSize, height: visualSize)
             .clipShape(Circle())
@@ -172,6 +176,28 @@ public struct GlassCircleIconLabel: View {
 }
 
 public struct GlassCircleIconButton: View {
+    private enum SymbolState {
+        case expandCollapse(isExpanded: Bool)
+
+        var systemName: String {
+            switch self {
+            case .expandCollapse(let isExpanded):
+                return isExpanded
+                    ? "arrow.down.forward.and.arrow.up.backward"
+                    : "arrow.up.left.and.arrow.down.right"
+            }
+        }
+
+        /// Stable fallback identifier for a stateful button. The symbol changes,
+        /// but the control remains the same accessibility element across states.
+        var accessibilityIdentifier: String {
+            switch self {
+            case .expandCollapse:
+                return "DesignPreview-button-expand-collapse"
+            }
+        }
+    }
+
     let systemName: String
     let accessibilityLabel: String
     var action: () -> Void = {}
@@ -179,6 +205,14 @@ public struct GlassCircleIconButton: View {
     var visualSize: CGFloat = DesignTokens.Interactive.regular
     var targetSize: CGFloat = DesignTokens.Interactive.large
     var iconTier: ButtonIconTier = .standard
+    private let symbolState: SymbolState?
+
+    @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
+#if os(visionOS)
+    @Environment(\.accessibilityPrefersCrossFadeTransitions) private var accessibilityPrefersCrossFadeTransitions
+#else
+    private var accessibilityPrefersCrossFadeTransitions: Bool { false }
+#endif
 
     // iconColor 锁死:按钮永远白色图标,不暴露给调用点(Label 默认即 .white)。
     // 原生 Button 负责唯一的激活与辅助功能语义;视觉 label 自己限定 hover 圆,
@@ -200,16 +234,68 @@ public struct GlassCircleIconButton: View {
         self.visualSize = visualSize
         self.targetSize = targetSize
         self.iconTier = iconTier
+        self.symbolState = nil
+    }
+
+    private init(
+        symbolState: SymbolState,
+        accessibilityLabel: String,
+        action: @escaping () -> Void,
+        accessibilityIdentifier: String?,
+        visualSize: CGFloat = DesignTokens.Interactive.regular,
+        targetSize: CGFloat = DesignTokens.Interactive.large,
+        iconTier: ButtonIconTier = .standard
+    ) {
+        self.systemName = symbolState.systemName
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.visualSize = visualSize
+        self.targetSize = targetSize
+        self.iconTier = iconTier
+        self.symbolState = symbolState
+    }
+
+    private var renderedSystemName: String {
+        symbolState?.systemName ?? systemName
+    }
+
+    private var resolvedAccessibilityIdentifier: String {
+        accessibilityIdentifier
+            ?? symbolState?.accessibilityIdentifier
+            ?? "DesignPreview-button-\(systemName)"
+    }
+
+    private var symbolContentTransition: ContentTransition {
+        if accessibilityReduceMotion {
+            return .identity
+        }
+        if accessibilityPrefersCrossFadeTransitions {
+            return .opacity
+        }
+        return .symbolEffect(.replace)
+    }
+
+    private var symbolAnimation: Animation? {
+        if accessibilityReduceMotion {
+            return nil
+        }
+        if accessibilityPrefersCrossFadeTransitions {
+            return .easeInOut(duration: 0.12)
+        }
+        return .easeInOut(duration: 0.2)
     }
 
     public var body: some View {
         Button(action: action) {
             GlassCircleIconLabel(
-                systemName: systemName,
+                systemName: renderedSystemName,
                 accessibilityLabel: accessibilityLabel,
                 visualSize: visualSize,
-                iconTier: iconTier
+                iconTier: iconTier,
+                symbolContentTransition: symbolContentTransition
             )
+            .animation(symbolAnimation, value: renderedSystemName)
             .accessibilityHidden(true)
             .frame(width: targetSize, height: targetSize)
             .contentShape(Circle())
@@ -217,7 +303,7 @@ public struct GlassCircleIconButton: View {
         .buttonStyle(EnchronPressFeedbackButtonStyle(.icon))
         .contentShape(Circle())
         .accessibilityLabel(accessibilityLabel)
-        .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(systemName)")
+        .accessibilityIdentifier(resolvedAccessibilityIdentifier)
     }
 
     // MARK: 具名图标预设(组装约定:优先调预设;没有预设才传裸 systemName,且顺手补一个预设)
@@ -261,6 +347,26 @@ public struct GlassCircleIconButton: View {
         )
     }
 
+    /// A single expand/collapse control whose symbol content follows product state.
+    ///
+    /// The outer `Button`, action, accessibility element, and hit target stay
+    /// stable while only the inner symbol changes. This keeps state ownership at
+    /// the feature call site and lets SwiftUI apply a content transition instead
+    /// of replacing two separate controls.
+    public static func expandCollapse(
+        isExpanded: Bool,
+        accessibilityLabel: String,
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            symbolState: .expandCollapse(isExpanded: isExpanded),
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+
     public static func environment(
         accessibilityLabel: String = "Environment",
         action: @escaping () -> Void = {},
@@ -268,6 +374,19 @@ public struct GlassCircleIconButton: View {
     ) -> GlassCircleIconButton {
         GlassCircleIconButton(
             systemName: "mountain.2.fill",
+            accessibilityLabel: accessibilityLabel,
+            action: action,
+            accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+
+    public static func settings(
+        accessibilityLabel: String = "Settings",
+        action: @escaping () -> Void = {},
+        accessibilityIdentifier: String? = nil
+    ) -> GlassCircleIconButton {
+        GlassCircleIconButton(
+            systemName: "gearshape",
             accessibilityLabel: accessibilityLabel,
             action: action,
             accessibilityIdentifier: accessibilityIdentifier

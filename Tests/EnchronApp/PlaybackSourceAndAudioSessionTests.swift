@@ -38,6 +38,20 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testAudioSessionLifecycleCanReactivateAfterEndedDeactivation() throws {
+        let session = RecordingPlaybackAudioSession()
+        let lifecycle = PlaybackAudioSessionLifecycle(session: session)
+
+        try lifecycle.activateIfNeeded(hasAudio: true)
+        lifecycle.deactivate()
+        try lifecycle.activateIfNeeded(hasAudio: true)
+
+        XCTAssertEqual(session.activationCount, 2)
+        XCTAssertEqual(session.deactivationCount, 1)
+        XCTAssertTrue(lifecycle.isActive)
+    }
+
+    @MainActor
     func testFileAddedToMediaLibraryResolvesToTheOriginalPlaybackSource() async throws {
         let suiteName = "app.enchron.tests.media-reference.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))

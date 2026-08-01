@@ -103,10 +103,8 @@ struct EnvironmentCard: View {
                     accessibilityIdentifier: "DesignPreview-EnvironmentCard-effect"
                 )
                 Spacer()
-                GlassCircleIconButton(
-                    systemName: isEnvironmentActive
-                        ? "xmark"
-                        : "arrow.up.left.and.arrow.down.right",
+                GlassCircleIconButton.expandCollapse(
+                    isExpanded: isEnvironmentActive,
                     accessibilityLabel: isEnvironmentActive
                         ? "Close environment"
                         : "Open environment",

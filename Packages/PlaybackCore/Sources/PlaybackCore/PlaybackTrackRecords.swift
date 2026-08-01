@@ -175,6 +175,7 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
     public var streamEpoch: UInt64
     public var enqueuedSampleBufferCount: UInt64
     public var enqueuedAudioFrameCount: UInt64
+    public var status: String
     public var volume: Float
     public var muted: Bool
     public var error: String?
@@ -188,6 +189,7 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
         streamEpoch: UInt64,
         enqueuedSampleBufferCount: UInt64,
         enqueuedAudioFrameCount: UInt64,
+        status: String = "unknown",
         volume: Float,
         muted: Bool,
         error: String?
@@ -200,6 +202,7 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
         self.streamEpoch = streamEpoch
         self.enqueuedSampleBufferCount = enqueuedSampleBufferCount
         self.enqueuedAudioFrameCount = enqueuedAudioFrameCount
+        self.status = status
         self.volume = volume
         self.muted = muted
         self.error = error
@@ -214,6 +217,7 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
         case streamEpoch
         case enqueuedSampleBufferCount
         case enqueuedAudioFrameCount
+        case status
         case volume
         case muted
         case error
@@ -241,6 +245,7 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
             UInt64.self,
             forKey: .enqueuedAudioFrameCount
         )
+        status = try container.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
         volume = try container.decode(Float.self, forKey: .volume)
         muted = try container.decode(Bool.self, forKey: .muted)
         error = try container.decodeIfPresent(String.self, forKey: .error)

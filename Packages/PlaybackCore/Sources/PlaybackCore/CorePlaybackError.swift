@@ -1,6 +1,7 @@
 import Foundation
 
 enum CorePlaybackError: LocalizedError {
+    case audioPrerollTimedOut(Double)
     case seekTimedOut(Double)
     case seekSuperseded(Double)
     case seekTargetUnavailable(Double, Double?)
@@ -11,6 +12,8 @@ enum CorePlaybackError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
+        case .audioPrerollTimedOut(let seconds):
+            "Audio did not preroll through the timeline start at \(seconds) seconds."
         case .seekTimedOut(let seconds): "Seek to \(seconds) seconds did not reach renderer input coordination."
         case .seekSuperseded(let seconds): "Seek to \(seconds) seconds was superseded by a newer request."
         case .seekTargetUnavailable(let target, let lastPTS):

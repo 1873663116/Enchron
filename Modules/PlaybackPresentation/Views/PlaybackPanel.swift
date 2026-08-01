@@ -51,6 +51,64 @@ struct FusedPlayerPanelLive {
     var episodeItems: [DeckMenuItem]
 }
 
+/// Presentation-only rules for holding a scrubber at its requested position
+/// while the runtime's asynchronous seek result catches up.
+enum PlaybackSeekPresentation {
+    static let targetMatchTolerance: CGFloat = 0.02
+    /// Position updates are the normal settlement path. This timeout only
+    /// prevents a failed or unavailable position projection from holding the
+    /// thumb forever.
+    static let pendingTargetFallbackDuration: Duration = .milliseconds(600)
+
+    static func clampedTarget(_ progress: CGFloat) -> CGFloat {
+        min(max(progress, 0), 1)
+    }
+
+    static func elapsedSeconds(
+        for displayProgress: CGFloat,
+        duration: Double
+    ) -> Double? {
+        guard displayProgress.isFinite,
+              duration.isFinite,
+              duration > 0 else {
+            return nil
+        }
+        return Double(clampedTarget(displayProgress)) * duration
+    }
+
+    static func pendingTarget(
+        for progress: CGFloat,
+        livePositionAvailable: Bool
+    ) -> CGFloat? {
+        guard livePositionAvailable else { return nil }
+        return clampedTarget(progress)
+    }
+
+    static func target(
+        _ target: CGFloat,
+        matches observedPosition: CGFloat?
+    ) -> Bool {
+        guard target.isFinite,
+              let observedPosition,
+              observedPosition.isFinite else {
+            return false
+        }
+        return abs(observedPosition - target) <= targetMatchTolerance
+    }
+
+    static func displayProgress(
+        isDragging: Bool,
+        isTimelineDragging: Bool,
+        localProgress: CGFloat,
+        pendingTarget: CGFloat?,
+        liveProgress: CGFloat?
+    ) -> CGFloat {
+        if isDragging || isTimelineDragging { return localProgress }
+        if let pendingTarget { return pendingTarget }
+        return liveProgress ?? localProgress
+    }
+}
+
 fileprivate enum PlaybackControlPanelSurface {
     case windowOrnament
     case playerControlDock
@@ -128,10 +186,13 @@ struct FusedPlayerPanel: View {
     /// Seek 完成锁存:松手 onSeek 后,live.progress 异步才追上,锁存期内拇指钉在目标值,
     /// 避免"跳回旧位再闪到目标"。live 追上(或超时兜底)即释放。
     @State private var pendingSeekTarget: CGFloat?
+    @State private var pendingSeekGeneration = 0
     @State private var scrubFeedbackTrigger = 0
     @State private var minimumBoundaryFeedbackTrigger = 0
     @State private var maximumBoundaryFeedbackTrigger = 0
     @State private var timelineFeedbackTrigger = 0
+    @State private var rewindIconAnimationTrigger = 0
+    @State private var forwardIconAnimationTrigger = 0
     @State private var announcedBoundary: ProgressBoundary?
     @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
     // ⋯ 菜单 Canvas mock 选择态(live 为 nil 时)。
@@ -154,9 +215,24 @@ struct FusedPlayerPanel: View {
     // 拖动中用本地 progress(视觉跟手);松手回调 onSeek。非拖动时镜像 live 位置;
     // 锁存期内钉在 pendingSeekTarget;live 为 nil 退化纯本地 @State(Canvas mock)。
     private var displayProgress: CGFloat {
-        if isDragging || isTimelineDragging { return progress }
-        if let pendingSeekTarget { return pendingSeekTarget }
-        return live?.progress ?? progress
+        PlaybackSeekPresentation.displayProgress(
+            isDragging: isDragging,
+            isTimelineDragging: isTimelineDragging,
+            localProgress: progress,
+            pendingTarget: pendingSeekTarget,
+            liveProgress: live?.progress
+        )
+    }
+
+    private var displayedElapsedLabel: String {
+        guard let live,
+              let elapsedSeconds = PlaybackSeekPresentation.elapsedSeconds(
+                  for: displayProgress,
+                  duration: live.duration
+              ) else {
+            return live?.elapsedLabel ?? "6:21"
+        }
+        return PlaybackTimeFormatter.clock(elapsedSeconds)
     }
 
     private let expandedWidth: CGFloat = 880
@@ -201,13 +277,20 @@ struct FusedPlayerPanel: View {
         .onChange(of: live?.progress) { _, newValue in
             // 锁存释放:player 报告的位置追上(容差内)目标即放行。
             guard let target = pendingSeekTarget, let newValue else { return }
-            if abs(newValue - target) < 0.02 { pendingSeekTarget = nil }
+            if PlaybackSeekPresentation.target(target, matches: newValue) {
+                pendingSeekTarget = nil
+            }
         }
-        .task(id: pendingSeekTarget) {
+        .task(id: pendingSeekGeneration) {
             // 兜底:player 永远不精确落到目标时,别让锁存无限钉住拇指。
-            guard pendingSeekTarget != nil else { return }
-            try? await Task.sleep(for: .milliseconds(600))
-            guard !Task.isCancelled else { return }
+            guard let target = pendingSeekTarget else { return }
+            let generation = pendingSeekGeneration
+            try? await Task.sleep(
+                for: PlaybackSeekPresentation.pendingTargetFallbackDuration
+            )
+            guard !Task.isCancelled,
+                  pendingSeekGeneration == generation,
+                  pendingSeekTarget == target else { return }
             pendingSeekTarget = nil
         }
     }
@@ -370,15 +453,8 @@ struct FusedPlayerPanel: View {
     private var playerControlDockControls: some View {
         if let live {
             HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-                GlassCircleIconButton(
-                    systemName: "rectangle.portrait.and.arrow.forward",
-                    accessibilityLabel: "Return to Window",
-                    action: live.onExitSpatial,
-                    accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
-                )
-                .keyboardShortcut(.escape, modifiers: [])
-                GlassCircleIconButton(
-                    systemName: "gearshape",
+                returnToWindowButton(live)
+                GlassCircleIconButton.settings(
                     accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
                     action: toggleSettings,
                     accessibilityIdentifier: "PlayerPanel-button-settings"
@@ -392,12 +468,33 @@ struct FusedPlayerPanel: View {
         }
     }
 
+    @ViewBuilder
+    private func returnToWindowButton(_ live: FusedPlayerPanelLive) -> some View {
+        if live.presentation == .panorama {
+            GlassCircleIconButton.collapseVertically(
+                accessibilityLabel: "Return to Window",
+                action: live.onExitSpatial,
+                accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
+            )
+            .keyboardShortcut(.escape, modifiers: [])
+        } else {
+            GlassCircleIconButton.collapse(
+                accessibilityLabel: "Return to Window",
+                action: live.onExitSpatial,
+                accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
+            )
+            .keyboardShortcut(.escape, modifiers: [])
+        }
+    }
+
     private var windowRewindButton: some View {
-        GlassCircleIconButton(
-            systemName: timelineExpanded ? "backward.frame" : "gobackward.15",
+        seekButton(
+            direction: .backward,
+            compactSystemName: "gobackward.15",
+            expandedSystemName: "backward.frame",
             accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 15 seconds",
-            action: { timelineExpanded ? stepFrame(-1) : live?.onSkipBackward() },
-            accessibilityIdentifier: "PlayerPanel-button-rewind",
+            action: performBackwardAction,
+            animationTrigger: rewindIconAnimationTrigger,
             visualSize: DesignTokens.Interactive.regular,
             targetSize: DesignTokens.Interactive.large,
             iconTier: .standard
@@ -406,11 +503,13 @@ struct FusedPlayerPanel: View {
     }
 
     private var windowForwardButton: some View {
-        GlassCircleIconButton(
-            systemName: timelineExpanded ? "forward.frame" : "goforward.15",
+        seekButton(
+            direction: .forward,
+            compactSystemName: "goforward.15",
+            expandedSystemName: "forward.frame",
             accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 15 seconds",
-            action: { timelineExpanded ? stepFrame(1) : live?.onSkipForward() },
-            accessibilityIdentifier: "PlayerPanel-button-forward",
+            action: performForwardAction,
+            animationTrigger: forwardIconAnimationTrigger,
             visualSize: DesignTokens.Interactive.regular,
             targetSize: DesignTokens.Interactive.large,
             iconTier: .standard
@@ -437,28 +536,91 @@ struct FusedPlayerPanel: View {
     }
 
     private var rewindButton: some View {
-        GlassCircleIconButton(
-            systemName: timelineExpanded ? "backward.frame" : "gobackward.15",
+        seekButton(
+            direction: .backward,
+            compactSystemName: "gobackward.15",
+            expandedSystemName: "backward.frame",
             accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 15 seconds",
-            action: { timelineExpanded ? stepFrame(-1) : live?.onSkipBackward() },
-            accessibilityIdentifier: "PlayerPanel-button-rewind"
+            action: performBackwardAction,
+            animationTrigger: rewindIconAnimationTrigger
         )
         .keyboardShortcut(.leftArrow, modifiers: [])
     }
 
     private var forwardButton: some View {
-        GlassCircleIconButton(
-            systemName: timelineExpanded ? "forward.frame" : "goforward.15",
+        seekButton(
+            direction: .forward,
+            compactSystemName: "goforward.15",
+            expandedSystemName: "forward.frame",
             accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 15 seconds",
-            action: { timelineExpanded ? stepFrame(1) : live?.onSkipForward() },
-            accessibilityIdentifier: "PlayerPanel-button-forward"
+            action: performForwardAction,
+            animationTrigger: forwardIconAnimationTrigger
         )
         .keyboardShortcut(.rightArrow, modifiers: [])
-        .disabled(
-            timelineExpanded
-                ? live?.canStepForward == false
-                : live?.canSkipForward == false
-        )
+            .disabled(
+                timelineExpanded
+                    ? live?.canStepForward == false
+                    : live?.canSkipForward == false
+            )
+    }
+
+    @ViewBuilder
+    private func seekButton(
+        direction: DirectionalIconDirection,
+        compactSystemName: String,
+        expandedSystemName: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void,
+        animationTrigger: Int,
+        visualSize: CGFloat = DesignTokens.Interactive.regular,
+        targetSize: CGFloat = DesignTokens.Interactive.large,
+        iconTier: ButtonIconTier = .standard
+    ) -> some View {
+        if timelineExpanded {
+            GlassCircleIconButton(
+                systemName: expandedSystemName,
+                accessibilityLabel: accessibilityLabel,
+                action: action,
+                accessibilityIdentifier: direction == .backward
+                    ? "PlayerPanel-button-rewind"
+                    : "PlayerPanel-button-forward",
+                visualSize: visualSize,
+                targetSize: targetSize,
+                iconTier: iconTier
+            )
+        } else {
+            AnimatedDirectionalIconButton(
+                systemName: compactSystemName,
+                direction: direction,
+                trigger: animationTrigger,
+                accessibilityLabel: accessibilityLabel,
+                action: action,
+                accessibilityIdentifier: direction == .backward
+                    ? "PlayerPanel-button-rewind"
+                    : "PlayerPanel-button-forward",
+                visualSize: visualSize,
+                targetSize: targetSize,
+                iconTier: iconTier
+            )
+        }
+    }
+
+    private func performBackwardAction() {
+        if timelineExpanded {
+            stepFrame(-1)
+        } else {
+            rewindIconAnimationTrigger &+= 1
+            live?.onSkipBackward()
+        }
+    }
+
+    private func performForwardAction() {
+        if timelineExpanded {
+            stepFrame(1)
+        } else {
+            forwardIconAnimationTrigger &+= 1
+            live?.onSkipForward()
+        }
     }
 
     // ⋯ 菜单:玻璃圆(GlassCircleIconLabel)作 Menu label,内容 live 注入时来自产品层、
@@ -663,12 +825,17 @@ struct FusedPlayerPanel: View {
     }
 
     private func commitTimelineSeek(_ seconds: Double) {
-        isTimelineDragging = false
-        guard let live, timelineDuration > 0 else { return }
-        let target = CGFloat(min(max(seconds / timelineDuration, 0), 1))
+        guard timelineDuration > 0 else {
+            isTimelineDragging = false
+            return
+        }
+        let target = PlaybackSeekPresentation.clampedTarget(
+            CGFloat(seconds / timelineDuration)
+        )
         progress = target
-        pendingSeekTarget = target
-        live.onPrecisionSeek(target)
+        armPendingSeek(for: target)
+        isTimelineDragging = false
+        live?.onPrecisionSeek(target)
     }
 
     private func beginTimelineSeek() {
@@ -756,7 +923,13 @@ struct FusedPlayerPanel: View {
             .frame(width: width, height: DesignTokens.ProgressBar.hitHeight)
             .contentShape(.interaction, Capsule())
             .onHover { isProgressHovered = $0 }
-            .accessibilityHidden(true)
+            .accessibilityElement(children: .ignore)
+            .accessibilityIdentifier("PlayerPanel-progress")
+            .accessibilityLabel("Playback position")
+            .accessibilityValue("\(displayedElapsedLabel) of \(live?.durationLabel ?? "14:15")")
+            .accessibilityAdjustableAction { direction in
+                adjustProgressForAccessibility(direction)
+            }
     }
 
     private func progressHub(
@@ -833,7 +1006,7 @@ struct FusedPlayerPanel: View {
         )
 
         return HStack(spacing: DesignTokens.Spacing.xs) {
-            Text(live?.elapsedLabel ?? "6:21").foregroundStyle(.primary)
+            Text(displayedElapsedLabel).foregroundStyle(.primary)
             Text(live?.durationLabel ?? "14:15").foregroundStyle(.secondary)
         }
         .font(DesignTokens.Typography.monospacedDetail)
@@ -899,12 +1072,12 @@ struct FusedPlayerPanel: View {
             .onEnded { value in
                 if scrubberActivation == .seeking {
                     lastScrubberPress = nil
+                    let target = PlaybackSeekPresentation.clampedTarget(progress)
+                    // 先锁存目标,再释放 dragging;否则 SwiftUI 可能先镜像
+                    // 旧 live.position 一帧,使拇指出现回跳。
+                    armPendingSeek(for: target)
                     endScrubbing()
-                    if live != nil {
-                        // 锁存到目标值,跨过异步 seek 往返;live 追上后释放(见 body 的 onChange)。
-                        pendingSeekTarget = progress
-                    }
-                    live?.onSeek(progress)
+                    live?.onSeek(target)
                 } else if scrubberActivation == .activating {
                     completeShortScrubberPress(at: value.location, time: value.time)
                     resetScrubberActivation()
@@ -967,6 +1140,17 @@ struct FusedPlayerPanel: View {
         isDragging = true
     }
 
+    private func armPendingSeek(for target: CGFloat) {
+        guard let pendingTarget = PlaybackSeekPresentation.pendingTarget(
+            for: target,
+            livePositionAvailable: live != nil
+        ) else {
+            return
+        }
+        pendingSeekTarget = pendingTarget
+        pendingSeekGeneration += 1
+    }
+
     private func endScrubbing() {
         resetScrubberActivation()
         announcedBoundary = nil
@@ -998,6 +1182,23 @@ struct FusedPlayerPanel: View {
         var transaction = Transaction()
         transaction.animation = nil
         withTransaction(transaction) { progress = nextProgress }
+    }
+
+    private func adjustProgressForAccessibility(_ direction: AccessibilityAdjustmentDirection) {
+        let step = CGFloat(15 / max(timelineDuration, 15))
+        let target: CGFloat
+        switch direction {
+        case .increment:
+            target = PlaybackSeekPresentation.clampedTarget(displayProgress + step)
+        case .decrement:
+            target = PlaybackSeekPresentation.clampedTarget(displayProgress - step)
+        @unknown default:
+            return
+        }
+        progress = target
+        armPendingSeek(for: target)
+        live?.onSeek(target)
+        onInteraction()
     }
 
     private func updateBoundaryFeedback(for nextProgress: CGFloat) {

@@ -1,3 +1,4 @@
+import AVFoundation
 import RealityKit
 import OSLog
 import PlaybackCore
@@ -15,6 +16,7 @@ private final class PlaybackVideoComponentObservation {
     private var entityID: ObjectIdentifier?
     private var subscriptions: [EventSubscription] = []
     private var lastLayoutSignature: String?
+    private var lastStateSignature: String?
 
     func observe<Content: RealityViewContentProtocol>(
         _ entity: Entity,
@@ -51,6 +53,12 @@ private final class PlaybackVideoComponentObservation {
         lastLayoutSignature = signature
         return true
     }
+
+    func shouldLogState(_ signature: String) -> Bool {
+        guard lastStateSignature != signature else { return false }
+        lastStateSignature = signature
+        return true
+    }
 }
 
 struct PlaybackVideoSurface: View {
@@ -67,6 +75,9 @@ struct PlaybackVideoSurface: View {
     @State private var surfaceActivation = PlaybackSurfaceActivation()
     @State private var componentObservation = PlaybackVideoComponentObservation()
     @State private var componentRevision = 0
+    #if os(visionOS)
+    @State private var surfaceRefreshTick = 0
+    #endif
     #if os(macOS)
     @State private var macOSWindowCamera = Entity()
     @State private var macOSWorld: Entity?
@@ -104,19 +115,23 @@ struct PlaybackVideoSurface: View {
                 updateVisionSurface(
                     content,
                     proxy: geometry,
-                    revision: componentRevision
+                    revision: componentRevision &+ surfaceRefreshTick
                 )
             } update: { content in
                 updateVisionSurface(
                     content,
                     proxy: geometry,
-                    revision: componentRevision
+                    revision: componentRevision &+ surfaceRefreshTick
                 )
             }
             .gesture(surfaceTapGesture)
+            .allowsHitTesting(appModel.showControls == false)
             .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
         }
         .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
+        .task(id: surfaceReadinessKey) {
+            await retrySurfaceAttachment()
+        }
         .onDisappear {
             releaseSurface()
         }
@@ -155,11 +170,6 @@ struct PlaybackVideoSurface: View {
                     )
                 }
 
-                if appModel.showControls, isActive {
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .onTapGesture(perform: toggleControlsFromSurface)
-                }
             }
             .task(id: presentation) {
                 guard presentation == .docked else { return }
@@ -188,12 +198,44 @@ struct PlaybackVideoSurface: View {
         }
     }
 
+    #if os(visionOS)
+    private var surfaceReadinessKey: String {
+        let rendererID = playbackRuntime.renderer.map {
+            String(describing: ObjectIdentifier($0))
+        } ?? "none"
+        return [
+            presentation.rawValue,
+            isActive ? "active" : "inactive",
+            playbackRuntime.mediaFormatIsKnown ? "formatReady" : "formatPending",
+            rendererID,
+            playbackRuntime.activeSessionID ?? "sessionNone"
+        ].joined(separator: "|")
+    }
+
+    @MainActor
+    private func retrySurfaceAttachment() async {
+        for _ in 0..<PlaybackSurfaceActivation.maximumRetryCountForView {
+            guard !Task.isCancelled else { return }
+            if playbackRuntime.attachedPresentation == presentation,
+               playbackRuntime.rendererConsumerEntityID == entityID,
+               videoEntity.isActive,
+               playbackRuntime.presentationState == .videoVisible {
+                return
+            }
+            surfaceRefreshTick &+= 1
+            surfaceActivation.requestRetry()
+            try? await Task.sleep(for: PlaybackSurfaceActivation.retryIntervalForView)
+        }
+    }
+    #endif
+
     @MainActor
     private func prepareSurface<Content: RealityViewContentProtocol>(
         in content: Content,
         revision: Int
     ) -> Bool {
         _ = revision
+        logSurfaceFacts(reason: "prepareCheck")
         guard isActive,
               playbackRuntime.mediaFormatIsKnown,
               let renderer = playbackRuntime.renderer else {
@@ -438,6 +480,7 @@ struct PlaybackVideoSurface: View {
                 presentation: presentation
             )
         } ?? false
+        logSurfaceFacts(reason: "attachCheck")
         guard videoEntity.isActive,
               renderer != nil,
               isActive,
@@ -459,13 +502,26 @@ struct PlaybackVideoSurface: View {
                 desiredViewingMode: component.map { String(describing: $0.desiredViewingMode) },
                 actualViewingMode: component?.viewingMode.map { String(describing: $0) },
                 desiredSpatialVideoMode: desiredSpatialVideoMode,
-                actualSpatialVideoMode: actualSpatialVideoMode
+                actualSpatialVideoMode: actualSpatialVideoMode,
+                componentRenderingStatus: component.map {
+                    String(describing: $0.currentRenderingStatus)
+                },
+                displayedPixelBuffer: renderer?.displayedPixelBuffer() != nil
             )
+            logSurfaceFacts(reason: "attachCompleted")
         } catch {
             playbackRuntime.lastErrorMessage = error.localizedDescription
-            playbackVideoSurfaceLogger.error(
-                "surface attach failed error=\(error.localizedDescription, privacy: .public)"
-            )
+            let failureSignature = [
+                "attachFailed",
+                error.localizedDescription,
+                playbackRuntime.activeSessionID ?? "sessionNone"
+            ].joined(separator: "|")
+            if componentObservation.shouldLogState(failureSignature) {
+                playbackVideoSurfaceLogger.error(
+                    "surface attach failed presentation=\(presentation.rawValue, privacy: .public) entity=\(entityID, privacy: .public) error=\(error.localizedDescription, privacy: .public)"
+                )
+            }
+            surfaceActivation.requestRetry()
         }
     }
 
@@ -525,20 +581,47 @@ struct PlaybackVideoSurface: View {
         guard let component else { return .surfaceAttached }
         return component.currentRenderingStatus == .ready
             && component.viewingMode == component.desiredViewingMode
+            && playbackRuntime.renderer?.displayedPixelBuffer() != nil
             ? .settled
             : .surfaceAttached
     }
 
     private func logComponentState(reason: String) {
-        guard let component else { return }
+        logSurfaceFacts(reason: reason)
+    }
+
+    private func logSurfaceFacts(reason: String) {
+        let component = videoEntity.components[VideoPlayerComponent.self]
+        let renderer = playbackRuntime.renderer
+        let isBound = renderer.map {
+            PlaybackRealityPresenter.isBound(
+                videoEntity,
+                to: $0,
+                presentation: presentation
+            )
+        } ?? false
+        let diagnostics = playbackRuntime.diagnostics
+        let firstEnqueue = diagnostics.enqueuedSampleCount > 0
+        let displayedPixel = renderer?.displayedPixelBuffer() != nil
+        let runtimeAttached = playbackRuntime.attachedPresentation == presentation
+        let runtimeConsumer = playbackRuntime.rendererConsumerEntityID == entityID
+        let stateSignature = [
+            "active=\(videoEntity.isActive)",
+            "surfaceActive=\(isActive)",
+            "formatReady=\(playbackRuntime.mediaFormatIsKnown)",
+            "rendererAvailable=\(renderer != nil)",
+            "componentBound=\(isBound)",
+            "runtimeAttached=\(runtimeAttached)",
+            "runtimeConsumer=\(runtimeConsumer)",
+            "componentRendering=\(String(describing: component?.currentRenderingStatus))",
+            "rendererStatus=\(diagnostics.rendererStatus)",
+            "rendererError=\(diagnostics.rendererError)",
+            "firstEnqueue=\(firstEnqueue)",
+            "displayedPixel=\(displayedPixel)"
+        ].joined(separator: "|")
+        guard componentObservation.shouldLogState(stateSignature) else { return }
         playbackVideoSurfaceLogger.notice(
-            "component event=\(reason, privacy: .public) active=\(videoEntity.isActive) rendering=\(String(describing: component.currentRenderingStatus), privacy: .public)"
-        )
-        playbackVideoSurfaceLogger.notice(
-            "component desiredViewing=\(String(describing: component.desiredViewingMode), privacy: .public) actualViewing=\(String(describing: component.viewingMode), privacy: .public)"
-        )
-        playbackVideoSurfaceLogger.notice(
-            "component screenSize=\(String(describing: component.playerScreenSize), privacy: .public)"
+            "surface facts reason=\(reason, privacy: .public) presentation=\(presentation.rawValue, privacy: .public) entity=\(entityID, privacy: .public) \(stateSignature, privacy: .public)"
         )
     }
 

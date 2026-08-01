@@ -44,6 +44,62 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("scrub target stays visible until the reported position catches up")
+    func scrubTargetLatchSettlesFromPosition() {
+        let oldPosition: CGFloat = 0.18
+        let target = PlaybackSeekPresentation.pendingTarget(
+            for: 0.82,
+            livePositionAvailable: true
+        )
+        #expect(target == 0.82)
+        #expect(
+            PlaybackSeekPresentation.displayProgress(
+                isDragging: false,
+                isTimelineDragging: false,
+                localProgress: target ?? 0,
+                pendingTarget: target,
+                liveProgress: oldPosition
+            ) == 0.82
+        )
+        #expect(
+            !PlaybackSeekPresentation.target(
+                target ?? 0,
+                matches: oldPosition
+            )
+        )
+        #expect(
+            PlaybackSeekPresentation.target(
+                target ?? 0,
+                matches: 0.82
+            )
+        )
+        #expect(
+            PlaybackSeekPresentation.pendingTarget(
+                for: 0.82,
+                livePositionAvailable: false
+            ) == nil
+        )
+        #expect(
+            PlaybackSeekPresentation.elapsedSeconds(
+                for: 0.5,
+                duration: 100
+            ) == 50
+        )
+        #expect(
+            PlaybackSeekPresentation.elapsedSeconds(
+                for: 0.5,
+                duration: 0
+            ) == nil
+        )
+    }
+
+    @Test("environment card reveal motion stays within the approved range")
+    func environmentCardRevealMotionContract() {
+        #expect(EnvironmentCardRevealMotion.initialScale == 0.985)
+        #expect((0.22...0.32).contains(EnvironmentCardRevealMotion.standardDuration))
+        #expect((0.10...0.15).contains(EnvironmentCardRevealMotion.crossFadeDuration))
+    }
+
     #if os(visionOS)
     @Test("ended and replaced sessions invalidate the previous Media Session")
     @MainActor
@@ -236,6 +292,206 @@ struct PlaybackPresentationStateTests {
         #expect(!transport.canSkipForward)
         #expect(!transport.canStepForward)
         #expect(PlaybackEndPolicy.action(for: .stop) == .stayEnded)
+    }
+
+    @Test("seek events preserve the specified lifecycle intent")
+    func seekIntentMatrix() {
+        let cases: [(PlaybackSeekEvent, ProductPlaybackLifecycle, PlaybackAfterSeekIntent)] = [
+            (PlaybackSeekEvent.progressBar, ProductPlaybackLifecycle.playing, PlaybackAfterSeekIntent.preserveCurrentPlaybackIntent),
+            (.progressBar, .paused, .preserveCurrentPlaybackIntent),
+            (.skip, .playing, .preserveCurrentPlaybackIntent),
+            (.skip, .paused, .preserveCurrentPlaybackIntent),
+            (.precisionTimeline, .playing, .pause),
+            (.precisionTimeline, .paused, .pause),
+            (.frameStep, .playing, .pause),
+            (.frameStep, .paused, .pause),
+            (.progressBar, .ended, .pause),
+            (.skip, .ended, .pause),
+            (.precisionTimeline, .ended, .pause),
+            (.frameStep, .ended, .pause),
+        ]
+        for (event, lifecycle, expected) in cases {
+            #expect(
+                PlaybackSeekPolicy.intent(
+                    for: event,
+                    lifecycle: lifecycle,
+                    targetBoundary: .beforeEnd
+                ) == expected
+            )
+        }
+    }
+
+    @Test("every seek event targeting the media end resolves to Ended")
+    func seekToEndMatrix() {
+        for event in PlaybackSeekEvent.allCases {
+            for lifecycle in [
+                ProductPlaybackLifecycle.playing,
+                .paused,
+                .ended,
+            ] {
+                #expect(
+                    PlaybackSeekPolicy.intent(
+                        for: event,
+                        lifecycle: lifecycle,
+                        targetBoundary: .end
+                    ) == .ended
+                )
+            }
+        }
+    }
+
+    @Test("playback output verification reports the first incomplete production boundary")
+    func playbackOutputFirstIncompleteBoundary() {
+        var observation = completeOutputObservation()
+        observation.decoderBootstrapComplete = false
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .decoderBootstrap
+        )
+
+        observation.decoderBootstrapComplete = true
+        observation.actualTimebaseRate = 0
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .timelineRate
+        )
+
+        observation.actualTimebaseRate = 1
+        observation.displayedPixelBuffer = false
+        observation.audioSessionActive = false
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .displayedVideo
+        )
+
+        observation.displayedPixelBuffer = true
+        observation.audioRendererStatus = "unknown"
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .audioRenderer
+        )
+
+        observation.audioRendererStatus = "rendering"
+        observation.audioRendererMuted = true
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .audioRenderer
+        )
+
+        observation.audioRendererMuted = false
+        observation.audioRendererVolume = 0
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .audioRenderer
+        )
+
+        observation.audioRendererVolume = 1
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .audioSession
+        )
+
+        observation.audioSessionActive = true
+        observation.audioSessionOutputPortTypes = []
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .audioRoute
+        )
+
+        observation.audioSessionOutputPortTypes = ["BuiltInSpeaker"]
+        observation.systemOutputVolume = 0
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .audioRoute
+        )
+
+        observation.lifecycle = .paused
+        observation.actualTimebaseRate = 0
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .ready
+        )
+    }
+
+    @Test("playing output requires two observations from the same session and epoch")
+    func playbackOutputRequiresContinuousAdvancement() {
+        let previous = completeOutputObservation(
+            capturedAt: Date(timeIntervalSince1970: 100),
+            position: 10,
+            videoSamples: 100,
+            audioSamples: 200
+        )
+        let current = completeOutputObservation(
+            capturedAt: Date(timeIntervalSince1970: 101),
+            position: 11,
+            videoSamples: 130,
+            audioSamples: 240
+        )
+
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: current)
+                == .secondObservation
+        )
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(
+                current: current,
+                previous: previous
+            ) == .ready
+        )
+    }
+
+    @Test("Ended output requires a cleared image and a deactivated audio session")
+    func endedOutputContract() {
+        var observation = completeOutputObservation()
+        observation.lifecycle = .ended
+        observation.displayedPixelBuffer = false
+        observation.audioSessionActive = false
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .ready
+        )
+
+        observation.displayedPixelBuffer = true
+        #expect(
+            PlaybackOutputVerification.firstIncompleteBoundary(current: observation)
+                == .endedImageClearance
+        )
+    }
+
+    private func completeOutputObservation(
+        capturedAt: Date = Date(timeIntervalSince1970: 101),
+        position: Double = 11,
+        videoSamples: UInt64 = 130,
+        audioSamples: UInt64 = 240
+    ) -> PlaybackOutputObservation {
+        PlaybackOutputObservation(
+            capturedAt: capturedAt,
+            mediaSessionID: "session-a",
+            streamEpoch: 3,
+            lifecycle: .playing,
+            positionSeconds: position,
+            videoSampleCount: videoSamples,
+            acceptedRendererInputCount: videoSamples,
+            decoderBootstrapComplete: true,
+            requestedPlaybackRate: 1,
+            actualTimebaseRate: 1,
+            realityKitRendererBound: true,
+            videoComponentReady: true,
+            displayedPixelBuffer: true,
+            hasAudio: true,
+            audioSampleBufferCount: audioSamples,
+            audioRendererSampleBufferCount: audioSamples,
+            audioRendererStreamEpoch: 3,
+            audioRendererStatus: "rendering",
+            audioRendererVolume: 1,
+            audioRendererMuted: false,
+            audioRendererError: nil,
+            audioSessionActive: true,
+            audioSessionCategory: "AVAudioSessionCategoryPlayback",
+            audioSessionMode: "AVAudioSessionModeMoviePlayback",
+            audioSessionOutputPortTypes: ["BuiltInSpeaker"],
+            systemOutputVolume: 1
+        )
     }
 
     @Test("direct dock uses the active environment")

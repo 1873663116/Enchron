@@ -116,10 +116,12 @@ import Testing
     let activeReader = try #require(reader)
     defer { PBFFmpegAudioReaderDestroy(activeReader) }
     var sample: Unmanaged<CMSampleBuffer>?
+    var metadata = PBFFmpegAudioSampleMetadata()
 
     let result = PBFFmpegAudioReaderCopyNextSample(
         activeReader,
         &sample,
+        &metadata,
         &error,
         error.count
     )
@@ -137,6 +139,21 @@ import Testing
     let streamDescription = try #require(CMAudioFormatDescriptionGetStreamBasicDescription(format))
     #expect(streamDescription.pointee.mFormatID == kAudioFormatMPEG4AAC)
     #expect(streamDescription.pointee.mFormatID != kAudioFormatLinearPCM)
+    var magicCookieSize = 0
+    let magicCookie = CMAudioFormatDescriptionGetMagicCookie(
+        format,
+        sizeOut: &magicCookieSize
+    )
+    #expect(magicCookie != nil)
+    #expect(magicCookieSize > 2)
+    if let magicCookie {
+        let bytes = UnsafeRawBufferPointer(start: magicCookie, count: magicCookieSize)
+        #expect(bytes.first == 0x03)
+    }
+    #expect(metadata.payloadByteCount > 0)
+    #expect(metadata.timeBaseNumerator > 0)
+    #expect(metadata.timeBaseDenominator > 0)
+    #expect(metadata.cookieSource == PBFFmpegAudioCookieSourceFilterOutput)
 }
 
 private func delayedAACTransportStream(includeAudioPackets: Bool = true) throws -> URL {

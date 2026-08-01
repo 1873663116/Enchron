@@ -5,6 +5,7 @@ import OSLog
 extension SampleBufferPlaybackSession {
     func seek(to time: CMTime, startsPaused: Bool) async throws {
         guard !isClosed, let sourceURL else { return }
+        activationObservation.invalidateReapplyVerification(outcome: .invalidatedBySeek)
         try Task.checkCancellation()
         let target = max(0, time.seconds.isFinite ? time.seconds : 0)
         let currentRate = currentRate()
@@ -56,8 +57,51 @@ extension SampleBufferPlaybackSession {
             node: .rendererInputCoordination,
             kind: "renderer.flushedForSeek",
             outcome: .succeeded,
-            details: ["streamEpoch": String(streamEpoch)]
+            details: [
+                "streamEpoch": String(streamEpoch),
+                "audioStreamEpoch": String(audioStreamEpoch),
+                "audioRendererStatus": audioRendererStatusLabel,
+                "audioRendererError": audioRenderer.error?.localizedDescription
+                    ?? currentAudioRendererError
+                    ?? "none",
+            ]
         )
+
+        let seeksToKnownEnd = diagnostics.durationSeconds > 0
+            && abs(target - diagnostics.durationSeconds) <= 1.0 / 60_000
+        if seeksToKnownEnd {
+            let endTime = CMTime(
+                seconds: diagnostics.durationSeconds,
+                preferredTimescale: 60_000
+            )
+            deliveryQueue.sync {
+                timelineStartRate = 0
+                requestedTimelineStart = endTime
+                hasStartedTimeline = true
+                isPrerolling = false
+                isResetting = false
+            }
+            synchronizer.setRate(0, time: endTime)
+            diagnostics.currentSeconds = diagnostics.durationSeconds
+            updateLifecycle(.ended)
+            recordRendererState(at: endTime)
+            publishDiagnostics(at: endTime, force: true)
+            completeSubtitleTimelineDiscontinuity(epoch: subtitleSeekEpoch)
+            debugStore.emit(
+                mediaSessionID: traceID,
+                node: .rendererInputCoordination,
+                kind: "control.seek.completedAtEnd",
+                outcome: .succeeded,
+                details: [
+                    "targetSeconds": String(target),
+                    "streamEpoch": String(streamEpoch),
+                    "endReason": PlaybackEndReason.seekToEnd.rawValue,
+                ]
+            )
+            finishActiveOperation(.completed)
+            onStatusChange?(.ended(.seekToEnd))
+            return
+        }
 
         do {
             try await provider.prepare(
@@ -106,11 +150,7 @@ extension SampleBufferPlaybackSession {
             didRecordFormat = false
             isResetting = false
         }
-        updateLifecycle(.ready)
         startVideoDelivery()
-        if hasAudio {
-            startAudioDelivery()
-        }
 
         let expectedEpoch = streamEpoch
         let expectedAudioEpoch = audioStreamEpoch
@@ -121,12 +161,22 @@ extension SampleBufferPlaybackSession {
                 let snapshot = debugStore.snapshot()
                 let audioReady = !hasAudio || (
                     snapshot.lastAudioSample?.streamEpoch == expectedAudioEpoch &&
-                    (snapshot.lastAudioSample?.presentationTimeSeconds ?? -.infinity) >= target
+                    snapshot.lastAudioSample.map {
+                        samplePresentationCoversTarget(
+                            presentationTime: $0.presentationTimeSeconds,
+                            duration: $0.durationSeconds,
+                            target: target
+                        )
+                    } == true
                 )
                 if let sample = snapshot.lastVideoSample,
                    let input = snapshot.lastAcceptedRendererInput,
                    sample.streamEpoch == expectedEpoch,
-                   sample.presentationTimeSeconds >= target,
+                   samplePresentationCoversTarget(
+                       presentationTime: sample.presentationTimeSeconds,
+                       duration: sample.durationSeconds,
+                       target: target
+                   ),
                    input.streamEpoch == expectedEpoch,
                    input.sourceEventID == sample.sourceEventID,
                    input.outcome == .accepted,
@@ -149,7 +199,7 @@ extension SampleBufferPlaybackSession {
                 if let endEvent = snapshot.lastMediaEvent,
                    endEvent.kind == .end,
                    endEvent.streamEpoch == expectedEpoch,
-                   targetEpochEndedBeforeVideoPTS(target) {
+                   targetEpochEndedBeforeVideoPresentation(target) {
                     let lastPTS = snapshot.lastVideoSample.flatMap { sample in
                         sample.streamEpoch == expectedEpoch
                             ? sample.presentationTimeSeconds
@@ -188,6 +238,20 @@ extension SampleBufferPlaybackSession {
         throw error
     }
 
+    func samplePresentationCoversTarget(
+        presentationTime: Double,
+        duration: Double,
+        target: Double
+    ) -> Bool {
+        guard presentationTime.isFinite, target.isFinite else { return false }
+        guard presentationTime >= target else {
+            return duration.isFinite
+                && duration > 0
+                && presentationTime + duration >= target
+        }
+        return true
+    }
+
     public func currentTime() -> CMTime {
         hasStartedTimeline ? synchronizer.currentTime() : .zero
     }
@@ -224,6 +288,7 @@ extension SampleBufferPlaybackSession {
             throw PlaybackControlError.invalidAudioTrack(streamIndex)
         }
         guard streamIndex != selectedAudioStreamIndex else { return }
+        activationObservation.invalidateReapplyVerification(outcome: .invalidatedByRateChange)
         let previousStreamIndex = selectedAudioStreamIndex
         let previouslyHadAudio = hasAudio
         let time = currentTime()

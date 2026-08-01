@@ -101,6 +101,34 @@ public enum RendererInputOutcome: String, Codable, Sendable {
     case failed
 }
 
+public struct DecoderBootstrapRecord: Codable, Equatable, Sendable {
+    public var mediaSessionID: String
+    public var streamEpoch: UInt64
+    public var targetDecodeTimeSeconds: Double
+    public var lastDecodeTimeSeconds: Double?
+    public var immediateEnqueueCount: UInt64
+    public var targetRate: Float
+    public var complete: Bool
+
+    public init(
+        mediaSessionID: String,
+        streamEpoch: UInt64,
+        targetDecodeTimeSeconds: Double,
+        lastDecodeTimeSeconds: Double? = nil,
+        immediateEnqueueCount: UInt64 = 0,
+        targetRate: Float,
+        complete: Bool
+    ) {
+        self.mediaSessionID = mediaSessionID
+        self.streamEpoch = streamEpoch
+        self.targetDecodeTimeSeconds = targetDecodeTimeSeconds
+        self.lastDecodeTimeSeconds = lastDecodeTimeSeconds
+        self.immediateEnqueueCount = immediateEnqueueCount
+        self.targetRate = targetRate
+        self.complete = complete
+    }
+}
+
 public struct RendererInputRecord: Codable, Equatable, Sendable {
     public var mediaSessionID: String
     public var sourceEventID: String
@@ -220,6 +248,9 @@ public struct PresentationStateRecord: Codable, Equatable, Sendable {
     public var actualViewingMode: ObservedStringFact
     public var desiredSpatialVideoMode: ObservedStringFact
     public var actualSpatialVideoMode: ObservedStringFact
+    public var componentRenderingStatus: ObservedStringFact?
+    public var displayedPixelBuffer: Bool?
+    public var audioSessionActive: Bool?
     public var transitionResult: ObservedStringFact
     public var transitionError: ObservedStringFact
 
@@ -237,6 +268,9 @@ public struct PresentationStateRecord: Codable, Equatable, Sendable {
         actualViewingMode: ObservedStringFact = .init(.notExposed),
         desiredSpatialVideoMode: ObservedStringFact = .init(.notExposed),
         actualSpatialVideoMode: ObservedStringFact = .init(.notExposed),
+        componentRenderingStatus: ObservedStringFact? = nil,
+        displayedPixelBuffer: Bool? = nil,
+        audioSessionActive: Bool? = nil,
         transitionResult: ObservedStringFact = .init(.notExposed),
         transitionError: ObservedStringFact = .init(.none)
     ) {
@@ -253,6 +287,9 @@ public struct PresentationStateRecord: Codable, Equatable, Sendable {
         self.actualViewingMode = actualViewingMode
         self.desiredSpatialVideoMode = desiredSpatialVideoMode
         self.actualSpatialVideoMode = actualSpatialVideoMode
+        self.componentRenderingStatus = componentRenderingStatus
+        self.displayedPixelBuffer = displayedPixelBuffer
+        self.audioSessionActive = audioSessionActive
         self.transitionResult = transitionResult
         self.transitionError = transitionError
     }

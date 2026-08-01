@@ -147,6 +147,8 @@ struct WindowPlaybackTopChrome<
                 .frame(maxWidth: .infinity)
             moreControl
         }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .zIndex(1)
     }
 }
 
@@ -251,10 +253,7 @@ struct WindowPlaybackRootView<
             }
             .overlay(alignment: .top) {
                 if showsWindowChrome {
-                    topChrome
-                        .padding(.horizontal, DesignTokens.Spacing.xl)
-                        .padding(.top, DesignTokens.Spacing.lg)
-                        .transition(.opacity.combined(with: .move(edge: .top)))
+                    topChromePlane
                 }
             }
             .overlay(alignment: .bottomLeading) {
@@ -273,6 +272,18 @@ struct WindowPlaybackRootView<
             )
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("WindowPlayback-root")
+    }
+
+    /// SwiftUI owns this visual overlay. It sits above the RealityView surface
+    /// while the individual controls retain their own local hit shapes. The
+    /// surrounding transparent space remains available to the video surface.
+    private var topChromePlane: some View {
+        topChrome
+            .padding(.horizontal, DesignTokens.Spacing.xl)
+            .padding(.top, DesignTokens.Spacing.lg)
+            .frame(maxWidth: .infinity, alignment: .top)
+            .zIndex(2)
+            .transition(.opacity.combined(with: .move(edge: .top)))
     }
 
     @ViewBuilder

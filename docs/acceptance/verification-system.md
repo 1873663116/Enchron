@@ -1,14 +1,12 @@
 # Enchron 验证规则
 
-这是 Enchron 从来源到 Vision Pro 的唯一验证系统。验证对象是完整产品播放链，而不是某个仓库、target 或构建结果；任何上层证据都不能替代尚未通过的下层门槛。跨任务共享本地 Apple 重型验证槽位时，操作协议见 [`validation-queue.md`](validation-queue.md)。
+这是 Enchron 从来源到 Vision Pro 的唯一验证系统。验证对象是完整产品播放链，而不是某个仓库、target 或构建结果；任何上层证据都不能替代尚未通过的下层门槛。
 
 ## 顺序与门槛
 
 ```mermaid
 flowchart LR
-    Core["PlaybackCore 单元与合同验证\n容器 · Sample · 时间线"] --> MacCore["macOS 播放核心场景\n真实 Renderer"]
-    MacCore --> MacApp["macOS 产品适配场景\n生产 PlaybackRuntime"]
-    MacApp --> Sim["visionOS Simulator\n平台接口 · UI · Scene 生命周期"]
+    Core["PlaybackCore 单元与合同验证\n容器 · Sample · 时间线"] --> Sim["visionOS Simulator\n平台接口 · UI · Scene 生命周期"]
     Sim --> Device["Vision Pro 真机验收\n画质 · 音频 · 空间 · 性能"]
 ```
 
@@ -18,23 +16,14 @@ flowchart LR
 
 真实媒体容器检查仍属于 PlaybackCore 合同验证：它可以证明 FFmpeg 解封装和压缩 `CMSampleBuffer` 的数据、时间信息、编解码器配置、颜色与 HDR 信令和版本归属，但不能证明 Renderer 已显示画面或输出声音。
 
-### macOS 播放核心与产品适配验证
-
-`EnchronMacOS` 是 Enchron App 播放功能的 macOS platform entry，不是平行 Verify App。它使用真实媒体、真实 `AVSampleBufferVideoRenderer`、`AVSampleBufferAudioRenderer`、共享 synchronizer、AVFoundation Receiver 和 RealityKit consumer，并提供两个按顺序执行的 verification scenario：
-
-1. Core scenario 直接连接 PlaybackCore，隔离产品来源、持久化、SwiftUI 页面和空间转换，先证明核心可播放。
-2. App Adapter scenario 使用生产 `PlaybackRuntime` 连接同一 fixture、renderer consumer 和断言，证明 Enchron App 接入没有改变时间线、sample、颜色或控制语义。
-
-Core scenario 不是第二套长期应用控制。可复用的控制、状态投影与 attach 规则必须迁入生产 application control；scenario 只保留驱动和断言。Core scenario 未通过时不得修改 App UI 掩盖失败，App Adapter scenario 未通过时不得进入 visionOS 首验。
-
-### visionOS Simulator 验证
+### visionOS Simulator 与产品集成验证
 
 Simulator 验证平台 API、Window/Docked/Panorama 状态机、失败回滚、来源与持久化、可访问交互和基础 RealityKit 生命周期。自动验收分开报告两个不能互相替代的结果：
 
 - 空间呈现结构验证通过：目标 Scene、`PlaybackSurfaceAnchor`、Video Entity、同一 Renderer 绑定与 Media Session 连续性符合合同。Simulator 必须证明 Panorama 的 desired immersive、viewing、spatial video mode 已写入真实 `VideoPlayerComponent`；若该 Simulator 运行时不暴露 actual mode 或 rendering ready，则结果只能记为 `Simulator configuration acceptance`，不能记为实际模式收敛或渲染就绪。
 - RealityKit 渲染结果验证通过：真实产品 Sample 进入 `VideoPlayerComponent` 后，在规定摄像机位置与朝向下，输出符合测试媒体预先定义的方向和几何标记。
 
-可访问元素存在、标识和状态可以在 Simulator 中自动断言；但只有合成点击确实触发了产品操作，并使产品状态达到预期结果时，才能把该交互记为 Simulator 通过。当前 visionOS Simulator 的 XCUI 合成点击不能可靠激活 Playback Deck 与 Dock 二级菜单，因此这些点击不进入本轮自动交互通过结论，必须分别由 macOS 上的共享控件逻辑回归与 Vision Pro 真机上的真实注视和点按验收覆盖。元素可见、发送了合成事件或测试进程没有报错，都不能替代操作后的状态验证。
+可访问元素存在、标识和状态可以在 Simulator 中自动断言；但只有合成点击确实触发了产品操作，并使产品状态达到预期结果时，才能把该交互记为 Simulator 通过。当前 visionOS Simulator 的 XCUI 合成点击不能可靠激活 Playback Deck 与 Dock 二级菜单，因此这些点击不进入本轮自动交互通过结论，必须由 Vision Pro 真机 XCTest 的真实注视和点按验收覆盖。元素可见、发送了合成事件或测试进程没有报错，都不能替代操作后的状态验证。
 
 `RealityRenderer` component probe 使用固定 camera 输出 texture，验证投影、方向、stereo、比例、裁剪与帧推进；完整 App integration 验证 WindowGroup / ImmersiveSpace、RCP anchor、Screen Size 和 Presentation Transition。若 `VideoPlayerComponent` 在离屏宿主中无法确认依赖 ImmersiveSpace 的 actual mode，该事实属于 probe 能力边界，actual mode 留在 App integration 断言，不扩建第二套 renderer。
 
@@ -62,9 +51,9 @@ Visual Oracle 不使用普通电影画面或逐像素 golden image 作为主断�
 | [04 Track Model](nodes/04-track-model.md) | 视频和音频轨道的稳定身份、格式与选择正确 | PlaybackCore | PlaybackCore 合同验证 |
 | [05 Media Events](nodes/05-media-events.md) | Sample、格式、Flush、Ended 和 Error 带有正确的 Session 版本 | PlaybackCore | PlaybackCore 合同验证 |
 | [06 Compressed Sample](nodes/06-compressed-sample-stream.md) | 数据、时间信息、依赖、编解码器配置和颜色/HDR 信令正确 | PlaybackCore | PlaybackCore 合同验证 |
-| [07 Renderer Input](nodes/07-avfoundation-renderer-input.md) | 当前 Sample 被 Receiver 接受，共享时间线正确推进 | PlaybackCore | PlaybackCore 与 macOS 播放核心场景 |
-| [08 RealityKit Binding](nodes/08-realitykit-renderer-binding.md) | 当前 Renderer 只有一个正在使用它的 RealityKit Entity | Enchron App | macOS 产品集成验证 |
-| [09 Enchron App Presentation](nodes/09-enchron-app-presentation.md) | Entity 位于目标播放表面，显示帧与音频持续推进 | Enchron App | macOS 产品集成验证；设备表现由 Vision Pro 真机验收 |
+| [07 Renderer Input](nodes/07-avfoundation-renderer-input.md) | 当前 Sample 被 Receiver 接受，共享时间线正确推进 | PlaybackCore | PlaybackCore 合同验证 |
+| [08 RealityKit Binding](nodes/08-realitykit-renderer-binding.md) | 当前 Renderer 只有一个正在使用它的 RealityKit Entity | Enchron App | visionOS Simulator 与 Vision Pro 真机 |
+| [09 Enchron App Presentation](nodes/09-enchron-app-presentation.md) | Entity 位于目标播放表面，显示帧与音频持续推进 | Enchron App | visionOS Simulator；设备表现由 Vision Pro 真机验收 |
 
 证据必须报告第一处失败节点。Provider metadata 正确不等于 sample 或 displayed pixel 正确；renderer enqueue、renderer rendering、displayed pixel、持续推进、可听输出和颜色正确是独立事实。
 
@@ -72,34 +61,42 @@ Visual Oracle 不使用普通电影画面或逐像素 golden image 作为主断�
 
 产品与验证只使用 FFmpeg demux → compressed sample → AVFoundation renderer 管线。验证入口可以绕过产品来源与页面来隔离 PlaybackCore，但不得替换 provider 或把另一套实现的结果当作当前管线的证据。
 
-## macOS 控制与媒体矩阵
+## 播放控制与媒体矩阵
 
-每个会影响 sample assembly、Receiver、timeline、renderer graph 或 App Adapter 的 revision，都必须通过当前播放管线验证：
+每个会影响 sample assembly、Receiver、timeline、renderer graph 或产品集成的 revision，都必须通过当前播放管线验证：
 
 | 切片 | 唯一通过条件 |
 |---|---|
-| 启动与持续播放 | 从首个有效 PTS 建立 timeline；displayed frame 与 audio 持续推进，无 renderer error |
-| Pause / Resume | 暂停期间 media time 与 displayed frame 不前进；恢复后沿同一 session 继续 |
-| Seek | 前后 seek 到达容差内目标；旧 epoch sample 不再显示或播放 |
+| 启动与持续播放 | 从首个有效 PTS 建立停止的 timeline；当前 video epoch 从可解码起点到第一个到达或越过目标 decode time 的 sample 都被 renderer 接受，存在音轨时当前 audio epoch 已提交覆盖启动时间且至少 0.25 秒提前量的音频，然后才应用播放 rate；越过目标的 DTS 不要求精确相等；displayed frame 与 audio 持续推进，无 renderer error |
+| Pause / Resume | 暂停期间 media time 与 displayed frame 不前进；以相同 rate 恢复时保留当前 audio Receiver queue，不进行无重新定位和 preroll 配套的 flush；恢复后沿同一 session 继续且物理音频重新可听 |
+| Seek | Progress Bar 与前后跳转保持原 Playing/Paused 意图，Precision Timeline 与逐帧保持 Paused，从 Ended 离开结尾保持 Paused；到达容差内目标，旧 epoch sample 不再显示或播放 |
 | 连续 Seek | 快速连续请求只提交最终未 superseded 操作，不产生第二 timeline |
 | 快进 / 快退 | 跳转与非 1.0 rate 符合核心控制语义；恢复后音画继续同步 |
 | 音频核心 | verification harness 可用内部 gain/mute seam 验证当前 graph 与音轨切换；它不构成 Enchron 产品 Volume/Mute 控件。产品最终音量由 visionOS 系统控制 |
 | Close / Reopen | delivery task 取消、Receiver flush、consumer detach 与资源释放完成；reopen 建立新 session |
-| End | 所有 active lane 完成且 synchronizer 越过最终 presentation end 后发布 ended |
+| End | 所有 active lane 完成且 synchronizer 越过最终 presentation end 后发布 natural-completion ended；seek 到总时长发布 seek-to-end ended，二者在产品持久化前可区分 |
 | 颜色与 HDR | sample 和 displayed pixel 的 primaries、transfer、matrix、range 符合 fixture oracle |
 | 稳定性 | 规定时长内 sample、displayed frame、audio 与 timeline 持续推进，资源不无界增长 |
 
 最低媒体集合覆盖 SDR、HDR10/PQ、HLG、受支持的 Dolby Vision profile、B-frame、至少双音轨、可 seek 长媒体与远程 range source。每种媒体必须在 `fixture-registry.json` 中具有稳定 ID、hash、许可、codec/container、颜色/HDR、音轨、时长和 oracle；许可或 oracle 不完整的素材只能作为 diagnostic，不能让完整矩阵标记为 passed。
 
-## Enchron App 等价性
+## Enchron App 集成合同
 
-App Adapter scenario 必须证明：
+Enchron App 的产品集成验证必须证明：
 
 - `PlaybackRuntime` 发布的 lifecycle、position、duration、rate、track 和 error 是 PlaybackCore 的只读投影。
 - `PlaybackRuntime` 不维护独立 Media Session、第二 timeline 或与核心竞争的 seek generation。
 - Window、Docked、Panorama 迁移同一个 renderer；目标 binding 成功后才提交，失败保留原 session 并回滚 Presentation。
 - 来源授权和远程 streaming 生命周期覆盖整个 Media Session，cleanup 后才释放。
-- verification-only route、fixture 和诊断入口不会进入产品 UI 或改变产品失败语义。
+- 验证 fixture 和诊断入口不会进入产品 UI 或改变产品失败语义。
+
+### 播放输出诊断合同
+
+每个 Simulator 与真机运行都必须从生产 Debug Snapshot 和当前 `VideoPlayerComponent` 记录生成 `PlaybackOutputObservation`，不得用另一套播放状态机推断结果。单次观察按固定顺序报告第一处未完成边界：Media Session、video sample、renderer input、decoder bootstrap、底层 timebase 的实际播放 rate 大于零、RealityKit binding、component ready、displayed pixel、audio sample、audio renderer、系统 audio session、系统 audio route。音频 renderer 完成要求实际 status 为 `rendering`、error 为空且没有静音或零 renderer volume；系统 audio route 完成要求 session category 为 playback、mode 为 movie playback、至少存在一个输出 port 且系统输出音量大于零。请求给 synchronizer 的 rate 只表达控制意图，不能作为实际播放证据。Lifecycle 为 Playing 时还必须取得同一 Media Session、同一 stream epoch 的第二次观察，并分别证明 timeline、video sample、renderer accepted input，以及存在音轨时的 audio sample 均持续增加。Lifecycle 为 Ended 时改为证明 displayed image 已清除且系统 audio session 已停用，不要求一个与纯黑语义冲突的 displayed pixel。
+
+因此，`renderer bound` 只能完成节点 08，`component ready` 不能替代 displayed pixel，单个 displayed pixel 不能替代持续播放，audio sample enqueue 也不能替代 audio renderer rendering、有效系统路由或物理听音。真机 XCUITest 必须把启动、暂停、恢复、播放态 Seek 后的成对状态观察、Accessibility hierarchy 和 `XCUIScreen` 截图保存在同一 `.xcresult`；自动通过至少要求实际 timebase rate、position、video sample、renderer accepted input 和存在音轨时的 audio sample 共同推进，并保存 renderer status/error、session category/mode、输出 port 与系统音量。相邻截图用于视觉确认画面并非持续停留在同一帧；物理麦克风录音或佩戴者听音仍是唯一能证明声音最终离开设备的证据。失败诊断首先读取上述第一未完成边界。
+
+UR12 声学验收在录音开始时保存 wall-clock，XCUITest 在 initial play、pause、resume、playing seek 与 final pause 的起止点保存同一时钟的 marker。`Scripts/verification/analyze_acoustic_timeline.py` 将 `.xcresult` marker 与 PCM WAV 对齐，分别计算各区间 RMS/peak；每个播放区间必须至少比两个暂停区间的平均 RMS 高 6 dB，否则自动判定为无可听输出。原始 WAV、录音开始时间、`.xcresult` 与分析 JSON 必须共同保存，单独的分析结论不是可复核证据。
 
 ## 证据
 
@@ -113,7 +110,6 @@ App Adapter scenario 必须证明：
 
 - 节点 01 失败：检查 Enchron App 来源授权、Media Reference 解析或远程 range bridge。
 - 节点 02–06 失败：先修复并重新验证 PlaybackCore，不修改 UI 来掩盖问题。
-- 节点 07 在 Core scenario 失败：检查 sample、Receiver、timeline 与 renderer graph。
-- Core scenario 通过而节点 08–09 或 App Adapter 失败：检查 `PlaybackRuntime`、consumer binding 与状态投影。
-- macOS 产品集成验证通过而 Simulator 失败：检查 visionOS 平台接口、Scene 生命周期与空间呈现状态转换。
+- 节点 07 失败：检查 sample、Receiver、timeline 与 renderer graph。
+- 节点 08–09 在 Simulator 或 App 集成验证中失败：检查 `PlaybackRuntime`、consumer binding、状态投影、visionOS 平台接口、Scene 生命周期与空间呈现状态转换。
 - 前面的自动验证全部通过而 Vision Pro 真机失败：检查设备解码器、HDR/EDR、音频路线、空间呈现与性能，不反向宣称所有播放核心节点失效。

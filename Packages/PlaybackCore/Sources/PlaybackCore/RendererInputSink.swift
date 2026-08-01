@@ -9,6 +9,11 @@ enum RendererEnqueueOutcome: Sendable, Equatable {
     case failed(String)
 }
 
+enum RendererEnqueueStrategy: Sendable {
+    case receiverBackpressure
+    case boundedImmediateLead
+}
+
 struct RendererInputSample: @unchecked Sendable {
     let sampleBuffer: CMSampleBuffer
 }
@@ -19,6 +24,7 @@ enum RendererInputEventFact: Sendable {
 }
 
 protocol RendererInputSink: AnyObject {
+    var enqueueStrategy: RendererEnqueueStrategy { get }
     func enqueueImmediately(_ sample: RendererInputSample) throws -> RendererEnqueueOutcome
     func enqueue(_ sample: RendererInputSample) async throws -> RendererEnqueueOutcome
     func flush(removingDisplayedImage: Bool) async
@@ -29,6 +35,8 @@ protocol RendererInputSink: AnyObject {
 }
 
 protocol AudioRendererInputSink: AnyObject {
+    var enqueueStrategy: RendererEnqueueStrategy { get }
+    func enqueueImmediately(_ sample: RendererInputSample) throws -> RendererEnqueueOutcome
     func enqueue(_ sample: RendererInputSample) async throws -> RendererEnqueueOutcome
     func flush()
     func observeRenderingEventsAfterFinishedEnqueuing(
@@ -38,6 +46,8 @@ protocol AudioRendererInputSink: AnyObject {
 }
 
 extension RendererInputSink {
+    var enqueueStrategy: RendererEnqueueStrategy { .receiverBackpressure }
+
     func observeRenderingEventsAfterFinishedEnqueuing(
         handler: @escaping @Sendable (RendererInputEventFact) -> Void
     ) {}
@@ -45,6 +55,8 @@ extension RendererInputSink {
 }
 
 extension AudioRendererInputSink {
+    var enqueueStrategy: RendererEnqueueStrategy { .receiverBackpressure }
+
     func observeRenderingEventsAfterFinishedEnqueuing(
         handler: @escaping @Sendable (RendererInputEventFact) -> Void
     ) {}
@@ -59,6 +71,11 @@ final class AVSampleBufferRendererInputSink: RendererInputSink, @unchecked Senda
     init(receiver: consuming AVSampleBufferVideoRenderer.Receiver) {
         self.receiver = receiver
     }
+
+    // visionOS can leave the Receiver's async backpressure suspended for a
+    // compressed HDR stream even while its timebase is advancing. Keep the
+    // delivery lane bounded by media time and submit through enqueueImmediately.
+    var enqueueStrategy: RendererEnqueueStrategy { .boundedImmediateLead }
 
     func enqueueImmediately(_ input: RendererInputSample) throws -> RendererEnqueueOutcome {
         let sample = input.sampleBuffer
@@ -155,6 +172,19 @@ final class AVSampleBufferAudioRendererInputSink: AudioRendererInputSink, @unche
         self.receiver = receiver
     }
 
+    var enqueueStrategy: RendererEnqueueStrategy { .boundedImmediateLead }
+
+    func enqueueImmediately(_ input: RendererInputSample) throws -> RendererEnqueueOutcome {
+        let sample = input.sampleBuffer
+        if !CMSampleBufferDataIsReady(sample) {
+            try sample.makeDataReady()
+        }
+        let readySample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
+            unsafeBuffer: sample
+        )
+        return Self.outcome(receiver.enqueueImmediately(readySample))
+    }
+
     func enqueue(_ input: RendererInputSample) async throws -> RendererEnqueueOutcome {
         let sample = input.sampleBuffer
         if !CMSampleBufferDataIsReady(sample) {
@@ -163,7 +193,13 @@ final class AVSampleBufferAudioRendererInputSink: AudioRendererInputSink, @unche
         let readySample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
             unsafeBuffer: sample
         )
-        return switch try await receiver.enqueue(readySample) {
+        return Self.outcome(try await receiver.enqueue(readySample))
+    }
+
+    private static func outcome(
+        _ result: AVSampleBufferAudioRenderer.Receiver.EnqueueResult
+    ) -> RendererEnqueueOutcome {
+        switch result {
         case .enqueued:
             .accepted
         case .enqueuedWithSuggestedFlush(let reasons):

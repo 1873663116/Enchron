@@ -6,7 +6,7 @@ import Testing
     #expect(PlaybackAfterSeekBehavior.pause.resolvesStartsPaused(for: .playing) == true)
 }
 
-@Test func preservingAfterSeekPauseStateKeepsOnlyThePausedLifecyclePaused() {
+@Test func preservingAfterSeekPauseStateTreatsEndedAsHavingNoPlayingIntent() {
     #expect(
         PlaybackAfterSeekBehavior.preserveCurrentPauseState.resolvesStartsPaused(for: .paused)
     )
@@ -15,7 +15,8 @@ import Testing
             == false
     )
     #expect(
-        PlaybackAfterSeekBehavior.preserveCurrentPauseState.resolvesStartsPaused(for: .ended)
-            == false
+        PlaybackAfterSeekBehavior.preserveCurrentPauseState.resolvesStartsPaused(
+            for: .ended(.naturalCompletion)
+        )
     )
 }

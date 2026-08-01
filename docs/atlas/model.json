@@ -2050,6 +2050,7 @@
             "state.playbackLifecycle": "idle",
             "state.playbackPresentation": "none",
             "state.immersiveSpaceResidency": "closed",
+            "state.progressiveImmersion": "inactive",
             "state.immersiveContent": "none",
             "state.environmentCardResidency": "closed",
             "state.endedSurface": "inactive",
@@ -2116,6 +2117,7 @@
             "state.environmentContext": "active",
             "state.environmentEffect": "day",
             "state.immersiveSpaceResidency": "open",
+            "state.progressiveImmersion": "userControlled",
             "state.immersiveContent": "environmentOnly",
             "state.environmentCardResidency": "closed",
             "state.endedSurface": "inactive",
@@ -2182,6 +2184,7 @@
             "state.playbackPresentation": "window",
             "state.presentationTransition": "idle",
             "state.immersiveSpaceResidency": "closed",
+            "state.progressiveImmersion": "inactive",
             "state.immersiveContent": "none",
             "state.environmentCardResidency": "closed",
             "state.endedSurface": "inactive",
@@ -2256,6 +2259,7 @@
             "state.dockingEnvironmentSource": "inheritedActive",
             "state.dockingEffect": "day",
             "state.immersiveSpaceResidency": "open",
+            "state.progressiveImmersion": "userControlled",
             "state.immersiveContent": "dockedSurface",
             "state.environmentCardResidency": "closed",
             "state.endedSurface": "inactive",
@@ -2334,6 +2338,7 @@
             "state.formatPreference": "valid",
             "state.environmentContext": "none",
             "state.immersiveSpaceResidency": "open",
+            "state.progressiveImmersion": "userControlled",
             "state.immersiveContent": "panoramaSurface",
             "state.environmentCardResidency": "closed",
             "state.endedSurface": "inactive",
@@ -2587,6 +2592,7 @@
         "state": {
           "state.presentationTransition": "interrupted",
           "state.immersiveSpaceResidency": "closed",
+          "state.progressiveImmersion": "inactive",
           "state.immersiveContent": "none",
           "state.playbackPresentation": "none",
           "state.rendererConsumerBinding": "none",
@@ -2628,6 +2634,7 @@
         "state": {
           "state.presentationTransition": "interrupted",
           "state.immersiveSpaceResidency": "closed",
+          "state.progressiveImmersion": "inactive",
           "state.immersiveContent": "none",
           "state.playbackPresentation": "none",
           "state.rendererConsumerBinding": "none",
@@ -8827,7 +8834,7 @@
     {
       "id": "transport.progressSeek",
       "label": "拖动 Progress Bar",
-      "summary": "定位到结尾之前后开始或继续播放，即使拖动前处于 Paused；到结尾则 Ended。",
+      "summary": "拖动期间时间标识随本地预览位置连续更新，松手才提交定位；定位到结尾之前保持原 Playing/Paused 意图，从 Ended 离开结尾后保持 Paused，到结尾则 Ended。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Media Timeline",
       "ownerIds": [
@@ -8863,20 +8870,50 @@
           },
           "steps": [
             {
-              "label": "拖动 Progress Bar",
+              "label": "拖动并连续预览目标时间，松手提交",
               "actorId": "user",
               "patch": {}
             },
             {
-              "label": "定位并播放",
+              "label": "定位并保持 Paused",
               "actorId": "playback-core",
               "patch": {
-                "state.playbackLifecycle": "playing",
+                "state.playbackLifecycle": "paused",
                 "state.endedSurface": "inactive"
               }
             }
           ],
           "branches": [
+            {
+              "label": "从 Playing 定位到结尾之前",
+              "result": "保持 Playing。",
+              "steps": [
+                {
+                  "label": "完成 seek",
+                  "actorId": "playback-core",
+                  "patch": {
+                    "state.playbackLifecycle": "playing",
+                    "state.endedSurface": "inactive"
+                  }
+                }
+              ],
+              "visualSemantic": "guardedOutcome"
+            },
+            {
+              "label": "从 Ended 定位到结尾之前",
+              "result": "离开结尾并保持 Paused。",
+              "steps": [
+                {
+                  "label": "完成 seek",
+                  "actorId": "playback-core",
+                  "patch": {
+                    "state.playbackLifecycle": "paused",
+                    "state.endedSurface": "inactive"
+                  }
+                }
+              ],
+              "visualSemantic": "guardedOutcome"
+            },
             {
               "label": "拖到结尾",
               "result": "保持 Ended、纯黑与 Replay。",
@@ -10225,7 +10262,7 @@
       "id": "immersive.adjustProgressiveAmount",
       "label": "调节空间沉浸量",
       "summary": "在 Environment、Docked 或 Panorama 中转动 Digital Crown，在 0.3–1.0 内调节同一个 Progressive immersion amount；切换空间内容不重置当前值。",
-      "visualGrammar": "state-axis",
+      "visualGrammar": "causal-chain",
       "causalSubject": "Progressive Immersion Amount",
       "ownerIds": [
         "visionos",
@@ -10298,13 +10335,6 @@
         },
         "blueprint": {
           "basis": "structural-placement-and-ownership"
-        },
-        "machine": {
-          "basis": "state-demonstrations-and-branches",
-          "summaryDimensions": [
-            "state.immersiveSpaceResidency",
-            "state.progressiveImmersion"
-          ]
         }
       }
     },

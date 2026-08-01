@@ -42,6 +42,7 @@ struct ComponentLibraryView: View {
 private struct CircleButtonsSection: View {
     @State private var selected: String?
     @State private var isAppearanceModeActive = false
+    @State private var isEnvironmentExpanded = false
     @State private var viewMode = 0
     @State private var sortKey: SortMenuKey = .name
     @State private var sortOrder: SortMenuOrder = .ascending
@@ -78,10 +79,29 @@ private struct CircleButtonsSection: View {
                                 "DesignPreview-ComponentLibrary-button-collapse-icon"
                         )
                     }
-                    labeledComponent("Environment") {
+                    labeledComponent("Environment Expand/Collapse (tap)") {
+                        GlassCircleIconButton.expandCollapse(
+                            isExpanded: isEnvironmentExpanded,
+                            accessibilityLabel: isEnvironmentExpanded
+                                ? "Close environment"
+                                : "Open environment",
+                            action: {
+                                isEnvironmentExpanded.toggle()
+                            },
+                            accessibilityIdentifier:
+                                "DesignPreview-ComponentLibrary-button-expand-collapse"
+                        )
+                    }
+                    labeledComponent("Environment (Mountain)") {
                         GlassCircleIconButton.environment(
                             accessibilityIdentifier:
-                                "DesignPreview-ComponentLibrary-button-environment"
+                                "DesignPreview-ComponentLibrary-button-mountain"
+                        )
+                    }
+                    labeledComponent("Settings") {
+                        GlassCircleIconButton.settings(
+                            accessibilityIdentifier:
+                                "DesignPreview-ComponentLibrary-button-settings"
                         )
                     }
                     labeledComponent("Expand Vertically") {

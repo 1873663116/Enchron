@@ -12,11 +12,27 @@ typedef enum PBFFmpegMode {
 typedef enum PBFFmpegReadResult {
     PBFFmpegReadResultSample = 0,
     PBFFmpegReadResultEnd = 1,
+    PBFFmpegReadResultCancelled = 2,
     PBFFmpegReadResultError = -1,
 } PBFFmpegReadResult;
 
 typedef struct PBFFmpegReader PBFFmpegReader;
 typedef struct PBFFmpegAudioReader PBFFmpegAudioReader;
+typedef enum PBFFmpegAudioCookieSource {
+    PBFFmpegAudioCookieSourceUnavailable = 0,
+    PBFFmpegAudioCookieSourceExtradata = 1,
+    PBFFmpegAudioCookieSourceSynthesized = 2,
+    PBFFmpegAudioCookieSourceFilterOutput = 3,
+} PBFFmpegAudioCookieSource;
+typedef struct PBFFmpegAudioSampleMetadata {
+    int64_t packetPTS;
+    int64_t packetDTS;
+    int64_t packetDuration;
+    int timeBaseNumerator;
+    int timeBaseDenominator;
+    size_t payloadByteCount;
+    PBFFmpegAudioCookieSource cookieSource;
+} PBFFmpegAudioSampleMetadata;
 typedef struct PBFFmpegSubtitleReader PBFFmpegSubtitleReader;
 typedef struct PBSubtitleFrameRenderer PBSubtitleFrameRenderer;
 
@@ -50,6 +66,16 @@ PBFFmpegReader *PBFFmpegReaderCreate(
     char *errorBuffer,
     size_t errorBufferSize
 );
+PBFFmpegReader *PBFFmpegReaderAllocate(void);
+bool PBFFmpegReaderOpen(
+    PBFFmpegReader *reader,
+    const char *path,
+    PBFFmpegMode mode,
+    double startSeconds,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+void PBFFmpegReaderCancel(PBFFmpegReader *reader);
 
 void PBFFmpegReaderDestroy(PBFFmpegReader *reader);
 
@@ -87,10 +113,21 @@ PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
     char *errorBuffer,
     size_t errorBufferSize
 );
+PBFFmpegAudioReader *PBFFmpegAudioReaderAllocate(void);
+bool PBFFmpegAudioReaderOpen(
+    PBFFmpegAudioReader *reader,
+    const char *path,
+    double startSeconds,
+    int preferredStreamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+void PBFFmpegAudioReaderCancel(PBFFmpegAudioReader *reader);
 void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader);
 PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
     PBFFmpegAudioReader *reader,
     CMSampleBufferRef *sampleOut,
+    PBFFmpegAudioSampleMetadata *metadataOut,
     char *errorBuffer,
     size_t errorBufferSize
 );

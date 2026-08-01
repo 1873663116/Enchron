@@ -33,6 +33,41 @@ public struct MediaSessionDebugSummary: Codable, Equatable, Sendable {
     }
 }
 
+public enum PlaybackActivationReapplyVerificationOutcome: String, Codable, Sendable {
+    case monitoring
+    case waitingForSufficientMedia
+    case rateAlreadyActive
+    case queued
+    case reapplied
+    case invalidatedByNewActivation
+    case invalidatedBySeek
+    case invalidatedByPause
+    case invalidatedByRateChange
+    case invalidatedByEpochChange
+    case invalidatedByStop
+    case invalidatedByClose
+    case staleBeforeReapply
+    case timedOut
+}
+
+public struct PlaybackActivationReapplyVerificationRecord: Codable, Equatable, Sendable {
+    public var activationSequence: UInt64
+    public var videoStreamEpoch: UInt64
+    public var audioStreamEpoch: UInt64
+    public var requestedRate: Float
+    public var anchorValue: Int64
+    public var anchorTimescale: Int32
+    public var anchorFlags: UInt32
+    public var anchorEpoch: Int64
+    public var audioRequired: Bool
+    public var videoHasSufficientMedia: Bool
+    public var audioHasSufficientMedia: Bool
+    public var directRate: Float64
+    public var effectiveRate: Float64
+    public var attemptCount: Int
+    public var outcome: PlaybackActivationReapplyVerificationOutcome
+}
+
 public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var schemaVersion = 1
     public var generatedAt = Date()
@@ -55,8 +90,10 @@ public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var lastAudioSample: AudioSampleRecord?
     public var lastRendererInput: RendererInputRecord?
     public var lastAcceptedRendererInput: RendererInputRecord?
+    public var decoderBootstrap: DecoderBootstrapRecord?
     public var rendererState: RendererStateRecord?
     public var audioRendererState: AudioRendererStateRecord?
+    public var activationReapplyVerification: PlaybackActivationReapplyVerificationRecord?
     public var cleanupState: PlaybackCleanupStateRecord?
     public var realityKitBinding: RealityKitBindingRecord?
     public var presentationBinding: PresentationBindingRecord?
@@ -288,6 +325,12 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         }
     }
 
+    public func recordDecoderBootstrap(_ record: DecoderBootstrapRecord?) {
+        lock.lock()
+        defer { lock.unlock() }
+        currentSnapshot.decoderBootstrap = record
+    }
+
     public func recordRendererState(_ record: RendererStateRecord) {
         lock.lock()
         defer { lock.unlock() }
@@ -298,6 +341,14 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         currentSnapshot.audioRendererState = record
+    }
+
+    public func recordActivationReapplyVerification(
+        _ record: PlaybackActivationReapplyVerificationRecord
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        currentSnapshot.activationReapplyVerification = record
     }
 
     func recordCleanupStep(_ step: PlaybackCleanupStep) {

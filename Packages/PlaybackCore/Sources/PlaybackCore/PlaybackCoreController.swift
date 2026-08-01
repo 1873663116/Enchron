@@ -1,6 +1,20 @@
 import CoreMedia
 import Foundation
 
+enum PlaybackDebugRecorderMode: Equatable, Sendable {
+    static let verificationDisableEnvironmentKey =
+        "ENCHRON_VERIFICATION_DISABLE_PLAYBACK_DEBUG_RECORDER"
+
+    case enabled
+    case disabledForVerification
+
+    init(environment: [String: String]) {
+        self = environment[Self.verificationDisableEnvironmentKey] == "1"
+            ? .disabledForVerification
+            : .enabled
+    }
+}
+
 /// Owns PlaybackCore's single current media slot and the only product playback control path.
 @MainActor
 public final class PlaybackCoreController {
@@ -28,6 +42,7 @@ public final class PlaybackCoreController {
 
     private var mediaSlot = MediaSessionState()
     private var debugRecorder: PlaybackDebugRecorder?
+    private let debugRecorderMode: PlaybackDebugRecorderMode
     private let sessionFactory: (String) -> SampleBufferPlaybackSession
     private var activeSeekTask: Task<Void, Error>?
     private var activeSubtitleSelectionTask: Task<Void, Error>?
@@ -44,12 +59,21 @@ public final class PlaybackCoreController {
         sessionFactory = { sessionID in
             SampleBufferPlaybackSession(traceID: sessionID)
         }
+        #if DEBUG
+        debugRecorderMode = PlaybackDebugRecorderMode(
+            environment: ProcessInfo.processInfo.environment
+        )
+        #else
+        debugRecorderMode = .enabled
+        #endif
     }
 
     init(
-        sessionFactory: @escaping (String) -> SampleBufferPlaybackSession
+        sessionFactory: @escaping (String) -> SampleBufferPlaybackSession,
+        debugRecorderMode: PlaybackDebugRecorderMode = .enabled
     ) {
         self.sessionFactory = sessionFactory
+        self.debugRecorderMode = debugRecorderMode
     }
 
     /// Opens one media session after pending cleanup, applying initial rate and format before playback starts.
@@ -105,7 +129,9 @@ public final class PlaybackCoreController {
             _ = try await session.setProjectionOverride(initialProjectionOverride)
         }
         activeSession = session
-        debugRecorder = PlaybackDebugRecorder(session: session, platform: platformName)
+        if debugRecorderMode == .enabled {
+            debugRecorder = PlaybackDebugRecorder(session: session, platform: platformName)
+        }
         session.debugStore.recordPlatform(
             platformName,
             hardwareDisplayFacts: hardwareDisplayFactAvailability
@@ -564,6 +590,12 @@ public final class PlaybackCoreController {
     public func writeDebugSnapshot() {
         debugRecorder?.writeSnapshotIgnoringErrors()
     }
+
+    #if DEBUG
+    public func debugEvidenceJSON() -> String? {
+        debugRecorder?.diagnosticEvidenceJSON()
+    }
+    #endif
 
     private func bindCallbacks(to session: SampleBufferPlaybackSession) {
         session.onStatusChange = { [weak self, weak session] status in

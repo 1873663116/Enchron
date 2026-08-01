@@ -1,12 +1,17 @@
 import Foundation
 
+public enum PlaybackEndReason: String, Codable, Equatable, Sendable {
+    case naturalCompletion
+    case seekToEnd
+}
+
 public enum PlaybackStatus: Equatable, Sendable {
     case idle
     case loading
     case ready
     case playing
     case paused
-    case ended
+    case ended(PlaybackEndReason)
     case failed(String)
 
     public var label: String {

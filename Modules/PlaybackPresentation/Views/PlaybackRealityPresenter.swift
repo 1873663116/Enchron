@@ -8,43 +8,64 @@ import SwiftUI
 @MainActor
 final class PlaybackSurfaceActivation {
     private var subscription: EventSubscription?
-    private var activationTask: Task<Void, Never>?
+    private var retryTask: Task<Void, Never>?
+    private var observedEntityID: ObjectIdentifier?
+    private var onActivate: (@MainActor () -> Void)?
+
+    static let maximumRetryCountForView = 120
+    static let retryIntervalForView = Duration.milliseconds(25)
 
     func observe<Content: RealityViewContentProtocol>(
         _ entity: Entity,
         in content: Content,
         onActivate: @escaping @MainActor () -> Void
     ) {
-        guard subscription == nil, activationTask == nil else { return }
-        #if os(macOS)
-        activationTask = Task { @MainActor in
-            for _ in 0..<200 {
-                guard Task.isCancelled == false else { return }
-                if entity.isActive {
-                    onActivate()
-                    activationTask = nil
-                    return
-                }
-                try? await Task.sleep(for: .milliseconds(10))
-            }
-            activationTask = nil
+        let nextEntityID = ObjectIdentifier(entity)
+        if observedEntityID != nextEntityID {
+            cancel()
+            observedEntityID = nextEntityID
         }
-        #else
-        subscription = content.subscribe(
-            to: SceneEvents.DidActivateEntity.self,
-            on: entity
-        ) { event in
-            guard event.entity === entity else { return }
-            Task { @MainActor in onActivate() }
+        self.onActivate = onActivate
+        #if os(visionOS)
+        if subscription == nil {
+            subscription = content.subscribe(
+                to: SceneEvents.DidActivateEntity.self,
+                on: entity
+            ) { [weak self] event in
+                guard event.entity === entity else { return }
+                Task { @MainActor [weak self] in
+                    self?.onActivate?()
+                    self?.requestRetry()
+                }
+            }
         }
         #endif
+        requestRetry()
+    }
+
+    /// RealityKit can publish activation before the renderer or format
+    /// projection is ready (and vice versa). Re-run the idempotent attach
+    /// check for a bounded window so either ordering can converge.
+    func requestRetry() {
+        guard retryTask == nil, onActivate != nil else { return }
+        retryTask = Task { @MainActor [weak self] in
+            for _ in 0..<Self.maximumRetryCountForView {
+                guard !Task.isCancelled else { return }
+                guard let self else { return }
+                self.onActivate?()
+                try? await Task.sleep(for: Self.retryIntervalForView)
+            }
+            self?.retryTask = nil
+        }
     }
 
     func cancel() {
         subscription?.cancel()
         subscription = nil
-        activationTask?.cancel()
-        activationTask = nil
+        retryTask?.cancel()
+        retryTask = nil
+        observedEntityID = nil
+        onActivate = nil
     }
 }
 
