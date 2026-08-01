@@ -3,38 +3,11 @@ import SwiftUI
 public enum DirectionalIconDirection: Sendable, Equatable {
     case backward
     case forward
-
-    fileprivate var actionRotation: Double {
-        switch self {
-        case .backward: -382
-        case .forward: 382
-        }
-    }
-
-    fileprivate var settleRotation: Double {
-        switch self {
-        case .backward: 3
-        case .forward: -3
-        }
-    }
-
-    fileprivate var arrowSystemName: String {
-        switch self {
-        case .backward: "gobackward"
-        case .forward: "goforward"
-        }
-    }
 }
 
-/// A directional icon button whose artwork reveals from its tail and settles with
-/// a small directional rotation. The fixed artwork frame keeps the motion inside
-/// the button instead of translating the control itself.
+/// A directional icon button that preserves the supplied SF Symbol and delegates
+/// its internal layer animation to the system symbol effect.
 public struct AnimatedDirectionalIconButton: View {
-    private struct AnimationValues {
-        var rotation: Double = 0
-        var scale: CGFloat = 1
-    }
-
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.isEnabled) private var isEnabled
 
@@ -91,50 +64,31 @@ public struct AnimatedDirectionalIconButton: View {
 
     @ViewBuilder
     private var artwork: some View {
-        ZStack {
-            animatedArrow
-            Text("15")
-                .font(.system(size: numberSize, weight: .semibold, design: .rounded))
-                .monospacedDigit()
-        }
-        .frame(width: iconTier.artworkSize, height: iconTier.artworkSize)
-    }
-
-    @ViewBuilder
-    private var animatedArrow: some View {
         if accessibilityReduceMotion {
-            arrowArtwork
+            staticArtwork
         } else {
-            arrowArtwork
-                .keyframeAnimator(
-                    initialValue: AnimationValues(),
-                    trigger: trigger
-                ) { content, value in
-                    content
-                        .rotationEffect(.degrees(value.rotation))
-                        .scaleEffect(value.scale)
-                } keyframes: { _ in
-                    KeyframeTrack(\.rotation) {
-                        CubicKeyframe(direction.actionRotation, duration: 0.32)
-                        CubicKeyframe(direction.settleRotation, duration: 0.08)
-                        CubicKeyframe(0, duration: 0.08)
-                    }
-                    KeyframeTrack(\.scale) {
-                        CubicKeyframe(0.92, duration: 0.12)
-                        CubicKeyframe(1, duration: 0.36)
-                    }
-                }
+            switch direction {
+            case .backward:
+                staticArtwork
+                    .symbolEffect(
+                        .rotate.counterClockwise.byLayer,
+                        options: .speed(1.15),
+                        value: trigger
+                    )
+            case .forward:
+                staticArtwork
+                    .symbolEffect(
+                        .rotate.clockwise.byLayer,
+                        options: .speed(1.15),
+                        value: trigger
+                    )
+            }
         }
     }
 
-    private var arrowArtwork: some View {
-        Image(systemName: direction.arrowSystemName)
+    private var staticArtwork: some View {
+        Image(systemName: systemName)
             .font(iconTier.font)
             .frame(width: iconTier.artworkSize, height: iconTier.artworkSize)
     }
-
-    private var numberSize: CGFloat {
-        max(7, iconTier.artworkSize * 0.3)
-    }
-
 }
