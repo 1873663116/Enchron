@@ -793,7 +793,7 @@ struct FusedPlayerPanel: View {
             accessibilityLabel: primaryPlayLabel,
             action: { live?.onPlayPause() },
             accessibilityIdentifier: "PlayerPanel-button-play",
-            visualSize: DesignTokens.Interactive.xl,
+            visualSize: DesignTokens.Interactive.large,
             targetSize: DesignTokens.Interactive.xl,
             iconTier: .primary
         )
