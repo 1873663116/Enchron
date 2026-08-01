@@ -305,24 +305,24 @@ struct FusedPlayerPanel: View {
         }
     }
 
-    @ViewBuilder
     private var windowOrnamentContent: some View {
-        if timelineExpanded {
-            VStack(spacing: DesignTokens.Spacing.md) {
-                windowTransportControls
-                timelineBlock
-            }
-        } else {
+        VStack(spacing: DesignTokens.Spacing.md) {
             HStack(spacing: DesignTokens.Spacing.md) {
                 windowTransportControls
-                progressBar(width: windowProgressWidth)
+                mediaInformationWell(width: windowMediaInformationWidth)
+            }
+
+            if timelineExpanded {
+                timelineBlock
+            } else {
+                progressBar(width: clusterWidth)
             }
         }
     }
 
     private var playerControlDockContent: some View {
         VStack(spacing: DesignTokens.Spacing.md) {
-            mediaInformationWell
+            mediaInformationWell(width: clusterWidth)
             playerControlDockControls
 
             if settingsExpanded, let live, live.presentation == .docked {
@@ -341,7 +341,7 @@ struct FusedPlayerPanel: View {
         }
     }
 
-    private var windowProgressWidth: CGFloat {
+    private var windowMediaInformationWidth: CGFloat {
         clusterWidth
             - DesignTokens.Interactive.large * 3
             - DesignTokens.ControlBar.buttonSpacing * 2
@@ -489,7 +489,7 @@ struct FusedPlayerPanel: View {
         }
     }
 
-    private var mediaInformationWell: some View {
+    private func mediaInformationWell(width: CGFloat) -> some View {
         let shape = RoundedRectangle(
             cornerRadius: DesignTokens.Radius.element,
             style: .continuous
@@ -535,7 +535,7 @@ struct FusedPlayerPanel: View {
                 animation: DesignTokens.AnimationToken.informationReveal
             )
         }
-        .frame(width: clusterWidth, height: DesignTokens.Layout.playbackMediaInfoHeight)
+        .frame(width: width, height: DesignTokens.Layout.playbackMediaInfoHeight)
         .background(.thickMaterial, in: shape)
         .overlay {
             shape.stroke(.white.opacity(0.08), lineWidth: DesignTokens.Stroke.subtle)

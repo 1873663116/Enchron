@@ -182,8 +182,7 @@ struct WindowPlaybackSpatialActions<
 /// injects deterministic fixtures into this same composition.
 struct WindowPlaybackRootView<
     VideoContent: View,
-    TopChrome: View,
-    MediaFacts: View
+    TopChrome: View
 >: View {
     #if os(visionOS)
     @State private var owningWindowScene: UIWindowScene?
@@ -195,7 +194,6 @@ struct WindowPlaybackRootView<
     private let onSurfaceTap: (() -> Void)?
     private let videoContent: VideoContent
     private let topChrome: TopChrome
-    private let mediaFacts: MediaFacts
 
     init(
         layout: WindowPlaybackLayout,
@@ -203,8 +201,7 @@ struct WindowPlaybackRootView<
         showsWindowChrome: Bool,
         onSurfaceTap: (() -> Void)? = nil,
         @ViewBuilder videoContent: () -> VideoContent,
-        @ViewBuilder topChrome: () -> TopChrome,
-        @ViewBuilder mediaFacts: () -> MediaFacts
+        @ViewBuilder topChrome: () -> TopChrome
     ) {
         self.layout = layout
         self.preferredInitialSize = preferredInitialSize
@@ -212,7 +209,6 @@ struct WindowPlaybackRootView<
         self.onSurfaceTap = onSurfaceTap
         self.videoContent = videoContent()
         self.topChrome = topChrome()
-        self.mediaFacts = mediaFacts()
     }
 
     var body: some View {
@@ -254,16 +250,6 @@ struct WindowPlaybackRootView<
             .overlay(alignment: .top) {
                 if showsWindowChrome {
                     topChromePlane
-                }
-            }
-            .overlay(alignment: .bottomLeading) {
-                if showsWindowChrome {
-                    mediaFacts
-                        .padding(.leading, DesignTokens.Spacing.xl)
-                        .padding(.bottom, DesignTokens.Spacing.xl)
-                        .transition(
-                            .opacity.combined(with: .move(edge: .bottom))
-                        )
                 }
             }
             .animation(

@@ -53,6 +53,13 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
 
         let centers = controls.map { $0.frame.midX }
         XCTAssertEqual(centers, centers.sorted(), "Playback controls must appear in canonical left-to-right order.")
+        let mediaInformation = app.descendants(matching: .any)["PlayerPanel-media-information"].firstMatch
+        let progress = app.descendants(matching: .any)["PlayerPanel-progress"].firstMatch
+        XCTAssertTrue(mediaInformation.exists)
+        XCTAssertTrue(progress.exists)
+        XCTAssertLessThan(controls[2].frame.maxX, mediaInformation.frame.minX)
+        XCTAssertLessThan(mediaInformation.frame.maxY, progress.frame.midY)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-window-media-overlay"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-dock"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-panorama"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["PlayerUI-TopAction-dock"].exists)
