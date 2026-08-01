@@ -376,7 +376,8 @@ public struct GlassCircleIconButton: View {
             systemName: "mountain.2.fill",
             accessibilityLabel: accessibilityLabel,
             action: action,
-            accessibilityIdentifier: accessibilityIdentifier
+            accessibilityIdentifier: accessibilityIdentifier,
+            iconTier: .compact
         )
     }
 
