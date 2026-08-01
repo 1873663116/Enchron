@@ -21,21 +21,21 @@ struct PlaybackControlsPreview: View {
                     .font(DesignTokens.Typography.sectionHeader)
                     .foregroundStyle(.secondary)
 
-                playbackControl(
+                playbackPresentationSection(
                     title: "Window",
-                    supporting: "Window Playback Ornament · transport and progress",
+                    supporting: "Window Playback Ornament keeps its own compact composition",
                     presentation: .window
                 )
 
-                playbackControl(
+                playbackPresentationSection(
                     title: "Docked",
-                    supporting: "Collapse returns to Window · Settings opens placement controls",
+                    supporting: "Settings opens placement controls · Collapse returns to Window",
                     presentation: .docked
                 )
 
-                playbackControl(
+                playbackPresentationSection(
                     title: "Panorama",
-                    supporting: "Collapse Vertically returns to Window · Settings opens media format controls",
+                    supporting: "Settings opens media format controls · Collapse Vertically returns to Window",
                     presentation: .panorama
                 )
             }
@@ -45,7 +45,7 @@ struct PlaybackControlsPreview: View {
         .navigationTitle("Playback Controls")
     }
 
-    private func playbackControl(
+    private func playbackPresentationSection(
         title: String,
         supporting: String,
         presentation: PlaybackPresentation
@@ -59,27 +59,54 @@ struct PlaybackControlsPreview: View {
                     .foregroundStyle(.secondary)
             }
 
-            if presentation == .window {
-                WindowPlaybackControls(live: live(presentation: presentation))
-            } else {
-                PlayerControlDock(live: live(presentation: presentation))
+            previewState("Collapsed", presentation: presentation, expansion: .collapsed)
+            previewState("Timeline Expanded", presentation: presentation, expansion: .timeline)
+            if presentation != .window {
+                previewState("Settings Expanded", presentation: presentation, expansion: .settings)
             }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("DesignPreview-PlaybackControls-\(presentation.rawValue)")
     }
 
+    @ViewBuilder
+    private func previewState(
+        _ title: String,
+        presentation: PlaybackPresentation,
+        expansion: PlaybackPanelInitialExpansion
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+
+            if presentation == .window {
+                WindowPlaybackControls(
+                    live: live(presentation: presentation),
+                    initialExpansion: expansion
+                )
+            } else {
+                PlayerControlDock(
+                    live: live(presentation: presentation),
+                    initialExpansion: expansion
+                )
+            }
+        }
+    }
+
     private func live(presentation: PlaybackPresentation) -> FusedPlayerPanelLive {
         FusedPlayerPanelLive(
             presentation: presentation,
+            mediaName: "Dune.Part.Two.2024",
+            mediaProfile: mediaProfile(for: presentation),
             canDock: true,
             canEnterPanorama: true,
             screenScale: screenScale,
             recommendedScreenScale: 1.0,
             screenDistance: screenDistance,
             screenElevationDegrees: screenElevation,
-            projection: projection,
-            stereoLayout: stereoLayout,
+            projection: presentation == .panorama ? projection : .flat,
+            stereoLayout: presentation == .panorama ? stereoLayout : .mono,
             canUseFisheye: true,
             isPlaying: isPlaying,
             showsReplay: false,
@@ -119,6 +146,24 @@ struct PlaybackControlsPreview: View {
             audioItems: menuItems(["English 5.1", "Japanese 2.0"], selected: "English 5.1"),
             speedItems: menuItems(["0.5×", "1×", "1.5×", "2×"], selected: "1×"),
             episodeItems: menuItems(["Episode 1", "Episode 2"], selected: "Episode 1")
+        )
+    }
+
+    private func mediaProfile(
+        for presentation: PlaybackPresentation
+    ) -> PlaybackModel.MediaProfile {
+        let isPanorama = presentation == .panorama
+        return PlaybackModel.MediaProfile(
+            projectionType: isPanorama ? projection : .flat,
+            stereoLayout: isPanorama ? stereoLayout : .mono,
+            hdrType: .hdr10,
+            resolution: .init(
+                width: 3840,
+                height: isPanorama ? 1920 : 2160
+            ),
+            frameRate: 23.976,
+            videoCodec: "hevc",
+            durationSeconds: 855
         )
     }
 

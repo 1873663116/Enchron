@@ -13,9 +13,9 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         XCTAssertTrue(play.label == "Play" || play.label == "Pause",
                       "Play button label should reflect live playback state, got \(play.label)")
 
-        let more = app.descendants(matching: .any)["PlayerPanel-menu-more"].firstMatch
+        let more = app.descendants(matching: .any)["PlayerUI-TopAction-more"].firstMatch
         XCTAssertTrue(more.waitForExistence(timeout: 5),
-                      "Fused panel ⋯ menu (subtitles / audio / speed) should be present")
+                      "Window chrome More menu should be present")
 
         XCTAssertTrue(
             app.descendants(matching: .any)["PlayerUI-TopAction-dock"]
@@ -37,18 +37,16 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
     }
 
     @MainActor
-    func testWindowDeckHasCanonicalOrderAndKeepsPresentationActionsOutsideDeck() {
+    func testWindowDeckKeepsTransportAndPresentationActionsSeparated() {
         let app = launchPlayer()
         let identifiers = [
-            "PlayerPanel-button-expand",
             "PlayerPanel-button-rewind",
             "PlayerPanel-button-play",
             "PlayerPanel-button-forward",
-            "PlayerPanel-menu-more",
         ]
         let controls = identifiers.map { app.descendants(matching: .any)[$0].firstMatch }
 
-        XCTAssertTrue(controls[2].waitForExistence(timeout: 20))
+        XCTAssertTrue(controls[1].waitForExistence(timeout: 20))
         for (identifier, control) in zip(identifiers, controls) {
             XCTAssertTrue(control.exists, "Missing canonical playback control: \(identifier)")
         }
@@ -72,8 +70,8 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
             "PlayerUI-InfoBar-button-back",
             "PlayerUI-TopAction-dock",
             "PlayerUI-TopAction-videoFormat",
-            "PlayerPanel-button-expand",
-            "PlayerPanel-menu-more",
+            "PlayerPanel-button-play",
+            "PlayerUI-TopAction-more",
         ] {
             XCTAssertTrue(
                 plane.descendants(matching: .any)[identifier].firstMatch.exists,
@@ -127,8 +125,26 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         let exitSpatial = app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 20))
         XCTAssertEqual(exitSpatial.label, "Return to Window")
-        let settings = app.descendants(matching: .any)["PlayerPanel-button-expand"].firstMatch
+        let settings = app.descendants(matching: .any)["PlayerPanel-button-settings"].firstMatch
         XCTAssertTrue(settings.waitForExistence(timeout: 5))
+        let tracks = app.descendants(matching: .any)["PlayerPanel-menu-tracks"].firstMatch
+        let more = app.descendants(matching: .any)["PlayerPanel-menu-more"].firstMatch
+        let mediaInformation = app.descendants(matching: .any)["PlayerPanel-media-information"].firstMatch
+        XCTAssertTrue(tracks.exists)
+        XCTAssertTrue(more.exists)
+        XCTAssertTrue(mediaInformation.exists)
+
+        let play = app.descendants(matching: .any)["PlayerPanel-button-play"].firstMatch
+        XCTAssertEqual(
+            play.frame.midX,
+            mediaInformation.frame.midX,
+            accuracy: 2,
+            "The transport group must keep Play on the spatial deck centerline."
+        )
+        XCTAssertLessThan(settings.frame.midX, exitSpatial.frame.midX)
+        XCTAssertLessThan(exitSpatial.frame.midX, play.frame.midX)
+        XCTAssertLessThan(play.frame.midX, tracks.frame.midX)
+        XCTAssertLessThan(tracks.frame.midX, more.frame.midX)
         settings.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"]
@@ -168,7 +184,8 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         let exitSpatial = app.descendants(matching: .any)["PlayerPanel-button-exit-spatial"].firstMatch
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 20))
         XCTAssertEqual(exitSpatial.label, "Return to Window")
-        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-settings"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-menu-tracks"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-spatial-button-stop"].exists)
         XCTAssertEqual(app.state, .runningForeground)
     }

@@ -11,6 +11,8 @@ import SwiftUI
 /// the panel without constructing a playback session.
 struct FusedPlayerPanelLive {
     var presentation: PlaybackPresentation
+    var mediaName: String
+    var mediaProfile: PlaybackModel.MediaProfile?
     var canDock: Bool
     var canEnterPanorama: Bool
     var screenScale: Double
@@ -114,15 +116,23 @@ fileprivate enum PlaybackControlPanelSurface {
     case playerControlDock
 }
 
+enum PlaybackPanelInitialExpansion {
+    case collapsed
+    case timeline
+    case settings
+}
+
 struct WindowPlaybackControls: View {
     let live: FusedPlayerPanelLive
     var onInteraction: () -> Void = {}
+    var initialExpansion: PlaybackPanelInitialExpansion = .collapsed
 
     var body: some View {
         FusedPlayerPanel(
             live: live,
             onInteraction: onInteraction,
-            surface: .windowOrnament
+            surface: .windowOrnament,
+            initialExpansion: initialExpansion
         )
     }
 }
@@ -130,12 +140,14 @@ struct WindowPlaybackControls: View {
 struct PlayerControlDock: View {
     let live: FusedPlayerPanelLive
     var onInteraction: () -> Void = {}
+    var initialExpansion: PlaybackPanelInitialExpansion = .collapsed
 
     var body: some View {
         FusedPlayerPanel(
             live: live,
             onInteraction: onInteraction,
-            surface: .playerControlDock
+            surface: .playerControlDock,
+            initialExpansion: initialExpansion
         )
     }
 }
@@ -147,7 +159,8 @@ struct FusedPlayerPanel: View {
 
     init(
         live: FusedPlayerPanelLive? = nil,
-        onInteraction: @escaping () -> Void = {}
+        onInteraction: @escaping () -> Void = {},
+        initialExpansion: PlaybackPanelInitialExpansion = .collapsed
     ) {
         self.live = live
         self.onInteraction = onInteraction
@@ -156,20 +169,26 @@ struct FusedPlayerPanel: View {
                 ? .windowOrnament
                 : .playerControlDock
         )
+        _timelineExpanded = State(initialValue: initialExpansion == .timeline)
+        _settingsExpanded = State(initialValue: initialExpansion == .settings)
     }
 
     fileprivate init(
         live: FusedPlayerPanelLive,
         onInteraction: @escaping () -> Void,
-        surface: PlaybackControlPanelSurface
+        surface: PlaybackControlPanelSurface,
+        initialExpansion: PlaybackPanelInitialExpansion
     ) {
         self.live = live
         self.onInteraction = onInteraction
         self.surface = surface
+        _timelineExpanded = State(initialValue: initialExpansion == .timeline)
+        _settingsExpanded = State(initialValue: initialExpansion == .settings)
     }
 
-    @State private var timelineExpanded = false
-    @State private var settingsExpanded = false
+    @State private var timelineExpanded: Bool
+    @State private var settingsExpanded: Bool
+    @State private var mediaInfoHovered = false
 
     // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
     @State private var progress: CGFloat = 0.45
@@ -235,18 +254,11 @@ struct FusedPlayerPanel: View {
         return PlaybackTimeFormatter.clock(elapsedSeconds)
     }
 
-    private let expandedWidth: CGFloat = 880
-
     private var isExpanded: Bool { timelineExpanded || settingsExpanded }
     private var clusterWidth: CGFloat {
-        switch surface {
-        case .windowOrnament:
-            DesignTokens.ControlBar.contentWidth
-        case .playerControlDock:
-            isExpanded
-                ? expandedWidth
-                : DesignTokens.ControlBar.contentWidth
-        }
+        isExpanded
+            ? DesignTokens.Layout.expandedPlayerControlsContentWidth
+            : DesignTokens.ControlBar.contentWidth
     }
 
     private var shape: RoundedRectangle {
@@ -312,6 +324,7 @@ struct FusedPlayerPanel: View {
 
     private var playerControlDockContent: some View {
         VStack(spacing: DesignTokens.Spacing.md) {
+            mediaInformationWell
             playerControlDockControls
 
             if settingsExpanded, let live, live.presentation == .docked {
@@ -452,19 +465,109 @@ struct FusedPlayerPanel: View {
     @ViewBuilder
     private var playerControlDockControls: some View {
         if let live {
-            HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-                returnToWindowButton(live)
-                GlassCircleIconButton.settings(
-                    accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
-                    action: toggleSettings,
-                    accessibilityIdentifier: "PlayerPanel-button-settings"
-                )
-                rewindButton
-                playButton
-                forwardButton
-                moreMenu
+            ZStack {
+                HStack(spacing: 0) {
+                    HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                        GlassCircleIconButton.settings(
+                            accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
+                            action: toggleSettings,
+                            accessibilityIdentifier: "PlayerPanel-button-settings"
+                        )
+                        returnToWindowButton(live)
+                    }
+
+                    Spacer(minLength: 0)
+
+                    HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                        tracksMenu
+                        moreMenu
+                    }
+                }
+
+                HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
+                    rewindButton
+                    playButton
+                    forwardButton
+                }
             }
-            .frame(width: clusterWidth)
+            .frame(width: clusterWidth, height: DesignTokens.Interactive.xl)
+        }
+    }
+
+    private var mediaInformationWell: some View {
+        let shape = RoundedRectangle(
+            cornerRadius: DesignTokens.Radius.element,
+            style: .continuous
+        )
+        return ZStack {
+            Text(live?.mediaName ?? "Unknown")
+                .font(DesignTokens.Typography.headline)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .padding(.horizontal, DesignTokens.Spacing.xl)
+                .offset(y: mediaInfoHovered ? -DesignTokens.Spacing.sm : 0)
+
+            HStack(spacing: DesignTokens.Spacing.xl) {
+                Text(spatialMetadataLabel)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Text(technicalMetadataLabel)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+            .font(DesignTokens.Typography.metadata.monospacedDigit())
+            .foregroundStyle(.secondary)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .padding(.horizontal, DesignTokens.Spacing.xl)
+            .frame(maxHeight: .infinity, alignment: .bottom)
+            .padding(.bottom, DesignTokens.Spacing.sm)
+            .opacity(mediaInfoHovered ? 1 : 0)
+        }
+        .frame(width: clusterWidth, height: DesignTokens.Layout.playbackMediaInfoHeight)
+        .background(.regularMaterial, in: shape)
+        .overlay {
+            shape.stroke(.white.opacity(0.08), lineWidth: DesignTokens.Stroke.subtle)
+        }
+        .contentShape(shape)
+        .onHover { hovering in
+            withAnimation(DesignTokens.AnimationToken.panelSpring) {
+                mediaInfoHovered = hovering
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(live?.mediaName ?? "Unknown media")
+        .accessibilityValue("\(spatialMetadataLabel), \(technicalMetadataLabel)")
+        .accessibilityIdentifier("PlayerPanel-media-information")
+    }
+
+    private var spatialMetadataLabel: String {
+        guard let live else { return "Flat · Mono" }
+        return "\(projectionLabel(live.projection)) · \(stereoLabel(live.stereoLayout))"
+    }
+
+    private var technicalMetadataLabel: String {
+        guard let profile = live?.mediaProfile else { return "Media information unavailable" }
+        var parts = ["\(profile.resolution.width)×\(profile.resolution.height)"]
+        parts.append(PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))
+        let codec = PlaybackInfoFormatter.videoCodecLabel(profile.videoCodec)
+        if codec != "Unknown" { parts.append(codec) }
+        if profile.frameRate > 0 { parts.append(PlaybackInfoFormatter.frameRate(profile.frameRate)) }
+        return parts.joined(separator: " · ")
+    }
+
+    private func projectionLabel(_ projection: PlaybackModel.ProjectionType) -> String {
+        switch projection {
+        case .flat: "Flat"
+        case .equirectangular180: "180°"
+        case .equirectangular360: "360°"
+        case .fisheye: "Fisheye"
+        }
+    }
+
+    private func stereoLabel(_ stereo: PlaybackModel.StereoLayout) -> String {
+        switch stereo {
+        case .mono: "Mono"
+        case .sideBySide: "Side-by-Side"
+        case .topBottom: "Top-Bottom"
         }
     }
 
@@ -623,6 +726,27 @@ struct FusedPlayerPanel: View {
         }
     }
 
+    private var tracksMenu: some View {
+        Menu {
+            if let live {
+                liveTracksMenuSections(live)
+            } else {
+                mockTracksMenuSections
+            }
+        } label: {
+            GlassCircleIconLabel(
+                systemName: "list.bullet",
+                accessibilityLabel: "Tracks",
+                accessibilityIdentifier: "PlayerPanel-menu-tracks"
+            )
+        }
+        .buttonStyle(.plain)
+        .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)
+        .contentShape(Circle())
+        .accessibilityIdentifier("PlayerPanel-menu-tracks")
+        .accessibilityLabel("Subtitle and audio tracks")
+    }
+
     // ⋯ 菜单:玻璃圆(GlassCircleIconLabel)作 Menu label,内容 live 注入时来自产品层、
     // 否则 Canvas mock。命中尺寸对齐其它 transport 玻璃圆(large 60)。
     private var moreMenu: some View {
@@ -686,13 +810,37 @@ struct FusedPlayerPanel: View {
         return live.isPlaying ? "Pause" : "Play"
     }
 
-    // MARK: ⋯ 菜单内容(live 注入 / Canvas mock 两路,抄自原 PlayerControlDeck)
+    // MARK: Tracks 与 More 菜单内容(live 注入 / Canvas mock)
+
+    @ViewBuilder
+    private var mockTracksMenuSections: some View {
+        Section("Tracks") {
+            mockSelectableMenu("Subtitles", ["Off", "English CC", "中文简体", "Auto"], selection: $selectedSubtitle)
+            mockSelectableMenu("Audio Track", ["English 5.1", "Japanese 2.0", "Commentary"], selection: $selectedAudioTrack)
+        }
+    }
+
+    @ViewBuilder
+    private func liveTracksMenuSections(_ live: FusedPlayerPanelLive) -> some View {
+        Section("Tracks") {
+            if !live.subtitleItems.isEmpty {
+                Menu("Subtitles") {
+                    liveMenuItems(live.subtitleItems, category: "subtitle")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-subtitles")
+            }
+            if !live.audioItems.isEmpty {
+                Menu("Audio Track") {
+                    liveMenuItems(live.audioItems, category: "audio")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-audio")
+            }
+        }
+    }
 
     @ViewBuilder
     private var mockMoreMenuSections: some View {
         Section("Playback Settings") {
-            mockSelectableMenu("Subtitles", ["Off", "English CC", "中文简体", "Auto"], selection: $selectedSubtitle)
-            mockSelectableMenu("Audio Track", ["English 5.1", "Japanese 2.0", "Commentary"], selection: $selectedAudioTrack)
             mockSelectableMenu(
                 "Playback Speed",
                 ["0.25×", "0.5×", "0.75×", "1×", "1.25×", "1.5×", "2×", "3×", "5×"],
@@ -712,18 +860,6 @@ struct FusedPlayerPanel: View {
     @ViewBuilder
     private func liveMoreMenuSections(_ live: FusedPlayerPanelLive) -> some View {
         Section("Playback Settings") {
-            if !live.subtitleItems.isEmpty {
-                Menu("Subtitles") {
-                    liveMenuItems(live.subtitleItems, category: "subtitle")
-                }
-                .accessibilityIdentifier("PlayerPanel-menu-subtitles")
-            }
-            if !live.audioItems.isEmpty {
-                Menu("Audio Track") {
-                    liveMenuItems(live.audioItems, category: "audio")
-                }
-                .accessibilityIdentifier("PlayerPanel-menu-audio")
-            }
             Menu("Playback Speed") {
                 liveMenuItems(live.speedItems, category: "speed")
             }

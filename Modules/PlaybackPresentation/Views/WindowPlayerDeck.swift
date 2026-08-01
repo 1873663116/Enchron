@@ -43,6 +43,8 @@ struct WindowPlayerDeckView: View {
         )
         return FusedPlayerPanelLive(
             presentation: resolvedPresentation,
+            mediaName: mediaName,
+            mediaProfile: playbackRuntime.displayMediaProfile,
             canDock: playbackRuntime.canEnterSpatialPresentation,
             canEnterPanorama: playbackRuntime.canEnterSpatialPresentation
                 && playbackRuntime.effectiveProjectionType.isPanoramic,
@@ -145,6 +147,12 @@ struct WindowPlayerDeckView: View {
 
     private var resolvedPresentation: PlaybackPresentation {
         presentationOverride ?? appModel.playbackPresentation
+    }
+
+    private var mediaName: String {
+        guard let url = playbackRuntime.currentPlaybackURL else { return "Unknown" }
+        let name = url.deletingPathExtension().lastPathComponent
+        return name.removingPercentEncoding ?? name
     }
 
     private func enterPlaybackPresentation(_ presentation: PlaybackPresentation) {
