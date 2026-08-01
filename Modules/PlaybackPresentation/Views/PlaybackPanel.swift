@@ -306,8 +306,8 @@ struct FusedPlayerPanel: View {
     }
 
     private var windowOrnamentContent: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
-            HStack(spacing: DesignTokens.Spacing.md) {
+        VStack(spacing: DesignTokens.Spacing.sm) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
                 windowTransportControls
                 mediaInformationWell(width: windowMediaInformationWidth)
             }
@@ -321,7 +321,7 @@ struct FusedPlayerPanel: View {
     }
 
     private var playerControlDockContent: some View {
-        VStack(spacing: DesignTokens.Spacing.md) {
+        VStack(spacing: DesignTokens.Spacing.sm) {
             mediaInformationWell(width: clusterWidth)
             playerControlDockControls
 
@@ -345,7 +345,7 @@ struct FusedPlayerPanel: View {
         clusterWidth
             - DesignTokens.Interactive.large * 3
             - DesignTokens.ControlBar.buttonSpacing * 2
-            - DesignTokens.Spacing.md
+            - DesignTokens.Spacing.sm
     }
 
     private func panoramaFormatControls(_ live: FusedPlayerPanelLive) -> some View {
