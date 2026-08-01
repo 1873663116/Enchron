@@ -422,7 +422,7 @@ def find_xcode_build_input_violations(root: Path) -> list[Finding]:
     }
     findings = []
     phases = list(phase_pattern.finditer(project_source))
-    if len(phases) != 3:
+    if len(phases) != 2:
         findings.append(
             Finding(
                 rule="xcode-build-inputs",
@@ -430,7 +430,7 @@ def find_xcode_build_input_violations(root: Path) -> list[Finding]:
                 line=1,
                 signature="design-source-architecture-phase-count",
                 message=(
-                    "Enchron, EnchronMacOS, and DesignPreview must each have one "
+                    "Enchron and DesignPreview must each have one "
                     "Design Source Architecture build phase"
                 ),
             )

@@ -1,4 +1,4 @@
-public enum ProductPlaybackLifecycle: Sendable, Equatable {
+public enum ProductPlaybackLifecycle: String, Codable, Sendable, Equatable {
     case idle
     case loading
     case ready

@@ -24,4 +24,4 @@ Window、Docked 与 Panorama 都使用 `VideoPlayerComponent(videoRenderer:)`。
 
 ## 验收
 
-macOS L2 证明真实 `VideoPlayerComponent` binding、唯一 consumer、detach/reopen；visionOS Simulator 补 Window/Docked/Panorama 交接与 rollback；Vision Pro 验收最终空间行为。
+visionOS Simulator 证明真实 `VideoPlayerComponent` binding、唯一 consumer、Window/Docked/Panorama 交接与 rollback；Vision Pro 验收最终空间行为。

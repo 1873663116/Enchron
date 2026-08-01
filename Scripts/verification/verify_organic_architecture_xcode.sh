@@ -32,7 +32,6 @@ build_scheme() {
 }
 
 build_scheme Enchron 'generic/platform=visionOS' Enchron-build
-build_scheme EnchronMacOS 'platform=macOS' EnchronMacOS-build
 build_scheme DesignPreview 'generic/platform=visionOS' DesignPreview-build
 
 echo "Xcode product builds passed; evidence: $evidence_root"

@@ -16,37 +16,24 @@ public struct MainView: View {
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
 
     @State private var controlsTimer: Task<Void, Never>?
+    @State private var reapplyVerificationSnapshotTick = 0
     private let playbackSurfaceIsEnabled: Bool
-    private let macOSPlaybackPresentation: PlaybackPresentation
 
-    public init(
-        playbackSurfaceIsEnabled: Bool = true,
-        macOSPlaybackPresentation: PlaybackPresentation = .window
-    ) {
+    public init(playbackSurfaceIsEnabled: Bool = true) {
         self.playbackSurfaceIsEnabled = playbackSurfaceIsEnabled
-        self.macOSPlaybackPresentation = macOSPlaybackPresentation
     }
 
     private var showsWindowPlayback: Bool {
-        #if os(macOS)
-        playbackRuntime.hasActivePlaybackRequest && macOSPlaybackPresentation != .panorama
-        #else
         playbackRuntime.hasActivePlaybackRequest
             && (appModel.playbackPresentation == .window
                 || appModel.presentationTransition?.targetPresentation == .window)
-        #endif
     }
 
     private var windowSurfaceIsActive: Bool {
-        #if os(macOS)
-        playbackSurfaceIsEnabled
-            && showsWindowPlayback
-        #else
         playbackSurfaceIsEnabled
             && showsWindowPlayback
             && (appModel.presentationTransition == nil
                 || appModel.presentationTransition?.targetPresentation == .window)
-        #endif
     }
 
     public var body: some View {
@@ -89,7 +76,6 @@ public struct MainView: View {
 
     @ViewBuilder
     private var platformContent: some View {
-        #if os(visionOS)
         primaryContent
             .ornament(
                 visibility: playbackRuntime.hasActivePlaybackRequest ? .hidden : .visible,
@@ -105,23 +91,7 @@ public struct MainView: View {
                 attachmentAnchor: .scene(.bottom)
             ) {
                 WindowPlayerDeckView(presentationOverride: .window)
-                    .accessibilityIdentifier("PlayerUI-window-controls-ornament")
             }
-        #else
-        ZStack(alignment: .leading) {
-            primaryContent
-            if playbackRuntime.hasActivePlaybackRequest == false {
-                NavigationOrnament()
-                    .padding(.leading, DesignTokens.Spacing.md)
-            }
-        }
-        .overlay(alignment: .bottom) {
-            if showsWindowPlayback && appModel.showControls {
-                WindowPlayerDeckView(presentationOverride: .window)
-                    .padding(.bottom, DesignTokens.Spacing.xl)
-            }
-        }
-        #endif
     }
 
     private var primaryContent: some View {
@@ -155,14 +125,8 @@ public struct MainView: View {
         }
     }
 
-    @ViewBuilder
     private var browserWindowSurface: some View {
-        #if os(visionOS)
         browser
-            .glassBackgroundEffect(in: ContainerRelativeShape())
-        #else
-        browser
-        #endif
     }
 
     @ViewBuilder
@@ -170,12 +134,7 @@ public struct MainView: View {
         switch appModel.selectedTab {
         case .files: FilesScreen()
         case .settings: SettingsScreen()
-        case .environment:
-            #if os(macOS)
-            MacEnvironmentSceneHostView()
-            #else
-            Color.clear
-            #endif
+        case .environment: Color.clear
         }
     }
 
@@ -200,6 +159,13 @@ public struct MainView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-window-control-plane")
         .accessibilityValue(windowPlaybackStateValue)
+        .task {
+            guard reapplyVerificationIsEnabled else { return }
+            while !Task.isCancelled {
+                reapplyVerificationSnapshotTick &+= 1
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+        }
     }
 
     private var windowPlaybackCanvas: some View {
@@ -208,6 +174,18 @@ public struct MainView: View {
                 presentation: hostedPlaybackPresentation,
                 isActive: windowSurfaceIsActive
             )
+
+            #if DEBUG
+            if ProcessInfo.processInfo.environment[
+                "ENCHRON_REAL_VIDEO_AAC_DIAGNOSTIC"
+            ] == "1" {
+                Text("Playback diagnostic evidence")
+                    .frame(width: 1, height: 1)
+                    .opacity(0.001)
+                    .accessibilityIdentifier("PlayerUI-debug-evidence")
+                    .accessibilityValue(playbackRuntime.debugEvidenceJSON())
+            }
+            #endif
 
             if playbackRuntime.presentationState == .placeholder || playbackRuntime.lifecycle == .loading {
                 ProgressView()
@@ -235,8 +213,10 @@ public struct MainView: View {
     }
 
     private var windowPlaybackStateValue: String {
+        _ = reapplyVerificationSnapshotTick
         let position = playbackRuntime.playbackPosition
-        return [
+        let output = playbackRuntime.outputObservation()
+        var fields = [
             "active=\(playbackRuntime.hasActivePlaybackRequest)",
             "formatReady=\(playbackRuntime.mediaFormatIsKnown)",
             "presentation=\(appModel.playbackPresentation.rawValue)",
@@ -245,17 +225,72 @@ public struct MainView: View {
             "session=\(playbackRuntime.activeSessionID ?? "none")",
             "position=\(position.seconds)",
             "duration=\(position.duration)",
+            "streamEpoch=\(output.streamEpoch)",
+            "videoSamples=\(output.videoSampleCount)",
+            "rendererInputs=\(output.acceptedRendererInputCount)",
+            "bootstrapComplete=\(output.decoderBootstrapComplete)",
+            "targetRate=\(output.requestedPlaybackRate)",
+            "actualRate=\(output.actualTimebaseRate)",
+            "componentReady=\(output.videoComponentReady)",
+            "displayedPixel=\(output.displayedPixelBuffer)",
+            "hasAudio=\(output.hasAudio)",
+            "audioSamples=\(output.audioSampleBufferCount)",
+            "audioRendererSamples=\(output.audioRendererSampleBufferCount)",
+            "audioRendererEpoch=\(output.audioRendererStreamEpoch)",
+            "audioRendererStatus=\(output.audioRendererStatus)",
+            "audioRendererVolume=\(output.audioRendererVolume)",
+            "audioRendererMuted=\(output.audioRendererMuted)",
+            "audioRendererError=\(output.audioRendererError ?? "none")",
+            "audioSessionCategory=\(output.audioSessionCategory)",
+            "audioSessionMode=\(output.audioSessionMode)",
+            "audioOutputPorts=\(output.audioSessionOutputPortTypes.joined(separator: ","))",
+            "systemOutputVolume=\(output.systemOutputVolume)",
+            "audioSessionActive=\(output.audioSessionActive)",
             "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)"
-        ].joined(separator: ";")
+        ]
+        #if DEBUG
+        if ProcessInfo.processInfo.environment[
+            "ENCHRON_VERIFY_SUFFICIENT_RATE_REAPPLY"
+        ] == "1", let snapshot = playbackRuntime.debugSnapshot() {
+            fields.append(
+                "effectiveRate=\(snapshot.rendererState?.effectiveTimebaseRate ?? 0)"
+            )
+            if let reapply = snapshot.activationReapplyVerification {
+                fields.append(contentsOf: [
+                    "reapplyActivationSequence=\(reapply.activationSequence)",
+                    "reapplyAnchorValue=\(reapply.anchorValue)",
+                    "reapplyAnchorTimescale=\(reapply.anchorTimescale)",
+                    "reapplyAnchorEpoch=\(reapply.anchorEpoch)",
+                    "reapplyAnchorFlags=\(reapply.anchorFlags)",
+                    "reapplyRequestedRate=\(reapply.requestedRate)",
+                    "reapplyAudioRequired=\(reapply.audioRequired)",
+                    "reapplyVideoSufficient=\(reapply.videoHasSufficientMedia)",
+                    "reapplyAudioSufficient=\(reapply.audioHasSufficientMedia)",
+                    "reapplyDirectRate=\(reapply.directRate)",
+                    "reapplyEffectiveRate=\(reapply.effectiveRate)",
+                    "reapplyAttemptCount=\(reapply.attemptCount)",
+                    "reapplyClaimCount=\(reapply.attemptCount)",
+                    "reapplyOutcome=\(reapply.outcome.rawValue)"
+                ])
+            }
+        }
+        #endif
+        return fields.joined(separator: ";")
+    }
+
+    private var reapplyVerificationIsEnabled: Bool {
+        #if DEBUG
+        ProcessInfo.processInfo.environment[
+            "ENCHRON_VERIFY_SUFFICIENT_RATE_REAPPLY"
+        ] == "1"
+        #else
+        false
+        #endif
     }
 
     private var hostedPlaybackPresentation: PlaybackPresentation {
-        #if os(macOS)
-        macOSPlaybackPresentation
-        #else
         .window
-        #endif
     }
 
     private var windowPlaybackLayout: WindowPlaybackLayout {
@@ -304,6 +339,10 @@ private struct PlaybackAutomationStateProbe: View {
 
     private var stateValue: String {
         let position = playbackRuntime.playbackPosition
+        let output = playbackRuntime.outputObservation()
+        let outputBoundary = PlaybackOutputVerification.firstIncompleteBoundary(
+            current: output
+        )
         return [
             "presentation=\(appModel.playbackPresentation.rawValue)",
             "hosted=\(hostedPresentation.rawValue)",
@@ -313,6 +352,28 @@ private struct PlaybackAutomationStateProbe: View {
             "session=\(playbackRuntime.activeSessionID ?? "none")",
             "position=\(position.seconds)",
             "duration=\(position.duration)",
+            "streamEpoch=\(output.streamEpoch)",
+            "videoSamples=\(output.videoSampleCount)",
+            "rendererInputs=\(output.acceptedRendererInputCount)",
+            "bootstrapComplete=\(output.decoderBootstrapComplete)",
+            "targetRate=\(output.requestedPlaybackRate)",
+            "actualRate=\(output.actualTimebaseRate)",
+            "componentReady=\(output.videoComponentReady)",
+            "displayedPixel=\(output.displayedPixelBuffer)",
+            "hasAudio=\(output.hasAudio)",
+            "audioSamples=\(output.audioSampleBufferCount)",
+            "audioRendererSamples=\(output.audioRendererSampleBufferCount)",
+            "audioRendererEpoch=\(output.audioRendererStreamEpoch)",
+            "audioRendererStatus=\(output.audioRendererStatus)",
+            "audioRendererVolume=\(output.audioRendererVolume)",
+            "audioRendererMuted=\(output.audioRendererMuted)",
+            "audioRendererError=\(output.audioRendererError ?? "none")",
+            "audioSessionCategory=\(output.audioSessionCategory)",
+            "audioSessionMode=\(output.audioSessionMode)",
+            "audioOutputPorts=\(output.audioSessionOutputPortTypes.joined(separator: ","))",
+            "systemOutputVolume=\(output.systemOutputVolume)",
+            "audioSessionActive=\(output.audioSessionActive)",
+            "outputBoundary=\(outputBoundary.rawValue)",
             "audioTrack=\(playbackRuntime.currentAudioTrackID ?? "none")",
             "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
@@ -323,12 +384,6 @@ private struct PlaybackAutomationStateProbe: View {
     }
 
     private var simulatedPresentation: String {
-        #if os(macOS)
-        if appModel.playbackPresentation == .panorama,
-           hostedPresentation == .window {
-            return PlaybackPresentation.panorama.rawValue
-        }
-        #endif
         return "none"
     }
 }
@@ -346,7 +401,6 @@ struct SpatialPlaybackControlsRoot: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
-    @Environment(\.dismissWindow) private var dismissWindow
     @State private var isStoppingPlayback = false
 
     private var shouldHostControls: Bool {
@@ -392,14 +446,11 @@ struct SpatialPlaybackControlsRoot: View {
         .background {
             SpatialPlatformEffectExecutor()
         }
-        .onChange(of: shouldHostControls, initial: true) { _, shouldHost in
-            guard shouldHost == false else { return }
-            dismissWindow(id: "playerControls")
-        }
     }
 
     private var spatialAcceptanceValue: String {
         let position = playbackRuntime.playbackPosition
+        let output = playbackRuntime.outputObservation()
         return [
             "presentation=\(appModel.playbackPresentation.rawValue)",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
@@ -407,6 +458,27 @@ struct SpatialPlaybackControlsRoot: View {
             "session=\(playbackRuntime.activeSessionID ?? "none")",
             "position=\(position.seconds)",
             "duration=\(position.duration)",
+            "streamEpoch=\(output.streamEpoch)",
+            "videoSamples=\(output.videoSampleCount)",
+            "rendererInputs=\(output.acceptedRendererInputCount)",
+            "bootstrapComplete=\(output.decoderBootstrapComplete)",
+            "targetRate=\(output.requestedPlaybackRate)",
+            "actualRate=\(output.actualTimebaseRate)",
+            "componentReady=\(output.videoComponentReady)",
+            "displayedPixel=\(output.displayedPixelBuffer)",
+            "hasAudio=\(output.hasAudio)",
+            "audioSamples=\(output.audioSampleBufferCount)",
+            "audioRendererSamples=\(output.audioRendererSampleBufferCount)",
+            "audioRendererEpoch=\(output.audioRendererStreamEpoch)",
+            "audioRendererStatus=\(output.audioRendererStatus)",
+            "audioRendererVolume=\(output.audioRendererVolume)",
+            "audioRendererMuted=\(output.audioRendererMuted)",
+            "audioRendererError=\(output.audioRendererError ?? "none")",
+            "audioSessionCategory=\(output.audioSessionCategory)",
+            "audioSessionMode=\(output.audioSessionMode)",
+            "audioOutputPorts=\(output.audioSessionOutputPortTypes.joined(separator: ","))",
+            "systemOutputVolume=\(output.systemOutputVolume)",
+            "audioSessionActive=\(output.audioSessionActive)",
             "screenScale=\(String(format: "%.2f", appModel.screenScale))"
         ].joined(separator: ";")
     }

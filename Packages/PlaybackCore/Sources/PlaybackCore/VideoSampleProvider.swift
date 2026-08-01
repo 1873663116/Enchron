@@ -45,137 +45,351 @@ enum VideoSampleProviderEvent {
     case end
 }
 
-private struct SendableSampleBuffer: @unchecked Sendable {
+struct SendableSampleBuffer: @unchecked Sendable {
     let value: CMSampleBuffer
 }
 
-final class FFmpegSampleProvider: VideoSampleProvider {
-    var info: VideoSampleProviderInfo {
-        readerLock.withLock { storedInfo }
+struct FFmpegVideoReaderHandle: @unchecked Sendable {
+    let pointer: OpaquePointer
+}
+
+enum FFmpegVideoReadOutcome: @unchecked Sendable {
+    case sample(SendableSampleBuffer)
+    case end
+    case cancelled
+}
+
+protocol FFmpegVideoReaderOperations: Sendable {
+    func allocate() -> FFmpegVideoReaderHandle?
+    func open(
+        _ reader: FFmpegVideoReaderHandle,
+        source: String,
+        startSeconds: Double
+    ) throws -> VideoSampleProviderInfo
+    func copyNextSample(from reader: FFmpegVideoReaderHandle) throws -> FFmpegVideoReadOutcome
+    func cancel(_ reader: FFmpegVideoReaderHandle)
+    func destroy(_ reader: FFmpegVideoReaderHandle)
+}
+
+struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
+    func allocate() -> FFmpegVideoReaderHandle? {
+        PBFFmpegReaderAllocate().map(FFmpegVideoReaderHandle.init(pointer:))
     }
 
-    private let readerLock = NSLock()
-    private var storedInfo = VideoSampleProviderInfo()
-    private var reader: OpaquePointer?
-
-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
+    func open(
+        _ reader: FFmpegVideoReaderHandle,
+        source: String,
+        startSeconds: Double
+    ) throws -> VideoSampleProviderInfo {
         var error = [CChar](repeating: 0, count: 512)
-        let newReader = FFmpegSourceLocator.argument(for: url).withCString { path in
-            PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, startTime.seconds, &error, error.count)
+        let opened = source.withCString { path in
+            PBFFmpegReaderOpen(
+                reader.pointer,
+                path,
+                PBFFmpegModeCompressed,
+                startSeconds,
+                &error,
+                error.count
+            )
         }
-        guard let newReader else {
-            throw PlaybackProviderError.ffmpeg(Self.errorMessage(error))
+        guard opened else {
+            throw PlaybackProviderError.ffmpeg(ffmpegErrorMessage(error))
         }
         let configurationAtoms = [
-            PBFFmpegReaderFormatHasHvcC(newReader) ? "hvcC" : nil,
-            PBFFmpegReaderFormatHasDvcC(newReader) ? "dvcC" : nil,
-            PBFFmpegReaderFormatHasDvvC(newReader) ? "dvvC" : nil,
+            PBFFmpegReaderFormatHasHvcC(reader.pointer) ? "hvcC" : nil,
+            PBFFmpegReaderFormatHasDvcC(reader.pointer) ? "dvcC" : nil,
+            PBFFmpegReaderFormatHasDvvC(reader.pointer) ? "dvvC" : nil,
         ].compactMap(\.self)
-        let newInfo = VideoSampleProviderInfo(
+        return VideoSampleProviderInfo(
             providerKind: "FFmpegCompressed",
-            containerFormat: String(cString: PBFFmpegReaderGetContainerFormat(newReader)),
-            durationSeconds: PBFFmpegReaderGetDurationSeconds(newReader),
-            nominalFrameRate: PBFFmpegReaderGetNominalFrameRate(newReader),
-            codecName: String(cString: PBFFmpegReaderGetCodecName(newReader)),
-            codecTag: String(cString: PBFFmpegReaderGetCodecTag(newReader)),
-            dimensions: "\(PBFFmpegReaderGetWidth(newReader))x\(PBFFmpegReaderGetHeight(newReader))",
-            colorPrimaries: String(cString: PBFFmpegReaderGetColorPrimaries(newReader)),
-            transferFunction: String(cString: PBFFmpegReaderGetTransferFunction(newReader)),
-            yCbCrMatrix: String(cString: PBFFmpegReaderGetYCbCrMatrix(newReader)),
-            range: String(cString: PBFFmpegReaderGetColorRange(newReader)),
+            containerFormat: String(cString: PBFFmpegReaderGetContainerFormat(reader.pointer)),
+            durationSeconds: PBFFmpegReaderGetDurationSeconds(reader.pointer),
+            nominalFrameRate: PBFFmpegReaderGetNominalFrameRate(reader.pointer),
+            codecName: String(cString: PBFFmpegReaderGetCodecName(reader.pointer)),
+            codecTag: String(cString: PBFFmpegReaderGetCodecTag(reader.pointer)),
+            dimensions: "\(PBFFmpegReaderGetWidth(reader.pointer))x\(PBFFmpegReaderGetHeight(reader.pointer))",
+            colorPrimaries: String(cString: PBFFmpegReaderGetColorPrimaries(reader.pointer)),
+            transferFunction: String(cString: PBFFmpegReaderGetTransferFunction(reader.pointer)),
+            yCbCrMatrix: String(cString: PBFFmpegReaderGetYCbCrMatrix(reader.pointer)),
+            range: String(cString: PBFFmpegReaderGetColorRange(reader.pointer)),
             seekability: .init(known: "providerRebuild"),
             selectedRawTrackMapping: .init(
-                known: "stream:\(PBFFmpegReaderGetVideoStreamIndex(newReader))"
+                known: "stream:\(PBFFmpegReaderGetVideoStreamIndex(reader.pointer))"
             ),
             timebase: .init(
-                known: "\(PBFFmpegReaderGetTimeBaseNumerator(newReader))/\(PBFFmpegReaderGetTimeBaseDenominator(newReader))"
+                known: "\(PBFFmpegReaderGetTimeBaseNumerator(reader.pointer))/\(PBFFmpegReaderGetTimeBaseDenominator(reader.pointer))"
             ),
             codecConfigurationSummary: configurationAtoms.isEmpty
                 ? .init(.none)
                 : .init(known: configurationAtoms.joined(separator: ",")),
             formatSignaling: VideoFormatSignalingSummary(
                 provenance: "FFmpeg.codecParameters",
-                colorPrimaries: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetColorPrimaries(newReader))
+                colorPrimaries: ffmpegStringFact(
+                    String(cString: PBFFmpegReaderGetColorPrimaries(reader.pointer))
                 ),
-                transferFunction: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetTransferFunction(newReader))
+                transferFunction: ffmpegStringFact(
+                    String(cString: PBFFmpegReaderGetTransferFunction(reader.pointer))
                 ),
-                yCbCrMatrix: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetYCbCrMatrix(newReader))
+                yCbCrMatrix: ffmpegStringFact(
+                    String(cString: PBFFmpegReaderGetYCbCrMatrix(reader.pointer))
                 ),
-                range: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetColorRange(newReader))
+                range: ffmpegStringFact(
+                    String(cString: PBFFmpegReaderGetColorRange(reader.pointer))
                 ),
-                projectionKind: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetProjectionKind(newReader))
+                projectionKind: ffmpegStringFact(
+                    String(cString: PBFFmpegReaderGetProjectionKind(reader.pointer))
                 ),
-                viewPackingKind: Self.ffmpegStringFact(
-                    String(cString: PBFFmpegReaderGetViewPackingKind(newReader))
+                viewPackingKind: ffmpegStringFact(
+                    String(cString: PBFFmpegReaderGetViewPackingKind(reader.pointer))
                 ),
-                hvcC: PBFFmpegReaderFormatHasHvcC(newReader)
+                hvcC: PBFFmpegReaderFormatHasHvcC(reader.pointer)
                     ? .init(known: true)
                     : .init(.none),
-                dvcC: PBFFmpegReaderFormatHasDvcC(newReader)
+                dvcC: PBFFmpegReaderFormatHasDvcC(reader.pointer)
                     ? .init(known: true)
                     : .init(.none),
-                dvvC: PBFFmpegReaderFormatHasDvvC(newReader)
+                dvvC: PBFFmpegReaderFormatHasDvvC(reader.pointer)
                     ? .init(known: true)
                     : .init(.none)
             )
         )
-        readerLock.withLock {
-            if let reader { PBFFmpegReaderDestroy(reader) }
-            reader = newReader
-            storedInfo = newInfo
+    }
+
+    func copyNextSample(from reader: FFmpegVideoReaderHandle) throws -> FFmpegVideoReadOutcome {
+        var sample: Unmanaged<CMSampleBuffer>?
+        var error = [CChar](repeating: 0, count: 512)
+        let result = PBFFmpegReaderCopyNextSample(
+            reader.pointer,
+            &sample,
+            &error,
+            error.count
+        )
+        switch result {
+        case PBFFmpegReadResultSample:
+            guard let sample else { return .end }
+            return .sample(SendableSampleBuffer(value: sample.takeRetainedValue()))
+        case PBFFmpegReadResultEnd:
+            return .end
+        case PBFFmpegReadResultCancelled:
+            return .cancelled
+        default:
+            throw PlaybackProviderError.ffmpeg(ffmpegErrorMessage(error))
         }
     }
 
-    func start() throws {}
-
-    func nextEvent() async throws -> VideoSampleProviderEvent {
-        try readerLock.withLock {
-            guard let reader else { return .end }
-            var sample: Unmanaged<CMSampleBuffer>?
-            var error = [CChar](repeating: 0, count: 512)
-            let result = PBFFmpegReaderCopyNextSample(reader, &sample, &error, error.count)
-            switch result {
-            case PBFFmpegReadResultSample:
-                guard let sample else { return .end }
-                return .sample(sample.takeRetainedValue())
-            case PBFFmpegReadResultEnd:
-                return .end
-            default:
-                throw PlaybackProviderError.ffmpeg(Self.errorMessage(error))
-            }
-        }
+    func cancel(_ reader: FFmpegVideoReaderHandle) {
+        PBFFmpegReaderCancel(reader.pointer)
     }
 
-    func cancel() {
-        readerLock.withLock {
-            if let reader {
-                PBFFmpegReaderDestroy(reader)
-                self.reader = nil
-            }
-        }
+    func destroy(_ reader: FFmpegVideoReaderHandle) {
+        PBFFmpegReaderDestroy(reader.pointer)
     }
 
-    deinit {
-        cancel()
-    }
-
-    private static func errorMessage(_ buffer: [CChar]) -> String {
-        let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
-        return String(decoding: bytes, as: UTF8.self)
-    }
-
-    private static func ffmpegStringFact(_ value: String) -> ObservedStringFact {
+    private func ffmpegStringFact(_ value: String) -> ObservedStringFact {
         let normalized = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard !normalized.isEmpty, normalized != "unknown", normalized != "unspecified" else {
             return .init(.unknown)
         }
         return .init(known: value)
     }
+}
+
+final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
+    var info: VideoSampleProviderInfo {
+        readerLock.withLock { storedInfo }
+    }
+
+    private let readerLock = NSLock()
+    private let readerQueue: DispatchQueue
+    private let operations: any FFmpegVideoReaderOperations
+    private var storedInfo = VideoSampleProviderInfo()
+    private var reader: FFmpegVideoReaderHandle?
+    private var generation: UInt64 = 0
+
+    init(
+        operations: any FFmpegVideoReaderOperations = SystemFFmpegVideoReaderOperations(),
+        readerQueue: DispatchQueue = DispatchQueue(
+            label: "com.enchron.playbackcore.ffmpeg-video-reader"
+        )
+    ) {
+        self.operations = operations
+        self.readerQueue = readerQueue
+    }
+
+    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
+        cancel()
+        let operationGeneration = readerLock.withLock { generation }
+        let source = FFmpegSourceLocator.argument(for: url)
+        try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<Void, any Error>) in
+                readerQueue.async { [self] in
+                    guard isCurrent(operationGeneration) else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+                    guard let newReader = operations.allocate() else {
+                        guard isCurrent(operationGeneration) else {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
+                        continuation.resume(
+                            throwing: PlaybackProviderError.ffmpeg(
+                                "Unable to allocate FFmpeg reader"
+                            )
+                        )
+                        return
+                    }
+                    guard install(newReader, for: operationGeneration) else {
+                        operations.destroy(newReader)
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+                    do {
+                        let newInfo = try operations.open(
+                            newReader,
+                            source: source,
+                            startSeconds: startTime.seconds
+                        )
+                        guard accept(newInfo, from: newReader, generation: operationGeneration) else {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
+                        continuation.resume()
+                    } catch {
+                        guard removeIfCurrent(newReader, generation: operationGeneration) else {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
+                        operations.destroy(newReader)
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+            try Task.checkCancellation()
+        } onCancel: { [weak self] in
+            self?.cancel(generation: operationGeneration)
+        }
+    }
+
+    func start() throws {}
+
+    func nextEvent() async throws -> VideoSampleProviderEvent {
+        guard let operation = readerLock.withLock({ reader.map { ($0, generation) } }) else {
+            return .end
+        }
+        let outcome: FFmpegVideoReadOutcome = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                readerQueue.async { [self] in
+                    guard isCurrent(operation.1, reader: operation.0) else {
+                        continuation.resume(throwing: CancellationError())
+                        return
+                    }
+                    do {
+                        let outcome = try operations.copyNextSample(from: operation.0)
+                        guard isCurrent(operation.1, reader: operation.0) else {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
+                        if case .cancelled = outcome {
+                            continuation.resume(throwing: CancellationError())
+                        } else {
+                            continuation.resume(returning: outcome)
+                        }
+                    } catch {
+                        guard isCurrent(operation.1, reader: operation.0) else {
+                            continuation.resume(throwing: CancellationError())
+                            return
+                        }
+                        continuation.resume(throwing: error)
+                    }
+                }
+            }
+        } onCancel: { [weak self] in
+            self?.cancel(generation: operation.1)
+        }
+        switch outcome {
+        case .sample(let sample): return .sample(sample.value)
+        case .end: return .end
+        case .cancelled: throw CancellationError()
+        }
+    }
+
+    func cancel() {
+        cancel(generation: nil)
+    }
+
+    deinit {
+        cancel()
+    }
+
+    private func cancel(generation expectedGeneration: UInt64?) {
+        let cancelledReader: FFmpegVideoReaderHandle? = readerLock.withLock {
+            if let expectedGeneration, generation != expectedGeneration { return nil }
+            generation &+= 1
+            let cancelledReader = reader
+            reader = nil
+            storedInfo = VideoSampleProviderInfo()
+            return cancelledReader
+        }
+        guard let cancelledReader else { return }
+        operations.cancel(cancelledReader)
+        readerQueue.async { [operations] in
+            operations.destroy(cancelledReader)
+        }
+    }
+
+    private func isCurrent(
+        _ expectedGeneration: UInt64,
+        reader expectedReader: FFmpegVideoReaderHandle? = nil
+    ) -> Bool {
+        readerLock.withLock {
+            guard generation == expectedGeneration else { return false }
+            guard let expectedReader else { return true }
+            return reader?.pointer == expectedReader.pointer
+        }
+    }
+
+    private func install(
+        _ newReader: FFmpegVideoReaderHandle,
+        for expectedGeneration: UInt64
+    ) -> Bool {
+        readerLock.withLock {
+            guard generation == expectedGeneration, reader == nil else { return false }
+            reader = newReader
+            return true
+        }
+    }
+
+    private func accept(
+        _ newInfo: VideoSampleProviderInfo,
+        from openedReader: FFmpegVideoReaderHandle,
+        generation expectedGeneration: UInt64
+    ) -> Bool {
+        readerLock.withLock {
+            guard generation == expectedGeneration,
+                  reader?.pointer == openedReader.pointer else { return false }
+            storedInfo = newInfo
+            return true
+        }
+    }
+
+    private func removeIfCurrent(
+        _ failedReader: FFmpegVideoReaderHandle,
+        generation expectedGeneration: UInt64
+    ) -> Bool {
+        readerLock.withLock {
+            guard generation == expectedGeneration,
+                  reader?.pointer == failedReader.pointer else { return false }
+            reader = nil
+            return true
+        }
+    }
+}
+
+func ffmpegErrorMessage(_ buffer: [CChar]) -> String {
+    let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
+    return String(decoding: bytes, as: UTF8.self)
 }
 
 enum PlaybackProviderError: LocalizedError {

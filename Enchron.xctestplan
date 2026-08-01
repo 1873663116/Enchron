@@ -4,7 +4,8 @@
       "id" : "9F8E7D6C-5B4A-3210-FEDC-BA9876543210",
       "name" : "Default",
       "options" : {
-
+        "preferredScreenCaptureFormat" : "screenRecording",
+        "uiTestingScreenshotsLifetime" : "keepAlways"
       }
     }
   ],

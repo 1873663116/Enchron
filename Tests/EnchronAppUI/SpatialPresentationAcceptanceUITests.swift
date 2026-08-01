@@ -42,12 +42,17 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
             "Real PlaybackCore media never reached playing with its renderer attached to Window. Current state: \(String(describing: windowState.value))"
         )
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].exists)
+        try verifyPlaybackAdvances(windowState, name: "Window real playback")
         captureScreen(name: "01 Window real playback")
 
         let dock = app.descendants(matching: .any)["PlayerUI-TopAction-dock"].firstMatch
         XCTAssertTrue(dock.waitForExistence(timeout: 10))
         XCTAssertTrue(dock.isEnabled)
-        tapSemanticallyWithScreenshotFallback(dock, name: "Dock")
+        XCTAssertTrue(
+            dock.isHittable,
+            "Window Dock exists but the playback surface intercepts its hit-test plane."
+        )
+        dock.tap()
         let environment = app.descendants(matching: .any)["PlayerUI-DockMenu-day"].firstMatch
         XCTAssertTrue(environment.waitForExistence(timeout: 5))
         tapSemanticallyWithScreenshotFallback(environment, name: "Day")
@@ -76,7 +81,10 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Distance-slider"].exists)
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-Elevation-slider"].exists)
         XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
-        try verifySpatialPlaybackAdvances(app, name: "Docked real playback")
+        try verifyPlaybackAdvances(
+            app.descendants(matching: .any)["PlayerUI-spatial-state"].firstMatch,
+            name: "Docked real playback"
+        )
 
         tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
         _ = try waitForWindowState(
@@ -92,7 +100,11 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
             timeout: 10,
             message: "Video Format action did not appear after returning from Docked playback."
         )
-        tapSemanticallyWithScreenshotFallback(format, name: "Video Format")
+        XCTAssertTrue(
+            format.isHittable,
+            "Window Video Format exists but the playback surface intercepts its hit-test plane."
+        )
+        format.tap()
         let panorama360 = app.descendants(matching: .any)["PlayerUI-VideoFormat-Projection-360°"].firstMatch
         try requireExistence(
             panorama360,
@@ -117,7 +129,10 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         )
         XCTAssertEqual(exitSpatial.label, "Return to Window")
         XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
-        try verifySpatialPlaybackAdvances(app, name: "Panorama real playback")
+        try verifyPlaybackAdvances(
+            app.descendants(matching: .any)["PlayerUI-spatial-state"].firstMatch,
+            name: "Panorama real playback"
+        )
 
         tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
         let restoredWindowState = try waitForWindowState(
@@ -248,28 +263,82 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
     }
 
     @MainActor
-    private func verifySpatialPlaybackAdvances(
-        _ app: XCUIApplication,
+    private func verifyPlaybackAdvances(
+        _ state: XCUIElement,
         name: String
     ) throws {
-        let state = app.descendants(matching: .any)["PlayerUI-spatial-state"].firstMatch
         let firstState = try XCTUnwrap(state.value as? String)
         let firstPosition = try position(from: firstState)
+        let firstEpoch = try unsignedValue(named: "streamEpoch", from: firstState)
+        let firstVideoSamples = try unsignedValue(named: "videoSamples", from: firstState)
+        let firstRendererInputs = try unsignedValue(named: "rendererInputs", from: firstState)
+        let firstAudioSamples = try unsignedValue(named: "audioSamples", from: firstState)
+        XCTAssertTrue(try boolValue(named: "bootstrapComplete", from: firstState))
+        XCTAssertGreaterThan(try doubleValue(named: "targetRate", from: firstState), 0)
+        XCTAssertGreaterThan(try doubleValue(named: "syncRate", from: firstState), 0)
+        XCTAssertTrue(try boolValue(named: "componentReady", from: firstState))
+        XCTAssertTrue(try boolValue(named: "displayedPixel", from: firstState))
+        if try boolValue(named: "hasAudio", from: firstState) {
+            XCTAssertTrue(try boolValue(named: "audioSessionActive", from: firstState))
+        }
         Thread.sleep(forTimeInterval: 1)
         let secondState = try XCTUnwrap(state.value as? String)
         let secondPosition = try position(from: secondState)
+        let secondEpoch = try unsignedValue(named: "streamEpoch", from: secondState)
+        let secondVideoSamples = try unsignedValue(named: "videoSamples", from: secondState)
+        let secondRendererInputs = try unsignedValue(named: "rendererInputs", from: secondState)
+        let secondAudioSamples = try unsignedValue(named: "audioSamples", from: secondState)
+        XCTAssertTrue(try boolValue(named: "bootstrapComplete", from: secondState))
+        XCTAssertGreaterThan(try doubleValue(named: "targetRate", from: secondState), 0)
+        XCTAssertGreaterThan(try doubleValue(named: "syncRate", from: secondState), 0)
+        XCTAssertEqual(secondEpoch, firstEpoch, "\(name) changed stream epoch while observing continuous playback.")
         XCTAssertGreaterThan(
             secondPosition,
             firstPosition,
             "\(name) did not advance on the real PlaybackCore timeline. First: \(firstState), second: \(secondState)"
         )
+        XCTAssertGreaterThan(secondVideoSamples, firstVideoSamples)
+        XCTAssertGreaterThan(secondRendererInputs, firstRendererInputs)
+        if try boolValue(named: "hasAudio", from: secondState) {
+            XCTAssertGreaterThan(secondAudioSamples, firstAudioSamples)
+            XCTAssertTrue(try boolValue(named: "audioSessionActive", from: secondState))
+        }
     }
 
     private func position(from state: String) throws -> Double {
+        try doubleValue(named: "position", from: state)
+    }
+
+    private func doubleValue(named name: String, from state: String) throws -> Double {
+        let prefix = "\(name)="
         let value = state.split(separator: ";")
-            .first { $0.hasPrefix("position=") }?
-            .dropFirst("position=".count)
+            .first { $0.hasPrefix(prefix) }?
+            .dropFirst(prefix.count)
         return try XCTUnwrap(value.flatMap { Double($0) })
+    }
+
+    private func unsignedValue(named name: String, from state: String) throws -> UInt64 {
+        let prefix = "\(name)="
+        let value = state.split(separator: ";")
+            .first { $0.hasPrefix(prefix) }?
+            .dropFirst(prefix.count)
+        return try XCTUnwrap(value.flatMap { UInt64($0) })
+    }
+
+    private func boolValue(named name: String, from state: String) throws -> Bool {
+        let prefix = "\(name)="
+        let value = try XCTUnwrap(
+            state.split(separator: ";")
+                .first { $0.hasPrefix(prefix) }?
+                .dropFirst(prefix.count)
+        )
+        switch value.lowercased() {
+        case "true": return true
+        case "false": return false
+        default:
+            XCTFail("\(name) is not a Boolean in playback state: \(state)")
+            throw AcceptanceFailure.unmetCondition
+        }
     }
 
     @MainActor

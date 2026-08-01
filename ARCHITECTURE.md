@@ -18,7 +18,7 @@ docs/       当前合同、验收规则与历史 ADR
 
 ## 由编译器强制的代码边界
 
-`Packages/PlaybackCore` 与 `Packages/RealityKitContent` 是独立 Swift Package。仓库根 `Package.swift` 把 `Modules/*` 中的平台无关产品核心分别编译为五个 Target：`MediaSource`、`MediaLibrary`、`PlaybackFeature`、`PlaybackPresentation` 与 `DesignSystem`。这些 Target 的依赖方向写在 `Package.swift` 中；任何 Target 都不能直接或间接地依赖回自己。Enchron、EnchronMacOS 和 DesignPreview 通过 Package 提供的 Library Product 使用这些核心源码，Xcode Target 不再重复编译同一份文件。
+`Packages/PlaybackCore` 与 `Packages/RealityKitContent` 是独立 Swift Package。仓库根 `Package.swift` 把 `Modules/*` 中的平台无关产品核心分别编译为五个 Target：`MediaSource`、`MediaLibrary`、`PlaybackFeature`、`PlaybackPresentation` 与 `DesignSystem`。这些 Target 的依赖方向写在 `Package.swift` 中；任何 Target 都不能直接或间接地依赖回自己。Enchron 与 DesignPreview 通过 Package 提供的 Library Product 使用这些核心源码，Xcode Target 不再重复编译同一份文件。
 
 App Target 仍编译两类必须直接使用 Apple 平台能力的代码，而不是第二套产品逻辑：一类是需要 Xcode 27 完整 AVFoundation 接口的 `PlaybackRuntime`；另一类是使用 `AppModel`、SwiftUI Scene 与 RealityKit 场景操作的页面和沉浸空间。`PlaybackLaunchCoordinator`、Resume、End、Format、Queue 规则以及读取播放偏好的协议均由 `PlaybackFeature` Target 编译；`PlaybackRuntime` 只实现该 Target 定义的控制协议。根 Package 使用命令行 Swift 6.2 验证所有平台无关核心；完整的 PlaybackCore 接入代码、visionOS 场景和最终 App 必须使用 Xcode 27 验证。
 
@@ -33,7 +33,7 @@ flowchart LR
     Presentation["PlaybackPresentation"]
     Core["PlaybackCore Package"]
     Scene["RealityKitContent"]
-    Apps["Enchron · EnchronMacOS · DesignPreview"]
+    Apps["Enchron · DesignPreview"]
 
     Library --> Source
     Feature --> Source
@@ -55,7 +55,7 @@ flowchart LR
 
 访问控制默认使用 `internal`。只有其他 Target 确实需要调用的入口 View、不可变状态值、操作命令、查询和值类型，以及 App 组装依赖时必须实现的少量协议，才声明为 `public`。只供同一 Package 内验证代码使用、但不属于 App 接口的声明使用 `package`。Media Library 的两个 `@Observable` 模型可以被 SwiftUI 读取，但只能由 `MediaLibraryFeature` 统一创建，外部代码不能自行拼装它们。持久化实现、具体数据源实现、地址解析实现、来源专用身份算法、PlaybackCore Session、页面内部 View 与测试数据不向 App 公开。
 
-UI 源码继续分为四层：`DesignTokens.swift` 只表达颜色、间距、圆角、字体、尺寸和动效等视觉值；`DesignSystem` 与 feature 模块中的生产组件表达结构、交互和具名变体；生产页面只组合这些组件并绑定产品状态；DesignPreview 只用 fixture 状态陈列相同的生产组件。`Scripts/verification/verify_design_source_architecture.py` 检查类型系统尚不能表达的这部分关系，并在 Enchron、EnchronMacOS 和 DesignPreview 的 Xcode 构建开始时运行。规则、历史基线和边界见 [`UI 源码架构检查`](docs/ui/source-architecture-checks.md)。
+UI 源码继续分为四层：`DesignTokens.swift` 只表达颜色、间距、圆角、字体、尺寸和动效等视觉值；`DesignSystem` 与 feature 模块中的生产组件表达结构、交互和具名变体；生产页面只组合这些组件并绑定产品状态；DesignPreview 只用 fixture 状态陈列相同的生产组件。`Scripts/verification/verify_design_source_architecture.py` 检查类型系统尚不能表达的这部分关系，并在 Enchron 与 DesignPreview 的 Xcode 构建开始时运行。规则、历史基线和边界见 [`UI 源码架构检查`](docs/ui/source-architecture-checks.md)。
 
 本轮已经完成以下收敛：
 
@@ -157,9 +157,9 @@ Presentation Transition 保存转换前状态、目标状态、播放意图和�
 
 ## Enchron App 与验证入口
 
-历史 Verify App 的非 SwiftUI 播放控制和断言是 Enchron App 播放功能的基准。macOS Target 是同一 Enchron App 播放控制代码的验证入口。播放核心场景会绕过产品来源和页面，直接验证 PlaybackCore；产品适配场景则使用生产 `PlaybackRuntime`。二者共享测试媒体、RealityKit 渲染接收方、控制矩阵和节点断言，不形成两个 App。
+Enchron App 是唯一的产品运行入口，也是 PlaybackRuntime、visionOS Scene、RealityKit consumer 与产品状态组装的所有者。PlaybackCore 的低层合同通过 Package 测试验证；产品适配、空间呈现和真实用户交互通过 Enchron App 在 visionOS Simulator 与 Vision Pro 上的测试验证。验证测试使用生产控制、状态投影和 renderer binding，不建立平行播放宿主。
 
-Enchron、EnchronMacOS 与 DesignPreview 通过同一组 Package Library Product 使用核心生产源码。Xcode 中逐文件指定源文件归属的设置只用于页面、Scene 和 PlaybackCore 平台适配代码；这些文件不得复制五个核心 Target 已拥有的类型或规则。
+Enchron 与 DesignPreview 通过同一组 Package Library Product 使用核心生产源码。Xcode 中逐文件指定源文件归属的设置只用于页面、Scene 和 PlaybackCore 平台适配代码；这些文件不得复制五个核心 Target 已拥有的类型或规则。
 
 系统节点 01–09 统一位于 `docs/acceptance/nodes/`。节点描述完整产品链，文件位置不随实现模块拆分；每个节点分别声明实现所有者、证据所有者和完成边界。
 
@@ -173,6 +173,6 @@ Enchron、EnchronMacOS 与 DesignPreview 通过同一组 Package Library Product
 - Docked Video Entity 挂到 Xrplay_scene 交付的唯一 `PlaybackSurfaceAnchor` 下。场景拥有推荐基准位置与朝向；Enchron 以用户原点计算 Distance/Elevation 球面位置并转换为该 parent 下的 transform，同时拥有 Screen Size uniform scale；RealityKit 拥有视频 mesh、material 与实际呈现模式。
 - Media Library 只保存引用。分类、移动或删除引用不得复制、移动或删除媒体字节。
 - DesignPreview、SwiftUI Preview 与测试复用生产组件和页面；fixture adapter 不维护平行产品行为。
-- 验证依次覆盖 PlaybackCore 单元验证、macOS 播放核心场景、macOS 产品适配场景、visionOS Simulator 和 Vision Pro 真机。每一层都有不同的证明范围，后面的结果不能代替前面的验证。
+- 验证依次覆盖 PlaybackCore 单元验证、visionOS Simulator 和 Vision Pro 真机。每一层都有不同的证明范围，后面的结果不能代替前面的验证。
 
 行为合同见 `docs/core-spec.md` 和 `docs/product-requirements.md`；唯一验证规则见 `docs/acceptance/verification-system.md`。

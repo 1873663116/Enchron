@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 import Foundation
 import OSLog
+import VideoToolbox
 
 extension SampleBufferPlaybackSession {
     func updatePresentationStatus(at time: CMTime) {
@@ -16,7 +17,7 @@ extension SampleBufferPlaybackSession {
             kind: "timeline.ended",
             outcome: .succeeded
         )
-        onStatusChange?(.ended)
+        onStatusChange?(.ended(.naturalCompletion))
     }
 
     func publishDiagnostics(at time: CMTime, force: Bool = false) {
@@ -29,10 +30,16 @@ extension SampleBufferPlaybackSession {
         diagnostics.rendererStatus = currentVideoRendererStatus
         diagnostics.rendererError = currentVideoRendererError ?? "none"
         recordRendererState(at: time)
+        recordAudioRendererState()
+        refreshVideoPerformanceMetrics()
+        let actualTimebaseRate = CMTimebaseGetRate(synchronizer.timebase)
+        if actualTimebaseRate == 0 {
+            refreshDisplayedPixelBufferDetails()
+        }
         PlaybackTrace.event(
             "session.heartbeat id=\(traceID) time=\(time.seconds) samples=\(diagnostics.enqueuedSampleCount) " +
             "rendererStatus=\(diagnostics.rendererStatus) rendererError=\(diagnostics.rendererError) " +
-            "displayed=\(renderer.displayedPixelBuffer() != nil)"
+            "requestedRate=\(synchronizer.rate) actualTimebaseRate=\(actualTimebaseRate)"
         )
         debugStore.emit(
             mediaSessionID: traceID,
@@ -43,9 +50,152 @@ extension SampleBufferPlaybackSession {
                 "timeSeconds": String(seconds),
                 "videoSampleCount": String(diagnostics.enqueuedSampleCount),
                 "audioSampleBufferCount": String(audioSampleBufferCount),
+                "requestedRate": String(synchronizer.rate),
+                "actualTimebaseRate": String(actualTimebaseRate),
             ]
         )
         onDiagnosticsChange?(diagnostics)
+    }
+
+    func refreshVideoPerformanceMetrics() {
+        let shouldRequest = videoPerformanceMetricsLock.withLock {
+            guard videoPerformanceMetricsRequestInFlight == false else { return false }
+            videoPerformanceMetricsRequestInFlight = true
+            return true
+        }
+        guard shouldRequest else { return }
+        renderer.loadVideoPerformanceMetrics { [weak self] metrics in
+            guard let self else { return }
+            self.videoPerformanceMetricsLock.withLock {
+                self.videoPerformanceMetricsRequestInFlight = false
+            }
+            let details: [String: String]
+            if let metrics {
+                details = [
+                    "totalFrames": String(metrics.totalNumberOfFrames),
+                    "droppedFrames": String(metrics.numberOfDroppedFrames),
+                    "corruptedFrames": String(metrics.numberOfCorruptedFrames),
+                    "optimizedCompositingFrames": String(
+                        metrics.numberOfFramesDisplayedUsingOptimizedCompositing
+                    ),
+                    "accumulatedFrameDelay": String(metrics.totalAccumulatedFrameDelay),
+                ]
+            } else {
+                details = ["availability": "none"]
+            }
+            self.debugStore.emit(
+                mediaSessionID: self.traceID,
+                node: .rendererInputCoordination,
+                kind: "videoRenderer.performanceMetrics",
+                outcome: .succeeded,
+                details: details
+            )
+        }
+    }
+
+    func refreshDisplayedPixelBufferDetails() {
+        let shouldProbe = displayedPixelBufferProbeLock.withLock {
+            guard displayedPixelBufferProbeInFlight == false else { return false }
+            displayedPixelBufferProbeInFlight = true
+            return true
+        }
+        guard shouldProbe else { return }
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            guard let self else { return }
+            defer {
+                self.displayedPixelBufferProbeLock.withLock {
+                    self.displayedPixelBufferProbeInFlight = false
+                }
+            }
+            guard let pixelBuffer = self.renderer.displayedPixelBuffer() else {
+                self.recordDisplayedPixelBufferDetails(["availability": "none"])
+                return
+            }
+            let format = CVPixelBufferGetPixelFormatType(pixelBuffer)
+            let width = CVPixelBufferGetWidth(pixelBuffer)
+            let height = CVPixelBufferGetHeight(pixelBuffer)
+            var image: CGImage?
+            let conversionStatus = VTCreateCGImageFromCVPixelBuffer(
+                pixelBuffer,
+                options: nil,
+                imageOut: &image
+            )
+            guard conversionStatus == noErr, let image else {
+                self.recordDisplayedPixelBufferDetails([
+                    "conversionStatus": String(conversionStatus),
+                    "format": fourCC(format),
+                    "height": String(height),
+                    "width": String(width),
+                ])
+                return
+            }
+
+            let sampleWidth = 64
+            let sampleHeight = 64
+            let bytesPerRow = sampleWidth * 4
+            var pixels = [UInt8](repeating: 0, count: bytesPerRow * sampleHeight)
+            let drewImage = pixels.withUnsafeMutableBytes { bytes in
+                guard let baseAddress = bytes.baseAddress,
+                      let context = CGContext(
+                        data: baseAddress,
+                        width: sampleWidth,
+                        height: sampleHeight,
+                        bitsPerComponent: 8,
+                        bytesPerRow: bytesPerRow,
+                        space: CGColorSpaceCreateDeviceRGB(),
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+                      ) else {
+                    return false
+                }
+                context.draw(
+                    image,
+                    in: CGRect(x: 0, y: 0, width: sampleWidth, height: sampleHeight)
+                )
+                return true
+            }
+            guard drewImage else {
+                self.recordDisplayedPixelBufferDetails([
+                    "conversionStatus": "cgContextUnavailable",
+                    "format": fourCC(format),
+                    "height": String(height),
+                    "width": String(width),
+                ])
+                return
+            }
+
+            var minimum = UInt16.max
+            var maximum: UInt16 = 0
+            var total: UInt64 = 0
+            for offset in stride(from: 0, to: pixels.count, by: 4) {
+                let luminance = UInt16(pixels[offset]) * 54
+                    + UInt16(pixels[offset + 1]) * 183
+                    + UInt16(pixels[offset + 2]) * 19
+                minimum = min(minimum, luminance)
+                maximum = max(maximum, luminance)
+                total += UInt64(luminance)
+            }
+            let sampleCount = UInt64(sampleWidth * sampleHeight)
+            self.recordDisplayedPixelBufferDetails([
+                "format": fourCC(format),
+                "height": String(height),
+                "lumaAverage": String(Double(total) / Double(sampleCount * 256)),
+                "lumaMaximum": String(Double(maximum) / 256),
+                "lumaMinimum": String(Double(minimum) / 256),
+                "lumaRange": String(Double(maximum - minimum) / 256),
+                "sampleCount": String(sampleCount),
+                "width": String(width),
+            ])
+        }
+    }
+
+    func recordDisplayedPixelBufferDetails(_ details: [String: String]) {
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "videoRenderer.displayedPixelBuffer",
+            outcome: .succeeded,
+            details: details
+        )
     }
 
     func updateCompressedDiagnostics(sample: CMSampleBuffer) {
@@ -333,11 +483,13 @@ extension SampleBufferPlaybackSession {
 
     func markAsPrerollIfNeeded(
         _ sample: CMSampleBuffer,
-        presentationTime: CMTime
+        presentationTime: CMTime,
+        presentationEnd: CMTime
     ) {
         guard requestedTimelineStart.isNumeric,
               requestedTimelineStart > .zero,
               presentationTime < requestedTimelineStart,
+              presentationEnd < requestedTimelineStart,
               let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: true),
               CFArrayGetCount(attachments) > 0 else {
             return
@@ -360,7 +512,61 @@ extension SampleBufferPlaybackSession {
     }
 
     func resetDecoderBootstrap() {
-        decoderBootstrapLock.withLock { decoderBootstrapComplete = false }
+        decoderBootstrapLock.withLock {
+            decoderBootstrapComplete = false
+            decoderBootstrapTargetSeconds = nil
+            decoderBootstrapLastDecodeTimeSeconds = nil
+            decoderBootstrapImmediateEnqueueCount = 0
+        }
+        debugStore.recordDecoderBootstrap(nil)
+    }
+
+    func beginDecoderBootstrap(target: CMTime) {
+        let targetSeconds = numericSeconds(target) ?? 0
+        let record = decoderBootstrapLock.withLock {
+            decoderBootstrapTargetSeconds = targetSeconds
+            return DecoderBootstrapRecord(
+                mediaSessionID: traceID,
+                streamEpoch: streamEpoch,
+                targetDecodeTimeSeconds: targetSeconds,
+                immediateEnqueueCount: decoderBootstrapImmediateEnqueueCount,
+                targetRate: timelineStartRate,
+                complete: decoderBootstrapComplete
+            )
+        }
+        debugStore.recordDecoderBootstrap(record)
+    }
+
+    func recordAcceptedDecoderBootstrapSample(
+        decodeTime: CMTime,
+        target: CMTime,
+        usedImmediateEnqueue: Bool
+    ) -> DecoderBootstrapRecord {
+        let targetSeconds = numericSeconds(target) ?? 0
+        let decodeSeconds = numericSeconds(decodeTime)
+        let record = decoderBootstrapLock.withLock {
+            if decoderBootstrapComplete == false {
+                decoderBootstrapTargetSeconds = targetSeconds
+                decoderBootstrapLastDecodeTimeSeconds = decodeSeconds
+                if usedImmediateEnqueue {
+                    decoderBootstrapImmediateEnqueueCount &+= 1
+                }
+                if decodeSeconds == nil || (decodeSeconds ?? -.infinity) >= targetSeconds {
+                    decoderBootstrapComplete = true
+                }
+            }
+            return DecoderBootstrapRecord(
+                mediaSessionID: traceID,
+                streamEpoch: streamEpoch,
+                targetDecodeTimeSeconds: decoderBootstrapTargetSeconds ?? targetSeconds,
+                lastDecodeTimeSeconds: decoderBootstrapLastDecodeTimeSeconds,
+                immediateEnqueueCount: decoderBootstrapImmediateEnqueueCount,
+                targetRate: timelineStartRate,
+                complete: decoderBootstrapComplete
+            )
+        }
+        debugStore.recordDecoderBootstrap(record)
+        return record
     }
 
     func publishTargetTimelineState(at time: CMTime) {
@@ -452,7 +658,7 @@ extension SampleBufferPlaybackSession {
                 "errorType": fact.errorType,
                 "rendererKind": fact.rendererKind.rawValue,
                 "requiresFlushToResumeDecoding": fact.requiresFlushToResumeDecoding
-                    .map(String.init) ?? "notAvailable",
+                    .map { String($0) } ?? "notAvailable",
             ]
         )
         if activeOperation != nil {
@@ -486,6 +692,9 @@ extension SampleBufferPlaybackSession {
         case .failure(let fact):
             publishRendererFailure(fact)
         case .warning(let rendererKind, let message):
+            if rendererKind == .audio {
+                recordAudioRendererState()
+            }
             debugStore.emit(
                 mediaSessionID: traceID,
                 node: .rendererInputCoordination,
@@ -494,7 +703,20 @@ extension SampleBufferPlaybackSession {
                     warning: true
                 ).rawValue,
                 outcome: .failed,
-                details: ["message": message]
+                details: [
+                    "message": message,
+                    "streamEpoch": rendererKind == .audio
+                        ? String(audioStreamEpoch)
+                        : String(streamEpoch),
+                    "rendererStatus": rendererKind == .audio
+                        ? audioRendererStatusLabel
+                        : currentVideoRendererStatus,
+                    "rendererError": rendererKind == .audio
+                        ? (audioRenderer.error?.localizedDescription
+                            ?? currentAudioRendererError
+                            ?? "none")
+                        : (currentVideoRendererError ?? "none"),
+                ]
             )
         }
     }
@@ -573,9 +795,13 @@ extension SampleBufferPlaybackSession {
             timelineConfigured: hasStartedTimeline,
             currentTimeSeconds: numericSeconds(time) ?? 0,
             rate: synchronizer.rate,
+            actualTimebaseRate: Float(CMTimebaseGetRate(synchronizer.timebase)),
+            effectiveTimebaseRate: Float(
+                CMTimebaseGetEffectiveRate(synchronizer.timebase)
+            ),
             rendererStatus: currentVideoRendererStatus,
             rendererError: currentVideoRendererError,
-            inputModel: "receiverAsyncBackpressure",
+            inputModel: "boundedImmediateRendererLead",
             displayedPixelBuffer: renderer.displayedPixelBuffer() != nil,
             flushCount: flushCount
         ))

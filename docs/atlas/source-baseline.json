@@ -2,13 +2,13 @@
   "schemaVersion": 1,
   "blobs": {
     "atlas-contract": "33781ad1ee8b9649da3acef301965f1a6be4aaad",
-    "context": "ac75f9e1b62b105675b7b76d304520c8cd2c745b",
-    "product-requirements": "50202b04e69f036dcf4f92e609a911ce68ef8ea5",
-    "architecture": "a7c509029f4e98ed30a8b9a618f557a0c4faa904",
-    "core-spec": "e22ecf8ff831463994346081c94bf436b3db13c2",
-    "ui-spec": "58b8e40947342ad8d3ed7d2dcad9fc0d87effb1e",
-    "verification-system": "bdf0f8673003ce3795b3167daf5e05b62595a384",
+    "context": "56ecec8c6d1850ea4d5b49e590b19af441c1bd38",
+    "product-requirements": "fa3bcc6647d7e58535566ddb91b320e308265289",
+    "architecture": "c67b75700bf2ca7ba069825df120e28e45565cc2",
+    "core-spec": "2124dcf30f893481c2e749ac226d37ce3f264dce",
+    "ui-spec": "e7cb2d27f1b780f750eeb44ed1411f762d715beb",
+    "verification-system": "b759ba79087215c402d608d7df8fa8f411429261",
     "historical-evidence": "4c54af1316efc7ea175beb8a62629d162643e871",
-    "presentation-node": "8a2029e0caae3aca0da8019801171c69153ff694"
+    "presentation-node": "22ba615693c595439d461ce03e6f161a751dfed2"
   }
 }

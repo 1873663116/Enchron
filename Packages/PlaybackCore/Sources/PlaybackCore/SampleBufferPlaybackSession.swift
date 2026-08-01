@@ -50,6 +50,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let audioRenderer = AVSampleBufferAudioRenderer()
     let synchronizer = AVSampleBufferRenderSynchronizer()
     let debugStore = PlaybackDiagnosticsStore()
+    lazy var activationObservation = PlaybackActivationObservation(
+        session: self,
+        reapplyConfiguration: activationReapplyVerificationConfiguration,
+        reapplyHooks: activationReapplyVerificationHooks
+    )
 
     var onStatusChange: (@Sendable (PlaybackStatus) -> Void)?
     var onDiagnosticsChange: (@Sendable (PlaybackDiagnostics) -> Void)?
@@ -76,6 +81,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var pendingVideoSample: CMSampleBuffer?
     let decoderBootstrapLock = NSLock()
     var decoderBootstrapComplete = false
+    var decoderBootstrapTargetSeconds: Double?
+    var decoderBootstrapLastDecodeTimeSeconds: Double?
+    var decoderBootstrapImmediateEnqueueCount: UInt64 = 0
     let endStateLock = NSLock()
     var endState = EndState()
     var hasStartedTimeline = false
@@ -111,15 +119,31 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var hasAudio = false
     var audioSampleBufferCount: UInt64 = 0
     var audioFrameCount: UInt64 = 0
+    let audioTimestampOffsetLock = NSLock()
+    var audioTimestampOffsetEpoch: UInt64 = 0
+    var audioTimestampOffset: CMTime = .zero
+    let videoPerformanceMetricsLock = NSLock()
+    var videoPerformanceMetricsRequestInFlight = false
+    let displayedPixelBufferProbeLock = NSLock()
+    var displayedPixelBufferProbeInFlight = false
     let rendererStateLock = NSLock()
     var videoRendererStatus = "unknown"
     var videoRendererError: String?
     var audioRendererError: String?
+    var lastRecordedAudioRendererStatus: String?
+    var lastRecordedAudioRendererError: String?
     public internal(set) var selectedAudioStreamIndex: Int?
     public private(set) var availableAudioTracks: [PlaybackAudioTrack] = []
     let subtitleStateLock = NSLock()
     var subtitleState = SubtitleState()
     let logger = Logger(subsystem: "com.xiongzhipeng.PlaybackCore", category: "Playback")
+    let activationReapplyVerificationConfiguration:
+        PlaybackActivationReapplyVerificationConfiguration
+    let activationReapplyVerificationHooks: PlaybackActivationReapplyVerificationHooks
+
+    var isCloseInProgress: Bool {
+        closeLock.withLock { isClosing }
+    }
 
     convenience init(traceID: String = UUID().uuidString) {
         self.init(
@@ -138,13 +162,22 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         subtitleProvider: SubtitleProvider = NoSubtitleProvider(),
         rendererSink: RendererInputSink? = nil,
         audioRendererSink: AudioRendererInputSink? = nil,
-        rendererFailureMonitor: RendererFailureMonitoring? = nil
+        rendererFailureMonitor: RendererFailureMonitoring? = nil,
+        activationReapplyVerificationConfiguration:
+            PlaybackActivationReapplyVerificationConfiguration = .processDefault,
+        activationReapplyVerificationHooks: PlaybackActivationReapplyVerificationHooks = .init()
     ) {
         self.traceID = traceID
         self.videoTrackID = "\(traceID).video.0"
         self.provider = provider
         self.audioProvider = audioProvider
         self.subtitleProvider = subtitleProvider
+        self.activationReapplyVerificationConfiguration =
+            activationReapplyVerificationConfiguration
+        self.activationReapplyVerificationHooks = activationReapplyVerificationHooks
+        synchronizer.delaysRateChangeUntilHasSufficientMediaData = false
+        audioRenderer.audioTimePitchAlgorithm = .timeDomain
+        audioRenderer.allowedAudioSpatializationFormats = .monoAndStereo
         if let rendererSink {
             self.rendererSink = rendererSink
         } else {
@@ -170,6 +203,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         ) { [weak self] time in
             self?.updatePresentationStatus(at: time)
         }
+        activationObservation.start()
     }
 
     func prepare(
@@ -377,16 +411,34 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             throw error
         }
         startVideoDelivery()
-        if hasAudio {
-            startAudioDelivery()
-        }
         PlaybackTrace.event("session.start.end id=\(traceID)")
+    }
+
+    func playbackActivationHostTime() -> CMTime {
+        CMTimeAdd(
+            CMClockGetTime(CMClockGetHostTimeClock()),
+            CMTime(seconds: 0.05, preferredTimescale: 1_000_000)
+        )
+    }
+
+    func setRateAtHostTime(_ rate: Float, time: CMTime) {
+        synchronizer.setRate(
+            rate,
+            time: time,
+            atHostTime: playbackActivationHostTime()
+        )
     }
 
     func play() throws {
         try admitTimelineControl(.play)
+        activationObservation.invalidateReapplyVerification(outcome: .invalidatedByRateChange)
         beginOperation(.play, targetRate: preferredPlaybackRate)
-        synchronizer.rate = preferredPlaybackRate
+        let resumeTime = synchronizer.currentTime()
+        // On visionOS, a media-time-only rate change can leave the underlying
+        // timebase stopped after a pause. Bind the same media time to a near
+        // future host time so the synchronizer has an explicit resume edge.
+        setRateAtHostTime(preferredPlaybackRate, time: resumeTime)
+        recordAudioRateActivation(rate: preferredPlaybackRate, time: resumeTime, reason: "play")
         updateLifecycle(.playing)
         recordRendererState(at: currentTime())
         debugStore.emit(
@@ -401,6 +453,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     func pause() throws {
         try admitTimelineControl(.pause)
+        activationObservation.invalidateReapplyVerification(outcome: .invalidatedByPause)
         beginOperation(.pause, targetRate: 0)
         synchronizer.rate = 0
         updateLifecycle(.paused)
@@ -422,12 +475,21 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             throw PlaybackControlError.invalidRate(rate)
         }
         try admitTimelineControl(.setRate, targetRate: rate)
+        activationObservation.invalidateReapplyVerification(outcome: .invalidatedByRateChange)
         beginOperation(.setRate, targetRate: rate)
         if rate > 0 {
             preferredPlaybackRate = rate
         }
         timelineStartRate = rate
-        synchronizer.rate = rate
+        if rate > 0 {
+            let rateChangeTime = synchronizer.currentTime()
+            // Keep rate changes on the same visionOS-safe host-time activation
+            // path as play(). The current synchronizer time is the anchor.
+            setRateAtHostTime(rate, time: rateChangeTime)
+            recordAudioRateActivation(rate: rate, time: rateChangeTime, reason: "setRate")
+        } else {
+            synchronizer.rate = 0
+        }
         let lifecycle: PlaybackLifecycle = rate == 0 ? .paused : .playing
         updateLifecycle(lifecycle)
         recordRendererState(at: currentTime())

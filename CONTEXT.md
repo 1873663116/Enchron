@@ -11,14 +11,8 @@ _Avoid_：第二份产品规格、文档真相源、产品决策编辑入口、�
 
 **Enchron**：面向用户的 visionOS 媒体产品及其唯一代码仓库。
 
-**Enchron App**：Enchron 产品本身，拥有来源、产品策略、界面与平台呈现；macOS 与 visionOS 入口共享同一播放应用控制。
+**Enchron App**：Enchron 产品本身，拥有来源、产品策略、界面与 visionOS 平台呈现，也是唯一的产品运行与集成验证入口。
 _Avoid_：Verify App、Anchor App
-
-**macOS 近产品开发宿主**：Enchron App 在 macOS 上长期维护的第一等开发入口，复用生产业务、播放与可移植呈现实现，但不形成第二个产品，也不拥有 visionOS 空间语义的最终验收权。
-_Avoid_：macOS 产品、visionOS 模拟器、平行前端
-
-**macOS Scene Host**：macOS 近产品开发宿主中用于呈现 Environment 与 Docked 的场景入口；它不代表 ImmersiveSpace、Portal 或 Panorama。
-_Avoid_：macOS 游戏场景、macOS ImmersiveSpace、macOS Portal、macOS Panorama
 
 **PlaybackCore**：Enchron 内负责媒体会话、sample、时间线、控制语义与 renderer graph 的独立模块。
 _Avoid_：外部播放仓库、播放 App
@@ -101,10 +95,10 @@ _Avoid_：仅因 seek 或退出时接近结尾而标记、把结尾位置保存�
 **Ended Surface**：自然播放结束且 End Behavior 不触发 Play Next 或 Repeat One 时，当前 Media Session 与 Playback Presentation 继续存在，但视频画面为纯黑，不自动显示结束信息或播放控件。用户召唤播放控件后，主播放按钮显示 Replay；控件隐藏后再次召唤仍保持 Replay，直到用户重播、seek 离开结尾或退出当前媒体。
 _Avoid_：保留最后一帧、自动结束画面、自然结束后自动关闭 Media Session 或 Playback Presentation
 
-**After Seek Behavior**：每个 seek 命令必须明确完成后播放或暂停，不由 PlaybackCore 猜测来源控件。Progress Bar seek 到结尾之前后开始或继续播放，即使拖动前处于 paused；Precision Timeline seek 与逐帧始终停在目标位置。前后跳转保持原 playing/paused 意图；从 ended 后退会离开结尾并保持暂停。seek 到结尾本身进入 ended、纯黑并显示 Replay。
-_Avoid_：所有 seek 一律播放、所有 seek 一律暂停、让 paused 状态改变 Progress Bar 的已确认行为、Core 依赖进度条或时间轴等 UI 概念、把进度条称作粗略进度条
+**After Seek Behavior**：每个 seek 命令必须明确完成后保留播放意图或暂停，不由 PlaybackCore 猜测来源控件。Progress Bar 与前后跳转保持原 playing/paused 意图；Precision Timeline seek 与逐帧始终停在目标位置。Ended 没有 playing 意图，因此从 ended 通过任一可用 seek 离开结尾后保持暂停。seek 到结尾本身进入 ended、纯黑并显示 Replay，但不构成自然播放结束。
+_Avoid_：所有 seek 一律播放、所有 seek 一律暂停、从 ended 推断 playing、Core 依赖进度条或时间轴等 UI 概念、把进度条称作粗略进度条
 
-**Ended Transport Availability**：Ended 时 Replay 可用；后退、向结尾之前拖动进度条、向结尾之前操作精确时间轴和上一帧可用。后退、精确时间轴与上一帧定位后保持暂停，Progress Bar 定位后播放。已经位于结尾时，前进跳转与下一帧禁用。离开结尾后不再是 ended，但继续使用同一 Media Session。
+**Ended Transport Availability**：Ended 时 Replay 可用；后退、向结尾之前拖动进度条、向结尾之前操作精确时间轴和上一帧可用。这些 seek 从 Ended 离开结尾后都保持暂停。已经位于结尾时，前进跳转与下一帧禁用。离开结尾后不再是 ended，但继续使用同一 Media Session。
 _Avoid_：可点击但无效果的前进按钮、seek 后重开媒体、把 ended 当成已关闭 Session
 
 **Collapsed Playback Deck**：未展开 Advanced Settings 或 Precision Timeline 时的播放控制面板。Settings 与 More 分置两端，后退 15 秒、Play/Pause/Replay、前进 15 秒组成居中的 transport group。Settings 展开 Advanced Settings；More 打开离散播放选项菜单；双击 Progress Bar 的圆形 scrubber 打开 Precision Timeline。
@@ -212,7 +206,7 @@ _Avoid_：仅返回 Window却保留偏好、把 Flat 混入首次 Panorama 投�
 
 ## 验证
 
-**无人值守测试宿主**：完成一次性系统授权与预检后，能够在不需要用户介入的情况下持续运行 Enchron 验证的 macOS 图形会话；宿主可用性本身不构成产品通过证据。
+**无人值守 Vision Pro XCTest 宿主**：完成一次性系统授权与预检后，使 Vision Pro 保持可运行状态并持续执行 Enchron 真机 XCTest 的测试环境；宿主可用性本身不构成产品通过证据。
 _Avoid_：CI runner、产品运行环境、测试已通过
 
 **真实用户旅程 E2E**：从正常 Enchron App 用户状态出发，所有来源创建、媒体选择和播放操作都经过公开产品界面完成的端到端验证。
@@ -229,7 +223,7 @@ _Avoid_：loopback 测试、本机共享、协议远程源 E2E
 
 **PlaybackCore 单元与合同验证**：不依赖产品播放界面的核心合同、媒体容器与媒体 Sample 验证。
 
-**macOS 产品集成验证**：macOS Enchron App 使用真实 Renderer、RealityKit 渲染接收方和生产 `PlaybackRuntime`，证明 PlaybackCore 可以持续播放，并证明产品接入没有改变其行为。
+**visionOS 产品集成验证**：visionOS Enchron App 使用生产 `PlaybackRuntime`、真实 Renderer、RealityKit 渲染接收方和同一 Media Session，证明产品接入、空间呈现与持续输出符合合同。
 
 **Vision Pro 真机验收**：在物理 Vision Pro 上验证硬件解码、HDR/EDR、音频、空间呈现、性能与最终交互。
 

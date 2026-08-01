@@ -11,7 +11,7 @@ import PlaybackPresentation
 @MainActor
 @Observable
 public final class PlaybackRuntime: PlaybackRuntimeControlling {
-    public enum PresentationState: Sendable {
+    public enum PresentationState: Sendable, Equatable {
         case hidden
         case placeholder
         case videoVisible
@@ -295,7 +295,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
         attachment = Attachment(entityID: entityID, realityViewID: realityViewID, presentation: presentation)
         attachedPresentation = presentation
-        presentationState = .videoVisible
+        presentationState = .placeholder
         clearFailureIfPlaybackIsUsable()
         logger.info("surface attached presentation=\(String(describing: presentation), privacy: .public) entity=\(entityID, privacy: .public)")
     }
@@ -406,6 +406,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 throw RuntimeError.spatialPlaybackTransportUnavailable(productLifecycle)
             }
             PlaybackTrace.event("runtime.resume.request lifecycle=\(lifecycle.label)")
+            try audioSessionLifecycle.activateIfNeeded(hasAudio: !availableAudioTracks.isEmpty)
+            recordAudioSessionFact()
             try controller.play()
             PlaybackTrace.event("runtime.resume.completed")
         }
@@ -415,19 +417,32 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
-    public func seek(to seconds: Double, startsPaused: Bool? = nil) {
+    public func seek(
+        to seconds: Double,
+        event: PlaybackSeekEvent = .progressBar
+    ) {
         resetActualPlaybackSampling()
         invalidatePendingDisplayedImageClear()
         let nonnegativeTarget = max(0, seconds)
         let target = playbackPosition.duration > 0
             ? min(playbackPosition.duration, nonnegativeTarget)
             : nonnegativeTarget
+        let targetBoundary: PlaybackSeekTargetBoundary = playbackPosition.duration > 0
+            && target >= playbackPosition.duration
+            ? .end
+            : .beforeEnd
+        let intent = PlaybackSeekPolicy.intent(
+            for: event,
+            lifecycle: productLifecycle,
+            targetBoundary: targetBoundary
+        )
+        let behavior = Self.coreAfterSeekBehavior(for: intent)
         Task { [weak self] in
             guard let self else { return }
             do {
                 try await controller.seek(
                     to: CMTime(seconds: target, preferredTimescale: 600),
-                    startsPaused: startsPaused
+                    after: behavior
                 )
             } catch let error as PlaybackControlError {
                 if case .seekSuperseded = error { return }
@@ -441,13 +456,18 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func skip(by delta: Double) {
         resetActualPlaybackSampling()
         invalidatePendingDisplayedImageClear()
-        let startsPaused = lifecycle == .ended ? true : nil
+        let intent = PlaybackSeekPolicy.intent(
+            for: .skip,
+            lifecycle: productLifecycle,
+            targetBoundary: .beforeEnd
+        )
+        let behavior = Self.coreAfterSeekBehavior(for: intent)
         Task { [weak self] in
             guard let self else { return }
             do {
                 try await controller.seek(
                     by: CMTime(seconds: delta, preferredTimescale: 600),
-                    startsPaused: startsPaused
+                    after: behavior
                 )
             } catch let error as PlaybackControlError {
                 if case .seekSuperseded = error { return }
@@ -516,7 +536,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         Task { [weak self] in
             guard let self else { return }
             do {
-                try await controller.seek(to: .zero, startsPaused: false)
+                try audioSessionLifecycle.activateIfNeeded(hasAudio: !availableAudioTracks.isEmpty)
+                recordAudioSessionFact()
+                try await controller.seek(to: .zero, after: .play)
                 try controller.play()
             } catch {
                 fail(error)
@@ -734,7 +756,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         desiredViewingMode: String? = nil,
         actualViewingMode: String? = nil,
         desiredSpatialVideoMode: String? = nil,
-        actualSpatialVideoMode: String? = nil
+        actualSpatialVideoMode: String? = nil,
+        componentRenderingStatus: String? = nil,
+        displayedPixelBuffer: Bool? = nil
     ) {
         guard let session else { return }
         let record = PresentationStateRecord(
@@ -751,15 +775,74 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             actualViewingMode: Self.observedFact(actualViewingMode),
             desiredSpatialVideoMode: Self.observedFact(desiredSpatialVideoMode),
             actualSpatialVideoMode: Self.observedFact(actualSpatialVideoMode),
+            componentRenderingStatus: componentRenderingStatus.map { .init(known: $0) },
+            displayedPixelBuffer: displayedPixelBuffer,
+            audioSessionActive: audioSessionLifecycle.isActive,
             transitionResult: .init(known: "succeeded")
         )
+        let outputIsPresentable = phase == .settled && displayedPixelBuffer == true
+        let endedSurfaceIsPresentable = phase == .surfaceAttached
+            && productLifecycle == .ended
+        if outputIsPresentable || endedSurfaceIsPresentable {
+            presentationState = .videoVisible
+            clearFailureIfPlaybackIsUsable()
+        }
         guard session.debugSnapshot().presentationState != record else { return }
         session.recordPresentationState(record)
+    }
+
+    func outputObservation() -> PlaybackOutputObservation {
+        let snapshot = session?.debugSnapshot()
+        let presentation = snapshot?.presentationState
+        let audioSession = audioSessionLifecycle.observation
+        return PlaybackOutputObservation(
+            capturedAt: snapshot?.generatedAt ?? Date(),
+            mediaSessionID: snapshot?.mediaSession?.mediaSessionID,
+            streamEpoch: snapshot?.streamEpoch ?? 0,
+            lifecycle: productLifecycle,
+            positionSeconds: snapshot?.rendererState?.currentTimeSeconds
+                ?? playbackPosition.seconds,
+            videoSampleCount: snapshot?.sampleCount ?? 0,
+            acceptedRendererInputCount: snapshot?.acceptedRendererInputCount ?? 0,
+            decoderBootstrapComplete: snapshot?.decoderBootstrap?.complete ?? false,
+            requestedPlaybackRate: snapshot?.rendererState?.rate
+                ?? snapshot?.decoderBootstrap?.targetRate
+                ?? snapshot?.mediaSession?.initialRate
+                ?? 0,
+            actualTimebaseRate: snapshot?.rendererState?.actualTimebaseRate ?? 0,
+            realityKitRendererBound: snapshot?.realityKitBinding?.active == true
+                && snapshot?.realityKitBinding?.componentAttached == true,
+            videoComponentReady: presentation?.componentRenderingStatus?.value?
+                .localizedCaseInsensitiveContains("ready") == true,
+            displayedPixelBuffer: presentation?.displayedPixelBuffer
+                ?? snapshot?.rendererState?.displayedPixelBuffer
+                ?? false,
+            hasAudio: availableAudioTracks.isEmpty == false,
+            audioSampleBufferCount: snapshot?.audioSampleBufferCount ?? 0,
+            audioRendererSampleBufferCount: snapshot?.audioRendererState?
+                .enqueuedSampleBufferCount ?? 0,
+            audioRendererStreamEpoch: snapshot?.audioRendererState?.streamEpoch ?? 0,
+            audioRendererStatus: snapshot?.audioRendererState?.status ?? "unknown",
+            audioRendererVolume: snapshot?.audioRendererState?.volume ?? 1,
+            audioRendererMuted: snapshot?.audioRendererState?.muted ?? false,
+            audioRendererError: snapshot?.audioRendererState?.error,
+            audioSessionActive: audioSessionLifecycle.isActive,
+            audioSessionCategory: audioSession.category,
+            audioSessionMode: audioSession.mode,
+            audioSessionOutputPortTypes: audioSession.outputPortTypes,
+            systemOutputVolume: audioSession.outputVolume
+        )
     }
 
     func debugSnapshot() -> PlaybackDebugSnapshotV1? {
         session?.debugSnapshot()
     }
+
+    #if DEBUG
+    func debugEvidenceJSON() -> String {
+        controller.debugEvidenceJSON() ?? ""
+    }
+    #endif
 
     func activeSessionForVerification() -> SampleBufferPlaybackSession? {
         session
@@ -802,7 +885,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             do {
                 try await controller.seek(
                     by: CMTime(seconds: offset, preferredTimescale: 60_000),
-                    startsPaused: true
+                    after: .pause
                 )
             } catch let error as PlaybackControlError {
                 if case .seekSuperseded = error { return }
@@ -819,27 +902,50 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case .idle, .loading:
             break
         case .ready, .playing, .paused:
+            didEndNaturally = false
             clearFailureIfPlaybackIsUsable()
-        case .ended:
-            didEndNaturally = true
+        case .ended(let reason):
+            didEndNaturally = reason == .naturalCompletion
             audioSessionLifecycle.deactivate()
+            recordAudioSessionFact()
             let endedSessionID = activeSessionID
             displayedImageGeneration += 1
             let clearGeneration = displayedImageGeneration
             Task { [weak self] in
                 guard let self, let endedSessionID else { return }
                 await Task.yield()
-                guard lifecycle == .ended,
+                guard case .ended = lifecycle,
                       activeSessionID == endedSessionID,
                       displayedImageGeneration == clearGeneration else { return }
                 await controller.clearDisplayedVideoImage(forMediaSessionID: endedSessionID)
             }
-            onPlaybackEnded?()
+            if reason == .naturalCompletion {
+                onPlaybackEnded?()
+            }
         case .failed(let message):
             audioSessionLifecycle.deactivate()
+            recordAudioSessionFact()
             lastErrorMessage = message
             logger.error("playback failed message=\(message, privacy: .public)")
         }
+    }
+
+    private static func coreAfterSeekBehavior(
+        for intent: PlaybackAfterSeekIntent
+    ) -> PlaybackAfterSeekBehavior {
+        switch intent {
+        case .preserveCurrentPlaybackIntent:
+            .preserveCurrentPauseState
+        case .pause, .ended:
+            .pause
+        }
+    }
+
+    private func recordAudioSessionFact() {
+        guard let session,
+              var record = session.debugSnapshot().presentationState else { return }
+        record.audioSessionActive = audioSessionLifecycle.isActive
+        session.recordPresentationState(record)
     }
 
     private func clearFailureIfPlaybackIsUsable() {

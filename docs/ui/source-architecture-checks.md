@@ -4,7 +4,7 @@ Enchron 的 UI 源码按职责形成四层。Token 数值层位于 `Modules/Desi
 
 `Scripts/verification/verify_design_source_architecture.py` 对 Swift 类型系统尚未覆盖的关系执行快速源码检查。它阻止 `DesignTokens.swift` 新增 View、`ViewBuilder`、Shape 或样式实现；阻止 DesignPreview 新增 `ButtonStyle`、`ToggleStyle`、`ViewModifier`、Shape 等平行视觉类型；阻止陈列文件扩展生产类型、直接创建新的原生交互控件，或使用新的视觉数值字面量；同时要求新增的 DesignPreview View 文件至少导入一个生产模块。Token 专用陈列、App 壳和通用预览舞台不按组件陈列文件处理，因为它们只负责显示 token 或承载预览，而不表达产品组件。
 
-检查失败时输出 `file:line: error: [rule] message` 并返回非零状态。Enchron、EnchronMacOS 与 DesignPreview 的 Xcode Target 在编译源码前运行同一检查；已有的 `verify_package_membership.py` 和 `verify_organic_architecture_xcode.sh` 也会经过它。因此本地产品构建和使用现有架构验证入口的 CI 得到相同结果。Xcode User Script Sandbox 模式通过 `SCRIPT_INPUT_FILE_*` 只读取 Build Phase 逐项声明的 DesignPreview Swift 文件、`DesignTokens.swift`、基线和检查脚本，不扫描 `Assets.xcassets` 等资源目录；普通 CLI/CI 模式仍发现全部 DesignPreview Swift 文件，并检查三个 Build Phase 的显式 Swift 输入与磁盘源码完全一致。新增 Swift 文件而没有同步构建输入会使仓库级检查失败。只运行一个与产品构建无关的任意命令不构成 Enchron 验证入口，也不宣称执行了这项检查。
+检查失败时输出 `file:line: error: [rule] message` 并返回非零状态。Enchron 与 DesignPreview 的 Xcode Target 在编译源码前运行同一检查；已有的 `verify_package_membership.py` 和 `verify_organic_architecture_xcode.sh` 也会经过它。因此本地产品构建和使用现有架构验证入口的 CI 得到相同结果。Xcode User Script Sandbox 模式通过 `SCRIPT_INPUT_FILE_*` 只读取 Build Phase 逐项声明的 DesignPreview Swift 文件、`DesignTokens.swift`、基线和检查脚本，不扫描 `Assets.xcassets` 等资源目录；普通 CLI/CI 模式仍发现全部 DesignPreview Swift 文件，并检查两个 Build Phase 的显式 Swift 输入与磁盘源码完全一致。新增 Swift 文件而没有同步构建输入会使仓库级检查失败。只运行一个与产品构建无关的任意命令不构成 Enchron 验证入口，也不宣称执行了这项检查。
 
 当前历史违规记录在 `Config/design_source_architecture_baseline.json`。每项 allowance 由规则、文件、规范化后的源码行和允许出现次数共同确定，不是目录通配符；相同行为增加一次就会失败。历史代码被修复后，检查会以 `baseline-stale` 要求同步缩小基线，不能把空出的 allowance 留给未来代码。除非是在确认现有历史事实后建立或收缩基线，不得用 `--write-baseline` 处理普通失败。
 
