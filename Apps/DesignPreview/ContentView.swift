@@ -14,7 +14,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     case environmentCard
     case connectionForm
     case dialogs
-    case fusedPanel
+    case playbackControls
     // MARK: Design Tokens (back)
     case spacing
     case radiusAndShapes
@@ -43,7 +43,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
         case .environmentCard: "Environment Card"
         case .connectionForm: "Connection Form"
         case .dialogs: "Dialogs"
-        case .fusedPanel: "Fused Panel"
+        case .playbackControls: "Playback Controls"
         case .componentStandards: "Component Standards"
         }
     }
@@ -90,8 +90,8 @@ struct ContentView: View {
                 ConnectionFormPreview()
             case .dialogs:
                 DialogsPreview()
-            case .fusedPanel:
-                FusedPlayerPanelPreview()
+            case .playbackControls:
+                PlaybackControlsPreview()
             case .componentStandards:
                 ComponentStandardsPreview()
             }
