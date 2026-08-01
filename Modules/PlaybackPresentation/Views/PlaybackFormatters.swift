@@ -8,7 +8,7 @@ enum PlaybackInfoFormatter {
         guard frameRate > 0 else {
             return "Unknown"
         }
-        return String(format: "%.2f fps", frameRate)
+        return "\(String(format: "%g", frameRate)) fps"
     }
 
     static func fileSize(_ sizeInBytes: Int64?) -> String {

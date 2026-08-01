@@ -305,6 +305,10 @@ public enum DesignTokens {
     public enum Layout {
         /// Width available to the PlayerControls content before outer padding.
         public static let playerControlsContentWidth: CGFloat = 680
+        /// Shared width for Precision Timeline and expanded playback settings.
+        public static let expandedPlayerControlsContentWidth: CGFloat = 880
+        /// Fixed height of the read-only spatial playback media-information well.
+        public static let playbackMediaInfoHeight: CGFloat = 88
         /// Ornament overlap with window bottom edge (Apple HIG: 20pt).
         public static let ornamentGap: CGFloat = 20
         /// Softens content clipping at the top and bottom of the main WindowGroup.

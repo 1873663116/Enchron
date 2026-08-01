@@ -104,8 +104,8 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 
 - Window 视频界面左上角拥有 Back，右上角依次放置 Dock、Video Format 与 More；视频标题和媒体信息位于左下角。
 - Window 播放控件以底部 Ornament 呈现，不显示 Settings 与 More。同尺寸的后退 15 秒、Play/Pause/Replay、前进 15 秒位于左侧，并与 Progress Bar 保持同一行。
-- Window Playback 的宽高比来自 PlaybackCore 报告的当前视频显示尺寸；Side-by-Side 与 Top-Bottom 先按 Stereo Layout 换算单眼显示尺寸。只有播放头尚未交付有效尺寸时，启动占位才临时使用 16:9。PlayerControls Ornament 的稳定外部宽度是 Window 宽度范围的唯一基准：最小、默认和最大宽度分别为其 1.25、1.75 和 2.50 倍，并对齐到 16pt；对应高度始终由当前视频宽高比计算。Precision Timeline 展开不得改变 Ornament 的外部宽度或触发 Window 尺寸跳变。
-- Settings 展开 Advanced Settings；More 负责 Subtitles、Audio Track、Playback Speed 与 Episodes。
+- Window Playback 的宽高比来自 PlaybackCore 报告的当前视频显示尺寸；Side-by-Side 与 Top-Bottom 先按 Stereo Layout 换算单眼显示尺寸。只有播放头尚未交付有效尺寸时，启动占位才临时使用 16:9。收起状态的 PlayerControls Ornament 外部宽度是 Window 宽度范围的唯一基准：最小、默认和最大宽度分别为其 1.25、1.75 和 2.50 倍，并对齐到 16pt；对应高度始终由当前视频宽高比计算。Precision Timeline 展开时 Ornament 可以扩展到与空间 Player Control Dock 相同的精确时间轴宽度，但不得触发 Window 尺寸跳变。
+- Settings 展开 Advanced Settings。Tracks 负责 Subtitles 与 Audio Track；More 负责 Playback Speed 与 Episodes。
 - Advanced Settings 在 Docked 提供 Screen Size、Distance、Elevation、Restore Defaults，在 Panorama 提供 Projection、Stereo Layout 与 Apply。Precision Timeline 由 Progress Bar 的圆形 scrubber 双击打开，不属于 Settings。
 - Precision Timeline 支持精确 seek 与逐帧，完成后保持暂停。Progress Bar 拖动期间的时间标识随本地预览位置连续更新，松手才提交 seek；seek 到结尾之前保持拖动前的 playing/paused 意图，从 ended 拖动离开结尾后保持暂停。
 - 前后 15 秒保持原来的 playing/paused 意图；从 ended 后退会离开结尾并保持暂停。逐帧始终保持暂停。
@@ -114,7 +114,9 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 ## Docked、Panorama 与退出
 
 - Docked 的 Video Entity/Mesh 不承载可点击按钮。Docked 与 Panorama 召唤同一个 `PlayerControlDock`，均提供播放控制、Settings 与 Return to Window，不提供直接 Back-to-Library。
-- `PlayerControlDock` 的外部结构在 Docked 与 Panorama 中保持一致；只有 Settings 展开内容不同：Docked 调整 Screen Size、Distance、Elevation 与 Restore Defaults，Panorama 调整 Projection、Stereo Layout、Apply 与 Reset。
+- `PlayerControlDock` 的外部结构在 Docked 与 Panorama 中保持一致。顶部只读信息材质区在普通状态显示去掉扩展名的文件名；Hover 时文件名轻微上移，并在同一固定尺寸区域的左信息区显示 Projection 与 Stereo Layout，在右信息区显示 Resolution、HDR、Codec 与 Frame Rate。该区域不可点击，也没有进一步展开状态。
+- Player Control Dock 的操作行把 Settings 与 Return to Window 放在左侧、Tracks 与 More 放在右侧，后退 15 秒、Play/Pause/Replay、前进 15 秒组成独立且以 Play 为面板几何中心的 transport group。Docked 与 Panorama 的 Return 图标不同；只有 Settings 展开内容不同：Docked 调整 Screen Size、Distance、Elevation 与 Restore Defaults，Panorama 调整 Projection、Stereo Layout、Apply 与 Reset。
+- Window、Docked 与 Panorama 的 Precision Timeline 使用相同的展开宽度。普通 Progress Bar 与 Precision Timeline 是不同控件；展开时间轴不得改变普通进度条的结构。
 - Window Back 关闭当前 Media Session 并回到 Media Library。
 - 返回 Window 或 Media Library 时结束本次 Docked Environment Effect，并恢复进入 Docked 前的 Environment Context。此前存在 Enchron Environment 时继续保留它原有的 Environment Effect；此前不存在时仍保持没有活动 Enchron Environment，System Surroundings 由 visionOS 决定。
 - Docked 与 Panorama 不直接互转，必须经过 Window。
