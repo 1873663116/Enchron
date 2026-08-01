@@ -485,7 +485,7 @@ struct FusedPlayerPanel: View {
                     forwardButton
                 }
             }
-            .frame(width: clusterWidth, height: DesignTokens.Interactive.xl)
+            .frame(width: clusterWidth, height: DesignTokens.Interactive.large)
         }
     }
 
@@ -793,9 +793,9 @@ struct FusedPlayerPanel: View {
             accessibilityLabel: primaryPlayLabel,
             action: { live?.onPlayPause() },
             accessibilityIdentifier: "PlayerPanel-button-play",
-            visualSize: DesignTokens.Interactive.large,
-            targetSize: DesignTokens.Interactive.xl,
-            iconTier: .primary
+            visualSize: DesignTokens.Interactive.regular,
+            targetSize: DesignTokens.Interactive.large,
+            iconTier: .standard
         )
         .keyboardShortcut(.space, modifiers: [])
     }
