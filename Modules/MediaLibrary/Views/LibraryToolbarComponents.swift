@@ -22,7 +22,12 @@ struct SortMenuButton: View {
     private let iconColor: Color = .secondary
 
     var body: some View {
-        Menu {
+        GlassCircleIconMenu(
+            systemName: "arrow.up.arrow.down",
+            accessibilityLabel: "Sort",
+            accessibilityIdentifier: accessibilityIdentifier,
+            iconColor: iconColor
+        ) {
             // Picker renders the selected row with a system checkmark on the
             // trailing edge — the native menu idiom. A hand-rolled
             // `Label(systemImage: "checkmark")` forced the mark to the leading
@@ -38,15 +43,7 @@ struct SortMenuButton: View {
                 Text("Ascending").tag(SortMenuOrder.ascending)
                 Text("Descending").tag(SortMenuOrder.descending)
             }
-        } label: {
-            GlassCircleIconLabel(
-                systemName: "arrow.up.arrow.down",
-                accessibilityLabel: "Sort",
-                iconColor: iconColor
-            )
         }
-        .buttonStyle(EnchronPressFeedbackButtonStyle(.icon))
         .accessibilityLabel("Sort")
-        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }

@@ -138,15 +138,29 @@ public enum DesignTokens {
         public static let informationReveal: Animation = .easeOut(duration: 0.2)
         /// Skeleton loading pulse
         public static let skeleton: Animation = .easeInOut(duration: 1.0).repeatForever(autoreverses: true)
+
+        /// Shared SF Symbol rotate speed for skip arrows and settings gear.
+        public static let symbolRotateSpeed: Double = 2.0
+        /// Whole-glyph spin paced like `symbolRotateSpeed` (about 1s at 1×).
+        public static var symbolRotateSpin: Animation {
+            .spring(response: 1.0 / symbolRotateSpeed, dampingFraction: 0.86)
+        }
     }
 
-    /// Loading spinner timing. Kept separate from generic animation tokens
-    /// because the paired head/tail phases must stay synchronized.
+    /// Material circular indeterminate (advance) motion constants.
+    /// Sourced from `CircularIndeterminateAdvanceAnimatorDelegate` in
+    /// material-components-android; kept here so timing stays shared with
+    /// Design Preview without re-encoding the cycle in the view.
     public enum LoadingSpinner {
-        public static let headAnimation: Animation = .easeOut(duration: 0.7)
-        public static let tailAnimation: Animation = .easeOut(duration: 0.55)
-        public static let headDuration: Duration = .milliseconds(700)
-        public static let tailDuration: Duration = .milliseconds(550)
+        public static let cycleDuration: Duration = .milliseconds(5400)
+        public static let cycleDurationMilliseconds: Double = 5400
+        public static let expandCollapseDurationMilliseconds: Double = 667
+        public static let constantRotationDegrees: Double = 1520
+        public static let extraDegreesPerCycle: Double = 250
+        public static let tailDegreesOffset: Double = -20
+        public static let cyclesPerLoop: Int = 4
+        public static let expandDelaysMilliseconds: [Double] = [0, 1350, 2700, 4050]
+        public static let collapseDelaysMilliseconds: [Double] = [667, 2017, 3367, 4717]
     }
 
     // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -632,7 +646,9 @@ public enum DesignTokens {
         public static let majorTickTargetSpacing: CGFloat = 96
         /// Ruler target spacing for minor ticks.
         public static let minorTickTargetSpacing: CGFloat = 18
-        /// Minimum zoom scale in pixels per second.
+        /// Safety floor for zoom scale in pixels per second when duration is
+        /// unavailable. Runtime zoom also raises this to the viewport-fit value
+        /// so the film strip never shrinks narrower than the visible track.
         public static let minPixelsPerSecond: CGFloat = 0.04
         /// Maximum zoom scale in pixels per second, enough for frame-level dragging at 24fps.
         public static let maxPixelsPerSecond: CGFloat = 288

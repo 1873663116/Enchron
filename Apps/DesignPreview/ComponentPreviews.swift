@@ -9,8 +9,8 @@ struct PlaybackControlsPreview: View {
     @State private var isPlaying = true
     @State private var progress: CGFloat = 0.45
     @State private var screenScale = 1.0
-    @State private var screenDistance = 4.0
-    @State private var screenElevation = 0.0
+    @State private var screenDistance = PlaybackDockedPlacement.defaultDistance
+    @State private var screenElevation = PlaybackDockedPlacement.defaultElevationDegrees
     @State private var projection: PlaybackModel.ProjectionType = .equirectangular180
     @State private var stereoLayout: PlaybackModel.StereoLayout = .sideBySide
 
@@ -134,8 +134,8 @@ struct PlaybackControlsPreview: View {
             onSetScreenElevation: { screenElevation = $0 },
             onResetDockedPlacement: {
                 screenScale = 1.0
-                screenDistance = 4.0
-                screenElevation = 0.0
+                screenDistance = PlaybackDockedPlacement.defaultDistance
+                screenElevation = PlaybackDockedPlacement.defaultElevationDegrees
             },
             onApplyFormat: { projection = $0; stereoLayout = $1 },
             onResetFormat: {
@@ -390,20 +390,24 @@ struct SettingListGroupPreview: View {
 
 // MARK: - Slider
 
-// 两种滑块的真相展示面:CenterSlider(居中档位)与 range-aware 的 RangeSlider
-// (真实数值域 + 数值读出)。
+// 三种滑块的真相展示面:CenterSlider(居中档位)、RangeSlider(连续数值域)、
+// DetentedRangeSlider(leading-origin 档位,与 Docked Placement 同一套几何)。
 struct SliderPreview: View {
     @State private var exposure = 0
     @State private var fineAdjust = -2
     @State private var peakPercentile = 99.9
     @State private var targetPeak = 406.0
     @State private var saturation = 9.0
+    @State private var screenScale = 1.0
+    @State private var distance = PlaybackDockedPlacement.defaultDistance
+    @State private var elevation = PlaybackDockedPlacement.defaultElevationDegrees
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
                 centerSliderSection
                 rangeSliderSection
+                detentedRangeSliderSection
             }
             .padding(DesignTokens.Spacing.xxl)
             .frame(maxWidth: .infinity, alignment: .topLeading)
@@ -465,6 +469,39 @@ struct SliderPreview: View {
         }
     }
 
+    private var detentedRangeSliderSection: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            Text("Detented Range Slider")
+                .font(DesignTokens.Typography.title)
+                .foregroundStyle(.primary)
+            Text("leading-origin、共享 \(PlaybackDockedPlacement.placementDetentCount) 档、Binding<Double>;与 Docked Placement 三行同一套点列几何。")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+
+            detentedRow(
+                "Screen Size",
+                value: $screenScale,
+                range: PlaybackScreenSize.scaleRange,
+                step: PlaybackScreenSize.scaleStep,
+                label: { "\(Int(($0 * 100).rounded()))%" }
+            )
+            detentedRow(
+                "Distance",
+                value: $distance,
+                range: PlaybackDockedPlacement.distanceRange,
+                step: PlaybackDockedPlacement.distanceStep,
+                label: { String(format: "%.1f m", $0) }
+            )
+            detentedRow(
+                "Elevation",
+                value: $elevation,
+                range: PlaybackDockedPlacement.elevationRange,
+                step: PlaybackDockedPlacement.elevationStep,
+                label: { "\(Int($0.rounded()))°" }
+            )
+        }
+    }
+
     private func centerRow(
         _ title: String,
         value: Binding<Int>,
@@ -514,6 +551,33 @@ struct SliderPreview: View {
                 accessibilityLabel: title,
                 accessibilityValue: unit.map { "\(readout) \($0)" } ?? readout,
                 accessibilityIdentifier: "DesignPreview-RangeSlider-\(title)"
+            )
+        }
+    }
+
+    private func detentedRow(
+        _ title: String,
+        value: Binding<Double>,
+        range: ClosedRange<Double>,
+        step: Double,
+        label: (Double) -> String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                Text(title)
+                    .font(DesignTokens.Typography.headline)
+                Text(label(value.wrappedValue))
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+
+            DetentedRangeSlider(
+                value: value,
+                range: range,
+                step: step,
+                accessibilityLabel: title,
+                accessibilityValue: label(value.wrappedValue),
+                accessibilityIdentifier: "DesignPreview-DetentedRangeSlider-\(title)"
             )
         }
     }

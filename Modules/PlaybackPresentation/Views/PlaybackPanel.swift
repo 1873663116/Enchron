@@ -207,20 +207,19 @@ struct FusedPlayerPanel: View {
     @State private var pendingSeekTarget: CGFloat?
     @State private var pendingSeekGeneration = 0
     @State private var scrubFeedbackTrigger = 0
-    @State private var minimumBoundaryFeedbackTrigger = 0
-    @State private var maximumBoundaryFeedbackTrigger = 0
+    @State private var scrubReleaseTrigger = 0
+    @State private var scrubBoundary: EnchronScrubBoundary = .none
     @State private var timelineFeedbackTrigger = 0
     @State private var rewindIconAnimationTrigger = 0
     @State private var forwardIconAnimationTrigger = 0
-    @State private var announcedBoundary: ProgressBoundary?
     @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
     // ⋯ 菜单 Canvas mock 选择态(live 为 nil 时)。
     @State private var selectedSpeed = "1×"
     @State private var advancedProjection: PlaybackModel.ProjectionType = .flat
     @State private var advancedStereoLayout: PlaybackModel.StereoLayout = .mono
+    @State private var placementTrackWidth: CGFloat = 280
     @Namespace private var hoverNamespace
 
-    private enum ProgressBoundary { case minimum, maximum }
     private enum ScrubberActivation {
         case idle
         case activating
@@ -280,10 +279,18 @@ struct FusedPlayerPanel: View {
         // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
         .animation(DesignTokens.AnimationToken.panelSpring, value: timelineExpanded)
         .animation(DesignTokens.AnimationToken.panelSpring, value: settingsExpanded)
-        .enchronPressSensoryFeedback(.slider, trigger: scrubFeedbackTrigger)
-        .enchronPressSensoryFeedback(.selectionMinimum, trigger: minimumBoundaryFeedbackTrigger)
-        .enchronPressSensoryFeedback(.selectionMaximum, trigger: maximumBoundaryFeedbackTrigger)
+        .enchronScrubSensoryFeedback(
+            pressTrigger: scrubFeedbackTrigger,
+            releaseTrigger: scrubReleaseTrigger,
+            boundary: scrubBoundary,
+            boundariesEnabled: isDragging
+        )
         .enchronPressSensoryFeedback(.selectionOn, trigger: timelineFeedbackTrigger)
+        .onChange(of: displayProgress) { _, newValue in
+            if !isDragging && !isTimelineDragging {
+                scrubBoundary = EnchronScrubBoundary.from(normalized: Double(newValue))
+            }
+        }
         .onChange(of: live?.progress) { _, newValue in
             // 锁存释放:player 报告的位置追上(容差内)目标即放行。
             guard let target = pendingSeekTarget, let newValue else { return }
@@ -382,33 +389,49 @@ struct FusedPlayerPanel: View {
     }
 
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
-            placementSlider(
+        let titleWidth: CGFloat = 100
+        let readoutWidth: CGFloat = 64
+        let rowSpacing = DesignTokens.Spacing.md
+
+        return VStack(spacing: DesignTokens.Spacing.sm) {
+            DockedPlacementSliderRow(
                 title: "Screen Size",
-                value: live.screenScale,
+                liveValue: live.screenScale,
                 range: PlaybackScreenSize.scaleRange,
                 step: PlaybackScreenSize.scaleStep,
-                valueLabel: "\(Int((live.screenScale * 100).rounded()))%",
+                trackWidth: placementTrackWidth,
+                valueLabel: { "\(Int(($0 * 100).rounded()))%" },
                 identifier: "ScreenSize",
-                onChange: live.onSetScreenScale
+                onChange: { value in
+                    onInteraction()
+                    live.onSetScreenScale(value)
+                }
             )
-            placementSlider(
+            DockedPlacementSliderRow(
                 title: "Distance",
-                value: live.screenDistance,
+                liveValue: live.screenDistance,
                 range: PlaybackDockedPlacement.distanceRange,
                 step: PlaybackDockedPlacement.distanceStep,
-                valueLabel: String(format: "%.1f m", live.screenDistance),
+                trackWidth: placementTrackWidth,
+                valueLabel: { String(format: "%.1f m", $0) },
                 identifier: "Distance",
-                onChange: live.onSetScreenDistance
+                onChange: { value in
+                    onInteraction()
+                    live.onSetScreenDistance(value)
+                }
             )
-            placementSlider(
+            DockedPlacementSliderRow(
                 title: "Elevation",
-                value: live.screenElevationDegrees,
+                liveValue: live.screenElevationDegrees,
                 range: PlaybackDockedPlacement.elevationRange,
                 step: PlaybackDockedPlacement.elevationStep,
-                valueLabel: "\(Int(live.screenElevationDegrees.rounded()))°",
+                trackWidth: placementTrackWidth,
+                valueLabel: { "\(Int($0.rounded()))°" },
                 identifier: "Elevation",
-                onChange: live.onSetScreenElevation
+                onChange: { value in
+                    onInteraction()
+                    live.onSetScreenElevation(value)
+                }
             )
             HStack {
                 Spacer()
@@ -420,36 +443,25 @@ struct FusedPlayerPanel: View {
                 .accessibilityIdentifier("PlayerPanel-DockedPlacement-reset")
             }
         }
+        .background {
+            GeometryReader { proxy in
+                Color.clear
+                    .onAppear {
+                        placementTrackWidth = max(
+                            proxy.size.width - titleWidth - readoutWidth - rowSpacing * 2,
+                            160
+                        )
+                    }
+                    .onChange(of: proxy.size.width) { _, width in
+                        placementTrackWidth = max(
+                            width - titleWidth - readoutWidth - rowSpacing * 2,
+                            160
+                        )
+                    }
+            }
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-DockedPlacement")
-    }
-
-    private func placementSlider(
-        title: String,
-        value: Double,
-        range: ClosedRange<Double>,
-        step: Double,
-        valueLabel: String,
-        identifier: String,
-        onChange: @escaping @MainActor @Sendable (Double) -> Void
-    ) -> some View {
-        HStack(spacing: DesignTokens.Spacing.md) {
-            Text(title)
-                .font(DesignTokens.Typography.metadata)
-                .frame(width: 100, alignment: .leading)
-            Slider(
-                value: Binding(get: { value }, set: onChange),
-                in: range,
-                step: step,
-                onEditingChanged: { _ in onInteraction() }
-            )
-            .accessibilityIdentifier("PlayerPanel-\(identifier)-slider")
-            .accessibilityLabel(title)
-            .accessibilityValue(valueLabel)
-            Text(valueLabel)
-                .font(DesignTokens.Typography.metadata.monospacedDigit())
-                .frame(minWidth: 64, alignment: .trailing)
-        }
     }
 
     private var windowTransportControls: some View {
@@ -467,6 +479,7 @@ struct FusedPlayerPanel: View {
                 HStack(spacing: 0) {
                     HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
                         GlassCircleIconButton.settings(
+                            isExpanded: settingsExpanded,
                             accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
                             action: toggleSettings,
                             accessibilityIdentifier: "PlayerPanel-button-settings"
@@ -749,26 +762,19 @@ struct FusedPlayerPanel: View {
         }
     }
 
-    // ⋯ 菜单:玻璃圆(GlassCircleIconLabel)作 Menu label,内容 live 注入时来自产品层、
-    // 否则 Canvas mock。命中尺寸对齐其它 transport 玻璃圆(large 60)。
+    // ⋯ 菜单:玻璃圆作系统 Menu label,内容 live 注入时来自产品层、否则 mock。
     private var moreMenu: some View {
-        Menu {
+        GlassCircleIconMenu(
+            systemName: "ellipsis",
+            accessibilityLabel: "More",
+            accessibilityIdentifier: "PlayerPanel-menu-more"
+        ) {
             if let live {
                 liveMoreMenuSections(live)
             } else {
                 mockMoreMenuSections
             }
-        } label: {
-            GlassCircleIconLabel(
-                systemName: "ellipsis",
-                accessibilityLabel: "More",
-                accessibilityIdentifier: "PlayerPanel-menu-more"
-            )
         }
-        .buttonStyle(.plain)
-        .frame(width: DesignTokens.Interactive.large, height: DesignTokens.Interactive.large)
-        .contentShape(Circle())
-        .accessibilityIdentifier("PlayerPanel-menu-more")
         .accessibilityLabel("More playback settings")
     }
 
@@ -1186,6 +1192,7 @@ struct FusedPlayerPanel: View {
                     // 先锁存目标,再释放 dragging;否则 SwiftUI 可能先镜像
                     // 旧 live.position 一帧,使拇指出现回跳。
                     armPendingSeek(for: target)
+                    scrubReleaseTrigger += 1
                     endScrubbing()
                     live?.onSeek(target)
                 } else if scrubberActivation == .activating {
@@ -1246,6 +1253,7 @@ struct FusedPlayerPanel: View {
     private func beginScrubbing(at location: CGPoint) {
         seekOrigin = location
         dragStartProgress = displayProgress
+        scrubBoundary = EnchronScrubBoundary.from(normalized: Double(displayProgress))
         scrubberActivation = .seeking
         isDragging = true
     }
@@ -1263,7 +1271,6 @@ struct FusedPlayerPanel: View {
 
     private func endScrubbing() {
         resetScrubberActivation()
-        announcedBoundary = nil
     }
 
     private func resetScrubberActivation() {
@@ -1288,7 +1295,7 @@ struct FusedPlayerPanel: View {
 
     private func updateProgress(forTranslation translationX: CGFloat, width: CGFloat) {
         let nextProgress = progressValue(forTranslation: translationX, width: width)
-        updateBoundaryFeedback(for: nextProgress)
+        scrubBoundary = EnchronScrubBoundary.from(normalized: Double(nextProgress))
         var transaction = Transaction()
         transaction.animation = nil
         withTransaction(transaction) { progress = nextProgress }
@@ -1311,24 +1318,6 @@ struct FusedPlayerPanel: View {
         onInteraction()
     }
 
-    private func updateBoundaryFeedback(for nextProgress: CGFloat) {
-        let boundary: ProgressBoundary?
-        if nextProgress <= 0 {
-            boundary = .minimum
-        } else if nextProgress >= 1 {
-            boundary = .maximum
-        } else {
-            boundary = nil
-        }
-        guard boundary != announcedBoundary else { return }
-        announcedBoundary = boundary
-        switch boundary {
-        case .minimum: minimumBoundaryFeedbackTrigger += 1
-        case .maximum: maximumBoundaryFeedbackTrigger += 1
-        case nil: break
-        }
-    }
-
     private func openTimeline() {
         settingsExpanded = false
         if let live {
@@ -1339,7 +1328,6 @@ struct FusedPlayerPanel: View {
         transaction.animation = nil
         withTransaction(transaction) {
             isDragging = false
-            announcedBoundary = nil
         }
         timelineFeedbackTrigger += 1
         withAnimation(DesignTokens.AnimationToken.panelSpring) { timelineExpanded = true }
@@ -1371,5 +1359,68 @@ struct FusedPlayerPanel: View {
         let dx = location.x - thumbCenter.x
         let dy = location.y - thumbCenter.y
         return (dx * dx + dy * dy) <= (hitRadius * hitRadius)
+    }
+}
+
+/// One Docked Settings placement row: local draft while dragging so the knob
+/// stays followable, then clears draft when the gesture ends.
+private struct DockedPlacementSliderRow: View {
+    let title: String
+    let liveValue: Double
+    let range: ClosedRange<Double>
+    let step: Double
+    let trackWidth: CGFloat
+    let valueLabel: (Double) -> String
+    let identifier: String
+    let onChange: (Double) -> Void
+
+    @State private var draftValue: Double?
+    @State private var isDragging = false
+
+    private var displayedValue: Double {
+        draftValue ?? liveValue
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: DesignTokens.Spacing.md) {
+            Text(title)
+                .font(DesignTokens.Typography.metadata)
+                .frame(width: 100, alignment: .leading)
+                .padding(.top, 6)
+
+            DetentedRangeSlider(
+                value: Binding(
+                    get: { displayedValue },
+                    set: { newValue in
+                        draftValue = newValue
+                        onChange(newValue)
+                    }
+                ),
+                range: range,
+                step: step,
+                accessibilityLabel: title,
+                accessibilityValue: valueLabel(displayedValue),
+                accessibilityIdentifier: "PlayerPanel-\(identifier)-slider",
+                trackWidth: trackWidth,
+                onDraggingChanged: { dragging in
+                    isDragging = dragging
+                    if !dragging {
+                        draftValue = nil
+                    }
+                }
+            )
+
+            Text(valueLabel(displayedValue))
+                .font(DesignTokens.Typography.metadata.monospacedDigit())
+                .frame(minWidth: 64, alignment: .trailing)
+                .padding(.top, 6)
+        }
+        .onChange(of: liveValue) { _, newValue in
+            if !isDragging {
+                draftValue = nil
+            } else if draftValue == nil {
+                draftValue = newValue
+            }
+        }
     }
 }

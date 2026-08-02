@@ -29,6 +29,9 @@ struct PrecisionTimelineView: View {
     @State private var isDraggingTimeline = false
     @State private var dragStartTime: Double = 0
     @State private var isDraggingZoom = false
+    @State private var zoomPressTrigger = 0
+    @State private var zoomReleaseTrigger = 0
+    @State private var zoomBoundary: EnchronScrubBoundary = .none
 
     private var zoomTrackWidth: CGFloat { DesignTokens.PrecisionTimeline.zoomRailWidth }
     private var zoomTrackHeight: CGFloat { DesignTokens.PrecisionTimeline.zoomRailHeight }
@@ -37,6 +40,7 @@ struct PrecisionTimelineView: View {
     // Four-row card: zoom slider, timecode, then ruler + film strip. The card
     // surface is shared with `SettingListGroup` (no extra glass layer). The
     // transport row above lives on the deck, not here.
+    // Film-strip scrub stays silent. Zoom keeps press / release / end stops only.
     var body: some View {
         VStack(spacing: DesignTokens.Spacing.sm) {
             zoomSlider
@@ -52,6 +56,18 @@ struct PrecisionTimelineView: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("DesignPreview-PrecisionTimeline")
         .accessibilityLabel("Precision timeline")
+        .enchronScrubSensoryFeedback(
+            pressTrigger: zoomPressTrigger,
+            releaseTrigger: zoomReleaseTrigger,
+            boundary: zoomBoundary,
+            boundariesEnabled: isDraggingZoom
+        )
+        .onAppear(perform: syncZoomBoundary)
+        .onChange(of: pixelsPerSecond) { _, _ in
+            if !isDraggingZoom {
+                syncZoomBoundary()
+            }
+        }
     }
 
     private var timecodeLabel: some View {
@@ -108,6 +124,8 @@ struct PrecisionTimelineView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 if !isDraggingZoom {
+                    syncZoomBoundary()
+                    zoomPressTrigger += 1
                     withAnimation(DesignTokens.PressFeedback.control.pressAnimation) {
                         isDraggingZoom = true
                     }
@@ -116,8 +134,10 @@ struct PrecisionTimelineView: View {
                 let localX = value.location.x - zoomKnobSize / 2
                 let normalized = min(max(localX / travel, 0), 1)
                 pixelsPerSecond = zoomValue(forNormalized: normalized)
+                zoomBoundary = EnchronScrubBoundary.from(normalized: Double(normalized))
             }
             .onEnded { _ in
+                zoomReleaseTrigger += 1
                 withAnimation(DesignTokens.PressFeedback.control.releaseAnimation) {
                     isDraggingZoom = false
                 }
@@ -303,6 +323,10 @@ struct PrecisionTimelineView: View {
                 isDraggingTimeline = false
                 onSeekEnded(currentTime)
             }
+    }
+
+    private func syncZoomBoundary() {
+        zoomBoundary = EnchronScrubBoundary.from(normalized: Double(normalizedZoom))
     }
 
     private func drawTicks(
@@ -550,11 +574,15 @@ struct PrecisionTimelineView: View {
     }
 
     private var availableTimelineWidth: CGFloat {
-        DesignTokens.PrecisionTimeline.expandedWidth - DesignTokens.PrecisionTimeline.panelPadding * 2
+        // Fused player panel hosts the expanded timeline at
+        // `Layout.expandedPlayerControlsContentWidth`, not the standalone
+        // `PrecisionTimeline.expandedWidth` preview token.
+        DesignTokens.Layout.expandedPlayerControlsContentWidth
+            - DesignTokens.PrecisionTimeline.panelPadding * 2
     }
 
     private var normalizedZoom: CGFloat {
-        let minValue = log(Double(DesignTokens.PrecisionTimeline.minPixelsPerSecond))
+        let minValue = log(Double(effectiveMinPixelsPerSecond))
         let maxValue = log(Double(DesignTokens.PrecisionTimeline.maxPixelsPerSecond))
         let current = log(Double(clampedPixelsPerSecond(pixelsPerSecond)))
         guard maxValue > minValue else { return 0 }
@@ -562,7 +590,7 @@ struct PrecisionTimelineView: View {
     }
 
     private func zoomValue(forNormalized normalized: CGFloat) -> CGFloat {
-        let minValue = log(Double(DesignTokens.PrecisionTimeline.minPixelsPerSecond))
+        let minValue = log(Double(effectiveMinPixelsPerSecond))
         let maxValue = log(Double(DesignTokens.PrecisionTimeline.maxPixelsPerSecond))
         let value = minValue + (maxValue - minValue) * Double(normalized)
         return clampedPixelsPerSecond(CGFloat(exp(value)))
@@ -582,9 +610,19 @@ struct PrecisionTimelineView: View {
         min(max(time, 0), duration)
     }
 
+    /// Zoom-out floor: never thinner than the absolute token, and never thinner
+    /// than fitting the full duration into the visible timeline width.
+    private var effectiveMinPixelsPerSecond: CGFloat {
+        guard duration > 0 else {
+            return DesignTokens.PrecisionTimeline.minPixelsPerSecond
+        }
+        let fitToViewport = availableTimelineWidth / CGFloat(duration)
+        return max(DesignTokens.PrecisionTimeline.minPixelsPerSecond, fitToViewport)
+    }
+
     private func clampedPixelsPerSecond(_ value: CGFloat) -> CGFloat {
         min(
-            max(value, DesignTokens.PrecisionTimeline.minPixelsPerSecond),
+            max(value, effectiveMinPixelsPerSecond),
             DesignTokens.PrecisionTimeline.maxPixelsPerSecond
         )
     }
@@ -620,26 +658,93 @@ private enum PrecisionTimelineFormatter {
 
 // MARK: - Loading spinner
 
-/// Arc shape with independently animatable start/end values.
+/// Arc spanning `start`…`end` as fractions of a full turn (values may exceed 1).
 private struct SpinnerArc: Shape {
     var start: CGFloat
     var end: CGFloat
-
-    nonisolated var animatableData: AnimatablePair<CGFloat, CGFloat> {
-        get { AnimatablePair(start, end) }
-        set { start = newValue.first; end = newValue.second }
-    }
 
     nonisolated func path(in rect: CGRect) -> Path {
         var path = Path()
         path.addArc(
             center: CGPoint(x: rect.midX, y: rect.midY),
             radius: min(rect.width, rect.height) * 0.38,
-            startAngle: .degrees(start * 360 - 120),
-            endAngle: .degrees(end * 360 - 120),
+            startAngle: .degrees(Double(start) * 360),
+            endAngle: .degrees(Double(end) * 360),
             clockwise: false
         )
         return path
+    }
+}
+
+/// Material circular indeterminate advance segment math.
+/// Mirrors `CircularIndeterminateAdvanceAnimatorDelegate` from
+/// material-components-android: constant rotation plus four expand/collapse
+/// pairs using FastOutSlowIn (cubic-bezier 0.4, 0, 0.2, 1).
+private enum MaterialCircularIndeterminateAdvance {
+    static func segmentFractions(animationFraction: CGFloat) -> (start: CGFloat, end: CGFloat) {
+        let tokens = DesignTokens.LoadingSpinner.self
+        let playtime = Int(animationFraction * tokens.cycleDurationMilliseconds)
+        var startDegrees =
+            tokens.constantRotationDegrees * Double(animationFraction) + tokens.tailDegreesOffset
+        var endDegrees = tokens.constantRotationDegrees * Double(animationFraction)
+
+        for cycleIndex in 0..<tokens.cyclesPerLoop {
+            let expand = fractionInRange(
+                playtime: playtime,
+                delay: tokens.expandDelaysMilliseconds[cycleIndex],
+                duration: tokens.expandCollapseDurationMilliseconds
+            )
+            endDegrees += Double(fastOutSlowIn(expand)) * tokens.extraDegreesPerCycle
+
+            let collapse = fractionInRange(
+                playtime: playtime,
+                delay: tokens.collapseDelaysMilliseconds[cycleIndex],
+                duration: tokens.expandCollapseDurationMilliseconds
+            )
+            startDegrees += Double(fastOutSlowIn(collapse)) * tokens.extraDegreesPerCycle
+        }
+
+        return (CGFloat(startDegrees / 360), CGFloat(endDegrees / 360))
+    }
+
+    private static func fractionInRange(playtime: Int, delay: Double, duration: Double) -> CGFloat {
+        CGFloat(max(0, min(1, (Double(playtime) - delay) / duration)))
+    }
+
+    /// FastOutSlowIn: cubic-bezier(0.4, 0.0, 0.2, 1.0).
+    private static func fastOutSlowIn(_ t: CGFloat) -> CGFloat {
+        guard t > 0 else { return 0 }
+        guard t < 1 else { return 1 }
+        return unitBezierY(t, p1x: 0.4, p1y: 0.0, p2x: 0.2, p2y: 1.0)
+    }
+
+    private static func unitBezierY(
+        _ t: CGFloat,
+        p1x: CGFloat,
+        p1y: CGFloat,
+        p2x: CGFloat,
+        p2y: CGFloat
+    ) -> CGFloat {
+        var sample = t
+        for _ in 0..<5 {
+            let x = bezierSample(sample, a: p1x, b: p2x) - t
+            let dx = bezierDerivative(sample, a: p1x, b: p2x)
+            if abs(x) < 1e-5 || abs(dx) < 1e-5 { break }
+            sample -= x / dx
+        }
+        sample = min(1, max(0, sample))
+        return bezierSample(sample, a: p1y, b: p2y)
+    }
+
+    private static func bezierSample(_ t: CGFloat, a: CGFloat, b: CGFloat) -> CGFloat {
+        // (1-t)^3*0 + 3(1-t)^2*t*a + 3(1-t)*t^2*b + t^3*1
+        let u = 1 - t
+        return 3 * u * u * t * a + 3 * u * t * t * b + t * t * t
+    }
+
+    private static func bezierDerivative(_ t: CGFloat, a: CGFloat, b: CGFloat) -> CGFloat {
+        let u = 1 - t
+        return 3 * u * u * a + 6 * u * t * (b - a) + 3 * t * t * (1 - b)
     }
 }
 
@@ -647,31 +752,39 @@ struct LoadingSpinner: View {
     var size: CGFloat = 56
     var showBorder: Bool = true
 
-    @State private var arcStart: CGFloat = 0
-    @State private var arcEnd: CGFloat = 0
+    @State private var cycleAnchor = Date()
 
     var body: some View {
         let lineWidth = size * 0.06
         let inset = size * 0.16
 
-        ZStack {
-            // Glow layer — theme-colored, screen blend, follows arc
-            SpinnerArc(start: arcStart, end: arcEnd)
-                .stroke(
-                    DesignTokens.Theme.accent.opacity(0.15),
-                    style: StrokeStyle(lineWidth: lineWidth * 4, lineCap: .round)
-                )
-                .blur(radius: lineWidth * 2)
-                .blendMode(.screen)
-                .padding(inset)
+        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { context in
+            let elapsed = context.date.timeIntervalSince(cycleAnchor)
+            let cycleSeconds = DesignTokens.LoadingSpinner.cycleDurationMilliseconds / 1000
+            let fraction = CGFloat(
+                (elapsed / cycleSeconds).truncatingRemainder(dividingBy: 1)
+            )
+            let segment = MaterialCircularIndeterminateAdvance.segmentFractions(
+                animationFraction: fraction
+            )
 
-            // White arc
-            SpinnerArc(start: arcStart, end: arcEnd)
-                .stroke(
-                    .white.opacity(0.9),
-                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                )
-                .padding(inset)
+            ZStack {
+                SpinnerArc(start: segment.start, end: segment.end)
+                    .stroke(
+                        DesignTokens.Theme.accent.opacity(0.15),
+                        style: StrokeStyle(lineWidth: lineWidth * 4, lineCap: .round)
+                    )
+                    .blur(radius: lineWidth * 2)
+                    .blendMode(.screen)
+                    .padding(inset)
+
+                SpinnerArc(start: segment.start, end: segment.end)
+                    .stroke(
+                        .white.opacity(0.9),
+                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                    )
+                    .padding(inset)
+            }
         }
         .frame(width: size, height: size)
         .overlay {
@@ -682,28 +795,5 @@ struct LoadingSpinner: View {
         }
         .clipShape(Circle())
         .enchronGlassBackground(in: Circle())
-        .onAppear { runLoop() }
-    }
-
-    private func runLoop() {
-        Task {
-            while !Task.isCancelled {
-                // Head extends forward from gap
-                withAnimation(DesignTokens.LoadingSpinner.headAnimation) {
-                    arcEnd = 0.85
-                }
-                try? await Task.sleep(for: DesignTokens.LoadingSpinner.headDuration)
-
-                // Tail catches up to head
-                withAnimation(DesignTokens.LoadingSpinner.tailAnimation) {
-                    arcStart = 0.85
-                }
-                try? await Task.sleep(for: DesignTokens.LoadingSpinner.tailDuration)
-
-                // Instant reset to start position
-                arcStart = 0
-                arcEnd = 0
-            }
-        }
     }
 }
