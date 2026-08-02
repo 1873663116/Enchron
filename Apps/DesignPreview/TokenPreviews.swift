@@ -693,10 +693,11 @@ struct AnimationTokensPreview: View {
 
     private var spinnerSpecs: [TokenSpec] {
         [
-            .scalar("headAnimation", "easeOut 0.7s", "spinner head extension"),
-            .scalar("tailAnimation", "easeOut 0.55s", "spinner tail catch-up"),
-            .scalar("headDuration", "700ms", "spinner head phase duration"),
-            .scalar("tailDuration", "550ms", "spinner tail phase duration"),
+            .scalar("cycleDuration", "5400ms", "Material advance full loop"),
+            .scalar("expandCollapseDuration", "667ms", "each expand or collapse phase"),
+            .scalar("constantRotation", "1520°", "rotation accumulated per loop"),
+            .scalar("extraDegreesPerCycle", "250°", "sweep added by each expand/collapse"),
+            .scalar("cyclesPerLoop", "4", "expand/collapse pairs per loop"),
         ]
     }
 

@@ -91,16 +91,30 @@ public struct PlaybackTransportAvailability: Equatable, Sendable {
 
 public enum PlaybackScreenSize {
     public static let scaleRange = 0.5...2.5
-    public static let scaleStep = 0.05
+    /// Derived from the shared Docked placement detent count so the three
+    /// Settings rows share identical tick columns.
+    public static let scaleStep =
+        (scaleRange.upperBound - scaleRange.lowerBound)
+        / Double(PlaybackDockedPlacement.placementDetentCount - 1)
 }
 
 public struct PlaybackDockedPlacement: Equatable, Sendable {
-    public static let defaultDistance = 4.0
+    /// Nearest shared-detent notch to the historical 4.0 m default.
+    public static var defaultDistance: Double {
+        snapped(4.0, in: distanceRange, step: distanceStep)
+    }
     public static let defaultElevationDegrees = 0.0
     public static let distanceRange = 0.5...10.0
-    public static let distanceStep = 0.1
     public static let elevationRange = -80.0...80.0
-    public static let elevationStep = 1.0
+    /// Shared notch count for Screen Size / Distance / Elevation so Docked
+    /// Settings ticks align vertically across the three rows.
+    public static let placementDetentCount = 21
+    public static let distanceStep =
+        (distanceRange.upperBound - distanceRange.lowerBound)
+        / Double(placementDetentCount - 1)
+    public static let elevationStep =
+        (elevationRange.upperBound - elevationRange.lowerBound)
+        / Double(placementDetentCount - 1)
 
     public let distanceMeters: Double
     public let elevationDegrees: Double
@@ -111,18 +125,33 @@ public struct PlaybackDockedPlacement: Equatable, Sendable {
         elevationDegrees: Double = Self.defaultElevationDegrees,
         screenScale: Double = 1.3
     ) {
-        self.distanceMeters = min(
-            max(distanceMeters, Self.distanceRange.lowerBound),
-            Self.distanceRange.upperBound
+        self.distanceMeters = Self.snapped(
+            distanceMeters,
+            in: Self.distanceRange,
+            step: Self.distanceStep
         )
-        self.elevationDegrees = min(
-            max(elevationDegrees, Self.elevationRange.lowerBound),
-            Self.elevationRange.upperBound
+        self.elevationDegrees = Self.snapped(
+            elevationDegrees,
+            in: Self.elevationRange,
+            step: Self.elevationStep
         )
-        self.screenScale = min(
-            max(screenScale, PlaybackScreenSize.scaleRange.lowerBound),
-            PlaybackScreenSize.scaleRange.upperBound
+        self.screenScale = Self.snapped(
+            screenScale,
+            in: PlaybackScreenSize.scaleRange,
+            step: PlaybackScreenSize.scaleStep
         )
+    }
+
+    public static func snapped(
+        _ value: Double,
+        in range: ClosedRange<Double>,
+        step: Double
+    ) -> Double {
+        let span = range.upperBound - range.lowerBound
+        let safeStep = step > 0 ? step : span
+        let index = ((value - range.lowerBound) / safeStep).rounded()
+        let snapped = range.lowerBound + index * safeStep
+        return min(max(snapped, range.lowerBound), range.upperBound)
     }
 }
 

@@ -72,14 +72,14 @@ public struct AnimatedDirectionalIconButton: View {
                 staticArtwork
                     .symbolEffect(
                         .rotate.counterClockwise.byLayer,
-                        options: .speed(1.15),
+                        options: .speed(DesignTokens.AnimationToken.symbolRotateSpeed),
                         value: trigger
                     )
             case .forward:
                 staticArtwork
                     .symbolEffect(
                         .rotate.clockwise.byLayer,
-                        options: .speed(1.15),
+                        options: .speed(DesignTokens.AnimationToken.symbolRotateSpeed),
                         value: trigger
                     )
             }

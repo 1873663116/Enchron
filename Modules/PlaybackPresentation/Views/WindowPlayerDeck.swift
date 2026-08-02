@@ -252,7 +252,11 @@ struct ProductionPlaybackMoreMenu: View {
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
 
     var body: some View {
-        Menu {
+        GlassCircleIconMenu(
+            systemName: "ellipsis",
+            accessibilityLabel: "More",
+            accessibilityIdentifier: "PlayerUI-TopAction-more"
+        ) {
             if !subtitleItems.isEmpty {
                 menuSection("Subtitles", items: subtitleItems)
             }
@@ -263,20 +267,7 @@ struct ProductionPlaybackMoreMenu: View {
             if !episodeItems.isEmpty {
                 menuSection("Episodes", items: episodeItems)
             }
-        } label: {
-            GlassCircleIconLabel(
-                systemName: "ellipsis",
-                accessibilityLabel: "More",
-                accessibilityIdentifier: "PlayerUI-TopAction-more"
-            )
         }
-        .buttonStyle(.plain)
-        .frame(
-            width: DesignTokens.Interactive.large,
-            height: DesignTokens.Interactive.large
-        )
-        .contentShape(Circle())
-        .accessibilityIdentifier("PlayerUI-TopAction-more")
         .accessibilityLabel("More playback settings")
     }
 

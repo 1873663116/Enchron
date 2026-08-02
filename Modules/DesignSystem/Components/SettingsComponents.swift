@@ -206,6 +206,9 @@ public struct GlassCircleIconButton: View {
     var targetSize: CGFloat = DesignTokens.Interactive.large
     var iconTier: ButtonIconTier = .standard
     private let symbolState: SymbolState?
+    /// When set, the glyph angle follows expansion: open clockwise, close
+    /// counterclockwise — derived from the Bool, not an internal turn counter.
+    private let iconExpansion: Bool?
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
 #if os(visionOS)
@@ -235,6 +238,7 @@ public struct GlassCircleIconButton: View {
         self.targetSize = targetSize
         self.iconTier = iconTier
         self.symbolState = nil
+        self.iconExpansion = nil
     }
 
     private init(
@@ -254,6 +258,28 @@ public struct GlassCircleIconButton: View {
         self.targetSize = targetSize
         self.iconTier = iconTier
         self.symbolState = symbolState
+        self.iconExpansion = nil
+    }
+
+    private init(
+        systemName: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void,
+        accessibilityIdentifier: String?,
+        visualSize: CGFloat,
+        targetSize: CGFloat,
+        iconTier: ButtonIconTier,
+        iconExpansion: Bool
+    ) {
+        self.systemName = systemName
+        self.accessibilityLabel = accessibilityLabel
+        self.action = action
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.visualSize = visualSize
+        self.targetSize = targetSize
+        self.iconTier = iconTier
+        self.symbolState = nil
+        self.iconExpansion = iconExpansion
     }
 
     private var renderedSystemName: String {
@@ -286,6 +312,10 @@ public struct GlassCircleIconButton: View {
         return .easeInOut(duration: 0.2)
     }
 
+    private var gearRotationDegrees: Double {
+        (iconExpansion == true) ? 360 : 0
+    }
+
     public var body: some View {
         Button(action: action) {
             GlassCircleIconLabel(
@@ -294,6 +324,13 @@ public struct GlassCircleIconButton: View {
                 visualSize: visualSize,
                 iconTier: iconTier,
                 symbolContentTransition: symbolContentTransition
+            )
+            .rotationEffect(.degrees(gearRotationDegrees))
+            .animation(
+                iconExpansion == nil || accessibilityReduceMotion
+                    ? nil
+                    : DesignTokens.AnimationToken.symbolRotateSpin,
+                value: iconExpansion
             )
             .animation(symbolAnimation, value: renderedSystemName)
             .accessibilityHidden(true)
@@ -382,15 +419,20 @@ public struct GlassCircleIconButton: View {
     }
 
     public static func settings(
+        isExpanded: Bool = false,
         accessibilityLabel: String = "Settings",
         action: @escaping () -> Void = {},
         accessibilityIdentifier: String? = nil
     ) -> GlassCircleIconButton {
         GlassCircleIconButton(
-            systemName: "gearshape",
+            systemName: "gear",
             accessibilityLabel: accessibilityLabel,
             action: action,
-            accessibilityIdentifier: accessibilityIdentifier
+            accessibilityIdentifier: accessibilityIdentifier,
+            visualSize: DesignTokens.Interactive.regular,
+            targetSize: DesignTokens.Interactive.large,
+            iconTier: .standard,
+            iconExpansion: isExpanded
         )
     }
 
@@ -443,6 +485,66 @@ public struct GlassCircleIconButton: View {
             accessibilityLabel: accessibilityLabel,
             action: action,
             accessibilityIdentifier: accessibilityIdentifier
+        )
+    }
+}
+
+/// System `Menu` that reuses the same glass-circle chrome as `GlassCircleIconButton`.
+///
+/// The menu contents stay system-owned. Press scale and icon-only sensory
+/// feedback match the ordinary glass circle button; presentation chrome stays
+/// with the system `Menu`.
+public struct GlassCircleIconMenu<Content: View>: View {
+    let systemName: String
+    let accessibilityLabel: String
+    var accessibilityIdentifier: String?
+    var visualSize: CGFloat = DesignTokens.Interactive.regular
+    var targetSize: CGFloat = DesignTokens.Interactive.large
+    var iconTier: ButtonIconTier = .standard
+    var iconColor: Color = .white
+    @ViewBuilder var content: () -> Content
+
+    public init(
+        systemName: String,
+        accessibilityLabel: String,
+        accessibilityIdentifier: String? = nil,
+        visualSize: CGFloat = DesignTokens.Interactive.regular,
+        targetSize: CGFloat = DesignTokens.Interactive.large,
+        iconTier: ButtonIconTier = .standard,
+        iconColor: Color = .white,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.systemName = systemName
+        self.accessibilityLabel = accessibilityLabel
+        self.accessibilityIdentifier = accessibilityIdentifier
+        self.visualSize = visualSize
+        self.targetSize = targetSize
+        self.iconTier = iconTier
+        self.iconColor = iconColor
+        self.content = content
+    }
+
+    public var body: some View {
+        Menu {
+            content()
+        } label: {
+            GlassCircleIconLabel(
+                systemName: systemName,
+                accessibilityLabel: accessibilityLabel,
+                iconColor: iconColor,
+                visualSize: visualSize,
+                iconTier: iconTier,
+                accessibilityIdentifier: accessibilityIdentifier
+            )
+            .accessibilityHidden(true)
+            .frame(width: targetSize, height: targetSize)
+            .contentShape(Circle())
+        }
+        .buttonStyle(EnchronPressFeedbackButtonStyle.menuIcon())
+        .contentShape(Circle())
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier(
+            accessibilityIdentifier ?? "DesignPreview-menu-\(systemName)"
         )
     }
 }
