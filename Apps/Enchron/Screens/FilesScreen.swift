@@ -15,6 +15,12 @@ struct FilesScreen: View {
     @State private var sortOrder: SortMenuOrder = .ascending
     @State private var sourceItems: [SidebarSourceItem] = []
     @State private var presentedSourceConnection: SourceConnectionKind?
+    @State private var sourceConnectionName = ""
+    @State private var sourceConnectionAddress = ""
+    @State private var sourceConnectionShare = ""
+    @State private var sourceConnectionUsername = ""
+    @State private var sourceConnectionPassword = ""
+    @State private var sourceConnectionConnectsAsGuest = false
     @State private var isBrowsingSource = false
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
@@ -89,7 +95,19 @@ struct FilesScreen: View {
             syncSourceItems()
         }
         .sheet(item: $presentedSourceConnection) { kind in
-            SourceConnectionSheet(kind: kind)
+            ConnectionFormPanel(
+                kind: kind,
+                name: $sourceConnectionName,
+                address: $sourceConnectionAddress,
+                share: $sourceConnectionShare,
+                username: $sourceConnectionUsername,
+                password: $sourceConnectionPassword,
+                connectsAsGuest: $sourceConnectionConnectsAsGuest,
+                accessibilityIdentifierPrefix: "FileBrowsing-SourceConnection",
+                onConnect: connect,
+                onCancel: dismissSourceConnection,
+                onConnected: dismissSourceConnection
+            )
         }
         .alert("New Library Folder", isPresented: $isCreatingFolder) {
             TextField("Folder name", text: $newFolderName)
@@ -243,8 +261,10 @@ struct FilesScreen: View {
     private func presentConnection(for sourceType: FileBrowsingDomain.SourceType) {
         switch sourceType {
         case .webDAV:
+            resetSourceConnectionFields()
             presentedSourceConnection = .webDAV
         case .smb:
+            resetSourceConnectionFields()
             presentedSourceConnection = .smb
         case .photoLibrary:
             requestPhotosAccessAndPresentPicker()
@@ -252,6 +272,80 @@ struct FilesScreen: View {
             fileSelectionKind = .files
             isFileImporterPresented = true
         }
+    }
+
+    private func resetSourceConnectionFields() {
+        sourceConnectionName = ""
+        sourceConnectionAddress = ""
+        sourceConnectionShare = ""
+        sourceConnectionUsername = ""
+        sourceConnectionPassword = ""
+        sourceConnectionConnectsAsGuest = false
+    }
+
+    private func dismissSourceConnection() {
+        presentedSourceConnection = nil
+    }
+
+    private func connect(
+        _ request: SourceConnectionRequest
+    ) async -> SourceConnectionOutcome {
+        do {
+            var connection = try FileBrowsingDomain.ConnectionInfo.remote(
+                sourceType: request.kind.sourceType,
+                address: request.address,
+                username: request.connectsAsGuest ? nil : request.username
+            )
+            if request.kind == .smb {
+                connection = connection.withSMBShare(request.share)
+            }
+
+            let source = FileBrowsingDomain.DataSource(
+                name: sourceName(for: request, connection: connection),
+                sourceType: request.kind.sourceType,
+                connectionInfo: connection
+            )
+            let credential = StorageCredential(
+                username: request.connectsAsGuest ? "guest" : request.username,
+                password: request.connectsAsGuest ? "" : request.password
+            )
+            await viewModel.connectToDataSource(source, credential: credential)
+
+            guard viewModel.activeDataSource?.id == source.id,
+                  viewModel.lastErrorMessage == nil
+            else {
+                let message = viewModel.lastErrorMessage ?? "Connection failed."
+                return message.localizedCaseInsensitiveContains("timed out")
+                    ? .timedOut(message: message)
+                    : .failed(message: message)
+            }
+
+            do {
+                try viewModel.saveCredential(
+                    for: source,
+                    username: credential.username,
+                    password: credential.password
+                )
+            } catch {
+                await viewModel.useDefaultFolder()
+                throw error
+            }
+            viewModel.addDataSource(source)
+            return .connected
+        } catch {
+            return .failed(message: error.localizedDescription)
+        }
+    }
+
+    private func sourceName(
+        for request: SourceConnectionRequest,
+        connection: FileBrowsingDomain.ConnectionInfo
+    ) -> String {
+        if !request.name.isEmpty {
+            return request.name
+        }
+        return connection.host.map { "\(request.kind.title) · \($0)" }
+            ?? request.kind.title
     }
 
     private func deleteSources(_ ids: Set<SidebarSourceItem.ID>) {
@@ -741,164 +835,5 @@ private enum FileSelectionKind {
             let extensions = ["mkv", "webm", "avi", "m2ts", "ts"]
             return [.movie] + extensions.compactMap { UTType(filenameExtension: $0) }
         }
-    }
-}
-
-private enum SourceConnectionKind: String, Identifiable {
-    case webDAV
-    case smb
-
-    var id: String { rawValue }
-
-    var sourceType: FileBrowsingDomain.SourceType {
-        switch self {
-        case .webDAV: .webDAV
-        case .smb: .smb
-        }
-    }
-
-    var title: String {
-        switch self {
-        case .webDAV: "WebDAV"
-        case .smb: "SMB"
-        }
-    }
-}
-
-private struct SourceConnectionSheet: View {
-    @Environment(\.dismiss) private var dismiss
-    @Environment(FileBrowsingViewModel.self) private var viewModel
-
-    let kind: SourceConnectionKind
-
-    @State private var name = ""
-    @State private var address = ""
-    @State private var share = ""
-    @State private var username = ""
-    @State private var password = ""
-    @State private var connectAsGuest = false
-    @State private var isConnecting = false
-    @State private var errorMessage: String?
-
-    private var canConnect: Bool {
-        guard !address.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return false
-        }
-        if kind == .smb && share.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return false
-        }
-        return connectAsGuest || (!username.isEmpty && !password.isEmpty)
-    }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("Source") {
-                    TextField("Display name (optional)", text: $name)
-                        .accessibilityIdentifier("FileBrowsing-SourceConnection-name")
-                    TextField(kind == .webDAV ? "https://server.example/dav/" : "192.168.1.20", text: $address)
-                        .enchronLiteralTextInput()
-                        .accessibilityIdentifier("FileBrowsing-SourceConnection-address")
-                    if kind == .smb {
-                        TextField("Share name", text: $share)
-                            .enchronLiteralTextInput()
-                            .accessibilityIdentifier("FileBrowsing-SourceConnection-share")
-                        Toggle("Connect as Guest", isOn: $connectAsGuest)
-                            .accessibilityIdentifier("FileBrowsing-SourceConnection-guest")
-                    }
-                }
-
-                if !connectAsGuest {
-                    Section("Credentials") {
-                        TextField("Username", text: $username)
-                            .enchronLiteralTextInput()
-                            .accessibilityIdentifier("FileBrowsing-SourceConnection-username")
-                        SecureField("Password", text: $password)
-                            .accessibilityIdentifier("FileBrowsing-SourceConnection-password")
-                    }
-                }
-
-                if let errorMessage {
-                    Section {
-                        Text(errorMessage)
-                            .foregroundStyle(.red)
-                            .accessibilityIdentifier("FileBrowsing-SourceConnection-error")
-                    }
-                }
-            }
-            .navigationTitle("Add \(kind.title) Source")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isConnecting ? "Connecting…" : "Connect") {
-                        Task { await connect() }
-                    }
-                    .disabled(!canConnect || isConnecting)
-                    .accessibilityIdentifier("FileBrowsing-SourceConnection-connect")
-                }
-            }
-        }
-        .frame(minWidth: 520, minHeight: 460)
-        .interactiveDismissDisabled(isConnecting)
-    }
-
-    private func connect() async {
-        isConnecting = true
-        errorMessage = nil
-        defer { isConnecting = false }
-
-        do {
-            var connection = try FileBrowsingDomain.ConnectionInfo.remote(
-                sourceType: kind.sourceType,
-                address: address,
-                username: connectAsGuest ? nil : username
-            )
-            if kind == .smb {
-                connection = connection.withSMBShare(
-                    share.trimmingCharacters(in: .whitespacesAndNewlines)
-                )
-            }
-
-            let source = FileBrowsingDomain.DataSource(
-                name: sourceName(for: connection),
-                sourceType: kind.sourceType,
-                connectionInfo: connection
-            )
-            let credential = StorageCredential(
-                username: connectAsGuest ? "guest" : username,
-                password: connectAsGuest ? "" : password
-            )
-            await viewModel.connectToDataSource(source, credential: credential)
-
-            guard viewModel.activeDataSource?.id == source.id else {
-                errorMessage = viewModel.lastErrorMessage ?? "Connection failed."
-                return
-            }
-
-            do {
-                try viewModel.saveCredential(
-                    for: source,
-                    username: credential.username,
-                    password: credential.password
-                )
-            } catch {
-                await viewModel.useDefaultFolder()
-                throw error
-            }
-            viewModel.addDataSource(source)
-            dismiss()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    private func sourceName(for connection: FileBrowsingDomain.ConnectionInfo) -> String {
-        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !trimmedName.isEmpty {
-            return trimmedName
-        }
-        return connection.host.map { "\(kind.title) · \($0)" } ?? kind.title
     }
 }

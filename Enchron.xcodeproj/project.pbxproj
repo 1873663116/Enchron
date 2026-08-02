@@ -136,6 +136,7 @@
 				MediaLibrary/Storage/KeychainStore.swift,
 				MediaLibrary/Storage/SavedDataSourceStore.swift,
 				MediaLibrary/Storage/UserDefaultsMediaLibraryStore.swift,
+				MediaLibrary/Views/ConnectionFormPanel.swift,
 				MediaSource/MediaAccessLease.swift,
 				MediaSource/NaturalMediaNameOrder.swift,
 				MediaSource/NetworkMonitor.swift,
@@ -522,6 +523,7 @@
 				"$(SRCROOT)/Apps/DesignPreview/WindowPlaybackPreview.swift",
 				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
 				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
+				"$(SRCROOT)/Modules/MediaLibrary/Views/ConnectionFormPanel.swift",
 				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
 			);
 			name = "Design Source Architecture";
@@ -551,6 +553,7 @@
 				"$(SRCROOT)/Apps/DesignPreview/WindowPlaybackPreview.swift",
 				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
 				"$(SRCROOT)/Modules/DesignSystem/DesignTokens.swift",
+				"$(SRCROOT)/Modules/MediaLibrary/Views/ConnectionFormPanel.swift",
 				"$(SRCROOT)/Scripts/verification/verify_design_source_architecture.py",
 			);
 			name = "Design Source Architecture";

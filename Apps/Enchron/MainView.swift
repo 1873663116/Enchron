@@ -78,13 +78,6 @@ public struct MainView: View {
     private var platformContent: some View {
         primaryContent
             .ornament(
-                visibility: playbackRuntime.hasActivePlaybackRequest ? .hidden : .visible,
-                attachmentAnchor: .scene(.leading),
-                contentAlignment: .trailing
-            ) {
-                NavigationOrnament()
-            }
-            .ornament(
                 visibility: showsWindowPlayback && appModel.showControls
                     ? .visible
                     : .hidden,
@@ -125,17 +118,58 @@ public struct MainView: View {
         }
     }
 
+    @ViewBuilder
     private var browserWindowSurface: some View {
-        browser
+        if playbackRuntime.hasActivePlaybackRequest {
+            Color.clear
+        } else {
+            browser
+        }
     }
 
-    @ViewBuilder
     private var browser: some View {
-        switch appModel.selectedTab {
-        case .files: FilesScreen()
-        case .settings: SettingsScreen()
-        case .environment: Color.clear
+        TabView(selection: browserTabSelection) {
+            Tab("Files", systemImage: "folder", value: AppModel.NavigationTab.files) {
+                FilesScreen()
+            }
+            .accessibilityIdentifier("Navigation-Ornament-tab-files")
+
+            Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
+                SettingsScreen()
+            }
+            .accessibilityIdentifier("Navigation-Ornament-tab-settings")
+
+            Tab(
+                "Environments",
+                systemImage: "mountain.2",
+                value: AppModel.NavigationTab.environment
+            ) {
+                Color.clear
+            }
+            .accessibilityIdentifier("Navigation-Ornament-tab-environment")
         }
+    }
+
+    private var browserTabSelection: Binding<AppModel.NavigationTab> {
+        Binding(
+            get: {
+                appModel.selectedTab.isContentDestination
+                    ? appModel.selectedTab
+                    : .files
+            },
+            set: selectBrowserTab
+        )
+    }
+
+    private func selectBrowserTab(_ tab: AppModel.NavigationTab) {
+        guard tab.isContentDestination else {
+            try? appModel.requestEnvironmentCard(
+                mediaSessionID: playbackRuntime.activeSessionID,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
+            return
+        }
+        appModel.selectedTab = tab
     }
 
     @ViewBuilder

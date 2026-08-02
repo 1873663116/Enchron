@@ -17,12 +17,6 @@
     {
       "rule": "preview-hardcoded-visual",
       "path": "Apps/DesignPreview/ComponentPreviews.swift",
-      "signature": ".frame(width: 420, alignment: .top)",
-      "count": 1
-    },
-    {
-      "rule": "preview-hardcoded-visual",
-      "path": "Apps/DesignPreview/ComponentPreviews.swift",
       "signature": ".frame(width: 580)",
       "count": 5
     },
@@ -30,18 +24,6 @@
       "rule": "preview-hardcoded-visual",
       "path": "Apps/DesignPreview/ComponentPreviews.swift",
       "signature": ".frame(width: 720)",
-      "count": 1
-    },
-    {
-      "rule": "preview-hardcoded-visual",
-      "path": "Apps/DesignPreview/ComponentPreviews.swift",
-      "signature": ".opacity(connectDisabled ? 0.5 : 1)",
-      "count": 1
-    },
-    {
-      "rule": "preview-hardcoded-visual",
-      "path": "Apps/DesignPreview/ComponentPreviews.swift",
-      "signature": "VStack(alignment: .leading, spacing: 0) {",
       "count": 1
     },
     {
@@ -132,18 +114,6 @@
       "rule": "preview-raw-control",
       "path": "Apps/DesignPreview/ComponentPreviews.swift",
       "signature": "Button(buttonTitle, action: action)",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentPreviews.swift",
-      "signature": "TextField(placeholder, text: $text)",
-      "count": 1
-    },
-    {
-      "rule": "preview-raw-control",
-      "path": "Apps/DesignPreview/ComponentPreviews.swift",
-      "signature": "Toggle(\"以访客身份连接\", isOn: $connectAsGuest)",
       "count": 1
     },
     {

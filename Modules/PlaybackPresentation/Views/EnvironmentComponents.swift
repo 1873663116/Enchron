@@ -47,7 +47,7 @@ struct EnvironmentCard: View {
 
     var body: some View {
         let shape = RoundedRectangle(
-            cornerRadius: Metrics.cornerRadius,
+            cornerRadius: DesignTokens.EnvironmentCard.cornerRadius,
             style: .continuous
         )
 
@@ -57,7 +57,10 @@ struct EnvironmentCard: View {
             environmentInfoPanel
             topControls
         }
-        .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
+        .frame(
+            width: DesignTokens.EnvironmentCard.width,
+            height: DesignTokens.EnvironmentCard.height
+        )
         .clipShape(shape)
         .enchronGlassBackground(in: shape)
         .overlay {
@@ -82,10 +85,19 @@ struct EnvironmentCard: View {
         Image(environment.imageName(for: effect))
             .resizable()
             .scaledToFill()
-            .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
-            .saturation(Double(1 - clampedAtmosphericFade * Metrics.atmosphericDesaturation))
-            .contrast(Double(1 - clampedAtmosphericFade * Metrics.atmosphericContrastReduction))
-            .blur(radius: clampedAtmosphericFade * Metrics.atmosphericBlurRadius)
+            .frame(
+                width: DesignTokens.EnvironmentCard.width,
+                height: DesignTokens.EnvironmentCard.height
+            )
+            .saturation(
+                Double(1 - clampedAtmosphericFade * DesignTokens.EnvironmentCard.atmosphericDesaturation)
+            )
+            .contrast(
+                Double(1 - clampedAtmosphericFade * DesignTokens.EnvironmentCard.atmosphericContrastReduction)
+            )
+            .blur(
+                radius: clampedAtmosphericFade * DesignTokens.EnvironmentCard.atmosphericBlurRadius
+            )
             .clipped()
     }
 
@@ -112,10 +124,13 @@ struct EnvironmentCard: View {
                     accessibilityIdentifier: "DesignPreview-EnvironmentCard-button-environment"
                 )
             }
-            .padding(Metrics.chromePadding)
+            .padding(DesignTokens.EnvironmentCard.chromePadding)
             Spacer()
         }
-        .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
+        .frame(
+            width: DesignTokens.EnvironmentCard.width,
+            height: DesignTokens.EnvironmentCard.height
+        )
         .opacity(Double(clampedDetailVisibility))
     }
 
@@ -125,10 +140,13 @@ struct EnvironmentCard: View {
                 .fill(Color.black)
                 .blendMode(.multiply)
                 .mask(topMultiplyFadeMask)
-                .frame(height: Metrics.topMultiplyHeight)
+                .frame(height: DesignTokens.EnvironmentCard.topMultiplyHeight)
             Spacer(minLength: 0)
         }
-        .frame(width: Metrics.cardWidth, height: Metrics.cardHeight)
+        .frame(
+            width: DesignTokens.EnvironmentCard.width,
+            height: DesignTokens.EnvironmentCard.height
+        )
         .opacity(Double(clampedDetailVisibility))
     }
 
@@ -141,7 +159,9 @@ struct EnvironmentCard: View {
                 Spacer(minLength: DesignTokens.Spacing.md)
                 Text(environment.environmentNumber)
                     .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(.white.opacity(0.72))
+                    .foregroundStyle(
+                        .white.opacity(DesignTokens.EnvironmentCard.secondaryTextOpacity)
+                    )
             }
 
             Text(environment.quote)
@@ -154,13 +174,15 @@ struct EnvironmentCard: View {
                 Text("Atmosphere: \(environment.atmosphere)")
             }
             .font(DesignTokens.Typography.metadata)
-            .foregroundStyle(.white.opacity(0.72))
+            .foregroundStyle(
+                .white.opacity(DesignTokens.EnvironmentCard.secondaryTextOpacity)
+            )
         }
-        .padding(.horizontal, Metrics.infoPaddingH)
-        .padding(.top, Metrics.infoPaddingTop)
-        .padding(.bottom, Metrics.infoPaddingBottom)
-        .frame(width: Metrics.cardWidth,
-               height: Metrics.infoHeight,
+        .padding(.horizontal, DesignTokens.EnvironmentCard.informationPaddingH)
+        .padding(.top, DesignTokens.EnvironmentCard.informationPaddingTop)
+        .padding(.bottom, DesignTokens.EnvironmentCard.informationPaddingBottom)
+        .frame(width: DesignTokens.EnvironmentCard.width,
+               height: DesignTokens.EnvironmentCard.informationHeight,
                alignment: .topLeading)
         .background {
             Rectangle()
@@ -174,13 +196,13 @@ struct EnvironmentCard: View {
     private var infoMaterialFadeMask: some View {
         LinearGradient(
             stops: [
-                .init(color: .white.opacity(Metrics.infoFadeMinOpacity), location: 0),
-                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.34), location: 0.08),
-                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.52), location: 0.18),
-                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.62), location: 0.42),
-                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.72), location: 0.68),
-                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity * 0.92), location: 0.88),
-                .init(color: .white.opacity(Metrics.infoFadeMaxOpacity), location: 1)
+                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMinOpacity), location: 0),
+                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.34), location: 0.08),
+                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.52), location: 0.18),
+                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.62), location: 0.42),
+                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.72), location: 0.68),
+                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity * 0.92), location: 0.88),
+                .init(color: .white.opacity(DesignTokens.EnvironmentCard.informationFadeMaxOpacity), location: 1)
             ],
             startPoint: .top,
             endPoint: .bottom
@@ -190,7 +212,7 @@ struct EnvironmentCard: View {
     private var topMultiplyFadeMask: some View {
         LinearGradient(
             stops: [
-                .init(color: .white.opacity(Metrics.topFadeMaxOpacity), location: 0),
+                .init(color: .white.opacity(DesignTokens.EnvironmentCard.topFadeMaxOpacity), location: 0),
                 .init(color: .clear, location: 1)
             ],
             startPoint: .top,
@@ -198,23 +220,6 @@ struct EnvironmentCard: View {
         )
     }
 
-    private enum Metrics {
-        static let cardWidth: CGFloat = 500
-        static let cardHeight: CGFloat = 548
-        static let infoHeight: CGFloat = 188
-        static let cornerRadius: CGFloat = DesignTokens.Radius.card
-        static let chromePadding: CGFloat = 18
-        static let infoPaddingH: CGFloat = 36
-        static let infoPaddingTop: CGFloat = 34
-        static let infoPaddingBottom: CGFloat = 14
-        static let infoFadeMinOpacity: CGFloat = 0
-        static let infoFadeMaxOpacity: CGFloat = 0.45
-        static let topMultiplyHeight: CGFloat = 160
-        static let topFadeMaxOpacity: CGFloat = 0.40
-        static let atmosphericContrastReduction: CGFloat = 0.68
-        static let atmosphericDesaturation: CGFloat = 0.38
-        static let atmosphericBlurRadius: CGFloat = 2.6
-    }
 }
 
 struct EnvironmentCarouselRenderSlot: Identifiable, Equatable {
@@ -560,7 +565,8 @@ struct EnvironmentCardCarousel: View {
     }
 
     private func zIndex(for position: CGFloat) -> Double {
-        100 - Double(abs(position) * 10)
+        DesignTokens.EnvironmentCarousel.zIndexBase
+            - Double(abs(position)) * DesignTokens.EnvironmentCarousel.zIndexDistanceStep
     }
 
     private enum Metrics {
@@ -574,18 +580,18 @@ struct EnvironmentCardCarousel: View {
         static let detailRevealDelayNanoseconds = DesignTokens.EnvironmentCarousel.detailRevealDelayNanoseconds
         static let detailRevealDelayPerStepNanoseconds =
             DesignTokens.EnvironmentCarousel.detailRevealDelayPerStepNanoseconds
-        static let centerHitTestingDistance: CGFloat = 0.12
-        static let stableRenderCardDistance: CGFloat = 1.55
-        static let motionRenderCardDistance: CGFloat = 2.18
-        static let fullOpacityDistance: CGFloat = 0.10
-        static let firstSideOpacityDistance: CGFloat = 1.00
-        static let fullFadeDistance: CGFloat = 2.18
-        static let firstSideOpacity: CGFloat = 0.85
-        static let edgeExitStart: CGFloat = 1.35
-        static let edgeExitEnd: CGFloat = 2.18
-        static let edgeSlideOutDistance: CGFloat = 300
-        static let edgeDepthRetreat: CGFloat = 42
-        static let edgeAtmosphericBoost: CGFloat = 0.42
+        static let centerHitTestingDistance: CGFloat = DesignTokens.EnvironmentCarousel.centerHitTestingDistance
+        static let stableRenderCardDistance: CGFloat = DesignTokens.EnvironmentCarousel.stableRenderCardDistance
+        static let motionRenderCardDistance: CGFloat = DesignTokens.EnvironmentCarousel.motionRenderCardDistance
+        static let fullOpacityDistance: CGFloat = DesignTokens.EnvironmentCarousel.fullOpacityDistance
+        static let firstSideOpacityDistance: CGFloat = DesignTokens.EnvironmentCarousel.firstSideOpacityDistance
+        static let fullFadeDistance: CGFloat = DesignTokens.EnvironmentCarousel.fullFadeDistance
+        static let firstSideOpacity: CGFloat = DesignTokens.EnvironmentCarousel.firstSideOpacity
+        static let edgeExitStart: CGFloat = DesignTokens.EnvironmentCarousel.edgeExitStart
+        static let edgeExitEnd: CGFloat = DesignTokens.EnvironmentCarousel.edgeExitEnd
+        static let edgeSlideOutDistance: CGFloat = DesignTokens.EnvironmentCarousel.edgeSlideOutDistance
+        static let edgeDepthRetreat: CGFloat = DesignTokens.EnvironmentCarousel.edgeDepthRetreat
+        static let edgeAtmosphericBoost: CGFloat = DesignTokens.EnvironmentCarousel.edgeAtmosphericBoost
         static let centerCardGap: CGFloat = DesignTokens.EnvironmentCarousel.centerCardGap
         static let outerCardGap: CGFloat = DesignTokens.EnvironmentCarousel.outerCardGap
         static let sideCardYOffset: CGFloat = DesignTokens.EnvironmentCarousel.sideCardYOffset

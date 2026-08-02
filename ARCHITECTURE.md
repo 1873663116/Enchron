@@ -36,6 +36,7 @@ flowchart LR
     Apps["Enchron · DesignPreview"]
 
     Library --> Source
+    Library --> Design
     Feature --> Source
     Presentation --> Feature
     Apps --> Design
@@ -47,7 +48,7 @@ flowchart LR
 ```
 
 - `MediaSource` 是 Media Identity、Content Revision、`ResolvedMediaSource`/`MediaAccessLease`、稳定自然名称顺序与 access lifetime 的唯一权威。远程身份使用协议、主机、规范端口、账号命名空间与媒体路径；等价来源配置共享身份，不同账号默认隔离。MediaLibrary 的 Keychain 键使用相同账号边界，并兼容迁移旧服务器级记录。
-- `MediaLibrary` 交付中立的 `MediaPlaybackItem` 与不可变 `MediaCollectionSnapshot`，不创建 Playback 请求、不读写观看策略。
+- `MediaLibrary` 交付中立的 `MediaPlaybackItem`、不可变 `MediaCollectionSnapshot` 与来源连接生产组件；它依赖 `DesignSystem` 的通用视觉原语，不创建 Playback 请求、不读写观看策略。
 - `PlaybackFeature` 拥有 Queue、Viewing State、Media Format Preference、媒体元数据、播放请求与 launch coordinator；其唯一 Core adapter 是实现 `PlaybackRuntimeControlling` 的 Xcode-only `PlaybackRuntime`，不进入其他 feature。
 - `PlaybackPresentation` 是应用生命周期内唯一的空间体验产品状态所有者。它拥有 Window/Docked/Panorama、Environment Context、Docked Placement、Presentation Transition 与同进程空间恢复；具体 Scene/View 壳消费只读状态并发送命令，不直接定义来源或观看策略。
 - `Apps` 只组装各产品状态的所有者，并执行系统提供的 Scene、Window、Immersive Space 与 RealityKit 效果；系统结果交回 `PlaybackPresentation`，由后者提交、继续或回滚产品状态。

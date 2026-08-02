@@ -10,8 +10,8 @@ public final class AppModel {
     public enum NavigationTab: String, CaseIterable {
         case files, settings, environment
 
-        /// Files/Settings render content in the main window; Environment opens a
-        /// separate destination (volume) and does not park the main window (LNCH-03).
+        /// Files/Settings render system TabView content; Environment opens a separate
+        /// volume and does not park the main window on an empty tab (LNCH-03).
         var isContentDestination: Bool {
             self != .environment
         }

@@ -10,8 +10,7 @@ nonisolated final class SettingsUITests: XCTestCase {
         app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
         app.launch()
 
-        // LNCH-03: the Settings tab in the leading navigation ornament switches
-        // the main window to the Settings screen.
+        // LNCH-03: the Settings system tab switches the main window to Settings.
         let settingsTab = app.descendants(matching: .any).matching(identifier: "Navigation-Ornament-tab-settings").firstMatch
         XCTAssertTrue(settingsTab.waitForExistence(timeout: 20), "Settings nav tab should exist")
         settingsTab.tap()

@@ -680,383 +680,57 @@ struct DialogsPreview: View {
 
 // MARK: - Connection form
 
-/// 连接协议。单组件靠它决定字段集合与地址校验规则。
-enum ConnectionKind: String, CaseIterable, Identifiable {
-    case smb
-    case webdav
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .smb: "SMB"
-        case .webdav: "WebDAV"
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .smb: "局域网共享 · 主机名或 IP"
-        case .webdav: "HTTP(S) 服务器 · 完整地址"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .smb: "externaldrive.connected.to.line.below"
-        case .webdav: "network"
-        }
-    }
-
-    var addressLabel: String {
-        switch self {
-        case .smb: "地址"
-        case .webdav: "服务器地址"
-        }
-    }
-
-    var addressPlaceholder: String {
-        switch self {
-        case .smb: "192.168.1.10 或 mynas.local"
-        case .webdav: "https://dav.example.com/remote.php/dav"
-        }
-    }
-}
-
-/// 连接生命周期的视觉状态。由 mock 驱动,供审查各状态外观。
-/// 连接生命周期状态,由面板内的 mock 状态机驱动。
-enum ConnectionMockState {
-    case idle
-    case connecting
-    case error
-    case timeout
-    case success
-}
-
-/// EXPLORATORY: 带标签 / 焦点态 / 错误态的表单输入字段。
-/// 组件库尚无此视觉形态——已上报人类裁决,暂以探索稿形态存在。
-struct ConnectionFormField: View {
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-    var isSecure = false
-    var accessibilityIdentifier: String
-
-    @FocusState private var isFocused: Bool
-
-    // EXPLORATORY: 字段外形未进 token——12pt 圆角、44pt 高沿用现有 Radius.small /
-    // Interactive.regular;焦点描边复用 Surface.focusBorder。
-    private let shape = RoundedRectangle(cornerRadius: DesignTokens.Radius.small, style: .continuous)
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text(label)
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(DesignTokens.Surface.supportingText)
-
-            Group {
-                if isSecure {
-                    SecureField(placeholder, text: $text)
-                } else {
-                    TextField(placeholder, text: $text)
-                }
-            }
-            .textFieldStyle(.plain)
-            .font(.body)
-            .foregroundStyle(.primary)
-            .focused($isFocused)
-            .textInputAutocapitalization(.never)
-            .autocorrectionDisabled(true)
-            .hoverEffectDisabled()
-            .padding(.horizontal, DesignTokens.Spacing.md)
-            .frame(height: DesignTokens.Interactive.regular)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .clipShape(shape)
-            .glassBackgroundEffect(in: shape)
-            .contentShape(.hoverEffect, shape)
-            .hoverEffect(.automatic)
-            .contentShape(shape)
-            .overlay {
-                shape
-                    .strokeBorder(
-                        isFocused ? DesignTokens.Surface.focusBorder : .clear,
-                        lineWidth: DesignTokens.Stroke.bold
-                    )
-                    .animation(DesignTokens.AnimationToken.selection, value: isFocused)
-            }
-            .accessibilityIdentifier(accessibilityIdentifier)
-            .accessibilityLabel(label)
-        }
-    }
-}
-
-struct ConnectionFormPanel: View {
-    let kind: ConnectionKind
+struct ConnectionFormFixture: View {
+    let kind: SourceConnectionKind
     var onDismiss: () -> Void = {}
 
-    // 预填的默认值同时也是「正确」连接信息:开箱即可点成功,改错可测失败路径。
-    @State private var address = ConnectionFormPanel.correctAddress
-    @State private var username = ConnectionFormPanel.correctUsername
-    @State private var password = ConnectionFormPanel.correctPassword
-    @State private var connectAsGuest = false   // SMB 专属:默认关闭,常显账号密码
-    @State private var state: ConnectionMockState = .idle
-    @State private var connectTask: Task<Void, Never>?
+    @State private var name = ""
+    @State private var address = ConnectionFormFixture.correctAddress
+    @State private var share = "Videos"
+    @State private var username = ConnectionFormFixture.correctUsername
+    @State private var password = ConnectionFormFixture.correctPassword
+    @State private var connectsAsGuest = false
 
-    // EXPLORATORY: 面板宽度与状态色未进 token。绿色成功 / 橙色超时 / 红色失败
-    // 是 mockup 临时色;提升前需新增语义 token 或复用既有色。
-    private let panelWidth: CGFloat = 420
-    private let shape = DesignTokens.ShapeToken.card
-
-    // EXPLORATORY: mock 正确连接信息与计时常量,非真实凭证、非真实超时。
     private static let correctAddress = "192.168.1.1"
     private static let correctUsername = "123"
     private static let correctPassword = "123"
     private let connectWaitDuration: Duration = .seconds(3)
-    private let successHoldDuration: Duration = .seconds(1)
-    // 账密揭示相对容器/按钮的滞后量。
-    private let credentialRevealDelay: Double = 0.18
-
-    private var showsCredentials: Bool {
-        switch kind {
-        case .smb: !connectAsGuest
-        case .webdav: true
-        }
-    }
-
-    /// 连接中或成功(待自动关闭)期间,锁定整个输入区。
-    private var isBusy: Bool {
-        state == .connecting || state == .success
-    }
-
-    /// 访客模式不要求账密;其余情况账密必填。
-    private var credentialsRequired: Bool {
-        !(kind == .smb && connectAsGuest)
-    }
-
-    private var inputsComplete: Bool {
-        guard !address.trimmingCharacters(in: .whitespaces).isEmpty else { return false }
-        if credentialsRequired {
-            return !username.isEmpty && !password.isEmpty
-        }
-        return true
-    }
-
-    private var connectDisabled: Bool {
-        isBusy || !inputsComplete
-    }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            header
-            fields
-            statusRegion
-            actions
-        }
-        .padding(DesignTokens.Spacing.xl)
-        .frame(width: panelWidth, alignment: .leading)
-        .clipShape(shape)
-        .glassBackgroundEffect(in: shape)
-        // 动画挂在整个面板根部:容器/按钮高度按同一条曲线立即联动;
-        // 账密块靠自身延迟过渡滞后浮现(见 credentialsTransition)。
-        .animation(DesignTokens.AnimationToken.selection, value: showsCredentials)
-        .animation(DesignTokens.AnimationToken.selection, value: state)
-        .onDisappear { connectTask?.cancel() }
-    }
-
-    private var header: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: kind.systemImage)
-                .font(DesignTokens.SymbolSize.selectionHeaderIcon)
-                .foregroundStyle(DesignTokens.Theme.accent)
-                .frame(width: DesignTokens.Interactive.regular)
-
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                Text("连接到 \(kind.title)")
-                    .font(DesignTokens.Typography.headline)
-                    .foregroundStyle(.primary)
-                Text(kind.subtitle)
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.Surface.supportingText)
-            }
-            Spacer(minLength: 0)
-        }
-    }
-
-    // 账号密码显隐过渡,对齐 SettingListGroup「Current Media Inspector」展开:
-    // 从顶部 scale 0.96 + opacity 长出,opacity 收起。
-    // 插入带 credentialRevealDelay:容器/按钮已挂根部动画立即就位,
-    // 字段滞后浮现,形成「框先动、账密后现」的异步观感。
-    private var credentialsTransition: AnyTransition {
-        .asymmetric(
-            insertion: AnyTransition.scale(scale: 0.96, anchor: .top)
-                .combined(with: .opacity)
-                .combined(with: .move(edge: .top))
-                .animation(DesignTokens.AnimationToken.selection.delay(credentialRevealDelay)),
-            removal: AnyTransition.opacity
-                .animation(DesignTokens.AnimationToken.selection)
+        ConnectionFormPanel(
+            kind: kind,
+            name: $name,
+            address: $address,
+            share: $share,
+            username: $username,
+            password: $password,
+            connectsAsGuest: $connectsAsGuest,
+            accessibilityIdentifierPrefix: "DesignPreview-connection-\(kind.rawValue)",
+            onConnect: mockConnect,
+            onCancel: onDismiss,
+            onConnected: onDismiss
         )
     }
 
-    @ViewBuilder
-    private var credentialFields: some View {
-        ConnectionFormField(
-            label: "用户名",
-            placeholder: "用户名",
-            text: $username,
-            accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-username"
-        )
-        ConnectionFormField(
-            label: "密码",
-            placeholder: "密码",
-            text: $password,
-            isSecure: true,
-            accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-password"
-        )
-    }
-
-    private var guestToggle: some View {
-        Toggle("以访客身份连接", isOn: $connectAsGuest)
-            .font(DesignTokens.Typography.selectionHeader)
-            .tint(DesignTokens.Theme.accent)
-    }
-
-    @ViewBuilder
-    private var fields: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            ConnectionFormField(
-                label: kind.addressLabel,
-                placeholder: kind.addressPlaceholder,
-                text: $address,
-                accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-address"
-            )
-
-            if showsCredentials {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                    credentialFields
-                }
-                .transition(credentialsTransition)
-            }
-
-            // 访客开关在账号密码下方。
-            if kind == .smb {
-                guestToggle
-            }
+    private func mockConnect(
+        _ request: SourceConnectionRequest
+    ) async -> SourceConnectionOutcome {
+        do {
+            try await Task.sleep(for: connectWaitDuration)
+        } catch {
+            return .failed(message: "Connection cancelled.")
         }
-        // 连接中/成功期间锁定地址、账密与访客开关,避免中途改动。
-        .disabled(isBusy)
-    }
 
-    @ViewBuilder
-    private var statusRegion: some View {
-        Group {
-            switch state {
-            case .idle:
-                EmptyView()
-            case .connecting:
-                HStack(spacing: DesignTokens.Spacing.sm) {
-                    LoadingSpinner(size: DesignTokens.Interactive.compact)
-                    Text("正在连接…")
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(DesignTokens.Surface.supportingText)
-                }
-            case .error:
-                statusLine(systemImage: "exclamationmark.triangle.fill",
-                           text: "连接失败:认证被拒绝,请检查用户名和密码",
-                           tint: .red)
-            case .timeout:
-                statusLine(systemImage: "clock.badge.exclamationmark",
-                           text: "连接超时:无法访问该地址,请检查网络",
-                           tint: .orange)
-            case .success:
-                statusLine(systemImage: "checkmark.circle.fill",
-                           text: "连接成功",
-                           tint: DesignTokens.Theme.accent)
-            }
+        guard request.address == Self.correctAddress else {
+            return .timedOut(message: "Connection timed out. Check the address and network.")
         }
-        // 连接中 / 警告 / 成功的出现都从顶部淡入,而非瞬现。
-        .transition(.opacity.combined(with: .move(edge: .top)))
-    }
-
-    // EXPLORATORY: 状态行临时色直接取 .red/.orange 与 accent,未抽 token。
-    private func statusLine(systemImage: String, text: String, tint: Color) -> some View {
-        HStack(spacing: DesignTokens.Spacing.xs) {
-            Image(systemName: systemImage)
-                .foregroundStyle(tint)
-            Text(text)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(DesignTokens.Surface.accessoryText)
-            Spacer(minLength: 0)
+        guard request.connectsAsGuest
+                || (request.username == Self.correctUsername
+                    && request.password == Self.correctPassword)
+        else {
+            return .failed(message: "Authentication failed. Check the username and password.")
         }
-    }
-
-    private var actions: some View {
-        HStack(spacing: DesignTokens.Interactive.buttonSpacing) {
-            Spacer(minLength: 0)
-            GlassCapsuleIconLabelButton(
-                title: "取消",
-                systemName: "xmark",
-                accessibilityLabel: "取消",
-                action: cancelAndDismiss,
-                accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-cancel"
-            )
-            GlassCapsuleIconLabelButton(
-                title: "连接",
-                systemName: "link",
-                accessibilityLabel: "连接",
-                action: connect,
-                accessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-connect"
-            )
-            .opacity(connectDisabled ? 0.5 : 1)
-            .disabled(connectDisabled)
-        }
-    }
-
-    // MARK: - Preview state
-
-    /// 点连接:进入 3s 等待,期满后判定结果。
-    private func connect() {
-        connectTask?.cancel()
-        state = .connecting
-        connectTask = Task {
-            try? await Task.sleep(for: connectWaitDuration)
-            guard !Task.isCancelled else { return }
-            resolveOutcome()
-        }
-    }
-
-    /// 判定优先级:地址不可达(超时)→ 凭证错误(报错)→ 成功。
-    private func resolveOutcome() {
-        let addressOK = address.trimmingCharacters(in: .whitespaces) == Self.correctAddress
-        let credentialsOK: Bool = {
-            // 访客模式不带认证,只看地址。
-            if kind == .smb && connectAsGuest { return true }
-            return username == Self.correctUsername && password == Self.correctPassword
-        }()
-
-        if !addressOK {
-            state = .timeout
-        } else if !credentialsOK {
-            state = .error
-        } else {
-            state = .success
-            scheduleAutoDismiss()
-        }
-    }
-
-    /// 成功后停留片刻让用户看清,再自动关闭。
-    private func scheduleAutoDismiss() {
-        connectTask?.cancel()
-        connectTask = Task {
-            try? await Task.sleep(for: successHoldDuration)
-            guard !Task.isCancelled else { return }
-            onDismiss()
-        }
-    }
-
-    /// 取消:撤销挂起任务并立即关闭。
-    private func cancelAndDismiss() {
-        connectTask?.cancel()
-        onDismiss()
+        return .connected
     }
 }
 
@@ -1078,7 +752,7 @@ struct ConnectionFormPreview: View {
 
                 HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
                     panelColumn(kind: .smb, presented: $smbPresented)
-                    panelColumn(kind: .webdav, presented: $webdavPresented)
+                    panelColumn(kind: .webDAV, presented: $webdavPresented)
                 }
             }
             .padding(DesignTokens.Spacing.xxl)
@@ -1088,14 +762,16 @@ struct ConnectionFormPreview: View {
     }
 
     private func panelColumn(
-        kind: ConnectionKind,
+        kind: SourceConnectionKind,
         presented: Binding<Bool>
     ) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
+        Group {
             if presented.wrappedValue {
-                ConnectionFormPanel(kind: kind, onDismiss: { presented.wrappedValue = false })
-                    // EXPLORATORY: 消失动画——缩小 + 淡出,临时 scale 值。
-                    .transition(.scale(scale: 0.92).combined(with: .opacity))
+                ConnectionFormFixture(
+                    kind: kind,
+                    onDismiss: { presented.wrappedValue = false }
+                )
+                .transition(.scale(scale: 0.92).combined(with: .opacity))
             } else {
                 GlassCapsuleIconLabelButton(
                     title: "重新打开 \(kind.title)",
@@ -1106,7 +782,7 @@ struct ConnectionFormPreview: View {
                 )
             }
         }
-        .frame(width: 420, alignment: .top)
+        .frame(width: DesignTokens.SourceConnection.panelWidth, alignment: .top)
         .animation(DesignTokens.AnimationToken.panelSpring, value: presented.wrappedValue)
     }
 }

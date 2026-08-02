@@ -32,10 +32,23 @@ let package = Package(
             name: "MediaLibrary",
             dependencies: [
                 "MediaSource",
+                "DesignSystem",
                 .product(name: "AMSMB2", package: "AMSMB2"),
             ],
             path: "Modules/MediaLibrary",
-            exclude: ["Views"]
+            exclude: [
+                "Views/BreadcrumbView.swift",
+                "Views/FileBrowserSidebar.swift",
+                "Views/FolderListView.swift",
+                "Views/LibraryGridComponents.swift",
+                "Views/LibraryListComponents.swift",
+                "Views/LibraryNavigationComponents.swift",
+                "Views/LibraryToolbarComponents.swift",
+                "Views/LibraryViewControls.swift",
+                "Views/SkeletonCardView.swift",
+                "Views/SourceSidebar.swift",
+                "Views/VideoCardView.swift",
+            ]
         ),
         .target(
             name: "PlaybackFeature",

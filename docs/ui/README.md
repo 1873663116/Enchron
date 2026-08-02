@@ -9,7 +9,7 @@ flowchart TD
     App --> Space["Immersive Space"]
     App --> Controls["Spatial Playback Controls"]
 
-    Main --> Nav["Navigation Ornament\nFiles · Settings · Environments"]
+    Main --> Nav["System Tab Bar\nFiles · Settings · Environments"]
     Main --> Files["Media Library\nVirtual folders · References · Sources"]
     Main --> Settings["Settings"]
     Main --> WindowPlayback["Window Playback"]
@@ -46,6 +46,7 @@ stateDiagram-v2
 
 ## Surface ownership
 
+- Main Window 浏览态使用系统 `TabView` 提供 Files、Settings 与 Environments。Files 与 Settings 承载主窗口内容；Environments 只请求激活或聚焦独立 Environment Card Volume，主窗口选择保持在原内容 Tab。播放请求活动期间不挂载浏览 `TabView`。
 - Media Library 展示虚拟 Library Folder、Media Reference 与只读 Source Directory。它不拥有媒体字节、播放策略或观看状态写入。
 - Window chrome 左上角拥有退出当前媒体，右上角依次放置 Dock、Video Format 与 More。视频画面不叠加媒体标题和格式信息。
 - Window Playback 的 RealityView 和 Window Chrome 属于 Main Window 内容树；PlayerControls 通过底部 Ornament 附着到该 Window，不进入内容树、RealityView attachment 或独立 Window。Window Ornament 第一行左侧是同尺寸的后退 15 秒、Play/Pause/Replay、前进 15 秒，右侧是可 Hover 的只读 Thick Material 媒体信息区；第二行是普通 Progress Bar 或展开后的 Precision Timeline。Window Ornament 不显示 Settings 与 More。独立的 Spatial Playback Controls Window 只服务 Docked 与 Panorama。

@@ -130,7 +130,7 @@
       "id": "media-library",
       "label": "MediaLibrary",
       "layer": "domain",
-      "boundary": "MediaLibrary → MediaSource；虚拟分类与来源浏览",
+      "boundary": "MediaLibrary → MediaSource · DesignSystem；虚拟分类、来源浏览与来源连接生产组件",
       "sourceRefs": [
         {
           "sourceId": "architecture",
@@ -2953,7 +2953,7 @@
         "regions": [
           {
             "id": "navigation",
-            "label": "Navigation Ornament"
+            "label": "System Tab Bar"
           },
           {
             "id": "library-toolbar",

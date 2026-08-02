@@ -4,7 +4,7 @@ import XCTest
 nonisolated final class FilesBrowsingUITests: XCTestCase {
 
     @MainActor
-    func testNavigationOrnamentHasAllTabs() {
+    func testSystemTabBarHasAllTabs() {
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
         app.launch()
@@ -12,7 +12,7 @@ nonisolated final class FilesBrowsingUITests: XCTestCase {
         for tab in ["files", "settings", "environment"] {
             let element = app.descendants(matching: .any)["Navigation-Ornament-tab-\(tab)"]
             XCTAssertTrue(element.waitForExistence(timeout: 20),
-                          "Navigation ornament should expose the \(tab) tab")
+                          "System tab bar should expose the \(tab) tab")
         }
     }
 

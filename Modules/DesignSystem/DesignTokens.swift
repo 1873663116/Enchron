@@ -423,7 +423,27 @@ public enum DesignTokens {
         public static let placeholderIconSize: CGFloat = 45
     }
 
-    /// Spatial card stack used by the Camp Scene preview.
+    /// Stable visual geometry and atmospheric treatment for one Environment Card.
+    public enum EnvironmentCard {
+        public static let width: CGFloat = 500
+        public static let height: CGFloat = 548
+        public static let informationHeight: CGFloat = 188
+        public static let cornerRadius: CGFloat = Radius.card
+        public static let chromePadding: CGFloat = 18
+        public static let informationPaddingH: CGFloat = 36
+        public static let informationPaddingTop: CGFloat = 34
+        public static let informationPaddingBottom: CGFloat = 14
+        public static let secondaryTextOpacity: CGFloat = 0.72
+        public static let informationFadeMinOpacity: CGFloat = 0
+        public static let informationFadeMaxOpacity: CGFloat = 0.45
+        public static let topMultiplyHeight: CGFloat = 160
+        public static let topFadeMaxOpacity: CGFloat = 0.40
+        public static let atmosphericContrastReduction: CGFloat = 0.68
+        public static let atmosphericDesaturation: CGFloat = 0.38
+        public static let atmosphericBlurRadius: CGFloat = 2.6
+    }
+
+    /// Spatial card stack used by the Environment Card volume.
     public enum EnvironmentCarousel {
         public static let volumeWidthMeters: CGFloat = 2.20
         public static let volumeHeightMeters: CGFloat = 0.115
@@ -447,6 +467,31 @@ public enum DesignTokens {
         public static let detailRevealDelayPerStepNanoseconds: UInt64 = 70_000_000
         public static let detailRevealStart: CGFloat = 0.48
         public static let detailRevealComplete: CGFloat = 0.10
+        public static let centerHitTestingDistance: CGFloat = 0.12
+        public static let stableRenderCardDistance: CGFloat = 1.55
+        public static let motionRenderCardDistance: CGFloat = 2.18
+        public static let fullOpacityDistance: CGFloat = 0.10
+        public static let firstSideOpacityDistance: CGFloat = 1.00
+        public static let fullFadeDistance: CGFloat = 2.18
+        public static let firstSideOpacity: CGFloat = 0.85
+        public static let edgeExitStart: CGFloat = 1.35
+        public static let edgeExitEnd: CGFloat = 2.18
+        public static let edgeSlideOutDistance: CGFloat = 300
+        public static let edgeDepthRetreat: CGFloat = 42
+        public static let edgeAtmosphericBoost: CGFloat = 0.42
+        public static let zIndexBase: Double = 100
+        public static let zIndexDistanceStep: Double = 10
+    }
+
+    /// Stable presentation values for remote source connection panels.
+    public enum SourceConnection {
+        public static let panelWidth: CGFloat = 420
+        public static let credentialRevealDelay: Double = 0.18
+        public static let disabledActionOpacity: Double = 0.5
+        public static let successHoldDuration: Duration = .seconds(1)
+        public static let failureColor: Color = .red
+        public static let timeoutColor: Color = .orange
+        public static let successColor: Color = Theme.accent
     }
 
     public enum SourceSidebar {
