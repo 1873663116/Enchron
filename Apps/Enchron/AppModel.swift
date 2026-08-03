@@ -3,6 +3,73 @@ import Observation
 import OSLog
 import PlaybackPresentation
 
+struct SpatialPlaybackSurfaceObservation: Equatable {
+    static let absent = SpatialPlaybackSurfaceObservation(
+        presentation: "none",
+        parentName: "none",
+        anchorMatched: false,
+        localPosition: .zero,
+        worldPosition: .zero,
+        localScale: .zero,
+        worldScale: .zero,
+        worldDistance: 0,
+        worldElevationDegrees: 0,
+        forwardToUserDot: 0,
+        playerScreenSize: .zero,
+        renderedSize: .zero,
+        renderingReady: false,
+        settled: false
+    )
+
+    let presentation: String
+    let parentName: String
+    let anchorMatched: Bool
+    let localPosition: SIMD3<Float>
+    let worldPosition: SIMD3<Float>
+    let localScale: SIMD3<Float>
+    let worldScale: SIMD3<Float>
+    let worldDistance: Float
+    let worldElevationDegrees: Float
+    let forwardToUserDot: Float
+    let playerScreenSize: SIMD2<Float>
+    let renderedSize: SIMD2<Float>
+    let renderingReady: Bool
+    let settled: Bool
+
+    var accessibilityFields: [String] {
+        [
+            "surfacePresentation=\(presentation)",
+            "surfaceParent=\(parentName.replacingOccurrences(of: ";", with: ","))",
+            "surfaceAnchorMatched=\(anchorMatched)",
+            "surfaceLocalX=\(formatted(localPosition.x))",
+            "surfaceLocalY=\(formatted(localPosition.y))",
+            "surfaceLocalZ=\(formatted(localPosition.z))",
+            "surfaceWorldX=\(formatted(worldPosition.x))",
+            "surfaceWorldY=\(formatted(worldPosition.y))",
+            "surfaceWorldZ=\(formatted(worldPosition.z))",
+            "surfaceLocalScaleX=\(formatted(localScale.x))",
+            "surfaceLocalScaleY=\(formatted(localScale.y))",
+            "surfaceLocalScaleZ=\(formatted(localScale.z))",
+            "surfaceWorldScaleX=\(formatted(worldScale.x))",
+            "surfaceWorldScaleY=\(formatted(worldScale.y))",
+            "surfaceWorldScaleZ=\(formatted(worldScale.z))",
+            "surfaceWorldDistance=\(formatted(worldDistance))",
+            "surfaceWorldElevation=\(formatted(worldElevationDegrees))",
+            "surfaceForwardToUserDot=\(formatted(forwardToUserDot))",
+            "surfacePlayerWidth=\(formatted(playerScreenSize.x))",
+            "surfacePlayerHeight=\(formatted(playerScreenSize.y))",
+            "surfaceRenderedWidth=\(formatted(renderedSize.x))",
+            "surfaceRenderedHeight=\(formatted(renderedSize.y))",
+            "surfaceRenderingReady=\(renderingReady)",
+            "surfaceSettled=\(settled)"
+        ]
+    }
+
+    private func formatted(_ value: Float) -> String {
+        String(format: "%.4f", value)
+    }
+}
+
 @MainActor
 @Observable
 public final class AppModel {
@@ -80,6 +147,9 @@ public final class AppModel {
     public var screenScale: Double {
         playbackPresentationModel.dockedPlacement.screenScale
     }
+
+    private(set) var spatialPlaybackSurfaceObservation =
+        SpatialPlaybackSurfaceObservation.absent
 
     // MARK: - Immersive Cinema State
     public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment {
@@ -264,14 +334,38 @@ public final class AppModel {
         lastControlsInteractionAt = date
     }
 
+    /// Last surface-tap decision, exposed through Window control-plane value for XCUI.
+    public var debugSurfaceTapTrace: String = "none"
+
     public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {
         let elapsed = date.timeIntervalSince(lastControlsInteractionAt)
         guard elapsed > 0.5 else {
-            logger.info("surface tap ignored during playback transition")
+            logger.info("surface tap ignored during playback transition elapsed=\(elapsed)")
+            // #region agent log
+            debugSurfaceTapTrace = "ignored:\(String(format: "%.3f", elapsed))->\(showControls ? "shown" : "hidden")"
+            AgentDebugTapLog.event(
+                "toggleIgnored",
+                hypothesisId: "C",
+                data: [
+                    "elapsed": elapsed,
+                    "showControls": showControls
+                ],
+                location: "AppModel.swift:toggleControlsFromPlaybackSurface"
+            )
+            // #endregion
             return
         }
         showControls.toggle()
         logger.info("surface tap controlsVisible=\(self.showControls)")
+        // #region agent log
+        debugSurfaceTapTrace = "toggled:\(showControls ? "shown" : "hidden")"
+        AgentDebugTapLog.event(
+            "toggleApplied",
+            hypothesisId: "C",
+            data: ["showControls": showControls, "elapsed": elapsed],
+            location: "AppModel.swift:toggleControlsFromPlaybackSurface"
+        )
+        // #endregion
         if showControls {
             registerControlsInteraction(at: date)
         }
@@ -318,6 +412,16 @@ public final class AppModel {
 
     public func resetDockedPlacement() {
         playbackPresentationModel.resetDockedPlacement()
+    }
+
+    func recordSpatialPlaybackSurfaceObservation(
+        _ observation: SpatialPlaybackSurfaceObservation
+    ) {
+        spatialPlaybackSurfaceObservation = observation
+    }
+
+    func clearSpatialPlaybackSurfaceObservation() {
+        spatialPlaybackSurfaceObservation = .absent
     }
 
 }

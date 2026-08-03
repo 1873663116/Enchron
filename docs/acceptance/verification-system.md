@@ -1,43 +1,48 @@
 # Enchron 验证规则
 
-这是 Enchron 从来源到 Vision Pro 的唯一验证系统。验证对象是完整产品播放链，而不是某个仓库、target 或构建结果；任何上层证据都不能替代尚未通过的下层门槛。
+这是 Enchron 从来源到 Vision Pro 的唯一验证系统。验证对象是完整产品播放链，而不是某个仓库、Target 或构建结果。当前验证工作按所证明的事实划分；App、UI、RealityKit 与系统 Scene 的运行验证直接使用物理 Vision Pro。
 
-## 顺序与门槛
+## 验证工作与发布门槛
 
 ```mermaid
-flowchart LR
-    Core["PlaybackCore 单元与合同验证\n容器 · Sample · 时间线"] --> Sim["visionOS Simulator\n平台接口 · UI · Scene 生命周期"]
-    Sim --> Device["Vision Pro 真机验收\n画质 · 音频 · 空间 · 性能"]
+flowchart TB
+    Core["PlaybackCore 与纯逻辑合同\n容器 · Sample · 时间线 · 状态转换"] --> Result["候选版本发布结论"]
+    Device["物理 Vision Pro 自动回归\n公开界面 · App 集成 · RealityKit · 系统交互"] --> Result
+    Special["物理 Vision Pro 专项验收\n性能 · 功耗 · 声学 · HDR · 立体与空间感知"] --> Result
 ```
+
+这三类工作没有先后替代关系。PlaybackCore 与纯逻辑合同负责能够直接、快速、确定地检查的大量输入、并发、取消和错误分支；物理 Vision Pro 自动回归负责生产 App、平台 API、真实用户操作、硬件播放和空间呈现；专项验收只在相应声明需要时增加 Instruments、外置麦克风或佩戴者判断。某类证据不能证明另一类事实，但同一候选版本的发布结论必须取得所有适用证据。
 
 ### PlaybackCore 单元与合同验证
 
-在 `Packages/PlaybackCore` 运行 `swift test`。确定性 fixture、受控 Receiver seam 与真实 container integration 证明 Media Session、Provider records、sample contract、轨道、控制、backpressure、timeline、stale rejection、failure 和 cleanup。
+在 `Packages/PlaybackCore` 运行 `swift test`。可重复生成且预期结果明确的测试媒体、受控 Receiver 测试入口与真实媒体容器集成共同证明 Media Session、Provider records、sample contract、轨道、控制、backpressure、timeline、stale rejection、failure 和 cleanup。
 
 真实媒体容器检查仍属于 PlaybackCore 合同验证：它可以证明 FFmpeg 解封装和压缩 `CMSampleBuffer` 的数据、时间信息、编解码器配置、颜色与 HDR 信令和版本归属，但不能证明 Renderer 已显示画面或输出声音。
 
-### visionOS Simulator 与产品集成验证
+### 物理 Vision Pro 自动回归
 
-Simulator 验证平台 API、Window/Docked/Panorama 状态机、失败回滚、来源与持久化、可访问交互和基础 RealityKit 生命周期。自动验收分开报告两个不能互相替代的结果：
+Enchron App 的产品适配、Window、Docked、Panorama、来源界面、持久化、可访问交互、RealityKit 生命周期和系统 Scene 行为全部在物理 Vision Pro 上验证。设备保持解锁并允许 XCUITest 启动生产 App；测试通过公开界面完成用户操作，同时读取只读产品状态、保存 Accessibility hierarchy、截图、OSLog 与 `.xcresult`。
 
-- 空间呈现结构验证通过：目标 Scene、`PlaybackSurfaceAnchor`、Video Entity、同一 Renderer 绑定与 Media Session 连续性符合合同。Simulator 必须证明 Panorama 的 desired immersive、viewing、spatial video mode 已写入真实 `VideoPlayerComponent`；若该 Simulator 运行时不暴露 actual mode 或 rendering ready，则结果只能记为 `Simulator configuration acceptance`，不能记为实际模式收敛或渲染就绪。
-- RealityKit 渲染结果验证通过：真实产品 Sample 进入 `VideoPlayerComponent` 后，在规定摄像机位置与朝向下，输出符合测试媒体预先定义的方向和几何标记。
+- 产品集成必须证明真实媒体经过生产 `PlaybackRuntime`、当前 Media Session、renderer graph 与唯一 RealityKit consumer；状态投影、来源访问、控制和清理均属于同一条产品路径。
+- 空间呈现必须证明目标 Scene、`PlaybackSurfaceAnchor`、Video Entity、同一 renderer binding 与 Media Session 连续性符合合同；Panorama 的 rendering status 与 desired/actual immersive、viewing、spatial video mode 必须在设备上达到成功后置条件。
+- RealityKit 输出必须使用带方向、几何、双眼和连续帧标记的测试媒体，证明视频实际位于目标表面并持续推进。设备截图用于检查静态画面与界面；动态卡顿、停帧和空间错位增加定时观察或录屏。
+- XCUITest 只有在 Accessibility 元素存在、启用且可命中，并且语义点击使产品状态达到预期结果时才通过。截图坐标点击只用于继续收集故障信息，不能把不可命中的正式用户路径改判为通过。
 
-可访问元素存在、标识和状态可以在 Simulator 中自动断言；但只有合成点击确实触发了产品操作，并使产品状态达到预期结果时，才能把该交互记为 Simulator 通过。当前 visionOS Simulator 的 XCUI 合成点击不能可靠激活 Playback Deck 与 Dock 二级菜单，因此这些点击不进入本轮自动交互通过结论，必须由 Vision Pro 真机 XCTest 的真实注视和点按验收覆盖。元素可见、发送了合成事件或测试进程没有报错，都不能替代操作后的状态验证。
+物理设备未解锁、XCTest worker 未启动、测试媒体不可用或必需采集链未工作时，场景记为未评估，不形成产品通过或失败。通用 device build 只能证明代码能够为目标 SDK 编译和链接，不能代替真机运行断言。
 
-`RealityRenderer` component probe 使用固定 camera 输出 texture，验证投影、方向、stereo、比例、裁剪与帧推进；完整 App integration 验证 WindowGroup / ImmersiveSpace、RCP anchor、Screen Size 和 Presentation Transition。若 `VideoPlayerComponent` 在离屏宿主中无法确认依赖 ImmersiveSpace 的 actual mode，该事实属于 probe 能力边界，actual mode 留在 App integration 断言，不扩建第二套 renderer。
+`RealityRenderer` component probe 若继续保留，必须作为物理 Vision Pro 上的 XCTest 运行，以固定 camera 与 texture 隔离投影、方向、stereo、比例、裁剪和帧推进。它只承担组件问题定位；完整 App 的 Window、Immersive Space、RCP anchor、Screen Size 与 Presentation Transition 仍由同一设备上的生产 App XCUITest 证明。
 
-空间播放的标准验收入口是 `Scripts/verification/verify-spatial-presentations-simulator.zsh`。它必须用真实 FFmpeg → PlaybackCore 媒体而不是 `ENCHRON_UI_TESTING` fixture，在同一次 App 启动中完成 Window → Docked → Window → Panorama → Window，并同时保存三类不能相互替代的证据：XCUIAutomation 语义与截图、PlaybackCore/Presentation 机器状态、OSLog 与 `.xcresult`。点击先使用 accessibility identifier；元素存在但不可直接命中时，测试先保存当前截图，再以该语义元素的几何中心执行坐标 fallback，并继续以目标状态断言结果。无人值守测试没有语义目标或有效几何时必须失败；交互式 agent 可以基于当次截图视觉定位后点击，但必须保存点击前后截图、验证相同机器状态后置条件，并把结果标记为 `agent-assisted`，不能用盲点固定坐标或冒充无人值守绿色结果。
+空间播放使用 `EnchronAppUITests` 中的 Vision Pro 场景集，并通过明确指定的物理 Vision Pro destination 执行。测试必须使用真实 FFmpeg → PlaybackCore 媒体，不得通过测试替代内容建立第二条播放路径。
 
-Window、Docked 与 Panorama 都必须证明唯一 active consumer 是绑定当前 renderer 的 `VideoPlayerComponent`，不允许 `ModelComponent + VideoMaterial` 产品分支。Docked 还必须证明 Video Entity 是目标 `PlaybackSurfaceAnchor` 的子实体、world position 与用户原点的距离符合 Distance、Elevation 符合球面角度、屏幕始终朝向用户、scale 三轴一致，并由 `playerScreenSize × uniform scale` 得出最终尺寸。Panorama 在 Vision Pro 上必须观察 rendering status ready，以及 desired/actual immersive、viewing、spatial video mode 全部收敛；只有这个结果可记为 `device actual-mode acceptance`。Simulator 若不暴露这些 actual facts，只能在确认真实 Renderer、Entity 和 `VideoPlayerComponent` 绑定且 desired modes 正确后产生编译期限定的 `simulatorConfigured`，并记为 `Simulator configuration acceptance`。真机构建不得接受该事实作为转换结算依据。测试宿主未启动、Simulator 未完成 BackBoard 启动或 XCTest worker 未 materialize 属于基础设施失败；它既不是产品失败，也不能标记 Simulator passed。
+Window、Docked 与 Panorama 都必须证明唯一 active consumer 是绑定当前 renderer 的 `VideoPlayerComponent`，不允许 `ModelComponent + VideoMaterial` 产品分支。Docked 还必须证明 Video Entity 是目标 `PlaybackSurfaceAnchor` 的子实体、world position 与用户原点的距离符合 Distance、Elevation 符合球面角度、屏幕始终朝向用户、scale 三轴一致，并由 `playerScreenSize × uniform scale` 得出最终尺寸。Panorama 必须观察 rendering status ready，以及 desired/actual immersive、viewing、spatial video mode 全部收敛；没有取得这些设备事实时不得提交实际空间呈现通过结论。
 
-Visual Oracle 不使用普通电影画面或逐像素 golden image 作为主断言。标准 Diagnostic Media 必须提供可定位的四角与中心标记、圆形或网格、方向标记、左右眼标记和连续帧标记；断言标记存在与顺序、几何比例、方向、双眼归属、画面边界和时间推进，并为色彩转换、抗锯齿与 SDK renderer 差异保留明确容差。逐像素参考图只作为失败附件。
+视觉自动判定不使用普通电影画面或要求逐像素完全一致的参考图作为主要通过条件。标准 Diagnostic Media 必须提供可定位的四角与中心标记、圆形或网格、方向标记、左右眼标记和连续帧标记；测试判断这些标记是否存在、顺序是否正确，以及几何比例、方向、双眼归属、画面边界和时间推进是否在分别规定的误差范围内。逐像素参考图只作为失败诊断附件。
 
-### Vision Pro 真机验收
+### 物理 Vision Pro 专项验收
 
-使用与前面验证相同的测试媒体身份和预期结果，在物理 Vision Pro 上证明硬件解码、HDR/EDR、受支持的 Dolby Vision Profile、设备音频、Window、Docked、Panorama、空间舒适度、性能和最终交互。只有真实佩戴者完成这些检查，才能声明 Vision Pro 真机体验验收通过；日常提交只要求空间呈现结构和 RealityKit 渲染结果的自动验证。通用设备构建、Simulator、AirPlay、单张截图、日志无错误或可以拖动进度条，都不能替代真机体验验收。
+使用与自动回归相同的候选版本、测试媒体身份和预期结果，在物理 Vision Pro 上增加 Instruments、外置麦克风或佩戴者验收，证明硬件解码、HDR/EDR、受支持的 Dolby Vision Profile、物理音频、立体方向、空间舒适度、性能和功耗。只有相应专项证据完成，才能声明这些设备体验已经通过；单张截图、AirPlay、日志无错误或可以拖动进度条都不足以代替。
 
-人工验收发现的可重复画面问题必须转化为 Diagnostic Media、Visual Oracle 或结构断言，使同类问题进入后续无人值守回归。
+人工验收发现的可重复画面问题必须转化为 Diagnostic Media 中的明确标记、针对这些标记的判断方法，或可直接观察的界面与场景结构条件，使同类问题进入后续无人值守回归。
 
 ## 系统节点
 
@@ -50,16 +55,16 @@ Visual Oracle 不使用普通电影画面或逐像素 golden image 作为主断�
 | [03 Provider Open](nodes/03-provider-open.md) | 容器、时长、能否 Seek、轨道与编解码器事实固定 | PlaybackCore | PlaybackCore 合同验证 |
 | [04 Track Model](nodes/04-track-model.md) | 视频和音频轨道的稳定身份、格式与选择正确 | PlaybackCore | PlaybackCore 合同验证 |
 | [05 Media Events](nodes/05-media-events.md) | Sample、格式、Flush、Ended 和 Error 带有正确的 Session 版本 | PlaybackCore | PlaybackCore 合同验证 |
-| [06 Compressed Sample](nodes/06-compressed-sample-stream.md) | 数据、时间信息、依赖、编解码器配置和颜色/HDR 信令正确 | PlaybackCore | PlaybackCore 合同验证 |
+| [06 Renderer-ready Sample](nodes/06-compressed-sample-stream.md) | 视频压缩数据与音频 compressed/decoded-PCM 数据、时间信息、依赖、编解码器配置和颜色/HDR 信令正确 | PlaybackCore | PlaybackCore 合同验证 |
 | [07 Renderer Input](nodes/07-avfoundation-renderer-input.md) | 当前 Sample 被 Receiver 接受，共享时间线正确推进 | PlaybackCore | PlaybackCore 合同验证 |
-| [08 RealityKit Binding](nodes/08-realitykit-renderer-binding.md) | 当前 Renderer 只有一个正在使用它的 RealityKit Entity | Enchron App | visionOS Simulator 与 Vision Pro 真机 |
-| [09 Enchron App Presentation](nodes/09-enchron-app-presentation.md) | Entity 位于目标播放表面，显示帧与音频持续推进 | Enchron App | visionOS Simulator；设备表现由 Vision Pro 真机验收 |
+| [08 RealityKit Binding](nodes/08-realitykit-renderer-binding.md) | 当前 Renderer 只有一个正在使用它的 RealityKit Entity | Enchron App | 物理 Vision Pro XCTest 与 XCUITest |
+| [09 Enchron App Presentation](nodes/09-enchron-app-presentation.md) | Entity 位于目标播放表面，显示帧与音频持续推进 | Enchron App | 物理 Vision Pro XCUITest、状态、截图与录屏 |
 
 证据必须报告第一处失败节点。Provider metadata 正确不等于 sample 或 displayed pixel 正确；renderer enqueue、renderer rendering、displayed pixel、持续推进、可听输出和颜色正确是独立事实。
 
 ## 播放管线边界
 
-产品与验证只使用 FFmpeg demux → compressed sample → AVFoundation renderer 管线。验证入口可以绕过产品来源与页面来隔离 PlaybackCore，但不得替换 provider 或把另一套实现的结果当作当前管线的证据。
+产品与验证只使用 FFmpeg demux → renderer-ready sample → AVFoundation renderer 管线。视频 sample 保持压缩编码；音频 sample 在 AVFoundation 能直接接收时保持压缩编码，否则由同一个 FFmpeg provider 解码为线性 PCM。验证入口可以绕过产品来源与页面来隔离 PlaybackCore，但不得替换 provider 或把另一套实现的结果当作当前管线的证据。
 
 ## 播放控制与媒体矩阵
 
@@ -75,10 +80,10 @@ Visual Oracle 不使用普通电影画面或逐像素 golden image 作为主断�
 | 音频核心 | verification harness 可用内部 gain/mute seam 验证当前 graph 与音轨切换；它不构成 Enchron 产品 Volume/Mute 控件。产品最终音量由 visionOS 系统控制 |
 | Close / Reopen | delivery task 取消、Receiver flush、consumer detach 与资源释放完成；reopen 建立新 session |
 | End | 所有 active lane 完成且 synchronizer 越过最终 presentation end 后发布 natural-completion ended；seek 到总时长发布 seek-to-end ended，二者在产品持久化前可区分 |
-| 颜色与 HDR | sample 和 displayed pixel 的 primaries、transfer、matrix、range 符合 fixture oracle |
+| 颜色与 HDR | sample 和 displayed pixel 的 primaries、transfer、matrix、range 符合该测试媒体预先记录的预期值与允许误差 |
 | 稳定性 | 规定时长内 sample、displayed frame、audio 与 timeline 持续推进，资源不无界增长 |
 
-最低媒体集合覆盖 SDR、HDR10/PQ、HLG、受支持的 Dolby Vision profile、B-frame、至少双音轨、可 seek 长媒体与远程 range source。每种媒体必须在 `fixture-registry.json` 中具有稳定 ID、hash、许可、codec/container、颜色/HDR、音轨、时长和 oracle；许可或 oracle 不完整的素材只能作为 diagnostic，不能让完整矩阵标记为 passed。
+最低媒体集合覆盖 H.264、H.265/HEVC、AV1、SDR、HDR10/PQ、HLG、受支持的 Dolby Vision profile、B-frame、至少双音轨、compressed audio、需要解码为 PCM 的 FLAC、可 seek 长媒体与远程 range source。每种媒体必须在 `fixture-registry.json` 中具有稳定 ID、hash、许可、codec/container、颜色/HDR、音轨、时长，以及在 `oracle` 字段中明确记录的预期结果和允许误差；许可、预期结果或允许误差不完整的素材只能用于诊断，不能让完整矩阵标记为 passed。
 
 ## Enchron App 集成合同
 
@@ -88,11 +93,11 @@ Enchron App 的产品集成验证必须证明：
 - `PlaybackRuntime` 不维护独立 Media Session、第二 timeline 或与核心竞争的 seek generation。
 - Window、Docked、Panorama 迁移同一个 renderer；目标 binding 成功后才提交，失败保留原 session 并回滚 Presentation。
 - 来源授权和远程 streaming 生命周期覆盖整个 Media Session，cleanup 后才释放。
-- 验证 fixture 和诊断入口不会进入产品 UI 或改变产品失败语义。
+- 测试专用输入和诊断入口不会进入产品 UI 或改变产品失败语义。
 
 ### 播放输出诊断合同
 
-每个 Simulator 与真机运行都必须从生产 Debug Snapshot 和当前 `VideoPlayerComponent` 记录生成 `PlaybackOutputObservation`，不得用另一套播放状态机推断结果。单次观察按固定顺序报告第一处未完成边界：Media Session、video sample、renderer input、decoder bootstrap、底层 timebase 的实际播放 rate 大于零、RealityKit binding、component ready、displayed pixel、audio sample、audio renderer、系统 audio session、系统 audio route。音频 renderer 完成要求实际 status 为 `rendering`、error 为空且没有静音或零 renderer volume；系统 audio route 完成要求 session category 为 playback、mode 为 movie playback、至少存在一个输出 port 且系统输出音量大于零。请求给 synchronizer 的 rate 只表达控制意图，不能作为实际播放证据。Lifecycle 为 Playing 时还必须取得同一 Media Session、同一 stream epoch 的第二次观察，并分别证明 timeline、video sample、renderer accepted input，以及存在音轨时的 audio sample 均持续增加。Lifecycle 为 Ended 时改为证明 displayed image 已清除且系统 audio session 已停用，不要求一个与纯黑语义冲突的 displayed pixel。
+每个物理 Vision Pro 运行都必须从生产 Debug Snapshot 和当前 `VideoPlayerComponent` 记录生成 `PlaybackOutputObservation`，不得用另一套播放状态机推断结果。单次观察按固定顺序报告第一处未完成边界：Media Session、video sample、renderer input、decoder bootstrap、底层 timebase 的实际播放 rate 大于零、RealityKit binding、component ready、displayed pixel、audio sample、audio renderer、系统 audio session、系统 audio route。音频 renderer 完成要求实际 status 为 `rendering`、error 为空且没有静音或零 renderer volume；系统 audio route 完成要求 session category 为 playback、mode 为 movie playback、至少存在一个输出 port 且系统输出音量大于零。请求给 synchronizer 的 rate 只表达控制意图，不能作为实际播放证据。Lifecycle 为 Playing 时还必须取得同一 Media Session、同一 stream epoch 的第二次观察，并分别证明 timeline、video sample、renderer accepted input，以及存在音轨时的 audio sample 均持续增加。Lifecycle 为 Ended 时改为证明 displayed image 已清除且系统 audio session 已停用，不要求一个与纯黑语义冲突的 displayed pixel。
 
 因此，`renderer bound` 只能完成节点 08，`component ready` 不能替代 displayed pixel，单个 displayed pixel 不能替代持续播放，audio sample enqueue 也不能替代 audio renderer rendering、有效系统路由或物理听音。真机 XCUITest 必须把启动、暂停、恢复、播放态 Seek 后的成对状态观察、Accessibility hierarchy 和 `XCUIScreen` 截图保存在同一 `.xcresult`；自动通过至少要求实际 timebase rate、position、video sample、renderer accepted input 和存在音轨时的 audio sample 共同推进，并保存 renderer status/error、session category/mode、输出 port 与系统音量。相邻截图用于视觉确认画面并非持续停留在同一帧；物理麦克风录音或佩戴者听音仍是唯一能证明声音最终离开设备的证据。失败诊断首先读取上述第一未完成边界。
 
@@ -111,5 +116,5 @@ UR12 声学验收在录音开始时保存 wall-clock，XCUITest 在 initial play
 - 节点 01 失败：检查 Enchron App 来源授权、Media Reference 解析或远程 range bridge。
 - 节点 02–06 失败：先修复并重新验证 PlaybackCore，不修改 UI 来掩盖问题。
 - 节点 07 失败：检查 sample、Receiver、timeline 与 renderer graph。
-- 节点 08–09 在 Simulator 或 App 集成验证中失败：检查 `PlaybackRuntime`、consumer binding、状态投影、visionOS 平台接口、Scene 生命周期与空间呈现状态转换。
-- 前面的自动验证全部通过而 Vision Pro 真机失败：检查设备解码器、HDR/EDR、音频路线、空间呈现与性能，不反向宣称所有播放核心节点失效。
+- 节点 08–09 在物理 Vision Pro 自动回归中失败：检查 `PlaybackRuntime`、consumer binding、状态投影、visionOS 平台接口、Scene 生命周期与空间呈现状态转换。
+- PlaybackCore 与纯逻辑合同通过而设备自动回归或专项验收失败：检查设备解码器、HDR/EDR、音频路线、空间呈现与性能，不反向宣称所有播放核心节点失效。

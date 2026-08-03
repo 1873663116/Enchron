@@ -47,6 +47,9 @@
             reference = "container:Enchron.xctestplan"
             default = "YES">
          </TestPlanReference>
+         <TestPlanReference
+            reference = "container:VisionProCoreRegression.xctestplan">
+         </TestPlanReference>
       </TestPlans>
    </TestAction>
    <LaunchAction

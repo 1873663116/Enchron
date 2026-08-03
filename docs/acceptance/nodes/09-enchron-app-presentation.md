@@ -29,4 +29,4 @@ Environment Context 与 Playback Presentation 独立。V1 只有一个正式 Env
 
 ## 验收
 
-visionOS Simulator 使用 `Scripts/verification/verify-spatial-presentations-simulator.zsh` 驱动真实 PlaybackCore session，证明 Window surface 的 displayed frame、持续推进、音频、detach、same-process reopen，以及 Window → Docked → Window → Panorama → Window 事件序列、同一 Media Session、surface attach、两帧截图变化和 Panorama desired/actual mode 收敛。Vision Pro 独立验收硬件解码、HDR/EDR、可听同步、实际 immersive behavior、空间舒适度和性能。
+物理 Vision Pro 的 XCUITest 驱动真实 PlaybackCore Session，证明 Window surface 的 displayed frame、持续推进、音频、detach、same-process reopen，以及 Window → Docked → Window → Panorama → Window 事件序列、同一 Media Session、surface attach、截图变化和 Panorama desired/actual mode 收敛。相同候选版本在设备上继续完成硬件解码、HDR/EDR、物理音频、实际 immersive behavior、空间舒适度和性能验收。

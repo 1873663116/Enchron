@@ -1,0 +1,18 @@
+---
+description: Vision Pro / playback acceptance requires assertions plus visual screenshots
+alwaysApply: true
+---
+
+# 验收必须综合判断
+
+对 Vision Pro 真机、播放画面、加载态与控件交互的验收，不能只凭 XCTest 绿了或某一条断言成立就报通过。
+
+必须同时使用：
+
+1. 测试是否执行到目标路径
+2. 断言与 control-plane 状态字符串（lifecycle、displayedPixel、position 推进等）
+3. 截图目视：窗口里是否真有推进中的视频画面
+
+任一不足都不能报验收成功。已知假阳性：`displayedPixel=true` / `videoSamples` 推进 / 测试 Passed，但截图仍是 LoadingSpinner、毛玻璃空板或仅音频在播。
+
+截图应落到可复查路径（例如 `.cursor/acceptance-shots/<name>-screen.png`）。报告结论前先看图；Spinner、空板、黑窗、控件已出但无画面，一律判未通过。

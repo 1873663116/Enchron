@@ -58,8 +58,8 @@
     },
     {
       "id": "historical-evidence",
-      "path": "docs/acceptance/evidence.md",
-      "label": "历史交付证据"
+      "path": "docs/archive/acceptance/evidence-through-2026-07-26.md",
+      "label": "归档交付证据"
     },
     {
       "id": "presentation-node",
@@ -451,7 +451,7 @@
           },
           {
             "id": "settled",
-            "label": "Settled"
+            "label": "成功后置条件已满足"
           },
           {
             "id": "committed",
@@ -616,6 +616,37 @@
         ]
       },
       {
+        "id": "state.panoramaReturnEnvironmentContext",
+        "label": "Panorama Return Environment Context",
+        "values": [
+          {
+            "id": "inactive",
+            "label": "不适用"
+          },
+          {
+            "id": "none",
+            "label": "返回无 Environment"
+          },
+          {
+            "id": "capturedActive",
+            "label": "恢复进入前的 Environment 与 Effect"
+          }
+        ],
+        "ownerIds": [
+          "playback-presentation"
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## 产品状态"
+          },
+          {
+            "sourceId": "product-requirements",
+            "heading": "## Docked、Panorama 与退出"
+          }
+        ]
+      },
+      {
         "id": "state.dockingEnvironmentSource",
         "label": "Docking Environment Source",
         "values": [
@@ -629,7 +660,7 @@
           },
           {
             "id": "temporaryDefault",
-            "label": "临时 Default Environment"
+            "label": "仅为本次 Docked 启动的 Default Environment"
           }
         ],
         "ownerIds": [
@@ -1278,7 +1309,7 @@
       },
       {
         "id": "invariant.transitionRollback",
-        "label": "每次 Presentation 转换先捕获播放意图；Playing 在转换期间暂停并在 settled 后恢复，Ready、Paused、Ended 保持原意图；失败回滚原 Presentation、Environment Context、renderer binding 与播放意图。",
+        "label": "每次 Presentation 转换先捕获播放意图；Playing 在转换期间暂停，目标 surface 达到相应成功后置条件后恢复；Ready、Paused、Ended 保持原意图；失败回滚原 Presentation、Environment Context、renderer binding 与播放意图。",
         "ownerIds": [
           "playback-presentation"
         ],
@@ -1425,15 +1456,15 @@
         ]
       },
       {
-        "id": "invariant.evidenceLayers",
-        "label": "实现、当前验证与历史证据分别表达；Simulator 配置验收不能代替 Vision Pro 实际模式验收，上层证据不能代替下层门槛。",
+        "id": "invariant.verificationResponsibilities",
+        "label": "实现、当前验证与归档证据分别表达；PlaybackCore 与纯逻辑合同、物理 Vision Pro 自动回归和设备专项验收分别支持各自能够直接证明的事实。",
         "ownerIds": [
           "apps"
         ],
         "sourceRefs": [
           {
             "sourceId": "verification-system",
-            "heading": "## 顺序与门槛"
+            "heading": "## 验证工作与发布门槛"
           }
         ]
       }
@@ -1600,6 +1631,26 @@
         ]
       },
       {
+        "id": "constraint.panoramaNoActiveEnvironment",
+        "label": "Panorama 当前不得有活动 Enchron Environment。",
+        "whenAll": [
+          {
+            "dimensionId": "state.playbackPresentation",
+            "equals": "panorama"
+          },
+          {
+            "dimensionId": "state.environmentContext",
+            "notEquals": "none"
+          }
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## Docked、Panorama 与退出"
+          }
+        ]
+      },
+      {
         "id": "constraint.endedSurfaceBlack",
         "label": "Ended 的产品画面必须是纯黑。",
         "whenAll": [
@@ -1759,7 +1810,7 @@
           "label": "Main Window",
           "kind": "window",
           "role": "main",
-          "responsibility": "承载 Media Library、Settings 与 Window Playback，是产品行为进入空间呈现的起点。",
+        "responsibility": "以同一个 visionOS automatic Window 承载 Media Library、Settings、加载与 Window Playback；系统拥有外层玻璃和圆角，产品状态只替换内容。",
           "sceneId": "scene.mainWindow",
           "relatedActions": {
             "bySceneId": "scene.mainWindow"
@@ -1840,7 +1891,6 @@
             "actionIds": [
               "docked.returnWindow",
               "panorama.returnWindow",
-              "panorama.backToLibrary",
               "controls.summonOrHide",
               "controls.openAdvanced",
               "controls.openMore",
@@ -2049,6 +2099,7 @@
             "state.mediaSessionResidency": "none",
             "state.playbackLifecycle": "idle",
             "state.playbackPresentation": "none",
+            "state.environmentContext": "none",
             "state.immersiveSpaceResidency": "closed",
             "state.progressiveImmersion": "inactive",
             "state.immersiveContent": "none",
@@ -2183,6 +2234,7 @@
             "state.playbackLifecycle": "playing",
             "state.playbackPresentation": "window",
             "state.presentationTransition": "idle",
+            "state.environmentContext": "none",
             "state.immersiveSpaceResidency": "closed",
             "state.progressiveImmersion": "inactive",
             "state.immersiveContent": "none",
@@ -2337,6 +2389,7 @@
             "state.stereoLayout": "mono",
             "state.formatPreference": "valid",
             "state.environmentContext": "none",
+            "state.panoramaReturnEnvironmentContext": "capturedActive",
             "state.immersiveSpaceResidency": "open",
             "state.progressiveImmersion": "userControlled",
             "state.immersiveContent": "panoramaSurface",
@@ -2348,8 +2401,8 @@
           "answers": {
             "question.picture": "视频包围用户，位于 Enchron Immersive Space 的 Panorama Surface。",
             "question.playback": "同一个 Media Session 正在播放。",
-            "question.surroundings": "本快照没有活动 Enchron Environment，Panorama 独占空间视频呈现。",
-            "question.actions": "召唤 Player Controls，调节播放或 Panorama Format，返回 Window 或回到 Media Library。"
+            "question.surroundings": "本快照没有活动 Enchron Environment；黑色周围环境与视频投影球面构成 Panorama，进入前的 Environment 与 Effect 只作为返回目标保存。",
+            "question.actions": "召唤 Player Controls，调节播放或 Panorama Format，或返回 Window。"
           },
           "drilldown": [
             {
@@ -2364,7 +2417,9 @@
               "dimensionIds": [
                 "state.playbackPresentation",
                 "state.mediaProjection",
-                "state.stereoLayout"
+                "state.stereoLayout",
+                "state.environmentContext",
+                "state.panoramaReturnEnvironmentContext"
               ]
             },
             {
@@ -2388,7 +2443,8 @@
             "constraint.presentationNeedsSession",
             "constraint.panoramaNeedsSpace",
             "constraint.panoramaNeedsSurface",
-            "constraint.panoramaNoEnvironmentCard"
+            "constraint.panoramaNoEnvironmentCard",
+            "constraint.panoramaNoActiveEnvironment"
           ],
           "sourceRefs": [
             {
@@ -2444,7 +2500,7 @@
           "state.sourceAccess": "available"
         },
         "answers": {
-          "question.picture": "当前 Presentation 保持原位，并显示媒体打开或加载反馈。",
+          "question.picture": "Main Window 保持同一个 Window Playback RealityView，visionOS 保留系统玻璃与圆角；产品只叠加 LoadingSpinner，Window Chrome 等到 videoVisible 才出现。",
           "question.playback": "来源可访问，Media Session 正在打开和加载。",
           "question.actions": "等待 Media Session 准备完成。"
         },
@@ -2456,33 +2512,7 @@
             {
               "sourceId": "product-requirements",
               "heading": "## 媒体与来源"
-            }
-          ]
-        },
-        {
-          "id": "branch.recoverableFailure",
-          "label": "Recoverable Failure",
-          "kind": "failure",
-          "summary": "媒体打开或来源访问失败，但用户仍可修复来源并重试。",
-          "applicableSnapshotIds": [
-          "snapshot.mediaLibrary",
-          "snapshot.environmentOnly"
-          ],
-          "state": {
-            "state.mediaSessionResidency": "failed",
-            "state.playbackLifecycle": "failed",
-            "state.sourceAccess": "recoverableFailure"
-          },
-          "answers": {
-            "question.picture": "当前 Presentation 保持原位，并显示可恢复的打开失败反馈。",
-            "question.playback": "Media Session 打开失败；来源访问失败仍允许重试。",
-            "question.actions": "检查来源后重试，或返回媒体浏览。"
-          },
-          "invariantIds": [
-            "invariant.libraryReferencesOnly"
-          ],
-          "constraintIds": [],
-          "sourceRefs": [
+            },
             {
               "sourceId": "ui-spec",
               "heading": "## Surface ownership"
@@ -2490,10 +2520,45 @@
           ]
         },
         {
+          "id": "branch.recoverableFailure",
+          "label": "Recoverable Failure",
+          "kind": "failure",
+          "summary": "媒体打开或已可用播放期间的来源访问失败；用户可修复来源后选择 Retry，或选择 Close。",
+          "applicableSnapshotIds": [
+            "snapshot.mediaLibrary",
+            "snapshot.environmentOnly"
+          ],
+          "state": {
+            "state.mediaSessionResidency": "failed",
+            "state.playbackLifecycle": "failed",
+            "state.sourceAccess": "recoverableFailure"
+          },
+          "answers": {
+            "question.picture": "Window 失败界面或空间 Player Control Dock 显示 Retry 与 Close。",
+            "question.playback": "当前播放显式进入 failed；已经形成可用输出时，不在背景自动创建或替换 Media Session。",
+            "question.actions": "检查来源后选择 Retry，或选择 Close。"
+          },
+          "invariantIds": [
+            "invariant.libraryReferencesOnly",
+            "invariant.oneSession"
+          ],
+          "constraintIds": [],
+          "sourceRefs": [
+            {
+              "sourceId": "ui-spec",
+              "heading": "## Surface ownership"
+            },
+            {
+              "sourceId": "product-requirements",
+              "heading": "## 媒体与来源"
+            }
+          ]
+        },
+        {
           "id": "branch.presentationTransition",
           "label": "Presentation Transition",
           "kind": "temporary",
-          "summary": "转换期间捕获播放意图，暂停正在播放的媒体，并在 settled 后提交或回滚。",
+          "summary": "转换期间捕获播放意图并暂停正在播放的媒体；目标 surface 达到相应成功后置条件后提交，否则回滚。",
           "applicableSnapshotIds": [
             "snapshot.windowPlayback",
             "snapshot.dockedPlayback",
@@ -3167,6 +3232,10 @@
           {
             "id": "spatial-menus",
             "label": "Advanced 与 More"
+          },
+          {
+            "id": "spatial-failure-actions",
+            "label": "播放失败后的 Retry 与 Close"
           }
         ],
         "sourceRefs": [
@@ -5006,15 +5075,34 @@
           "branches": [
             {
               "label": "来源解析或 Session open 失败",
-              "result": "显示可恢复失败，不切换来源或播放实现。",
+              "result": "首次可用音视频输出形成前，只在预先规定的次数和总等待时间内自动重新解析同一 Media Reference 并重新打开。每次失败尝试完整关闭其 Media Session 并释放来源访问资源；规定范围内仍未成功时显示可恢复失败，不切换来源或播放实现。",
               "steps": [
                 {
-                  "label": "发布失败并保持无 Presentation",
+                  "label": "关闭失败尝试的 Media Session 并释放来源访问资源",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.mediaSessionResidency": "none",
+                    "state.sourceAccess": "unresolved",
+                    "state.rendererConsumerBinding": "none"
+                  }
+                },
+                {
+                  "label": "在规定范围内重新解析同一 Media Reference 并创建新的 Media Session",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.mediaSessionResidency": "opening",
+                    "state.playbackLifecycle": "loading",
+                    "state.sourceAccess": "leased"
+                  }
+                },
+                {
+                  "label": "规定范围内仍未成功时发布失败并保持无 Presentation",
                   "actorId": "enchron",
                   "patch": {
                     "state.mediaSessionResidency": "failed",
                     "state.playbackLifecycle": "failed",
                     "state.playbackPresentation": "none",
+                    "state.sourceAccess": "recoverableFailure",
                     "state.rendererConsumerBinding": "none"
                   }
                 }
@@ -5614,7 +5702,7 @@
     {
       "id": "playback.autoEnterSavedPanorama",
       "label": "恢复已保存的 Panorama 格式",
-      "summary": "完成 Resume Decision 后，使用有效 panoramic Format Preference 自动进入 Panorama；不自动检测格式。",
+      "summary": "完成 Resume Decision 后，使用有效 panoramic Format Preference 自动进入 Panorama；停用并记住进入前的 Environment Context，不自动检测格式。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Persisted Panorama Reopen",
       "ownerIds": [
@@ -5623,7 +5711,7 @@
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "observed",
+        "implementation": "partial",
         "verification": "notEvidenced"
       },
       "placements": [
@@ -5651,6 +5739,8 @@
             "state.playbackLifecycle": "playing",
             "state.formatPreference": "valid",
             "state.mediaProjection": "360",
+            "state.environmentContext": "none",
+            "state.panoramaReturnEnvironmentContext": "inactive",
             "state.immersiveSpaceResidency": "closed",
             "state.immersiveContent": "none",
             "state.rendererConsumerBinding": "window",
@@ -5673,11 +5763,12 @@
               }
             },
             {
-              "label": "打开空间并绑定同一 Session 的 Panorama Surface",
-              "actorId": "enchron",
+          "label": "打开空间、绑定同一 Session 的 Panorama Surface，并等待 Player Controls Window 可用",
+          "actorId": "enchron",
               "patch": {
                 "state.immersiveSpaceResidency": "open",
                 "state.immersiveContent": "panoramaSurface",
+                "state.panoramaReturnEnvironmentContext": "none",
                 "state.rendererConsumerBinding": "panorama",
                 "state.presentationTransition": "settled"
               }
@@ -5704,6 +5795,7 @@
                   "patch": {
                     "state.immersiveSpaceResidency": "closed",
                     "state.immersiveContent": "none",
+                    "state.panoramaReturnEnvironmentContext": "inactive",
                     "state.playbackPresentation": "window",
                     "state.playbackLifecycle": "playing",
                     "state.rendererConsumerBinding": "window",
@@ -5744,22 +5836,26 @@
     {
       "id": "playback.retryLoad",
       "label": "Retry",
-      "summary": "使用同一来源重试打开，不切换 provider 或来源。",
+      "summary": "用户在失败界面选择 Retry 后，Enchron 重新解析同一 Media Reference 并创建新的 Media Session，不切换 Remote Source、provider 或播放实现。Content Revision 与失败前一致时，新 Media Session 从失败前最后一次满足全部可用音视频输出条件的观测所记录的 media time 开始；版本已变化或无法可靠验证时，说明原因并直接从零开始，不再要求用户确认。",
       "visualGrammar": "causal-chain",
-      "causalSubject": "媒体启动",
+      "causalSubject": "用户确认的媒体重新打开",
       "ownerIds": [
         "playback-feature",
         "playback-core"
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "observed",
+        "implementation": "partial",
         "verification": "notEvidenced"
       },
       "placements": [
         {
           "surfaceId": "surface.loadingFailureOverlay",
           "regionId": "failure-actions"
+        },
+        {
+          "surfaceId": "surface.playerControlsWindow",
+          "regionId": "spatial-failure-actions"
         }
       ],
       "availableWhen": [
@@ -5773,7 +5869,9 @@
           "id": "default",
           "initialState": {
             "state.mediaSessionResidency": "failed",
-            "state.playbackLifecycle": "failed"
+            "state.playbackLifecycle": "failed",
+            "state.sourceAccess": "recoverableFailure",
+            "state.contentRevision": "current"
           },
           "steps": [
             {
@@ -5782,7 +5880,23 @@
               "patch": {}
             },
             {
-              "label": "重试相同来源",
+              "label": "关闭失败的 Media Session 并释放其来源访问资源",
+              "actorId": "enchron",
+              "patch": {
+                "state.mediaSessionResidency": "none",
+                "state.sourceAccess": "unresolved"
+              }
+            },
+            {
+              "label": "重新解析同一 Media Reference 并确认 Content Revision 与失败前一致",
+              "actorId": "enchron",
+              "patch": {
+                "state.sourceAccess": "leased",
+                "state.contentRevision": "current"
+              }
+            },
+            {
+              "label": "从失败前最后一次满足全部可用音视频输出条件的观测所记录的 media time 创建新 Media Session",
               "actorId": "enchron",
               "patch": {
                 "state.mediaSessionResidency": "opening",
@@ -5792,6 +5906,52 @@
           ],
           "branches": [
             {
+              "label": "Content Revision 已变化",
+              "result": "不使用失败前的位置；说明媒体内容已变化，并在不增加第二次确认的情况下从零打开。",
+              "steps": [
+                {
+                  "label": "重新解析确认 Content Revision 已变化",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.contentRevision": "changed",
+                    "state.sourceAccess": "leased"
+                  }
+                },
+                {
+                  "label": "说明内容已变化，并从 media time 零创建新 Media Session",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.mediaSessionResidency": "opening",
+                    "state.playbackLifecycle": "loading"
+                  }
+                }
+              ],
+              "visualSemantic": "alternativeOutcome"
+            },
+            {
+              "label": "Content Revision 无法可靠验证",
+              "result": "不使用失败前的位置；说明无法确认与失败前的内容一致，并在不增加第二次确认的情况下从零打开。",
+              "steps": [
+                {
+                  "label": "重新解析无法可靠提供 Content Revision",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.contentRevision": "unavailable",
+                    "state.sourceAccess": "leased"
+                  }
+                },
+                {
+                  "label": "说明无法确认内容一致性，并从 media time 零创建新 Media Session",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.mediaSessionResidency": "opening",
+                    "state.playbackLifecycle": "loading"
+                  }
+                }
+              ],
+              "visualSemantic": "alternativeOutcome"
+            },
+            {
               "label": "仍然失败",
               "result": "留在 Failure Overlay。",
               "steps": [
@@ -5800,7 +5960,8 @@
                   "actorId": "enchron",
                   "patch": {
                     "state.mediaSessionResidency": "failed",
-                    "state.playbackLifecycle": "failed"
+                    "state.playbackLifecycle": "failed",
+                    "state.sourceAccess": "recoverableFailure"
                   }
                 }
               ],
@@ -5817,6 +5978,14 @@
         {
           "sourceId": "core-spec",
           "heading": "## Media Session"
+        },
+        {
+          "sourceId": "product-requirements",
+          "heading": "## 媒体与来源"
+        },
+        {
+          "sourceId": "context",
+          "heading": "## 来源与产品策略"
         }
       ],
       "visualLayers": {
@@ -5829,10 +5998,11 @@
         },
         "machine": {
           "basis": "state-demonstrations-and-branches",
-          "summaryDimensions": [
-            "state.mediaSessionResidency",
-            "state.playbackLifecycle"
-          ]
+      "summaryDimensions": [
+        "state.mediaSessionResidency",
+        "state.playbackLifecycle",
+        "state.sourceAccess"
+      ]
         }
       }
     },
@@ -6843,10 +7013,10 @@
         }
       }
     },
-    {
-      "id": "window.enterDockedDay",
+  {
+    "id": "window.enterDockedDay",
       "label": "Dock · Day",
-      "summary": "继承活动 Environment 或临时使用 Default Environment，以同一 renderer 进入 Docked。",
+    "summary": "存在活动 Environment 时继承它；没有活动 Environment 时为本次 Docked 打开 Default Environment，并以同一 renderer 进入 Docked。",
       "visualGrammar": "spatial-transition",
       "causalSubject": "Window → Docked",
       "ownerIds": [
@@ -6855,9 +7025,9 @@
         "visionos"
       ],
       "decisionStatus": "confirmed",
-      "delivery": {
-        "implementation": "observed",
-        "verification": "notEvidenced"
+    "delivery": {
+      "implementation": "partial",
+      "verification": "notEvidenced"
       },
       "placements": [
         {
@@ -6905,11 +7075,16 @@
             "label": "把 renderer 绑定到 Docked Surface",
             "actorId": "enchron"
           },
-          {
-            "id": "settle",
-            "label": "等待目标画面稳定",
-            "actorId": "enchron"
-          },
+      {
+        "id": "settle",
+        "label": "等待目标画面与 Player Controls Window 可用",
+        "actorId": "enchron"
+      },
+      {
+        "id": "handoff",
+        "label": "通过系统动画隐藏 Main Window",
+        "actorId": "visionos"
+      },
           {
             "id": "commit",
             "label": "提交 Docked 并恢复原播放意图",
@@ -6961,13 +7136,23 @@
               }
             },
             {
-              "label": "绑定同一 renderer 并等待 settled",
-              "actorId": "enchron",
+          "label": "绑定同一 renderer，并等待目标 surface 与 Player Controls Window 可用",
+          "actorId": "enchron",
               "patch": {
                 "state.rendererConsumerBinding": "docked",
                 "state.presentationTransition": "settled"
-              }
-            },
+          }
+        },
+        {
+          "label": "确认 Window 与空间播放界面没有同时可操作或同时不可操作，再由系统隐藏 Main Window",
+          "actorId": "visionos",
+          "patch": {}
+        },
+        {
+          "label": "确认 Window 与空间播放界面没有同时可操作或同时不可操作，再由系统隐藏 Main Window",
+          "actorId": "visionos",
+          "patch": {}
+        },
             {
               "label": "提交 Docked 并恢复 Playing",
               "actorId": "enchron",
@@ -7037,14 +7222,19 @@
               }
             },
             {
-              "label": "在活动 Environment 的 Anchor 绑定 renderer",
-              "actorId": "enchron",
+          "label": "在活动 Environment 的 Anchor 绑定 renderer，并等待 Player Controls Window 可用",
+          "actorId": "enchron",
               "patch": {
                 "state.immersiveContent": "dockedSurface",
                 "state.rendererConsumerBinding": "docked",
                 "state.presentationTransition": "settled"
-              }
-            },
+          }
+        },
+        {
+          "label": "确认 Window 与空间播放界面没有同时可操作或同时不可操作，再由系统隐藏 Main Window",
+          "actorId": "visionos",
+          "patch": {}
+        },
             {
               "label": "提交 Docked；原 Paused 保持不变",
               "actorId": "enchron",
@@ -7090,8 +7280,8 @@
         }
       }
     },
-    {
-      "id": "window.enterDockedNight",
+  {
+    "id": "window.enterDockedNight",
       "label": "Dock · Night",
       "summary": "与 Dock · Day 使用同一事务，只把本次 Docked Effect 设为 Night。",
       "visualGrammar": "causal-chain",
@@ -7102,9 +7292,9 @@
         "visionos"
       ],
       "decisionStatus": "confirmed",
-      "delivery": {
-        "implementation": "observed",
-        "verification": "notEvidenced"
+    "delivery": {
+      "implementation": "partial",
+      "verification": "notEvidenced"
       },
       "placements": [
         {
@@ -7161,15 +7351,20 @@
               }
             },
             {
-              "label": "打开空间并绑定 Docked Surface",
-              "actorId": "enchron",
+          "label": "打开空间、绑定 Docked Surface，并等待 Player Controls Window 可用",
+          "actorId": "enchron",
               "patch": {
                 "state.immersiveSpaceResidency": "open",
                 "state.immersiveContent": "dockedSurface",
                 "state.rendererConsumerBinding": "docked",
                 "state.presentationTransition": "settled"
-              }
-            },
+          }
+        },
+        {
+          "label": "确认 Window 与空间播放界面没有同时可操作或同时不可操作，再由系统隐藏 Main Window",
+          "actorId": "visionos",
+          "patch": {}
+        },
             {
               "label": "提交 Docked 并恢复 Playing",
               "actorId": "enchron",
@@ -7429,7 +7624,7 @@
     {
       "id": "window.applyPanoramaFormat",
       "label": "Apply Panorama Format",
-      "summary": "应用完整 Media Format、保存偏好，并把同一 renderer 从 Window 迁移到 Panorama。",
+      "summary": "应用完整 Media Format、保存偏好，停用并记住进入前的 Environment Context，再把同一 renderer 从 Window 迁移到 Panorama。",
       "visualGrammar": "format-to-space-transition",
       "causalSubject": "Window → Panorama",
       "ownerIds": [
@@ -7439,7 +7634,7 @@
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "observed",
+        "implementation": "partial",
         "verification": "notEvidenced"
       },
       "placements": [
@@ -7504,6 +7699,8 @@
             "state.mediaProjection": "flat",
             "state.stereoLayout": "mono",
             "state.formatPreference": "none",
+            "state.environmentContext": "none",
+            "state.panoramaReturnEnvironmentContext": "inactive",
             "state.immersiveSpaceResidency": "closed",
             "state.immersiveContent": "none",
             "state.environmentCardResidency": "closed",
@@ -7536,15 +7733,21 @@
               }
             },
             {
-              "label": "打开空间并绑定 Panorama Surface",
-              "actorId": "enchron",
+          "label": "打开空间、绑定 Panorama Surface，并等待 Player Controls Window 可用",
+          "actorId": "enchron",
               "patch": {
                 "state.immersiveSpaceResidency": "open",
                 "state.immersiveContent": "panoramaSurface",
+                "state.panoramaReturnEnvironmentContext": "none",
                 "state.rendererConsumerBinding": "panorama",
                 "state.presentationTransition": "settled"
-              }
-            },
+          }
+        },
+        {
+          "label": "确认 Window 与空间播放界面没有同时可操作或同时不可操作，再由系统隐藏 Main Window",
+          "actorId": "visionos",
+          "patch": {}
+        },
             {
               "label": "提交 Panorama 并恢复 Playing",
               "actorId": "enchron",
@@ -7567,7 +7770,8 @@
                   "actorId": "enchron",
                   "patch": {
                     "state.immersiveContent": "none",
-                    "state.immersiveSpaceResidency": "closed"
+                    "state.immersiveSpaceResidency": "closed",
+                    "state.panoramaReturnEnvironmentContext": "inactive"
                   }
                 },
                 {
@@ -7624,7 +7828,7 @@
     {
       "id": "window.resumePanorama",
       "label": "返回 Panorama",
-      "summary": "Window 仍持有 panoramic Effective Format 时直接恢复刚才的 Panorama，不再显示首次选择。",
+      "summary": "Window 仍持有 panoramic Effective Format 时，停用并记住当前 Environment Context，直接恢复刚才的 Panorama，不再显示首次选择。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Window → Panorama",
       "ownerIds": [
@@ -7633,7 +7837,7 @@
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "observed",
+        "implementation": "partial",
         "verification": "notEvidenced"
       },
       "placements": [
@@ -7660,6 +7864,8 @@
             "state.playbackPresentation": "window",
             "state.playbackLifecycle": "paused",
             "state.mediaProjection": "360",
+            "state.environmentContext": "none",
+            "state.panoramaReturnEnvironmentContext": "inactive",
             "state.immersiveSpaceResidency": "closed",
             "state.immersiveContent": "none",
             "state.rendererConsumerBinding": "window",
@@ -7680,6 +7886,7 @@
               "patch": {
                 "state.immersiveSpaceResidency": "open",
                 "state.immersiveContent": "panoramaSurface",
+                "state.panoramaReturnEnvironmentContext": "none",
                 "state.rendererConsumerBinding": "panorama",
                 "state.presentationTransition": "settled"
               }
@@ -7705,6 +7912,7 @@
                   "patch": {
                     "state.immersiveContent": "none",
                     "state.immersiveSpaceResidency": "closed",
+                    "state.panoramaReturnEnvironmentContext": "inactive",
                     "state.playbackPresentation": "window",
                     "state.playbackLifecycle": "paused",
                     "state.rendererConsumerBinding": "window",
@@ -7714,6 +7922,12 @@
                 }
               ],
               "visualSemantic": "rollback"
+            },
+            {
+              "label": "进入前存在活动 Environment",
+              "result": "复用同一 Immersive Space Open Cycle 并保持当前 Progressive Immersion Amount；停用 Environment 与 Effect，将二者捕获为返回目标；Panorama 当前 Environment Context 为 none。",
+              "steps": [],
+              "visualSemantic": "alternativeOutcome"
             }
           ]
         }
@@ -7742,8 +7956,8 @@
         }
       }
     },
-    {
-      "id": "docked.returnWindow",
+  {
+    "id": "docked.returnWindow",
       "label": "Return to Window",
       "summary": "把同一 renderer 迁回 Window，并恢复进入 Docked 前的 Environment Context。",
       "visualGrammar": "causal-chain",
@@ -7753,9 +7967,9 @@
         "apps"
       ],
       "decisionStatus": "confirmed",
-      "delivery": {
-        "implementation": "observed",
-        "verification": "notEvidenced"
+    "delivery": {
+      "implementation": "partial",
+      "verification": "notEvidenced"
       },
       "placements": [
         {
@@ -7794,16 +8008,21 @@
               }
             },
             {
-              "label": "暂停并绑定 Window Surface",
-              "actorId": "enchron",
+          "label": "暂停、绑定 Window Surface，并等待 Window 播放界面可用",
+          "actorId": "enchron",
               "patch": {
                 "state.playbackLifecycle": "paused",
                 "state.rendererConsumerBinding": "window",
                 "state.presentationTransition": "settled"
-              }
-            },
+          }
+        },
+        {
+          "label": "通过系统动画关闭 Player Controls Window，交接期间保持一个可操作界面",
+          "actorId": "visionos",
+          "patch": {}
+        },
             {
-              "label": "提交 Window、清理临时 Docking Context 并恢复 Playing",
+          "label": "提交 Window、清除仅为本次 Docked 选择的 Default Environment 与 Effect，并恢复 Playing",
               "actorId": "enchron",
               "patch": {
                 "state.playbackPresentation": "window",
@@ -7872,7 +8091,7 @@
     {
       "id": "panorama.returnWindow",
       "label": "Return to Window",
-      "summary": "把同一 renderer 迁回 Window，保留 panoramic Media Format 与偏好。",
+      "summary": "把同一 renderer 迁回 Window，保留 panoramic Media Format 与偏好，并按 Panorama Return Environment Context 恢复进入前的 Environment 与 Effect。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Panorama → Window",
       "ownerIds": [
@@ -7881,7 +8100,7 @@
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "observed",
+        "implementation": "partial",
         "verification": "notEvidenced"
       },
       "placements": [
@@ -7905,7 +8124,11 @@
             "state.playbackLifecycle": "paused",
             "state.mediaProjection": "360",
             "state.formatPreference": "valid",
+            "state.environmentContext": "none",
+            "state.environmentEffect": "none",
+            "state.panoramaReturnEnvironmentContext": "capturedActive",
             "state.immersiveSpaceResidency": "open",
+            "state.progressiveImmersion": "userControlled",
             "state.immersiveContent": "panoramaSurface",
             "state.rendererConsumerBinding": "panorama",
             "state.presentationTransition": "idle"
@@ -7920,20 +8143,28 @@
               }
             },
             {
-              "label": "绑定 Window Surface",
-              "actorId": "enchron",
+          "label": "绑定 Window Surface，并等待 Window 播放界面可用",
+          "actorId": "enchron",
               "patch": {
                 "state.rendererConsumerBinding": "window",
                 "state.presentationTransition": "settled"
-              }
-            },
+          }
+        },
+        {
+          "label": "通过系统动画关闭 Player Controls Window，交接期间保持一个可操作界面",
+          "actorId": "visionos",
+          "patch": {}
+        },
             {
               "label": "提交 Window；格式保持 panoramic，播放保持 Paused",
               "actorId": "enchron",
               "patch": {
                 "state.playbackPresentation": "window",
-                "state.immersiveContent": "none",
-                "state.immersiveSpaceResidency": "closed",
+                "state.environmentContext": "active",
+                "state.environmentEffect": "day",
+                "state.panoramaReturnEnvironmentContext": "inactive",
+                "state.immersiveContent": "environmentOnly",
+                "state.immersiveSpaceResidency": "open",
                 "state.presentationPlaybackIntent": "none",
                 "state.presentationTransition": "committed"
               }
@@ -7950,6 +8181,9 @@
                   "patch": {
                     "state.playbackPresentation": "panorama",
                     "state.playbackLifecycle": "paused",
+                    "state.environmentContext": "none",
+                    "state.environmentEffect": "none",
+                    "state.panoramaReturnEnvironmentContext": "capturedActive",
                     "state.rendererConsumerBinding": "panorama",
                     "state.immersiveSpaceResidency": "open",
                     "state.immersiveContent": "panoramaSurface",
@@ -7959,6 +8193,12 @@
                 }
               ],
               "visualSemantic": "rollback"
+            },
+            {
+              "label": "进入前 Environment Context 为 none",
+              "result": "Window 保持没有活动 Environment，并关闭不再需要的 Enchron Immersive Space。",
+              "steps": [],
+              "visualSemantic": "alternativeOutcome"
             }
           ]
         }
@@ -7984,110 +8224,9 @@
         "machine": {
           "basis": "state-demonstrations-and-branches",
           "summaryDimensions": [
-            "state.presentationTransition",
             "state.rendererConsumerBinding",
-            "state.presentationPlaybackIntent"
-          ]
-        }
-      }
-    },
-    {
-      "id": "panorama.backToLibrary",
-      "label": "Back to Media Library",
-      "summary": "关闭当前 Media Session，回到 Window Media Library，保留进入 Panorama 前的 Environment Context。",
-      "visualGrammar": "causal-chain",
-      "causalSubject": "Panorama → Media Library",
-      "ownerIds": [
-        "playback-feature",
-        "playback-presentation",
-        "apps"
-      ],
-      "decisionStatus": "confirmed",
-      "delivery": {
-        "implementation": "observed",
-        "verification": "notEvidenced"
-      },
-      "placements": [
-        {
-          "surfaceId": "surface.playerControlsWindow",
-          "regionId": "spatial-navigation"
-        }
-      ],
-      "availableWhen": [
-        {
-          "dimensionId": "state.playbackPresentation",
-          "equals": "panorama"
-        }
-      ],
-      "demonstrations": [
-        {
-          "id": "default",
-          "initialState": {
-            "state.mediaSessionResidency": "active",
-            "state.playbackPresentation": "panorama",
-            "state.appDestination": "windowPlayback",
-            "state.immersiveSpaceResidency": "open",
-            "state.immersiveContent": "panoramaSurface",
-            "state.rendererConsumerBinding": "panorama",
-            "state.environmentContext": "active",
-            "state.environmentEffect": "day"
-          },
-          "steps": [
-            {
-              "label": "选择 Back",
-              "actorId": "user",
-              "patch": {}
-            },
-            {
-              "label": "关闭 Session 与空间内容",
-              "actorId": "enchron",
-              "patch": {
-                "state.mediaSessionResidency": "none",
-                "state.playbackLifecycle": "idle",
-                "state.playbackPresentation": "none",
-                "state.rendererConsumerBinding": "none",
-                "state.immersiveContent": "environmentOnly"
-              }
-            },
-            {
-              "label": "回到 Media Library",
-              "actorId": "enchron",
-              "patch": {
-                "state.appDestination": "mediaLibrary"
-              }
-            }
-          ],
-          "branches": [
-            {
-              "label": "Cleanup 或 space close 失败",
-              "decisionStatus": "unresolved",
-              "result": "反馈策略尚未定义。",
-              "steps": [],
-              "visualSemantic": "unresolved"
-            }
-          ]
-        }
-      ],
-      "sourceRefs": [
-        {
-          "sourceId": "product-requirements",
-          "heading": "## Docked、Panorama 与退出"
-        }
-      ],
-      "visualLayers": {
-        "primary": "journey",
-        "journey": {
-          "basis": "product-demonstrations"
-        },
-        "blueprint": {
-          "basis": "structural-placement-and-ownership"
-        },
-        "machine": {
-          "basis": "state-demonstrations-and-branches",
-          "summaryDimensions": [
-            "state.mediaSessionResidency",
-            "state.playbackPresentation",
-            "state.playbackLifecycle"
+            "state.environmentContext",
+            "state.panoramaReturnEnvironmentContext"
           ]
         }
       }
@@ -8175,7 +8314,7 @@
     {
       "id": "controls.summonOrHide",
       "label": "显示或隐藏 Playback Deck",
-      "summary": "在当前播放表面召唤或隐藏 Deck；Ended 时主按钮投影为 Replay。具体 gaze/tap 手势仍未规格化。",
+      "summary": "在当前播放表面召唤或隐藏 Deck；Window RealityView 先用目标化 SpatialTap 处理视频实体命中，再用同一 RealityView 的普通点击互斥地接住空白区域，其 RealityKit 碰撞区域避开上缘 Chrome 保护带，让 SwiftUI 顶部操作直接接收输入。Ended 时主按钮投影为 Replay。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Playback Deck",
       "ownerIds": [
@@ -8236,10 +8375,10 @@
               "visualSemantic": "guardedOutcome"
             },
             {
-              "label": "手势细节未决",
-              "result": "产品规格尚未定义 gaze/tap 的精确入口。",
+              "label": "Window RealityView",
+              "result": "视频实体命中优先触发目标化 SpatialTap；未命中实体时由同一 RealityView 的普通点击回退触发，两条入口调用同一控件显隐命令。碰撞区域避开 Window 上缘 Chrome 保护带，使顶部 SwiftUI 操作不被 RealityView 拦截。",
               "steps": [],
-              "visualSemantic": "unresolved"
+              "visualSemantic": "guardedOutcome"
             }
           ]
         }
@@ -8252,6 +8391,10 @@
         {
           "sourceId": "product-requirements",
           "heading": "## Ended"
+        },
+        {
+          "sourceId": "ui-spec",
+          "heading": "## Surface ownership"
         }
       ],
       "visualLayers": {
@@ -9239,7 +9382,7 @@
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "observed",
+        "implementation": "partial",
         "verification": "notEvidenced"
       },
       "placements": [
@@ -9292,6 +9435,128 @@
         {
           "sourceId": "core-spec",
           "heading": "## 控制"
+        }
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        }
+      }
+    },
+    {
+      "id": "more.chooseExternalSubtitleFile",
+      "label": "选择独立字幕文件",
+      "summary": "自动列出同目录中符合命名规则的字幕文件，并允许从已授权的本地或远程来源手动选择；选择后继续使用当前 Media Session。",
+      "visualGrammar": "causal-chain",
+      "causalSubject": "当前 Media Session 的字幕来源",
+      "ownerIds": [
+        "media-source",
+        "media-library",
+        "playback-feature",
+        "playback-core"
+      ],
+      "decisionStatus": "confirmed",
+      "delivery": {
+        "implementation": "notFound",
+        "verification": "notEvidenced"
+      },
+      "placements": [
+        {
+          "surfaceId": "surface.windowDeck",
+          "regionId": "deck-menus"
+        },
+        {
+          "surfaceId": "surface.playerControlsWindow",
+          "regionId": "spatial-menus"
+        }
+      ],
+      "availableWhen": [
+        {
+          "dimensionId": "state.controlsPresentation",
+          "equals": "moreMenu"
+        }
+      ],
+      "demonstrations": [
+        {
+          "id": "automaticAssociation",
+          "initialState": {},
+          "steps": [
+            {
+              "label": "打开来自可枚举 Source Directory 的媒体",
+              "actorId": "user",
+              "patch": {}
+            },
+            {
+              "label": "只关联主名称及允许后缀匹配的字幕文件",
+              "actorId": "enchron",
+              "patch": {}
+            },
+            {
+              "label": "把每个候选发布为稳定字幕轨",
+              "actorId": "playback-core",
+              "patch": {}
+            }
+          ],
+          "branches": [
+            {
+              "label": "存在多个候选",
+              "result": "全部候选进入字幕轨列表，不任意启用其中一个，也不覆盖用户当前选择。",
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
+            },
+            {
+              "label": "来源没有可枚举同级目录",
+              "result": "保留手动选择入口，不猜测同目录文件。",
+              "steps": [],
+              "visualSemantic": "guardedOutcome"
+            },
+            {
+              "label": "手动选择其它字幕文件",
+              "result": "从已授权的本地或远程来源取得字幕读取权限，并在当前 Media Session 中接入和选择新的稳定字幕轨。",
+              "steps": [
+                {
+                  "label": "在 Subtitles 中选择 Choose Subtitle File",
+                  "actorId": "user",
+                  "patch": {}
+                },
+                {
+                  "label": "取得字幕来源读取权限",
+                  "actorId": "enchron",
+                  "patch": {}
+                },
+                {
+                  "label": "在当前 Media Session 中接入并选择字幕轨",
+                  "actorId": "playback-core",
+                  "patch": {}
+                }
+              ],
+              "visualSemantic": "alternativeOutcome"
+            },
+            {
+              "label": "字幕不可访问、损坏或不受支持",
+              "result": "显示可恢复的字幕错误并清除旧 cue；当前视频、音频和其它字幕轨继续工作。",
+              "steps": [],
+              "visualSemantic": "recoverableFailure"
+            }
+          ]
+        }
+      ],
+      "sourceRefs": [
+        {
+          "sourceId": "product-requirements",
+          "heading": "## 独立字幕文件"
+        },
+        {
+          "sourceId": "core-spec",
+          "heading": "## Container 与轨道"
+        },
+        {
+          "sourceId": "ui-spec",
+          "heading": "## Surface ownership"
         }
       ],
       "visualLayers": {
@@ -9735,20 +10000,20 @@
         }
       }
     },
-    {
-      "id": "docked.restorePlacement",
-      "label": "Restore Defaults",
-      "summary": "一次性恢复当前 Environment 的 Size、Distance 与 Elevation 推荐值。",
+  {
+    "id": "docked.restorePlacement",
+    "label": "Restore Defaults",
+    "summary": "一次性恢复当前 Environment 的 Screen Size 推荐值、4 米 Distance 与 0° Elevation。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Docked Placement",
       "ownerIds": [
         "playback-presentation"
       ],
       "decisionStatus": "confirmed",
-      "delivery": {
-        "implementation": "observed",
-        "verification": "notEvidenced"
-      },
+    "delivery": {
+      "implementation": "partial",
+      "verification": "notEvidenced"
+    },
       "placements": [
         {
           "surfaceId": "surface.dockedAdvanced",
@@ -10099,7 +10364,7 @@
               }
             },
             {
-              "label": "绑定 Window 并等待 settled",
+              "label": "绑定 Window 并等待 Window 达到成功后置条件",
               "actorId": "enchron",
               "patch": {
                 "state.rendererConsumerBinding": "window",
@@ -10930,7 +11195,7 @@
               }
             },
             {
-              "label": "把同一 renderer 绑定到 Window 并等待 settled",
+              "label": "把同一 renderer 绑定到 Window 并等待 Window 达到成功后置条件",
               "actorId": "enchron",
               "patch": {
                 "state.rendererConsumerBinding": "window",
@@ -10938,7 +11203,7 @@
               }
             },
             {
-              "label": "释放临时 Default Environment 并聚焦唯一 Card",
+              "label": "释放仅为本次 Docked 启动的 Default Environment，并聚焦唯一 Environment Card",
               "actorId": "enchron",
               "patch": {
                 "state.immersiveSpaceResidency": "closed",

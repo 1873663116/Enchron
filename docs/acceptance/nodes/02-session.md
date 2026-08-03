@@ -24,4 +24,4 @@ accepted open 输出唯一 Media Session ID、不可变 Media Source Record、Cu
 
 ## 验收
 
-L1 验证 accepted/rejected、唯一 session、slot occupancy/release、close/reopen 新 identity、并发 open 和 stale update rejection。
+PlaybackCore 合同测试验证 accepted/rejected、唯一 session、slot occupancy/release、close/reopen 新 identity、并发 open 和 stale update rejection。

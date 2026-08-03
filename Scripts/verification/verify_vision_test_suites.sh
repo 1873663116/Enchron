@@ -5,10 +5,20 @@ set -euo pipefail
 repository_root=${0:A:h:h:h}
 xcode_app=${ENCHRON_XCODE_APP:-/Volumes/Cortisol/Applications/Xcode-beta3.app}
 developer_dir="$xcode_app/Contents/Developer"
-destination=${ENCHRON_VISION_TEST_DESTINATION:-platform=visionOS Simulator,id=6D3B4D6F-D370-4133-95E3-4BE4F23BCA0D}
+destination=${ENCHRON_VISION_TEST_DESTINATION:-}
 derived_data=${ENCHRON_DERIVED_DATA:-/private/tmp/EnchronVisionTestSuitesDerivedData}
 source_packages=${ENCHRON_SOURCE_PACKAGES:-/private/tmp/EnchronOrganicArchitectureSourcePackages}
 evidence_root=${ENCHRON_EVIDENCE_ROOT:-/private/tmp/enchron-validation-evidence/vision-test-suites}
+
+if [[ -z "$destination" ]]; then
+    echo "Set ENCHRON_VISION_TEST_DESTINATION to an explicit physical Vision Pro destination, for example platform=visionOS,id=<device-id>." >&2
+    exit 64
+fi
+
+if [[ "$destination" == *Simulator* || "$destination" == *simulator* ]]; then
+    echo "Enchron visionOS regression requires a physical Vision Pro destination." >&2
+    exit 64
+fi
 
 test_suites=(
     EnvironmentSceneMappingTests

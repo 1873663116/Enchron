@@ -9,7 +9,7 @@ enum RendererEnqueueOutcome: Sendable, Equatable {
     case failed(String)
 }
 
-enum RendererEnqueueStrategy: Sendable {
+enum RendererEnqueueStrategy: Sendable, Equatable {
     case receiverBackpressure
     case boundedImmediateLead
 }
@@ -72,10 +72,10 @@ final class AVSampleBufferRendererInputSink: RendererInputSink, @unchecked Senda
         self.receiver = receiver
     }
 
-    // visionOS can leave the Receiver's async backpressure suspended for a
-    // compressed HDR stream even while its timebase is advancing. Keep the
-    // delivery lane bounded by media time and submit through enqueueImmediately.
-    var enqueueStrategy: RendererEnqueueStrategy { .boundedImmediateLead }
+    // Decoder bootstrap is submitted synchronously by the session while its
+    // timebase is stopped. Once bootstrap completes, Receiver owns flow control
+    // so decode failures and renderer capacity remain part of delivery.
+    var enqueueStrategy: RendererEnqueueStrategy { .receiverBackpressure }
 
     func enqueueImmediately(_ input: RendererInputSample) throws -> RendererEnqueueOutcome {
         let sample = input.sampleBuffer

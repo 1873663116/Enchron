@@ -6,10 +6,6 @@ public enum PlaybackPresentationSettlementPhase: String, Codable, Sendable {
     /// The renderer is bound to the target RealityKit surface.
     case surfaceAttached
 
-    /// A visionOS Simulator verified desired panorama configuration, but cannot expose
-    /// the actual rendering-ready facts required for device acceptance.
-    case simulatorConfigured
-
     /// The target RealityKit surface has reported all required observed facts as ready.
     case settled
 }

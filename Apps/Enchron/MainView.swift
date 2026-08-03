@@ -74,13 +74,26 @@ public struct MainView: View {
         #endif
     }
 
+    /// Player Controls and top chrome only after presentable video is up.
+    private var showsPlaybackChrome: Bool {
+        let chrome =
+            showsWindowPlayback
+            && appModel.showControls
+            && playbackRuntime.presentationState == .videoVisible
+            && playbackRuntime.lastErrorMessage == nil
+        // #region agent log
+        // Publish gate inputs into the control-plane value so XCUI can prove
+        // whether chrome stayed hidden after a successful showControls toggle.
+        _ = chrome
+        // #endregion
+        return chrome
+    }
+
     @ViewBuilder
     private var platformContent: some View {
         primaryContent
             .ornament(
-                visibility: showsWindowPlayback && appModel.showControls
-                    ? .visible
-                    : .hidden,
+                visibility: showsPlaybackChrome ? .visible : .hidden,
                 attachmentAnchor: .scene(.bottom)
             ) {
                 WindowPlayerDeckView(presentationOverride: .window)
@@ -176,7 +189,7 @@ public struct MainView: View {
     private var windowPlayback: some View {
         WindowPlaybackRootView(
             layout: windowPlaybackLayout,
-            showsWindowChrome: appModel.showControls
+            showsWindowChrome: showsPlaybackChrome
                 && hostedPlaybackPresentation == .window
         ) {
             windowPlaybackCanvas
@@ -199,7 +212,14 @@ public struct MainView: View {
     }
 
     private var windowPlaybackCanvas: some View {
-        ZStack {
+        // Keep the same RealityView mounted while loading. The system Window
+        // owns the outer glass; this layer adds only the product spinner until
+        // the surface reports presentable video (or a load failure).
+        let showsLoadingChrome =
+            playbackRuntime.lastErrorMessage == nil
+            && playbackRuntime.presentationState != .videoVisible
+
+        return ZStack {
             PlaybackVideoSurface(
                 presentation: hostedPlaybackPresentation,
                 isActive: windowSurfaceIsActive
@@ -217,9 +237,11 @@ public struct MainView: View {
             }
             #endif
 
-            if playbackRuntime.presentationState == .placeholder || playbackRuntime.lifecycle == .loading {
-                ProgressView()
-                    .controlSize(.large)
+            if showsLoadingChrome {
+                LoadingSpinner()
+                    .accessibilityIdentifier("PlayerUI-loading-spinner")
+                    .accessibilityLabel("Loading")
+                    .allowsHitTesting(false)
             }
 
             if let message = playbackRuntime.lastErrorMessage {
@@ -246,11 +268,20 @@ public struct MainView: View {
         _ = reapplyVerificationSnapshotTick
         let position = playbackRuntime.playbackPosition
         let output = playbackRuntime.outputObservation()
+        let loadingSpinnerVisible =
+            playbackRuntime.lastErrorMessage == nil
+            && playbackRuntime.presentationState != .videoVisible
         var fields = [
             "active=\(playbackRuntime.hasActivePlaybackRequest)",
             "formatReady=\(playbackRuntime.mediaFormatIsKnown)",
             "presentation=\(appModel.playbackPresentation.rawValue)",
             "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
+            "controls=\(appModel.showControls ? "shown" : "hidden")",
+            "chrome=\(showsPlaybackChrome ? "on" : "off")",
+            "videoVisible=\(playbackRuntime.presentationState == .videoVisible)",
+            "windowStyle=automatic",
+            "loadingSpinner=\(loadingSpinnerVisible ? "on" : "off")",
+            "tapTrace=\(appModel.debugSurfaceTapTrace)",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
             "position=\(position.seconds)",
@@ -481,8 +512,22 @@ struct SpatialPlaybackControlsRoot: View {
     private var spatialAcceptanceValue: String {
         let position = playbackRuntime.playbackPosition
         let output = playbackRuntime.outputObservation()
-        return [
+        let environment: String
+        let effect: String
+        switch appModel.environmentContext {
+        case .none:
+            environment = "none"
+            effect = "none"
+        case .active(let activeEnvironment, let activeEffect):
+            environment = activeEnvironment.rawValue
+            effect = activeEffect.rawValue
+        }
+        return ([
             "presentation=\(appModel.playbackPresentation.rawValue)",
+            "transition=\(appModel.presentationTransition?.targetPresentation.rawValue ?? "none")",
+            "immersiveSpaceResidency=\(String(describing: appModel.immersiveSpaceResidency))",
+            "environment=\(environment)",
+            "environmentEffect=\(effect)",
             "lifecycle=\(playbackRuntime.lifecycle.label)",
             "attached=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")",
             "session=\(playbackRuntime.activeSessionID ?? "none")",
@@ -509,8 +554,11 @@ struct SpatialPlaybackControlsRoot: View {
             "audioOutputPorts=\(output.audioSessionOutputPortTypes.joined(separator: ","))",
             "systemOutputVolume=\(output.systemOutputVolume)",
             "audioSessionActive=\(output.audioSessionActive)",
-            "screenScale=\(String(format: "%.2f", appModel.screenScale))"
-        ].joined(separator: ";")
+            "screenScale=\(String(format: "%.4f", appModel.screenScale))",
+            "screenDistance=\(String(format: "%.4f", appModel.screenDepthOffset))",
+            "screenElevation=\(String(format: "%.4f", appModel.screenViewAngle))"
+        ] + appModel.spatialPlaybackSurfaceObservation.accessibilityFields)
+            .joined(separator: ";")
     }
 
     @MainActor

@@ -729,12 +729,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         switch phase {
         case .settled:
             return true
-        case .simulatorConfigured:
-            #if targetEnvironment(simulator)
-            return presentation == .panorama
-            #else
-            return false
-            #endif
         case .surfaceAttached:
             guard presentation != .panorama else { return false }
             switch lifecycle {

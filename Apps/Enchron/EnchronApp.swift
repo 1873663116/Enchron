@@ -46,9 +46,9 @@ struct EnchronApp: App {
             width: WindowPlaybackLayout.fallback.defaultSize.width,
             height: WindowPlaybackLayout.fallback.defaultSize.height
         )
-        // Playback supplies the visible video surface. Browser pages restore
-        // the system-shaped glass explicitly inside MainView.
-        .windowStyle(.plain)
+        // Browser, loading, and playback remain inside one visionOS-owned
+        // system window, including its outer glass and rounded boundary.
+        .windowStyle(.automatic)
         .windowResizability(.contentSize)
 
         Window("Player Controls", id: "playerControls") {

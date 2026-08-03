@@ -1,6 +1,7 @@
 @preconcurrency import AVFoundation
 import AppKit
 import Foundation
+import PlaybackFFmpegBridge
 
 @MainActor
 private struct DolbyVisionCompressedProbe {
@@ -35,16 +36,8 @@ private struct DolbyVisionCompressedProbe {
         _ fixture: Fixture,
         renderContext: RenderContext
     ) async throws -> [String: Any] {
-        let asset = AVURLAsset(url: fixture.url)
-        guard let track = try await asset.loadTracks(withMediaType: .video).first else {
-            throw ProbeError.noVideoTrack
-        }
-        let reader = try AVAssetReader(asset: asset)
-        let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
-        let outputProvider = reader.outputProvider(for: output)
-        try reader.start()
-
-        defer { reader.cancelReading() }
+        await dumpNativeReference(fixture.url)
+        let reader = try FFmpegCompressedReader(url: fixture.url)
         let renderer = renderContext.renderer
         let synchronizer = renderContext.synchronizer
         let receiver = renderContext.receiver
@@ -53,33 +46,47 @@ private struct DolbyVisionCompressedProbe {
 
         let deadline = ContinuousClock.now + .seconds(20)
         var enqueuedSamples = 0
+        var decodeFailures = [String]()
         var formatSummary: FormatSummary?
         while ContinuousClock.now < deadline {
-            if let displayed = renderer.displayedPixelBuffer(), enqueuedSamples >= 12 {
+            if let displayed = renderer.displayedPixelBuffer() {
                 guard let summary = formatSummary else { throw ProbeError.missingFormatDescription }
                 try fixture.validate(summary)
                 synchronizer.rate = 0
-                let result: [String: Any] = [
-                    "profile": fixture.profile,
-                    "file": fixture.url.path,
-                    "result": "passed",
-                    "mediaSubtype": summary.mediaSubtype,
-                    "hvcC": summary.hvcC,
-                    "dvcC": summary.dvcC,
-                    "dvvC": summary.dvvC,
-                    "amve": summary.amve,
-                    "enqueuedSamples": enqueuedSamples,
-                    "displayedPixelFormat": fourCC(CVPixelBufferGetPixelFormatType(displayed)),
-                    "rendererInput": "AVSampleBufferVideoRenderer.Receiver"
-                ]
+                let result = probeResult(
+                    fixture: fixture,
+                    summary: summary,
+                    enqueuedSamples: enqueuedSamples,
+                    decodeFailures: decodeFailures,
+                    displayed: displayed
+                )
                 await receiver.flush(removingDisplayedImage: true)
                 return result
             }
-            guard let readySample = try await outputProvider.next() else {
+            guard let sample = try reader.nextSample() else {
+                while ContinuousClock.now < deadline {
+                    if let displayed = renderer.displayedPixelBuffer() {
+                        guard let summary = formatSummary else {
+                            throw ProbeError.missingFormatDescription
+                        }
+                        try fixture.validate(summary)
+                        synchronizer.rate = 0
+                        let result = probeResult(
+                            fixture: fixture,
+                            summary: summary,
+                            enqueuedSamples: enqueuedSamples,
+                            decodeFailures: decodeFailures,
+                            displayed: displayed
+                        )
+                        await receiver.flush(removingDisplayedImage: true)
+                        return result
+                    }
+                    try await Task.sleep(for: .milliseconds(20))
+                }
+                if !decodeFailures.isEmpty {
+                    throw ProbeError.decodeFailures(decodeFailures)
+                }
                 throw ProbeError.reachedEndBeforeDisplay
-            }
-            let sample = try readySample.withUnsafeSampleBuffer {
-                try CMSampleBuffer(copying: $0)
             }
             guard CMSampleBufferGetNumSamples(sample) > 0,
                   let sampleFormat = CMSampleBufferGetFormatDescription(sample) else {
@@ -87,25 +94,115 @@ private struct DolbyVisionCompressedProbe {
             }
             if formatSummary == nil {
                 formatSummary = compressedFormatSummary(sampleFormat)
-                synchronizer.setRate(1, time: CMSampleBufferGetPresentationTimeStamp(sample))
+                dumpSampleMetadata(sample, label: "bridge")
+                dumpFormatDescription(sampleFormat)
+                if let block = CMSampleBufferGetDataBuffer(sample) {
+                    let length = CMBlockBufferGetDataLength(block)
+                    var pointer: UnsafeMutablePointer<Int8>?
+                    CMBlockBufferGetDataPointer(
+                        block,
+                        atOffset: 0,
+                        lengthAtOffsetOut: nil,
+                        totalLengthOut: nil,
+                        dataPointerOut: &pointer
+                    )
+                    if let pointer {
+                        let head = Data(bytes: pointer, count: min(24, length))
+                        FileHandle.standardError.write(
+                            Data(
+                                "sample bytes=\(length) pts=\(CMSampleBufferGetPresentationTimeStamp(sample).seconds) head=\(head.map { String(format: "%02x", $0) }.joined())\n".utf8
+                            )
+                        )
+                    }
+                }
+                synchronizer.setRate(
+                    1,
+                    time: CMSampleBufferGetPresentationTimeStamp(sample)
+                )
             }
             let receiverSample = CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(
                 unsafeBuffer: sample
             )
-            switch try await receiver.enqueue(receiverSample) {
-            case .enqueued, .enqueuedWithDecodeFailures:
+            let outcome = try await receiver.enqueue(receiverSample)
+            switch outcome {
+            case .enqueued:
                 enqueuedSamples += 1
+            case .enqueuedWithDecodeFailures(let errors):
+                enqueuedSamples += 1
+                let remaining = max(0, 8 - decodeFailures.count)
+                decodeFailures.append(
+                    contentsOf: errors.prefix(remaining).map(\.localizedDescription)
+                )
             case .cancelledDueToFlush:
                 throw ProbeError.rendererCancelled
             case .cancelledDueToFlushRequiredToResume(let error):
-                throw error ?? ProbeError.rendererRequiresFlush
+                throw error
             case .cancelledDueToError(let error):
                 throw error
             @unknown default:
                 throw ProbeError.rendererFailed
             }
         }
+        if !decodeFailures.isEmpty {
+            throw ProbeError.decodeFailures(decodeFailures)
+        }
         throw ProbeError.timedOut
+    }
+
+    private static func dumpNativeReference(_ url: URL) async {
+        do {
+            let asset = AVURLAsset(url: url)
+            guard let track = try await asset.loadTracks(withMediaType: .video).first else { return }
+            let reader = try AVAssetReader(asset: asset)
+            let output = AVAssetReaderTrackOutput(track: track, outputSettings: nil)
+            let provider = reader.outputProvider(for: output)
+            try reader.start()
+            while let ready = try await provider.next() {
+                let sample = try ready.withUnsafeSampleBuffer { try CMSampleBuffer(copying: $0) }
+                guard let format = CMSampleBufferGetFormatDescription(sample) else { continue }
+                dumpFormatDescription(format)
+                dumpSampleMetadata(sample, label: "native")
+                break
+            }
+            reader.cancelReading()
+        } catch {
+            FileHandle.standardError.write(Data("native reference error=\(error)\n".utf8))
+        }
+    }
+
+    private static func dumpSampleMetadata(_ sample: CMSampleBuffer, label: String) {
+        var timing = CMSampleTimingInfo()
+        CMSampleBufferGetSampleTimingInfo(sample, at: 0, timingInfoOut: &timing)
+        let attachments = CMSampleBufferGetSampleAttachmentsArray(
+            sample,
+            createIfNecessary: false
+        )
+        FileHandle.standardError.write(
+            Data("\(label) timing=\(timing) attachments=\(String(describing: attachments))\n".utf8)
+        )
+    }
+
+    private static func probeResult(
+        fixture: Fixture,
+        summary: FormatSummary,
+        enqueuedSamples: Int,
+        decodeFailures: [String],
+        displayed: CVPixelBuffer
+    ) -> [String: Any] {
+        [
+            "profile": fixture.profile,
+            "file": fixture.url.path,
+            "result": "passed",
+            "mediaSubtype": summary.mediaSubtype,
+            "hvcC": summary.hvcC,
+            "dvcC": summary.dvcC,
+            "dvvC": summary.dvvC,
+            "amve": summary.amve,
+            "enqueuedSamples": enqueuedSamples,
+            "decodeFailures": decodeFailures,
+            "displayedPixelFormat": fourCC(CVPixelBufferGetPixelFormatType(displayed)),
+            "rendererInput": "FFmpeg compressed CMSampleBuffer → AVSampleBufferVideoRenderer.Receiver"
+        ]
     }
 
     private static func compressedFormatSummary(_ format: CMFormatDescription) -> FormatSummary {
@@ -122,12 +219,76 @@ private struct DolbyVisionCompressedProbe {
         )
     }
 
+    private static func dumpFormatDescription(_ format: CMFormatDescription) {
+        let dimensions = CMVideoFormatDescriptionGetDimensions(format)
+        var lines = [
+            "formatDims \(dimensions.width)x\(dimensions.height)",
+            "formatSubtype \(fourCC(CMFormatDescriptionGetMediaSubType(format)))"
+        ]
+        let extensions = CMFormatDescriptionGetExtensions(format) as? [String: Any] ?? [:]
+        for key in extensions.keys.sorted() where key != "SampleDescriptionExtensionAtoms" {
+            lines.append("ext \(key)=\(extensions[key] ?? "nil")")
+        }
+        if let atoms = extensions["SampleDescriptionExtensionAtoms"] as? [String: Any] {
+            for key in atoms.keys.sorted() {
+                if let data = atoms[key] as? Data {
+                    let head = data.prefix(24).map { String(format: "%02x", $0) }.joined()
+                    lines.append("atom \(key) len=\(data.count) head=\(head)")
+                } else {
+                    lines.append("atom \(key)=\(atoms[key] ?? "nil")")
+                }
+            }
+        }
+        FileHandle.standardError.write(Data((lines.joined(separator: "\n") + "\n").utf8))
+    }
+
     private static func fourCC(_ value: OSType) -> String {
         let bytes: [UInt8] = [
             UInt8((value >> 24) & 0xff), UInt8((value >> 16) & 0xff),
             UInt8((value >> 8) & 0xff), UInt8(value & 0xff)
         ]
         return String(bytes: bytes, encoding: .macOSRoman) ?? String(format: "0x%08X", value)
+    }
+}
+
+private final class FFmpegCompressedReader {
+    private let reader: OpaquePointer
+
+    init(url: URL) throws {
+        var error = [CChar](repeating: 0, count: 512)
+        let opened = url.path.withCString { path in
+            PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
+        }
+        guard let opened else {
+            throw ProbeError.ffmpeg(Self.message(error))
+        }
+        reader = opened
+    }
+
+    deinit {
+        PBFFmpegReaderDestroy(reader)
+    }
+
+    func nextSample() throws -> CMSampleBuffer? {
+        var error = [CChar](repeating: 0, count: 512)
+        var sample: Unmanaged<CMSampleBuffer>?
+        switch PBFFmpegReaderCopyNextSample(reader, &sample, &error, error.count) {
+        case PBFFmpegReadResultSample:
+            return sample?.takeRetainedValue()
+        case PBFFmpegReadResultEnd:
+            return nil
+        case PBFFmpegReadResultCancelled:
+            throw CancellationError()
+        default:
+            throw ProbeError.ffmpeg(Self.message(error))
+        }
+    }
+
+    private static func message(_ buffer: [CChar]) -> String {
+        String(
+            decoding: buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) },
+            as: UTF8.self
+        )
     }
 }
 
@@ -198,7 +359,8 @@ private struct FormatSummary {
 }
 
 private enum ProbeError: LocalizedError {
-    case noVideoTrack
+    case decodeFailures([String])
+    case ffmpeg(String)
     case rendererCancelled
     case rendererRequiresFlush
     case rendererFailed
@@ -209,7 +371,8 @@ private enum ProbeError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .noVideoTrack: "No video track."
+        case .decodeFailures(let failures): failures.joined(separator: " | ")
+        case .ffmpeg(let message): message
         case .rendererCancelled: "Renderer enqueue was cancelled by a flush."
         case .rendererRequiresFlush: "Renderer requires a flush before decoding can resume."
         case .rendererFailed: "AVSampleBufferVideoRenderer failed."

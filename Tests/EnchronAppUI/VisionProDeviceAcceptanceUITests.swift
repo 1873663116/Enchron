@@ -760,7 +760,7 @@ nonisolated final class VisionProDeviceAcceptanceUITests: XCTestCase {
 
         XCTAssertTrue(exitSpatial.waitForExistence(timeout: 20))
         XCTAssertEqual(exitSpatial.label, "Return to Window")
-        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
         exitSpatial.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["PlayerUI-TopAction-resumePanorama"]
@@ -1081,13 +1081,6 @@ nonisolated final class VisionProDeviceAcceptanceUITests: XCTestCase {
 nonisolated final class PhotosPlaybackDeviceUITests: XCTestCase {
     override func setUpWithError() throws {
         continueAfterFailure = false
-#if targetEnvironment(simulator)
-        let explicitlyEnabled = ProcessInfo.processInfo.environment["ENCHRON_RUN_PHOTOS_TEST"] == "1"
-            || UserDefaults.standard.bool(forKey: "ENCHRON_RUN_PHOTOS_TEST")
-        guard explicitlyEnabled else {
-            throw XCTSkip("Run Scripts/verification/verify-photos-simulator.zsh to seed a Simulator Photos library.")
-        }
-#endif
     }
 
     @MainActor

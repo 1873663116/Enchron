@@ -124,8 +124,15 @@ struct PlaybackVideoSurface: View {
                     revision: componentRevision &+ surfaceRefreshTick
                 )
             }
-            .gesture(surfaceTapGesture)
-            .allowsHitTesting(appModel.showControls == false)
+            .gesture(
+                surfaceTapGesture.exclusively(before: surfaceFallbackTapGesture)
+            )
+            .accessibilityElement()
+            .accessibilityLabel("Playback surface")
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction {
+                toggleControlsFromSurface()
+            }
             .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
         }
         .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
@@ -156,7 +163,6 @@ struct PlaybackVideoSurface: View {
                 .realityViewCameraControls(presentation == .docked ? .orbit : .none)
                 .background(.black)
                 .gesture(surfaceTapGesture)
-                .allowsHitTesting(appModel.showControls == false)
 
                 if presentation == .docked, isLoadingMacOSWorld {
                     ProgressView("Loading environment…")
@@ -189,10 +195,26 @@ struct PlaybackVideoSurface: View {
     private var surfaceTapGesture: some Gesture {
         SpatialTapGesture()
             .targetedToEntity(videoEntity)
-            .onEnded { _ in toggleControlsFromSurface() }
+            .onEnded { _ in
+                // Window and spatial presentations share the same RealityKit
+                // input-target path. Do not place a SwiftUI fill over the video.
+                toggleControlsFromSurface()
+            }
+    }
+
+    private var surfaceFallbackTapGesture: some Gesture {
+        TapGesture()
+            .onEnded {
+                toggleControlsFromSurface()
+            }
     }
 
     private func toggleControlsFromSurface() {
+        // #region agent log
+        #if os(visionOS)
+        // Apps-level logger is unavailable in this module; stamp via AppModel.
+        #endif
+        // #endregion
         withAnimation(.easeInOut(duration: 0.25)) {
             appModel.toggleControlsFromPlaybackSurface()
         }

@@ -5,6 +5,7 @@ import PlaybackPresentation
 import RealityKit
 import RealityKitScripting
 import SwiftUI
+import simd
 
 @MainActor
 private final class WorldSceneState {
@@ -206,6 +207,7 @@ public struct ImmersiveSpaceView: View {
         let realityViewID = realityViewID(for: presentation)
         let parentID = videoEntity.parent.map { String(describing: ObjectIdentifier($0)) }
         guard let component = videoEntity.components[VideoPlayerComponent.self] else {
+            appModel.clearSpatialPlaybackSurfaceObservation()
             playbackRuntime.recordPresentationState(
                 presentation: presentation,
                 phase: .surfaceAttached,
@@ -220,22 +222,14 @@ public struct ImmersiveSpaceView: View {
             && immersiveModeIsSettled
             && component.viewingMode == component.desiredViewingMode
             && component.spatialVideoMode == component.desiredSpatialVideoMode
-        #if targetEnvironment(simulator)
-        let simulatorIsConfigured = presentation == .panorama
-            && (component.immersiveViewingMode == nil
-                || component.immersiveViewingMode == component.desiredImmersiveViewingMode)
-            && (component.viewingMode == nil
-                || component.viewingMode == component.desiredViewingMode)
-            && (component.spatialVideoMode == nil
-                || component.spatialVideoMode == component.desiredSpatialVideoMode)
-        #else
-        let simulatorIsConfigured = false
-        #endif
+        recordSpatialPlaybackSurfaceObservation(
+            presentation: presentation,
+            component: component,
+            settled: isSettled
+        )
         playbackRuntime.recordPresentationState(
             presentation: presentation,
-            phase: isSettled
-                ? .settled
-                : simulatorIsConfigured ? .simulatorConfigured : .surfaceAttached,
+            phase: isSettled ? .settled : .surfaceAttached,
             realityViewID: realityViewID,
             entityParentID: parentID,
             desiredImmersiveViewingMode: String(describing: component.desiredImmersiveViewingMode),
@@ -244,6 +238,58 @@ public struct ImmersiveSpaceView: View {
             actualViewingMode: component.viewingMode.map { String(describing: $0) },
             desiredSpatialVideoMode: String(describing: component.desiredSpatialVideoMode),
             actualSpatialVideoMode: String(describing: component.spatialVideoMode)
+        )
+    }
+
+    @MainActor
+    private func recordSpatialPlaybackSurfaceObservation(
+        presentation: PlaybackPresentation,
+        component: VideoPlayerComponent,
+        settled: Bool
+    ) {
+        let worldPosition = videoEntity.position(relativeTo: nil)
+        let worldOrientation = videoEntity.orientation(relativeTo: nil)
+        let worldScale = videoEntity.scale(relativeTo: nil)
+        let worldDistance = simd_length(worldPosition)
+        let worldElevationDegrees: Float
+        let forwardToUserDot: Float
+        if worldDistance > 0.0001 {
+            worldElevationDegrees = asin(
+                min(max(worldPosition.y / worldDistance, -1), 1)
+            ) * 180 / .pi
+            let entityForward = simd_normalize(
+                worldOrientation.act(SIMD3<Float>(0, 0, -1))
+            )
+            forwardToUserDot = simd_dot(
+                entityForward,
+                simd_normalize(-worldPosition)
+            )
+        } else {
+            worldElevationDegrees = 0
+            forwardToUserDot = 0
+        }
+        let playerScreenSize = component.playerScreenSize
+        appModel.recordSpatialPlaybackSurfaceObservation(
+            SpatialPlaybackSurfaceObservation(
+                presentation: presentation.rawValue,
+                parentName: videoEntity.parent?.name ?? "none",
+                anchorMatched: presentation != .docked
+                    || videoEntity.parent === world.playbackSurfaceAnchor,
+                localPosition: videoEntity.position,
+                worldPosition: worldPosition,
+                localScale: videoEntity.scale,
+                worldScale: worldScale,
+                worldDistance: worldDistance,
+                worldElevationDegrees: worldElevationDegrees,
+                forwardToUserDot: forwardToUserDot,
+                playerScreenSize: playerScreenSize,
+                renderedSize: SIMD2<Float>(
+                    playerScreenSize.x * videoEntity.scale.x,
+                    playerScreenSize.y * videoEntity.scale.y
+                ),
+                renderingReady: component.currentRenderingStatus == .ready,
+                settled: settled
+            )
         )
     }
 
@@ -284,6 +330,7 @@ public struct ImmersiveSpaceView: View {
         presentationObservation.cancel()
         videoEntity.removeFromParent()
         videoEntity.components.remove(VideoPlayerComponent.self)
+        appModel.clearSpatialPlaybackSurfaceObservation()
         if let presentation, presentation != .window {
             playbackRuntime.releaseRendererConsumer(
                 presentation: presentation,

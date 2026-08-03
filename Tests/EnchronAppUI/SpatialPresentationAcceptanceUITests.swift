@@ -6,17 +6,21 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         case unmetCondition
     }
 
-    private let fixtureURL = URL(
-        string: "http://enchrolab:verification@127.0.0.1:18737/spatial-acceptance.mp4"
-    )!
-
     override func setUpWithError() throws {
         continueAfterFailure = false
     }
 
     @MainActor
     func testRealPlaybackDockedAndPanoramaRoundTrips() async throws {
-        try await requireFixtureServer()
+        guard let fixture = ProcessInfo.processInfo
+            .environment["ENCHRON_DEVICE_ACCEPTANCE_FIXTURE_URL"],
+            let fixtureURL = URL(string: fixture)
+        else {
+            throw XCTSkip(
+                "Set ENCHRON_DEVICE_ACCEPTANCE_FIXTURE_URL to a media URL reachable from Apple Vision Pro."
+            )
+        }
+        try await requireFixtureServer(fixtureURL)
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
         app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
@@ -55,7 +59,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         dock.tap()
         let environment = app.descendants(matching: .any)["PlayerUI-DockMenu-day"].firstMatch
         XCTAssertTrue(environment.waitForExistence(timeout: 5))
-        tapSemanticallyWithScreenshotFallback(environment, name: "Day")
+        tapHittable(environment, name: "Day")
 
         let dockedState = try waitForSpatialState(
             app,
@@ -72,7 +76,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         XCTAssertEqual(exitSpatial.label, "Return to Window")
         let settings = app.descendants(matching: .any)["PlayerPanel-button-expand"].firstMatch
         try requireExistence(settings, timeout: 5, message: "Docked playback settings did not appear.")
-        tapSemanticallyWithScreenshotFallback(settings, name: "Advanced Settings")
+        tapHittable(settings, name: "Advanced Settings")
         try requireExistence(
             app.descendants(matching: .any)["PlayerPanel-ScreenSize-slider"].firstMatch,
             timeout: 5,
@@ -86,7 +90,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
             name: "Docked real playback"
         )
 
-        tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
+        tapHittable(exitSpatial, name: "Return to Window")
         _ = try waitForWindowState(
             app,
             timeout: 90,
@@ -111,10 +115,10 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
             timeout: 5,
             message: "The 360° projection option did not appear."
         )
-        tapSemanticallyWithScreenshotFallback(panorama360, name: "360° projection")
+        tapHittable(panorama360, name: "360° projection")
         let apply = app.buttons["PlayerUI-VideoFormat-apply"]
         try requireExistence(apply, timeout: 5, message: "The video format Apply action did not appear.")
-        tapSemanticallyWithScreenshotFallback(apply, name: "Apply video format")
+        tapHittable(apply, name: "Apply video format")
 
         let panoramaState = try waitForSpatialState(
             app,
@@ -128,13 +132,13 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
             message: "Panorama committed, but its Player Control Deck did not appear."
         )
         XCTAssertEqual(exitSpatial.label, "Return to Window")
-        XCTAssertTrue(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerPanel-button-back"].exists)
         try verifyPlaybackAdvances(
             app.descendants(matching: .any)["PlayerUI-spatial-state"].firstMatch,
             name: "Panorama real playback"
         )
 
-        tapSemanticallyWithScreenshotFallback(exitSpatial, name: "Return to Window")
+        tapHittable(exitSpatial, name: "Return to Window")
         let restoredWindowState = try waitForWindowState(
             app,
             timeout: 90,
@@ -158,7 +162,7 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
     }
 
     @MainActor
-    private func requireFixtureServer() async throws {
+    private func requireFixtureServer(_ fixtureURL: URL) async throws {
         var request = URLRequest(url: fixtureURL)
         request.timeoutInterval = 2
         request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
@@ -168,8 +172,12 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
         )
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
-            guard (response as? HTTPURLResponse)?.statusCode == 206 else {
-                throw XCTSkip("Run Scripts/verification/verify-spatial-presentations-simulator.zsh to start the fixture server.")
+            guard let statusCode = (response as? HTTPURLResponse)?.statusCode,
+                  statusCode == 200 || statusCode == 206
+            else {
+                throw XCTSkip(
+                    "The Vision Pro fixture URL did not return a readable media response."
+                )
             }
         } catch {
             throw XCTSkip("Spatial acceptance fixture server is unavailable: \(error.localizedDescription)")
@@ -248,18 +256,13 @@ nonisolated final class SpatialPresentationAcceptanceUITests: XCTestCase {
     }
 
     @MainActor
-    private func tapSemanticallyWithScreenshotFallback(_ element: XCUIElement, name: String) {
-        if element.isHittable {
-            element.tap()
+    private func tapHittable(_ element: XCUIElement, name: String) {
+        guard element.isHittable else {
+            attach(XCUIScreen.main.screenshot(), name: "Not hittable before \(name)")
+            XCTFail("\(name) exists but is not hittable through the public interface.")
             return
         }
-        let screenshot = XCUIScreen.main.screenshot()
-        attach(screenshot, name: "Visual fallback before \(name)")
-        XCTAssertFalse(
-            element.frame.isEmpty || element.frame.isNull || element.frame.isInfinite,
-            "\(name) has no usable semantic geometry for screenshot-coordinate fallback."
-        )
-        element.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        element.tap()
     }
 
     @MainActor

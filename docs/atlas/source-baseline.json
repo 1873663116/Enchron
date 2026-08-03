@@ -1,14 +1,14 @@
 {
   "schemaVersion": 1,
   "blobs": {
-    "atlas-contract": "33781ad1ee8b9649da3acef301965f1a6be4aaad",
-    "context": "56ecec8c6d1850ea4d5b49e590b19af441c1bd38",
-    "product-requirements": "fa3bcc6647d7e58535566ddb91b320e308265289",
-    "architecture": "c67b75700bf2ca7ba069825df120e28e45565cc2",
-    "core-spec": "2124dcf30f893481c2e749ac226d37ce3f264dce",
-    "ui-spec": "e7cb2d27f1b780f750eeb44ed1411f762d715beb",
-    "verification-system": "b759ba79087215c402d608d7df8fa8f411429261",
-    "historical-evidence": "4c54af1316efc7ea175beb8a62629d162643e871",
-    "presentation-node": "22ba615693c595439d461ce03e6f161a751dfed2"
+    "atlas-contract": "54b3805abd2ad98d2abcfed2e9c879de020533b8",
+    "context": "332484c6630d9d676aa88b10d543f9932a9af3a3",
+    "product-requirements": "8467b32d4e1d865de3356303417eff3062122fbb",
+    "architecture": "baaa149df17fa4f71e868aa20f1321d9007d38c7",
+    "core-spec": "89cf513d32ea700e80c818a08e403852bc67df67",
+    "ui-spec": "a1a15a6b09c53fba3cf4cd92e48af5f47efb1491",
+    "verification-system": "739ecb207749d70bc4c9c8ceb9847a3a83707f30",
+    "historical-evidence": "5a88f16e5dbf571d8cb28c419c51b9cb1aa8318f",
+    "presentation-node": "b47013d74f760946dfba420f1692323819151f2a"
   }
 }

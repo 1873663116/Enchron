@@ -22,4 +22,4 @@ Provider 使用 FFmpeg 读取 container 并解封装；provider provenance 必�
 
 ## 验收
 
-L1 对当前 FFmpeg provider 验证真实 container、缺轨、损坏来源、网络 read failure、color/HDR facts 与 provider provenance。
+PlaybackCore 合同测试对当前 FFmpeg provider 验证真实 container、缺轨、损坏来源、网络 read failure、color/HDR facts 与 provider provenance。

@@ -1018,6 +1018,15 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(sink.immediateEnqueueCount == 3)
 }
 
+@Test @MainActor func productionVideoRendererReturnsToReceiverBackpressureAfterBootstrap() {
+    let renderer = AVSampleBufferVideoRenderer()
+    let synchronizer = AVSampleBufferRenderSynchronizer()
+    let receiver = synchronizer.sampleBufferReceiver(adding: renderer)
+    let sink = AVSampleBufferRendererInputSink(receiver: receiver)
+
+    #expect(sink.enqueueStrategy == .receiverBackpressure)
+}
+
 @Test func boundedImmediateStrategyDoesNotWaitForReceiverReadiness() async throws {
     let samples = try [
         makeCompressedH264Sample(

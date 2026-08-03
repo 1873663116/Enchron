@@ -16,13 +16,15 @@ struct WindowPlayerDeckView: View {
         if resolvedPresentation == .window {
             WindowPlaybackControls(
                 live: live,
-                onInteraction: register
+                onInteraction: register,
+                controlsVisible: appModel.showControls
             )
             .onHover { appModel.setControlsFocused($0) }
         } else {
             PlayerControlDock(
                 live: live,
-                onInteraction: register
+                onInteraction: register,
+                controlsVisible: appModel.showControls
             )
             .onHover { appModel.setControlsFocused($0) }
         }

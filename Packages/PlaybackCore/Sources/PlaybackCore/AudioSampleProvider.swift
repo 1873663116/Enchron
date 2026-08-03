@@ -82,7 +82,9 @@ struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
             throw AudioSampleProviderError.open(message)
         }
         return AudioSampleProviderInfo(
-            providerKind: "FFmpegCompressedAudio",
+            providerKind: PBFFmpegAudioReaderOutputsPCM(reader.pointer)
+                ? "FFmpegDecodedAudio"
+                : "FFmpegCompressedAudio",
             streamIndex: Int(PBFFmpegAudioReaderGetStreamIndex(reader.pointer)),
             codecName: String(cString: PBFFmpegAudioReaderGetCodecName(reader.pointer)),
             sampleRate: Int(PBFFmpegAudioReaderGetSampleRate(reader.pointer)),
@@ -156,7 +158,7 @@ final class NoAudioSampleProvider: AudioSampleProvider {
     func cancel() {}
 }
 
-final class FFmpegCompressedAudioSampleProvider: AudioSampleProvider, @unchecked Sendable {
+final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable {
     var info: AudioSampleProviderInfo? {
         readerLock.withLock { storedInfo }
     }

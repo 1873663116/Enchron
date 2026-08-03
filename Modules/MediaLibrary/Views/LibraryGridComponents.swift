@@ -119,7 +119,9 @@ struct GridCard: View {
 
             Text(title)
                 .font(DesignTokens.Typography.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22, alignment: .leading)
                 .padding(.horizontal, DesignTokens.Card.paddingH)
                 .padding(.vertical, DesignTokens.Card.paddingV)
         }

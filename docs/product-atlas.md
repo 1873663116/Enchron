@@ -71,12 +71,12 @@ Atlas 默认展示已经确认的目标产品模型，并分别表达：
 
 `delivery.verification` 的最小判定标准如下：
 
-- `verifiedCurrent`：登记的证据明确绑定当前产品树身份，实际执行了该行为所需的验证层与通过条件，并直接覆盖当前动作；
+- `verifiedCurrent`：登记的证据明确绑定当前产品树身份，实际执行了该行为所需的验证方法与通过条件，并直接覆盖当前动作；
 - `historicalEvidence`：登记的证据直接覆盖该动作，但绑定的是历史、reference 或已经 stale 的产品树；
 - `blocked`：登记的当前验证记录明确记载未能完成的验证范围、阻塞原因和对应 artifact，且没有形成通过结论；
 - `notEvidenced`：不存在满足前三项条件的已登记证据；测试源码、规范、验证规则、构建成功或日志无错误均不足以提升该状态。
 
-任何非 `notEvidenced` 状态都必须具有 `evidenceRefs`。每项引用严格只包含 `sourceId`、`heading` 与 `scope`；`scope` 必须说明证据实际覆盖的行为与验证层。证据文件必须先登记为 Atlas source，并完成独立来源审阅和 `accept`。规范文档、架构文档与验证规则可以定义通过条件，但不能充当运行证据。
+任何非 `notEvidenced` 状态都必须具有 `evidenceRefs`。每项引用严格只包含 `sourceId`、`heading` 与 `scope`；`scope` 必须说明证据实际覆盖的行为与验证方法。证据文件必须先登记为 Atlas source，并完成独立来源审阅和 `accept`。规范文档、架构文档与验证规则可以定义通过条件，但不能充当运行证据。
 
 ## 权威与维护
 

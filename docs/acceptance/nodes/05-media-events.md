@@ -18,4 +18,4 @@ FFmpeg packet bytes 在越过 read callback 前必须复制或完成等价 owner
 
 ## 验收
 
-L1 验证 ownership、session/track mapping、epoch/revision、format change、B-frame ordering、seek flush、end、error、cancel 与 cleanup 后迟到事件。
+PlaybackCore 合同测试验证 ownership、session/track mapping、epoch/revision、format change、B-frame ordering、seek flush、end、error、cancel 与 cleanup 后迟到事件。

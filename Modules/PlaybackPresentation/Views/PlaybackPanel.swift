@@ -126,13 +126,15 @@ struct WindowPlaybackControls: View {
     let live: FusedPlayerPanelLive
     var onInteraction: () -> Void = {}
     var initialExpansion: PlaybackPanelInitialExpansion = .collapsed
+    var controlsVisible: Bool = true
 
     var body: some View {
         FusedPlayerPanel(
             live: live,
             onInteraction: onInteraction,
             surface: .windowOrnament,
-            initialExpansion: initialExpansion
+            initialExpansion: initialExpansion,
+            controlsVisible: controlsVisible
         )
     }
 }
@@ -141,13 +143,15 @@ struct PlayerControlDock: View {
     let live: FusedPlayerPanelLive
     var onInteraction: () -> Void = {}
     var initialExpansion: PlaybackPanelInitialExpansion = .collapsed
+    var controlsVisible: Bool = true
 
     var body: some View {
         FusedPlayerPanel(
             live: live,
             onInteraction: onInteraction,
             surface: .playerControlDock,
-            initialExpansion: initialExpansion
+            initialExpansion: initialExpansion,
+            controlsVisible: controlsVisible
         )
     }
 }
@@ -160,7 +164,8 @@ struct FusedPlayerPanel: View {
     init(
         live: FusedPlayerPanelLive? = nil,
         onInteraction: @escaping () -> Void = {},
-        initialExpansion: PlaybackPanelInitialExpansion = .collapsed
+        initialExpansion: PlaybackPanelInitialExpansion = .collapsed,
+        controlsVisible: Bool = true
     ) {
         self.live = live
         self.onInteraction = onInteraction
@@ -169,6 +174,7 @@ struct FusedPlayerPanel: View {
                 ? .windowOrnament
                 : .playerControlDock
         )
+        self.controlsVisible = controlsVisible
         _timelineExpanded = State(initialValue: initialExpansion == .timeline)
         _settingsExpanded = State(initialValue: initialExpansion == .settings)
     }
@@ -177,15 +183,18 @@ struct FusedPlayerPanel: View {
         live: FusedPlayerPanelLive,
         onInteraction: @escaping () -> Void,
         surface: PlaybackControlPanelSurface,
-        initialExpansion: PlaybackPanelInitialExpansion
+        initialExpansion: PlaybackPanelInitialExpansion,
+        controlsVisible: Bool = true
     ) {
         self.live = live
         self.onInteraction = onInteraction
         self.surface = surface
+        self.controlsVisible = controlsVisible
         _timelineExpanded = State(initialValue: initialExpansion == .timeline)
         _settingsExpanded = State(initialValue: initialExpansion == .settings)
     }
 
+    private let controlsVisible: Bool
     @State private var timelineExpanded: Bool
     @State private var settingsExpanded: Bool
     @State private var mediaInfoHovered = false
@@ -276,6 +285,8 @@ struct FusedPlayerPanel: View {
         .padding(.vertical, DesignTokens.ControlBar.paddingV)
         .clipShape(shape)
         .enchronGlassBackground(in: shape)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerPanel-controls")
         // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
         .animation(DesignTokens.AnimationToken.panelSpring, value: timelineExpanded)
         .animation(DesignTokens.AnimationToken.panelSpring, value: settingsExpanded)
@@ -310,6 +321,15 @@ struct FusedPlayerPanel: View {
                   pendingSeekTarget == target else { return }
             pendingSeekTarget = nil
         }
+        .onChange(of: controlsVisible) { _, isVisible in
+            guard isVisible == false else { return }
+            timelineExpanded = false
+            settingsExpanded = false
+            isDragging = false
+            isTimelineDragging = false
+            scrubberActivation = .idle
+            pendingSeekTarget = nil
+        }
     }
 
     private var windowOrnamentContent: some View {
@@ -322,7 +342,7 @@ struct FusedPlayerPanel: View {
             if timelineExpanded {
                 timelineBlock
             } else {
-                progressBar(width: clusterWidth)
+                progressBar(width: compactProgressBarWidth)
             }
         }
     }
@@ -343,7 +363,7 @@ struct FusedPlayerPanel: View {
             if timelineExpanded {
                 timelineBlock
             } else {
-                progressBar(width: clusterWidth)
+                progressBar(width: compactProgressBarWidth)
             }
         }
     }
@@ -353,6 +373,10 @@ struct FusedPlayerPanel: View {
             - DesignTokens.Interactive.large * 3
             - DesignTokens.ControlBar.buttonSpacing * 2
             - DesignTokens.Spacing.sm
+    }
+
+    private var compactProgressBarWidth: CGFloat {
+        max(clusterWidth - DesignTokens.Spacing.xxxl * 2, 0)
     }
 
     private func panoramaFormatControls(_ live: FusedPlayerPanelLive) -> some View {
@@ -998,7 +1022,7 @@ struct FusedPlayerPanel: View {
         thumbX: CGFloat,
         overlayWidth: CGFloat
     ) -> some View {
-        ZStack(alignment: .leading) {
+        return ZStack(alignment: .leading) {
             progressInteractionRegion(width: overlayWidth)
 
             progressHub(
@@ -1129,7 +1153,9 @@ struct FusedPlayerPanel: View {
         .monospacedDigit()
         .padding(.horizontal, DesignTokens.ProgressBar.timeBubblePaddingH)
         .padding(.vertical, DesignTokens.ProgressBar.timeBubblePaddingV)
-        .enchronGlassBackground(in: bubbleShape)
+        .background(.thickMaterial, in: bubbleShape)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("PlayerPanel-progress-time-bubble")
     }
 
     private func scrubberControl(width: CGFloat) -> some View {

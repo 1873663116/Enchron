@@ -20,8 +20,8 @@ _Avoid_：外部播放仓库、播放 App
 **PlaybackRuntime**：Enchron App 将产品请求交给 PlaybackCore、并把核心事实投影给界面的应用边界。
 _Avoid_：第二播放核心、播放状态机
 
-**Playback Lifecycle**：PlaybackCore 发布的媒体会话状态，包括 idle、loading、ready、playing、paused、ended 与 failed。
-_Avoid_：播放模式
+**Playback Lifecycle**：PlaybackCore 发布的媒体会话状态，包括 idle、loading、ready、playing、paused、ended 与 failed。其中 paused 表示实际时间线和用户可感知的音视频输出停止；已经开始的内部工作与具有明确上限的预取可以在同一 Media Session 内继续，随后读取、sample 产出和资源占用不得继续增长，并且不得超过分别规定的最大值。
+_Avoid_：播放模式、把 paused 等同于关闭 Media Session、要求所有内部工作瞬时终止、允许没有上限的预取或资源增长
 
 **Playback Presentation**：视频当前稳定的产品呈现位置，只包括 Window、Docked 和 Panorama。
 _Avoid_：Playback Lifecycle、播放模式
@@ -75,6 +75,9 @@ _Avoid_：Library Folder、Enchron 管理的远程文件夹
 **Media Reference**：指向系统文件、Photos 资源或远程媒体的持久引用；删除引用不删除来源。
 _Avoid_：导入文件、文件副本
 
+**External Subtitle File（独立字幕文件）**：不包含在媒体容器内、由本地文件系统或远程来源单独拥有，并在当前 Media Session 中作为可选择字幕轨使用的字幕文件。自动发现或手动选择独立字幕文件不会复制来源文件，也不会把它变成媒体的第二个 Media Reference。
+_Avoid_：内嵌字幕轨、字幕文件副本、第二个媒体会话、把相似文件名直接当成已选择字幕
+
 **Media Identity**：Enchron 用于识别同一底层媒体的稳定身份，与用户从哪个 Library Folder、Media Reference 或来源浏览入口打开它无关。具体身份算法属于实现约束，不以显示名称单独判断。
 
 **Persistent Viewing State**：Enchron 为同一 Media Identity 只持久化可恢复位置或已看完状态，不建设通用观看历史、最近播放列表或可扩展的观看状态机。只有总时长不少于 15 分钟的媒体参与这套机制；较短媒体不持久化进度或已看完。可恢复位置还要求当前 Media Session 已真正开始、尚未接近结尾且 Content Revision 未变化。
@@ -117,7 +120,7 @@ _Avoid_：Cancel、Back-to-Browser、把 Resume 询问当成是否打开媒体�
 **Viewing Progress Indicator**：媒体卡片进入 Gaze/Hover 状态时，在底边按已保存的 `position / duration` 绘制的图形投影。它表达上次已知观看进度，不承诺当前媒体已经通过 Content Revision 的最终 Resume 验证。文件夹进入后异步批量取得投影并缓存；Gaze/Hover 本身只读取内存，不触发持久化、媒体解析或网络查询。
 _Avoid_：把指示器当成已验证的 Resume 承诺、用固定假定时长计算比例、在 Gaze/Hover 事件中启动 I/O
 
-**Content Revision**：由具体来源为 Media Identity 提供的不透明内容版本凭据，用于判断保存 Playback Progress 后媒体内容是否被替换。本地文件、Photos、SMB 与 WebDAV 可以使用各自可获得的文件标识、内容版本、ETag、大小和修改时间组合；不要求读取并哈希完整媒体。只有当前 Content Revision 与保存时相同才允许 Resume；发生变化或无法可靠取得时不提供 Resume，但不阻止从头播放。
+**Content Revision**：由具体来源为 Media Identity 提供的不透明内容版本凭据，用于判断保存 Playback Progress 后媒体内容是否被替换。本地文件、Photos、SMB 与 WebDAV 可以使用各自可获得的文件标识、内容版本、ETag、大小和修改时间组合；不要求读取并哈希完整媒体。只有当前 Content Revision 与保存时相同才允许 Resume；发生变化或无法可靠取得时不提供 Resume，但不阻止从头播放。远程播放失败后的 Retry 也使用这个判断：版本一致时可以从失败前最后一次被音视频输出直接证明的 media time 重新打开；版本变化或无法可靠验证时不使用旧位置，而是说明原因并从头打开，不再增加第二次确认。
 _Avoid_：只比较显示名称、为 Resume 扫描完整媒体、无法验证时乐观套用旧进度
 
 **Add to Library**：创建 Media Reference，不复制、移动或修改媒体来源。
@@ -148,8 +151,8 @@ _Avoid_：一次 Playback Presentation、一次 Media Session、把 Environment/
 **Progressive Immersion Amount**：Enchron Immersive Space 统一采用 Progressive immersion 时，由 visionOS 持有并允许用户通过 Digital Crown 在 `0.3...1.0` 内调节的当前沉浸量。Enchron 只观察该系统事实并在当前 App 进程内记住最近值；同一 Immersive Space Open Cycle 内切换 Environment、Docked 或 Panorama 不改变它。Environment 或 Docked 新开空间时使用最近值，没有最近值时使用系统默认；Panorama 新开空间时从 `1.0` 开始，但已经打开的空间进入 Panorama 时保持当前值。
 _Avoid_：Playback Presentation、Environment Effect、App 内滑杆、跨进程偏好、Panorama 始终强制为 `1.0`、把 `.mixed` 或 `.full` 当成 Enchron 的空间内容状态
 
-**Environment Context**：当前没有活动观影场景，或某个 Environment 及其 Environment Effect 已经打开。它独立于 Media Session 与 Playback Presentation：用户可以在 Media Library 阶段先打开 Environment，退出当前媒体也不会自动关闭它。
-_Avoid_：只有播放视频后才存在的场景状态、退出媒体时自动关闭 Environment、把 Environment Context 并入 Playback Presentation
+**Environment Context**：当前没有活动观影场景，或某个 Environment 及其 Environment Effect 已经打开。它独立于 Media Session 与 Playback Presentation：用户可以在 Media Library 阶段先打开 Environment，退出当前媒体也不会自动丢弃它；Panorama 当前的 Environment Context 始终为 none，进入前的值由 Panorama Return Environment Context 单独保存。
+_Avoid_：只有播放视频后才存在的场景状态、退出媒体时自动丢弃进入前的 Environment、把 Panorama 进入前的 Environment 当成当前活动内容、把 Environment Context 并入 Playback Presentation
 
 **Environment**：Enchron 正式交付的一个观影场景身份，可以在没有打开媒体时独立活动。Environment 与其 Environment Effect 是两个正交概念；同一场景的 Day/Night 特效不形成两个 Environment。每个 Environment 拥有一个语义一致的 Playback Surface Anchor 和一份相对摆位。Enchron V1 交付一个 Environment 及其 Day/Night 两个 Environment Effect；当前内容和名称仍可使用占位符。
 _Avoid_：把昼夜特效建模成两个 Environment、把原型标签当成多个产品场景、按 Environment 与 Environment Effect 组合复制用户摆位
@@ -181,7 +184,10 @@ _Avoid_：把 Elevation 实现成世界坐标 Y 平移、旋转后不再朝向�
 
 **Docked**：Enchron App 将当前 renderer 放入所选 Reality Composer Pro 场景的 Playback Presentation。
 
-**Panorama**：Enchron App 使用 `VideoPlayerComponent` immersive viewing behavior 呈现当前 renderer 的 Playback Presentation。
+**Panorama**：Enchron App 使用 `VideoPlayerComponent` immersive viewing behavior，在黑色周围环境中以视频投影球面呈现当前 renderer 的 Playback Presentation。Panorama 不同时呈现 Enchron Environment 或 Environment Effect。
+
+**Panorama Return Environment Context**：进入 Panorama 前捕获的 Environment Context，只用于返回 Window 时恢复原 Environment 与 Environment Effect；进入前为 none 时返回 none。它不是 Panorama 中的活动 Environment，且不结束当前 Immersive Space Open Cycle 或改变 Progressive Immersion Amount。
+_Avoid_：Panorama Environment、Panorama 中仍然活动的 Environment、把返回目标当成当前可见 Environment Context
 
 **Panorama Format Selection**：Window 的 Panorama 二级菜单正交选择 Projection 与 Stereo Layout。Projection 提供 180°、360° 与 Fisheye；Stereo Layout 提供 Mono、Side-by-Side 与 Top-Bottom。用户完成两个维度的选择后点击 Apply，成功应用完整 Media Format 并进入 Panorama；菜单不因单个轴的选择而提前提交。Fisheye 只有来源已携带 Apple Immersive Media Experience（AIME）投影事实时才可应用，不能由用户选择伪造。
 _Avoid_：遗漏 Mono、把 Projection 与 Stereo Layout 合并为组合枚举、单个轴变化时提交不完整格式、无 AIME 事实时强制 Fisheye
@@ -194,11 +200,11 @@ _Avoid_：仅返回 Window却保留偏好、把 Flat 混入首次 Panorama 投�
 
 **Window Presentation Actions**：只在 Window 视频界面上提供退出当前媒体、进入 Docked 的二级菜单入口，以及展开 Panorama 格式选择的入口。Docked 与 Panorama 入口不属于 Playback Deck。
 
-**Docked Presentation Actions**：Docked 的 Video Entity 或 Mesh 不承载可点击按钮。召唤 Playback Deck 后只提供播放控制和返回 Window；不提供直接退出当前媒体的 Back。
+**Docked Presentation Actions**：Docked 的 Video Entity 或 Mesh 不承载可点击按钮。Player Control Dock 是唯一的 App 界面，提供播放控制、Settings 与返回 Window；不提供直接退出当前媒体的 Back。
 
-**Panorama Presentation Actions**：召唤 Playback Deck 后提供播放控制、返回 Window，以及直接退出当前媒体并回到 Window Media Library 的 Back。退出媒体不主动关闭已经存在的 Environment Context。
+**Panorama Presentation Actions**：Panorama 视频投影球面不承载可点击按钮。Player Control Dock 是唯一的 App 界面，提供播放控制、Settings 与返回 Window；不提供直接退出当前媒体并回到 Media Library 的 Back。
 
-**Presentation Transition**：从一个稳定 Playback Presentation 到另一个稳定 Presentation 的暂态。它绑定发起时的 Media Session；原先 Playing 时在平台效果前暂停，暂停失败则平台效果不开始并回滚。平台效果结算后按 owner 的策略恢复；若效果已经提交而恢复播放失败，保留已提交的 Presentation 并显式记录失败，不能伪装成平台回滚。原先 Paused、Ready 或 Ended 时不改变播放状态。
+**Presentation Transition**：从一个稳定 Playback Presentation 到另一个稳定 Presentation 的暂态。它绑定发起时的 Media Session；原先 Playing 时在平台效果前暂停，暂停失败则平台效果不开始并回滚。进入 Docked 或 Panorama 时，Main Window 保持可见但不接受新的 Presentation 请求，直到目标 Immersive Space、目标 Environment 或黑色周围环境、目标视频表面、同一个 renderer 和 Player Controls Window 已经准备完成；随后才让 Main Window 通过 visionOS 的系统动画消失。交接期间不能同时存在两套可操作的播放界面，也不能出现没有任何可操作界面的空档。平台效果结算后按 owner 的策略恢复；若效果已经提交而恢复播放失败，保留已提交的 Presentation 并显式记录失败，不能伪装成平台回滚。原先 Paused、Ready 或 Ended 时不改变播放状态。
 
 **Spatial Platform Effect**：空间体验所有者要求 App 平台层执行的 visionOS 或 RealityKit 操作，例如打开 Immersive Space、聚焦 Window、切换 immersion style 或绑定当前 Scene 的播放表面。同一时刻只有一个待执行效果；每个请求具有稳定身份，平台层只有在当前存在可执行 SwiftUI Scene action 的根时才认领，否则请求继续留在 owner，待可执行根再次出现后处理。空间体验所有者忽略重复或迟到结果，并独自决定提交或回滚 Presentation Transition；平台层不决定目标 Presentation，也不直接改写 Environment Context。
 
@@ -209,17 +215,17 @@ _Avoid_：仅返回 Window却保留偏好、把 Flat 混入首次 Panorama 投�
 **无人值守 Vision Pro XCTest 宿主**：完成一次性系统授权与预检后，使 Vision Pro 保持可运行状态并持续执行 Enchron 真机 XCTest 的测试环境；宿主可用性本身不构成产品通过证据。
 _Avoid_：CI runner、产品运行环境、测试已通过
 
-**真实用户旅程 E2E**：从正常 Enchron App 用户状态出发，所有来源创建、媒体选择和播放操作都经过公开产品界面完成的端到端验证。
+**真实用户旅程端到端验证**：从正常 Enchron App 用户状态出发，所有来源创建、媒体选择和播放操作都经过公开产品界面完成。
 _Avoid_：autoplay 注入、直接调用 ViewModel、单按钮冒烟测试
 
 **真实 UI 输入**：由 Computer Use 或操作系统鼠标、键盘、滚动与拖动事件经过正常 hit testing 触发生产 UI action 的用户输入；自动化只能替代用户执行输入，不能替代产品 UI 或业务入口。
 _Avoid_：Accessibility action 直调、测试 command、内部状态注入
 
-**协议远程源 E2E**：通过生产 SMB 或 WebDAV adapter 完成来源创建、浏览、读取与播放的端到端验证；协议服务器可以与 Enchron App 位于同一台 Mac。
-_Avoid_：跨设备网络 E2E、直接文件读取、远程协议单元测试
+**本机服务器远程来源端到端验证**：通过生产 SMB 或 WebDAV adapter 完成来源创建、浏览、读取与播放；协议服务器可以与 Enchron App 位于同一台 Mac，但所有媒体操作必须实际经过对应网络协议。
+_Avoid_：独立设备服务器远程来源端到端验证、直接文件读取、只验证远程协议的单元测试
 
-**跨设备网络 E2E**：协议服务器位于另一台设备或独立网络环境中的远程源端到端验证，用于补充本机协议远程源 E2E 无法证明的网络行为。
-_Avoid_：loopback 测试、本机共享、协议远程源 E2E
+**独立设备服务器远程来源端到端验证**：SMB 或 WebDAV 服务器位于另一台设备或独立网络环境中，用于补充本机服务器远程来源端到端验证无法证明的跨设备连接、网络中断与恢复行为。
+_Avoid_：只访问本机地址、由同一个测试进程直接提供媒体字节、本机服务器远程来源端到端验证
 
 **PlaybackCore 单元与合同验证**：不依赖产品播放界面的核心合同、媒体容器与媒体 Sample 验证。
 
@@ -239,14 +245,11 @@ _Avoid_：Vision Pro 真机体验通过、仅有结构正确
 **Vision Pro 真机体验验收通过**：真实佩戴者确认空间尺度、头部运动响应、舒适度、HDR/EDR 与沉浸感符合产品要求。
 _Avoid_：RealityKit 离屏渲染结果通过、AirPlay 画面正确
 
-**Diagnostic Media**：通过真实产品播放路径进入 RealityKit、并以方向、几何、双眼与时间标记提供机器视觉 oracle 的专用验收媒体。
-_Avoid_：普通电影画面、UI fixture、静态占位图
+**Diagnostic Media**：通过真实产品播放路径进入 RealityKit，并以方向、几何、双眼与时间标记提供可由机器明确判断的预期画面的专用验收媒体。
+_Avoid_：普通电影画面、只为 UI 测试显示的替代内容、静态占位图
 
-**真实世界媒体**：来自实际制作或发行流程、用于观察格式兼容性和真实观看表现的媒体；它补充 Diagnostic Media，但不单独提供确定性的机器视觉 oracle。
-_Avoid_：Diagnostic Media、生成 fixture、静态占位图
-
-**Visual Oracle**：根据 Diagnostic Media 的语义标记、方向与几何关系判断渲染结果的机器合同；逐像素参考图只作为诊断附件。
-_Avoid_：像素完全一致、无黑屏即正确、普通截图目测
+**真实世界媒体**：来自实际制作或发行流程、用于观察格式兼容性和真实观看表现的媒体；它补充 Diagnostic Media，但本身不一定包含可由机器明确判断画面是否正确的标记。
+_Avoid_：Diagnostic Media、人工生成的测试媒体、静态占位图
 
 **DesignPreview**：生产组件的代码化陈列入口，不拥有产品导航或业务状态。
 

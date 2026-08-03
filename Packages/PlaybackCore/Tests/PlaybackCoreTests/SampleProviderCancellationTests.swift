@@ -26,7 +26,7 @@ import Testing
 
 @Test func audioReadCancellationReturnsCancellationAndDestroysAfterReadExit() async throws {
     let operations = BlockingAudioReaderOperations(resultAfterCancellation: .cancelled)
-    let provider = FFmpegCompressedAudioSampleProvider(operations: operations)
+    let provider = FFmpegAudioSampleProvider(operations: operations)
     try await provider.prepare(
         url: URL(fileURLWithPath: "/fixtures/blocking-audio.mkv"),
         asset: nil,
@@ -50,7 +50,7 @@ import Testing
     let videoOperations = BlockingVideoReaderOperations(resultAfterCancellation: .cancelled)
     let audioOperations = ImmediateAudioReaderOperations()
     let videoProvider = FFmpegSampleProvider(operations: videoOperations)
-    let audioProvider = FFmpegCompressedAudioSampleProvider(operations: audioOperations)
+    let audioProvider = FFmpegAudioSampleProvider(operations: audioOperations)
     let url = URL(fileURLWithPath: "/fixtures/independent-reader-lanes.mkv")
     try await videoProvider.prepare(url: url, asset: nil, startTime: .zero)
     try await audioProvider.prepare(
@@ -93,7 +93,7 @@ private func videoReadVerdict(from provider: FFmpegSampleProvider) async -> Prov
 }
 
 private func audioReadVerdict(
-    from provider: FFmpegCompressedAudioSampleProvider
+    from provider: FFmpegAudioSampleProvider
 ) async -> ProviderReadVerdict {
     do {
         return try await provider.copyNextSample() == nil ? .ended : .sample

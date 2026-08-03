@@ -57,6 +57,7 @@ let package = Package(
         ),
         .executableTarget(
             name: "DolbyVisionCompressedProbe",
+            dependencies: ["PlaybackFFmpegBridge"],
             path: "Tools/DolbyVisionCompressedProbe",
             linkerSettings: [
                 .linkedFramework("AppKit"),

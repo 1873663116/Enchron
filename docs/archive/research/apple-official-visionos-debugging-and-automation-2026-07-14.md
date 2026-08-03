@@ -1,4 +1,4 @@
-# Apple 官方 visionOS 调试与自动化能力调查
+# 归档：Apple 官方 visionOS 调试与自动化能力调查
 
 调查时间：2026-07-14
 本机工具链：Xcode 27 beta 2（27A5209h）、visionOS 27 SDK

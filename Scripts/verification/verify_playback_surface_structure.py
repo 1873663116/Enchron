@@ -56,9 +56,6 @@ def main() -> None:
     playback_deck_acceptance = read(
         "Tests/EnchronAppUI/PlaybackDeckUITests.swift"
     )
-    spatial_verifier = read(
-        "Scripts/verification/verify-spatial-presentations-simulator.zsh"
-    )
     app_scene = read("Apps/Enchron/EnchronApp.swift")
     application = read("Apps/Enchron/EnchronApplication.swift")
     architecture = read("ARCHITECTURE.md")
@@ -203,7 +200,7 @@ def main() -> None:
         'Window("Window Playback", id: "windowPlayback")' in design_preview_app
         and "WindowPlaybackPreview()" in design_preview_app
         and ".windowResizability(.contentSize)" in design_preview_app,
-        "DesignPreview cannot exercise WindowPlayback in a real resizable Simulator scene",
+        "DesignPreview cannot exercise WindowPlayback in a real resizable scene",
     )
     require(
         '"PlayerUI-window-control-plane"' in spatial_acceptance
@@ -239,22 +236,13 @@ def main() -> None:
         "spatial acceptance does not verify continuous production output and Window hit testing",
     )
     require(
-        "case .simulatorConfigured:" in runtime
-        and "return presentation == .panorama" in runtime
+        "case .settled:" in runtime
         and "case .surfaceAttached:" in runtime
         and "guard presentation != .panorama else { return false }" in runtime
         and "case .ready, .paused, .ended:" in runtime
-        and "#if targetEnvironment(simulator)" in immersive
-        and ".simulatorConfigured" in immersive
         and "testDockAndPanoramaRoundTripsInOneLaunch"
             in read("Tests/EnchronAppUI/VisionProDeviceAcceptanceUITests.swift"),
-        "Panorama can commit without device settlement or an explicit Simulator configuration fact",
-    )
-    fixture_duration = re.search(r"^[ \t]*-t[ \t]+(\d+)", spatial_verifier, re.MULTILINE)
-    require(
-        fixture_duration is not None
-        and int(fixture_duration.group(1)) >= 180,
-        "the real-media spatial fixture can end before cold spatial round trips finish",
+        "Panorama can commit without device settlement",
     )
     docked_state_gate = spatial_acceptance.index(
         "let dockedState = try waitForSpatialState("

@@ -149,7 +149,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         self.init(
             traceID: traceID,
             provider: FFmpegSampleProvider(),
-            audioProvider: FFmpegCompressedAudioSampleProvider(),
+            audioProvider: FFmpegAudioSampleProvider(),
             subtitleProvider: FFmpegSubtitleProvider(),
             rendererSink: nil
         )

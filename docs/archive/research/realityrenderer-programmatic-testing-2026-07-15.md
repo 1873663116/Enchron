@@ -1,4 +1,4 @@
-# RealityRenderer 程序化验证边界
+# 归档：RealityRenderer 程序化验证边界
 
 本文回答一个具体问题：Apple 现有工具是否足以让 Agent 程序化验证 Enchron 的 RealityKit 视频呈现，以及还需要补充什么最小测试设施。
 

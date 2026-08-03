@@ -11,15 +11,19 @@ Playback Lifecycle、Media Format、Playback Presentation 与 Environment Contex
 - Playback Presentation 说明视频位于 Window、Docked 或 Panorama。
 - Environment Context 说明当前是否存在一个活动 Environment 及其 Environment Effect。
 
-Presentation 转换不得重新打开媒体或更换 Media Session。每次转换先捕获转换前的播放意图；原本正在播放时，转换期间暂停媒体，目标 Presentation settled 后恢复播放。原本处于 ready、paused 或 ended 时不自动开始播放。播放中的转换只有在目标画面稳定后提交；Ready、Paused 与 Ended 没有新帧时，以目标 surface 已绑定同一 Media Session 的 renderer 作为提交条件。任何失败都回滚到转换前的稳定 Presentation、Environment Context 与播放意图，保留同一 Media Session 并给出可重试反馈。
+进入 Panorama 会把当前 Environment Context 变为 none，并把进入前的 Environment Context 捕获为 Panorama Return Environment Context。后者只负责返回 Window 时的恢复，不是第五个正交状态轴，也不代表 Panorama 中仍有活动 Environment。
+
+Presentation 转换不得重新打开媒体或更换 Media Session。每次转换先捕获转换前的播放意图；原本正在播放时，转换期间暂停媒体，目标 Presentation 达到对应的成功后置条件后恢复播放。原本处于 ready、paused 或 ended 时不自动开始播放。播放中的转换只有在目标画面稳定后提交；Ready、Paused 与 Ended 没有新帧时，以目标 surface 已绑定同一 Media Session 的 renderer 作为提交条件。任何失败都回滚到转换前的稳定 Presentation、Environment Context 与播放意图，保留同一 Media Session 并给出可重试反馈。
+
+Window 进入 Docked 或 Panorama 时采用目标准备完成后的视觉交接。Main Window 在转换期间继续可见，但不接受新的 Presentation 请求；目标 Immersive Space、正确的 Environment 或黑色周围环境、目标视频表面、同一个 renderer 和 Player Controls Window 全部准备完成后，Main Window 才通过 visionOS 的系统动画消失。任何时刻都不能同时存在两套可操作的播放界面，也不能出现没有可操作播放界面的空档。系统动画的曲线和精确持续时间不作为固定产品常量；验收检查交接顺序、视觉连续性、重复画面、闪烁、可操作性空档和最终状态，响应时间上限由真机测量与外部参考共同确定。目标准备失败时 Main Window 保持存在并恢复可操作状态。
 
 ```mermaid
 stateDiagram-v2
     state "Window · No Environment" as W0
     state "Window · Active Environment" as W1
     state "Docked · Active Environment" as D
-    state "Panorama · No Environment" as P0
-    state "Panorama · Active Environment" as P1
+    state "Panorama · No Environment · Return None" as P0
+    state "Panorama · No Environment · Restore Prior Environment" as P1
 
     W0 --> W1: Open Environment
     W1 --> W0: Close Environment
@@ -27,9 +31,9 @@ stateDiagram-v2
     W1 --> D: Dock in Active Environment
     D --> W1: Return to Window
     W0 --> P0: Apply panoramic Media Format
-    W1 --> P1: Apply panoramic Media Format
+    W1 --> P1: Suppress and remember Environment
     P0 --> W0: Return to Window
-    P1 --> W1: Return to Window
+    P1 --> W1: Restore remembered Environment
 ```
 
 ## 媒体与来源
@@ -40,7 +44,21 @@ stateDiagram-v2
 - Remote Source 的媒体与目录由 SMB 或 WebDAV 服务拥有。Enchron 按其原有 Source Directory 只读浏览、刷新和播放，不创建、重命名、移动或删除远程文件与目录。
 - Add to Media Library 只保存 Remote Source ID 与远程路径。播放时才解析真实来源；解析失败时保留 Media Reference 并提供恢复来源的操作。
 - 远程凭据只存入 Keychain，并按服务器与账号命名空间隔离；同一 SMB 账号的不同 share 可以共享凭据，不同账号不得互相覆盖。旧版服务器级 Keychain 记录在账号匹配时迁移到账号命名空间。权限、认证、网络与文件错误必须给出可恢复反馈。
+- 远程媒体在首次形成可用音视频输出前，连接、来源解析或打开失败可以在预先规定的次数和总等待时间内自动重新解析同一 Media Reference 并重新打开。每次失败尝试都必须完整关闭其 Media Session 并释放来源访问资源；最终最多只有一个活动 Media Session。规定范围内仍未成功时，播放显式进入 failed。
+- 远程媒体在首次形成可用音视频输出后遇到读取失败时，当前播放停止并显式进入 failed，不得在背景自动创建或替换 Media Session。Window 或空间 Player Control Dock 显示 Retry 与 Close；只有用户选择 Retry 后，Enchron 才重新解析同一 Media Reference 并创建新的 Media Session。
+- Retry 重新解析得到的 Content Revision 与失败前一致时，新 Media Session 从失败前最后一次满足全部可用音视频输出条件的观测所记录的 media time 开始。该观测必须属于失败前的 Media Session 与当前 stream epoch，并且已经直接证明时间线、显示画面和存在音轨时的音频都在正常输出。不得使用原始打开位置，也不得使用尚未被播放管线实际证明的界面 Seek 请求位置。
+- Retry 重新解析得到的 Content Revision 已变化或无法可靠验证时，不得使用失败前的位置。Enchron 说明媒体内容已变化或无法确认一致性，并直接从零创建新 Media Session；这条说明不阻塞播放，也不再要求用户确认。来源仍无法访问时保持 failed，显示 Retry 与 Close，不创建活动 Media Session。
 - 选择媒体直接承诺打开它。一次产品播放对应一个 PlaybackCore Media Session；失败时不静默切换到另一套播放实现。
+- H.264、H.265/HEVC 与 AV1 视频属于产品必须接入的 video codec；失败只能来自具体媒体损坏、缺少必要 codec configuration 或当前平台明确不支持的 profile/level，不能因为容器同时携带 FLAC 音轨而把已经可显示的视频留在半启动状态。VP9 不是必须接入的 video codec；当当前设备的 VideoToolbox 对 VP9 没有可用于压缩 sample 渲染路径的解码能力时，必须在启动 renderer graph 前以明确的 unsupported-codec failure 拒绝，不得进入仅有音频、LoadingSpinner 常驻或空板的半启动状态。音频编码不能由 `AVSampleBufferAudioRenderer` 直接接收时，PlaybackCore 使用同一个 FFmpeg provider 将已接入的编码解码为线性 PCM；当前至少覆盖 FLAC。没有直接接收能力且尚未接入解码器的音频 codec 必须在启动 renderer graph 前给出明确的 unsupported-audio-codec failure。
+
+## 独立字幕文件
+
+- V1 支持 SubRip（`.srt`）、WebVTT（`.vtt`）和 ASS/SSA（`.ass`、`.ssa`）独立字幕文件。它们与容器内字幕共同进入当前 Media Session 的字幕轨列表，并使用同一套字幕选择、时间线、Seek、Off、Window、Docked 与 Panorama 呈现规则。
+- 从能够枚举 Source Directory 的 Local、SMB 或 WebDAV 来源打开媒体时，Enchron 在同一目录发现与视频文件主名称完全相同，或以该主名称加语言、地区或用途后缀命名的受支持字幕文件。例如 `Movie.srt`、`Movie.zh-CN.ass` 与 `Movie.forced.vtt` 都可以关联 `Movie.mkv`。扩展名比较不区分大小写；名称不满足该规则的文件不自动关联。
+- 自动关联只把候选文件加入字幕轨列表，不在多个候选之间猜测，也不覆盖用户已经选择的字幕轨。Photos 不提供可枚举的同级 Source Directory，因此不执行同目录自动关联。
+- Window、Docked 与 Panorama 的 More → Subtitles 都提供 Choose Subtitle File。用户可以从已经授权的本地来源或当前已配置的远程来源手动选择其它受支持字幕文件；手动选择不要求字幕与视频同目录或同名。
+- 独立字幕文件的保证使用范围是当前 Media Session。选择后保持同一 Media Session、renderer graph、Playback Lifecycle、Playback Presentation 和媒体时间；字幕读取使用自己的来源授权与 Content Revision，Close、打开另一媒体或当前 Session 失败时释放相应访问资源。
+- 无法访问、解析失败、格式不支持或读取中断只使该独立字幕轨不可用，并给出可恢复的字幕错误；当前视频、音频和已经可用的其它字幕轨继续工作。失败不得创建第二个 Media Session、把未知文件当成空字幕成功，或在旧字幕 cue 仍可见时静默切换来源。
 
 ## Playback Collection 与 Play Next
 
@@ -105,7 +123,7 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 - Window 视频界面左上角拥有 Back，右上角依次放置 Dock、Video Format 与 More；视频画面不叠加标题或媒体信息。
 - Window 播放控件以底部 Ornament 呈现，不显示 Settings 与 More。第一行把同尺寸的后退 15 秒、Play/Pause/Replay、前进 15 秒放在左侧，右侧的只读 Thick Material 信息区显示文件名并在 Hover 时显示与空间 Deck 相同的两组媒体信息；普通 Progress Bar 独占第二行。
 - Window Playback 的宽高比来自 PlaybackCore 报告的当前视频显示尺寸；Side-by-Side 与 Top-Bottom 先按 Stereo Layout 换算单眼显示尺寸。只有播放头尚未交付有效尺寸时，启动占位才临时使用 16:9。收起状态的 PlayerControls Ornament 外部宽度是 Window 宽度范围的唯一基准：最小、默认和最大宽度分别为其 1.25、1.75 和 2.50 倍，并对齐到 16pt；对应高度始终由当前视频宽高比计算。Precision Timeline 展开时 Ornament 可以扩展到与空间 Player Control Dock 相同的精确时间轴宽度，但不得触发 Window 尺寸跳变。
-- Settings 展开 Advanced Settings；More 负责 Playback Speed 与 Episodes。
+- Settings 展开 Advanced Settings；More 提供 Subtitles、Audio Track、Playback Speed 与 Episodes。Subtitles 包含 Off、容器内字幕轨、自动关联的独立字幕轨和 Choose Subtitle File；没有可用音轨或队列时不显示对应的空菜单。
 - Advanced Settings 在 Docked 提供 Screen Size、Distance、Elevation、Restore Defaults，在 Panorama 提供 Projection、Stereo Layout 与 Apply。Precision Timeline 由 Progress Bar 的圆形 scrubber 双击打开，不属于 Settings。
 - Precision Timeline 支持精确 seek 与逐帧，完成后保持暂停。Progress Bar 拖动期间的时间标识随本地预览位置连续更新，松手才提交 seek；seek 到结尾之前保持拖动前的 playing/paused 意图，从 ended 拖动离开结尾后保持暂停。
 - 前后 15 秒保持原来的 playing/paused 意图；从 ended 后退会离开结尾并保持暂停。逐帧始终保持暂停。
@@ -116,15 +134,18 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 - Docked 的 Video Entity/Mesh 不承载可点击按钮。Docked 与 Panorama 召唤同一个 `PlayerControlDock`，均提供播放控制、Settings 与 Return to Window，不提供直接 Back-to-Library。
 - `PlayerControlDock` 的外部结构在 Docked 与 Panorama 中保持一致。顶部只读 Thick Material 信息区在普通状态显示去掉扩展名的文件名；Hover 时文件名轻微上移，并在同一固定尺寸区域的左信息区显示 Projection 与 Stereo Layout，在右信息区显示 Resolution、HDR、Codec 与 Frame Rate。该区域不可点击，也没有进一步展开状态。
 - Player Control Dock 的操作行把 Settings 与 Return to Window 放在左侧、More 放在右侧，后退 15 秒、Play/Pause/Replay、前进 15 秒组成独立且以 Play 为面板几何中心的 transport group。Docked 与 Panorama 的 Return 图标不同；只有 Settings 展开内容不同：Docked 调整 Screen Size、Distance、Elevation 与 Restore Defaults，Panorama 调整 Projection、Stereo Layout、Apply 与 Reset。
+- Player Control Dock 的 More 与 Window More 使用相同的 Subtitles、Audio Track、Playback Speed 与 Episodes 产品操作；字幕轨或音轨选择不会改变当前 Playback Presentation。
 - Window、Docked 与 Panorama 的 Precision Timeline 使用相同的展开宽度。Window 展开后保留第一行的 transport 与媒体信息，由 Precision Timeline 替换第二行的普通 Progress Bar。普通 Progress Bar 与 Precision Timeline 是不同控件。
 - Window Back 关闭当前 Media Session 并回到 Media Library。
 - 返回 Window 或 Media Library 时结束本次 Docked Environment Effect，并恢复进入 Docked 前的 Environment Context。此前存在 Enchron Environment 时继续保留它原有的 Environment Effect；此前不存在时仍保持没有活动 Enchron Environment，System Surroundings 由 visionOS 决定。
+- 进入 Panorama 时，当前 Environment 与 Environment Effect 停止活动，Panorama 的 Environment Context 为 none；同一个 Enchron Immersive Space Open Cycle 保持打开，当前 Progressive Immersion Amount 不变。Panorama 只呈现黑色周围环境与视频投影球面。
+- Panorama Return Environment Context 保存进入前的 Environment 身份与 Effect。返回 Window 时，进入前为 active 就在同一 Open Cycle 内恢复原 Environment 与 Effect；进入前为 none 就保持 none，并关闭不再需要的 Enchron Immersive Space。
 - Docked 与 Panorama 不直接互转，必须经过 Window。
 
 ## 系统关闭空间与同进程恢复
 
 - Home View 或其他 visionOS 系统行为使 Enchron Immersive Space 消失时，Enchron 释放已经失效的空间资源，并仅在当前 App 进程的内存中保留 Spatial Recovery Intent。它记录原来的 Docked 或 Panorama、Media Session 身份和转换前的播放意图，但不形成第四种 Playback Presentation，也不写入 Resume、UserDefaults、SceneStorage、数据库或文件。
-- 用户在同一 App 进程仍存活时重新激活 Enchron，Enchron 显式重新打开 Immersive Space，重建 RealityKit 内容并重新绑定原 Media Session 的 renderer；目标 surface settled 后恢复原来的 Docked 或 Panorama 以及播放意图。恢复失败时安全回到 Window，并停止自动重试。
+- 用户在同一 App 进程仍存活时重新激活 Enchron，Enchron 显式重新打开 Immersive Space，重建 RealityKit 内容并重新绑定原 Media Session 的 renderer；目标 surface 已绑定原 renderer，并且达到相应 Presentation 的成功后置条件后，恢复原来的 Docked 或 Panorama 以及播放意图。恢复失败时安全回到 Window，并停止自动重试。
 - visionOS 终止 App 进程后，内存中的 Spatial Recovery Intent 随进程消失。下一次启动按冷启动和普通 Resume 规则处理，不自动恢复 Docked 或 Panorama；Enchron 不尝试检测即将发生的进程终止，也不持久化空间形态来模拟同进程恢复。
 
 ## Ended
@@ -148,7 +169,7 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 - 产品页面只组装生产组件并绑定产品状态。DesignPreview、SwiftUI Preview 与测试可以注入确定性依赖，但不得维护平行页面、测试专用产品行为或第二套状态机。
 - 产品规则必须由唯一状态 owner、最小跨边界 API、编译依赖方向和自动化测试共同约束，不能只依赖目录、注释或代码审查。
 - 运行事实通过 OSLog、signpost、Xcode、LLDB、Console 与 Instruments 暴露；不建设 Enchron CLI、自定义调试协议、Debug Overlay 或产品内日志面板。
-- 验证依次运行 PlaybackCore 单元与合同验证、visionOS Simulator 验证和 Vision Pro 真机验收；前一阶段未通过时，不能用后一阶段的结果代替。
+- 验证按被证明的事实组织。PlaybackCore 与纯逻辑合同、物理 Vision Pro 自动回归，以及物理 Vision Pro 上的性能、声学和佩戴感知专项验收分别形成证据，互不代替。
 - visionOS 产品集成验证使用真实媒体、生产 `PlaybackRuntime`、真实音频和视频 Renderer、共享时间同步器与 RealityKit 渲染接收方，证明持续播放、音画同步、Seek、连续 Seek、快进、快退、播放速度、关闭后重新打开、颜色与 HDR 信令和稳定性。App 不模拟系统音量界面；底层增益测试不代表产品提供了音量或静音功能。
 - Swift Testing / XCTest 验证纯逻辑、状态转换和适配边界；XCUIAutomation 验证可访问交互；`xcodebuild` 与 `.xcresult` 保存结果。
-- Simulator 验证 UI、平台 API 与基础 RealityKit 生命周期。硬件解码、HDR/EDR、最终 Panorama、空间舒适度、系统音量体验和性能必须在 Vision Pro 验收。完整门槛见 [`acceptance/verification-system.md`](acceptance/verification-system.md)。
+- App、UI、平台 API、RealityKit 生命周期、硬件解码、HDR/EDR、最终 Panorama、系统音频和性能均在物理 Vision Pro 上验证。Swift Testing 与 XCTest 继续承担可以直接调用的纯逻辑、状态转换和协议合同；它们不替代真实设备上的产品运行。完整门槛见 [`acceptance/verification-system.md`](acceptance/verification-system.md)。

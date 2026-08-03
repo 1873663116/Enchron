@@ -801,7 +801,7 @@ extension SampleBufferPlaybackSession {
             ),
             rendererStatus: currentVideoRendererStatus,
             rendererError: currentVideoRendererError,
-            inputModel: "boundedImmediateRendererLead",
+            inputModel: "decoderBootstrapThenReceiverBackpressure",
             displayedPixelBuffer: renderer.displayedPixelBuffer() != nil,
             flushCount: flushCount
         ))

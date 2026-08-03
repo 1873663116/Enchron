@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Enchron icon geometry prototype</title>
+  <desc id="desc">A continuous open ring with one upper-left interruption and a compact, layered group of detached fragments.</desc>
+
+  <rect width="512" height="512" rx="112" fill="#F7F7F5"/>
+
+  <!-- One continuous ring. The upper-left opening is part of the path, not a mask. -->
+  <path
+    d="M205 119
+       A150 150 0 1 1 119 205
+       L182 222
+       A80 80 0 1 0 222 182
+       Z"
+    fill="#17181B"/>
+
+  <!-- One larger attached section, still visually related to the ring. -->
+  <path
+    d="M150 132
+       A150 150 0 0 1 202 105
+       L217 139
+       A113 113 0 0 0 173 161
+       Z"
+    fill="#17181B"/>
+
+  <!-- Medium fragments: varied in contour and scale, kept close to the cut. -->
+  <path d="M111 176 L139 158 L160 175 L132 196 Z" fill="#17181B"/>
+  <path d="M126 218 L155 203 L179 218 L151 238 Z" fill="#17181B"/>
+  <path d="M184 126 L204 111 L222 128 L202 143 Z" fill="#17181B"/>
+
+  <!-- Small supporting fragments. -->
+  <path d="M104 207 L117 199 L127 207 L115 219 Z" fill="#17181B"/>
+  <path d="M153 143 L164 134 L175 142 L164 152 Z" fill="#17181B"/>
+  <path d="M174 106 L183 99 L193 105 L185 114 Z" fill="#17181B"/>
+
+  <!-- A restrained color test confined to the two cut faces. -->
+  <linearGradient id="cutSpectrum" x1="0" y1="0" x2="1" y2="0">
+    <stop offset="0" stop-color="#6ED6FF"/>
+    <stop offset="0.45" stop-color="#8A4DFF"/>
+    <stop offset="0.75" stop-color="#E653B5"/>
+    <stop offset="1" stop-color="#FF9B72"/>
+  </linearGradient>
+  <path d="M182 222 L192 225 L224 186 L222 182 Z" fill="url(#cutSpectrum)" opacity="0.9"/>
+  <path d="M205 119 L216 114 L229 151 L222 157 Z" fill="url(#cutSpectrum)" opacity="0.9"/>
+</svg>

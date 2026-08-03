@@ -54,7 +54,7 @@ struct PrecisionTimelineView: View {
         .contentShape(DesignTokens.ShapeToken.card)
         .gesture(zoomGesture)
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("DesignPreview-PrecisionTimeline")
+        .accessibilityIdentifier("PlayerPanel-precision-timeline")
         .accessibilityLabel("Precision timeline")
         .enchronScrubSensoryFeedback(
             pressTrigger: zoomPressTrigger,

@@ -8,7 +8,7 @@ Enchron 是唯一产品与代码仓库。`Packages/PlaybackCore` 是仓库内独
 Apps/       可运行入口，只负责平台生命周期与产品组装
 Modules/    产品源码所有者；平台无关核心由根 Package 的 Target 编译，Apple 平台代码由 App Target 编译
 Packages/   PlaybackCore 与场景资源的独立编译/交付边界
-Tests/      按被验证的 App 入口和证据层组织；PlaybackCore 测试留在 package 内
+Tests/      按被证明的产品事实和运行入口组织；PlaybackCore 测试留在 package 内
 Scripts/    构建、测试数据生成和验证工具
 Config/     构建元数据
 docs/       当前合同、验收规则与历史 ADR
@@ -93,7 +93,7 @@ flowchart LR
 ```text
 Source Admission -> Media Session -> Demux Provider
                                          |-- compressed video samples
-                                         |-- audio samples
+                                         |-- compressed or decoded-PCM audio samples
                                          `-- track and timed metadata facts
                                                     |
                                                     v
@@ -105,7 +105,7 @@ Source Admission -> Media Session -> Demux Provider
 
 - `Source Admission` 接受 Enchron App 已解析的来源与访问事实，并管理唯一 Current Media Slot。
 - `Media Session` 拥有一次 accepted open 到 close/failed 的身份、控制操作、Stream Epoch、Format Revision 与 stale rejection。
-- `Demux Provider` 使用 FFmpeg 打开容器、建立轨道模型并组装 compressed sample。核心只维护这一种 provider。
+- `Demux Provider` 使用 FFmpeg 打开容器、建立轨道模型并组装 renderer-ready sample。视频 sample 保持压缩编码；音频在 AVFoundation 能直接接收时保持压缩编码，否则由同一个 provider 解码为交错线性 PCM。核心不建立另一套 provider 或播放会话。
 - `Renderer Input Coordination` 通过 AVFoundation Receiver 管理 audio/video backpressure、timeline、enqueue、flush、end 和 error。
 - `Renderer Graph` 组合 video renderer、audio renderer 与共享 synchronizer。AVFoundation 拥有解码、HDR/Dolby Vision 解释和最终渲染。
 - `Diagnostics` 发布与当前 Media Session 可关联的 records、事件和 Debug Snapshot；Snapshot 不是第二套状态机。
@@ -158,7 +158,7 @@ Presentation Transition 保存转换前状态、目标状态、播放意图和�
 
 ## Enchron App 与验证入口
 
-Enchron App 是唯一的产品运行入口，也是 PlaybackRuntime、visionOS Scene、RealityKit consumer 与产品状态组装的所有者。PlaybackCore 的低层合同通过 Package 测试验证；产品适配、空间呈现和真实用户交互通过 Enchron App 在 visionOS Simulator 与 Vision Pro 上的测试验证。验证测试使用生产控制、状态投影和 renderer binding，不建立平行播放宿主。
+Enchron App 是唯一的产品运行入口，也是 PlaybackRuntime、visionOS Scene、RealityKit consumer 与产品状态组装的所有者。PlaybackCore 的媒体与控制合同通过 Package 测试验证；产品适配、空间呈现和真实用户交互通过 Enchron App 在物理 Vision Pro 上验证。验证测试使用生产控制、状态投影和 renderer binding，不建立平行播放宿主。
 
 Enchron 与 DesignPreview 通过同一组 Package Library Product 使用核心生产源码。Xcode 中逐文件指定源文件归属的设置只用于页面、Scene 和 PlaybackCore 平台适配代码；这些文件不得复制五个核心 Target 已拥有的类型或规则。
 
@@ -166,7 +166,7 @@ Enchron 与 DesignPreview 通过同一组 Package Library Product 使用核心�
 
 ## 不变量
 
-- 产品与验证共用一条 FFmpeg demux → compressed sample → AVFoundation renderer 路径；失败不会切换到另一套媒体实现。
+- 产品与验证共用一条 FFmpeg demux → renderer-ready sample → AVFoundation renderer 路径；视频保持压缩编码，音频可以在同一个 provider 内解码为线性 PCM，失败不会切换到另一套媒体实现。
 - `Playback Lifecycle` 由 PlaybackCore 唯一发布；`Playback Presentation` 由 Enchron App 管理，两者不能压成同一个“播放模式”。
 - Window、Docked、Panorama 迁移同一个 renderer。目标 surface 必须绑定同一 Media Session 的 renderer 才能提交；播放中还必须等 RealityKit 报告画面 settled。Paused、Ready 与 Ended 没有新帧可推动该报告，renderer surface 已绑定即为可提交，不得因等待新帧超时而回滚。真正的绑定失败回滚到原 Presentation，不重开 Media Session。
 - 媒体的初始或持久化 Media Format 必须在任何 RealityKit surface 挂载和播放启动前完成同一 Session 内的设置；默认播放速度作为打开 Session 的初始 rate 输入，不在 timeline 尚未建立时补发控制命令。
@@ -174,6 +174,6 @@ Enchron 与 DesignPreview 通过同一组 Package Library Product 使用核心�
 - Docked Video Entity 挂到 Xrplay_scene 交付的唯一 `PlaybackSurfaceAnchor` 下。场景拥有推荐基准位置与朝向；Enchron 以用户原点计算 Distance/Elevation 球面位置并转换为该 parent 下的 transform，同时拥有 Screen Size uniform scale；RealityKit 拥有视频 mesh、material 与实际呈现模式。
 - Media Library 只保存引用。分类、移动或删除引用不得复制、移动或删除媒体字节。
 - DesignPreview、SwiftUI Preview 与测试复用生产组件和页面；fixture adapter 不维护平行产品行为。
-- 验证依次覆盖 PlaybackCore 单元验证、visionOS Simulator 和 Vision Pro 真机。每一层都有不同的证明范围，后面的结果不能代替前面的验证。
+- 验证按所证明的事实分为 PlaybackCore 与纯逻辑合同、物理 Vision Pro 自动回归，以及性能、声学和佩戴感知等物理 Vision Pro 专项验收。App、UI、RealityKit 与系统 Scene 的当前通过结论只来自物理 Vision Pro；三类验证分别记录，互不代替。
 
 行为合同见 `docs/core-spec.md` 和 `docs/product-requirements.md`；唯一验证规则见 `docs/acceptance/verification-system.md`。

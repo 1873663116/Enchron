@@ -89,16 +89,25 @@ enum PlaybackRealityPresenter {
         if presentation == .window {
             entity.components.set(
                 ModelSortGroupComponent(
-                    group: .planarUIAlwaysBehind,
+                    group: .planarUIInline,
                     order: WindowPlaybackSurfaceGeometry.backgroundSortOrder
                 )
             )
         } else {
             entity.components.remove(ModelSortGroupComponent.self)
         }
-        let collisionShape: ShapeResource = presentation == .panorama
-            ? .generateSphere(radius: 1)
-            : .generateBox(size: [1.8, 1, 0.01])
+        let collisionShape: ShapeResource
+        switch presentation {
+        case .window:
+            let region = WindowPlaybackSurfaceGeometry.interactionRegion
+            collisionShape = ShapeResource
+                .generateBox(size: [region.size.x, region.size.y, 0.01])
+                .offsetBy(translation: [0, region.centerYOffset, 0])
+        case .docked:
+            collisionShape = .generateBox(size: [1.8, 1, 0.01])
+        case .panorama:
+            collisionShape = .generateSphere(radius: 1)
+        }
         #else
         let collisionShape = ShapeResource.generateBox(size: [1.8, 1, 0.01])
         #endif

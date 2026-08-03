@@ -20,4 +20,4 @@
 
 ## 验收
 
-L1 验证 source schema、privacy 和 rejection；App integration 验证 file bookmark、Photos identifier、SMB/WebDAV range source、取消、授权失效与 cleanup 后释放。
+PlaybackCore 与来源合同测试验证 source schema、privacy 和 rejection；物理 Vision Pro App 集成验证 file bookmark、Photos identifier、SMB/WebDAV range source、取消、授权失效与 cleanup 后释放。

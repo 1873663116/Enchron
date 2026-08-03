@@ -75,6 +75,19 @@ struct WindowPlaybackPageGeometryTests {
         #expect(layout.hasPlaybackAspectRatio(tooLarge))
     }
 
+    @Test("window video interaction leaves the top chrome outside its hit region")
+    func protectedTopChromeInteractionRegion() {
+        let region = WindowPlaybackSurfaceGeometry.interactionRegion
+        let surfaceTop = WindowPlaybackSurfaceGeometry.unitHeight / 2
+        let interactionTop = region.centerYOffset + region.size.y / 2
+        let interactionBottom = region.centerYOffset - region.size.y / 2
+
+        #expect(WindowPlaybackSurfaceGeometry.interactionProtectedTopFraction == 0.16)
+        #expect(abs(interactionTop - 0.34) < 0.001)
+        #expect(abs(interactionBottom + 0.5) < 0.001)
+        #expect(interactionTop < surfaceTop)
+    }
+
     @Test("window presentation never hosts the independent controls window")
     func spatialControlsScenePolicy() {
         #expect(

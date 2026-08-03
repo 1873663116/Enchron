@@ -8,6 +8,8 @@
 .codex-crashlogs/
 .codex-debug-runs/
 .xcodebuildmcp/
+.cursor/acceptance-shots/
+.cursor/debug-*.log
 __pycache__/
 
 # SwiftPM local workspace state

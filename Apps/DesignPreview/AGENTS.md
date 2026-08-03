@@ -6,6 +6,6 @@ DesignPreview 是生产组件的代码化展示入口。它使用 `../../Modules
 
 探索结论被接受后，直接修改生产页面或生产组件，不把探索实现复制成第二份。fixture 只提供组件状态，不得成为产品行为来源。
 
-普通布局、样式、状态和局部交互优先使用 Xcode Canvas 验证。跨 `WindowGroup`、volume、`ImmersiveSpace`、运行时生命周期或真实媒体呈现升级到 Simulator；硬件播放、HDR/EDR、性能和最终空间体验升级到 Vision Pro。
+普通布局、样式、状态和局部交互优先使用 Xcode Canvas 验证。跨 `WindowGroup`、volume、`ImmersiveSpace`、运行时生命周期、真实媒体呈现、硬件播放、HDR/EDR、性能和最终空间体验使用保持解锁的物理 Vision Pro 验证。
 
 组件的 interface、参数和变体由 Swift 代码、`#Preview` 与测试表达，不建立逐组件 Markdown contract。注释只解释代码无法表达的平台原因或约束。

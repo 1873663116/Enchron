@@ -1,0 +1,37 @@
+{
+  "configurations" : [
+    {
+      "id" : "4A417701-06A0-48B8-8F2B-07A6A49A0B91",
+      "name" : "Physical Vision Pro",
+      "options" : {
+        "preferredScreenCaptureFormat" : "screenRecording",
+        "uiTestingScreenshotsLifetime" : "keepAlways"
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Enchron.xcodeproj",
+      "identifier" : "C3B0F97F2F5726B30064596E",
+      "name" : "Enchron"
+    }
+  },
+  "testTargets" : [
+    {
+      "selectedTests" : [
+        "DockedPlacementUITests/testPlacementControlsChangeTheActualSurfaceAndPersistAcrossRoundTrip()",
+        "DockedPlacementUITests/testRestoreDefaultsUsesTheSpecifiedFourMeterDistance()",
+        "SequentialMediaPlaybackUITests/testTwoRegisteredMediaOpenSequentiallyWithoutSessionOrSurfaceLeakage()",
+        "SmokeLaunchUITests/testAppLaunchesToInteractiveMainWindow()",
+        "SpatialHandoffUITests/testDockedTargetIsReadyBeforeWindowStopsBeingTheUsableSurface()",
+        "SpatialHandoffUITests/testPanoramaTargetIsReadyBeforeWindowStopsBeingTheUsableSurface()"
+      ],
+      "target" : {
+        "containerPath" : "container:Enchron.xcodeproj",
+        "identifier" : "E2E0000100000000DEADBEEF",
+        "name" : "EnchronAppUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

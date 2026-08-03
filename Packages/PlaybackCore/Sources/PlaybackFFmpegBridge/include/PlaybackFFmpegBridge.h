@@ -77,6 +77,11 @@ bool PBFFmpegReaderOpen(
 );
 void PBFFmpegReaderCancel(PBFFmpegReader *reader);
 
+/// Test seam for exercising streams whose container metadata omits codec configuration.
+/// Call after allocation and before `PBFFmpegReaderOpen`.
+void PBFFmpegReaderForceBitstreamExtradataBootstrap(PBFFmpegReader *reader);
+bool PBFFmpegReaderUsedBitstreamExtradataBootstrap(const PBFFmpegReader *reader);
+
 void PBFFmpegReaderDestroy(PBFFmpegReader *reader);
 
 PBFFmpegReadResult PBFFmpegReaderCopyNextSample(
@@ -135,6 +140,7 @@ int PBFFmpegAudioReaderGetStreamIndex(const PBFFmpegAudioReader *reader);
 int PBFFmpegAudioReaderGetSampleRate(const PBFFmpegAudioReader *reader);
 int PBFFmpegAudioReaderGetChannelCount(const PBFFmpegAudioReader *reader);
 const char *PBFFmpegAudioReaderGetCodecName(const PBFFmpegAudioReader *reader);
+bool PBFFmpegAudioReaderOutputsPCM(const PBFFmpegAudioReader *reader);
 
 int PBFFmpegAudioTrackCount(const char *path);
 bool PBFFmpegAudioTrackCopyInfo(

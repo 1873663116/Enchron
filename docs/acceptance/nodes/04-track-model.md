@@ -19,4 +19,4 @@
 
 ## 验收
 
-L1 验证多轨、无音频、双音轨、语言、missing facts、selection、not-selected reason、音轨切换 rollback 与跨 reopen identity 规则。
+PlaybackCore 合同测试验证多轨、无音频、双音轨、语言、missing facts、selection、not-selected reason、音轨切换 rollback 与跨 reopen identity 规则。

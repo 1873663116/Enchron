@@ -1,6 +1,6 @@
 import XCTest
 
-/// Simulator regression for the production Window playback controls.
+/// Vision Pro regression for the production Window playback controls.
 nonisolated final class PlaybackDeckUITests: XCTestCase {
 
     @MainActor

@@ -23,4 +23,4 @@ sample accepted、renderer rendering、displayed pixel、持续推进、系统�
 
 ## 验收
 
-L1 使用受控 Receiver seam 验证 timeline ordering、decode time 从目标前跨到目标后但不精确相等时仍完成 bootstrap、audio 在 rate 生效前完成 preroll、普通暂停恢复不 flush 当前音频、正常提前量限制、stale rejection、必要 flush、ended 和 error；visionOS App 集成验证使用真实 renderer 证明 first enqueue、displayed frame、audio progression、seek/rate/control、cleanup 和 same-process reopen。
+PlaybackCore 合同测试使用受控 Receiver seam 验证 timeline ordering、decode time 从目标前跨到目标后但不精确相等时仍完成 bootstrap、audio 在 rate 生效前完成 preroll、普通暂停恢复不 flush 当前音频、正常提前量限制、stale rejection、必要 flush、ended 和 error；物理 Vision Pro App 集成验证使用真实 renderer 证明 first enqueue、displayed frame、audio progression、seek/rate/control、cleanup 和 same-process reopen。

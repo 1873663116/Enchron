@@ -1,12 +1,14 @@
 #include "PlaybackFFmpegBridge.h"
 
 #include <AudioToolbox/AudioToolbox.h>
+#include <VideoToolbox/VideoToolbox.h>
 #include <libavcodec/avcodec.h>
 #include <libavcodec/bsf.h>
 #include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libavutil/dovi_meta.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/samplefmt.h>
 #include <libavutil/spherical.h>
 #include <libavutil/stereo3d.h>
 #include <limits.h>
@@ -26,6 +28,13 @@ struct PBFFmpegReader {
     PBFFmpegMode mode;
     CMVideoFormatDescriptionRef compressedFormat;
     bool convertsAnnexB;
+    bool forceBitstreamExtradataBootstrap;
+    bool usedBitstreamExtradataBootstrap;
+    bool bootstrapPacketsAreAnnexB;
+    AVPacket **bootstrapPackets;
+    size_t bootstrapPacketCount;
+    size_t bootstrapPacketIndex;
+    size_t bootstrapPacketBytes;
     double durationSeconds;
     double nominalFrameRate;
     char codecName[64];
@@ -47,6 +56,8 @@ struct PBFFmpegAudioReader {
     AVPacket *packet;
     AVPacket *filteredPacket;
     AVBSFContext *bitstreamFilter;
+    AVCodecContext *decoder;
+    AVFrame *decodedFrame;
     int audioStreamIndex;
     AVRational timeBase;
     int64_t startTimestamp;
@@ -54,6 +65,11 @@ struct PBFFmpegAudioReader {
     int channelCount;
     bool inputEnded;
     bool filterDrained;
+    bool decoderInputEnded;
+    bool decodesToPCM;
+    bool hasNextDecodedSamplePosition;
+    int64_t nextDecodedSamplePosition;
+    enum AVSampleFormat decodedSampleFormat;
     int64_t pendingOriginalPTS;
     int64_t pendingOriginalDTS;
     int64_t pendingOriginalDuration;
@@ -106,7 +122,7 @@ static bool subtitle_stream_is_supported(const AVStream *stream) {
     }
 }
 
-static AudioFormatID audio_format_id(enum AVCodecID codecID) {
+static AudioFormatID compressed_audio_format_id(enum AVCodecID codecID) {
     switch (codecID) {
         case AV_CODEC_ID_AAC: return kAudioFormatMPEG4AAC;
         case AV_CODEC_ID_AC3: return kAudioFormatAC3;
@@ -114,15 +130,23 @@ static AudioFormatID audio_format_id(enum AVCodecID codecID) {
         case AV_CODEC_ID_MP2: return kAudioFormatMPEGLayer2;
         case AV_CODEC_ID_MP3: return kAudioFormatMPEGLayer3;
         case AV_CODEC_ID_ALAC: return kAudioFormatAppleLossless;
-        case AV_CODEC_ID_FLAC: return kAudioFormatFLAC;
         case AV_CODEC_ID_OPUS: return kAudioFormatOpus;
         default: return 0;
     }
 }
 
+static bool audio_codec_decodes_to_pcm(enum AVCodecID codecID) {
+    return codecID == AV_CODEC_ID_FLAC;
+}
+
+static bool audio_codec_is_supported(enum AVCodecID codecID) {
+    return compressed_audio_format_id(codecID) != 0 ||
+        (audio_codec_decodes_to_pcm(codecID) && avcodec_find_decoder(codecID) != NULL);
+}
+
 static bool audio_stream_is_supported(const AVStream *stream) {
     if (!stream || stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) return false;
-    return audio_format_id(stream->codecpar->codec_id) != 0 &&
+    return audio_codec_is_supported(stream->codecpar->codec_id) &&
         stream->codecpar->sample_rate > 0 &&
         stream->codecpar->ch_layout.nb_channels > 0;
 }
@@ -131,7 +155,7 @@ static void set_error(char *buffer, size_t size, const char *message);
 
 static bool audio_stream_needs_more_probe(const AVStream *stream) {
     if (!stream || stream->codecpar->codec_type != AVMEDIA_TYPE_AUDIO) return false;
-    return audio_format_id(stream->codecpar->codec_id) != 0 &&
+    return audio_codec_is_supported(stream->codecpar->codec_id) &&
         (stream->codecpar->sample_rate <= 0 ||
          stream->codecpar->ch_layout.nb_channels <= 0);
 }
@@ -142,7 +166,7 @@ static bool is_audio_stream(const AVStream *stream) {
 
 static bool audio_stream_has_supported_codec(const AVStream *stream) {
     return is_audio_stream(stream) &&
-        audio_format_id(stream->codecpar->codec_id) != 0;
+        audio_codec_is_supported(stream->codecpar->codec_id);
 }
 
 static const int aac_sample_rates[] = {
@@ -222,7 +246,7 @@ static void set_audio_stream_selection_error(
     if (!hasAudioStream) {
         set_error(errorBuffer, errorBufferSize, "The selected source has no audio stream");
     } else if (!hasSupportedCodec) {
-        set_error(errorBuffer, errorBufferSize, "The selected compressed audio codec is not supported");
+        set_error(errorBuffer, errorBufferSize, "The selected audio codec is not supported by PlaybackCore");
     } else {
         set_error(
             errorBuffer,
@@ -337,6 +361,17 @@ static OSType codec_type(const AVCodecParameters *parameters) {
     }
 }
 
+static bool compressed_codec_is_renderable(OSType type) {
+    if (type == 0) return false;
+    // AVSampleBufferVideoRenderer / VideoPlayerComponent require a VideoToolbox
+    // decoder for the compressed sample path. VP9 has no guaranteed decoder on
+    // current Apple silicon targets for this path.
+    if (type == kCMVideoCodecType_VP9) {
+        return VTIsHardwareDecodeSupported(kCMVideoCodecType_VP9);
+    }
+    return true;
+}
+
 static bool add_dovi_configuration_atom(
     const AVCodecParameters *parameters,
     CFMutableDictionaryRef atoms
@@ -442,6 +477,71 @@ static CFDataRef create_av1_configuration(const AVCodecParameters *parameters) {
     CFDataRef configuration = CFDataCreate(kCFAllocatorDefault, bytes, size);
     free(bytes);
     return configuration;
+}
+
+static CFDataRef create_vp9_configuration(const AVCodecParameters *parameters) {
+    // Apple/AVFoundation expect vpcC payload as FullBox(version=1) + VPCodecConfigurationRecord.
+    if (parameters->extradata && parameters->extradata_size >= 12 &&
+        parameters->extradata[0] == 1) {
+        return CFDataCreate(
+            kCFAllocatorDefault,
+            parameters->extradata,
+            parameters->extradata_size
+        );
+    }
+    if (parameters->extradata && parameters->extradata_size >= 8 &&
+        parameters->extradata[0] != 1) {
+        // Bare record from some demuxers: wrap with FullBox version 1.
+        uint8_t wrapped[12] = {1, 0, 0, 0};
+        memcpy(wrapped + 4, parameters->extradata, 8);
+        return CFDataCreate(kCFAllocatorDefault, wrapped, sizeof(wrapped));
+    }
+
+    uint8_t profile = parameters->profile >= 0 && parameters->profile <= 3
+        ? (uint8_t)parameters->profile
+        : 0;
+    uint8_t level = parameters->level > 0 && parameters->level <= 255
+        ? (uint8_t)parameters->level
+        : 10;
+    uint8_t bitDepth = 8;
+    uint8_t chromaSubsampling = 1;
+    uint8_t fullRange = parameters->color_range == AVCOL_RANGE_JPEG ? 1 : 0;
+    const AVPixFmtDescriptor *pixelFormat = av_pix_fmt_desc_get(parameters->format);
+    if (pixelFormat) {
+        int depth = pixelFormat->comp[0].depth;
+        if (depth >= 12) bitDepth = 12;
+        else if (depth >= 10) bitDepth = 10;
+        if (pixelFormat->log2_chroma_w == 0 && pixelFormat->log2_chroma_h == 0) {
+            chromaSubsampling = 3;
+        } else if (pixelFormat->log2_chroma_w > 0 && pixelFormat->log2_chroma_h == 0) {
+            chromaSubsampling = 2;
+        }
+    }
+    if (profile == 0 && bitDepth > 8) profile = 2;
+    if (profile == 1 && bitDepth > 8) profile = 3;
+
+    uint8_t colourPrimaries = parameters->color_primaries > 0
+        ? (uint8_t)parameters->color_primaries
+        : 1;
+    uint8_t transferCharacteristics = parameters->color_trc > 0
+        ? (uint8_t)parameters->color_trc
+        : 1;
+    uint8_t matrixCoefficients = parameters->color_space > 0
+        ? (uint8_t)parameters->color_space
+        : 1;
+
+    uint8_t bytes[12] = {
+        1, 0, 0, 0,
+        profile,
+        level,
+        (uint8_t)((bitDepth << 4) | (chromaSubsampling << 1) | fullRange),
+        colourPrimaries,
+        transferCharacteristics,
+        matrixCoefficients,
+        0,
+        0
+    };
+    return CFDataCreate(kCFAllocatorDefault, bytes, sizeof(bytes));
 }
 
 static size_t descriptor_length_size(size_t value) {
@@ -698,6 +798,460 @@ static const uint8_t *find_start_code(const uint8_t *position, const uint8_t *en
     return NULL;
 }
 
+static int buffer_bootstrap_packet(PBFFmpegReader *reader, const AVPacket *packet) {
+    if (reader->bootstrapPacketCount >= 512 ||
+        reader->bootstrapPacketBytes > 64 * 1024 * 1024 ||
+        (size_t)packet->size > 64 * 1024 * 1024 - reader->bootstrapPacketBytes) {
+        return AVERROR(ENOBUFS);
+    }
+    AVPacket *copy = av_packet_clone(packet);
+    if (!copy) return AVERROR(ENOMEM);
+    AVPacket **packets = realloc(
+        reader->bootstrapPackets,
+        (reader->bootstrapPacketCount + 1) * sizeof(*packets)
+    );
+    if (!packets) {
+        av_packet_free(&copy);
+        return AVERROR(ENOMEM);
+    }
+    reader->bootstrapPackets = packets;
+    reader->bootstrapPackets[reader->bootstrapPacketCount++] = copy;
+    reader->bootstrapPacketBytes += (size_t)packet->size;
+    return 0;
+}
+
+static void discard_bootstrap_packets(PBFFmpegReader *reader) {
+    if (!reader) return;
+    for (size_t index = 0; index < reader->bootstrapPacketCount; index++) {
+        av_packet_free(&reader->bootstrapPackets[index]);
+    }
+    free(reader->bootstrapPackets);
+    reader->bootstrapPackets = NULL;
+    reader->bootstrapPacketCount = 0;
+    reader->bootstrapPacketIndex = 0;
+    reader->bootstrapPacketBytes = 0;
+}
+
+static bool packet_starts_with_annexb(const AVPacket *packet) {
+    if (!packet || packet->size < 4) return false;
+    size_t startLength = 0;
+    return find_start_code(
+        packet->data,
+        packet->data + packet->size,
+        &startLength
+    ) == packet->data;
+}
+
+static int install_bootstrap_extradata(
+    AVCodecParameters *parameters,
+    const uint8_t *bytes,
+    size_t size
+) {
+    if (!bytes || size == 0 || size > INT_MAX) return AVERROR_INVALIDDATA;
+    uint8_t *copy = av_mallocz(size + AV_INPUT_BUFFER_PADDING_SIZE);
+    if (!copy) return AVERROR(ENOMEM);
+    memcpy(copy, bytes, size);
+    av_freep(&parameters->extradata);
+    parameters->extradata = copy;
+    parameters->extradata_size = (int)size;
+    return 0;
+}
+
+static bool video_codec_configuration_is_usable(const AVCodecParameters *parameters) {
+    if (!parameters || !parameters->extradata || parameters->extradata_size <= 0) {
+        return false;
+    }
+    const uint8_t *configuration = parameters->extradata;
+    size_t size = (size_t)parameters->extradata_size;
+    switch (parameters->codec_id) {
+        case AV_CODEC_ID_HEVC:
+            if (configuration[0] != 1) return true;
+            return size >= 23 && configuration[22] != 0;
+        case AV_CODEC_ID_H264:
+            if (configuration[0] != 1) return true;
+            return size >= 6 && (configuration[5] & 0x1f) != 0;
+        case AV_CODEC_ID_AV1:
+            if ((configuration[0] & 0x80) == 0) return true;
+            return size >= 4 && (configuration[0] & 0x7f) == 1;
+        case AV_CODEC_ID_VP9:
+            return size >= 12 && configuration[0] == 1;
+        default:
+            return true;
+    }
+}
+
+typedef struct PBParameterSet {
+    uint8_t *bytes;
+    size_t size;
+} PBParameterSet;
+
+static int video_parameter_set_slot(enum AVCodecID codecID, const uint8_t *nal, size_t size) {
+    if (!nal || size == 0) return -1;
+    if (codecID == AV_CODEC_ID_HEVC) {
+        int type = (nal[0] >> 1) & 0x3f;
+        return type >= 32 && type <= 34 ? type - 32 : -1;
+    }
+    if (codecID == AV_CODEC_ID_H264) {
+        int type = nal[0] & 0x1f;
+        if (type == 7) return 0;
+        if (type == 8) return 1;
+    }
+    return -1;
+}
+
+static int store_video_parameter_set(
+    enum AVCodecID codecID,
+    const uint8_t *nal,
+    size_t size,
+    PBParameterSet sets[3]
+) {
+    int slot = video_parameter_set_slot(codecID, nal, size);
+    if (slot < 0 || sets[slot].bytes) return 0;
+    sets[slot].bytes = av_memdup(nal, size);
+    if (!sets[slot].bytes) return AVERROR(ENOMEM);
+    sets[slot].size = size;
+    return 0;
+}
+
+static int collect_annexb_parameter_sets(
+    enum AVCodecID codecID,
+    const AVPacket *packet,
+    PBParameterSet sets[3]
+) {
+    const uint8_t *cursor = packet->data;
+    const uint8_t *end = cursor + packet->size;
+    while (cursor < end) {
+        size_t startLength = 0;
+        const uint8_t *start = find_start_code(cursor, end, &startLength);
+        if (!start) break;
+        const uint8_t *nal = start + startLength;
+        size_t nextLength = 0;
+        const uint8_t *next = find_start_code(nal, end, &nextLength);
+        const uint8_t *nalEnd = next ?: end;
+        while (nalEnd > nal && nalEnd[-1] == 0) nalEnd--;
+        int result = store_video_parameter_set(
+            codecID, nal, (size_t)(nalEnd - nal), sets
+        );
+        if (result < 0) return result;
+        cursor = next ?: end;
+    }
+    return 0;
+}
+
+static bool collect_length_prefixed_parameter_sets(
+    enum AVCodecID codecID,
+    const AVPacket *packet,
+    size_t lengthSize,
+    PBParameterSet sets[3],
+    int *errorOut
+) {
+    size_t offset = 0;
+    bool parsedNAL = false;
+    while (offset + lengthSize <= (size_t)packet->size) {
+        uint32_t nalSize = 0;
+        for (size_t index = 0; index < lengthSize; index++) {
+            nalSize = (nalSize << 8) | packet->data[offset + index];
+        }
+        offset += lengthSize;
+        if (nalSize == 0 || nalSize > (size_t)packet->size - offset) return false;
+        offset += nalSize;
+        parsedNAL = true;
+    }
+    if (!parsedNAL || offset != (size_t)packet->size) return false;
+
+    offset = 0;
+    while (offset + lengthSize <= (size_t)packet->size) {
+        uint32_t nalSize = 0;
+        for (size_t index = 0; index < lengthSize; index++) {
+            nalSize = (nalSize << 8) | packet->data[offset + index];
+        }
+        offset += lengthSize;
+        if (nalSize == 0 || nalSize > (size_t)packet->size - offset) return false;
+        int result = store_video_parameter_set(
+            codecID, packet->data + offset, nalSize, sets
+        );
+        if (result < 0) {
+            *errorOut = result;
+            return false;
+        }
+        offset += nalSize;
+    }
+    return true;
+}
+
+static int collect_video_parameter_sets(
+    enum AVCodecID codecID,
+    const AVPacket *packet,
+    PBParameterSet sets[3],
+    size_t *nalUnitHeaderLengthOut
+) {
+    if (packet_starts_with_annexb(packet)) {
+        if (nalUnitHeaderLengthOut) *nalUnitHeaderLengthOut = 4;
+        return collect_annexb_parameter_sets(codecID, packet, sets);
+    }
+    for (size_t lengthSize = 4; lengthSize >= 1; lengthSize--) {
+        int result = 0;
+        if (collect_length_prefixed_parameter_sets(
+                codecID, packet, lengthSize, sets, &result
+            )) {
+            if (nalUnitHeaderLengthOut) *nalUnitHeaderLengthOut = lengthSize;
+            return 0;
+        }
+        if (result < 0) return result;
+    }
+    return 0;
+}
+
+static bool video_parameter_sets_complete(
+    enum AVCodecID codecID,
+    const PBParameterSet sets[3]
+) {
+    size_t required = codecID == AV_CODEC_ID_HEVC ? 3 : 2;
+    for (size_t index = 0; index < required; index++) {
+        if (!sets[index].bytes || sets[index].size == 0) return false;
+    }
+    return true;
+}
+
+static int install_parameter_set_configuration(
+    AVCodecParameters *parameters,
+    PBParameterSet sets[3],
+    size_t nalUnitHeaderLength
+) {
+    size_t required = parameters->codec_id == AV_CODEC_ID_HEVC ? 3 : 2;
+    for (size_t index = 0; index < required; index++) {
+        if (!sets[index].bytes || sets[index].size == 0) return AVERROR_INVALIDDATA;
+    }
+    if (nalUnitHeaderLength < 1 || nalUnitHeaderLength > 4) {
+        return AVERROR_INVALIDDATA;
+    }
+
+    const uint8_t *parameterSetBytes[3] = {0};
+    size_t parameterSetSizes[3] = {0};
+    for (size_t index = 0; index < required; index++) {
+        parameterSetBytes[index] = sets[index].bytes;
+        parameterSetSizes[index] = sets[index].size;
+    }
+
+    CMVideoFormatDescriptionRef format = NULL;
+    OSStatus status = parameters->codec_id == AV_CODEC_ID_HEVC
+        ? CMVideoFormatDescriptionCreateFromHEVCParameterSets(
+            kCFAllocatorDefault,
+            required,
+            parameterSetBytes,
+            parameterSetSizes,
+            (int)nalUnitHeaderLength,
+            NULL,
+            &format
+        )
+        : CMVideoFormatDescriptionCreateFromH264ParameterSets(
+            kCFAllocatorDefault,
+            required,
+            parameterSetBytes,
+            parameterSetSizes,
+            (int)nalUnitHeaderLength,
+            &format
+        );
+    if (status != noErr || !format) {
+        if (format) CFRelease(format);
+        return AVERROR_INVALIDDATA;
+    }
+
+    CFDictionaryRef atoms = CMFormatDescriptionGetExtension(
+        format,
+        kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms
+    );
+    CFStringRef atom = atom_name(parameters);
+    CFDataRef configuration = atoms && atom
+        ? (CFDataRef)CFDictionaryGetValue(atoms, atom)
+        : NULL;
+    int result = configuration && CFGetTypeID(configuration) == CFDataGetTypeID()
+        ? install_bootstrap_extradata(
+            parameters,
+            CFDataGetBytePtr(configuration),
+            (size_t)CFDataGetLength(configuration)
+        )
+        : AVERROR_INVALIDDATA;
+    CFRelease(format);
+    return result;
+}
+
+static void free_video_parameter_sets(PBParameterSet sets[3]) {
+    for (size_t index = 0; index < 3; index++) av_freep(&sets[index].bytes);
+}
+
+static int bootstrap_video_extradata(
+    PBFFmpegReader *reader,
+    AVStream *stream,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!reader->forceBitstreamExtradataBootstrap &&
+        video_codec_configuration_is_usable(stream->codecpar)) {
+        return 0;
+    }
+    enum AVCodecID codecID = stream->codecpar->codec_id;
+    if (codecID != AV_CODEC_ID_H264 &&
+        codecID != AV_CODEC_ID_HEVC &&
+        codecID != AV_CODEC_ID_AV1 &&
+        codecID != AV_CODEC_ID_VP9) {
+        char message[192];
+        snprintf(
+            message,
+            sizeof(message),
+            "Compressed video codec configuration is missing from the container (codec=%s tag=%s extradata=%d)",
+            avcodec_get_name(codecID),
+            reader->codecTag[0] ? reader->codecTag : "unknown",
+            stream->codecpar->extradata_size
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return AVERROR_INVALIDDATA;
+    }
+    av_freep(&stream->codecpar->extradata);
+    stream->codecpar->extradata_size = 0;
+    if (codecID == AV_CODEC_ID_VP9) {
+        CFDataRef configuration = create_vp9_configuration(stream->codecpar);
+        if (!configuration) {
+            set_error(errorBuffer, errorBufferSize, "Unable to synthesize VP9 codec configuration");
+            return AVERROR(ENOMEM);
+        }
+        int installed = install_bootstrap_extradata(
+            stream->codecpar,
+            CFDataGetBytePtr(configuration),
+            (size_t)CFDataGetLength(configuration)
+        );
+        CFRelease(configuration);
+        if (installed < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Install synthesized VP9 codec configuration", installed);
+            return installed;
+        }
+        return 0;
+    }
+    const AVBitStreamFilter *filter = av_bsf_get_by_name("extract_extradata");
+    if (!filter) {
+        set_error(errorBuffer, errorBufferSize, "FFmpeg extract_extradata filter is unavailable");
+        return AVERROR(ENOSYS);
+    }
+    AVBSFContext *context = NULL;
+    int result = av_bsf_alloc(filter, &context);
+    if (result >= 0) result = avcodec_parameters_copy(context->par_in, stream->codecpar);
+    if (result >= 0) {
+        context->time_base_in = stream->time_base;
+        result = av_bsf_init(context);
+    }
+    AVPacket *input = av_packet_alloc();
+    AVPacket *output = av_packet_alloc();
+    PBParameterSet parameterSets[3] = {0};
+    size_t parameterSetNALUnitHeaderLength = 0;
+    if (result < 0 || !input || !output) {
+        if (result >= 0) result = AVERROR(ENOMEM);
+        set_av_error(errorBuffer, errorBufferSize, "Initialize video extradata bootstrap", result);
+        av_packet_free(&input);
+        av_packet_free(&output);
+        av_bsf_free(&context);
+        return result;
+    }
+
+    while (reader->bootstrapPacketCount < 512 &&
+           reader->bootstrapPacketBytes <= 64 * 1024 * 1024) {
+        if (cancellation_requested(&reader->cancelled)) {
+            result = AVERROR_EXIT;
+            break;
+        }
+        result = av_read_frame(reader->formatContext, input);
+        if (result < 0) break;
+        if (input->stream_index != reader->videoStreamIndex) {
+            av_packet_unref(input);
+            continue;
+        }
+        if (reader->bootstrapPacketCount == 0) {
+            reader->bootstrapPacketsAreAnnexB = packet_starts_with_annexb(input);
+        }
+        result = buffer_bootstrap_packet(reader, input);
+        if (result < 0) {
+            av_packet_unref(input);
+            break;
+        }
+
+        if (codecID == AV_CODEC_ID_H264 || codecID == AV_CODEC_ID_HEVC) {
+            result = collect_video_parameter_sets(
+                codecID,
+                input,
+                parameterSets,
+                &parameterSetNALUnitHeaderLength
+            );
+            if (result >= 0 && video_parameter_sets_complete(codecID, parameterSets)) {
+                result = install_parameter_set_configuration(
+                    stream->codecpar,
+                    parameterSets,
+                    parameterSetNALUnitHeaderLength
+                );
+            }
+            if (result < 0 || stream->codecpar->extradata_size > 0) {
+                av_packet_unref(input);
+                break;
+            }
+            av_packet_unref(input);
+            result = 0;
+            continue;
+        }
+
+        AVPacket *filterInput = av_packet_clone(input);
+        av_packet_unref(input);
+        if (!filterInput) {
+            result = AVERROR(ENOMEM);
+            break;
+        }
+        result = av_bsf_send_packet(context, filterInput);
+        av_packet_free(&filterInput);
+        if (result < 0) break;
+
+        while ((result = av_bsf_receive_packet(context, output)) >= 0) {
+            size_t sideDataSize = 0;
+            const uint8_t *sideData = av_packet_get_side_data(
+                output,
+                AV_PKT_DATA_NEW_EXTRADATA,
+                &sideDataSize
+            );
+            if (sideData && sideDataSize > 0) {
+                result = install_bootstrap_extradata(
+                    stream->codecpar,
+                    sideData,
+                    sideDataSize
+                );
+            } else if (context->par_out->extradata && context->par_out->extradata_size > 0) {
+                result = install_bootstrap_extradata(
+                    stream->codecpar,
+                    context->par_out->extradata,
+                    (size_t)context->par_out->extradata_size
+                );
+            }
+            av_packet_unref(output);
+            if (stream->codecpar->extradata && stream->codecpar->extradata_size > 0) {
+                result = 0;
+                break;
+            }
+        }
+        if (stream->codecpar->extradata && stream->codecpar->extradata_size > 0) {
+            result = 0;
+            break;
+        }
+        if (result == AVERROR(EAGAIN)) result = 0;
+        if (result < 0) break;
+    }
+
+    av_packet_free(&input);
+    av_packet_free(&output);
+    av_bsf_free(&context);
+    free_video_parameter_sets(parameterSets);
+    if (!stream->codecpar->extradata || stream->codecpar->extradata_size <= 0) {
+        if (result == AVERROR_EOF || result >= 0) result = AVERROR_INVALIDDATA;
+        set_av_error(errorBuffer, errorBufferSize, "Bootstrap video codec configuration from bitstream", result);
+        return result;
+    }
+    return 0;
+}
+
 static OSStatus create_annexb_format(
     const AVCodecParameters *parameters,
     CFDictionaryRef extensions,
@@ -745,6 +1299,61 @@ static OSStatus create_annexb_format(
     return CMVideoFormatDescriptionCreateFromH264ParameterSets(
         kCFAllocatorDefault, required, sets, sizes, 4, formatOut
     );
+}
+
+static OSStatus create_dolby_vision_format(
+    const AVCodecParameters *parameters,
+    CFDictionaryRef atoms,
+    CMVideoFormatDescriptionRef *formatOut
+) {
+    CFDataRef hvcC = (CFDataRef)CFDictionaryGetValue(atoms, CFSTR("hvcC"));
+    CFDataRef dvcC = (CFDataRef)CFDictionaryGetValue(atoms, CFSTR("dvcC"));
+    if (!hvcC || CFGetTypeID(hvcC) != CFDataGetTypeID() ||
+        !dvcC || CFGetTypeID(dvcC) != CFDataGetTypeID()) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+    size_t hvcCSize = (size_t)CFDataGetLength(hvcC);
+    size_t dvcCSize = (size_t)CFDataGetLength(dvcC);
+    if (hvcCSize > UINT32_MAX - 8 || dvcCSize > UINT32_MAX - 8 ||
+        hvcCSize > SIZE_MAX - 102 - dvcCSize) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+
+    size_t descriptionSize = 86 + 8 + hvcCSize + 8 + dvcCSize;
+    uint8_t *description = calloc(1, descriptionSize);
+    if (!description) return kCMFormatDescriptionError_AllocationFailed;
+    write_be32(description, (uint32_t)descriptionSize);
+    memcpy(description + 4, "dvh1", 4);
+    write_be16(description + 14, 1);
+    write_be16(description + 32, (uint16_t)parameters->width);
+    write_be16(description + 34, (uint16_t)parameters->height);
+    write_be32(description + 36, 72 << 16);
+    write_be32(description + 40, 72 << 16);
+    write_be16(description + 48, 1);
+    description[50] = 11;
+    memcpy(description + 51, "DOVI Coding", 11);
+    write_be16(description + 82, 24);
+    write_be16(description + 84, UINT16_MAX);
+
+    size_t atomOffset = 86;
+    write_be32(description + atomOffset, (uint32_t)(8 + hvcCSize));
+    memcpy(description + atomOffset + 4, "hvcC", 4);
+    memcpy(description + atomOffset + 8, CFDataGetBytePtr(hvcC), hvcCSize);
+    atomOffset += 8 + hvcCSize;
+    write_be32(description + atomOffset, (uint32_t)(8 + dvcCSize));
+    memcpy(description + atomOffset + 4, "dvcC", 4);
+    memcpy(description + atomOffset + 8, CFDataGetBytePtr(dvcC), dvcCSize);
+
+    OSStatus status = CMVideoFormatDescriptionCreateFromBigEndianImageDescriptionData(
+        kCFAllocatorDefault,
+        description,
+        descriptionSize,
+        CFStringGetSystemEncoding(),
+        NULL,
+        formatOut
+    );
+    free(description);
+    return status;
 }
 
 static OSStatus create_compressed_format(
@@ -802,6 +1411,8 @@ static OSStatus create_compressed_format(
     } else {
         CFDataRef configuration = parameters->codec_id == AV_CODEC_ID_AV1
             ? create_av1_configuration(parameters)
+            : parameters->codec_id == AV_CODEC_ID_VP9
+            ? create_vp9_configuration(parameters)
             : CFDataCreate(
                 kCFAllocatorDefault, parameters->extradata, parameters->extradata_size
             );
@@ -812,9 +1423,16 @@ static OSStatus create_compressed_format(
         }
         CFDictionarySetValue(atoms, atom, configuration);
         CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms, atoms);
-        status = CMVideoFormatDescriptionCreate(
-            kCFAllocatorDefault, type, parameters->width, parameters->height, extensions, formatOut
-        );
+        status = type == kCMVideoCodecType_DolbyVisionHEVC
+            ? create_dolby_vision_format(parameters, atoms, formatOut)
+            : CMVideoFormatDescriptionCreate(
+                kCFAllocatorDefault,
+                type,
+                parameters->width,
+                parameters->height,
+                extensions,
+                formatOut
+            );
         CFRelease(configuration);
     }
     if (convertsAnnexBOut) *convertsAnnexBOut = annexB;
@@ -958,6 +1576,24 @@ bool PBFFmpegReaderOpen(
     );
 
     if (mode == PBFFmpegModeCompressed) {
+        OSType compressedType = codec_type(stream->codecpar);
+        if (!compressed_codec_is_renderable(compressedType)) {
+            char message[256];
+            snprintf(
+                message,
+                sizeof(message),
+                "Unsupported codec: %s is not available for compressed sample rendering on this device",
+                avcodec_get_name(stream->codecpar->codec_id)
+            );
+            set_error(errorBuffer, errorBufferSize, message);
+            return false;
+        }
+        bool neededBitstreamBootstrap =
+            reader->forceBitstreamExtradataBootstrap ||
+            !video_codec_configuration_is_usable(stream->codecpar);
+        result = bootstrap_video_extradata(reader, stream, errorBuffer, errorBufferSize);
+        if (result < 0) return false;
+        reader->usedBitstreamExtradataBootstrap = neededBitstreamBootstrap;
         uint32_t bitRate = stream->codecpar->codec_id == AV_CODEC_ID_MPEG4
             ? estimate_video_bitrate(
                 reader->formatContext,
@@ -971,10 +1607,26 @@ bool PBFFmpegReaderOpen(
             stream->codecpar, bitRate, &reader->compressedFormat, &reader->convertsAnnexB
         );
         if (status != noErr) {
-            char message[128];
-            snprintf(message, sizeof(message), "Create compressed CMVideoFormatDescription failed (%d)", (int)status);
+            const AVPacketSideData *doviConfiguration = codec_side_data(
+                stream->codecpar, AV_PKT_DATA_DOVI_CONF
+            );
+            char message[256];
+            snprintf(
+                message,
+                sizeof(message),
+                "Create compressed CMVideoFormatDescription failed (%d); codec=%s tag=%s extradata=%d dovi=%s bootstrapPackets=%zu",
+                (int)status,
+                avcodec_get_name(stream->codecpar->codec_id),
+                reader->codecTag[0] ? reader->codecTag : "unknown",
+                stream->codecpar->extradata_size,
+                doviConfiguration ? "yes" : "no",
+                reader->bootstrapPacketCount
+            );
             set_error(errorBuffer, errorBufferSize, message);
             return false;
+        }
+        if (reader->bootstrapPacketCount > 0) {
+            reader->convertsAnnexB = reader->bootstrapPacketsAreAnnexB;
         }
         CFStringRef projection = CMFormatDescriptionGetExtension(
             reader->compressedFormat,
@@ -1024,6 +1676,7 @@ bool PBFFmpegReaderOpen(
             return false;
         }
         if (cancellation_requested(&reader->cancelled)) return false;
+        discard_bootstrap_packets(reader);
     }
     if (cancellation_requested(&reader->cancelled)) return false;
     return true;
@@ -1054,9 +1707,18 @@ void PBFFmpegReaderCancel(PBFFmpegReader *reader) {
     if (reader) atomic_store_explicit(&reader->cancelled, true, memory_order_relaxed);
 }
 
+void PBFFmpegReaderForceBitstreamExtradataBootstrap(PBFFmpegReader *reader) {
+    if (reader) reader->forceBitstreamExtradataBootstrap = true;
+}
+
+bool PBFFmpegReaderUsedBitstreamExtradataBootstrap(const PBFFmpegReader *reader) {
+    return reader && reader->usedBitstreamExtradataBootstrap;
+}
+
 void PBFFmpegReaderDestroy(PBFFmpegReader *reader) {
     if (reader == NULL) return;
     if (reader->compressedFormat) CFRelease(reader->compressedFormat);
+    discard_bootstrap_packets(reader);
     av_packet_free(&reader->packet);
     avformat_close_input(&reader->formatContext);
     free(reader);
@@ -1132,7 +1794,14 @@ static PBFFmpegReadResult copy_compressed_sample(
         if (atomic_load_explicit(&reader->cancelled, memory_order_relaxed)) {
             return PBFFmpegReadResultCancelled;
         }
-        int readResult = av_read_frame(reader->formatContext, packet);
+        int readResult = 0;
+        if (reader->bootstrapPacketIndex < reader->bootstrapPacketCount) {
+            AVPacket **buffered = &reader->bootstrapPackets[reader->bootstrapPacketIndex++];
+            av_packet_move_ref(packet, *buffered);
+            av_packet_free(buffered);
+        } else {
+            readResult = av_read_frame(reader->formatContext, packet);
+        }
         if (readResult < 0) {
             if (readResult == AVERROR_EXIT
                 || atomic_load_explicit(&reader->cancelled, memory_order_relaxed)) {
@@ -1201,9 +1870,10 @@ static PBFFmpegReadResult copy_compressed_sample(
                 sampleOut
             );
         }
-        if (status == noErr && !(packet->flags & AV_PKT_FLAG_KEY)) {
+        if (status == noErr) {
             CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(*sampleOut, true);
-            if (attachments && CFArrayGetCount(attachments) > 0) {
+            if (!(packet->flags & AV_PKT_FLAG_KEY) &&
+                attachments && CFArrayGetCount(attachments) > 0) {
                 CFMutableDictionaryRef attachment = (CFMutableDictionaryRef)CFArrayGetValueAtIndex(attachments, 0);
                 CFDictionarySetValue(attachment, kCMSampleAttachmentKey_NotSync, kCFBooleanTrue);
             }
@@ -1301,7 +1971,10 @@ int PBFFmpegReaderGetTimeBaseDenominator(const PBFFmpegReader *reader) {
 
 PBFFmpegAudioReader *PBFFmpegAudioReaderAllocate(void) {
     PBFFmpegAudioReader *reader = calloc(1, sizeof(PBFFmpegAudioReader));
-    if (reader) atomic_init(&reader->cancelled, false);
+    if (reader) {
+        atomic_init(&reader->cancelled, false);
+        reader->decodedSampleFormat = AV_SAMPLE_FMT_NONE;
+    }
     return reader;
 }
 
@@ -1337,7 +2010,7 @@ bool PBFFmpegAudioReaderOpen(
             audio_stream_is_supported(reader->formatContext->streams[preferredStreamIndex])) {
             reader->audioStreamIndex = preferredStreamIndex;
         } else {
-            set_error(errorBuffer, errorBufferSize, "The selected audio stream cannot be demuxed as a supported compressed format");
+            set_error(errorBuffer, errorBufferSize, "The selected audio stream codec is not supported by PlaybackCore");
             return false;
         }
     } else {
@@ -1383,7 +2056,31 @@ bool PBFFmpegAudioReaderOpen(
         return false;
     }
 
-    if (stream->codecpar->codec_id == AV_CODEC_ID_AAC) {
+    reader->decodesToPCM = audio_codec_decodes_to_pcm(stream->codecpar->codec_id);
+    if (reader->decodesToPCM) {
+        const AVCodec *decoder = avcodec_find_decoder(stream->codecpar->codec_id);
+        if (!decoder) {
+            set_error(errorBuffer, errorBufferSize, "The selected audio codec decoder is unavailable");
+            return false;
+        }
+        reader->decoder = avcodec_alloc_context3(decoder);
+        reader->decodedFrame = av_frame_alloc();
+        if (!reader->decoder || !reader->decodedFrame) {
+            set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg audio decoder");
+            return false;
+        }
+        result = avcodec_parameters_to_context(reader->decoder, stream->codecpar);
+        if (result >= 0) {
+            reader->decoder->pkt_timebase = stream->time_base;
+            result = avcodec_open2(reader->decoder, decoder, NULL);
+        }
+        if (result < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Open FFmpeg audio decoder", result);
+            return false;
+        }
+    }
+
+    if (!reader->decodesToPCM && stream->codecpar->codec_id == AV_CODEC_ID_AAC) {
         const AVBitStreamFilter *filter = av_bsf_get_by_name("aac_adtstoasc");
         if (filter == NULL || av_bsf_alloc(filter, &reader->bitstreamFilter) < 0) {
             set_error(errorBuffer, errorBufferSize, "Unable to create AAC compressed-audio filter");
@@ -1427,6 +2124,7 @@ bool PBFFmpegAudioReaderOpen(
         }
         if (cancellation_requested(&reader->cancelled)) return false;
         if (reader->bitstreamFilter) av_bsf_flush(reader->bitstreamFilter);
+        if (reader->decoder) avcodec_flush_buffers(reader->decoder);
     }
     if (cancellation_requested(&reader->cancelled)) return false;
     return true;
@@ -1461,6 +2159,8 @@ void PBFFmpegAudioReaderCancel(PBFFmpegAudioReader *reader) {
 void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
     if (reader == NULL) return;
     if (reader->formatDescription) CFRelease(reader->formatDescription);
+    av_frame_free(&reader->decodedFrame);
+    avcodec_free_context(&reader->decoder);
     av_bsf_free(&reader->bitstreamFilter);
     av_packet_free(&reader->filteredPacket);
     av_packet_free(&reader->packet);
@@ -1581,7 +2281,7 @@ static int ensure_compressed_audio_format(
     size_t errorBufferSize
 ) {
     if (reader->formatDescription) return 0;
-    AudioFormatID formatID = audio_format_id(parameters->codec_id);
+    AudioFormatID formatID = compressed_audio_format_id(parameters->codec_id);
     if (formatID == 0) {
         set_error(errorBuffer, errorBufferSize, "The selected compressed audio codec is not supported");
         return AVERROR(ENOSYS);
@@ -1664,6 +2364,330 @@ static int ensure_compressed_audio_format(
         return AVERROR_INVALIDDATA;
     }
     return 0;
+}
+
+static bool pcm_format_properties(
+    enum AVSampleFormat sampleFormat,
+    AudioFormatFlags *flagsOut,
+    UInt32 *bitsPerChannelOut
+) {
+    AudioFormatFlags flags = kAudioFormatFlagIsPacked | kAudioFormatFlagsNativeEndian;
+    UInt32 bitsPerChannel = 0;
+    switch (sampleFormat) {
+        case AV_SAMPLE_FMT_U8:
+        case AV_SAMPLE_FMT_U8P:
+            bitsPerChannel = 8;
+            break;
+        case AV_SAMPLE_FMT_S16:
+        case AV_SAMPLE_FMT_S16P:
+            flags |= kAudioFormatFlagIsSignedInteger;
+            bitsPerChannel = 16;
+            break;
+        case AV_SAMPLE_FMT_S32:
+        case AV_SAMPLE_FMT_S32P:
+            flags |= kAudioFormatFlagIsSignedInteger;
+            bitsPerChannel = 32;
+            break;
+        case AV_SAMPLE_FMT_S64:
+        case AV_SAMPLE_FMT_S64P:
+            flags |= kAudioFormatFlagIsSignedInteger;
+            bitsPerChannel = 64;
+            break;
+        case AV_SAMPLE_FMT_FLT:
+        case AV_SAMPLE_FMT_FLTP:
+            flags |= kAudioFormatFlagIsFloat;
+            bitsPerChannel = 32;
+            break;
+        case AV_SAMPLE_FMT_DBL:
+        case AV_SAMPLE_FMT_DBLP:
+            flags |= kAudioFormatFlagIsFloat;
+            bitsPerChannel = 64;
+            break;
+        default:
+            return false;
+    }
+    *flagsOut = flags;
+    *bitsPerChannelOut = bitsPerChannel;
+    return true;
+}
+
+static int ensure_pcm_audio_format(
+    PBFFmpegAudioReader *reader,
+    const AVFrame *frame,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    int sampleRate = frame->sample_rate > 0 ? frame->sample_rate : reader->sampleRate;
+    int channelCount = frame->ch_layout.nb_channels > 0
+        ? frame->ch_layout.nb_channels
+        : reader->channelCount;
+    enum AVSampleFormat sampleFormat = (enum AVSampleFormat)frame->format;
+    if (sampleRate != reader->sampleRate || channelCount != reader->channelCount) {
+        set_error(errorBuffer, errorBufferSize, "Decoded audio changed sample rate or channel count");
+        return AVERROR_INVALIDDATA;
+    }
+    if (reader->formatDescription) {
+        if (sampleFormat != reader->decodedSampleFormat) {
+            set_error(errorBuffer, errorBufferSize, "Decoded audio changed PCM sample format");
+            return AVERROR_INVALIDDATA;
+        }
+        return 0;
+    }
+
+    AudioFormatFlags flags = 0;
+    UInt32 bitsPerChannel = 0;
+    if (!pcm_format_properties(sampleFormat, &flags, &bitsPerChannel)) {
+        const char *name = av_get_sample_fmt_name(sampleFormat);
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Decoded audio PCM sample format is unsupported: %s",
+            name ? name : "unknown"
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return AVERROR(ENOSYS);
+    }
+    UInt32 bytesPerSample = bitsPerChannel / 8;
+    UInt32 bytesPerFrame = bytesPerSample * (UInt32)channelCount;
+    AudioStreamBasicDescription asbd = {
+        .mSampleRate = sampleRate,
+        .mFormatID = kAudioFormatLinearPCM,
+        .mFormatFlags = flags,
+        .mBytesPerPacket = bytesPerFrame,
+        .mFramesPerPacket = 1,
+        .mBytesPerFrame = bytesPerFrame,
+        .mChannelsPerFrame = (UInt32)channelCount,
+        .mBitsPerChannel = bitsPerChannel,
+        .mReserved = 0,
+    };
+    AudioChannelLayout channelLayout = {
+        .mChannelLayoutTag = channelCount == 1
+            ? kAudioChannelLayoutTag_Mono
+            : kAudioChannelLayoutTag_Stereo,
+        .mChannelBitmap = 0,
+        .mNumberChannelDescriptions = 0,
+    };
+    bool hasStandardChannelLayout = channelCount == 1 || channelCount == 2;
+    OSStatus status = CMAudioFormatDescriptionCreate(
+        kCFAllocatorDefault,
+        &asbd,
+        hasStandardChannelLayout ? sizeof(channelLayout) : 0,
+        hasStandardChannelLayout ? &channelLayout : NULL,
+        0,
+        NULL,
+        NULL,
+        &reader->formatDescription
+    );
+    if (status != noErr) {
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Create decoded PCM audio format description failed (%d)",
+            (int)status
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return AVERROR_INVALIDDATA;
+    }
+    reader->decodedSampleFormat = sampleFormat;
+    return 0;
+}
+
+static PBFFmpegReadResult create_decoded_audio_sample(
+    PBFFmpegAudioReader *reader,
+    AVFrame *frame,
+    CMSampleBufferRef *sampleOut,
+    PBFFmpegAudioSampleMetadata *metadataOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (frame->nb_samples <= 0) {
+        set_error(errorBuffer, errorBufferSize, "Decoded audio frame is empty");
+        return PBFFmpegReadResultError;
+    }
+    int formatResult = ensure_pcm_audio_format(reader, frame, errorBuffer, errorBufferSize);
+    if (formatResult < 0) return PBFFmpegReadResultError;
+
+    enum AVSampleFormat sampleFormat = (enum AVSampleFormat)frame->format;
+    int bytesPerSample = av_get_bytes_per_sample(sampleFormat);
+    int channelCount = reader->channelCount;
+    if (bytesPerSample <= 0 || !frame->extended_data) {
+        set_error(errorBuffer, errorBufferSize, "Decoded audio frame has invalid PCM storage");
+        return PBFFmpegReadResultError;
+    }
+    size_t bytesPerFrame = (size_t)bytesPerSample * (size_t)channelCount;
+    size_t byteCount = bytesPerFrame * (size_t)frame->nb_samples;
+    uint8_t *interleaved = malloc(byteCount);
+    if (!interleaved) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate decoded PCM audio sample");
+        return PBFFmpegReadResultError;
+    }
+    if (av_sample_fmt_is_planar(sampleFormat)) {
+        for (int channel = 0; channel < channelCount; channel++) {
+            if (!frame->extended_data[channel]) {
+                free(interleaved);
+                set_error(errorBuffer, errorBufferSize, "Decoded planar audio channel is missing");
+                return PBFFmpegReadResultError;
+            }
+        }
+        for (int sampleIndex = 0; sampleIndex < frame->nb_samples; sampleIndex++) {
+            for (int channel = 0; channel < channelCount; channel++) {
+                memcpy(
+                    interleaved + ((size_t)sampleIndex * channelCount + channel) * bytesPerSample,
+                    frame->extended_data[channel] + (size_t)sampleIndex * bytesPerSample,
+                    (size_t)bytesPerSample
+                );
+            }
+        }
+    } else {
+        if (!frame->extended_data[0]) {
+            free(interleaved);
+            set_error(errorBuffer, errorBufferSize, "Decoded packed audio data is missing");
+            return PBFFmpegReadResultError;
+        }
+        memcpy(interleaved, frame->extended_data[0], byteCount);
+    }
+
+    CMBlockBufferRef block = NULL;
+    OSStatus status = CMBlockBufferCreateWithMemoryBlock(
+        kCFAllocatorDefault,
+        NULL,
+        byteCount,
+        kCFAllocatorDefault,
+        NULL,
+        0,
+        byteCount,
+        0,
+        &block
+    );
+    if (status == noErr) {
+        status = CMBlockBufferReplaceDataBytes(interleaved, block, 0, byteCount);
+    }
+    free(interleaved);
+
+    int64_t framePTS = frame->pts != AV_NOPTS_VALUE
+        ? frame->pts
+        : frame->best_effort_timestamp;
+    int64_t samplePosition = reader->hasNextDecodedSamplePosition
+        ? reader->nextDecodedSamplePosition
+        : 0;
+    if (framePTS != AV_NOPTS_VALUE) {
+        samplePosition = av_rescale_q(
+            framePTS - reader->startTimestamp,
+            reader->timeBase,
+            (AVRational){1, reader->sampleRate}
+        );
+    }
+    reader->nextDecodedSamplePosition = samplePosition + frame->nb_samples;
+    reader->hasNextDecodedSamplePosition = true;
+    CMSampleTimingInfo timing = {
+        .duration = CMTimeMake(1, reader->sampleRate),
+        .presentationTimeStamp = CMTimeMake(samplePosition, reader->sampleRate),
+        .decodeTimeStamp = kCMTimeInvalid,
+    };
+    size_t sampleSize = bytesPerFrame;
+    if (status == noErr) {
+        status = CMSampleBufferCreateReady(
+            kCFAllocatorDefault,
+            block,
+            reader->formatDescription,
+            frame->nb_samples,
+            1,
+            &timing,
+            1,
+            &sampleSize,
+            sampleOut
+        );
+    }
+    if (block) CFRelease(block);
+    if (status != noErr) {
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Create decoded PCM audio CMSampleBuffer failed (%d)",
+            (int)status
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return PBFFmpegReadResultError;
+    }
+    if (metadataOut) {
+        metadataOut->packetPTS = framePTS;
+        metadataOut->packetDTS = frame->pkt_dts;
+        metadataOut->packetDuration = frame->duration;
+        metadataOut->timeBaseNumerator = reader->timeBase.num;
+        metadataOut->timeBaseDenominator = reader->timeBase.den;
+        metadataOut->payloadByteCount = byteCount;
+        metadataOut->cookieSource = PBFFmpegAudioCookieSourceUnavailable;
+    }
+    return PBFFmpegReadResultSample;
+}
+
+static PBFFmpegReadResult copy_next_decoded_audio_sample(
+    PBFFmpegAudioReader *reader,
+    CMSampleBufferRef *sampleOut,
+    PBFFmpegAudioSampleMetadata *metadataOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    while (true) {
+        if (cancellation_requested(&reader->cancelled)) {
+            return PBFFmpegReadResultCancelled;
+        }
+        int result = avcodec_receive_frame(reader->decoder, reader->decodedFrame);
+        if (result == 0) {
+            PBFFmpegReadResult readResult = create_decoded_audio_sample(
+                reader,
+                reader->decodedFrame,
+                sampleOut,
+                metadataOut,
+                errorBuffer,
+                errorBufferSize
+            );
+            av_frame_unref(reader->decodedFrame);
+            return readResult;
+        }
+        if (result == AVERROR_EOF) return PBFFmpegReadResultEnd;
+        if (result != AVERROR(EAGAIN)) {
+            set_av_error(errorBuffer, errorBufferSize, "Decode audio frame", result);
+            return PBFFmpegReadResultError;
+        }
+        if (reader->decoderInputEnded) {
+            set_error(errorBuffer, errorBufferSize, "FFmpeg audio decoder did not finish after end of input");
+            return PBFFmpegReadResultError;
+        }
+
+        while (true) {
+            result = av_read_frame(reader->formatContext, reader->packet);
+            if (result < 0) break;
+            if (reader->packet->stream_index != reader->audioStreamIndex) {
+                av_packet_unref(reader->packet);
+                continue;
+            }
+            break;
+        }
+
+        if (result < 0) {
+            if (result == AVERROR_EXIT || cancellation_requested(&reader->cancelled)) {
+                return PBFFmpegReadResultCancelled;
+            }
+            result = avcodec_send_packet(reader->decoder, NULL);
+            reader->decoderInputEnded = true;
+            if (result < 0 && result != AVERROR_EOF) {
+                set_av_error(errorBuffer, errorBufferSize, "Finish FFmpeg audio decoder", result);
+                return PBFFmpegReadResultError;
+            }
+            continue;
+        }
+
+        result = avcodec_send_packet(reader->decoder, reader->packet);
+        av_packet_unref(reader->packet);
+        if (result < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Submit compressed audio packet to decoder", result);
+            return PBFFmpegReadResultError;
+        }
+    }
 }
 
 static PBFFmpegReadResult create_audio_sample(
@@ -1771,6 +2795,15 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
     if (cancellation_requested(&reader->cancelled)) {
         return PBFFmpegReadResultCancelled;
     }
+    if (reader->decodesToPCM) {
+        return copy_next_decoded_audio_sample(
+            reader,
+            sampleOut,
+            metadataOut,
+            errorBuffer,
+            errorBufferSize
+        );
+    }
     AVStream *stream = reader->formatContext->streams[reader->audioStreamIndex];
     while (true) {
         if (cancellation_requested(&reader->cancelled)) {
@@ -1872,6 +2905,10 @@ int PBFFmpegAudioReaderGetChannelCount(const PBFFmpegAudioReader *reader) {
 
 const char *PBFFmpegAudioReaderGetCodecName(const PBFFmpegAudioReader *reader) {
     return reader ? reader->codecName : "unknown";
+}
+
+bool PBFFmpegAudioReaderOutputsPCM(const PBFFmpegAudioReader *reader) {
+    return reader && reader->decodesToPCM;
 }
 
 int PBFFmpegAudioTrackCount(const char *path) {
