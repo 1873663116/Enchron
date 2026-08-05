@@ -25,6 +25,7 @@ test_suites=(
     WindowPlaybackPageGeometryTests
     PlaybackPresentationStateTests
     PlaybackSourceAccessTests
+    PlaybackSourceAndAudioSessionTests
     MediaLibraryTests
     LocalDataSourceAdapterTests
     FakeFileDataSourceTests

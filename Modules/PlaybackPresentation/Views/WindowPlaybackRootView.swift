@@ -1,9 +1,7 @@
 import DesignSystem
 import PlaybackFeature
 import SwiftUI
-#if os(visionOS)
 import UIKit
-#endif
 
 struct WindowPlaybackLayout: Equatable {
     static let fallbackAspectRatio: CGFloat = 16.0 / 9.0
@@ -141,7 +139,7 @@ struct WindowPlaybackTopChrome<
     }
 
     var body: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
+        HStack(alignment: .top, spacing: DesignTokens.Spacing.sm) {
             navigationControl
             spatialActions
                 .frame(maxWidth: .infinity)
@@ -187,11 +185,13 @@ struct WindowPlaybackRootView<
     #if os(visionOS)
     @State private var owningWindowScene: UIWindowScene?
     #endif
+    @State private var topChromeHeight: CGFloat = 0
 
     private let layout: WindowPlaybackLayout
     private let preferredInitialSize: CGSize?
     private let showsWindowChrome: Bool
     private let onSurfaceTap: (() -> Void)?
+    private let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
     private let videoContent: VideoContent
     private let topChrome: TopChrome
 
@@ -200,6 +200,7 @@ struct WindowPlaybackRootView<
         preferredInitialSize: CGSize? = nil,
         showsWindowChrome: Bool,
         onSurfaceTap: (() -> Void)? = nil,
+        onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil,
         @ViewBuilder videoContent: () -> VideoContent,
         @ViewBuilder topChrome: () -> TopChrome
     ) {
@@ -207,6 +208,7 @@ struct WindowPlaybackRootView<
         self.preferredInitialSize = preferredInitialSize
         self.showsWindowChrome = showsWindowChrome
         self.onSurfaceTap = onSurfaceTap
+        self.onWindowSceneChange = onWindowSceneChange
         self.videoContent = videoContent()
         self.topChrome = topChrome()
     }
@@ -227,6 +229,7 @@ struct WindowPlaybackRootView<
                 WindowPlaybackSceneReader { windowScene in
                     guard owningWindowScene !== windowScene else { return }
                     owningWindowScene = windowScene
+                    onWindowSceneChange?(windowScene)
                     updateWindowGeometry(in: windowScene)
                 }
             }
@@ -252,6 +255,14 @@ struct WindowPlaybackRootView<
                     topChromePlane
                 }
             }
+            .onPreferenceChange(WindowPlaybackTopChromeHeightKey.self) {
+                topChromeHeight = $0
+            }
+            .onChange(of: showsWindowChrome) { _, visible in
+                if visible == false {
+                    topChromeHeight = 0
+                }
+            }
             .animation(
                 DesignTokens.AnimationToken.panelSpring,
                 value: showsWindowChrome
@@ -260,14 +271,22 @@ struct WindowPlaybackRootView<
             .accessibilityIdentifier("WindowPlayback-root")
     }
 
-    /// SwiftUI owns this visual overlay. It sits above the RealityView surface
-    /// while the individual controls retain their own local hit shapes. The
-    /// surrounding transparent space remains available to the video surface.
+    /// Window presentation assigns direct surface input to the video layer.
+    /// The top chrome occupies only the height of its controls and any visible
+    /// secondary menu, leaving the remaining video area to that surface owner.
     private var topChromePlane: some View {
         topChrome
             .padding(.horizontal, DesignTokens.Spacing.xl)
             .padding(.top, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .top)
+            .background {
+                GeometryReader { proxy in
+                    Color.clear.preference(
+                        key: WindowPlaybackTopChromeHeightKey.self,
+                        value: proxy.size.height
+                    )
+                }
+            }
             .zIndex(2)
             .transition(.opacity.combined(with: .move(edge: .top)))
     }
@@ -276,17 +295,43 @@ struct WindowPlaybackRootView<
     private var surfaceContent: some View {
         if let onSurfaceTap {
             ZStack {
+                // Window owns surface taps in SwiftUI. The RealityView must not
+                // compete for gaze + pinch, or the clear hit layer never fires.
                 videoContent
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .allowsHitTesting(false)
 
                 Color.clear
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    // Keep the surface-tap region outside the measured chrome
+                    // (buttons plus any open secondary menu). Hits in the
+                    // reserved top band belong to SwiftUI chrome only.
+                    .padding(.top, surfaceTapTopInset)
                     .contentShape(Rectangle())
+                    #if os(visionOS)
+                    .gesture(
+                        SpatialTapGesture()
+                            .onEnded { _ in onSurfaceTap() }
+                    )
+                    #else
                     .onTapGesture(perform: onSurfaceTap)
+                    #endif
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Playback surface")
             }
         } else {
             videoContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    /// Reserved height for Window chrome while it is visible. Falls back to the
+    /// button row until the preference reports the live chrome + menu height.
+    private var surfaceTapTopInset: CGFloat {
+        guard showsWindowChrome else { return 0 }
+        let minimumChromeHeight =
+            DesignTokens.Spacing.lg + DesignTokens.Interactive.large
+        return max(topChromeHeight, minimumChromeHeight)
     }
 
     private var edgeEmphasis: some View {
@@ -324,6 +369,14 @@ struct WindowPlaybackRootView<
         windowScene.requestGeometryUpdate(preferences)
     }
     #endif
+}
+
+private enum WindowPlaybackTopChromeHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
 }
 
 #if os(visionOS)

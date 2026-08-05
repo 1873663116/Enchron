@@ -7,11 +7,13 @@ FFMPEG="${FFMPEG:-ffmpeg}"
 FFPROBE="${FFPROBE:-ffprobe}"
 CC="${CC:-clang}"
 PKG_CONFIG="${PKG_CONFIG:-pkg-config}"
+JQ="${JQ:-jq}"
 
 command -v "$FFMPEG" >/dev/null
 command -v "$FFPROBE" >/dev/null
 command -v "$CC" >/dev/null
 command -v "$PKG_CONFIG" >/dev/null
+command -v "$JQ" >/dev/null
 "$FFMPEG" -version | head -n 1 | grep -q 'ffmpeg version 8\.0\.1'
 
 mkdir -p "$OUTPUT_DIR"
@@ -91,31 +93,102 @@ generate_subtitle() {
     -t 30 -bitexact "$output"
 }
 
+generate_video_only() {
+  local output="$OUTPUT_DIR/sdr-bframe-video-only-15s.mp4"
+  "$FFMPEG" -hide_banner -loglevel error -y \
+    -i "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.mp4" \
+    -map 0:v:0 -map_metadata -1 -c:v copy -an -movflags +faststart -t 15 "$output"
+}
+
+generate_audio_codec_matrix() {
+  local output="$OUTPUT_DIR/sdr-bframe-audio-codec-matrix-15s.mkv"
+  "$FFMPEG" -hide_banner -loglevel error -y \
+    -i "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.mp4" \
+    -f lavfi -i "$(audio_pulse 500 15)" \
+    -f lavfi -i "$(audio_pulse 550 15)" \
+    -f lavfi -i "$(audio_pulse 600 15)" \
+    -f lavfi -i "$(audio_pulse 650 15)" \
+    -f lavfi -i "$(audio_pulse 700 15)" \
+    -f lavfi -i "$(audio_pulse 750 15)" \
+    -f lavfi -i "$(audio_pulse 800 15)" \
+    -map 0:v:0 -map 0:a:0 -map 1:a:0 -map 2:a:0 -map 3:a:0 \
+    -map 4:a:0 -map 5:a:0 -map 6:a:0 -map 7:a:0 \
+    -map_metadata -1 -c:v copy \
+    -c:a:0 copy \
+    -c:a:1 ac3 -b:a:1 192k \
+    -c:a:2 eac3 -b:a:2 192k \
+    -c:a:3 mp2 -b:a:3 192k \
+    -c:a:4 libmp3lame -b:a:4 192k \
+    -c:a:5 alac \
+    -c:a:6 libopus -b:a:6 128k \
+    -c:a:7 flac \
+    -metadata:s:a:0 title='AAC 880 Hz sync pulse' \
+    -metadata:s:a:1 title='AC-3 500 Hz sync pulse' \
+    -metadata:s:a:2 title='E-AC-3 550 Hz sync pulse' \
+    -metadata:s:a:3 title='MP2 600 Hz sync pulse' \
+    -metadata:s:a:4 title='MP3 650 Hz sync pulse' \
+    -metadata:s:a:5 title='ALAC 700 Hz sync pulse' \
+    -metadata:s:a:6 title='Opus 750 Hz sync pulse' \
+    -metadata:s:a:7 title='FLAC 800 Hz sync pulse' \
+    -disposition:a:0 default -disposition:a:1 0 -disposition:a:2 0 -disposition:a:3 0 \
+    -disposition:a:4 0 -disposition:a:5 0 -disposition:a:6 0 -disposition:a:7 0 \
+    -t 15 -bitexact "$output"
+}
+
+generate_av1_flac() {
+  local output="$OUTPUT_DIR/av1-flac-avsync-10s.mkv"
+  "$FFMPEG" -hide_banner -loglevel error -y \
+    -f lavfi -i "testsrc2=size=640x360:rate=30:duration=10,drawbox=color=white:t=fill:enable='lt(mod(t,1),0.08)',format=yuv420p,setparams=range=limited:color_primaries=bt709:color_trc=bt709:colorspace=bt709" \
+    -f lavfi -i "$(audio_pulse 850 10)" \
+    -map 0:v:0 -map 1:a:0 -map_metadata -1 \
+    -c:v libsvtav1 -preset 11 -crf 35 -svtav1-params lp=1 -pix_fmt yuv420p -r 30 -g 60 \
+    -color_primaries bt709 -color_trc bt709 -colorspace bt709 -color_range tv \
+    -c:a flac -ar 48000 -ac 2 \
+    -metadata:s:a:0 title='FLAC 850 Hz sync pulse' \
+    -t 10 -bitexact "$output"
+}
+
+generate_external_subtitles() {
+  cp -p "$ROOT_DIR/Scripts/fixtures/acceptance-subtitles.srt" \
+    "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.zh-CN.srt"
+  cp -p "$ROOT_DIR/Scripts/fixtures/acceptance-subtitles.ass" \
+    "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.styled.ass"
+}
+
 generate_sdr
 generate_long_sdr
 generate_hdr arib-std-b67 arib-std-b67 hlg-hevc-10bit-avsync-10s.mp4
 generate_hdr smpte2084 smpte2084 pq-hevc-10bit-avsync-10s.mp4
 generate_subtitle
+generate_video_only
+generate_audio_codec_matrix
+generate_av1_flac
+generate_external_subtitles
 
 REGISTRY="$ROOT_DIR/docs/acceptance/fixture-registry.json"
 verify_hash() {
-  local registry_index="$1"
+  local fixture_id="$1"
   local fixture="$2"
-  local expected
+  local expected="$3"
   local actual
-  expected="$(/usr/bin/plutil -extract "fixtures.$registry_index.sha256" raw "$REGISTRY")"
   actual="$(shasum -a 256 "$fixture" | awk '{print $1}')"
   if [[ "$actual" != "$expected" ]]; then
-    printf 'fixture hash mismatch for %s: expected %s, got %s\n' "$fixture" "$expected" "$actual" >&2
+    printf 'fixture hash mismatch for %s at %s: expected %s, got %s\n' \
+      "$fixture_id" "$fixture" "$expected" "$actual" >&2
     exit 1
   fi
 }
 
-verify_hash 1 "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-30s.mp4"
-verify_hash 2 "$OUTPUT_DIR/hlg-hevc-10bit-avsync-10s.mp4"
-verify_hash 3 "$OUTPUT_DIR/pq-hevc-10bit-avsync-10s.mp4"
-verify_hash 4 "$OUTPUT_DIR/sdr-bframe-multiaudio-subtitles-30s.mkv"
-verify_hash 5 "$OUTPUT_DIR/sdr-bframe-multiaudio-avsync-120s.mp4"
+while IFS=$'\t' read -r fixture_id import_path expected_hash; do
+  verify_hash "$fixture_id" "$OUTPUT_DIR/${import_path#Generated/}" "$expected_hash"
+done < <(
+  "$JQ" -r '
+    .fixtures[]
+    | select(.acceptanceEligibility == "eligible-local-generated")
+    | [.id, .deviceImportPath, .sha256]
+    | @tsv
+  ' "$REGISTRY"
+)
 
 for fixture in "$OUTPUT_DIR"/*.mp4 "$OUTPUT_DIR"/*.mkv; do
   hash="$(shasum -a 256 "$fixture" | awk '{print $1}')"

@@ -1,5 +1,39 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
+  "deviceMediaRoot": "$HOME/Desktop/TestMedia",
+  "acceptanceCriteriaDefinitions": {
+    "continuousPlayback": {
+      "minimumObservationSeparationSeconds": 1.0,
+      "minimumMediaTimeAdvanceSeconds": 0.25,
+      "requiredStableFields": ["mediaSession", "streamEpoch"],
+      "requiredAdvancingFields": ["mediaTime", "videoSamples", "rendererAcceptedInputs"],
+      "requiredTrueFields": ["displayedPixel"],
+      "audioRequirement": "When the selected media has audio, audio samples and audio renderer samples also advance, the audio renderer reports rendering without error, and the system audio session and output route are active."
+    },
+    "videoOnlyPlayback": {
+      "requiredResult": "Video satisfies continuousPlayback without creating a failed or placeholder audio path, and the Audio Track menu is absent."
+    },
+    "audioVideoSynchronization": {
+      "sourceMarkers": "An 80 ms white flash and a same-period audio pulse begin at every whole media second.",
+      "referenceStandard": "EBU Recommendation R37-2007",
+      "referenceURL": "https://tech.ebu.ch/docs/r/r037.pdf",
+      "maximumSoundBeforePictureMilliseconds": 40,
+      "maximumSoundAfterPictureMilliseconds": 60,
+      "decisionRule": "Pass only when the complete 95 percent confidence interval for measured sound-to-picture offset lies inside both limits. A confidence interval that crosses either limit is inconclusive and requires another calibrated capture."
+    },
+    "audioTrackSelection": {
+      "requiredResult": "Every registered track is selectable by its stable identity; selecting it keeps the Media Session, Playback Presentation and media position, stops output from the previous track, and produces the selected track's registered pulse frequency."
+    },
+    "embeddedSubtitleSelection": {
+      "requiredResult": "Every registered subtitle track and Off are selectable without opening another Media Session; cue text or bitmap content follows the current stream epoch and media time in Window, Docked and Panorama."
+    },
+    "externalSubtitleSelection": {
+      "requiredResult": "Matching subtitle files appear as distinct tracks in the current Media Session without automatically selecting one of multiple candidates. Selecting a track preserves the Media Session, Playback Lifecycle, Playback Presentation, media time and audio/video output; Off clears its cue, and Close releases its source access."
+    },
+    "hdrMetadataAndDisplay": {
+      "requiredResult": "Compressed sample metadata and the displayed pixel metadata match the registered primaries, transfer function, matrix and range. Device HDR or EDR appearance remains a separate wearer-visible acceptance result."
+    }
+  },
   "fixtures": [
     {
       "id": "local-hdr10-pq-hevc-aac-001",
@@ -10,6 +44,14 @@
       "videoCodec": "HEVC hvc1, 3840x2160, 60000/1001 fps, BT.2020, PQ, video range",
       "audio": "AAC, 48 kHz, stereo, one track",
       "durationSeconds": 83.083,
+      "matrix": {
+        "container": "mp4",
+        "videoCodec": "hevc",
+        "audioCodecs": ["aac"],
+        "subtitleCodecs": [],
+        "hasAudio": true,
+        "color": "hdr10-pq-bt2020"
+      },
       "oracle": {
         "sampleColorPrimaries": ["2020"],
         "sampleTransferFunction": ["2084", "pq"],
@@ -23,6 +65,7 @@
     },
     {
       "id": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
+      "deviceImportPath": "Generated/sdr-bframe-multiaudio-avsync-30s.mp4",
       "sha256": "31444db5d84f3c8ea9af0f22a4d8602bd9bc2848d2e23ff857fbaf4ede9316aa",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -30,9 +73,22 @@
       "videoCodec": "H.264 avc1 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "two AAC LC 48 kHz stereo tracks; 880 Hz and 440 Hz 80 ms pulses aligned with a white video flash every second",
       "durationSeconds": 30.0,
+      "matrix": {
+        "container": "mp4",
+        "videoCodec": "h264",
+        "audioCodecs": ["aac"],
+        "subtitleCodecs": [],
+        "hasAudio": true,
+        "color": "sdr-bt709"
+      },
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "audioVideoSynchronization",
+        "audioTrackSelection"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "../TestMedia/Generated/sdr-bframe-multiaudio-avsync-30s.mp4",
+        "output": "Generated/sdr-bframe-multiaudio-avsync-30s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -48,6 +104,7 @@
     },
     {
       "id": "generated-hlg-hevc10-avsync-10s-v1",
+      "deviceImportPath": "Generated/hlg-hevc-10bit-avsync-10s.mp4",
       "sha256": "e724f389d32d4308c4faaaf30808819edc939a8727d32fa97bc2f08574822e62",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -55,9 +112,22 @@
       "videoCodec": "HEVC hvc1 Main 10, 1280x720, 30 fps, BT.2020, HLG, video range",
       "audio": "AAC LC 48 kHz stereo; 660 Hz 80 ms pulses aligned with a white video flash every second",
       "durationSeconds": 10.0,
+      "matrix": {
+        "container": "mp4",
+        "videoCodec": "hevc",
+        "audioCodecs": ["aac"],
+        "subtitleCodecs": [],
+        "hasAudio": true,
+        "color": "hlg-bt2020"
+      },
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "audioVideoSynchronization",
+        "hdrMetadataAndDisplay"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "../TestMedia/Generated/hlg-hevc-10bit-avsync-10s.mp4",
+        "output": "Generated/hlg-hevc-10bit-avsync-10s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -73,6 +143,7 @@
     },
     {
       "id": "generated-pq-hevc10-avsync-10s-v1",
+      "deviceImportPath": "Generated/pq-hevc-10bit-avsync-10s.mp4",
       "sha256": "23802c30206507c7068ff3964898abf564080e2e03db86bba19380d2cbdad800",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -80,9 +151,22 @@
       "videoCodec": "HEVC hvc1 Main 10, 1280x720, 30 fps, BT.2020, PQ, video range",
       "audio": "AAC LC 48 kHz stereo; 660 Hz 80 ms pulses aligned with a white video flash every second",
       "durationSeconds": 10.0,
+      "matrix": {
+        "container": "mp4",
+        "videoCodec": "hevc",
+        "audioCodecs": ["aac"],
+        "subtitleCodecs": [],
+        "hasAudio": true,
+        "color": "hdr10-pq-bt2020"
+      },
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "audioVideoSynchronization",
+        "hdrMetadataAndDisplay"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "../TestMedia/Generated/pq-hevc-10bit-avsync-10s.mp4",
+        "output": "Generated/pq-hevc-10bit-avsync-10s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -98,6 +182,7 @@
     },
     {
       "id": "generated-sdr-avc-bframe-multiaudio-subtitles-30s-v3",
+      "deviceImportPath": "Generated/sdr-bframe-multiaudio-subtitles-30s.mkv",
       "sha256": "4877f4030938ccf9e58933112a15ae59db46f5206b823b092aea0398f3a0f1d2",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -105,10 +190,24 @@
       "videoCodec": "H.264 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "two AAC LC 48 kHz stereo tracks copied from the deterministic SDR fixture",
       "subtitles": "one embedded SubRip / S_TEXT/UTF8 track, one styled ASS / S_TEXT/ASS track, and one generated DVB bitmap track",
-      "durationSeconds": 30.0,
+      "durationSeconds": 30.021,
+      "matrix": {
+        "container": "mkv",
+        "videoCodec": "h264",
+        "audioCodecs": ["aac"],
+        "subtitleCodecs": ["subrip", "ass", "dvb_subtitle"],
+        "hasAudio": true,
+        "color": "sdr-bt709"
+      },
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "audioVideoSynchronization",
+        "audioTrackSelection",
+        "embeddedSubtitleSelection"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "../TestMedia/Generated/sdr-bframe-multiaudio-subtitles-30s.mkv",
+        "output": "Generated/sdr-bframe-multiaudio-subtitles-30s.mkv",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -132,6 +231,7 @@
     },
     {
       "id": "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
+      "deviceImportPath": "Generated/sdr-bframe-multiaudio-avsync-120s.mp4",
       "sha256": "9c318aac50d9c4d03c82b988ad0ae83a06403cf5d813622724da3f5eed4eb80e",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -139,9 +239,22 @@
       "videoCodec": "H.264 avc1 High, 1280x720, 30 fps, B-frames, BT.709, video range",
       "audio": "two AAC LC 48 kHz stereo tracks; 880 Hz and 440 Hz 80 ms pulses aligned with a white video flash every second",
       "durationSeconds": 120.064063,
+      "matrix": {
+        "container": "mp4",
+        "videoCodec": "h264",
+        "audioCodecs": ["aac"],
+        "subtitleCodecs": [],
+        "hasAudio": true,
+        "color": "sdr-bt709"
+      },
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "audioVideoSynchronization",
+        "audioTrackSelection"
+      ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "../TestMedia/Generated/sdr-bframe-multiaudio-avsync-120s.mp4",
+        "output": "Generated/sdr-bframe-multiaudio-avsync-120s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -153,6 +266,177 @@
         "displayedTransferFunction": ["709"],
         "displayedYCbCrMatrix": ["709"],
         "displayedPixelFormats": ["&8v0"]
+      }
+    },
+    {
+      "id": "generated-sdr-avc-bframe-video-only-15s-v1",
+      "deviceImportPath": "Generated/sdr-bframe-video-only-15s.mp4",
+      "sha256": "6156dcbf31d367a1331fcacc344208b943946ab38ea4538800d66b9e7cd4856d",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "ISO BMFF / MP4",
+      "videoCodec": "H.264 avc1 High, 1280x720, 30 fps, B-frames, BT.709, video range",
+      "audio": "no audio tracks",
+      "durationSeconds": 15.066667,
+      "matrix": {
+        "container": "mp4",
+        "videoCodec": "h264",
+        "audioCodecs": [],
+        "subtitleCodecs": [],
+        "hasAudio": false,
+        "color": "sdr-bt709"
+      },
+      "acceptanceCriteria": ["continuousPlayback", "videoOnlyPlayback"],
+      "generation": {
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "Generated/sdr-bframe-video-only-15s.mp4",
+        "ffmpegVersion": "8.0.1"
+      },
+      "oracle": {
+        "audioTrackCount": 0,
+        "sampleColorPrimaries": ["709"],
+        "sampleTransferFunction": ["709"],
+        "sampleYCbCrMatrix": ["709"],
+        "sampleRange": ["video", "tv"]
+      }
+    },
+    {
+      "id": "generated-sdr-avc-bframe-audio-codec-matrix-15s-v1",
+      "deviceImportPath": "Generated/sdr-bframe-audio-codec-matrix-15s.mkv",
+      "sha256": "5784cc407a860c2db1b888be38e949236be53ac04f37f791d7cd251e2694d4fb",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "Matroska / MKV",
+      "videoCodec": "H.264 High, 1280x720, 30 fps, B-frames, BT.709, video range",
+      "audio": "eight 48 kHz stereo tracks: AAC, AC-3, E-AC-3, MP2, MP3, ALAC, Opus and FLAC; each track has a distinct 80 ms pulse frequency",
+      "durationSeconds": 15.187,
+      "matrix": {
+        "container": "mkv",
+        "videoCodec": "h264",
+        "audioCodecs": ["aac", "ac3", "eac3", "mp2", "mp3", "alac", "opus", "flac"],
+        "subtitleCodecs": [],
+        "hasAudio": true,
+        "color": "sdr-bt709"
+      },
+      "acceptanceCriteria": [
+        "continuousPlayback",
+        "audioVideoSynchronization",
+        "audioTrackSelection"
+      ],
+      "generation": {
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "Generated/sdr-bframe-audio-codec-matrix-15s.mkv",
+        "ffmpegVersion": "8.0.1"
+      },
+      "oracle": {
+        "audioTrackCount": 8,
+        "audioCodecs": ["aac", "ac3", "eac3", "mp2", "mp3", "alac", "opus", "flac"],
+        "pulseFrequencyHzByCodec": {
+          "aac": 880,
+          "ac3": 500,
+          "eac3": 550,
+          "mp2": 600,
+          "mp3": 650,
+          "alac": 700,
+          "opus": 750,
+          "flac": 800
+        }
+      }
+    },
+    {
+      "id": "generated-av1-flac-avsync-10s-v1",
+      "deviceImportPath": "Generated/av1-flac-avsync-10s.mkv",
+      "sha256": "16bef1f483b6f043165586e2b186b19d01fc059191800621e185525778b45949",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "Matroska / MKV",
+      "videoCodec": "AV1 Main, 640x360, 30 fps, BT.709, video range",
+      "audio": "FLAC, 48 kHz, stereo; 850 Hz 80 ms pulses aligned with a white video flash every second",
+      "durationSeconds": 10.0,
+      "matrix": {
+        "container": "mkv",
+        "videoCodec": "av1",
+        "audioCodecs": ["flac"],
+        "subtitleCodecs": [],
+        "hasAudio": true,
+        "color": "sdr-bt709"
+      },
+      "acceptanceCriteria": ["continuousPlayback", "audioVideoSynchronization"],
+      "generation": {
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "Generated/av1-flac-avsync-10s.mkv",
+        "ffmpegVersion": "8.0.1"
+      },
+      "oracle": {
+        "audioSampleFormat": "interleaved linear PCM after PlaybackCore conversion",
+        "audioPulseFrequencyHz": 850,
+        "sampleColorPrimaries": ["709"],
+        "sampleTransferFunction": ["709"],
+        "sampleYCbCrMatrix": ["709"],
+        "sampleRange": ["video", "tv"]
+      }
+    },
+    {
+      "id": "generated-external-subrip-zh-cn-v1",
+      "deviceImportPath": "Generated/sdr-bframe-multiaudio-avsync-30s.zh-CN.srt",
+      "sha256": "58c642420420f5cb795c35696de3df714c6dd2ede7dc220c88f0384abb677556",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "standalone SubRip subtitle file",
+      "videoCodec": "none; associated with generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
+      "audio": "none",
+      "durationSeconds": 29.5,
+      "matrix": {
+        "container": "srt",
+        "videoCodec": "none",
+        "audioCodecs": [],
+        "subtitleCodecs": ["subrip"],
+        "hasAudio": false,
+        "color": "not-applicable"
+      },
+      "acceptanceCriteria": ["externalSubtitleSelection"],
+      "generation": {
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "Generated/sdr-bframe-multiaudio-avsync-30s.zh-CN.srt"
+      },
+      "oracle": {
+        "associatedVideoFixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
+        "expectedAutomaticAssociation": true,
+        "cueTexts": [
+          "Enchron 字幕验证\nlibass GPU SubtitleFrame",
+          "Window playback subtitle",
+          "Seek 后只显示当前 cue",
+          "Docked scene subtitle"
+        ]
+      }
+    },
+    {
+      "id": "generated-external-ass-styled-v1",
+      "deviceImportPath": "Generated/sdr-bframe-multiaudio-avsync-30s.styled.ass",
+      "sha256": "866aa669d2f360cdf3f82f4a083ba5ba482ef4ef4a4a3439f56c3068acc0a1fa",
+      "license": "project-generated-no-external-media",
+      "acceptanceEligibility": "eligible-local-generated",
+      "container": "standalone ASS subtitle file",
+      "videoCodec": "none; associated with generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
+      "audio": "none",
+      "durationSeconds": 29.5,
+      "matrix": {
+        "container": "ass",
+        "videoCodec": "none",
+        "audioCodecs": [],
+        "subtitleCodecs": ["ass"],
+        "hasAudio": false,
+        "color": "not-applicable"
+      },
+      "acceptanceCriteria": ["externalSubtitleSelection"],
+      "generation": {
+        "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
+        "output": "Generated/sdr-bframe-multiaudio-avsync-30s.styled.ass"
+      },
+      "oracle": {
+        "associatedVideoFixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
+        "expectedAutomaticAssociation": true,
+        "styledCueText": "Enchron GPU PIXEL PROOF"
       }
     }
   ]

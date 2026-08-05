@@ -106,16 +106,73 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
 
     @MainActor
     func testTopActionsExposeDockMenu() {
-        let app = launchPlayer()
+        let app = launchPlayerForDeviceFixture()
+
+        let windowPlayback = app.descendants(matching: .any)["PlayerUI-window-playback"].firstMatch
+        XCTAssertTrue(windowPlayback.waitForExistence(timeout: 30))
+        let failure = app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].firstMatch
+        if failure.waitForExistence(timeout: 2) {
+            attachScreenshot(app, name: "dock-menu-playback-load-failure")
+            XCTFail(
+                "Autoplay failed before Dock chrome appeared. Playback value: \(String(describing: windowPlayback.value))"
+            )
+            return
+        }
 
         let dock = app.descendants(matching: .any)["PlayerUI-TopAction-dock"].firstMatch
-        XCTAssertTrue(dock.waitForExistence(timeout: 20))
+        XCTAssertTrue(dock.waitForExistence(timeout: 30))
+        attachScreenshot(app, name: "dock-menu-before-open")
         dock.tap()
         XCTAssertTrue(
             app.descendants(matching: .any)["PlayerUI-DockMenu-day"]
                 .waitForExistence(timeout: 5)
         )
-        attachScreenshot(app, name: "Docking menu")
+        attachScreenshot(app, name: "dock-system-menu-open")
+    }
+
+    @MainActor
+    func testWindowMoreMakesExternalSubtitleSelectionReachable() {
+        let app = launchPlayer()
+        let more = app.descendants(matching: .any)["PlayerUI-TopAction-more"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 20))
+        more.tap()
+
+        let subtitles = app.descendants(matching: .any)["PlayerUI-menu-subtitles"].firstMatch
+        XCTAssertTrue(
+            subtitles.waitForExistence(timeout: 5),
+            "Window More must expose Subtitles even when Off is the only current track choice."
+        )
+        subtitles.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["PlayerUI-menu-subtitle-chooseFile"]
+                .waitForExistence(timeout: 5),
+            "Window Subtitles must expose the real file importer action."
+        )
+        attachScreenshot(app, name: "Window external subtitle action")
+    }
+
+    @MainActor
+    func testSpatialMoreMakesExternalSubtitleSelectionReachable() {
+        let app = launchPlayer()
+        let dock = app.descendants(matching: .any)["PlayerUI-TopAction-dock"].firstMatch
+        XCTAssertTrue(dock.waitForExistence(timeout: 20))
+        dock.tap()
+        let environment = app.descendants(matching: .any)["PlayerUI-DockMenu-day"].firstMatch
+        XCTAssertTrue(environment.waitForExistence(timeout: 5))
+        environment.tap()
+
+        let more = app.descendants(matching: .any)["PlayerPanel-menu-more"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 20))
+        more.tap()
+        let subtitles = app.descendants(matching: .any)["PlayerPanel-menu-subtitles"].firstMatch
+        XCTAssertTrue(subtitles.waitForExistence(timeout: 5))
+        subtitles.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["PlayerPanel-menu-subtitle-chooseFile"]
+                .waitForExistence(timeout: 5),
+            "Docked and Panorama Subtitles must expose the real file importer action."
+        )
+        attachScreenshot(app, name: "Spatial external subtitle action")
     }
 
     @MainActor
@@ -138,6 +195,19 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         let mediaInformation = app.descendants(matching: .any)["PlayerPanel-media-information"].firstMatch
         XCTAssertTrue(more.exists)
         XCTAssertTrue(mediaInformation.exists)
+
+        more.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["PlayerPanel-menu-subtitles"]
+                .waitForExistence(timeout: 5),
+            "Docked More must expose the same subtitle selection as Window playback."
+        )
+        XCTAssertTrue(
+            app.descendants(matching: .any)["PlayerPanel-menu-audio"]
+                .waitForExistence(timeout: 5),
+            "Docked More must expose the same audio-track selection as Window playback."
+        )
+        more.tap()
 
         let play = app.descendants(matching: .any)["PlayerPanel-button-play"].firstMatch
         XCTAssertEqual(
@@ -199,17 +269,57 @@ nonisolated final class PlaybackDeckUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
-        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] =
-            "http://enchrolab:verification@127.0.0.1:18737/spatial-acceptance.mp4"
+        let fixture =
+            ProcessInfo.processInfo.environment["ENCHRON_DEVICE_ACCEPTANCE_FIXTURE_URL"]
+            ?? "http://enchrolab:verification@127.0.0.1:18737/spatial-acceptance.mp4"
+        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture
+        app.launch()
+        return app
+    }
+
+    /// Device-local file autoplay. Avoids `ENCHRON_UI_TESTING` so the app adds the
+    /// file through Media Library instead of asking FFmpeg to open a raw path that
+    /// UI-testing autoplay may not resolve inside the sandboxed container.
+    @MainActor
+    private func launchPlayerForDeviceFixture() -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
+        let fixture = ProcessInfo.processInfo.environment[
+            "ENCHRON_DEVICE_ACCEPTANCE_FIXTURE_URL"
+        ]
+        XCTAssertNotNil(
+            fixture,
+            "Set ENCHRON_DEVICE_ACCEPTANCE_FIXTURE_URL to an on-device file URL."
+        )
+        if let fixture {
+            app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixture
+        }
         app.launch()
         return app
     }
 
     @MainActor
     private func attachScreenshot(_ app: XCUIApplication, name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+
+        let shots = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(".cursor/acceptance-shots", isDirectory: true)
+        try? FileManager.default.createDirectory(
+            at: shots,
+            withIntermediateDirectories: true
+        )
+        let slug = name
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "/", with: "-")
+        let url = shots.appendingPathComponent("\(slug)-screen.png")
+        try? screenshot.pngRepresentation.write(to: url)
     }
 }

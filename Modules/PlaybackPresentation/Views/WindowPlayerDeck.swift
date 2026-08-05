@@ -3,6 +3,7 @@ import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct WindowPlayerDeckView: View {
     @Environment(AppModel.self) private var appModel
@@ -10,23 +11,43 @@ struct WindowPlayerDeckView: View {
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     var presentationOverride: PlaybackPresentation? = nil
     var onExitPlayback: (() -> Void)? = nil
+    @State private var isSubtitleFileImporterPresented = false
 
     @ViewBuilder
     var body: some View {
-        if resolvedPresentation == .window {
-            WindowPlaybackControls(
-                live: live,
-                onInteraction: register,
-                controlsVisible: appModel.showControls
+        Group {
+            if resolvedPresentation == .window {
+                WindowPlaybackControls(
+                    live: live,
+                    onInteraction: register,
+                    controlsVisible: appModel.showControls
+                )
+                .onHover { appModel.setControlsFocused($0) }
+            } else {
+                PlayerControlDock(
+                    live: live,
+                    onInteraction: register,
+                    controlsVisible: appModel.showControls
+                )
+                .onHover { appModel.setControlsFocused($0) }
+            }
+        }
+        .fileImporter(
+            isPresented: $isSubtitleFileImporterPresented,
+            allowedContentTypes: Self.subtitleFileTypes,
+            allowsMultipleSelection: false,
+            onCompletion: importSubtitleFile
+        )
+        .alert(
+            "Subtitle Error",
+            isPresented: Binding(
+                get: { playbackRuntime.subtitleErrorMessage != nil },
+                set: { if !$0 { playbackRuntime.subtitleErrorMessage = nil } }
             )
-            .onHover { appModel.setControlsFocused($0) }
-        } else {
-            PlayerControlDock(
-                live: live,
-                onInteraction: register,
-                controlsVisible: appModel.showControls
-            )
-            .onHover { appModel.setControlsFocused($0) }
+        ) {
+            Button("OK") { playbackRuntime.subtitleErrorMessage = nil }
+        } message: {
+            Text(playbackRuntime.subtitleErrorMessage ?? "The subtitle file could not be loaded.")
         }
     }
 
@@ -140,6 +161,10 @@ struct WindowPlayerDeckView: View {
                     }
                 }
             },
+            onChooseSubtitleFile: {
+                self.register()
+                self.isSubtitleFileImporterPresented = true
+            },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
@@ -149,6 +174,26 @@ struct WindowPlayerDeckView: View {
 
     private var resolvedPresentation: PlaybackPresentation {
         presentationOverride ?? appModel.playbackPresentation
+    }
+
+    private static let subtitleFileTypes = ["srt", "vtt", "ass", "ssa"].compactMap {
+        UTType(filenameExtension: $0)
+    }
+
+    private func importSubtitleFile(_ result: Result<[URL], any Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            Task {
+                do {
+                    try await playbackLauncher.addExternalSubtitleFile(url)
+                } catch {
+                    playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                }
+            }
+        case .failure(let error):
+            playbackRuntime.subtitleErrorMessage = error.localizedDescription
+        }
     }
 
     private var mediaName: String {
@@ -190,13 +235,25 @@ struct WindowPlayerDeckView: View {
         var items = playbackRuntime.availableSubtitleTracks.map { track in
             DeckMenuItem(id: track.id, title: track.displayName, isSelected: current == track.id) {
                 self.register()
-                self.playbackRuntime.selectSubtitleTrack(track)
+                Task {
+                    do {
+                        try await self.playbackLauncher.selectSubtitleTrack(track)
+                    } catch {
+                        self.playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                    }
+                }
             }
         }
         items.append(
             DeckMenuItem(id: "off", title: "Off", isSelected: current == nil) {
                 self.register()
-                self.playbackRuntime.selectSubtitleTrack(nil)
+                Task {
+                    do {
+                        try await self.playbackLauncher.selectSubtitleTrack(nil)
+                    } catch {
+                        self.playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                    }
+                }
             }
         )
         return items
@@ -207,7 +264,13 @@ struct WindowPlayerDeckView: View {
         return playbackRuntime.availableAudioTracks.map { track in
             DeckMenuItem(id: track.id, title: track.displayName, isSelected: current == track.id) {
                 self.register()
-                self.playbackRuntime.selectAudioTrack(track)
+                Task {
+                    do {
+                        try await self.playbackLauncher.selectAudioTrack(track)
+                    } catch {
+                        self.playbackRuntime.lastErrorMessage = error.localizedDescription
+                    }
+                }
             }
         }
     }
@@ -252,6 +315,7 @@ struct ProductionPlaybackMoreMenu: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @State private var isSubtitleFileImporterPresented = false
 
     var body: some View {
         GlassCircleIconMenu(
@@ -260,7 +324,15 @@ struct ProductionPlaybackMoreMenu: View {
             accessibilityIdentifier: "PlayerUI-TopAction-more"
         ) {
             if !subtitleItems.isEmpty {
-                menuSection("Subtitles", items: subtitleItems)
+                Menu("Subtitles") {
+                    selectableMenuItems(subtitleItems)
+                    Button("Choose Subtitle File…") {
+                        register()
+                        isSubtitleFileImporterPresented = true
+                    }
+                    .accessibilityIdentifier("PlayerUI-menu-subtitle-chooseFile")
+                }
+                .accessibilityIdentifier("PlayerUI-menu-subtitles")
             }
             if !audioItems.isEmpty {
                 menuSection("Audio Track", items: audioItems)
@@ -271,20 +343,42 @@ struct ProductionPlaybackMoreMenu: View {
             }
         }
         .accessibilityLabel("More playback settings")
+        .fileImporter(
+            isPresented: $isSubtitleFileImporterPresented,
+            allowedContentTypes: Self.subtitleFileTypes,
+            allowsMultipleSelection: false,
+            onCompletion: importSubtitleFile
+        )
+        .alert(
+            "Subtitle Error",
+            isPresented: Binding(
+                get: { playbackRuntime.subtitleErrorMessage != nil },
+                set: { if !$0 { playbackRuntime.subtitleErrorMessage = nil } }
+            )
+        ) {
+            Button("OK") { playbackRuntime.subtitleErrorMessage = nil }
+        } message: {
+            Text(playbackRuntime.subtitleErrorMessage ?? "The subtitle file could not be loaded.")
+        }
     }
 
     @ViewBuilder
     private func menuSection(_ title: String, items: [DeckMenuItem]) -> some View {
         Menu(title) {
-            Picker("", selection: selection(items)) {
-                ForEach(items) { item in
-                    Text(item.title)
-                        .tag(item.id)
-                }
-            }
-            .pickerStyle(.inline)
-            .labelsHidden()
+            selectableMenuItems(items)
         }
+    }
+
+    @ViewBuilder
+    private func selectableMenuItems(_ items: [DeckMenuItem]) -> some View {
+        Picker("", selection: selection(items)) {
+            ForEach(items) { item in
+                Text(item.title)
+                    .tag(item.id)
+            }
+        }
+        .pickerStyle(.inline)
+        .labelsHidden()
     }
 
     private func selection(_ items: [DeckMenuItem]) -> Binding<String> {
@@ -298,6 +392,26 @@ struct ProductionPlaybackMoreMenu: View {
         appModel.registerControlsInteraction()
     }
 
+    private static let subtitleFileTypes = ["srt", "vtt", "ass", "ssa"].compactMap {
+        UTType(filenameExtension: $0)
+    }
+
+    private func importSubtitleFile(_ result: Result<[URL], any Error>) {
+        switch result {
+        case .success(let urls):
+            guard let url = urls.first else { return }
+            Task {
+                do {
+                    try await playbackLauncher.addExternalSubtitleFile(url)
+                } catch {
+                    playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                }
+            }
+        case .failure(let error):
+            playbackRuntime.subtitleErrorMessage = error.localizedDescription
+        }
+    }
+
     private var subtitleItems: [DeckMenuItem] {
         let current = playbackRuntime.currentSubtitleTrackID
         var items = playbackRuntime.availableSubtitleTracks.map { track in
@@ -307,13 +421,25 @@ struct ProductionPlaybackMoreMenu: View {
                 isSelected: current == track.id
             ) {
                 register()
-                playbackRuntime.selectSubtitleTrack(track)
+                Task {
+                    do {
+                        try await playbackLauncher.selectSubtitleTrack(track)
+                    } catch {
+                        playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                    }
+                }
             }
         }
         items.append(
             DeckMenuItem(id: "off", title: "Off", isSelected: current == nil) {
                 register()
-                playbackRuntime.selectSubtitleTrack(nil)
+                Task {
+                    do {
+                        try await playbackLauncher.selectSubtitleTrack(nil)
+                    } catch {
+                        playbackRuntime.subtitleErrorMessage = error.localizedDescription
+                    }
+                }
             }
         )
         return items
@@ -328,7 +454,13 @@ struct ProductionPlaybackMoreMenu: View {
                 isSelected: current == track.id
             ) {
                 register()
-                playbackRuntime.selectAudioTrack(track)
+                Task {
+                    do {
+                        try await playbackLauncher.selectAudioTrack(track)
+                    } catch {
+                        playbackRuntime.lastErrorMessage = error.localizedDescription
+                    }
+                }
             }
         }
     }

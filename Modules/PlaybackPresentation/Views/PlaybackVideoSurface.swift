@@ -17,15 +17,18 @@ private final class PlaybackVideoComponentObservation {
     private var subscriptions: [EventSubscription] = []
     private var lastLayoutSignature: String?
     private var lastStateSignature: String?
+    private let modeRequestRetry = PlaybackModeRequestRetry()
 
     func observe<Content: RealityViewContentProtocol>(
         _ entity: Entity,
         in content: Content,
-        onChange: @escaping @MainActor (String) -> Void
+        onChange: @escaping @MainActor (String) -> Void,
+        onImmersiveViewingModeDidChange:
+            @escaping @MainActor (Bool) -> Void
     ) {
         let nextEntityID = ObjectIdentifier(entity)
         guard entityID != nextEntityID else { return }
-        cancel()
+        cancelSubscriptions()
         entityID = nextEntityID
         #if os(visionOS)
         subscriptions = [
@@ -35,6 +38,29 @@ private final class PlaybackVideoComponentObservation {
             content.subscribe(to: VideoPlayerEvents.ViewingModeDidChange.self, on: entity) { _ in
                 Task { @MainActor in onChange("viewingModeDidChange") }
             },
+            content.subscribe(
+                to: VideoPlayerEvents.ImmersiveViewingModeWillTransition.self,
+                on: entity
+            ) { _ in
+                Task { @MainActor in onChange("immersiveViewingModeWillTransition") }
+            },
+            content.subscribe(
+                to: VideoPlayerEvents.ImmersiveViewingModeDidChange.self,
+                on: entity
+            ) { event in
+                Task { @MainActor in
+                    onImmersiveViewingModeDidChange(
+                        event.currentMode == .progressive
+                    )
+                    onChange("immersiveViewingModeDidChange")
+                }
+            },
+            content.subscribe(
+                to: VideoPlayerEvents.ImmersiveViewingModeDidTransition.self,
+                on: entity
+            ) { _ in
+                Task { @MainActor in onChange("immersiveViewingModeDidTransition") }
+            },
             content.subscribe(to: VideoPlayerEvents.RenderingStatusDidChange.self, on: entity) { _ in
                 Task { @MainActor in onChange("renderingStatusDidChange") }
             }
@@ -43,9 +69,14 @@ private final class PlaybackVideoComponentObservation {
     }
 
     func cancel() {
+        cancelSubscriptions()
+        entityID = nil
+        modeRequestRetry.reset()
+    }
+
+    private func cancelSubscriptions() {
         subscriptions.forEach { $0.cancel() }
         subscriptions.removeAll()
-        entityID = nil
     }
 
     func shouldLogLayout(_ signature: String) -> Bool {
@@ -59,10 +90,43 @@ private final class PlaybackVideoComponentObservation {
         lastStateSignature = signature
         return true
     }
+
+    #if os(visionOS)
+    func modeRecoveryAction(
+        to entity: Entity,
+        presentation: PlaybackPresentation,
+        component: VideoPlayerComponent,
+        requiresImmersiveViewingModeSettlement: Bool
+    ) -> PlaybackModeRecoveryAction {
+        modeRequestRetry.recoveryAction(
+            entity: entity,
+            presentation: presentation,
+            desiredViewingMode: String(describing: component.desiredViewingMode),
+            actualViewingMode: component.viewingMode.map { String(describing: $0) },
+            desiredImmersiveViewingMode: String(
+                describing: component.desiredImmersiveViewingMode
+            ),
+            actualImmersiveViewingMode: component.immersiveViewingMode.map {
+                String(describing: $0)
+            },
+            requiresImmersiveViewingModeSettlement:
+                requiresImmersiveViewingModeSettlement
+        )
+    }
+    #endif
 }
 
 struct PlaybackVideoSurface: View {
     private static let subtitleControlSafeAreaFraction: Float = 0.32
+    // RealityKit and AVFoundation expose no completion for removing a
+    // VideoPlayerComponent's renderer target. The component must first be
+    // absent across a RealityKit resource-sharing commit before Panorama
+    // creates and attaches its replacement renderer graph. A single turn was
+    // insufficient on device: the old target could still be registered when
+    // the target scene began preparation.
+    // Keep this independent from the visible presentation animation.
+    private static let sourceVideoPlayerComponentRemovalSettleDelay =
+        Duration.seconds(1)
 
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -70,14 +134,24 @@ struct PlaybackVideoSurface: View {
     let presentation: PlaybackPresentation
     let isActive: Bool
 
-    @State private var videoEntity = Entity()
     @State private var subtitleSurface = PlaybackSubtitleSurface()
+    @State private var playbackVideoEntityStore = PlaybackVideoEntityStore()
+    @State private var realityViewUpdateScheduler = PlaybackRealityViewUpdateScheduler()
     @State private var surfaceActivation = PlaybackSurfaceActivation()
+    @State private var surfaceAccessibilityActivation =
+        PlaybackSurfaceAccessibilityActivationObservation()
+    @State private var rendererTargetObservation =
+        PlaybackVideoRendererTargetObservation()
     @State private var componentObservation = PlaybackVideoComponentObservation()
     @State private var componentRevision = 0
+    @State private var sourceVideoPlayerComponentRemovalTask: Task<Void, Never>?
     #if os(visionOS)
     @State private var surfaceRefreshTick = 0
     #endif
+
+    private var videoEntity: Entity {
+        playbackVideoEntityStore.entity
+    }
     #if os(macOS)
     @State private var macOSWindowCamera = Entity()
     @State private var macOSWorld: Entity?
@@ -112,26 +186,9 @@ struct PlaybackVideoSurface: View {
     private var visionSurface: some View {
         GeometryReader3D { geometry in
             RealityView { content in
-                updateVisionSurface(
-                    content,
-                    proxy: geometry,
-                    revision: componentRevision &+ surfaceRefreshTick
-                )
+                scheduleVisionSurfaceUpdate(content, proxy: geometry)
             } update: { content in
-                updateVisionSurface(
-                    content,
-                    proxy: geometry,
-                    revision: componentRevision &+ surfaceRefreshTick
-                )
-            }
-            .gesture(
-                surfaceTapGesture.exclusively(before: surfaceFallbackTapGesture)
-            )
-            .accessibilityElement()
-            .accessibilityLabel("Playback surface")
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction {
-                toggleControlsFromSurface()
+                scheduleVisionSurfaceUpdate(content, proxy: geometry)
             }
             .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
         }
@@ -139,8 +196,25 @@ struct PlaybackVideoSurface: View {
         .task(id: surfaceReadinessKey) {
             await retrySurfaceAttachment()
         }
+        .onChange(of: playbackRuntime.videoComponentRevision) {
+            surfaceRefreshTick &+= 1
+        }
+        .onChange(of: appModel.presentationTransition?.id) {
+            componentRevision &+= 1
+        }
         .onDisappear {
+            realityViewUpdateScheduler.cancel()
             releaseSurface()
+        }
+    }
+
+    private func scheduleVisionSurfaceUpdate(
+        _ content: RealityViewContent,
+        proxy: GeometryProxy3D
+    ) {
+        let revision = componentRevision &+ surfaceRefreshTick
+        realityViewUpdateScheduler.schedule {
+            updateVisionSurface(content, proxy: proxy, revision: revision)
         }
     }
     #else
@@ -196,27 +270,33 @@ struct PlaybackVideoSurface: View {
         SpatialTapGesture()
             .targetedToEntity(videoEntity)
             .onEnded { _ in
-                // Window and spatial presentations share the same RealityKit
-                // input-target path. Do not place a SwiftUI fill over the video.
-                toggleControlsFromSurface()
-            }
-    }
-
-    private var surfaceFallbackTapGesture: some Gesture {
-        TapGesture()
-            .onEnded {
                 toggleControlsFromSurface()
             }
     }
 
     private func toggleControlsFromSurface() {
-        // #region agent log
-        #if os(visionOS)
-        // Apps-level logger is unavailable in this module; stamp via AppModel.
-        #endif
-        // #endregion
+        Task { @MainActor in
+            // A RealityKit entity can receive the same spatial tap that
+            // activates SwiftUI playback chrome above it. Yield so the
+            // control action can register its interaction first; a genuine
+            // video-surface tap has no competing control action and still
+            // toggles the controls on this run-loop turn.
+            await Task.yield()
+            withAnimation(.easeInOut(duration: 0.25)) {
+                PlaybackSurfaceInputAction.perform(
+                    .spatialTap,
+                    appModel: appModel
+                )
+            }
+        }
+    }
+
+    private func toggleControlsFromAccessibilityActivation() {
         withAnimation(.easeInOut(duration: 0.25)) {
-            appModel.toggleControlsFromPlaybackSurface()
+            PlaybackSurfaceInputAction.perform(
+                .accessibilityActivate,
+                appModel: appModel
+            )
         }
     }
 
@@ -258,18 +338,33 @@ struct PlaybackVideoSurface: View {
     ) -> Bool {
         _ = revision
         logSurfaceFacts(reason: "prepareCheck")
-        guard isActive,
-              playbackRuntime.mediaFormatIsKnown,
+        guard isActive else {
+            if preservesDepartingSurfaceForFade {
+                releaseRendererOwnershipWhileKeepingVisibleSurface()
+            } else {
+                releaseSurface(from: content)
+            }
+            return false
+        }
+        guard playbackRuntime.mediaFormatIsKnown,
               let renderer = playbackRuntime.renderer else {
             releaseSurface(from: content)
             return false
         }
+
+        let videoComponentRevision = playbackRuntime.videoComponentRevision
+        _ = playbackVideoEntityStore.entity(
+            for: renderer,
+            videoComponentRevision: videoComponentRevision
+        )
 
         do {
             try playbackRuntime.claimRendererConsumer(
                 presentation: presentation,
                 entityID: entityID
             )
+        } catch PlaybackRuntime.RuntimeError.rendererTransferPending {
+            return false
         } catch {
             playbackRuntime.lastErrorMessage = error.localizedDescription
             releaseSurface(from: content)
@@ -283,12 +378,46 @@ struct PlaybackVideoSurface: View {
         let needsInsertion = content.entities.contains(where: { $0 === videoEntity }) == false
         #endif
         videoEntity.name = "EnchronVideo.\(presentation)"
+        rendererTargetObservation.observe(
+            videoEntity,
+            videoComponentRevision: videoComponentRevision,
+            in: content
+        ) {
+            playbackRuntime.videoRendererTargetDidBind(
+                revision: videoComponentRevision,
+                entityID: entityID
+            )
+        }
+        componentObservation.observe(
+            videoEntity,
+            in: content,
+            onChange: { reason in
+                logComponentState(reason: reason)
+                componentRevision &+= 1
+            },
+            onImmersiveViewingModeDidChange: { observedProgressiveMode in
+                recordWindowPortalToProgressiveChangeIfCurrent(
+                    observedProgressiveMode: observedProgressiveMode
+                )
+            }
+        )
+        surfaceActivation.observe(videoEntity, in: content) {
+            attachSurfaceIfReady()
+        }
+        if needsInsertion {
+            content.add(videoEntity)
+        }
         PlaybackRealityPresenter.configure(
             videoEntity,
             renderer: renderer,
             presentation: presentation,
-            stereoLayout: playbackRuntime.effectiveStereoLayout
+            stereoLayout: playbackRuntime.effectiveStereoLayout,
+            requestsProgressiveImmersiveViewingMode:
+                windowPortalToProgressiveChangeIsRequested
         )
+        surfaceAccessibilityActivation.observe(videoEntity, in: content) {
+            toggleControlsFromAccessibilityActivation()
+        }
         subtitleSurface.update(
             on: videoEntity,
             presentation: presentation,
@@ -298,15 +427,7 @@ struct PlaybackVideoSurface: View {
                 : 0,
             frame: playbackRuntime.activeSubtitleFrame
         )
-        componentObservation.observe(videoEntity, in: content) { reason in
-            logComponentState(reason: reason)
-            componentRevision &+= 1
-        }
-        surfaceActivation.observe(videoEntity, in: content) {
-            attachSurfaceIfReady()
-        }
         if needsInsertion {
-            content.add(videoEntity)
             logComponentState(reason: "entityAdded")
         }
         attachSurfaceIfReady()
@@ -494,20 +615,46 @@ struct PlaybackVideoSurface: View {
 
     @MainActor
     private func attachSurfaceIfReady() {
-        let renderer = playbackRuntime.renderer
-        let isBound = renderer.map {
-            PlaybackRealityPresenter.isBound(
-                videoEntity,
-                to: $0,
-                presentation: presentation
-            )
-        } ?? false
         logSurfaceFacts(reason: "attachCheck")
         guard videoEntity.isActive,
-              renderer != nil,
+              let renderer = playbackRuntime.renderer,
               isActive,
               playbackRuntime.mediaFormatIsKnown,
-              isBound else { return }
+              PlaybackRealityPresenter.isBound(
+                videoEntity,
+                to: renderer,
+                presentation: presentation
+              ) else { return }
+        #if os(visionOS)
+        if let component,
+           windowPortalToProgressiveChangeIsRequested == false {
+            let recoveryAction = componentObservation.modeRecoveryAction(
+                to: videoEntity,
+                presentation: presentation,
+                component: component,
+                requiresImmersiveViewingModeSettlement:
+                    requiresPortalModeSettlement
+            )
+            switch recoveryAction {
+            case .none:
+                break
+            case .requestModesAgain:
+                PlaybackRealityPresenter.reapplyDesiredModesAfterSceneActivation(
+                    videoEntity,
+                    presentation: presentation,
+                    stereoLayout: playbackRuntime.effectiveStereoLayout
+                )
+            case .replaceRendererGraph:
+                Task { @MainActor in
+                    do {
+                        try await playbackRuntime.recoverRendererGraphAfterPresentationTransfer()
+                    } catch {
+                        playbackRuntime.lastErrorMessage = error.localizedDescription
+                    }
+                }
+            }
+        }
+        #endif
         do {
             try playbackRuntime.attach(
                 entityID: entityID,
@@ -517,6 +664,8 @@ struct PlaybackVideoSurface: View {
             playbackRuntime.recordPresentationState(
                 presentation: presentation,
                 phase: presentationPhase,
+                entityID: entityID,
+                videoComponentRevision: playbackRuntime.videoComponentRevision,
                 realityViewID: realityViewID,
                 entityParentID: videoEntity.parent.map { String(describing: ObjectIdentifier($0)) },
                 desiredImmersiveViewingMode: desiredImmersiveViewingMode,
@@ -528,7 +677,7 @@ struct PlaybackVideoSurface: View {
                 componentRenderingStatus: component.map {
                     String(describing: $0.currentRenderingStatus)
                 },
-                displayedPixelBuffer: renderer?.displayedPixelBuffer() != nil
+                displayedPixelBuffer: renderer.displayedPixelBuffer() != nil
             )
             logSurfaceFacts(reason: "attachCompleted")
         } catch {
@@ -551,7 +700,7 @@ struct PlaybackVideoSurface: View {
         #if os(macOS)
         "EnchronVideo.macOS#\(ObjectIdentifier(videoEntity))"
         #else
-        "EnchronVideo.\(presentation)#\(ObjectIdentifier(videoEntity))"
+        "EnchronVideo.window#\(ObjectIdentifier(videoEntity))"
         #endif
     }
 
@@ -601,11 +750,75 @@ struct PlaybackVideoSurface: View {
 
     private var presentationPhase: PlaybackPresentationSettlementPhase {
         guard let component else { return .surfaceAttached }
+        let requiresImmersiveViewingModeConfirmation: Bool
+        #if os(visionOS)
+        if let transition = appModel.presentationTransition,
+           (transition.previousPresentation == .panorama
+                && transition.targetPresentation == .window)
+            || (transition.previousPresentation == .window
+                && transition.targetPresentation == .panorama) {
+            requiresImmersiveViewingModeConfirmation = true
+        } else {
+            requiresImmersiveViewingModeConfirmation = false
+        }
+        let immersiveViewingModeIsSettled =
+            SpatialPlaybackSurfaceSettlementPolicy.immersiveViewingModeMatches(
+                projection: playbackRuntime.effectiveProjectionType,
+                requiresTransitionConfirmation:
+                    requiresImmersiveViewingModeConfirmation,
+                desiredImmersiveViewingMode: String(
+                    describing: component.desiredImmersiveViewingMode
+                ),
+                observedImmersiveViewingMode: component.immersiveViewingMode.map {
+                    String(describing: $0)
+                }
+            )
+        #else
+        requiresImmersiveViewingModeConfirmation = false
+        let immersiveViewingModeIsSettled = true
+        #endif
+        let viewingModeIsSettled =
+            SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
+                stereoLayout: playbackRuntime.effectiveStereoLayout,
+                observedViewingMode: component.viewingMode.map {
+                    String(describing: $0)
+                }
+            )
         return component.currentRenderingStatus == .ready
-            && component.viewingMode == component.desiredViewingMode
+            && immersiveViewingModeIsSettled
+            && viewingModeIsSettled
             && playbackRuntime.renderer?.displayedPixelBuffer() != nil
             ? .settled
             : .surfaceAttached
+    }
+
+    private var requiresPortalModeSettlement: Bool {
+        guard let transition = appModel.presentationTransition else { return false }
+        return playbackRuntime.effectiveProjectionType != .flat
+            && transition.previousPresentation == .panorama
+            && transition.targetPresentation == .window
+    }
+
+    private var windowPortalToProgressiveChangeIsRequested: Bool {
+        presentation == .window
+            && appModel.presentationTransition?
+                .requiresWindowPortalToProgressiveChange == true
+    }
+
+    private func recordWindowPortalToProgressiveChangeIfCurrent(
+        observedProgressiveMode: Bool
+    ) {
+        #if os(visionOS)
+        guard windowPortalToProgressiveChangeIsRequested,
+              observedProgressiveMode,
+              component?.desiredImmersiveViewingMode == .progressive,
+              let transitionID = appModel.presentationTransition?.id else {
+            return
+        }
+        appModel.recordWindowPortalToProgressiveChange(for: transitionID)
+        #else
+        _ = observedProgressiveMode
+        #endif
     }
 
     private func logComponentState(reason: String) {
@@ -657,16 +870,85 @@ struct PlaybackVideoSurface: View {
     }
 
     private func releaseSurface() {
+        sourceVideoPlayerComponentRemovalTask?.cancel()
+        sourceVideoPlayerComponentRemovalTask = nil
         surfaceActivation.cancel()
+        surfaceAccessibilityActivation.cancel()
+        rendererTargetObservation.cancel()
         componentObservation.cancel()
         subtitleSurface.remove()
         videoEntity.removeFromParent()
-        videoEntity.components.remove(VideoPlayerComponent.self)
+        PlaybackRealityPresenter.releaseVideoRenderer(from: videoEntity)
+        if playbackRuntime.rendererConsumerEntityID == entityID {
+            playbackRuntime.releaseRendererConsumer(
+                presentation: presentation,
+                entityID: entityID
+            )
+        }
+        detachSurface()
+    }
+
+    private var preservesDepartingSurfaceForFade: Bool {
+        guard let transition = appModel.presentationTransition else {
+            return false
+        }
+        return transition.previousPresentation == presentation
+            && transition.targetPresentation != presentation
+            && appModel.presentationSourceRendererMayRelease
+    }
+
+    private func releaseRendererOwnershipWhileKeepingVisibleSurface() {
+        surfaceActivation.cancel()
+        rendererTargetObservation.cancel()
+        guard playbackRuntime.rendererConsumerEntityID == entityID else { return }
+        let targetPresentation = appModel.presentationTransition?.targetPresentation
+        let preparesNewPanoramaRendererGraph = appModel.presentationTransition?
+            .previousPresentation == .window
+            && appModel.presentationTransition?.targetPresentation == .panorama
+        if preparesNewPanoramaRendererGraph {
+            componentObservation.cancel()
+        }
         playbackRuntime.releaseRendererConsumer(
             presentation: presentation,
-            entityID: entityID
+            entityID: entityID,
+            retainingCurrentRendererGraphFor: preparesNewPanoramaRendererGraph
+                ? targetPresentation
+                : nil
         )
+        if preparesNewPanoramaRendererGraph {
+            PlaybackRealityPresenter.releaseVideoRenderer(from: videoEntity)
+            schedulePanoramaRendererClaimAfterSourceComponentRemoval()
+        }
         detachSurface()
+    }
+
+    private func schedulePanoramaRendererClaimAfterSourceComponentRemoval() {
+        sourceVideoPlayerComponentRemovalTask?.cancel()
+        let sourceEntity = videoEntity
+        let sourcePresentation = presentation
+        let sourceEntityID = entityID
+        sourceVideoPlayerComponentRemovalTask = Task { @MainActor in
+            await Task.yield()
+            guard Task.isCancelled == false,
+                  sourceEntity.components[VideoPlayerComponent.self] == nil else {
+                return
+            }
+            try? await Task.sleep(
+                for: Self.sourceVideoPlayerComponentRemovalSettleDelay
+            )
+            guard Task.isCancelled == false,
+                  sourceEntity.components[VideoPlayerComponent.self] == nil else {
+                return
+            }
+            do {
+                try await playbackRuntime.sourceVideoPlayerComponentDidRemove(
+                    presentation: sourcePresentation,
+                    entityID: sourceEntityID
+                )
+            } catch {
+                playbackRuntime.lastErrorMessage = error.localizedDescription
+            }
+        }
     }
 
     private var activeSubtitleText: String? {

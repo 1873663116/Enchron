@@ -26,8 +26,8 @@ public struct PlaybackAudioSessionObservation: Codable, Equatable, Sendable {
 @MainActor
 public protocol PlaybackAudioSessionManaging: AnyObject {
     var observation: PlaybackAudioSessionObservation { get }
-    func activateForMoviePlayback() throws
-    func deactivate() throws
+    func activateForMoviePlayback() async throws
+    func deactivate() async throws
 }
 
 public extension PlaybackAudioSessionManaging {
@@ -37,6 +37,20 @@ public extension PlaybackAudioSessionManaging {
 @MainActor
 final class SystemPlaybackAudioSession: PlaybackAudioSessionManaging {
 #if os(visionOS)
+    private enum SessionError: LocalizedError {
+        case activationRejected
+        case deactivationRejected
+
+        var errorDescription: String? {
+            switch self {
+            case .activationRejected:
+                "The system rejected audio-session activation."
+            case .deactivationRejected:
+                "The system rejected audio-session deactivation."
+            }
+        }
+    }
+
     private let session = AVAudioSession.sharedInstance()
 
     var observation: PlaybackAudioSessionObservation {
@@ -50,28 +64,62 @@ final class SystemPlaybackAudioSession: PlaybackAudioSessionManaging {
         )
     }
 
-    func activateForMoviePlayback() throws {
+    func activateForMoviePlayback() async throws {
         try session.setCategory(.playback, mode: .moviePlayback)
-        try session.setActive(true)
+        let activated: Bool = try await withCheckedThrowingContinuation { continuation in
+            session.activate(options: []) { activated, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: activated)
+                }
+            }
+        }
+        guard activated else { throw SessionError.activationRejected }
     }
 
-    func deactivate() throws {
-        try session.setActive(false, options: .notifyOthersOnDeactivation)
+    func deactivate() async throws {
+        let deactivated: Bool = try await withCheckedThrowingContinuation { continuation in
+            session.deactivate(options: [.notifyOthersOnDeactivation]) { deactivated, error in
+                if let error {
+                    continuation.resume(throwing: error)
+                } else {
+                    continuation.resume(returning: deactivated)
+                }
+            }
+        }
+        guard deactivated else { throw SessionError.deactivationRejected }
     }
 #else
     var observation: PlaybackAudioSessionObservation { .init() }
-    func activateForMoviePlayback() throws {}
-    func deactivate() throws {}
+    func activateForMoviePlayback() async throws {}
+    func deactivate() async throws {}
 #endif
 }
 
 @MainActor
 public final class PlaybackAudioSessionLifecycle {
-    public private(set) var isActive = false
+    public var isActive: Bool {
+        switch state {
+        case .active, .deactivating:
+            true
+        case .inactive, .activating:
+            false
+        }
+    }
     public var observation: PlaybackAudioSessionObservation { session.observation }
+
+    private enum State {
+        case inactive
+        case activating(id: UInt64, task: Task<Void, any Error>)
+        case active
+        case deactivating(id: UInt64, task: Task<Bool, Never>)
+    }
 
     private let session: any PlaybackAudioSessionManaging
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackAudioSession")
+    private var state = State.inactive
+    private var operationID: UInt64 = 0
 
     public init() {
         session = SystemPlaybackAudioSession()
@@ -81,30 +129,114 @@ public final class PlaybackAudioSessionLifecycle {
         self.session = session
     }
 
-    public func activateIfNeeded(hasAudio: Bool) throws {
+    public func activateIfNeeded(hasAudio: Bool) async throws {
         guard hasAudio else {
-            deactivate()
+            await deactivate()
             return
         }
-        guard !isActive else { return }
-        do {
-            try session.activateForMoviePlayback()
-            isActive = true
-            logger.info("audio session activated category=playback mode=moviePlayback")
-        } catch {
-            logger.error("audio session activation failed error=\(error.localizedDescription, privacy: .public)")
-            throw error
+
+        while true {
+            switch state {
+            case .active:
+                return
+            case .inactive:
+                operationID &+= 1
+                let id = operationID
+                let session = session
+                let task = Task { @MainActor in
+                    try await session.activateForMoviePlayback()
+                }
+                state = .activating(id: id, task: task)
+                do {
+                    try await task.value
+                    if case .activating(let currentID, _) = state,
+                       currentID == id {
+                        state = .active
+                        logger.info("audio session activated category=playback mode=moviePlayback")
+                    }
+                } catch {
+                    if case .activating(let currentID, _) = state,
+                       currentID == id {
+                        state = .inactive
+                    }
+                    logger.error("audio session activation failed error=\(error.localizedDescription, privacy: .public)")
+                    throw error
+                }
+            case .activating(let id, let task):
+                do {
+                    try await task.value
+                    if case .activating(let currentID, _) = state,
+                       currentID == id {
+                        state = .active
+                        logger.info("audio session activated category=playback mode=moviePlayback")
+                    }
+                } catch {
+                    if case .activating(let currentID, _) = state,
+                       currentID == id {
+                        state = .inactive
+                    }
+                    throw error
+                }
+            case .deactivating(let id, let task):
+                let deactivated = await task.value
+                settleDeactivation(id: id, succeeded: deactivated)
+            }
         }
     }
 
-    public func deactivate() {
-        guard isActive else { return }
-        do {
-            try session.deactivate()
-            isActive = false
+    public func deactivate() async {
+        while true {
+            switch state {
+            case .inactive:
+                return
+            case .active:
+                operationID &+= 1
+                let id = operationID
+                let session = session
+                let logger = logger
+                let task = Task { @MainActor in
+                    do {
+                        try await session.deactivate()
+                        return true
+                    } catch {
+                        logger.error("audio session deactivation failed error=\(error.localizedDescription, privacy: .public)")
+                        return false
+                    }
+                }
+                state = .deactivating(id: id, task: task)
+                let deactivated = await task.value
+                settleDeactivation(id: id, succeeded: deactivated)
+                return
+            case .activating(let id, let task):
+                do {
+                    try await task.value
+                    if case .activating(let currentID, _) = state,
+                       currentID == id {
+                        state = .active
+                    }
+                } catch {
+                    if case .activating(let currentID, _) = state,
+                       currentID == id {
+                        state = .inactive
+                    }
+                    return
+                }
+            case .deactivating(let id, let task):
+                let deactivated = await task.value
+                settleDeactivation(id: id, succeeded: deactivated)
+                return
+            }
+        }
+    }
+
+    private func settleDeactivation(id: UInt64, succeeded: Bool) {
+        guard case .deactivating(let currentID, _) = state,
+              currentID == id else { return }
+        if succeeded {
+            state = .inactive
             logger.info("audio session deactivated")
-        } catch {
-            logger.error("audio session deactivation failed error=\(error.localizedDescription, privacy: .public)")
+        } else {
+            state = .active
         }
     }
 }

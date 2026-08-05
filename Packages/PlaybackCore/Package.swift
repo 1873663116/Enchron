@@ -33,6 +33,7 @@ let package = Package(
                 .linkedFramework("CoreText"),
                 .linkedFramework("Security"),
                 .linkedLibrary("c++"),
+                .linkedLibrary("hvf"),
                 .linkedLibrary("iconv"),
             ]
         ),

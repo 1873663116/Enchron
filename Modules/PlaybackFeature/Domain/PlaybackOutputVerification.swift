@@ -38,6 +38,12 @@ public struct PlaybackOutputObservation: Codable, Sendable, Equatable {
     public var realityKitRendererBound: Bool
     public var videoComponentReady: Bool
     public var displayedPixelBuffer: Bool
+    public var desiredImmersiveViewingMode: String?
+    public var actualImmersiveViewingMode: String?
+    public var desiredViewingMode: String?
+    public var actualViewingMode: String?
+    public var desiredSpatialVideoMode: String?
+    public var actualSpatialVideoMode: String?
     public var hasAudio: Bool
     public var audioSampleBufferCount: UInt64
     public var audioRendererSampleBufferCount: UInt64
@@ -66,6 +72,12 @@ public struct PlaybackOutputObservation: Codable, Sendable, Equatable {
         realityKitRendererBound: Bool,
         videoComponentReady: Bool,
         displayedPixelBuffer: Bool,
+        desiredImmersiveViewingMode: String? = nil,
+        actualImmersiveViewingMode: String? = nil,
+        desiredViewingMode: String? = nil,
+        actualViewingMode: String? = nil,
+        desiredSpatialVideoMode: String? = nil,
+        actualSpatialVideoMode: String? = nil,
         hasAudio: Bool,
         audioSampleBufferCount: UInt64,
         audioRendererSampleBufferCount: UInt64,
@@ -93,6 +105,12 @@ public struct PlaybackOutputObservation: Codable, Sendable, Equatable {
         self.realityKitRendererBound = realityKitRendererBound
         self.videoComponentReady = videoComponentReady
         self.displayedPixelBuffer = displayedPixelBuffer
+        self.desiredImmersiveViewingMode = desiredImmersiveViewingMode
+        self.actualImmersiveViewingMode = actualImmersiveViewingMode
+        self.desiredViewingMode = desiredViewingMode
+        self.actualViewingMode = actualViewingMode
+        self.desiredSpatialVideoMode = desiredSpatialVideoMode
+        self.actualSpatialVideoMode = actualSpatialVideoMode
         self.hasAudio = hasAudio
         self.audioSampleBufferCount = audioSampleBufferCount
         self.audioRendererSampleBufferCount = audioRendererSampleBufferCount

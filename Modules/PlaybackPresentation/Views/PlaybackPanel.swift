@@ -47,6 +47,7 @@ struct FusedPlayerPanelLive {
     var onResetDockedPlacement: () -> Void
     var onApplyFormat: (PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void
     var onResetFormat: () -> Void
+    var onChooseSubtitleFile: () -> Void
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -863,6 +864,22 @@ struct FusedPlayerPanel: View {
 
     @ViewBuilder
     private func liveMoreMenuSections(_ live: FusedPlayerPanelLive) -> some View {
+        if !live.subtitleItems.isEmpty {
+            Menu("Subtitles") {
+                liveMenuItems(live.subtitleItems, category: "subtitle")
+                Button("Choose Subtitle File…") {
+                    live.onChooseSubtitleFile()
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-subtitle-chooseFile")
+            }
+            .accessibilityIdentifier("PlayerPanel-menu-subtitles")
+        }
+        if !live.audioItems.isEmpty {
+            Menu("Audio Track") {
+                liveMenuItems(live.audioItems, category: "audio")
+            }
+            .accessibilityIdentifier("PlayerPanel-menu-audio")
+        }
         Section("Playback Settings") {
             Menu("Playback Speed") {
                 liveMenuItems(live.speedItems, category: "speed")

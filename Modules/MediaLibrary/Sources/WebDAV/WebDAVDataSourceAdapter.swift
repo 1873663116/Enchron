@@ -72,6 +72,17 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
     }
 
     public func listContents(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
+        try await listFiles(at: path, matching: filter)
+    }
+
+    public func listSubtitleFiles(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
+        try await listFiles(at: path, matching: .externalSubtitles)
+    }
+
+    private func listFiles(
+        at path: String,
+        matching fileFilter: FileBrowsingDomain.FileFilter
+    ) async throws -> [FileBrowsingDomain.MediaFile] {
         guard let baseURL else {
             throw WebDAVError.notConnected
         }
@@ -89,7 +100,7 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
             if normalizedComparablePath(fileURL.path) == normalizedTargetPath {
                 return nil
             }
-            guard filter.matches(fileURL: fileURL) else {
+            guard fileFilter.matches(fileURL: fileURL) else {
                 return nil
             }
 

@@ -1,3 +1,4 @@
+import AVFoundation
 import CoreMedia
 import Foundation
 
@@ -239,6 +240,89 @@ public final class PlaybackCoreController {
         await activeSession.clearDisplayedVideoImage()
     }
 
+    public func suspendVideoSampleDelivery(flushingRenderer: Bool = false) async throws {
+        guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
+        await activeSession.suspendVideoSampleDelivery(flushingRenderer: flushingRenderer)
+        guard self.activeSession === activeSession else {
+            throw PlaybackControlError.openTerminatedByCleanup
+        }
+    }
+
+    public func resumeVideoSampleDelivery() throws {
+        guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
+        activeSession.resumeVideoSampleDelivery()
+    }
+
+    public func restartVideoSampleDelivery(
+        at time: CMTime,
+        after behavior: PlaybackAfterSeekBehavior = .preserveCurrentPauseState
+    ) async throws {
+        guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
+        activeSession.allowVideoSampleDeliveryRestart()
+        do {
+            try await seek(to: time, after: behavior)
+            if self.activeSession === activeSession {
+                activeSession.releaseRetiredRendererGraphs()
+            }
+        } catch {
+            if self.activeSession === activeSession {
+                activeSession.startVideoDelivery()
+            }
+            throw error
+        }
+    }
+
+    /// Rebuilds delivery for a presentation target while making the paused
+    /// transport state explicit. Presentation changes never restore a prior
+    /// playing intent; only a later Play command may advance the new graph.
+    public func restartVideoSampleDeliveryForPresentationTransfer(
+        at time: CMTime,
+    ) async throws {
+        if status == .playing {
+            try pause()
+        }
+        try await restartVideoSampleDelivery(at: time, after: .pause)
+    }
+
+    /// Applies an explicit Play command, then proves that the current renderer
+    /// graph accepts later input, runs its timebase, and displays later frames.
+    public func playAndVerifyRendererGraphContinuity(
+        timeout: Duration = .seconds(3)
+    ) async throws -> RendererGraphPlaybackContinuity {
+        guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
+        let baseline = activeSession.rendererGraphPlaybackObservation()
+        try play()
+        guard self.activeSession === activeSession else {
+            throw PlaybackControlError.openTerminatedByCleanup
+        }
+
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline {
+            let result = RendererGraphPlaybackContinuity.evaluate(
+                baseline: baseline,
+                current: activeSession.rendererGraphPlaybackObservation(),
+                requiredGraphRevision: baseline.graphRevision
+            )
+            if result == .ready { return .ready }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        return RendererGraphPlaybackContinuity.evaluate(
+            baseline: baseline,
+            current: activeSession.rendererGraphPlaybackObservation(),
+            requiredGraphRevision: baseline.graphRevision
+        )
+    }
+
+    public func replaceRendererGraphForPresentation() async throws -> AVSampleBufferVideoRenderer {
+        guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
+        let replacement = try await activeSession.replaceRendererGraphForPresentation()
+        guard self.activeSession === activeSession else {
+            throw PlaybackControlError.openTerminatedByCleanup
+        }
+        return replacement
+    }
+
     @discardableResult
     public func setStereoLayout(_ layout: VideoStereoLayout) async throws -> UInt64 {
         try await updateStereoLayout(layout)
@@ -359,6 +443,39 @@ public final class PlaybackCoreController {
 
     public var activeSubtitleFrame: PlaybackSubtitleFrame? {
         activeSession?.activeSubtitleFrame
+    }
+
+    public func addExternalSubtitleSource(
+        _ source: PlaybackExternalSubtitleSource
+    ) async throws -> [PlaybackSubtitleTrack] {
+        guard let session = activeSession else {
+            throw PlaybackControlError.noActiveMediaSession
+        }
+        try rejectIfSeekIsInProgress()
+        let tracks = try await session.addExternalSubtitleSource(source)
+        guard activeSession === session else {
+            throw PlaybackControlError.openTerminatedByCleanup
+        }
+        return tracks
+    }
+
+    public func removeExternalSubtitleSource(id sourceID: String) async throws {
+        guard let session = activeSession else {
+            throw PlaybackControlError.noActiveMediaSession
+        }
+        try rejectIfSeekIsInProgress()
+        subtitleSelectionGeneration &+= 1
+        let generation = subtitleSelectionGeneration
+        if let activeSubtitleSelectionTask {
+            activeSubtitleSelectionTask.cancel()
+            _ = try? await activeSubtitleSelectionTask.value
+            self.activeSubtitleSelectionTask = nil
+        }
+        guard subtitleSelectionGeneration == generation,
+              activeSession === session else {
+            throw PlaybackControlError.openTerminatedByCleanup
+        }
+        try session.removeExternalSubtitleSource(id: sourceID)
     }
 
     public func selectSubtitleTrack(id: PlaybackSubtitleTrack.ID?) async throws {
@@ -813,6 +930,7 @@ public enum PlaybackControlError: LocalizedError, Sendable {
     case invalidVolume(Float)
     case invalidAudioTrack(Int)
     case invalidSubtitleTrack(String)
+    case externalSubtitleHasNoSupportedTracks(String)
     case operationInProgress(PlaybackOperationKind)
     case mediaSessionClosed
 
@@ -838,6 +956,8 @@ public enum PlaybackControlError: LocalizedError, Sendable {
             "Audio stream \(streamIndex) is not available in this source."
         case .invalidSubtitleTrack(let trackID):
             "Subtitle track \(trackID) is not available in this source."
+        case .externalSubtitleHasNoSupportedTracks(let displayName):
+            "\(displayName) does not contain a supported subtitle track."
         case .operationInProgress(let kind):
             "The \(kind.rawValue) operation is still in progress."
         case .mediaSessionClosed:

@@ -15,7 +15,7 @@ Playback Lifecycle、Media Format、Playback Presentation 与 Environment Contex
 
 Presentation 转换不得重新打开媒体或更换 Media Session。每次转换先捕获转换前的播放意图；原本正在播放时，转换期间暂停媒体，目标 Presentation 达到对应的成功后置条件后恢复播放。原本处于 ready、paused 或 ended 时不自动开始播放。播放中的转换只有在目标画面稳定后提交；Ready、Paused 与 Ended 没有新帧时，以目标 surface 已绑定同一 Media Session 的 renderer 作为提交条件。任何失败都回滚到转换前的稳定 Presentation、Environment Context 与播放意图，保留同一 Media Session 并给出可重试反馈。
 
-Window 进入 Docked 或 Panorama 时采用目标准备完成后的视觉交接。Main Window 在转换期间继续可见，但不接受新的 Presentation 请求；目标 Immersive Space、正确的 Environment 或黑色周围环境、目标视频表面、同一个 renderer 和 Player Controls Window 全部准备完成后，Main Window 才通过 visionOS 的系统动画消失。任何时刻都不能同时存在两套可操作的播放界面，也不能出现没有可操作播放界面的空档。系统动画的曲线和精确持续时间不作为固定产品常量；验收检查交接顺序、视觉连续性、重复画面、闪烁、可操作性空档和最终状态，响应时间上限由真机测量与外部参考共同确定。目标准备失败时 Main Window 保持存在并恢复可操作状态。
+Window、Docked 与 Panorama 之间使用 visionOS 系统视觉交接。请求接受后，原先 Playing 的当前 Media Session 在平台效果前进入 Paused，实际时间线、音频和显示帧停止；暂停失败时平台效果不开始。转换期间源与目标不能同时接受播放界面输入，只迁移同一个 renderer consumer，并且不显示只属于媒体打开或故障恢复的 `LoadingSpinner`。目标 Immersive Space、Environment 或黑色周围环境、视频表面和播放控件达到成功后置条件后提交目标 Presentation，并保持 Paused；只有用户在当前可见界面显式点击 Play 才继续。失败时保留同一 Media Session，恢复源 Presentation 并保持 Paused。验收检查明显黑帧、闪烁、重复界面、错误界面、输入归属和最终状态，不规定 Enchron 自有的透明度曲线、源与目标的并行准备关系或淡入淡出截止点。
 
 ```mermaid
 stateDiagram-v2
@@ -39,7 +39,9 @@ stateDiagram-v2
 ## 媒体与来源
 
 - Media Library 是 Enchron 管理的虚拟分类器，只保存 Library Folder 与 Media Reference，不保存媒体字节，也不是文件管理系统。
-- 用户可以创建、重命名、嵌套和移除 Library Folder，并在其中移动或移除 Media Reference；这些操作不得移动、复制或删除原始媒体。
+- 用户可以创建、重命名、嵌套和移除 Library Folder，并在其中移动或移除 Media Reference。同一个父级下的 Library Folder 显示名在去除首尾空白并按本地化、不区分大小写比较后必须唯一；不同父级可以使用相同名称。创建或重命名造成同级重名时保留原状态并显示可恢复提示。移除非空 Library Folder 时，在用户明确确认后递归移除整棵虚拟子树及其中的 Media Reference，不把内容自动移动到父级或 Media Library 根层；这些操作不得移动、复制或删除原始媒体。
+- Media Library 与 Source Browser 共享层级浏览导航：进入子层级、通过面包屑返回祖先以及后退或前进只改变当前浏览位置，往返后内容位置与媒体身份保持不变。Library Folder 使用虚拟 identity 层级；Remote Source 使用来源 identity 与目录路径。共同导航界面不改变所有权，Source Directory 不因此获得创建、重命名、移动或删除操作。
+- Media Library 搜索只过滤用户当前打开的 Library Folder 的直接子 Library Folder 与 Media Reference，不递归拉取更深层结果，也不把整个 Media Library 扁平化为一个结果列表。进入另一个 Library Folder 后，搜索作用于新的当前层级。搜索匹配用户可见名称：Library Folder 使用完整显示名，Media Reference 使用去掉文件扩展名后的显示名；查询去除首尾空白后按本地化、不区分大小写的包含关系匹配，不搜索隐藏路径、来源、codec 或其它 metadata。
 - Local Source 的媒体由 visionOS 文件系统或 Photos 拥有。Add Files 和 Add Folder Contents 保存系统 bookmark；Add from Photos 保存 Photos identifier。
 - Remote Source 的媒体与目录由 SMB 或 WebDAV 服务拥有。Enchron 按其原有 Source Directory 只读浏览、刷新和播放，不创建、重命名、移动或删除远程文件与目录。
 - Add to Media Library 只保存 Remote Source ID 与远程路径。播放时才解析真实来源；解析失败时保留 Media Reference 并提供恢复来源的操作。
@@ -55,10 +57,17 @@ stateDiagram-v2
 
 - V1 支持 SubRip（`.srt`）、WebVTT（`.vtt`）和 ASS/SSA（`.ass`、`.ssa`）独立字幕文件。它们与容器内字幕共同进入当前 Media Session 的字幕轨列表，并使用同一套字幕选择、时间线、Seek、Off、Window、Docked 与 Panorama 呈现规则。
 - 从能够枚举 Source Directory 的 Local、SMB 或 WebDAV 来源打开媒体时，Enchron 在同一目录发现与视频文件主名称完全相同，或以该主名称加语言、地区或用途后缀命名的受支持字幕文件。例如 `Movie.srt`、`Movie.zh-CN.ass` 与 `Movie.forced.vtt` 都可以关联 `Movie.mkv`。扩展名比较不区分大小写；名称不满足该规则的文件不自动关联。
-- 自动关联只把候选文件加入字幕轨列表，不在多个候选之间猜测，也不覆盖用户已经选择的字幕轨。Photos 不提供可枚举的同级 Source Directory，因此不执行同目录自动关联。
-- Window、Docked 与 Panorama 的 More → Subtitles 都提供 Choose Subtitle File。用户可以从已经授权的本地来源或当前已配置的远程来源手动选择其它受支持字幕文件；手动选择不要求字幕与视频同目录或同名。
+- 自动关联只把候选文件加入字幕轨列表，不在多个候选之间猜测，也不覆盖用户已经选择的字幕轨。单文件授权与 Photos 不提供可枚举的同级 Source Directory，因此静默略过独立字幕查找；用户通过获得目录授权的本地文件夹或可枚举的 SMB/WebDAV Source Directory 打开媒体时才取得同目录候选。
 - 独立字幕文件的保证使用范围是当前 Media Session。选择后保持同一 Media Session、renderer graph、Playback Lifecycle、Playback Presentation 和媒体时间；字幕读取使用自己的来源授权与 Content Revision，Close、打开另一媒体或当前 Session 失败时释放相应访问资源。
 - 无法访问、解析失败、格式不支持或读取中断只使该独立字幕轨不可用，并给出可恢复的字幕错误；当前视频、音频和已经可用的其它字幕轨继续工作。失败不得创建第二个 Media Session、把未知文件当成空字幕成功，或在旧字幕 cue 仍可见时静默切换来源。
+
+## 音轨与字幕轨选择偏好
+
+- 用户明确选择的音轨稳定身份，以及字幕轨稳定身份或 Off，按 Media Identity 与 Content Revision 保存。它们独立于 Persistent Viewing State，不受媒体时长、有效播放时间、Resume 或已看完条件限制。
+- 再次打开相同媒体版本时，Enchron 先取得容器轨和已经成功自动关联的独立字幕轨，再恢复保存的音轨与字幕选择。轨道恢复在当前 Media Session 内完成，不重新打开媒体、不创建第二个 renderer graph，也不改变 Playback Presentation。
+- 保存的轨道身份必须来自 PlaybackCore 发布的稳定 identity；不得保存 UI index，也不得用语言、标题、显示名称或当前菜单顺序猜测替代轨道。字幕 Off 是用户明确选择，必须与“从未保存字幕偏好”区分并在再次打开时保持 Off。
+- 保存的轨道当前不存在或不可用时，打开媒体仍然成功：音频保留 PlaybackCore 当前默认音轨，字幕保留当前选择或 Off，并记录该偏好未能恢复。缺失轨道不会被其它轨道静默替代；用户随后明确选择可用轨道时覆盖旧偏好。
+- Content Revision 变化或无法可靠验证时删除旧 Track Selection Preference，并按新媒体的默认轨道行为打开；轨道选择、观看状态和 Media Format Preference 共用 Media Identity 与 Content Revision 权威。
 
 ## Playback Collection 与 Play Next
 
@@ -74,7 +83,7 @@ stateDiagram-v2
 Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、Recently Played 或可扩展观看状态机。
 
 - 状态属于 Media Identity，不属于 Media Reference；相同底层媒体从不同 Library Folder 或来源入口打开时共享一份状态。
-- Media Identity 与 Content Revision 由一套共享权威生成。播放进度和 Media Format Preference 可以分别存储，但不得分别实现媒体身份或文件变化算法。
+- Media Identity 与 Content Revision 由一套共享权威生成。播放进度、Media Format Preference 与 Track Selection Preference 可以分别存储，但不得分别实现媒体身份或文件变化算法。
 - 总时长不足 15 分钟的媒体不保存可恢复位置，也不保存已看完。
 - 当前 Media Session 累计至少 15 秒有效播放后才算真正开始。只有 Lifecycle 为 playing 且媒体时间线实际前进才累计；暂停、缓冲和 seek 跳跃不计入。
 - 剩余时间不超过 `min(duration × 10%, 5 minutes)` 时不保存 Resume。仅进入这个区间不等于已看完。
@@ -101,10 +110,10 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 
 ## Environment 与 Docked Placement
 
-- V1 正式交付一个 Environment Identity 及 Day/Night 两个 Environment Effect。开发阶段可以使用占位资源，V1 验收时二者必须成为真实可区分内容。
+- 当前交付四个稳定 Environment Identity，暂以 Skybox、淡红、淡绿和淡蓝内容区分；未来替换正式名称与场景资源时保留 identity。使用 Skybox 占位内容的 identity 是 Default Environment。
 - Day 与 Night 是同一 Environment 内部的视觉特效状态，共享 Environment Identity、等价的 Playback Surface Anchor 语义和同一份用户摆位，不形成两个 Environment。
 - Window 界面的 Environment Tab 激活独立的 Environment Card Volume；它是所有非 Docking 场景操作的统一入口。该 Volume 必须使用 visionOS 26 起提供单例语义的 `Window` Scene 并保持 volumetric window style；所有入口都聚焦同一个实例，不使用 `WindowGroup` 创建副本。
-- Environment Card 按 Environment Identity 展示卡片，不把 Day/Night 拆成两个浏览项。卡片提供 Environment 的打开/关闭操作以及 Day/Night Environment Effect 控制。
+- Environment Card 按四个 Environment Identity 展示卡片并打开用户选择的场景，不把 Day/Night 拆成两个浏览项。每张卡片提供对应 Environment 的打开操作和 Day/Night Environment Effect 控制；当前活动 Environment 可以关闭。
 - Environment Card 不提供 App 内 Return 按钮；用户通过 visionOS Window Bar 关闭 Volume。它不进入 Playback Deck，也不在 Panorama 中出现。
 - Environment Card 是 volumetric `Window`，不具有 Immersive Space 的 immersion style。它打开的 Enchron Immersive Space 在 Environment、Docked 与 Panorama 中统一使用 Progressive immersion，用户在三种空间内容中都可以通过 Digital Crown 调节沉浸量。
 - Progressive immersion amount 的允许范围为 `0.3...1.0`。visionOS 拥有当前值，Enchron 观察并在当前 App 进程内记住最近值；该值不写入 Preferences、Resume、数据库或文件。
@@ -115,17 +124,18 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 - 未来新增 Environment 仍由独立 Environment 入口激活；Docking 不展示 Environment × Environment Effect 的组合列表。
 - Docked Video Entity 使用 Environment 的 Playback Surface Anchor 作为基准，并由 Screen Size、Distance 与 Elevation 表达用户调整。
 - Screen Size 是相对一米基准高度的等比缩放，范围 50%–250%、步进 5%；宽度由视频宽高比生成。
-- Distance 是用户到屏幕的半径，默认 4 米，与当前场景交付的 Playback Surface Anchor 基准距离一致。Elevation 以用户为球心、当前 Distance 为半径沿垂直圆弧调节，屏幕始终朝向用户；不得把相对 anchor 的局部偏移误当作用户距离，也不得退化为世界坐标 Y 平移。
-- Screen Size、Distance 与 Elevation 按 Environment 保存并由 Day/Night Environment Effect 共享。Restore Defaults 恢复该 Environment 的完整推荐摆位。
+- Distance 是用户到屏幕的半径，范围为 0.5–10 米、步进 0.5 米，默认 4 米，与当前场景交付的 Playback Surface Anchor 基准距离一致。Elevation 范围为 −80°–80°、步进 5°；它以用户为球心、当前 Distance 为半径沿垂直圆弧调节，屏幕始终朝向用户，不得把相对 anchor 的局部偏移误当作用户距离，也不得退化为世界坐标 Y 平移。
+- Screen Size、Distance 与 Elevation 按稳定 Environment identity 持久化并由该 Environment 的 Day/Night Effect 共享。关闭媒体、建立新 Media Session 或终止并重新启动 Enchron 后仍恢复；不同 Environment 不能共享保存值。Restore Defaults 恢复当前 Environment 的完整推荐摆位。
 
 ## Window 与 Playback Deck
 
 - Window 视频界面左上角拥有 Back，右上角依次放置 Dock、Video Format 与 More；视频画面不叠加标题或媒体信息。
 - Window 播放控件以底部 Ornament 呈现，不显示 Settings 与 More。第一行把同尺寸的后退 15 秒、Play/Pause/Replay、前进 15 秒放在左侧，右侧的只读 Thick Material 信息区显示文件名并在 Hover 时显示与空间 Deck 相同的两组媒体信息；普通 Progress Bar 独占第二行。
 - Window Playback 的宽高比来自 PlaybackCore 报告的当前视频显示尺寸；Side-by-Side 与 Top-Bottom 先按 Stereo Layout 换算单眼显示尺寸。只有播放头尚未交付有效尺寸时，启动占位才临时使用 16:9。收起状态的 PlayerControls Ornament 外部宽度是 Window 宽度范围的唯一基准：最小、默认和最大宽度分别为其 1.25、1.75 和 2.50 倍，并对齐到 16pt；对应高度始终由当前视频宽高比计算。Precision Timeline 展开时 Ornament 可以扩展到与空间 Player Control Dock 相同的精确时间轴宽度，但不得触发 Window 尺寸跳变。
-- Settings 展开 Advanced Settings；More 提供 Subtitles、Audio Track、Playback Speed 与 Episodes。Subtitles 包含 Off、容器内字幕轨、自动关联的独立字幕轨和 Choose Subtitle File；没有可用音轨或队列时不显示对应的空菜单。
+- Settings 展开 Advanced Settings；More 提供 Subtitles、Audio Track、Playback Speed 与 Episodes。Subtitles 统一包含 Off、容器内字幕轨和自动关联的同目录独立字幕轨；用户选择轨道时不需要区分来源。没有可用音轨或队列时不显示对应的空菜单。
 - Advanced Settings 在 Docked 提供 Screen Size、Distance、Elevation、Restore Defaults，在 Panorama 提供 Projection、Stereo Layout 与 Apply。Precision Timeline 由 Progress Bar 的圆形 scrubber 双击打开，不属于 Settings。
-- Precision Timeline 支持精确 seek 与逐帧，完成后保持暂停。Progress Bar 拖动期间的时间标识随本地预览位置连续更新，松手才提交 seek；seek 到结尾之前保持拖动前的 playing/paused 意图，从 ended 拖动离开结尾后保持暂停。
+- Precision Timeline 支持精确 seek 与逐帧，完成后保持暂停。用户通过视频表面隐藏整个 Player Controls 时结束 Precision Timeline 的临时展开状态；再次召唤控件时显示普通 Progress Bar。Progress Bar 拖动期间的时间标识随本地预览位置连续更新，松手才提交 seek；seek 到结尾之前保持拖动前的 playing/paused 意图，从 ended 拖动离开结尾后保持暂停。
+- Progress Bar 将手势与视觉位置限制在自身 `0...1` 几何范围，但不拥有媒体 Seek 合法范围。PlaybackCore 根据当前 provider 的可 Seek 范围统一收束有限 target 或拒绝不可 Seek与非有限请求；PlaybackFeature 根据收束后的普通位置、结尾或从 Ended 离开结尾决定产品播放意图。
 - 前后 15 秒保持原来的 playing/paused 意图；从 ended 后退会离开结尾并保持暂停。逐帧始终保持暂停。
 - Enchron 不提供 App 内 Volume 或 Mute，不保存相对音量。播放保持正常基准增益，最终音量与静音由 visionOS、Digital Crown 和系统音频界面控制。
 

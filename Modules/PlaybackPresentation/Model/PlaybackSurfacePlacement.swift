@@ -6,18 +6,6 @@ public enum WindowPlaybackSurfaceGeometry {
         SIMD2<Float>(16.0 / 9.0, unitHeight)
     nonisolated public static let flatDepth: CGFloat = 0
     nonisolated public static let backgroundSortOrder: Int32 = 0
-    nonisolated public static let interactionProtectedTopFraction: Float = 0.16
-
-    nonisolated public static var interactionRegion: WindowPlaybackInteractionRegion {
-        let protectedHeight = unitHeight * interactionProtectedTopFraction
-        return WindowPlaybackInteractionRegion(
-            size: SIMD2<Float>(
-                defaultSurfaceSize.x,
-                unitHeight - protectedHeight
-            ),
-            centerYOffset: -protectedHeight / 2
-        )
-    }
 
     nonisolated public static func uniformScale(
         surfaceSize: SIMD2<Float>,
@@ -57,16 +45,6 @@ public enum WindowPlaybackSurfaceGeometry {
             scale: scale,
             renderedSize: surfaceSize * scale
         )
-    }
-}
-
-public struct WindowPlaybackInteractionRegion: Equatable, Sendable {
-    public let size: SIMD2<Float>
-    public let centerYOffset: Float
-
-    nonisolated public init(size: SIMD2<Float>, centerYOffset: Float) {
-        self.size = size
-        self.centerYOffset = centerYOffset
     }
 }
 

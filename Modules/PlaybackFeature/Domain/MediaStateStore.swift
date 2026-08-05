@@ -5,15 +5,18 @@ package struct PersistedMediaState: Codable, Equatable, Sendable {
     package let versionedIdentity: VersionedMediaIdentity
     package var viewingStatus: ViewingStatus?
     package var formatPreference: MediaFormat?
+    package var trackSelectionPreference: TrackSelectionPreference?
 
     package init(
         versionedIdentity: VersionedMediaIdentity,
         viewingStatus: ViewingStatus? = nil,
-        formatPreference: MediaFormat? = nil
+        formatPreference: MediaFormat? = nil,
+        trackSelectionPreference: TrackSelectionPreference? = nil
     ) {
         self.versionedIdentity = versionedIdentity
         self.viewingStatus = viewingStatus
         self.formatPreference = formatPreference
+        self.trackSelectionPreference = trackSelectionPreference
     }
 }
 
@@ -82,6 +85,28 @@ package actor MediaStateStore {
         saveOrRemoveEmpty(state)
     }
 
+    package func saveAudioTrackSelection(
+        id: String,
+        for identity: VersionedMediaIdentity
+    ) {
+        var state = loadValidated(for: identity) ?? PersistedMediaState(versionedIdentity: identity)
+        var preference = state.trackSelectionPreference ?? TrackSelectionPreference()
+        preference.audioTrackID = id
+        state.trackSelectionPreference = preference
+        saveOrRemoveEmpty(state)
+    }
+
+    package func saveSubtitleTrackSelection(
+        _ selection: SubtitleTrackSelectionPreference,
+        for identity: VersionedMediaIdentity
+    ) {
+        var state = loadValidated(for: identity) ?? PersistedMediaState(versionedIdentity: identity)
+        var preference = state.trackSelectionPreference ?? TrackSelectionPreference()
+        preference.subtitleTrack = selection
+        state.trackSelectionPreference = preference
+        saveOrRemoveEmpty(state)
+    }
+
     package func clearViewingStates() {
         for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(keyPrefix) {
             guard let data = defaults.data(forKey: key),
@@ -96,7 +121,9 @@ package actor MediaStateStore {
 
     private func saveOrRemoveEmpty(_ state: PersistedMediaState) {
         let key = storageKey(for: state.versionedIdentity.mediaIdentity)
-        guard state.viewingStatus != nil || state.formatPreference != nil else {
+        guard state.viewingStatus != nil
+            || state.formatPreference != nil
+            || state.trackSelectionPreference != nil else {
             defaults.removeObject(forKey: key)
             return
         }

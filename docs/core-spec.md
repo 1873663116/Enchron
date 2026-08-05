@@ -24,6 +24,8 @@ Provider 打开来源后形成不可变的 container、duration、seekability、
 
 PlaybackCore 可以在当前 Media Session 中接收 Enchron 已取得读取权限的 SubRip、WebVTT 或 ASS/SSA 独立字幕来源。成功接入后，它发布新的稳定字幕轨身份和当前轨道集合；这项变化不修改 container facts、不创建第二个 Media Session 或 renderer graph。替换、关闭或读取失败必须使旧字幕 delivery 与 cue 失效，并释放该字幕来源。
 
+PlaybackCore 是媒体 Seek 范围的唯一权威。对于可 Seek 且范围已知的当前 Media Session，任何有限 target 小于起点时收束到起点，大于结尾时收束到结尾，精确到达结尾时发布 seek-to-end；范围上界未知时不伪造 duration，不可 Seek 时明确拒绝控制操作。NaN 与正负无穷等非有限 target 明确拒绝且不能破坏当前 Session。界面只限制 Progress Bar 等控件的显示几何，PlaybackFeature 只决定普通位置、结尾以及从 Ended 离开结尾后的产品播放意图；二者不复制媒体范围算法。
+
 ## Renderer-ready sample
 
 Video sample 保留 compressed payload、PTS、DTS、duration、keyframe/dependency attachments、codec configuration、color、HDR / Dolby Vision、projection 和 stereo signaling。

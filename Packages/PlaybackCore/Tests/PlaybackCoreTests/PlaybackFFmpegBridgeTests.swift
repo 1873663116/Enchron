@@ -40,6 +40,40 @@ private let playbackTestMedia = URL(fileURLWithPath: #filePath)
     }
 }
 
+@Test func equirectangularSourceFormatIncludesItsKnownHorizontalFieldOfView() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "_derived/APMP/equirect_grid_hevc_mono_apmp.mov"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegReaderDestroy(activeReader) }
+
+    var sample: Unmanaged<CMSampleBuffer>?
+    let result = PBFFmpegReaderCopyNextSample(
+        activeReader,
+        &sample,
+        &error,
+        error.count
+    )
+    #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+    let buffer = try #require(sample?.takeRetainedValue())
+    let format = try #require(CMSampleBufferGetFormatDescription(buffer))
+    let extensions = CMFormatDescriptionGetExtensions(format) as? [String: Any]
+
+    #expect(
+        extensions?[kCMFormatDescriptionExtension_ProjectionKind as String] as? String
+            == kCMFormatDescriptionProjectionKind_Equirectangular as String
+    )
+    #expect(
+        extensions?[kCMFormatDescriptionExtension_HorizontalFieldOfView as String] as? Int
+            == 360_000
+    )
+}
+
 @Test(arguments: [
     (
         "DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",
@@ -357,6 +391,131 @@ private func requireBitstreamExtradataBootstrap(
     #expect(sawNonZeroPCM)
 }
 
+@Test func generatedAudioCodecMatrixProducesEveryRegisteredAudioFormat() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Generated/sdr-bframe-audio-codec-matrix-15s.mkv"
+    )
+    let expectedFormats: [(codec: String, formatID: AudioFormatID, outputsPCM: Bool)] = [
+        ("aac", kAudioFormatMPEG4AAC, false),
+        ("ac3", kAudioFormatAC3, false),
+        ("eac3", kAudioFormatEnhancedAC3, false),
+        ("mp2", kAudioFormatMPEGLayer2, false),
+        ("mp3", kAudioFormatMPEGLayer3, false),
+        ("alac", kAudioFormatAppleLossless, false),
+        ("opus", kAudioFormatOpus, false),
+        ("flac", kAudioFormatLinearPCM, true),
+    ]
+
+    #expect(fixture.path.withCString(PBFFmpegAudioTrackCount) == expectedFormats.count)
+    for (ordinal, expected) in expectedFormats.enumerated() {
+        var streamIndex: Int32 = -1
+        var sampleRate: Int32 = 0
+        var channelCount: Int32 = 0
+        var codec = [CChar](repeating: 0, count: 32)
+        var language = [CChar](repeating: 0, count: 32)
+        var title = [CChar](repeating: 0, count: 128)
+        let copied = fixture.path.withCString { path in
+            PBFFmpegAudioTrackCopyInfo(
+                path,
+                Int32(ordinal),
+                &streamIndex,
+                &sampleRate,
+                &channelCount,
+                &codec,
+                codec.count,
+                &language,
+                language.count,
+                &title,
+                title.count
+            )
+        }
+        #expect(copied)
+        #expect(cString(codec) == expected.codec)
+        #expect(sampleRate == 48_000)
+        #expect(channelCount == 2)
+
+        var error = [CChar](repeating: 0, count: 512)
+        let reader = fixture.path.withCString { path in
+            PBFFmpegAudioReaderCreate(
+                path,
+                0,
+                Int32(streamIndex),
+                &error,
+                error.count
+            )
+        }
+        let activeReader = try #require(
+            reader,
+            Comment(rawValue: "\(expected.codec): \(cString(error))")
+        )
+        defer { PBFFmpegAudioReaderDestroy(activeReader) }
+        #expect(String(cString: PBFFmpegAudioReaderGetCodecName(activeReader)) == expected.codec)
+        #expect(PBFFmpegAudioReaderOutputsPCM(activeReader) == expected.outputsPCM)
+
+        var sample: Unmanaged<CMSampleBuffer>?
+        var metadata = PBFFmpegAudioSampleMetadata()
+        let result = PBFFmpegAudioReaderCopyNextSample(
+            activeReader,
+            &sample,
+            &metadata,
+            &error,
+            error.count
+        )
+        #expect(
+            result == PBFFmpegReadResultSample,
+            Comment(rawValue: "\(expected.codec): \(cString(error))")
+        )
+        let buffer = try #require(sample?.takeRetainedValue())
+        let format = try #require(CMSampleBufferGetFormatDescription(buffer))
+        let description = try #require(CMAudioFormatDescriptionGetStreamBasicDescription(format))
+        #expect(description.pointee.mFormatID == expected.formatID)
+        #expect(CMSampleBufferDataIsReady(buffer))
+    }
+}
+
+@Test func generatedAV1AndFLACFixtureCreatesCompressedVideoAndPCMAudio() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Generated/av1-flac-avsync-10s.mkv"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let videoReader = fixture.path.withCString { path in
+        PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeVideoReader = try #require(videoReader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegReaderDestroy(activeVideoReader) }
+    #expect(String(cString: PBFFmpegReaderGetCodecName(activeVideoReader)) == "av1")
+
+    var videoSample: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeVideoReader,
+            &videoSample,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample
+    )
+    let retainedVideoSample = try #require(videoSample?.takeRetainedValue())
+    let videoFormat = try #require(CMSampleBufferGetFormatDescription(retainedVideoSample))
+    #expect(CMFormatDescriptionGetMediaSubType(videoFormat) == kCMVideoCodecType_AV1)
+
+    let audioReader = fixture.path.withCString { path in
+        PBFFmpegAudioReaderCreate(path, 0, -1, &error, error.count)
+    }
+    let activeAudioReader = try #require(audioReader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegAudioReaderDestroy(activeAudioReader) }
+    #expect(String(cString: PBFFmpegAudioReaderGetCodecName(activeAudioReader)) == "flac")
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeAudioReader))
+}
+
+@Test func generatedVideoOnlyFixtureHasNoAudioTracks() {
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Generated/sdr-bframe-video-only-15s.mp4"
+    )
+    #expect(fixture.path.withCString(PBFFmpegAudioTrackCount) == 0)
+}
+
 private func decodedFixture(resource: String, fileExtension: String) throws -> URL {
     let encodedURL = try #require(
         Bundle.module.url(
@@ -422,8 +581,11 @@ private func cString(_ buffer: [CChar]) -> String {
 
 @Test func missingVP9ConfigurationIsSynthesizedFromCodecParameters() throws {
     silenceFFmpegDiagnostics()
-    let fixture = URL(fileURLWithPath: "/tmp/enchron-codex/media/vp9-no-vpcc.mp4")
-    #expect(FileManager.default.fileExists(atPath: fixture.path))
+    let fixture = try decodedFixture(
+        resource: "video-vp9-no-vpcc.webm",
+        fileExtension: "webm"
+    )
+    defer { try? FileManager.default.removeItem(at: fixture) }
     var error = [CChar](repeating: 0, count: 512)
     let reader = fixture.path.withCString { path in
         PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
@@ -436,13 +598,20 @@ private func cString(_ buffer: [CChar]) -> String {
     let activeReader = try #require(reader, Comment(rawValue: cString(error)))
     defer { PBFFmpegReaderDestroy(activeReader) }
     var sample: Unmanaged<CMSampleBuffer>?
-    let result = PBFFmpegReaderCopyNextSample(activeReader, &sample, &error, error.count)
+    let result = PBFFmpegReaderCopyNextSample(
+        activeReader,
+        &sample,
+        &error,
+        error.count
+    )
     #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
     let buffer = try #require(sample?.takeRetainedValue())
     let format = try #require(CMSampleBufferGetFormatDescription(buffer))
     #expect(CMFormatDescriptionGetMediaSubType(format) == kCMVideoCodecType_VP9)
     let extensions = CMFormatDescriptionGetExtensions(format) as? [String: Any] ?? [:]
-    let atoms = extensions[kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String] as? [String: Any] ?? [:]
+    let atomExtensionKey =
+        kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
+    let atoms = extensions[atomExtensionKey] as? [String: Any] ?? [:]
     let vpcC = try #require(atoms["vpcC"] as? Data)
     #expect(vpcC.count >= 12)
     #expect(vpcC[0] == 1)

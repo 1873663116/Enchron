@@ -140,14 +140,16 @@ struct VideoSampleFormatOverrideTests {
 
     private static func panoramicProjectionOverridesPreservePayloadAndTiming() throws {
         let input = try makeCompressedH264Sample()
-        for (override, expected) in [
+        for (override, expectedProjection, expectedHorizontalFieldOfView) in [
             (
                 VideoProjectionOverride.equirectangular,
-                kCMFormatDescriptionProjectionKind_Equirectangular
+                kCMFormatDescriptionProjectionKind_Equirectangular,
+                360_000
             ),
             (
                 VideoProjectionOverride.halfEquirectangular,
-                kCMFormatDescriptionProjectionKind_HalfEquirectangular
+                kCMFormatDescriptionProjectionKind_HalfEquirectangular,
+                180_000
             ),
         ] {
             let output = try VideoSampleFormatOverride().rewrite(
@@ -162,8 +164,14 @@ struct VideoSampleFormatOverrideTests {
             let outputExtensions = extensions(of: outputFormat)
             expect(
                 outputExtensions[kCMFormatDescriptionExtension_ProjectionKind as String]
-                    as? String == expected as String,
+                    as? String == expectedProjection as String,
                 "panoramic override writes the requested effective projection"
+            )
+            expect(
+                outputExtensions[
+                    kCMFormatDescriptionExtension_HorizontalFieldOfView as String
+                ] as? Int == expectedHorizontalFieldOfView,
+                "panoramic override writes its known horizontal field of view"
             )
             expect(
                 outputExtensions["PlaybackCore.TestMarker"] as? String == "preserve-me",

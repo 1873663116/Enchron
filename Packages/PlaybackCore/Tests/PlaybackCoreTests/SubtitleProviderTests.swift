@@ -64,6 +64,27 @@ import Testing
     ) == nil)
 }
 
+@Test func libassRendererDrawsDistinctCJKCharactersInsteadOfRepeatedMissingGlyphBoxes() async throws {
+    let fixture = try cjkSubtitleFixtureURL()
+    let provider = FFmpegSubtitleProvider()
+    let track = try #require(try await provider.tracks(in: fixture, asset: nil).first)
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+
+    let frame = try #require(try renderer.frame(
+        at: CMTime(seconds: 1, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ))
+    let glyphs = visibleGlyphFingerprints(in: frame)
+
+    #expect(glyphs.count == 4)
+    #expect(Set(glyphs).count == 4)
+}
+
 @Test func bitmapSubtitleRendererPreservesDecodedPixelsAndCanvasPlacement() async throws {
     let fixture = try bitmapSubtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()
@@ -155,6 +176,127 @@ import Testing
     try await controller.selectSubtitleTrack(id: nil)
     #expect(controller.selectedSubtitleTrackID == nil)
     #expect(controller.activeSubtitleCues.isEmpty)
+    await controller.closeAndWait()
+}
+
+@MainActor
+@Test func externalSubtitleSourceJoinsTheCurrentMediaSessionAndUsesItsOwnFile() async throws {
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: SubtitleTestVideoProvider(),
+            subtitleProvider: FFmpegSubtitleProvider()
+        )
+    }
+    let session = try await controller.open(try subtitleFixtureURL())
+    let sessionID = session.traceID
+    let externalTracks = try await controller.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(
+            id: "manual-english",
+            url: try externalSubtitleFixtureURL(),
+            displayName: "English sidecar"
+        )
+    )
+
+    #expect(controller.activeSession?.traceID == sessionID)
+    #expect(externalTracks.map(\.id) == ["external.subtitle.manual-english.0"])
+    #expect(controller.availableSubtitleTracks.map(\.id) == [
+        "ffmpeg.subtitle.1",
+        "ffmpeg.subtitle.2",
+        "external.subtitle.manual-english.0",
+    ])
+    #expect(externalTracks.first?.label == "English sidecar")
+
+    try await controller.selectSubtitleTrack(id: "external.subtitle.manual-english.0")
+    session.synchronizer.setRate(
+        0,
+        time: CMTime(seconds: 1.5, preferredTimescale: 600)
+    )
+    #expect(controller.activeSubtitleCues.map(\.text) == ["English subtitle"])
+    #expect(controller.activeSession?.traceID == sessionID)
+
+    await controller.closeAndWait()
+    #expect(controller.availableSubtitleTracks.isEmpty)
+}
+
+@MainActor
+@Test func failedExternalSubtitleSourceLeavesTheCurrentSelectionAndSessionUntouched() async throws {
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: SubtitleTestVideoProvider(),
+            subtitleProvider: FFmpegSubtitleProvider()
+        )
+    }
+    let session = try await controller.open(try subtitleFixtureURL())
+    let sessionID = session.traceID
+    try await controller.selectSubtitleTrack(id: "ffmpeg.subtitle.1")
+    session.synchronizer.setRate(
+        0,
+        time: CMTime(seconds: 1, preferredTimescale: 600)
+    )
+    let selectedTrackID = controller.selectedSubtitleTrackID
+    let activeCues = controller.activeSubtitleCues
+    let unsupportedFile = FileManager.default.temporaryDirectory
+        .appending(path: "unsupported-subtitle-\(UUID().uuidString).txt")
+    try Data("not a subtitle container".utf8).write(to: unsupportedFile)
+    defer { try? FileManager.default.removeItem(at: unsupportedFile) }
+
+    await #expect(throws: PlaybackControlError.self) {
+        try await controller.addExternalSubtitleSource(
+            PlaybackExternalSubtitleSource(
+                id: "unsupported",
+                url: unsupportedFile,
+                displayName: unsupportedFile.lastPathComponent
+            )
+        )
+    }
+
+    #expect(controller.activeSession?.traceID == sessionID)
+    #expect(controller.selectedSubtitleTrackID == selectedTrackID)
+    #expect(controller.activeSubtitleCues == activeCues)
+    #expect(controller.availableSubtitleTracks.map(\.id) == [
+        "ffmpeg.subtitle.1",
+        "ffmpeg.subtitle.2",
+    ])
+    await controller.closeAndWait()
+}
+
+@MainActor
+@Test func removingExternalSubtitleSourceClearsOnlyItsTracksAndKeepsTheSession() async throws {
+    let controller = PlaybackCoreController { sessionID in
+        SampleBufferPlaybackSession(
+            traceID: sessionID,
+            provider: SubtitleTestVideoProvider(),
+            subtitleProvider: FFmpegSubtitleProvider()
+        )
+    }
+    let session = try await controller.open(try subtitleFixtureURL())
+    let sessionID = session.traceID
+    let externalTracks = try await controller.addExternalSubtitleSource(
+        PlaybackExternalSubtitleSource(
+            id: "removable",
+            url: try externalSubtitleFixtureURL(),
+            displayName: "Removable subtitle"
+        )
+    )
+    let externalTrackID = try #require(externalTracks.first?.id)
+    try await controller.selectSubtitleTrack(id: externalTrackID)
+    session.synchronizer.setRate(
+        0,
+        time: CMTime(seconds: 1.5, preferredTimescale: 600)
+    )
+    #expect(controller.activeSubtitleCues.map(\.text) == ["English subtitle"])
+
+    try await controller.removeExternalSubtitleSource(id: "removable")
+
+    #expect(controller.activeSession?.traceID == sessionID)
+    #expect(controller.selectedSubtitleTrackID == nil)
+    #expect(controller.activeSubtitleCues.isEmpty)
+    #expect(controller.availableSubtitleTracks.map(\.id) == [
+        "ffmpeg.subtitle.1",
+        "ffmpeg.subtitle.2",
+    ])
     await controller.closeAndWait()
 }
 
@@ -371,6 +513,75 @@ private func subtitleFixtureURL() throws -> URL {
         Bundle.module.url(
             forResource: "subtitle-subrip",
             withExtension: "mkv",
+            subdirectory: "Fixtures"
+        )
+    )
+}
+
+private func cjkSubtitleFixtureURL() throws -> URL {
+    try #require(
+        Bundle.module.url(
+            forResource: "subtitle-cjk",
+            withExtension: "srt",
+            subdirectory: "Fixtures"
+        )
+    )
+}
+
+private func visibleGlyphFingerprints(in frame: PlaybackSubtitleFrame) -> [Data] {
+    let alphaThreshold: UInt8 = 32
+    let occupiedColumns = (0..<frame.contentWidth).map { x in
+        (0..<frame.contentHeight).contains { y in
+            frame.premultipliedBGRA[y * frame.bytesPerRow + x * 4 + 3] > alphaThreshold
+        }
+    }
+    var ranges: [Range<Int>] = []
+    var rangeStart: Int?
+    for (column, occupied) in occupiedColumns.enumerated() {
+        if occupied {
+            if rangeStart == nil {
+                rangeStart = column
+            }
+        } else if let existingStart = rangeStart {
+            ranges.append(existingStart..<column)
+            rangeStart = nil
+        }
+    }
+    if let rangeStart {
+        ranges.append(rangeStart..<frame.contentWidth)
+    }
+
+    return ranges.map { range in
+        let occupiedRows = (0..<frame.contentHeight).filter { y in
+            range.contains(where: { x in
+                frame.premultipliedBGRA[y * frame.bytesPerRow + x * 4 + 3] > alphaThreshold
+            })
+        }
+        guard let firstRow = occupiedRows.first, let lastRow = occupiedRows.last else {
+            return Data()
+        }
+        var fingerprint = Data()
+        fingerprint.append(UInt8(truncatingIfNeeded: range.count))
+        fingerprint.append(UInt8(truncatingIfNeeded: range.count >> 8))
+        let height = lastRow - firstRow + 1
+        fingerprint.append(UInt8(truncatingIfNeeded: height))
+        fingerprint.append(UInt8(truncatingIfNeeded: height >> 8))
+        for y in firstRow...lastRow {
+            for x in range {
+                fingerprint.append(
+                    frame.premultipliedBGRA[y * frame.bytesPerRow + x * 4 + 3] > alphaThreshold ? 1 : 0
+                )
+            }
+        }
+        return fingerprint
+    }
+}
+
+private func externalSubtitleFixtureURL() throws -> URL {
+    try #require(
+        Bundle.module.url(
+            forResource: "subtitle-en",
+            withExtension: "srt",
             subdirectory: "Fixtures"
         )
     )

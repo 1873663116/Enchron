@@ -16,6 +16,8 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
     public let collectionOrigin: MediaCollectionOrigin
     public let versionedIdentity: VersionedMediaIdentity?
     public let accessLease: MediaAccessLease?
+    public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
+    public let externalSubtitleErrorMessage: String?
 
     public init(
         id: UUID,
@@ -25,7 +27,9 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         sizeInBytes: Int64? = nil,
         collectionOrigin: MediaCollectionOrigin,
         versionedIdentity: VersionedMediaIdentity? = nil,
-        accessLease: MediaAccessLease? = nil
+        accessLease: MediaAccessLease? = nil,
+        externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
+        externalSubtitleErrorMessage: String? = nil
     ) {
         self.id = id
         self.url = url
@@ -35,6 +39,8 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
         self.accessLease = accessLease
+        self.externalSubtitleSources = externalSubtitleSources
+        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
     }
 
     public static func == (lhs: Self, rhs: Self) -> Bool {
@@ -45,6 +51,8 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
             && lhs.sizeInBytes == rhs.sizeInBytes
             && lhs.collectionOrigin == rhs.collectionOrigin
             && lhs.versionedIdentity == rhs.versionedIdentity
+            && lhs.externalSubtitleSources == rhs.externalSubtitleSources
+            && lhs.externalSubtitleErrorMessage == rhs.externalSubtitleErrorMessage
     }
 }
 

@@ -118,6 +118,23 @@ require(
     PlaybackPresentationAvailability.canDock(in: .window, isPanoramic: false),
     "Flat and Mono must restore Dock availability"
 )
+require(
+    PlaybackDockedPlacement.defaultDistance == 4.0
+        && PlaybackDockedPlacement().distanceMeters == 4.0,
+    "Docked placement defaults must preserve the specified four-meter distance"
+)
+require(
+    PlaybackScreenSize.scaleStep == 0.05,
+    "Docked Screen Size must advance in five-percent steps"
+)
+require(
+    PlaybackDockedPlacement.distanceStep == 0.5,
+    "Docked Distance must advance in half-meter steps"
+)
+require(
+    PlaybackDockedPlacement.elevationStep == 5.0,
+    "Docked Elevation must advance in five-degree steps"
+)
 let endedTransport = PlaybackTransportAvailability(lifecycle: .ended)
 require(endedTransport.primaryAction == .replay, "Ended must expose Replay as the primary action")
 require(!endedTransport.canSkipForward, "Ended must disable forward skip at the media end")
@@ -364,11 +381,9 @@ try await MainActor.run {
     require(
         firstRequest.playbackTransportPlan?.beforeEffect
             == .pause(mediaSessionID: playingContext.mediaSessionID)
-            && firstRequest.playbackTransportPlan?.afterSuccess
-                == .resume(mediaSessionID: playingContext.mediaSessionID)
-            && firstRequest.playbackTransportPlan?.afterFailure
-                == .resume(mediaSessionID: playingContext.mediaSessionID),
-        "ordinary presentation transitions must pause playing media and restore it after commit or rollback"
+            && firstRequest.playbackTransportPlan?.afterSuccess == nil
+            && firstRequest.playbackTransportPlan?.afterFailure == nil,
+        "presentation transitions must pause playing media and remain paused after commit or rollback"
     )
     do {
         _ = try presentationModel.requestPresentation(
@@ -683,9 +698,9 @@ try await MainActor.run {
             && dockedCardModel.environmentContext == .none
             && queuedCardRequest.effect == .presentEnvironmentCard
             && queuedCardRequest.playbackTransportPlan?.beforeEffect == nil
-            && queuedCardRequest.playbackTransportPlan?.afterSuccess
-                == .resume(mediaSessionID: playingContext.mediaSessionID),
-        "Docked Card entry must deterministically queue Card focus before resuming"
+            && queuedCardRequest.playbackTransportPlan?.afterSuccess == nil
+            && queuedCardRequest.playbackTransportPlan?.afterFailure == nil,
+        "Docked Card entry must queue Card focus while playback remains paused"
     )
     _ = completePendingEffect(dockedCardModel)
 
@@ -747,13 +762,13 @@ try await MainActor.run {
     require(
         resumeFailureModel.receiveSpatialPlatformResult(
             .playbackTransportFailed(resumeFailure)
-        ) == .playbackTransportFailureRecorded
+        ) == .ignored
             && resumeFailureModel.presentation == .panorama
-            && resumeFailureModel.lastPlaybackTransportFailure == resumeFailure
+            && resumeFailureModel.lastPlaybackTransportFailure == nil
             && resumeFailureModel.receiveSpatialPlatformResult(
                 .playbackTransportFailed(resumeFailure)
             ) == .ignored,
-        "resume failure after commit must be surfaced without rolling Presentation back"
+        "a resume result that no current presentation request scheduled must be ignored"
     )
 
     let dockedRecoveryModel = PlaybackPresentationModel()
@@ -775,10 +790,9 @@ try await MainActor.run {
         dockedRecoveryRequest.effect == .recoverSpatialPlayback(.docked)
             && dockedRecoveryRequest.playbackTransportPlan?.beforeEffect
                 == .pause(mediaSessionID: playingContext.mediaSessionID)
-            && dockedRecoveryRequest.playbackTransportPlan?.afterSuccess
-                == .resume(mediaSessionID: playingContext.mediaSessionID)
+            && dockedRecoveryRequest.playbackTransportPlan?.afterSuccess == nil
             && dockedRecoveryRequest.playbackTransportPlan?.afterFailure == nil,
-        "playing recovery must pause before reopening and resume only after success"
+        "playing recovery must pause before reopening and remain paused after success"
     )
     guard let dockedRecoveryIntent = dockedRecoveryModel.recoveryIntent else {
         fatalError("Docked recovery must retain an in-memory intent")

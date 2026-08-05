@@ -40,7 +40,15 @@ struct EnchronApp: App {
                 MainView()
 #endif
             }
-                .enchronEnvironment(application)
+            .enchronEnvironment(application)
+            .onAppear {
+                application.spatialPlatformEffectCoordinator
+                    .recordWindowResidency(.open, for: .main)
+            }
+            .onDisappear {
+                application.spatialPlatformEffectCoordinator
+                    .recordWindowResidency(.closed, for: .main)
+            }
         }
         .defaultSize(
             width: WindowPlaybackLayout.fallback.defaultSize.width,
@@ -54,6 +62,14 @@ struct EnchronApp: App {
         Window("Player Controls", id: "playerControls") {
             SpatialPlaybackControlsRoot()
                 .enchronEnvironment(application)
+                .onAppear {
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowResidency(.open, for: .playerControls)
+                }
+                .onDisappear {
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowResidency(.closed, for: .playerControls)
+                }
         }
         .defaultSize(width: 760, height: 220)
         .windowResizability(.contentSize)
@@ -63,16 +79,6 @@ struct EnchronApp: App {
         Window("Environment", id: AppModel.senseZoneVolumeID) {
             SenseZoneVolumeRoot()
                 .enchronEnvironment(application)
-                .onAppear {
-                    application.appModel.receiveSpatialPlatformResult(
-                        .environmentCardAppeared
-                    )
-                }
-                .onDisappear {
-                    application.appModel.receiveSpatialPlatformResult(
-                        .environmentCardDisappeared
-                    )
-                }
         }
         .windowStyle(.volumetric)
         .defaultSize(width: 1.4, height: 0.9, depth: 0.8, in: .meters)

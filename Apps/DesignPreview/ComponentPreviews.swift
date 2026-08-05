@@ -142,6 +142,7 @@ struct PlaybackControlsPreview: View {
                 projection = .flat
                 stereoLayout = .mono
             },
+            onChooseSubtitleFile: {},
             subtitleItems: menuItems(["Off", "English CC"], selected: "Off"),
             audioItems: menuItems(["English 5.1", "Japanese 2.0"], selected: "English 5.1"),
             speedItems: menuItems(["0.5×", "1×", "1.5×", "2×"], selected: "1×"),
@@ -271,45 +272,6 @@ struct SettingListGroupPreview: View {
 
                     SettingListGroup(items: [
                         .init(
-                            title: "Copy Diagnostic Summary",
-                            systemName: "doc.on.doc",
-                            accessory: .action(
-                                title: "Copy",
-                                feedback: "Copied",
-                                systemName: "doc.on.doc",
-                                role: .normal,
-                                action: {}
-                            )
-                        ),
-                    ])
-                    .frame(width: 580)
-
-                    SettingListGroup(items: [
-                        .init(
-                            title: "Logging Level",
-                            systemName: "list.bullet.rectangle",
-                            accessory: .menu(
-                                title: "Info",
-                                options: [
-                                    .init("Off"),
-                                    .init("Info"),
-                                    .init("Debug"),
-                                    .init("Trace"),
-                                ]
-                            )
-                        ),
-                        .init(
-                            title: "Run Media Diagnostics",
-                            systemName: "waveform.path.ecg",
-                            accessory: .action(
-                                title: "Run",
-                                feedback: "Queued",
-                                systemName: "play.fill",
-                                role: .normal,
-                                action: {}
-                            )
-                        ),
-                        .init(
                             title: "Clear App Cache",
                             systemName: "trash",
                             accessory: .action(
@@ -325,11 +287,6 @@ struct SettingListGroupPreview: View {
 
                     SettingListGroup(items: [
                         .init(
-                            title: "Performance HUD",
-                            systemName: "gauge",
-                            accessory: .toggle(isOn: false)
-                        ),
-                        .init(
                             title: "Cache Size",
                             systemName: "internaldrive",
                             accessory: .value("1.8 GB")
@@ -343,17 +300,6 @@ struct SettingListGroupPreview: View {
                                 feedback: "Copied",
                                 action: {}
                             )
-                        ),
-                        .init(
-                            title: "Current Media Inspector",
-                            systemName: "list.bullet.rectangle",
-                            keyValueDetail: [
-                                .init(key: "Codec", value: "HEVC Main10"),
-                                .init(key: "Resolution", value: "3840 x 2160"),
-                                .init(key: "HDR", value: "HDR10 metadata detected")
-                            ],
-                            expansion: .top,
-                            accessory: .automatic
                         )
                     ])
                     .frame(width: 580)
@@ -474,7 +420,7 @@ struct SliderPreview: View {
             Text("Detented Range Slider")
                 .font(DesignTokens.Typography.title)
                 .foregroundStyle(.primary)
-            Text("leading-origin、共享 \(PlaybackDockedPlacement.placementDetentCount) 档、Binding<Double>;与 Docked Placement 三行同一套点列几何。")
+            Text("leading-origin、按各产品量纲使用独立档位、Binding<Double>；与 Docked Placement 三行使用同一套滑杆实现。")
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
 

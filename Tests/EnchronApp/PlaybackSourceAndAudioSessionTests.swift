@@ -6,6 +6,87 @@ import XCTest
 @testable import Enchron
 
 nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+    @MainActor
+    func testOneSurfaceTapKeepsTheControlsStateStableForAtLeastEightTenthsOfASecond() {
+        let appModel = AppModel()
+        let firstTap = Date(timeIntervalSinceReferenceDate: 1_000)
+
+        appModel.toggleControlsFromPlaybackSurface(at: firstTap)
+        XCTAssertFalse(appModel.showControls)
+
+        appModel.toggleControlsFromPlaybackSurface(
+            at: firstTap.addingTimeInterval(0.79)
+        )
+        XCTAssertFalse(
+            appModel.showControls,
+            "A duplicate delivery from the same physical surface tap must not flash the controls back on."
+        )
+
+        appModel.toggleControlsFromPlaybackSurface(
+            at: firstTap.addingTimeInterval(0.81)
+        )
+        XCTAssertTrue(appModel.showControls)
+    }
+
+    @MainActor
+    func testEverySurfaceInputSourceUsesTheSameStableToggleAction() {
+        let windowModel = AppModel()
+        let spatialTapModel = AppModel()
+        let accessibilityModel = AppModel()
+        let moment = Date(timeIntervalSinceReferenceDate: 2_000)
+
+        PlaybackSurfaceInputAction.perform(
+            .windowSwiftUI,
+            appModel: windowModel,
+            at: moment
+        )
+        PlaybackSurfaceInputAction.perform(
+            .spatialTap,
+            appModel: spatialTapModel,
+            at: moment
+        )
+        PlaybackSurfaceInputAction.perform(
+            .accessibilityActivate,
+            appModel: accessibilityModel,
+            at: moment
+        )
+
+        XCTAssertEqual(windowModel.showControls, spatialTapModel.showControls)
+        XCTAssertEqual(spatialTapModel.showControls, accessibilityModel.showControls)
+        XCTAssertFalse(windowModel.showControls)
+        XCTAssertFalse(spatialTapModel.showControls)
+
+        PlaybackSurfaceInputAction.perform(
+            .windowSwiftUI,
+            appModel: windowModel,
+            at: moment.addingTimeInterval(0.79)
+        )
+        XCTAssertFalse(
+            windowModel.showControls,
+            "A duplicate Window delivery must not change the shared action result within 0.8 seconds."
+        )
+    }
+
+    @MainActor
+    func testClosingAPlaybackMenuKeepsControlsShownEvenIfTheSurfaceAlsoReceivesTheInput() {
+        let appModel = AppModel()
+        let closeTime = Date(timeIntervalSinceReferenceDate: 3_000)
+
+        appModel.setPlaybackSecondaryMenuPresented(
+            true,
+            at: closeTime.addingTimeInterval(-1)
+        )
+        appModel.setPlaybackSecondaryMenuPresented(false, at: closeTime)
+        PlaybackSurfaceInputAction.perform(
+            .windowSwiftUI,
+            appModel: appModel,
+            at: closeTime
+        )
+
+        XCTAssertTrue(appModel.showControls)
+        XCTAssertEqual(appModel.debugSurfaceTapTrace, "ignored:0.000->shown")
+    }
+
     func testTemporaryPhotoPlaybackFileLivesForTheSessionAndIsRemovedOnRelease() throws {
         let directory = FileManager.default.temporaryDirectory
             .appending(path: "EnchronPhotoAccessTests-\(UUID().uuidString)", directoryHint: .isDirectory)
@@ -23,14 +104,14 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testAudioSessionLifecycleActivatesMoviePlaybackAndDeactivatesExactlyOnce() throws {
+    func testAudioSessionLifecycleActivatesMoviePlaybackAndDeactivatesExactlyOnce() async throws {
         let session = RecordingPlaybackAudioSession()
         let lifecycle = PlaybackAudioSessionLifecycle(session: session)
 
-        try lifecycle.activateIfNeeded(hasAudio: true)
-        try lifecycle.activateIfNeeded(hasAudio: true)
-        lifecycle.deactivate()
-        lifecycle.deactivate()
+        try await lifecycle.activateIfNeeded(hasAudio: true)
+        try await lifecycle.activateIfNeeded(hasAudio: true)
+        await lifecycle.deactivate()
+        await lifecycle.deactivate()
 
         XCTAssertEqual(session.activationCount, 1)
         XCTAssertEqual(session.deactivationCount, 1)
@@ -38,17 +119,65 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testAudioSessionLifecycleCanReactivateAfterEndedDeactivation() throws {
+    func testAudioSessionLifecycleCanReactivateAfterEndedDeactivation() async throws {
         let session = RecordingPlaybackAudioSession()
         let lifecycle = PlaybackAudioSessionLifecycle(session: session)
 
-        try lifecycle.activateIfNeeded(hasAudio: true)
-        lifecycle.deactivate()
-        try lifecycle.activateIfNeeded(hasAudio: true)
+        try await lifecycle.activateIfNeeded(hasAudio: true)
+        await lifecycle.deactivate()
+        try await lifecycle.activateIfNeeded(hasAudio: true)
 
         XCTAssertEqual(session.activationCount, 2)
         XCTAssertEqual(session.deactivationCount, 1)
         XCTAssertTrue(lifecycle.isActive)
+    }
+
+    @MainActor
+    func testConcurrentActivationRequestsShareOneSystemActivation() async throws {
+        let session = SuspendedPlaybackAudioSession()
+        let lifecycle = PlaybackAudioSessionLifecycle(session: session)
+
+        let first = Task { @MainActor in
+            try await lifecycle.activateIfNeeded(hasAudio: true)
+        }
+        while session.activationCount == 0 {
+            await Task.yield()
+        }
+        let second = Task { @MainActor in
+            try await lifecycle.activateIfNeeded(hasAudio: true)
+        }
+        await Task.yield()
+        session.finishActivation()
+
+        try await first.value
+        try await second.value
+        XCTAssertEqual(session.activationCount, 1)
+        XCTAssertTrue(lifecycle.isActive)
+    }
+
+    @MainActor
+    func testDeactivationWaitsForPendingActivation() async throws {
+        let session = SuspendedPlaybackAudioSession()
+        let lifecycle = PlaybackAudioSessionLifecycle(session: session)
+
+        let activation = Task { @MainActor in
+            try await lifecycle.activateIfNeeded(hasAudio: true)
+        }
+        while session.activationCount == 0 {
+            await Task.yield()
+        }
+        let deactivation = Task { @MainActor in
+            await lifecycle.deactivate()
+        }
+        await Task.yield()
+        XCTAssertEqual(session.deactivationCount, 0)
+        session.finishActivation()
+
+        try await activation.value
+        await deactivation.value
+        XCTAssertEqual(session.activationCount, 1)
+        XCTAssertEqual(session.deactivationCount, 1)
+        XCTAssertFalse(lifecycle.isActive)
     }
 
     @MainActor
@@ -183,6 +312,90 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testWindowToPanoramaLeavesTheTargetUnclaimedUntilTheSourceVideoPlayerComponentIsRemoved() throws {
+        let runtime = PlaybackRuntime()
+        let sourceEntityID = "window-source"
+
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: sourceEntityID
+        )
+        runtime.releaseRendererConsumer(
+            presentation: .window,
+            entityID: sourceEntityID,
+            retainingCurrentRendererGraphFor: .panorama
+        )
+
+        XCTAssertThrowsError(
+            try runtime.claimRendererConsumer(
+                presentation: .panorama,
+                entityID: "panorama-target"
+            )
+        ) { error in
+            guard case .rendererTransferPending = error as? PlaybackRuntime.RuntimeError else {
+                return XCTFail("Expected the target renderer claim to remain pending, got \(error)")
+            }
+        }
+        XCTAssertNil(runtime.rendererConsumerPresentation)
+        XCTAssertNil(runtime.rendererConsumerEntityID)
+    }
+
+    @MainActor
+    func testWindowToPanoramaDoesNotLetAnotherPresentationClaimThePendingTargetGraph() throws {
+        let runtime = PlaybackRuntime()
+        let sourceEntityID = "window-source"
+
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: sourceEntityID
+        )
+        runtime.releaseRendererConsumer(
+            presentation: .window,
+            entityID: sourceEntityID,
+            retainingCurrentRendererGraphFor: .panorama
+        )
+
+        XCTAssertThrowsError(
+            try runtime.claimRendererConsumer(
+                presentation: .docked,
+                entityID: "third-presentation"
+            )
+        ) { error in
+            guard case .rendererTransferPending = error as? PlaybackRuntime.RuntimeError else {
+                return XCTFail("Expected the pending Panorama graph to reject a third presentation, got \(error)")
+            }
+        }
+        XCTAssertEqual(runtime.videoComponentRevision, 0)
+        XCTAssertNil(runtime.rendererConsumerPresentation)
+    }
+
+    @MainActor
+    func testOnlyWindowToPanoramaMayTransferTheCurrentRendererGraphToAnotherEntity() throws {
+        let runtime = PlaybackRuntime()
+
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: "window-source"
+        )
+        runtime.releaseRendererConsumer(
+            presentation: .window,
+            entityID: "window-source",
+            retainingCurrentRendererGraphFor: .docked
+        )
+
+        XCTAssertThrowsError(
+            try runtime.claimRendererConsumer(
+                presentation: .docked,
+                entityID: "docked-target"
+            )
+        ) { error in
+            guard case .rendererTransferPending = error as? PlaybackRuntime.RuntimeError else {
+                return XCTFail("Expected a pending renderer transfer, got \(error)")
+            }
+        }
+    }
+
+    @MainActor
     func testControlsAutoHideCountdownRestartsAfterHoverEnds() {
         let appModel = AppModel()
         let entered = Date(timeIntervalSince1970: 100)
@@ -202,11 +415,34 @@ private final class RecordingPlaybackAudioSession: PlaybackAudioSessionManaging 
     private(set) var activationCount = 0
     private(set) var deactivationCount = 0
 
-    func activateForMoviePlayback() throws {
+    func activateForMoviePlayback() async throws {
         activationCount += 1
     }
 
-    func deactivate() throws {
+    func deactivate() async throws {
         deactivationCount += 1
+    }
+}
+
+@MainActor
+private final class SuspendedPlaybackAudioSession: PlaybackAudioSessionManaging {
+    private(set) var activationCount = 0
+    private(set) var deactivationCount = 0
+    private var activationContinuation: CheckedContinuation<Void, any Error>?
+
+    func activateForMoviePlayback() async throws {
+        activationCount += 1
+        try await withCheckedThrowingContinuation { continuation in
+            activationContinuation = continuation
+        }
+    }
+
+    func deactivate() async throws {
+        deactivationCount += 1
+    }
+
+    func finishActivation() {
+        activationContinuation?.resume()
+        activationContinuation = nil
     }
 }

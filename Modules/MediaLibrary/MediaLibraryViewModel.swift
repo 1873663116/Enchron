@@ -69,6 +69,11 @@ final class MediaReferenceResolver {
         String,
         FileBrowsingDomain.MediaReference
     ) async throws -> ResolvedMediaSource)?
+    var resolveExternalSubtitleSources: (@MainActor (
+        UUID,
+        String,
+        FileBrowsingDomain.MediaReference
+    ) async throws -> ExternalSubtitleResolution)?
 
     private let fileResolver = SecurityScopedFileReferenceResolver()
     private let fileManager: FileManager
@@ -92,6 +97,96 @@ final class MediaReferenceResolver {
         case .sourceItem(let dataSourceID, let path):
             guard let resolveSourceItem else { throw ResolutionError.unavailableSource }
             return try await resolveSourceItem(dataSourceID, path, reference)
+        }
+    }
+
+    fileprivate func externalSubtitleSources(
+        for reference: FileBrowsingDomain.MediaReference
+    ) async throws -> ExternalSubtitleResolution {
+        switch reference.locator {
+        case .file(let bookmark, let relativePath):
+            guard !relativePath.isEmpty else { return .none }
+            let root = try fileResolver.resolve(bookmark: bookmark, relativePath: "")
+            defer { root.access?.release() }
+            let mediaURL = root.url.appending(path: relativePath).standardizedFileURL
+            let mediaValues = try mediaURL.resourceValues(forKeys: [
+                .fileSizeKey,
+                .contentModificationDateKey,
+            ])
+            let mediaFile = FileBrowsingDomain.MediaFile(
+                name: mediaURL.lastPathComponent,
+                sizeInBytes: Int64(mediaValues.fileSize ?? 0),
+                modifiedAt: mediaValues.contentModificationDate ?? .distantPast,
+                fileExtension: mediaURL.pathExtension,
+                url: mediaURL
+            )
+            let directory = mediaURL.deletingLastPathComponent()
+            let contents = try fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: [
+                    .isRegularFileKey,
+                    .fileSizeKey,
+                    .contentModificationDateKey,
+                ],
+                options: [.skipsHiddenFiles]
+            )
+            let subtitleFiles = contents.compactMap { url -> FileBrowsingDomain.MediaFile? in
+                guard FileBrowsingDomain.FileFilter.externalSubtitles.matches(fileURL: url),
+                      let values = try? url.resourceValues(forKeys: [
+                        .isRegularFileKey,
+                        .fileSizeKey,
+                        .contentModificationDateKey,
+                      ]),
+                      values.isRegularFile == true else { return nil }
+                return FileBrowsingDomain.MediaFile(
+                    name: url.lastPathComponent,
+                    sizeInBytes: Int64(values.fileSize ?? 0),
+                    modifiedAt: values.contentModificationDate ?? .distantPast,
+                    fileExtension: url.pathExtension,
+                    url: url
+                )
+            }
+            var sources: [ResolvedExternalSubtitleSource] = []
+            var failureMessages: [String] = []
+            for candidate in ExternalSubtitleAssociation.matching(
+                mediaFile: mediaFile,
+                subtitleFiles: subtitleFiles
+            ) {
+                let candidateRelativePath = String(
+                    candidate.url.path.dropFirst(root.url.path.count)
+                ).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                let resolved: ResolvedSecurityScopedFile
+                do {
+                    resolved = try fileResolver.resolve(
+                        bookmark: bookmark,
+                        relativePath: candidateRelativePath
+                    )
+                } catch {
+                    failureMessages.append("\(candidate.name): \(error.localizedDescription)")
+                    continue
+                }
+                let versionedIdentity = VersionedMediaIdentity.local(resolved.url)
+                let sourceID = versionedIdentity?.mediaIdentity.storageKey
+                    ?? MediaIdentity.localPathFallback(
+                        canonicalPath: resolved.url.standardizedFileURL.path
+                    ).storageKey
+                sources.append(ResolvedExternalSubtitleSource(
+                    id: sourceID,
+                    url: resolved.url,
+                    displayName: candidate.name,
+                    versionedIdentity: versionedIdentity,
+                    accessLease: resolved.access
+                ))
+            }
+            return ExternalSubtitleResolution(
+                sources: sources,
+                failureMessages: failureMessages
+            )
+        case .sourceItem(let dataSourceID, let path):
+            guard let resolveExternalSubtitleSources else { return .none }
+            return try await resolveExternalSubtitleSources(dataSourceID, path, reference)
+        case .photoAsset:
+            return .none
         }
     }
 
@@ -408,6 +503,17 @@ public final class MediaLibraryViewModel {
 
     private func playbackItem(for reference: FileBrowsingDomain.MediaReference) async throws -> MediaPlaybackItem {
         let source = try await resolver.resolve(reference)
+        let externalSubtitles: ExternalSubtitleResolution
+        do {
+            externalSubtitles = try await resolver.externalSubtitleSources(for: reference)
+        } catch {
+            externalSubtitles = ExternalSubtitleResolution(
+                sources: [],
+                failureMessages: [
+                    "Could not inspect the source directory for subtitle files: \(error.localizedDescription)"
+                ]
+            )
+        }
         let versionedIdentity: VersionedMediaIdentity? = switch reference.locator {
         case .file:
             VersionedMediaIdentity.local(source.url)
@@ -432,7 +538,9 @@ public final class MediaLibraryViewModel {
             sizeInBytes: reference.sizeInBytes,
             collectionOrigin: .mediaLibrary,
             versionedIdentity: versionedIdentity,
-            accessLease: source.accessLease
+            accessLease: source.accessLease,
+            externalSubtitleSources: externalSubtitles.sources,
+            externalSubtitleErrorMessage: externalSubtitles.errorMessage
         )
     }
 

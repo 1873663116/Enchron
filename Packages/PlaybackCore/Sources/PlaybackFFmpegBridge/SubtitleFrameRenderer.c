@@ -1,4 +1,5 @@
 #include "PlaybackFFmpegBridge.h"
+#include "SubtitleSystemFont.h"
 
 #include <ass/ass.h>
 #include <libavcodec/avcodec.h>
@@ -352,14 +353,27 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
             PBSubtitleFrameRendererDestroy(renderer);
             return NULL;
         }
+        PBSubtitleSystemFontData systemFont = {0};
+        bool hasChineseSystemFont = PBSubtitleSystemFontCopyChineseFallback(
+            &systemFont
+        );
+        if (hasChineseSystemFont) {
+            ass_add_font(
+                renderer->assLibrary,
+                systemFont.attachmentName,
+                (const char *)systemFont.bytes,
+                (int)systemFont.byteCount
+            );
+        }
         ass_set_fonts(
             renderer->assRenderer,
             NULL,
-            "Helvetica Neue",
+            hasChineseSystemFont ? systemFont.familyName : "Helvetica Neue",
             ASS_FONTPROVIDER_AUTODETECT,
             NULL,
             1
         );
+        PBSubtitleSystemFontDataDestroy(&systemFont);
         if (stream->codecpar->extradata && stream->codecpar->extradata_size > 0) {
             ass_process_codec_private(
                 renderer->assTrack,

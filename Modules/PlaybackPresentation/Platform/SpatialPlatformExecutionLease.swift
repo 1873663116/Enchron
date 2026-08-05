@@ -1,4 +1,5 @@
 import Foundation
+import PlaybackPresentation
 
 struct SpatialPlatformExecutionLease: Equatable, Sendable {
     let executionID: UUID
@@ -23,6 +24,10 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
     private var preferredCapabilityID: UUID?
     private var nextCapabilityGeneration: UInt64 = 1
     private(set) var activeLease: SpatialPlatformExecutionLease?
+
+    var registeredCapabilityCount: Int {
+        capabilities.count
+    }
 
     var currentCapability: Capability? {
         currentEntry()?.entry.capability
@@ -143,6 +148,71 @@ struct SpatialPlatformImmersiveRequestProvenanceRegistry {
             return
         }
         provenanceByRequestID = [requestID: provenance]
+    }
+}
+
+struct SpatialPlatformImmersiveSpaceObservation {
+    private(set) var residency: SpatialPlatformImmersiveSpaceResidency?
+    private(set) var revision: UInt64 = 0
+
+    mutating func record(_ residency: SpatialPlatformImmersiveSpaceResidency) {
+        self.residency = residency
+        revision &+= 1
+    }
+
+    func confirms(
+        _ residency: SpatialPlatformImmersiveSpaceResidency,
+        after revision: UInt64
+    ) -> Bool {
+        self.revision > revision && self.residency == residency
+    }
+}
+
+enum SpatialPlatformWindowIdentity: String, Hashable, Sendable {
+    case main
+    case playerControls
+}
+
+enum SpatialPlatformWindowResidency: Equatable, Sendable {
+    case open
+    case closed
+}
+
+struct SpatialPlatformWindowObservation {
+    private struct Entry {
+        let residency: SpatialPlatformWindowResidency
+        let revision: UInt64
+    }
+
+    private var entries: [SpatialPlatformWindowIdentity: Entry] = [:]
+
+    mutating func record(
+        _ residency: SpatialPlatformWindowResidency,
+        for window: SpatialPlatformWindowIdentity
+    ) {
+        entries[window] = Entry(
+            residency: residency,
+            revision: revision(for: window) &+ 1
+        )
+    }
+
+    func residency(
+        for window: SpatialPlatformWindowIdentity
+    ) -> SpatialPlatformWindowResidency? {
+        entries[window]?.residency
+    }
+
+    func revision(for window: SpatialPlatformWindowIdentity) -> UInt64 {
+        entries[window]?.revision ?? 0
+    }
+
+    func confirms(
+        _ residency: SpatialPlatformWindowResidency,
+        for window: SpatialPlatformWindowIdentity,
+        after revision: UInt64
+    ) -> Bool {
+        guard let entry = entries[window] else { return false }
+        return entry.revision > revision && entry.residency == residency
     }
 }
 

@@ -1,3 +1,5 @@
+import Foundation
+
 public enum ProductPlaybackLifecycle: String, Codable, Sendable, Equatable {
     case idle
     case loading
@@ -19,6 +21,10 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var activeSessionID: String? { get }
     var actualPlaybackSeconds: Double { get }
     var didEndNaturally: Bool { get }
+    var availableAudioTracks: [PlaybackModel.AudioTrack] { get }
+    var currentAudioTrackID: String? { get }
+    var availableSubtitleTracks: [PlaybackModel.SubtitleTrack] { get }
+    var currentSubtitleTrackID: String? { get }
     var lastErrorMessage: String? { get set }
     var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)? { get set }
 
@@ -33,6 +39,9 @@ public protocol PlaybackRuntimeControlling: AnyObject {
         projection: PlaybackModel.ProjectionType,
         stereo: PlaybackModel.StereoLayout
     ) async throws
+    func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws
+    func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws
+    func addExternalSubtitleFile(_ url: URL) async throws -> PlaybackModel.SubtitleTrack?
     func setSpeed(_ speed: PlaybackModel.PlaybackSpeed)
     func replay()
     func stop(releasingSourceAccess: Bool)

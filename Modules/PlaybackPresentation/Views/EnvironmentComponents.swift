@@ -69,7 +69,7 @@ struct EnvironmentCard: View {
         .enchronHoverContentShape(shape)
         .contentShape(shape)
         .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("DesignPreview-EnvironmentCard")
+        .accessibilityIdentifier("EnvironmentCard-card")
         .accessibilityLabel("Featured environment card, \(environment.title)")
     }
 
@@ -112,7 +112,7 @@ struct EnvironmentCard: View {
                     action: {
                         onEffectChange(effect == .day ? .night : .day)
                     },
-                    accessibilityIdentifier: "DesignPreview-EnvironmentCard-effect"
+                    accessibilityIdentifier: "EnvironmentCard-effect"
                 )
                 Spacer()
                 GlassCircleIconButton.expandCollapse(
@@ -121,7 +121,7 @@ struct EnvironmentCard: View {
                         ? "Close environment"
                         : "Open environment",
                     action: onExpand,
-                    accessibilityIdentifier: "DesignPreview-EnvironmentCard-button-environment"
+                    accessibilityIdentifier: "EnvironmentCard-button-environment"
                 )
             }
             .padding(DesignTokens.EnvironmentCard.chromePadding)
@@ -328,7 +328,7 @@ struct EnvironmentCardCarousel: View {
         .enchronSpatialFrame(depth: Metrics.stageDepth)
         .contentShape(Rectangle())
         .gesture(dragGesture)
-        .accessibilityIdentifier("DesignPreview-EnvironmentCardCarousel")
+        .accessibilityIdentifier("EnvironmentCard-carousel")
     }
 
     private func selectedEffect(

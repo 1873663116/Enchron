@@ -28,6 +28,18 @@ public struct PlaybackSubtitleTrack: Identifiable, Sendable, Equatable, Codable 
     }
 }
 
+public struct PlaybackExternalSubtitleSource: Identifiable, Sendable, Equatable {
+    public let id: String
+    public let url: URL
+    public let displayName: String
+
+    public init(id: String, url: URL, displayName: String) {
+        self.id = id
+        self.url = url
+        self.displayName = displayName
+    }
+}
+
 public struct PlaybackSubtitleCue: Identifiable, Sendable, Equatable {
     public let id: String
     public let trackID: PlaybackSubtitleTrack.ID

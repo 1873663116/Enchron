@@ -67,6 +67,8 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public let collectionOrigin: PlaybackCollectionOrigin
     public let versionedIdentity: VersionedMediaIdentity?
     public let sourceAccess: MediaAccessLease?
+    public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
+    public let externalSubtitleErrorMessage: String?
 
     public init(
         url: URL,
@@ -74,7 +76,9 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         fileIdentifier: PlaybackFileIdentifier? = nil,
         initialMetadata: PlaybackMediaMetadata? = nil,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
-        versionedIdentity: VersionedMediaIdentity? = nil
+        versionedIdentity: VersionedMediaIdentity? = nil,
+        externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
+        externalSubtitleErrorMessage: String? = nil
     ) {
         self.id = url
         self.url = url
@@ -84,6 +88,8 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
         self.sourceAccess = nil
+        self.externalSubtitleSources = externalSubtitleSources
+        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
     }
 
     public init(
@@ -93,7 +99,9 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         initialMetadata: PlaybackMediaMetadata? = nil,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
-        sourceAccess: MediaAccessLease?
+        sourceAccess: MediaAccessLease?,
+        externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
+        externalSubtitleErrorMessage: String? = nil
     ) {
         self.id = url
         self.url = url
@@ -103,6 +111,8 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
         self.sourceAccess = sourceAccess
+        self.externalSubtitleSources = externalSubtitleSources
+        self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
     }
 
     public func updating(metadata: PlaybackMediaMetadata?) -> PlaybackLaunchRequest {
@@ -113,7 +123,9 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             initialMetadata: initialMetadata?.merging(with: metadata) ?? metadata,
             collectionOrigin: collectionOrigin,
             versionedIdentity: versionedIdentity,
-            sourceAccess: sourceAccess
+            sourceAccess: sourceAccess,
+            externalSubtitleSources: externalSubtitleSources,
+            externalSubtitleErrorMessage: externalSubtitleErrorMessage
         )
     }
 
@@ -124,6 +136,8 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             lhs.fileIdentifier == rhs.fileIdentifier &&
             lhs.initialMetadata == rhs.initialMetadata &&
             lhs.collectionOrigin == rhs.collectionOrigin &&
-            lhs.versionedIdentity == rhs.versionedIdentity
+            lhs.versionedIdentity == rhs.versionedIdentity &&
+            lhs.externalSubtitleSources == rhs.externalSubtitleSources &&
+            lhs.externalSubtitleErrorMessage == rhs.externalSubtitleErrorMessage
     }
 }

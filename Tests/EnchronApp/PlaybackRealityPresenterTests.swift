@@ -35,6 +35,35 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
+    func testEnvironmentEffectChangesOnlyTheSkyboxOpacity() async throws {
+        let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
+        let skybox = try XCTUnwrap(
+            world.findEntity(named: EnvironmentSceneEffectApplier.skyboxName)
+        )
+        let playbackAnchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
+
+        XCTAssertEqual(
+            EnvironmentSceneEffectApplier.apply(.night, to: world),
+            EnvironmentSceneEffectApplier.nightSkyboxOpacity
+        )
+        XCTAssertEqual(
+            skybox.components[OpacityComponent.self]?.opacity,
+            EnvironmentSceneEffectApplier.nightSkyboxOpacity
+        )
+        XCTAssertNil(playbackAnchor.components[OpacityComponent.self])
+
+        XCTAssertEqual(
+            EnvironmentSceneEffectApplier.apply(.day, to: world),
+            EnvironmentSceneEffectApplier.daySkyboxOpacity
+        )
+        XCTAssertEqual(
+            skybox.components[OpacityComponent.self]?.opacity,
+            EnvironmentSceneEffectApplier.daySkyboxOpacity
+        )
+        XCTAssertNil(playbackAnchor.components[OpacityComponent.self])
+    }
+
+    @MainActor
     func testLegacyPlaybackSurfaceIsMigratedAndStrippedOfGeometry() throws {
         let world = Entity()
         let legacy = ModelEntity(
@@ -180,6 +209,343 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         XCTAssertTrue(component.videoRenderer === renderer)
         XCTAssertEqual(component.desiredViewingMode, .stereo)
         XCTAssertEqual(component.desiredImmersiveViewingMode, .portal)
+    }
+
+    @MainActor
+    func testWindowSourceRequestsProgressiveOnItsExistingRendererBinding() throws {
+        let renderer = AVSampleBufferVideoRenderer()
+        let entity = Entity()
+        PlaybackRealityPresenter.configure(
+            entity,
+            renderer: renderer,
+            presentation: .window,
+            stereoLayout: .mono
+        )
+
+        PlaybackRealityPresenter.configure(
+            entity,
+            renderer: renderer,
+            presentation: .window,
+            stereoLayout: .mono,
+            requestsProgressiveImmersiveViewingMode: true
+        )
+
+        let component = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
+        XCTAssertTrue(component.videoRenderer === renderer)
+        XCTAssertEqual(component.desiredImmersiveViewingMode, .progressive)
+    }
+
+    @MainActor
+    func testReapplyingDesiredModesAfterSceneActivationKeepsTheExistingRendererBinding() throws {
+        let renderer = AVSampleBufferVideoRenderer()
+        let entity = Entity()
+        PlaybackRealityPresenter.configure(
+            entity,
+            renderer: renderer,
+            presentation: .window,
+            stereoLayout: .sideBySide
+        )
+
+        PlaybackRealityPresenter.reapplyDesiredModesAfterSceneActivation(
+            entity,
+            presentation: .panorama,
+            stereoLayout: .mono
+        )
+
+        let component = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
+        XCTAssertTrue(component.videoRenderer === renderer)
+        XCTAssertEqual(component.desiredViewingMode, .mono)
+        XCTAssertEqual(component.desiredImmersiveViewingMode, .progressive)
+    }
+
+    @MainActor
+    func testEachRealityViewOwnsItsVideoEntityForTheActiveRenderer() throws {
+        let renderer = AVSampleBufferVideoRenderer()
+        let windowStore = PlaybackVideoEntityStore()
+        let spatialStore = PlaybackVideoEntityStore()
+        let windowEntity = windowStore.entity(for: renderer)
+        PlaybackRealityPresenter.configure(
+            windowEntity,
+            renderer: renderer,
+            presentation: .window,
+            stereoLayout: .mono
+        )
+
+        let spatialEntity = spatialStore.entity(for: renderer)
+        PlaybackRealityPresenter.configure(
+            spatialEntity,
+            renderer: renderer,
+            presentation: .docked,
+            stereoLayout: .mono
+        )
+
+        XCTAssertFalse(windowEntity === spatialEntity)
+        XCTAssertTrue(
+            try XCTUnwrap(spatialEntity.components[VideoPlayerComponent.self])
+                .videoRenderer === renderer
+        )
+    }
+
+    @MainActor
+    func testReleasingASceneEntityRemovesItsVideoRendererBinding() throws {
+        let renderer = AVSampleBufferVideoRenderer()
+        let entity = Entity()
+        PlaybackRealityPresenter.configure(
+            entity,
+            renderer: renderer,
+            presentation: .window,
+            stereoLayout: .mono
+        )
+
+        PlaybackRealityPresenter.releaseVideoRenderer(from: entity)
+
+        XCTAssertNil(entity.components[VideoPlayerComponent.self])
+    }
+
+    @MainActor
+    func testPanoramaReturnRecoversWhenPortalModeIsNotYetReported() {
+        let retry = PlaybackModeRequestRetry()
+        let entity = Entity()
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+
+        let first = retry.recoveryAction(
+            entity: entity,
+            presentation: .window,
+            desiredViewingMode: "mono",
+            actualViewingMode: "mono",
+            desiredImmersiveViewingMode: "portal",
+            actualImmersiveViewingMode: nil,
+            requiresImmersiveViewingModeSettlement: true,
+            now: startedAt
+        )
+        let second = retry.recoveryAction(
+            entity: entity,
+            presentation: .window,
+            desiredViewingMode: "mono",
+            actualViewingMode: "mono",
+            desiredImmersiveViewingMode: "portal",
+            actualImmersiveViewingMode: nil,
+            requiresImmersiveViewingModeSettlement: true,
+            now: startedAt.addingTimeInterval(0.6)
+        )
+
+        guard case .requestModesAgain = first else {
+            return XCTFail("A Panorama return must reapply Portal mode first.")
+        }
+        guard case .replaceRendererGraph = second else {
+            return XCTFail("A missing Portal mode must trigger bounded renderer recovery.")
+        }
+    }
+
+    @MainActor
+    func testPanoramaReturnReplacesRendererGraphAtMostOnceAcrossReplacementEntity() {
+        let retry = PlaybackModeRequestRetry()
+        let initialEntity = Entity()
+        let replacementEntity = Entity()
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+
+        _ = retry.recoveryAction(
+            entity: initialEntity,
+            presentation: .window,
+            desiredViewingMode: "mono",
+            actualViewingMode: "mono",
+            desiredImmersiveViewingMode: "portal",
+            actualImmersiveViewingMode: nil,
+            requiresImmersiveViewingModeSettlement: true,
+            now: startedAt
+        )
+        let firstReplacement = retry.recoveryAction(
+            entity: initialEntity,
+            presentation: .window,
+            desiredViewingMode: "mono",
+            actualViewingMode: "mono",
+            desiredImmersiveViewingMode: "portal",
+            actualImmersiveViewingMode: nil,
+            requiresImmersiveViewingModeSettlement: true,
+            now: startedAt.addingTimeInterval(0.6)
+        )
+        _ = retry.recoveryAction(
+            entity: replacementEntity,
+            presentation: .window,
+            desiredViewingMode: "mono",
+            actualViewingMode: "mono",
+            desiredImmersiveViewingMode: "portal",
+            actualImmersiveViewingMode: nil,
+            requiresImmersiveViewingModeSettlement: true,
+            now: startedAt.addingTimeInterval(0.7)
+        )
+        let secondReplacement = retry.recoveryAction(
+            entity: replacementEntity,
+            presentation: .window,
+            desiredViewingMode: "mono",
+            actualViewingMode: "mono",
+            desiredImmersiveViewingMode: "portal",
+            actualImmersiveViewingMode: nil,
+            requiresImmersiveViewingModeSettlement: true,
+            now: startedAt.addingTimeInterval(1.3)
+        )
+
+        guard case .replaceRendererGraph = firstReplacement else {
+            return XCTFail("A missing Portal mode must allow one renderer replacement.")
+        }
+        if case .replaceRendererGraph = secondReplacement {
+            XCTFail("The replacement entity must not start another renderer replacement cycle.")
+        }
+    }
+
+    @MainActor
+    func testOrdinaryWindowDoesNotRecoverWhilePortalModeIsInitiallyUnreported() {
+        let retry = PlaybackModeRequestRetry()
+
+        let action = retry.recoveryAction(
+            entity: Entity(),
+            presentation: .window,
+            desiredViewingMode: "mono",
+            actualViewingMode: "mono",
+            desiredImmersiveViewingMode: "portal",
+            actualImmersiveViewingMode: nil,
+            requiresImmersiveViewingModeSettlement: false
+        )
+
+        guard case .none = action else {
+            return XCTFail("An ordinary Window must wait for its first frame without rebuilding.")
+        }
+    }
+
+    @MainActor
+    func testPanoramaReappliesAnUnreportedMonoViewingMode() {
+        let retry = PlaybackModeRequestRetry()
+
+        let action = retry.recoveryAction(
+            entity: Entity(),
+            presentation: .panorama,
+            desiredViewingMode: "mono",
+            actualViewingMode: nil,
+            desiredImmersiveViewingMode: "progressive",
+            actualImmersiveViewingMode: "progressive"
+        )
+
+        guard case .requestModesAgain = action else {
+            return XCTFail(
+                "Panorama must request mono again until RealityKit reports the target mode."
+            )
+        }
+    }
+
+    @MainActor
+    func testNewRendererReceivesANewVideoEntity() {
+        let store = PlaybackVideoEntityStore()
+        let first = store.entity(for: AVSampleBufferVideoRenderer())
+        let second = store.entity(for: AVSampleBufferVideoRenderer())
+
+        XCTAssertFalse(first === second)
+    }
+
+    @MainActor
+    func testNewVideoComponentRevisionRemovesThePreviousRendererBinding() throws {
+        let renderer = AVSampleBufferVideoRenderer()
+        let store = PlaybackVideoEntityStore()
+        let entity = store.entity(for: renderer, videoComponentRevision: 0)
+        PlaybackRealityPresenter.configure(
+            entity,
+            renderer: renderer,
+            presentation: .window,
+            stereoLayout: .mono
+        )
+        XCTAssertNotNil(entity.components[VideoPlayerComponent.self])
+
+        let revisedEntity = store.entity(for: renderer, videoComponentRevision: 1)
+
+        XCTAssertTrue(revisedEntity === entity)
+        XCTAssertNil(revisedEntity.components[VideoPlayerComponent.self])
+        XCTAssertTrue(store.hasApplied(videoComponentRevision: 1, to: renderer))
+    }
+
+    @MainActor
+    func testWindowVideoSurfaceOmitsRealityKitHitTargetsSoSwiftUIOwnsTaps() throws {
+        let renderer = AVSampleBufferVideoRenderer()
+        let entity = Entity()
+
+        PlaybackRealityPresenter.configure(
+            entity,
+            renderer: renderer,
+            presentation: .window,
+            stereoLayout: .mono
+        )
+
+        XCTAssertNil(entity.components[InputTargetComponent.self])
+        XCTAssertNil(entity.components[CollisionComponent.self])
+        let accessibility = try XCTUnwrap(
+            entity.components[AccessibilityComponent.self]
+        )
+        XCTAssertTrue(accessibility.isAccessibilityElement)
+        XCTAssertTrue(accessibility.systemActions.contains(.activate))
+        XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .window))
+    }
+
+    @MainActor
+    func testDockedVideoSurfaceKeepsRealityKitInputComponentsWhileContainerTemporarilyDisablesInput() throws {
+        let renderer = AVSampleBufferVideoRenderer()
+        let entity = Entity()
+
+        PlaybackRealityPresenter.configure(
+            entity,
+            renderer: renderer,
+            presentation: .docked,
+            stereoLayout: .mono
+        )
+
+        XCTAssertNotNil(entity.components[InputTargetComponent.self])
+        XCTAssertNotNil(entity.components[CollisionComponent.self])
+        let accessibility = try XCTUnwrap(
+            entity.components[AccessibilityComponent.self]
+        )
+        XCTAssertTrue(accessibility.isAccessibilityElement)
+        XCTAssertNotNil(accessibility.label)
+        XCTAssertTrue(accessibility.systemActions.contains(.activate))
+        XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .docked))
+
+        // Presentation transitions block the containing RealityView. They do
+        // not remove the entity components needed when the spatial target settles.
+        XCTAssertNotNil(entity.components[InputTargetComponent.self])
+        XCTAssertNotNil(entity.components[CollisionComponent.self])
+        XCTAssertNotNil(entity.components[AccessibilityComponent.self])
+        XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .docked))
+    }
+
+    @MainActor
+    func testEachPresentationHasExactlyOneDirectSurfaceInputOwner() {
+        XCTAssertEqual(
+            PlaybackSurfaceInputOwnership.owner(for: .window),
+            .windowSwiftUIRoot
+        )
+        XCTAssertTrue(
+            PlaybackSurfaceInputOwnership.installsWindowRootTapSurface(
+                for: .window
+            )
+        )
+        XCTAssertFalse(
+            PlaybackSurfaceInputOwnership.installsEntitySpatialTapGesture(
+                for: .window
+            )
+        )
+
+        for presentation in [PlaybackPresentation.docked, .panorama] {
+            XCTAssertEqual(
+                PlaybackSurfaceInputOwnership.owner(for: presentation),
+                .spatialVideoEntity
+            )
+            XCTAssertFalse(
+                PlaybackSurfaceInputOwnership.installsWindowRootTapSurface(
+                    for: presentation
+                )
+            )
+            XCTAssertTrue(
+                PlaybackSurfaceInputOwnership.installsEntitySpatialTapGesture(
+                    for: presentation
+                )
+            )
+        }
     }
 
     @MainActor

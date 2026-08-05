@@ -1,9 +1,50 @@
 import AVFoundation
+import Foundation
+import Observation
 import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import RealityKit
 import SwiftUI
+
+@MainActor
+@Observable
+final class PlaybackVideoEntityStore {
+    private(set) var entity = Entity()
+    @ObservationIgnored private var renderer: AVSampleBufferVideoRenderer?
+    @ObservationIgnored private var videoComponentRevision: UInt64 = 0
+
+    func entity(
+        for renderer: AVSampleBufferVideoRenderer,
+        videoComponentRevision: UInt64? = nil
+    ) -> Entity {
+        guard let currentRenderer = self.renderer else {
+            self.renderer = renderer
+            self.videoComponentRevision = videoComponentRevision ?? 0
+            return entity
+        }
+        guard currentRenderer !== renderer else {
+            if let videoComponentRevision,
+               self.videoComponentRevision != videoComponentRevision {
+                entity.components.remove(VideoPlayerComponent.self)
+                self.videoComponentRevision = videoComponentRevision
+            }
+            return entity
+        }
+        entity.removeFromParent()
+        entity = Entity()
+        self.renderer = renderer
+        self.videoComponentRevision = videoComponentRevision ?? 0
+        return entity
+    }
+
+    func hasApplied(
+        videoComponentRevision: UInt64,
+        to renderer: AVSampleBufferVideoRenderer
+    ) -> Bool {
+        self.renderer === renderer && self.videoComponentRevision == videoComponentRevision
+    }
+}
 
 @MainActor
 final class PlaybackSurfaceActivation {
@@ -21,9 +62,11 @@ final class PlaybackSurfaceActivation {
         onActivate: @escaping @MainActor () -> Void
     ) {
         let nextEntityID = ObjectIdentifier(entity)
+        var shouldRequestRetry = false
         if observedEntityID != nextEntityID {
             cancel()
             observedEntityID = nextEntityID
+            shouldRequestRetry = true
         }
         self.onActivate = onActivate
         #if os(visionOS)
@@ -38,9 +81,12 @@ final class PlaybackSurfaceActivation {
                     self?.requestRetry()
                 }
             }
+            shouldRequestRetry = true
         }
         #endif
-        requestRetry()
+        if shouldRequestRetry {
+            requestRetry()
+        }
     }
 
     /// RealityKit can publish activation before the renderer or format
@@ -69,22 +115,308 @@ final class PlaybackSurfaceActivation {
     }
 }
 
+/// Routes system accessibility activation for the actual RealityKit video
+/// entity. The accessibility action and a spatial tap deliberately share one
+/// dispatcher so neither path can acquire a different control-toggle policy.
+@MainActor
+enum PlaybackSurfaceInputAction {
+    enum Source {
+        case windowSwiftUI
+        case spatialTap
+        case accessibilityActivate
+    }
+
+    static func perform(
+        _ source: Source,
+        appModel: AppModel,
+        at date: Date = Date()
+    ) {
+        _ = source
+        appModel.toggleControlsFromPlaybackSurface(at: date)
+    }
+}
+
+@MainActor
+enum PlaybackSurfaceInputOwner: Equatable {
+    case windowSwiftUIRoot
+    case spatialVideoEntity
+}
+
+@MainActor
+enum PlaybackSurfaceInputOwnership {
+    static func owner(
+        for presentation: PlaybackPresentation
+    ) -> PlaybackSurfaceInputOwner {
+        switch presentation {
+        case .window:
+            .windowSwiftUIRoot
+        case .docked, .panorama:
+            .spatialVideoEntity
+        }
+    }
+
+    static func installsWindowRootTapSurface(
+        for presentation: PlaybackPresentation
+    ) -> Bool {
+        owner(for: presentation) == .windowSwiftUIRoot
+    }
+
+    static func installsEntitySpatialTapGesture(
+        for presentation: PlaybackPresentation
+    ) -> Bool {
+        owner(for: presentation) == .spatialVideoEntity
+    }
+}
+
+@MainActor
+final class PlaybackSurfaceAccessibilityActivationObservation {
+    private var subscription: EventSubscription?
+    private var observedEntityID: ObjectIdentifier?
+    private var onActivate: (@MainActor () -> Void)?
+
+    func observe<Content: RealityViewContentProtocol>(
+        _ entity: Entity,
+        in content: Content,
+        onActivate: @escaping @MainActor () -> Void
+    ) {
+        let nextEntityID = ObjectIdentifier(entity)
+        guard observedEntityID != nextEntityID else {
+            self.onActivate = onActivate
+            return
+        }
+        cancel()
+        observedEntityID = nextEntityID
+        self.onActivate = onActivate
+        #if os(visionOS)
+        subscription = content.subscribe(
+            to: AccessibilityEvents.Activate.self,
+            on: entity
+        ) { [weak self] event in
+            guard event.entity === entity else { return }
+            Task { @MainActor [weak self] in
+                self?.onActivate?()
+            }
+        }
+        #endif
+    }
+
+    func cancel() {
+        subscription?.cancel()
+        subscription = nil
+        observedEntityID = nil
+        onActivate = nil
+    }
+}
+
+@MainActor
+final class PlaybackRealityViewUpdateScheduler {
+    private var pendingTask: Task<Void, Never>?
+
+    func schedule(_ operation: @escaping @MainActor () async -> Void) {
+        guard pendingTask == nil else { return }
+        pendingTask = Task { @MainActor [weak self] in
+            await Task.yield()
+            guard Task.isCancelled == false else { return }
+            await operation()
+            self?.pendingTask = nil
+        }
+    }
+
+    func cancel() {
+        pendingTask?.cancel()
+        pendingTask = nil
+    }
+}
+
+@MainActor
+final class PlaybackVideoRendererTargetObservation {
+    private var entityID: ObjectIdentifier?
+    private var videoComponentRevision: UInt64?
+    private var subscriptions: [EventSubscription] = []
+    private(set) var targetIsAvailable = false
+
+    func observe<Content: RealityViewContentProtocol>(
+        _ entity: Entity,
+        videoComponentRevision: UInt64,
+        in content: Content,
+        onTargetAvailable: @escaping @MainActor () -> Void
+    ) {
+        let nextEntityID = ObjectIdentifier(entity)
+        guard entityID != nextEntityID
+                || self.videoComponentRevision != videoComponentRevision else {
+            return
+        }
+        cancel()
+        entityID = nextEntityID
+        self.videoComponentRevision = videoComponentRevision
+
+        #if os(visionOS)
+        let confirm: @Sendable () -> Void = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self,
+                      self.entityID == nextEntityID,
+                      self.videoComponentRevision == videoComponentRevision,
+                      self.targetIsAvailable == false else {
+                    return
+                }
+                self.targetIsAvailable = true
+                self.subscriptions.forEach { $0.cancel() }
+                self.subscriptions.removeAll()
+                onTargetAvailable()
+            }
+        }
+        subscriptions = [
+            content.subscribe(
+                to: ComponentEvents.DidAdd.self,
+                on: entity,
+                componentType: VideoPlayerComponent.self
+            ) { _ in
+                confirm()
+            },
+            content.subscribe(
+                to: ComponentEvents.DidChange.self,
+                on: entity,
+                componentType: VideoPlayerComponent.self
+            ) { _ in
+                confirm()
+            }
+        ]
+        #else
+        targetIsAvailable = true
+        onTargetAvailable()
+        #endif
+    }
+
+    func cancel() {
+        subscriptions.forEach { $0.cancel() }
+        subscriptions.removeAll()
+        entityID = nil
+        videoComponentRevision = nil
+        targetIsAvailable = false
+    }
+}
+
+@MainActor
+enum PlaybackModeRecoveryAction {
+    case none
+    case requestModesAgain
+    case replaceRendererGraph
+}
+
+@MainActor
+final class PlaybackModeRequestRetry {
+    static let retryWindow: TimeInterval = 3
+    static let minimumRequestInterval: TimeInterval = 0.25
+    static let componentReplacementDelay: TimeInterval = 0.5
+
+    private var requestSignature: String?
+    private var firstRequestAt: Date?
+    private var lastRequestAt: Date?
+    private var componentReplacementSignature: String?
+
+    func recoveryAction(
+        entity _: Entity,
+        presentation: PlaybackPresentation,
+        desiredViewingMode: String,
+        actualViewingMode: String?,
+        desiredImmersiveViewingMode: String,
+        actualImmersiveViewingMode: String?,
+        requiresImmersiveViewingModeSettlement: Bool = false,
+        now: Date = Date()
+    ) -> PlaybackModeRecoveryAction {
+        // A Window component can legitimately report no immersive mode before
+        // its first displayed frame. Rewriting the component during that phase
+        // can delay the frame that would make the mode observable. Panorama
+        // requires progressive mode immediately; Window only retries when a
+        // previous non-portal mode is still present.
+        let immersiveModeNeedsAnotherRequest = actualImmersiveViewingMode
+            != desiredImmersiveViewingMode
+            && (presentation == .panorama
+                || actualImmersiveViewingMode != nil
+                || requiresImmersiveViewingModeSettlement)
+        let normalizedDesiredViewingMode = desiredViewingMode
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+        let normalizedActualViewingMode = actualViewingMode?
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+        let viewingModeNeedsAnotherRequest = normalizedActualViewingMode
+            != normalizedDesiredViewingMode
+            && !(normalizedDesiredViewingMode == "mono"
+                && normalizedActualViewingMode == nil
+                && presentation != .panorama)
+        guard viewingModeNeedsAnotherRequest
+                || immersiveModeNeedsAnotherRequest else {
+            reset()
+            return .none
+        }
+
+        let nextSignature = [
+            presentation.rawValue,
+            desiredViewingMode,
+            desiredImmersiveViewingMode
+        ].joined(separator: "|")
+        if requestSignature != nextSignature {
+            requestSignature = nextSignature
+            firstRequestAt = now
+            lastRequestAt = nil
+            componentReplacementSignature = nil
+        }
+
+        guard let firstRequestAt,
+              now.timeIntervalSince(firstRequestAt) <= Self.retryWindow else {
+            return .none
+        }
+        if (actualImmersiveViewingMode != nil
+                || requiresImmersiveViewingModeSettlement),
+           now.timeIntervalSince(firstRequestAt) >= Self.componentReplacementDelay,
+           componentReplacementSignature != nextSignature {
+            componentReplacementSignature = nextSignature
+            lastRequestAt = now
+            return .replaceRendererGraph
+        }
+        if let lastRequestAt,
+           now.timeIntervalSince(lastRequestAt) < Self.minimumRequestInterval {
+            return .none
+        }
+        self.lastRequestAt = now
+        return .requestModesAgain
+    }
+
+    func reset() {
+        requestSignature = nil
+        firstRequestAt = nil
+        lastRequestAt = nil
+        componentReplacementSignature = nil
+    }
+}
+
+@MainActor
+enum PanoramaTargetBootstrapPhase { case portal, progressive }
+
 @MainActor
 enum PlaybackRealityPresenter {
+    static let playbackSurfaceAccessibilityLabel: LocalizedStringResource =
+        "Playback surface"
+
     static func configure(
         _ entity: Entity,
         renderer: AVSampleBufferVideoRenderer,
         presentation: PlaybackPresentation,
-        stereoLayout: PlaybackModel.StereoLayout
+        stereoLayout: PlaybackModel.StereoLayout,
+        panoramaTargetBootstrapPhase: PanoramaTargetBootstrapPhase = .progressive,
+        requestsProgressiveImmersiveViewingMode: Bool = false
     ) {
         entity.components.remove(ModelComponent.self)
         configureVideoPlayer(
             entity,
             renderer: renderer,
+            stereoLayout: stereoLayout,
             presentation: presentation,
-            stereoLayout: stereoLayout
+            panoramaTargetBootstrapPhase: panoramaTargetBootstrapPhase,
+            requestsProgressiveImmersiveViewingMode:
+                requestsProgressiveImmersiveViewingMode
         )
-        entity.components.set(InputTargetComponent())
         #if os(visionOS)
         if presentation == .window {
             entity.components.set(
@@ -96,22 +428,36 @@ enum PlaybackRealityPresenter {
         } else {
             entity.components.remove(ModelSortGroupComponent.self)
         }
-        let collisionShape: ShapeResource
+        #endif
+        // Window surface taps belong to the SwiftUI root overlay so chrome and
+        // secondary menus can receive gaze + pinch without competing with a
+        // RealityKit hit target. Docked and Panorama have no such overlay on
+        // the video, so the entity owns spatial input there. Presentation
+        // transitions disable the enclosing RealityView instead of stripping
+        // these components from a settled spatial surface.
         switch presentation {
         case .window:
-            let region = WindowPlaybackSurfaceGeometry.interactionRegion
-            collisionShape = ShapeResource
-                .generateBox(size: [region.size.x, region.size.y, 0.01])
-                .offsetBy(translation: [0, region.centerYOffset, 0])
-        case .docked:
-            collisionShape = .generateBox(size: [1.8, 1, 0.01])
-        case .panorama:
-            collisionShape = .generateSphere(radius: 1)
+            entity.components.remove(InputTargetComponent.self)
+            entity.components.remove(CollisionComponent.self)
+        case .docked, .panorama:
+            #if os(visionOS)
+            let collisionShape: ShapeResource =
+                presentation == .panorama
+                ? .generateSphere(radius: 1)
+                : .generateBox(size: [1.8, 1, 0.01])
+            #else
+            let collisionShape = ShapeResource.generateBox(size: [1.8, 1, 0.01])
+            #endif
+            entity.components.set(InputTargetComponent())
+            entity.components.set(CollisionComponent(shapes: [collisionShape]))
         }
-        #else
-        let collisionShape = ShapeResource.generateBox(size: [1.8, 1, 0.01])
+        #if os(visionOS)
+        var accessibility = AccessibilityComponent()
+        accessibility.isAccessibilityElement = true
+        accessibility.label = playbackSurfaceAccessibilityLabel
+        accessibility.systemActions = [.activate]
+        entity.components.set(accessibility)
         #endif
-        entity.components.set(CollisionComponent(shapes: [collisionShape]))
     }
 
     static func isBound(
@@ -122,11 +468,62 @@ enum PlaybackRealityPresenter {
         entity.components[VideoPlayerComponent.self]?.videoRenderer === renderer
     }
 
+    static func releaseVideoRenderer(from entity: Entity) {
+        entity.components.remove(VideoPlayerComponent.self)
+    }
+
+    static func setOpacity(
+        of entity: Entity,
+        to opacity: Float,
+        animated: Bool
+    ) {
+        guard let current = entity.components[OpacityComponent.self] else {
+            entity.components.set(OpacityComponent(opacity: opacity))
+            return
+        }
+        guard current.opacity != opacity else { return }
+        guard animated else {
+            entity.components.set(OpacityComponent(opacity: opacity))
+            return
+        }
+        Entity.animate(
+            PlaybackPresentationTransitionAppearance.animation(
+                for: Double(opacity)
+            )
+        ) {
+            entity.components[OpacityComponent.self]?.opacity = opacity
+        }
+    }
+
+    static func reapplyDesiredModesAfterSceneActivation(
+        _ entity: Entity,
+        presentation: PlaybackPresentation,
+        panoramaTargetBootstrapPhase: PanoramaTargetBootstrapPhase = .progressive,
+        stereoLayout: PlaybackModel.StereoLayout,
+        requestsProgressiveImmersiveViewingMode: Bool = false
+    ) {
+        guard var component = entity.components[VideoPlayerComponent.self] else { return }
+        #if os(visionOS)
+        component.desiredViewingMode = stereoLayout == .mono ? .mono : .stereo
+        component.desiredImmersiveViewingMode = immersiveViewingMode(
+            for: presentation,
+            panoramaTargetBootstrapPhase: panoramaTargetBootstrapPhase,
+            requestsProgressiveImmersiveViewingMode:
+                requestsProgressiveImmersiveViewingMode
+        )
+        #else
+        component.desiredViewingMode = .mono
+        #endif
+        entity.components.set(component)
+    }
+
     private static func configureVideoPlayer(
         _ entity: Entity,
         renderer: AVSampleBufferVideoRenderer,
+        stereoLayout: PlaybackModel.StereoLayout,
         presentation: PlaybackPresentation,
-        stereoLayout: PlaybackModel.StereoLayout
+        panoramaTargetBootstrapPhase: PanoramaTargetBootstrapPhase,
+        requestsProgressiveImmersiveViewingMode: Bool
     ) {
         #if os(visionOS)
         let viewingMode: VideoPlaybackController.ViewingMode = stereoLayout == .mono ? .mono : .stereo
@@ -138,11 +535,15 @@ enum PlaybackRealityPresenter {
             var needsUpdate = component.desiredViewingMode != viewingMode
             component.desiredViewingMode = viewingMode
             #if os(visionOS)
-            let immersiveViewingMode: VideoPlayerComponent.ImmersiveViewingMode =
-                presentation == .panorama ? .progressive : .portal
+            let requestedImmersiveViewingMode = immersiveViewingMode(
+                for: presentation,
+                panoramaTargetBootstrapPhase: panoramaTargetBootstrapPhase,
+                requestsProgressiveImmersiveViewingMode:
+                    requestsProgressiveImmersiveViewingMode
+            )
             needsUpdate = needsUpdate
-                || component.desiredImmersiveViewingMode != immersiveViewingMode
-            component.desiredImmersiveViewingMode = immersiveViewingMode
+                || component.desiredImmersiveViewingMode != requestedImmersiveViewingMode
+            component.desiredImmersiveViewingMode = requestedImmersiveViewingMode
             #endif
             if needsUpdate {
                 entity.components.set(component)
@@ -152,10 +553,28 @@ enum PlaybackRealityPresenter {
         var component = VideoPlayerComponent(videoRenderer: renderer)
         component.desiredViewingMode = viewingMode
         #if os(visionOS)
-        component.desiredImmersiveViewingMode = presentation == .panorama ? .progressive : .portal
+        component.desiredImmersiveViewingMode = immersiveViewingMode(
+            for: presentation,
+            panoramaTargetBootstrapPhase: panoramaTargetBootstrapPhase,
+            requestsProgressiveImmersiveViewingMode:
+                requestsProgressiveImmersiveViewingMode
+        )
         #endif
         entity.components.set(component)
     }
+
+    #if os(visionOS)
+    private static func immersiveViewingMode(
+        for presentation: PlaybackPresentation,
+        panoramaTargetBootstrapPhase: PanoramaTargetBootstrapPhase,
+        requestsProgressiveImmersiveViewingMode: Bool
+    ) -> VideoPlayerComponent.ImmersiveViewingMode {
+        (presentation == .panorama && panoramaTargetBootstrapPhase == .progressive)
+            || requestsProgressiveImmersiveViewingMode
+            ? .progressive
+            : .portal
+    }
+    #endif
 }
 
 struct PlaybackSubtitleLayout: Equatable {

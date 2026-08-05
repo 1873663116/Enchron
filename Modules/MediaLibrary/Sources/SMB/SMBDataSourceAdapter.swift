@@ -137,6 +137,17 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
     }
 
     public func listContents(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
+        try await listFiles(at: path, matching: filter)
+    }
+
+    public func listSubtitleFiles(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
+        try await listFiles(at: path, matching: .externalSubtitles)
+    }
+
+    private func listFiles(
+        at path: String,
+        matching fileFilter: FileBrowsingDomain.FileFilter
+    ) async throws -> [FileBrowsingDomain.MediaFile] {
         guard let smb = smbManager else {
             throw SMBError.notConnected
         }
@@ -154,7 +165,7 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
 
             let fullPath = Self.childPath(named: name, in: path)
             let fileURL = URL(string: "smb://placeholder\(fullPath)") ?? URL(fileURLWithPath: fullPath)
-            guard filter.matches(fileURL: fileURL) else { return nil }
+            guard fileFilter.matches(fileURL: fileURL) else { return nil }
 
             let size = item[URLResourceKey.fileSizeKey] as? Int64 ?? 0
             let modified = item[URLResourceKey.contentModificationDateKey] as? Date ?? .distantPast
@@ -425,6 +436,10 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
     }
 
     public func listContents(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
+        throw SMBError.libraryNotAvailable
+    }
+
+    public func listSubtitleFiles(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
         throw SMBError.libraryNotAvailable
     }
 

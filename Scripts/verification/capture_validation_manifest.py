@@ -10,7 +10,8 @@ import subprocess
 
 
 REPOSITORY_ROOT = pathlib.Path(__file__).resolve().parents[2]
-EVIDENCE_PREFIX = "docs/acceptance/evidence/"
+EVIDENCE_PATHS = frozenset({"docs/acceptance/evidence.md"})
+EVIDENCE_PREFIXES = ("docs/acceptance/evidence/",)
 
 
 def run(*command: str) -> str:
@@ -46,7 +47,10 @@ def repository_files(
         if not raw_path:
             continue
         relative_path = pathlib.Path(os.fsdecode(raw_path))
-        if relative_path.as_posix().startswith(EVIDENCE_PREFIX):
+        relative_value = relative_path.as_posix()
+        if relative_value in EVIDENCE_PATHS:
+            continue
+        if relative_value.startswith(EVIDENCE_PREFIXES):
             continue
         paths.append(relative_path)
     return sorted(set(paths), key=lambda path: path.as_posix())
@@ -128,7 +132,8 @@ def main() -> None:
         },
         "productTree": {
             "identityAlgorithm": "sha256 of sorted kind, path, byte count, and file sha256 records",
-            "excludedPrefix": EVIDENCE_PREFIX,
+            "excludedPaths": sorted(EVIDENCE_PATHS),
+            "excludedPrefixes": list(EVIDENCE_PREFIXES),
             "sha256": tree_identity,
             "files": entries,
         },

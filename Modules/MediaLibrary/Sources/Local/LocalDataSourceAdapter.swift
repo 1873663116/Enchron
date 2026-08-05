@@ -47,7 +47,26 @@ nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Send
         return try await withCheckedThrowingContinuation { continuation in
             ioQueue.async { [self] in
                 do {
-                    continuation.resume(returning: try loadMediaFiles(in: directoryURL))
+                    continuation.resume(returning: try loadMediaFiles(in: directoryURL, filter: filter))
+                } catch {
+                    continuation.resume(throwing: error)
+                }
+            }
+        }
+    }
+
+    public func listSubtitleFiles(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
+        let baseURL = try connectedBaseURL()
+        let directoryURL = URL(fileURLWithPath: path, relativeTo: baseURL).standardizedFileURL
+        return try await withCheckedThrowingContinuation { continuation in
+            ioQueue.async { [self] in
+                do {
+                    continuation.resume(
+                        returning: try loadMediaFiles(
+                            in: directoryURL,
+                            filter: .externalSubtitles
+                        )
+                    )
                 } catch {
                     continuation.resume(throwing: error)
                 }
@@ -97,7 +116,7 @@ nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Send
         return try await withCheckedThrowingContinuation { continuation in
             ioQueue.async { [self] in
                 do {
-                    let files = try loadMediaFiles(in: folder.url)
+                    let files = try loadMediaFiles(in: folder.url, filter: filter)
                     continuation.resume(returning: sortBy.sorted(files))
                 } catch {
                     continuation.resume(throwing: error)
@@ -115,6 +134,15 @@ nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Send
         return ResolvedMediaSource(url: try await resolveURL(for: file))
     }
 
+    public func resolveSubtitleSource(
+        for file: FileBrowsingDomain.MediaFile
+    ) async throws -> ResolvedMediaSource {
+        guard FileBrowsingDomain.FileFilter.externalSubtitles.matches(fileURL: file.url) else {
+            throw LocalDataSourceError.fileNotPlayable
+        }
+        return ResolvedMediaSource(url: try await resolveURL(for: file))
+    }
+
     private func connectedBaseURL() throws -> URL {
         guard case .connected = connectionStatus, let rootURL else {
             throw LocalDataSourceError.notConnected
@@ -122,7 +150,10 @@ nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Send
         return rootURL
     }
 
-    private func loadMediaFiles(in directoryURL: URL) throws -> [FileBrowsingDomain.MediaFile] {
+    private func loadMediaFiles(
+        in directoryURL: URL,
+        filter: FileBrowsingDomain.FileFilter
+    ) throws -> [FileBrowsingDomain.MediaFile] {
         let contents = try fileManager.contentsOfDirectory(
             at: directoryURL,
             includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey],

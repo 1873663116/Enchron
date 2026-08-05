@@ -18,7 +18,7 @@
       "rule": "preview-hardcoded-visual",
       "path": "Apps/DesignPreview/ComponentPreviews.swift",
       "signature": ".frame(width: 580)",
-      "count": 5
+      "count": 4
     },
     {
       "rule": "preview-hardcoded-visual",

@@ -37,7 +37,10 @@ struct PlayerInfoBarView: View {
                 ),
                 onDock: dock,
                 onApplyFormat: applyFormat,
-                onResumePanorama: resumePanorama
+                onResumePanorama: resumePanorama,
+                onSecondaryMenuVisibilityChange: {
+                    appModel.setPlaybackSecondaryMenuPresented($0)
+                }
             )
         } moreControl: {
             ProductionPlaybackMoreMenu()
@@ -45,6 +48,7 @@ struct PlayerInfoBarView: View {
     }
 
     private func resumePanorama() {
+        appModel.registerControlsInteraction()
         guard playbackRuntime.canEnterSpatialPresentation,
               playbackRuntime.effectiveProjectionType.isPanoramic else { return }
         _ = try? appModel.requestPlaybackPresentation(

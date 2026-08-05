@@ -49,7 +49,7 @@ flowchart LR
 
 - `MediaSource` 是 Media Identity、Content Revision、`ResolvedMediaSource`/`MediaAccessLease`、稳定自然名称顺序与 access lifetime 的唯一权威。远程身份使用协议、主机、规范端口、账号命名空间与媒体路径；等价来源配置共享身份，不同账号默认隔离。MediaLibrary 的 Keychain 键使用相同账号边界，并兼容迁移旧服务器级记录。
 - `MediaLibrary` 交付中立的 `MediaPlaybackItem`、不可变 `MediaCollectionSnapshot` 与来源连接生产组件；它依赖 `DesignSystem` 的通用视觉原语，不创建 Playback 请求、不读写观看策略。
-- `PlaybackFeature` 拥有 Queue、Viewing State、Media Format Preference、媒体元数据、播放请求与 launch coordinator；其唯一 Core adapter 是实现 `PlaybackRuntimeControlling` 的 Xcode-only `PlaybackRuntime`，不进入其他 feature。
+- `PlaybackFeature` 拥有 Queue、Viewing State、Media Format Preference、Track Selection Preference、媒体元数据、播放请求与 launch coordinator；其唯一 Core adapter 是实现 `PlaybackRuntimeControlling` 的 Xcode-only `PlaybackRuntime`，不进入其他 feature。
 - `PlaybackPresentation` 是应用生命周期内唯一的空间体验产品状态所有者。它拥有 Window/Docked/Panorama、Environment Context、Docked Placement、Presentation Transition 与同进程空间恢复；具体 Scene/View 壳消费只读状态并发送命令，不直接定义来源或观看策略。
 - `Apps` 只组装各产品状态的所有者，并执行系统提供的 Scene、Window、Immersive Space 与 RealityKit 效果；系统结果交回 `PlaybackPresentation`，由后者提交、继续或回滚产品状态。
 - `DesignSystem` 不依赖产品 feature，只提供稳定复用的视觉原语。
@@ -118,7 +118,7 @@ Source Admission -> Media Session -> Demux Provider
 | `Apps/Enchron` | App 入口、依赖组装、系统 window/scene effect、Xcode-only PlaybackCore adapter | 新增领域策略、demux、sample、renderer queue |
 | `MediaSource` | Media Identity、Content Revision、来源选择/解析与 access lifetime | Library 分类、播放策略、UI |
 | `MediaLibrary` | 虚拟 Library、Source Directory 浏览、Playback Collection 与用户选择 | 媒体字节所有权、进度策略、PlaybackCore 调度 |
-| `PlaybackFeature` | Queue、Viewing State、Media Format Preference、媒体元数据、launch coordinator 与 Runtime contract；语义上拥有唯一 Core adapter | demux、sample、renderer queue、空间呈现 |
+| `PlaybackFeature` | Queue、Viewing State、Media Format Preference、Track Selection Preference、媒体元数据、launch coordinator 与 Runtime contract；语义上拥有唯一 Core adapter | demux、sample、renderer queue、空间呈现 |
 | `PlaybackPresentation` | Environment Context、Docked Placement、Window/Docked/Panorama、Presentation Transition、同进程空间恢复，以及 Environment Card 的独立 residency 协调 | renderer graph、媒体 timeline、来源身份算法、SwiftUI Scene、RealityKit Entity |
 | `Modules/DesignSystem` | 生产视觉 token、通用控件与平台外观适配 | feature 状态和产品流程 |
 | `Packages/RealityKitContent` | Enchron 使用的 RCP 场景交付 | 播放行为与 Environment 产品状态 |

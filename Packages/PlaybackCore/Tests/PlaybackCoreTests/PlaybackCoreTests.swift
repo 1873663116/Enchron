@@ -1383,6 +1383,265 @@ func liveStereoOverrideUsesSharedSeamWithoutChangingTimeline() async throws {
 }
 
 @Test
+func suspendedVideoSampleDeliveryWaitsForTheInFlightEnqueueBeforeReturning() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 30)
+    let sink = FakeRendererInputSink(
+        pausesAfterEachEnqueue: true,
+        automaticallyRunsRequests: false
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "suspend-video-sample-delivery",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
+        ),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/suspend.mov"))
+    try session.start()
+    try await waitForPendingRequestCount(1, in: sink)
+
+    await session.suspendVideoSampleDelivery(flushingRenderer: true)
+
+    #expect(session.videoSampleDeliveryIsSuspended)
+    #expect(sink.pendingRequestCount == 0)
+    #expect(sink.cancelledRequestCount == 1)
+    #expect(sink.flushCount == 1)
+    let countWhileSuspended = sink.enqueuedSampleCount
+    try await Task.sleep(for: .milliseconds(50))
+    #expect(sink.enqueuedSampleCount == countWhileSuspended)
+    #expect(sink.pendingRequestCount == 0)
+
+    session.resumeVideoSampleDelivery()
+    try await waitForPendingRequestCount(1, in: sink)
+    #expect(session.videoSampleDeliveryIsSuspended == false)
+}
+
+@Test
+func replacingTheVideoRendererKeepsTheMediaSessionAndStopsDeliveryUntilTheNewTargetExists() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 30)
+    let sink = FakeRendererInputSink(
+        pausesAfterEachEnqueue: true
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "replace-video-renderer",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
+        ),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/replace-renderer.mov"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    let mediaSessionID = session.traceID
+    let previousRenderer = session.renderer
+    let previousAudioRenderer = session.audioRenderer
+    let previousSynchronizer = session.synchronizer
+    let previousGraphRevision = session.graphRevision
+
+    let replacement = try await session.replaceRendererGraphForPresentation()
+
+    #expect(session.traceID == mediaSessionID)
+    #expect(replacement === session.renderer)
+    #expect(replacement !== previousRenderer)
+    #expect(session.audioRenderer !== previousAudioRenderer)
+    #expect(session.synchronizer !== previousSynchronizer)
+    #expect(session.graphRevision == previousGraphRevision + 1)
+    #expect(session.videoSampleDeliveryIsSuspended)
+}
+
+@Test
+func rendererGraphContinuityRejectsASingleStaticFirstFrame() {
+    let baseline = RendererGraphPlaybackObservation(
+        graphRevision: 7,
+        acceptedInputCount: 12,
+        actualTimebaseRate: 1,
+        displayedFrameObservationCount: 0
+    )
+    let current = RendererGraphPlaybackObservation(
+        graphRevision: 7,
+        acceptedInputCount: 13,
+        actualTimebaseRate: 1,
+        displayedFrameObservationCount: 1
+    )
+
+    #expect(
+        RendererGraphPlaybackContinuity.evaluate(
+            baseline: baseline,
+            current: current,
+            requiredGraphRevision: 7
+        ) == .awaitingDisplayedFrameAdvance
+    )
+}
+
+@MainActor
+@Test
+func presentationTransferRestartRemainsPausedUntilAnExplicitPlay() async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 30)
+    let audioSample = try makeAudioSample(durationSeconds: 30)
+    let replacementSink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
+    let controller = PlaybackCoreController(
+        sessionFactory: { sessionID in
+            SampleBufferPlaybackSession(
+                traceID: sessionID,
+                provider: FakeVideoSampleProvider(
+                    events: Array(repeating: .sample(videoSample), count: 1_000) + [.end]
+                ),
+                audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
+                rendererSink: FakeRendererInputSink(pausesAfterEachEnqueue: true),
+                replacementRendererSinkFactory: { replacementSink }
+            )
+        },
+        debugRecorderMode: .disabledForVerification
+    )
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/presentation-transfer-pauses.mov")
+    )
+    defer { session.close() }
+
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    try await waitForAudioSampleCount(1, in: session)
+    try await setRateWhenTimelineIsReady(1, in: session)
+
+    _ = try await controller.replaceRendererGraphForPresentation()
+    try await controller.restartVideoSampleDeliveryForPresentationTransfer(at: .zero)
+
+    let settled = session.debugSnapshot()
+    let settledTime = session.currentTime().seconds
+    let settledDisplayedFrameCount = settled.rendererState?.displayedFrameObservationCount
+    try await Task.sleep(for: .milliseconds(150))
+    session.recordRendererState(at: session.currentTime())
+    let later = session.debugSnapshot()
+
+    #expect(settled.lifecycle == .paused)
+    #expect(session.currentRate() == 0)
+    #expect(CMTimebaseGetRate(session.synchronizer.timebase) == 0)
+    #expect(
+        settled.audioRendererState?.synchronizerIdentity
+            == settled.rendererState?.synchronizerIdentity
+    )
+    #expect(abs(session.currentTime().seconds - settledTime) < 0.001)
+    #expect(later.rendererState?.displayedFrameObservationCount == settledDisplayedFrameCount)
+}
+
+@Test
+func rendererGraphContinuityBecomesReadyOnlyAfterExplicitPlaybackAdvancesEveryOutputFact() {
+    let baseline = RendererGraphPlaybackObservation(
+        graphRevision: 8,
+        acceptedInputCount: 40,
+        actualTimebaseRate: 0,
+        displayedFrameObservationCount: 10
+    )
+    let stillPaused = RendererGraphPlaybackObservation(
+        graphRevision: 8,
+        acceptedInputCount: 41,
+        actualTimebaseRate: 0,
+        displayedFrameObservationCount: 12
+    )
+    let playing = RendererGraphPlaybackObservation(
+        graphRevision: 8,
+        acceptedInputCount: 41,
+        actualTimebaseRate: 1,
+        displayedFrameObservationCount: 12
+    )
+
+    #expect(
+        RendererGraphPlaybackContinuity.evaluate(
+            baseline: baseline,
+            current: stillPaused,
+            requiredGraphRevision: 8
+        ) == .awaitingActualTimebaseRate
+    )
+    #expect(
+        RendererGraphPlaybackContinuity.evaluate(
+            baseline: baseline,
+            current: playing,
+            requiredGraphRevision: 8
+        ) == .ready
+    )
+}
+
+@MainActor
+@Test
+func explicitPlayStartsTheTimebaseBeforeRendererGraphContinuityIsEvaluated() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 30)
+    let session = SampleBufferPlaybackSession(
+        traceID: "explicit-play-continuity",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
+        ),
+        rendererSink: FakeRendererInputSink(pausesAfterEachEnqueue: true)
+    )
+    let controller = PlaybackCoreController(
+        sessionFactory: { _ in session },
+        debugRecorderMode: .disabledForVerification
+    )
+    defer { session.close() }
+
+    _ = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/explicit-play-continuity.mov")
+    )
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    try await setRateWhenTimelineIsReady(1, in: session)
+    try controller.pause()
+
+    let result = try await controller.playAndVerifyRendererGraphContinuity(
+        timeout: .zero
+    )
+
+    #expect(controller.status == .playing)
+    #expect(session.currentRate() == 1)
+    #expect(CMTimebaseGetRate(session.synchronizer.timebase) > 0)
+    #expect(result != .ready)
+}
+
+@MainActor
+@Test
+func rendererInputAfterPresentationGraphReplacementUsesTheReplacementGraphRevision() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 30)
+    let replacementSink = FakeRendererInputSink()
+    let controller = PlaybackCoreController(
+        sessionFactory: { sessionID in
+            SampleBufferPlaybackSession(
+                traceID: sessionID,
+                provider: FakeVideoSampleProvider(
+                    events: Array(repeating: .sample(sample), count: 1_000) + [.end]
+                ),
+                rendererSink: FakeRendererInputSink(
+                    pausesAfterEachEnqueue: true,
+                    automaticallyRunsRequests: false
+                ),
+                replacementRendererSinkFactory: { replacementSink }
+            )
+        },
+        debugRecorderMode: .disabledForVerification
+    )
+    let session = try await controller.open(
+        URL(fileURLWithPath: "/fixtures/replacement-graph-revision.mov")
+    )
+    defer { session.close() }
+
+    try controller.start()
+    try await waitForSampleCount(1, in: session)
+    let acceptedInputCountBeforeReplacement = session.debugSnapshot().acceptedRendererInputCount
+
+    _ = try await controller.replaceRendererGraphForPresentation()
+    #expect(session.graphRevision == 2)
+    try await controller.restartVideoSampleDelivery(at: .zero)
+    try await waitForAcceptedRendererInputCount(
+        acceptedInputCountBeforeReplacement + 1,
+        in: session
+    )
+
+    #expect(session.debugSnapshot().lastAcceptedRendererInput?.graphRevision == 2)
+}
+
+@Test
 func liveProjectionOverrideUsesSharedSeamWithoutChangingTimeline() async throws {
     let sourceProjection = kCMFormatDescriptionProjectionKind_Equirectangular as String
     let sample = try makeCompressedH264Sample(
@@ -2613,6 +2872,7 @@ private final class FakeRendererInputSink: RendererInputSink, @unchecked Sendabl
             availableEnqueuePermits += 1
         }
     }
+
 }
 
 private final class FakeRendererFailureMonitor: RendererFailureMonitoring, @unchecked Sendable {
@@ -3027,6 +3287,18 @@ private func waitForSampleCount(
         try await Task.sleep(for: .milliseconds(10))
     }
     Issue.record("Timed out waiting for sample count \(count)")
+}
+
+private func waitForAcceptedRendererInputCount(
+    _ count: UInt64,
+    in session: SampleBufferPlaybackSession
+) async throws {
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline {
+        if session.debugSnapshot().acceptedRendererInputCount >= count { return }
+        try await Task.sleep(for: .milliseconds(10))
+    }
+    Issue.record("Timed out waiting for accepted renderer input count \(count)")
 }
 
 private func waitForSinkSampleCount(

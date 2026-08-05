@@ -2,12 +2,12 @@
   "schemaVersion": 1,
   "blobs": {
     "atlas-contract": "54b3805abd2ad98d2abcfed2e9c879de020533b8",
-    "context": "332484c6630d9d676aa88b10d543f9932a9af3a3",
-    "product-requirements": "8467b32d4e1d865de3356303417eff3062122fbb",
-    "architecture": "baaa149df17fa4f71e868aa20f1321d9007d38c7",
+    "context": "4fcf99410e7f7a07b7ae4ef3ec5786ba1efd1cd2",
+    "product-requirements": "16c18ff428dddb280e76bd41f7b5f994dc542b85",
+    "architecture": "a73d07a58b137bf9ab6951d0c388e0363ec909f4",
     "core-spec": "89cf513d32ea700e80c818a08e403852bc67df67",
-    "ui-spec": "a1a15a6b09c53fba3cf4cd92e48af5f47efb1491",
-    "verification-system": "739ecb207749d70bc4c9c8ceb9847a3a83707f30",
+    "ui-spec": "6d7e69d064e1042e9c638affcfdf40296a6d5032",
+    "verification-system": "2d3f91665fe8a53324aa2ca5a75b1f0d8ef3df7e",
     "historical-evidence": "5a88f16e5dbf571d8cb28c419c51b9cb1aa8318f",
     "presentation-node": "b47013d74f760946dfba420f1692323819151f2a"
   }

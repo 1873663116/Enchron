@@ -28,8 +28,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case sourceAccessUnavailable
         case unsupportedProjection(PlaybackModel.ProjectionType)
         case rendererConsumerBusy(PlaybackPresentation)
+        case rendererTransferPending
         case mediaSessionChanged
         case spatialPlaybackTransportUnavailable(ProductPlaybackLifecycle)
+        case videoComponentReplacementTimedOut
+        case videoSampleDeliveryRestartFailed
+        case rendererGraphPlaybackDidNotAdvance(RendererGraphPlaybackContinuity)
         case formatRollbackFailed
 
         public var errorDescription: String? {
@@ -42,10 +46,18 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 "PlaybackCore cannot currently represent the \(projection.rawValue) projection."
             case .rendererConsumerBusy(let presentation):
                 "The \(presentation.rawValue) RealityView still owns the active video renderer."
+            case .rendererTransferPending:
+                "The video renderer is being prepared for another RealityView."
             case .mediaSessionChanged:
                 "The media session changed before the operation completed."
             case .spatialPlaybackTransportUnavailable(let lifecycle):
                 "Playback cannot be paused or resumed while it is \(String(describing: lifecycle))."
+            case .videoComponentReplacementTimedOut:
+                "The video surface did not accept the updated media format in time."
+            case .videoSampleDeliveryRestartFailed:
+                "Video delivery could not restart after the media format changed."
+            case .rendererGraphPlaybackDidNotAdvance(let condition):
+                "The replacement video renderer did not prove continuous playback: \(condition.rawValue)."
             case .formatRollbackFailed:
                 "The media format could not be restored after a failed update. Reopen the media before changing its format again."
             }
@@ -66,6 +78,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var currentSubtitleTrackID: String?
     public private(set) var activeSubtitleCues: [PlaybackSubtitleCue] = []
     public private(set) var activeSubtitleFrame: PlaybackSubtitleFrame?
+    public var subtitleErrorMessage: String?
     public private(set) var activeSessionID: String?
     public private(set) var actualPlaybackSeconds: Double = 0
     public private(set) var didEndNaturally = false
@@ -74,12 +87,21 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var attachedPresentation: PlaybackPresentation?
     public private(set) var rendererConsumerPresentation: PlaybackPresentation?
     public private(set) var rendererConsumerEntityID: String?
+    public private(set) var videoComponentRevision: UInt64 = 0
+    public private(set) var boundVideoComponentRevision: UInt64?
+    public private(set) var rendererPixelVideoComponentRevision: UInt64?
+    public private(set) var rendererPixelStreamEpoch: UInt64?
+    public private(set) var sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds: TimeInterval?
     public var lastErrorMessage: String?
 
     public var onPlaybackEnded: (() -> Void)?
     public var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)?
     @ObservationIgnored
     private var sessionLifecycleHandler: ((SessionLifecycleEvent) -> Void)?
+    @ObservationIgnored
+    private var externalSubtitleSourceIDByURL: [URL: String] = [:]
+    @ObservationIgnored
+    private var externalSubtitleAccessBySourceID: [String: MediaAccessLease] = [:]
 
     public var hasActivePlaybackRequest: Bool { currentLaunchRequest != nil }
     public var productLifecycle: ProductPlaybackLifecycle {
@@ -134,11 +156,29 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var closingTask: Task<Void, Never>?
     private var startsWhenAttached = false
     private var actualPlaybackAccumulator = ActualPlaybackAccumulator()
+    private var pendingVideoComponentRevision: UInt64?
+    private var restartingVideoComponentRevision: UInt64?
+    private var lastBoundVideoRendererEntityID: String?
+    private var videoSampleDeliveryRestartFailed = false
+    private var rendererGraphRecoveryInProgress = false
+    private var releasedRendererConsumerEntityID: String?
+    private var existingRendererGraphTransfer: ExistingRendererGraphTransfer?
+    private var sourceVideoPlayerComponentRemovedAt: Date?
+
+    private static let videoComponentReplacementTimeout = Duration.seconds(7)
 
     private struct Attachment {
         let entityID: String
         let realityViewID: String
         let presentation: PlaybackPresentation
+    }
+
+    private struct ExistingRendererGraphTransfer {
+        let sourcePresentation: PlaybackPresentation
+        let sourceEntityID: String
+        let targetPresentation: PlaybackPresentation
+        var sourceVideoPlayerComponentWasRemoved = false
+        var targetEntityID: String?
     }
 
     public convenience init(controller: PlaybackCoreController = PlaybackCoreController()) {
@@ -176,6 +216,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         currentPlaybackSpeed = .default
         presentationState = .placeholder
         lastErrorMessage = nil
+        subtitleErrorMessage = request.externalSubtitleErrorMessage
         lastResolvedProfile = nil
         startsWhenAttached = true
         actualPlaybackSeconds = 0
@@ -184,6 +225,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         selectedProjectionType = .flat
         selectedStereoLayout = .mono
         mediaFormatIsKnown = false
+        pendingVideoComponentRevision = nil
+        lastBoundVideoRendererEntityID = nil
+        releasedRendererConsumerEntityID = nil
+        existingRendererGraphTransfer = nil
+        sourceVideoPlayerComponentRemovedAt = nil
+        sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds = nil
         invalidatePendingDisplayedImageClear()
     }
 
@@ -231,7 +278,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
             session = newSession
             updateActiveSessionID(newSession.traceID)
-            renderer = newSession.renderer
             let selectedAudioStreamIndex = newSession.selectedAudioStreamIndex
             availableAudioTracks = controller.availableAudioTracks.map {
                 Self.audioTrack(
@@ -244,6 +290,31 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             currentSubtitleTrackID = controller.selectedSubtitleTrackID
             activeSubtitleCues = controller.activeSubtitleCues
             activeSubtitleFrame = controller.activeSubtitleFrame
+            await addAutomaticExternalSubtitleSources(
+                request.externalSubtitleSources,
+                mediaSessionID: newSession.traceID,
+                openGeneration: openGeneration
+            )
+            guard generation == openGeneration,
+                  activeSessionID == newSession.traceID else {
+                await controller.closeAndWait()
+                releaseSourceAccessIfUnowned(request.sourceAccess)
+                return
+            }
+            try await audioSessionLifecycle.activateIfNeeded(
+                hasAudio: !availableAudioTracks.isEmpty
+            )
+            guard generation == openGeneration,
+                  activeSessionID == newSession.traceID else {
+                await controller.closeAndWait()
+                if activeSessionID == nil {
+                    await audioSessionLifecycle.deactivate()
+                }
+                releaseSourceAccessIfUnowned(request.sourceAccess)
+                return
+            }
+            recordAudioSessionFact()
+            renderer = newSession.renderer
             logger.info("session prepared id=\(newSession.traceID, privacy: .public)")
         } catch {
             guard generation == openGeneration else {
@@ -277,12 +348,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         try controller.presentationDidAttach(session: session)
         do {
             if shouldStart {
-                try audioSessionLifecycle.activateIfNeeded(hasAudio: !availableAudioTracks.isEmpty)
                 try controller.start()
                 startsWhenAttached = false
             }
         } catch {
-            audioSessionLifecycle.deactivate()
+            let failedSessionID = activeSessionID
+            Task { @MainActor [weak self] in
+                guard let self,
+                      activeSessionID == failedSessionID else { return }
+                await audioSessionLifecycle.deactivate()
+                recordAudioSessionFact()
+            }
             session.recordPresentationBinding(
                 realityViewIdentity: realityViewID,
                 platform: platformName,
@@ -324,28 +400,145 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         detach()
     }
 
-    func claimRendererConsumer(
+    public func claimRendererConsumer(
         presentation: PlaybackPresentation,
         entityID: String
     ) throws {
+        guard rendererGraphRecoveryInProgress == false else {
+            throw RuntimeError.rendererTransferPending
+        }
+        if rendererConsumerPresentation == presentation,
+           rendererConsumerEntityID == entityID {
+            return
+        }
         if let rendererConsumerEntityID, rendererConsumerEntityID != entityID {
             throw RuntimeError.rendererConsumerBusy(rendererConsumerPresentation ?? presentation)
+        }
+        if let existingRendererGraphTransfer {
+            let isTargetClaim = presentation == existingRendererGraphTransfer.targetPresentation
+            let isSourceRollback = presentation == existingRendererGraphTransfer.sourcePresentation
+                && entityID == existingRendererGraphTransfer.sourceEntityID
+            guard isTargetClaim || isSourceRollback else {
+                throw RuntimeError.rendererTransferPending
+            }
+            if isTargetClaim {
+                guard existingRendererGraphTransfer.sourceVideoPlayerComponentWasRemoved,
+                      existingRendererGraphTransfer.targetEntityID == nil
+                        || existingRendererGraphTransfer.targetEntityID == entityID else {
+                    throw RuntimeError.rendererTransferPending
+                }
+                var transfer = existingRendererGraphTransfer
+                transfer.targetEntityID = entityID
+                self.existingRendererGraphTransfer = transfer
+            } else {
+                guard existingRendererGraphTransfer.targetEntityID == nil else {
+                    throw RuntimeError.rendererTransferPending
+                }
+                self.existingRendererGraphTransfer = nil
+            }
+        } else if let releasedRendererConsumerEntityID {
+            guard releasedRendererConsumerEntityID == entityID else {
+                throw RuntimeError.rendererTransferPending
+            }
+            self.releasedRendererConsumerEntityID = nil
         }
         rendererConsumerPresentation = presentation
         rendererConsumerEntityID = entityID
     }
 
-    func releaseRendererConsumer(
+    public func releaseRendererConsumer(
         presentation: PlaybackPresentation,
-        entityID: String
+        entityID: String,
+        retainingCurrentRendererGraphFor targetPresentation: PlaybackPresentation? = nil
     ) {
         guard rendererConsumerPresentation == presentation,
               rendererConsumerEntityID == entityID else { return }
+        clearVideoComponentBindingObservation(for: entityID)
+        if var existingRendererGraphTransfer,
+           presentation == existingRendererGraphTransfer.targetPresentation,
+           entityID == existingRendererGraphTransfer.targetEntityID {
+            existingRendererGraphTransfer.targetEntityID = nil
+            self.existingRendererGraphTransfer = existingRendererGraphTransfer
+            releasedRendererConsumerEntityID = nil
+        } else if pendingVideoComponentRevision == nil {
+            if presentation == .window,
+               targetPresentation == .panorama {
+                existingRendererGraphTransfer = ExistingRendererGraphTransfer(
+                    sourcePresentation: presentation,
+                    sourceEntityID: entityID,
+                    targetPresentation: .panorama
+                )
+                releasedRendererConsumerEntityID = nil
+                sourceVideoPlayerComponentRemovedAt = nil
+                sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds = nil
+            } else {
+                existingRendererGraphTransfer = nil
+                releasedRendererConsumerEntityID = entityID
+            }
+        }
         rendererConsumerPresentation = nil
         rendererConsumerEntityID = nil
         logger.notice(
             "renderer consumer released presentation=\(String(describing: presentation), privacy: .public) entity=\(entityID, privacy: .public)"
         )
+    }
+
+    /// The App reports this only after RealityKit no longer exposes the source
+    /// VideoPlayerComponent. A renderer graph is never attached to a second
+    /// RealityKit video component. Window-to-Panorama therefore replaces the
+    /// graph only after that removal is observable.
+    public func sourceVideoPlayerComponentDidRemove(
+        presentation: PlaybackPresentation,
+        entityID: String
+    ) async throws {
+        guard var existingRendererGraphTransfer,
+              existingRendererGraphTransfer.sourcePresentation == presentation,
+              existingRendererGraphTransfer.sourceEntityID == entityID,
+              existingRendererGraphTransfer.targetEntityID == nil else {
+            return
+        }
+        existingRendererGraphTransfer.sourceVideoPlayerComponentWasRemoved = true
+        self.existingRendererGraphTransfer = existingRendererGraphTransfer
+        sourceVideoPlayerComponentRemovedAt = Date()
+        logger.notice(
+            "source video component removed presentation=\(String(describing: presentation), privacy: .public) entity=\(entityID, privacy: .public)"
+        )
+        _ = try await beginRendererGraphReplacement()
+    }
+
+    /// Once the target surface has settled, later releases are ordinary
+    /// presentation changes rather than a rollback to the Window source.
+    public func rendererGraphTransferDidSettle(
+        for presentation: PlaybackPresentation
+    ) {
+        guard let existingRendererGraphTransfer,
+              existingRendererGraphTransfer.targetPresentation == presentation,
+              existingRendererGraphTransfer.targetEntityID
+                == rendererConsumerEntityID,
+              rendererConsumerPresentation == presentation else {
+            return
+        }
+        self.existingRendererGraphTransfer = nil
+    }
+
+    public func waitUntilPanoramaRendererGraphIsPrepared(
+        timeout: Duration = .seconds(7)
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: timeout)
+        while clock.now < deadline {
+            guard let existingRendererGraphTransfer,
+                  existingRendererGraphTransfer.targetPresentation == .panorama else {
+                return false
+            }
+            if existingRendererGraphTransfer.sourceVideoPlayerComponentWasRemoved,
+               rendererGraphRecoveryInProgress == false,
+               pendingVideoComponentRevision != nil {
+                return true
+            }
+            try? await Task.sleep(for: .milliseconds(10))
+        }
+        return false
     }
 
     func waitUntilRendererConsumerIsReleased(
@@ -366,27 +559,43 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     public func pause() {
         PlaybackTrace.event("runtime.pause.request lifecycle=\(lifecycle.label)")
-        do {
-            guard let activeSessionID else { throw RuntimeError.noSession }
-            try performSpatialPlaybackTransport(.pause(mediaSessionID: activeSessionID))
-        } catch {
-            fail(error)
+        guard let activeSessionID else {
+            fail(RuntimeError.noSession)
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await performSpatialPlaybackTransport(
+                    .pause(mediaSessionID: activeSessionID)
+                )
+            } catch {
+                fail(error)
+            }
         }
     }
 
     public func resume() {
         PlaybackTrace.event("runtime.resume.request lifecycle=\(lifecycle.label)")
-        do {
-            guard let activeSessionID else { throw RuntimeError.noSession }
-            try performSpatialPlaybackTransport(.resume(mediaSessionID: activeSessionID))
-        } catch {
-            fail(error)
+        guard let activeSessionID else {
+            fail(RuntimeError.noSession)
+            return
+        }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await performSpatialPlaybackTransport(
+                    .resume(mediaSessionID: activeSessionID)
+                )
+            } catch {
+                fail(error)
+            }
         }
     }
 
     public func performSpatialPlaybackTransport(
         _ intent: SpatialPlaybackTransportIntent
-    ) throws {
+    ) async throws {
         guard activeSessionID == intent.mediaSessionID else {
             throw RuntimeError.mediaSessionChanged
         }
@@ -406,9 +615,18 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 throw RuntimeError.spatialPlaybackTransportUnavailable(productLifecycle)
             }
             PlaybackTrace.event("runtime.resume.request lifecycle=\(lifecycle.label)")
-            try audioSessionLifecycle.activateIfNeeded(hasAudio: !availableAudioTracks.isEmpty)
+            try await audioSessionLifecycle.activateIfNeeded(
+                hasAudio: !availableAudioTracks.isEmpty
+            )
+            guard activeSessionID == intent.mediaSessionID else {
+                throw RuntimeError.mediaSessionChanged
+            }
             recordAudioSessionFact()
-            try controller.play()
+            let continuity = try await controller.playAndVerifyRendererGraphContinuity()
+            guard continuity == .ready else {
+                try? controller.pause()
+                throw RuntimeError.rendererGraphPlaybackDidNotAdvance(continuity)
+            }
             PlaybackTrace.event("runtime.resume.completed")
         }
 
@@ -504,29 +722,156 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
-    public func selectAudioTrack(_ track: PlaybackModel.AudioTrack) {
+    public func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws {
         guard let streamIndex = Int(track.id) else { return }
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await controller.selectAudioTrack(streamIndex: streamIndex)
-                currentAudioTrackID = track.id
-            } catch {
-                fail(error)
-            }
+        try await controller.selectAudioTrack(streamIndex: streamIndex)
+        currentAudioTrackID = track.id
+    }
+
+    public func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws {
+        try await controller.selectSubtitleTrack(id: track?.id)
+        currentSubtitleTrackID = controller.selectedSubtitleTrackID
+        activeSubtitleCues = controller.activeSubtitleCues
+    }
+
+    public func addExternalSubtitleFile(_ url: URL) async throws -> PlaybackModel.SubtitleTrack? {
+        guard let activeSessionID else {
+            throw RuntimeError.noSession
+        }
+        let normalizedURL = url.standardizedFileURL
+        let sourceAccess = MediaAccessLease.retaining(
+            normalizedURL as NSURL,
+            securityScoped: normalizedURL
+        )
+        let sourceID = externalSubtitleSourceIDByURL[normalizedURL]
+            ?? VersionedMediaIdentity.local(normalizedURL)?.mediaIdentity.storageKey
+            ?? MediaIdentity.localPathFallback(canonicalPath: normalizedURL.path).storageKey
+        logger.info(
+            "external subtitle addition requested extension=\(normalizedURL.pathExtension, privacy: .public)"
+        )
+        do {
+            return try await finishAddingExternalSubtitleFile(
+                normalizedURL,
+                sourceID: sourceID,
+                sourceAccess: sourceAccess,
+                activeSessionID: activeSessionID
+            )
+        } catch {
+            subtitleErrorMessage = error.localizedDescription
+            logger.error(
+                "external subtitle addition failed error=\(error.localizedDescription, privacy: .public)"
+            )
+            throw error
         }
     }
 
-    public func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) {
-        Task { [weak self] in
-            guard let self else { return }
-            do {
-                try await controller.selectSubtitleTrack(id: track?.id)
+    private func finishAddingExternalSubtitleFile(
+        _ normalizedURL: URL,
+        sourceID: String,
+        sourceAccess: MediaAccessLease,
+        activeSessionID: String
+    ) async throws -> PlaybackModel.SubtitleTrack? {
+        var sourceWasAdded = false
+        do {
+            let tracks = try await controller.addExternalSubtitleSource(
+                PlaybackExternalSubtitleSource(
+                    id: sourceID,
+                    url: normalizedURL,
+                    displayName: normalizedURL.lastPathComponent
+                )
+            )
+            sourceWasAdded = true
+            guard self.activeSessionID == activeSessionID else {
+                throw RuntimeError.mediaSessionChanged
+            }
+            if let firstTrack = tracks.first {
+                try await controller.selectSubtitleTrack(id: firstTrack.id)
+            }
+            guard self.activeSessionID == activeSessionID else {
+                throw RuntimeError.mediaSessionChanged
+            }
+            let previousAccess = externalSubtitleAccessBySourceID.updateValue(
+                sourceAccess,
+                forKey: sourceID
+            )
+            externalSubtitleSourceIDByURL[normalizedURL] = sourceID
+            previousAccess?.release()
+            availableSubtitleTracks = controller.availableSubtitleTracks.map(Self.subtitleTrack)
+            currentSubtitleTrackID = controller.selectedSubtitleTrackID
+            activeSubtitleCues = controller.activeSubtitleCues
+            activeSubtitleFrame = controller.activeSubtitleFrame
+            subtitleErrorMessage = nil
+            logger.info("external subtitle addition completed")
+            return availableSubtitleTracks.first { $0.id == currentSubtitleTrackID }
+        } catch {
+            if sourceWasAdded, self.activeSessionID == activeSessionID {
+                try? await controller.removeExternalSubtitleSource(id: sourceID)
+                availableSubtitleTracks = controller.availableSubtitleTracks.map(Self.subtitleTrack)
                 currentSubtitleTrackID = controller.selectedSubtitleTrackID
                 activeSubtitleCues = controller.activeSubtitleCues
-            } catch {
-                fail(error)
+                activeSubtitleFrame = controller.activeSubtitleFrame
             }
+            externalSubtitleSourceIDByURL.removeValue(forKey: normalizedURL)
+            externalSubtitleAccessBySourceID.removeValue(forKey: sourceID)?.release()
+            sourceAccess.release()
+            throw error
+        }
+    }
+
+    private func addAutomaticExternalSubtitleSources(
+        _ sources: [ResolvedExternalSubtitleSource],
+        mediaSessionID: String,
+        openGeneration: Int
+    ) async {
+        var failures: [String] = []
+        for source in sources {
+            guard generation == openGeneration,
+                  activeSessionID == mediaSessionID else {
+                source.accessLease?.release()
+                continue
+            }
+            guard source.accessLease?.ensureActive() != false else {
+                failures.append("\(source.displayName): source access is unavailable")
+                source.accessLease?.release()
+                continue
+            }
+            do {
+                _ = try await controller.addExternalSubtitleSource(
+                    PlaybackExternalSubtitleSource(
+                        id: source.id,
+                        url: source.url,
+                        displayName: source.displayName
+                    )
+                )
+                guard generation == openGeneration,
+                      activeSessionID == mediaSessionID else {
+                    source.accessLease?.release()
+                    continue
+                }
+                if let accessLease = source.accessLease {
+                    externalSubtitleAccessBySourceID.updateValue(
+                        accessLease,
+                        forKey: source.id
+                    )?.release()
+                }
+                let normalizedURL = source.url.isFileURL
+                    ? source.url.standardizedFileURL
+                    : source.url
+                externalSubtitleSourceIDByURL[normalizedURL] = source.id
+            } catch {
+                source.accessLease?.release()
+                failures.append("\(source.displayName): \(error.localizedDescription)")
+            }
+        }
+        guard generation == openGeneration,
+              activeSessionID == mediaSessionID else { return }
+        availableSubtitleTracks = controller.availableSubtitleTracks.map(Self.subtitleTrack)
+        currentSubtitleTrackID = controller.selectedSubtitleTrackID
+        activeSubtitleCues = controller.activeSubtitleCues
+        activeSubtitleFrame = controller.activeSubtitleFrame
+        if !failures.isEmpty {
+            subtitleErrorMessage = ([subtitleErrorMessage].compactMap { $0 } + failures)
+                .joined(separator: "\n")
         }
     }
 
@@ -536,7 +881,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         Task { [weak self] in
             guard let self else { return }
             do {
-                try audioSessionLifecycle.activateIfNeeded(hasAudio: !availableAudioTracks.isEmpty)
+                try await audioSessionLifecycle.activateIfNeeded(
+                    hasAudio: !availableAudioTracks.isEmpty
+                )
                 recordAudioSessionFact()
                 try await controller.seek(to: .zero, after: .play)
                 try controller.play()
@@ -560,6 +907,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let formatSessionID = activeSessionID
         let previousProjection = selectedProjectionType
         let previousStereo = selectedStereoLayout
+        let changesFormat = projection != previousProjection || stereo != previousStereo
         do {
             try await applyStereoLayout(stereo)
             guard generation == formatGeneration,
@@ -571,9 +919,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                   activeSessionID == formatSessionID else {
                 throw RuntimeError.mediaSessionChanged
             }
-            selectedProjectionType = projection
-            selectedStereoLayout = stereo
-            mediaFormatIsKnown = true
+            try await publishFormat(
+                projection: projection,
+                stereo: stereo,
+                replacingVideoComponent: changesFormat,
+                expectedGeneration: formatGeneration,
+                expectedSessionID: formatSessionID
+            )
         } catch {
             guard generation == formatGeneration,
                   activeSessionID == formatSessionID else { throw error }
@@ -588,15 +940,225 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                       activeSessionID == formatSessionID else {
                     throw RuntimeError.mediaSessionChanged
                 }
+                try await publishFormat(
+                    projection: previousProjection,
+                    stereo: previousStereo,
+                    replacingVideoComponent: changesFormat,
+                    expectedGeneration: formatGeneration,
+                    expectedSessionID: formatSessionID
+                )
             } catch RuntimeError.mediaSessionChanged {
                 throw RuntimeError.mediaSessionChanged
             } catch {
+                abandonPendingVideoComponentReplacement()
                 mediaFormatIsKnown = false
                 lastErrorMessage = RuntimeError.formatRollbackFailed.localizedDescription
                 throw RuntimeError.formatRollbackFailed
             }
             throw error
         }
+    }
+
+    private func publishFormat(
+        projection: PlaybackModel.ProjectionType,
+        stereo: PlaybackModel.StereoLayout,
+        replacingVideoComponent: Bool,
+        expectedGeneration: Int,
+        expectedSessionID: String?
+    ) async throws {
+        let requiresRendererReplacement = replacingVideoComponent
+            && (rendererConsumerEntityID != nil || pendingVideoComponentRevision != nil)
+        let replacementRenderer: AVSampleBufferVideoRenderer?
+        if requiresRendererReplacement {
+            replacementRenderer = try await controller.replaceRendererGraphForPresentation()
+            guard generation == expectedGeneration,
+                  activeSessionID == expectedSessionID else {
+                throw RuntimeError.mediaSessionChanged
+            }
+        } else {
+            replacementRenderer = nil
+        }
+
+        if replacingVideoComponent {
+            videoComponentRevision &+= 1
+            clearVideoComponentBindingObservation()
+        }
+        let revision = videoComponentRevision
+        if requiresRendererReplacement {
+            pendingVideoComponentRevision = revision
+            restartingVideoComponentRevision = nil
+            videoSampleDeliveryRestartFailed = false
+        }
+        selectedProjectionType = projection
+        selectedStereoLayout = stereo
+        mediaFormatIsKnown = true
+        if let replacementRenderer {
+            releaseCurrentRendererConsumerForReplacement()
+            renderer = replacementRenderer
+        }
+
+        guard requiresRendererReplacement else { return }
+        let deadline = ContinuousClock.now + Self.videoComponentReplacementTimeout
+        do {
+            while pendingVideoComponentRevision == revision,
+                  ContinuousClock.now < deadline {
+                try Task.checkCancellation()
+                guard generation == expectedGeneration,
+                      activeSessionID == expectedSessionID else {
+                    throw RuntimeError.mediaSessionChanged
+                }
+                try await Task.sleep(for: .milliseconds(25))
+            }
+        } catch {
+            throw error
+        }
+        guard pendingVideoComponentRevision != revision else {
+            throw RuntimeError.videoComponentReplacementTimedOut
+        }
+        if videoSampleDeliveryRestartFailed {
+            throw RuntimeError.videoSampleDeliveryRestartFailed
+        }
+    }
+
+    public func videoRendererTargetDidBind(
+        revision: UInt64,
+        entityID: String
+    ) {
+        guard revision == videoComponentRevision,
+              rendererConsumerEntityID == entityID else { return }
+        if let existingRendererGraphTransfer,
+           existingRendererGraphTransfer.targetEntityID == entityID,
+           let sourceVideoPlayerComponentRemovedAt {
+            sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds =
+                Date().timeIntervalSince(sourceVideoPlayerComponentRemovedAt)
+        }
+        let previousEntityID = lastBoundVideoRendererEntityID
+        lastBoundVideoRendererEntityID = entityID
+        boundVideoComponentRevision = revision
+        let rendererReplacementIsPending = pendingVideoComponentRevision == revision
+        let videoRendererTargetChanged = previousEntityID != nil
+            && previousEntityID != entityID
+        guard rendererReplacementIsPending || videoRendererTargetChanged,
+              restartingVideoComponentRevision != revision else { return }
+        restartingVideoComponentRevision = revision
+        let expectedGeneration = generation
+        let expectedSessionID = activeSessionID
+        let restartTime = CMTime(
+            seconds: max(0, diagnostics.currentSeconds),
+            preferredTimescale: 60_000
+        )
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await controller.restartVideoSampleDeliveryForPresentationTransfer(
+                    at: restartTime
+                )
+                guard generation == expectedGeneration,
+                      activeSessionID == expectedSessionID,
+                      restartingVideoComponentRevision == revision else { return }
+                restartingVideoComponentRevision = nil
+                if rendererConsumerEntityID == entityID,
+                   lastBoundVideoRendererEntityID == entityID,
+                   pendingVideoComponentRevision == revision {
+                    pendingVideoComponentRevision = nil
+                }
+            } catch {
+                guard restartingVideoComponentRevision == revision else { return }
+                restartingVideoComponentRevision = nil
+                if rendererConsumerEntityID == entityID,
+                   lastBoundVideoRendererEntityID == entityID {
+                    videoSampleDeliveryRestartFailed = true
+                    lastErrorMessage = error.localizedDescription
+                    if pendingVideoComponentRevision == revision {
+                        pendingVideoComponentRevision = nil
+                    }
+                }
+            }
+        }
+    }
+
+    func recoverRendererGraphAfterPresentationTransfer() async throws {
+        guard rendererGraphRecoveryInProgress == false,
+              pendingVideoComponentRevision == nil else { return }
+        let revision = try await beginRendererGraphReplacement()
+        try await waitForRendererGraphReplacementToBind(revision: revision)
+    }
+
+    private func beginRendererGraphReplacement() async throws -> UInt64 {
+        guard activeSessionID != nil else { throw RuntimeError.noSession }
+        guard rendererGraphRecoveryInProgress == false else {
+            throw RuntimeError.rendererTransferPending
+        }
+        let expectedGeneration = generation
+        let expectedSessionID = activeSessionID
+        rendererGraphRecoveryInProgress = true
+        let replacementRenderer: AVSampleBufferVideoRenderer
+        do {
+            replacementRenderer = try await controller.replaceRendererGraphForPresentation()
+            guard generation == expectedGeneration,
+                  activeSessionID == expectedSessionID else {
+                throw RuntimeError.mediaSessionChanged
+            }
+        } catch {
+            rendererGraphRecoveryInProgress = false
+            throw error
+        }
+        rendererGraphRecoveryInProgress = false
+
+        videoComponentRevision &+= 1
+        clearVideoComponentBindingObservation()
+        let revision = videoComponentRevision
+        pendingVideoComponentRevision = revision
+        restartingVideoComponentRevision = nil
+        videoSampleDeliveryRestartFailed = false
+        releaseCurrentRendererConsumerForReplacement()
+        renderer = replacementRenderer
+        return revision
+    }
+
+    private func waitForRendererGraphReplacementToBind(revision: UInt64) async throws {
+        let expectedGeneration = generation
+        let expectedSessionID = activeSessionID
+        let deadline = ContinuousClock.now + Self.videoComponentReplacementTimeout
+        while pendingVideoComponentRevision == revision,
+              ContinuousClock.now < deadline {
+            try Task.checkCancellation()
+            guard generation == expectedGeneration,
+                  activeSessionID == expectedSessionID else {
+                throw RuntimeError.mediaSessionChanged
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        guard pendingVideoComponentRevision != revision else {
+            throw RuntimeError.videoComponentReplacementTimedOut
+        }
+        if videoSampleDeliveryRestartFailed {
+            throw RuntimeError.videoSampleDeliveryRestartFailed
+        }
+    }
+
+    func prepareRendererGraphForPresentationTransfer() async throws {
+        guard releasedRendererConsumerEntityID != nil else { return }
+        guard rendererConsumerEntityID == nil,
+              rendererGraphRecoveryInProgress == false,
+              pendingVideoComponentRevision == nil else {
+            throw RuntimeError.rendererTransferPending
+        }
+        guard activeSessionID != nil else { throw RuntimeError.noSession }
+        releasedRendererConsumerEntityID = nil
+        _ = try await beginRendererGraphReplacement()
+    }
+
+    private func releaseCurrentRendererConsumerForReplacement() {
+        guard let presentation = rendererConsumerPresentation,
+              let entityID = rendererConsumerEntityID else { return }
+        releaseRendererConsumer(presentation: presentation, entityID: entityID)
+    }
+
+    private func abandonPendingVideoComponentReplacement() {
+        pendingVideoComponentRevision = nil
+        restartingVideoComponentRevision = nil
+        videoSampleDeliveryRestartFailed = false
     }
 
     public var supportsFisheyePresentation: Bool {
@@ -620,14 +1182,20 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let sourceAccess = releasingSourceAccess
             ? currentLaunchRequest?.sourceAccess
             : nil
+        let externalSubtitleAccesses = Array(externalSubtitleAccessBySourceID.values)
+        externalSubtitleAccessBySourceID = [:]
+        externalSubtitleSourceIDByURL = [:]
         let controller = controller
         let previousClosingTask = closingTask
         let audioSessionLifecycle = audioSessionLifecycle
         let closeTask = Task { @MainActor in
             await previousClosingTask?.value
             await controller.closeAndWait()
-            audioSessionLifecycle.deactivate()
+            await audioSessionLifecycle.deactivate()
             sourceAccess?.release()
+            for subtitleAccess in externalSubtitleAccesses {
+                subtitleAccess.release()
+            }
         }
         closingTask = closeTask
         clearPresentation()
@@ -653,10 +1221,18 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         currentSubtitleTrackID = nil
         activeSubtitleCues = []
         activeSubtitleFrame = nil
+        subtitleErrorMessage = nil
         playbackPosition = .init(seconds: 0, duration: 0)
         selectedProjectionType = .flat
         selectedStereoLayout = .mono
         mediaFormatIsKnown = false
+        pendingVideoComponentRevision = nil
+        lastBoundVideoRendererEntityID = nil
+        releasedRendererConsumerEntityID = nil
+        existingRendererGraphTransfer = nil
+        sourceVideoPlayerComponentRemovedAt = nil
+        sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds = nil
+        clearVideoComponentBindingObservation()
         lastResolvedProfile = nil
     }
 
@@ -688,9 +1264,22 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) async -> Bool {
         if presentationIsSettled(presentation) { return true }
         let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout)
+        var deadline = clock.now.advanced(by: timeout)
+        var allowedComponentReplacement = false
         while clock.now < deadline {
             guard Task.isCancelled == false else { return false }
+            if allowedComponentReplacement == false,
+               rendererGraphRecoveryInProgress || pendingVideoComponentRevision != nil {
+                allowedComponentReplacement = true
+                // A cross-RealityView transfer can require a bounded renderer
+                // replacement before the ordinary surface-settlement interval
+                // can begin. Give that operation its own documented bound and
+                // then the full settlement interval; do not make the two
+                // independently bounded operations race the same deadline.
+                deadline = clock.now.advanced(
+                    by: Self.videoComponentReplacementTimeout + timeout
+                )
+            }
             do {
                 try await Task.sleep(for: .milliseconds(25))
             } catch {
@@ -730,19 +1319,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case .settled:
             return true
         case .surfaceAttached:
-            guard presentation != .panorama else { return false }
-            switch lifecycle {
-            case .ready, .paused, .ended:
-                return true
-            case .idle, .loading, .playing, .failed:
-                return false
-            }
+            return lifecycle == .ended
         }
     }
 
     func recordPresentationState(
         presentation: PlaybackPresentation,
         phase: PlaybackPresentationSettlementPhase,
+        entityID: String,
+        videoComponentRevision: UInt64,
         realityViewID: String,
         entityParentID: String? = nil,
         desiredImmersiveViewingMode: String? = nil,
@@ -777,12 +1362,33 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let outputIsPresentable = phase == .settled && displayedPixelBuffer == true
         let endedSurfaceIsPresentable = phase == .surfaceAttached
             && productLifecycle == .ended
+        if displayedPixelBuffer == true,
+           rendererConsumerEntityID == entityID,
+           boundVideoComponentRevision == videoComponentRevision,
+           self.videoComponentRevision == videoComponentRevision {
+            rendererPixelVideoComponentRevision = videoComponentRevision
+            rendererPixelStreamEpoch = session.debugSnapshot().streamEpoch
+        }
         if outputIsPresentable || endedSurfaceIsPresentable {
-            presentationState = .videoVisible
+            if presentationState != .videoVisible {
+                presentationState = .videoVisible
+            }
             clearFailureIfPlaybackIsUsable()
         }
         guard session.debugSnapshot().presentationState != record else { return }
         session.recordPresentationState(record)
+    }
+
+    private func clearVideoComponentBindingObservation(
+        for entityID: String? = nil
+    ) {
+        if let entityID,
+           rendererConsumerEntityID != entityID {
+            return
+        }
+        boundVideoComponentRevision = nil
+        rendererPixelVideoComponentRevision = nil
+        rendererPixelStreamEpoch = nil
     }
 
     func outputObservation() -> PlaybackOutputObservation {
@@ -811,6 +1417,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             displayedPixelBuffer: presentation?.displayedPixelBuffer
                 ?? snapshot?.rendererState?.displayedPixelBuffer
                 ?? false,
+            desiredImmersiveViewingMode: presentation?.desiredImmersiveViewingMode.value,
+            actualImmersiveViewingMode: presentation?.actualImmersiveViewingMode.value,
+            desiredViewingMode: presentation?.desiredViewingMode.value,
+            actualViewingMode: presentation?.actualViewingMode.value,
+            desiredSpatialVideoMode: presentation?.desiredSpatialVideoMode.value,
+            actualSpatialVideoMode: presentation?.actualSpatialVideoMode.value,
             hasAudio: availableAudioTracks.isEmpty == false,
             audioSampleBufferCount: snapshot?.audioSampleBufferCount ?? 0,
             audioRendererSampleBufferCount: snapshot?.audioRendererState?
@@ -900,9 +1512,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             clearFailureIfPlaybackIsUsable()
         case .ended(let reason):
             didEndNaturally = reason == .naturalCompletion
-            audioSessionLifecycle.deactivate()
-            recordAudioSessionFact()
             let endedSessionID = activeSessionID
+            Task { @MainActor [weak self] in
+                guard let self,
+                      activeSessionID == endedSessionID else { return }
+                await audioSessionLifecycle.deactivate()
+                guard activeSessionID == endedSessionID else { return }
+                recordAudioSessionFact()
+            }
             displayedImageGeneration += 1
             let clearGeneration = displayedImageGeneration
             Task { [weak self] in
@@ -917,8 +1534,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 onPlaybackEnded?()
             }
         case .failed(let message):
-            audioSessionLifecycle.deactivate()
-            recordAudioSessionFact()
+            let failedSessionID = activeSessionID
+            Task { @MainActor [weak self] in
+                guard let self,
+                      activeSessionID == failedSessionID else { return }
+                await audioSessionLifecycle.deactivate()
+                guard activeSessionID == failedSessionID else { return }
+                recordAudioSessionFact()
+            }
             lastErrorMessage = message
             logger.error("playback failed message=\(message, privacy: .public)")
         }
@@ -943,6 +1566,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private func clearFailureIfPlaybackIsUsable() {
+        guard lastErrorMessage != nil else { return }
         switch lifecycle {
         case .ready, .playing, .paused:
             lastErrorMessage = nil

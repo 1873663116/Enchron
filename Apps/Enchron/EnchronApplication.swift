@@ -25,6 +25,10 @@ final class EnchronApplication {
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let isUITesting = environment["ENCHRON_UI_TESTING"] == "1"
         let defaultsSuiteName = isUITesting ? "app.enchron.ui-testing" : nil
+        let mediaStateSuiteName = Self.mediaStateSuiteName(
+            isUITesting: isUITesting,
+            environment: environment
+        )
         let defaults: UserDefaults
         if let defaultsSuiteName {
             defaults = UserDefaults(suiteName: defaultsSuiteName) ?? .standard
@@ -34,6 +38,13 @@ final class EnchronApplication {
         }
         if environment["ENCHRON_RESET_MEDIA_LIBRARY"] == "1" {
             defaults.removeObject(forKey: "enchron.mediaLibrary")
+        }
+        if let mediaStateSuiteName,
+           mediaStateSuiteName != defaultsSuiteName {
+            // Spatial acceptance uses the production Media Library, but must
+            // start without a previous run's playback position or format.
+            UserDefaults(suiteName: mediaStateSuiteName)?
+                .removePersistentDomain(forName: mediaStateSuiteName)
         }
 
         let screenPositionStore = PlaybackPresentationStorage.makeScreenPositionStore(
@@ -58,7 +69,7 @@ final class EnchronApplication {
         let playbackRuntime = PlaybackRuntime()
         let launcher = PlaybackLaunchCoordinator(
             playbackRuntime: playbackRuntime,
-            mediaStateSuiteName: defaultsSuiteName,
+            mediaStateSuiteName: mediaStateSuiteName,
             preferencesProvider: preferencesStore
         )
         launcher.onResolvedLaunchFormatApplied = { [weak appModel] format in
@@ -181,6 +192,20 @@ final class EnchronApplication {
         )
     }
 
+    static func mediaStateSuiteName(
+        isUITesting: Bool,
+        environment: [String: String]
+    ) -> String? {
+        if isUITesting {
+            return "app.enchron.ui-testing"
+        }
+        guard environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1",
+              environment["ENCHRON_TEST_MEDIA_STATE_SUITE"] == "1" else {
+            return nil
+        }
+        return "app.enchron.spatial-acceptance"
+    }
+
     @MainActor
     private static func beginAutoplayIfRequested(
         environment: [String: String],
@@ -284,7 +309,9 @@ private extension MediaPlaybackItem {
             initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: sizeInBytes),
             collectionOrigin: playbackOrigin,
             versionedIdentity: versionedIdentity,
-            sourceAccess: accessLease
+            sourceAccess: accessLease,
+            externalSubtitleSources: externalSubtitleSources,
+            externalSubtitleErrorMessage: externalSubtitleErrorMessage
         )
     }
 }

@@ -74,5 +74,15 @@ let package = Package(
             dependencies: ["MediaSource", "MediaLibrary", "PlaybackFeature", "PlaybackPresentation"],
             path: "Scripts/domain-checks"
         ),
+        .testTarget(
+            name: "MediaLibraryTests",
+            dependencies: ["MediaLibrary"],
+            path: "Tests/MediaLibraryPackageTests"
+        ),
+        .testTarget(
+            name: "PlaybackFeatureTests",
+            dependencies: ["PlaybackFeature", "MediaSource"],
+            path: "Tests/PlaybackFeaturePackageTests"
+        ),
     ]
 )

@@ -40,17 +40,20 @@ struct WebDAVDataSourceAdapterTests {
 
         try await adapter.connect(with: info)
         let files = try await adapter.listContents(at: "/")
+        let subtitleFiles = try await adapter.listSubtitleFiles(at: "/")
         let folders = try await adapter.listFolders(at: "/")
 
         let movie = try #require(files.first)
         #expect(files.map(\.name) == ["Movie One.mkv"])
         #expect(movie.sizeInBytes == 12_345)
         #expect(movie.remoteEntityTag == "\"movie-one-v3\"")
+        #expect(subtitleFiles.map(\.name) == ["Movie One.zh-CN.srt"])
+        #expect(subtitleFiles.first?.remoteEntityTag == "\"movie-one-subtitle-v1\"")
         #expect(folders.map(\.name) == ["Season 1"])
         #expect(folders.first?.dataSourceID == ownerID)
 
         let requests = recorder.requests
-        #expect(requests.count == 3)
+        #expect(requests.count == 4)
         #expect(requests.allSatisfy { $0.httpMethod == "PROPFIND" })
         #expect(requests.allSatisfy { $0.value(forHTTPHeaderField: "Depth") == "1" })
         let token = Data("viewer:secret".utf8).base64EncodedString()
@@ -242,6 +245,18 @@ struct WebDAVDataSourceAdapterTests {
         <d:href>/dav/library/</d:href>
         <d:propstat>
           <d:prop><d:resourcetype><d:collection/></d:resourcetype></d:prop>
+          <d:status>HTTP/1.1 200 OK</d:status>
+        </d:propstat>
+      </d:response>
+      <d:response>
+        <d:href>/dav/library/Movie%20One.zh-CN.srt</d:href>
+        <d:propstat>
+          <d:prop>
+            <d:getcontentlength>456</d:getcontentlength>
+            <d:getlastmodified>Wed, 15 Jul 2026 10:05:00 GMT</d:getlastmodified>
+            <d:getetag>"movie-one-subtitle-v1"</d:getetag>
+            <d:resourcetype/>
+          </d:prop>
           <d:status>HTTP/1.1 200 OK</d:status>
         </d:propstat>
       </d:response>

@@ -707,15 +707,18 @@ static void add_projected_media_extensions(
     if (sphericalData && sphericalData->size >= sizeof(AVSphericalMapping)) {
         const AVSphericalMapping *mapping = (const AVSphericalMapping *)sphericalData->data;
         CFStringRef projection = NULL;
+        uint32_t knownHorizontalFieldOfView = 0;
         switch (mapping->projection) {
             case AV_SPHERICAL_RECTILINEAR:
                 projection = kCMFormatDescriptionProjectionKind_Rectilinear;
                 break;
             case AV_SPHERICAL_EQUIRECTANGULAR:
                 projection = kCMFormatDescriptionProjectionKind_Equirectangular;
+                knownHorizontalFieldOfView = 360000;
                 break;
             case AV_SPHERICAL_HALF_EQUIRECTANGULAR:
                 projection = kCMFormatDescriptionProjectionKind_HalfEquirectangular;
+                knownHorizontalFieldOfView = 180000;
                 break;
             case AV_SPHERICAL_PARAMETRIC_IMMERSIVE:
                 projection = kCMFormatDescriptionProjectionKind_ParametricImmersive;
@@ -729,6 +732,21 @@ static void add_projected_media_extensions(
                 kCMFormatDescriptionExtension_ProjectionKind,
                 projection
             );
+        }
+        if (knownHorizontalFieldOfView > 0) {
+            CFNumberRef value = CFNumberCreate(
+                kCFAllocatorDefault,
+                kCFNumberSInt32Type,
+                &knownHorizontalFieldOfView
+            );
+            if (value) {
+                CFDictionarySetValue(
+                    extensions,
+                    kCMFormatDescriptionExtension_HorizontalFieldOfView,
+                    value
+                );
+                CFRelease(value);
+            }
         }
     }
 

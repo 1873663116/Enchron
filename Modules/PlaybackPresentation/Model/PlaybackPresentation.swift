@@ -91,30 +91,16 @@ public struct PlaybackTransportAvailability: Equatable, Sendable {
 
 public enum PlaybackScreenSize {
     public static let scaleRange = 0.5...2.5
-    /// Derived from the shared Docked placement detent count so the three
-    /// Settings rows share identical tick columns.
-    public static let scaleStep =
-        (scaleRange.upperBound - scaleRange.lowerBound)
-        / Double(PlaybackDockedPlacement.placementDetentCount - 1)
+    public static let scaleStep = 0.05
 }
 
 public struct PlaybackDockedPlacement: Equatable, Sendable {
-    /// Nearest shared-detent notch to the historical 4.0 m default.
-    public static var defaultDistance: Double {
-        snapped(4.0, in: distanceRange, step: distanceStep)
-    }
+    public static let defaultDistance = 4.0
     public static let defaultElevationDegrees = 0.0
     public static let distanceRange = 0.5...10.0
     public static let elevationRange = -80.0...80.0
-    /// Shared notch count for Screen Size / Distance / Elevation so Docked
-    /// Settings ticks align vertically across the three rows.
-    public static let placementDetentCount = 21
-    public static let distanceStep =
-        (distanceRange.upperBound - distanceRange.lowerBound)
-        / Double(placementDetentCount - 1)
-    public static let elevationStep =
-        (elevationRange.upperBound - elevationRange.lowerBound)
-        / Double(placementDetentCount - 1)
+    public static let distanceStep = 0.5
+    public static let elevationStep = 5.0
 
     public let distanceMeters: Double
     public let elevationDegrees: Double
@@ -194,6 +180,17 @@ public struct PlaybackPresentationTransition: Identifiable, Equatable, Sendable 
         self.previousEnvironment = previousEnvironment
         self.targetEnvironment = targetEnvironment
     }
+
+    /// Before opening the progressive Panorama Immersive Space, the Window
+    /// source must report that its own progressive-mode request took effect.
+    public var requiresWindowPortalToProgressiveChange: Bool {
+        previousPresentation == .window && targetPresentation == .panorama
+    }
+
+    /// Each VideoPlayerComponent owns a distinct renderer graph.
+    public var keepsCurrentRendererGraph: Bool {
+        false
+    }
 }
 
 public enum PlaybackPresentationTransitionError: Error, Equatable, Sendable {
@@ -266,15 +263,22 @@ public struct SpatialPlatformEffectRequest: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let effect: SpatialPlatformEffect
     public let playbackTransportPlan: SpatialPlaybackTransportPlan?
+    public let requiresWindowPortalToProgressiveChange: Bool
+    public let keepsCurrentRendererGraph: Bool
 
     public init(
         id: UUID = UUID(),
         effect: SpatialPlatformEffect,
-        playbackTransportPlan: SpatialPlaybackTransportPlan? = nil
+        playbackTransportPlan: SpatialPlaybackTransportPlan? = nil,
+        requiresWindowPortalToProgressiveChange: Bool = false,
+        keepsCurrentRendererGraph: Bool = false
     ) {
         self.id = id
         self.effect = effect
         self.playbackTransportPlan = playbackTransportPlan
+        self.requiresWindowPortalToProgressiveChange =
+            requiresWindowPortalToProgressiveChange
+        self.keepsCurrentRendererGraph = keepsCurrentRendererGraph
     }
 }
 
@@ -282,7 +286,11 @@ public enum SpatialPlatformEffectFailure: Equatable, Sendable {
     case mediaSessionChanged
     case playbackPauseFailed
     case immersiveSpaceUnavailable
+    case immersiveViewingModeUnavailable
     case spatialPlaybackSurfaceUnavailable
+    case mainWindowUnavailable
+    case playerControlsWindowUnavailable
+    case environmentCardDismissalUnavailable
     case rendererReleaseUnavailable
     case windowPlaybackSurfaceUnavailable
     case executionCancelled
@@ -382,6 +390,7 @@ package struct PlaybackPresentationState: Equatable, Sendable {
     package private(set) var environment: EnvironmentContext
     package private(set) var transition: PlaybackPresentationTransition?
     package private(set) var environmentBeforeDockedPresentation: EnvironmentContext?
+    package private(set) var environmentBeforePanoramaPresentation: EnvironmentContext?
 
     package init(
         presented: PlaybackPresentation = .window,
@@ -390,6 +399,7 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         self.presented = presented
         self.environment = environment
         environmentBeforeDockedPresentation = nil
+        environmentBeforePanoramaPresentation = nil
     }
 
     @discardableResult
@@ -423,8 +433,12 @@ package struct PlaybackPresentationState: Equatable, Sendable {
                     effect: requestedEffect ?? .inactiveFallback
                 )
             }
+        } else if target == .panorama {
+            targetEnvironment = .none
         } else if presented == .docked, target == .window {
             targetEnvironment = environmentBeforeDockedPresentation ?? .none
+        } else if presented == .panorama, target == .window {
+            targetEnvironment = environmentBeforePanoramaPresentation ?? .none
         } else {
             targetEnvironment = environment
         }
@@ -455,6 +469,13 @@ package struct PlaybackPresentationState: Equatable, Sendable {
                   transition.targetPresentation == .window {
             environmentBeforeDockedPresentation = nil
         }
+        if transition.previousPresentation == .window,
+           transition.targetPresentation == .panorama {
+            environmentBeforePanoramaPresentation = transition.previousEnvironment
+        } else if transition.previousPresentation == .panorama,
+                  transition.targetPresentation == .window {
+            environmentBeforePanoramaPresentation = nil
+        }
         presented = transition.targetPresentation
         environment = transition.targetEnvironment
         self.transition = nil
@@ -483,9 +504,12 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         }
         if presented == .docked {
             environment = environmentBeforeDockedPresentation ?? .none
+        } else if presented == .panorama {
+            environment = environmentBeforePanoramaPresentation ?? .none
         }
         presented = .window
         environmentBeforeDockedPresentation = nil
+        environmentBeforePanoramaPresentation = nil
     }
 
     package mutating func settleSpatialRecoveryFailure() {
@@ -494,9 +518,12 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         }
         if presented == .docked {
             environment = environmentBeforeDockedPresentation ?? .none
+        } else if presented == .panorama {
+            environment = environmentBeforePanoramaPresentation ?? .none
         }
         presented = .window
         environmentBeforeDockedPresentation = nil
+        environmentBeforePanoramaPresentation = nil
     }
 }
 
@@ -526,6 +553,7 @@ public struct SpatialRecoveryIntent: Equatable, Sendable {
 public struct PlaybackPresentationSnapshot: Equatable, Sendable {
     public let presentation: PlaybackPresentation
     public let environmentContext: EnvironmentContext
+    public let panoramaReturnEnvironmentContext: EnvironmentContext?
     public let defaultEnvironment: SpatialSceneDomain.CinemaEnvironment
     public let dockedPlacement: PlaybackDockedPlacement
     public let transition: PlaybackPresentationTransition?
@@ -582,6 +610,8 @@ public final class PlaybackPresentationModel {
         PlaybackPresentationSnapshot(
             presentation: presentationState.presented,
             environmentContext: presentationState.environment,
+            panoramaReturnEnvironmentContext:
+                presentationState.environmentBeforePanoramaPresentation,
             defaultEnvironment: defaultEnvironment,
             dockedPlacement: dockedPlacement,
             transition: presentationState.transition,
@@ -602,6 +632,10 @@ public final class PlaybackPresentationModel {
 
     public var environmentContext: EnvironmentContext {
         presentationState.environment
+    }
+
+    public var panoramaReturnEnvironmentContext: EnvironmentContext? {
+        presentationState.environmentBeforePanoramaPresentation
     }
 
     public var transition: PlaybackPresentationTransition? {
@@ -651,11 +685,10 @@ public final class PlaybackPresentationModel {
         }
         pendingSpatialPlatformEffect = SpatialPlatformEffectRequest(
             effect: platformEffect,
-            playbackTransportPlan: playbackTransportPlan(
-                for: playbackContext,
-                resumesAfterSuccess: automaticPanoramaEntryPending == false
-                    && environmentCardEntryPending == false
-            )
+            playbackTransportPlan: playbackTransportPlan(for: playbackContext),
+            requiresWindowPortalToProgressiveChange:
+                transition.requiresWindowPortalToProgressiveChange,
+            keepsCurrentRendererGraph: transition.keepsCurrentRendererGraph
         )
         lastPlaybackTransportFailure = nil
         return transition
@@ -868,26 +901,13 @@ public final class PlaybackPresentationModel {
             recoveryIntent = intent
             pendingSpatialPlatformEffect = SpatialPlatformEffectRequest(
                 effect: .recoverSpatialPlayback(intent.presentation),
-                playbackTransportPlan: playbackTransportPlan(
-                    for: playbackContext,
-                    resumesAfterFailure: false
-                )
+                playbackTransportPlan: playbackTransportPlan(for: playbackContext)
             )
             return .spatialRecoveryRequested(intent.presentation)
         case .effectCompleted(let result):
             return resolveSpatialPlatformEffect(result)
-        case .playbackTransportFailed(let failure):
-            guard failure.intent == .resume(mediaSessionID: failure.mediaSessionID),
-                  lastSettledPlaybackEffectCorrelation?.requestID == failure.requestID,
-                  lastSettledPlaybackEffectCorrelation?.executionID
-                    == failure.executionID,
-                  lastSettledPlaybackEffectCorrelation?.mediaSessionID
-                    == failure.mediaSessionID else {
-                return .ignored
-            }
-            guard lastPlaybackTransportFailure != failure else { return .ignored }
-            lastPlaybackTransportFailure = failure
-            return .playbackTransportFailureRecorded
+        case .playbackTransportFailed:
+            return .ignored
         }
     }
 
@@ -974,7 +994,10 @@ public final class PlaybackPresentationModel {
                 if let playbackContext = playbackContext(for: request) {
                     _ = try? requestPresentation(
                         .panorama,
-                        playbackContext: playbackContext
+                        playbackContext: SpatialPlaybackTransitionContext(
+                            mediaSessionID: playbackContext.mediaSessionID,
+                            wasPlaying: false
+                        )
                     )
                 }
             } else if environmentCardEntryPending, presentation == .window {
@@ -1080,35 +1103,27 @@ public final class PlaybackPresentationModel {
     }
 
     private func playbackTransportPlan(
-        for context: SpatialPlaybackTransitionContext,
-        resumesAfterSuccess: Bool = true,
-        resumesAfterFailure: Bool = true
+        for context: SpatialPlaybackTransitionContext
     ) -> SpatialPlaybackTransportPlan {
         let pause: SpatialPlaybackTransportIntent? = context.wasPlaying
             ? .pause(mediaSessionID: context.mediaSessionID)
             : nil
-        let resume: SpatialPlaybackTransportIntent? = context.wasPlaying
-            ? .resume(mediaSessionID: context.mediaSessionID)
-            : nil
         return SpatialPlaybackTransportPlan(
             mediaSessionID: context.mediaSessionID,
             beforeEffect: pause,
-            afterSuccess: resumesAfterSuccess ? resume : nil,
-            afterFailure: resumesAfterFailure ? resume : nil
+            afterSuccess: nil,
+            afterFailure: nil
         )
     }
 
     private func continuationPlaybackTransportPlan(
         for context: SpatialPlaybackTransitionContext
     ) -> SpatialPlaybackTransportPlan {
-        let resume: SpatialPlaybackTransportIntent? = context.wasPlaying
-            ? .resume(mediaSessionID: context.mediaSessionID)
-            : nil
         return SpatialPlaybackTransportPlan(
             mediaSessionID: context.mediaSessionID,
             beforeEffect: nil,
-            afterSuccess: resume,
-            afterFailure: resume
+            afterSuccess: nil,
+            afterFailure: nil
         )
     }
 

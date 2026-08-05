@@ -450,6 +450,11 @@ public final class FileBrowsingViewModel {
 
         let playableURL = resolvedSource.url
         let stableIdentifier = makeStableIdentifier(for: file, playableURL: playableURL)
+        let externalSubtitles = await resolvedExternalSubtitleSources(
+            for: file,
+            provider: activeRemoteAdapter ?? localDataSource,
+            dataSource: activeDataSource
+        )
         let sourceAccess = resolvedSource.accessLease ?? (playableURL.isFileURL
             ? MediaAccessLease.securityScoped(securityScopedRootURL ?? playableURL)
             : nil)
@@ -475,8 +480,97 @@ public final class FileBrowsingViewModel {
             sizeInBytes: file.sizeInBytes,
             collectionOrigin: .sourceDirectory,
             versionedIdentity: versionedIdentity,
-            accessLease: sourceAccess
+            accessLease: sourceAccess,
+            externalSubtitleSources: externalSubtitles.sources,
+            externalSubtitleErrorMessage: externalSubtitles.errorMessage
         )
+    }
+
+    private func resolvedExternalSubtitleSources(
+        for mediaFile: FileBrowsingDomain.MediaFile,
+        provider: any FileProviding,
+        dataSource: FileBrowsingDomain.DataSource?
+    ) async -> ExternalSubtitleResolution {
+        let directoryPath = mediaFile.url.deletingLastPathComponent().path
+        let listedFiles: [FileBrowsingDomain.MediaFile]
+        do {
+            listedFiles = try await provider.listSubtitleFiles(at: directoryPath)
+        } catch {
+            return ExternalSubtitleResolution(
+                sources: [],
+                failureMessages: [
+                    "Could not inspect the source directory for subtitle files: \(error.localizedDescription)"
+                ]
+            )
+        }
+        let candidates = ExternalSubtitleAssociation.matching(
+            mediaFile: mediaFile,
+            subtitleFiles: listedFiles
+        )
+        var sources: [ResolvedExternalSubtitleSource] = []
+        var failureMessages: [String] = []
+        for candidate in candidates {
+            let resolved: ResolvedMediaSource
+            do {
+                resolved = try await provider.resolveSubtitleSource(for: candidate)
+            } catch {
+                failureMessages.append("\(candidate.name): \(error.localizedDescription)")
+                continue
+            }
+            let versionedIdentity = externalSubtitleIdentity(
+                for: candidate,
+                resolvedURL: resolved.url,
+                dataSource: dataSource
+            )
+            let sourceID = versionedIdentity?.mediaIdentity.storageKey
+                ?? fallbackExternalSubtitleIdentity(
+                    for: candidate,
+                    dataSource: dataSource
+                ).storageKey
+            sources.append(
+                ResolvedExternalSubtitleSource(
+                    id: sourceID,
+                    url: resolved.url,
+                    displayName: candidate.name,
+                    versionedIdentity: versionedIdentity,
+                    accessLease: resolved.accessLease
+                )
+            )
+        }
+        return ExternalSubtitleResolution(
+            sources: sources,
+            failureMessages: failureMessages
+        )
+    }
+
+    private func externalSubtitleIdentity(
+        for file: FileBrowsingDomain.MediaFile,
+        resolvedURL: URL,
+        dataSource: FileBrowsingDomain.DataSource?
+    ) -> VersionedMediaIdentity? {
+        if let dataSource {
+            return .remote(
+                sourceKey: dataSource.connectionInfo.mediaIdentitySourceKey,
+                canonicalPath: file.url.path,
+                entityTag: file.remoteEntityTag,
+                sizeInBytes: file.sizeInBytes,
+                modifiedAt: file.modifiedAt
+            )
+        }
+        return .local(resolvedURL)
+    }
+
+    private func fallbackExternalSubtitleIdentity(
+        for file: FileBrowsingDomain.MediaFile,
+        dataSource: FileBrowsingDomain.DataSource?
+    ) -> MediaIdentity {
+        if let dataSource {
+            return .remote(
+                sourceKey: dataSource.connectionInfo.mediaIdentitySourceKey,
+                canonicalPath: file.url.path
+            )
+        }
+        return .localPathFallback(canonicalPath: file.url.absoluteString)
     }
 
     public func nextPlaybackItem() async -> MediaPlaybackItem? {
@@ -566,6 +660,60 @@ public final class FileBrowsingViewModel {
             let source = try await adapter.resolvePlayableSource(for: file)
             adapter.disconnect()
             return source
+        } catch {
+            adapter.disconnect()
+            throw error
+        }
+    }
+
+    func resolveExternalSubtitleSources(
+        dataSourceID: UUID,
+        path: String,
+        reference: FileBrowsingDomain.MediaReference
+    ) async throws -> ExternalSubtitleResolution {
+        guard let url = URL(string: path) else {
+            throw MediaReferenceResolver.ResolutionError.unavailableSource
+        }
+        let file = FileBrowsingDomain.MediaFile(
+            name: reference.name,
+            sizeInBytes: reference.sizeInBytes,
+            modifiedAt: reference.modifiedAt,
+            fileExtension: reference.fileExtension,
+            url: url,
+            remoteEntityTag: reference.remoteEntityTag
+        )
+        if dataSourceID == localDataSourceID {
+            return await resolvedExternalSubtitleSources(
+                for: file,
+                provider: localDataSource,
+                dataSource: nil
+            )
+        }
+        guard let dataSource = savedDataSources.first(where: { $0.id == dataSourceID }) else {
+            throw MediaReferenceResolver.ResolutionError.unavailableSource
+        }
+        let adapter: any DataSourceConnecting & FileProviding
+        switch dataSource.sourceType {
+        case .webDAV:
+            let webDAV = WebDAVDataSourceAdapter(credentialStore: credentialStore)
+            webDAV.ownerDataSourceID = dataSource.id
+            adapter = webDAV
+        case .smb:
+            let smb = SMBDataSourceAdapter(credentialStore: credentialStore)
+            smb.ownerDataSourceID = dataSource.id
+            adapter = smb
+        case .photoLibrary, .local:
+            throw MediaReferenceResolver.ResolutionError.unavailableSource
+        }
+        do {
+            try await adapter.connect(with: dataSource.connectionInfo)
+            let sources = await resolvedExternalSubtitleSources(
+                for: file,
+                provider: adapter,
+                dataSource: dataSource
+            )
+            adapter.disconnect()
+            return sources
         } catch {
             adapter.disconnect()
             throw error

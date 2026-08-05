@@ -128,7 +128,7 @@ final class AVSampleBufferRendererInputSink: RendererInputSink, @unchecked Senda
         stopRenderingEventObservation()
         let task = Task.detached { [weak self] in
             guard let self else { return }
-            for await event in self.receiver.renderingEventsAfterFinishedEnqueuing {
+            for await event in receiver.renderingEventsAfterFinishedEnqueuing {
                 switch event {
                 case .didFailToDecode(let errors):
                     handler(.warning(
@@ -161,6 +161,7 @@ final class AVSampleBufferRendererInputSink: RendererInputSink, @unchecked Senda
             eventTask = nil
         }
     }
+
 }
 
 final class AVSampleBufferAudioRendererInputSink: AudioRendererInputSink, @unchecked Sendable {

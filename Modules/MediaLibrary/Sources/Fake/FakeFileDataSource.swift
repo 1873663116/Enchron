@@ -53,7 +53,17 @@ nonisolated final class FakeFileDataSource: LocalFileSource, @unchecked Sendable
     public func listContents(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
         try await applyLatency()
         try throwIfFailing()
-        return catalog.files(at: Self.normalize(path), ownerDataSourceID: ownerDataSourceID)
+        return catalog.files(at: Self.normalize(path), ownerDataSourceID: ownerDataSourceID).filter {
+            FileBrowsingDomain.FileFilter.playable.matches(fileURL: $0.url)
+        }
+    }
+
+    public func listSubtitleFiles(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
+        try await applyLatency()
+        try throwIfFailing()
+        return catalog.files(at: Self.normalize(path), ownerDataSourceID: ownerDataSourceID).filter {
+            FileBrowsingDomain.FileFilter.externalSubtitles.matches(fileURL: $0.url)
+        }
     }
 
     public func listFolders(at path: String) async throws -> [FileBrowsingDomain.MediaFolder] {

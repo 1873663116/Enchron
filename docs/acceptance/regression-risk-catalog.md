@@ -23,24 +23,23 @@ flowchart LR
 | 风险边界 | 可能的问题 | 成功标准 | 最早可以取得的直接证据 |
 |---|---|---|---|
 | Media Session 与 renderer 所有权 | Presentation 转换重开媒体、建立第二个 Session、两个 Entity 同时使用 renderer、旧 callback 修改新媒体 | 一次播放始终只有一个 Media Session 和一个 active renderer consumer；返回和转换保持 Session identity；打开下一媒体才建立新 Session | 只读状态、consumer identity、stream epoch、关闭后重开记录 |
-| Presentation Transition | Window 提前消失、目标未准备即提交、两套界面同时可操作、交接空档、迟到平台结果覆盖当前状态 | 目标 Scene、视频表面、renderer 与 Player Controls 准备完成后才关闭 Main Window；全程没有双重交互或无界面空档；失败保留 Window | 时间对齐的 Window/Controls 可见性、转换状态、surface settled、录屏 |
+| Presentation Transition | 切换开始后仍播放、目标准备没有与源淡出并行、目标错过淡入边界、源内容未淡出就突然消失、目标突然出现或一直透明、两套界面同时接收输入、LoadingSpinner 代替过渡、目标完成或回滚后自动播放、迟到平台结果覆盖当前状态 | 请求接受后 Lifecycle 与 Core timebase 立即暂停，音频和显示帧停止；源内容淡出与透明目标的准备同时开始；目标在淡入边界前完成 Scene、视频表面、renderer 与播放控件准备；源消失后目标连续淡入并保持暂停；失败让源 Presentation 重新淡入且保持暂停；只有目标或恢复后的源 UI 显式 Play 才继续 | 时间对齐的 Lifecycle、timebase、音频、显示帧、Window/Controls 可见性、准备阶段、surface settled、XCUITest 截图、完整录屏及抽帧 |
 | Scene 生命周期 | 重复打开 Immersive Space、错误关闭仍需保留的 Environment、Home View 后恢复两次、App 激活后卡在无 Window 状态 | 每次系统操作只由当前 effect 执行一次；Scene appeared/disappeared 事实与产品状态一致；恢复失败一次性回到 Window | effect request/execution identity、Scene residency、Window hierarchy、OSLog |
 | Environment 内容 | Docked 载入错误 Environment/Effect、进入 Docked 前没有活动 Environment 时自动打开的 Default Environment 在返回 Window 后仍然存在、Panorama 残留自制 Environment、返回丢失原 Environment | Docked 使用规定的 Environment 与 Effect；Panorama 只保留黑色周围环境和投影球面；返回准确恢复进入前状态 | Environment identity、Effect、Immersive Space Open Cycle、设备帧 |
 | Playback Surface Anchor | Anchor 缺失、重名、来自旧 Environment、含残留播放几何、Entity 没有成为目标 Anchor 子实体 | 当前 Environment 只有一个语义有效的 `PlaybackSurfaceAnchor`；Docked Video Entity 直接属于它；失败不提交 Docked | 实际 parent identity/name、Anchor 解析结果、Entity 层级附件 |
 | Docked Placement | Distance 退化为局部 Z 偏移、Elevation 退化为 Y 平移、屏幕不再面向用户、缩放不等比、Slider 与 Entity 不一致 | Entity 的实际距离、球面仰角、朝向和三轴缩放分别符合当前 Screen Size、Distance 与 Elevation；最后一次合法输入获胜 | UI 值、产品摆位值、Entity world transform、朝向点积、截图/录屏 |
 | 摆位持久化 | Day/Night 保存两份值、返回再进入丢失、Restore Defaults 只重置 UI、前一个 Environment 的值污染新 Environment | 摆位按 Environment 保存并由 Effect 共享；返回再进入保持；Restore Defaults 同时恢复产品值、Entity transform 与持久化值 | 进入前后状态、Entity transform、重开 App 后的同 Environment 值 |
 | Panorama 投影 | 球面内外翻转、经纬方向错误、接缝、180° 空白区错误、Stereo Layout 交换、旧球面重复存在 | 每个合法 Projection × Stereo Layout 都符合方位、极点、边界和左右眼标记；只有一个投影 Entity | 专用网格/单眼标记媒体、rendering status、实际模式、设备帧与佩戴者检查 |
-| 独立字幕来源 | 相似文件名误关联、多个候选被任意启用、Local/SMB/WebDAV 权限混用、旧 cue 残留、字幕失败拖垮音视频、Close 后来源租约泄漏 | 只关联命名合同允许的文件；手动选择保持当前 Session 与音视频；失败隔离在字幕轨；旧 cue 和访问资源按 Session 清理 | 候选与 track identity、来源与 Content Revision、Session/epoch、cue 时间线、访问租约记录、真机截图 |
-| SwiftUI 与 RealityKit 输入 | 透明 RealityView 遮挡 Chrome、Ornament/Panel 重叠、存在但不可命中、控件隐藏后展开状态残留 | 正式控件存在、启用且可命中；点击产生预期状态；视频点击区不侵入 Chrome；隐藏后面板状态复位 | Accessibility hierarchy、`isHittable`、元素 frame、点击前后状态与截图 |
+| 独立字幕来源 | 相似文件名误关联、多个候选被任意启用、Local/SMB/WebDAV 权限混用、旧 cue 残留、字幕失败拖垮音视频、Close 后来源租约泄漏 | 只从可枚举 Source Directory 关联命名合同允许的同目录文件；没有候选或来源不可枚举时静默略过；失败隔离在字幕轨；旧 cue 和访问资源按 Session 清理 | 候选与 track identity、来源与 Content Revision、Session/epoch、cue 时间线、访问租约记录、真机截图 |
+| 音轨与字幕选择偏好 | 只保存 UI index、字幕 Off 丢失、复开后回到默认轨、内容变化后套用旧轨、缺失轨道阻塞播放 | 按 Media Identity、Content Revision 与稳定 track identity 保存；Off 单独表示；完整轨道列表发布后恢复；缺失轨道保持默认且不猜测 | 保存与复开前后的 identity/revision、两个不同 Session、公开菜单选择、音频独有标记、字幕文字或 Off、缺失与版本变化分支 |
+| SwiftUI 与 RealityKit 输入 | 透明 RealityView 遮挡 Chrome、Ornament/Panel 重叠、二级面板偏移到父控件布局范围外后显示范围与命中范围分离、存在但不可命中、控件隐藏后展开状态残留、视频表面无法接收 Pinch、一次输入反复触发显隐、控件 action 又触发表面显隐 | 每个实际显示的按钮和菜单项由 XCUITest 完成合法操作闭环；Docked/Panorama 视频表面由真实 gaze + pinch 完成 shown → hidden → shown，且每次输入只改变一次；视频点击区不侵入 Chrome，控件 action 不穿透到视频表面；隐藏后面板状态复位 | XCUITest hierarchy、`isHittable`、元素 frame 与控件操作结果；空间表面的 InputTarget/Collision 状态、handler trace、真实 pinch 和时间对齐录制 |
+| 跨 Presentation 输入回归 | Window 中可用的输入在进入 Docked/Panorama 后失效，或从空间返回 Window 后遗留透明命中层、旧控件状态或错误手势路由 | 每次转换提交、回滚或系统恢复后，Window 使用可达的 XCUITest 表面输入、Docked/Panorama 使用真实 gaze + pinch，重新完成视频表面 shown → hidden → shown，再验证目标可见控件的自动操作闭环 | XCUITest 导航与 Deck 状态、空间 surface hit-test 状态、真实 pinch、逐次操作结果、录制帧 |
+| 目标显式播放后的画面冻结 | 用户在完成切换的目标 UI 点击 Play 后，timeline 或播放标签继续变化但 Window/Docked/Panorama 的纹理停在旧帧；再次 Pause/Play 偶然修正画面 | 目标稳定时保持暂停；第一次显式 Play 后，同一 Session/epoch 的 timeline、video sample、renderer input 与录制连续帧标记共同变化，不依赖第二次 Pause/Play 修复 | 显式 Play 前后的时间对齐状态、诊断媒体连续帧标记、原始录制与抽帧 |
 | 观察能力 | 测试只能看到按钮文本，无法判断 Anchor、Entity、renderer 或 Scene 的实际结果 | 生产运行形成的只读观察值能够报告实际 Scene、surface parent、transform、rendering status 与 session/consumer；观察值不能改写产品 | Accessibility 附件、状态 JSON、OSLog；观察入口源码审阅 |
 
-### 已发现的规范与代码分歧
+### 当前仍存在的规范与实现分歧
 
-产品规格规定 Docked 的默认 Distance 为 4 米。当前 `PlaybackDockedPlacement.defaultDistance` 在 0.5–10 米之间使用 21 个等距档位，并把 4 米取整到 3.825 米。这是代码未达到已确认规格的实现缺口，不是测试可以接受的新默认值。`DockedPlacementUITests.testRestoreDefaultsUsesTheSpecifiedFourMeterDistance` 会通过公开 Restore Defaults 操作断言产品值和实际 Entity 均回到 4 米；在摆位档位设计包含精确的 4 米之前，该用例应当失败。
-
-产品规格还规定 Window 进入 Docked 或 Panorama 时，目标空间表面和 Player Controls Window 都可用后才隐藏 Main Window。当前 `SpatialPlatformEffectExecutor.presentSpatialPlayback` 在空间表面 settled 后先提交 Presentation，只调用 `openWindow(id: "playerControls")`，随后立即调用 `dismissWindow(id: "main")`，没有等待 Player Controls Window 已出现且可操作。返回 Window 的路径会等待 Window 视频表面 settled，但也没有直接观察 Window 播放界面已经可操作。相应 Atlas 动作因此标记为部分实现；`SpatialHandoffUITests` 会把双界面同时可操作或两边同时不可操作都判为失败。
-
-V1 已确认支持同目录自动关联和手动选择独立字幕文件。当前生产代码只有容器内字幕轨的选择和显示路径，没有独立字幕文件的命名匹配、来源授权、Content Revision、PlaybackCore 接入或 Choose Subtitle File 操作；空间 Player Controls 的 More 也没有呈现已经注入的数据模型中的字幕和音轨菜单。独立字幕能力应标记为尚未实现，现有字幕选择只能标记为 Window 已观察、空间呈现部分实现。
+V1 的同目录自动关联覆盖可枚举的 Local、SMB 与 WebDAV Source Directory；单文件授权与 Photos 静默略过。当前仍缺少在 Session 期间主动检查已接入字幕的 Content Revision 并使旧轨失效。独立字幕的真机选择、像素输出、失败恢复与访问资源释放仍没有当前运行证据，因此实现状态只能记为部分实现，验证状态保持未取得证据。
 
 ## SwiftUI 与播放界面
 
@@ -50,24 +49,28 @@ V1 已确认支持同目录自动关联和手动选择独立字幕文件。当�
 - 控件自动隐藏计时只在 Playing 且没有焦点或持续交互时生效；拖动、Hover、展开面板和 Accessibility 操作期间不会消失；重新显示后不保留失效的拖动状态。
 - Play/Pause/Replay、前后跳转、Progress Bar、Precision Timeline、Settings 和 More 的标签、启用状态与实际 Playback Lifecycle 一致；禁用操作不会通过透明父层仍然收到输入。
 - 菜单和面板连续打开、关闭或互相切换时没有多个浮层、失去焦点、布局跳变、Window 尺寸变化或无法恢复的半展开状态。
+- 视频表面在 Window、Docked 与 Panorama 中都接受目标化 RealityKit Pinch；没有命中实体时只允许同一 surface 的回退点击处理一次。两条手势路径不得在一次输入中分别切换控件，造成闪烁或相互抵消。Docked/Panorama 的这项结论必须来自佩戴者或系统级真实 gaze + pinch，XCUITest 在 Accessibility 树中发现 Entity 不能替代空间 hit-test。
+- 每次进入 Docked、Panorama、通过空间 Deck 双向往回箭头返回 Window、转换回滚或系统恢复后，Window 使用可达的 XCUITest 表面输入、Docked/Panorama 使用真实 gaze + pinch，先复验视频表面 shown → hidden → shown，再继续执行 Settings、More、传输和时间线操作。XCUITest 自动操作全部实际显示的公开按钮、菜单项和 Slider；控件本身的 action 不得顺带改变视频表面或 Player Controls 的可见性。
+- `InputTargetComponent` 与有效 `CollisionComponent` 只证明 Entity 具备接收空间输入的结构条件，gesture handler trace 证明输入到达产品处理器，录制证明 Deck 发生一次对应显隐。`AccessibilityComponent` 的 Activate handler 单独证明无障碍语义操作；Accessibility discovery、Activate 与真实 gaze + pinch 三者不能互相替代。
 - 不同语言、长文件名、缺失 metadata、字幕字符和不同视频宽高比不会挤压 transport、截断必要操作或改变控件顺序。
-- Subtitles 菜单在容器轨、多个自动关联文件、Choose Subtitle File、Off 和读取失败之间切换时不会关闭播放面板、改变 Presentation、丢失当前媒体位置或留下旧 cue；Window、Docked 与 Panorama 提供相同操作。
+- Subtitles 菜单在容器轨、多个自动关联的同目录文件、Off 和读取失败之间切换时不会关闭播放面板、改变 Presentation、丢失当前媒体位置或留下旧 cue；Window、Docked 与 Panorama 提供相同操作。
 - SwiftUI View 重建不会重新创建 Media Session、重置本地拖动预览、重复注册 Scene capability 或使旧 Task 在新 View 上提交结果。
 
-对应测试以 Accessibility identifier、可命中性、frame 关系、点击后状态与原尺寸截图为主。动画和动态遮挡增加录屏；普通截图不能证明控件在整个动画过程中始终可用。
+SwiftUI Window 与 Player Control Dock 的自动测试以 Accessibility identifier、可命中性、frame 关系、点击后状态与原尺寸截图为主。Docked/Panorama 视频表面的空间输入专项使用真实 gaze + pinch、InputTarget/Collision 状态、handler trace 与时间对齐录屏；无障碍 Activate 单独执行。普通截图不能证明控件在整个动画过程中始终可用，也不能证明空间命中测试已经发生。
 
 ## Window、Player Controls Window 与 Immersive Space
 
-每次 Window → Docked、Window → Panorama、Docked → Window 和 Panorama → Window 都必须检查以下时间关系：
+Window → Docked、Window → Panorama、Docked → Window 和 Panorama → Window 都必须检查以下时间关系。Docked 与 Panorama 使用空间 Deck 的双向往回箭头 `PlayerPanel-button-exit-spatial` 返回 Window：
 
-1. 用户操作被接受后，原 Presentation 不再接受第二个 Presentation 请求，但其界面仍提供可恢复的视觉状态。
-2. Immersive Space 与目标内容开始准备；尚未取得正确 Environment/黑色周围环境、surface、renderer binding 和 settled 事实时，目标不能提交。
-3. Player Controls Window 准备完成后才允许 Main Window 消失；两套界面不能同时可操作。
-4. Playing 只在平台效果前暂停，并在目标提交后恢复；Paused、Ready 与 Ended 不产生多余的 pause/resume。
-5. 返回 Window 时先建立 Window surface 并绑定同一个 renderer，再关闭不再需要的空间内容和 Player Controls Window。
-6. 任一步失败都恢复前一个稳定 Presentation；旧 effect 的迟到结果不能改变恢复后的状态。
+1. 用户操作被接受后，Playback Lifecycle 与 Core timebase 立即暂停，音频和显示帧停止推进；原 Presentation 不再接受第二个 Presentation 请求并开始连续淡出。
+2. 源淡出开始时，目标内容同时以完全透明且不接收输入的状态准备；它必须在源淡出结束、目标淡入开始前取得正确 Environment 或黑色周围环境、surface、renderer binding、settled 和播放控件事实。
+3. 目标按时准备完成后，关闭源 Window 或不再需要的空间内容，再让目标视频表面与播放控件连续淡入。转换期间不出现 `LoadingSpinner`。
+4. 输入归属与视觉顺序一致，不同时向源和目标提供可操作的播放界面；目标淡入完成后才成为稳定 Presentation。
+5. 源淡出、目标准备、目标淡入和稳定目标的 product Lifecycle、Core timebase、音频与显示帧都保持暂停。
+6. 目标稳定后只有用户在目标 UI 显式点击 Play 才进入 Playing；随后 actual rate、sample、renderer input、音频和录制连续帧标记共同推进。
+7. 目标错过准备截止点或任一步失败时，源 Presentation 重新淡入并保持 Paused；只有恢复后的源 UI 显式 Play 才继续，旧 effect 的迟到结果不能改变恢复后的状态。
 
-系统动画的曲线和持续时间由 visionOS 拥有。自动回归判断交接顺序、可操作性、重复内容、闪烁和空档；固定时间上限在真机校准后进入性能门槛。
+能够满足上述时序时使用 visionOS 系统过渡，否则由 Enchron 控制 SwiftUI 内容与 RealityKit Entity 的透明度。自动回归把 XCUITest 操作、目标准备事实、定点截图和录屏帧对齐，判断准备与源淡出是否并行、目标是否在淡入边界前完成、源透明度是否连续下降、目标透明度是否连续上升，以及是否发生突然消失或出现、重复内容、错误界面闪现或黑帧。切换接受至显式 Play 前，录制中的媒体帧保持不变是暂停合同的一部分；显式 Play 后仍不变化才记录为停帧。固定持续时间、目标准备截止时间与响应上限在真机校准后进入性能门槛。
 
 ## RealityKit Environment、Anchor、Entity 与纹理
 
@@ -88,7 +91,7 @@ Screen Size、Distance 与 Elevation 的基础场景必须分别覆盖最小值�
 
 - 依次调整三项后再次反向调整，确认最后一次输入同时出现在 UI、产品摆位和 Entity transform 中。
 - 调节过程中播放、暂停、Seek、显示/隐藏 Player Controls，确认摆位不影响 Media Session、timeline 或 renderer consumer。
-- 调节后返回 Window 并再次进入同一 Environment 的 Docked，确认摆位保持；Day/Night 切换共享同一值。
+- 调节后通过空间 Deck 返回 Window 并再次进入同一 Environment 的 Docked，确认摆位保持；Day/Night 切换共享同一值。
 - 调节后依次打开另一媒体，确认视频宽高比改变但摆位语义保持；旧 Entity、纹理和字幕不残留。
 - Restore Defaults 后立即返回、再次进入并重新启动 App，确认默认值已经写入持久化且实际 Entity 同步恢复。
 
@@ -113,7 +116,7 @@ Screen Size、Distance 与 Elevation 的基础场景必须分别覆盖最小值�
 - 前一个 Presentation 转换尚未完成时重复点击同一入口、关闭当前媒体、进入 Home View 或让系统关闭 Immersive Space。
 - Slider 连续拖动、Seek 与 Panel 显隐交错、音轨/字幕切换与 Presentation 转换相邻发生。
 - 媒体在转换期间自然结束、来源在目标 surface 准备期间失败、App 在 Scene effect 等待期间变为 inactive 后重新激活。
-- 返回 Window 后立即退出媒体并打开下一媒体，确认旧 execution、Scene callback 和 renderer observation 被拒绝。
+- 通过空间 Deck 返回 Window 后立即退出媒体并打开下一媒体，确认旧 execution、Scene callback 和 renderer observation 被拒绝。
 
 每次结果都按 request identity、execution identity、Media Session、stream epoch 和当前稳定 Presentation 判断。没有身份的日志顺序不能证明迟到结果已被拒绝。
 

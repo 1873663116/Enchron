@@ -11,10 +11,11 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
 
     @MainActor
     func testRestoreDefaultsUsesTheSpecifiedFourMeterDistance() async throws {
-        let fixtureURL = try VisionProRegressionConfiguration.fixtureURL()
-        try await VisionProRegressionConfiguration.requireReachableFixture(fixtureURL)
-        let app = launchSpatialFixtureApp(fixtureURL: fixtureURL)
-        try enterDocked(in: app)
+        let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
+            minimumCount: 1
+        )[0]
+        guard let app = launchRegisteredSpatialMedia(identifier: identifier) else { return }
+        guard enterDocked(in: app) else { return }
 
         let spatialState = app.descendants(matching: .any)[
             "PlayerUI-spatial-state"
@@ -56,11 +57,100 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
     }
 
     @MainActor
+    func testDockDayAndNightApplyDistinctSkyboxOpacityWithoutAffectingPlaybackSurface() async throws {
+        let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
+            minimumCount: 1
+        )[0]
+        guard let app = launchRegisteredSpatialMedia(identifier: identifier) else { return }
+        guard restoreWindowPlaybackIfSpatialPresentationIsActive(in: app),
+              restoreFlatWindowFormatIfNeeded(in: app) else { return }
+
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        let baseline = try XCTUnwrap(waitForState(windowState, timeout: 30) {
+            $0.string("presentation") == "window"
+                && $0.string("attached") == "window"
+                && $0.string("environment") == "none"
+                && $0.string("environmentEffect") == "none"
+                && $0.string("immersiveSpaceResidency") == "closed"
+                && $0.string("environmentCardResidency") == "closed"
+                && $0.bool("skyboxActive") == false
+        })
+        let session = try XCTUnwrap(baseline.string("session"))
+
+        guard enterDocked(in: app, effect: "night") else { return }
+        let spatialState = app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        let night = try XCTUnwrap(waitForState(spatialState, timeout: 30) {
+            $0.string("presentation") == "docked"
+                && $0.string("environment") == "enchron"
+                && $0.string("environmentEffect") == "night"
+                && $0.string("environmentCardResidency") == "closed"
+                && abs(($0.double("skyboxOpacity") ?? .nan) - 0.35) < 0.001
+                && $0.bool("skyboxActive") == true
+                && $0.bool("surfaceSettled") == true
+                && $0.bool("surfaceAnchorMatched") == true
+                && $0.bool("surfaceRenderingReady") == true
+        })
+        XCTAssertEqual(night.string("session"), session)
+        attachState(night, name: "docked-night-state")
+        try await Task.sleep(for: .seconds(2))
+        attachScreenshot(from: app, name: "docked-night")
+
+        guard returnToWindow(in: app) else { return }
+        let afterNight = try XCTUnwrap(waitForState(windowState, timeout: 30) {
+            $0.string("presentation") == "window"
+                && $0.string("attached") == "window"
+                && $0.string("environment") == "none"
+                && $0.string("environmentEffect") == "none"
+                && $0.string("immersiveSpaceResidency") == "closed"
+                && $0.string("environmentCardResidency") == "closed"
+                && $0.bool("skyboxActive") == false
+        })
+        XCTAssertEqual(afterNight.string("session"), session)
+        attachState(afterNight, name: "window-after-temporary-night-environment")
+
+        guard enterDocked(in: app, effect: "day") else { return }
+        let day = try XCTUnwrap(waitForState(spatialState, timeout: 30) {
+            $0.string("presentation") == "docked"
+                && $0.string("environment") == "enchron"
+                && $0.string("environmentEffect") == "day"
+                && $0.string("environmentCardResidency") == "closed"
+                && abs(($0.double("skyboxOpacity") ?? .nan) - 1.0) < 0.001
+                && $0.bool("skyboxActive") == true
+                && $0.bool("surfaceSettled") == true
+                && $0.bool("surfaceAnchorMatched") == true
+                && $0.bool("surfaceRenderingReady") == true
+        })
+        XCTAssertEqual(day.string("session"), session)
+        attachState(day, name: "docked-day-state")
+        try await Task.sleep(for: .seconds(2))
+        attachScreenshot(from: app, name: "docked-day")
+
+        guard returnToWindow(in: app) else { return }
+        let afterDay = try XCTUnwrap(waitForState(windowState, timeout: 30) {
+            $0.string("presentation") == "window"
+                && $0.string("attached") == "window"
+                && $0.string("environment") == "none"
+                && $0.string("environmentEffect") == "none"
+                && $0.string("immersiveSpaceResidency") == "closed"
+                && $0.string("environmentCardResidency") == "closed"
+                && $0.bool("skyboxActive") == false
+        })
+        XCTAssertEqual(afterDay.string("session"), session)
+        attachState(afterDay, name: "window-after-temporary-day-environment")
+        attachScreenshot(from: app, name: "window-after-temporary-dock-environments")
+    }
+
+    @MainActor
     func testPlacementControlsChangeTheActualSurfaceAndPersistAcrossRoundTrip() async throws {
-        let fixtureURL = try VisionProRegressionConfiguration.fixtureURL()
-        try await VisionProRegressionConfiguration.requireReachableFixture(fixtureURL)
-        let app = launchSpatialFixtureApp(fixtureURL: fixtureURL)
-        try enterDocked(in: app)
+        let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
+            minimumCount: 1
+        )[0]
+        guard let app = launchRegisteredSpatialMedia(identifier: identifier) else { return }
+        guard enterDocked(in: app) else { return }
 
         let spatialState = app.descendants(matching: .any)[
             "PlayerUI-spatial-state"
@@ -112,7 +202,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
 
         let adjusted = try XCTUnwrap(waitForState(spatialState, timeout: 20) {
             abs(($0.double("screenScale") ?? 0) - 2.0) < 0.06
-                && abs(($0.double("screenDistance") ?? 0) - 2.875) < 0.06
+                && abs(($0.double("screenDistance") ?? 0) - 3.0) < 0.06
                 && abs(($0.double("screenElevation") ?? 0) - 40.0) < 0.6
                 && abs(($0.double("surfaceLocalScaleX") ?? 0) - 2.0) < 0.06
         })
@@ -132,11 +222,11 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
             $0.string("attached") == "window"
         })
 
-        try enterDocked(in: app)
+        guard enterDocked(in: app) else { return }
         let restored = try XCTUnwrap(waitForState(spatialState, timeout: 90) {
             $0.string("presentation") == "docked"
                 && abs(($0.double("screenScale") ?? 0) - 2.0) < 0.06
-                && abs(($0.double("screenDistance") ?? 0) - 2.875) < 0.06
+                && abs(($0.double("screenDistance") ?? 0) - 3.0) < 0.06
                 && abs(($0.double("screenElevation") ?? 0) - 40.0) < 0.6
         })
         assertSurfaceMatchesPlacement(restored)
@@ -163,17 +253,78 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
     }
 
     @MainActor
-    private func enterDocked(in app: XCUIApplication) throws {
+    private func enterDocked(
+        in app: XCUIApplication,
+        effect: String = "day"
+    ) -> Bool {
         let dock = app.descendants(matching: .any)["PlayerUI-TopAction-dock"].firstMatch
-        guard requireHittable(dock, named: "Dock", timeout: 30) else { return }
+        guard requireHittable(dock, named: "Dock", timeout: 30) else { return false }
         dock.tap()
-        let day = app.descendants(matching: .any)["PlayerUI-DockMenu-day"].firstMatch
-        guard requireHittable(day, named: "Dock with Day") else { return }
-        day.tap()
+        let effectButton = app.descendants(matching: .any)[
+            "PlayerUI-DockMenu-\(effect)"
+        ].firstMatch
+        guard requireHittable(
+            effectButton,
+            named: "Dock with \(effect.capitalized)"
+        ) else { return false }
+        attachScreenshot(from: app, name: "docked-placement-menu-open")
+        effectButton.tap()
         let exit = app.descendants(matching: .any)[
             "PlayerPanel-button-exit-spatial"
         ].firstMatch
-        XCTAssertTrue(exit.waitForExistence(timeout: 90))
+        let spatialState = app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        guard requirePresentationRequest(
+            in: app,
+            windowState: windowState,
+            targetPresentation: "docked"
+        ) else { return false }
+        let deadline = Date().addingTimeInterval(20)
+        while Date() < deadline {
+            if exit.exists, exit.isHittable, spatialState.exists {
+                return true
+            }
+            if app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].firstMatch.exists {
+                break
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        attachCurrentState(of: windowState, name: "docked-entry-window-state-at-failure")
+        attachCurrentState(of: spatialState, name: "docked-entry-target-state-at-failure")
+        attachScreenshot(from: app, name: "docked-entry-failure")
+        XCTFail("Docked playback and its Player Controls Window did not become usable.")
+        return false
+    }
+
+    @MainActor
+    private func returnToWindow(in app: XCUIApplication) -> Bool {
+        let exitSpatial = app.descendants(matching: .any)[
+            "PlayerPanel-button-exit-spatial"
+        ].firstMatch
+        guard requireHittable(exitSpatial, named: "Return to Window") else { return false }
+        exitSpatial.tap()
+
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        guard waitForState(windowState, timeout: 30, where: {
+            $0.string("presentation") == "window"
+                && $0.string("transition") == "none"
+                && $0.string("pendingSpatialEffect") == "none"
+                && $0.string("attached") == "window"
+                && $0.bool("videoVisible") == true
+                && $0.string("chrome") == "on"
+        }) != nil else {
+            attachCurrentState(of: windowState, name: "day-night-window-return-state-at-failure")
+            attachScreenshot(from: app, name: "day-night-window-return-failure")
+            XCTFail("Window playback did not become usable after leaving Docked playback.")
+            return false
+        }
+        return true
     }
 
     private func normalized(

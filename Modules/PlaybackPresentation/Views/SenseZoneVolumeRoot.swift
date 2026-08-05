@@ -6,6 +6,7 @@ struct SenseZoneVolumeRoot: View {
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
     @Environment(\.accessibilityPrefersCrossFadeTransitions)
     private var accessibilityPrefersCrossFadeTransitions
+    @Environment(\.scenePhase) private var scenePhase
 
     @State private var revealCompleted = false
     @State private var sceneLifetimeIsOpen = false
@@ -25,8 +26,22 @@ struct SenseZoneVolumeRoot: View {
         .background { SpatialPlatformEffectExecutor() }
         .animation(revealAnimation, value: revealCompleted)
         .onAppear {
+            appModel.receiveSpatialPlatformResult(.environmentCardAppeared)
             sceneLifetimeIsOpen = true
             revealIfNeeded()
+        }
+        .onDisappear {
+            appModel.receiveSpatialPlatformResult(.environmentCardDisappeared)
+        }
+        .onChange(of: scenePhase, initial: true) { _, scenePhase in
+            switch scenePhase {
+            case .active, .inactive:
+                appModel.receiveSpatialPlatformResult(.environmentCardAppeared)
+            case .background:
+                appModel.receiveSpatialPlatformResult(.environmentCardDisappeared)
+            @unknown default:
+                break
+            }
         }
         .onChange(of: appModel.environmentCardResidency) { _, residency in
             switch residency {

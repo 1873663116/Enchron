@@ -66,6 +66,8 @@ extension SampleBufferPlaybackSession {
             subtitleState.selectionGeneration &+= 1
             subtitleState.streamEpoch &+= 1
             subtitleState.availableTracks = []
+            subtitleState.sourceURLByTrackID = [:]
+            subtitleState.externalSourceIDByTrackID = [:]
             subtitleState.selectedTrackID = nil
             subtitleState.cues = []
             subtitleState.frameRenderer = nil
@@ -105,13 +107,15 @@ extension SampleBufferPlaybackSession {
     }
 
     func startVideoDelivery() {
-        rendererSink.stopRenderingEventObservation()
-        let (generation, previousTask) = deliveryTaskLock.withLock {
+        let start = deliveryTaskLock.withLock { () -> (UInt64, Task<Void, Never>?)? in
+            guard videoSampleDeliverySuspended == false else { return nil }
             videoDeliveryGeneration &+= 1
             let previousTask = videoDeliveryTask
             videoDeliveryTask = nil
             return (videoDeliveryGeneration, previousTask)
         }
+        guard let (generation, previousTask) = start else { return }
+        rendererSink.stopRenderingEventObservation()
         previousTask?.cancel()
         let task = Task.detached { [weak self] in
             guard let self else { return }
@@ -137,6 +141,143 @@ extension SampleBufferPlaybackSession {
         task?.cancel()
     }
 
+    var videoSampleDeliveryIsSuspended: Bool {
+        deliveryTaskLock.withLock { videoSampleDeliverySuspended }
+    }
+
+    func suspendVideoSampleDelivery(flushingRenderer: Bool = false) async {
+        let task = deliveryTaskLock.withLock {
+            videoSampleDeliverySuspended = true
+            videoDeliveryGeneration &+= 1
+            let task = videoDeliveryTask
+            videoDeliveryTask = nil
+            return task
+        }
+        task?.cancel()
+        await task?.value
+        if flushingRenderer {
+            await rendererSink.flush(removingDisplayedImage: false)
+            flushCount += 1
+            recordRendererState(at: currentTime())
+        }
+    }
+
+    func allowVideoSampleDeliveryRestart() {
+        deliveryTaskLock.withLock {
+            videoSampleDeliverySuspended = false
+        }
+    }
+
+    func replaceRendererGraphForPresentation() async throws -> AVSampleBufferVideoRenderer {
+        await suspendVideoSampleDelivery()
+        await suspendAudioSampleDelivery()
+
+        let previousGraph = rendererGraphLock.withLock {
+            RetiredRendererGraph(
+                videoRenderer: rendererStorage,
+                videoSink: rendererSinkStorage,
+                audioRenderer: audioRendererStorage,
+                audioSink: audioRendererSinkStorage,
+                synchronizer: synchronizerStorage
+            )
+        }
+        let replacementTime = previousGraph.synchronizer.currentTime()
+        previousGraph.synchronizer.rate = 0
+        previousGraph.videoSink.stopRenderingEventObservation()
+        previousGraph.audioSink.stopRenderingEventObservation()
+        if let timeObserver {
+            previousGraph.synchronizer.removeTimeObserver(timeObserver)
+            self.timeObserver = nil
+        }
+
+        let replacement = AVSampleBufferVideoRenderer()
+        let replacementAudioRenderer = AVSampleBufferAudioRenderer()
+        replacementAudioRenderer.audioTimePitchAlgorithm = .timeDomain
+        replacementAudioRenderer.allowedAudioSpatializationFormats = .monoAndStereo
+        replacementAudioRenderer.volume = previousGraph.audioRenderer.volume
+        replacementAudioRenderer.isMuted = previousGraph.audioRenderer.isMuted
+        let replacementSynchronizer = AVSampleBufferRenderSynchronizer()
+        replacementSynchronizer.delaysRateChangeUntilHasSufficientMediaData = false
+        replacementSynchronizer.setRate(0, time: replacementTime)
+        let replacementSink = replacementRendererSinkFactory?()
+            ?? AVSampleBufferRendererInputSink(
+                receiver: replacementSynchronizer.sampleBufferReceiver(adding: replacement)
+            )
+        let replacementAudioSink = AVSampleBufferAudioRendererInputSink(
+            receiver: replacementSynchronizer.sampleBufferReceiver(
+                adding: replacementAudioRenderer
+            )
+        )
+        let replacementTimeObserver = replacementSynchronizer.addPeriodicTimeObserver(
+            forInterval: CMTime(value: 1, timescale: 10),
+            queue: deliveryQueue
+        ) { [weak self] time in
+            self?.updatePresentationStatus(at: time)
+        }
+        rendererGraphLock.withLock {
+            retiredRendererGraphs.append(previousGraph)
+            rendererStorage = replacement
+            rendererSinkStorage = replacementSink
+            audioRendererStorage = replacementAudioRenderer
+            audioRendererSinkStorage = replacementAudioSink
+            synchronizerStorage = replacementSynchronizer
+        }
+        timeObserver = replacementTimeObserver
+        graphRevision += 1
+        displayedFrameObservationCount = 0
+        lastDisplayedFrameIdentity = nil
+        rendererStateLock.withLock {
+            videoRendererStatus = "unknown"
+            videoRendererError = nil
+            audioRendererError = nil
+            lastRecordedAudioRendererStatus = nil
+            lastRecordedAudioRendererError = nil
+        }
+        PlaybackTrace.event(
+            "session.rendererGraph.replaced id=\(traceID) " +
+            "renderer=\(PlaybackTrace.identity(replacement)) " +
+            "synchronizer=\(PlaybackTrace.identity(replacementSynchronizer))"
+        )
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "rendererGraph.replaced",
+            outcome: .succeeded,
+            details: [
+                "graphRevision": String(graphRevision),
+                "replacementTimeSeconds": String(replacementTime.seconds),
+            ]
+        )
+        recordRendererState(at: replacementTime)
+        recordAudioRendererState()
+        return replacement
+    }
+
+    func releaseRetiredRendererGraphs() {
+        rendererGraphLock.withLock {
+            retiredRendererGraphs.removeAll()
+        }
+    }
+
+    func resumeVideoSampleDelivery() {
+        let wasSuspended = deliveryTaskLock.withLock {
+            let wasSuspended = videoSampleDeliverySuspended
+            videoSampleDeliverySuspended = false
+            return wasSuspended
+        }
+        guard wasSuspended else { return }
+        let canResume = deliveryQueue.sync {
+            hasRequestedVideoData
+                && !videoProviderHasEnded
+                && !isClosed
+                && !isResetting
+                && !isVideoRendererFailed
+        }
+        if canResume {
+            startVideoDelivery()
+        }
+    }
+
     func startAudioDelivery() {
         audioRendererSink.stopRenderingEventObservation()
         let task = Task.detached { [weak self] in
@@ -158,6 +299,16 @@ extension SampleBufferPlaybackSession {
             return task
         }
         task?.cancel()
+    }
+
+    func suspendAudioSampleDelivery() async {
+        let task = deliveryTaskLock.withLock {
+            let task = audioDeliveryTask
+            audioDeliveryTask = nil
+            return task
+        }
+        task?.cancel()
+        await task?.value
     }
 
     func deliverSamples(generation: UInt64) async {
@@ -530,7 +681,7 @@ extension SampleBufferPlaybackSession {
                 videoTrackID: videoTrackID,
                 streamEpoch: streamEpoch,
                 formatRevision: formatRevision,
-                graphRevision: 1,
+                graphRevision: graphRevision,
                 inputKind: .compressed,
                 timelineConfiguredBeforeFirstEnqueue: hasStartedTimeline,
                 action: "enqueue",

@@ -75,19 +75,6 @@ struct WindowPlaybackPageGeometryTests {
         #expect(layout.hasPlaybackAspectRatio(tooLarge))
     }
 
-    @Test("window video interaction leaves the top chrome outside its hit region")
-    func protectedTopChromeInteractionRegion() {
-        let region = WindowPlaybackSurfaceGeometry.interactionRegion
-        let surfaceTop = WindowPlaybackSurfaceGeometry.unitHeight / 2
-        let interactionTop = region.centerYOffset + region.size.y / 2
-        let interactionBottom = region.centerYOffset - region.size.y / 2
-
-        #expect(WindowPlaybackSurfaceGeometry.interactionProtectedTopFraction == 0.16)
-        #expect(abs(interactionTop - 0.34) < 0.001)
-        #expect(abs(interactionBottom + 0.5) < 0.001)
-        #expect(interactionTop < surfaceTop)
-    }
-
     @Test("window presentation never hosts the independent controls window")
     func spatialControlsScenePolicy() {
         #expect(
@@ -105,5 +92,32 @@ struct WindowPlaybackPageGeometryTests {
                 for: .panorama
             )
         )
+    }
+
+    @Test("cancelling Video Format closes the menu and discards its draft")
+    func cancellingVideoFormatDiscardsItsDraft() {
+        var state = PlaybackTopActionsState()
+
+        state.toggleMenu(.videoFormat)
+        state.projection = .equirectangular360
+        state.stereoLayout = .sideBySide
+
+        let selectionToApply = state.finishVideoFormatEditing(.cancel)
+
+        #expect(selectionToApply == nil)
+        #expect(state.presentedMenu == nil)
+        #expect(state.projection == .equirectangular180)
+        #expect(state.stereoLayout == .mono)
+    }
+
+    @Test("selecting a Dock effect records the chosen appearance")
+    func selectingDockEffectRecordsTheChosenAppearance() {
+        var state = PlaybackTopActionsState()
+
+        let requestedEffect = state.selectDockEffect(.night)
+
+        #expect(requestedEffect == .night)
+        #expect(state.selectedEffect == .night)
+        #expect(state.presentedMenu == nil)
     }
 }

@@ -22,8 +22,70 @@ nonisolated final class SmokeLaunchUITests: XCTestCase {
         XCTAssertEqual(app.state, .runningForeground,
                        "App should reach the foreground after launch")
 
-        let firstControl = app.buttons.firstMatch
-        XCTAssertTrue(firstControl.waitForExistence(timeout: 20),
-                      "Main window should present at least one interactive control")
+        let filesScreen = app.descendants(matching: .any)[
+            "FileBrowsing-FilesScreen"
+        ].firstMatch
+        let filesTab = app.descendants(matching: .any)[
+            "Navigation-Ornament-tab-files"
+        ].firstMatch
+        let filesScreenAppeared = filesScreen.waitForExistence(timeout: 20)
+        let filesTabAppeared = filesTab.waitForExistence(timeout: 5)
+        attachScreenshot(from: app, name: "smoke-launch-main-window")
+
+        XCTAssertTrue(
+            filesScreenAppeared,
+            "Main window should open to the Media Library surface."
+        )
+        XCTAssertTrue(
+            filesTabAppeared && filesTab.isEnabled && filesTab.isHittable,
+            "The Files tab should be available through the public interface."
+        )
+    }
+
+    @MainActor
+    func testSpatialRegressionLaunchesBeforeMediaSelection() throws {
+        let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
+            minimumCount: 1
+        )[0]
+        let app = launchSpatialRegressionApp()
+
+        XCTAssertEqual(
+            app.state,
+            .runningForeground,
+            "The spatial-regression app must reach the foreground before media selection."
+        )
+
+        let initialState = try XCTUnwrap(waitForState(
+            in: app,
+            identifier: "PlayerUI-application-state",
+            timeout: 30
+        ) {
+            $0.string("active") == "false"
+                && $0.string("presentation") == "window"
+                && $0.string("transition") == "none"
+                && $0.string("pendingSpatialEffect") == "none"
+                && $0.string("immersiveSpaceResidency") == "closed"
+                && $0.string("environmentCardResidency") == "closed"
+                && $0.string("environment") == "none"
+                && $0.string("environmentEffect") == "none"
+        })
+        attachState(initialState, name: "spatial-regression-launch-state")
+
+        guard let card = waitForHittableRegisteredMediaCard(
+            identifier: identifier,
+            in: app,
+            timeout: 30
+        ) else {
+            attachScreenshot(
+                from: app,
+                name: "spatial-regression-media-selection-not-ready"
+            )
+            XCTFail(
+                "Registered media must be available before the spatial handoff begins."
+            )
+            return
+        }
+        attachScreenshot(from: app, name: "spatial-regression-media-selection-ready")
+        XCTAssertTrue(card.isHittable)
     }
 }

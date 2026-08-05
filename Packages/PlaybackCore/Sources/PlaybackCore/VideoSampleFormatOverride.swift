@@ -146,6 +146,19 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
                 kCMFormatDescriptionProjectionKind_HalfEquirectangular
             }
             extensions[kCMFormatDescriptionExtension_ProjectionKind as String] = projectionKind
+            let horizontalFieldOfView: Int? = switch projection {
+            case .equirectangular:
+                360_000
+            case .halfEquirectangular:
+                180_000
+            case .rectilinear:
+                nil
+            }
+            if let horizontalFieldOfView {
+                extensions[
+                    kCMFormatDescriptionExtension_HorizontalFieldOfView as String
+                ] = horizontalFieldOfView
+            }
         }
         if projection == .rectilinear {
             extensions.removeValue(

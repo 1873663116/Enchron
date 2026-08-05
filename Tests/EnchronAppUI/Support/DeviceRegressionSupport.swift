@@ -1,4 +1,5 @@
 import Foundation
+import ImageIO
 import XCTest
 
 nonisolated struct RegressionStateSnapshot: Equatable {
@@ -32,6 +33,15 @@ nonisolated struct RegressionStateSnapshot: Equatable {
 
     func bool(_ key: String) -> Bool? {
         fields[key].flatMap(Bool.init)
+    }
+
+    func hasRecognizedPanoramaContentType() -> Bool {
+        switch fields["surfaceContentType"] {
+        case "equirectangular", "halfEquirectangular", "parametricImmersive":
+            true
+        default:
+            false
+        }
     }
 }
 
@@ -73,30 +83,348 @@ enum VisionProRegressionConfiguration {
         return identifiers
     }
 
-    static func requireReachableFixture(_ url: URL) async throws {
-        var request = URLRequest(url: url)
-        request.timeoutInterval = 4
-        request.setValue("bytes=0-0", forHTTPHeaderField: "Range")
-        do {
-            let (_, response) = try await URLSession.shared.data(for: request)
-            guard let statusCode = (response as? HTTPURLResponse)?.statusCode,
-                  statusCode == 200 || statusCode == 206 else {
-                throw XCTSkip(
-                    "The configured Vision Pro fixture did not return a readable media response."
-                )
-            }
-        } catch let skip as XCTSkip {
-            throw skip
-        } catch {
-            throw XCTSkip(
-                "The configured Vision Pro fixture is unavailable: \(error.localizedDescription)"
-            )
-        }
-    }
 }
 
 @MainActor
 extension XCTestCase {
+    func launchSpatialRegressionApp(
+        controlsAutoHideSeconds: Int = 300
+    ) -> XCUIApplication {
+        let app = XCUIApplication()
+        app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
+        app.launchEnvironment["ENCHRON_TEST_MEDIA_STATE_SUITE"] = "1"
+        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] =
+            String(controlsAutoHideSeconds)
+        app.launch()
+        return app
+    }
+
+    func launchRegisteredSpatialMedia(
+        identifier: String,
+        controlsAutoHideSeconds: Int = 300
+    ) -> XCUIApplication? {
+        let app = launchSpatialRegressionApp(
+            controlsAutoHideSeconds: controlsAutoHideSeconds
+        )
+
+        guard let card = waitForHittableRegisteredMediaCard(
+            identifier: identifier,
+            in: app,
+            timeout: 30
+        ) else {
+            XCTFail(
+                "Registered media \(identifier) did not become hittable while scrolling the Media Library."
+            )
+            attachScreenshot(
+                from: app,
+                name: "registered-media-card-not-hittable"
+            )
+            return nil
+        }
+        card.tap()
+        let resume = app.buttons["PlayerUI-resumeDecision-primary"].firstMatch
+        if resume.waitForExistence(timeout: 2) {
+            resume.tap()
+        }
+        return app
+    }
+
+    func waitForHittableRegisteredMediaCard(
+        identifier: String,
+        in app: XCUIApplication,
+        timeout: TimeInterval
+    ) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let card = app.descendants(matching: .any)[identifier].firstMatch
+
+        if card.waitForExistence(timeout: min(2, timeout)),
+           card.isEnabled,
+           card.isHittable {
+            return card
+        }
+
+        guard let libraryScrollView = largestMediaLibraryScrollView(in: app) else {
+            return nil
+        }
+
+        // A previous launch can restore an arbitrary scroll offset. Normalize at
+        // the beginning of the library before searching in its stable sort order.
+        for _ in 0..<8 where Date() < deadline {
+            libraryScrollView.swipeDown()
+            if card.exists, card.isEnabled, card.isHittable {
+                return card
+            }
+        }
+
+        while Date() < deadline {
+            if card.exists, card.isEnabled, card.isHittable {
+                return card
+            }
+            libraryScrollView.swipeUp()
+        }
+        return nil
+    }
+
+    private func largestMediaLibraryScrollView(
+        in app: XCUIApplication
+    ) -> XCUIElement? {
+        let filesScreen = app.descendants(matching: .any)[
+            "FileBrowsing-FilesScreen"
+        ].firstMatch
+        guard filesScreen.waitForExistence(timeout: 10) else { return nil }
+
+        var result: XCUIElement?
+        var resultArea: CGFloat = 0
+        for index in 0..<8 {
+            let candidate = filesScreen.scrollViews.element(boundBy: index)
+            guard candidate.exists else { break }
+            let area = candidate.frame.width * candidate.frame.height
+            if area > resultArea {
+                result = candidate
+                resultArea = area
+            }
+        }
+        return result
+    }
+
+    func restoreWindowPlaybackIfSpatialPresentationIsActive(
+        in app: XCUIApplication,
+        timeout: TimeInterval = 20
+    ) -> Bool {
+        let exitSpatial = app.descendants(matching: .any)[
+            "PlayerPanel-button-exit-spatial"
+        ].firstMatch
+        guard exitSpatial.exists else { return true }
+
+        let spatialState = app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        guard let settledSpatialState = waitForState(
+            in: app,
+            identifier: "PlayerUI-spatial-state",
+            timeout: timeout,
+            where: {
+                $0.string("presentation") == "panorama"
+                    && $0.string("transition") == "none"
+                    && $0.string("immersiveSpaceResidency") == "open"
+                    && $0.string("attached") == "panorama"
+                    && $0.bool("surfaceSettled") == true
+                    && $0.bool("surfaceRenderingReady") == true
+                    && $0.hasRecognizedPanoramaContentType()
+            }
+        ) else {
+            attachCurrentState(
+                of: spatialState,
+                name: "spatial-baseline-before-window-restoration-failure"
+            )
+            attachScreenshot(
+                from: app,
+                name: "spatial-baseline-before-window-restoration-failure"
+            )
+            return false
+        }
+        attachState(
+            settledSpatialState,
+            name: "spatial-baseline-before-window-restoration"
+        )
+        let lifecycleBeforeReturn = settledSpatialState.uint64(
+            "immersiveSpaceLifecycleRevision"
+        ) ?? 0
+        guard requireHittable(
+            exitSpatial,
+            named: "Return to Window before starting a Window handoff test",
+            timeout: timeout
+        ) else { return false }
+        exitSpatial.tap()
+
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        let restored = waitForState(windowState, timeout: timeout) {
+            $0.string("presentation") == "window"
+                && $0.string("transition") == "none"
+                && $0.string("pendingSpatialEffect") == "none"
+                && $0.string("attached") == "window"
+                && $0.bool("videoVisible") == true
+                && $0.string("chrome") == "on"
+                && ($0.uint64("immersiveSpaceLifecycleRevision") ?? 0)
+                    > lifecycleBeforeReturn
+        }
+        guard restored != nil else {
+            attachCurrentState(
+                of: windowState,
+                name: "window-baseline-state-at-failure"
+            )
+            attachCurrentState(
+                of: spatialState,
+                name: "spatial-state-during-window-restoration-failure"
+            )
+            attachScreenshot(
+                from: app,
+                name: "window-baseline-restoration-failure"
+            )
+            return false
+        }
+        return true
+    }
+
+    func restoreFlatWindowFormatIfNeeded(
+        in app: XCUIApplication,
+        timeout: TimeInterval = 25
+    ) -> Bool {
+        let dock = app.descendants(matching: .any)[
+            "PlayerUI-TopAction-dock"
+        ].firstMatch
+        let format = app.descendants(matching: .any)[
+            "PlayerUI-TopAction-videoFormat"
+        ].firstMatch
+        if dock.exists, format.exists { return true }
+
+        let resumePanorama = app.descendants(matching: .any)[
+            "PlayerUI-TopAction-resumePanorama"
+        ].firstMatch
+        let applicationState = app.descendants(matching: .any)[
+            "PlayerUI-application-state"
+        ].firstMatch
+        let spatialState = app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        let loadFailure = app.descendants(matching: .any)[
+            "PlayerUI-loadFailure-panel"
+        ].firstMatch
+        let settings = app.descendants(matching: .any)[
+            "PlayerPanel-button-settings"
+        ].firstMatch
+        let readinessDeadline = Date().addingTimeInterval(timeout)
+        var panoramaIsAlreadyActive = false
+        while Date() < readinessDeadline {
+            if dock.exists, format.exists { return true }
+            if spatialState.exists, settings.exists {
+                panoramaIsAlreadyActive = true
+                break
+            }
+            if resumePanorama.exists { break }
+            if loadFailure.exists {
+                attachCurrentState(
+                    of: applicationState,
+                    name: "automatic-panorama-entry-application-state-at-failure"
+                )
+                attachCurrentState(
+                    of: spatialState,
+                    name: "automatic-panorama-entry-spatial-state-at-failure"
+                )
+                attachScreenshot(
+                    from: app,
+                    name: "automatic-panorama-entry-failure"
+                )
+                XCTFail("The persisted Panorama format could not restore automatically.")
+                return false
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+
+        var lifecycleBeforeReentry: UInt64?
+        if panoramaIsAlreadyActive == false {
+            lifecycleBeforeReentry = (applicationState.value as? String).flatMap {
+                RegressionStateSnapshot(rawValue: $0).uint64(
+                    "immersiveSpaceLifecycleRevision"
+                )
+            }
+            guard lifecycleBeforeReentry != nil,
+                  requireHittable(
+                    resumePanorama,
+                    named: "Return to Panorama before restoring Flat video format"
+                  ) else {
+                attachCurrentState(
+                    of: applicationState,
+                    name: "immersive-space-lifecycle-before-panorama-reentry-failure"
+                )
+                attachCurrentState(
+                    of: spatialState,
+                    name: "panorama-state-before-format-restoration-failure"
+                )
+                attachScreenshot(
+                    from: app,
+                    name: "flat-format-restoration-entry-failure"
+                )
+                return false
+            }
+            resumePanorama.tap()
+        }
+
+        guard waitForState(
+            in: app,
+            identifier: "PlayerUI-spatial-state",
+            timeout: timeout,
+            where: { snapshot in
+                snapshot.string("presentation") == "panorama"
+                    && snapshot.string("attached") == "panorama"
+                    && snapshot.string("immersiveSpaceResidency") == "open"
+                    && (lifecycleBeforeReentry.map { minimumRevision in
+                        (snapshot.uint64("immersiveSpaceLifecycleRevision") ?? 0)
+                            > minimumRevision
+                    } ?? true)
+                    && snapshot.bool("surfaceSettled") == true
+                    && snapshot.bool("surfaceRenderingReady") == true
+                    && snapshot.hasRecognizedPanoramaContentType()
+            }
+        ) != nil else {
+            attachCurrentState(
+                of: applicationState,
+                name: "panorama-format-restoration-application-state-at-failure"
+            )
+            attachCurrentState(
+                of: spatialState,
+                name: "panorama-format-restoration-spatial-state-at-failure"
+            )
+            attachScreenshot(
+                from: app,
+                name: "panorama-format-restoration-failure"
+            )
+            return false
+        }
+        guard requireHittable(
+            settings,
+            named: "Advanced Settings for restoring Flat video format"
+        ) else { return false }
+        settings.tap()
+
+        let reset = app.buttons[
+            "PlayerPanel-Advanced-ResetFormat"
+        ].firstMatch
+        guard requireHittable(
+            reset,
+            named: "Reset to Flat and Mono"
+        ) else { return false }
+        reset.tap()
+
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        let restored = waitForState(windowState, timeout: timeout) {
+            $0.string("presentation") == "window"
+                && $0.string("attached") == "window"
+                && $0.string("projection") == "flat"
+                && $0.string("stereoLayout") == "mono"
+                && $0.bool("videoVisible") == true
+                && $0.string("chrome") == "on"
+        }
+        guard restored != nil,
+              requireHittable(dock, named: "Dock after restoring Flat video format"),
+              requireHittable(format, named: "Video Format after restoring Flat video format") else {
+            attachCurrentState(
+                of: windowState,
+                name: "flat-window-format-restoration-state-at-failure"
+            )
+            attachScreenshot(
+                from: app,
+                name: "flat-window-format-restoration-failure"
+            )
+            return false
+        }
+        return true
+    }
+
     func launchSpatialFixtureApp(
         fixtureURL: URL,
         controlsAutoHideSeconds: Int = 300
@@ -137,11 +465,12 @@ extension XCTestCase {
         var latest = RegressionStateSnapshot(rawValue: "")
         while Date() < deadline {
             if element.exists {
-                latest = RegressionStateSnapshot(
-                    rawValue: element.value as? String ?? ""
-                )
-                if predicate(latest) {
-                    return latest
+                let rawValue = element.value as? String ?? ""
+                if rawValue.isEmpty == false {
+                    latest = RegressionStateSnapshot(rawValue: rawValue)
+                    if predicate(latest) {
+                        return latest
+                    }
                 }
             }
             Thread.sleep(forTimeInterval: 0.1)
@@ -154,14 +483,180 @@ extension XCTestCase {
         return nil
     }
 
+    func waitForState(
+        in app: XCUIApplication,
+        identifier: String,
+        timeout: TimeInterval,
+        file: StaticString = #filePath,
+        line: UInt = #line,
+        where predicate: (RegressionStateSnapshot) -> Bool
+    ) -> RegressionStateSnapshot? {
+        let deadline = Date().addingTimeInterval(timeout)
+        var latestValues: [String] = []
+        while Date() < deadline {
+            let element = app.descendants(matching: .any)[identifier].firstMatch
+            if element.exists,
+               let rawValue = element.value as? String,
+               rawValue.isEmpty == false {
+                latestValues = [rawValue]
+                let snapshot = RegressionStateSnapshot(rawValue: rawValue)
+                if predicate(snapshot) {
+                    return snapshot
+                }
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        XCTFail(
+            "No current \(identifier) value reached the required condition. Latest values: \(latestValues)",
+            file: file,
+            line: line
+        )
+        return nil
+    }
+
     func attachScreenshot(
         from app: XCUIApplication,
         name: String
     ) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        let screenshot = app.screenshot()
+        let attachment = XCTAttachment(screenshot: screenshot)
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+        writeAcceptanceShot(screenshot, name: name)
+    }
+
+    func writeAcceptanceShot(_ screenshot: XCUIScreenshot, name: String) {
+        let shots = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent(".cursor/acceptance-shots", isDirectory: true)
+        try? FileManager.default.createDirectory(
+            at: shots,
+            withIntermediateDirectories: true
+        )
+        let slug = name
+            .lowercased()
+            .replacingOccurrences(of: " ", with: "-")
+            .replacingOccurrences(of: "/", with: "-")
+        let url = shots.appendingPathComponent("\(slug)-screen.png")
+        try? screenshot.pngRepresentation.write(to: url)
+    }
+
+    func requireGeneratedColorBarsAreWearerVisible(
+        in app: XCUIApplication,
+        timeout: TimeInterval,
+        attachmentName: String,
+        minimumChromaticPixelRatio: Double = 0.05,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        var lastScreenshot = app.screenshot()
+        var lastChromaticPixelRatio = 0.0
+        while Date() < deadline {
+            lastScreenshot = app.screenshot()
+            lastChromaticPixelRatio = try chromaticPixelRatio(in: lastScreenshot)
+            if lastChromaticPixelRatio >= minimumChromaticPixelRatio {
+                attachScreenshot(lastScreenshot, name: attachmentName)
+                attachChromaticPixelRatio(
+                    lastChromaticPixelRatio,
+                    minimum: minimumChromaticPixelRatio,
+                    attachmentName: attachmentName
+                )
+                return true
+            }
+            Thread.sleep(forTimeInterval: 0.25)
+        }
+
+        attachScreenshot(lastScreenshot, name: attachmentName)
+        attachChromaticPixelRatio(
+            lastChromaticPixelRatio,
+            minimum: minimumChromaticPixelRatio,
+            attachmentName: attachmentName
+        )
+        XCTFail(
+            "The generated color-bar fixture did not become wearer-visible within "
+                + "\(timeout) seconds; chromatic pixel ratio was "
+                + String(format: "%.4f", lastChromaticPixelRatio)
+                + ", below the required "
+                + String(format: "%.4f", minimumChromaticPixelRatio) + ".",
+            file: file,
+            line: line
+        )
+        return false
+    }
+
+    private func chromaticPixelRatio(in screenshot: XCUIScreenshot) throws -> Double {
+        let imageSource = try XCTUnwrap(
+            CGImageSourceCreateWithData(screenshot.pngRepresentation as CFData, nil)
+        )
+        let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(imageSource, 0, nil))
+        let sampleWidth = 192
+        let sampleHeight = 108
+        var pixels = [UInt8](repeating: 0, count: sampleWidth * sampleHeight * 4)
+        let drewImage = pixels.withUnsafeMutableBytes { bytes -> Bool in
+            guard let context = CGContext(
+                data: bytes.baseAddress,
+                width: sampleWidth,
+                height: sampleHeight,
+                bitsPerComponent: 8,
+                bytesPerRow: sampleWidth * 4,
+                space: CGColorSpaceCreateDeviceRGB(),
+                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+            ) else {
+                return false
+            }
+            context.interpolationQuality = .low
+            context.draw(
+                image,
+                in: CGRect(x: 0, y: 0, width: sampleWidth, height: sampleHeight)
+            )
+            return true
+        }
+        guard drewImage else { return 0 }
+
+        var chromaticPixelCount = 0
+        for pixelOffset in stride(from: 0, to: pixels.count, by: 4) {
+            let red = Int(pixels[pixelOffset])
+            let green = Int(pixels[pixelOffset + 1])
+            let blue = Int(pixels[pixelOffset + 2])
+            let highestComponent = max(red, max(green, blue))
+            let lowestComponent = min(red, min(green, blue))
+            if highestComponent >= 140,
+               highestComponent - lowestComponent >= 80 {
+                chromaticPixelCount += 1
+            }
+        }
+        return Double(chromaticPixelCount) / Double(sampleWidth * sampleHeight)
+    }
+
+    private func attachScreenshot(_ screenshot: XCUIScreenshot, name: String) {
+        let attachment = XCTAttachment(
+            uniformTypeIdentifier: "public.png",
+            name: name,
+            payload: screenshot.pngRepresentation,
+            userInfo: nil
+        )
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    private func attachChromaticPixelRatio(
+        _ ratio: Double,
+        minimum: Double,
+        attachmentName: String
+    ) {
+        let measurement = XCTAttachment(
+            string: "chromaticPixelRatio="
+                + String(format: "%.4f", ratio)
+                + ";minimum="
+                + String(format: "%.4f", minimum)
+        )
+        measurement.name = "\(attachmentName)-pixel-measurement"
+        measurement.lifetime = .keepAlways
+        add(measurement)
     }
 
     func attachState(
@@ -172,6 +667,68 @@ extension XCTestCase {
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    func attachCurrentState(
+        of element: XCUIElement,
+        name: String
+    ) {
+        let rawValue: String
+        if element.exists {
+            rawValue = element.value as? String ?? "element=present;value=unavailable"
+        } else {
+            rawValue = "element=absent"
+        }
+        let attachment = XCTAttachment(string: rawValue)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+    }
+
+    func requirePresentationRequest(
+        in app: XCUIApplication,
+        windowState: XCUIElement,
+        targetPresentation: String,
+        timeout: TimeInterval = 5
+    ) -> Bool {
+        let spatialState = app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        let exitSpatial = app.descendants(matching: .any)[
+            "PlayerPanel-button-exit-spatial"
+        ].firstMatch
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if exitSpatial.exists || spatialState.exists {
+                return true
+            }
+            if windowState.exists {
+                let snapshot = RegressionStateSnapshot(
+                    rawValue: windowState.value as? String ?? ""
+                )
+                if snapshot.string("transition") == targetPresentation
+                    || snapshot.string("presentation") == targetPresentation {
+                    return true
+                }
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        attachCurrentState(
+            of: windowState,
+            name: "\(targetPresentation)-request-window-state-at-failure"
+        )
+        attachCurrentState(
+            of: spatialState,
+            name: "\(targetPresentation)-request-target-state-at-failure"
+        )
+        attachScreenshot(
+            from: app,
+            name: "\(targetPresentation)-request-failure"
+        )
+        XCTFail(
+            "Selecting \(targetPresentation) did not start the requested presentation."
+        )
+        return false
     }
 
     func dragDetentedSlider(

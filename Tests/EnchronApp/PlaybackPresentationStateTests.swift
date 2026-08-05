@@ -6,6 +6,189 @@ import Testing
 
 @Suite("Playback presentation")
 struct PlaybackPresentationStateTests {
+    @Test("Spatial acceptance isolates its playback state from the user's media state")
+    func spatialAcceptanceUsesItsOwnMediaStateSuite() {
+        #expect(
+            EnchronApplication.mediaStateSuiteName(
+                isUITesting: false,
+                environment: [
+                    "ENCHRON_SPATIAL_ACCEPTANCE": "1",
+                    "ENCHRON_TEST_MEDIA_STATE_SUITE": "1"
+                ]
+            ) == "app.enchron.spatial-acceptance"
+        )
+        #expect(
+            EnchronApplication.mediaStateSuiteName(
+                isUITesting: false,
+                environment: ["ENCHRON_SPATIAL_ACCEPTANCE": "1"]
+            ) == nil
+        )
+    }
+
+    @Test("Spatial playback observation reports the actual entity opacity")
+    func spatialPlaybackObservationReportsEntityOpacity() {
+        #expect(
+            SpatialPlaybackSurfaceObservation.absent.accessibilityFields
+                .contains("surfaceOpacity=0.0000")
+        )
+    }
+
+    @Test("Panorama requires a RealityKit content type matching the selected projection")
+    func panoramaRequiresMatchingRealityKitContentType() {
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.contentTypeMatches(
+                projection: .equirectangular360,
+                observedContentType: "equirectangular"
+            )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.contentTypeMatches(
+                projection: .equirectangular180,
+                observedContentType: "halfEquirectangular"
+            )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.contentTypeMatches(
+                projection: .fisheye,
+                observedContentType: "parametricImmersive"
+            )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.contentTypeMatches(
+                projection: .equirectangular360,
+                observedContentType: "invalid"
+            ) == false
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.contentTypeMatches(
+                projection: .equirectangular360,
+                observedContentType: "unobserved"
+            ) == false
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.contentTypeMatches(
+                projection: .equirectangular360,
+                observedContentType: "halfEquirectangular"
+            ) == false
+        )
+    }
+
+    @Test("Panorama refreshes after every RealityKit event that can make its target usable")
+    func panoramaRefreshesForEveryTargetReadinessEvent() {
+        #expect(
+            SpatialPresentationRefreshTrigger.allCases == [
+                .viewingModeDidChange,
+                .immersiveViewingModeDidChange,
+                .immersiveViewingModeDidTransition,
+                .spatialVideoModeDidChange,
+                .renderingStatusDidChange,
+                .contentTypeDidChange
+            ]
+        )
+    }
+
+    @Test("Panorama requests progressive only after its target reports portal activation")
+    func panoramaTargetBootstrapRequestsProgressiveOnce() {
+        var state = PanoramaTargetBootstrapState.awaitingPortalActivation
+        let firstRequest = state.receivePortalActivation()
+        let duplicateRequest = state.receivePortalActivation()
+        #expect(firstRequest)
+        #expect(duplicateRequest == false)
+        #expect(state == .requestingProgressive)
+        state.receiveProgressiveChange()
+        #expect(state == .progressiveConfirmed)
+    }
+
+    @Test("Panorama target is not settled until progressive mode is confirmed")
+    func panoramaTargetBootstrapRequiresProgressiveConfirmation() {
+        var state = PanoramaTargetBootstrapState.awaitingPortalActivation
+        #expect(state != .progressiveConfirmed)
+        _ = state.receivePortalActivation()
+        #expect(state != .progressiveConfirmed)
+        state.receiveProgressiveChange()
+        #expect(state == .progressiveConfirmed)
+    }
+
+    @Test("Panorama requires the selected viewing mode to be observed")
+    func panoramaViewingModeSettlement() {
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
+                stereoLayout: .mono,
+                observedViewingMode: nil,
+                requiresObservedMode: true
+            ) == false
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
+                stereoLayout: .mono,
+                observedViewingMode: "mono",
+                requiresObservedMode: true
+            )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
+                stereoLayout: .mono,
+                observedViewingMode: "stereo",
+                requiresObservedMode: true
+            ) == false
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
+                stereoLayout: .mono,
+                observedViewingMode: nil,
+                requiresObservedMode: false
+            )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
+                stereoLayout: .sideBySide,
+                observedViewingMode: nil
+            ) == false
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
+                stereoLayout: .topBottom,
+                observedViewingMode: "stereo"
+            )
+        )
+    }
+
+    @Test("Flat Window does not require immersive mode confirmation")
+    func flatWindowImmersiveModeSettlement() {
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.immersiveViewingModeMatches(
+                projection: .flat,
+                requiresTransitionConfirmation: true,
+                desiredImmersiveViewingMode: "portal",
+                observedImmersiveViewingMode: nil
+            )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.immersiveViewingModeMatches(
+                projection: .equirectangular360,
+                requiresTransitionConfirmation: true,
+                desiredImmersiveViewingMode: "portal",
+                observedImmersiveViewingMode: nil
+            ) == false
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.immersiveViewingModeMatches(
+                projection: .equirectangular360,
+                requiresTransitionConfirmation: true,
+                desiredImmersiveViewingMode: "portal",
+                observedImmersiveViewingMode: "portal"
+            )
+        )
+        #expect(
+            SpatialPlaybackSurfaceSettlementPolicy.immersiveViewingModeMatches(
+                projection: .equirectangular360,
+                requiresTransitionConfirmation: false,
+                desiredImmersiveViewingMode: "portal",
+                observedImmersiveViewingMode: nil
+            )
+        )
+    }
+
     @Test("progressive immersion preserves open-cycle amount policy")
     func progressiveImmersionOpeningPolicy() {
         #expect(
@@ -41,6 +224,217 @@ struct PlaybackPresentationStateTests {
         )
         #expect(
             SpatialImmersiveSpacePolicy.normalized(2.0) == 1.0
+        )
+    }
+
+    @Test("Panorama return restores the Environment immersion amount")
+    @MainActor
+    func panoramaReturnRestoresEnvironmentImmersionAmount() throws {
+        let appModel = AppModel()
+        appModel.recordImmersionAmount(0.62)
+        try appModel.activateEnvironment(.enchron, effect: .night)
+
+        _ = try appModel.requestPlaybackPresentation(
+            .panorama,
+            mediaSessionID: "test-media-session",
+            wasPlaying: true
+        )
+        _ = try completePendingEffect(appModel)
+        appModel.recordImmersionAmount(0.41)
+
+        _ = try appModel.requestPlaybackPresentation(
+            .window,
+            mediaSessionID: "test-media-session",
+            wasPlaying: true
+        )
+        _ = try completePendingEffect(appModel)
+
+        #expect(appModel.immersiveSpaceOpeningInitialAmount == 0.62)
+        #expect(appModel.immersiveSpaceStyleRevision == 1)
+    }
+
+    @Test("Window keeps its renderer while the source fades")
+    func windowSourceKeepsRendererUntilTransferBegins() {
+        #expect(
+            PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
+                for: .window,
+                previousPresentation: .window,
+                targetPresentation: .panorama,
+                sourceRendererMayRelease: false
+            )
+        )
+        #expect(
+            PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
+                for: .window,
+                previousPresentation: .window,
+                targetPresentation: .panorama,
+                sourceRendererMayRelease: true
+            ) == false
+        )
+        #expect(
+            PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
+                for: .window,
+                previousPresentation: .window,
+                targetPresentation: .docked,
+                sourceRendererMayRelease: false
+            )
+        )
+        #expect(
+            PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
+                for: .window,
+                previousPresentation: .window,
+                targetPresentation: .docked,
+                sourceRendererMayRelease: true
+            ) == false
+        )
+    }
+
+    @Test("Window-to-Panorama confirms source progressive mode before creating a new target graph")
+    @MainActor
+    func windowToPanoramaUsesTargetOwnedProgressiveConfirmation() throws {
+        let appModel = AppModel()
+
+        let transition = try appModel.requestPlaybackPresentation(
+            .panorama,
+            mediaSessionID: "test-media-session",
+            wasPlaying: true
+        )
+
+        #expect(transition.requiresWindowPortalToProgressiveChange)
+        #expect(transition.keepsCurrentRendererGraph == false)
+        #expect(
+            appModel.pendingSpatialPlatformEffect?.effect
+                == .presentSpatialPlayback(.panorama)
+        )
+        #expect(
+            appModel.pendingSpatialPlatformEffect?
+                .requiresWindowPortalToProgressiveChange == true
+        )
+        #expect(
+            appModel.pendingSpatialPlatformEffect?
+                .keepsCurrentRendererGraph == false
+        )
+        #expect(
+            appModel.windowPortalToProgressiveChangeIsConfirmed(
+                for: transition.id
+            ) == false
+        )
+
+        appModel.recordWindowPortalToProgressiveChange(for: transition.id)
+
+        #expect(
+            appModel.windowPortalToProgressiveChangeIsConfirmed(for: transition.id)
+        )
+    }
+
+    @Test("Window-to-Panorama creates a distinct renderer graph for the target component")
+    func windowToPanoramaCreatesNewRendererGraph() {
+        let transition = PlaybackPresentationTransition(
+            previousPresentation: .window,
+            targetPresentation: .panorama,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        let dockedTransition = PlaybackPresentationTransition(
+            previousPresentation: .window,
+            targetPresentation: .docked,
+            previousEnvironment: .none,
+            targetEnvironment: .active(environment: .enchron, effect: .day)
+        )
+
+        #expect(transition.keepsCurrentRendererGraph == false)
+        #expect(dockedTransition.keepsCurrentRendererGraph == false)
+    }
+
+    @Test("A Window target waits for the departing spatial surface to release the renderer")
+    func windowTargetWaitsForSpatialRendererRelease() {
+        #expect(
+            PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
+                for: .window,
+                previousPresentation: .panorama,
+                targetPresentation: .window,
+                sourceRendererMayRelease: false
+            ) == false
+        )
+        #expect(
+            PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
+                for: .window,
+                previousPresentation: .panorama,
+                targetPresentation: .window,
+                sourceRendererMayRelease: true
+            )
+        )
+    }
+
+    @Test("Presentation transition does not show the media loading spinner")
+    func presentationTransitionDoesNotShowLoadingSpinner() {
+        #expect(
+            WindowPlaybackLoadingVisibility.shouldShow(
+                hasPlaybackError: false,
+                presentationState: .placeholder,
+                isPresentationTransitionActive: true
+            ) == false
+        )
+        #expect(
+            WindowPlaybackLoadingVisibility.shouldShow(
+                hasPlaybackError: false,
+                presentationState: .placeholder,
+                isPresentationTransitionActive: false
+            )
+        )
+    }
+
+    @Test("Presentation transition keeps the target transparent until commit")
+    func presentationTransitionKeepsTargetTransparentUntilCommit() {
+        let transition = PlaybackPresentationTransition(
+            previousPresentation: .window,
+            targetPresentation: .panorama,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+
+        #expect(
+            PlaybackPresentationTransitionAppearance.opacity(
+                for: .window,
+                settledPresentation: .window,
+                transition: transition
+            ) == 0
+        )
+        #expect(
+            PlaybackPresentationTransitionAppearance.acceptsInput(
+                for: .window,
+                settledPresentation: .window,
+                transition: transition
+            ) == false
+        )
+        #expect(
+            PlaybackPresentationTransitionAppearance.opacity(
+                for: .panorama,
+                settledPresentation: .window,
+                transition: transition
+            ) == PlaybackPresentationTransitionAppearance.targetPreparationOpacity
+        )
+        #expect(
+            PlaybackPresentationTransitionAppearance.acceptsInput(
+                for: .panorama,
+                settledPresentation: .window,
+                transition: transition
+            ) == false
+        )
+
+        #expect(
+            PlaybackPresentationTransitionAppearance.opacity(
+                for: .panorama,
+                settledPresentation: .panorama,
+                transition: nil
+            ) == 1
+        )
+        #expect(
+            PlaybackPresentationTransitionAppearance.acceptsInput(
+                for: .panorama,
+                settledPresentation: .panorama,
+                transition: nil
+            )
         )
     }
 
@@ -119,6 +513,98 @@ struct PlaybackPresentationStateTests {
                 for: .activated(id: "session-b")
             ) == nil
         )
+    }
+
+    @Test("Immersive Space operations require a new matching lifecycle observation")
+    func immersiveSpaceOperationRequiresNewLifecycleObservation() {
+        var observation = SpatialPlatformImmersiveSpaceObservation()
+
+        observation.record(.open)
+        let dismissalStartedAfterRevision = observation.revision
+
+        #expect(
+            !observation.confirms(
+                .closed,
+                after: dismissalStartedAfterRevision
+            )
+        )
+
+        observation.record(.closed)
+
+        #expect(
+            observation.confirms(
+                .closed,
+                after: dismissalStartedAfterRevision
+            )
+        )
+
+        let openingStartedAfterRevision = observation.revision
+        #expect(
+            !observation.confirms(
+                .open,
+                after: openingStartedAfterRevision
+            )
+        )
+
+        observation.record(.open)
+
+        #expect(
+            observation.confirms(
+                .open,
+                after: openingStartedAfterRevision
+            )
+        )
+    }
+
+    @Test("Player Controls Window operations require a new matching lifecycle observation")
+    func playerControlsWindowOperationRequiresNewLifecycleObservation() {
+        var observation = SpatialPlatformWindowObservation()
+
+        observation.record(.open, for: .playerControls)
+        let openingStartedAfterRevision = observation.revision(for: .playerControls)
+
+        #expect(
+            !observation.confirms(
+                .open,
+                for: .playerControls,
+                after: openingStartedAfterRevision
+            )
+        )
+
+        observation.record(.closed, for: .playerControls)
+        #expect(
+            !observation.confirms(
+                .open,
+                for: .playerControls,
+                after: openingStartedAfterRevision
+            )
+        )
+
+        observation.record(.open, for: .playerControls)
+        #expect(
+            observation.confirms(
+                .open,
+                for: .playerControls,
+                after: openingStartedAfterRevision
+            )
+        )
+    }
+
+    @Test("Immersive Space lifecycle revision changes only for appearance events")
+    @MainActor
+    func immersiveSpaceLifecycleRevisionTracksAppearanceEvents() {
+        let appModel = AppModel()
+
+        _ = appModel.receiveSpatialPlatformResult(.immersiveSpaceAppeared)
+        #expect(appModel.immersiveSpaceLifecycleRevision == 1)
+
+        _ = appModel.receiveSpatialPlatformResult(.environmentCardAppeared)
+        #expect(appModel.immersiveSpaceLifecycleRevision == 1)
+
+        _ = appModel.receiveSpatialPlatformResult(
+            .immersiveSpaceDisappeared(nil)
+        )
+        #expect(appModel.immersiveSpaceLifecycleRevision == 2)
     }
 
     @Test("stop invalidates an in-flight execution and cleanup executes once")
@@ -621,7 +1107,7 @@ struct PlaybackPresentationStateTests {
         )
         _ = try completePendingEffect(
             activeModel,
-            outcome: .failed(.windowPlaybackSurfaceUnavailable)
+            outcome: .failed(.mainWindowUnavailable)
         )
         #expect(activeModel.presentation == .docked)
         #expect(
@@ -669,6 +1155,37 @@ struct PlaybackPresentationStateTests {
             )
         )
         #expect(model.transition == nil)
+    }
+
+    @Test("Panorama suspends the active environment and restores it on return")
+    @MainActor
+    func panoramaSuspendsAndRestoresActiveEnvironment() throws {
+        let model = PlaybackPresentationModel()
+        let priorEnvironment = EnvironmentContext.active(
+            environment: .enchron,
+            effect: .night
+        )
+        try model.activateEnvironment(.enchron, effect: .night)
+
+        let enter = try model.requestPresentation(
+            .panorama,
+            playbackContext: playingContext()
+        )
+        #expect(enter.previousEnvironment == priorEnvironment)
+        #expect(enter.targetEnvironment == .none)
+        _ = try completePendingEffect(model)
+        #expect(model.presentation == .panorama)
+        #expect(model.environmentContext == .none)
+
+        let leave = try model.requestPresentation(
+            .window,
+            playbackContext: playingContext()
+        )
+        #expect(leave.previousEnvironment == .none)
+        #expect(leave.targetEnvironment == priorEnvironment)
+        _ = try completePendingEffect(model)
+        #expect(model.presentation == .window)
+        #expect(model.environmentContext == priorEnvironment)
     }
 
     @Test("a transition rejects a second product command")
@@ -945,10 +1462,7 @@ struct PlaybackPresentationStateTests {
                 request.playbackTransportPlan?.beforeEffect
                     == .pause(mediaSessionID: context.mediaSessionID)
             )
-            #expect(
-                request.playbackTransportPlan?.afterSuccess
-                    == .resume(mediaSessionID: context.mediaSessionID)
-            )
+            #expect(request.playbackTransportPlan?.afterSuccess == nil)
             #expect(request.playbackTransportPlan?.afterFailure == nil)
 
             #expect(
@@ -1182,10 +1696,8 @@ struct PlaybackPresentationStateTests {
         let cardRequest = try #require(model.pendingSpatialPlatformEffect)
         #expect(cardRequest.effect == .presentEnvironmentCard)
         #expect(cardRequest.playbackTransportPlan?.beforeEffect == nil)
-        #expect(
-            cardRequest.playbackTransportPlan?.afterSuccess
-                == .resume(mediaSessionID: context.mediaSessionID)
-        )
+        #expect(cardRequest.playbackTransportPlan?.afterSuccess == nil)
+        #expect(cardRequest.playbackTransportPlan?.afterFailure == nil)
         #expect(model.presentation == .window)
         #expect(model.environmentContext == .none)
 
@@ -1211,9 +1723,9 @@ struct PlaybackPresentationStateTests {
         #expect(model.pendingSpatialPlatformEffect == nil)
     }
 
-    @Test("resume failure is recorded after commit without rolling presentation back")
+    @Test("an unscheduled resume result is ignored after presentation commit")
     @MainActor
-    func resumeFailureDoesNotRollbackCommittedPresentation() throws {
+    func unscheduledResumeResultIsIgnored() throws {
         let model = PlaybackPresentationModel()
         let context = playingContext()
         _ = try model.requestPresentation(.panorama, playbackContext: context)
@@ -1230,13 +1742,66 @@ struct PlaybackPresentationStateTests {
 
         #expect(
             model.receiveSpatialPlatformResult(.playbackTransportFailed(failure))
-                == .playbackTransportFailureRecorded
+                == .ignored
         )
         #expect(model.presentation == .panorama)
-        #expect(model.lastPlaybackTransportFailure == failure)
+        #expect(model.lastPlaybackTransportFailure == nil)
         #expect(
             model.receiveSpatialPlatformResult(.playbackTransportFailed(failure))
                 == .ignored
+        )
+    }
+
+    @Test("presentation transitions pause once and never schedule automatic resume")
+    @MainActor
+    func presentationTransitionsRemainPausedAfterCommitAndRollback() throws {
+        for target in [PlaybackPresentation.docked, .panorama] {
+            let model = PlaybackPresentationModel()
+            let context = playingContext(mediaSessionID: "\(target.rawValue)-session")
+            _ = try model.requestPresentation(
+                target,
+                effect: target == .docked ? .day : nil,
+                playbackContext: context
+            )
+            let entry = try #require(model.pendingSpatialPlatformEffect)
+            #expect(
+                entry.playbackTransportPlan?.beforeEffect
+                    == .pause(mediaSessionID: context.mediaSessionID)
+            )
+            #expect(entry.playbackTransportPlan?.afterSuccess == nil)
+            #expect(entry.playbackTransportPlan?.afterFailure == nil)
+            #expect(try completePendingEffect(model) == .presentationCommitted(target))
+
+            let pausedContext = SpatialPlaybackTransitionContext(
+                mediaSessionID: context.mediaSessionID,
+                wasPlaying: false
+            )
+            _ = try model.requestPresentation(.window, playbackContext: pausedContext)
+            let returnRequest = try #require(model.pendingSpatialPlatformEffect)
+            #expect(returnRequest.playbackTransportPlan?.beforeEffect == nil)
+            #expect(returnRequest.playbackTransportPlan?.afterSuccess == nil)
+            #expect(returnRequest.playbackTransportPlan?.afterFailure == nil)
+            #expect(try completePendingEffect(model) == .presentationCommitted(.window))
+        }
+
+        let rollbackModel = PlaybackPresentationModel()
+        let rollbackContext = playingContext(mediaSessionID: "rollback-session")
+        _ = try rollbackModel.requestPresentation(
+            .panorama,
+            playbackContext: rollbackContext
+        )
+        let rollbackRequest = try #require(rollbackModel.pendingSpatialPlatformEffect)
+        #expect(
+            rollbackRequest.playbackTransportPlan?.beforeEffect
+                == .pause(mediaSessionID: rollbackContext.mediaSessionID)
+        )
+        #expect(rollbackRequest.playbackTransportPlan?.afterSuccess == nil)
+        #expect(rollbackRequest.playbackTransportPlan?.afterFailure == nil)
+        #expect(
+            try completePendingEffect(
+                rollbackModel,
+                outcome: .failed(.spatialPlaybackSurfaceUnavailable)
+            ) == .presentationRolledBack(.spatialPlaybackSurfaceUnavailable)
         )
     }
 
@@ -1260,6 +1825,33 @@ struct PlaybackPresentationStateTests {
             ) == false
         )
         return model.receiveSpatialPlatformResult(
+            .effectCompleted(
+                SpatialPlatformEffectResult(
+                    requestID: request.id,
+                    executionID: executionID,
+                    mediaSessionID: request.playbackTransportPlan?.mediaSessionID,
+                    outcome: outcome
+                )
+            )
+        )
+    }
+
+    @MainActor
+    private func completePendingEffect(
+        _ appModel: AppModel,
+        executionID: UUID = UUID(),
+        outcome: SpatialPlatformEffectOutcome = .succeeded
+    ) throws -> SpatialPlatformEffectResolution {
+        let request = try #require(
+            appModel.playbackPresentationModel.pendingSpatialPlatformEffect
+        )
+        #expect(
+            appModel.claimSpatialPlatformEffect(
+                request.id,
+                executionID: executionID
+            )
+        )
+        return appModel.receiveSpatialPlatformResult(
             .effectCompleted(
                 SpatialPlatformEffectResult(
                     requestID: request.id,

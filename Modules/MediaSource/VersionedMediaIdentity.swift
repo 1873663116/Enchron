@@ -143,7 +143,7 @@ public struct VersionedMediaIdentity: Codable, Equatable, Hashable, Sendable {
         )
     }
 
-    package static func local(_ url: URL) -> Self? {
+    public static func local(_ url: URL) -> Self? {
         LocalMediaVersionResolver.resolve(url)
     }
 

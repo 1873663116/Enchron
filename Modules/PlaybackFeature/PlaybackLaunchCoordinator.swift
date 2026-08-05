@@ -17,12 +17,14 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         public let request: PlaybackLaunchRequest
         public let seconds: Double
         public let format: MediaFormat?
+        let trackSelectionPreference: TrackSelectionPreference?
     }
 
     private struct ResolvedLaunch {
         let request: PlaybackLaunchRequest
         let resumeSeconds: Double?
         let savedFormat: MediaFormat?
+        let trackSelectionPreference: TrackSelectionPreference?
     }
 
     private let playbackRuntime: any PlaybackRuntimeControlling
@@ -98,19 +100,22 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 pendingResumeDecision = ResumeDecision(
                     request: request,
                     seconds: seconds,
-                    format: persistedState?.formatPreference
+                    format: persistedState?.formatPreference,
+                    trackSelectionPreference: persistedState?.trackSelectionPreference
                 )
             case .alwaysResume where seconds > 0:
                 launchResolvedPlayback(
                     request,
                     resumeAt: seconds,
-                    savedFormat: persistedState?.formatPreference
+                    savedFormat: persistedState?.formatPreference,
+                    trackSelectionPreference: persistedState?.trackSelectionPreference
                 )
             default:
                 launchResolvedPlayback(
                     request,
                     resumeAt: nil,
-                    savedFormat: persistedState?.formatPreference
+                    savedFormat: persistedState?.formatPreference,
+                    trackSelectionPreference: persistedState?.trackSelectionPreference
                 )
             }
         }
@@ -122,7 +127,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         launchResolvedPlayback(
             decision.request,
             resumeAt: decision.seconds,
-            savedFormat: decision.format
+            savedFormat: decision.format,
+            trackSelectionPreference: decision.trackSelectionPreference
         )
     }
 
@@ -130,7 +136,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         guard let decision = pendingResumeDecision else { return }
         pendingResumeDecision = nil
         guard let identity = decision.request.versionedIdentity else {
-            launchResolvedPlayback(decision.request, resumeAt: nil, savedFormat: decision.format)
+            launchResolvedPlayback(
+                decision.request,
+                resumeAt: nil,
+                savedFormat: decision.format,
+                trackSelectionPreference: decision.trackSelectionPreference
+            )
             return
         }
 
@@ -142,7 +153,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             guard let self else { return }
             await removal.value
             guard generation == decisionGeneration else { return }
-            launchResolvedPlayback(decision.request, resumeAt: nil, savedFormat: decision.format)
+            launchResolvedPlayback(
+                decision.request,
+                resumeAt: nil,
+                savedFormat: decision.format,
+                trackSelectionPreference: decision.trackSelectionPreference
+            )
         }
     }
 
@@ -155,7 +171,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         launchResolvedPlayback(
             lastResolvedLaunch.request,
             resumeAt: lastResolvedLaunch.resumeSeconds,
-            savedFormat: lastResolvedLaunch.savedFormat
+            savedFormat: lastResolvedLaunch.savedFormat,
+            trackSelectionPreference: lastResolvedLaunch.trackSelectionPreference
         )
     }
 
@@ -183,12 +200,14 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private func launchResolvedPlayback(
         _ request: PlaybackLaunchRequest,
         resumeAt seconds: Double?,
-        savedFormat: MediaFormat?
+        savedFormat: MediaFormat?,
+        trackSelectionPreference: TrackSelectionPreference?
     ) {
         lastResolvedLaunch = ResolvedLaunch(
             request: request,
             resumeSeconds: seconds,
-            savedFormat: savedFormat
+            savedFormat: savedFormat,
+            trackSelectionPreference: trackSelectionPreference
         )
         generation += 1
         let launchGeneration = generation
@@ -226,6 +245,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 guard generation == launchGeneration else { return }
                 guard try await applyLaunchConfiguration(
                     savedFormat: savedFormat,
+                    trackSelectionPreference: trackSelectionPreference,
                     expectedGeneration: launchGeneration
                 ) else { return }
             } catch {
@@ -235,6 +255,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     preparedRequest,
                     resumeAt: seconds,
                     savedFormat: savedFormat,
+                    trackSelectionPreference: trackSelectionPreference,
                     generation: launchGeneration
                    ) {
                     return
@@ -273,6 +294,55 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         await enqueueMediaStateMutation { store in
             await store.resetFormat(for: identity)
         }.value
+    }
+
+    public func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws {
+        let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity
+        let sessionID = playbackRuntime.activeSessionID
+        try await playbackRuntime.selectAudioTrack(track)
+        guard let identity,
+              playbackRuntime.activeSessionID == sessionID,
+              playbackRuntime.currentLaunchRequest?.versionedIdentity == identity,
+              playbackRuntime.currentAudioTrackID == track.id else { return }
+        await enqueueMediaStateMutation { store in
+            await store.saveAudioTrackSelection(id: track.id, for: identity)
+        }.value
+    }
+
+    public func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws {
+        let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity
+        let sessionID = playbackRuntime.activeSessionID
+        try await playbackRuntime.selectSubtitleTrack(track)
+        guard let identity,
+              playbackRuntime.activeSessionID == sessionID,
+              playbackRuntime.currentLaunchRequest?.versionedIdentity == identity,
+              playbackRuntime.currentSubtitleTrackID == track?.id else { return }
+        let selection: SubtitleTrackSelectionPreference = if let track {
+            .track(id: track.id)
+        } else {
+            .off
+        }
+        await enqueueMediaStateMutation { store in
+            await store.saveSubtitleTrackSelection(selection, for: identity)
+        }.value
+    }
+
+    @discardableResult
+    public func addExternalSubtitleFile(_ url: URL) async throws -> PlaybackModel.SubtitleTrack? {
+        let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity
+        let sessionID = playbackRuntime.activeSessionID
+        let selectedTrack = try await playbackRuntime.addExternalSubtitleFile(url)
+        guard let selectedTrack,
+              let identity,
+              playbackRuntime.activeSessionID == sessionID,
+              playbackRuntime.currentLaunchRequest?.versionedIdentity == identity,
+              playbackRuntime.currentSubtitleTrackID == selectedTrack.id else {
+            return selectedTrack
+        }
+        await enqueueMediaStateMutation { store in
+            await store.saveSubtitleTrackSelection(.track(id: selectedTrack.id), for: identity)
+        }.value
+        return selectedTrack
     }
 
     public func stopPlayback() {
@@ -374,6 +444,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         _ request: PlaybackLaunchRequest,
         resumeAt seconds: Double?,
         savedFormat: MediaFormat?,
+        trackSelectionPreference: TrackSelectionPreference?,
         generation: Int
     ) async -> Bool {
         for attempt in 1...3 {
@@ -391,6 +462,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 )
                 guard try await applyLaunchConfiguration(
                     savedFormat: savedFormat,
+                    trackSelectionPreference: trackSelectionPreference,
                     expectedGeneration: generation
                 ) else { return false }
                 logger.info("network retry succeeded attempt=\(attempt)")
@@ -404,8 +476,43 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
     private func applyLaunchConfiguration(
         savedFormat: MediaFormat?,
+        trackSelectionPreference: TrackSelectionPreference?,
         expectedGeneration: Int
     ) async throws -> Bool {
+        guard generation == expectedGeneration else { return false }
+        if let audioTrackID = trackSelectionPreference?.audioTrackID,
+           let track = playbackRuntime.availableAudioTracks.first(where: { $0.id == audioTrackID }) {
+            do {
+                try await playbackRuntime.selectAudioTrack(track)
+            } catch {
+                logger.error(
+                    "saved audio track could not be restored error=\(error.localizedDescription, privacy: .public)"
+                )
+            }
+        }
+        guard generation == expectedGeneration else { return false }
+        switch trackSelectionPreference?.subtitleTrack {
+        case .off:
+            do {
+                try await playbackRuntime.selectSubtitleTrack(nil)
+            } catch {
+                logger.error(
+                    "saved subtitle-off selection could not be restored error=\(error.localizedDescription, privacy: .public)"
+                )
+            }
+        case .track(let id):
+            if let track = playbackRuntime.availableSubtitleTracks.first(where: { $0.id == id }) {
+                do {
+                    try await playbackRuntime.selectSubtitleTrack(track)
+                } catch {
+                    logger.error(
+                        "saved subtitle track could not be restored error=\(error.localizedDescription, privacy: .public)"
+                    )
+                }
+            }
+        case nil:
+            break
+        }
         guard generation == expectedGeneration else { return false }
         let format = savedFormat ?? .standard
         try await playbackRuntime.setFormat(

@@ -10,7 +10,8 @@ LIBASS_VERSION="0.17.4"
 HARFBUZZ_VERSION="14.2.0"
 FRIBIDI_VERSION="1.0.16"
 FREETYPE_VERSION="2.14.3"
-REVISION="libass-0.17.4-minimal-v1"
+FREETYPE_HVF_COMMIT="c39ca391b34ca8afe2dc3a8fed51be216f77588d"
+REVISION="libass-0.17.4-freetype-hvf-c39ca391"
 JOBS="${JOBS:-$(sysctl -n hw.logicalcpu 2>/dev/null || getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
 
 download() {
@@ -60,22 +61,47 @@ build_slice() {
   export PKG_CONFIG_LIBDIR="$prefix/lib/pkgconfig"
   export PKG_CONFIG_PATH="$PKG_CONFIG_LIBDIR"
 
+  local freetype_source="$BUILD_ROOT/freetype-$FREETYPE_VERSION"
+  if [[ "$sdk" == "xros" ]]; then
+    freetype_source="$BUILD_ROOT/freetype-$FREETYPE_HVF_COMMIT"
+  fi
+
   mkdir -p "$build/freetype"
   if [[ ! -f "$prefix/lib/libfreetype.a" ]]; then
-    (
-      cd "$build/freetype"
-      "$BUILD_ROOT/freetype-$FREETYPE_VERSION/configure" \
-        --host="$host" \
-        --prefix="$prefix" \
-        --disable-shared \
-        --enable-static \
-        --without-zlib \
-        --without-bzip2 \
-        --without-png \
-        --without-brotli \
-        --without-harfbuzz
-      make -j"$JOBS" install
-    )
+    if [[ "$sdk" == "xros" ]]; then
+      cmake -G Ninja \
+        -S "$freetype_source" \
+        -B "$build/freetype" \
+        -DCMAKE_SYSTEM_NAME=visionOS \
+        -DCMAKE_OSX_SYSROOT="$sysroot" \
+        -DCMAKE_OSX_DEPLOYMENT_TARGET=27.0 \
+        -DCMAKE_OSX_ARCHITECTURES="$arch" \
+        -DCMAKE_INSTALL_PREFIX="$prefix" \
+        -DCMAKE_BUILD_TYPE=MinSizeRel \
+        -DBUILD_SHARED_LIBS=OFF \
+        -DFT_DISABLE_BROTLI=TRUE \
+        -DFT_DISABLE_BZIP2=TRUE \
+        -DFT_DISABLE_HARFBUZZ=TRUE \
+        -DFT_DISABLE_HVF=FALSE \
+        -DFT_DISABLE_PNG=TRUE \
+        -DFT_DISABLE_ZLIB=TRUE
+      cmake --build "$build/freetype" --target install --parallel "$JOBS"
+    else
+      (
+        cd "$build/freetype"
+        "$freetype_source/configure" \
+          --host="$host" \
+          --prefix="$prefix" \
+          --disable-shared \
+          --enable-static \
+          --without-zlib \
+          --without-bzip2 \
+          --without-png \
+          --without-brotli \
+          --without-harfbuzz
+        make -j"$JOBS" install
+      )
+    fi
   fi
 
   mkdir -p "$build/fribidi"
@@ -172,11 +198,18 @@ download \
   "freetype-$FREETYPE_VERSION.tar.xz" \
   "https://download.savannah.gnu.org/releases/freetype/freetype-$FREETYPE_VERSION.tar.xz" \
   "36bc4f1cc413335368ee656c42afca65c5a3987e8768cc28cf11ba775e785a5f"
+download \
+  "freetype-$FREETYPE_HVF_COMMIT.tar.gz" \
+  "https://github.com/freetype/freetype/archive/$FREETYPE_HVF_COMMIT.tar.gz" \
+  "4b23c61f86dc7d7706d3fdb1237aec25a663922d73b7d577ba503932bf382f04"
 
 extract "$BUILD_ROOT/libass-$LIBASS_VERSION.tar.xz" "$BUILD_ROOT/libass-$LIBASS_VERSION"
 extract "$BUILD_ROOT/harfbuzz-$HARFBUZZ_VERSION.tar.xz" "$BUILD_ROOT/harfbuzz-$HARFBUZZ_VERSION"
 extract "$BUILD_ROOT/fribidi-$FRIBIDI_VERSION.tar.xz" "$BUILD_ROOT/fribidi-$FRIBIDI_VERSION"
 extract "$BUILD_ROOT/freetype-$FREETYPE_VERSION.tar.xz" "$BUILD_ROOT/freetype-$FREETYPE_VERSION"
+extract \
+  "$BUILD_ROOT/freetype-$FREETYPE_HVF_COMMIT.tar.gz" \
+  "$BUILD_ROOT/freetype-$FREETYPE_HVF_COMMIT"
 
 build_slice macos27-arm64 macosx arm64 arm64-apple-macos27.0 aarch64 aarch64-apple-darwin
 build_slice xros27-arm64 xros arm64 arm64-apple-xros27.0 aarch64 aarch64-apple-darwin
@@ -197,7 +230,16 @@ XROS_HEADERS="$BUILD_ROOT/headers-$REVISION-xros27"
 stage_headers "$BUILD_ROOT/prefix-$REVISION-macos27-arm64" "$MACOS_HEADERS"
 stage_headers "$BUILD_ROOT/prefix-$REVISION-xros27-arm64" "$XROS_HEADERS"
 
-rm -rf "$OUTPUT"
+STAGING_ROOT="$(mktemp -d "$VENDOR_DIR/.subtitle-renderer.XXXXXX")"
+STAGED_OUTPUT="$STAGING_ROOT/PlaybackSubtitleRenderer.xcframework"
+PREVIOUS_OUTPUT="$STAGING_ROOT/previous.xcframework"
+cleanup_staging() {
+  if [[ "$STAGING_ROOT" == "$VENDOR_DIR"/.subtitle-renderer.* ]]; then
+    rm -rf "$STAGING_ROOT"
+  fi
+}
+trap cleanup_staging EXIT
+
 xcodebuild -create-xcframework \
   -library "$BUILD_ROOT/prefix-$REVISION-macos27-arm64/lib/libPlaybackSubtitleRenderer.a" \
   -headers "$MACOS_HEADERS" \
@@ -205,6 +247,19 @@ xcodebuild -create-xcframework \
   -headers "$XROS_HEADERS" \
   -library "$SIMULATOR_DIR/lib/libPlaybackSubtitleRenderer.a" \
   -headers "$SIMULATOR_DIR/include" \
-  -output "$OUTPUT"
+  -output "$STAGED_OUTPUT"
+
+if [[ -e "$OUTPUT" ]]; then
+  mv "$OUTPUT" "$PREVIOUS_OUTPUT"
+fi
+if ! mv "$STAGED_OUTPUT" "$OUTPUT"; then
+  if [[ -e "$PREVIOUS_OUTPUT" ]]; then
+    mv "$PREVIOUS_OUTPUT" "$OUTPUT"
+  fi
+  exit 1
+fi
+rm -rf "$PREVIOUS_OUTPUT"
+trap - EXIT
+cleanup_staging
 
 echo "$OUTPUT"

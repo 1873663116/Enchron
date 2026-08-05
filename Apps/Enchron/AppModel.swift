@@ -18,6 +18,14 @@ struct SpatialPlaybackSurfaceObservation: Equatable {
         playerScreenSize: .zero,
         renderedSize: .zero,
         renderingReady: false,
+        surfaceOpacity: 0,
+        contentType: "none",
+        desiredImmersiveViewingMode: "none",
+        actualImmersiveViewingMode: "none",
+        desiredViewingMode: "none",
+        actualViewingMode: "none",
+        desiredSpatialVideoMode: "none",
+        actualSpatialVideoMode: "none",
         settled: false
     )
 
@@ -34,6 +42,14 @@ struct SpatialPlaybackSurfaceObservation: Equatable {
     let playerScreenSize: SIMD2<Float>
     let renderedSize: SIMD2<Float>
     let renderingReady: Bool
+    let surfaceOpacity: Float
+    let contentType: String
+    let desiredImmersiveViewingMode: String
+    let actualImmersiveViewingMode: String
+    let desiredViewingMode: String
+    let actualViewingMode: String
+    let desiredSpatialVideoMode: String
+    let actualSpatialVideoMode: String
     let settled: Bool
 
     var accessibilityFields: [String] {
@@ -61,12 +77,24 @@ struct SpatialPlaybackSurfaceObservation: Equatable {
             "surfaceRenderedWidth=\(formatted(renderedSize.x))",
             "surfaceRenderedHeight=\(formatted(renderedSize.y))",
             "surfaceRenderingReady=\(renderingReady)",
+            "surfaceOpacity=\(formatted(surfaceOpacity))",
+            "surfaceContentType=\(sanitized(contentType))",
+            "surfaceDesiredImmersiveMode=\(sanitized(desiredImmersiveViewingMode))",
+            "surfaceActualImmersiveMode=\(sanitized(actualImmersiveViewingMode))",
+            "surfaceDesiredViewingMode=\(sanitized(desiredViewingMode))",
+            "surfaceActualViewingMode=\(sanitized(actualViewingMode))",
+            "surfaceDesiredSpatialVideoMode=\(sanitized(desiredSpatialVideoMode))",
+            "surfaceActualSpatialVideoMode=\(sanitized(actualSpatialVideoMode))",
             "surfaceSettled=\(settled)"
         ]
     }
 
     private func formatted(_ value: Float) -> String {
         String(format: "%.4f", value)
+    }
+
+    private func sanitized(_ value: String) -> String {
+        value.replacingOccurrences(of: ";", with: ",")
     }
 }
 
@@ -108,6 +136,8 @@ public final class AppModel {
     public private(set) var lastObservedImmersionAmount: Double?
     public private(set) var immersiveSpaceOpeningInitialAmount: Double?
     public private(set) var immersiveSpaceStyleRevision = 0
+    public private(set) var immersiveSpaceLifecycleRevision: UInt64 = 0
+    private var immersionAmountBeforePanorama: Double?
 
     // MARK: - Playback Presentation
     public let playbackPresentationModel: PlaybackPresentationModel
@@ -124,14 +154,24 @@ public final class AppModel {
         playbackPresentationModel.environmentContext
     }
 
+    public var panoramaReturnEnvironmentContext: EnvironmentContext? {
+        playbackPresentationModel.panoramaReturnEnvironmentContext
+    }
+
     public var isTransitioningPlaybackPresentation: Bool {
         playbackPresentationModel.isTransitionExecutionOccupied
     }
 
+    public private(set) var presentationSourceRendererMayRelease = false
+    private var windowPortalToProgressiveChangeConfirmedTransitionID: UUID?
+    private var presentationTransitionStartedAt: Date?
+
     public var showControls: Bool = true
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
+    public private(set) var isPlaybackSecondaryMenuPresented: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
+    public private(set) var lastPlaybackSurfaceTapAt: Date = .distantPast
 
     // MARK: - Screen Position State (Immersive Mode)
     public var screenDepthOffset: Double {
@@ -150,6 +190,8 @@ public final class AppModel {
 
     private(set) var spatialPlaybackSurfaceObservation =
         SpatialPlaybackSurfaceObservation.absent
+    private(set) var environmentSkyboxOpacity: Float?
+    private(set) var environmentSkyboxIsActive = false
 
     // MARK: - Immersive Cinema State
     public var currentCinemaEnvironment: SpatialSceneDomain.CinemaEnvironment {
@@ -194,7 +236,24 @@ public final class AppModel {
                 wasPlaying: wasPlaying
             )
         )
-        logger.info("transition requested id=\(transition.id.uuidString, privacy: .public) from=\(String(describing: transition.previousPresentation), privacy: .public) to=\(String(describing: transition.targetPresentation), privacy: .public)")
+        presentationSourceRendererMayRelease = false
+        windowPortalToProgressiveChangeConfirmedTransitionID = nil
+        presentationTransitionStartedAt = Date()
+        if transition.targetPresentation == .panorama,
+           transition.previousEnvironment.environment != nil,
+           transition.targetEnvironment == .none {
+            immersionAmountBeforePanorama =
+                SpatialImmersiveSpacePolicy.normalized(lastObservedImmersionAmount)
+        }
+        let previousPresentation = String(describing: transition.previousPresentation)
+        let targetPresentation = String(describing: transition.targetPresentation)
+        logger.info(
+            """
+            transition requested id=\(transition.id.uuidString, privacy: .public) \
+            from=\(previousPresentation, privacy: .public) \
+            to=\(targetPresentation, privacy: .public)
+            """
+        )
         return transition
     }
 
@@ -243,6 +302,7 @@ public final class AppModel {
     }
 
     public func requestStoppedPlaybackCleanup() {
+        resetPresentationTransitionAppearance()
         playbackPresentationModel.requestStoppedPlaybackCleanup()
         spatialPlatformEffectReplacementHandler?()
         logger.notice("playback stopped; spatial platform cleanup requested")
@@ -279,11 +339,27 @@ public final class AppModel {
     public func receiveSpatialPlatformResult(
         _ event: SpatialPlatformResultEvent
     ) -> SpatialPlatformEffectResolution {
+        switch event {
+        case .immersiveSpaceAppeared, .immersiveSpaceDisappeared:
+            immersiveSpaceLifecycleRevision &+= 1
+        default:
+            break
+        }
         let resolution = playbackPresentationModel.receiveSpatialPlatformResult(event)
         switch resolution {
         case .presentationCommitted(let presentation):
+            resetPresentationTransitionAppearance()
+            if presentation == .window,
+               environmentContext.environment != nil {
+                restoreImmersionAmountAfterPanoramaIfNeeded()
+            }
             logger.info("platform result committed presentation=\(presentation.rawValue, privacy: .public)")
         case .presentationRolledBack(let failure):
+            resetPresentationTransitionAppearance()
+            if playbackPresentation == .window,
+               environmentContext.environment != nil {
+                restoreImmersionAmountAfterPanoramaIfNeeded()
+            }
             logger.error("platform result rolled back transition failure=\(String(describing: failure), privacy: .public)")
         case .spatialRecoveryRequested(let presentation):
             logger.notice("unexpected immersive dismissal; recovery requested presentation=\(presentation.rawValue, privacy: .public)")
@@ -301,6 +377,50 @@ public final class AppModel {
         return resolution
     }
 
+    @discardableResult
+    func allowPresentationSourceRendererRelease() -> Bool {
+        guard presentationTransition != nil else { return false }
+        presentationSourceRendererMayRelease = true
+        return true
+    }
+
+    func recordWindowPortalToProgressiveChange(for transitionID: UUID) {
+        guard let transition = presentationTransition,
+              transition.id == transitionID,
+              transition.requiresWindowPortalToProgressiveChange else {
+            return
+        }
+        windowPortalToProgressiveChangeConfirmedTransitionID = transitionID
+    }
+
+    func windowPortalToProgressiveChangeIsConfirmed(
+        for transitionID: UUID
+    ) -> Bool {
+        windowPortalToProgressiveChangeConfirmedTransitionID == transitionID
+    }
+
+    var windowPortalToProgressiveChangeIsConfirmed: Bool {
+        guard let transition = presentationTransition else { return false }
+        return windowPortalToProgressiveChangeIsConfirmed(for: transition.id)
+    }
+
+    func presentationTransitionRemainingTime(
+        until elapsedTime: TimeInterval,
+        now: Date = Date()
+    ) -> TimeInterval? {
+        guard let presentationTransitionStartedAt else { return nil }
+        return max(
+            0,
+            elapsedTime - now.timeIntervalSince(presentationTransitionStartedAt)
+        )
+    }
+
+    private func resetPresentationTransitionAppearance() {
+        presentationSourceRendererMayRelease = false
+        windowPortalToProgressiveChangeConfirmedTransitionID = nil
+        presentationTransitionStartedAt = nil
+    }
+
     public func recordImmersionAmount(_ amount: Double?) {
         guard let normalized = SpatialImmersiveSpacePolicy.normalized(amount) else {
             return
@@ -312,6 +432,12 @@ public final class AppModel {
         immersiveSpaceOpeningInitialAmount =
             SpatialImmersiveSpacePolicy.normalized(initialAmount)
         immersiveSpaceStyleRevision &+= 1
+    }
+
+    private func restoreImmersionAmountAfterPanoramaIfNeeded() {
+        guard let immersionAmountBeforePanorama else { return }
+        self.immersionAmountBeforePanorama = nil
+        prepareImmersiveSpaceOpening(initialAmount: immersionAmountBeforePanorama)
     }
 
     public func configureDefaultEnvironment(
@@ -334,10 +460,28 @@ public final class AppModel {
         lastControlsInteractionAt = date
     }
 
+    public func setPlaybackSecondaryMenuPresented(
+        _ presented: Bool,
+        at date: Date = Date()
+    ) {
+        isPlaybackSecondaryMenuPresented = presented
+        registerControlsInteraction(at: date)
+    }
+
     /// Last surface-tap decision, exposed through Window control-plane value for XCUI.
     public var debugSurfaceTapTrace: String = "none"
 
     public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {
+        guard isPlaybackSecondaryMenuPresented == false else {
+            logger.info("surface tap ignored while playback secondary menu is presented")
+            debugSurfaceTapTrace = "ignored:secondaryMenu->shown"
+            return
+        }
+        guard date.timeIntervalSince(lastPlaybackSurfaceTapAt) >= 0.8 else {
+            logger.info("duplicate playback surface tap ignored")
+            debugSurfaceTapTrace = "ignored:duplicate->\(showControls ? "shown" : "hidden")"
+            return
+        }
         let elapsed = date.timeIntervalSince(lastControlsInteractionAt)
         guard elapsed > 0.5 else {
             logger.info("surface tap ignored during playback transition elapsed=\(elapsed)")
@@ -355,6 +499,7 @@ public final class AppModel {
             // #endregion
             return
         }
+        lastPlaybackSurfaceTapAt = date
         showControls.toggle()
         logger.info("surface tap controlsVisible=\(self.showControls)")
         // #region agent log
@@ -417,11 +562,29 @@ public final class AppModel {
     func recordSpatialPlaybackSurfaceObservation(
         _ observation: SpatialPlaybackSurfaceObservation
     ) {
+        guard spatialPlaybackSurfaceObservation != observation else { return }
         spatialPlaybackSurfaceObservation = observation
     }
 
     func clearSpatialPlaybackSurfaceObservation() {
+        guard spatialPlaybackSurfaceObservation != .absent else { return }
         spatialPlaybackSurfaceObservation = .absent
+    }
+
+    func recordEnvironmentSceneEffect(opacity: Float) {
+        guard environmentSkyboxOpacity != opacity else { return }
+        environmentSkyboxOpacity = opacity
+    }
+
+    func recordEnvironmentSkyboxIsActive(_ isActive: Bool) {
+        guard environmentSkyboxIsActive != isActive else { return }
+        environmentSkyboxIsActive = isActive
+    }
+
+    func clearEnvironmentSceneEffectObservation() {
+        guard environmentSkyboxOpacity != nil || environmentSkyboxIsActive else { return }
+        environmentSkyboxOpacity = nil
+        environmentSkyboxIsActive = false
     }
 
 }

@@ -74,6 +74,10 @@ nonisolated extension FileBrowsingDomain {
                 "mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv"
             ]
         )
+
+        public static let externalSubtitles = FileFilter(
+            allowedExtensions: ["srt", "vtt", "ass", "ssa"]
+        )
     }
 }
 
@@ -133,6 +137,20 @@ public nonisolated protocol FileProviding: Sendable {
     func resolvePlayableSource(
         for file: FileBrowsingDomain.MediaFile
     ) async throws -> ResolvedMediaSource
+
+    func listSubtitleFiles(at path: String) async throws -> [FileBrowsingDomain.MediaFile]
+
+    func resolveSubtitleSource(
+        for file: FileBrowsingDomain.MediaFile
+    ) async throws -> ResolvedMediaSource
+}
+
+public nonisolated extension FileProviding {
+    func resolveSubtitleSource(
+        for file: FileBrowsingDomain.MediaFile
+    ) async throws -> ResolvedMediaSource {
+        try await resolvePlayableSource(for: file)
+    }
 }
 
 

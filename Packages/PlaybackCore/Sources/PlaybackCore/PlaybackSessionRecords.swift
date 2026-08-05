@@ -221,6 +221,9 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
     public var rendererError: String?
     public var inputModel: String?
     public var displayedPixelBuffer: Bool
+    /// Counts distinct displayed pixel-buffer identities for this renderer graph.
+    /// It is intentionally separate from accepted input and timeline progression.
+    public var displayedFrameObservationCount: UInt64?
     public var flushCount: UInt64
 
     public init(
@@ -239,6 +242,7 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
         rendererError: String?,
         inputModel: String?,
         displayedPixelBuffer: Bool,
+        displayedFrameObservationCount: UInt64? = nil,
         flushCount: UInt64
     ) {
         self.mediaSessionID = mediaSessionID
@@ -256,6 +260,7 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
         self.rendererError = rendererError
         self.inputModel = inputModel
         self.displayedPixelBuffer = displayedPixelBuffer
+        self.displayedFrameObservationCount = displayedFrameObservationCount
         self.flushCount = flushCount
     }
 }

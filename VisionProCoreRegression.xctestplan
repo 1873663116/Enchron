@@ -10,6 +10,12 @@
     }
   ],
   "defaultOptions" : {
+    "environmentVariableEntries" : [
+      {
+        "key" : "ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS",
+        "value" : "$(ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS)"
+      }
+    ],
     "targetForVariableExpansion" : {
       "containerPath" : "container:Enchron.xcodeproj",
       "identifier" : "C3B0F97F2F5726B30064596E",
@@ -19,12 +25,23 @@
   "testTargets" : [
     {
       "selectedTests" : [
+        "DeviceFixtureImportUITests/testFolderImportAutomaticallyAssociatesMatchingSubtitleFilesWithoutSelectingOne()",
+        "DeviceFixtureImportUITests/testImportsGeneratedBaselineFixtureFromICloudDriveAndStartsPlayback()",
+        "DeviceFixtureImportUITests/testPlaybackWithoutAssociatedSubtitleCanAddAndSelectAnExternalSubtitleWithoutReplacingSession()",
+        "DeviceFixtureImportUITests/testReopeningMediaRestoresAudioSubtitleAndSubtitleOffSelections()",
+        "DockedPlacementUITests/testDockDayAndNightApplyDistinctSkyboxOpacityWithoutAffectingPlaybackSurface()",
         "DockedPlacementUITests/testPlacementControlsChangeTheActualSurfaceAndPersistAcrossRoundTrip()",
         "DockedPlacementUITests/testRestoreDefaultsUsesTheSpecifiedFourMeterDistance()",
         "SequentialMediaPlaybackUITests/testTwoRegisteredMediaOpenSequentiallyWithoutSessionOrSurfaceLeakage()",
         "SmokeLaunchUITests/testAppLaunchesToInteractiveMainWindow()",
-        "SpatialHandoffUITests/testDockedTargetIsReadyBeforeWindowStopsBeingTheUsableSurface()",
-        "SpatialHandoffUITests/testPanoramaTargetIsReadyBeforeWindowStopsBeingTheUsableSurface()"
+        "SmokeLaunchUITests/testSpatialRegressionLaunchesBeforeMediaSelection()",
+        "SpatialHandoffUITests/testWindowFadesWhileDockedPreparesThenDockedBecomesUsable()",
+        "SpatialHandoffUITests/testWindowSurfaceAndVisibleControlsDoNotCauseAnExtraVisibilityToggle()",
+        "SpatialHandoffUITests/testDockReturnRemainsPausedUntilWindowPlayThenDisplaysContinuousFrames()",
+        "SpatialHandoffUITests/testDockedControlsDeckRemainsClickableAfterThePresentationTransition()",
+        "SpatialHandoffUITests/testDockedInheritsActiveEnvironmentAndRestoresItOnReturn()",
+        "SpatialHandoffUITests/testWindowFadesWhilePanoramaPreparesThenPanoramaBecomesUsable()",
+        "SpatialHandoffUITests/testPanoramaSuspendsAnActiveEnvironmentAndRestoresItOnReturn()"
       ],
       "target" : {
         "containerPath" : "container:Enchron.xcodeproj",

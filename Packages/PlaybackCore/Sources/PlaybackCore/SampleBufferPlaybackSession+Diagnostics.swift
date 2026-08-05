@@ -1,5 +1,7 @@
 @preconcurrency import AVFoundation
+import CoreVideo
 import Foundation
+import IOSurface
 import OSLog
 import VideoToolbox
 
@@ -785,6 +787,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func recordRendererState(at time: CMTime) {
+        let displayedFrameObservationCount = observeDisplayedFrame()
         debugStore.recordRendererState(RendererStateRecord(
             mediaSessionID: traceID,
             graphID: "\(traceID).rendererGraph",
@@ -802,9 +805,38 @@ extension SampleBufferPlaybackSession {
             rendererStatus: currentVideoRendererStatus,
             rendererError: currentVideoRendererError,
             inputModel: "decoderBootstrapThenReceiverBackpressure",
-            displayedPixelBuffer: renderer.displayedPixelBuffer() != nil,
+            displayedPixelBuffer: displayedFrameObservationCount != nil,
+            displayedFrameObservationCount: displayedFrameObservationCount,
             flushCount: flushCount
         ))
+    }
+
+    /// A non-nil displayed pixel buffer only proves that one image exists. A
+    /// changed Core Video identity records that this renderer graph presented a
+    /// later frame; the transfer gate requires two such changes.
+    func observeDisplayedFrame() -> UInt64? {
+        guard let pixelBuffer = renderer.displayedPixelBuffer() else { return nil }
+        let identity: UInt64
+        if let surface = CVPixelBufferGetIOSurface(pixelBuffer) {
+            identity = UInt64(IOSurfaceGetID(surface.takeUnretainedValue()))
+        } else {
+            identity = UInt64(CFHash(pixelBuffer))
+        }
+        if identity != lastDisplayedFrameIdentity {
+            lastDisplayedFrameIdentity = identity
+            displayedFrameObservationCount &+= 1
+        }
+        return displayedFrameObservationCount
+    }
+
+    func rendererGraphPlaybackObservation() -> RendererGraphPlaybackObservation {
+        let state = debugStore.snapshot().rendererState
+        return RendererGraphPlaybackObservation(
+            graphRevision: graphRevision,
+            acceptedInputCount: debugStore.snapshot().acceptedRendererInputCount,
+            actualTimebaseRate: state?.actualTimebaseRate ?? 0,
+            displayedFrameObservationCount: state?.displayedFrameObservationCount ?? 0
+        )
     }
 
     func attachmentString(_ attachments: [String: Any], key: CFString) -> String {

@@ -566,6 +566,64 @@
         ]
       },
       {
+        "id": "state.audioTrackPreference",
+        "label": "Audio Track Selection Preference",
+        "values": [
+          {
+            "id": "none",
+            "label": "未保存"
+          },
+          {
+            "id": "valid",
+            "label": "稳定轨道身份可用"
+          },
+          {
+            "id": "unavailable",
+            "label": "保存轨道当前不可用"
+          }
+        ],
+        "ownerIds": [
+          "playback-feature"
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## 音轨与字幕轨选择偏好"
+          }
+        ]
+      },
+      {
+        "id": "state.subtitleTrackPreference",
+        "label": "Subtitle Track Selection Preference",
+        "values": [
+          {
+            "id": "none",
+            "label": "未保存"
+          },
+          {
+            "id": "off",
+            "label": "字幕 Off"
+          },
+          {
+            "id": "valid",
+            "label": "稳定轨道身份可用"
+          },
+          {
+            "id": "unavailable",
+            "label": "保存轨道当前不可用"
+          }
+        ],
+        "ownerIds": [
+          "playback-feature"
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## 音轨与字幕轨选择偏好"
+          }
+        ]
+      },
+      {
         "id": "state.environmentContext",
         "label": "Environment Identity",
         "values": [
@@ -1348,7 +1406,7 @@
       },
       {
         "id": "invariant.sharedIdentityRevision",
-        "label": "Viewing State 与 Format Preference 共用 Media Identity 和 Content Revision 权威。",
+        "label": "Viewing State、Format Preference 与 Track Selection Preference 共用 Media Identity 和 Content Revision 权威。",
         "ownerIds": [
           "playback-feature",
           "media-source"
@@ -1357,6 +1415,10 @@
           {
             "sourceId": "product-requirements",
             "heading": "## Persistent Viewing State"
+          },
+          {
+            "sourceId": "product-requirements",
+            "heading": "## 音轨与字幕轨选择偏好"
           }
         ]
       },
@@ -4967,7 +5029,7 @@
     {
       "id": "playback.selectMedia",
       "label": "打开媒体",
-      "summary": "从用户选择一路完成 Collection/Queue、身份与版本解析、Resume Decision、初始格式应用和唯一 renderer consumer 绑定；这些步骤共同构成一次启动，不能被孤立动作替代。",
+      "summary": "从用户选择一路完成 Collection/Queue、身份与版本解析、Resume Decision、初始格式与轨道选择恢复，以及唯一 renderer consumer 绑定；这些步骤共同构成一次启动，不能被孤立动作替代。",
       "visualGrammar": "causal-chain",
       "causalSubject": "一次完整媒体启动",
       "ownerIds": [
@@ -5308,6 +5370,10 @@
         {
           "sourceId": "product-requirements",
           "heading": "## Media Format"
+        },
+        {
+          "sourceId": "product-requirements",
+          "heading": "## 音轨与字幕轨选择偏好"
         }
       ],
       "visualLayers": {
@@ -5532,7 +5598,7 @@
     {
       "id": "playback.invalidateStaleState",
       "label": "丢弃失效媒体状态",
-      "summary": "Content Revision 变化或未知时不使用旧 Resume 与 Format Preference，但仍允许从头打开。",
+      "summary": "Content Revision 变化或未知时不使用旧 Resume、Format Preference 与 Track Selection Preference，但仍允许从头打开。",
       "visualGrammar": "causal-chain",
       "causalSubject": "持久化媒体状态",
       "ownerIds": [
@@ -5562,7 +5628,9 @@
           "initialState": {
             "state.playbackEligibility": "invalidRevision",
             "state.viewingState": "progress",
-            "state.formatPreference": "invalidRevision"
+            "state.formatPreference": "invalidRevision",
+            "state.audioTrackPreference": "valid",
+            "state.subtitleTrackPreference": "valid"
           },
           "steps": [
             {
@@ -5571,11 +5639,13 @@
               "patch": {}
             },
             {
-              "label": "清除旧观看状态与忽略旧格式",
+              "label": "清除旧观看状态、格式偏好与轨道选择偏好",
               "actorId": "enchron",
               "patch": {
                 "state.viewingState": "none",
                 "state.formatPreference": "none",
+                "state.audioTrackPreference": "none",
+                "state.subtitleTrackPreference": "none",
                 "state.resumeDecision": "notNeeded"
               }
             }
@@ -5591,6 +5661,10 @@
         {
           "sourceId": "product-requirements",
           "heading": "## Media Format"
+        },
+        {
+          "sourceId": "product-requirements",
+          "heading": "## 音轨与字幕轨选择偏好"
         }
       ],
       "visualLayers": {
@@ -5606,6 +5680,8 @@
           "summaryDimensions": [
             "state.viewingState",
             "state.formatPreference",
+            "state.audioTrackPreference",
+            "state.subtitleTrackPreference",
             "state.resumeDecision"
           ]
         }
@@ -5695,6 +5771,130 @@
           "summaryDimensions": [
             "state.mediaProjection",
             "state.stereoLayout"
+          ]
+        }
+      }
+    },
+    {
+      "id": "playback.restoreTrackSelections",
+      "label": "恢复音轨与字幕轨选择",
+      "summary": "当前 Media Session 发布容器轨与成功自动关联的字幕轨后，按稳定 track identity 恢复相同媒体版本的音轨、字幕轨或字幕 Off；缺失轨道不阻塞播放，也不猜测替代轨道。",
+      "visualGrammar": "causal-chain",
+      "causalSubject": "Track Selection Preference",
+      "ownerIds": [
+        "playback-feature",
+        "playback-core"
+      ],
+      "decisionStatus": "confirmed",
+      "delivery": {
+        "implementation": "observed",
+        "verification": "notEvidenced"
+      },
+      "placements": [
+        {
+          "surfaceId": "surface.loadingFailureOverlay",
+          "regionId": "failure-actions"
+        }
+      ],
+      "availableWhen": [
+        {
+          "dimensionId": "state.mediaSessionResidency",
+          "equals": "opening"
+        }
+      ],
+      "demonstrations": [
+        {
+          "id": "available-saved-tracks",
+          "initialState": {
+            "state.mediaSessionResidency": "opening",
+            "state.contentRevision": "current",
+            "state.audioTrackPreference": "valid",
+            "state.subtitleTrackPreference": "valid"
+          },
+          "steps": [
+            {
+              "label": "PlaybackCore 发布完整音轨与字幕轨列表",
+              "actorId": "playback-core",
+              "patch": {}
+            },
+            {
+              "label": "在当前 Session 内按保存的稳定 identity 恢复两个选择",
+              "actorId": "enchron",
+              "patch": {}
+            }
+          ],
+          "branches": [
+            {
+              "label": "保存的字幕选择是 Off",
+              "result": "明确保持字幕 Off，不把它解释为从未保存偏好。",
+              "steps": [
+                {
+                  "label": "向当前 Session 提交字幕 Off",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.subtitleTrackPreference": "off"
+                  }
+                }
+              ],
+              "visualSemantic": "conditional"
+            },
+            {
+              "label": "保存轨道当前不存在或不可用",
+              "result": "保留 PlaybackCore 当前默认选择并继续打开，不按 UI index、语言或名称替代。",
+              "steps": [
+                {
+                  "label": "记录偏好未恢复并继续启动",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.audioTrackPreference": "unavailable",
+                    "state.subtitleTrackPreference": "unavailable"
+                  }
+                }
+              ],
+              "visualSemantic": "recoverableFailure"
+            },
+            {
+              "label": "Content Revision 变化或无法验证",
+              "result": "删除旧 Track Selection Preference，并使用新媒体的默认轨道行为。",
+              "steps": [
+                {
+                  "label": "清除旧偏好",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.audioTrackPreference": "none",
+                    "state.subtitleTrackPreference": "none"
+                  }
+                }
+              ],
+              "visualSemantic": "alternativeOutcome"
+            }
+          ]
+        }
+      ],
+      "sourceRefs": [
+        {
+          "sourceId": "product-requirements",
+          "heading": "## 音轨与字幕轨选择偏好"
+        },
+        {
+          "sourceId": "core-spec",
+          "heading": "## Container 与轨道"
+        }
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.contentRevision",
+            "state.audioTrackPreference",
+            "state.subtitleTrackPreference"
           ]
         }
       }
@@ -6949,7 +7149,7 @@
     {
       "id": "window.openDockMenu",
       "label": "打开 Docking 菜单",
-      "summary": "只显示本次 Docking 的 Day/Night；不列出 Environment Identity。",
+      "summary": "系统原生 Menu：分区标题为「在 {Environment 显示名} 中观看」；两条选项共用同一 Environment 显示名，分别用浅色与深色 AppearanceModeGlyph 表达 Day 与 Night。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Docking Effect",
       "ownerIds": [
@@ -6985,7 +7185,7 @@
           },
           "steps": [
             {
-              "label": "打开 Docking 二级菜单",
+              "label": "打开 Dock 系统 Menu",
               "actorId": "user",
               "patch": {}
             }
@@ -7004,6 +7204,10 @@
         {
           "sourceId": "product-requirements",
           "heading": "## Environment 与 Docked Placement"
+        },
+        {
+          "sourceId": "ui-spec",
+          "heading": "## Surface ownership"
         }
       ],
       "visualLayers": {
@@ -7026,7 +7230,7 @@
       ],
       "decisionStatus": "confirmed",
     "delivery": {
-      "implementation": "partial",
+      "implementation": "observed",
       "verification": "notEvidenced"
       },
       "placements": [
@@ -7142,11 +7346,6 @@
                 "state.rendererConsumerBinding": "docked",
                 "state.presentationTransition": "settled"
           }
-        },
-        {
-          "label": "确认 Window 与空间播放界面没有同时可操作或同时不可操作，再由系统隐藏 Main Window",
-          "actorId": "visionos",
-          "patch": {}
         },
         {
           "label": "确认 Window 与空间播放界面没有同时可操作或同时不可操作，再由系统隐藏 Main Window",
@@ -7293,7 +7492,7 @@
       ],
       "decisionStatus": "confirmed",
     "delivery": {
-      "implementation": "partial",
+      "implementation": "observed",
       "verification": "notEvidenced"
       },
       "placements": [
@@ -7634,7 +7833,7 @@
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "partial",
+        "implementation": "observed",
         "verification": "notEvidenced"
       },
       "placements": [
@@ -7968,7 +8167,7 @@
       ],
       "decisionStatus": "confirmed",
     "delivery": {
-      "implementation": "partial",
+      "implementation": "observed",
       "verification": "notEvidenced"
       },
       "placements": [
@@ -8100,7 +8299,7 @@
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "partial",
+        "implementation": "observed",
         "verification": "notEvidenced"
       },
       "placements": [
@@ -8314,7 +8513,7 @@
     {
       "id": "controls.summonOrHide",
       "label": "显示或隐藏 Playback Deck",
-      "summary": "在当前播放表面召唤或隐藏 Deck；Window RealityView 先用目标化 SpatialTap 处理视频实体命中，再用同一 RealityView 的普通点击互斥地接住空白区域，其 RealityKit 碰撞区域避开上缘 Chrome 保护带，让 SwiftUI 顶部操作直接接收输入。Ended 时主按钮投影为 Replay。",
+      "summary": "在当前播放表面召唤或隐藏 Deck；Window 由内容树上的透明 SwiftUI 点击层接收画面点击，顶部 Chrome 与自绘二级菜单叠在该层之上并由 SwiftUI 直接接收输入，系统 Menu（Dock、More）由系统拥有呈现与命中，Window 视频实体不安装 RealityKit 空间点击碰撞。Docked 与 Panorama 由视频实体的空间点击开关独立的 Spatial Playback Controls。Ended 时主按钮投影为 Replay。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Playback Deck",
       "ownerIds": [
@@ -8376,7 +8575,7 @@
             },
             {
               "label": "Window RealityView",
-              "result": "视频实体命中优先触发目标化 SpatialTap；未命中实体时由同一 RealityView 的普通点击回退触发，两条入口调用同一控件显隐命令。碰撞区域避开 Window 上缘 Chrome 保护带，使顶部 SwiftUI 操作不被 RealityView 拦截。",
+              "result": "Window 用透明 SwiftUI 点击层开关控件；视频实体不安装 RealityKit 空间点击碰撞，顶部 Chrome 与自绘二级菜单由 SwiftUI 直接接收输入，系统 Menu 由系统拥有。Docked 与 Panorama 仍由视频实体空间点击开关独立控件窗。",
               "steps": [],
               "visualSemantic": "guardedOutcome"
             }
@@ -9373,7 +9572,7 @@
     {
       "id": "more.selectSubtitle",
       "label": "选择 Subtitle",
-      "summary": "按稳定 track identity 选择字幕；UI index 不是身份。",
+      "summary": "按稳定 track identity 选择字幕或 Off；当前 Session 提交成功后，为相同媒体版本保存选择，UI index 不是身份。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Subtitle Track",
       "ownerIds": [
@@ -9382,7 +9581,7 @@
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "partial",
+        "implementation": "observed",
         "verification": "notEvidenced"
       },
       "placements": [
@@ -9404,7 +9603,9 @@
       "demonstrations": [
         {
           "id": "default",
-          "initialState": {},
+          "initialState": {
+            "state.subtitleTrackPreference": "none"
+          },
           "steps": [
             {
               "label": "选择字幕轨",
@@ -9415,12 +9616,33 @@
               "label": "提交稳定 track identity",
               "actorId": "playback-core",
               "patch": {}
+            },
+            {
+              "label": "为相同 Media Identity 与 Content Revision 保存选择",
+              "actorId": "enchron",
+              "patch": {
+                "state.subtitleTrackPreference": "valid"
+              }
             }
           ],
           "branches": [
             {
+              "label": "选择 Off",
+              "result": "当前 Session 清除字幕，并把 Off 保存为明确偏好。",
+              "steps": [
+                {
+                  "label": "提交并保存 Off",
+                  "actorId": "enchron",
+                  "patch": {
+                    "state.subtitleTrackPreference": "off"
+                  }
+                }
+              ],
+              "visualSemantic": "alternativeOutcome"
+            },
+            {
               "label": "Core 拒绝",
-              "result": "显示拒绝原因，不静默改用 UI index。",
+              "result": "显示拒绝原因，不静默改用 UI index，也不覆盖已保存偏好。",
               "steps": [],
               "visualSemantic": "recoverableFailure"
             }
@@ -9435,6 +9657,10 @@
         {
           "sourceId": "core-spec",
           "heading": "## 控制"
+        },
+        {
+          "sourceId": "product-requirements",
+          "heading": "## 音轨与字幕轨选择偏好"
         }
       ],
       "visualLayers": {
@@ -9444,6 +9670,12 @@
         },
         "blueprint": {
           "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.subtitleTrackPreference"
+          ]
         }
       }
     },
@@ -9461,7 +9693,7 @@
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "notFound",
+        "implementation": "partial",
         "verification": "notEvidenced"
       },
       "placements": [
@@ -9572,7 +9804,7 @@
     {
       "id": "more.selectAudioTrack",
       "label": "选择 Audio Track",
-      "summary": "以 transaction 切换稳定音轨身份。",
+      "summary": "以 transaction 切换稳定音轨身份；当前 Session 提交成功后，为相同媒体版本保存选择。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Audio Track",
       "ownerIds": [
@@ -9603,7 +9835,9 @@
       "demonstrations": [
         {
           "id": "default",
-          "initialState": {},
+          "initialState": {
+            "state.audioTrackPreference": "none"
+          },
           "steps": [
             {
               "label": "选择音轨",
@@ -9614,12 +9848,19 @@
               "label": "事务式提交稳定 identity",
               "actorId": "playback-core",
               "patch": {}
+            },
+            {
+              "label": "为相同 Media Identity 与 Content Revision 保存选择",
+              "actorId": "enchron",
+              "patch": {
+                "state.audioTrackPreference": "valid"
+              }
             }
           ],
           "branches": [
             {
               "label": "Core 拒绝",
-              "result": "显示拒绝原因。",
+              "result": "显示拒绝原因，不覆盖已保存偏好。",
               "steps": [],
               "visualSemantic": "recoverableFailure"
             }
@@ -9634,6 +9875,10 @@
         {
           "sourceId": "core-spec",
           "heading": "## 控制"
+        },
+        {
+          "sourceId": "product-requirements",
+          "heading": "## 音轨与字幕轨选择偏好"
         }
       ],
       "visualLayers": {
@@ -9643,6 +9888,12 @@
         },
         "blueprint": {
           "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.audioTrackPreference"
+          ]
         }
       }
     },
@@ -9869,7 +10120,7 @@
     {
       "id": "docked.adjustDistance",
       "label": "调整 Distance",
-      "summary": "改变用户到屏幕的球面半径，不把 anchor local Z 当作用户距离。",
+      "summary": "在 0.5–10 米、0.5 米步进内改变用户到屏幕的球面半径，不把 anchor local Z 当作用户距离。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Docked Placement",
       "ownerIds": [
@@ -9936,7 +10187,7 @@
     {
       "id": "docked.adjustElevation",
       "label": "调整 Elevation",
-      "summary": "沿以用户为球心的垂直圆弧移动，屏幕始终朝向用户。",
+      "summary": "在 −80°–80°、5° 步进内沿以用户为球心的垂直圆弧移动，屏幕始终朝向用户。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Docked Placement",
       "ownerIds": [
@@ -10011,7 +10262,7 @@
       ],
       "decisionStatus": "confirmed",
     "delivery": {
-      "implementation": "partial",
+      "implementation": "observed",
       "verification": "notEvidenced"
     },
       "placements": [
