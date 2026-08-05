@@ -3,59 +3,62 @@ import MediaLibrary
 import SwiftUI
 
 struct NavBackForwardCapsuleControl: View {
+    let canGoBack: Bool
+    let canGoForward: Bool
     var onBack: () -> Void = {}
     var onForward: () -> Void = {}
     var accessibilityIdentifier: String = "DesignPreview-control-navBackForward"
-    var accessibilityLabel: String = "Back and Forward"
 
-    // 锁死:图标恒白、forward 半区恒 0.65 透明,不暴露。
     private let iconColor: Color = .white
-    private let trailingOpacity: Double = 0.65
-
-    @State private var pressedSide: NavSide? = nil
-    @State private var pressFeedbackTrigger = 0
-
-    private enum NavSide { case back, forward }
+    private let disabledOpacity: Double = 0.45
 
     var body: some View {
         let capsuleWidth = DesignTokens.Interactive.regular * 2
-        let press = DesignTokens.PressFeedback.icon
 
-        ZStack {
-            HStack(spacing: 0) {
+        HStack(spacing: 0) {
+            Button(action: onBack) {
                 ButtonSymbol(systemName: "chevron.left")
-                    .foregroundStyle(iconColor)
-                    .scaleEffect(pressedSide == .back ? press.pressedScale : 1.0)
+                    .foregroundStyle(
+                        iconColor.opacity(canGoBack ? 1 : disabledOpacity)
+                    )
                     .frame(width: DesignTokens.Interactive.regular,
                            height: DesignTokens.Interactive.regular)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(
+                EnchronPressFeedbackButtonStyle(
+                    .icon,
+                    playsSensoryFeedback: true
+                )
+            )
+            .disabled(!canGoBack)
+            .accessibilityLabel("Back")
+            .accessibilityIdentifier("\(accessibilityIdentifier)-back")
+
+            Button(action: onForward) {
                 ButtonSymbol(systemName: "chevron.right")
-                    .foregroundStyle(iconColor.opacity(trailingOpacity))
-                    .scaleEffect(pressedSide == .forward ? press.pressedScale : 1.0)
+                    .foregroundStyle(
+                        iconColor.opacity(canGoForward ? 1 : disabledOpacity)
+                    )
                     .frame(width: DesignTokens.Interactive.regular,
                            height: DesignTokens.Interactive.regular)
+                    .contentShape(Rectangle())
             }
-            .frame(width: capsuleWidth, height: DesignTokens.Interactive.regular)
-            .enchronGlassControl()
+            .buttonStyle(
+                EnchronPressFeedbackButtonStyle(
+                    .icon,
+                    playsSensoryFeedback: true
+                )
+            )
+            .disabled(!canGoForward)
+            .accessibilityLabel("Forward")
+            .accessibilityIdentifier("\(accessibilityIdentifier)-forward")
         }
+        .frame(width: capsuleWidth, height: DesignTokens.Interactive.regular)
+        .enchronGlassControl()
         .frame(width: capsuleWidth, height: DesignTokens.Interactive.large)
-        .contentShape(Rectangle())
-        .gesture(
-            SpatialTapGesture().onEnded { value in
-                let tapped: NavSide = value.location.x < capsuleWidth / 2 ? .back : .forward
-                pressFeedbackTrigger += 1
-                withAnimation(press.pressAnimation) { pressedSide = tapped }
-                Task {
-                    try? await Task.sleep(for: press.holdDuration)
-                    withAnimation(press.releaseAnimation) { pressedSide = nil }
-                }
-                if tapped == .back { onBack() } else { onForward() }
-            }
-        )
-        .enchronPressSensoryFeedback(.iconOnly, trigger: pressFeedbackTrigger)
-        .accessibilityElement(children: .ignore)
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(accessibilityIdentifier)
-        .accessibilityLabel(accessibilityLabel)
-        .accessibilityHint("Tap left half for back, right half for forward")
     }
 }
 

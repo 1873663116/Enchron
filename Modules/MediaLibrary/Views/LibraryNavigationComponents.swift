@@ -140,16 +140,21 @@ struct CategorySidebar: View {
 
                 VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
                     ForEach(items) { item in
-                        SourceSidebarRow(
-                            icon: item.icon,
-                            title: item.title,
-                            isSelected: selection == item.id
-                        )
+                        Button {
+                            selection = item.id
+                        } label: {
+                            SourceSidebarRow(
+                                icon: item.icon,
+                                title: item.title,
+                                isSelected: selection == item.id
+                            )
+                        }
+                        .buttonStyle(.plain)
                         .contentShape(DesignTokens.SourceSidebar.rowShape)
-                        .onTapGesture { selection = item.id }
-                        .accessibilityElement(children: .ignore)
+                        .enchronHoverContentShape(DesignTokens.SourceSidebar.rowShape)
+                        .enchronHoverEffect(.automatic)
                         .accessibilityLabel(item.title)
-                        .accessibilityAddTraits(selection == item.id ? [.isButton, .isSelected] : .isButton)
+                        .accessibilityAddTraits(selection == item.id ? .isSelected : [])
                         .accessibilityIdentifier("\(identifierPrefix)-category-\(item.id)")
                     }
                 }

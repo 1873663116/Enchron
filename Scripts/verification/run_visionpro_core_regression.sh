@@ -32,11 +32,6 @@ fi
 device_identifier=${destination#*id=}
 device_identifier=${device_identifier%%,*}
 
-if [[ -z "$media_card_ids" || "$media_card_ids" != *,* ]]; then
-    echo "Set ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS to at least two comma-separated Media Library accessibility identifiers." >&2
-    exit 64
-fi
-
 if ! [[ "$test_iterations" =~ ^[1-9][0-9]*$ ]]; then
     echo "ENCHRON_TEST_ITERATIONS must be a positive integer." >&2
     exit 64
@@ -51,6 +46,25 @@ fi
 if ! command -v jq >/dev/null 2>&1; then
     echo "VisionProCoreRegression requires jq to validate the executed test count." >&2
     exit 69
+fi
+
+if [[ -z "$media_card_ids" ]]; then
+    media_card_ids=$(jq -r '
+        [
+            .fixtures[]
+            | select(
+                .id == "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1"
+                    or .id == "generated-sdr-avc-bframe-multiaudio-subtitles-30s-v3"
+            )
+            | "MediaLibrary-grid-video-" + (.deviceImportPath | split("/")[-1])
+        ]
+        | join(",")
+    ' "$repository_root/docs/acceptance/fixture-registry.json")
+fi
+
+if [[ -z "$media_card_ids" || "$media_card_ids" != *,* ]]; then
+    echo "The fixture registry or ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS must provide at least two Media Library accessibility identifiers." >&2
+    exit 64
 fi
 
 python3 "$repository_root/Scripts/verification/verify_visionpro_core_regression_plan.py"

@@ -126,6 +126,8 @@ private struct CircleButtonsSection: View {
                 HStack(spacing: DesignTokens.Spacing.xl) {
                     labeledComponent("Nav Back/Forward") {
                         NavBackForwardCapsuleControl(
+                            canGoBack: true,
+                            canGoForward: false,
                             accessibilityIdentifier: "DesignPreview-ComponentLibrary-control-navBackForward"
                         )
                     }

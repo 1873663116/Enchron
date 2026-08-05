@@ -52,7 +52,7 @@ nonisolated final class SequentialMediaPlaybackUITests: XCTestCase {
                     && ($0.uint64("rendererInputs") ?? 0) > (first.uint64("rendererInputs") ?? 0)
             })
             XCTAssertEqual(second.string("session"), currentSession)
-            XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].exists)
+            XCTAssertFalse(app.alerts["Failed to Load"].exists)
             attachState(second, name: "sequential-media-\(index + 1)-state")
             attachScreenshot(from: app, name: "sequential-media-\(index + 1)-playing")
 

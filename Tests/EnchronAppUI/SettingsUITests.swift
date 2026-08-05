@@ -48,7 +48,8 @@ nonisolated final class SettingsUITests: XCTestCase {
             let row = app.descendants(matching: .any)[
                 "Settings-category-\(category.id)"
             ].firstMatch
-            guard requireHittable(row, named: "Settings category \(category.id)") else {
+            guard row.waitForExistence(timeout: 10), row.isEnabled else {
+                XCTFail("Settings category \(category.id) did not become available.")
                 continue
             }
             if row.isSelected == false {

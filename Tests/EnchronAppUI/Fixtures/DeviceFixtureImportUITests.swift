@@ -49,7 +49,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             app: app,
             name: "media-reference-01-first-playback"
         ) != nil else { return }
-        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].exists)
+        XCTAssertFalse(app.alerts["Failed to Load"].exists)
 
         let back = app.buttons["PlayerUI-InfoBar-button-back"].firstMatch
         guard requireHittable(back, named: "Back to Media Library") else { return }
@@ -533,25 +533,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
                     continue
                 }
 
-                guard let disclosure = waitForFilePickerDisclosureButton(
-                    for: folder,
-                    in: app,
-                    timeout: 3
-                ) else {
-                    attachFilePickerState(
-                        app,
-                        name: "fixture-folder-disclosure-missing-\(labels[0])"
-                    )
-                    XCTFail("The system file picker did not expose the navigation control for \(labels.joined(separator: "/")).")
-                    return false
-                }
-                disclosure.coordinate(
-                    withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-                ).tap()
-                if index == path.count - 1 {
-                    return true
-                }
-                guard waitForFilePickerFolderOpen(
+                guard openFilePickerFolder(
                     folder,
                     matchingAnyNavigationTitle: labels,
                     in: app,
@@ -570,6 +552,49 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
     }
 
     @MainActor
+    private func openFilePickerFolder(
+        _ folder: XCUIElement,
+        matchingAnyNavigationTitle labels: [String],
+        in app: XCUIApplication,
+        timeout: TimeInterval
+    ) -> Bool {
+        folder.tap()
+        if waitForFilePickerFolderOpen(
+            folder,
+            matchingAnyNavigationTitle: labels,
+            in: app,
+            timeout: min(2, timeout)
+        ) {
+            return true
+        }
+
+        folder.doubleTap()
+        if waitForFilePickerFolderOpen(
+            folder,
+            matchingAnyNavigationTitle: labels,
+            in: app,
+            timeout: min(3, timeout)
+        ) {
+            return true
+        }
+
+        guard let disclosure = waitForFilePickerDisclosureButton(
+            for: folder,
+            in: app,
+            timeout: max(timeout - 5, 1)
+        ) else {
+            return false
+        }
+        disclosure.tap()
+        return waitForFilePickerFolderOpen(
+            folder,
+            matchingAnyNavigationTitle: labels,
+            in: app,
+            timeout: min(5, timeout)
+        )
+    }
+
+    @MainActor
     private func waitForFilePickerFolderOpen(
         _ folder: XCUIElement,
         matchingAnyNavigationTitle labels: [String],
@@ -585,6 +610,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             ) {
                 return true
             }
+            if folder.exists == false {
+                return true
+            }
             if isFilePickerFolderExpanded(folder) {
                 return true
             }
@@ -595,6 +623,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
 
     @MainActor
     private func isFilePickerFolderExpanded(_ folder: XCUIElement) -> Bool {
+        guard folder.exists else { return false }
         guard let value = folder.value as? String else { return false }
         let normalizedValue = value.lowercased()
         return normalizedValue.contains("expanded")
@@ -674,7 +703,10 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             if fileView.exists {
                 fileView.swipeUp()
             } else {
-                app.swipeUp()
+                let fileScrollView = app.scrollViews["File View"].firstMatch
+                if fileScrollView.exists {
+                    fileScrollView.swipeUp()
+                }
             }
             Thread.sleep(forTimeInterval: 0.5)
         }
@@ -1097,11 +1129,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             if fileView.exists {
                 fileView.swipeUp()
             } else {
-                let scrollView = app.scrollViews.firstMatch
-                if scrollView.exists {
-                    scrollView.swipeUp()
-                } else {
-                    app.swipeUp()
+                let fileScrollView = app.scrollViews["File View"].firstMatch
+                if fileScrollView.exists {
+                    fileScrollView.swipeUp()
                 }
             }
             Thread.sleep(forTimeInterval: 0.5)
@@ -1121,7 +1151,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         let deadline = Date().addingTimeInterval(3)
         while Date() < deadline {
             for label in ["List", "列表"] {
-                let option = app.descendants(matching: .any)
+                let option = app.buttons
                     .matching(NSPredicate(format: "label == %@", label))
                     .firstMatch
                 if option.exists, option.isEnabled {

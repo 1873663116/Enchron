@@ -109,22 +109,35 @@ nonisolated final class MediaLibraryRegressionUITests: XCTestCase {
     @MainActor
     func testLibraryFolderBreadcrumbBackAndForwardRestoreLocations() {
         let app = launchLibrary(dataset: "hierarchical")
+        let back = app.buttons[
+            "FileBrowsing-FilesScreen-navBackForward-back"
+        ].firstMatch
+        let forward = app.buttons[
+            "FileBrowsing-FilesScreen-navBackForward-forward"
+        ].firstMatch
+        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        XCTAssertTrue(forward.waitForExistence(timeout: 10))
+        XCTAssertFalse(back.isEnabled)
+        XCTAssertFalse(forward.isEnabled)
+
         requireCard("MediaLibrary-grid-folder-Series", in: app).tap()
         requireCard("MediaLibrary-grid-folder-Season 1", in: app).tap()
         XCTAssertTrue(requireCard("MediaLibrary-grid-video-Episode 01.mkv", in: app).exists)
         assertBreadcrumb("Season 1", in: app)
+        XCTAssertTrue(back.isEnabled)
+        XCTAssertFalse(forward.isEnabled)
 
-        let navigation = app.descendants(matching: .any)[
-            "FileBrowsing-FilesScreen-navBackForward"
-        ].firstMatch
-        XCTAssertTrue(navigation.waitForExistence(timeout: 10))
-        navigation.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
+        back.tap()
         XCTAssertTrue(requireCard("MediaLibrary-grid-folder-Season 1", in: app).exists)
         assertBreadcrumb("Series", in: app)
+        XCTAssertTrue(back.isEnabled)
+        XCTAssertTrue(forward.isEnabled)
 
-        navigation.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).tap()
+        forward.tap()
         XCTAssertTrue(requireCard("MediaLibrary-grid-video-Episode 01.mkv", in: app).exists)
         assertBreadcrumb("Season 1", in: app)
+        XCTAssertTrue(back.isEnabled)
+        XCTAssertFalse(forward.isEnabled)
 
         let breadcrumb = app.descendants(matching: .any)[
             "MediaLibrary-Breadcrumb-current"
@@ -145,10 +158,10 @@ nonisolated final class MediaLibraryRegressionUITests: XCTestCase {
     @MainActor
     func testLibraryFolderCreationDuplicateRejectionMoveRenameAndRemoval() {
         let app = launchLibrary(dataset: "hierarchical")
-        createFolder(named: "  Watch Later  ", in: app)
+        guard createFolder(named: "  Watch Later  ", in: app) else { return }
         var folder = requireCard("MediaLibrary-grid-folder-Watch Later", in: app)
 
-        createFolder(named: " series ", in: app)
+        guard createFolder(named: " series ", in: app) else { return }
         let duplicateMessage = app.staticTexts[
             "A library folder with this name already exists here."
         ].firstMatch
@@ -162,21 +175,38 @@ nonisolated final class MediaLibraryRegressionUITests: XCTestCase {
         folder.tap()
         XCTAssertTrue(requireCard("MediaLibrary-grid-video-The Matrix.mkv", in: app).exists)
 
-        let navigation = app.descendants(matching: .any)[
-            "FileBrowsing-FilesScreen-navBackForward"
+        let back = app.buttons[
+            "FileBrowsing-FilesScreen-navBackForward-back"
         ].firstMatch
-        navigation.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
+        XCTAssertTrue(back.waitForExistence(timeout: 10))
+        XCTAssertTrue(back.isEnabled)
+        back.tap()
         folder = requireCard("MediaLibrary-grid-folder-Watch Later", in: app)
         folder.press(forDuration: 1.2)
         app.buttons["Rename"].firstMatch.tap()
-        let renameField = app.textFields["MediaLibrary-RenameFolder-name"].firstMatch
-        XCTAssertTrue(renameField.waitForExistence(timeout: 5))
+        guard let renameField = systemAlertTextField(
+            identifier: "MediaLibrary-RenameFolder-name",
+            placeholder: "Folder name",
+            in: app
+        ) else { return }
+        guard let rename = systemAlertButton(
+            identifier: "MediaLibrary-RenameFolder-confirm",
+            label: "Rename",
+            in: app
+        ) else { return }
+        let cancel = app.buttons["Cancel"].firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        XCTAssertLessThan(
+            cancel.frame.midX,
+            rename.frame.midX,
+            "Cancel must appear before the primary Rename action."
+        )
         renameField.tap()
         renameField.typeText(
             String(repeating: XCUIKeyboardKey.delete.rawValue, count: 40)
         )
         renameField.typeText("Queue")
-        app.buttons["MediaLibrary-RenameFolder-confirm"].firstMatch.tap()
+        rename.tap()
 
         let renamedFolder = requireCard("MediaLibrary-grid-folder-Queue", in: app)
         renamedFolder.press(forDuration: 1.2)
@@ -216,11 +246,15 @@ nonisolated final class MediaLibraryRegressionUITests: XCTestCase {
         in app: XCUIApplication
     ) -> XCUIElement {
         let card = app.descendants(matching: .any)[identifier].firstMatch
+        guard let scrollView = largestMediaLibraryScrollView(in: app) else {
+            XCTFail("The Media Library did not expose its content scroll view.")
+            return card
+        }
         for _ in 0..<8 {
             if card.exists, card.isHittable {
                 return card
             }
-            app.swipeUp()
+            scrollView.swipeUp()
         }
         XCTAssertTrue(
             card.waitForExistence(timeout: 5),
@@ -319,15 +353,81 @@ nonisolated final class MediaLibraryRegressionUITests: XCTestCase {
     }
 
     @MainActor
-    private func createFolder(named name: String, in app: XCUIApplication) {
+    private func createFolder(named name: String, in app: XCUIApplication) -> Bool {
         let manage = app.buttons["Manage media library"].firstMatch
-        XCTAssertTrue(manage.waitForExistence(timeout: 10))
+        guard manage.waitForExistence(timeout: 10), manage.isEnabled else {
+            XCTFail("Manage media library did not become available.")
+            return false
+        }
         manage.tap()
-        app.buttons["New Library Folder"].firstMatch.tap()
-        let field = app.textFields["MediaLibrary-NewFolder-name"].firstMatch
-        XCTAssertTrue(field.waitForExistence(timeout: 5))
+        let newFolder = app.buttons["New Library Folder"].firstMatch
+        guard newFolder.waitForExistence(timeout: 5), newFolder.isEnabled else {
+            XCTFail("New Library Folder did not become available.")
+            return false
+        }
+        newFolder.tap()
+        guard let field = systemAlertTextField(
+            identifier: "MediaLibrary-NewFolder-name",
+            placeholder: "Folder name",
+            in: app
+        ) else { return false }
+        guard let create = systemAlertButton(
+            identifier: "MediaLibrary-NewFolder-create",
+            label: "Create",
+            in: app
+        ) else { return false }
+        let cancel = app.buttons["Cancel"].firstMatch
+        guard cancel.waitForExistence(timeout: 5) else {
+            XCTFail("The New Library Folder alert did not expose Cancel.")
+            return false
+        }
+        XCTAssertLessThan(
+            cancel.frame.midX,
+            create.frame.midX,
+            "Cancel must appear before the primary Create action."
+        )
         field.tap()
         field.typeText(name)
-        app.buttons["MediaLibrary-NewFolder-create"].firstMatch.tap()
+        create.tap()
+        return true
+    }
+
+    @MainActor
+    private func systemAlertTextField(
+        identifier: String,
+        placeholder: String,
+        in app: XCUIApplication
+    ) -> XCUIElement? {
+        let alert = app.alerts.firstMatch
+        guard alert.waitForExistence(timeout: 5) else {
+            XCTFail("The expected system alert did not appear.")
+            return nil
+        }
+        let identified = app.textFields[identifier].firstMatch
+        if identified.exists { return identified }
+        let labeled = app.textFields[placeholder].firstMatch
+        if labeled.exists { return labeled }
+        let field = alert.textFields.firstMatch
+        guard field.exists else {
+            XCTFail("The system alert did not expose its text field.")
+            return nil
+        }
+        return field
+    }
+
+    @MainActor
+    private func systemAlertButton(
+        identifier: String,
+        label: String,
+        in app: XCUIApplication
+    ) -> XCUIElement? {
+        let identified = app.buttons[identifier].firstMatch
+        if identified.waitForExistence(timeout: 1) { return identified }
+        let labeled = app.buttons[label].firstMatch
+        guard labeled.waitForExistence(timeout: 5) else {
+            XCTFail("The system alert did not expose \(label).")
+            return nil
+        }
+        return labeled
     }
 }

@@ -47,7 +47,7 @@ stateDiagram-v2
 - Add to Media Library 只保存 Remote Source ID 与远程路径。播放时才解析真实来源；解析失败时保留 Media Reference 并提供恢复来源的操作。
 - 远程凭据只存入 Keychain，并按服务器与账号命名空间隔离；同一 SMB 账号的不同 share 可以共享凭据，不同账号不得互相覆盖。旧版服务器级 Keychain 记录在账号匹配时迁移到账号命名空间。权限、认证、网络与文件错误必须给出可恢复反馈。
 - 远程媒体在首次形成可用音视频输出前，连接、来源解析或打开失败可以在预先规定的次数和总等待时间内自动重新解析同一 Media Reference 并重新打开。每次失败尝试都必须完整关闭其 Media Session 并释放来源访问资源；最终最多只有一个活动 Media Session。规定范围内仍未成功时，播放显式进入 failed。
-- 远程媒体在首次形成可用音视频输出后遇到读取失败时，当前播放停止并显式进入 failed，不得在背景自动创建或替换 Media Session。Window 或空间 Player Control Dock 显示 Retry 与 Close；只有用户选择 Retry 后，Enchron 才重新解析同一 Media Reference 并创建新的 Media Session。
+- 远程媒体在首次形成可用音视频输出后遇到读取失败时，当前播放停止并显式进入 failed，不得在背景自动创建或替换 Media Session。Window 或空间 Player Control Dock 所在的系统窗口通过 SwiftUI 系统警告框（`.alert`）提供 Retry 与 Close；只有用户选择 Retry 后，Enchron 才重新解析同一 Media Reference 并创建新的 Media Session。
 - Retry 重新解析得到的 Content Revision 与失败前一致时，新 Media Session 从失败前最后一次满足全部可用音视频输出条件的观测所记录的 media time 开始。该观测必须属于失败前的 Media Session 与当前 stream epoch，并且已经直接证明时间线、显示画面和存在音轨时的音频都在正常输出。不得使用原始打开位置，也不得使用尚未被播放管线实际证明的界面 Seek 请求位置。
 - Retry 重新解析得到的 Content Revision 已变化或无法可靠验证时，不得使用失败前的位置。Enchron 说明媒体内容已变化或无法确认一致性，并直接从零创建新 Media Session；这条说明不阻塞播放，也不再要求用户确认。来源仍无法访问时保持 failed，显示 Retry 与 Close，不创建活动 Media Session。
 - 选择媒体直接承诺打开它。一次产品播放对应一个 PlaybackCore Media Session；失败时不静默切换到另一套播放实现。

@@ -57,16 +57,24 @@ enum DeviceRegressionFailure: LocalizedError {
 }
 
 enum VisionProRegressionConfiguration {
+    static let generatedMediaCardIdentifiers = [
+        "MediaLibrary-grid-video-sdr-bframe-multiaudio-avsync-30s.mp4",
+        "MediaLibrary-grid-video-sdr-bframe-multiaudio-subtitles-30s.mkv"
+    ]
+
     static func mediaCardIdentifiers(minimumCount: Int) throws -> [String] {
-        let identifiers = ProcessInfo.processInfo.environment[
+        let configuredIdentifiers = ProcessInfo.processInfo.environment[
             "ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS"
         ]?
             .split(separator: ",")
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { $0.isEmpty == false } ?? []
+        let identifiers = configuredIdentifiers.isEmpty
+            ? generatedMediaCardIdentifiers
+            : configuredIdentifiers
         guard identifiers.count >= minimumCount else {
             throw XCTSkip(
-                "Set ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS to at least \(minimumCount) comma-separated Media Library accessibility identifiers."
+                "The regression configuration needs at least \(minimumCount) Media Library accessibility identifiers."
             )
         }
         return identifiers
@@ -337,7 +345,7 @@ extension XCTestCase {
         add(attachment)
     }
 
-    private func largestMediaLibraryScrollView(
+    func largestMediaLibraryScrollView(
         in app: XCUIApplication
     ) -> XCUIElement? {
         let filesScreen = app.descendants(matching: .any)[
@@ -461,9 +469,7 @@ extension XCTestCase {
         let spatialState = app.descendants(matching: .any)[
             "PlayerUI-spatial-state"
         ].firstMatch
-        let loadFailure = app.descendants(matching: .any)[
-            "PlayerUI-loadFailure-panel"
-        ].firstMatch
+        let loadFailure = app.alerts["Failed to Load"].firstMatch
         let settings = app.descendants(matching: .any)[
             "PlayerPanel-button-settings"
         ].firstMatch

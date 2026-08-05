@@ -107,7 +107,7 @@ nonisolated final class WindowPlaybackRegressionUITests: XCTestCase {
             }
         ) else { return }
         XCTAssertNotEqual(ended.string("lifecycle")?.lowercased(), "failed")
-        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].exists)
+        XCTAssertFalse(app.alerts["Failed to Load"].exists)
 
         guard requireHittable(play, named: "Replay") else { return }
         play.tap()

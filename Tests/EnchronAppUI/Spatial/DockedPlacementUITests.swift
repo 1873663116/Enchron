@@ -280,7 +280,8 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
             if exit.exists, exit.isHittable, spatialState.exists {
                 return true
             }
-            if app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].firstMatch.exists {
+            if app.alerts["Failed to Load"].firstMatch.exists
+                || app.alerts["Playback Error"].firstMatch.exists {
                 break
             }
             Thread.sleep(forTimeInterval: 0.1)

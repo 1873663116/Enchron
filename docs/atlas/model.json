@@ -1807,7 +1807,8 @@
           "surface.mediaLibrary",
           "surface.sourceBrowser",
           "surface.resumeOverlay",
-          "surface.loadingFailureOverlay",
+          "surface.playbackOpeningState",
+          "surface.windowPlaybackFailureAlert",
           "surface.windowChrome",
           "surface.windowDeck",
           "surface.windowAdvanced",
@@ -1854,6 +1855,7 @@
         "kind": "window",
         "surfaceIds": [
           "surface.playerControlsWindow",
+          "surface.spatialPlaybackFailureAlert",
           "surface.dockedAdvanced",
           "surface.panoramaAdvanced"
         ],
@@ -2624,7 +2626,7 @@
             "state.sourceAccess": "recoverableFailure"
           },
           "answers": {
-            "question.picture": "Window 失败界面或空间 Player Control Dock 显示 Retry 与 Close。",
+            "question.picture": "Window 或空间 Player Controls Window 呈现由 visionOS 管理的系统警告框，其中提供 Retry 与 Close。",
             "question.playback": "当前播放显式进入 failed；已经形成可用输出时，不在背景自动创建或替换 Media Session。",
             "question.actions": "检查来源后选择 Retry，或选择 Close。"
           },
@@ -3176,13 +3178,47 @@
         ]
       },
       {
-        "id": "surface.loadingFailureOverlay",
-        "label": "Loading / Failure Overlay",
+        "id": "surface.playbackOpeningState",
+        "label": "Playback Opening State",
         "kind": "overlay",
         "regions": [
           {
+            "id": "opening-flow",
+            "label": "媒体打开与恢复流程"
+          }
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "ui-spec",
+            "heading": "## Surface ownership"
+          }
+        ]
+      },
+      {
+        "id": "surface.windowPlaybackFailureAlert",
+        "label": "Window Playback Failure System Alert",
+        "kind": "system-alert",
+        "regions": [
+          {
             "id": "failure-actions",
-            "label": "失败恢复"
+            "label": "Retry 与 Close"
+          }
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "ui-spec",
+            "heading": "## Surface ownership"
+          }
+        ]
+      },
+      {
+        "id": "surface.spatialPlaybackFailureAlert",
+        "label": "Spatial Playback Failure System Alert",
+        "kind": "system-alert",
+        "regions": [
+          {
+            "id": "failure-actions",
+            "label": "Retry 与 Close"
           }
         ],
         "sourceRefs": [
@@ -3325,10 +3361,6 @@
           {
             "id": "spatial-menus",
             "label": "Advanced 与 More"
-          },
-          {
-            "id": "spatial-failure-actions",
-            "label": "播放失败后的 Retry 与 Close"
           }
         ],
         "sourceRefs": [
@@ -5771,8 +5803,8 @@
       },
       "placements": [
         {
-          "surfaceId": "surface.loadingFailureOverlay",
-          "regionId": "failure-actions"
+          "surfaceId": "surface.playbackOpeningState",
+          "regionId": "opening-flow"
         }
       ],
       "availableWhen": [
@@ -5861,8 +5893,8 @@
       },
       "placements": [
         {
-          "surfaceId": "surface.loadingFailureOverlay",
-          "regionId": "failure-actions"
+          "surfaceId": "surface.playbackOpeningState",
+          "regionId": "opening-flow"
         }
       ],
       "availableWhen": [
@@ -5949,8 +5981,8 @@
       },
       "placements": [
         {
-          "surfaceId": "surface.loadingFailureOverlay",
-          "regionId": "failure-actions"
+          "surfaceId": "surface.playbackOpeningState",
+          "regionId": "opening-flow"
         }
       ],
       "availableWhen": [
@@ -6072,8 +6104,8 @@
       },
       "placements": [
         {
-          "surfaceId": "surface.loadingFailureOverlay",
-          "regionId": "failure-actions"
+          "surfaceId": "surface.playbackOpeningState",
+          "regionId": "opening-flow"
         }
       ],
       "availableWhen": [
@@ -6206,12 +6238,12 @@
       },
       "placements": [
         {
-          "surfaceId": "surface.loadingFailureOverlay",
+          "surfaceId": "surface.windowPlaybackFailureAlert",
           "regionId": "failure-actions"
         },
         {
-          "surfaceId": "surface.playerControlsWindow",
-          "regionId": "spatial-failure-actions"
+          "surfaceId": "surface.spatialPlaybackFailureAlert",
+          "regionId": "failure-actions"
         }
       ],
       "availableWhen": [
@@ -6379,7 +6411,11 @@
       },
       "placements": [
         {
-          "surfaceId": "surface.loadingFailureOverlay",
+          "surfaceId": "surface.windowPlaybackFailureAlert",
+          "regionId": "failure-actions"
+        },
+        {
+          "surfaceId": "surface.spatialPlaybackFailureAlert",
           "regionId": "failure-actions"
         }
       ],

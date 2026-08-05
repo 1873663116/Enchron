@@ -210,17 +210,10 @@ public struct MainView: View {
             }
 
             if let decision = playbackLauncher.pendingResumeDecision {
-                PlaybackOverlayCard(
-                    systemImage: "clock.arrow.circlepath",
-                    title: "Resume Playback?",
+                ResumeDecisionCard(
                     message: "Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.",
-                    primaryTitle: "Resume",
-                    primaryIcon: "play.fill",
-                    primaryAction: playbackLauncher.resumePendingPlayback,
-                    secondaryTitle: "Start Over",
-                    secondaryIcon: "backward.end.fill",
-                    secondaryAction: playbackLauncher.startPendingPlaybackFromBeginning,
-                    identifierPrefix: "PlayerUI-resume"
+                    onResume: playbackLauncher.resumePendingPlayback,
+                    onStartOver: playbackLauncher.startPendingPlaybackFromBeginning
                 )
             }
         }
@@ -362,20 +355,21 @@ public struct MainView: View {
                     .allowsHitTesting(false)
             }
 
-            if let message = playbackRuntime.lastErrorMessage {
-                PlaybackOverlayCard(
-                    systemImage: "exclamationmark.triangle",
-                    title: "Failed to Load",
-                    message: message,
-                    primaryTitle: "Retry",
-                    primaryIcon: "arrow.clockwise",
-                    primaryAction: retryPlayback,
-                    secondaryTitle: "Close",
-                    secondaryIcon: "xmark",
-                    secondaryAction: playbackLauncher.stopPlayback,
-                    identifierPrefix: "PlayerUI-loadFailure"
-                )
-            }
+        }
+        .alert(
+            "Failed to Load",
+            isPresented: Binding(
+                get: { playbackRuntime.lastErrorMessage != nil },
+                set: { if !$0 { playbackRuntime.lastErrorMessage = nil } }
+            )
+        ) {
+            Button("Retry", action: retryPlayback)
+                .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("PlayerUI-loadFailure-primary")
+            Button("Close", role: .cancel, action: playbackLauncher.stopPlayback)
+                .accessibilityIdentifier("PlayerUI-loadFailure-secondary")
+        } message: {
+            Text(playbackRuntime.lastErrorMessage ?? "Playback could not be started.")
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-\(hostedPlaybackPresentation.rawValue)-playback")
@@ -735,21 +729,22 @@ struct SpatialPlaybackControlsRoot: View {
         )
         .allowsHitTesting(controlsAcceptInput)
         .disabled(isStoppingPlayback)
-        .overlay {
-            if let message = playbackRuntime.lastErrorMessage {
-                PlaybackOverlayCard(
-                    systemImage: "exclamationmark.triangle",
-                    title: "Playback Error",
-                    message: message,
-                    primaryTitle: "Retry",
-                    primaryIcon: "arrow.clockwise",
-                    primaryAction: retryPlayback,
-                    secondaryTitle: "Close",
-                    secondaryIcon: "xmark",
-                    secondaryAction: { Task { await stopSpatialPlayback() } },
-                    identifierPrefix: "PlayerUI-spatialFailure"
-                )
+        .alert(
+            "Playback Error",
+            isPresented: Binding(
+                get: { playbackRuntime.lastErrorMessage != nil },
+                set: { if !$0 { playbackRuntime.lastErrorMessage = nil } }
+            )
+        ) {
+            Button("Retry", action: retryPlayback)
+                .keyboardShortcut(.defaultAction)
+                .accessibilityIdentifier("PlayerUI-spatialFailure-primary")
+            Button("Close", role: .cancel) {
+                Task { await stopSpatialPlayback() }
             }
+            .accessibilityIdentifier("PlayerUI-spatialFailure-secondary")
+        } message: {
+            Text(playbackRuntime.lastErrorMessage ?? "Playback could not continue.")
         }
         .overlay {
             if ProcessInfo.processInfo.environment["ENCHRON_SPATIAL_ACCEPTANCE"] == "1" {

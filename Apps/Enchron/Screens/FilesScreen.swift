@@ -110,7 +110,7 @@ struct FilesScreen: View {
         .alert("New Library Folder", isPresented: $isCreatingFolder) {
             TextField("Folder name", text: $newFolderName)
                 .accessibilityIdentifier("MediaLibrary-NewFolder-name")
-            Button("Cancel", role: .cancel) { newFolderName = "" }
+            Button("Cancel") { newFolderName = "" }
             Button("Create") {
                 mediaLibrary.createFolder(named: newFolderName)
                 newFolderName = ""
@@ -126,7 +126,7 @@ struct FilesScreen: View {
         ) {
             TextField("Folder name", text: $renamedFolderName)
                 .accessibilityIdentifier("MediaLibrary-RenameFolder-name")
-            Button("Cancel", role: .cancel) { folderToRename = nil }
+            Button("Cancel") { folderToRename = nil }
             Button("Rename") {
                 if let folderToRename {
                     mediaLibrary.rename(folderToRename, to: renamedFolderName)
@@ -192,19 +192,21 @@ struct FilesScreen: View {
             onPrimary: { Task { await viewModel.loadFiles() } },
             onSecondary: { viewModel.dismissCurrentError() }
         )
-        .enchronErrorDialog(
+        .alert(
             "Media Library Error",
-            message: mediaLibrary.lastErrorMessage ?? "The original media source is unavailable.",
-            primaryTitle: "OK",
-            secondaryTitle: "Dismiss",
             isPresented: Binding(
                 get: { mediaLibrary.lastErrorMessage != nil },
                 set: { if !$0 { mediaLibrary.lastErrorMessage = nil } }
-            ),
-            identifierPrefix: "MediaLibrary-error",
-            onPrimary: { mediaLibrary.lastErrorMessage = nil },
-            onSecondary: { mediaLibrary.lastErrorMessage = nil }
-        )
+            )
+        ) {
+            Button("OK") { mediaLibrary.lastErrorMessage = nil }
+                .accessibilityIdentifier("MediaLibrary-error-dismiss")
+        } message: {
+            Text(
+                mediaLibrary.lastErrorMessage
+                    ?? "The original media source is unavailable."
+            )
+        }
     }
 
     // MARK: - Sidebar
@@ -441,6 +443,12 @@ struct FilesScreen: View {
     private var topBar: some View {
         HStack(alignment: .center) {
             NavBackForwardCapsuleControl(
+                canGoBack: isBrowsingSource
+                    ? viewModel.canNavigateUp
+                    : mediaLibrary.canNavigateBack,
+                canGoForward: isBrowsingSource
+                    ? viewModel.canNavigateForward
+                    : mediaLibrary.canNavigateForward,
                 onBack: {
                     if isBrowsingSource {
                         Task { await viewModel.navigateUp() }

@@ -434,21 +434,14 @@ struct ProductionPlaybackMoreMenu: View {
     }
 }
 
-// MARK: - Resume / load-failure overlay (UC-PLAY-02 / 23)
+// MARK: - Resume decision (UC-PLAY-02)
 
-/// Centered glass card for the pre-play resume prompt and the load-failure
-/// panel, built from the shared glass surface + `GlassCapsuleIconLabelButton`.
-struct PlaybackOverlayCard: View {
-    let systemImage: String
-    let title: String
+/// The pre-play decision remains part of the media-opening flow. Playback
+/// failures use a system alert instead of sharing this product-owned surface.
+struct ResumeDecisionCard: View {
     let message: String
-    let primaryTitle: String
-    let primaryIcon: String
-    let primaryAction: () -> Void
-    let secondaryTitle: String
-    let secondaryIcon: String
-    let secondaryAction: () -> Void
-    let identifierPrefix: String
+    let onResume: () -> Void
+    let onStartOver: () -> Void
 
     var body: some View {
         ZStack {
@@ -457,11 +450,11 @@ struct PlaybackOverlayCard: View {
                 .ignoresSafeArea()
 
             VStack(spacing: DesignTokens.Spacing.lg) {
-                Image(systemName: systemImage)
+                Image(systemName: "clock.arrow.circlepath")
                     .font(DesignTokens.SymbolSize.hero)
                     .foregroundStyle(.white)
 
-                Text(title)
+                Text("Resume Playback?")
                     .font(DesignTokens.Typography.title)
                     .foregroundStyle(.white)
 
@@ -472,18 +465,18 @@ struct PlaybackOverlayCard: View {
 
                 HStack(spacing: DesignTokens.Spacing.md) {
                     GlassCapsuleIconLabelButton(
-                        title: primaryTitle,
-                        systemName: primaryIcon,
-                        accessibilityLabel: primaryTitle,
-                        action: primaryAction,
-                        accessibilityIdentifier: "\(identifierPrefix)-primary"
+                        title: "Resume",
+                        systemName: "play.fill",
+                        accessibilityLabel: "Resume",
+                        action: onResume,
+                        accessibilityIdentifier: "PlayerUI-resumeDecision-primary"
                     )
                     GlassCapsuleIconLabelButton(
-                        title: secondaryTitle,
-                        systemName: secondaryIcon,
-                        accessibilityLabel: secondaryTitle,
-                        action: secondaryAction,
-                        accessibilityIdentifier: "\(identifierPrefix)-secondary"
+                        title: "Start Over",
+                        systemName: "backward.end.fill",
+                        accessibilityLabel: "Start Over",
+                        action: onStartOver,
+                        accessibilityIdentifier: "PlayerUI-resumeDecision-secondary"
                     )
                 }
                 .padding(.top, DesignTokens.Spacing.sm)
@@ -493,7 +486,7 @@ struct PlaybackOverlayCard: View {
             .glassBackgroundEffect(in: DesignTokens.ShapeToken.panel)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("\(identifierPrefix)-panel")
-        .accessibilityLabel(title)
+        .accessibilityIdentifier("PlayerUI-resumeDecision-panel")
+        .accessibilityLabel("Resume Playback?")
     }
 }
