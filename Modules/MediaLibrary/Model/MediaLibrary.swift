@@ -51,14 +51,17 @@ nonisolated extension FileBrowsingDomain {
     }
 
     public struct MediaLibrary: Sendable, Equatable, Codable {
-        public enum LibraryError: LocalizedError {
+        public enum LibraryError: LocalizedError, Equatable {
             case emptyFolderName
+            case duplicateFolderName
             case folderNotFound
 
             public var errorDescription: String? {
                 switch self {
                 case .emptyFolderName:
                     return "Folder name is required."
+                case .duplicateFolderName:
+                    return "A library folder with this name already exists here."
                 case .folderNotFound:
                     return "The library folder no longer exists."
                 }
@@ -82,6 +85,9 @@ nonisolated extension FileBrowsingDomain {
             if let parentID, !allFolders.contains(where: { $0.id == parentID }) {
                 throw LibraryError.folderNotFound
             }
+            guard !containsFolder(named: trimmedName, in: parentID) else {
+                throw LibraryError.duplicateFolderName
+            }
             let folder = LibraryFolder(name: trimmedName, parentID: parentID)
             allFolders.append(folder)
             return folder
@@ -101,6 +107,13 @@ nonisolated extension FileBrowsingDomain {
                 throw LibraryError.folderNotFound
             }
             let folder = allFolders[index]
+            guard !containsFolder(
+                named: trimmedName,
+                in: folder.parentID,
+                excluding: folderID
+            ) else {
+                throw LibraryError.duplicateFolderName
+            }
             allFolders[index] = LibraryFolder(id: folder.id, name: trimmedName, parentID: folder.parentID)
         }
 
@@ -147,6 +160,18 @@ nonisolated extension FileBrowsingDomain {
             }
             let currentFolderID = entries[currentIndex].folderID
             return entries.dropFirst(currentIndex + 1).first { $0.folderID == currentFolderID }?.reference
+        }
+
+        private func containsFolder(
+            named name: String,
+            in parentID: UUID?,
+            excluding excludedID: UUID? = nil
+        ) -> Bool {
+            allFolders.contains { folder in
+                folder.id != excludedID
+                    && folder.parentID == parentID
+                    && folder.name.localizedCaseInsensitiveCompare(name) == .orderedSame
+            }
         }
     }
 }

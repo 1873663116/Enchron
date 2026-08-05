@@ -57,17 +57,6 @@ enum DeviceRegressionFailure: LocalizedError {
 }
 
 enum VisionProRegressionConfiguration {
-    static func fixtureURL() throws -> URL {
-        guard let value = ProcessInfo.processInfo.environment[
-            "ENCHRON_DEVICE_ACCEPTANCE_FIXTURE_URL"
-        ], let url = URL(string: value), url.user == nil, url.password == nil else {
-            throw XCTSkip(
-                "Set ENCHRON_DEVICE_ACCEPTANCE_FIXTURE_URL to a credential-free media URL reachable from Apple Vision Pro."
-            )
-        }
-        return url
-    }
-
     static func mediaCardIdentifiers(minimumCount: Int) throws -> [String] {
         let identifiers = ProcessInfo.processInfo.environment[
             "ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS"
@@ -87,15 +76,56 @@ enum VisionProRegressionConfiguration {
 
 @MainActor
 extension XCTestCase {
-    func launchSpatialRegressionApp(
-        controlsAutoHideSeconds: Int = 300
+    func launchVisionProRegressionApp(
+        controlsAutoHideSeconds: Int = 300,
+        isolatesPlaybackState: Bool = true
     ) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
-        app.launchEnvironment["ENCHRON_TEST_MEDIA_STATE_SUITE"] = "1"
+        let preferencesToken = UUID().uuidString
+        app.launchEnvironment["ENCHRON_DEVICE_REGRESSION_PREFERENCES_SUITE"] =
+            "app.enchron.device-regression"
+        app.launchEnvironment["ENCHRON_DEVICE_REGRESSION_PREFERENCES_RESET_TOKEN"] =
+            preferencesToken
+        if isolatesPlaybackState {
+            app.launchEnvironment["ENCHRON_TEST_MEDIA_STATE_SUITE"] = "1"
+        }
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] =
             String(controlsAutoHideSeconds)
         app.launch()
+        return app
+    }
+
+    func launchSpatialRegressionApp(
+        controlsAutoHideSeconds: Int = 300
+    ) -> XCUIApplication {
+        launchVisionProRegressionApp(
+            controlsAutoHideSeconds: controlsAutoHideSeconds
+        )
+    }
+
+    func launchRegisteredWindowMedia(
+        identifier: String,
+        controlsAutoHideSeconds: Int = 300,
+        isolatesPlaybackState: Bool = true
+    ) -> XCUIApplication? {
+        let app = launchVisionProRegressionApp(
+            controlsAutoHideSeconds: controlsAutoHideSeconds,
+            isolatesPlaybackState: isolatesPlaybackState
+        )
+        guard let card = waitForHittableRegisteredMediaCard(
+            identifier: identifier,
+            in: app,
+            timeout: 30
+        ) else {
+            XCTFail(
+                "Registered media \(identifier) did not become hittable while scrolling the Media Library."
+            )
+            attachScreenshot(from: app, name: "registered-window-media-not-hittable")
+            return nil
+        }
+        card.tap()
+        resolveResumeDecisionIfNeeded(in: app)
         return app
     }
 
@@ -163,6 +193,148 @@ extension XCTestCase {
             libraryScrollView.swipeUp()
         }
         return nil
+    }
+
+    func resolveResumeDecisionIfNeeded(in app: XCUIApplication) {
+        let resume = app.buttons["PlayerUI-resumeDecision-primary"].firstMatch
+        if resume.waitForExistence(timeout: 2) {
+            resume.tap()
+            return
+        }
+        let restart = app.buttons["PlayerUI-resumeDecision-secondary"].firstMatch
+        if restart.waitForExistence(timeout: 0.5) {
+            restart.tap()
+        }
+    }
+
+    func requireContinuousPlayback(
+        after baseline: RegressionStateSnapshot,
+        in stateElement: XCUIElement,
+        app: XCUIApplication,
+        name: String,
+        timeout: TimeInterval = 15,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) -> RegressionStateSnapshot? {
+        let baselinePosition = baseline.double("position") ?? 0
+        let baselineVideoSamples = baseline.uint64("videoSamples") ?? 0
+        let baselineRendererInputs = baseline.uint64("rendererInputs") ?? 0
+        let baselineSession = baseline.string("session")
+        let baselineEpoch = baseline.uint64("streamEpoch")
+        guard let continuous = waitForState(
+            stateElement,
+            timeout: timeout,
+            file: file,
+            line: line,
+            where: {
+                $0.string("lifecycle")?.lowercased() == "playing"
+                    && ($0.double("position") ?? 0) >= baselinePosition + 0.25
+                    && ($0.uint64("videoSamples") ?? 0) > baselineVideoSamples
+                    && ($0.uint64("rendererInputs") ?? 0) > baselineRendererInputs
+                    && $0.bool("displayedPixel") == true
+                    && $0.string("session") == baselineSession
+                    && $0.uint64("streamEpoch") == baselineEpoch
+            }
+        ) else {
+            attachCurrentState(of: stateElement, name: "\(name)-state-at-failure")
+            attachScreenshot(from: app, name: "\(name)-failure")
+            return nil
+        }
+        attachState(continuous, name: "\(name)-state")
+        attachScreenshot(from: app, name: name)
+        return continuous
+    }
+
+    func assertMechanicalAudioOutputAdvanced(
+        from baseline: RegressionStateSnapshot,
+        to current: RegressionStateSnapshot,
+        context: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard current.bool("hasAudio") == true else { return }
+        XCTAssertGreaterThan(
+            current.uint64("audioSamples") ?? 0,
+            baseline.uint64("audioSamples") ?? 0,
+            "\(context) did not deliver additional audio samples.",
+            file: file,
+            line: line
+        )
+        XCTAssertGreaterThan(
+            current.uint64("audioRendererSamples") ?? 0,
+            baseline.uint64("audioRendererSamples") ?? 0,
+            "\(context) did not deliver additional audio renderer samples.",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            current.bool("audioSessionActive"),
+            true,
+            "\(context) did not keep the system audio session active.",
+            file: file,
+            line: line
+        )
+        XCTAssertNotEqual(
+            current.string("audioOutputPorts"),
+            "",
+            "\(context) did not expose an active audio output route.",
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            current.string("audioRendererError"),
+            "none",
+            "\(context) reported an audio renderer error.",
+            file: file,
+            line: line
+        )
+    }
+
+    func seekProgress(
+        to normalizedPosition: CGFloat,
+        in app: XCUIApplication,
+        stateElement: XCUIElement,
+        afterEpoch: UInt64,
+        name: String,
+        accepting additionalCondition: (RegressionStateSnapshot) -> Bool = { snapshot in
+            snapshot.string("lifecycle")?.lowercased() != "failed"
+                && (snapshot.double("position") ?? .greatestFiniteMagnitude) <= 0.5
+        }
+    ) -> RegressionStateSnapshot? {
+        let progress = app.descendants(matching: .any)["PlayerPanel-progress"].firstMatch
+        let thumb = app.descendants(matching: .any)["PlayerPanel-thumb"].firstMatch
+        guard requireHittable(progress, named: "Playback progress"),
+              requireHittable(thumb, named: "Playback progress thumb") else { return nil }
+
+        let start = thumb.coordinate(
+            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
+        )
+        let end = progress.coordinate(
+            withNormalizedOffset: CGVector(
+                dx: min(max(normalizedPosition, 0), 1),
+                dy: 0.5
+            )
+        )
+        start.press(forDuration: 0.35, thenDragTo: end)
+
+        guard let snapshot = waitForState(stateElement, timeout: 15, where: {
+            ($0.uint64("streamEpoch") ?? 0) > afterEpoch
+                && additionalCondition($0)
+        }) else {
+            attachCurrentState(of: stateElement, name: "\(name)-state-at-failure")
+            attachScreenshot(from: app, name: "\(name)-failure")
+            return nil
+        }
+        attachState(snapshot, name: "\(name)-state")
+        attachScreenshot(from: app, name: name)
+        return snapshot
+    }
+
+    func attachHumanReviewBoundary(_ description: String, name: String) {
+        let attachment = XCTAttachment(string: description)
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 
     private func largestMediaLibraryScrollView(
@@ -423,19 +595,6 @@ extension XCTestCase {
             return false
         }
         return true
-    }
-
-    func launchSpatialFixtureApp(
-        fixtureURL: URL,
-        controlsAutoHideSeconds: Int = 300
-    ) -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
-        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] =
-            String(controlsAutoHideSeconds)
-        app.launchEnvironment["ENCHRON_AUTOPLAY_FILE"] = fixtureURL.absoluteString
-        app.launch()
-        return app
     }
 
     @discardableResult

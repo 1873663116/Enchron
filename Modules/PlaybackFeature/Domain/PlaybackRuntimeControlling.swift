@@ -41,7 +41,6 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     ) async throws
     func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws
     func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws
-    func addExternalSubtitleFile(_ url: URL) async throws -> PlaybackModel.SubtitleTrack?
     func setSpeed(_ speed: PlaybackModel.PlaybackSpeed)
     func replay()
     func stop(releasingSourceAccess: Bool)

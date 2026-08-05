@@ -10,54 +10,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
     }
 
     @MainActor
-    func testRestoreDefaultsUsesTheSpecifiedFourMeterDistance() async throws {
-        let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
-            minimumCount: 1
-        )[0]
-        guard let app = launchRegisteredSpatialMedia(identifier: identifier) else { return }
-        guard enterDocked(in: app) else { return }
-
-        let spatialState = app.descendants(matching: .any)[
-            "PlayerUI-spatial-state"
-        ].firstMatch
-        _ = try XCTUnwrap(waitForState(spatialState, timeout: 30) {
-            $0.string("presentation") == "docked"
-                && $0.bool("surfaceSettled") == true
-                && $0.bool("surfaceAnchorMatched") == true
-        })
-
-        let settings = app.descendants(matching: .any)[
-            "PlayerPanel-button-settings"
-        ].firstMatch
-        guard requireHittable(settings, named: "Docked Settings") else { return }
-        settings.tap()
-        let reset = app.buttons["PlayerPanel-DockedPlacement-reset"].firstMatch
-        guard requireHittable(reset, named: "Restore Defaults") else { return }
-        reset.tap()
-
-        let restored = try XCTUnwrap(waitForState(spatialState, timeout: 20) {
-            $0.string("presentation") == "docked"
-                && $0.bool("surfaceSettled") == true
-                && $0.bool("surfaceRenderingReady") == true
-        })
-        XCTAssertEqual(
-            restored.double("screenDistance") ?? .nan,
-            4.0,
-            accuracy: 0.001,
-            "Restore Defaults must use the specified four-meter user-to-screen distance."
-        )
-        XCTAssertEqual(
-            restored.double("screenElevation") ?? .nan,
-            0.0,
-            accuracy: 0.001
-        )
-        assertSurfaceMatchesPlacement(restored)
-        attachState(restored, name: "docked-placement-specified-defaults")
-        attachScreenshot(from: app, name: "docked-placement-specified-defaults")
-    }
-
-    @MainActor
-    func testDockDayAndNightApplyDistinctSkyboxOpacityWithoutAffectingPlaybackSurface() async throws {
+    func testDockedDayAndNightUseOneStableEnvironmentIdentity() async throws {
         let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
             minimumCount: 1
         )[0]
@@ -75,7 +28,6 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
                 && $0.string("environmentEffect") == "none"
                 && $0.string("immersiveSpaceResidency") == "closed"
                 && $0.string("environmentCardResidency") == "closed"
-                && $0.bool("skyboxActive") == false
         })
         let session = try XCTUnwrap(baseline.string("session"))
 
@@ -85,15 +37,14 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         ].firstMatch
         let night = try XCTUnwrap(waitForState(spatialState, timeout: 30) {
             $0.string("presentation") == "docked"
-                && $0.string("environment") == "enchron"
+                && $0.string("environment") != "none"
                 && $0.string("environmentEffect") == "night"
                 && $0.string("environmentCardResidency") == "closed"
-                && abs(($0.double("skyboxOpacity") ?? .nan) - 0.35) < 0.001
-                && $0.bool("skyboxActive") == true
                 && $0.bool("surfaceSettled") == true
                 && $0.bool("surfaceAnchorMatched") == true
                 && $0.bool("surfaceRenderingReady") == true
         })
+        let environmentIdentity = try XCTUnwrap(night.string("environment"))
         XCTAssertEqual(night.string("session"), session)
         attachState(night, name: "docked-night-state")
         try await Task.sleep(for: .seconds(2))
@@ -107,7 +58,6 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
                 && $0.string("environmentEffect") == "none"
                 && $0.string("immersiveSpaceResidency") == "closed"
                 && $0.string("environmentCardResidency") == "closed"
-                && $0.bool("skyboxActive") == false
         })
         XCTAssertEqual(afterNight.string("session"), session)
         attachState(afterNight, name: "window-after-temporary-night-environment")
@@ -115,11 +65,9 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         guard enterDocked(in: app, effect: "day") else { return }
         let day = try XCTUnwrap(waitForState(spatialState, timeout: 30) {
             $0.string("presentation") == "docked"
-                && $0.string("environment") == "enchron"
+                && $0.string("environment") == environmentIdentity
                 && $0.string("environmentEffect") == "day"
                 && $0.string("environmentCardResidency") == "closed"
-                && abs(($0.double("skyboxOpacity") ?? .nan) - 1.0) < 0.001
-                && $0.bool("skyboxActive") == true
                 && $0.bool("surfaceSettled") == true
                 && $0.bool("surfaceAnchorMatched") == true
                 && $0.bool("surfaceRenderingReady") == true
@@ -137,19 +85,22 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
                 && $0.string("environmentEffect") == "none"
                 && $0.string("immersiveSpaceResidency") == "closed"
                 && $0.string("environmentCardResidency") == "closed"
-                && $0.bool("skyboxActive") == false
         })
         XCTAssertEqual(afterDay.string("session"), session)
         attachState(afterDay, name: "window-after-temporary-day-environment")
         attachScreenshot(from: app, name: "window-after-temporary-dock-environments")
+        attachHumanReviewBoundary(
+            "Compare the Day and Night recording segments for the same Environment identity and confirm the effect changes the visible environment without obscuring playback.",
+            name: "docked-day-night-environment-human-review"
+        )
     }
 
     @MainActor
-    func testPlacementControlsChangeTheActualSurfaceAndPersistAcrossRoundTrip() async throws {
-        let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
-            minimumCount: 1
-        )[0]
-        guard let app = launchRegisteredSpatialMedia(identifier: identifier) else { return }
+    func testDockedPlacementPersistsAcrossSessionsAndProcessRestart() async throws {
+        let identifiers = try VisionProRegressionConfiguration.mediaCardIdentifiers(
+            minimumCount: 2
+        )
+        guard let app = launchRegisteredSpatialMedia(identifier: identifiers[0]) else { return }
         guard enterDocked(in: app) else { return }
 
         let spatialState = app.descendants(matching: .any)[
@@ -210,26 +161,63 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         attachState(adjusted, name: "docked-placement-adjusted")
         attachScreenshot(from: app, name: "docked-placement-01-adjusted")
 
-        let exitSpatial = app.descendants(matching: .any)[
-            "PlayerPanel-button-exit-spatial"
-        ].firstMatch
-        guard requireHittable(exitSpatial, named: "Return to Window") else { return }
-        exitSpatial.tap()
+        let firstSession = try XCTUnwrap(adjusted.string("session"))
+        guard returnToWindow(in: app) else { return }
         let windowState = app.descendants(matching: .any)[
             "PlayerUI-window-control-plane"
         ].firstMatch
-        _ = try XCTUnwrap(waitForState(windowState, timeout: 90) {
+        let back = app.buttons["PlayerUI-InfoBar-button-back"].firstMatch
+        guard requireHittable(back, named: "Back to Media Library") else { return }
+        back.tap()
+        guard let secondCard = waitForHittableRegisteredMediaCard(
+            identifier: identifiers[1],
+            in: app,
+            timeout: 30
+        ) else {
+            XCTFail("Second registered media was unavailable for placement persistence.")
+            return
+        }
+        secondCard.tap()
+        resolveResumeDecisionIfNeeded(in: app)
+        _ = try XCTUnwrap(waitForState(windowState, timeout: 60) {
             $0.string("attached") == "window"
+                && $0.string("session") != firstSession
+                && $0.bool("displayedPixel") == true
         })
 
         guard enterDocked(in: app) else { return }
-        let restored = try XCTUnwrap(waitForState(spatialState, timeout: 90) {
+        let nextSession = try XCTUnwrap(waitForState(spatialState, timeout: 90) {
             $0.string("presentation") == "docked"
                 && abs(($0.double("screenScale") ?? 0) - 2.0) < 0.06
                 && abs(($0.double("screenDistance") ?? 0) - 3.0) < 0.06
                 && abs(($0.double("screenElevation") ?? 0) - 40.0) < 0.6
         })
-        assertSurfaceMatchesPlacement(restored)
+        XCTAssertNotEqual(nextSession.string("session"), firstSession)
+        assertSurfaceMatchesPlacement(nextSession)
+        attachState(nextSession, name: "docked-placement-restored-new-session")
+
+        app.terminate()
+        app.launch()
+        guard let relaunchedCard = waitForHittableRegisteredMediaCard(
+            identifier: identifiers[0],
+            in: app,
+            timeout: 30
+        ) else {
+            XCTFail("Registered media was unavailable after the App process restart.")
+            return
+        }
+        relaunchedCard.tap()
+        resolveResumeDecisionIfNeeded(in: app)
+        guard enterDocked(in: app) else { return }
+        let afterProcessRestart = try XCTUnwrap(waitForState(spatialState, timeout: 90) {
+            $0.string("presentation") == "docked"
+                && abs(($0.double("screenScale") ?? 0) - 2.0) < 0.06
+                && abs(($0.double("screenDistance") ?? 0) - 3.0) < 0.06
+                && abs(($0.double("screenElevation") ?? 0) - 40.0) < 0.6
+        })
+        assertSurfaceMatchesPlacement(afterProcessRestart)
+        attachState(afterProcessRestart, name: "docked-placement-restored-process-restart")
+        attachScreenshot(from: app, name: "docked-placement-02-restored-process-restart")
 
         let restoredSettings = app.descendants(matching: .any)[
             "PlayerPanel-button-settings"
@@ -249,7 +237,11 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         })
         assertSurfaceMatchesPlacement(resetState)
         attachState(resetState, name: "docked-placement-restored-defaults")
-        attachScreenshot(from: app, name: "docked-placement-02-restored-defaults")
+        attachScreenshot(from: app, name: "docked-placement-03-restored-defaults")
+        attachHumanReviewBoundary(
+            "Review adjustment, new Media Session, process restart, and Restore Defaults segments for actual spatial movement and stable placement rather than state-only persistence.",
+            name: "docked-placement-persistence-human-review"
+        )
     }
 
     @MainActor

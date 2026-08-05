@@ -5,6 +5,7 @@ import SwiftUI
 struct PathBreadcrumbMenu: View {
     let path: [String]
     var onSelectLevel: (Int) -> Void = { _ in }
+    var accessibilityIdentifier = "DesignPreview-breadcrumb-current"
 
     private var currentFolder: String {
         path.last ?? ""
@@ -36,6 +37,7 @@ struct PathBreadcrumbMenu: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(currentFolder)
     }
 

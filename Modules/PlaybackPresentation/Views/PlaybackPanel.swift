@@ -47,7 +47,6 @@ struct FusedPlayerPanelLive {
     var onResetDockedPlacement: () -> Void
     var onApplyFormat: (PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void
     var onResetFormat: () -> Void
-    var onChooseSubtitleFile: () -> Void
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -867,10 +866,6 @@ struct FusedPlayerPanel: View {
         if !live.subtitleItems.isEmpty {
             Menu("Subtitles") {
                 liveMenuItems(live.subtitleItems, category: "subtitle")
-                Button("Choose Subtitle File…") {
-                    live.onChooseSubtitleFile()
-                }
-                .accessibilityIdentifier("PlayerPanel-menu-subtitle-chooseFile")
             }
             .accessibilityIdentifier("PlayerPanel-menu-subtitles")
         }

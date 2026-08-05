@@ -53,6 +53,8 @@ if ! command -v jq >/dev/null 2>&1; then
     exit 69
 fi
 
+python3 "$repository_root/Scripts/verification/verify_visionpro_core_regression_plan.py"
+
 device_lock_status() {
     local lock_state_file
     if [[ -z "$device_identifier" ]]; then

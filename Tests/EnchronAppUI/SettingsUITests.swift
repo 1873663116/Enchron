@@ -1,31 +1,92 @@
 import XCTest
 
-/// UI tests for the assembled Settings screen (CategorySidebar + SettingListGroup
-/// bound to SettingsViewModel / persisted UserPreferences).
 nonisolated final class SettingsUITests: XCTestCase {
+    override func setUpWithError() throws {
+        continueAfterFailure = true
+#if targetEnvironment(simulator)
+        throw XCTSkip("Settings visual regression requires a physical Apple Vision Pro.")
+#endif
+    }
 
     @MainActor
-    func testNavigatingToSettingsAndSwitchingCategory() {
-        let app = XCUIApplication()
-        app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
-        app.launch()
-
-        // LNCH-03: the Settings system tab switches the main window to Settings.
-        let settingsTab = app.descendants(matching: .any).matching(identifier: "Navigation-Ornament-tab-settings").firstMatch
-        XCTAssertTrue(settingsTab.waitForExistence(timeout: 20), "Settings nav tab should exist")
+    func testSettingsCategoryNavigationAndVisualComposition() {
+        let app = launchVisionProRegressionApp()
+        let settingsTab = app.descendants(matching: .any)[
+            "Navigation-Ornament-tab-settings"
+        ].firstMatch
+        guard requireHittable(settingsTab, named: "Settings", timeout: 20) else {
+            return
+        }
         settingsTab.tap()
 
-        let playbackGroup = app.descendants(matching: .any)["Settings-Playback-group"]
-        XCTAssertTrue(playbackGroup.waitForExistence(timeout: 10),
-                      "Settings should open on the Playback category")
+        let screen = app.descendants(matching: .any)["Settings-SettingsScreen"].firstMatch
+        let detail = app.descendants(matching: .any)[
+            "Settings-SettingsScreen-detail"
+        ].firstMatch
+        XCTAssertTrue(screen.waitForExistence(timeout: 15))
+        XCTAssertTrue(detail.waitForExistence(timeout: 10))
 
-        let storageCategory = app.descendants(matching: .any).matching(identifier: "Settings-category-storagePrivacy").firstMatch
-        XCTAssertTrue(storageCategory.waitForExistence(timeout: 10),
-                      "Storage & Privacy category row should exist")
-        storageCategory.tap()
+        let categories = [
+            (
+                id: "playback",
+                group: "Settings-Playback-group",
+                screenshot: "settings-01-playback"
+            ),
+            (
+                id: "storagePrivacy",
+                group: "Settings-StoragePrivacy-group",
+                screenshot: "settings-02-storage-privacy"
+            ),
+            (
+                id: "about",
+                group: "Settings-About-group",
+                screenshot: "settings-03-about"
+            )
+        ]
 
-        let storageGroup = app.descendants(matching: .any)["Settings-StoragePrivacy-group"]
-        XCTAssertTrue(storageGroup.waitForExistence(timeout: 10),
-                      "Tapping Storage & Privacy should reveal its settings group")
+        for category in categories {
+            let row = app.descendants(matching: .any)[
+                "Settings-category-\(category.id)"
+            ].firstMatch
+            guard requireHittable(row, named: "Settings category \(category.id)") else {
+                continue
+            }
+            if row.isSelected == false {
+                row.tap()
+            }
+            let group = app.descendants(matching: .any)[category.group].firstMatch
+            XCTAssertTrue(
+                group.waitForExistence(timeout: 10),
+                "Selecting \(category.id) must show \(category.group)."
+            )
+            XCTAssertTrue(row.isSelected)
+            for other in categories where other.id != category.id {
+                let otherRow = app.descendants(matching: .any)[
+                    "Settings-category-\(other.id)"
+                ].firstMatch
+                XCTAssertFalse(
+                    otherRow.isSelected,
+                    "Only one Settings category may be selected."
+                )
+            }
+            XCTAssertGreaterThan(group.frame.width, 0)
+            XCTAssertGreaterThan(group.frame.height, 0)
+            XCTAssertTrue(detail.frame.contains(group.frame))
+            attachScreenshot(from: app, name: category.screenshot)
+        }
+
+        let playback = app.descendants(matching: .any)[
+            "Settings-category-playback"
+        ].firstMatch
+        playback.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["Settings-Playback-group"]
+                .firstMatch.waitForExistence(timeout: 10)
+        )
+        XCTAssertTrue(playback.isSelected)
+        attachHumanReviewBoundary(
+            "Review the category contact sheet and clear frames for clipping, unreadable text, unexpected spacing, or visually incorrect system glass despite valid frames.",
+            name: "settings-visual-human-review-boundary"
+        )
     }
 }

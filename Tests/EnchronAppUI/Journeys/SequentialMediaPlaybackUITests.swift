@@ -10,18 +10,20 @@ nonisolated final class SequentialMediaPlaybackUITests: XCTestCase {
     }
 
     @MainActor
-    func testTwoRegisteredMediaOpenSequentiallyWithoutSessionOrSurfaceLeakage() throws {
+    func testSequentialMediaSessionsRemainIsolated() throws {
         let identifiers = try VisionProRegressionConfiguration.mediaCardIdentifiers(
             minimumCount: 2
         )
-        let app = XCUIApplication()
-        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
-        app.launch()
+        let app = launchVisionProRegressionApp()
 
         var previousSession: String?
         for (index, identifier) in identifiers.prefix(2).enumerated() {
-            let card = app.descendants(matching: .any)[identifier].firstMatch
-            guard requireHittable(card, named: "Registered media \(identifier)", timeout: 30) else {
+            guard let card = waitForHittableRegisteredMediaCard(
+                identifier: identifier,
+                in: app,
+                timeout: 30
+            ) else {
+                XCTFail("Registered media \(identifier) did not become hittable.")
                 return
             }
             card.tap()
@@ -67,13 +69,9 @@ nonisolated final class SequentialMediaPlaybackUITests: XCTestCase {
             )
             previousSession = currentSession
         }
-    }
-
-    @MainActor
-    private func resolveResumeDecisionIfNeeded(in app: XCUIApplication) {
-        let resume = app.buttons["PlayerUI-resumeDecision-primary"].firstMatch
-        if resume.waitForExistence(timeout: 2) {
-            resume.tap()
-        }
+        attachHumanReviewBoundary(
+            "Review the two playback segments for stale frames, mixed audio, or controls from the previous Media Session that mechanical identity checks cannot detect.",
+            name: "sequential-media-sessions-human-review"
+        )
     }
 }

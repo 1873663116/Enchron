@@ -527,7 +527,7 @@ public final class PlaybackCoreController {
             _ = try? await activeSubtitleSelectionTask.value
             self.activeSubtitleSelectionTask = nil
         }
-        let time = clampedSeekTime(time)
+        let time = try session.clampedSeekTime(time)
         latestRequestedSeekTime = time
         seekGeneration += 1
         let generation = seekGeneration
@@ -596,14 +596,6 @@ public final class PlaybackCoreController {
     @available(*, deprecated, message: "Use seek(by:after:) with PlaybackAfterSeekBehavior.")
     public func seek(by offset: CMTime, startsPaused: Bool?) async throws {
         try await seek(by: offset, after: Self.afterSeekBehavior(startsPaused: startsPaused))
-    }
-
-    private func clampedSeekTime(_ time: CMTime) -> CMTime {
-        let seconds = time.seconds.isFinite ? time.seconds : 0
-        return CMTime(
-            seconds: max(0, seconds),
-            preferredTimescale: max(time.timescale, 600)
-        )
     }
 
     private static func afterSeekBehavior(
@@ -925,6 +917,7 @@ public enum PlaybackControlError: LocalizedError, Sendable {
     case openTerminatedByCleanup
     case presentationNotAttached
     case seekSuperseded(Double)
+    case invalidSeekTime(Double)
     case timelineNotReady
     case invalidRate(Float)
     case invalidVolume(Float)
@@ -946,6 +939,8 @@ public enum PlaybackControlError: LocalizedError, Sendable {
             "The renderer graph is not attached to the active presentation."
         case .seekSuperseded(let seconds):
             "Seek to \(seconds) seconds was superseded by a newer request."
+        case .invalidSeekTime(let seconds):
+            "The requested seek time \(seconds) is not finite."
         case .timelineNotReady:
             "The renderer timeline is not ready for this control request."
         case .invalidRate(let rate):

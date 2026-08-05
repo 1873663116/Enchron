@@ -279,6 +279,8 @@ public final class MediaLibraryViewModel {
     public private(set) var library: FileBrowsingDomain.MediaLibrary
     public private(set) var currentFolderID: UUID?
     public private(set) var folderPath: [UUID] = []
+    private var backwardFolderIDs: [UUID?] = []
+    private var forwardFolderIDs: [UUID?] = []
     public var lastErrorMessage: String?
     public private(set) var currentReferenceID: UUID?
     private var playbackCollection: [FileBrowsingDomain.MediaReference] = []
@@ -327,7 +329,9 @@ public final class MediaLibraryViewModel {
         currentFolderID.flatMap { library.folder(id: $0)?.name } ?? "Media Library"
     }
 
-    public var canNavigateUp: Bool { !folderPath.isEmpty }
+    public var canNavigateUp: Bool { currentFolderID != nil }
+    public var canNavigateBack: Bool { !backwardFolderIDs.isEmpty }
+    public var canNavigateForward: Bool { !forwardFolderIDs.isEmpty }
 
     public var breadcrumbFolders: [FileBrowsingDomain.LibraryFolder] {
         (folderPath + [currentFolderID].compactMap { $0 }).compactMap { library.folder(id: $0) }
@@ -340,28 +344,33 @@ public final class MediaLibraryViewModel {
     }
 
     public func open(_ folder: FileBrowsingDomain.LibraryFolder) {
-        if let currentFolderID { folderPath.append(currentFolderID) }
-        currentFolderID = folder.id
-        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
+        navigateRecordingHistory(to: folder.id)
     }
 
     public func navigateUp() {
-        currentFolderID = folderPath.popLast()
-        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
+        guard currentFolderID != nil else { return }
+        navigateRecordingHistory(to: folderPath.last)
     }
 
     public func navigateToRoot() {
-        currentFolderID = nil
-        folderPath.removeAll()
-        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
+        navigateRecordingHistory(to: nil)
     }
 
     public func navigate(to folderID: UUID) {
-        guard let index = breadcrumbFolders.firstIndex(where: { $0.id == folderID }) else { return }
-        let ids = breadcrumbFolders.prefix(index + 1).map(\.id)
-        currentFolderID = ids.last
-        folderPath = Array(ids.dropLast())
-        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
+        guard breadcrumbFolders.contains(where: { $0.id == folderID }) else { return }
+        navigateRecordingHistory(to: folderID)
+    }
+
+    public func navigateBack() {
+        guard let target = backwardFolderIDs.popLast() else { return }
+        forwardFolderIDs.append(currentFolderID)
+        setCurrentFolder(target)
+    }
+
+    public func navigateForward() {
+        guard let target = forwardFolderIDs.popLast() else { return }
+        backwardFolderIDs.append(currentFolderID)
+        setCurrentFolder(target)
     }
 
     public func remove(_ reference: FileBrowsingDomain.MediaReference) {
@@ -378,6 +387,29 @@ public final class MediaLibraryViewModel {
 
     public func move(_ reference: FileBrowsingDomain.MediaReference, to folderID: UUID?) {
         mutate { try library.moveReference(reference.id, to: folderID) }
+    }
+
+    private func navigateRecordingHistory(to folderID: UUID?) {
+        guard folderID != currentFolderID else { return }
+        backwardFolderIDs.append(currentFolderID)
+        forwardFolderIDs.removeAll()
+        setCurrentFolder(folderID)
+    }
+
+    private func setCurrentFolder(_ folderID: UUID?) {
+        currentFolderID = folderID
+        folderPath = ancestorFolderIDs(of: folderID)
+        Task { [weak self] in await self?.loadViewingStatesForCurrentFolder() }
+    }
+
+    private func ancestorFolderIDs(of folderID: UUID?) -> [UUID] {
+        var ancestors: [UUID] = []
+        var candidate = folderID.flatMap { library.folder(id: $0) }
+        while let parentID = candidate?.parentID {
+            ancestors.append(parentID)
+            candidate = library.folder(id: parentID)
+        }
+        return ancestors.reversed()
     }
 
     public func addFiles(_ urls: [URL]) {

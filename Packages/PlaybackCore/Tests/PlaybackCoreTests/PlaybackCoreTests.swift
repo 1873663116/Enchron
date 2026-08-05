@@ -695,7 +695,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
         let lastPTSLabel = expectedLastPTS.map { String($0) } ?? "none"
         let session = SampleBufferPlaybackSession(
             traceID: "seek-target-unavailable-\(lastPTSLabel)",
-            provider: FakeVideoSampleProvider(events: events),
+            provider: FakeVideoSampleProvider(events: events, durationSeconds: 10),
             rendererSink: FakeRendererInputSink()
         )
         try await session.prepare(url: URL(fileURLWithPath: "/fixtures/short.mov"))
@@ -1127,7 +1127,10 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
 @Test func seekToExactDurationPublishesEndedWithoutReopeningTheProvider() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 1)
-    let provider = FakeVideoSampleProvider(events: [.sample(sample), .end])
+    let provider = FakeVideoSampleProvider(
+        events: [.sample(sample), .end],
+        durationSeconds: 1
+    )
     let session = SampleBufferPlaybackSession(
         traceID: "seek-to-end-session",
         provider: provider,
@@ -1153,6 +1156,81 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(session.debugSnapshot().lifecycle == .ended)
     #expect(statuses.withLock { $0.last } == .ended(.seekToEnd))
     #expect(session.renderer.displayedPixelBuffer() == nil)
+}
+
+@Test func seekClampsFiniteTargetsToTheKnownMediaRange() async throws {
+    let cases: [(requested: Double, expected: Double)] = [
+        (-5, 0),
+        (5, 1),
+    ]
+
+    for testCase in cases {
+        let sample = try makeCompressedH264Sample(durationSeconds: 1)
+        let session = SampleBufferPlaybackSession(
+            traceID: "seek-clamp-\(testCase.expected)",
+            provider: FakeVideoSampleProvider(
+                events: [.sample(sample), .end],
+                durationSeconds: 1
+            ),
+            rendererSink: FakeRendererInputSink()
+        )
+        defer { session.close() }
+        try await session.prepare(url: URL(fileURLWithPath: "/fixtures/seek-clamp.mkv"))
+        try session.start()
+        try await waitForSampleCount(1, in: session)
+
+        try await session.seek(
+            to: CMTime(seconds: testCase.requested, preferredTimescale: 600),
+            startsPaused: true
+        )
+
+        #expect(
+            session.debugSnapshot().lastCompletedOperation?.targetTimeSeconds
+                == testCase.expected
+        )
+        #expect(session.debugSnapshot().lifecycle != .failed)
+    }
+}
+
+@Test func seekRejectsNonFiniteTargetsWithoutChangingTheMediaSession() async throws {
+    for requested in [
+        CMTime.invalid,
+        CMTime.positiveInfinity,
+        CMTime.negativeInfinity,
+        CMTime.indefinite,
+    ] {
+        let sample = try makeCompressedH264Sample(durationSeconds: 1)
+        let provider = FakeVideoSampleProvider(
+            events: [.sample(sample), .end],
+            durationSeconds: 1
+        )
+        let session = SampleBufferPlaybackSession(
+            traceID: "seek-reject-non-finite",
+            provider: provider,
+            rendererSink: FakeRendererInputSink()
+        )
+        defer { session.close() }
+        try await session.prepare(url: URL(fileURLWithPath: "/fixtures/seek-invalid.mkv"))
+        try session.start()
+        try await waitForSampleCount(1, in: session)
+        let before = session.debugSnapshot()
+        let startCount = provider.startCount
+
+        do {
+            try await session.seek(
+                to: requested,
+                startsPaused: true
+            )
+            Issue.record("Expected non-finite seek time to be rejected")
+        } catch PlaybackControlError.invalidSeekTime(let rejected) {
+            #expect(!rejected.isFinite)
+        }
+
+        let after = session.debugSnapshot()
+        #expect(after.streamEpoch == before.streamEpoch)
+        #expect(after.lifecycle == before.lifecycle)
+        #expect(provider.startCount == startCount)
+    }
 }
 
 @Test func seekToTargetCoveredByFinalVideoSampleDoesNotFail() async throws {
@@ -2638,12 +2716,13 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
         seekPrepareIgnoresCancellation: Bool = false,
         readError: Error? = nil,
         eventDelay: Duration? = nil,
-        projectionKind: String? = nil
+        projectionKind: String? = nil,
+        durationSeconds: Double = 60
     ) {
         info = VideoSampleProviderInfo(
             providerKind: "Fake",
             containerFormat: "fixture",
-            durationSeconds: 1,
+            durationSeconds: durationSeconds,
             nominalFrameRate: 30,
             codecName: "fake",
             codecTag: "fake",

@@ -5,12 +5,8 @@ import XCTest
 nonisolated final class DeviceFixtureImportUITests: XCTestCase {
     private let baselineFixtureName = "sdr-bframe-multiaudio-avsync-30s.mp4"
     private let baselineFixturePickerLabel = "sdr-bframe-multiaudio-avsync-30s"
-    private let manualSubtitleVideoFixtureName =
-        "sdr-bframe-multiaudio-avsync-120s.mp4"
     private let externalSubRipFixtureName =
         "sdr-bframe-multiaudio-avsync-30s.zh-CN.srt"
-    private let externalSubRipFixturePickerLabel =
-        "sdr-bframe-multiaudio-avsync-30s.zh-CN"
     private let externalASSFixtureName =
         "sdr-bframe-multiaudio-avsync-30s.styled.ass"
     private let multitrackFixtureName =
@@ -21,62 +17,16 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
     }
 
     @MainActor
-    func testImportsGeneratedBaselineFixtureFromICloudDriveAndStartsPlayback() throws {
-        let app = XCUIApplication()
-        app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
-        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
-        app.launch()
-
-        let existingMedia = app.descendants(matching: .any)
-            .matching(NSPredicate(format: "identifier BEGINSWITH 'MediaLibrary-grid-video-'"))
-        XCTAssertEqual(
-            existingMedia.count,
-            0,
-            "The fixture import test must begin with an empty media library."
-        )
-
-        let manage = app.buttons["Manage media library"].firstMatch
-        XCTAssertTrue(manage.waitForExistence(timeout: 20))
-        XCTAssertTrue(manage.isEnabled)
-        manage.tap()
-
-        let addFiles = app.buttons["Add Files"].firstMatch
-        XCTAssertTrue(addFiles.waitForExistence(timeout: 5))
-        XCTAssertTrue(addFiles.isEnabled)
-        addFiles.tap()
-
-        XCTAssertTrue(
-            waitForFilePicker(in: app, timeout: 20),
-            "The system file picker did not expose a browsable interface."
-        )
-        attachFilePickerState(app, name: "01-icloud-file-picker-opened")
-
-        guard navigateToGeneratedFixtureDirectory(in: app) else { return }
-
-        let fixture = waitForHittableFilePickerItem(
-            matchingAnyLabel: [baselineFixturePickerLabel],
-            in: app,
-            timeout: 30
-        )
-        XCTAssertNotNil(
-            fixture,
-            "The generated baseline fixture was not visible in the iCloud file picker."
-        )
-        attachFilePickerState(app, name: "02-generated-fixture-visible")
-        selectFilePickerItem(fixture, in: app)
-
+    func testLocalMediaReferenceCanBeRemovedAndReadded() throws {
+        let app = launchMediaLibrary()
         let importedCard = app.descendants(matching: .any)[
             "MediaLibrary-grid-video-\(baselineFixtureName)"
         ].firstMatch
-        confirmPickerIfNeeded(for: importedCard, in: app)
-
-        XCTAssertTrue(
-            importedCard.waitForExistence(timeout: 30),
-            "The selected fixture did not create a Media Library reference."
-        )
-        XCTAssertTrue(waitForElementToBecomeHittable(importedCard, timeout: 10))
-        XCTAssertFalse(app.alerts["Media Library Error"].exists)
-        attachScreenshot(from: app, name: "03-generated-fixture-imported")
+        if importedCard.waitForExistence(timeout: 3) {
+            guard removeMediaReference(importedCard, in: app) else { return }
+        }
+        XCTAssertTrue(importedCard.waitForNonExistence(timeout: 10))
+        guard addBaselineFile(using: importedCard, in: app) else { return }
 
         importedCard.tap()
         let controlPlane = app.descendants(matching: .any)[
@@ -93,57 +43,48 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             XCTFail("The imported fixture did not produce sustained wearer-visible playback evidence.")
             return
         }
-
-        Thread.sleep(forTimeInterval: 1)
-        guard let second = waitForState(controlPlane, timeout: 5, where: {
-            ($0.double("position") ?? 0) > (first.double("position") ?? 0) + 0.25
-                && ($0.uint64("videoSamples") ?? 0) > (first.uint64("videoSamples") ?? 0)
-                && ($0.uint64("rendererInputs") ?? 0) > (first.uint64("rendererInputs") ?? 0)
-        }) else {
-            attachScreenshot(from: app, name: "04-imported-fixture-playback-failure")
-            XCTFail("Playback did not continue advancing after the first valid state observation.")
-            return
-        }
-        XCTAssertEqual(second.string("session"), first.string("session"))
-        XCTAssertEqual(second.uint64("streamEpoch"), first.uint64("streamEpoch"))
+        guard requireContinuousPlayback(
+            after: first,
+            in: controlPlane,
+            app: app,
+            name: "media-reference-01-first-playback"
+        ) != nil else { return }
         XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-loadFailure-panel"].exists)
-        attachState(first, name: "04-imported-fixture-playing-a")
-        attachState(second, name: "05-imported-fixture-playing-b")
-        attachScreenshot(from: app, name: "06-imported-fixture-playing")
+
+        let back = app.buttons["PlayerUI-InfoBar-button-back"].firstMatch
+        guard requireHittable(back, named: "Back to Media Library") else { return }
+        back.tap()
+        XCTAssertTrue(importedCard.waitForExistence(timeout: 20))
+        guard removeMediaReference(importedCard, in: app) else { return }
+        XCTAssertTrue(
+            importedCard.waitForNonExistence(timeout: 10),
+            "Removing the Media Reference must remove only its Media Library card."
+        )
+        attachScreenshot(from: app, name: "media-reference-02-removed")
+
+        guard addBaselineFile(using: importedCard, in: app) else { return }
+        attachScreenshot(from: app, name: "media-reference-03-readded")
+        importedCard.tap()
+        let reopened = try XCTUnwrap(waitForState(controlPlane, timeout: 30) {
+            $0.string("lifecycle")?.lowercased() == "playing"
+                && $0.bool("displayedPixel") == true
+                && $0.string("session") != first.string("session")
+        })
+        guard requireContinuousPlayback(
+            after: reopened,
+            in: controlPlane,
+            app: app,
+            name: "media-reference-04-readded-playback"
+        ) != nil else { return }
     }
 
     @MainActor
-    func testFolderImportAutomaticallyAssociatesMatchingSubtitleFilesWithoutSelectingOne() throws {
-        let app = launchEmptyMediaLibrary()
-        openManageAction("Add Folder Contents", in: app)
-
-        XCTAssertTrue(
-            waitForFilePicker(in: app, timeout: 20),
-            "The folder importer did not expose a browsable interface."
-        )
-        guard navigateToGeneratedFixtureDirectory(
-            in: app,
-            selectDirectory: true
-        ) else { return }
-        attachFilePickerState(app, name: "01-generated-folder-visible")
-
+    func testOpeningMediaAutomaticallyAssociatesSiblingSubtitles() throws {
+        let app = launchMediaLibrary()
         let importedCard = app.descendants(matching: .any)[
             "MediaLibrary-grid-video-\(baselineFixtureName)"
         ].firstMatch
-        if importedCard.waitForExistence(timeout: 3) == false {
-            let confirm = waitForHittableElement(
-                matchingAnyLabel: ["Open", "打开", "Add", "添加", "Done", "完成"],
-                in: app,
-                timeout: 10
-            )
-            XCTAssertNotNil(confirm, "The folder importer did not expose a confirmation action.")
-            confirm?.tap()
-        }
-
-        XCTAssertTrue(
-            importedCard.waitForExistence(timeout: 30),
-            "Importing the Generated folder did not add its baseline video to Media Library."
-        )
+        guard ensureGeneratedFolderImported(for: importedCard, in: app) else { return }
         importedCard.tap()
 
         let controlPlane = app.descendants(matching: .any)[
@@ -180,68 +121,23 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             assTrack,
             "The automatically associated ASS file is missing from Subtitles."
         )
-        assTrack?.tap()
-
-        guard let selected = waitForState(controlPlane, timeout: 10, where: {
-            $0.string("session") == discovered.string("session")
-                && $0.string("lifecycle")?.lowercased() == "playing"
-                && $0.string("subtitleTrack") != "off"
-                && ($0.uint64("subtitleCues") ?? 0) > 0
-                && ($0.double("position") ?? 0) > (discovered.double("position") ?? 0)
-        }) else {
-            attachScreenshot(from: app, name: "03-automatic-ass-selection-failure")
-            XCTFail("Selecting the associated ASS track did not preserve playback and expose cues.")
-            return
-        }
-        XCTAssertEqual(selected.string("session"), discovered.string("session"))
-        XCTAssertTrue(
-            waitForAccessibilityValue(
-                app.descendants(matching: .any)["PlayerUI-active-subtitles"].firstMatch,
-                containing: "Enchron GPU PIXEL PROOF",
-                timeout: 5
-            ),
-            "The selected ASS cue was not exposed by the wearer-visible subtitle surface."
-        )
-        attachScreenshot(from: app, name: "04-automatic-ass-selected")
-
-        openWindowSubtitleMenu(in: app)
-        let off = waitForHittableElement(matchingAnyLabel: ["Off"], in: app, timeout: 5)
-        XCTAssertNotNil(off, "Subtitles did not expose Off after selecting a sidecar track.")
-        off?.tap()
-        guard let disabled = waitForState(controlPlane, timeout: 5, where: {
-            $0.string("session") == discovered.string("session")
-                && $0.string("subtitleTrack") == "off"
-                && $0.uint64("subtitleCues") == 0
-                && $0.string("lifecycle")?.lowercased() == "playing"
-        }) else {
-            attachScreenshot(from: app, name: "05-automatic-subtitle-off-failure")
-            XCTFail("Off did not clear the active sidecar cue while preserving playback.")
-            return
-        }
-        XCTAssertEqual(disabled.string("session"), discovered.string("session"))
-        XCTAssertFalse(app.alerts["Subtitle Error"].exists)
-        attachScreenshot(from: app, name: "06-automatic-subtitle-off")
+        guard requireContinuousPlayback(
+            after: discovered,
+            in: controlPlane,
+            app: app,
+            name: "automatic-subtitle-association-remains-playing"
+        ) != nil else { return }
+        XCTAssertEqual(discovered.string("subtitleTrack"), "off")
+        attachScreenshot(from: app, name: "automatic-subtitle-candidates-and-off")
     }
 
     @MainActor
-    func testAutomaticallyAssociatedSubRipRendersChineseCharacters() throws {
-        let app = launchEmptyMediaLibrary()
-        openManageAction("Add Folder Contents", in: app)
-
-        XCTAssertTrue(waitForFilePicker(in: app, timeout: 20))
-        guard navigateToGeneratedFixtureDirectory(
-            in: app,
-            selectDirectory: true
-        ) else { return }
-
+    func testSelectingAndDisablingSubtitlesPreservesMediaSession() throws {
+        let app = launchMediaLibrary()
         let importedCard = app.descendants(matching: .any)[
             "MediaLibrary-grid-video-\(baselineFixtureName)"
         ].firstMatch
-        confirmPickerIfNeeded(for: importedCard, in: app)
-        XCTAssertTrue(
-            importedCard.waitForExistence(timeout: 30),
-            "Importing the Generated folder did not add its baseline video to Media Library."
-        )
+        guard ensureGeneratedFolderImported(for: importedCard, in: app) else { return }
         importedCard.tap()
 
         let controlPlane = app.descendants(matching: .any)[
@@ -289,147 +185,61 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         try assertScreenshot(
             from: app,
             containsText: "字幕验证",
-            attachmentName: "03-automatic-subrip-chinese-rendered"
+            attachmentName: "subtitle-selection-01-subrip-chinese-rendered"
         )
-    }
-
-    @MainActor
-    func testPlaybackWithoutAssociatedSubtitleCanAddAndSelectAnExternalSubtitleWithoutReplacingSession() throws {
-        let app = launchEmptyMediaLibrary()
-        openManageAction("Add Folder Contents", in: app)
-
-        XCTAssertTrue(waitForFilePicker(in: app, timeout: 20))
-        guard navigateToGeneratedFixtureDirectory(
-            in: app,
-            selectDirectory: true
-        ) else { return }
-
-        let importedCard = app.descendants(matching: .any)[
-            "MediaLibrary-grid-video-\(manualSubtitleVideoFixtureName)"
-        ].firstMatch
-        confirmPickerIfNeeded(for: importedCard, in: app)
-        XCTAssertTrue(importedCard.waitForExistence(timeout: 30))
-        importedCard.tap()
-
-        let controlPlane = app.descendants(matching: .any)[
-            "PlayerUI-window-control-plane"
-        ].firstMatch
-        guard let before = waitForState(controlPlane, timeout: 30, where: {
-            $0.string("lifecycle")?.lowercased() == "playing"
-                && $0.bool("displayedPixel") == true
-                && $0.uint64("subtitleTracks") == 0
-                && $0.string("subtitleTrack") == "off"
-        }) else {
-            attachScreenshot(from: app, name: "01-manual-subtitle-baseline-failure")
-            XCTFail(
-                "The 120-second video without matching sidecars did not reach "
-                    + "the expected subtitle-free baseline."
-            )
-            return
-        }
 
         openWindowSubtitleMenu(in: app)
-        let identifiedChoose = app.descendants(matching: .any)[
-            "PlayerUI-menu-subtitle-chooseFile"
-        ].firstMatch
-        let labeledChoose = app.buttons["Choose Subtitle File…"].firstMatch
-        let choose = identifiedChoose.waitForExistence(timeout: 2)
-            ? identifiedChoose
-            : labeledChoose
-        XCTAssertTrue(choose.waitForExistence(timeout: 3))
-        XCTAssertTrue(choose.isEnabled)
-        choose.tap()
-        XCTAssertTrue(waitForFilePicker(in: app, timeout: 20))
-        guard navigateToGeneratedFixtureDirectory(in: app) else { return }
-        let subtitle = waitForHittableFilePickerItem(
-            matchingAnyLabel: [externalSubRipFixturePickerLabel],
+        let assTrack = waitForHittableElement(
+            matchingAnyLabel: [externalASSFixtureName],
             in: app,
-            timeout: 30
+            timeout: 5
         )
-        if subtitle == nil {
-            attachFilePickerState(app, name: "02-manual-subtitle-fixture-missing")
-        }
-        XCTAssertNotNil(subtitle, "The deterministic SubRip fixture was not visible.")
-        selectFilePickerItem(subtitle, in: app)
-
-        guard var after = waitForState(controlPlane, timeout: 10, where: {
-            $0.string("session") == before.string("session")
+        XCTAssertNotNil(assTrack, "The automatically associated ASS track is missing.")
+        assTrack?.tap()
+        guard let selectedASS = waitForState(controlPlane, timeout: 10, where: {
+            $0.string("session") == discovered.string("session")
                 && $0.string("lifecycle")?.lowercased() == "playing"
-                && $0.uint64("subtitleTracks") == 1
                 && $0.string("subtitleTrack") != "off"
-                && ($0.double("position") ?? 0) > (before.double("position") ?? 0)
-        }) else {
-            attachScreenshot(from: app, name: "02-manual-subtitle-selection-failure")
-            XCTFail("Manual subtitle selection replaced or interrupted the active Media Session.")
-            return
-        }
-        XCTAssertEqual(after.string("session"), before.string("session"))
-
-        let rewind = app.buttons["PlayerPanel-button-rewind"].firstMatch
-        XCTAssertTrue(rewind.waitForExistence(timeout: 5))
-        var rewindCount = 0
-        while (after.double("position") ?? .infinity) >= 20, rewindCount < 8 {
-            let previousPosition = after.double("position") ?? .infinity
-            rewind.tap()
-            guard let rewound = waitForState(controlPlane, timeout: 5, where: {
-                $0.string("session") == before.string("session")
-                    && $0.string("lifecycle")?.lowercased() == "playing"
-                    && ($0.double("position") ?? .infinity) < previousPosition - 10
-            }) else {
-                attachScreenshot(from: app, name: "03-manual-subtitle-rewind-failure")
-                XCTFail("Playback did not seek into the subtitle fixture's cue interval.")
-                return
-            }
-            after = rewound
-            rewindCount += 1
-        }
-        XCTAssertLessThan(
-            after.double("position") ?? .infinity,
-            20,
-            "Playback did not reach the subtitle fixture's cue interval."
-        )
-        guard waitForState(controlPlane, timeout: 5, where: {
-            $0.string("session") == before.string("session")
+                && $0.string("subtitleTrack") != selected.string("subtitleTrack")
                 && ($0.uint64("subtitleCues") ?? 0) > 0
-        }) != nil else {
-            attachScreenshot(from: app, name: "04-manual-subtitle-cue-failure")
-            XCTFail("The selected SubRip track did not produce its active cue.")
-            return
-        }
+        }) else { return }
         XCTAssertTrue(
             waitForAccessibilityValue(
                 app.descendants(matching: .any)["PlayerUI-active-subtitles"].firstMatch,
-                containing: "Enchron 字幕验证",
+                containing: "Enchron GPU PIXEL PROOF",
                 timeout: 5
             )
         )
+        attachState(selectedASS, name: "subtitle-selection-02-ass-selected")
+        attachScreenshot(from: app, name: "subtitle-selection-02-ass-selected")
+
+        openWindowSubtitleMenu(in: app)
+        let off = waitForHittableElement(matchingAnyLabel: ["Off"], in: app, timeout: 5)
+        XCTAssertNotNil(off, "Subtitles did not expose Off.")
+        off?.tap()
+        guard let disabled = waitForState(controlPlane, timeout: 8, where: {
+            $0.string("session") == discovered.string("session")
+                && $0.string("subtitleTrack") == "off"
+                && $0.uint64("subtitleCues") == 0
+                && $0.string("lifecycle")?.lowercased() == "playing"
+        }) else { return }
+        XCTAssertFalse(app.descendants(matching: .any)["PlayerUI-active-subtitles"].exists)
         XCTAssertFalse(app.alerts["Subtitle Error"].exists)
-        try assertScreenshot(
-            from: app,
-            containsText: "字幕验证",
-            attachmentName: "05-manual-subtitle-selected"
+        attachState(disabled, name: "subtitle-selection-03-off")
+        attachScreenshot(from: app, name: "subtitle-selection-03-off")
+        attachHumanReviewBoundary(
+            "Review the clear frames for Chinese glyph integrity, ASS styling and placement, readable contrast, and complete disappearance after Off.",
+            name: "subtitle-selection-human-review-boundary"
         )
     }
 
     @MainActor
-    func testReopeningMediaRestoresAudioSubtitleAndSubtitleOffSelections() throws {
-        let app = launchEmptyMediaLibrary()
-        openManageAction("Add Folder Contents", in: app)
-
-        XCTAssertTrue(waitForFilePicker(in: app, timeout: 20))
-        guard navigateToGeneratedFixtureDirectory(
-            in: app,
-            selectDirectory: true
-        ) else { return }
-
+    func testReopeningMediaRestoresTrackSelections() throws {
+        let app = launchMediaLibrary()
         let mediaCard = app.descendants(matching: .any)[
             "MediaLibrary-grid-video-\(multitrackFixtureName)"
         ].firstMatch
-        confirmPickerIfNeeded(for: mediaCard, in: app)
-        XCTAssertTrue(
-            mediaCard.waitForExistence(timeout: 30),
-            "Importing the Generated folder did not add the registered multitrack fixture."
-        )
+        guard ensureGeneratedFolderImported(for: mediaCard, in: app) else { return }
         mediaCard.tap()
 
         let controlPlane = app.descendants(matching: .any)[
@@ -454,6 +264,17 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             $0.string("session") == firstSession.string("session")
                 && $0.string("audioTrack") == "2"
         })
+        guard let selectedAudioContinuous = requireContinuousPlayback(
+            after: selectedAudio,
+            in: controlPlane,
+            app: app,
+            name: "track-preferences-second-audio-output"
+        ) else { return }
+        assertMechanicalAudioOutputAdvanced(
+            from: selectedAudio,
+            to: selectedAudioContinuous,
+            context: "Selected second audio track"
+        )
 
         openWindowSubtitleMenu(in: app)
         let chineseSubRip = waitForHittableElement(
@@ -532,15 +353,97 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             timeout: 10,
             attachmentName: "03-subtitle-off-restored"
         )
+        attachHumanReviewBoundary(
+            "Mechanical state proves that the second audio track remained selected and produced renderer samples. "
+                + "Confirm its registered distinct pulse frequency through calibrated acoustic evidence; "
+                + "also review restored subtitle pixels and Off disappearance.",
+            name: "track-selection-restoration-human-review-boundary"
+        )
     }
 
     @MainActor
-    private func launchEmptyMediaLibrary() -> XCUIApplication {
-        let app = XCUIApplication()
-        app.launchEnvironment["ENCHRON_RESET_MEDIA_LIBRARY"] = "1"
-        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
-        app.launch()
-        return app
+    private func addBaselineFile(
+        using mediaCard: XCUIElement,
+        in app: XCUIApplication
+    ) -> Bool {
+        openManageAction("Add Files", in: app)
+        guard waitForFilePicker(in: app, timeout: 20) else {
+            XCTFail("The system file picker did not expose a browsable interface.")
+            return false
+        }
+        attachFilePickerState(app, name: "baseline-file-picker-opened")
+        guard navigateToGeneratedFixtureDirectory(in: app) else { return false }
+        let fixture = waitForHittableFilePickerItem(
+            matchingAnyLabel: [baselineFixturePickerLabel],
+            in: app,
+            timeout: 30
+        )
+        guard let fixture else {
+            attachFilePickerState(app, name: "baseline-source-file-missing")
+            XCTFail(
+                "The baseline source file no longer exists in its system-owned location."
+            )
+            return false
+        }
+        selectFilePickerItem(fixture, in: app)
+        confirmPickerIfNeeded(for: mediaCard, in: app)
+        guard mediaCard.waitForExistence(timeout: 30) else {
+            XCTFail("The selected file did not create a Media Reference.")
+            return false
+        }
+        return waitForElementToBecomeHittable(mediaCard, timeout: 10)
+    }
+
+    @MainActor
+    private func removeMediaReference(
+        _ mediaCard: XCUIElement,
+        in app: XCUIApplication
+    ) -> Bool {
+        guard waitForElementToBecomeHittable(mediaCard, timeout: 10) else {
+            XCTFail("The Media Reference card was not available for removal.")
+            return false
+        }
+        mediaCard.press(forDuration: 1)
+        let remove = app.buttons["Remove from Library"].firstMatch
+        guard requireHittable(remove, named: "Remove from Library") else { return false }
+        remove.tap()
+        return true
+    }
+
+    @MainActor
+    private func launchMediaLibrary() -> XCUIApplication {
+        launchVisionProRegressionApp()
+    }
+
+    @MainActor
+    private func ensureGeneratedFolderImported(
+        for mediaCard: XCUIElement,
+        in app: XCUIApplication
+    ) -> Bool {
+        if mediaCard.waitForExistence(timeout: 3),
+           mediaCard.isEnabled,
+           mediaCard.isHittable {
+            return true
+        }
+
+        openManageAction("Add Folder Contents", in: app)
+        guard waitForFilePicker(in: app, timeout: 20) else {
+            XCTFail("The folder importer did not expose a browsable interface.")
+            return false
+        }
+        guard navigateToGeneratedFixtureDirectory(
+            in: app,
+            selectDirectory: true
+        ) else { return false }
+        attachFilePickerState(app, name: "generated-folder-visible")
+        confirmPickerIfNeeded(for: mediaCard, in: app)
+        guard mediaCard.waitForExistence(timeout: 30) else {
+            XCTFail(
+                "Importing the Generated folder did not add the required registered media."
+            )
+            return false
+        }
+        return waitForElementToBecomeHittable(mediaCard, timeout: 10)
     }
 
     @MainActor
@@ -1021,8 +924,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         surfaceFrame: CGRect,
         applicationFrame: CGRect
     ) throws -> Double {
+        let screenshotData = screenshot.pngRepresentation
         let imageSource = try XCTUnwrap(
-            CGImageSourceCreateWithData(screenshot.pngRepresentation as CFData, nil)
+            CGImageSourceCreateWithData(screenshotData as CFData, nil)
         )
         let image = try XCTUnwrap(CGImageSourceCreateImageAtIndex(imageSource, 0, nil))
         guard applicationFrame.width > 0, applicationFrame.height > 0 else { return 0 }

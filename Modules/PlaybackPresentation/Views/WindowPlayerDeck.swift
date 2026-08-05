@@ -3,7 +3,6 @@ import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct WindowPlayerDeckView: View {
     @Environment(AppModel.self) private var appModel
@@ -11,7 +10,6 @@ struct WindowPlayerDeckView: View {
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     var presentationOverride: PlaybackPresentation? = nil
     var onExitPlayback: (() -> Void)? = nil
-    @State private var isSubtitleFileImporterPresented = false
 
     @ViewBuilder
     var body: some View {
@@ -32,12 +30,6 @@ struct WindowPlayerDeckView: View {
                 .onHover { appModel.setControlsFocused($0) }
             }
         }
-        .fileImporter(
-            isPresented: $isSubtitleFileImporterPresented,
-            allowedContentTypes: Self.subtitleFileTypes,
-            allowsMultipleSelection: false,
-            onCompletion: importSubtitleFile
-        )
         .alert(
             "Subtitle Error",
             isPresented: Binding(
@@ -161,10 +153,6 @@ struct WindowPlayerDeckView: View {
                     }
                 }
             },
-            onChooseSubtitleFile: {
-                self.register()
-                self.isSubtitleFileImporterPresented = true
-            },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
@@ -174,26 +162,6 @@ struct WindowPlayerDeckView: View {
 
     private var resolvedPresentation: PlaybackPresentation {
         presentationOverride ?? appModel.playbackPresentation
-    }
-
-    private static let subtitleFileTypes = ["srt", "vtt", "ass", "ssa"].compactMap {
-        UTType(filenameExtension: $0)
-    }
-
-    private func importSubtitleFile(_ result: Result<[URL], any Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            Task {
-                do {
-                    try await playbackLauncher.addExternalSubtitleFile(url)
-                } catch {
-                    playbackRuntime.subtitleErrorMessage = error.localizedDescription
-                }
-            }
-        case .failure(let error):
-            playbackRuntime.subtitleErrorMessage = error.localizedDescription
-        }
     }
 
     private var mediaName: String {
@@ -315,8 +283,6 @@ struct ProductionPlaybackMoreMenu: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
-    @State private var isSubtitleFileImporterPresented = false
-
     var body: some View {
         GlassCircleIconMenu(
             systemName: "ellipsis",
@@ -326,11 +292,6 @@ struct ProductionPlaybackMoreMenu: View {
             if !subtitleItems.isEmpty {
                 Menu("Subtitles") {
                     selectableMenuItems(subtitleItems)
-                    Button("Choose Subtitle File…") {
-                        register()
-                        isSubtitleFileImporterPresented = true
-                    }
-                    .accessibilityIdentifier("PlayerUI-menu-subtitle-chooseFile")
                 }
                 .accessibilityIdentifier("PlayerUI-menu-subtitles")
             }
@@ -343,12 +304,6 @@ struct ProductionPlaybackMoreMenu: View {
             }
         }
         .accessibilityLabel("More playback settings")
-        .fileImporter(
-            isPresented: $isSubtitleFileImporterPresented,
-            allowedContentTypes: Self.subtitleFileTypes,
-            allowsMultipleSelection: false,
-            onCompletion: importSubtitleFile
-        )
         .alert(
             "Subtitle Error",
             isPresented: Binding(
@@ -390,26 +345,6 @@ struct ProductionPlaybackMoreMenu: View {
 
     private func register() {
         appModel.registerControlsInteraction()
-    }
-
-    private static let subtitleFileTypes = ["srt", "vtt", "ass", "ssa"].compactMap {
-        UTType(filenameExtension: $0)
-    }
-
-    private func importSubtitleFile(_ result: Result<[URL], any Error>) {
-        switch result {
-        case .success(let urls):
-            guard let url = urls.first else { return }
-            Task {
-                do {
-                    try await playbackLauncher.addExternalSubtitleFile(url)
-                } catch {
-                    playbackRuntime.subtitleErrorMessage = error.localizedDescription
-                }
-            }
-        case .failure(let error):
-            playbackRuntime.subtitleErrorMessage = error.localizedDescription
-        }
     }
 
     private var subtitleItems: [DeckMenuItem] {

@@ -257,27 +257,26 @@ SMB 与 WebDAV 的适配器、真实服务器和真机用户路径按 [`regressi
 
 当前基础集由 `VisionProCoreRegression.xctestplan` 选择，并通过 `Scripts/verification/run_visionpro_core_regression.sh` 在显式指定的物理 Vision Pro 上执行。脚本要求 destination 包含设备 ID，并通过系统设备列表确认该 ID 对应物理 Vision Pro；该 ID 也用于清理残留的 Enchron UI Test Runner。基础集使用设备 Media Library 中至少两个已登记条目的 Accessibility 标识进入生产来源和播放路径，不依赖临时远程媒体服务。visionOS 设备服务报告的 `passcodeRequired` 值会写入诊断日志，但不作为自动化运行的通过或终止条件。脚本先构建一次测试包，再在同一构建产物上顺序运行；每个测试最多执行 180 秒，完整测试会话默认最多执行 `120 秒 + 180 秒 × 计划内测试执行次数`。`ENCHRON_ONLY_TESTING` 可以从 Test Plan 已登记的方法中选择聚焦场景，不允许调用计划外测试。每次运行保存独立 `.xcresult`、从正式附件或未完成附件中恢复的原始佩戴者视野录制、按操作和检查点抽取的代表帧、联系表和当前产品树 manifest。脚本拒绝没有明确物理设备或条目标识的调用，并核对实际执行、通过、失败和跳过的测试数量，防止测试方法未开始、输入缺失、skip 或无限等待形成伪通过。测试断言全部通过但录制无法恢复时，整次运行标记为证据采集失败；这不产生产品通过结论。Runner 在任何 `Test Case … started` 记录出现前报告 Automation Mode 启用超时时，脚本把整次运行记录为设备测试基础设施失败，计划内产品场景保持未评估。
 
-当前基础 Test Plan 尚在逐条审查。已确认的字幕方向只保留打开媒体时从可枚举 Source Directory 自动关联同目录候选，以及用户在统一 Subtitles 菜单中选择容器内或自动关联字幕轨与 Off；原有手动 Choose Subtitle File 用例不属于产品范围。诊断、声学、性能、远程故障与长时间压力场景不混入核心轮换；它们使用相同断言支持和证据规则，但由各自的执行条件触发。
+当前基础 Test Plan 选择已经迁移完成的公开产品旅程。字幕场景在打开媒体时从可枚举 Source Directory 自动关联同目录候选，用户在统一 Subtitles 菜单中选择容器内或自动关联字幕轨与 Off。诊断、声学、性能、远程故障与长时间压力场景使用相同断言支持和证据规则，并由各自的执行条件触发。
 
 ## 当前已有能力与显式缺口
 
-以下内容分别说明当前测试源码能力、真机参考结果和仍未取得的证据。参考结果只证明记录时的产品树和明确列出的场景；它们不使当前完整基础集通过。
+以下内容分别说明当前测试源码能力与仍未取得的证据。测试编译或快速合同通过不构成物理 Vision Pro 的运行结论。
 
-- `VisionProDeviceAcceptanceUITests` 已能保存真实播放状态、Accessibility hierarchy、截图、声学 marker 和部分 Docked/Panorama 往返。
-- `SpatialPresentationAcceptanceUITests` 已能观察真实 Media Session、renderer binding 和持续播放，但使用 `ENCHRON_AUTOPLAY_FILE` 绕过了 Media Library 用户入口；其持续播放断言只有放在“目标稳定保持暂停 → 目标 UI 显式 Play”之后才符合当前合同，不能单独形成真实用户路径的发布证据。
-- 空间测试已要求正式产品控件可命中；不可命中时保存截图并使场景失败，不再通过坐标点击继续形成通过结论。
-- `SpatialPresentationAcceptanceUITests` 和 `VisionProDeviceAcceptanceUITests` 已在 Docked 与 Panorama 中断言不存在直接返回 Media Library 的 Back。
-- `SpatialHandoffUITests` 已定义目标 Player Controls Window 与实际空间 surface 的准备、两套 Presentation 入口不得同时可操作、转换保持同一 Media Session，以及 Docked/Panorama 各自的 Environment 与 Anchor 后置条件。用例先单独确认二级面板的公开选择确实发起目标 Presentation，再观察 Scene 交接，因而能够把输入失败与 RealityKit 后置条件失败分开。它还必须补齐请求接受后立即暂停、目标稳定保持暂停、目标 UI 显式 Play 后才推进，以及源内容淡出、目标内容淡入和转换期间不出现 Loading 的状态与录屏断言。
-- 当前 `SpatialPlatformEffectExecutor` 包含进入空间 Presentation 和返回 Main Window 的平台效果代码。四个合法方向都必须在目标 surface settled 后提交、保持 Paused，并等待目标 UI 显式 Play。
-- `DockedPlacementUITests` 已定义 Screen Size、Distance 与 Elevation 的公开 Slider 操作、产品值与实际 Entity world transform 的一致性、返回后持久化和 Restore Defaults。当前实现使用 5% Screen Size、0.5 米 Distance 与 5° Elevation 步进，Restore Defaults 保留精确的 4 米默认距离；这些合同已通过产品领域检查，真机可见结果仍需重新执行。
-- `SequentialMediaPlaybackUITests` 已定义两个登记媒体逐个从 Media Library 打开、持续输出、返回并重新建立新 Media Session；它尚未覆盖不同宽高比、HDR、字幕与音轨结构的完整登记组合。
-- Window 顶部的 Dock 与 Video Format 二级面板现在作为操作栏 `ZStack` 内的同级内容参与布局和命中测试；面板显示期间，视频表面的回退点击不会接收该区域的输入。XCUITest 会先断言选择操作已经产生目标 Presentation request，再进入 Scene、RealityKit 与画面验证。当前代码已构建，但设备端 XCTest 服务恢复前不能把这项修复记为真机通过。
-- 基础集尚未执行规定的起始 Playback Lifecycle × Docked/Panorama × Environment Context 组合，以及目标保持暂停后由用户显式 Play 的闭环。
-- 容器内字幕提供路径已有 SubRip、WebVTT、MOV_TEXT、ASS/SSA、PGS、DVD 与 DVB 位图支持；当前登记文件只有 SubRip、ASS 和 DVB 位图的组合测试媒体，且没有真机字幕选择、字符、Seek、空间呈现回归。
-- 独立字幕的命名匹配、Local/SMB/WebDAV Source Directory 枚举、独立来源授权、Content Revision 身份、PlaybackCore 接入与移除及失败隔离已经进入生产代码。自动关联不会替多个候选作选择；直接使用 Add Files 保存的单文件 bookmark 和 Photos 不枚举同级目录并静默略过。当前生产代码仍存在已经被产品方向删除的 Choose Subtitle File 分支；需要删除该入口、相关状态和测试。已接入字幕在 Session 期间发生 Content Revision 变化时的主动失效及当前真机运行证据仍未完成。
-- Window、Docked 与 Panorama 的 More 已连接同一组容器内字幕与音轨选择；`PlaybackDeckUITests` 会在空间 Player Controls 中直接要求 Subtitles 与 Audio Track 菜单存在。当前真机轨道选择与独有输出证据仍需执行。
-- 音轨选择已连接生产 More 菜单和 PlaybackCore，但没有真机 UI 切换与音轨独有输出证据。
-- 当前 `fixture-registry.json` 已登记项目生成的 H.264、HEVC、AV1、无音轨、八种音频编码、PQ、HLG、容器内 SubRip/ASS/DVB 位图，以及独立 SubRip/ASS 文件。MOV_TEXT、WebVTT、SSA、PGS、DVD 位图、立体与全景方向标记、Dolby Vision 的许可素材和错误媒体仍未形成完整的可发布判定集合。
+- `WindowPlaybackRegressionUITests` 从正常 Media Library 打开登记媒体，在同一 Media Session 中覆盖持续输出、Pause、Resume、播放态 Seek、进度条起点与终点、Ended、Replay 和公开退出；物理声音由人类或校准采集单独结算。
+- `SequentialMediaPlaybackUITests` 从正常 Media Library 依次打开两个明确登记的媒体，比较 Media Session identity、持续 renderer output 与退出后的控制面清理。
+- `DeviceFixtureImportUITests` 覆盖本地 Media Reference 删除和重新添加、打开媒体时自动关联同目录字幕、SubRip 与 ASS 轨道切换、Off，以及重新打开媒体后的音频和字幕轨选择恢复。机械 renderer 状态与字幕截图不能替代第二音轨的物理声音判定。
+- `MediaLibraryRegressionUITests` 使用生产 Grid 与确定性数据分别覆盖单媒体、稀疏混合、大量混合、滚动、当前层搜索、Library Folder 面包屑/后退/前进和公开管理操作。快速模型合同穷举名称清理、同级重名、跨父级同名、引用移动、递归移除、持久化和搜索匹配。
+- `SpatialHandoffUITests` 分别覆盖 Window 输入归属、Window 与 Docked 完整往返、Window 与 Panorama 完整往返，以及活动 Environment 与空间 Presentation 的交叉恢复。两端都在 settled 后保持 Paused，并由目标控件显式 Play 后验证持续画面与机械音频输出。
+- `DockedPlacementUITests` 覆盖同一 Environment identity 的 Day/Night effect、公开 placement sliders、实际 surface transform、新 Media Session、App 进程重启和 Restore Defaults。测试偏好使用独立持久化域，不改写用户设置。
+- `SettingsUITests` 当前覆盖 Playback、Storage & Privacy 与 About 的分类选择、生产详情组、基本 frame 和动态视觉证据。
+- Window 首帧加载变体仍需要一个能够确定性延迟首帧、同时保持生产播放路径的测试来源。
+- 登记媒体矩阵仍需把每个格式组合拆成独立方法，并补齐尚未登记的 MOV_TEXT、WebVTT、SSA、PGS、DVD 位图、立体与全景方向标记、Dolby Vision 许可素材和错误媒体。
+- Photos 场景需要可稳定识别的登记视频与可处理的系统授权状态；当前基础 Test Plan 不选择任意 Photos 项目，也不清空设备 Media Library。
+- WebDAV 与 SMB 场景需要不泄露凭据的真实协议设施、固定目录和登记远程媒体；静态表单可达性不作为真机来源通过证据。
+- Resume Playback、End of Playback、Default Speed、Controls Auto-Hide、Thumbnail Cache 与 Playback Progress 尚需完成设置驱动场景变体；只有 Default Speed 可以在快速层穷举后按既定规则轮换真机代表值。
+- 多个稳定 Environment identity 之间的 placement 隔离等待当前四个 Environment 的生产入口稳定后接入；现有测试只证明当前可选 identity 的 Day/Night 共享与跨进程持久化。
+- 当前 21 个核心 XCTest 方法已经通过 Test Plan 声明一致性检查和 generic visionOS 编译，尚未在同一轮物理 Vision Pro 上取得完整录制、联系表、关键清晰帧和人工边界结算。
 
 ## 发布结论
 

@@ -37,7 +37,7 @@
 
 ### 本地 Media Reference 删除与重新添加
 
-用户在受控的空 Media Library 中通过系统文件选择器 Add Files，为固定本地来源创建 Media Reference 并打开播放；随后从 Enchron 删除该 Media Reference，确认来源文件仍由原系统位置拥有，再次添加同一来源并重新打开。
+用户在正常 Media Library 中通过系统文件选择器 Add Files，为固定本地来源创建 Media Reference 并打开播放；随后从 Enchron 删除该 Media Reference，确认来源文件仍由原系统位置拥有，再次添加同一来源并重新打开。测试只管理该固定 Media Reference，不清空其它 Library 内容。
 
 - 固定媒体：复用 Window 基础播放闭环的 `generated-sdr-avc-bframe-multiaudio-avsync-30s-v1`。
 - 自动化边界：验证公开 Add Files 路径、Media Reference 创建与删除、来源文件在系统文件选择器中仍可重新选择、再次添加成功，以及两次打开均达到已经校准的基础播放启动条件。
@@ -182,7 +182,7 @@
 
 - Environment：当前由使用 Skybox 占位内容的稳定 identity 承担 Default Environment；未来只替换显示内容和资源。
 - 自动化边界：验证 Default Environment 身份、所选 Effect、Scene 与视频表面结构、同一 Media Session、返回后 Environment Context 为 none。
-- 人类边界：首次确认 Day 与 Night 的实际内容和视觉区别；当前测试 Skybox 及其 opacity 只作为临时资源诊断，不构成产品合同。
+- 人类边界：首次确认 Day 与 Night 的实际内容和视觉区别；判定使用实际可见效果，不要求固定 opacity 数值。
 
 ### Docked Placement 按 Environment 持久化
 

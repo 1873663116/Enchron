@@ -5,9 +5,9 @@ import OSLog
 extension SampleBufferPlaybackSession {
     func seek(to time: CMTime, startsPaused: Bool) async throws {
         guard !isClosed, let sourceURL else { return }
+        let target = try clampedSeekTime(time).seconds
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedBySeek)
         try Task.checkCancellation()
-        let target = max(0, time.seconds.isFinite ? time.seconds : 0)
         let currentRate = currentRate()
         let preservedRate: Float = startsPaused
             ? 0
@@ -236,6 +236,24 @@ extension SampleBufferPlaybackSession {
         recordFailure(error, node: .rendererInputCoordination, kind: "control.seek.failed")
         onStatusChange?(.failed(error.localizedDescription))
         throw error
+    }
+
+    func clampedSeekTime(_ time: CMTime) throws -> CMTime {
+        let requestedSeconds = time.seconds
+        guard time.isValid, time.isNumeric, requestedSeconds.isFinite else {
+            throw PlaybackControlError.invalidSeekTime(requestedSeconds)
+        }
+        let lowerBoundedSeconds = max(0, requestedSeconds)
+        let duration = diagnostics.durationSeconds
+        let boundedSeconds = if duration.isFinite, duration > 0 {
+            min(lowerBoundedSeconds, duration)
+        } else {
+            lowerBoundedSeconds
+        }
+        return CMTime(
+            seconds: boundedSeconds,
+            preferredTimescale: max(time.timescale, 600)
+        )
     }
 
     func samplePresentationCoversTarget(

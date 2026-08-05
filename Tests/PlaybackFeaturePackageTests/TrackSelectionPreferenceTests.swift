@@ -242,8 +242,8 @@ struct TrackSelectionPreferenceTests {
         #expect(replacementRuntime.currentSubtitleTrackID == Self.subtitleTracks[0].id)
     }
 
-    @Test("a manually chosen subtitle can be restored when automatic association publishes it later")
-    func manuallyChosenSubtitleCanRestoreWhenAutomaticallyAssociatedLater() async throws {
+    @Test("an automatically associated subtitle selection restores by stable identity")
+    func automaticallyAssociatedSubtitleRestoresByStableIdentity() async throws {
         let suiteName = "app.enchron.tests.track-selection.\(UUID().uuidString)"
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
         let request = Self.request(revision: "revision-a")
@@ -254,15 +254,12 @@ struct TrackSelectionPreferenceTests {
         )
 
         let firstRuntime = TrackSelectionRuntime(
-            subtitleTracks: [Self.subtitleTracks[0]],
-            manuallyAddedSubtitleTrack: externalTrack
+            subtitleTracks: [Self.subtitleTracks[0], externalTrack]
         )
         let firstCoordinator = Self.coordinator(runtime: firstRuntime, suiteName: suiteName)
         firstCoordinator.beginPlayback(request)
         try await firstRuntime.waitUntilConfigured()
-        try await firstCoordinator.addExternalSubtitleFile(
-            URL(filePath: "/Fixtures/Movie.zh-Hans.srt")
-        )
+        try await firstCoordinator.selectSubtitleTrack(externalTrack)
         #expect(firstRuntime.currentSubtitleTrackID == externalTrack.id)
 
         let reopenedRuntime = TrackSelectionRuntime(
@@ -352,18 +349,15 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     private(set) var currentSubtitleTrackID: String?
     private var openCount = 0
     private var formatApplicationCount = 0
-    private let manuallyAddedSubtitleTrack: PlaybackModel.SubtitleTrack?
 
     init(
         audioTracks: [PlaybackModel.AudioTrack] = [],
-        subtitleTracks: [PlaybackModel.SubtitleTrack] = [],
-        manuallyAddedSubtitleTrack: PlaybackModel.SubtitleTrack? = nil
+        subtitleTracks: [PlaybackModel.SubtitleTrack] = []
     ) {
         self.availableAudioTracks = audioTracks
         self.currentAudioTrackID = audioTracks.first(where: \.isDefault)?.id ?? audioTracks.first?.id
         self.availableSubtitleTracks = subtitleTracks
         self.currentSubtitleTrackID = subtitleTracks.first(where: \.isDefault)?.id
-        self.manuallyAddedSubtitleTrack = manuallyAddedSubtitleTrack
     }
 
     func prepareForPlayback(_ request: PlaybackLaunchRequest) {
@@ -400,11 +394,6 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
 
     func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws {
         currentSubtitleTrackID = track?.id
-    }
-
-    func addExternalSubtitleFile(_ url: URL) async throws -> PlaybackModel.SubtitleTrack? {
-        currentSubtitleTrackID = manuallyAddedSubtitleTrack?.id
-        return manuallyAddedSubtitleTrack
     }
 
     func setSpeed(_ speed: PlaybackModel.PlaybackSpeed) {}

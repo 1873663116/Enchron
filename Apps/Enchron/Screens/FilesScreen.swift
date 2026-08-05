@@ -47,18 +47,16 @@ struct FilesScreen: View {
     }
 
     private var displayedLibraryFolders: [FileBrowsingDomain.LibraryFolder] {
-        let query = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let folders = query.isEmpty
-            ? mediaLibrary.folders
-            : mediaLibrary.folders.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        let folders = mediaLibrary.folders.filter {
+            MediaLibrarySearch.matches($0, query: viewModel.searchText)
+        }
         return folders.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     private var displayedLibraryReferences: [FileBrowsingDomain.MediaReference] {
-        let query = viewModel.searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let references = query.isEmpty
-            ? mediaLibrary.references
-            : mediaLibrary.references.filter { $0.name.localizedCaseInsensitiveContains(query) }
+        let references = mediaLibrary.references.filter {
+            MediaLibrarySearch.matches($0, query: viewModel.searchText)
+        }
         return references.sorted { lhs, rhs in
             let comparison: ComparisonResult
             switch sortKey {
@@ -447,11 +445,15 @@ struct FilesScreen: View {
                     if isBrowsingSource {
                         Task { await viewModel.navigateUp() }
                     } else {
-                        mediaLibrary.navigateUp()
+                        mediaLibrary.navigateBack()
                     }
                 },
                 onForward: {
-                    if isBrowsingSource { Task { await viewModel.navigateForward() } }
+                    if isBrowsingSource {
+                        Task { await viewModel.navigateForward() }
+                    } else {
+                        mediaLibrary.navigateForward()
+                    }
                 },
                 accessibilityIdentifier: "FileBrowsing-FilesScreen-navBackForward"
             )
@@ -489,7 +491,8 @@ struct FilesScreen: View {
                     } else if folders.indices.contains(position - 1) {
                         mediaLibrary.navigate(to: folders[position - 1].id)
                     }
-                }
+                },
+                accessibilityIdentifier: "MediaLibrary-Breadcrumb-current"
             )
         }
         let segments = viewModel.breadcrumbSegments
@@ -499,7 +502,8 @@ struct FilesScreen: View {
                 guard position >= 0, position < segments.count else { return }
                 let stackIndex = segments[position].index
                 Task { await viewModel.navigateToBreadcrumb(index: stackIndex) }
-            }
+            },
+            accessibilityIdentifier: "FileBrowsing-Breadcrumb-current"
         )
     }
 

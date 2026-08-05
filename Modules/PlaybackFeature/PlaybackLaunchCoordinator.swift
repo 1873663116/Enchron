@@ -327,24 +327,6 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         }.value
     }
 
-    @discardableResult
-    public func addExternalSubtitleFile(_ url: URL) async throws -> PlaybackModel.SubtitleTrack? {
-        let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity
-        let sessionID = playbackRuntime.activeSessionID
-        let selectedTrack = try await playbackRuntime.addExternalSubtitleFile(url)
-        guard let selectedTrack,
-              let identity,
-              playbackRuntime.activeSessionID == sessionID,
-              playbackRuntime.currentLaunchRequest?.versionedIdentity == identity,
-              playbackRuntime.currentSubtitleTrackID == selectedTrack.id else {
-            return selectedTrack
-        }
-        await enqueueMediaStateMutation { store in
-            await store.saveSubtitleTrackSelection(.track(id: selectedTrack.id), for: identity)
-        }.value
-        return selectedTrack
-    }
-
     public func stopPlayback() {
         cancelPlaybackLaunchAndPersistProgress()
         playbackRuntime.stop(releasingSourceAccess: true)

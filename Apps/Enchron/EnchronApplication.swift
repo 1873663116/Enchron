@@ -5,7 +5,6 @@ import Observation
 import PlaybackFeature
 import PlaybackPresentation
 import PlaybackCore
-@preconcurrency import Photos
 import SwiftUI
 
 @MainActor
@@ -24,23 +23,40 @@ final class EnchronApplication {
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let isUITesting = environment["ENCHRON_UI_TESTING"] == "1"
-        let defaultsSuiteName = isUITesting ? "app.enchron.ui-testing" : nil
+        let mediaLibraryDefaultsSuiteName = isUITesting ? "app.enchron.ui-testing" : nil
+        let regressionPreferencesSuiteName = environment[
+            "ENCHRON_DEVICE_REGRESSION_PREFERENCES_SUITE"
+        ].flatMap { value in
+            value == "app.enchron.device-regression" ? value : nil
+        }
+        let preferencesSuiteName = isUITesting
+            ? "app.enchron.ui-testing"
+            : regressionPreferencesSuiteName
         let mediaStateSuiteName = Self.mediaStateSuiteName(
             isUITesting: isUITesting,
             environment: environment
         )
-        let defaults: UserDefaults
-        if let defaultsSuiteName {
-            defaults = UserDefaults(suiteName: defaultsSuiteName) ?? .standard
-            defaults.removePersistentDomain(forName: defaultsSuiteName)
+        let preferencesDefaults: UserDefaults
+        if let preferencesSuiteName {
+            preferencesDefaults = UserDefaults(suiteName: preferencesSuiteName) ?? .standard
+            if isUITesting {
+                preferencesDefaults.removePersistentDomain(forName: preferencesSuiteName)
+            } else if let resetToken = environment[
+                "ENCHRON_DEVICE_REGRESSION_PREFERENCES_RESET_TOKEN"
+            ], preferencesDefaults.string(
+                forKey: "enchron.deviceRegressionPreferencesResetToken"
+            ) != resetToken {
+                preferencesDefaults.removePersistentDomain(forName: preferencesSuiteName)
+                preferencesDefaults.set(
+                    resetToken,
+                    forKey: "enchron.deviceRegressionPreferencesResetToken"
+                )
+            }
         } else {
-            defaults = .standard
-        }
-        if environment["ENCHRON_RESET_MEDIA_LIBRARY"] == "1" {
-            defaults.removeObject(forKey: "enchron.mediaLibrary")
+            preferencesDefaults = .standard
         }
         if let mediaStateSuiteName,
-           mediaStateSuiteName != defaultsSuiteName {
+           mediaStateSuiteName != preferencesSuiteName {
             // Spatial acceptance uses the production Media Library, but must
             // start without a previous run's playback position or format.
             UserDefaults(suiteName: mediaStateSuiteName)?
@@ -48,12 +64,12 @@ final class EnchronApplication {
         }
 
         let screenPositionStore = PlaybackPresentationStorage.makeScreenPositionStore(
-            suiteName: defaultsSuiteName
+            suiteName: preferencesSuiteName
         )
         let playbackSpeedOverride = environment["ENCHRON_PLAYBACK_SPEED_OVERRIDE"].flatMap(Double.init)
             .map { PlaybackModel.PlaybackSpeed($0).value }
         let preferencesStore = UserDefaultsStore(
-            defaults: defaults,
+            defaults: preferencesDefaults,
             playbackSpeedOverride: playbackSpeedOverride
         )
         if isUITesting {
@@ -105,9 +121,14 @@ final class EnchronApplication {
             }
         }
         let fixtureSourceID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
+        let uiTestDataset = environment["ENCHRON_UI_TEST_LIBRARY_DATASET"]
+            .flatMap(MediaLibraryFeature.UITestDataset.init(rawValue:))
+            ?? .standard
         let mediaLibraryFeature = MediaLibraryFeature(
-            sourceMode: isUITesting ? .uiTestFixture(sourceID: fixtureSourceID) : .production,
-            defaultsSuiteName: defaultsSuiteName,
+            sourceMode: isUITesting
+                ? .uiTestFixture(sourceID: fixtureSourceID, dataset: uiTestDataset)
+                : .production,
+            defaultsSuiteName: mediaLibraryDefaultsSuiteName,
             viewingStateProvider: Self.viewingStateProvider(launcher),
             onPlay: { launcher.requestPlayback($0.playbackLaunchRequest) }
         )
@@ -169,8 +190,7 @@ final class EnchronApplication {
             playbackRuntime: playbackRuntime
         )
         self.spatialPlatformEffectCoordinator = spatialPlatformEffectCoordinator
-        playbackRuntime.setSessionLifecycleHandler {
-            [weak spatialPlatformEffectCoordinator] event in
+        playbackRuntime.setSessionLifecycleHandler { [weak spatialPlatformEffectCoordinator] event in
             spatialPlatformEffectCoordinator?.playbackSessionLifecycleChanged(event)
         }
         #endif
@@ -179,17 +199,6 @@ final class EnchronApplication {
         playbackLauncher = launcher
         settingsViewModel = SettingsViewModel(store: preferencesStore)
         thumbnailService = .shared
-
-        Self.beginAutoplayIfRequested(
-            environment: environment,
-            isUITesting: isUITesting,
-            mediaLibrary: mediaLibrary,
-            launcher: launcher
-        )
-        Self.beginPhotoAutoplayIfRequested(
-            environment: environment,
-            mediaLibrary: mediaLibrary
-        )
     }
 
     static func mediaStateSuiteName(
@@ -204,71 +213,6 @@ final class EnchronApplication {
             return nil
         }
         return "app.enchron.spatial-acceptance"
-    }
-
-    @MainActor
-    private static func beginAutoplayIfRequested(
-        environment: [String: String],
-        isUITesting: Bool,
-        mediaLibrary: MediaLibraryViewModel,
-        launcher: PlaybackLaunchCoordinator
-    ) {
-        guard let source = environment["ENCHRON_AUTOPLAY_FILE"], source.isEmpty == false else {
-            return
-        }
-        Task { @MainActor in
-            let url: URL
-            if let parsedURL = URL(string: source), parsedURL.scheme?.isEmpty == false {
-                url = parsedURL
-            } else {
-                url = URL(fileURLWithPath: source)
-            }
-            if isUITesting || !url.isFileURL {
-                launcher.requestPlayback(
-                    PlaybackLaunchRequest(url: url, displayName: url.lastPathComponent)
-                )
-                return
-            }
-            mediaLibrary.addFiles([url])
-            guard let reference = mediaLibrary.references.first(where: {
-                $0.name == url.lastPathComponent
-            }) else {
-                mediaLibrary.lastErrorMessage =
-                    "The verification media could not be added to Media Library."
-                return
-            }
-            mediaLibrary.play(reference)
-        }
-    }
-
-    @MainActor
-    private static func beginPhotoAutoplayIfRequested(
-        environment: [String: String],
-        mediaLibrary: MediaLibraryViewModel
-    ) {
-        guard environment["ENCHRON_AUTOPLAY_FIRST_PHOTO"] == "1" else { return }
-        Task { @MainActor in
-            let authorization = await PHPhotoLibrary.requestAuthorization(for: .readWrite)
-            guard authorization == .authorized || authorization == .limited else {
-                mediaLibrary.lastErrorMessage =
-                    "Photos Full Access is required for automated playback verification."
-                return
-            }
-            guard let asset = PHAsset.fetchAssets(with: .video, options: nil).firstObject else {
-                mediaLibrary.lastErrorMessage =
-                    "No Photos video is available for automated playback verification."
-                return
-            }
-            let name = PHAssetResource.assetResources(for: asset).first?.originalFilename
-                ?? "Photos Video"
-            mediaLibrary.addPhotoItems([(asset.localIdentifier, name)])
-            guard let reference = mediaLibrary.references.last else {
-                mediaLibrary.lastErrorMessage =
-                    "The Photos video reference could not be created."
-                return
-            }
-            mediaLibrary.play(reference)
-        }
     }
 
     private static func viewingStateProvider(

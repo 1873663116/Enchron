@@ -124,6 +124,7 @@
 				MediaLibrary/Model/ExternalSubtitleAssociation.swift,
 				MediaLibrary/Model/MediaBrowsing.swift,
 				MediaLibrary/Model/MediaLibrary.swift,
+				MediaLibrary/Model/MediaLibrarySearch.swift,
 				MediaLibrary/Model/MediaPlaybackItem.swift,
 				MediaLibrary/Model/MediaSource.swift,
 				MediaLibrary/Services/HTTPRangeStreamingServer.swift,

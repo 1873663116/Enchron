@@ -1436,8 +1436,8 @@
         ]
       },
       {
-        "id": "invariant.singleEnvironmentIdentity",
-        "label": "V1 的 Day/Night 是同一 Environment 的 Effect，不是两个 Environment。",
+        "id": "invariant.environmentEffectSharesIdentity",
+        "label": "Day/Night 共享当前所选稳定 Environment identity，不形成两个 Environment。",
         "ownerIds": [
           "playback-presentation"
         ],
@@ -2270,7 +2270,7 @@
             }
           ],
           "invariantIds": [
-            "invariant.singleEnvironmentIdentity",
+        "invariant.environmentEffectSharesIdentity",
             "invariant.environmentCardSingleton"
           ],
           "constraintIds": [],
@@ -2868,7 +2868,7 @@
           "question.actions": "可使用 Docked 播放与摆位操作；返回 Window 后临时 Environment 与本次 Effect 一同结束。"
         },
           "invariantIds": [
-            "invariant.singleEnvironmentIdentity"
+            "invariant.environmentEffectSharesIdentity"
           ],
           "constraintIds": [],
           "sourceRefs": [
@@ -2883,11 +2883,11 @@
         {
           "id": "shared.viewingAndRevision",
           "label": "Viewing State 与 Content Revision",
-          "summary": "观看状态与格式偏好共享 Media Identity 和 Content Revision，只登记一次。",
-        "applicableSnapshotIds": [
-          "snapshot.mediaLibrary",
-          "snapshot.environmentOnly",
-          "snapshot.windowPlayback",
+          "summary": "观看状态、格式偏好与轨道选择偏好共享 Media Identity 和 Content Revision，只登记一次。",
+          "applicableSnapshotIds": [
+            "snapshot.mediaLibrary",
+            "snapshot.environmentOnly",
+            "snapshot.windowPlayback",
             "snapshot.dockedPlayback",
             "snapshot.panoramaPlayback"
           ],
@@ -2898,7 +2898,9 @@
             "state.effectivePlaybackTime",
             "state.nearEnd",
             "state.contentRevision",
-            "state.formatPreference"
+            "state.formatPreference",
+            "state.audioTrackPreference",
+            "state.subtitleTrackPreference"
           ],
           "invariantIds": [
             "invariant.sharedIdentityRevision"
@@ -2952,7 +2954,7 @@
           ],
           "invariantIds": [
             "invariant.orthogonalAxes",
-            "invariant.singleEnvironmentIdentity"
+            "invariant.environmentEffectSharesIdentity"
           ],
           "sourceRefs": [
             {
@@ -5679,10 +5681,8 @@
           "basis": "state-demonstrations-and-branches",
           "summaryDimensions": [
             "state.viewingState",
-            "state.formatPreference",
             "state.audioTrackPreference",
-            "state.subtitleTrackPreference",
-            "state.resumeDecision"
+            "state.subtitleTrackPreference"
           ]
         }
       }
@@ -5836,7 +5836,7 @@
                   }
                 }
               ],
-              "visualSemantic": "conditional"
+              "visualSemantic": "alternativeOutcome"
             },
             {
               "label": "保存轨道当前不存在或不可用",
@@ -5892,7 +5892,6 @@
         "machine": {
           "basis": "state-demonstrations-and-branches",
           "summaryDimensions": [
-            "state.contentRevision",
             "state.audioTrackPreference",
             "state.subtitleTrackPreference"
           ]
@@ -7149,7 +7148,7 @@
     {
       "id": "window.openDockMenu",
       "label": "打开 Docking 菜单",
-      "summary": "系统原生 Menu：分区标题为「在 {Environment 显示名} 中观看」；两条选项共用同一 Environment 显示名，分别用浅色与深色 AppearanceModeGlyph 表达 Day 与 Night。",
+      "summary": "使用系统原生 Menu 选择本次 Docked 使用的 Environment 与 Day/Night Effect。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Docking Effect",
       "ownerIds": [
@@ -9680,36 +9679,31 @@
       }
     },
     {
-      "id": "more.chooseExternalSubtitleFile",
-      "label": "选择独立字幕文件",
-      "summary": "自动列出同目录中符合命名规则的字幕文件，并允许从已授权的本地或远程来源手动选择；选择后继续使用当前 Media Session。",
+      "id": "playback.associateSiblingSubtitles",
+      "label": "自动关联同目录独立字幕",
+      "summary": "打开来自可枚举 Source Directory 的媒体时，自动取得同目录中符合命名规则的字幕候选并发布为当前 Media Session 的稳定字幕轨；没有候选时继续播放。",
       "visualGrammar": "causal-chain",
       "causalSubject": "当前 Media Session 的字幕来源",
       "ownerIds": [
         "media-source",
         "media-library",
-        "playback-feature",
         "playback-core"
       ],
       "decisionStatus": "confirmed",
       "delivery": {
-        "implementation": "partial",
+        "implementation": "observed",
         "verification": "notEvidenced"
       },
       "placements": [
         {
-          "surfaceId": "surface.windowDeck",
-          "regionId": "deck-menus"
-        },
-        {
-          "surfaceId": "surface.playerControlsWindow",
-          "regionId": "spatial-menus"
+          "surfaceId": "surface.mediaLibrary",
+          "regionId": "library-content"
         }
       ],
       "availableWhen": [
         {
-          "dimensionId": "state.controlsPresentation",
-          "equals": "moreMenu"
+          "dimensionId": "state.mediaSessionResidency",
+          "equals": "opening"
         }
       ],
       "demonstrations": [
@@ -9742,35 +9736,13 @@
             },
             {
               "label": "来源没有可枚举同级目录",
-              "result": "保留手动选择入口，不猜测同目录文件。",
+              "result": "不添加独立字幕轨，当前媒体继续打开且不显示错误。",
               "steps": [],
               "visualSemantic": "guardedOutcome"
             },
             {
-              "label": "手动选择其它字幕文件",
-              "result": "从已授权的本地或远程来源取得字幕读取权限，并在当前 Media Session 中接入和选择新的稳定字幕轨。",
-              "steps": [
-                {
-                  "label": "在 Subtitles 中选择 Choose Subtitle File",
-                  "actorId": "user",
-                  "patch": {}
-                },
-                {
-                  "label": "取得字幕来源读取权限",
-                  "actorId": "enchron",
-                  "patch": {}
-                },
-                {
-                  "label": "在当前 Media Session 中接入并选择字幕轨",
-                  "actorId": "playback-core",
-                  "patch": {}
-                }
-              ],
-              "visualSemantic": "alternativeOutcome"
-            },
-            {
-              "label": "字幕不可访问、损坏或不受支持",
-              "result": "显示可恢复的字幕错误并清除旧 cue；当前视频、音频和其它字幕轨继续工作。",
+              "label": "候选不可访问、损坏或不受支持",
+              "result": "隔离该候选并清除其 cue；当前视频、音频和其它字幕轨继续工作。",
               "steps": [],
               "visualSemantic": "recoverableFailure"
             }
@@ -9785,10 +9757,6 @@
         {
           "sourceId": "core-spec",
           "heading": "## Container 与轨道"
-        },
-        {
-          "sourceId": "ui-spec",
-          "heading": "## Surface ownership"
         }
       ],
       "visualLayers": {
