@@ -2,26 +2,52 @@ import PlaybackPresentation
 import Testing
 @testable import Enchron
 
-/// Verifies that Day and Night are effects of one Environment identity.
+/// Verifies the four Environment identities and the narrower Scenic default set.
 struct EnvironmentSceneMappingTests {
 
-    @Test("the catalog exposes one card per environment identity")
-    func catalogUsesOneEnvironmentIdentity() {
-        #expect(FeaturedEnvironment.catalog.map(\.environment) == [.enchron])
-        #expect(FeaturedEnvironment.catalog.map(\.id) == ["enchron"])
+    @Test("the catalog exposes the three Scenic environments and Skybox")
+    func catalogUsesFourEnvironmentIdentities() {
+        #expect(
+            FeaturedEnvironment.catalog.map(\.environment)
+                == [.scenicOne, .scenicTwo, .scenicThree, .skybox]
+        )
+        #expect(
+            FeaturedEnvironment.catalog.map(\.id)
+                == ["scenic-one", "scenic-two", "scenic-three", "skybox"]
+        )
+        #expect(
+            SpatialSceneDomain.CinemaEnvironment.scenicEnvironments
+                == [.scenicOne, .scenicTwo, .scenicThree]
+        )
         #expect(SpatialSceneDomain.EnvironmentEffect.allCases == [.day, .night])
     }
 
-    @Test("the environment identity resolves to the current placeholder scene")
-    func environmentResolvesToPlaceholderScene() {
-        let name = EnvironmentSceneMapping.sceneName(forEnvironmentID: SpatialSceneDomain.CinemaEnvironment.enchron.rawValue)
-        #expect(name == EnvironmentSceneMapping.worldSceneName)
-        #expect(!name.isEmpty)
+    @Test("all environment identities resolve through the shared world scene")
+    func environmentsResolveToSharedWorldScene() {
+        for environment in SpatialSceneDomain.CinemaEnvironment.allCases {
+            #expect(
+                EnvironmentSceneMapping.sceneName(forEnvironmentID: environment.rawValue)
+                    == EnvironmentSceneMapping.worldSceneName
+            )
+        }
     }
 
-    @Test("Day and Night share the environment placement recommendation")
+    @Test("all environments currently share the placement recommendation")
     func defaultScreenScale() {
-        let environmentID = SpatialSceneDomain.CinemaEnvironment.enchron.rawValue
-        #expect(EnvironmentSceneMapping.defaultScreenScale(forEnvironmentID: environmentID) == 1.3)
+        for environment in SpatialSceneDomain.CinemaEnvironment.allCases {
+            #expect(
+                EnvironmentSceneMapping.defaultScreenScale(
+                    forEnvironmentID: environment.rawValue
+                ) == 1.3
+            )
+        }
+    }
+
+    @Test("legacy and invalid default values resolve safely")
+    func defaultPreferenceMigration() {
+        #expect(SpatialSceneDomain.CinemaEnvironment(preferenceValue: "enchron") == .scenicOne)
+        #expect(SpatialSceneDomain.CinemaEnvironment(preferenceValue: "Starry Night") == .scenicOne)
+        #expect(SpatialSceneDomain.CinemaEnvironment(preferenceValue: "skybox") == nil)
+        #expect(SpatialSceneDomain.CinemaEnvironment(preferenceValue: "scenic-three") == .scenicThree)
     }
 }

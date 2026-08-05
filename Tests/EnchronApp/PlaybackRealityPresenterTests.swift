@@ -35,32 +35,59 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testEnvironmentEffectChangesOnlyTheSkyboxOpacity() async throws {
+    func testScenicEnvironmentReplacesSkyboxWithTintedPlaceholder() async throws {
         let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
         let skybox = try XCTUnwrap(
-            world.findEntity(named: EnvironmentSceneEffectApplier.skyboxName)
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
         )
         let playbackAnchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
 
         XCTAssertEqual(
-            EnvironmentSceneEffectApplier.apply(.night, to: world),
-            EnvironmentSceneEffectApplier.nightSkyboxOpacity
+            EnvironmentSceneAppearanceApplier.apply(
+                environment: .scenicOne,
+                effect: .night,
+                to: world
+            ),
+            EnvironmentSceneAppearanceApplier.nightSkyboxOpacity
+        )
+        XCTAssertFalse(skybox.isEnabled)
+        XCTAssertNotNil(
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
         )
         XCTAssertEqual(
-            skybox.components[OpacityComponent.self]?.opacity,
-            EnvironmentSceneEffectApplier.nightSkyboxOpacity
+            world.findEntity(
+                named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName
+            )?.components[OpacityComponent.self]?.opacity,
+            EnvironmentSceneAppearanceApplier.nightSkyboxOpacity
         )
         XCTAssertNil(playbackAnchor.components[OpacityComponent.self])
+    }
+
+    @MainActor
+    func testSkyboxRestoresTheProductResourceWithoutAnEffect() async throws {
+        let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
+        let skybox = try XCTUnwrap(
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
+        )
+
+        _ = EnvironmentSceneAppearanceApplier.apply(
+            environment: .scenicThree,
+            effect: .day,
+            to: world
+        )
 
         XCTAssertEqual(
-            EnvironmentSceneEffectApplier.apply(.day, to: world),
-            EnvironmentSceneEffectApplier.daySkyboxOpacity
+            EnvironmentSceneAppearanceApplier.apply(
+                environment: .skybox,
+                effect: nil,
+                to: world
+            ),
+            1
         )
-        XCTAssertEqual(
-            skybox.components[OpacityComponent.self]?.opacity,
-            EnvironmentSceneEffectApplier.daySkyboxOpacity
+        XCTAssertTrue(skybox.isEnabled)
+        XCTAssertNil(
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
         )
-        XCTAssertNil(playbackAnchor.components[OpacityComponent.self])
     }
 
     @MainActor

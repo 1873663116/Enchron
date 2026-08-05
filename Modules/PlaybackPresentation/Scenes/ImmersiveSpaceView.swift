@@ -5,28 +5,80 @@ import PlaybackPresentation
 import RealityKit
 import RealityKitScripting
 import SwiftUI
+import UIKit
 import simd
 
 @MainActor
-enum EnvironmentSceneEffectApplier {
+enum EnvironmentSceneAppearanceApplier {
     static let skyboxName = "skybox"
+    static let scenicPlaceholderName = "EnchronScenicPlaceholder"
     static let daySkyboxOpacity: Float = 1
     static let nightSkyboxOpacity: Float = 0.35
 
     @discardableResult
     static func apply(
-        _ effect: SpatialSceneDomain.EnvironmentEffect,
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect?,
         to world: Entity
     ) -> Float? {
         guard let skybox = world.findEntity(named: skyboxName) else {
             return nil
         }
-        let opacity = switch effect {
+
+        if environment == .skybox {
+            skybox.isEnabled = true
+            skybox.components.set(OpacityComponent(opacity: 1))
+            world.findEntity(named: scenicPlaceholderName)?.removeFromParent()
+            return 1
+        }
+
+        skybox.isEnabled = false
+        let resolvedEffect = effect ?? .inactiveFallback
+        let opacity = switch resolvedEffect {
         case .day: daySkyboxOpacity
         case .night: nightSkyboxOpacity
         }
-        skybox.components.set(OpacityComponent(opacity: opacity))
+        let color = scenicColor(for: environment, effect: resolvedEffect)
+        let placeholder: ModelEntity
+        if let existing = world.findEntity(named: scenicPlaceholderName) as? ModelEntity {
+            placeholder = existing
+            placeholder.model?.materials = [placeholderMaterial(color: color)]
+        } else {
+            placeholder = ModelEntity(
+                mesh: .generateSphere(radius: 50),
+                materials: [placeholderMaterial(color: color)]
+            )
+            placeholder.name = scenicPlaceholderName
+            world.addChild(placeholder)
+        }
+        placeholder.isEnabled = true
+        placeholder.components.set(OpacityComponent(opacity: opacity))
         return opacity
+    }
+
+    private static func scenicColor(
+        for environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect
+    ) -> UIColor {
+        let components: (CGFloat, CGFloat, CGFloat) = switch environment {
+        case .scenicOne: (0.86, 0.48, 0.52)
+        case .scenicTwo: (0.48, 0.78, 0.58)
+        case .scenicThree: (0.46, 0.66, 0.88)
+        case .skybox: (0.46, 0.66, 0.88)
+        }
+        let brightness: CGFloat = effect == .day ? 1 : 0.46
+        return UIColor(
+            red: components.0 * brightness,
+            green: components.1 * brightness,
+            blue: components.2 * brightness,
+            alpha: 1
+        )
+    }
+
+    private static func placeholderMaterial(color: UIColor) -> UnlitMaterial {
+        var material = UnlitMaterial(color: color)
+        material.faceCulling = .front
+        return material
     }
 }
 
@@ -34,6 +86,7 @@ enum EnvironmentSceneEffectApplier {
 private final class WorldSceneState {
     var entity: Entity?
     var playbackSurfaceAnchor: Entity?
+    var appliedEnvironment: SpatialSceneDomain.CinemaEnvironment?
     var appliedEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect?
     var isLoading = false
     var hasFailed = false
@@ -316,6 +369,7 @@ public struct ImmersiveSpaceView: View {
             if let entity = world.entity { content.remove(entity) }
             world.entity = nil
             world.playbackSurfaceAnchor = nil
+            world.appliedEnvironment = nil
             world.appliedEnvironmentEffect = nil
             world.hasFailed = false
             appModel.clearEnvironmentSceneEffectObservation()
@@ -323,7 +377,7 @@ public struct ImmersiveSpaceView: View {
         }
 
         if let entity = world.entity {
-            applyRequestedEnvironmentEffect(to: entity)
+            applyRequestedEnvironmentAppearance(to: entity)
             if content.entities.contains(where: { $0 === entity }) == false {
                 content.add(entity)
             }
@@ -701,7 +755,7 @@ public struct ImmersiveSpaceView: View {
         do {
             let entity = try await Entity(named: "world")
             let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: entity)
-            guard applyRequestedEnvironmentEffect(to: entity) else {
+            guard applyRequestedEnvironmentAppearance(to: entity) else {
                 throw EnvironmentSceneEffectError.skyboxMissing
             }
             content.add(entity)
@@ -719,19 +773,27 @@ public struct ImmersiveSpaceView: View {
 
     @MainActor
     @discardableResult
-    private func applyRequestedEnvironmentEffect(to entity: Entity) -> Bool {
-        guard let effect = requestedEnvironmentContext.effect else {
+    private func applyRequestedEnvironmentAppearance(to entity: Entity) -> Bool {
+        guard let environment = requestedEnvironmentContext.environment else {
+            world.appliedEnvironment = nil
             world.appliedEnvironmentEffect = nil
             appModel.clearEnvironmentSceneEffectObservation()
             return true
         }
-        if world.appliedEnvironmentEffect == effect,
+        let effect = requestedEnvironmentContext.effect
+        if world.appliedEnvironment == environment,
+           world.appliedEnvironmentEffect == effect,
            appModel.environmentSkyboxOpacity != nil {
             return true
         }
-        guard let opacity = EnvironmentSceneEffectApplier.apply(effect, to: entity) else {
+        guard let opacity = EnvironmentSceneAppearanceApplier.apply(
+            environment: environment,
+            effect: effect,
+            to: entity
+        ) else {
             return false
         }
+        world.appliedEnvironment = environment
         world.appliedEnvironmentEffect = effect
         appModel.recordEnvironmentSceneEffect(opacity: opacity)
         return true
@@ -740,7 +802,10 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     private func recordSkyboxActivity(in entity: Entity) {
         appModel.recordEnvironmentSkyboxIsActive(
-            entity.findEntity(named: EnvironmentSceneEffectApplier.skyboxName)?.isActive == true
+            entity.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)?.isActive == true
+                || entity.findEntity(
+                    named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName
+                )?.isActive == true
         )
     }
 

@@ -1,6 +1,7 @@
 import DesignSystem
 import MediaLibrary
 import PlaybackFeature
+import PlaybackPresentation
 import SwiftUI
 #if canImport(UIKit)
 import UIKit
@@ -29,7 +30,7 @@ struct SettingsScreen: View {
 
         var summary: String {
             switch self {
-            case .playback: "Resume behavior, end behavior, and control timing"
+            case .playback: "Resume behavior, default environment, and control timing"
             case .storagePrivacy: "Rebuildable cache, playback history, and data handling"
             case .about: "Version, support, and feedback"
             }
@@ -137,6 +138,20 @@ struct SettingsScreen: View {
                 ])
             ),
             SettingListGroup.Item(
+                id: "default-scenic-environment",
+                title: "Default Scenic Environment",
+                systemName: "mountain.2",
+                accessory: .menu(
+                    title: defaultScenicEnvironment.displayName,
+                    options: SpatialSceneDomain.CinemaEnvironment.scenicEnvironments.map {
+                        environment in
+                        SettingListGroup.MenuOption(environment.displayName) {
+                            setDefaultScenicEnvironment(environment)
+                        }
+                    }
+                )
+            ),
+            SettingListGroup.Item(
                 id: "default-speed",
                 title: "Default Speed",
                 systemName: "speedometer",
@@ -242,6 +257,20 @@ struct SettingsScreen: View {
     private func setAutoHide(_ seconds: Int) {
         viewModel.update { $0.controlsAutoHideSeconds = seconds }
         appModel.controlsAutoHideSeconds = seconds
+    }
+
+    private func setDefaultScenicEnvironment(
+        _ environment: SpatialSceneDomain.CinemaEnvironment
+    ) {
+        guard environment.isScenic else { return }
+        viewModel.update { $0.defaultEnvironmentID = environment.rawValue }
+        appModel.configureDefaultEnvironment(environment)
+    }
+
+    private var defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        SpatialSceneDomain.CinemaEnvironment(
+            preferenceValue: viewModel.preferences.defaultEnvironmentID
+        ) ?? .defaultScenic
     }
 
     private var resumeTitle: String {

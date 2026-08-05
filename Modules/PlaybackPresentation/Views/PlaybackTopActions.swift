@@ -4,6 +4,7 @@ import PlaybackPresentation
 import SwiftUI
 
 enum PlaybackTopSecondaryMenu: String {
+    case dock
     case videoFormat
 }
 
@@ -19,7 +20,8 @@ enum PlaybackVideoFormatEditingDecision {
 
 struct PlaybackTopActionsState {
     var presentedMenu: PlaybackTopSecondaryMenu?
-    var selectedEffect: SpatialSceneDomain.EnvironmentEffect
+    var selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment
+    var selectedEffect: SpatialSceneDomain.EnvironmentEffect?
     var projection: PlaybackModel.ProjectionType
     var stereoLayout: PlaybackModel.StereoLayout
 
@@ -27,11 +29,13 @@ struct PlaybackTopActionsState {
 
     init(
         presentedMenu: PlaybackTopSecondaryMenu? = nil,
-        selectedEffect: SpatialSceneDomain.EnvironmentEffect = .day,
+        selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
+        selectedEffect: SpatialSceneDomain.EnvironmentEffect? = .night,
         projection: PlaybackModel.ProjectionType = .equirectangular180,
         stereoLayout: PlaybackModel.StereoLayout = .mono
     ) {
         self.presentedMenu = presentedMenu
+        self.selectedDockEnvironment = selectedDockEnvironment
         self.selectedEffect = selectedEffect
         self.projection = projection
         self.stereoLayout = stereoLayout
@@ -79,11 +83,14 @@ struct PlaybackTopActionsState {
         }
     }
 
-    mutating func selectDockEffect(
-        _ effect: SpatialSceneDomain.EnvironmentEffect
-    ) -> SpatialSceneDomain.EnvironmentEffect {
+    mutating func selectDockTarget(
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect?
+    ) -> (SpatialSceneDomain.CinemaEnvironment, SpatialSceneDomain.EnvironmentEffect?) {
+        selectedDockEnvironment = environment
         selectedEffect = effect
-        return effect
+        presentedMenu = nil
+        return (environment, effect)
     }
 
     private var currentVideoFormatSelection: PlaybackVideoFormatSelection {
@@ -104,10 +111,10 @@ struct PlaybackTopActions: View {
     private let canApplyFormat: Bool
     private let canUseFisheye: Bool
     private let resumesPanorama: Bool
-    private let onDock: ((SpatialSceneDomain.EnvironmentEffect) -> Void)?
+    private let defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment
+    private let onDock: ((SpatialSceneDomain.CinemaEnvironment, SpatialSceneDomain.EnvironmentEffect?) -> Void)?
     private let onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)?
     private let onResumePanorama: (() -> Void)?
-    private let onSecondaryMenuVisibilityChange: ((Bool) -> Void)?
 
     @State private var state: PlaybackTopActionsState
 
@@ -117,158 +124,238 @@ struct PlaybackTopActions: View {
         canApplyFormat: Bool = true,
         canUseFisheye: Bool = false,
         resumesPanorama: Bool = false,
-        onDock: ((SpatialSceneDomain.EnvironmentEffect) -> Void)? = nil,
+        defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
+        onDock: ((SpatialSceneDomain.CinemaEnvironment, SpatialSceneDomain.EnvironmentEffect?) -> Void)? = nil,
         onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)? = nil,
-        onResumePanorama: (() -> Void)? = nil,
-        onSecondaryMenuVisibilityChange: ((Bool) -> Void)? = nil
+        onResumePanorama: (() -> Void)? = nil
     ) {
         self.canDock = canDock
         self.canApplyFormat = canApplyFormat
         self.canUseFisheye = canUseFisheye
         self.resumesPanorama = resumesPanorama
+        self.defaultScenicEnvironment = defaultScenicEnvironment.isScenic
+            ? defaultScenicEnvironment
+            : .defaultScenic
         self.onDock = onDock
         self.onApplyFormat = onApplyFormat
         self.onResumePanorama = onResumePanorama
-        self.onSecondaryMenuVisibilityChange = onSecondaryMenuVisibilityChange
         _state = State(
-            initialValue: PlaybackTopActionsState(
-                presentedMenu: initialPresentedMenu == .videoFormat
-                    ? .videoFormat
-                    : nil
-            )
+                initialValue: PlaybackTopActionsState(
+                    presentedMenu: initialPresentedMenu,
+                    selectedDockEnvironment: defaultScenicEnvironment
+                )
         )
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            WindowPlaybackSpatialActions {
-                if canDock {
-                    dockSystemMenu
-                }
-            } formatControl: {
-                if resumesPanorama {
-                    GlassCircleIconButton.expandVertically(
-                        accessibilityLabel: "Return to Panorama",
-                        action: { onResumePanorama?() },
-                        accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
-                    )
-                } else {
-                    GlassCircleIconButton.expandVertically(
-                        accessibilityLabel: "Video Format",
-                        action: { toggle(.videoFormat) },
-                        accessibilityIdentifier: "PlayerUI-TopAction-videoFormat"
-                    )
-                    .disabled(!canApplyFormat)
-                }
+        ZStack(alignment: .top) {
+            topButtonRow
+
+            if state.presentedMenu == .dock {
+                dockMenu
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .offset(y: secondaryMenuTopOffset)
+                    .zIndex(10)
             }
 
             if state.presentedMenu == .videoFormat {
                 videoFormatMenu
                     .frame(maxWidth: .infinity, alignment: .trailing)
+                    .offset(y: secondaryMenuTopOffset)
                     .zIndex(10)
             }
         }
-        .onAppear {
-            onSecondaryMenuVisibilityChange?(state.presentedMenu != nil)
-        }
-        .onDisappear {
-            onSecondaryMenuVisibilityChange?(false)
-        }
+        // The menu area always has real bounds, so its controls remain hittable,
+        // while the button row keeps the same identity and geometry across menu
+        // presentation changes. Empty ZStack space has no hit shape of its own.
+        .frame(height: 420, alignment: .top)
         .onChange(of: canApplyFormat) { _, available in
             if available == false, state.presentedMenu == .videoFormat { dismissMenu() }
         }
     }
 
-    private var environmentDisplayName: String {
-        SpatialSceneDomain.CinemaEnvironment.enchron.displayName
+    private var secondaryMenuTopOffset: CGFloat {
+        DesignTokens.Interactive.large + DesignTokens.Spacing.sm
     }
 
-    private var dockSystemMenu: some View {
-        GlassCircleIconMenu(
-            systemName: "mountain.2.fill",
-            accessibilityLabel: "Dock",
-            accessibilityIdentifier: "PlayerUI-TopAction-dock",
-            iconTier: .compact
-        ) {
-            Section {
-                dockMenuItem(effect: .day)
-                dockMenuItem(effect: .night)
-            } header: {
-                Text("在 \(environmentDisplayName) 中观看")
+    private var topButtonRow: some View {
+        WindowPlaybackSpatialActions {
+            if canDock {
+                PlaybackTopSecondaryPanelButton(
+                    systemName: "mountain.2.fill",
+                    accessibilityLabel: "Dock",
+                    action: { toggle(.dock) },
+                    accessibilityIdentifier: "PlayerUI-TopAction-dock",
+                    iconTier: .compact
+                )
             }
-            .onAppear {
-                if state.presentedMenu == .videoFormat {
-                    dismissMenu()
-                }
+        } formatControl: {
+            if resumesPanorama {
+                GlassCircleIconButton.expandVertically(
+                    accessibilityLabel: "Return to Panorama",
+                    action: { onResumePanorama?() },
+                    accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
+                )
+            } else {
+                PlaybackTopSecondaryPanelButton(
+                    systemName: "rectangle.arrowtriangle.2.outward",
+                    accessibilityLabel: "Video Format",
+                    action: { toggle(.videoFormat) },
+                    accessibilityIdentifier: "PlayerUI-TopAction-videoFormat"
+                )
+                .disabled(!canApplyFormat)
             }
         }
+    }
+
+    private var dockMenu: some View {
+        let shape = RoundedRectangle(
+            cornerRadius: DesignTokens.Radius.card,
+            style: .continuous
+        )
+
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text("View in \(defaultScenicEnvironment.displayName)")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, DesignTokens.Spacing.sm)
+
+            dockMenuItem(
+                environment: defaultScenicEnvironment,
+                effect: .night,
+                thumbnailName: dockThumbnailName(for: .night)
+            )
+            dockMenuItem(
+                environment: defaultScenicEnvironment,
+                effect: .day,
+                thumbnailName: dockThumbnailName(for: .day)
+            )
+
+            Divider()
+                .padding(.vertical, DesignTokens.Spacing.xs)
+
+            dockMenuItem(
+                environment: .skybox,
+                effect: nil,
+                thumbnailName: "SceneFeatureCinema"
+            )
+        }
+        .padding(DesignTokens.Spacing.md)
+        .frame(width: 360)
+        .fixedSize(horizontal: false, vertical: true)
+        .contentShape(shape)
+        .clipShape(shape)
+        .enchronGlassBackground(in: shape)
+        .onTapGesture { }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-DockMenu")
+    }
+
+    private func dockThumbnailName(
+        for effect: SpatialSceneDomain.EnvironmentEffect
+    ) -> String {
+        FeaturedEnvironment.catalogEntry(for: defaultScenicEnvironment)?
+            .imageName(for: effect)
+            ?? FeaturedEnvironment.catalog[0].imageName(for: effect)
     }
 
     private func dockMenuItem(
-        effect: SpatialSceneDomain.EnvironmentEffect
+        environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect?,
+        thumbnailName: String
     ) -> some View {
         Button {
-            let requested = state.selectDockEffect(effect)
-            onDock?(requested)
+            let requested = state.selectDockTarget(
+                environment: environment,
+                effect: effect
+            )
+            onDock?(requested.0, requested.1)
         } label: {
-            Label {
-                Text(environmentDisplayName)
-            } icon: {
-                dockAppearanceIcon(for: effect)
+            HStack(spacing: DesignTokens.Spacing.md) {
+                Image(thumbnailName)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 48, height: 48)
+                    .clipped()
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(environment.displayName)
+                        .font(DesignTokens.Typography.selectionHeader)
+                    if let effect {
+                        Text(effect == .night ? "Dark" : "Light")
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Spacer(minLength: 0)
             }
-        }
-        .accessibilityLabel("\(environmentDisplayName), \(effect.displayName)")
-        .accessibilityIdentifier("PlayerUI-DockMenu-\(effect.rawValue)")
-        .accessibilityAddTraits(
-            state.selectedEffect == effect ? .isSelected : []
-        )
-    }
-
-    private func dockAppearanceIcon(
-        for effect: SpatialSceneDomain.EnvironmentEffect
-    ) -> some View {
-        let isLight = effect == .day
-        return ZStack {
-            Circle()
-                .fill(.white)
-                .opacity(isLight ? 1 : 0)
-
-            AppearanceModeGlyph(isActive: isLight)
-                .frame(
-                    width: DesignTokens.ButtonIcon.standardArtwork,
-                    height: DesignTokens.ButtonIcon.standardArtwork
+            .padding(.horizontal, DesignTokens.Spacing.sm)
+            .frame(maxWidth: .infinity, minHeight: 68, alignment: .leading)
+            .background {
+                if state.selectedDockEnvironment == environment,
+                   state.selectedEffect == effect {
+                    RoundedRectangle(
+                        cornerRadius: DesignTokens.Radius.element,
+                        style: .continuous
+                    )
+                    .fill(DesignTokens.Surface.selected)
+                }
+            }
+            .contentShape(
+                RoundedRectangle(
+                    cornerRadius: DesignTokens.Radius.element,
+                    style: .continuous
                 )
-                .rotationEffect(.degrees(isLight ? 180 : 0))
+            )
         }
-        .frame(
-            width: DesignTokens.Interactive.regular,
-            height: DesignTokens.Interactive.regular
+        .buttonStyle(.plain)
+        .enchronHoverContentShape(
+            RoundedRectangle(
+                cornerRadius: DesignTokens.Radius.element,
+                style: .continuous
+            )
+        )
+        .enchronHoverEffect(.automatic)
+        .accessibilityLabel(
+            effect.map { "\(environment.displayName), \($0 == .night ? "Dark" : "Light")" }
+                ?? environment.displayName
+        )
+        .accessibilityIdentifier(
+            effect.map { "PlayerUI-DockMenu-\($0.rawValue)" }
+                ?? "PlayerUI-DockMenu-skybox"
+        )
+        .accessibilityAddTraits(
+            state.selectedDockEnvironment == environment
+                && state.selectedEffect == effect ? .isSelected : []
         )
     }
 
     private func toggle(_ menu: PlaybackTopSecondaryMenu) {
         state.toggleMenu(menu)
-        onSecondaryMenuVisibilityChange?(state.presentedMenu != nil)
     }
 
     private func dismissMenu() {
         state.dismissMenu()
-        onSecondaryMenuVisibilityChange?(false)
     }
 
     private func cancelVideoFormat() {
         _ = state.finishVideoFormatEditing(.cancel)
-        onSecondaryMenuVisibilityChange?(false)
     }
 
     private func applyVideoFormat() {
         guard let selection = state.finishVideoFormatEditing(.apply) else { return }
-        onSecondaryMenuVisibilityChange?(false)
         onApplyFormat?(selection.projection, selection.stereoLayout)
     }
 
     private var videoFormatMenu: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+        let shape = RoundedRectangle(
+            cornerRadius: DesignTokens.Radius.card,
+            style: .continuous
+        )
+
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             menuHeading("Video Format", supporting: "Choose how the video is presented")
 
             formatPicker(
@@ -304,8 +391,10 @@ struct PlaybackTopActions: View {
         .padding(DesignTokens.Spacing.lg)
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
-        .clipShape(RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
-        .enchronGlassBackground(in: RoundedRectangle(cornerRadius: DesignTokens.Radius.card, style: .continuous))
+        .contentShape(shape)
+        .clipShape(shape)
+        .enchronGlassBackground(in: shape)
+        .onTapGesture { }
     }
 
     private func menuHeading(_ title: String, supporting: String) -> some View {
@@ -356,5 +445,36 @@ struct PlaybackTopActions: View {
         case .sideBySide: "Side-by-Side"
         case .topBottom: "Top-Bottom"
         }
+    }
+}
+
+/// Opens an inline panel in the same SwiftUI tree. The glass label owns hover
+/// feedback, while the outer button remains plain so inserting the panel does
+/// not interrupt an in-flight scale animation on the label's glass layer.
+private struct PlaybackTopSecondaryPanelButton: View {
+    let systemName: String
+    let accessibilityLabel: String
+    let action: () -> Void
+    let accessibilityIdentifier: String
+    var iconTier: ButtonIconTier = .standard
+
+    var body: some View {
+        Button(action: action) {
+            GlassCircleIconLabel(
+                systemName: systemName,
+                accessibilityLabel: accessibilityLabel,
+                iconTier: iconTier
+            )
+            .accessibilityHidden(true)
+            .frame(
+                width: DesignTokens.Interactive.large,
+                height: DesignTokens.Interactive.large
+            )
+            .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .contentShape(Circle())
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 }

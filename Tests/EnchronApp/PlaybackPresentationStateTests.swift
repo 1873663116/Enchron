@@ -232,7 +232,7 @@ struct PlaybackPresentationStateTests {
     func panoramaReturnRestoresEnvironmentImmersionAmount() throws {
         let appModel = AppModel()
         appModel.recordImmersionAmount(0.62)
-        try appModel.activateEnvironment(.enchron, effect: .night)
+        try appModel.activateEnvironment(.scenicOne, effect: .night)
 
         _ = try appModel.requestPlaybackPresentation(
             .panorama,
@@ -339,7 +339,7 @@ struct PlaybackPresentationStateTests {
             previousPresentation: .window,
             targetPresentation: .docked,
             previousEnvironment: .none,
-            targetEnvironment: .active(environment: .enchron, effect: .day)
+            targetEnvironment: .active(environment: .scenicOne, effect: .day)
         )
 
         #expect(transition.keepsCurrentRendererGraph == false)
@@ -706,7 +706,7 @@ struct PlaybackPresentationStateTests {
         let secondRootID = UUID()
 
         try model.requestEnvironmentPreview(
-            environment: .enchron,
+            environment: .scenicOne,
             effect: .day
         )
         let request = try #require(model.pendingSpatialPlatformEffect)
@@ -980,13 +980,18 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("direct dock uses the active environment")
+    @Test("direct Dock uses the environment and appearance selected by its menu")
     @MainActor
-    func directDockUsesActiveEnvironment() throws {
+    func directDockUsesSelectedTarget() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.enchron, effect: .night)
+        try model.activateEnvironment(.scenicTwo, effect: .night)
 
-        _ = try model.requestPresentation(.docked, playbackContext: playingContext())
+        _ = try model.requestPresentation(
+            .docked,
+            environment: .scenicThree,
+            effect: .day,
+            playbackContext: playingContext()
+        )
         let request = try #require(model.pendingSpatialPlatformEffect)
         let resolution = try completePendingEffect(model)
 
@@ -994,8 +999,8 @@ struct PlaybackPresentationStateTests {
         #expect(model.snapshot.presentation == .docked)
         #expect(
             model.snapshot.environmentContext == .active(
-                environment: .enchron,
-                effect: .night
+                environment: .scenicThree,
+                effect: .day
             )
         )
         #expect(
@@ -1010,6 +1015,28 @@ struct PlaybackPresentationStateTests {
                 )
             ) == .ignored
         )
+    }
+
+    @Test("Skybox is an independent Dock target without an appearance effect")
+    @MainActor
+    func directDockUsesSkybox() throws {
+        let model = PlaybackPresentationModel(defaultEnvironment: .scenicTwo)
+
+        _ = try model.requestPresentation(
+            .docked,
+            environment: .skybox,
+            playbackContext: playingContext()
+        )
+        _ = try completePendingEffect(model)
+
+        #expect(model.presentation == .docked)
+        #expect(
+            model.environmentContext == .active(
+                environment: .skybox,
+                effect: nil
+            )
+        )
+        #expect(model.defaultEnvironment == .scenicTwo)
     }
 
     @Test("direct dock opens the default environment when none is active")
@@ -1027,7 +1054,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .docked)
         #expect(
             model.environmentContext == .active(
-                environment: .enchron,
+                environment: .scenicOne,
                 effect: .night
             )
         )
@@ -1037,8 +1064,13 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func undockKeepsEnvironment() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.enchron, effect: .night)
-        _ = try model.requestPresentation(.docked, playbackContext: playingContext())
+        try model.activateEnvironment(.scenicTwo, effect: .night)
+        _ = try model.requestPresentation(
+            .docked,
+            environment: .scenicThree,
+            effect: .day,
+            playbackContext: playingContext()
+        )
         _ = try completePendingEffect(model)
 
         _ = try model.requestPresentation(.window, playbackContext: playingContext())
@@ -1047,7 +1079,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
         #expect(
             model.environmentContext == .active(
-                environment: .enchron,
+                environment: .scenicTwo,
                 effect: .night
             )
         )
@@ -1095,9 +1127,11 @@ struct PlaybackPresentationStateTests {
         #expect(inactiveModel.environmentContext == .none)
 
         let activeModel = PlaybackPresentationModel()
-        try activeModel.activateEnvironment(.enchron, effect: .night)
+        try activeModel.activateEnvironment(.scenicOne, effect: .night)
         _ = try activeModel.requestPresentation(
             .docked,
+            environment: .scenicThree,
+            effect: .day,
             playbackContext: playingContext()
         )
         _ = try completePendingEffect(activeModel)
@@ -1112,8 +1146,8 @@ struct PlaybackPresentationStateTests {
         #expect(activeModel.presentation == .docked)
         #expect(
             activeModel.environmentContext == .active(
-                environment: .enchron,
-                effect: .night
+                environment: .scenicThree,
+                effect: .day
             )
         )
 
@@ -1124,7 +1158,7 @@ struct PlaybackPresentationStateTests {
         _ = try completePendingEffect(activeModel)
         #expect(
             activeModel.environmentContext == .active(
-                environment: .enchron,
+                environment: .scenicOne,
                 effect: .night
             )
         )
@@ -1134,7 +1168,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func panoramaRollbackRestoresPreviousState() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.enchron, effect: .night)
+        try model.activateEnvironment(.scenicOne, effect: .night)
 
         _ = try model.requestPresentation(.panorama, playbackContext: playingContext())
         let resolution = try completePendingEffect(
@@ -1150,7 +1184,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
         #expect(
             model.environmentContext == .active(
-                environment: .enchron,
+                environment: .scenicOne,
                 effect: .night
             )
         )
@@ -1162,10 +1196,10 @@ struct PlaybackPresentationStateTests {
     func panoramaSuspendsAndRestoresActiveEnvironment() throws {
         let model = PlaybackPresentationModel()
         let priorEnvironment = EnvironmentContext.active(
-            environment: .enchron,
+            environment: .scenicOne,
             effect: .night
         )
-        try model.activateEnvironment(.enchron, effect: .night)
+        try model.activateEnvironment(.scenicOne, effect: .night)
 
         let enter = try model.requestPresentation(
             .panorama,
@@ -1210,7 +1244,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func spatialPresentationsReturnThroughWindow() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.enchron, effect: .day)
+        try model.activateEnvironment(.scenicOne, effect: .day)
         _ = try model.requestPresentation(.docked, playbackContext: playingContext())
         _ = try completePendingEffect(model)
 
@@ -1223,8 +1257,13 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func playbackStopRestoresWindow() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.enchron, effect: .night)
-        _ = try model.requestPresentation(.docked, playbackContext: playingContext())
+        try model.activateEnvironment(.scenicOne, effect: .night)
+        _ = try model.requestPresentation(
+            .docked,
+            environment: .scenicOne,
+            effect: .night,
+            playbackContext: playingContext()
+        )
         _ = try completePendingEffect(model)
 
         model.requestStoppedPlaybackCleanup()
@@ -1237,7 +1276,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
         #expect(
             model.environmentContext == .active(
-                environment: .enchron,
+                environment: .scenicOne,
                 effect: .night
             )
         )
@@ -1270,7 +1309,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func playbackStopCancelsTransition() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.enchron, effect: .night)
+        try model.activateEnvironment(.scenicOne, effect: .night)
         _ = try model.requestPresentation(.docked, playbackContext: playingContext())
         let staleRequest = try #require(model.pendingSpatialPlatformEffect)
 
@@ -1280,7 +1319,7 @@ struct PlaybackPresentationStateTests {
         #expect(model.presentation == .window)
         #expect(
             model.environmentContext == .active(
-                environment: .enchron,
+                environment: .scenicOne,
                 effect: .night
             )
         )
@@ -1305,8 +1344,13 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func dockedPresentationRequiresEnvironment() throws {
         let model = PlaybackPresentationModel()
-        try model.activateEnvironment(.enchron, effect: .night)
-        _ = try model.requestPresentation(.docked, playbackContext: playingContext())
+        try model.activateEnvironment(.scenicOne, effect: .night)
+        _ = try model.requestPresentation(
+            .docked,
+            environment: .scenicOne,
+            effect: .night,
+            playbackContext: playingContext()
+        )
         _ = try completePendingEffect(model)
 
         #expect(throws: PlaybackPresentationTransitionError.dockedPresentationRequiresEnvironment) {
@@ -1314,7 +1358,7 @@ struct PlaybackPresentationStateTests {
         }
         #expect(
             model.environmentContext == .active(
-                environment: .enchron,
+                environment: .scenicOne,
                 effect: .night
             )
         )
@@ -1487,7 +1531,7 @@ struct PlaybackPresentationStateTests {
 
         let previewModel = PlaybackPresentationModel()
         try previewModel.requestEnvironmentPreview(
-            environment: .enchron,
+            environment: .scenicOne,
             effect: .night
         )
         _ = try completePendingEffect(previewModel)

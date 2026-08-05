@@ -438,7 +438,6 @@ public struct MainView: View {
             "sourceRemovalToTargetBindSeconds=\(sourceRemovalToTargetBindSeconds)",
             "controls=\(appModel.showControls ? "shown" : "hidden")",
             "chrome=\(showsPlaybackChrome ? "on" : "off")",
-            "secondaryMenu=\(appModel.isPlaybackSecondaryMenuPresented ? "open" : "closed")",
             "windowOpacityTarget=\(windowPlaybackOpacity)",
             "windowInteractive=\(windowPlaybackAcceptsInput)",
             "videoVisible=\(playbackRuntime.presentationState == .videoVisible)",
@@ -890,7 +889,7 @@ private func environmentAccessibilityValues(
     case .some(.none):
         ("none", "none")
     case .some(.active(let environment, let effect)):
-        (environment.rawValue, effect.rawValue)
+        (environment.rawValue, effect?.rawValue ?? "none")
     }
 }
 #endif

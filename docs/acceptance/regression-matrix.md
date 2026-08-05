@@ -151,7 +151,7 @@ RealityKit 视频 Entity 的 Accessibility discovery、Accessibility Activate �
 - Presentation 切换请求被接受时，产品 Playback Lifecycle 立即进入 Paused；已经暂停时不重复发出无意义的 pause。源内容淡出、目标准备、目标淡入和目标稳定期间，PlaybackCore timebase rate 均为零，media time、音频输出和显示帧均不推进。
 - 转换全程保持原 Media Session；只有一个 RealityKit consumer 使用 renderer；迟到的平台结果不能改写新状态。
 - 源 Presentation 开始连续淡出时，目标 Scene、视频表面、renderer 与播放控件同时在完全透明且不接收输入的状态下准备，并在源淡出结束、目标淡入开始前达到成功后置条件。源内容随后消失，目标视频表面与播放控件连续淡入；转换期间不显示 `LoadingSpinner`。XCUITest 定点截图证明两端静态结果，完整录屏及其按操作和画面变化抽取的帧与目标准备时间共同证明并行关系、截止点、顺序、连续透明度变化，以及黑帧、闪烁与错误界面没有出现。媒体显示帧从请求接受起按规格保持暂停；显式 Play 后才要求连续帧标记恢复变化且不出现非预期停帧。
-- 进入 Docked 前 Environment Context 为 active 时复用当前 Environment 与 Effect；进入前为 none 时使用 Default Environment，并在返回 Window 后清除这次自动打开的 Environment。Panorama 必须只显示黑色周围环境与投影球面，当前 Environment Context 为 none。
+- Dock · Dark 与 Dock · Light 临时使用 Settings 保存的 Default Scenic Environment 及其 Night 或 Day Effect；Dock · Skybox 临时使用固定 Skybox Environment，不应用 Environment Effect。三个入口都不继承或改写进入 Docked 前的 Environment Context；返回 Window 时准确恢复该 Context，原先为 none 时清除临时 Environment。Panorama 必须只显示黑色周围环境与投影球面，当前 Environment Context 为 none。
 - 进入空间呈现后，Player Control Dock 是唯一 App 界面；它必须提供播放控制、Settings 与双向往回箭头 `PlayerPanel-button-exit-spatial`。该按钮是 Docked 和 Panorama 返回 Window 的正式入口；两种空间 Presentation 均不存在直接返回 Media Library 的 Back。
 - 目标 Presentation 完成后仍保持 Paused；不得恢复切换前的 Playing 状态。只有用户在目标 Player Controls 中显式点击 Play，产品 Lifecycle 才进入 Playing。随后才验证 actual timebase rate 大于零、timeline、video/audio sample 与 renderer accepted input 推进、音频恢复，并由录制中的连续帧标记证明画面继续变化。
 - 每次进入 Docked、进入 Panorama 或返回 Window 后，先完成目标视频表面的 shown → hidden → shown 输入闭环，再用目标 UI 的 Play 完成暂停到播放的操作闭环。任何控件动作不得触发额外的视频表面显隐。点击空间 Deck 的 Return to Window 时立即保持或进入 Paused；Window settled 后仍保持 Paused，只有 Window Player Controls 中的显式 Play 才恢复连续输出。

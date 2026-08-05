@@ -35,12 +35,10 @@ struct PlayerInfoBarView: View {
                     in: appModel.playbackPresentation,
                     isPanoramic: playbackRuntime.effectiveProjectionType.isPanoramic
                 ),
+                defaultScenicEnvironment: appModel.defaultScenicEnvironment,
                 onDock: dock,
                 onApplyFormat: applyFormat,
-                onResumePanorama: resumePanorama,
-                onSecondaryMenuVisibilityChange: {
-                    appModel.setPlaybackSecondaryMenuPresented($0)
-                }
+                onResumePanorama: resumePanorama
             )
         } moreControl: {
             ProductionPlaybackMoreMenu()
@@ -65,11 +63,15 @@ struct PlayerInfoBarView: View {
         return PlaybackTopSecondaryMenu(rawValue: rawValue)
     }
 
-    private func dock(in effect: SpatialSceneDomain.EnvironmentEffect) {
+    private func dock(
+        in environment: SpatialSceneDomain.CinemaEnvironment,
+        effect: SpatialSceneDomain.EnvironmentEffect?
+    ) {
         guard playbackRuntime.canEnterSpatialPresentation else { return }
         do {
             _ = try appModel.requestPlaybackPresentation(
                 .docked,
+                environment: environment,
                 effect: effect,
                 mediaSessionID: playbackRuntime.activeSessionID,
                 wasPlaying: playbackRuntime.productLifecycle == .playing

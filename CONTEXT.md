@@ -154,26 +154,32 @@ _Avoid_：一次 Playback Presentation、一次 Media Session、把 Environment/
 **Progressive Immersion Amount**：Enchron Immersive Space 统一采用 Progressive immersion 时，由 visionOS 持有并允许用户通过 Digital Crown 在 `0.3...1.0` 内调节的当前沉浸量。Enchron 只观察该系统事实并在当前 App 进程内记住最近值；同一 Immersive Space Open Cycle 内切换 Environment、Docked 或 Panorama 不改变它。Environment 或 Docked 新开空间时使用最近值，没有最近值时使用系统默认；Panorama 新开空间时从 `1.0` 开始，但已经打开的空间进入 Panorama 时保持当前值。
 _Avoid_：Playback Presentation、Environment Effect、App 内滑杆、跨进程偏好、Panorama 始终强制为 `1.0`、把 `.mixed` 或 `.full` 当成 Enchron 的空间内容状态
 
-**Environment Context**：当前没有活动观影场景，或某个 Environment 及其 Environment Effect 已经打开。它独立于 Media Session 与 Playback Presentation：用户可以在 Media Library 阶段先打开 Environment，退出当前媒体也不会自动丢弃它；Panorama 当前的 Environment Context 始终为 none，进入前的值由 Panorama Return Environment Context 单独保存。
+**Environment Context**：当前没有活动观影场景，或某个 Environment 已经打开并带有该场景支持的 Environment Effect。它独立于 Media Session 与 Playback Presentation：用户可以在 Media Library 阶段先打开 Environment，退出当前媒体也不会自动丢弃它；Panorama 当前的 Environment Context 始终为 none，进入前的值由 Panorama Return Environment Context 单独保存。
 _Avoid_：只有播放视频后才存在的场景状态、退出媒体时自动丢弃进入前的 Environment、把 Panorama 进入前的 Environment 当成当前活动内容、把 Environment Context 并入 Playback Presentation
 
-**Environment**：Enchron 正式交付的一个观影场景身份，可以在没有打开媒体时独立活动。Environment 与其 Environment Effect 是两个正交概念；同一场景的 Day/Night 特效不形成两个 Environment。每个 Environment 拥有一个语义一致的 Playback Surface Anchor 和一份按自身稳定 identity 持久化的相对摆位。当前交付四个稳定 Environment identity，暂以 Skybox、淡红、淡绿和淡蓝内容区分；未来替换正式名称与场景资源时保留 identity。
-_Avoid_：把昼夜特效建模成两个 Environment、把原型标签当成多个产品场景、按 Environment 与 Environment Effect 组合复制用户摆位
+**Environment**：Enchron 正式交付的一个观影场景身份，可以在没有打开媒体时独立活动。每个 Environment 拥有一个语义一致的 Playback Surface Anchor 和一份按自身稳定 identity 持久化的相对摆位；当前交付三个 Scenic Environment 与一个 Skybox Environment。
+_Avoid_：把视觉变体建模成多个 Environment、把资源颜色当成 Environment identity、按 Environment 与 Environment Effect 组合复制用户摆位
 
-**Environment Effect**：同一 Enchron Environment 内部可切换的视觉特效状态，V1 只有 Day 与 Night；它不改变 Environment 身份，并与同一 Environment 的其他 Effect 共享 Playback Surface Anchor 语义和用户摆位。
-_Avoid_：Environment Appearance、独立场景身份、Default Environment 的组成部分、独立摆位身份、Docking 菜单中的 Environment 列表
+**Scenic Environment**：支持 Day 与 Night Environment Effect、可以被用户选为 Default Scenic Environment 的观影场景；V1 交付三个稳定 Scenic Environment identity。
+_Avoid_：Skybox Environment、Day/Night 本身、当前活动 Environment
 
-**Environment Card**：用户浏览四个 Enchron Environment、打开其中一个或关闭当前 Environment，并调节其 Environment Effect 的独立 Volume；Environment Tab 是它在 Window 界面中的入口。每个卡片对应一个稳定 Environment identity，不把 Day/Night 拆成两张卡片。系统中只存在一个 Environment Card Volume 实例，它不属于 Playback Deck、Media Session 或 Playback Presentation，也不是 Panorama 的控制界面。
-_Avoid_：把 Day/Night 拆成两张 Environment Card、重复创建多个 Environment Card Volume、在卡片内提供替代系统 Window Bar 的返回按钮、从 Panorama 打开 Environment Card
+**Skybox Environment**：V1 四个 Environment 中具有单一固定外观的独立场景；它不属于 Default Scenic Environment 的候选集合，并在 Dock Menu 中始终作为单独入口出现。
+_Avoid_：Indoor、默认景观场景、Day/Night 组合预设
+
+**Environment Effect**：同一 Scenic Environment 内部可切换的视觉特效状态，V1 只有 Day 与 Night；它不改变 Environment 身份，并与同一 Environment 的其他 Effect 共享 Playback Surface Anchor 语义和用户摆位。Skybox Environment 不具有 Environment Effect。
+_Avoid_：Environment Appearance、独立场景身份、Default Scenic Environment 的组成部分、独立摆位身份
+
+**Environment Card**：用户浏览四个 Enchron Environment、打开其中一个或关闭当前 Environment，并为 Scenic Environment 调节 Environment Effect 的独立 Volume；Environment Tab 是它在 Window 界面中的入口。每个卡片对应一个稳定 Environment identity，不把 Day/Night 拆成两张卡片。系统中只存在一个 Environment Card Volume 实例，它不属于 Playback Deck、Media Session 或 Playback Presentation，也不是 Panorama 的控制界面。
+_Avoid_：为 Skybox Environment 伪造 Effect、把 Day/Night 拆成两张 Environment Card、重复创建多个 Environment Card Volume、在卡片内提供替代系统 Window Bar 的返回按钮、从 Panorama 打开 Environment Card
 
 **Environment Card Residency**：同一个 Environment Card singleton Window 当前为 closed、正在 opening，或已经 open 的空间事实。它由空间体验 owner 独立持有，并由 Window Scene 的出现与消失事件结算；重复入口只聚焦现有实例，不创建第二个 Card，也不改变 Playback Presentation。
 _Avoid_：AppModel 的第二个布尔标记、用 Card residency 推断 Playback Presentation、把聚焦现有 Card 当成新建实例
 
-**Default Environment**：当用户没有活动 Enchron Environment 时，Docking 临时打开的稳定 Environment 身份。当前由使用 Skybox 占位内容的 identity 承担；未来替换正式名称与资源时保留 identity。它只选择 Environment，不包含 Day/Night 等 Environment Effect。
-_Avoid_：Default Environment Appearance、Environment 与 Effect 的组合预设
+**Default Scenic Environment**：用户从三个 Scenic Environment 中选择并跨 App 进程保存的偏好，决定 Dock Menu 顶部两项所使用的 Environment identity 与缩略图。它不包含 Day/Night Environment Effect，不表示当前 Environment Context，也不自动打开或切换 Environment。
+_Avoid_：Default Environment、Skybox Environment、当前活动 Environment、Environment 与 Effect 的组合预设
 
-**Docking Target Resolution**：Docking 不选择 Environment 身份。存在活动 Environment 时继承该身份；不存在时临时使用 Default Environment。Docking 二级菜单选择的 Day 或 Night 只属于本次 Docked Presentation，不修改独立活动 Environment 的 Environment Effect；返回 Window 或退出媒体后恢复进入 Docked 前的 Environment Context。未来增加 Environment 时仍遵守此规则，避免列出 Environment × Environment Effect 的组合。
-_Avoid_：在 Docking 菜单中浏览全部 Environment、为每个 Environment 展开全部 Environment Effect、Docking 隐式选择非活动且非默认场景、把 Docked Environment Effect 写回活动 Environment、退出 Docked 后保留临时 Environment Effect
+**Docking Target Resolution**：Dock Menu 依次提供 Default Scenic Environment 的 Dark 与 Light 两个入口，以及分隔线下方固定的 Skybox Environment 入口；Dark 与 Light 分别使用同一 Scenic Environment 的 Night 与 Day Effect，Skybox 不使用 Effect。Docking 不继承或修改当前活动 Environment；返回 Window 或退出媒体后恢复进入 Docked 前的 Environment Context。
+_Avoid_：在 Dock Menu 中浏览全部 Environment、继承当前活动 Environment、把 Docked Environment 或 Effect 写回当前活动 Environment、退出 Docked 后保留临时 Environment 或 Effect
 
 **Playback Surface Anchor**：Reality Composer Pro Environment 对 Docked 视频基准位置与朝向的唯一场景定义；产品调整只表达相对该 anchor 的变换。
 _Avoid_：world 原点绝对坐标、运行时自定屏幕位置、Docking Region

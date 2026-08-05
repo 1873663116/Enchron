@@ -27,8 +27,8 @@ stateDiagram-v2
 
     W0 --> W1: Open Environment
     W1 --> W0: Close Environment
-    W0 --> D: Dock in Default Environment
-    W1 --> D: Dock in Active Environment
+    W0 --> D: Dock in Default Scenic Environment or Skybox
+    W1 --> D: Temporarily replace active Environment for Docked
     D --> W1: Return to Window
     W0 --> P0: Apply panoramic Media Format
     W1 --> P1: Suppress and remember Environment
@@ -110,22 +110,22 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 
 ## Environment 与 Docked Placement
 
-- 当前交付四个稳定 Environment Identity，暂以 Skybox、淡红、淡绿和淡蓝内容区分；未来替换正式名称与场景资源时保留 identity。使用 Skybox 占位内容的 identity 是 Default Environment。
-- Day 与 Night 是同一 Environment 内部的视觉特效状态，共享 Environment Identity、等价的 Playback Surface Anchor 语义和同一份用户摆位，不形成两个 Environment。
+- 当前交付四个稳定 Environment Identity：三个 Scenic Environment 暂以淡红、淡绿和淡蓝内容区分，一个 Skybox Environment 使用当前 Skybox 内容；未来替换正式名称与场景资源时保留 identity。资源颜色只区分占位内容，不成为产品名称或持久化 identity。
+- Day 与 Night 是同一 Scenic Environment 内部的视觉特效状态，共享 Environment Identity、等价的 Playback Surface Anchor 语义和同一份用户摆位，不形成两个 Environment。Skybox Environment 具有单一固定外观，不提供 Environment Effect。
 - Window 界面的 Environment Tab 激活独立的 Environment Card Volume；它是所有非 Docking 场景操作的统一入口。该 Volume 必须使用 visionOS 26 起提供单例语义的 `Window` Scene 并保持 volumetric window style；所有入口都聚焦同一个实例，不使用 `WindowGroup` 创建副本。
-- Environment Card 按四个 Environment Identity 展示卡片并打开用户选择的场景，不把 Day/Night 拆成两个浏览项。每张卡片提供对应 Environment 的打开操作和 Day/Night Environment Effect 控制；当前活动 Environment 可以关闭。
+- Environment Card 按四个 Environment Identity 展示卡片并打开用户选择的场景，不把 Day/Night 拆成两个浏览项。三个 Scenic Environment 的卡片提供 Day/Night Environment Effect 控制；Skybox Environment 卡片只提供打开操作；当前活动 Environment 可以关闭。
 - Environment Card 不提供 App 内 Return 按钮；用户通过 visionOS Window Bar 关闭 Volume。它不进入 Playback Deck，也不在 Panorama 中出现。
 - Environment Card 是 volumetric `Window`，不具有 Immersive Space 的 immersion style。它打开的 Enchron Immersive Space 在 Environment、Docked 与 Panorama 中统一使用 Progressive immersion，用户在三种空间内容中都可以通过 Digital Crown 调节沉浸量。
 - Progressive immersion amount 的允许范围为 `0.3...1.0`。visionOS 拥有当前值，Enchron 观察并在当前 App 进程内记住最近值；该值不写入 Preferences、Resume、数据库或文件。
 - 一次 Immersive Space Open Cycle 从 Scene 确认出现开始，到同一个 Scene 确认消失结束。同一 Open Cycle 内 Environment、Docked 与 Panorama 的合法切换不得重置用户当前的 Progressive immersion amount；Digital Crown 调节后的值立即成为后续空间内容继续使用的当前值。
 - 当 Environment 或 Docked 使一个 closed Immersive Space 重新打开时，初始沉浸量使用当前进程内最近观察值；没有最近值时使用 visionOS 的系统默认值。只有 Panorama 使 closed Immersive Space 重新打开时，初始沉浸量为 `1.0`；打开以后仍允许用户通过 Digital Crown 调低。已经 open 时进入 Panorama 不重新应用 `1.0`。
-- Default Environment 只选择一个特定 Environment Identity，不包含 Environment Effect。
-- Window 的 Docking 二级菜单不列出 Environment Identity。存在活动 Environment 时继承它；不存在时临时使用 Default Environment；菜单选择本次 Docked Presentation 使用的 Day 或 Night，然后进入 Docked。这个选择不修改独立活动 Environment 的 Environment Effect。
-- 未来新增 Environment 仍由独立 Environment 入口激活；Docking 不展示 Environment × Environment Effect 的组合列表。
+- Settings 提供 Default Scenic Environment，用户只在三个 Scenic Environment identity 中选择。该偏好跨 App 进程保存；它不包含 Environment Effect，不表示当前 Environment Context，也不自动打开或切换 Environment。用户只能在没有活动 Media Session 的浏览状态进入 Settings；此时可以保留一个已经活动的 Environment，修改默认值不得改变它。
+- Window 的 Dock Menu 顶部依次显示 Default Scenic Environment 的两行圆形裁切缩略图入口：Dark 使用其 Night Effect，Light 使用其 Day Effect；分隔线下方显示固定 Skybox Environment 的单行圆形裁切缩略图入口。菜单不列出另外两个非默认 Scenic Environment，也不继承当前活动 Environment。
+- 选择任一 Dock Menu 入口只决定本次 Docked Presentation 使用的 Environment 与受支持的 Effect。存在活动 Environment 时先保存其 Environment Context，Docked 临时使用菜单目标；返回 Window、退出媒体或转换失败时恢复进入 Docked 前的 Environment Context，不把临时目标写回 Environment Card 或 Default Scenic Environment。
 - Docked Video Entity 使用 Environment 的 Playback Surface Anchor 作为基准，并由 Screen Size、Distance 与 Elevation 表达用户调整。
 - Screen Size 是相对一米基准高度的等比缩放，范围 50%–250%、步进 5%；宽度由视频宽高比生成。
 - Distance 是用户到屏幕的半径，范围为 0.5–10 米、步进 0.5 米，默认 4 米，与当前场景交付的 Playback Surface Anchor 基准距离一致。Elevation 范围为 −80°–80°、步进 5°；它以用户为球心、当前 Distance 为半径沿垂直圆弧调节，屏幕始终朝向用户，不得把相对 anchor 的局部偏移误当作用户距离，也不得退化为世界坐标 Y 平移。
-- Screen Size、Distance 与 Elevation 按稳定 Environment identity 持久化并由该 Environment 的 Day/Night Effect 共享。关闭媒体、建立新 Media Session 或终止并重新启动 Enchron 后仍恢复；不同 Environment 不能共享保存值。Restore Defaults 恢复当前 Environment 的完整推荐摆位。
+- Screen Size、Distance 与 Elevation 按稳定 Environment identity 持久化；同一 Scenic Environment 的 Day/Night Effect 共享摆位。关闭媒体、建立新 Media Session 或终止并重新启动 Enchron 后仍恢复；不同 Environment 不能共享保存值。Restore Defaults 恢复当前 Environment 的完整推荐摆位。
 
 ## Window 与 Playback Deck
 
@@ -169,7 +169,7 @@ Enchron 只持久化可恢复位置或已看完，不建设通用观看历史、
 
 ## 设置与数据
 
-- 保存 Resume Policy、End Behavior、控件自动隐藏时长、Default Environment 与默认播放速度。Default Environment 只保存 Environment Identity；V1 只有一个 Environment Identity，因此不提供无意义的选择器。
+- 保存 Resume Policy、End Behavior、控件自动隐藏时长、Default Scenic Environment 与默认播放速度。Default Scenic Environment 只保存三个 Scenic Environment 之一的稳定 identity；Skybox Environment 不进入该选择器。
 - 默认播放速度是打开 Media Session 时的初始 rate，不是在 timeline 尚未建立时发送的第二条播放控制命令；自动化覆盖值只影响该次验证启动，不写入用户设置。
 - 显示并清理缩略图缓存与 Persistent Viewing State；清理不得删除媒体文件、Media Reference 或 Remote Source。
 - 提供隐私说明、版本与构建信息、反馈地址和开源许可。

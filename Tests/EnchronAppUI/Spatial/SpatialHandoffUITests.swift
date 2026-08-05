@@ -10,6 +10,57 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
     }
 
     @MainActor
+    func testWindowTopSecondaryMenusVisualState() throws {
+        let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
+            minimumCount: 1
+        )[0]
+        guard let app = launchRegisteredSpatialMedia(identifier: identifier) else { return }
+
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        _ = try XCTUnwrap(waitForState(windowState, timeout: 45) {
+            $0.string("presentation") == "window"
+                && $0.string("transition") == "none"
+                && $0.string("controls") == "shown"
+                && $0.bool("videoVisible") == true
+                && $0.string("lifecycle")?.lowercased() == "playing"
+        })
+
+        let format = app.descendants(matching: .any)[
+            "PlayerUI-TopAction-videoFormat"
+        ].firstMatch
+        guard requireHittable(format, named: "Window Video Format") else { return }
+        format.tap()
+
+        let cancelFormat = app.buttons["PlayerUI-VideoFormat-cancel"].firstMatch
+        XCTAssertTrue(cancelFormat.waitForExistence(timeout: 5))
+        attachScreenshot(from: app, name: "window-top-menu-video-format-open")
+        format.tap()
+        XCTAssertTrue(
+            cancelFormat.waitForNonExistence(timeout: 5),
+            "Video Format panel remained visible after tapping its top action again."
+        )
+
+        let dock = app.descendants(matching: .any)[
+            "PlayerUI-TopAction-dock"
+        ].firstMatch
+        guard requireHittable(dock, named: "Window Dock") else { return }
+        dock.tap()
+
+        let dockMenu = app.descendants(matching: .any)[
+            "PlayerUI-DockMenu"
+        ].firstMatch
+        XCTAssertTrue(dockMenu.waitForExistence(timeout: 5))
+        attachScreenshot(from: app, name: "window-top-menu-dock-open")
+        dock.tap()
+        XCTAssertTrue(
+            dockMenu.waitForNonExistence(timeout: 5),
+            "Dock panel remained visible after tapping its top action again."
+        )
+    }
+
+    @MainActor
     func testWindowPlaybackInputOwnership() throws {
         let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
             minimumCount: 1
@@ -93,9 +144,9 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let cancelFormat = app.buttons["PlayerUI-VideoFormat-cancel"].firstMatch
         guard requireHittable(cancelFormat, named: "Cancel Video Format") else { return }
         _ = try XCTUnwrap(waitForState(windowState, timeout: 5) {
-            $0.string("secondaryMenu") == "open"
-                && $0.string("controls") == "shown"
+            $0.string("controls") == "shown"
         })
+        attachScreenshot(from: app, name: "window-input-04a-video-format-open")
 
         let panorama360 = app.descendants(matching: .any)[
             "PlayerUI-VideoFormat-Projection-360°"
@@ -116,8 +167,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         attachScreenshot(from: app, name: "window-input-04-video-format")
         cancelFormat.tap()
         let cancelledFormat = try XCTUnwrap(waitForState(windowState, timeout: 5) {
-            $0.string("secondaryMenu") == "closed"
-                && $0.string("projection") == initialProjection
+            $0.string("projection") == initialProjection
                 && $0.string("stereoLayout") == initialStereoLayout
                 && $0.string("presentation") == "window"
                 && $0.string("transition") == "none"
@@ -134,6 +184,19 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             in: windowState,
             context: "closing Video Format"
         )
+
+        let dock = app.descendants(matching: .any)[
+            "PlayerUI-TopAction-dock"
+        ].firstMatch
+        guard requireHittable(dock, named: "Window Dock") else { return }
+        dock.tap()
+        let dockMenu = app.descendants(matching: .any)[
+            "PlayerUI-DockMenu"
+        ].firstMatch
+        XCTAssertTrue(dockMenu.waitForExistence(timeout: 5))
+        attachScreenshot(from: app, name: "window-input-05a-dock-menu")
+        dock.tap()
+        XCTAssertTrue(dockMenu.waitForNonExistence(timeout: 5))
 
         let more = app.descendants(matching: .any)[
             "PlayerUI-TopAction-more"

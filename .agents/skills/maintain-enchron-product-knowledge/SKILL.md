@@ -1,6 +1,7 @@
 ---
 name: maintain-enchron-product-knowledge
 description: 校准 Enchron 的产品决策与规范文档、当前实现、运行验证证据以及面向人类的 Product Atlas；适用于审阅跨层变化、修正文档漂移、更新 Atlas Registry 和判断规范、实现、证据与 Atlas 的状态分歧。
+disable-model-invocation: true
 ---
 
 # Maintain Enchron Product Knowledge

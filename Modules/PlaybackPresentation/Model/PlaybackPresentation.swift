@@ -145,7 +145,7 @@ public enum EnvironmentContext: Equatable, Sendable {
     case none
     case active(
         environment: SpatialSceneDomain.CinemaEnvironment,
-        effect: SpatialSceneDomain.EnvironmentEffect
+        effect: SpatialSceneDomain.EnvironmentEffect?
     )
 
     public var environment: SpatialSceneDomain.CinemaEnvironment? {
@@ -405,8 +405,9 @@ package struct PlaybackPresentationState: Equatable, Sendable {
     @discardableResult
     package mutating func begin(
         _ target: PlaybackPresentation,
+        environment requestedEnvironment: SpatialSceneDomain.CinemaEnvironment? = nil,
         effect requestedEffect: SpatialSceneDomain.EnvironmentEffect? = nil,
-        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .enchron,
+        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
         id: UUID = UUID()
     ) throws -> PlaybackPresentationTransition {
         guard transition == nil else {
@@ -421,18 +422,13 @@ package struct PlaybackPresentationState: Equatable, Sendable {
 
         let targetEnvironment: EnvironmentContext
         if target == .docked {
-            if let activeEnvironment = environment.environment,
-               let activeEffect = environment.effect {
-                targetEnvironment = .active(
-                    environment: activeEnvironment,
-                    effect: activeEffect
-                )
-            } else {
-                targetEnvironment = .active(
-                    environment: defaultEnvironment,
-                    effect: requestedEffect ?? .inactiveFallback
-                )
-            }
+            let dockingEnvironment = requestedEnvironment ?? defaultEnvironment
+            targetEnvironment = .active(
+                environment: dockingEnvironment,
+                effect: dockingEnvironment.isScenic
+                    ? requestedEffect ?? .inactiveFallback
+                    : nil
+            )
         } else if target == .panorama {
             targetEnvironment = .none
         } else if presented == .docked, target == .window {
@@ -593,14 +589,17 @@ public final class PlaybackPresentationModel {
     private let screenPositionStore: any ScreenPositionStoring
 
     public init(
-        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .enchron,
+        defaultEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
         screenPositionStore: any ScreenPositionStoring =
             PlaybackPresentationStorage.makeScreenPositionStore()
     ) {
-        self.defaultEnvironment = defaultEnvironment
+        let resolvedDefault = defaultEnvironment.isScenic
+            ? defaultEnvironment
+            : .defaultScenic
+        self.defaultEnvironment = resolvedDefault
         dockedPlacement = PlaybackDockedPlacement(
             screenScale: EnvironmentSceneMapping.defaultScreenScale(
-                forEnvironmentID: defaultEnvironment.rawValue
+                forEnvironmentID: resolvedDefault.rawValue
             )
         )
         self.screenPositionStore = screenPositionStore
@@ -657,6 +656,7 @@ public final class PlaybackPresentationModel {
     @discardableResult
     public func requestPresentation(
         _ presentation: PlaybackPresentation,
+        environment: SpatialSceneDomain.CinemaEnvironment? = nil,
         effect: SpatialSceneDomain.EnvironmentEffect? = nil,
         playbackContext: SpatialPlaybackTransitionContext
     ) throws -> PlaybackPresentationTransition {
@@ -671,6 +671,7 @@ public final class PlaybackPresentationModel {
         }
         let transition = try presentationState.begin(
             presentation,
+            environment: environment,
             effect: effect,
             defaultEnvironment: defaultEnvironment
         )
@@ -696,7 +697,7 @@ public final class PlaybackPresentationModel {
 
     public func activateEnvironment(
         _ environment: SpatialSceneDomain.CinemaEnvironment,
-        effect: SpatialSceneDomain.EnvironmentEffect
+        effect: SpatialSceneDomain.EnvironmentEffect?
     ) throws {
         guard pendingSpatialPlatformEffect == nil else {
             throw PlaybackPresentationTransitionError.platformEffectInFlight
@@ -715,7 +716,7 @@ public final class PlaybackPresentationModel {
 
     public func requestEnvironmentPreview(
         environment: SpatialSceneDomain.CinemaEnvironment,
-        effect: SpatialSceneDomain.EnvironmentEffect
+        effect: SpatialSceneDomain.EnvironmentEffect?
     ) throws {
         guard presentation == .window else {
             throw PlaybackPresentationTransitionError.environmentPreviewRequiresWindow
@@ -784,6 +785,7 @@ public final class PlaybackPresentationModel {
     public func configureDefaultEnvironment(
         _ environment: SpatialSceneDomain.CinemaEnvironment
     ) {
+        guard environment.isScenic else { return }
         guard transition == nil,
               pendingSpatialPlatformEffect == nil else { return }
         defaultEnvironment = environment
@@ -794,7 +796,8 @@ public final class PlaybackPresentationModel {
     ) {
         guard transition == nil,
               pendingSpatialPlatformEffect == nil,
-              let environment = environmentContext.environment else { return }
+              let environment = environmentContext.environment,
+              environment.isScenic else { return }
         try? presentationState.setEnvironment(
             .active(environment: environment, effect: effect)
         )

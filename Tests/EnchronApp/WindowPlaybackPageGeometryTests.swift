@@ -110,14 +110,48 @@ struct WindowPlaybackPageGeometryTests {
         #expect(state.stereoLayout == .mono)
     }
 
-    @Test("selecting a Dock effect records the chosen appearance")
-    func selectingDockEffectRecordsTheChosenAppearance() {
+    @Test("selecting a Dock target records its environment and appearance")
+    func selectingDockTargetRecordsEnvironmentAndAppearance() {
         var state = PlaybackTopActionsState()
 
-        let requestedEffect = state.selectDockEffect(.night)
+        state.toggleMenu(.dock)
 
-        #expect(requestedEffect == .night)
+        let requested = state.selectDockTarget(
+            environment: .scenicThree,
+            effect: .night
+        )
+
+        #expect(requested.0 == .scenicThree)
+        #expect(requested.1 == .night)
+        #expect(state.selectedDockEnvironment == .scenicThree)
         #expect(state.selectedEffect == .night)
         #expect(state.presentedMenu == nil)
+    }
+
+    @Test("switching top menus preserves one region owner and discards format drafts")
+    func switchingTopMenusPreservesOneRegionOwner() {
+        var state = PlaybackTopActionsState()
+
+        state.toggleMenu(.videoFormat)
+        state.projection = .equirectangular360
+        state.toggleMenu(.dock)
+
+        #expect(state.presentedMenu == .dock)
+        #expect(state.projection == .equirectangular180)
+
+        state.toggleMenu(.dock)
+        #expect(state.presentedMenu == nil)
+    }
+
+    @Test("Skybox is a Dock target without a Day or Night appearance")
+    func selectingSkyboxRecordsNoAppearance() {
+        var state = PlaybackTopActionsState()
+
+        let requested = state.selectDockTarget(environment: .skybox, effect: nil)
+
+        #expect(requested.0 == .skybox)
+        #expect(requested.1 == nil)
+        #expect(state.selectedDockEnvironment == .skybox)
+        #expect(state.selectedEffect == nil)
     }
 }

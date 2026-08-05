@@ -169,9 +169,7 @@ public final class AppModel {
     public var showControls: Bool = true
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
-    public private(set) var isPlaybackSecondaryMenuPresented: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
-    public private(set) var lastPlaybackSurfaceTapAt: Date = .distantPast
 
     // MARK: - Screen Position State (Immersive Mode)
     public var screenDepthOffset: Double {
@@ -198,6 +196,10 @@ public final class AppModel {
         playbackPresentationModel.currentEnvironment
     }
 
+    public var defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment {
+        playbackPresentationModel.defaultEnvironment
+    }
+
     public var currentEnvironmentEffect: SpatialSceneDomain.EnvironmentEffect {
         playbackPresentationModel.currentEnvironmentEffect
     }
@@ -221,6 +223,7 @@ public final class AppModel {
     @discardableResult
     public func requestPlaybackPresentation(
         _ presentation: PlaybackPresentation,
+        environment: SpatialSceneDomain.CinemaEnvironment? = nil,
         effect: SpatialSceneDomain.EnvironmentEffect? = nil,
         mediaSessionID: String?,
         wasPlaying: Bool
@@ -230,6 +233,7 @@ public final class AppModel {
         }
         let transition = try playbackPresentationModel.requestPresentation(
             presentation,
+            environment: environment,
             effect: effect,
             playbackContext: SpatialPlaybackTransitionContext(
                 mediaSessionID: mediaSessionID,
@@ -259,7 +263,7 @@ public final class AppModel {
 
     public func activateEnvironment(
         _ environment: SpatialSceneDomain.CinemaEnvironment,
-        effect: SpatialSceneDomain.EnvironmentEffect
+        effect: SpatialSceneDomain.EnvironmentEffect?
     ) throws {
         try playbackPresentationModel.activateEnvironment(
             environment,
@@ -273,7 +277,7 @@ public final class AppModel {
 
     public func requestEnvironmentPreview(
         environment: SpatialSceneDomain.CinemaEnvironment,
-        effect: SpatialSceneDomain.EnvironmentEffect
+        effect: SpatialSceneDomain.EnvironmentEffect?
     ) throws {
         try playbackPresentationModel.requestEnvironmentPreview(
             environment: environment,
@@ -460,57 +464,13 @@ public final class AppModel {
         lastControlsInteractionAt = date
     }
 
-    public func setPlaybackSecondaryMenuPresented(
-        _ presented: Bool,
-        at date: Date = Date()
-    ) {
-        isPlaybackSecondaryMenuPresented = presented
-        registerControlsInteraction(at: date)
-    }
-
     /// Last surface-tap decision, exposed through Window control-plane value for XCUI.
     public var debugSurfaceTapTrace: String = "none"
 
     public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {
-        guard isPlaybackSecondaryMenuPresented == false else {
-            logger.info("surface tap ignored while playback secondary menu is presented")
-            debugSurfaceTapTrace = "ignored:secondaryMenu->shown"
-            return
-        }
-        guard date.timeIntervalSince(lastPlaybackSurfaceTapAt) >= 0.8 else {
-            logger.info("duplicate playback surface tap ignored")
-            debugSurfaceTapTrace = "ignored:duplicate->\(showControls ? "shown" : "hidden")"
-            return
-        }
-        let elapsed = date.timeIntervalSince(lastControlsInteractionAt)
-        guard elapsed > 0.5 else {
-            logger.info("surface tap ignored during playback transition elapsed=\(elapsed)")
-            // #region agent log
-            debugSurfaceTapTrace = "ignored:\(String(format: "%.3f", elapsed))->\(showControls ? "shown" : "hidden")"
-            AgentDebugTapLog.event(
-                "toggleIgnored",
-                hypothesisId: "C",
-                data: [
-                    "elapsed": elapsed,
-                    "showControls": showControls
-                ],
-                location: "AppModel.swift:toggleControlsFromPlaybackSurface"
-            )
-            // #endregion
-            return
-        }
-        lastPlaybackSurfaceTapAt = date
         showControls.toggle()
         logger.info("surface tap controlsVisible=\(self.showControls)")
-        // #region agent log
         debugSurfaceTapTrace = "toggled:\(showControls ? "shown" : "hidden")"
-        AgentDebugTapLog.event(
-            "toggleApplied",
-            hypothesisId: "C",
-            data: ["showControls": showControls, "elapsed": elapsed],
-            location: "AppModel.swift:toggleControlsFromPlaybackSurface"
-        )
-        // #endregion
         if showControls {
             registerControlsInteraction(at: date)
         }

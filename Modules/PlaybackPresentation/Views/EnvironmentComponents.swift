@@ -14,6 +14,12 @@ struct FeaturedEnvironment: Identifiable {
 
     var id: String { environment.rawValue }
 
+    static func catalogEntry(
+        for environment: SpatialSceneDomain.CinemaEnvironment
+    ) -> FeaturedEnvironment? {
+        catalog.first { $0.environment == environment }
+    }
+
     func imageName(for effect: SpatialSceneDomain.EnvironmentEffect) -> String {
         switch effect {
         case .day: dayImageName
@@ -23,14 +29,44 @@ struct FeaturedEnvironment: Identifiable {
 
     static let catalog: [FeaturedEnvironment] = [
         .init(
-            environment: .enchron,
-            dayImageName: "SceneFeatureCinema",
-            nightImageName: "SceneFeatureOrbitalGarden",
-            title: "Enchron Environment",
+            environment: .scenicOne,
+            dayImageName: "SunsetNature",
+            nightImageName: "StarryNight",
+            title: "Scenic Environment 1",
             environmentNumber: "Environment 01",
-            quote: "\"One viewing environment with Day and Night effects.\"",
-            mode: "Same scene and anchors",
+            quote: "\"A pale red placeholder for the first scenic identity.\"",
+            mode: "Scenic placeholder",
             atmosphere: "Day / Night"
+        ),
+        .init(
+            environment: .scenicTwo,
+            dayImageName: "SceneFeatureForestShrine",
+            nightImageName: "SceneFeatureNeonCity",
+            title: "Scenic Environment 2",
+            environmentNumber: "Environment 02",
+            quote: "\"A pale green placeholder for the second scenic identity.\"",
+            mode: "Scenic placeholder",
+            atmosphere: "Day / Night"
+        ),
+        .init(
+            environment: .scenicThree,
+            dayImageName: "SceneFeatureOceanTemple",
+            nightImageName: "SceneFeatureOrbitalGarden",
+            title: "Scenic Environment 3",
+            environmentNumber: "Environment 03",
+            quote: "\"A pale blue placeholder for the third scenic identity.\"",
+            mode: "Scenic placeholder",
+            atmosphere: "Day / Night"
+        ),
+        .init(
+            environment: .skybox,
+            dayImageName: "SceneFeatureCinema",
+            nightImageName: "SceneFeatureCinema",
+            title: "Skybox",
+            environmentNumber: "Environment 04",
+            quote: "\"The current Skybox remains a fixed independent environment.\"",
+            mode: "Fixed Skybox",
+            atmosphere: "Fixed"
         )
     ]
 }
@@ -104,16 +140,19 @@ struct EnvironmentCard: View {
     private var topControls: some View {
         VStack {
             HStack(spacing: DesignTokens.Spacing.sm) {
-                AppearanceModeButton(
-                    isActive: effect == .night,
-                    accessibilityLabel: effect == .day
-                        ? "Switch environment to Night"
-                        : "Switch environment to Day",
-                    action: {
-                        onEffectChange(effect == .day ? .night : .day)
-                    },
-                    accessibilityIdentifier: "EnvironmentCard-effect"
-                )
+                if environment.environment.isScenic {
+                    AppearanceModeButton(
+                        isActive: effect == .night,
+                        accessibilityLabel: effect == .day
+                            ? "Switch environment to Night"
+                            : "Switch environment to Day",
+                        action: {
+                            onEffectChange(effect == .day ? .night : .day)
+                        },
+                        accessibilityIdentifier:
+                            "EnvironmentCard-effect-\(environment.environment.rawValue)"
+                    )
+                }
                 Spacer()
                 GlassCircleIconButton.expandCollapse(
                     isExpanded: isEnvironmentActive,
@@ -121,7 +160,8 @@ struct EnvironmentCard: View {
                         ? "Close environment"
                         : "Open environment",
                     action: onExpand,
-                    accessibilityIdentifier: "EnvironmentCard-button-environment"
+                    accessibilityIdentifier:
+                        "EnvironmentCard-button-environment-\(environment.environment.rawValue)"
                 )
             }
             .padding(DesignTokens.EnvironmentCard.chromePadding)

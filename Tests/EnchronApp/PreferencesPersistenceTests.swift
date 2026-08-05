@@ -1,4 +1,5 @@
 import XCTest
+import PlaybackPresentation
 @testable import Enchron
 
 /// Verifies the extended `UserPreferences` fields survive a save→load round-trip
@@ -19,7 +20,7 @@ nonisolated final class PreferencesPersistenceTests: XCTestCase {
         prefs.resumePolicy = .alwaysResume
         prefs.playbackEndBehavior = .playNext
         prefs.defaultPlaybackSpeed = 1.5
-        prefs.defaultEnvironmentID = "Starry Night"
+        prefs.defaultEnvironmentID = SpatialSceneDomain.CinemaEnvironment.scenicTwo.rawValue
         prefs.controlsAutoHideSeconds = 15
         store.savePreferences(prefs)
 

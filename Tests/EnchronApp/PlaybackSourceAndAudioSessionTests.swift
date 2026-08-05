@@ -7,7 +7,7 @@ import XCTest
 
 nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     @MainActor
-    func testOneSurfaceTapKeepsTheControlsStateStableForAtLeastEightTenthsOfASecond() {
+    func testEachSurfaceTapTogglesControlsExactlyOnce() {
         let appModel = AppModel()
         let firstTap = Date(timeIntervalSinceReferenceDate: 1_000)
 
@@ -15,15 +15,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         XCTAssertFalse(appModel.showControls)
 
         appModel.toggleControlsFromPlaybackSurface(
-            at: firstTap.addingTimeInterval(0.79)
-        )
-        XCTAssertFalse(
-            appModel.showControls,
-            "A duplicate delivery from the same physical surface tap must not flash the controls back on."
-        )
-
-        appModel.toggleControlsFromPlaybackSurface(
-            at: firstTap.addingTimeInterval(0.81)
+            at: firstTap.addingTimeInterval(0.01)
         )
         XCTAssertTrue(appModel.showControls)
     }
@@ -56,35 +48,6 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         XCTAssertFalse(windowModel.showControls)
         XCTAssertFalse(spatialTapModel.showControls)
 
-        PlaybackSurfaceInputAction.perform(
-            .windowSwiftUI,
-            appModel: windowModel,
-            at: moment.addingTimeInterval(0.79)
-        )
-        XCTAssertFalse(
-            windowModel.showControls,
-            "A duplicate Window delivery must not change the shared action result within 0.8 seconds."
-        )
-    }
-
-    @MainActor
-    func testClosingAPlaybackMenuKeepsControlsShownEvenIfTheSurfaceAlsoReceivesTheInput() {
-        let appModel = AppModel()
-        let closeTime = Date(timeIntervalSinceReferenceDate: 3_000)
-
-        appModel.setPlaybackSecondaryMenuPresented(
-            true,
-            at: closeTime.addingTimeInterval(-1)
-        )
-        appModel.setPlaybackSecondaryMenuPresented(false, at: closeTime)
-        PlaybackSurfaceInputAction.perform(
-            .windowSwiftUI,
-            appModel: appModel,
-            at: closeTime
-        )
-
-        XCTAssertTrue(appModel.showControls)
-        XCTAssertEqual(appModel.debugSurfaceTapTrace, "ignored:0.000->shown")
     }
 
     func testTemporaryPhotoPlaybackFileLivesForTheSessionAndIsRemovedOnRelease() throws {

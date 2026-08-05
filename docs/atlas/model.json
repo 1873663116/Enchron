@@ -674,6 +674,34 @@
         ]
       },
       {
+        "id": "state.defaultScenicEnvironment",
+        "label": "Default Scenic Environment",
+        "values": [
+          {
+            "id": "scenicOne",
+            "label": "Scenic Environment 1"
+          },
+          {
+            "id": "scenicTwo",
+            "label": "Scenic Environment 2"
+          },
+          {
+            "id": "scenicThree",
+            "label": "Scenic Environment 3"
+          }
+        ],
+        "ownerIds": [
+          "apps",
+          "playback-presentation"
+        ],
+        "sourceRefs": [
+          {
+            "sourceId": "product-requirements",
+            "heading": "## Environment 与 Docked Placement"
+          }
+        ]
+      },
+      {
         "id": "state.panoramaReturnEnvironmentContext",
         "label": "Panorama Return Environment Context",
         "values": [
@@ -713,12 +741,12 @@
             "label": "无"
           },
           {
-            "id": "inheritedActive",
-            "label": "继承活动 Environment"
+            "id": "defaultScenic",
+            "label": "Default Scenic Environment"
           },
           {
-            "id": "temporaryDefault",
-            "label": "仅为本次 Docked 启动的 Default Environment"
+            "id": "skybox",
+            "label": "固定 Skybox Environment"
           }
         ],
         "ownerIds": [
@@ -1437,7 +1465,7 @@
       },
       {
         "id": "invariant.environmentEffectSharesIdentity",
-        "label": "Day/Night 共享当前所选稳定 Environment identity，不形成两个 Environment。",
+        "label": "Scenic Environment 的 Day/Night 共享同一稳定 identity，不形成两个 Environment；Skybox 不具有 Effect。",
         "ownerIds": [
           "playback-presentation"
         ],
@@ -2370,7 +2398,7 @@
             "state.playbackPresentation": "docked",
             "state.presentationTransition": "idle",
             "state.environmentContext": "active",
-            "state.dockingEnvironmentSource": "inheritedActive",
+            "state.dockingEnvironmentSource": "defaultScenic",
             "state.dockingEffect": "day",
             "state.immersiveSpaceResidency": "open",
             "state.progressiveImmersion": "userControlled",
@@ -2385,7 +2413,7 @@
           "answers": {
             "question.picture": "视频位于 Enchron Immersive Space 的 Docked Surface。",
             "question.playback": "同一个 Media Session 正在播放；转换没有重开媒体。",
-            "question.surroundings": "本快照继承已经活动的 Enchron Environment，并使用本次 Docking 的 Day Effect。",
+            "question.surroundings": "本快照临时使用 Default Scenic Environment 的 Day Effect；进入前的 Environment Context 只为返回 Window 保存。",
             "question.actions": "召唤 Player Controls，调节播放、Screen Size、Distance、Elevation，或返回 Window。"
           },
           "drilldown": [
@@ -2849,22 +2877,23 @@
         },
         {
           "id": "branch.defaultDockingEnvironment",
-          "label": "Default Environment Docking",
+          "label": "Default Scenic Environment Docking",
           "kind": "stable-variation",
-          "summary": "没有活动 Environment 时临时使用 Default Environment，不把它保存为 Presentation 偏好。",
+          "summary": "Docking 临时使用 Settings 选择的 Default Scenic Environment，不把它写成当前活动 Environment。",
           "applicableSnapshotIds": [
             "snapshot.dockedPlayback"
           ],
         "state": {
           "state.environmentContext": "none",
           "state.environmentEffect": "none",
-          "state.dockingEnvironmentSource": "temporaryDefault",
+          "state.defaultScenicEnvironment": "scenicOne",
+          "state.dockingEnvironmentSource": "defaultScenic",
           "state.dockingEffect": "day",
           "state.immersiveSpaceResidency": "open",
           "state.immersiveContent": "dockedSurface"
         },
         "answers": {
-          "question.surroundings": "用户此前没有活动 Enchron Environment；Docking 临时打开 Default Environment，并只为本次 Docked 使用 Day Effect。",
+          "question.surroundings": "Docking 临时打开 Default Scenic Environment，并只为本次 Docked 使用 Day Effect。",
           "question.actions": "可使用 Docked 播放与摆位操作；返回 Window 后临时 Environment 与本次 Effect 一同结束。"
         },
           "invariantIds": [
@@ -3361,6 +3390,10 @@
             "label": "Playback"
           },
           {
+            "id": "environment-preferences",
+            "label": "Default Scenic Environment"
+          },
+          {
             "id": "storage",
             "label": "Storage"
           },
@@ -3484,7 +3517,7 @@
     {
       "id": "nav.openSettings",
       "label": "打开 Settings",
-      "summary": "让 Main Window 显示产品设置，不改变当前媒体会话。",
+      "summary": "在没有活动 Media Session 的浏览状态显示产品设置；已经活动的 Environment 保持不变。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Main Window 内容",
       "ownerIds": [
@@ -3501,12 +3534,19 @@
           "regionId": "navigation"
         }
       ],
-      "availableWhen": [],
+      "availableWhen": [
+        {
+          "dimensionId": "state.mediaSessionResidency",
+          "equals": "none"
+        }
+      ],
       "demonstrations": [
         {
           "id": "default",
           "initialState": {
-            "state.appDestination": "mediaLibrary"
+            "state.appDestination": "mediaLibrary",
+            "state.mediaSessionResidency": "none",
+            "state.environmentContext": "active"
           },
           "steps": [
             {
@@ -3530,6 +3570,94 @@
         "primary": "journey",
         "journey": {
           "basis": "product-demonstrations"
+        }
+      }
+    },
+    {
+      "id": "settings.selectDefaultScenicEnvironment",
+      "label": "选择 Default Scenic Environment",
+      "summary": "从三个 Scenic Environment 中保存默认值并立即更新后续 Dock Menu，不改变当前活动 Environment。",
+      "visualGrammar": "state-difference",
+      "causalSubject": "Default Scenic Environment",
+      "ownerIds": [
+        "apps",
+        "playback-presentation"
+      ],
+      "decisionStatus": "confirmed",
+      "delivery": {
+        "implementation": "observed",
+        "verification": "notEvidenced"
+      },
+      "placements": [
+        {
+          "surfaceId": "surface.settings",
+          "regionId": "environment-preferences"
+        }
+      ],
+      "availableWhen": [
+        {
+          "dimensionId": "state.appDestination",
+          "equals": "settings"
+        },
+        {
+          "dimensionId": "state.mediaSessionResidency",
+          "equals": "none"
+        }
+      ],
+      "demonstrations": [
+        {
+          "id": "preserve-active-environment",
+          "initialState": {
+            "state.appDestination": "settings",
+            "state.mediaSessionResidency": "none",
+            "state.environmentContext": "active",
+            "state.environmentEffect": "night",
+            "state.defaultScenicEnvironment": "scenicOne"
+          },
+          "steps": [
+            {
+              "label": "选择 Scenic Environment 2",
+              "actorId": "user",
+              "patch": {
+                "state.defaultScenicEnvironment": "scenicTwo"
+              }
+            },
+            {
+              "label": "保存偏好并保持当前活动 Environment 与 Effect",
+              "actorId": "enchron",
+              "patch": {}
+            }
+          ],
+          "branches": [
+            {
+              "label": "保存值不再对应可用 Scenic Environment",
+              "result": "回退到产品定义的有效 Scenic Environment，不选择 Skybox。",
+              "steps": [],
+              "visualSemantic": "alternativeOutcome"
+            }
+          ]
+        }
+      ],
+      "sourceRefs": [
+        {
+          "sourceId": "product-requirements",
+          "heading": "## Environment 与 Docked Placement"
+        },
+        {
+          "sourceId": "ui-spec",
+          "heading": "## Surface ownership"
+        }
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.defaultScenicEnvironment"
+          ]
         }
       }
     },
@@ -3564,6 +3692,35 @@
           ]
         }
       ],
+      "visual": {
+        "fromSurface": "Window Video Surface",
+        "toSurface": "Skybox Docked Video Surface",
+        "anchorLabel": "Skybox · Playback Surface Anchor",
+        "invariantLabel": "同一 Media Session · 唯一 active consumer",
+        "phases": [
+          {
+            "id": "request",
+            "label": "选择 Skybox",
+            "actorId": "user"
+          },
+          {
+            "id": "prepare",
+            "label": "保存进入前 Environment Context",
+            "actorId": "enchron"
+          },
+          {
+            "id": "attach",
+            "label": "绑定 Skybox Docked Surface",
+            "actorId": "enchron"
+          },
+          {
+            "id": "commit",
+            "label": "提交 Docked",
+            "actorId": "enchron"
+          }
+        ],
+        "transactionLabel": "Attach · Settle · Commit / Rollback"
+      },
       "demonstrations": [
         {
           "id": "create-or-focus",
@@ -7148,7 +7305,7 @@
     {
       "id": "window.openDockMenu",
       "label": "打开 Docking 菜单",
-      "summary": "使用系统原生 Menu 选择本次 Docked 使用的 Environment 与 Day/Night Effect。",
+      "summary": "使用系统原生 Menu 显示 Default Scenic Environment 的 Dark、Light 缩略图入口，以及分隔线下方固定的 Skybox 缩略图入口。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Docking Effect",
       "ownerIds": [
@@ -7218,8 +7375,8 @@
     },
   {
     "id": "window.enterDockedDay",
-      "label": "Dock · Day",
-    "summary": "存在活动 Environment 时继承它；没有活动 Environment 时为本次 Docked 打开 Default Environment，并以同一 renderer 进入 Docked。",
+      "label": "Dock · Light",
+    "summary": "临时使用 Default Scenic Environment 的 Day Effect 进入 Docked；进入前的 Environment Context 只为返回 Window 保存。",
       "visualGrammar": "spatial-transition",
       "causalSubject": "Window → Docked",
       "ownerIds": [
@@ -7260,7 +7417,7 @@
         "phases": [
           {
             "id": "request",
-            "label": "选择 Day",
+            "label": "选择 Light",
             "actorId": "user"
           },
           {
@@ -7305,6 +7462,7 @@
             "state.playbackLifecycle": "playing",
             "state.environmentContext": "none",
             "state.environmentEffect": "none",
+            "state.defaultScenicEnvironment": "scenicOne",
             "state.dockingEnvironmentSource": "none",
             "state.dockingEffect": "none",
             "state.immersiveSpaceResidency": "closed",
@@ -7314,7 +7472,7 @@
           },
           "steps": [
             {
-              "label": "选择 Dock · Day 并捕获 Playing 意图",
+              "label": "选择 Dock · Light 并捕获 Playing 意图",
               "actorId": "user",
               "patch": {
                 "state.presentationTransition": "requested",
@@ -7322,11 +7480,11 @@
               }
             },
             {
-              "label": "暂停转换中的播放并选择 Default Environment + Day",
+              "label": "暂停转换中的播放并选择 Default Scenic Environment + Day",
               "actorId": "enchron",
               "patch": {
                 "state.playbackLifecycle": "paused",
-                "state.dockingEnvironmentSource": "temporaryDefault",
+                "state.dockingEnvironmentSource": "defaultScenic",
                 "state.dockingEffect": "day"
               }
             },
@@ -7401,6 +7559,7 @@
             "state.playbackLifecycle": "paused",
             "state.environmentContext": "active",
             "state.environmentEffect": "night",
+            "state.defaultScenicEnvironment": "scenicTwo",
             "state.dockingEnvironmentSource": "none",
             "state.dockingEffect": "none",
             "state.immersiveSpaceResidency": "open",
@@ -7410,17 +7569,17 @@
           },
           "steps": [
             {
-              "label": "选择 Dock · Day 并捕获 Paused 意图",
+              "label": "选择 Dock · Light，保存活动 Environment Context 并捕获 Paused 意图",
               "actorId": "user",
               "patch": {
                 "state.presentationTransition": "requested",
                 "state.presentationPlaybackIntent": "paused",
-                "state.dockingEnvironmentSource": "inheritedActive",
+                "state.dockingEnvironmentSource": "defaultScenic",
                 "state.dockingEffect": "day"
               }
             },
             {
-          "label": "在活动 Environment 的 Anchor 绑定 renderer，并等待 Player Controls Window 可用",
+          "label": "临时使用 Default Scenic Environment 的 Anchor 绑定 renderer，并等待 Player Controls Window 可用",
           "actorId": "enchron",
               "patch": {
                 "state.immersiveContent": "dockedSurface",
@@ -7480,8 +7639,8 @@
     },
   {
     "id": "window.enterDockedNight",
-      "label": "Dock · Night",
-      "summary": "与 Dock · Day 使用同一事务，只把本次 Docked Effect 设为 Night。",
+      "label": "Dock · Dark",
+      "summary": "与 Dock · Light 使用同一事务，临时使用 Default Scenic Environment 的 Night Effect。",
       "visualGrammar": "causal-chain",
       "causalSubject": "Window → Docked",
       "ownerIds": [
@@ -7523,6 +7682,7 @@
             "state.playbackLifecycle": "playing",
             "state.environmentContext": "none",
             "state.environmentEffect": "none",
+            "state.defaultScenicEnvironment": "scenicOne",
             "state.dockingEnvironmentSource": "none",
             "state.dockingEffect": "none",
             "state.immersiveSpaceResidency": "closed",
@@ -7532,7 +7692,7 @@
           },
           "steps": [
             {
-              "label": "选择 Dock · Night 并捕获 Playing 意图",
+              "label": "选择 Dock · Dark 并捕获 Playing 意图",
               "actorId": "user",
               "patch": {
                 "state.presentationTransition": "requested",
@@ -7540,11 +7700,11 @@
               }
             },
             {
-              "label": "暂停并选择 Default Environment + Night",
+              "label": "暂停并选择 Default Scenic Environment + Night",
               "actorId": "enchron",
               "patch": {
                 "state.playbackLifecycle": "paused",
-                "state.dockingEnvironmentSource": "temporaryDefault",
+                "state.dockingEnvironmentSource": "defaultScenic",
                 "state.dockingEffect": "night"
               }
             },
@@ -7624,6 +7784,154 @@
             "state.presentationTransition",
             "state.playbackLifecycle",
             "state.presentationPlaybackIntent"
+          ]
+        }
+      }
+    },
+    {
+      "id": "window.enterDockedSkybox",
+      "label": "Dock · Skybox",
+      "summary": "通过 Dock Menu 的固定独立入口临时使用 Skybox Environment 进入 Docked，不应用 Environment Effect。",
+      "visualGrammar": "spatial-transition",
+      "causalSubject": "Window → Docked",
+      "ownerIds": [
+        "playback-presentation",
+        "apps",
+        "visionos"
+      ],
+      "decisionStatus": "confirmed",
+      "delivery": {
+        "implementation": "observed",
+        "verification": "notEvidenced"
+      },
+      "placements": [
+        {
+          "surfaceId": "surface.windowChrome",
+          "regionId": "window-presentation-actions"
+        }
+      ],
+      "availableWhen": [
+        {
+          "dimensionId": "state.playbackPresentation",
+          "equals": "window"
+        },
+        {
+          "dimensionId": "state.mediaSessionResidency",
+          "equals": "active"
+        },
+        {
+          "dimensionId": "state.mediaProjection",
+          "equals": "flat"
+        }
+      ],
+      "visual": {
+        "fromSurface": "Window Video Surface",
+        "toSurface": "Skybox Docked Video Surface",
+        "anchorLabel": "Skybox · Playback Surface Anchor",
+        "invariantLabel": "同一 Media Session · 唯一 active consumer",
+        "phases": [
+          {
+            "id": "request",
+            "label": "选择 Skybox",
+            "actorId": "user"
+          },
+          {
+            "id": "prepare",
+            "label": "保存进入前 Environment Context",
+            "actorId": "enchron"
+          },
+          {
+            "id": "attach",
+            "label": "绑定 Skybox Docked Surface",
+            "actorId": "enchron"
+          },
+          {
+            "id": "commit",
+            "label": "提交 Docked",
+            "actorId": "enchron"
+          }
+        ],
+        "transactionLabel": "Attach · Settle · Commit / Rollback"
+      },
+      "demonstrations": [
+        {
+          "id": "with-active-environment",
+          "initialState": {
+            "state.mediaSessionResidency": "active",
+            "state.playbackPresentation": "window",
+            "state.playbackLifecycle": "paused",
+            "state.environmentContext": "active",
+            "state.environmentEffect": "night",
+            "state.dockingEnvironmentSource": "none",
+            "state.dockingEffect": "none",
+            "state.immersiveSpaceResidency": "open",
+            "state.immersiveContent": "environmentOnly",
+            "state.rendererConsumerBinding": "window",
+            "state.presentationTransition": "idle"
+          },
+          "steps": [
+            {
+              "label": "选择 Skybox，保存活动 Environment Context 并捕获 Paused 意图",
+              "actorId": "user",
+              "patch": {
+                "state.presentationTransition": "requested",
+                "state.presentationPlaybackIntent": "paused",
+                "state.dockingEnvironmentSource": "skybox"
+              }
+            },
+            {
+              "label": "临时使用 Skybox Anchor 绑定 renderer，不应用 Environment Effect",
+              "actorId": "enchron",
+              "patch": {
+                "state.immersiveContent": "dockedSurface",
+                "state.rendererConsumerBinding": "docked",
+                "state.presentationTransition": "settled"
+              }
+            },
+            {
+              "label": "提交 Docked；原 Paused 保持不变",
+              "actorId": "enchron",
+              "patch": {
+                "state.playbackPresentation": "docked",
+                "state.presentationPlaybackIntent": "none",
+                "state.presentationTransition": "committed"
+              }
+            }
+          ],
+          "branches": [
+            {
+              "label": "Skybox、Anchor 或 Binding 失败",
+              "result": "回滚 Window、进入前的 Environment Context 与播放意图。",
+              "steps": [],
+              "visualSemantic": "rollback"
+            }
+          ]
+        }
+      ],
+      "sourceRefs": [
+        {
+          "sourceId": "product-requirements",
+          "heading": "## 产品状态"
+        },
+        {
+          "sourceId": "product-requirements",
+          "heading": "## Environment 与 Docked Placement"
+        }
+      ],
+      "visualLayers": {
+        "primary": "journey",
+        "journey": {
+          "basis": "product-demonstrations"
+        },
+        "blueprint": {
+          "basis": "structural-placement-and-ownership"
+        },
+        "machine": {
+          "basis": "state-demonstrations-and-branches",
+          "summaryDimensions": [
+            "state.presentationTransition",
+            "state.dockingEnvironmentSource",
+            "state.playbackPresentation"
           ]
         }
       }
@@ -8191,7 +8499,7 @@
             "state.immersiveSpaceResidency": "open",
             "state.immersiveContent": "dockedSurface",
             "state.rendererConsumerBinding": "docked",
-            "state.dockingEnvironmentSource": "temporaryDefault",
+            "state.dockingEnvironmentSource": "defaultScenic",
             "state.dockingEffect": "day",
             "state.environmentContext": "none",
             "state.presentationTransition": "idle"
@@ -8220,7 +8528,7 @@
           "patch": {}
         },
             {
-          "label": "提交 Window、清除仅为本次 Docked 选择的 Default Environment 与 Effect，并恢复 Playing",
+          "label": "提交 Window、清除仅为本次 Docked 选择的 Environment 与 Effect，并恢复 Playing",
               "actorId": "enchron",
               "patch": {
                 "state.playbackPresentation": "window",
@@ -11318,7 +11626,7 @@
             "state.immersiveContent": "dockedSurface",
             "state.environmentContext": "active",
             "state.environmentEffect": "day",
-            "state.dockingEnvironmentSource": "inheritedActive",
+            "state.dockingEnvironmentSource": "defaultScenic",
             "state.dockingEffect": "day",
             "state.environmentCardResidency": "closed"
           },
@@ -11376,7 +11684,7 @@
                     "state.rendererConsumerBinding": "docked",
                     "state.immersiveSpaceResidency": "open",
                     "state.immersiveContent": "dockedSurface",
-                    "state.dockingEnvironmentSource": "inheritedActive",
+                    "state.dockingEnvironmentSource": "defaultScenic",
                     "state.dockingEffect": "day",
                     "state.environmentCardResidency": "closed",
                     "state.presentationTransition": "rolledBack"
@@ -11400,7 +11708,7 @@
             "state.immersiveContent": "dockedSurface",
             "state.environmentContext": "none",
             "state.environmentEffect": "none",
-            "state.dockingEnvironmentSource": "temporaryDefault",
+            "state.dockingEnvironmentSource": "defaultScenic",
             "state.dockingEffect": "day",
             "state.environmentCardResidency": "openUnfocused"
           },
@@ -11422,7 +11730,7 @@
               }
             },
             {
-              "label": "释放仅为本次 Docked 启动的 Default Environment，并聚焦唯一 Environment Card",
+              "label": "释放仅为本次 Docked 启动的 Default Scenic Environment，并聚焦唯一 Environment Card",
               "actorId": "enchron",
               "patch": {
                 "state.immersiveSpaceResidency": "closed",

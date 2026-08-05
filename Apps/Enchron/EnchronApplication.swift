@@ -179,7 +179,7 @@ final class EnchronApplication {
         }
         let configuredEnvironment = SpatialSceneDomain.CinemaEnvironment(
             preferenceValue: preferences.defaultEnvironmentID
-        ) ?? appModel.currentCinemaEnvironment
+        ) ?? .defaultScenic
         appModel.configureDefaultEnvironment(configuredEnvironment)
 
         self.appModel = appModel

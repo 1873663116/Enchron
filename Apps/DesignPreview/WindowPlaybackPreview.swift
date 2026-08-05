@@ -20,13 +20,10 @@ struct WindowPlaybackPreview: View {
             WindowPlaybackTopChrome {
                 GlassCircleIconButton.back(accessibilityLabel: "Back")
             } spatialActions: {
-                WindowPlaybackSpatialActions {
-                    GlassCircleIconButton.environment(accessibilityLabel: "Dock")
-                } formatControl: {
-                    GlassCircleIconButton.expandVertically(
-                        accessibilityLabel: "Video Format"
-                    )
-                }
+                PlaybackTopActions(
+                    initialPresentedMenu: .dock,
+                    defaultScenicEnvironment: .scenicTwo
+                )
             } moreControl: {
                 GlassCircleIconButton(
                     systemName: "ellipsis",

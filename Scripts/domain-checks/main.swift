@@ -201,7 +201,7 @@ try await MainActor.run {
 
     let retryModel = PlaybackPresentationModel()
     try retryModel.requestEnvironmentPreview(
-        environment: .enchron,
+        environment: .scenicOne,
         effect: .day
     )
     let retryRequest = pendingRequest(retryModel)
@@ -455,12 +455,12 @@ try await MainActor.run {
 
     let defaultEnvironmentBeforeActivation = presentationModel.defaultEnvironment
     let activeEnvironment = EnvironmentContext.active(
-        environment: .enchron,
+        environment: .scenicTwo,
         effect: .night
     )
-    try presentationModel.activateEnvironment(.enchron, effect: .night)
+    try presentationModel.activateEnvironment(.scenicTwo, effect: .night)
     require(
-        presentationModel.snapshot.environmentContext.environment == .enchron
+        presentationModel.snapshot.environmentContext.environment == .scenicTwo
             && presentationModel.snapshot.environmentContext.effect == .night
             && presentationModel.defaultEnvironment == defaultEnvironmentBeforeActivation,
         "Environment Context must carry Environment identity and Environment Effect together"
@@ -468,12 +468,16 @@ try await MainActor.run {
 
     let pendingDock = try presentationModel.requestPresentation(
         .docked,
+        environment: .scenicThree,
         effect: .day,
         playbackContext: playingContext
     )
     require(
-        pendingDock.targetEnvironment == activeEnvironment,
-        "Docking with an active Environment Context must inherit its Effect"
+        pendingDock.targetEnvironment == .active(
+            environment: .scenicThree,
+            effect: .day
+        ),
+        "Docking must use the environment and appearance selected by the Dock menu"
     )
     require(
         presentationModel.receiveSpatialPlatformResult(
@@ -596,7 +600,7 @@ try await MainActor.run {
     )
 
     try presentationModel.requestEnvironmentPreview(
-        environment: .enchron,
+        environment: .scenicOne,
         effect: .night
     )
     require(
@@ -631,7 +635,7 @@ try await MainActor.run {
     )
     do {
         try presentationModel.requestEnvironmentPreview(
-            environment: .enchron,
+            environment: .scenicOne,
             effect: .day
         )
         require(false, "a second platform effect must not be emitted while one is pending")
@@ -945,7 +949,7 @@ lease.release()
 lease.release()
 require(leaseCounter.value == 1, "media access lease must release exactly once")
 
-let suiteName = "app.enchron.domain-checks.\(UUID().uuidString)"
+let suiteName = "app.scenicOne.domain-checks.\(UUID().uuidString)"
 guard let defaults = UserDefaults(suiteName: suiteName) else {
     fatalError("Unable to create isolated UserDefaults suite")
 }

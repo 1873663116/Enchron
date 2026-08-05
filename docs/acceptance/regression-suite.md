@@ -194,7 +194,8 @@ Window 进入空间呈现具有四种必须验证的产品分支：
 
 | Window 前置状态 | 用户操作 | 进入空间呈现的成功结果 | 返回 Window 的成功结果 |
 |---|---|---|---|
-| Environment Context 为 none | Dock | 打开 Enchron Immersive Space，并在本次 Docked 期间临时使用 Default Environment | 清除临时 Environment，关闭不再需要的 Immersive Space |
+| Environment Context 为 none | Dock · Dark 或 Dock · Light | 打开 Enchron Immersive Space，并在本次 Docked 期间临时使用 Default Scenic Environment 的 Night 或 Day Effect | 清除临时 Environment，关闭不再需要的 Immersive Space |
+| Environment Context 为 none 或 active | Dock · Skybox | 打开 Enchron Immersive Space，并在本次 Docked 期间临时使用固定 Skybox Environment，不应用 Environment Effect | 返回 Window 时恢复进入 Docked 前的 Environment Context；原先为 none 时关闭不再需要的 Immersive Space |
 | Environment Context 为 active | Dock | 复用当前 Immersive Space、Environment 与 Environment Effect | 原 Environment 与 Effect 继续活动 |
 | Environment Context 为 none | 应用 panoramic Media Format | 为 Panorama 打开 Enchron Immersive Space；新的 Open Cycle 从 `1.0` Progressive Immersion Amount 开始；Environment Context 保持 none，只呈现黑色周围环境与视频投影球面 | 回到 Environment Context 为 none 的 Window，并关闭不再需要的 Immersive Space |
 | Environment Context 为 active | 应用 panoramic Media Format | 复用当前 Immersive Space 并保持当前 Progressive Immersion Amount；停用自制 Environment 与 Effect，把它们保存为 Panorama Return Environment Context；Panorama 当前 Environment Context 为 none，只呈现黑色周围环境与视频投影球面 | 在同一 Open Cycle 内恢复原 Environment 与 Effect |
