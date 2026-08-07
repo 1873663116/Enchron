@@ -28,18 +28,15 @@ struct SMBDataSourceAdapterTests {
         #expect(SMBDataSourceAdapter.childPath(named: "Season 1", in: "/Media/") == "/Media/Season 1")
     }
 
-    @Test("SMB share selection keeps one host-scoped credential identity")
-    func credentialIdentitySurvivesShareSelection() throws {
+    @Test("SMB credentials are scoped to one server and account")
+    func credentialIdentityUsesServerAndAccount() throws {
         let host = try FileBrowsingDomain.ConnectionInfo.remote(
             sourceType: .smb,
             address: "192.168.1.20",
             username: "viewer"
         )
-        let selectedShare = host.withSMBShare("Media")
-
-        #expect(host.credentialSourceID == selectedShare.credentialSourceID)
         #expect(host.credentialSourceID == "smb:192.168.1.20:0:viewer")
-        #expect(selectedShare.rootPath == "/Media")
+        #expect(host.rootPath == "/")
 
         let otherAccount = try FileBrowsingDomain.ConnectionInfo.remote(
             sourceType: .smb,
@@ -51,10 +48,32 @@ struct SMBDataSourceAdapterTests {
         let dataSource = FileBrowsingDomain.DataSource(
             name: "Living Room NAS",
             sourceType: .smb,
-            connectionInfo: selectedShare
+            connectionInfo: host
         )
         let persistedRecord = String(decoding: try JSONEncoder().encode(dataSource), as: UTF8.self)
         #expect(!persistedRecord.localizedCaseInsensitiveContains("password"))
+    }
+
+    @Test("SMB accepts a server host name and treats its shares as root folders")
+    func serverRootAddressAndSharePaths() throws {
+        let server = try FileBrowsingDomain.ConnectionInfo.remote(
+            sourceType: .smb,
+            address: "smb://nas.local:445",
+            username: "viewer"
+        )
+        #expect(server.host == "nas.local")
+        #expect(server.port == 445)
+        #expect(server.rootPath == "/")
+        #expect(
+            SMBDataSourceAdapter.shareAndRelativePath(
+                for: "/Media/Movies/Feature.mkv"
+            )?.share == "Media"
+        )
+        #expect(
+            SMBDataSourceAdapter.shareAndRelativePath(
+                for: "/Media/Movies/Feature.mkv"
+            )?.relativePath == "/Movies/Feature.mkv"
+        )
     }
 
     @Test("SMB playback bridge serves only the requested byte range")

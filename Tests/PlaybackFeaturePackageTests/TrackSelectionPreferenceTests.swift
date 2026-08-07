@@ -5,6 +5,248 @@ import Testing
 
 @MainActor
 struct TrackSelectionPreferenceTests {
+    @Test("source facts and user overrides use one effective format resolver")
+    func sourceFactsAndOverridesUseOneEffectiveFormatResolver() {
+        let source = SourceMediaFormatFact(
+            contentKind: .halfEquirectangular,
+            projection: .equirectangular180,
+            stereoLayout: .multiview
+        )
+
+        let automatic = MediaFormatInterpretationResolver.resolve(
+            source: source,
+            override: nil
+        )
+        #expect(automatic.provenance == .source)
+        #expect(automatic.projection == .equirectangular180)
+        #expect(automatic.stereoLayout == .multiview)
+        #expect(automatic.isPanoramic)
+
+        let override = MediaFormatInterpretationResolver.resolve(
+            source: source,
+            override: .standard
+        )
+        #expect(override.provenance == .userOverride)
+        #expect(override.projection == .flat)
+        #expect(override.stereoLayout == .mono)
+        #expect(override.isPanoramic == false)
+    }
+
+    @Test("media without a saved interpretation keeps the source format")
+    func mediaWithoutSavedInterpretationKeepsSourceFormat() async throws {
+        let suiteName = "app.enchron.tests.source-format.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let runtime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+
+        coordinator.beginPlayback(Self.request(revision: "revision-a"))
+        try await runtime.waitUntilConfigured()
+
+        #expect(runtime.sourceFormatApplicationCount == 1)
+        #expect(runtime.formatApplicationCount == 0)
+    }
+
+    @Test("a saved format override is restored for the same media revision")
+    func savedFormatOverrideIsRestored() async throws {
+        let suiteName = "app.enchron.tests.saved-format.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let request = Self.request(revision: "revision-a")
+        let firstRuntime = TrackSelectionRuntime()
+        let firstCoordinator = Self.coordinator(runtime: firstRuntime, suiteName: suiteName)
+        firstCoordinator.beginPlayback(request)
+        try await firstRuntime.waitUntilConfigured()
+
+        try await firstCoordinator.applyFormat(
+            projection: .customAngle,
+            horizontalFieldOfViewDegrees: 230,
+            stereo: .sideBySide
+        )
+
+        let reopenedRuntime = TrackSelectionRuntime()
+        let reopenedCoordinator = Self.coordinator(runtime: reopenedRuntime, suiteName: suiteName)
+        reopenedCoordinator.beginPlayback(request)
+        try await reopenedRuntime.waitUntilConfigured()
+
+        #expect(reopenedRuntime.lastAppliedFormat?.projection == .customAngle)
+        #expect(reopenedRuntime.lastAppliedFormat?.horizontalFieldOfViewDegrees == 230)
+        #expect(reopenedRuntime.lastAppliedFormat?.stereoLayout == .sideBySide)
+    }
+
+    @Test("Automatic removes the saved override and it stays removed after reopening")
+    func automaticRemovesSavedOverride() async throws {
+        let suiteName = "app.enchron.tests.reset-format.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let request = Self.request(revision: "revision-a")
+        let firstRuntime = TrackSelectionRuntime()
+        let firstCoordinator = Self.coordinator(runtime: firstRuntime, suiteName: suiteName)
+        firstCoordinator.beginPlayback(request)
+        try await firstRuntime.waitUntilConfigured()
+        try await firstCoordinator.applyFormat(
+            projection: .equirectangular180,
+            stereo: .topBottom
+        )
+
+        try await firstCoordinator.resetFormat()
+
+        let reopenedRuntime = TrackSelectionRuntime()
+        let reopenedCoordinator = Self.coordinator(runtime: reopenedRuntime, suiteName: suiteName)
+        reopenedCoordinator.beginPlayback(request)
+        try await reopenedRuntime.waitUntilConfigured()
+        #expect(reopenedRuntime.sourceFormatApplicationCount == 1)
+        #expect(reopenedRuntime.formatApplicationCount == 0)
+    }
+
+    @Test("a failed core format operation does not change persistence")
+    func failedCoreFormatOperationDoesNotPersist() async throws {
+        let suiteName = "app.enchron.tests.failed-format.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let request = Self.request(revision: "revision-a")
+        let runtime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        coordinator.beginPlayback(request)
+        try await runtime.waitUntilConfigured()
+        runtime.nextFormatApplicationError = TrackSelectionRuntime.TestError.formatRejected
+
+        await #expect(throws: TrackSelectionRuntime.TestError.formatRejected) {
+            try await coordinator.applyFormat(
+                projection: .equirectangular360,
+                stereo: .mono
+            )
+        }
+
+        let reopenedRuntime = TrackSelectionRuntime()
+        let reopenedCoordinator = Self.coordinator(runtime: reopenedRuntime, suiteName: suiteName)
+        reopenedCoordinator.beginPlayback(request)
+        try await reopenedRuntime.waitUntilConfigured()
+        #expect(reopenedRuntime.sourceFormatApplicationCount == 1)
+        #expect(reopenedRuntime.formatApplicationCount == 0)
+    }
+
+    @Test("a newer format request supersedes an older request for the same session")
+    func newerFormatRequestSupersedesOlderRequest() async throws {
+        let suiteName = "app.enchron.tests.superseded-format.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let request = Self.request(revision: "revision-a")
+        let runtime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        coordinator.beginPlayback(request)
+        try await runtime.waitUntilConfigured()
+        runtime.suspendNextFormatApplication()
+
+        let olderRequest = Task { @MainActor in
+            try await coordinator.applyFormat(
+                projection: .equirectangular180,
+                stereo: .sideBySide
+            )
+        }
+        try await runtime.waitUntilFormatApplicationIsSuspended()
+        let newerRequest = Task { @MainActor in
+            try await coordinator.applyFormat(
+                projection: .equirectangular360,
+                stereo: .topBottom
+            )
+        }
+        await Task.yield()
+        runtime.resumeSuspendedFormatApplication()
+        try await olderRequest.value
+        try await newerRequest.value
+
+        let reopenedRuntime = TrackSelectionRuntime()
+        let reopenedCoordinator = Self.coordinator(runtime: reopenedRuntime, suiteName: suiteName)
+        reopenedCoordinator.beginPlayback(request)
+        try await reopenedRuntime.waitUntilConfigured()
+        #expect(reopenedRuntime.lastAppliedFormat?.projection == .equirectangular360)
+        #expect(reopenedRuntime.lastAppliedFormat?.stereoLayout == .topBottom)
+    }
+
+    @Test("switching media invalidates an unfinished format request without saving either identity")
+    func switchingMediaInvalidatesUnfinishedFormatRequest() async throws {
+        let suiteName = "app.enchron.tests.switched-format.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let firstRequest = Self.request(revision: "revision-a")
+        let secondRequest = Self.request(revision: "revision-b")
+        let runtime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        coordinator.beginPlayback(firstRequest)
+        try await runtime.waitUntilConfigured()
+        let firstSessionID = runtime.activeSessionID
+        runtime.suspendNextFormatApplication()
+
+        let staleFormatRequest = Task { @MainActor in
+            try await coordinator.applyFormat(
+                projection: .equirectangular180,
+                stereo: .sideBySide
+            )
+        }
+        try await runtime.waitUntilFormatApplicationIsSuspended()
+        coordinator.beginPlayback(secondRequest)
+        try await runtime.waitUntilCurrentMediaIs(secondRequest, replacing: firstSessionID)
+        runtime.resumeSuspendedFormatApplication()
+        try await staleFormatRequest.value
+        try await runtime.waitUntilConfigurationCountIs(3)
+
+        for request in [firstRequest, secondRequest] {
+            let reopenedRuntime = TrackSelectionRuntime()
+            let reopenedCoordinator = Self.coordinator(
+                runtime: reopenedRuntime,
+                suiteName: suiteName
+            )
+            reopenedCoordinator.beginPlayback(request)
+            try await reopenedRuntime.waitUntilConfigured()
+            #expect(reopenedRuntime.sourceFormatApplicationCount == 1)
+            #expect(reopenedRuntime.formatApplicationCount == 0)
+        }
+    }
+
+    @Test("Start Over begins at zero without deleting saved progress")
+    func startOverPreservesSavedProgress() async throws {
+        let suiteName = "app.enchron.tests.start-over.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let request = Self.request(revision: "revision-a")
+
+        let firstRuntime = TrackSelectionRuntime()
+        let firstCoordinator = Self.coordinator(runtime: firstRuntime, suiteName: suiteName)
+        firstCoordinator.beginPlayback(request)
+        try await firstRuntime.waitUntilOpened()
+        firstRuntime.playbackPosition = .init(seconds: 120, duration: 1_200)
+        firstRuntime.actualPlaybackSeconds = 20
+        firstCoordinator.stopPlayback()
+        let identity = request.versionedIdentity!.mediaIdentity
+        let persistedDeadline = ContinuousClock.now + .seconds(2)
+        while await firstCoordinator.viewingState(for: identity) == nil,
+              ContinuousClock.now < persistedDeadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+
+        let resumeRuntime = TrackSelectionRuntime()
+        let resumeCoordinator = PlaybackLaunchCoordinator(
+            playbackRuntime: resumeRuntime,
+            mediaStateSuiteName: suiteName,
+            preferencesProvider: AskToResumePreferences()
+        )
+        resumeCoordinator.beginPlayback(request)
+        let deadline = ContinuousClock.now + .seconds(2)
+        while resumeCoordinator.pendingResumeDecision == nil,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(resumeCoordinator.pendingResumeDecision?.seconds == 120)
+
+        resumeCoordinator.startPendingPlaybackFromBeginning()
+        try await resumeRuntime.waitUntilOpened()
+        #expect(resumeRuntime.lastStartTimeSeconds == 0)
+        #expect(resumeCoordinator.pendingResumeDecision == nil)
+
+        let state = await resumeCoordinator.viewingState(
+            for: identity
+        )
+        guard case .resumable(let seconds, _) = state else {
+            Issue.record("Start Over removed the saved resumable state")
+            return
+        }
+        #expect(seconds == 120)
+    }
+
     @Test("reopening unchanged media restores the selected audio track")
     func reopeningUnchangedMediaRestoresSelectedAudioTrack() async throws {
         let suiteName = "app.enchron.tests.track-selection.\(UUID().uuidString)"
@@ -330,14 +572,40 @@ private struct StartFromBeginningPreferences: PlaybackPreferencesProviding {
     }
 }
 
+private struct AskToResumePreferences: PlaybackPreferencesProviding {
+    func loadPlaybackPreferences() -> PlaybackPreferences {
+        PlaybackPreferences(resumePolicy: .askEveryTime)
+    }
+}
+
 @MainActor
 private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
+    enum TestError: Error {
+        case formatRejected
+    }
+
     var productLifecycle: ProductPlaybackLifecycle = .idle
     var playbackPosition = PlaybackModel.PlaybackPosition(seconds: 0, duration: 600)
     var currentLaunchRequest: PlaybackLaunchRequest?
     var prefetchedMetadata: PlaybackMediaMetadata?
     var displayMediaProfile: PlaybackModel.MediaProfile?
     var displayFileSizeInBytes: Int64?
+    var activeMediaFormatProvenance: MediaFormatProvenance = .source
+    var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation {
+        MediaFormatInterpretationResolver.resolve(
+            source: SourceMediaFormatFact(
+                contentKind: sourceVideoContentKind,
+                projection: effectiveContentIsPanoramic ? .equirectangular180 : .flat,
+                stereoLayout: .mono
+            ),
+            override: activeMediaFormatProvenance == .source ? nil : .standard
+        )
+    }
+    var sourceVideoContentKind: PlaybackModel.SourceVideoContentKind = .rectilinear
+    var sourceMediaFormatSummary = "Flat · Mono"
+    var effectiveContentIsPanoramic = false
+    var effectiveVideoFormatRevision: UInt64?
+    var requestsSpatialVideoMode = false
     var activeSessionID: String?
     var actualPlaybackSeconds: Double = 0
     var didEndNaturally = false
@@ -348,7 +616,13 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     let availableSubtitleTracks: [PlaybackModel.SubtitleTrack]
     private(set) var currentSubtitleTrackID: String?
     private var openCount = 0
-    private var formatApplicationCount = 0
+    private(set) var lastStartTimeSeconds: Double?
+    private(set) var formatApplicationCount = 0
+    private(set) var sourceFormatApplicationCount = 0
+    private(set) var lastAppliedFormat: MediaFormat?
+    var nextFormatApplicationError: TestError?
+    private var suspendsNextFormatApplication = false
+    private var suspendedFormatApplicationContinuation: CheckedContinuation<Void, Never>?
 
     init(
         audioTracks: [PlaybackModel.AudioTrack] = [],
@@ -363,6 +637,8 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     func prepareForPlayback(_ request: PlaybackLaunchRequest) {
         currentLaunchRequest = request
         productLifecycle = .loading
+        activeMediaFormatProvenance = .source
+        lastAppliedFormat = nil
     }
 
     func applyPrefetchedMetadata(_ metadata: PlaybackMediaMetadata) {
@@ -377,14 +653,38 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         currentLaunchRequest = request
         activeSessionID = UUID().uuidString
         productLifecycle = .ready
+        lastStartTimeSeconds = startTimeSeconds
         openCount += 1
     }
 
     func setFormat(
         projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int?,
         stereo: PlaybackModel.StereoLayout
     ) async throws {
         formatApplicationCount += 1
+        if suspendsNextFormatApplication {
+            suspendsNextFormatApplication = false
+            await withCheckedContinuation { continuation in
+                suspendedFormatApplicationContinuation = continuation
+            }
+        }
+        if let error = nextFormatApplicationError {
+            nextFormatApplicationError = nil
+            throw error
+        }
+        lastAppliedFormat = MediaFormat(
+            projection: Self.mediaProjection(from: projection),
+            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
+            stereoLayout: Self.mediaStereoLayout(from: stereo)
+        )
+        activeMediaFormatProvenance = .userOverride
+    }
+
+    func useSourceFormat() async throws {
+        sourceFormatApplicationCount += 1
+        lastAppliedFormat = nil
+        activeMediaFormatProvenance = .source
     }
 
     func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws {
@@ -419,11 +719,52 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
 
     func waitUntilConfigured() async throws {
         let deadline = ContinuousClock.now + .seconds(2)
-        while formatApplicationCount == 0, ContinuousClock.now < deadline {
+        while formatApplicationCount + sourceFormatApplicationCount == 0,
+              ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
         }
         #expect(openCount == 1)
-        #expect(formatApplicationCount == 1)
+        #expect(formatApplicationCount + sourceFormatApplicationCount == 1)
+    }
+
+    func waitUntilCurrentMediaIs(
+        _ request: PlaybackLaunchRequest,
+        replacing previousSessionID: String?
+    ) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while currentLaunchRequest != request || activeSessionID == previousSessionID,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(currentLaunchRequest == request)
+        #expect(activeSessionID != previousSessionID)
+    }
+
+    func waitUntilConfigurationCountIs(_ expectedCount: Int) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while formatApplicationCount + sourceFormatApplicationCount < expectedCount,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(formatApplicationCount + sourceFormatApplicationCount == expectedCount)
+    }
+
+    func suspendNextFormatApplication() {
+        suspendsNextFormatApplication = true
+    }
+
+    func waitUntilFormatApplicationIsSuspended() async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while suspendedFormatApplicationContinuation == nil,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(suspendedFormatApplicationContinuation != nil)
+    }
+
+    func resumeSuspendedFormatApplication() {
+        suspendedFormatApplicationContinuation?.resume()
+        suspendedFormatApplicationContinuation = nil
     }
 
     func waitForAudioTrack(id: String) async throws {
@@ -437,6 +778,27 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         let deadline = ContinuousClock.now + .seconds(2)
         while currentSubtitleTrackID != id, ContinuousClock.now < deadline {
             try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    private static func mediaProjection(
+        from projection: PlaybackModel.ProjectionType
+    ) -> MediaProjection {
+        switch projection {
+        case .flat: .flat
+        case .equirectangular180: .equirectangular180
+        case .equirectangular360: .equirectangular360
+        case .customAngle: .customAngle
+        }
+    }
+
+    private static func mediaStereoLayout(
+        from stereoLayout: PlaybackModel.StereoLayout
+    ) -> MediaStereoLayout {
+        switch stereoLayout {
+        case .mono, .multiview: .mono
+        case .sideBySide: .sideBySide
+        case .topBottom: .topBottom
         }
     }
 }

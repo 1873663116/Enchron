@@ -3,12 +3,13 @@
 set -euo pipefail
 
 repository_root=${0:A:h:h:h}
+source "$repository_root/Scripts/verification/enchron_artifact_paths.sh"
 xcode_app=${ENCHRON_XCODE_APP:-/Volumes/Cortisol/Applications/Xcode-beta3.app}
 developer_dir="$xcode_app/Contents/Developer"
 destination=${ENCHRON_VISION_TEST_DESTINATION:-}
-derived_data=${ENCHRON_DERIVED_DATA:-/private/tmp/EnchronVisionTestSuitesDerivedData}
-source_packages=${ENCHRON_SOURCE_PACKAGES:-/private/tmp/EnchronOrganicArchitectureSourcePackages}
-evidence_root=${ENCHRON_EVIDENCE_ROOT:-/private/tmp/enchron-validation-evidence/vision-test-suites}
+derived_data=${ENCHRON_DERIVED_DATA:-$artifact_root/DerivedData/VisionTestSuites}
+source_packages=${ENCHRON_SOURCE_PACKAGES:-$artifact_root/SourcePackages/VisionTestSuites}
+evidence_root=${ENCHRON_EVIDENCE_ROOT:-$artifact_root/TestEvidence/vision-test-suites-$(date +%Y%m%d-%H%M%S)}
 
 if [[ -z "$destination" ]]; then
     echo "Set ENCHRON_VISION_TEST_DESTINATION to an explicit physical Vision Pro destination, for example platform=visionOS,id=<device-id>." >&2

@@ -55,7 +55,6 @@ public struct SourceConnectionRequest: Sendable, Equatable {
     public let kind: SourceConnectionKind
     public let name: String
     public let address: String
-    public let share: String
     public let username: String
     public let password: String
     public let connectsAsGuest: Bool
@@ -64,7 +63,6 @@ public struct SourceConnectionRequest: Sendable, Equatable {
         kind: SourceConnectionKind,
         name: String,
         address: String,
-        share: String,
         username: String,
         password: String,
         connectsAsGuest: Bool
@@ -72,7 +70,6 @@ public struct SourceConnectionRequest: Sendable, Equatable {
         self.kind = kind
         self.name = name
         self.address = address
-        self.share = share
         self.username = username
         self.password = password
         self.connectsAsGuest = connectsAsGuest
@@ -160,7 +157,6 @@ public struct ConnectionFormPanel: View {
 
     @Binding private var name: String
     @Binding private var address: String
-    @Binding private var share: String
     @Binding private var username: String
     @Binding private var password: String
     @Binding private var connectsAsGuest: Bool
@@ -172,7 +168,6 @@ public struct ConnectionFormPanel: View {
         kind: SourceConnectionKind,
         name: Binding<String>,
         address: Binding<String>,
-        share: Binding<String>,
         username: Binding<String>,
         password: Binding<String>,
         connectsAsGuest: Binding<Bool>,
@@ -184,7 +179,6 @@ public struct ConnectionFormPanel: View {
         self.kind = kind
         _name = name
         _address = address
-        _share = share
         _username = username
         _password = password
         _connectsAsGuest = connectsAsGuest
@@ -221,9 +215,6 @@ public struct ConnectionFormPanel: View {
 
     private var inputsComplete: Bool {
         guard !trimmed(address).isEmpty else { return false }
-        if kind == .smb && trimmed(share).isEmpty {
-            return false
-        }
         return !showsCredentials || (!trimmed(username).isEmpty && !password.isEmpty)
     }
 
@@ -279,15 +270,6 @@ public struct ConnectionFormPanel: View {
                 text: $address,
                 accessibilityIdentifier: identifier("address")
             )
-
-            if kind == .smb {
-                ConnectionFormField(
-                    label: "Share",
-                    placeholder: "Share name",
-                    text: $share,
-                    accessibilityIdentifier: identifier("share")
-                )
-            }
 
             if showsCredentials {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
@@ -404,7 +386,6 @@ public struct ConnectionFormPanel: View {
             kind: kind,
             name: trimmed(name),
             address: trimmed(address),
-            share: trimmed(share),
             username: trimmed(username),
             password: password,
             connectsAsGuest: kind == .smb && connectsAsGuest

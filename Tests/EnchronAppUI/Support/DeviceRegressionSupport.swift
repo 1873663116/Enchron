@@ -167,18 +167,84 @@ extension XCTestCase {
         return app
     }
 
+    func selectDefaultScenicEnvironment(
+        named title: String,
+        currentTitle: String = "Scenic Environment 1",
+        in app: XCUIApplication
+    ) -> Bool {
+        let settingsTab = app.descendants(matching: .any)[
+            "Navigation-Ornament-tab-settings"
+        ].firstMatch
+        guard requireHittable(settingsTab, named: "Settings") else { return false }
+        settingsTab.tap()
+
+        let playbackCategory = app.descendants(matching: .any)[
+            "Settings-category-playback"
+        ].firstMatch
+        guard playbackCategory.waitForExistence(timeout: 10),
+              playbackCategory.isEnabled else {
+            XCTFail("Playback Settings category did not become available.")
+            return false
+        }
+        if playbackCategory.isSelected == false {
+            playbackCategory.tap()
+        }
+        guard app.descendants(matching: .any)[
+            "Settings-Playback-group"
+        ].firstMatch.waitForExistence(timeout: 10) else {
+            XCTFail("Playback Settings did not become visible.")
+            return false
+        }
+
+        // SwiftUI Menu can report isHittable=false on physical visionOS while
+        // still accepting its semantic XCTest tap. The observable contract is
+        // an enabled menu followed by an enabled public option and the changed
+        // setting title, so isHittable alone must not reject this system control.
+        let defaultEnvironmentMenu = app.buttons[currentTitle].firstMatch
+        guard defaultEnvironmentMenu.waitForExistence(timeout: 10),
+              defaultEnvironmentMenu.isEnabled else {
+            XCTFail("Default Scenic Environment menu did not become available.")
+            return false
+        }
+        defaultEnvironmentMenu.tap()
+
+        let option = app.buttons[title].firstMatch
+        guard option.waitForExistence(timeout: 10), option.isEnabled else {
+            XCTFail("Default Scenic Environment option \(title) did not appear.")
+            return false
+        }
+        option.tap()
+        guard app.buttons[title].firstMatch.waitForExistence(timeout: 10) else {
+            XCTFail("Default Scenic Environment did not update to \(title).")
+            return false
+        }
+        return true
+    }
+
     func waitForHittableRegisteredMediaCard(
         identifier: String,
         in app: XCUIApplication,
         timeout: TimeInterval
     ) -> XCUIElement? {
         let deadline = Date().addingTimeInterval(timeout)
-        let card = app.descendants(matching: .any)[identifier].firstMatch
+        let card = app.buttons.matching(identifier: identifier).firstMatch
 
         if card.waitForExistence(timeout: min(2, timeout)),
            card.isEnabled,
            card.isHittable {
             return card
+        }
+
+        if card.exists {
+            app.activate()
+            let reactivatedCard = app.buttons.matching(
+                identifier: identifier
+            ).firstMatch
+            if reactivatedCard.waitForExistence(timeout: min(2, timeout)),
+               reactivatedCard.isEnabled,
+               reactivatedCard.isHittable {
+                return reactivatedCard
+            }
         }
 
         guard let libraryScrollView = largestMediaLibraryScrollView(in: app) else {
@@ -229,13 +295,15 @@ extension XCTestCase {
         let baselineRendererInputs = baseline.uint64("rendererInputs") ?? 0
         let baselineSession = baseline.string("session")
         let baselineEpoch = baseline.uint64("streamEpoch")
+        let minimumObservationTime = ContinuousClock.now.advanced(by: .seconds(1))
         guard let continuous = waitForState(
             stateElement,
             timeout: timeout,
             file: file,
             line: line,
             where: {
-                $0.string("lifecycle")?.lowercased() == "playing"
+                ContinuousClock.now >= minimumObservationTime
+                    && $0.string("lifecycle")?.lowercased() == "playing"
                     && ($0.double("position") ?? 0) >= baselinePosition + 0.25
                     && ($0.uint64("videoSamples") ?? 0) > baselineVideoSamples
                     && ($0.uint64("rendererInputs") ?? 0) > baselineRendererInputs
@@ -296,46 +364,6 @@ extension XCTestCase {
             file: file,
             line: line
         )
-    }
-
-    func seekProgress(
-        to normalizedPosition: CGFloat,
-        in app: XCUIApplication,
-        stateElement: XCUIElement,
-        afterEpoch: UInt64,
-        name: String,
-        accepting additionalCondition: (RegressionStateSnapshot) -> Bool = { snapshot in
-            snapshot.string("lifecycle")?.lowercased() != "failed"
-                && (snapshot.double("position") ?? .greatestFiniteMagnitude) <= 0.5
-        }
-    ) -> RegressionStateSnapshot? {
-        let progress = app.descendants(matching: .any)["PlayerPanel-progress"].firstMatch
-        let thumb = app.descendants(matching: .any)["PlayerPanel-thumb"].firstMatch
-        guard requireHittable(progress, named: "Playback progress"),
-              requireHittable(thumb, named: "Playback progress thumb") else { return nil }
-
-        let start = thumb.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)
-        )
-        let end = progress.coordinate(
-            withNormalizedOffset: CGVector(
-                dx: min(max(normalizedPosition, 0), 1),
-                dy: 0.5
-            )
-        )
-        start.press(forDuration: 0.35, thenDragTo: end)
-
-        guard let snapshot = waitForState(stateElement, timeout: 15, where: {
-            ($0.uint64("streamEpoch") ?? 0) > afterEpoch
-                && additionalCondition($0)
-        }) else {
-            attachCurrentState(of: stateElement, name: "\(name)-state-at-failure")
-            attachScreenshot(from: app, name: "\(name)-failure")
-            return nil
-        }
-        attachState(snapshot, name: "\(name)-state")
-        attachScreenshot(from: app, name: name)
-        return snapshot
     }
 
     func attachHumanReviewBoundary(_ description: String, name: String) {
@@ -460,9 +488,6 @@ extension XCTestCase {
         ].firstMatch
         if dock.exists, format.exists { return true }
 
-        let resumePanorama = app.descendants(matching: .any)[
-            "PlayerUI-TopAction-resumePanorama"
-        ].firstMatch
         let applicationState = app.descendants(matching: .any)[
             "PlayerUI-application-state"
         ].firstMatch
@@ -474,14 +499,9 @@ extension XCTestCase {
             "PlayerPanel-button-settings"
         ].firstMatch
         let readinessDeadline = Date().addingTimeInterval(timeout)
-        var panoramaIsAlreadyActive = false
         while Date() < readinessDeadline {
             if dock.exists, format.exists { return true }
-            if spatialState.exists, settings.exists {
-                panoramaIsAlreadyActive = true
-                break
-            }
-            if resumePanorama.exists { break }
+            if settings.exists { break }
             if loadFailure.exists {
                 attachCurrentState(
                     of: applicationState,
@@ -501,80 +521,39 @@ extension XCTestCase {
             Thread.sleep(forTimeInterval: 0.1)
         }
 
-        var lifecycleBeforeReentry: UInt64?
-        if panoramaIsAlreadyActive == false {
-            lifecycleBeforeReentry = (applicationState.value as? String).flatMap {
-                RegressionStateSnapshot(rawValue: $0).uint64(
-                    "immersiveSpaceLifecycleRevision"
-                )
-            }
-            guard lifecycleBeforeReentry != nil,
-                  requireHittable(
-                    resumePanorama,
-                    named: "Return to Panorama before restoring Flat video format"
-                  ) else {
-                attachCurrentState(
-                    of: applicationState,
-                    name: "immersive-space-lifecycle-before-panorama-reentry-failure"
-                )
-                attachCurrentState(
-                    of: spatialState,
-                    name: "panorama-state-before-format-restoration-failure"
-                )
-                attachScreenshot(
-                    from: app,
-                    name: "flat-format-restoration-entry-failure"
-                )
-                return false
-            }
-            resumePanorama.tap()
-        }
-
-        guard waitForState(
-            in: app,
-            identifier: "PlayerUI-spatial-state",
-            timeout: timeout,
-            where: { snapshot in
-                snapshot.string("presentation") == "panorama"
-                    && snapshot.string("attached") == "panorama"
-                    && snapshot.string("immersiveSpaceResidency") == "open"
-                    && (lifecycleBeforeReentry.map { minimumRevision in
-                        (snapshot.uint64("immersiveSpaceLifecycleRevision") ?? 0)
-                            > minimumRevision
-                    } ?? true)
-                    && snapshot.bool("surfaceSettled") == true
-                    && snapshot.bool("surfaceRenderingReady") == true
-                    && snapshot.hasRecognizedPanoramaContentType()
-            }
-        ) != nil else {
+        if settings.exists == false {
             attachCurrentState(
                 of: applicationState,
-                name: "panorama-format-restoration-application-state-at-failure"
+                name: "window-format-restoration-application-state-at-failure"
             )
             attachCurrentState(
                 of: spatialState,
-                name: "panorama-format-restoration-spatial-state-at-failure"
+                name: "window-format-restoration-spatial-state-at-failure"
             )
             attachScreenshot(
                 from: app,
-                name: "panorama-format-restoration-failure"
+                name: "window-format-restoration-controls-unavailable"
+            )
+            XCTFail(
+                "Playback controls did not reach either the Window or panoramic control surface."
             )
             return false
         }
+
         guard requireHittable(
             settings,
             named: "Advanced Settings for restoring Flat video format"
         ) else { return false }
         settings.tap()
 
-        let reset = app.buttons[
-            "PlayerPanel-Advanced-ResetFormat"
+        let windowFormat = app.descendants(matching: .any)[
+            "PlayerPanel-Advanced-ReturnToMonoWindow"
         ].firstMatch
         guard requireHittable(
-            reset,
-            named: "Reset to Flat and Mono"
+            windowFormat,
+            named: "Window video format"
         ) else { return false }
-        reset.tap()
+        windowFormat.tap()
 
         let windowState = app.descendants(matching: .any)[
             "PlayerUI-window-control-plane"
@@ -614,9 +593,46 @@ extension XCTestCase {
         let exists = element.waitForExistence(timeout: timeout)
         XCTAssertTrue(exists, "\(name) did not appear.", file: file, line: line)
         guard exists else { return false }
+        if element.isEnabled == false || element.isHittable == false {
+            let attachment = XCTAttachment(
+                string: """
+                name=\(name)
+                exists=\(exists)
+                enabled=\(element.isEnabled)
+                hittable=\(element.isHittable)
+                frame=\(element.frame)
+
+                \(element.debugDescription)
+                """
+            )
+            attachment.name = "\(name)-accessibility-hit-diagnostic"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
         XCTAssertTrue(element.isEnabled, "\(name) is disabled.", file: file, line: line)
         XCTAssertTrue(element.isHittable, "\(name) is not hittable.", file: file, line: line)
         return element.isEnabled && element.isHittable
+    }
+
+    func firstHittableElement(
+        matching identifier: String,
+        in query: XCUIElementQuery,
+        timeout: TimeInterval
+    ) -> XCUIElement? {
+        let deadline = Date().addingTimeInterval(timeout)
+        let matches = query.matching(identifier: identifier)
+        while Date() < deadline {
+            for index in 0..<matches.count {
+                let candidate = matches.element(boundBy: index)
+                if candidate.exists,
+                   candidate.isEnabled,
+                   candidate.isHittable {
+                    return candidate
+                }
+            }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        return nil
     }
 
     func waitForState(

@@ -10,6 +10,8 @@ struct PlayerInfoBarView: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var launcher
 
+    var onSecondaryMenuVisibilityChange: ((Bool) -> Void)?
+
     var body: some View {
         WindowPlaybackTopChrome {
             GlassCircleIconButton.back(
@@ -27,18 +29,25 @@ struct PlayerInfoBarView: View {
                 canDock: playbackRuntime.canEnterSpatialPresentation
                     && PlaybackPresentationAvailability.canDock(
                         in: appModel.playbackPresentation,
-                        isPanoramic: playbackRuntime.effectiveProjectionType.isPanoramic
+                        isPanoramic: playbackRuntime.effectiveContentIsPanoramic
                     ),
                 canApplyFormat: playbackRuntime.canEnterSpatialPresentation,
-                canUseFisheye: playbackRuntime.supportsFisheyePresentation,
                 resumesPanorama: PlaybackPresentationAvailability.windowShowsPanoramaResume(
                     in: appModel.playbackPresentation,
-                    isPanoramic: playbackRuntime.effectiveProjectionType.isPanoramic
+                    isPanoramic: playbackRuntime.effectiveContentIsPanoramic
                 ),
+                mediaFormatProvenance: playbackRuntime.activeMediaFormatProvenance,
+                sourceMediaFormatSummary: playbackRuntime.sourceMediaFormatSummary,
+                projection: playbackRuntime.effectiveProjectionType,
+                horizontalFieldOfViewDegrees:
+                    playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
+                stereoLayout: playbackRuntime.effectiveStereoLayout,
                 defaultScenicEnvironment: appModel.defaultScenicEnvironment,
                 onDock: dock,
                 onApplyFormat: applyFormat,
-                onResumePanorama: resumePanorama
+                onRestoreAutomaticFormat: restoreAutomaticFormat,
+                onResumePanorama: resumePanorama,
+                onSecondaryMenuVisibilityChange: onSecondaryMenuVisibilityChange
             )
         } moreControl: {
             ProductionPlaybackMoreMenu()
@@ -48,12 +57,16 @@ struct PlayerInfoBarView: View {
     private func resumePanorama() {
         appModel.registerControlsInteraction()
         guard playbackRuntime.canEnterSpatialPresentation,
-              playbackRuntime.effectiveProjectionType.isPanoramic else { return }
-        _ = try? appModel.requestPlaybackPresentation(
-            .panorama,
-            mediaSessionID: playbackRuntime.activeSessionID,
-            wasPlaying: playbackRuntime.productLifecycle == .playing
-        )
+              playbackRuntime.effectiveContentIsPanoramic else { return }
+        do {
+            _ = try appModel.requestPlaybackPresentation(
+                .panorama,
+                mediaSessionID: playbackRuntime.activeSessionID,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
+        } catch {
+            playbackRuntime.lastErrorMessage = error.localizedDescription
+        }
     }
 
     private var initialPresentedMenu: PlaybackTopSecondaryMenu? {
@@ -83,19 +96,28 @@ struct PlayerInfoBarView: View {
 
     private func applyFormat(
         _ projection: PlaybackModel.ProjectionType,
+        _ horizontalFieldOfViewDegrees: Int?,
         _ stereo: PlaybackModel.StereoLayout
     ) {
         guard playbackRuntime.canEnterSpatialPresentation else { return }
         Task {
             do {
-                try await launcher.applyFormat(projection: projection, stereo: stereo)
-                if projection != .flat {
-                    _ = try appModel.requestPlaybackPresentation(
-                        .panorama,
-                        mediaSessionID: playbackRuntime.activeSessionID,
-                        wasPlaying: playbackRuntime.productLifecycle == .playing
-                    )
-                }
+                try await launcher.applyFormat(
+                    projection: projection,
+                    horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
+                    stereo: stereo
+                )
+            } catch {
+                playbackRuntime.lastErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func restoreAutomaticFormat() {
+        guard playbackRuntime.canEnterSpatialPresentation else { return }
+        Task {
+            do {
+                try await launcher.resetFormat()
             } catch {
                 playbackRuntime.lastErrorMessage = error.localizedDescription
             }

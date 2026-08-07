@@ -7,12 +7,12 @@ import PlaybackFFmpegBridge
 private struct DolbyVisionCompressedProbe {
     static func run() async {
         let fixtures = CommandLine.arguments.dropFirst().compactMap(Fixture.init(argument:))
-        let renderContext = RenderContext()
         var results = [[String: Any]]()
         var failed = false
 
         for fixture in fixtures {
             do {
+                let renderContext = RenderContext()
                 results.append(try await probe(fixture, renderContext: renderContext))
             } catch {
                 failed = true
@@ -51,13 +51,14 @@ private struct DolbyVisionCompressedProbe {
         while ContinuousClock.now < deadline {
             if let displayed = renderer.displayedPixelBuffer() {
                 guard let summary = formatSummary else { throw ProbeError.missingFormatDescription }
-                try fixture.validate(summary)
+                try fixture.validate(summary, isMVHEVC: reader.isMVHEVC)
                 synchronizer.rate = 0
                 let result = probeResult(
                     fixture: fixture,
                     summary: summary,
                     enqueuedSamples: enqueuedSamples,
                     decodeFailures: decodeFailures,
+                    isMVHEVC: reader.isMVHEVC,
                     displayed: displayed
                 )
                 await receiver.flush(removingDisplayedImage: true)
@@ -69,13 +70,14 @@ private struct DolbyVisionCompressedProbe {
                         guard let summary = formatSummary else {
                             throw ProbeError.missingFormatDescription
                         }
-                        try fixture.validate(summary)
+                        try fixture.validate(summary, isMVHEVC: reader.isMVHEVC)
                         synchronizer.rate = 0
                         let result = probeResult(
                             fixture: fixture,
                             summary: summary,
                             enqueuedSamples: enqueuedSamples,
                             decodeFailures: decodeFailures,
+                            isMVHEVC: reader.isMVHEVC,
                             displayed: displayed
                         )
                         await receiver.flush(removingDisplayedImage: true)
@@ -187,6 +189,7 @@ private struct DolbyVisionCompressedProbe {
         summary: FormatSummary,
         enqueuedSamples: Int,
         decodeFailures: [String],
+        isMVHEVC: Bool,
         displayed: CVPixelBuffer
     ) -> [String: Any] {
         [
@@ -198,6 +201,7 @@ private struct DolbyVisionCompressedProbe {
             "dvcC": summary.dvcC,
             "dvvC": summary.dvvC,
             "amve": summary.amve,
+            "mvHEVC": isMVHEVC,
             "enqueuedSamples": enqueuedSamples,
             "decodeFailures": decodeFailures,
             "displayedPixelFormat": fourCC(CVPixelBufferGetPixelFormatType(displayed)),
@@ -253,6 +257,8 @@ private struct DolbyVisionCompressedProbe {
 
 private final class FFmpegCompressedReader {
     private let reader: OpaquePointer
+
+    var isMVHEVC: Bool { PBFFmpegReaderIsMVHEVC(reader) }
 
     init(url: URL) throws {
         var error = [CChar](repeating: 0, count: 512)
@@ -329,12 +335,17 @@ private struct Fixture {
     init?(argument: String) {
         guard let separator = argument.firstIndex(of: "=") else { return nil }
         let profile = String(argument[..<separator])
-        guard ["5", "8.1", "8.4"].contains(profile) else { return nil }
+        guard [
+            "5", "8.1", "8.4", "10.0", "10.1", "10.4", "20",
+            "prores-422", "prores-4444-xq", "mv-hevc",
+        ].contains(profile) else {
+            return nil
+        }
         self.profile = profile
         self.url = URL(fileURLWithPath: String(argument[argument.index(after: separator)...]))
     }
 
-    func validate(_ summary: FormatSummary) throws {
+    func validate(_ summary: FormatSummary, isMVHEVC: Bool) throws {
         switch profile {
         case "5":
             guard summary.mediaSubtype == "dvh1", summary.dvcC else {
@@ -342,6 +353,26 @@ private struct Fixture {
             }
         case "8.1", "8.4":
             guard summary.mediaSubtype == "hvc1", summary.dvvC else {
+                throw ProbeError.invalidCompressedContract(profile)
+            }
+        case "10.0", "10.1", "10.4":
+            guard summary.mediaSubtype == "av01", summary.dvvC else {
+                throw ProbeError.invalidCompressedContract(profile)
+            }
+        case "20":
+            guard summary.mediaSubtype == "dvh1", summary.dvcC, isMVHEVC else {
+                throw ProbeError.invalidCompressedContract(profile)
+            }
+        case "prores-422":
+            guard summary.mediaSubtype == "apcn" else {
+                throw ProbeError.invalidCompressedContract(profile)
+            }
+        case "prores-4444-xq":
+            guard summary.mediaSubtype == "ap4x" else {
+                throw ProbeError.invalidCompressedContract(profile)
+            }
+        case "mv-hevc":
+            guard summary.mediaSubtype == "hvc1", isMVHEVC else {
                 throw ProbeError.invalidCompressedContract(profile)
             }
         default:
@@ -380,7 +411,7 @@ private enum ProbeError: LocalizedError {
         case .reachedEndBeforeDisplay: "The source ended before a displayed pixel buffer appeared."
         case .timedOut: "No displayed pixel buffer appeared within 20 seconds."
         case .invalidCompressedContract(let profile):
-            "Dolby Vision Profile \(profile) did not preserve its storage-format sample contract."
+            "\(profile) did not preserve its compressed storage-format contract."
         }
     }
 }

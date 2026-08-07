@@ -41,6 +41,44 @@ struct MediaLibraryTests {
         #expect(library.references(in: series.id).isEmpty)
     }
 
+    @Test("moving and removing multiple references changes only the selected virtual entries")
+    func moveAndRemoveMultipleReferences() throws {
+        var library = FileBrowsingDomain.MediaLibrary()
+        let inbox = try library.createFolder(named: "Inbox")
+        let queue = try library.createFolder(named: "Queue")
+        let first = FileBrowsingDomain.MediaReference(
+            name: "First.mov",
+            locator: .file(bookmark: Data([0x01]), relativePath: "First.mov")
+        )
+        let second = FileBrowsingDomain.MediaReference(
+            name: "Second.mov",
+            locator: .photoAsset(localIdentifier: "second-asset")
+        )
+        let unselectedSourceID = UUID()
+        let unselected = FileBrowsingDomain.MediaReference(
+            name: "Keep.mov",
+            locator: .sourceItem(dataSourceID: unselectedSourceID, path: "/Keep.mov")
+        )
+        try library.add(first, to: inbox.id)
+        try library.add(second, to: inbox.id)
+        try library.add(unselected, to: inbox.id)
+
+        try library.moveReferences([first.id, second.id], to: queue.id)
+
+        #expect(Set(library.references(in: queue.id).map(\.id)) == [first.id, second.id])
+        #expect(library.references(in: queue.id).map(\.locator) == [first.locator, second.locator])
+        #expect(library.references(in: inbox.id) == [unselected])
+
+        library.removeReferences([first.id, second.id])
+
+        #expect(library.references(in: queue.id).isEmpty)
+        #expect(library.references(in: inbox.id) == [unselected])
+        #expect(
+            unselected.locator
+                == .sourceItem(dataSourceID: unselectedSourceID, path: "/Keep.mov")
+        )
+    }
+
     @Test("renaming and deleting folders only changes virtual classification")
     func renameAndDeleteFolder() throws {
         var library = FileBrowsingDomain.MediaLibrary()

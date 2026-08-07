@@ -8,6 +8,7 @@ public enum PlaybackOperationKind: String, Codable, Sendable {
     case setRate
     case setStereoLayout
     case setProjection
+    case setFormatOverrides
     case seek
     case close
 }
@@ -45,6 +46,11 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
     case operationSetProjectionFailed = "operation.setProjection.failed"
     case operationSetProjectionTerminatedByCleanup =
         "operation.setProjection.terminatedByCleanup"
+    case operationSetFormatOverridesStarted = "operation.setFormatOverrides.started"
+    case operationSetFormatOverridesCompleted = "operation.setFormatOverrides.completed"
+    case operationSetFormatOverridesFailed = "operation.setFormatOverrides.failed"
+    case operationSetFormatOverridesTerminatedByCleanup =
+        "operation.setFormatOverrides.terminatedByCleanup"
     case operationSeekStarted = "operation.seek.started"
     case operationSeekCompleted = "operation.seek.completed"
     case operationSeekFailed = "operation.seek.failed"
@@ -59,6 +65,7 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
     case controlSetRateRejected = "control.setRate.rejected"
     case controlSetStereoLayoutRejected = "control.setStereoLayout.rejected"
     case controlSetProjectionRejected = "control.setProjection.rejected"
+    case controlSetFormatOverridesRejected = "control.setFormatOverrides.rejected"
     case controlSeekRejected = "control.seek.rejected"
     case controlCloseRejected = "control.close.rejected"
     case providerFormatChanged = "provider.formatChanged"
@@ -77,6 +84,7 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
         case .setRate: .operationSetRateStarted
         case .setStereoLayout: .operationSetStereoLayoutStarted
         case .setProjection: .operationSetProjectionStarted
+        case .setFormatOverrides: .operationSetFormatOverridesStarted
         case .seek: .operationSeekStarted
         case .close: .operationCloseStarted
         }
@@ -110,6 +118,10 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
         case (.setProjection, .failed): .operationSetProjectionFailed
         case (.setProjection, .terminatedByCleanup):
             .operationSetProjectionTerminatedByCleanup
+        case (.setFormatOverrides, .completed): .operationSetFormatOverridesCompleted
+        case (.setFormatOverrides, .failed): .operationSetFormatOverridesFailed
+        case (.setFormatOverrides, .terminatedByCleanup):
+            .operationSetFormatOverridesTerminatedByCleanup
         case (.seek, .completed): .operationSeekCompleted
         case (.seek, .failed): .operationSeekFailed
         case (.seek, .terminatedByCleanup): .operationSeekTerminatedByCleanup
@@ -128,6 +140,7 @@ enum PlaybackArtifactEventName: String, CaseIterable, Sendable {
         case .setRate: .controlSetRateRejected
         case .setStereoLayout: .controlSetStereoLayoutRejected
         case .setProjection: .controlSetProjectionRejected
+        case .setFormatOverrides: .controlSetFormatOverridesRejected
         case .seek: .controlSeekRejected
         case .close: .controlCloseRejected
         }
@@ -411,6 +424,7 @@ public struct ProviderOpenSnapshot: Codable, Equatable, Sendable {
     public var codecTag: String
     public var codecProfile: ObservedStringFact
     public var codecLevel: ObservedStringFact
+    public var isMVHEVC: Bool?
     public var dimensions: String
     public var nominalFrameRate: Double
     public var timebase: ObservedStringFact
@@ -433,6 +447,7 @@ public struct ProviderOpenSnapshot: Codable, Equatable, Sendable {
         codecTag: String = "unknown",
         codecProfile: ObservedStringFact = .init(.notExposed),
         codecLevel: ObservedStringFact = .init(.notExposed),
+        isMVHEVC: Bool? = nil,
         dimensions: String = "unknown",
         nominalFrameRate: Double = 0,
         timebase: ObservedStringFact = .init(.notExposed),
@@ -454,6 +469,7 @@ public struct ProviderOpenSnapshot: Codable, Equatable, Sendable {
         self.codecTag = codecTag
         self.codecProfile = codecProfile
         self.codecLevel = codecLevel
+        self.isMVHEVC = isMVHEVC
         self.dimensions = dimensions
         self.nominalFrameRate = nominalFrameRate
         self.timebase = timebase

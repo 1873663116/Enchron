@@ -18,6 +18,13 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var prefetchedMetadata: PlaybackMediaMetadata? { get }
     var displayMediaProfile: PlaybackModel.MediaProfile? { get }
     var displayFileSizeInBytes: Int64? { get }
+    var activeMediaFormatProvenance: MediaFormatProvenance { get }
+    var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation { get }
+    var sourceVideoContentKind: PlaybackModel.SourceVideoContentKind { get }
+    var sourceMediaFormatSummary: String { get }
+    var effectiveContentIsPanoramic: Bool { get }
+    var effectiveVideoFormatRevision: UInt64? { get }
+    var requestsSpatialVideoMode: Bool { get }
     var activeSessionID: String? { get }
     var actualPlaybackSeconds: Double { get }
     var didEndNaturally: Bool { get }
@@ -37,12 +44,27 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     ) async throws
     func setFormat(
         projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int?,
         stereo: PlaybackModel.StereoLayout
     ) async throws
+    func useSourceFormat() async throws
     func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws
     func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws
     func setSpeed(_ speed: PlaybackModel.PlaybackSpeed)
     func replay()
     func stop(releasingSourceAccess: Bool)
     func stopAndWait(releasingSourceAccess: Bool) async
+}
+
+public extension PlaybackRuntimeControlling {
+    func setFormat(
+        projection: PlaybackModel.ProjectionType,
+        stereo: PlaybackModel.StereoLayout
+    ) async throws {
+        try await setFormat(
+            projection: projection,
+            horizontalFieldOfViewDegrees: nil,
+            stereo: stereo
+        )
+    }
 }

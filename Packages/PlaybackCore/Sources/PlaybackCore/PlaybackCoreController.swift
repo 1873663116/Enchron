@@ -29,6 +29,7 @@ public final class PlaybackCoreController {
 
     public var onStatusChange: ((PlaybackStatus) -> Void)?
     public var onDiagnosticsChange: ((PlaybackDiagnostics) -> Void)?
+    public var onAcceptedVideoFormatRevisionChange: ((UInt64) -> Void)?
     public var onSessionChange: ((SampleBufferPlaybackSession?) -> Void)?
     public var onSubtitleCuesChange: (([PlaybackSubtitleCue]) -> Void)?
     public var onSubtitleFrameChange: ((PlaybackSubtitleFrame?) -> Void)?
@@ -47,14 +48,14 @@ public final class PlaybackCoreController {
     private let sessionFactory: (String) -> SampleBufferPlaybackSession
     private var activeSeekTask: Task<Void, Error>?
     private var activeSubtitleSelectionTask: Task<Void, Error>?
-    private var activeStereoTask: Task<UInt64, Error>?
+    private var activeFormatOverrideTask: Task<UInt64, Error>?
     private var failedCleanupTask: Task<Void, Never>?
     private var pendingCleanupMediaSessionID: String?
     private var pendingCleanupWaiters: [CheckedContinuation<Void, Never>] = []
     private var latestRequestedSeekTime: CMTime?
     private var seekGeneration: UInt64 = 0
     private var subtitleSelectionGeneration: UInt64 = 0
-    private var stereoGeneration: UInt64 = 0
+    private var formatOverrideGeneration: UInt64 = 0
 
     public init() {
         sessionFactory = { sessionID in
@@ -261,27 +262,12 @@ public final class PlaybackCoreController {
         activeSession.allowVideoSampleDeliveryRestart()
         do {
             try await seek(to: time, after: behavior)
-            if self.activeSession === activeSession {
-                activeSession.releaseRetiredRendererGraphs()
-            }
         } catch {
             if self.activeSession === activeSession {
                 activeSession.startVideoDelivery()
             }
             throw error
         }
-    }
-
-    /// Rebuilds delivery for a presentation target while making the paused
-    /// transport state explicit. Presentation changes never restore a prior
-    /// playing intent; only a later Play command may advance the new graph.
-    public func restartVideoSampleDeliveryForPresentationTransfer(
-        at time: CMTime,
-    ) async throws {
-        if status == .playing {
-            try pause()
-        }
-        try await restartVideoSampleDelivery(at: time, after: .pause)
     }
 
     /// Applies an explicit Play command, then proves that the current renderer
@@ -314,15 +300,6 @@ public final class PlaybackCoreController {
         )
     }
 
-    public func replaceRendererGraphForPresentation() async throws -> AVSampleBufferVideoRenderer {
-        guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
-        let replacement = try await activeSession.replaceRendererGraphForPresentation()
-        guard self.activeSession === activeSession else {
-            throw PlaybackControlError.openTerminatedByCleanup
-        }
-        return replacement
-    }
-
     @discardableResult
     public func setStereoLayout(_ layout: VideoStereoLayout) async throws -> UInt64 {
         try await updateStereoLayout(layout)
@@ -343,6 +320,48 @@ public final class PlaybackCoreController {
         try await updateProjectionOverride(nil)
     }
 
+    /// Applies projection and stereo interpretation at one renderer-input revision.
+    @discardableResult
+    public func setFormatOverrides(
+        stereoLayout: VideoStereoLayout?,
+        projection: VideoProjectionOverride?
+    ) async throws -> UInt64 {
+        guard let session = activeSession else {
+            throw PlaybackControlError.noActiveMediaSession
+        }
+        try rejectIfSeekIsInProgress()
+        if activeFormatOverrideTask != nil {
+            throw PlaybackControlError.operationInProgress(.setFormatOverrides)
+        }
+        formatOverrideGeneration &+= 1
+        let generation = formatOverrideGeneration
+        let task = Task {
+            try await session.setFormatOverrides(
+                stereoLayout: stereoLayout,
+                projection: projection
+            )
+        }
+        activeFormatOverrideTask = task
+        do {
+            let revision = try await task.value
+            guard formatOverrideGeneration == generation else {
+                throw PlaybackControlError.openTerminatedByCleanup
+            }
+            activeFormatOverrideTask = nil
+            guard activeSession === session else {
+                throw PlaybackControlError.openTerminatedByCleanup
+            }
+            selectedStereoLayout = stereoLayout
+            selectedProjectionOverride = projection
+            return revision
+        } catch {
+            if formatOverrideGeneration == generation {
+                activeFormatOverrideTask = nil
+            }
+            throw error
+        }
+    }
+
     private func updateProjectionOverride(
         _ projection: VideoProjectionOverride?
     ) async throws -> UInt64 {
@@ -350,32 +369,32 @@ public final class PlaybackCoreController {
             throw PlaybackControlError.noActiveMediaSession
         }
         try rejectIfSeekIsInProgress()
-        if activeStereoTask != nil {
+        if activeFormatOverrideTask != nil {
             throw PlaybackControlError.operationInProgress(.setProjection)
         }
-        stereoGeneration &+= 1
-        let generation = stereoGeneration
+        formatOverrideGeneration &+= 1
+        let generation = formatOverrideGeneration
         let task = Task {
             if let projection {
                 return try await session.setProjectionOverride(projection)
             }
             return try await session.clearProjectionOverride()
         }
-        activeStereoTask = task
+        activeFormatOverrideTask = task
         do {
             let revision = try await task.value
-            guard stereoGeneration == generation else {
+            guard formatOverrideGeneration == generation else {
                 throw PlaybackControlError.openTerminatedByCleanup
             }
-            activeStereoTask = nil
+            activeFormatOverrideTask = nil
             guard activeSession === session else {
                 throw PlaybackControlError.openTerminatedByCleanup
             }
             selectedProjectionOverride = projection
             return revision
         } catch {
-            if stereoGeneration == generation {
-                activeStereoTask = nil
+            if formatOverrideGeneration == generation {
+                activeFormatOverrideTask = nil
             }
             throw error
         }
@@ -388,32 +407,32 @@ public final class PlaybackCoreController {
             throw PlaybackControlError.noActiveMediaSession
         }
         try rejectIfSeekIsInProgress()
-        if activeStereoTask != nil {
+        if activeFormatOverrideTask != nil {
             throw PlaybackControlError.operationInProgress(.setStereoLayout)
         }
-        stereoGeneration &+= 1
-        let generation = stereoGeneration
+        formatOverrideGeneration &+= 1
+        let generation = formatOverrideGeneration
         let task = Task {
             if let layout {
                 return try await session.setStereoLayout(layout)
             }
             return try await session.clearStereoLayoutOverride()
         }
-        activeStereoTask = task
+        activeFormatOverrideTask = task
         do {
             let revision = try await task.value
-            guard stereoGeneration == generation else {
+            guard formatOverrideGeneration == generation else {
                 throw PlaybackControlError.openTerminatedByCleanup
             }
-            activeStereoTask = nil
+            activeFormatOverrideTask = nil
             guard activeSession === session else {
                 throw PlaybackControlError.openTerminatedByCleanup
             }
             selectedStereoLayout = layout
             return revision
         } catch {
-            if stereoGeneration == generation {
-                activeStereoTask = nil
+            if formatOverrideGeneration == generation {
+                activeFormatOverrideTask = nil
             }
             throw error
         }
@@ -518,8 +537,8 @@ public final class PlaybackCoreController {
         guard let session = activeSession else {
             throw PlaybackControlError.noActiveMediaSession
         }
-        if activeStereoTask != nil {
-            throw PlaybackControlError.operationInProgress(.setStereoLayout)
+        if activeFormatOverrideTask != nil {
+            throw PlaybackControlError.operationInProgress(.setFormatOverrides)
         }
         subtitleSelectionGeneration &+= 1
         if let activeSubtitleSelectionTask {
@@ -635,9 +654,9 @@ public final class PlaybackCoreController {
             selectedURL = nil
             selectedAsset = nil
         }
-        stereoGeneration &+= 1
-        activeStereoTask?.cancel()
-        activeStereoTask = nil
+        formatOverrideGeneration &+= 1
+        activeFormatOverrideTask?.cancel()
+        activeFormatOverrideTask = nil
         activeSeekTask?.cancel()
         activeSeekTask = nil
         subtitleSelectionGeneration &+= 1
@@ -658,15 +677,15 @@ public final class PlaybackCoreController {
             selectedURL = nil
             selectedAsset = nil
         }
-        stereoGeneration &+= 1
+        formatOverrideGeneration &+= 1
         subtitleSelectionGeneration &+= 1
-        let closingStereoGeneration = stereoGeneration
+        let closingFormatOverrideGeneration = formatOverrideGeneration
         latestRequestedSeekTime = nil
         guard let session = activeSession else {
             activeSeekTask?.cancel()
             activeSeekTask = nil
-            activeStereoTask?.cancel()
-            activeStereoTask = nil
+            activeFormatOverrideTask?.cancel()
+            activeFormatOverrideTask = nil
             activeSubtitleSelectionTask?.cancel()
             activeSubtitleSelectionTask = nil
             setStatus(.idle)
@@ -678,11 +697,11 @@ public final class PlaybackCoreController {
             _ = try? await activeSeekTask.value
             self.activeSeekTask = nil
         }
-        if let activeStereoTask {
-            activeStereoTask.cancel()
-            _ = try? await activeStereoTask.value
-            if stereoGeneration == closingStereoGeneration {
-                self.activeStereoTask = nil
+        if let activeFormatOverrideTask {
+            activeFormatOverrideTask.cancel()
+            _ = try? await activeFormatOverrideTask.value
+            if formatOverrideGeneration == closingFormatOverrideGeneration {
+                self.activeFormatOverrideTask = nil
             }
         }
         if let activeSubtitleSelectionTask {
@@ -748,6 +767,16 @@ public final class PlaybackCoreController {
                 self.onDiagnosticsChange?(diagnostics)
             }
         }
+        session.onAcceptedVideoFormatRevisionChange = { [weak self, weak session] revision in
+            Task { @MainActor in
+                guard let self, let session else { return }
+                guard self.activeSession === session else {
+                    self.recordStaleCallback(from: session, kind: "videoFormatRevision")
+                    return
+                }
+                self.onAcceptedVideoFormatRevisionChange?(revision)
+            }
+        }
         session.onSubtitleCuesChange = { [weak self, weak session] cues in
             Task { @MainActor in
                 guard let self, let session else { return }
@@ -779,8 +808,8 @@ public final class PlaybackCoreController {
         if activeSeekTask != nil {
             throw PlaybackControlError.operationInProgress(.seek)
         }
-        if activeStereoTask != nil {
-            throw PlaybackControlError.operationInProgress(.setStereoLayout)
+        if activeFormatOverrideTask != nil {
+            throw PlaybackControlError.operationInProgress(.setFormatOverrides)
         }
     }
 
@@ -843,13 +872,13 @@ public final class PlaybackCoreController {
             _ = try? await activeSeekTask.value
             self.activeSeekTask = nil
         }
-        stereoGeneration &+= 1
-        let closingStereoGeneration = stereoGeneration
-        if let activeStereoTask {
-            activeStereoTask.cancel()
-            _ = try? await activeStereoTask.value
-            if stereoGeneration == closingStereoGeneration {
-                self.activeStereoTask = nil
+        formatOverrideGeneration &+= 1
+        let closingFormatOverrideGeneration = formatOverrideGeneration
+        if let activeFormatOverrideTask {
+            activeFormatOverrideTask.cancel()
+            _ = try? await activeFormatOverrideTask.value
+            if formatOverrideGeneration == closingFormatOverrideGeneration {
+                self.activeFormatOverrideTask = nil
             }
         }
         guard activeSession === session else { return }

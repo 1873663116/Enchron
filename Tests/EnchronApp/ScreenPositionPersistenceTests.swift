@@ -23,6 +23,37 @@ nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
         XCTAssertEqual(saved.screenScale, 1.3)
     }
 
+    func testDockedPlacementIsStoredIndependentlyForEachEnvironmentIdentity() async throws {
+        let suite = "xrplayer.tests.screen-position-isolation.\(UUID().uuidString)"
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let store = PlaybackPresentationStorage.makeScreenPositionStore(suiteName: suite)
+
+        await store.savePosition(
+            for: "scenic-one",
+            distanceMeters: 2.4,
+            elevationDegrees: 12,
+            screenScale: 1.3
+        )
+        await store.savePosition(
+            for: "scenic-two",
+            distanceMeters: 4.8,
+            elevationDegrees: -18,
+            screenScale: 0.8
+        )
+
+        let storedScenicOne = await store.loadPosition(for: "scenic-one")
+        let storedScenicTwo = await store.loadPosition(for: "scenic-two")
+        let scenicOne = try XCTUnwrap(storedScenicOne)
+        let scenicTwo = try XCTUnwrap(storedScenicTwo)
+        XCTAssertEqual(scenicOne.distanceMeters, 2.4)
+        XCTAssertEqual(scenicOne.elevationDegrees, 12)
+        XCTAssertEqual(scenicOne.screenScale, 1.3)
+        XCTAssertEqual(scenicTwo.distanceMeters, 4.8)
+        XCTAssertEqual(scenicTwo.elevationDegrees, -18)
+        XCTAssertEqual(scenicTwo.screenScale, 0.8)
+    }
+
     func testLegacyOffsetsDoNotMasqueradeAsUserCenteredPlacement() async throws {
         let suite = "xrplayer.tests.screen-position-legacy.\(UUID().uuidString)"
         let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))

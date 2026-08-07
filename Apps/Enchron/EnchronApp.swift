@@ -4,6 +4,7 @@ import RealityKitScripting
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
+import UIKit
 
 @main
 struct EnchronApp: App {
@@ -39,6 +40,9 @@ struct EnchronApp: App {
 #else
                 MainView()
 #endif
+            }
+            .background {
+                SpatialPlatformEffectExecutor()
             }
             .enchronEnvironment(application)
             .onAppear {
@@ -87,6 +91,7 @@ struct EnchronApp: App {
             ImmersiveSpaceView()
                 .environment(application.appModel)
                 .environment(application.playbackRuntime)
+                .environment(application.playbackVideoEntityStore)
                 .onImmersionChange { _, newImmersion in
                     application.appModel.recordImmersionAmount(newImmersion.amount)
                 }

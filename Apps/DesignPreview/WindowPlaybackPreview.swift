@@ -67,7 +67,7 @@ struct WindowPlaybackPreview: View {
 
 private struct WindowPlaybackRealityFixture: View {
     static let imageAspectRatio: CGFloat = {
-        guard let image = UIImage(named: "WindowPlaybackDaylightAction"),
+        guard let image = UIImage(named: "WindowPlaybackLightAppearanceAction"),
               image.size.height > 0 else {
             return WindowPlaybackLayout.fallbackAspectRatio
         }
@@ -97,7 +97,7 @@ private struct WindowPlaybackRealityFixture: View {
     @MainActor
     private func prepareScreenIfNeeded() async {
         guard screenEntity.components[ModelComponent.self] == nil,
-              let image = UIImage(named: "WindowPlaybackDaylightAction"),
+              let image = UIImage(named: "WindowPlaybackLightAppearanceAction"),
               let cgImage = image.cgImage,
               let texture = try? await TextureResource(
                 image: cgImage,

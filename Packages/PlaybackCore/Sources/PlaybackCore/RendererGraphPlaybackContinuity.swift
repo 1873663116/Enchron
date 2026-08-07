@@ -29,6 +29,20 @@ public enum RendererGraphPlaybackContinuity: String, Codable, Equatable, Sendabl
     case awaitingActualTimebaseRate
     case awaitingDisplayedFrameAdvance
 
+    /// A displayed pixel buffer can retain the same IOSurface identity while
+    /// later frames overwrite its contents. Accepted input and an advancing
+    /// timebase therefore keep an explicit Play command valid when that
+    /// identity is the only fact still awaiting stronger visual evidence.
+    public var explicitPlayMayContinue: Bool {
+        switch self {
+        case .ready, .awaitingDisplayedFrameAdvance:
+            true
+        case .wrongGraphRevision, .awaitingAcceptedSample,
+                .awaitingActualTimebaseRate:
+            false
+        }
+    }
+
     public static func evaluate(
         baseline: RendererGraphPlaybackObservation,
         current: RendererGraphPlaybackObservation,

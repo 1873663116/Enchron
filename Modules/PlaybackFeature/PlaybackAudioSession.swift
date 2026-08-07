@@ -154,6 +154,7 @@ public final class PlaybackAudioSessionLifecycle {
                         state = .active
                         logger.info("audio session activated category=playback mode=moviePlayback")
                     }
+                    return
                 } catch {
                     if case .activating(let currentID, _) = state,
                        currentID == id {
@@ -170,6 +171,7 @@ public final class PlaybackAudioSessionLifecycle {
                         state = .active
                         logger.info("audio session activated category=playback mode=moviePlayback")
                     }
+                    return
                 } catch {
                     if case .activating(let currentID, _) = state,
                        currentID == id {

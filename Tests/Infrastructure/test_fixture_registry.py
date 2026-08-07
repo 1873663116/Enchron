@@ -4,7 +4,7 @@ from pathlib import Path
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-REGISTRY_PATH = REPOSITORY_ROOT / "docs" / "acceptance" / "fixture-registry.json"
+REGISTRY_PATH = REPOSITORY_ROOT / "Tests" / "Fixtures" / "fixture-registry.json"
 
 
 class FixtureRegistryTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class FixtureRegistryTests(unittest.TestCase):
         for fixture in self.eligible:
             with self.subTest(fixture=fixture["id"]):
                 self.assertRegex(fixture["sha256"], r"^[0-9a-f]{64}$")
-                self.assertTrue(fixture["deviceImportPath"].startswith("Generated/"))
+                self.assertTrue(fixture["deviceImportPath"].startswith("TestVectors/Enchron/PlaybackBehavior/"))
                 self.assertNotIn("..", Path(fixture["deviceImportPath"]).parts)
                 self.assertEqual(fixture["license"], "project-generated-no-external-media")
                 self.assertIn("matrix", fixture)

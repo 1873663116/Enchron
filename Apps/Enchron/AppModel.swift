@@ -163,7 +163,7 @@ public final class AppModel {
     }
 
     public private(set) var presentationSourceRendererMayRelease = false
-    private var windowPortalToProgressiveChangeConfirmedTransitionID: UUID?
+    private var progressiveImmersiveViewingModeConfirmedTransitionID: UUID?
     private var presentationTransitionStartedAt: Date?
 
     public var showControls: Bool = true
@@ -188,6 +188,7 @@ public final class AppModel {
 
     private(set) var spatialPlaybackSurfaceObservation =
         SpatialPlaybackSurfaceObservation.absent
+    private(set) var spatialPlaybackSurfacePreparationStage = "inactive"
     private(set) var environmentSkyboxOpacity: Float?
     private(set) var environmentSkyboxIsActive = false
 
@@ -241,7 +242,7 @@ public final class AppModel {
             )
         )
         presentationSourceRendererMayRelease = false
-        windowPortalToProgressiveChangeConfirmedTransitionID = nil
+        progressiveImmersiveViewingModeConfirmedTransitionID = nil
         presentationTransitionStartedAt = Date()
         if transition.targetPresentation == .panorama,
            transition.previousEnvironment.environment != nil,
@@ -353,14 +354,14 @@ public final class AppModel {
         switch resolution {
         case .presentationCommitted(let presentation):
             resetPresentationTransitionAppearance()
-            if presentation == .window,
+            if presentation.usesMainWindow,
                environmentContext.environment != nil {
                 restoreImmersionAmountAfterPanoramaIfNeeded()
             }
             logger.info("platform result committed presentation=\(presentation.rawValue, privacy: .public)")
         case .presentationRolledBack(let failure):
             resetPresentationTransitionAppearance()
-            if playbackPresentation == .window,
+            if playbackPresentation.usesMainWindow,
                environmentContext.environment != nil {
                 restoreImmersionAmountAfterPanoramaIfNeeded()
             }
@@ -388,24 +389,32 @@ public final class AppModel {
         return true
     }
 
-    func recordWindowPortalToProgressiveChange(for transitionID: UUID) {
+    /// Records Apple's `ImmersiveViewingModeDidChange` confirmation from the
+    /// still-active main-window RealityView. Writing the desired mode alone is
+    /// not sufficient to release that source Root.
+    func recordProgressiveImmersiveViewingModeDidChange(
+        for transitionID: UUID,
+        currentModeIsProgressive: Bool
+    ) {
         guard let transition = presentationTransition,
               transition.id == transitionID,
-              transition.requiresWindowPortalToProgressiveChange else {
+              transition.requiresProgressiveModeRequestBeforePanoramaTransfer,
+              currentModeIsProgressive else {
             return
         }
-        windowPortalToProgressiveChangeConfirmedTransitionID = transitionID
+        progressiveImmersiveViewingModeConfirmedTransitionID = transitionID
     }
 
-    func windowPortalToProgressiveChangeIsConfirmed(
+    func progressiveImmersiveViewingModeIsConfirmed(
         for transitionID: UUID
     ) -> Bool {
-        windowPortalToProgressiveChangeConfirmedTransitionID == transitionID
+        progressiveImmersiveViewingModeConfirmedTransitionID == transitionID
     }
 
-    var windowPortalToProgressiveChangeIsConfirmed: Bool {
-        guard let transition = presentationTransition else { return false }
-        return windowPortalToProgressiveChangeIsConfirmed(for: transition.id)
+    // SpatialPlatformEffectExecutor's compatibility query now gates on the
+    // observed current mode, not merely on assigning the desired mode.
+    func progressiveModeRequestIsApplied(for transitionID: UUID) -> Bool {
+        progressiveImmersiveViewingModeIsConfirmed(for: transitionID)
     }
 
     func presentationTransitionRemainingTime(
@@ -421,7 +430,7 @@ public final class AppModel {
 
     private func resetPresentationTransitionAppearance() {
         presentationSourceRendererMayRelease = false
-        windowPortalToProgressiveChangeConfirmedTransitionID = nil
+        progressiveImmersiveViewingModeConfirmedTransitionID = nil
         presentationTransitionStartedAt = nil
     }
 
@@ -529,6 +538,11 @@ public final class AppModel {
     func clearSpatialPlaybackSurfaceObservation() {
         guard spatialPlaybackSurfaceObservation != .absent else { return }
         spatialPlaybackSurfaceObservation = .absent
+    }
+
+    func recordSpatialPlaybackSurfacePreparationStage(_ stage: String) {
+        guard spatialPlaybackSurfacePreparationStage != stage else { return }
+        spatialPlaybackSurfacePreparationStage = stage
     }
 
     func recordEnvironmentSceneEffect(opacity: Float) {

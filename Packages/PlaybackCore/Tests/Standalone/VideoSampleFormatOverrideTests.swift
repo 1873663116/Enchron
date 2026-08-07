@@ -13,6 +13,8 @@ struct VideoSampleFormatOverrideTests {
         try monoRemovesStereoPackingAndClearsEyeFlags()
         try rectilinearProjectionOverridePreservesStereoAndPayload()
         try panoramicProjectionOverridesPreservePayloadAndTiming()
+        try flatMonoKeepsTheRendererInputAsAPlainCompressedSample()
+        try projectionAndPackingUseRendererInputTags()
         print("GREEN video sample format override")
     }
 
@@ -151,6 +153,13 @@ struct VideoSampleFormatOverrideTests {
                 kCMFormatDescriptionProjectionKind_HalfEquirectangular,
                 180_000
             ),
+            (
+                VideoProjectionOverride.customEquirectangular(
+                    horizontalFieldOfViewDegrees: 240
+                ),
+                kCMFormatDescriptionProjectionKind_Equirectangular,
+                240_000
+            ),
         ] {
             let output = try VideoSampleFormatOverride().rewrite(
                 input,
@@ -179,6 +188,60 @@ struct VideoSampleFormatOverrideTests {
             )
             try expectSamplePayloadContractPreserved(from: input, to: output)
         }
+    }
+
+    private static func flatMonoKeepsTheRendererInputAsAPlainCompressedSample() throws {
+        let rewriter = VideoSampleFormatOverride()
+        let input = try makeCompressedH264Sample()
+        let rewritten = try rewriter.rewrite(
+            input,
+            stereoLayout: .mono,
+            projection: .rectilinear
+        )
+        let output = rewriter.taggedPresentationSample(
+            rewritten,
+            stereoLayout: .mono,
+            projection: .rectilinear
+        )
+
+        expect(
+            output.taggedBuffers == nil,
+            "flat mono stays a directly decodable compressed renderer input"
+        )
+    }
+
+    private static func projectionAndPackingUseRendererInputTags() throws {
+        let rewriter = VideoSampleFormatOverride()
+        let input = try makeCompressedH264Sample()
+        let rewritten = try rewriter.rewrite(
+            input,
+            stereoLayout: .sideBySide,
+            projection: .equirectangular
+        )
+        let output = rewriter.taggedPresentationSample(
+            rewritten,
+            stereoLayout: .sideBySide,
+            projection: .equirectangular
+        )
+        let taggedBuffers = try require(output.taggedBuffers, "tagged buffers")
+        expect(taggedBuffers.count == 1, "one packed video buffer is tagged")
+        let tags = taggedBuffers[0].tags
+        expect(
+            tags.firstValue(matchingCategory: .projectionType) == .equirectangular,
+            "renderer input carries the equirectangular projection tag"
+        )
+        expect(
+            tags.firstValue(matchingCategory: .packingType) == .sideBySide,
+            "renderer input carries the side-by-side packing tag"
+        )
+        expect(
+            tags.firstValue(matchingCategory: .stereoView) == [.leftEye, .rightEye],
+            "renderer input carries both stereo views"
+        )
+        expect(
+            tags.firstValue(matchingCategory: .mediaType) == .video,
+            "renderer input identifies video media"
+        )
     }
 
     private static func makeCompressedH264Sample() throws -> CMSampleBuffer {

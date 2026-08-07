@@ -221,6 +221,51 @@ nonisolated final class MediaLibraryRegressionUITests: XCTestCase {
     }
 
     @MainActor
+    func testMultipleSelectionMovesAndRemovesOnlySelectedLibraryReferences() {
+        let app = launchLibrary(dataset: "hierarchical")
+        let matrix = requireCard("MediaLibrary-grid-video-The Matrix.mkv", in: app)
+        let arrival = requireCard("MediaLibrary-grid-video-Arrival.mkv", in: app)
+
+        beginMultipleSelection(in: app)
+        matrix.tap()
+        arrival.tap()
+        XCTAssertEqual(matrix.value as? String, "Selected")
+        XCTAssertEqual(arrival.value as? String, "Selected")
+        XCTAssertEqual(
+            app.descendants(matching: .any)["MediaLibrary-MultiSelect-count"]
+                .firstMatch.label,
+            "2 selected"
+        )
+        attachScreenshot(from: app, name: "media-library-multi-select-selected-grid")
+
+        app.descendants(matching: .any)["MediaLibrary-MultiSelect-move"].firstMatch.tap()
+        app.buttons["Archive"].firstMatch.tap()
+        XCTAssertFalse(matrix.waitForExistence(timeout: 3))
+        XCTAssertFalse(arrival.exists)
+
+        requireCard("MediaLibrary-grid-folder-Archive", in: app).tap()
+        let movedMatrix = requireCard("MediaLibrary-grid-video-The Matrix.mkv", in: app)
+        let movedArrival = requireCard("MediaLibrary-grid-video-Arrival.mkv", in: app)
+        beginMultipleSelection(in: app)
+        movedMatrix.tap()
+        movedArrival.tap()
+        app.descendants(matching: .any)["MediaLibrary-MultiSelect-delete"].firstMatch.tap()
+        app.descendants(matching: .any)["MediaLibrary-MultiSelect-confirmDelete"].firstMatch.tap()
+
+        XCTAssertFalse(movedMatrix.waitForExistence(timeout: 3))
+        XCTAssertFalse(movedArrival.exists)
+        XCTAssertTrue(
+            app.descendants(matching: .any)["FileBrowsing-FilesScreen-emptyState"]
+                .firstMatch.waitForExistence(timeout: 5)
+        )
+        attachScreenshot(from: app, name: "media-library-multi-select-complete")
+        attachHumanReviewBoundary(
+            "Confirm selection checkmarks, selected count, Move To, Delete, and Done form one clear management mode without changing the established single-item cards or context menus.",
+            name: "media-library-multi-select-human-review"
+        )
+    }
+
+    @MainActor
     private func launchLibrary(dataset: String) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchEnvironment["ENCHRON_UI_TESTING"] = "1"
@@ -231,6 +276,20 @@ nonisolated final class MediaLibraryRegressionUITests: XCTestCase {
                 .firstMatch.waitForExistence(timeout: 20)
         )
         return app
+    }
+
+    @MainActor
+    private func beginMultipleSelection(in app: XCUIApplication) {
+        let manage = app.descendants(matching: .any)["FileBrowsing-Manage-button"].firstMatch
+        XCTAssertTrue(manage.waitForExistence(timeout: 10))
+        manage.tap()
+        let selectMultiple = app.buttons["Select Multiple"].firstMatch
+        XCTAssertTrue(selectMultiple.waitForExistence(timeout: 5))
+        selectMultiple.tap()
+        XCTAssertTrue(
+            app.descendants(matching: .any)["MediaLibrary-MultiSelect-count"]
+                .firstMatch.waitForExistence(timeout: 5)
+        )
     }
 
     @MainActor

@@ -60,22 +60,14 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         disconnect()
     }
 
-    /// Connect and login to the SMB server (host-only, no share yet).
+    /// Connect and authenticate to the server. Shares remain folders at root.
     public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
         connectionStatus = .connecting
 
         do {
             let smb = try makeManager(for: info)
 
-            // If rootPath already has a share (e.g., reconnecting a saved source),
-            // connect to that share immediately.
-            let pathComponents = info.rootPath.split(separator: "/", omittingEmptySubsequences: true)
-            if let shareName = pathComponents.first {
-                try await smb.connectShare(name: String(shareName))
-                connectedShareName = String(shareName)
-            } else {
-                _ = try await smb.listShares()
-            }
+            _ = try await smb.listShares()
 
             smbManager = smb
             connectionInfo = info
@@ -104,8 +96,7 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
             .sorted()
     }
 
-    /// Connect to a specific share after listing.
-    /// Updates the connectionInfo to include the share in rootPath.
+    /// Connect to a share while preserving the server as the source root.
     public func selectShare(_ shareName: String) async throws {
         guard let smb = smbManager else {
             throw SMBError.notConnected
@@ -119,10 +110,6 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         try await smb.connectShare(name: shareName)
         connectedShareName = shareName
 
-        // Update connectionInfo with the selected share
-        if let info = connectionInfo {
-            connectionInfo = info.withSMBShare(shareName)
-        }
     }
 
     public func disconnect() {
@@ -151,11 +138,9 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         guard let smb = smbManager else {
             throw SMBError.notConnected
         }
-        guard connectedShareName != nil else {
-            throw SMBError.noShareSelected
-        }
+        guard Self.normalizeAbsolutePath(path) != "/" else { return [] }
 
-        let smbPath = smbRelativePath(from: path)
+        let smbPath = try await prepareShare(for: path)
         let items = try await smb.contentsOfDirectory(atPath: smbPath)
 
         return items.compactMap { item -> FileBrowsingDomain.MediaFile? in
@@ -184,11 +169,20 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         guard let smb = smbManager, connectionInfo != nil else {
             throw SMBError.notConnected
         }
-        guard connectedShareName != nil else {
-            throw SMBError.noShareSelected
+        if Self.normalizeAbsolutePath(path) == "/" {
+            return try await listShares().map { shareName in
+                let folderPath = "/\(shareName)"
+                return FileBrowsingDomain.MediaFolder(
+                    name: shareName,
+                    dataSourceID: ownerDataSourceID,
+                    path: folderPath,
+                    url: URL(string: "smb://placeholder\(folderPath)")
+                        ?? URL(fileURLWithPath: folderPath)
+                )
+            }
         }
 
-        let smbPath = smbRelativePath(from: path)
+        let smbPath = try await prepareShare(for: path)
         let items = try await smb.contentsOfDirectory(atPath: smbPath)
 
         return items.compactMap { item -> FileBrowsingDomain.MediaFolder? in
@@ -227,13 +221,9 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
         guard smbManager != nil, let info = connectionInfo else {
             throw SMBError.notConnected
         }
-        guard let shareName = connectedShareName else {
+        guard let (shareName, remotePath) = Self.shareAndRelativePath(for: file.url.path) else {
             throw SMBError.noShareSelected
         }
-
-        let remotePath = smbRelativePath(from:
-            file.url.path.isEmpty ? Self.childPath(named: file.name, in: info.rootPath) : file.url.path
-        )
         guard file.sizeInBytes > 0 else {
             throw SMBError.streamingFailed("The server did not report the remote file size.")
         }
@@ -322,6 +312,24 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
     private func smbRelativePath(from path: String) -> String {
         guard let info = connectionInfo else { return Self.normalizeAbsolutePath(path) }
         return Self.shareRelativePath(for: path, rootPath: info.rootPath)
+    }
+
+    private func prepareShare(for path: String) async throws -> String {
+        guard let (shareName, relativePath) = Self.shareAndRelativePath(for: path) else {
+            throw SMBError.noShareSelected
+        }
+        if connectedShareName != shareName {
+            try await selectShare(shareName)
+        }
+        return relativePath
+    }
+
+    static func shareAndRelativePath(for path: String) -> (share: String, relativePath: String)? {
+        let components = normalizeAbsolutePath(path)
+            .split(separator: "/", omittingEmptySubsequences: true)
+        guard let share = components.first else { return nil }
+        let remainder = components.dropFirst().joined(separator: "/")
+        return (String(share), remainder.isEmpty ? "/" : "/\(remainder)")
     }
 
     static func shareRelativePath(for path: String, rootPath: String) -> String {

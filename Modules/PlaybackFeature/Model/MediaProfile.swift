@@ -4,6 +4,41 @@ public nonisolated enum PlaybackModel {}
 
 
 nonisolated extension PlaybackModel {
+    /// Describes the immutable presentation metadata discovered in the source.
+    /// User projection overrides deliberately remain a separate type.
+    public enum SourceVideoContentKind: String, Sendable, Equatable, Codable {
+        case rectilinear
+        case spatialVideo
+        case halfEquirectangular
+        case equirectangular
+        case parametricImmersive
+        case appleImmersiveVideo
+
+        public var isPanoramic: Bool {
+            switch self {
+            case .halfEquirectangular, .equirectangular, .parametricImmersive,
+                    .appleImmersiveVideo:
+                true
+            case .rectilinear, .spatialVideo:
+                false
+            }
+        }
+
+        public var displayName: String {
+            switch self {
+            case .rectilinear: "Flat"
+            case .spatialVideo: "Spatial Video"
+            case .halfEquirectangular: "180°"
+            case .equirectangular: "360°"
+            case .parametricImmersive: "Wide FOV"
+            case .appleImmersiveVideo: "Apple Immersive Video"
+            }
+        }
+    }
+}
+
+
+nonisolated extension PlaybackModel {
     public enum HDRType: String, Sendable, CaseIterable, Codable {
         case sdr
         case hdr10
@@ -19,11 +54,11 @@ nonisolated extension PlaybackModel {
         case flat
         case equirectangular360
         case equirectangular180
-        case fisheye
+        case customAngle
 
         public var isPanoramic: Bool {
             switch self {
-            case .equirectangular360, .equirectangular180, .fisheye:
+            case .equirectangular360, .equirectangular180, .customAngle:
                 return true
             case .flat:
                 return false
@@ -34,9 +69,7 @@ nonisolated extension PlaybackModel {
             self == .equirectangular180
         }
 
-        public var requiresFisheyeRemap: Bool {
-            self == .fisheye
-        }
+        public var usesCustomPanoramaAngle: Bool { self == .customAngle }
     }
 }
 
@@ -44,8 +77,15 @@ nonisolated extension PlaybackModel {
 nonisolated extension PlaybackModel {
     public enum StereoLayout: String, Sendable, CaseIterable, Codable {
         case mono
+        case multiview
         case sideBySide
         case topBottom
+
+        public static let userSelectableCases: [Self] = [
+            .mono,
+            .sideBySide,
+            .topBottom,
+        ]
 
         public struct UVRect: Sendable, Equatable {
             public let originX: Float
@@ -63,7 +103,7 @@ nonisolated extension PlaybackModel {
 
         public var leftEyeUVRect: UVRect {
             switch self {
-            case .mono:
+            case .mono, .multiview:
                 UVRect(originX: 0, originY: 0, width: 1.0, height: 1.0)
             case .sideBySide:
                 UVRect(originX: 0, originY: 0, width: 0.5, height: 1.0)
@@ -74,7 +114,7 @@ nonisolated extension PlaybackModel {
 
         public var rightEyeUVRect: UVRect {
             switch self {
-            case .mono:
+            case .mono, .multiview:
                 UVRect(originX: 0, originY: 0, width: 1.0, height: 1.0)
             case .sideBySide:
                 UVRect(originX: 0.5, originY: 0, width: 0.5, height: 1.0)
@@ -85,7 +125,7 @@ nonisolated extension PlaybackModel {
 
         public func outputDimensions(inputWidth: Int, inputHeight: Int) -> (width: Int, height: Int) {
             switch self {
-            case .mono:
+            case .mono, .multiview:
                 (inputWidth, inputHeight)
             case .sideBySide:
                 (inputWidth / 2, inputHeight)

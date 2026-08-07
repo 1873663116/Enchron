@@ -78,11 +78,12 @@ import Testing
         (.setRate, "operation.setRate.started"),
         (.setStereoLayout, "operation.setStereoLayout.started"),
         (.setProjection, "operation.setProjection.started"),
+        (.setFormatOverrides, "operation.setFormatOverrides.started"),
         (.seek, "operation.seek.started"),
         (.close, "operation.close.started"),
     ]
 
-    #expect(expected.count == 8)
+    #expect(expected.count == 9)
     for (kind, rawValue) in expected {
         #expect(PlaybackArtifactEventName.operationStarted(kind).rawValue == rawValue)
     }
@@ -116,6 +117,13 @@ import Testing
             .terminatedByCleanup,
             "operation.setProjection.terminatedByCleanup"
         ),
+        (.setFormatOverrides, .completed, "operation.setFormatOverrides.completed"),
+        (.setFormatOverrides, .failed, "operation.setFormatOverrides.failed"),
+        (
+            .setFormatOverrides,
+            .terminatedByCleanup,
+            "operation.setFormatOverrides.terminatedByCleanup"
+        ),
         (.seek, .completed, "operation.seek.completed"),
         (.seek, .failed, "operation.seek.failed"),
         (.seek, .terminatedByCleanup, "operation.seek.terminatedByCleanup"),
@@ -124,7 +132,7 @@ import Testing
         (.close, .terminatedByCleanup, "operation.close.terminatedByCleanup"),
     ]
 
-    #expect(expected.count == 8 * 3)
+    #expect(expected.count == 9 * 3)
     for (kind, state, rawValue) in expected {
         #expect(
             PlaybackArtifactEventName.operationFinished(kind, as: state).rawValue
@@ -158,11 +166,12 @@ import Testing
         (.setRate, "control.setRate.rejected"),
         (.setStereoLayout, "control.setStereoLayout.rejected"),
         (.setProjection, "control.setProjection.rejected"),
+        (.setFormatOverrides, "control.setFormatOverrides.rejected"),
         (.seek, "control.seek.rejected"),
         (.close, "control.close.rejected"),
     ]
 
-    #expect(expected.count == 8)
+    #expect(expected.count == 9)
     for (kind, rawValue) in expected {
         #expect(PlaybackArtifactEventName.controlRejected(kind).rawValue == rawValue)
     }

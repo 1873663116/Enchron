@@ -63,11 +63,8 @@ public struct AppearanceModeButton: View {
     }
 }
 
-/// Half-light / half-dark circular glyph used by appearance and Dock Day/Night choices.
-///
-/// `isActive == true` draws the light (Day) appearance; `false` draws the dark (Night)
-/// appearance. Callers that need a filled light disc behind the glyph compose that
-/// themselves, matching `AppearanceModeButton`.
+/// Half-light / half-dark circular glyph used by appearance mode controls.
+/// Callers decide which product mode maps to the selected visual state.
 public struct AppearanceModeGlyph: View {
     let isActive: Bool
 

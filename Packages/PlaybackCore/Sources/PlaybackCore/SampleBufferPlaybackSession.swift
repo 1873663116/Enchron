@@ -47,31 +47,15 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         var lastPublishedCueIDs: [PlaybackSubtitleCue.ID] = []
     }
 
-    struct RetiredRendererGraph {
-        let videoRenderer: AVSampleBufferVideoRenderer
-        let videoSink: RendererInputSink
-        let audioRenderer: AVSampleBufferAudioRenderer
-        let audioSink: AudioRendererInputSink
-        let synchronizer: AVSampleBufferRenderSynchronizer
-    }
-
     public let traceID: String
-    let rendererGraphLock = NSLock()
-    var rendererStorage: AVSampleBufferVideoRenderer
-    var rendererSinkStorage: RendererInputSink
-    var audioRendererStorage: AVSampleBufferAudioRenderer
-    var audioRendererSinkStorage: AudioRendererInputSink
-    var synchronizerStorage: AVSampleBufferRenderSynchronizer
-    var retiredRendererGraphs: [RetiredRendererGraph] = []
-    public var renderer: AVSampleBufferVideoRenderer {
-        rendererGraphLock.withLock { rendererStorage }
-    }
-    var audioRenderer: AVSampleBufferAudioRenderer {
-        rendererGraphLock.withLock { audioRendererStorage }
-    }
-    var synchronizer: AVSampleBufferRenderSynchronizer {
-        rendererGraphLock.withLock { synchronizerStorage }
-    }
+    /// The renderer graph identity is immutable for the lifetime of this media session.
+    /// Presentation changes reparent the one RealityKit video entity; they never replace
+    /// this renderer, its audio renderer, or their shared synchronizer.
+    public let renderer: AVSampleBufferVideoRenderer
+    let rendererSink: RendererInputSink
+    let audioRenderer: AVSampleBufferAudioRenderer
+    let audioRendererSink: AudioRendererInputSink
+    let synchronizer: AVSampleBufferRenderSynchronizer
     let debugStore = PlaybackDiagnosticsStore()
     lazy var activationObservation = PlaybackActivationObservation(
         session: self,
@@ -81,19 +65,13 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     var onStatusChange: (@Sendable (PlaybackStatus) -> Void)?
     var onDiagnosticsChange: (@Sendable (PlaybackDiagnostics) -> Void)?
+    var onAcceptedVideoFormatRevisionChange: (@Sendable (UInt64) -> Void)?
     var onSubtitleCuesChange: (@Sendable ([PlaybackSubtitleCue]) -> Void)?
     var onSubtitleFrameChange: (@Sendable (PlaybackSubtitleFrame?) -> Void)?
 
     let provider: VideoSampleProvider
     let audioProvider: AudioSampleProvider
     let subtitleProvider: SubtitleProvider
-    let replacementRendererSinkFactory: (() -> RendererInputSink)?
-    var rendererSink: RendererInputSink {
-        rendererGraphLock.withLock { rendererSinkStorage }
-    }
-    var audioRendererSink: AudioRendererInputSink {
-        rendererGraphLock.withLock { audioRendererSinkStorage }
-    }
     let videoSampleFormatOverride = VideoSampleFormatOverride()
     var rendererFailureMonitor: RendererFailureMonitoring?
     let rendererFailureLock = NSLock()
@@ -134,6 +112,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var streamEpoch: UInt64 = 1
     var audioStreamEpoch: UInt64 = 1
     var formatRevision: UInt64 = 1
+    var lastPublishedAcceptedVideoFormatRevision: UInt64?
     var sourceEventSequence: UInt64 = 0
     var lastSourceEventID = "none"
     var lastRecordedSampleEpoch: UInt64 = 0
@@ -141,7 +120,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var isPrerolling = false
     var activeOperation: PlaybackOperationRecord?
     var flushCount: UInt64 = 0
-    var graphRevision: UInt64 = 1
+    let graphRevision: UInt64 = 1
     var displayedFrameObservationCount: UInt64 = 0
     var lastDisplayedFrameIdentity: UInt64?
     var stereoLayoutOverride: VideoStereoLayout?
@@ -192,7 +171,6 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         audioProvider: AudioSampleProvider = NoAudioSampleProvider(),
         subtitleProvider: SubtitleProvider = NoSubtitleProvider(),
         rendererSink: RendererInputSink? = nil,
-        replacementRendererSinkFactory: (() -> RendererInputSink)? = nil,
         audioRendererSink: AudioRendererInputSink? = nil,
         rendererFailureMonitor: RendererFailureMonitoring? = nil,
         activationReapplyVerificationConfiguration:
@@ -207,27 +185,26 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         self.provider = provider
         self.audioProvider = audioProvider
         self.subtitleProvider = subtitleProvider
-        self.replacementRendererSinkFactory = replacementRendererSinkFactory
         self.activationReapplyVerificationConfiguration =
             activationReapplyVerificationConfiguration
         self.activationReapplyVerificationHooks = activationReapplyVerificationHooks
         initialSynchronizer.delaysRateChangeUntilHasSufficientMediaData = false
         initialAudioRenderer.audioTimePitchAlgorithm = .timeDomain
-        initialAudioRenderer.allowedAudioSpatializationFormats = .monoAndStereo
-        rendererStorage = initialRenderer
-        audioRendererStorage = initialAudioRenderer
-        synchronizerStorage = initialSynchronizer
+        initialAudioRenderer.allowedAudioSpatializationFormats = .monoStereoAndMultichannel
+        renderer = initialRenderer
+        audioRenderer = initialAudioRenderer
+        synchronizer = initialSynchronizer
         if let rendererSink {
-            rendererSinkStorage = rendererSink
+            self.rendererSink = rendererSink
         } else {
-            rendererSinkStorage = AVSampleBufferRendererInputSink(
+            self.rendererSink = AVSampleBufferRendererInputSink(
                 receiver: initialSynchronizer.sampleBufferReceiver(adding: initialRenderer)
             )
         }
         if let audioRendererSink {
-            audioRendererSinkStorage = audioRendererSink
+            self.audioRendererSink = audioRendererSink
         } else {
-            audioRendererSinkStorage = AVSampleBufferAudioRendererInputSink(
+            self.audioRendererSink = AVSampleBufferAudioRendererInputSink(
                 receiver: initialSynchronizer.sampleBufferReceiver(adding: initialAudioRenderer)
             )
         }
@@ -372,6 +349,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         diagnostics.durationSeconds = provider.info.durationSeconds
         diagnostics.nominalFrameRate = provider.info.nominalFrameRate
         diagnostics.codecName = provider.info.codecName
+        diagnostics.isMVHEVC = provider.info.isMVHEVC
         diagnostics.trackFormatHasMasteringDisplayMetadata = provider.info.trackFormatHasMasteringDisplayMetadata
         diagnostics.trackFormatHasContentLightLevelMetadata = provider.info.trackFormatHasContentLightLevelMetadata
         let openSnapshot = ProviderOpenSnapshot(
@@ -384,6 +362,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             selectedRawTrackMapping: provider.info.selectedRawTrackMapping,
             codecName: provider.info.codecName,
             codecTag: provider.info.codecTag,
+            isMVHEVC: provider.info.isMVHEVC,
             dimensions: provider.info.dimensions,
             nominalFrameRate: provider.info.nominalFrameRate,
             timebase: provider.info.timebase,

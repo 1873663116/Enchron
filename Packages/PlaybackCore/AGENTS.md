@@ -1,7 +1,7 @@
-# PlaybackCore module
+# PlaybackCore
 
-PlaybackCore 是 Enchron 仓库内可独立构建和测试的播放模块，不是独立产品或文档上下文。工作前读取仓库根 `ARCHITECTURE.md`、`CONTEXT.md`、`docs/core-spec.md` 与 `docs/acceptance/verification-system.md`。
+PlaybackCore 是 Enchron 仓库内可独立构建和测试的播放模块，不是独立产品。当前模块组成、依赖和测试入口以本目录的 `Package.swift`、`Sources` 与 `Tests` 为准；仓库根 [`ARCHITECTURE.md`](../../ARCHITECTURE.md) 只提供所有权导航。
 
-模块只读取容器、建立 Media Session、组装 sample、协调 AVFoundation renderer graph，并发布播放事实。来源长期授权、产品策略、SwiftUI、RealityKit consumer、窗口和空间呈现属于 Enchron App。
+修改前检查本目录及其 App 适配代码的工作树和调用关系。不要从产品文档推导 sample、时间线、renderer 或并发机制，也不要把未验证实验写成模块合同。需要理解 Apple 媒体框架行为时，先查官方 API 和示例，再用当前代码与最小可复现实验验证。
 
-产品只有一条 FFmpeg demux compressed-sample 路径。不要引入 decoded pixel 产品路线、隐藏 fallback、第二时间线或产品 presentation 状态。修改后运行 `swift test`；真实 renderer 与设备声明继续服从仓库统一验证门槛。
+修改后在本目录运行相关测试。涉及 Enchron App、Apple 平台或物理设备的结果由对应的 App 测试继续验证。

@@ -25,7 +25,7 @@ nonisolated extension SpatialSceneDomain {
             }
             // Migrate the former single placeholder environment to the first
             // stable Scenic identity. Skybox is intentionally never a default.
-            if preferenceValue == "enchron" || preferenceValue == "Starry Night" {
+            if preferenceValue == "enchron" {
                 self = .defaultScenic
                 return
             }
@@ -47,15 +47,15 @@ nonisolated extension SpatialSceneDomain {
     }
 
     public enum EnvironmentEffect: String, Sendable, CaseIterable, Codable {
-        case day
-        case night
+        case light
+        case dark
 
-        public static let inactiveFallback: Self = .day
+        public static let inactiveFallback: Self = .light
 
         public var displayName: String {
             switch self {
-            case .day: "Day"
-            case .night: "Night"
+            case .light: "Light Mode"
+            case .dark: "Dark Mode"
             }
         }
     }

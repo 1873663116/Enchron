@@ -106,8 +106,8 @@ struct PlaybackControlsPreview: View {
             screenDistance: screenDistance,
             screenElevationDegrees: screenElevation,
             projection: presentation == .panorama ? projection : .flat,
+            horizontalFieldOfViewDegrees: PanoramaHorizontalCoverage.defaultCustomAngle,
             stereoLayout: presentation == .panorama ? stereoLayout : .mono,
-            canUseFisheye: true,
             isPlaying: isPlaying,
             showsReplay: false,
             canSkipForward: true,
@@ -138,10 +138,6 @@ struct PlaybackControlsPreview: View {
                 screenElevation = PlaybackDockedPlacement.defaultElevationDegrees
             },
             onApplyFormat: { projection = $0; stereoLayout = $1 },
-            onResetFormat: {
-                projection = .flat
-                stereoLayout = .mono
-            },
             subtitleItems: menuItems(["Off", "English CC"], selected: "Off"),
             audioItems: menuItems(["English 5.1", "Japanese 2.0"], selected: "English 5.1"),
             speedItems: menuItems(["0.5×", "1×", "1.5×", "2×"], selected: "1×"),
@@ -197,7 +193,7 @@ struct SidebarPreview: View {
 
 struct SettingListGroupPreview: View {
     @State private var showClearCacheConfirm = false
-    @State private var selectedSpecialCardID = "day"
+    @State private var selectedSpecialCardID = "light"
     @State private var specialSliderValue = 0
     @State private var specialAuto = true
 
@@ -243,8 +239,8 @@ struct SettingListGroupPreview: View {
                                 accessory: .none,
                                 embeddedControl: .cardSelection(
                                     options: [
-                                        .init(id: "day", title: "Day", systemName: "sun.max.fill"),
-                                        .init(id: "night", title: "Night", systemName: "moon.stars.fill"),
+                                        .init(id: "light", title: "Light Mode", systemName: "sun.max.fill"),
+                                        .init(id: "dark", title: "Dark Mode", systemName: "moon.stars.fill"),
                                     ],
                                     selectedID: $selectedSpecialCardID
                                 )
@@ -631,7 +627,6 @@ struct ConnectionFormFixture: View {
 
     @State private var name = ""
     @State private var address = ConnectionFormFixture.correctAddress
-    @State private var share = "Videos"
     @State private var username = ConnectionFormFixture.correctUsername
     @State private var password = ConnectionFormFixture.correctPassword
     @State private var connectsAsGuest = false
@@ -646,7 +641,6 @@ struct ConnectionFormFixture: View {
             kind: kind,
             name: $name,
             address: $address,
-            share: $share,
             username: $username,
             password: $password,
             connectsAsGuest: $connectsAsGuest,

@@ -513,6 +513,19 @@ extension SampleBufferPlaybackSession {
             : fallback
     }
 
+    func pausedTimelineActivationTime(
+        target: CMTime,
+        firstDisplayablePresentationTime: CMTime
+    ) -> CMTime {
+        guard timelineStartRate == 0,
+              target.isNumeric,
+              firstDisplayablePresentationTime.isNumeric,
+              firstDisplayablePresentationTime > target else {
+            return target
+        }
+        return firstDisplayablePresentationTime
+    }
+
     func resetDecoderBootstrap() {
         decoderBootstrapLock.withLock {
             decoderBootstrapComplete = false
@@ -830,10 +843,11 @@ extension SampleBufferPlaybackSession {
     }
 
     func rendererGraphPlaybackObservation() -> RendererGraphPlaybackObservation {
-        let state = debugStore.snapshot().rendererState
+        let snapshot = debugStore.snapshot()
+        let state = snapshot.rendererState
         return RendererGraphPlaybackObservation(
             graphRevision: graphRevision,
-            acceptedInputCount: debugStore.snapshot().acceptedRendererInputCount,
+            acceptedInputCount: snapshot.acceptedRendererInputCount,
             actualTimebaseRate: state?.actualTimebaseRate ?? 0,
             displayedFrameObservationCount: state?.displayedFrameObservationCount ?? 0
         )

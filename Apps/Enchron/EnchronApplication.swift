@@ -7,11 +7,39 @@ import PlaybackPresentation
 import PlaybackCore
 import SwiftUI
 
+enum EffectiveMediaFormatPresentationResolution: Equatable {
+    case unchanged
+    case enterPanorama
+    case returnToWindow
+    case returnToWindowThenEnterPanorama
+}
+
+enum EffectiveMediaFormatPresentationResolver {
+    static func resolve(
+        _ interpretation: EffectiveMediaFormatInterpretation,
+        from presentation: PlaybackPresentation
+    ) -> EffectiveMediaFormatPresentationResolution {
+        if interpretation.isPanoramic {
+            return switch presentation {
+            case .window: .enterPanorama
+            case .docked: .returnToWindowThenEnterPanorama
+            case .portal, .panorama: .unchanged
+            }
+        }
+
+        return switch presentation {
+        case .portal, .panorama: .returnToWindow
+        case .window, .docked: .unchanged
+        }
+    }
+}
+
 @MainActor
 @Observable
 final class EnchronApplication {
     let appModel: AppModel
     let playbackRuntime: PlaybackRuntime
+    let playbackVideoEntityStore: PlaybackVideoEntityStore
     let fileBrowsingViewModel: FileBrowsingViewModel
     let mediaLibraryViewModel: MediaLibraryViewModel
     let playbackLauncher: PlaybackLaunchCoordinator
@@ -88,36 +116,49 @@ final class EnchronApplication {
             mediaStateSuiteName: mediaStateSuiteName,
             preferencesProvider: preferencesStore
         )
-        launcher.onResolvedLaunchFormatApplied = { [weak appModel] format in
-            guard let appModel,
-                  appModel.pendingSpatialPlatformEffect == nil else { return }
-            if format.projection.isPanoramic {
-                switch appModel.playbackPresentation {
-                case .window:
-                    _ = try? appModel.requestPlaybackPresentation(
+        launcher.onEffectiveMediaFormatApplied = {
+            [weak appModel, weak playbackRuntime] interpretation in
+            guard let appModel, let playbackRuntime else { return }
+            let resolution = EffectiveMediaFormatPresentationResolver.resolve(
+                interpretation,
+                from: appModel.playbackPresentation
+            )
+            do {
+                switch resolution {
+                case .unchanged:
+                    appModel.setAutomaticPanoramaEntryPending(false)
+                case .enterPanorama:
+                    appModel.setAutomaticPanoramaEntryPending(false)
+                    _ = try appModel.requestPlaybackPresentation(
                         .panorama,
                         mediaSessionID: playbackRuntime.activeSessionID,
                         wasPlaying: playbackRuntime.productLifecycle == .playing
                     )
-                case .docked:
-                    appModel.setAutomaticPanoramaEntryPending(true)
-                    _ = try? appModel.requestPlaybackPresentation(
-                        .window,
-                        mediaSessionID: playbackRuntime.activeSessionID,
-                        wasPlaying: playbackRuntime.productLifecycle == .playing
-                    )
-                case .panorama:
+                case .returnToWindow:
                     appModel.setAutomaticPanoramaEntryPending(false)
-                }
-            } else {
-                appModel.setAutomaticPanoramaEntryPending(false)
-                if appModel.playbackPresentation == .panorama {
-                    _ = try? appModel.requestPlaybackPresentation(
+                    _ = try appModel.requestPlaybackPresentation(
                         .window,
                         mediaSessionID: playbackRuntime.activeSessionID,
                         wasPlaying: playbackRuntime.productLifecycle == .playing
                     )
+                case .returnToWindowThenEnterPanorama:
+                    appModel.setAutomaticPanoramaEntryPending(true)
+                    do {
+                        _ = try appModel.requestPlaybackPresentation(
+                            .window,
+                            mediaSessionID: playbackRuntime.activeSessionID,
+                            wasPlaying: playbackRuntime.productLifecycle == .playing
+                        )
+                    } catch {
+                        appModel.setAutomaticPanoramaEntryPending(false)
+                        throw error
+                    }
                 }
+            } catch {
+                // The core format already succeeded. Report only the distinct
+                // presentation failure and keep that effective interpretation.
+                appModel.setAutomaticPanoramaEntryPending(false)
+                playbackRuntime.lastErrorMessage = error.localizedDescription
             }
         }
         let fixtureSourceID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
@@ -184,6 +225,7 @@ final class EnchronApplication {
 
         self.appModel = appModel
         self.playbackRuntime = playbackRuntime
+        playbackVideoEntityStore = PlaybackVideoEntityStore()
         #if os(visionOS)
         let spatialPlatformEffectCoordinator = SpatialPlatformEffectCoordinator(
             appModel: appModel,
@@ -272,6 +314,7 @@ extension View {
     func enchronEnvironment(_ application: EnchronApplication) -> some View {
         environment(application.appModel)
             .environment(application.playbackRuntime)
+            .environment(application.playbackVideoEntityStore)
             #if os(visionOS)
             .environment(application.spatialPlatformEffectCoordinator)
             #endif

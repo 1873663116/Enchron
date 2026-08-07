@@ -129,17 +129,24 @@ nonisolated extension FileBrowsingDomain {
         }
 
         public mutating func moveReference(_ referenceID: UUID, to folderID: UUID?) throws {
+            try moveReferences([referenceID], to: folderID)
+        }
+
+        public mutating func moveReferences(_ referenceIDs: Set<UUID>, to folderID: UUID?) throws {
             if let folderID, !allFolders.contains(where: { $0.id == folderID }) {
                 throw LibraryError.folderNotFound
             }
-            guard let index = entries.firstIndex(where: { $0.reference.id == referenceID }) else {
-                return
+            for index in entries.indices where referenceIDs.contains(entries[index].reference.id) {
+                entries[index] = Entry(folderID: folderID, reference: entries[index].reference)
             }
-            entries[index] = Entry(folderID: folderID, reference: entries[index].reference)
         }
 
         public mutating func removeReference(_ referenceID: UUID) {
-            entries.removeAll { $0.reference.id == referenceID }
+            removeReferences([referenceID])
+        }
+
+        public mutating func removeReferences(_ referenceIDs: Set<UUID>) {
+            entries.removeAll { referenceIDs.contains($0.reference.id) }
         }
 
         public func folders(in parentID: UUID?) -> [LibraryFolder] {

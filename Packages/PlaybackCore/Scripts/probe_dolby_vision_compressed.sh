@@ -2,7 +2,8 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-TEST_ROOT="${DOLBY_VISION_TEST_ROOT:-/Users/xiongzhipeng/Desktop/test/DolbyVision/UHD}"
+TEST_MEDIA_ROOT="${ENCHRON_TEST_MEDIA_ROOT:-$ROOT_DIR/../../../TestMedia}"
+TEST_ROOT="${DOLBY_VISION_TEST_ROOT:-$TEST_MEDIA_ROOT/Samples/DynamicRange/DolbyVision/UHD}"
 
 swift run --package-path "$ROOT_DIR" DolbyVisionCompressedProbe \
   "5=$TEST_ROOT/Patterns_Of_Nature_DoVi_24_P5_UHD_HEVC-10mbps_DD+JOC-768kbps_iOS.mp4" \

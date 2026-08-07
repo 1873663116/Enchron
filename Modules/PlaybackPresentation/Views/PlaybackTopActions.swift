@@ -10,6 +10,7 @@ enum PlaybackTopSecondaryMenu: String {
 
 struct PlaybackVideoFormatSelection: Equatable {
     let projection: PlaybackModel.ProjectionType
+    let horizontalFieldOfViewDegrees: Int?
     let stereoLayout: PlaybackModel.StereoLayout
 }
 
@@ -23,6 +24,7 @@ struct PlaybackTopActionsState {
     var selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment
     var selectedEffect: SpatialSceneDomain.EnvironmentEffect?
     var projection: PlaybackModel.ProjectionType
+    var horizontalFieldOfViewDegrees: Int
     var stereoLayout: PlaybackModel.StereoLayout
 
     private var selectionBeforeEditing: PlaybackVideoFormatSelection
@@ -30,17 +32,20 @@ struct PlaybackTopActionsState {
     init(
         presentedMenu: PlaybackTopSecondaryMenu? = nil,
         selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
-        selectedEffect: SpatialSceneDomain.EnvironmentEffect? = .night,
-        projection: PlaybackModel.ProjectionType = .equirectangular180,
+        selectedEffect: SpatialSceneDomain.EnvironmentEffect? = .dark,
+        projection: PlaybackModel.ProjectionType = .flat,
+        horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
         stereoLayout: PlaybackModel.StereoLayout = .mono
     ) {
         self.presentedMenu = presentedMenu
         self.selectedDockEnvironment = selectedDockEnvironment
         self.selectedEffect = selectedEffect
         self.projection = projection
+        self.horizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         self.stereoLayout = stereoLayout
         self.selectionBeforeEditing = PlaybackVideoFormatSelection(
             projection: projection,
+            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
             stereoLayout: stereoLayout
         )
     }
@@ -83,6 +88,23 @@ struct PlaybackTopActionsState {
         }
     }
 
+    mutating func synchronizeCommittedVideoFormat(
+        _ selection: PlaybackVideoFormatSelection
+    ) {
+        guard presentedMenu != .videoFormat else { return }
+        projection = selection.projection
+        horizontalFieldOfViewDegrees = selection.horizontalFieldOfViewDegrees
+            ?? PanoramaHorizontalCoverage.defaultCustomAngle
+        stereoLayout = selection.stereoLayout
+        selectionBeforeEditing = selection
+    }
+
+    mutating func restoreAutomaticFormat() -> Bool {
+        guard presentedMenu == .videoFormat else { return false }
+        dismissMenu()
+        return true
+    }
+
     mutating func selectDockTarget(
         environment: SpatialSceneDomain.CinemaEnvironment,
         effect: SpatialSceneDomain.EnvironmentEffect?
@@ -96,12 +118,17 @@ struct PlaybackTopActionsState {
     private var currentVideoFormatSelection: PlaybackVideoFormatSelection {
         PlaybackVideoFormatSelection(
             projection: projection,
+            horizontalFieldOfViewDegrees: projection == .customAngle
+                ? horizontalFieldOfViewDegrees
+                : nil,
             stereoLayout: stereoLayout
         )
     }
 
     private mutating func discardVideoFormatChanges() {
         projection = selectionBeforeEditing.projection
+        horizontalFieldOfViewDegrees = selectionBeforeEditing.horizontalFieldOfViewDegrees
+            ?? PanoramaHorizontalCoverage.defaultCustomAngle
         stereoLayout = selectionBeforeEditing.stereoLayout
     }
 }
@@ -109,12 +136,18 @@ struct PlaybackTopActionsState {
 struct PlaybackTopActions: View {
     private let canDock: Bool
     private let canApplyFormat: Bool
-    private let canUseFisheye: Bool
     private let resumesPanorama: Bool
+    private let mediaFormatProvenance: MediaFormatProvenance
+    private let sourceMediaFormatSummary: String
+    private let committedProjection: PlaybackModel.ProjectionType
+    private let committedHorizontalFieldOfViewDegrees: Int
+    private let committedStereoLayout: PlaybackModel.StereoLayout
     private let defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment
     private let onDock: ((SpatialSceneDomain.CinemaEnvironment, SpatialSceneDomain.EnvironmentEffect?) -> Void)?
-    private let onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)?
+    private let onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)?
+    private let onRestoreAutomaticFormat: (() -> Void)?
     private let onResumePanorama: (() -> Void)?
+    private let onSecondaryMenuVisibilityChange: ((Bool) -> Void)?
 
     @State private var state: PlaybackTopActionsState
 
@@ -122,27 +155,42 @@ struct PlaybackTopActions: View {
         initialPresentedMenu: PlaybackTopSecondaryMenu? = nil,
         canDock: Bool = true,
         canApplyFormat: Bool = true,
-        canUseFisheye: Bool = false,
         resumesPanorama: Bool = false,
+        mediaFormatProvenance: MediaFormatProvenance = .source,
+        sourceMediaFormatSummary: String = "Flat · Mono",
+        projection: PlaybackModel.ProjectionType = .flat,
+        horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
+        stereoLayout: PlaybackModel.StereoLayout = .mono,
         defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
         onDock: ((SpatialSceneDomain.CinemaEnvironment, SpatialSceneDomain.EnvironmentEffect?) -> Void)? = nil,
-        onApplyFormat: ((PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void)? = nil,
-        onResumePanorama: (() -> Void)? = nil
+        onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)? = nil,
+        onRestoreAutomaticFormat: (() -> Void)? = nil,
+        onResumePanorama: (() -> Void)? = nil,
+        onSecondaryMenuVisibilityChange: ((Bool) -> Void)? = nil
     ) {
         self.canDock = canDock
         self.canApplyFormat = canApplyFormat
-        self.canUseFisheye = canUseFisheye
         self.resumesPanorama = resumesPanorama
+        self.mediaFormatProvenance = mediaFormatProvenance
+        self.sourceMediaFormatSummary = sourceMediaFormatSummary
+        self.committedProjection = projection
+        self.committedHorizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
+        self.committedStereoLayout = stereoLayout
         self.defaultScenicEnvironment = defaultScenicEnvironment.isScenic
             ? defaultScenicEnvironment
             : .defaultScenic
         self.onDock = onDock
         self.onApplyFormat = onApplyFormat
+        self.onRestoreAutomaticFormat = onRestoreAutomaticFormat
         self.onResumePanorama = onResumePanorama
+        self.onSecondaryMenuVisibilityChange = onSecondaryMenuVisibilityChange
         _state = State(
                 initialValue: PlaybackTopActionsState(
                     presentedMenu: initialPresentedMenu,
-                    selectedDockEnvironment: defaultScenicEnvironment
+                    selectedDockEnvironment: defaultScenicEnvironment,
+                    projection: projection,
+                    horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
+                    stereoLayout: stereoLayout
                 )
         )
     }
@@ -154,23 +202,35 @@ struct PlaybackTopActions: View {
             if state.presentedMenu == .dock {
                 dockMenu
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .offset(y: secondaryMenuTopOffset)
+                    .padding(.top, secondaryMenuTopOffset)
                     .zIndex(10)
             }
 
             if state.presentedMenu == .videoFormat {
                 videoFormatMenu
                     .frame(maxWidth: .infinity, alignment: .trailing)
-                    .offset(y: secondaryMenuTopOffset)
+                    .padding(.top, secondaryMenuTopOffset)
                     .zIndex(10)
             }
         }
-        // The menu area always has real bounds, so its controls remain hittable,
-        // while the button row keeps the same identity and geometry across menu
-        // presentation changes. Empty ZStack space has no hit shape of its own.
+        // Secondary menus use layout padding instead of a visual offset so their
+        // Accessibility frames remain inside this stable top-chrome region.
+        // Empty ZStack space has no hit shape of its own.
         .frame(height: 420, alignment: .top)
+        .onAppear {
+            onSecondaryMenuVisibilityChange?(state.presentedMenu != nil)
+        }
+        .onDisappear {
+            onSecondaryMenuVisibilityChange?(false)
+        }
+        .onChange(of: state.presentedMenu) { _, menu in
+            onSecondaryMenuVisibilityChange?(menu != nil)
+        }
         .onChange(of: canApplyFormat) { _, available in
             if available == false, state.presentedMenu == .videoFormat { dismissMenu() }
+        }
+        .onChange(of: committedVideoFormatSelection) { _, selection in
+            state.synchronizeCommittedVideoFormat(selection)
         }
     }
 
@@ -222,13 +282,13 @@ struct PlaybackTopActions: View {
 
             dockMenuItem(
                 environment: defaultScenicEnvironment,
-                effect: .night,
-                thumbnailName: dockThumbnailName(for: .night)
+                effect: .dark,
+                thumbnailName: dockThumbnailName(for: .dark)
             )
             dockMenuItem(
                 environment: defaultScenicEnvironment,
-                effect: .day,
-                thumbnailName: dockThumbnailName(for: .day)
+                effect: .light,
+                thumbnailName: dockThumbnailName(for: .light)
             )
 
             Divider()
@@ -246,7 +306,9 @@ struct PlaybackTopActions: View {
         .contentShape(shape)
         .clipShape(shape)
         .enchronGlassBackground(in: shape)
-        .onTapGesture { }
+        .background {
+            secondaryMenuInteractionShield(shape)
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerUI-DockMenu")
     }
@@ -264,7 +326,12 @@ struct PlaybackTopActions: View {
         effect: SpatialSceneDomain.EnvironmentEffect?,
         thumbnailName: String
     ) -> some View {
-        Button {
+        let shape = RoundedRectangle(
+            cornerRadius: DesignTokens.Radius.element,
+            style: .continuous
+        )
+
+        return Button {
             let requested = state.selectDockTarget(
                 environment: environment,
                 effect: effect
@@ -283,7 +350,7 @@ struct PlaybackTopActions: View {
                     Text(environment.displayName)
                         .font(DesignTokens.Typography.selectionHeader)
                     if let effect {
-                        Text(effect == .night ? "Dark" : "Light")
+                        Text(effect == .dark ? "Dark Mode" : "Light Mode")
                             .font(DesignTokens.Typography.metadata)
                             .foregroundStyle(.secondary)
                     }
@@ -303,23 +370,16 @@ struct PlaybackTopActions: View {
                     .fill(DesignTokens.Surface.selected)
                 }
             }
-            .contentShape(
-                RoundedRectangle(
-                    cornerRadius: DesignTokens.Radius.element,
-                    style: .continuous
-                )
-            )
+            .contentShape(.interaction, shape)
         }
         .buttonStyle(.plain)
-        .enchronHoverContentShape(
-            RoundedRectangle(
-                cornerRadius: DesignTokens.Radius.element,
-                style: .continuous
-            )
-        )
+        .contentShape(.interaction, shape)
+        .enchronHoverContentShape(shape)
         .enchronHoverEffect(.automatic)
         .accessibilityLabel(
-            effect.map { "\(environment.displayName), \($0 == .night ? "Dark" : "Light")" }
+            effect.map {
+                "\(environment.displayName), \($0 == .dark ? "Dark Mode" : "Light Mode")"
+            }
                 ?? environment.displayName
         )
         .accessibilityIdentifier(
@@ -346,7 +406,29 @@ struct PlaybackTopActions: View {
 
     private func applyVideoFormat() {
         guard let selection = state.finishVideoFormatEditing(.apply) else { return }
-        onApplyFormat?(selection.projection, selection.stereoLayout)
+        // The runtime remains authoritative until the async core operation
+        // succeeds. This also restores the visible committed value if it fails.
+        state.synchronizeCommittedVideoFormat(committedVideoFormatSelection)
+        onApplyFormat?(
+            selection.projection,
+            selection.horizontalFieldOfViewDegrees,
+            selection.stereoLayout
+        )
+    }
+
+    private func restoreAutomaticFormat() {
+        guard state.restoreAutomaticFormat() else { return }
+        onRestoreAutomaticFormat?()
+    }
+
+    private var committedVideoFormatSelection: PlaybackVideoFormatSelection {
+        PlaybackVideoFormatSelection(
+            projection: committedProjection,
+            horizontalFieldOfViewDegrees: committedProjection == .customAngle
+                ? committedHorizontalFieldOfViewDegrees
+                : nil,
+            stereoLayout: committedStereoLayout
+        )
     }
 
     private var videoFormatMenu: some View {
@@ -358,20 +440,62 @@ struct PlaybackTopActions: View {
         return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             menuHeading("Video Format", supporting: "Choose how the video is presented")
 
+            Button {
+                restoreAutomaticFormat()
+            } label: {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    Image(systemName: mediaFormatProvenance == .source
+                        ? "checkmark.circle.fill"
+                        : "arrow.uturn.backward.circle")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Automatic")
+                            .font(DesignTokens.Typography.selectionHeader)
+                        Text(sourceMediaFormatSummary)
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .disabled(mediaFormatProvenance == .source || !canApplyFormat)
+            .accessibilityIdentifier("PlayerUI-VideoFormat-automatic")
+
+            Divider()
+
             formatPicker(
                 title: "Projection",
                 selection: $state.projection,
                 options: [
+                    PlaybackModel.ProjectionType.flat,
                     PlaybackModel.ProjectionType.equirectangular180,
                     .equirectangular360
-                ] + (canUseFisheye ? [.fisheye] : []),
+                ],
                 label: projectionTitle
             )
+
+            Menu {
+                ForEach(PanoramaHorizontalCoverage.selectableAngles, id: \.self) { degrees in
+                    Button("\(degrees)°") {
+                        state.projection = .customAngle
+                        state.horizontalFieldOfViewDegrees = degrees
+                    }
+                }
+            } label: {
+                Label(
+                    state.projection == .customAngle
+                        ? "Custom Angle · \(state.horizontalFieldOfViewDegrees)°"
+                        : "Custom Angle",
+                    systemImage: "angle"
+                )
+            }
+            .accessibilityIdentifier("PlayerUI-VideoFormat-CustomAngle")
 
             formatPicker(
                 title: "Stereo Layout",
                 selection: $state.stereoLayout,
-                options: PlaybackModel.StereoLayout.allCases,
+                options: PlaybackModel.StereoLayout.userSelectableCases,
                 label: stereoTitle
             )
 
@@ -394,7 +518,18 @@ struct PlaybackTopActions: View {
         .contentShape(shape)
         .clipShape(shape)
         .enchronGlassBackground(in: shape)
-        .onTapGesture { }
+        .background {
+            secondaryMenuInteractionShield(shape)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerUI-VideoFormat")
+    }
+
+    private func secondaryMenuInteractionShield<S: Shape>(_ shape: S) -> some View {
+        Color.clear
+            .contentShape(.interaction, shape)
+            .onTapGesture { }
+            .accessibilityHidden(true)
     }
 
     private func menuHeading(_ title: String, supporting: String) -> some View {
@@ -435,13 +570,14 @@ struct PlaybackTopActions: View {
         case .flat: "Flat"
         case .equirectangular180: "180°"
         case .equirectangular360: "360°"
-        case .fisheye: "Fisheye"
+        case .customAngle: "Custom Angle"
         }
     }
 
     private func stereoTitle(_ stereoLayout: PlaybackModel.StereoLayout) -> String {
         switch stereoLayout {
         case .mono: "Mono"
+        case .multiview: "Native Multiview"
         case .sideBySide: "Side-by-Side"
         case .topBottom: "Top-Bottom"
         }

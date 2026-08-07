@@ -5,8 +5,29 @@ import Foundation
 import IOSurface
 import VideoToolbox
 
-private let fixtureURL = URL(fileURLWithPath: "/Users/xiongzhipeng/Desktop/test/HDR10/HDR10.MP4")
+private let fixtureURL = locateTestMediaRoot()
+    .appendingPathComponent("Samples/DynamicRange/HDR10/HDR10.MP4")
 private let targetTime = CMTime(value: 450 * 1001, timescale: 60_000)
+
+private func locateTestMediaRoot() -> URL {
+    if let override = ProcessInfo.processInfo.environment["ENCHRON_TEST_MEDIA_ROOT"] {
+        return URL(fileURLWithPath: override, isDirectory: true)
+    }
+
+    var directory = URL(
+        fileURLWithPath: FileManager.default.currentDirectoryPath,
+        isDirectory: true
+    ).standardizedFileURL
+    while directory.path != "/" {
+        let candidate = directory.appendingPathComponent("TestMedia", isDirectory: true)
+        if FileManager.default.fileExists(atPath: candidate.path) {
+            return candidate
+        }
+        directory.deleteLastPathComponent()
+    }
+
+    fatalError("TestMedia not found; run from EnchronWorkspace or set ENCHRON_TEST_MEDIA_ROOT")
+}
 
 @MainActor
 private struct HDRBoundaryProbe {

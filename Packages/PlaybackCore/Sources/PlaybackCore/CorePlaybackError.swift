@@ -9,6 +9,8 @@ enum CorePlaybackError: LocalizedError {
     case stereoOverrideTimedOut(VideoStereoLayout?)
     case projectionOverrideUnavailable(VideoProjectionOverride?)
     case projectionOverrideTimedOut(VideoProjectionOverride?)
+    case formatOverridesUnavailable(VideoStereoLayout?, VideoProjectionOverride?)
+    case formatOverridesTimedOut(VideoStereoLayout?, VideoProjectionOverride?)
 
     var errorDescription: String? {
         switch self {
@@ -23,9 +25,13 @@ enum CorePlaybackError: LocalizedError {
         case .stereoOverrideTimedOut(let layout):
             "Stereo layout \(layout?.rawValue ?? "source") did not reach renderer input coordination."
         case .projectionOverrideUnavailable(let projection):
-            "Projection \(projection?.rawValue ?? "source") cannot be applied after the video input ended."
+            "Projection \(projection?.diagnosticLabel ?? "source") cannot be applied after the video input ended."
         case .projectionOverrideTimedOut(let projection):
-            "Projection \(projection?.rawValue ?? "source") did not reach renderer input coordination."
+            "Projection \(projection?.diagnosticLabel ?? "source") did not reach renderer input coordination."
+        case .formatOverridesUnavailable(let stereo, let projection):
+            "Media format \(stereo?.rawValue ?? "source") / \(projection?.diagnosticLabel ?? "source") cannot be applied after the video input ended."
+        case .formatOverridesTimedOut(let stereo, let projection):
+            "Media format \(stereo?.rawValue ?? "source") / \(projection?.diagnosticLabel ?? "source") did not reach renderer input coordination."
         }
     }
 }

@@ -168,97 +168,6 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func replaceRendererGraphForPresentation() async throws -> AVSampleBufferVideoRenderer {
-        await suspendVideoSampleDelivery()
-        await suspendAudioSampleDelivery()
-
-        let previousGraph = rendererGraphLock.withLock {
-            RetiredRendererGraph(
-                videoRenderer: rendererStorage,
-                videoSink: rendererSinkStorage,
-                audioRenderer: audioRendererStorage,
-                audioSink: audioRendererSinkStorage,
-                synchronizer: synchronizerStorage
-            )
-        }
-        let replacementTime = previousGraph.synchronizer.currentTime()
-        previousGraph.synchronizer.rate = 0
-        previousGraph.videoSink.stopRenderingEventObservation()
-        previousGraph.audioSink.stopRenderingEventObservation()
-        if let timeObserver {
-            previousGraph.synchronizer.removeTimeObserver(timeObserver)
-            self.timeObserver = nil
-        }
-
-        let replacement = AVSampleBufferVideoRenderer()
-        let replacementAudioRenderer = AVSampleBufferAudioRenderer()
-        replacementAudioRenderer.audioTimePitchAlgorithm = .timeDomain
-        replacementAudioRenderer.allowedAudioSpatializationFormats = .monoAndStereo
-        replacementAudioRenderer.volume = previousGraph.audioRenderer.volume
-        replacementAudioRenderer.isMuted = previousGraph.audioRenderer.isMuted
-        let replacementSynchronizer = AVSampleBufferRenderSynchronizer()
-        replacementSynchronizer.delaysRateChangeUntilHasSufficientMediaData = false
-        replacementSynchronizer.setRate(0, time: replacementTime)
-        let replacementSink = replacementRendererSinkFactory?()
-            ?? AVSampleBufferRendererInputSink(
-                receiver: replacementSynchronizer.sampleBufferReceiver(adding: replacement)
-            )
-        let replacementAudioSink = AVSampleBufferAudioRendererInputSink(
-            receiver: replacementSynchronizer.sampleBufferReceiver(
-                adding: replacementAudioRenderer
-            )
-        )
-        let replacementTimeObserver = replacementSynchronizer.addPeriodicTimeObserver(
-            forInterval: CMTime(value: 1, timescale: 10),
-            queue: deliveryQueue
-        ) { [weak self] time in
-            self?.updatePresentationStatus(at: time)
-        }
-        rendererGraphLock.withLock {
-            retiredRendererGraphs.append(previousGraph)
-            rendererStorage = replacement
-            rendererSinkStorage = replacementSink
-            audioRendererStorage = replacementAudioRenderer
-            audioRendererSinkStorage = replacementAudioSink
-            synchronizerStorage = replacementSynchronizer
-        }
-        timeObserver = replacementTimeObserver
-        graphRevision += 1
-        displayedFrameObservationCount = 0
-        lastDisplayedFrameIdentity = nil
-        rendererStateLock.withLock {
-            videoRendererStatus = "unknown"
-            videoRendererError = nil
-            audioRendererError = nil
-            lastRecordedAudioRendererStatus = nil
-            lastRecordedAudioRendererError = nil
-        }
-        PlaybackTrace.event(
-            "session.rendererGraph.replaced id=\(traceID) " +
-            "renderer=\(PlaybackTrace.identity(replacement)) " +
-            "synchronizer=\(PlaybackTrace.identity(replacementSynchronizer))"
-        )
-        debugStore.emit(
-            mediaSessionID: traceID,
-            node: .rendererInputCoordination,
-            kind: "rendererGraph.replaced",
-            outcome: .succeeded,
-            details: [
-                "graphRevision": String(graphRevision),
-                "replacementTimeSeconds": String(replacementTime.seconds),
-            ]
-        )
-        recordRendererState(at: replacementTime)
-        recordAudioRendererState()
-        return replacement
-    }
-
-    func releaseRetiredRendererGraphs() {
-        rendererGraphLock.withLock {
-            retiredRendererGraphs.removeAll()
-        }
-    }
-
     func resumeVideoSampleDelivery() {
         let wasSuspended = deliveryTaskLock.withLock {
             let wasSuspended = videoSampleDeliverySuspended
@@ -401,16 +310,16 @@ extension SampleBufferPlaybackSession {
                 presentationEnd: presentationEnd
             )
 
-            let renderSample: CMSampleBuffer
+            let formatSignaledSample: CMSampleBuffer
             do {
                 if stereoLayoutOverride != nil || projectionOverride != nil {
-                    renderSample = try videoSampleFormatOverride.rewrite(
+                    formatSignaledSample = try videoSampleFormatOverride.rewrite(
                         sourceSample,
                         stereoLayout: stereoLayoutOverride,
                         projection: projectionOverride
                     )
                 } else {
-                    renderSample = sourceSample
+                    formatSignaledSample = sourceSample
                 }
             } catch {
                 recordFailure(
@@ -422,9 +331,14 @@ extension SampleBufferPlaybackSession {
                 return
             }
             markAsPrerollIfNeeded(
-                renderSample,
+                formatSignaledSample,
                 presentationTime: presentationTime,
                 presentationEnd: presentationEnd
+            )
+            let renderSample = videoSampleFormatOverride.taggedPresentationSample(
+                formatSignaledSample,
+                stereoLayout: stereoLayoutOverride,
+                projection: projectionOverride
             )
             let shouldAnchorTimeline = !hasStartedTimeline
             if shouldAnchorTimeline {
@@ -458,9 +372,9 @@ extension SampleBufferPlaybackSession {
             }
             if diagnostics.enqueuedSampleCount == 0 {
                 diagnostics.timelineConfiguredBeforeFirstEnqueue = hasStartedTimeline
-                dumpVideoSampleIfRequested(renderSample)
+                dumpVideoSampleIfRequested(formatSignaledSample)
             }
-            let decodeTime = CMSampleBufferGetDecodeTimeStamp(renderSample)
+            let decodeTime = CMSampleBufferGetDecodeTimeStamp(formatSignaledSample)
             let decoderBootstrapTarget = targetTimelineTime(fallback: presentationTime)
             let bootstrapIncomplete = !decoderBootstrapLock.withLock { decoderBootstrapComplete }
             // The first DTS after the target is the sample that completes bootstrap.
@@ -601,7 +515,10 @@ extension SampleBufferPlaybackSession {
                 || presentationTime >= requestedTimelineStart
                 || presentationEnd >= requestedTimelineStart
             if isPrerolling, bootstrap.complete, targetReached {
-                let activationTime = targetTimelineTime(fallback: presentationTime)
+                let activationTime = pausedTimelineActivationTime(
+                    target: targetTimelineTime(fallback: presentationTime),
+                    firstDisplayablePresentationTime: presentationTime
+                )
                 do {
                     try await waitForAudioPreroll(through: activationTime)
                 } catch {
@@ -671,8 +588,8 @@ extension SampleBufferPlaybackSession {
                 )
             }
             clearPendingVideoSample(sourceSample)
-            let sourceEventID = recordVideoSample(renderSample)
-            updateCompressedDiagnostics(sample: renderSample)
+            let sourceEventID = recordVideoSample(formatSignaledSample)
+            updateCompressedDiagnostics(sample: formatSignaledSample)
             lastSourceEventID = sourceEventID
             diagnostics.enqueuedSampleCount += 1
             let rendererRecord = RendererInputRecord(
@@ -688,6 +605,10 @@ extension SampleBufferPlaybackSession {
                 outcome: .accepted
             )
             debugStore.recordRendererInput(rendererRecord)
+            if lastPublishedAcceptedVideoFormatRevision != rendererRecord.formatRevision {
+                lastPublishedAcceptedVideoFormatRevision = rendererRecord.formatRevision
+                onAcceptedVideoFormatRevisionChange?(rendererRecord.formatRevision)
+            }
             if rendererRecord.streamEpoch == streamEpoch {
                 recordRendererState(at: synchronizer.currentTime())
             }

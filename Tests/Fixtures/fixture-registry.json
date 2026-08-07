@@ -65,7 +65,7 @@
     },
     {
       "id": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
-      "deviceImportPath": "Generated/sdr-bframe-multiaudio-avsync-30s.mp4",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4",
       "sha256": "31444db5d84f3c8ea9af0f22a4d8602bd9bc2848d2e23ff857fbaf4ede9316aa",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -88,7 +88,7 @@
       ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/sdr-bframe-multiaudio-avsync-30s.mp4",
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -104,7 +104,7 @@
     },
     {
       "id": "generated-hlg-hevc10-avsync-10s-v1",
-      "deviceImportPath": "Generated/hlg-hevc-10bit-avsync-10s.mp4",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/hlg-hevc-10bit-avsync-10s.mp4",
       "sha256": "e724f389d32d4308c4faaaf30808819edc939a8727d32fa97bc2f08574822e62",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -127,7 +127,7 @@
       ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/hlg-hevc-10bit-avsync-10s.mp4",
+        "output": "TestVectors/Enchron/PlaybackBehavior/hlg-hevc-10bit-avsync-10s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -143,7 +143,7 @@
     },
     {
       "id": "generated-pq-hevc10-avsync-10s-v1",
-      "deviceImportPath": "Generated/pq-hevc-10bit-avsync-10s.mp4",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/pq-hevc-10bit-avsync-10s.mp4",
       "sha256": "23802c30206507c7068ff3964898abf564080e2e03db86bba19380d2cbdad800",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -166,7 +166,7 @@
       ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/pq-hevc-10bit-avsync-10s.mp4",
+        "output": "TestVectors/Enchron/PlaybackBehavior/pq-hevc-10bit-avsync-10s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -182,7 +182,7 @@
     },
     {
       "id": "generated-sdr-avc-bframe-multiaudio-subtitles-30s-v3",
-      "deviceImportPath": "Generated/sdr-bframe-multiaudio-subtitles-30s.mkv",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv",
       "sha256": "4877f4030938ccf9e58933112a15ae59db46f5206b823b092aea0398f3a0f1d2",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -207,7 +207,7 @@
       ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/sdr-bframe-multiaudio-subtitles-30s.mkv",
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -231,7 +231,7 @@
     },
     {
       "id": "generated-sdr-avc-bframe-multiaudio-avsync-120s-v1",
-      "deviceImportPath": "Generated/sdr-bframe-multiaudio-avsync-120s.mp4",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-120s.mp4",
       "sha256": "9c318aac50d9c4d03c82b988ad0ae83a06403cf5d813622724da3f5eed4eb80e",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -254,7 +254,7 @@
       ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/sdr-bframe-multiaudio-avsync-120s.mp4",
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-120s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -270,7 +270,7 @@
     },
     {
       "id": "generated-sdr-avc-bframe-video-only-15s-v1",
-      "deviceImportPath": "Generated/sdr-bframe-video-only-15s.mp4",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-video-only-15s.mp4",
       "sha256": "6156dcbf31d367a1331fcacc344208b943946ab38ea4538800d66b9e7cd4856d",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -289,7 +289,7 @@
       "acceptanceCriteria": ["continuousPlayback", "videoOnlyPlayback"],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/sdr-bframe-video-only-15s.mp4",
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-video-only-15s.mp4",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -302,7 +302,7 @@
     },
     {
       "id": "generated-sdr-avc-bframe-audio-codec-matrix-15s-v1",
-      "deviceImportPath": "Generated/sdr-bframe-audio-codec-matrix-15s.mkv",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-audio-codec-matrix-15s.mkv",
       "sha256": "5784cc407a860c2db1b888be38e949236be53ac04f37f791d7cd251e2694d4fb",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -325,7 +325,7 @@
       ],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/sdr-bframe-audio-codec-matrix-15s.mkv",
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-audio-codec-matrix-15s.mkv",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -345,7 +345,7 @@
     },
     {
       "id": "generated-av1-flac-avsync-10s-v1",
-      "deviceImportPath": "Generated/av1-flac-avsync-10s.mkv",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv",
       "sha256": "16bef1f483b6f043165586e2b186b19d01fc059191800621e185525778b45949",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -364,7 +364,7 @@
       "acceptanceCriteria": ["continuousPlayback", "audioVideoSynchronization"],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/av1-flac-avsync-10s.mkv",
+        "output": "TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv",
         "ffmpegVersion": "8.0.1"
       },
       "oracle": {
@@ -378,7 +378,7 @@
     },
     {
       "id": "generated-external-subrip-zh-cn-v1",
-      "deviceImportPath": "Generated/sdr-bframe-multiaudio-avsync-30s.zh-CN.srt",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.zh-CN.srt",
       "sha256": "58c642420420f5cb795c35696de3df714c6dd2ede7dc220c88f0384abb677556",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -397,7 +397,7 @@
       "acceptanceCriteria": ["externalSubtitleSelection"],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/sdr-bframe-multiaudio-avsync-30s.zh-CN.srt"
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.zh-CN.srt"
       },
       "oracle": {
         "associatedVideoFixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",
@@ -412,7 +412,7 @@
     },
     {
       "id": "generated-external-ass-styled-v1",
-      "deviceImportPath": "Generated/sdr-bframe-multiaudio-avsync-30s.styled.ass",
+      "deviceImportPath": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.styled.ass",
       "sha256": "866aa669d2f360cdf3f82f4a083ba5ba482ef4ef4a4a3439f56c3068acc0a1fa",
       "license": "project-generated-no-external-media",
       "acceptanceEligibility": "eligible-local-generated",
@@ -431,7 +431,7 @@
       "acceptanceCriteria": ["externalSubtitleSelection"],
       "generation": {
         "script": "Scripts/fixtures/generate_acceptance_fixtures.sh",
-        "output": "Generated/sdr-bframe-multiaudio-avsync-30s.styled.ass"
+        "output": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.styled.ass"
       },
       "oracle": {
         "associatedVideoFixtureID": "generated-sdr-avc-bframe-multiaudio-avsync-30s-v1",

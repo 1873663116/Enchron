@@ -1,11 +1,59 @@
 import Foundation
 @testable import MediaLibrary
 import MediaSource
+import PlaybackCore
 import PlaybackFeature
 import XCTest
 @testable import Enchron
 
 nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
+    @MainActor
+    func testEffectiveFormatPresentationResolutionUsesTheSameInterpretationForSourceAndOverride() {
+        let panoramicSource = MediaFormatInterpretationResolver.resolve(
+            source: SourceMediaFormatFact(
+                contentKind: .halfEquirectangular,
+                projection: .equirectangular180,
+                stereoLayout: .mono
+            ),
+            override: nil
+        )
+        XCTAssertEqual(
+            EffectiveMediaFormatPresentationResolver.resolve(
+                panoramicSource,
+                from: .window
+            ),
+            .enterPanorama
+        )
+
+        let flatOverride = MediaFormatInterpretationResolver.resolve(
+            source: panoramicSource.source,
+            override: .standard
+        )
+        XCTAssertEqual(
+            EffectiveMediaFormatPresentationResolver.resolve(
+                flatOverride,
+                from: .panorama
+            ),
+            .returnToWindow
+        )
+    }
+
+    @MainActor
+    func testVideoFormatEditorDefaultsToFlatMonoAndAutomaticDiscardsItsDraft() {
+        var state = PlaybackTopActionsState()
+        XCTAssertEqual(state.projection, .flat)
+        XCTAssertEqual(state.stereoLayout, .mono)
+
+        state.toggleMenu(.videoFormat)
+        state.projection = .equirectangular360
+        state.stereoLayout = .sideBySide
+
+        XCTAssertTrue(state.restoreAutomaticFormat())
+        XCTAssertNil(state.presentedMenu)
+        XCTAssertEqual(state.projection, .flat)
+        XCTAssertEqual(state.stereoLayout, .mono)
+    }
+
     @MainActor
     func testEachSurfaceTapTogglesControlsExactlyOnce() {
         let appModel = AppModel()
@@ -103,7 +151,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         let first = Task { @MainActor in
             try await lifecycle.activateIfNeeded(hasAudio: true)
         }
-        while session.activationCount == 0 {
+        while session.isActivationSuspended == false {
             await Task.yield()
         }
         let second = Task { @MainActor in
@@ -126,7 +174,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         let activation = Task { @MainActor in
             try await lifecycle.activateIfNeeded(hasAudio: true)
         }
-        while session.activationCount == 0 {
+        while session.isActivationSuspended == false {
             await Task.yield()
         }
         let deactivation = Task { @MainActor in
@@ -245,6 +293,39 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
+    func testAppleImmersiveVideoFailsBeforePublishingAudioOrVideoPlayback() async throws {
+        let testMedia = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("TestMedia")
+        let fixture = testMedia.appendingPathComponent(
+            "Samples/Spatial/Apple-Immersive/Apple-Streaming-Examples/Immersive-Video-example.f99766.mp4"
+        )
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("Apple Immersive Video fixture is not available in this test process.")
+        }
+        let runtime = PlaybackRuntime()
+        let request = PlaybackLaunchRequest(
+            url: fixture,
+            displayName: fixture.lastPathComponent
+        )
+
+        do {
+            try await runtime.open(request)
+            XCTFail("Apple Immersive Video must fail before renderer publication.")
+        } catch {
+            XCTAssertEqual(error.localizedDescription, "Unable to open this file.")
+        }
+
+        XCTAssertNil(runtime.activeSessionID)
+        XCTAssertNil(runtime.renderer)
+        XCTAssertTrue(runtime.availableAudioTracks.isEmpty)
+        XCTAssertEqual(runtime.lastErrorMessage, "Unable to open this file.")
+    }
+
+    @MainActor
     func testPlaybackCoreDimensionSeparatorsProduceTheSameResolution() {
         let ascii = PlaybackRuntime.parseResolution("3840x2160")
         let typographic = PlaybackRuntime.parseResolution("3840×2160")
@@ -266,45 +347,119 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         )
         XCTAssertEqual(
             PlaybackRuntime.projectionType(from: "AppleImmersiveVideo"),
-            .fisheye
+            .flat
+        )
+        XCTAssertEqual(
+            PlaybackRuntime.sourceVideoContentKind(
+                from: "AppleImmersiveVideo",
+                isMVHEVC: true
+            ),
+            .appleImmersiveVideo
+        )
+        XCTAssertEqual(
+            PlaybackRuntime.sourceVideoContentKind(
+                from: "ParametricImmersive",
+                isMVHEVC: false
+            ),
+            .parametricImmersive
+        )
+        XCTAssertEqual(
+            PlaybackRuntime.sourceVideoContentKind(from: "missing", isMVHEVC: true),
+            .spatialVideo
         )
         XCTAssertEqual(PlaybackRuntime.stereoLayout(from: "SideBySide"), .sideBySide)
         XCTAssertEqual(PlaybackRuntime.stereoLayout(from: "OverUnder"), .topBottom)
+        XCTAssertEqual(
+            PlaybackRuntime.stereoLayout(from: "missing", isMVHEVC: true),
+            .multiview
+        )
         XCTAssertNil(PlaybackRuntime.projectionType(from: "missing"))
         XCTAssertNil(PlaybackRuntime.stereoLayout(from: "missing"))
     }
 
     @MainActor
-    func testWindowToPanoramaLeavesTheTargetUnclaimedUntilTheSourceVideoPlayerComponentIsRemoved() throws {
-        let runtime = PlaybackRuntime()
-        let sourceEntityID = "window-source"
-
-        try runtime.claimRendererConsumer(
-            presentation: .window,
-            entityID: sourceEntityID
+    func testEffectiveHorizontalCoverageMatchesTheSelectedProjection() {
+        XCTAssertEqual(
+            PlaybackRuntime.effectiveHorizontalFieldOfViewDegrees(
+                for: .equirectangular180,
+                explicitDegrees: nil
+            ),
+            180
         )
-        runtime.releaseRendererConsumer(
-            presentation: .window,
-            entityID: sourceEntityID,
-            retainingCurrentRendererGraphFor: .panorama
+        XCTAssertEqual(
+            PlaybackRuntime.effectiveHorizontalFieldOfViewDegrees(
+                for: .equirectangular360,
+                explicitDegrees: nil
+            ),
+            360
         )
-
-        XCTAssertThrowsError(
-            try runtime.claimRendererConsumer(
-                presentation: .panorama,
-                entityID: "panorama-target"
-            )
-        ) { error in
-            guard case .rendererTransferPending = error as? PlaybackRuntime.RuntimeError else {
-                return XCTFail("Expected the target renderer claim to remain pending, got \(error)")
-            }
-        }
-        XCTAssertNil(runtime.rendererConsumerPresentation)
-        XCTAssertNil(runtime.rendererConsumerEntityID)
+        XCTAssertEqual(
+            PlaybackRuntime.effectiveHorizontalFieldOfViewDegrees(
+                for: .customAngle,
+                explicitDegrees: 230
+            ),
+            230
+        )
     }
 
     @MainActor
-    func testWindowToPanoramaDoesNotLetAnotherPresentationClaimThePendingTargetGraph() throws {
+    func testAcceptedCoreFormatRevisionIsObservableSessionIdentityOnly() {
+        let controller = PlaybackCoreController()
+        let runtime = PlaybackRuntime(
+            controller: controller,
+            audioSessionLifecycle: PlaybackAudioSessionLifecycle()
+        )
+        let request = PlaybackLaunchRequest(
+            url: URL(fileURLWithPath: "/tmp/format-revision.mp4"),
+            displayName: "format-revision.mp4"
+        )
+        runtime.prepareForPlayback(request)
+        XCTAssertNil(runtime.effectiveVideoFormatRevision)
+
+        controller.onAcceptedVideoFormatRevisionChange?(7)
+
+        XCTAssertEqual(runtime.effectiveVideoFormatRevision, 7)
+        controller.onAcceptedVideoFormatRevisionChange?(8)
+        XCTAssertEqual(runtime.effectiveVideoFormatRevision, 8)
+        controller.onAcceptedVideoFormatRevisionChange?(7)
+        XCTAssertEqual(
+            runtime.effectiveVideoFormatRevision,
+            8,
+            "An out-of-order accepted-input callback must not move a session back to an older format."
+        )
+        XCTAssertEqual(runtime.videoComponentRevision, 0)
+
+        runtime.prepareForPlayback(request)
+        XCTAssertNil(runtime.effectiveVideoFormatRevision)
+    }
+
+    @MainActor
+    func testWindowToPanoramaTransfersTheSameEntityWithoutReplacingItsGraph() throws {
+        let runtime = PlaybackRuntime()
+        let entityID = "stable-video-entity"
+
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: entityID
+        )
+        runtime.releaseRendererConsumer(
+            presentation: .window,
+            entityID: entityID,
+            preservingVideoComponent: true
+        )
+
+        try runtime.claimRendererConsumer(
+            presentation: .panorama,
+            entityID: entityID
+        )
+
+        XCTAssertEqual(runtime.rendererConsumerPresentation, .panorama)
+        XCTAssertEqual(runtime.rendererConsumerEntityID, entityID)
+        XCTAssertEqual(runtime.videoComponentRevision, 0)
+    }
+
+    @MainActor
+    func testPresentationTransferRejectsASecondEntity() throws {
         let runtime = PlaybackRuntime()
         let sourceEntityID = "window-source"
 
@@ -315,7 +470,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         runtime.releaseRendererConsumer(
             presentation: .window,
             entityID: sourceEntityID,
-            retainingCurrentRendererGraphFor: .panorama
+            preservingVideoComponent: true
         )
 
         XCTAssertThrowsError(
@@ -333,7 +488,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testOnlyWindowToPanoramaMayTransferTheCurrentRendererGraphToAnotherEntity() throws {
+    func testWindowToDockedAlsoRequiresTheSameEntityIdentity() throws {
         let runtime = PlaybackRuntime()
 
         try runtime.claimRendererConsumer(
@@ -343,7 +498,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         runtime.releaseRendererConsumer(
             presentation: .window,
             entityID: "window-source",
-            retainingCurrentRendererGraphFor: .docked
+            preservingVideoComponent: true
         )
 
         XCTAssertThrowsError(
@@ -391,12 +546,14 @@ private final class RecordingPlaybackAudioSession: PlaybackAudioSessionManaging 
 private final class SuspendedPlaybackAudioSession: PlaybackAudioSessionManaging {
     private(set) var activationCount = 0
     private(set) var deactivationCount = 0
+    private(set) var isActivationSuspended = false
     private var activationContinuation: CheckedContinuation<Void, any Error>?
 
     func activateForMoviePlayback() async throws {
         activationCount += 1
         try await withCheckedThrowingContinuation { continuation in
             activationContinuation = continuation
+            isActivationSuspended = true
         }
     }
 
@@ -407,5 +564,6 @@ private final class SuspendedPlaybackAudioSession: PlaybackAudioSessionManaging 
     func finishActivation() {
         activationContinuation?.resume()
         activationContinuation = nil
+        isActivationSuspended = false
     }
 }

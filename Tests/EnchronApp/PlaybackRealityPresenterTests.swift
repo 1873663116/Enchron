@@ -1,26 +1,8 @@
 import AVFoundation
-import CoreMedia
-import CoreVideo
-import Dispatch
-import Metal
 import PlaybackPresentation
 import RealityKit
 import XCTest
 @testable import Enchron
-
-private nonisolated final class ReadyVideoReceiver: @unchecked Sendable {
-    private let receiver: AVSampleBufferVideoRenderer.Receiver
-
-    init(receiver: consuming AVSampleBufferVideoRenderer.Receiver) {
-        self.receiver = receiver
-    }
-
-    func enqueueImmediately(
-        _ sample: sending CMReadySampleBuffer<CMSampleBuffer.DynamicContent>
-    ) -> AVSampleBufferVideoRenderer.Receiver.EnqueueResult {
-        receiver.enqueueImmediately(sample)
-    }
-}
 
 nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     @MainActor
@@ -45,10 +27,10 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         XCTAssertEqual(
             EnvironmentSceneAppearanceApplier.apply(
                 environment: .scenicOne,
-                effect: .night,
+                effect: .dark,
                 to: world
             ),
-            EnvironmentSceneAppearanceApplier.nightSkyboxOpacity
+            EnvironmentSceneAppearanceApplier.darkSkyboxOpacity
         )
         XCTAssertFalse(skybox.isEnabled)
         XCTAssertNotNil(
@@ -58,7 +40,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             world.findEntity(
                 named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName
             )?.components[OpacityComponent.self]?.opacity,
-            EnvironmentSceneAppearanceApplier.nightSkyboxOpacity
+            EnvironmentSceneAppearanceApplier.darkSkyboxOpacity
         )
         XCTAssertNil(playbackAnchor.components[OpacityComponent.self])
     }
@@ -72,7 +54,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
 
         _ = EnvironmentSceneAppearanceApplier.apply(
             environment: .scenicThree,
-            effect: .day,
+            effect: .light,
             to: world
         )
 
@@ -88,6 +70,28 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         XCTAssertNil(
             world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
         )
+    }
+
+    @MainActor
+    func testClearingEnvironmentDisablesEveryEnvironmentBackdrop() async throws {
+        let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
+        let skybox = try XCTUnwrap(
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
+        )
+
+        _ = EnvironmentSceneAppearanceApplier.apply(
+            environment: .scenicOne,
+            effect: .light,
+            to: world
+        )
+        let placeholder = try XCTUnwrap(
+            world.findEntity(named: EnvironmentSceneAppearanceApplier.scenicPlaceholderName)
+        )
+
+        EnvironmentSceneAppearanceApplier.clear(in: world)
+
+        XCTAssertFalse(skybox.isEnabled)
+        XCTAssertFalse(placeholder.isEnabled)
     }
 
     @MainActor
@@ -114,85 +118,6 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testRealityRendererRendersVideoPlayerComponentFromAReadySampleBuffer() throws {
-        guard let device = MTLCreateSystemDefaultDevice() else {
-            throw XCTSkip("Metal is unavailable on this test host.")
-        }
-        let videoRenderer = AVSampleBufferVideoRenderer()
-        let synchronizer = AVSampleBufferRenderSynchronizer()
-        let receiver = ReadyVideoReceiver(
-            receiver: synchronizer.sampleBufferReceiver(adding: videoRenderer)
-        )
-        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
-            pixelFormat: .bgra8Unorm,
-            width: 256,
-            height: 256,
-            mipmapped: false
-        )
-        descriptor.usage = [.renderTarget, .shaderRead]
-        descriptor.storageMode = .shared
-        let texture = try XCTUnwrap(device.makeTexture(descriptor: descriptor))
-        let renderer = try RealityRenderer()
-        renderer.cameraSettings.colorBackground = .color(
-            CGColor(red: 1, green: 0, blue: 0, alpha: 1)
-        )
-        let camera = Entity()
-        camera.components.set(PerspectiveCameraComponent())
-        renderer.activeCamera = camera
-        renderer.entities.append(camera)
-        let videoEntity = Entity()
-        videoEntity.position.z = -1
-        PlaybackRealityPresenter.configure(
-            videoEntity,
-            renderer: videoRenderer,
-            presentation: .window,
-            stereoLayout: .mono
-        )
-        renderer.entities.append(videoEntity)
-        let enqueueResult = receiver.enqueueImmediately(
-            try Self.makeSolidGreenReadySampleBuffer()
-        )
-        switch enqueueResult {
-        case .enqueued, .enqueuedWithDecodeFailures:
-            break
-        case .cancelledDueToFlush:
-            XCTFail("The video sample was cancelled by a flush.")
-        case .cancelledDueToFlushRequiredToResume(let error):
-            XCTFail("The video renderer required a flush: \(error.localizedDescription)")
-        case .cancelledDueToError(let error):
-            XCTFail("The video renderer rejected the sample: \(error.localizedDescription)")
-        @unknown default:
-            XCTFail("The video renderer returned an unknown enqueue result.")
-        }
-        let output = try RealityRenderer.CameraOutput(.singleProjection(colorTexture: texture))
-        for frame in 0..<3 {
-            let rendered = DispatchSemaphore(value: 0)
-            try renderer.updateAndRender(
-                deltaTime: 1.0 / 60.0,
-                cameraOutput: output,
-                onComplete: { _ in rendered.signal() }
-            )
-            guard rendered.wait(timeout: .now() + 5) == .success else {
-                XCTFail("RealityRenderer did not complete frame \(frame).")
-                return
-            }
-        }
-
-        var bytes = [UInt8](repeating: 0, count: 256 * 256 * 4)
-        texture.getBytes(
-            &bytes,
-            bytesPerRow: 256 * 4,
-            from: MTLRegionMake2D(0, 0, 256, 256),
-            mipmapLevel: 0
-        )
-        let center = averageColor(in: bytes, width: 256, xRange: 96..<160, yRange: 96..<160)
-        XCTAssertGreaterThan(center.green, center.red * 2)
-        XCTAssertGreaterThan(center.green, center.blue * 2)
-        _ = synchronizer
-        _ = receiver
-    }
-
-    @MainActor
     func testWindowBindsTheActiveRendererToVideoPlayerComponent() throws {
         let renderer = AVSampleBufferVideoRenderer()
         let entity = Entity()
@@ -201,15 +126,15 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
 
         XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .window))
         XCTAssertNil(entity.components[ModelComponent.self])
         let component = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
         XCTAssertTrue(component.videoRenderer === renderer)
-        XCTAssertEqual(component.desiredViewingMode, .mono)
         XCTAssertEqual(component.desiredImmersiveViewingMode, .portal)
+        XCTAssertEqual(component.desiredSpatialVideoMode, .screen)
     }
 
     @MainActor
@@ -220,15 +145,17 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
-        let firstComponent = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
+        var firstComponent = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
+        firstComponent.desiredViewingMode = .stereo
+        entity.components.set(firstComponent)
 
         PlaybackRealityPresenter.configure(
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .sideBySide
+            requestsSpatialVideoMode: true
         )
 
         let component = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
@@ -236,6 +163,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         XCTAssertTrue(component.videoRenderer === renderer)
         XCTAssertEqual(component.desiredViewingMode, .stereo)
         XCTAssertEqual(component.desiredImmersiveViewingMode, .portal)
+        XCTAssertEqual(component.desiredSpatialVideoMode, .spatial)
     }
 
     @MainActor
@@ -246,14 +174,14 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
 
         PlaybackRealityPresenter.configure(
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono,
+            requestsSpatialVideoMode: false,
             requestsProgressiveImmersiveViewingMode: true
         )
 
@@ -270,47 +198,134 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .sideBySide
+            requestsSpatialVideoMode: false
         )
+        var configuredComponent = try XCTUnwrap(
+            entity.components[VideoPlayerComponent.self]
+        )
+        configuredComponent.desiredViewingMode = .stereo
+        entity.components.set(configuredComponent)
 
         PlaybackRealityPresenter.reapplyDesiredModesAfterSceneActivation(
             entity,
             presentation: .panorama,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: true
         )
 
         let component = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
         XCTAssertTrue(component.videoRenderer === renderer)
-        XCTAssertEqual(component.desiredViewingMode, .mono)
+        XCTAssertEqual(component.desiredViewingMode, .stereo)
         XCTAssertEqual(component.desiredImmersiveViewingMode, .progressive)
+        XCTAssertEqual(component.desiredSpatialVideoMode, .spatial)
     }
 
     @MainActor
-    func testEachRealityViewOwnsItsVideoEntityForTheActiveRenderer() throws {
+    func testPresentationsReuseOneVideoEntityAndOneRendererBinding() throws {
         let renderer = AVSampleBufferVideoRenderer()
-        let windowStore = PlaybackVideoEntityStore()
-        let spatialStore = PlaybackVideoEntityStore()
-        let windowEntity = windowStore.entity(for: renderer)
+        let store = PlaybackVideoEntityStore()
+        let windowEntity = store.entity(for: renderer)
         PlaybackRealityPresenter.configure(
             windowEntity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
 
-        let spatialEntity = spatialStore.entity(for: renderer)
+        let spatialEntity = store.entity(for: renderer)
         PlaybackRealityPresenter.configure(
             spatialEntity,
             renderer: renderer,
             presentation: .docked,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
 
-        XCTAssertFalse(windowEntity === spatialEntity)
+        XCTAssertTrue(windowEntity === spatialEntity)
         XCTAssertTrue(
             try XCTUnwrap(spatialEntity.components[VideoPlayerComponent.self])
                 .videoRenderer === renderer
         )
+    }
+
+    @MainActor
+    func testRealityKitContentTypeSurvivesMovingTheStableEntityBetweenRoots() {
+        let store = PlaybackVideoEntityStore()
+        let sourceRoot = Entity()
+        let targetRoot = Entity()
+        let scope = PlaybackRealityKitContentTypeScope(
+            sessionID: "session-a",
+            effectiveVideoFormatRevision: 7
+        )
+        sourceRoot.addChild(store.entity)
+        store.synchronizeRealityKitContentTypeScope(scope)
+        store.recordRealityKitContentType("equirectangular", for: scope)
+
+        targetRoot.addChild(store.entity)
+        store.synchronizeRealityKitContentTypeScope(scope)
+
+        XCTAssertTrue(store.entity.parent === targetRoot)
+        XCTAssertEqual(store.realityKitContentType, "equirectangular")
+        XCTAssertEqual(store.realityKitContentTypeScope, scope)
+    }
+
+    @MainActor
+    func testRealityKitContentTypeResetsForFormatAndSessionAndRejectsStaleEvents() {
+        let store = PlaybackVideoEntityStore()
+        let originalScope = PlaybackRealityKitContentTypeScope(
+            sessionID: "session-a",
+            effectiveVideoFormatRevision: 1
+        )
+        let overriddenFormatScope = PlaybackRealityKitContentTypeScope(
+            sessionID: "session-a",
+            effectiveVideoFormatRevision: 2
+        )
+        let replacementSessionScope = PlaybackRealityKitContentTypeScope(
+            sessionID: "session-b",
+            effectiveVideoFormatRevision: nil
+        )
+
+        store.synchronizeRealityKitContentTypeScope(originalScope)
+        store.recordRealityKitContentType("rectilinear", for: originalScope)
+        store.synchronizeRealityKitContentTypeScope(overriddenFormatScope)
+        XCTAssertEqual(store.realityKitContentType, "unobserved")
+
+        store.recordRealityKitContentType("rectilinear", for: originalScope)
+        XCTAssertEqual(store.realityKitContentType, "unobserved")
+        store.recordRealityKitContentType(
+            "rectilinear",
+            for: overriddenFormatScope
+        )
+        XCTAssertEqual(store.realityKitContentType, "rectilinear")
+
+        store.synchronizeRealityKitContentTypeScope(overriddenFormatScope)
+        XCTAssertEqual(
+            store.realityKitContentType,
+            "rectilinear",
+            "Publishing final format semantics for one accepted revision must not clear its event a second time."
+        )
+
+        store.synchronizeRealityKitContentTypeScope(originalScope)
+        store.synchronizeRealityKitContentTypeScope(overriddenFormatScope)
+        store.recordRealityKitContentType(
+            "equirectangular",
+            forSessionID: "session-a"
+        )
+        XCTAssertEqual(
+            store.realityKitContentType,
+            "equirectangular",
+            "A session-long subscription must attribute the event to the current accepted revision."
+        )
+
+        store.synchronizeRealityKitContentTypeScope(replacementSessionScope)
+        XCTAssertEqual(store.realityKitContentType, "unobserved")
+        store.recordRealityKitContentType(
+            "rectilinear",
+            for: overriddenFormatScope
+        )
+        store.recordRealityKitContentType(
+            "rectilinear",
+            forSessionID: "session-a"
+        )
+        XCTAssertEqual(store.realityKitContentType, "unobserved")
     }
 
     @MainActor
@@ -321,7 +336,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
 
         PlaybackRealityPresenter.releaseVideoRenderer(from: entity)
@@ -338,20 +353,20 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         let first = retry.recoveryAction(
             entity: entity,
             presentation: .window,
-            desiredViewingMode: "mono",
-            actualViewingMode: "mono",
             desiredImmersiveViewingMode: "portal",
             actualImmersiveViewingMode: nil,
+            desiredSpatialVideoMode: "screen",
+            actualSpatialVideoMode: "screen",
             requiresImmersiveViewingModeSettlement: true,
             now: startedAt
         )
         let second = retry.recoveryAction(
             entity: entity,
             presentation: .window,
-            desiredViewingMode: "mono",
-            actualViewingMode: "mono",
             desiredImmersiveViewingMode: "portal",
             actualImmersiveViewingMode: nil,
+            desiredSpatialVideoMode: "screen",
+            actualSpatialVideoMode: "screen",
             requiresImmersiveViewingModeSettlement: true,
             now: startedAt.addingTimeInterval(0.6)
         )
@@ -359,13 +374,13 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         guard case .requestModesAgain = first else {
             return XCTFail("A Panorama return must reapply Portal mode first.")
         }
-        guard case .replaceRendererGraph = second else {
-            return XCTFail("A missing Portal mode must trigger bounded renderer recovery.")
+        guard case .requestModesAgain = second else {
+            return XCTFail("A missing Portal mode must keep requesting the same component mode.")
         }
     }
 
     @MainActor
-    func testPanoramaReturnReplacesRendererGraphAtMostOnceAcrossReplacementEntity() {
+    func testPanoramaReturnNeverUsesEntityReplacementAsModeRecovery() {
         let retry = PlaybackModeRequestRetry()
         let initialEntity = Entity()
         let replacementEntity = Entity()
@@ -374,49 +389,49 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         _ = retry.recoveryAction(
             entity: initialEntity,
             presentation: .window,
-            desiredViewingMode: "mono",
-            actualViewingMode: "mono",
             desiredImmersiveViewingMode: "portal",
             actualImmersiveViewingMode: nil,
+            desiredSpatialVideoMode: "screen",
+            actualSpatialVideoMode: "screen",
             requiresImmersiveViewingModeSettlement: true,
             now: startedAt
         )
-        let firstReplacement = retry.recoveryAction(
+        let firstRetry = retry.recoveryAction(
             entity: initialEntity,
             presentation: .window,
-            desiredViewingMode: "mono",
-            actualViewingMode: "mono",
             desiredImmersiveViewingMode: "portal",
             actualImmersiveViewingMode: nil,
+            desiredSpatialVideoMode: "screen",
+            actualSpatialVideoMode: "screen",
             requiresImmersiveViewingModeSettlement: true,
             now: startedAt.addingTimeInterval(0.6)
         )
         _ = retry.recoveryAction(
             entity: replacementEntity,
             presentation: .window,
-            desiredViewingMode: "mono",
-            actualViewingMode: "mono",
             desiredImmersiveViewingMode: "portal",
             actualImmersiveViewingMode: nil,
+            desiredSpatialVideoMode: "screen",
+            actualSpatialVideoMode: "screen",
             requiresImmersiveViewingModeSettlement: true,
             now: startedAt.addingTimeInterval(0.7)
         )
-        let secondReplacement = retry.recoveryAction(
+        let secondRetry = retry.recoveryAction(
             entity: replacementEntity,
             presentation: .window,
-            desiredViewingMode: "mono",
-            actualViewingMode: "mono",
             desiredImmersiveViewingMode: "portal",
             actualImmersiveViewingMode: nil,
+            desiredSpatialVideoMode: "screen",
+            actualSpatialVideoMode: "screen",
             requiresImmersiveViewingModeSettlement: true,
             now: startedAt.addingTimeInterval(1.3)
         )
 
-        guard case .replaceRendererGraph = firstReplacement else {
-            return XCTFail("A missing Portal mode must allow one renderer replacement.")
+        guard case .requestModesAgain = firstRetry else {
+            return XCTFail("A missing Portal mode must retry the existing component.")
         }
-        if case .replaceRendererGraph = secondReplacement {
-            XCTFail("The replacement entity must not start another renderer replacement cycle.")
+        guard case .requestModesAgain = secondRetry else {
+            return XCTFail("Changing the caller's Entity must not create a renderer recovery path.")
         }
     }
 
@@ -427,10 +442,10 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
         let action = retry.recoveryAction(
             entity: Entity(),
             presentation: .window,
-            desiredViewingMode: "mono",
-            actualViewingMode: "mono",
             desiredImmersiveViewingMode: "portal",
             actualImmersiveViewingMode: nil,
+            desiredSpatialVideoMode: "screen",
+            actualSpatialVideoMode: "screen",
             requiresImmersiveViewingModeSettlement: false
         )
 
@@ -440,36 +455,115 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     }
 
     @MainActor
-    func testPanoramaReappliesAnUnreportedMonoViewingMode() {
+    func testPanoramaReappliesAnUnsettledSpatialVideoMode() {
         let retry = PlaybackModeRequestRetry()
 
         let action = retry.recoveryAction(
             entity: Entity(),
             presentation: .panorama,
-            desiredViewingMode: "mono",
-            actualViewingMode: nil,
             desiredImmersiveViewingMode: "progressive",
-            actualImmersiveViewingMode: "progressive"
+            actualImmersiveViewingMode: "progressive",
+            desiredSpatialVideoMode: "spatial",
+            actualSpatialVideoMode: "screen"
         )
 
         guard case .requestModesAgain = action else {
             return XCTFail(
-                "Panorama must request mono again until RealityKit reports the target mode."
+                "Panorama must request Spatial mode again until RealityKit reports it."
             )
         }
     }
 
     @MainActor
-    func testNewRendererReceivesANewVideoEntity() {
+    func testPanoramaRecoversWhenModesSettleButContentTypeIsInvalid() {
+        let retry = PlaybackModeRequestRetry()
+        let entity = Entity()
+        let startedAt = Date(timeIntervalSince1970: 1_000)
+
+        let first = retry.recoveryAction(
+            entity: entity,
+            presentation: .panorama,
+            desiredImmersiveViewingMode: "progressive",
+            actualImmersiveViewingMode: "progressive",
+            desiredSpatialVideoMode: "screen",
+            actualSpatialVideoMode: "screen",
+            contentTypeMatchesProjection: false,
+            now: startedAt
+        )
+        let second = retry.recoveryAction(
+            entity: entity,
+            presentation: .panorama,
+            desiredImmersiveViewingMode: "progressive",
+            actualImmersiveViewingMode: "progressive",
+            desiredSpatialVideoMode: "screen",
+            actualSpatialVideoMode: "screen",
+            contentTypeMatchesProjection: false,
+            now: startedAt.addingTimeInterval(0.6)
+        )
+
+        guard case .requestModesAgain = first else {
+            return XCTFail("Invalid Panorama content must first reapply the requested modes.")
+        }
+        guard case .requestModesAgain = second else {
+            return XCTFail("Persistently invalid Panorama content must retry the existing component.")
+        }
+    }
+
+    @MainActor
+    func testAChangedRendererStillUsesTheStableVideoEntity() {
         let store = PlaybackVideoEntityStore()
         let first = store.entity(for: AVSampleBufferVideoRenderer())
         let second = store.entity(for: AVSampleBufferVideoRenderer())
 
-        XCTAssertFalse(first === second)
+        XCTAssertTrue(first === second)
     }
 
     @MainActor
-    func testNewVideoComponentRevisionRemovesThePreviousRendererBinding() throws {
+    func testRendererTargetBindingWaitsForRealityKitCommitBeforeRestartingDelivery() async {
+        let gate = PlaybackRendererTargetBindingGate(
+            settlementDelay: .milliseconds(50)
+        )
+        var didRestartDelivery = false
+
+        gate.schedule {
+            didRestartDelivery = true
+        }
+        try? await Task.sleep(for: .milliseconds(10))
+        XCTAssertFalse(
+            didRestartDelivery,
+            "A component commit cannot synchronously restart sample delivery."
+        )
+
+        try? await Task.sleep(for: .milliseconds(70))
+        XCTAssertTrue(didRestartDelivery)
+    }
+
+    @MainActor
+    func testRendererTargetBindingIsNotPostponedByPanoramaComponentChanges() async {
+        let gate = PlaybackRendererTargetBindingGate(
+            settlementDelay: .milliseconds(50)
+        )
+        var didConfirmTarget = false
+
+        gate.schedule {
+            didConfirmTarget = true
+        }
+        for _ in 0..<4 {
+            try? await Task.sleep(for: .milliseconds(15))
+            gate.schedule {
+                didConfirmTarget = true
+            }
+        }
+        try? await Task.sleep(for: .milliseconds(50))
+
+        XCTAssertTrue(
+            didConfirmTarget,
+            "Later VideoPlayerComponent changes must not postpone the first bounded target confirmation."
+        )
+    }
+
+    @MainActor
+    func testNewRendererRemovesThePreviousBindingAndCarriesTheNewComponentRevision() throws {
         let renderer = AVSampleBufferVideoRenderer()
         let store = PlaybackVideoEntityStore()
         let entity = store.entity(for: renderer, videoComponentRevision: 0)
@@ -477,14 +571,44 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
         XCTAssertNotNil(entity.components[VideoPlayerComponent.self])
 
-        let revisedEntity = store.entity(for: renderer, videoComponentRevision: 1)
+        let replacementRenderer = AVSampleBufferVideoRenderer()
+        let revisedEntity = store.entity(
+            for: replacementRenderer,
+            videoComponentRevision: 1
+        )
 
         XCTAssertTrue(revisedEntity === entity)
         XCTAssertNil(revisedEntity.components[VideoPlayerComponent.self])
+        XCTAssertTrue(
+            store.hasApplied(
+                videoComponentRevision: 1,
+                to: replacementRenderer
+            )
+        )
+    }
+
+    @MainActor
+    func testRevisionAloneNeverRebindsTheSameRenderer() throws {
+        let renderer = AVSampleBufferVideoRenderer()
+        let store = PlaybackVideoEntityStore()
+        let entity = store.entity(for: renderer, videoComponentRevision: 0)
+        PlaybackRealityPresenter.configure(
+            entity,
+            renderer: renderer,
+            presentation: .window,
+            requestsSpatialVideoMode: false
+        )
+
+        _ = store.entity(for: renderer, videoComponentRevision: 1)
+
+        XCTAssertTrue(
+            try XCTUnwrap(entity.components[VideoPlayerComponent.self])
+                .videoRenderer === renderer
+        )
         XCTAssertTrue(store.hasApplied(videoComponentRevision: 1, to: renderer))
     }
 
@@ -497,7 +621,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
 
         XCTAssertNil(entity.components[InputTargetComponent.self])
@@ -519,7 +643,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             entity,
             renderer: renderer,
             presentation: .docked,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
 
         XCTAssertNotNil(entity.components[InputTargetComponent.self])
@@ -583,107 +707,22 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
             entity,
             renderer: renderer,
             presentation: .window,
-            stereoLayout: .mono
+            requestsSpatialVideoMode: false
         )
 
         PlaybackRealityPresenter.configure(
             entity,
             renderer: renderer,
             presentation: .panorama,
-            stereoLayout: .sideBySide
+            requestsSpatialVideoMode: false
         )
 
         XCTAssertTrue(PlaybackRealityPresenter.isBound(entity, to: renderer, presentation: .panorama))
         XCTAssertNil(entity.components[ModelComponent.self])
         let component = try XCTUnwrap(entity.components[VideoPlayerComponent.self])
         XCTAssertTrue(component.videoRenderer === renderer)
-        XCTAssertEqual(component.desiredViewingMode, .stereo)
         XCTAssertEqual(component.desiredImmersiveViewingMode, .progressive)
+        XCTAssertEqual(component.desiredSpatialVideoMode, .screen)
     }
 
-    private nonisolated static func makeSolidGreenReadySampleBuffer() throws
-        -> CMReadySampleBuffer<CMSampleBuffer.DynamicContent>
-    {
-        let attributes: CFDictionary = [
-            kCVPixelBufferMetalCompatibilityKey: true,
-            kCVPixelBufferIOSurfacePropertiesKey: [:],
-        ] as CFDictionary
-        var pixelBuffer: CVPixelBuffer?
-        let pixelStatus = CVPixelBufferCreate(
-            kCFAllocatorDefault,
-            64,
-            64,
-            kCVPixelFormatType_32BGRA,
-            attributes,
-            &pixelBuffer
-        )
-        guard pixelStatus == kCVReturnSuccess, let buffer = pixelBuffer else {
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(pixelStatus))
-        }
-        CVPixelBufferLockBaseAddress(buffer, [])
-        guard let rawBaseAddress = CVPixelBufferGetBaseAddress(buffer) else {
-            CVPixelBufferUnlockBaseAddress(buffer, [])
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(kCVReturnInvalidArgument))
-        }
-        let baseAddress = rawBaseAddress.assumingMemoryBound(to: UInt8.self)
-        let bytesPerRow = CVPixelBufferGetBytesPerRow(buffer)
-        for y in 0..<64 {
-            for x in 0..<64 {
-                let offset = y * bytesPerRow + x * 4
-                baseAddress[offset] = 0
-                baseAddress[offset + 1] = 255
-                baseAddress[offset + 2] = 0
-                baseAddress[offset + 3] = 255
-            }
-        }
-        CVPixelBufferUnlockBaseAddress(buffer, [])
-
-        var formatDescription: CMVideoFormatDescription?
-        let formatStatus = CMVideoFormatDescriptionCreateForImageBuffer(
-            allocator: kCFAllocatorDefault,
-            imageBuffer: buffer,
-            formatDescriptionOut: &formatDescription
-        )
-        guard formatStatus == noErr, let formatDescription else {
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(formatStatus))
-        }
-        var timing = CMSampleTimingInfo(
-            duration: CMTime(value: 1, timescale: 30),
-            presentationTimeStamp: .zero,
-            decodeTimeStamp: .invalid
-        )
-        var sampleBuffer: CMSampleBuffer?
-        let sampleStatus = CMSampleBufferCreateReadyWithImageBuffer(
-            allocator: kCFAllocatorDefault,
-            imageBuffer: buffer,
-            formatDescription: formatDescription,
-            sampleTiming: &timing,
-            sampleBufferOut: &sampleBuffer
-        )
-        guard sampleStatus == noErr, let sampleBuffer else {
-            throw NSError(domain: NSOSStatusErrorDomain, code: Int(sampleStatus))
-        }
-        return CMReadySampleBuffer<CMSampleBuffer.DynamicContent>(unsafeBuffer: sampleBuffer)
-    }
-
-    private func averageColor(
-        in bytes: [UInt8],
-        width: Int,
-        xRange: Range<Int>,
-        yRange: Range<Int>
-    ) -> (blue: Double, green: Double, red: Double) {
-        var blue = 0.0
-        var green = 0.0
-        var red = 0.0
-        for y in yRange {
-            for x in xRange {
-                let offset = (y * width + x) * 4
-                blue += Double(bytes[offset])
-                green += Double(bytes[offset + 1])
-                red += Double(bytes[offset + 2])
-            }
-        }
-        let count = Double(xRange.count * yRange.count)
-        return (blue / count, green / count, red / count)
-    }
 }

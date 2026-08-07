@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-OUTPUT_DIR="${1:-$ROOT_DIR/../TestMedia/Generated}"
+OUTPUT_DIR="${1:-$ROOT_DIR/../TestMedia/TestVectors/Enchron/PlaybackBehavior}"
 FFMPEG="${FFMPEG:-ffmpeg}"
 FFPROBE="${FFPROBE:-ffprobe}"
 CC="${CC:-clang}"
@@ -68,8 +68,10 @@ generate_hdr() {
 
 generate_subtitle() {
   local output="$OUTPUT_DIR/sdr-bframe-multiaudio-subtitles-30s.mkv"
-  local bitmap="$OUTPUT_DIR/generated-bitmap-subtitle.mks"
-  local generator="$OUTPUT_DIR/generate-bitmap-subtitle-fixture"
+  local build_dir
+  build_dir="$(mktemp -d "${TMPDIR:-/tmp}/enchron-subtitle-fixture.XXXXXX")"
+  local bitmap="$build_dir/generated-bitmap-subtitle.mks"
+  local generator="$build_dir/generate-bitmap-subtitle-fixture"
   local ffmpeg_build_flags
   read -r -a ffmpeg_build_flags <<< "$("$PKG_CONFIG" --cflags --libs libavformat libavcodec libavutil)"
   "$CC" -std=c17 -Wall -Wextra \
@@ -91,6 +93,7 @@ generate_subtitle() {
     -metadata:s:s:2 language=eng \
     -metadata:s:s:2 title='Enchron generated bitmap proof' \
     -t 30 -bitexact "$output"
+  rm -rf -- "$build_dir"
 }
 
 generate_video_only() {
@@ -165,7 +168,7 @@ generate_audio_codec_matrix
 generate_av1_flac
 generate_external_subtitles
 
-REGISTRY="$ROOT_DIR/docs/acceptance/fixture-registry.json"
+REGISTRY="$ROOT_DIR/Tests/Fixtures/fixture-registry.json"
 verify_hash() {
   local fixture_id="$1"
   local fixture="$2"
@@ -180,7 +183,7 @@ verify_hash() {
 }
 
 while IFS=$'\t' read -r fixture_id import_path expected_hash; do
-  verify_hash "$fixture_id" "$OUTPUT_DIR/${import_path#Generated/}" "$expected_hash"
+  verify_hash "$fixture_id" "$OUTPUT_DIR/${import_path#TestVectors/Enchron/PlaybackBehavior/}" "$expected_hash"
 done < <(
   "$JQ" -r '
     .fixtures[]

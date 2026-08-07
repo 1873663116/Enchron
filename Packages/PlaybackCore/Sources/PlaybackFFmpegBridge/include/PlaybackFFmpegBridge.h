@@ -84,6 +84,13 @@ bool PBFFmpegReaderUsedBitstreamExtradataBootstrap(const PBFFmpegReader *reader)
 
 void PBFFmpegReaderDestroy(PBFFmpegReader *reader);
 
+/// Copies the actual compressed video format created by the bridge.
+/// The caller owns the returned format description and must release it.
+bool PBFFmpegReaderCopyCompressedFormatDescription(
+    const PBFFmpegReader *reader,
+    CMVideoFormatDescriptionRef *formatOut
+);
+
 PBFFmpegReadResult PBFFmpegReaderCopyNextSample(
     PBFFmpegReader *reader,
     CMSampleBufferRef *sampleOut,
@@ -110,6 +117,7 @@ int PBFFmpegReaderGetTimeBaseDenominator(const PBFFmpegReader *reader);
 bool PBFFmpegReaderFormatHasHvcC(const PBFFmpegReader *reader);
 bool PBFFmpegReaderFormatHasDvcC(const PBFFmpegReader *reader);
 bool PBFFmpegReaderFormatHasDvvC(const PBFFmpegReader *reader);
+bool PBFFmpegReaderIsMVHEVC(const PBFFmpegReader *reader);
 
 PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
     const char *path,

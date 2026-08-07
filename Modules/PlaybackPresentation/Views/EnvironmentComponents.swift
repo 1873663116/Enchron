@@ -4,8 +4,8 @@ import SwiftUI
 
 struct FeaturedEnvironment: Identifiable {
     let environment: SpatialSceneDomain.CinemaEnvironment
-    let dayImageName: String
-    let nightImageName: String
+    let lightImageName: String
+    let darkImageName: String
     let title: String
     let environmentNumber: String
     let quote: String
@@ -22,46 +22,46 @@ struct FeaturedEnvironment: Identifiable {
 
     func imageName(for effect: SpatialSceneDomain.EnvironmentEffect) -> String {
         switch effect {
-        case .day: dayImageName
-        case .night: nightImageName
+        case .light: lightImageName
+        case .dark: darkImageName
         }
     }
 
     static let catalog: [FeaturedEnvironment] = [
         .init(
             environment: .scenicOne,
-            dayImageName: "SunsetNature",
-            nightImageName: "StarryNight",
+            lightImageName: "SunsetNature",
+            darkImageName: "ScenicEnvironment1Dark",
             title: "Scenic Environment 1",
             environmentNumber: "Environment 01",
             quote: "\"A pale red placeholder for the first scenic identity.\"",
             mode: "Scenic placeholder",
-            atmosphere: "Day / Night"
+            atmosphere: "Light Mode / Dark Mode"
         ),
         .init(
             environment: .scenicTwo,
-            dayImageName: "SceneFeatureForestShrine",
-            nightImageName: "SceneFeatureNeonCity",
+            lightImageName: "SceneFeatureForestShrine",
+            darkImageName: "SceneFeatureNeonCity",
             title: "Scenic Environment 2",
             environmentNumber: "Environment 02",
             quote: "\"A pale green placeholder for the second scenic identity.\"",
             mode: "Scenic placeholder",
-            atmosphere: "Day / Night"
+            atmosphere: "Light Mode / Dark Mode"
         ),
         .init(
             environment: .scenicThree,
-            dayImageName: "SceneFeatureOceanTemple",
-            nightImageName: "SceneFeatureOrbitalGarden",
+            lightImageName: "SceneFeatureOceanTemple",
+            darkImageName: "SceneFeatureOrbitalGarden",
             title: "Scenic Environment 3",
             environmentNumber: "Environment 03",
             quote: "\"A pale blue placeholder for the third scenic identity.\"",
             mode: "Scenic placeholder",
-            atmosphere: "Day / Night"
+            atmosphere: "Light Mode / Dark Mode"
         ),
         .init(
             environment: .skybox,
-            dayImageName: "SceneFeatureCinema",
-            nightImageName: "SceneFeatureCinema",
+            lightImageName: "SceneFeatureCinema",
+            darkImageName: "SceneFeatureCinema",
             title: "Skybox",
             environmentNumber: "Environment 04",
             quote: "\"The current Skybox remains a fixed independent environment.\"",
@@ -73,7 +73,7 @@ struct FeaturedEnvironment: Identifiable {
 
 struct EnvironmentCard: View {
     var environment: FeaturedEnvironment = .catalog[0]
-    var effect: SpatialSceneDomain.EnvironmentEffect = .day
+    var effect: SpatialSceneDomain.EnvironmentEffect = .light
     var isEnvironmentActive = false
     var detailVisibility: CGFloat = 1
     var atmosphericFade: CGFloat = 0
@@ -142,12 +142,12 @@ struct EnvironmentCard: View {
             HStack(spacing: DesignTokens.Spacing.sm) {
                 if environment.environment.isScenic {
                     AppearanceModeButton(
-                        isActive: effect == .night,
-                        accessibilityLabel: effect == .day
-                            ? "Switch environment to Night"
-                            : "Switch environment to Day",
+                        isActive: effect == .dark,
+                        accessibilityLabel: effect == .light
+                            ? "Switch environment to Dark Mode"
+                            : "Switch environment to Light Mode",
                         action: {
-                            onEffectChange(effect == .day ? .night : .day)
+                            onEffectChange(effect == .light ? .dark : .light)
                         },
                         accessibilityIdentifier:
                             "EnvironmentCard-effect-\(environment.environment.rawValue)"
@@ -332,6 +332,13 @@ struct EnvironmentCardCarousel: View {
 
     var body: some View {
         ZStack {
+            Rectangle()
+                .fill(.clear)
+                .contentShape(Rectangle())
+                .accessibilityElement(children: .ignore)
+                .accessibilityIdentifier("EnvironmentCard-carousel")
+                .accessibilityLabel("Environment carousel")
+
             if environments.isEmpty {
                 EmptyView()
             } else {
@@ -368,7 +375,6 @@ struct EnvironmentCardCarousel: View {
         .enchronSpatialFrame(depth: Metrics.stageDepth)
         .contentShape(Rectangle())
         .gesture(dragGesture)
-        .accessibilityIdentifier("EnvironmentCard-carousel")
     }
 
     private func selectedEffect(

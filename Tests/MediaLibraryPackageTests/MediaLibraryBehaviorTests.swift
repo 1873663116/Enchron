@@ -67,6 +67,37 @@ struct MediaLibraryBehaviorTests {
         #expect(library.references(in: folder.id) == [reference])
     }
 
+    @Test("batch management moves and removes only selected virtual references")
+    func batchManagementPreservesUnselectedReferences() throws {
+        var library = FileBrowsingDomain.MediaLibrary()
+        let folder = try library.createFolder(named: "Watch Later")
+        let first = FileBrowsingDomain.MediaReference(
+            name: "First.mkv",
+            locator: .photoAsset(localIdentifier: "first")
+        )
+        let second = FileBrowsingDomain.MediaReference(
+            name: "Second.mkv",
+            locator: .photoAsset(localIdentifier: "second")
+        )
+        let unselected = FileBrowsingDomain.MediaReference(
+            name: "Keep.mkv",
+            locator: .photoAsset(localIdentifier: "keep")
+        )
+        try library.add(first)
+        try library.add(second)
+        try library.add(unselected)
+
+        try library.moveReferences([first.id, second.id], to: folder.id)
+
+        #expect(library.references(in: nil) == [unselected])
+        #expect(library.references(in: folder.id) == [first, second])
+
+        library.removeReferences([first.id, second.id])
+
+        #expect(library.references(in: folder.id).isEmpty)
+        #expect(library.references(in: nil) == [unselected])
+    }
+
     @Test("removing a folder removes its virtual subtree and references")
     func removingFolderRemovesVirtualSubtree() throws {
         var library = FileBrowsingDomain.MediaLibrary()

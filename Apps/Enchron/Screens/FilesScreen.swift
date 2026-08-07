@@ -17,7 +17,6 @@ struct FilesScreen: View {
     @State private var presentedSourceConnection: SourceConnectionKind?
     @State private var sourceConnectionName = ""
     @State private var sourceConnectionAddress = ""
-    @State private var sourceConnectionShare = ""
     @State private var sourceConnectionUsername = ""
     @State private var sourceConnectionPassword = ""
     @State private var sourceConnectionConnectsAsGuest = false
@@ -31,6 +30,9 @@ struct FilesScreen: View {
     @State private var isFileImporterPresented = false
     @State private var isPhotosPickerPresented = false
     @State private var selectedPhotoItems: [PhotosPickerItem] = []
+    @State private var mediaReferenceSelectionIsActive = false
+    @State private var selectedMediaReferenceIDs: Set<UUID> = []
+    @State private var isBatchRemoveConfirmationPresented = false
 
     private var totalItemCount: Int {
         if isBrowsingSource {
@@ -90,14 +92,17 @@ struct FilesScreen: View {
         .onChange(of: viewModel.savedDataSources) { _, _ in syncSourceItems() }
         .onChange(of: viewModel.activeDataSource) { _, source in
             if source != nil { isBrowsingSource = true }
+            endMediaReferenceSelection()
             syncSourceItems()
+        }
+        .onChange(of: mediaLibrary.currentFolderID) { _, _ in
+            endMediaReferenceSelection()
         }
         .sheet(item: $presentedSourceConnection) { kind in
             ConnectionFormPanel(
                 kind: kind,
                 name: $sourceConnectionName,
                 address: $sourceConnectionAddress,
-                share: $sourceConnectionShare,
                 username: $sourceConnectionUsername,
                 password: $sourceConnectionPassword,
                 connectsAsGuest: $sourceConnectionConnectsAsGuest,
@@ -150,6 +155,18 @@ struct FilesScreen: View {
                 folderToRemove = nil
             }
             Button("Cancel", role: .cancel) { folderToRemove = nil }
+        }
+        .confirmationDialog(
+            "Remove \(selectedMediaReferenceIDs.count) selected items from the Media Library? Original media will not be changed.",
+            isPresented: $isBatchRemoveConfirmationPresented,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Selected", role: .destructive) {
+                mediaLibrary.removeReferences(withIDs: selectedMediaReferenceIDs)
+                endMediaReferenceSelection()
+            }
+            .accessibilityIdentifier("MediaLibrary-MultiSelect-confirmDelete")
+            Button("Cancel", role: .cancel) {}
         }
         .fileImporter(
             isPresented: $isFileImporterPresented,
@@ -248,6 +265,7 @@ struct FilesScreen: View {
     }
 
     private func select(sourceID: SidebarSourceItem.ID) {
+        endMediaReferenceSelection()
         if sourceID == mediaLibrarySourceID {
             isBrowsingSource = false
             mediaLibrary.navigateToRoot()
@@ -277,7 +295,6 @@ struct FilesScreen: View {
     private func resetSourceConnectionFields() {
         sourceConnectionName = ""
         sourceConnectionAddress = ""
-        sourceConnectionShare = ""
         sourceConnectionUsername = ""
         sourceConnectionPassword = ""
         sourceConnectionConnectsAsGuest = false
@@ -291,15 +308,11 @@ struct FilesScreen: View {
         _ request: SourceConnectionRequest
     ) async -> SourceConnectionOutcome {
         do {
-            var connection = try FileBrowsingDomain.ConnectionInfo.remote(
+            let connection = try FileBrowsingDomain.ConnectionInfo.remote(
                 sourceType: request.kind.sourceType,
                 address: request.address,
                 username: request.connectsAsGuest ? nil : request.username
             )
-            if request.kind == .smb {
-                connection = connection.withSMBShare(request.share)
-            }
-
             let source = FileBrowsingDomain.DataSource(
                 name: sourceName(for: request, connection: connection),
                 sourceType: request.kind.sourceType,
@@ -467,23 +480,27 @@ struct FilesScreen: View {
             )
             breadcrumb
             Spacer(minLength: DesignTokens.Spacing.xl)
-            ViewModeCapsuleControl(
-                selection: $viewMode,
-                accessibilityIdentifier: "FileBrowsing-FilesScreen-viewMode"
-            )
-            SortMenuButton(
-                sortKey: $sortKey,
-                sortOrder: $sortOrder,
-                accessibilityIdentifier: "FileBrowsing-FilesScreen-sort"
-            )
-            .onChange(of: sortKey) { _, _ in applySort() }
-            .onChange(of: sortOrder) { _, _ in applySort() }
-            manageMenu
-            SearchInputCapsule(
-                text: Binding(get: { viewModel.searchText }, set: { viewModel.searchText = $0 }),
-                placeholder: "Search media...",
-                accessibilityIdentifier: "FileBrowsing-FilesScreen-search"
-            )
+            if mediaReferenceSelectionIsActive {
+                mediaReferenceSelectionControls
+            } else {
+                ViewModeCapsuleControl(
+                    selection: $viewMode,
+                    accessibilityIdentifier: "FileBrowsing-FilesScreen-viewMode"
+                )
+                SortMenuButton(
+                    sortKey: $sortKey,
+                    sortOrder: $sortOrder,
+                    accessibilityIdentifier: "FileBrowsing-FilesScreen-sort"
+                )
+                .onChange(of: sortKey) { _, _ in applySort() }
+                .onChange(of: sortOrder) { _, _ in applySort() }
+                manageMenu
+                SearchInputCapsule(
+                    text: Binding(get: { viewModel.searchText }, set: { viewModel.searchText = $0 }),
+                    placeholder: "Search media...",
+                    accessibilityIdentifier: "FileBrowsing-FilesScreen-search"
+                )
+            }
         }
         .padding(.bottom, DesignTokens.Spacing.lg)
     }
@@ -544,6 +561,16 @@ struct FilesScreen: View {
                 Label("New Library Folder", systemImage: "folder.badge.plus")
             }
             .accessibilityIdentifier("MediaLibrary-Manage-newFolder")
+            if !isBrowsingSource {
+                Divider()
+                Button {
+                    beginMediaReferenceSelection()
+                } label: {
+                    Label("Select Multiple", systemImage: "checkmark.circle")
+                }
+                .disabled(displayedLibraryReferences.isEmpty)
+                .accessibilityIdentifier("MediaLibrary-Manage-selectMultiple")
+            }
         } label: {
             GlassCircleIconLabel(
                 systemName: "ellipsis",
@@ -554,6 +581,43 @@ struct FilesScreen: View {
         .buttonStyle(.plain)
         .accessibilityLabel("Manage media library")
         .accessibilityIdentifier("FileBrowsing-Manage-button")
+    }
+
+    private var mediaReferenceSelectionControls: some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Text("\(selectedMediaReferenceIDs.count) selected")
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+                .accessibilityIdentifier("MediaLibrary-MultiSelect-count")
+
+            Menu {
+                Button("Media Library") {
+                    moveSelectedMediaReferences(to: nil)
+                }
+                ForEach(mediaLibrary.allFolders) { folder in
+                    Button(folder.name) {
+                        moveSelectedMediaReferences(to: folder.id)
+                    }
+                }
+            } label: {
+                Label("Move To", systemImage: "folder")
+            }
+            .disabled(selectedMediaReferenceIDs.isEmpty)
+            .accessibilityIdentifier("MediaLibrary-MultiSelect-move")
+
+            Button(role: .destructive) {
+                isBatchRemoveConfirmationPresented = true
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
+            .disabled(selectedMediaReferenceIDs.isEmpty)
+            .accessibilityIdentifier("MediaLibrary-MultiSelect-delete")
+
+            Button("Done") {
+                endMediaReferenceSelection()
+            }
+            .accessibilityIdentifier("MediaLibrary-MultiSelect-done")
+        }
     }
 
     private var itemCountBar: some View {
@@ -629,7 +693,9 @@ struct FilesScreen: View {
                             duration: "",
                             watchedProgress: mediaLibrary.referenceViewingStates[reference.id]?.progress,
                             accessibilityIdentifier: "MediaLibrary-grid-video-\(reference.name)",
-                            action: { mediaLibrary.play(reference) }
+                            selectionEnabled: mediaReferenceSelectionIsActive,
+                            isSelected: selectedMediaReferenceIDs.contains(reference.id),
+                            action: { activateMediaReference(reference) }
                         )
                         .contextMenu { libraryReferenceActions(reference) }
                     }
@@ -689,7 +755,9 @@ struct FilesScreen: View {
                 fileSize: fileSizeText(reference),
                 duration: "",
                 contextActions: libraryReferenceContextActions(reference),
-                action: { mediaLibrary.play(reference) }
+                selectionEnabled: mediaReferenceSelectionIsActive,
+                isSelected: selectedMediaReferenceIDs.contains(reference.id),
+                action: { activateMediaReference(reference) }
             )
         }
     }
@@ -726,6 +794,32 @@ struct FilesScreen: View {
     private func fileSizeText(_ reference: FileBrowsingDomain.MediaReference) -> String {
         guard reference.sizeInBytes > 0 else { return "Referenced" }
         return ByteCountFormatter.string(fromByteCount: reference.sizeInBytes, countStyle: .file)
+    }
+
+    private func beginMediaReferenceSelection() {
+        selectedMediaReferenceIDs.removeAll()
+        mediaReferenceSelectionIsActive = true
+    }
+
+    private func endMediaReferenceSelection() {
+        mediaReferenceSelectionIsActive = false
+        selectedMediaReferenceIDs.removeAll()
+        isBatchRemoveConfirmationPresented = false
+    }
+
+    private func activateMediaReference(_ reference: FileBrowsingDomain.MediaReference) {
+        guard mediaReferenceSelectionIsActive else {
+            mediaLibrary.play(reference)
+            return
+        }
+        if !selectedMediaReferenceIDs.insert(reference.id).inserted {
+            selectedMediaReferenceIDs.remove(reference.id)
+        }
+    }
+
+    private func moveSelectedMediaReferences(to folderID: UUID?) {
+        mediaLibrary.moveReferences(withIDs: selectedMediaReferenceIDs, to: folderID)
+        endMediaReferenceSelection()
     }
 
     @ViewBuilder

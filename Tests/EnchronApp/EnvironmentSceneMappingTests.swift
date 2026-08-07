@@ -19,7 +19,7 @@ struct EnvironmentSceneMappingTests {
             SpatialSceneDomain.CinemaEnvironment.scenicEnvironments
                 == [.scenicOne, .scenicTwo, .scenicThree]
         )
-        #expect(SpatialSceneDomain.EnvironmentEffect.allCases == [.day, .night])
+        #expect(SpatialSceneDomain.EnvironmentEffect.allCases == [.light, .dark])
     }
 
     @Test("all environment identities resolve through the shared world scene")
@@ -43,10 +43,9 @@ struct EnvironmentSceneMappingTests {
         }
     }
 
-    @Test("legacy and invalid default values resolve safely")
+    @Test("persisted and invalid default values resolve safely")
     func defaultPreferenceMigration() {
         #expect(SpatialSceneDomain.CinemaEnvironment(preferenceValue: "enchron") == .scenicOne)
-        #expect(SpatialSceneDomain.CinemaEnvironment(preferenceValue: "Starry Night") == .scenicOne)
         #expect(SpatialSceneDomain.CinemaEnvironment(preferenceValue: "skybox") == nil)
         #expect(SpatialSceneDomain.CinemaEnvironment(preferenceValue: "scenic-three") == .scenicThree)
     }

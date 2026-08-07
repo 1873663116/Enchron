@@ -377,6 +377,11 @@ public final class MediaLibraryViewModel {
         mutate { library.removeReference(reference.id) }
     }
 
+    public func removeReferences(withIDs referenceIDs: Set<UUID>) {
+        guard !referenceIDs.isEmpty else { return }
+        mutate { library.removeReferences(referenceIDs) }
+    }
+
     public func rename(_ folder: FileBrowsingDomain.LibraryFolder, to name: String) {
         mutate { try library.renameFolder(folder.id, to: name) }
     }
@@ -387,6 +392,11 @@ public final class MediaLibraryViewModel {
 
     public func move(_ reference: FileBrowsingDomain.MediaReference, to folderID: UUID?) {
         mutate { try library.moveReference(reference.id, to: folderID) }
+    }
+
+    public func moveReferences(withIDs referenceIDs: Set<UUID>, to folderID: UUID?) {
+        guard !referenceIDs.isEmpty else { return }
+        mutate { try library.moveReferences(referenceIDs, to: folderID) }
     }
 
     private func navigateRecordingHistory(to folderID: UUID?) {

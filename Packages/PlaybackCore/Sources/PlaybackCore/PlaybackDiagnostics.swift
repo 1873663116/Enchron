@@ -3,6 +3,7 @@ import Foundation
 
 public struct PlaybackDiagnostics: Sendable, Equatable {
     public var codecName = "unknown"
+    public var isMVHEVC = false
     public var currentSeconds = 0.0
     public var durationSeconds = 0.0
     public var nominalFrameRate = 0.0
@@ -53,6 +54,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var snapshotText: String {
         """
         codec: \(codecName)
+        mvHEVC: \(isMVHEVC)
         time: \(String(format: "%.6f", currentSeconds)) s / \(String(format: "%.6f", durationSeconds)) s
         estimatedFrame: \(estimatedFrameNumber) @ \(String(format: "%.3f", nominalFrameRate)) fps
         enqueuedSamples: \(enqueuedSampleCount)

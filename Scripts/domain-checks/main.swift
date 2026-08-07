@@ -202,7 +202,7 @@ try await MainActor.run {
     let retryModel = PlaybackPresentationModel()
     try retryModel.requestEnvironmentPreview(
         environment: .scenicOne,
-        effect: .day
+        effect: .light
     )
     let retryRequest = pendingRequest(retryModel)
     let abandonedExecutionID = UUID()
@@ -359,18 +359,18 @@ try await MainActor.run {
     require(
         presentationModel.environmentContext == .none
             && presentationModel.currentEnvironmentEffect == .inactiveFallback
-            && presentationModel.currentEnvironmentEffect == .day,
-        "an inactive Environment Context must use deterministic Day fallback without stored Effect"
+            && presentationModel.currentEnvironmentEffect == .light,
+        "an inactive Environment Context must use deterministic Light fallback without stored Effect"
     )
 
     let requestedDock = try presentationModel.requestPresentation(
         .docked,
-        effect: .night,
+        effect: .dark,
         playbackContext: playingContext
     )
     require(
         requestedDock.targetEnvironment.environment == presentationModel.defaultEnvironment
-            && requestedDock.targetEnvironment.effect == .night,
+            && requestedDock.targetEnvironment.effect == .dark,
         "Docking without an active Environment Context must use its requested Effect"
     )
     let firstRequest = pendingRequest(presentationModel)
@@ -413,7 +413,7 @@ try await MainActor.run {
     let temporaryEnvironmentModel = PlaybackPresentationModel()
     _ = try temporaryEnvironmentModel.requestPresentation(
         .docked,
-        effect: .night,
+        effect: .dark,
         playbackContext: playingContext
     )
     _ = completePendingEffect(temporaryEnvironmentModel)
@@ -424,6 +424,7 @@ try await MainActor.run {
     require(
         pendingRequest(temporaryEnvironmentModel).effect
             == .presentWindowPlayback(
+                presentation: .window,
                 keepsEnvironmentOpen: false,
                 immersiveSpaceAlreadyClosed: false
             ),
@@ -437,7 +438,7 @@ try await MainActor.run {
     )
     _ = try temporaryEnvironmentModel.requestPresentation(
         .docked,
-        effect: .day,
+        effect: .light,
         playbackContext: playingContext
     )
     _ = completePendingEffect(temporaryEnvironmentModel)
@@ -456,12 +457,12 @@ try await MainActor.run {
     let defaultEnvironmentBeforeActivation = presentationModel.defaultEnvironment
     let activeEnvironment = EnvironmentContext.active(
         environment: .scenicTwo,
-        effect: .night
+        effect: .dark
     )
-    try presentationModel.activateEnvironment(.scenicTwo, effect: .night)
+    try presentationModel.activateEnvironment(.scenicTwo, effect: .dark)
     require(
         presentationModel.snapshot.environmentContext.environment == .scenicTwo
-            && presentationModel.snapshot.environmentContext.effect == .night
+            && presentationModel.snapshot.environmentContext.effect == .dark
             && presentationModel.defaultEnvironment == defaultEnvironmentBeforeActivation,
         "Environment Context must carry Environment identity and Environment Effect together"
     )
@@ -469,13 +470,13 @@ try await MainActor.run {
     let pendingDock = try presentationModel.requestPresentation(
         .docked,
         environment: .scenicThree,
-        effect: .day,
+        effect: .light,
         playbackContext: playingContext
     )
     require(
         pendingDock.targetEnvironment == .active(
             environment: .scenicThree,
-            effect: .day
+            effect: .light
         ),
         "Docking must use the environment and appearance selected by the Dock menu"
     )
@@ -537,6 +538,7 @@ try await MainActor.run {
     require(
         pendingRequest(presentationModel).effect
             == .presentWindowPlayback(
+                presentation: .window,
                 keepsEnvironmentOpen: true,
                 immersiveSpaceAlreadyClosed: false
             ),
@@ -592,16 +594,16 @@ try await MainActor.run {
     _ = completePendingEffect(presentationModel)
 
     try presentationModel.deactivateEnvironment()
-    presentationModel.setActiveEnvironmentEffect(.night)
+    presentationModel.setActiveEnvironmentEffect(.dark)
     require(
         presentationModel.environmentContext == .none
-            && presentationModel.currentEnvironmentEffect == .day,
+            && presentationModel.currentEnvironmentEffect == .light,
         "setting an Effect without an active Environment Context must not create global Effect state"
     )
 
     try presentationModel.requestEnvironmentPreview(
         environment: .scenicOne,
-        effect: .night
+        effect: .dark
     )
     require(
         pendingRequest(presentationModel).effect == .presentEnvironmentPreview,
@@ -636,7 +638,7 @@ try await MainActor.run {
     do {
         try presentationModel.requestEnvironmentPreview(
             environment: .scenicOne,
-            effect: .day
+            effect: .light
         )
         require(false, "a second platform effect must not be emitted while one is pending")
     } catch PlaybackPresentationTransitionError.platformEffectInFlight {
@@ -672,7 +674,7 @@ try await MainActor.run {
     let dockedCardModel = PlaybackPresentationModel()
     _ = try dockedCardModel.requestPresentation(
         .docked,
-        effect: .night,
+        effect: .dark,
         playbackContext: playingContext
     )
     _ = completePendingEffect(dockedCardModel)
@@ -687,6 +689,7 @@ try await MainActor.run {
     require(
         cardWindowRequest.effect
             == .presentWindowPlayback(
+                presentation: .window,
                 keepsEnvironmentOpen: false,
                 immersiveSpaceAlreadyClosed: false
             )
@@ -778,7 +781,7 @@ try await MainActor.run {
     let dockedRecoveryModel = PlaybackPresentationModel()
     _ = try dockedRecoveryModel.requestPresentation(
         .docked,
-        effect: .day,
+        effect: .light,
         playbackContext: playingContext
     )
     _ = completePendingEffect(dockedRecoveryModel)
@@ -900,7 +903,7 @@ try await MainActor.run {
     let expectedDismissalModel = PlaybackPresentationModel()
     _ = try expectedDismissalModel.requestPresentation(
         .docked,
-        effect: .day,
+        effect: .light,
         playbackContext: playingContext
     )
     _ = completePendingEffect(expectedDismissalModel)
@@ -932,16 +935,17 @@ try await MainActor.run {
     }
 }
 
-do {
-    _ = try MediaFormatPolicy.validate(
-        .init(projection: .fisheye, stereoLayout: .mono),
-        hasAIME: false
+let normalizedCustomAngle = MediaFormatPolicy.normalized(
+    .init(
+        projection: .customAngle,
+        horizontalFieldOfViewDegrees: 237,
+        stereoLayout: .mono
     )
-    require(false, "fisheye must require AIME")
-} catch MediaFormatValidationError.fisheyeRequiresAIME {
-} catch {
-    require(false, "fisheye validation failed for an unexpected reason")
-}
+)
+require(
+    normalizedCustomAngle.horizontalFieldOfViewDegrees == 240,
+    "Custom Angle must snap to a supported ten-degree increment"
+)
 
 private let leaseCounter = LockedCounter()
 private let lease = MediaAccessLease { leaseCounter.increment() }

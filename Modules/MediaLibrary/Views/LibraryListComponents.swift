@@ -31,6 +31,8 @@ struct FileListGroup: View {
         let metadata: String
         var action: () -> Void = {}
         var contextActions: [ContextAction] = []
+        var selectionEnabled = false
+        var isSelected = false
 
         /// Video file variant — gaze reveals `badges · size · duration`.
         static func video(
@@ -40,6 +42,8 @@ struct FileListGroup: View {
             duration: String,
             badges: [String] = [],
             contextActions: [ContextAction] = [],
+            selectionEnabled: Bool = false,
+            isSelected: Bool = false,
             action: @escaping () -> Void = {}
         ) -> Item {
             Item(
@@ -48,7 +52,9 @@ struct FileListGroup: View {
                 title: title,
                 metadata: (badges + [fileSize, duration]).joined(separator: " · "),
                 action: action,
-                contextActions: contextActions
+                contextActions: contextActions,
+                selectionEnabled: selectionEnabled,
+                isSelected: isSelected
             )
         }
 
@@ -131,6 +137,12 @@ struct FileListGroupRow: View {
                 )
             }
         }
+        .accessibilityIdentifier(item.id)
+        .accessibilityAddTraits(item.isSelected ? .isSelected : [])
+        .accessibilityValue(
+            item.isSelected ? "Selected" : "Not selected",
+            isEnabled: item.selectionEnabled
+        )
     }
 
     private func rowContent(reveal rowHoverGroup: EnchronHoverGroup?) -> some View {
@@ -139,6 +151,12 @@ struct FileListGroupRow: View {
                 .font(DesignTokens.SymbolSize.selectionHeaderIcon)
                 .foregroundStyle(DesignTokens.Surface.accessoryText)
                 .frame(width: DesignTokens.Interactive.compact)
+
+            if item.isSelected {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(DesignTokens.Theme.accent)
+                    .accessibilityHidden(true)
+            }
 
             Text(item.title)
                 .font(DesignTokens.Typography.selectionHeader)

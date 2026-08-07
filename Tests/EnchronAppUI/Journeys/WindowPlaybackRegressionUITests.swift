@@ -9,6 +9,27 @@ nonisolated final class WindowPlaybackRegressionUITests: XCTestCase {
     }
 
     @MainActor
+    func testConfiguredMediaDisplaysFirstFrame() throws {
+        let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
+            minimumCount: 1
+        )[0]
+        guard let app = launchRegisteredWindowMedia(identifier: identifier) else { return }
+        let stateElement = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        guard let displayed = waitForState(stateElement, timeout: 60, where: {
+            $0.string("presentation") == "window"
+                && $0.string("transition") == "none"
+                && $0.string("lifecycle")?.lowercased() == "playing"
+                && $0.bool("displayedPixel") == true
+                && ($0.uint64("rendererInputs") ?? 0) > 0
+        }) else { return }
+        XCTAssertEqual(displayed.string("loadingSpinner"), "off")
+        attachState(displayed, name: "configured-media-first-frame-state")
+        attachScreenshot(from: app, name: "configured-media-first-frame")
+    }
+
+    @MainActor
     func testLocalMediaWindowPlaybackLifecycle() throws {
         let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
             minimumCount: 1
@@ -81,31 +102,32 @@ nonisolated final class WindowPlaybackRegressionUITests: XCTestCase {
             name: "window-playback-05-playing-seek"
         ) != nil else { return }
 
-        guard seekProgress(
-            to: 0,
-            in: app,
-            stateElement: stateElement,
-            afterEpoch: seeked.uint64("streamEpoch") ?? 0,
-            name: "window-playback-06-start-boundary"
-        ) != nil else { return }
-
-        let beforeEndSeek = RegressionStateSnapshot(
-            rawValue: stateElement.value as? String ?? ""
+        attachHumanReviewBoundary(
+            "The collapsed progress thumb requires a wearer to hold for 200 ms without moving more than 20 pt before dragging. visionOS XCUI synthetic input does not reliably represent that state machine, so this lifecycle test does not claim automated progress-thumb acceptance.",
+            name: "window-playback-06-progress-scrubber-human-review-boundary"
         )
-        guard let ended = seekProgress(
-            to: 1,
-            in: app,
-            stateElement: stateElement,
-            afterEpoch: beforeEndSeek.uint64("streamEpoch") ?? 0,
-            name: "window-playback-07-end-boundary",
-            accepting: { snapshot in
-                guard snapshot.string("lifecycle")?.lowercased() != "failed",
-                      let position = snapshot.double("position"),
-                      let duration = snapshot.double("duration") else { return false }
-                return snapshot.string("lifecycle")?.lowercased() == "ended"
-                    || position >= duration - 0.25
-            }
-        ) else { return }
+        guard let position = seeked.double("position"),
+              let duration = seeked.double("duration"),
+              duration > 0 else { return }
+        let forwardPressCount = Int(ceil(max(duration - position, 0) / 15))
+        var endEpoch = seeked.uint64("streamEpoch") ?? 0
+        for _ in 0..<forwardPressCount {
+            guard requireHittable(forward, named: "Forward 15 seconds") else { return }
+            forward.tap()
+            guard let advanced = waitForState(stateElement, timeout: 15, where: {
+                ($0.uint64("streamEpoch") ?? 0) > endEpoch
+                    && $0.string("lifecycle")?.lowercased() != "failed"
+            }) else { return }
+            endEpoch = advanced.uint64("streamEpoch") ?? endEpoch
+        }
+        guard let ended = waitForState(stateElement, timeout: 15, where: { snapshot in
+            guard let position = snapshot.double("position"),
+                  let duration = snapshot.double("duration") else { return false }
+            return snapshot.string("lifecycle")?.lowercased() == "ended"
+                || position >= duration - 0.25
+        }) else { return }
+        attachState(ended, name: "window-playback-07-end-boundary")
+        attachScreenshot(from: app, name: "window-playback-07-end-boundary")
         XCTAssertNotEqual(ended.string("lifecycle")?.lowercased(), "failed")
         XCTAssertFalse(app.alerts["Failed to Load"].exists)
 

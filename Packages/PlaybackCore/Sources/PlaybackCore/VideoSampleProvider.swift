@@ -15,6 +15,7 @@ struct VideoSampleProviderInfo: Sendable {
     var nominalFrameRate = 0.0
     var codecName = "unknown"
     var codecTag = "unknown"
+    var isMVHEVC = false
     var dimensions = "unknown"
     var colorPrimaries = "unknown"
     var transferFunction = "unknown"
@@ -49,6 +50,10 @@ struct SendableSampleBuffer: @unchecked Sendable {
     let value: CMSampleBuffer
 }
 
+struct SendableVideoFormatDescription: @unchecked Sendable {
+    let value: CMVideoFormatDescription
+}
+
 struct FFmpegVideoReaderHandle: @unchecked Sendable {
     let pointer: OpaquePointer
 }
@@ -67,8 +72,19 @@ protocol FFmpegVideoReaderOperations: Sendable {
         startSeconds: Double
     ) throws -> VideoSampleProviderInfo
     func copyNextSample(from reader: FFmpegVideoReaderHandle) throws -> FFmpegVideoReadOutcome
+    func copyCompressedFormatDescription(
+        from reader: FFmpegVideoReaderHandle
+    ) -> SendableVideoFormatDescription?
     func cancel(_ reader: FFmpegVideoReaderHandle)
     func destroy(_ reader: FFmpegVideoReaderHandle)
+}
+
+extension FFmpegVideoReaderOperations {
+    func copyCompressedFormatDescription(
+        from reader: FFmpegVideoReaderHandle
+    ) -> SendableVideoFormatDescription? {
+        nil
+    }
 }
 
 struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
@@ -107,6 +123,7 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
             nominalFrameRate: PBFFmpegReaderGetNominalFrameRate(reader.pointer),
             codecName: String(cString: PBFFmpegReaderGetCodecName(reader.pointer)),
             codecTag: String(cString: PBFFmpegReaderGetCodecTag(reader.pointer)),
+            isMVHEVC: PBFFmpegReaderIsMVHEVC(reader.pointer),
             dimensions: "\(PBFFmpegReaderGetWidth(reader.pointer))x\(PBFFmpegReaderGetHeight(reader.pointer))",
             colorPrimaries: String(cString: PBFFmpegReaderGetColorPrimaries(reader.pointer)),
             transferFunction: String(cString: PBFFmpegReaderGetTransferFunction(reader.pointer)),
@@ -177,6 +194,17 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
         }
     }
 
+    func copyCompressedFormatDescription(
+        from reader: FFmpegVideoReaderHandle
+    ) -> SendableVideoFormatDescription? {
+        var format: Unmanaged<CMVideoFormatDescription>?
+        guard PBFFmpegReaderCopyCompressedFormatDescription(reader.pointer, &format),
+              let format else {
+            return nil
+        }
+        return SendableVideoFormatDescription(value: format.takeRetainedValue())
+    }
+
     func cancel(_ reader: FFmpegVideoReaderHandle) {
         PBFFmpegReaderCancel(reader.pointer)
     }
@@ -202,7 +230,10 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
     private let readerLock = NSLock()
     private let readerQueue: DispatchQueue
     private let operations: any FFmpegVideoReaderOperations
+    private let formatSubstitution = VideoSampleFormatOverride()
     private var storedInfo = VideoSampleProviderInfo()
+    private var bridgeFormatDescription: CMVideoFormatDescription?
+    private var sourceFormatDescription: CMFormatDescription?
     private var reader: FFmpegVideoReaderHandle?
     private var generation: UInt64 = 0
 
@@ -251,7 +282,15 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                             source: source,
                             startSeconds: startTime.seconds
                         )
-                        guard accept(newInfo, from: newReader, generation: operationGeneration) else {
+                        let bridgeFormat = operations.copyCompressedFormatDescription(
+                            from: newReader
+                        )
+                        guard accept(
+                            newInfo,
+                            bridgeFormatDescription: bridgeFormat?.value,
+                            from: newReader,
+                            generation: operationGeneration
+                        ) else {
                             continuation.resume(throwing: CancellationError())
                             return
                         }
@@ -263,6 +302,62 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                         }
                         operations.destroy(newReader)
                         continuation.resume(throwing: error)
+                    }
+                }
+            }
+            try Task.checkCancellation()
+            let (openedInfo, bridgeFormat) = readerLock.withLock {
+                (storedInfo, bridgeFormatDescription)
+            }
+            if Self.shouldPreserveAppleSourceFormat(
+                for: url,
+                suppliedAsset: asset,
+                info: openedInfo
+            ), let bridgeFormat {
+                let sourceAsset = asset?.value ?? AVURLAsset(url: url)
+                let sourceFormat: CMFormatDescription?
+                do {
+                    sourceFormat = try await Self.uniqueSourceVideoFormatDescription(
+                        in: sourceAsset,
+                        matching: bridgeFormat,
+                        allowsSourceOnlyLhvC: openedInfo.isMVHEVC
+                    )
+                } catch {
+                    if openedInfo.isMVHEVC { throw error }
+                    sourceFormat = nil
+                }
+                let appleImmersiveClassificationFormat: CMFormatDescription?
+                if sourceFormat == nil, asset == nil {
+                    appleImmersiveClassificationFormat = try await Self
+                        .uniqueAppleImmersiveSourceFormatMetadata(
+                            in: sourceAsset,
+                            matching: bridgeFormat
+                        )
+                } else {
+                    appleImmersiveClassificationFormat = nil
+                }
+                if let sourceFormat {
+                    guard readerLock.withLock({
+                        guard generation == operationGeneration else { return false }
+                        sourceFormatDescription = sourceFormat
+                        storedInfo = Self.infoByPreservingSourceFormat(
+                            storedInfo,
+                            sourceFormat: sourceFormat
+                        )
+                        return true
+                    }) else {
+                        throw CancellationError()
+                    }
+                } else if let appleImmersiveClassificationFormat {
+                    guard readerLock.withLock({
+                        guard generation == operationGeneration else { return false }
+                        storedInfo = Self.infoByAddingAppleImmersiveSourceClassification(
+                            storedInfo,
+                            sourceFormat: appleImmersiveClassificationFormat
+                        )
+                        return true
+                    }) else {
+                        throw CancellationError()
                     }
                 }
             }
@@ -309,7 +404,15 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
             self?.cancel(generation: operation.1)
         }
         switch outcome {
-        case .sample(let sample): return .sample(sample.value)
+        case .sample(let sample):
+            let sourceFormat = readerLock.withLock { sourceFormatDescription }
+            guard let sourceFormat else { return .sample(sample.value) }
+            return .sample(
+                try formatSubstitution.replacingFormatDescription(
+                    of: sample.value,
+                    with: sourceFormat
+                )
+            )
         case .end: return .end
         case .cancelled: throw CancellationError()
         }
@@ -330,6 +433,8 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
             let cancelledReader = reader
             reader = nil
             storedInfo = VideoSampleProviderInfo()
+            bridgeFormatDescription = nil
+            sourceFormatDescription = nil
             return cancelledReader
         }
         guard let cancelledReader else { return }
@@ -363,6 +468,7 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
 
     private func accept(
         _ newInfo: VideoSampleProviderInfo,
+        bridgeFormatDescription newBridgeFormatDescription: CMVideoFormatDescription?,
         from openedReader: FFmpegVideoReaderHandle,
         generation expectedGeneration: UInt64
     ) -> Bool {
@@ -370,6 +476,7 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
             guard generation == expectedGeneration,
                   reader?.pointer == openedReader.pointer else { return false }
             storedInfo = newInfo
+            bridgeFormatDescription = newBridgeFormatDescription
             return true
         }
     }
@@ -384,6 +491,182 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
             reader = nil
             return true
         }
+    }
+
+    private static func uniqueSourceVideoFormatDescription(
+        in asset: AVAsset,
+        matching bridgeFormat: CMVideoFormatDescription,
+        allowsSourceOnlyLhvC: Bool
+    ) async throws -> CMFormatDescription? {
+        var match: CMFormatDescription?
+        for track in try await asset.loadTracks(withMediaType: .video) {
+            for format in try await track.load(.formatDescriptions) {
+                guard sourceVideoFormat(
+                    format,
+                    matches: bridgeFormat,
+                    allowsSourceOnlyLhvC: allowsSourceOnlyLhvC
+                ) else { continue }
+                guard match == nil else { return nil }
+                match = format
+            }
+        }
+        return match
+    }
+
+    private static func shouldPreserveAppleSourceFormat(
+        for url: URL,
+        suppliedAsset: PlaybackAsset?,
+        info: VideoSampleProviderInfo
+    ) -> Bool {
+        if info.isMVHEVC || suppliedAsset != nil { return true }
+        let fileExtension = url.pathExtension.lowercased()
+        if ["mov", "mp4", "m4v"].contains(fileExtension) { return true }
+        let container = info.containerFormat.lowercased()
+        return container.contains("mov") || container.contains("mp4")
+    }
+
+    private static func uniqueAppleImmersiveSourceFormatMetadata(
+        in asset: AVAsset,
+        matching bridgeFormat: CMVideoFormatDescription
+    ) async throws -> CMFormatDescription? {
+        var match: CMFormatDescription?
+        for track in try await asset.loadTracks(withMediaType: .video) {
+            for format in try await track.load(.formatDescriptions) {
+                guard sourceVideoFormatHasSameSubtypeAndDimensions(
+                    format,
+                    as: bridgeFormat
+                ) else { continue }
+                let extensions = CMFormatDescriptionGetExtensions(format) as? [String: Any]
+                let projection = extensions?[
+                    kCMFormatDescriptionExtension_ProjectionKind as String
+                ] as? String
+                guard projection?.localizedCaseInsensitiveContains(
+                    "AppleImmersiveVideo"
+                ) == true else { continue }
+                guard match == nil else { return nil }
+                match = format
+            }
+        }
+        return match
+    }
+
+    private static func sourceVideoFormat(
+        _ sourceFormat: CMVideoFormatDescription,
+        matches bridgeFormat: CMVideoFormatDescription,
+        allowsSourceOnlyLhvC: Bool
+    ) -> Bool {
+        guard sourceVideoFormatHasSameSubtypeAndDimensions(
+            sourceFormat,
+            as: bridgeFormat
+        ) else { return false }
+        let sourceAtoms = decoderConfigurationAtoms(in: sourceFormat)
+        let bridgeAtoms = decoderConfigurationAtoms(in: bridgeFormat)
+        for atom in ["avcC", "hvcC", "av1C"] {
+            guard sourceAtoms[atom] == bridgeAtoms[atom] else { return false }
+        }
+        for atom in ["dvcC", "dvvC"] {
+            guard sourceAtoms[atom] == bridgeAtoms[atom] else { return false }
+        }
+        if let bridgeLhvC = bridgeAtoms["lhvC"] {
+            return sourceAtoms["lhvC"] == bridgeLhvC
+        }
+        return sourceAtoms["lhvC"] == nil || allowsSourceOnlyLhvC
+    }
+
+    private static func sourceVideoFormatHasSameSubtypeAndDimensions(
+        _ sourceFormat: CMVideoFormatDescription,
+        as bridgeFormat: CMVideoFormatDescription
+    ) -> Bool {
+        let sourceDimensions = CMVideoFormatDescriptionGetDimensions(sourceFormat)
+        let bridgeDimensions = CMVideoFormatDescriptionGetDimensions(bridgeFormat)
+        return CMFormatDescriptionGetMediaSubType(sourceFormat)
+                == CMFormatDescriptionGetMediaSubType(bridgeFormat)
+            && sourceDimensions.width == bridgeDimensions.width
+            && sourceDimensions.height == bridgeDimensions.height
+    }
+
+    private static func decoderConfigurationAtoms(
+        in format: CMFormatDescription
+    ) -> [String: Data] {
+        let extensions = CMFormatDescriptionGetExtensions(format) as? [String: Any]
+        return extensions?[
+            kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
+        ] as? [String: Data] ?? [:]
+    }
+
+    private static func infoByPreservingSourceFormat(
+        _ info: VideoSampleProviderInfo,
+        sourceFormat: CMFormatDescription
+    ) -> VideoSampleProviderInfo {
+        var updated = info
+        let extensions = CMFormatDescriptionGetExtensions(sourceFormat) as? [String: Any] ?? [:]
+        let atoms = extensions[
+            kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
+        ] as? [String: Data] ?? [:]
+        let configurationAtoms = ["avcC", "hvcC", "lhvC", "dvcC", "dvvC", "av1C"]
+            .filter { atoms[$0]?.isEmpty == false }
+        if !configurationAtoms.isEmpty {
+            updated.codecConfigurationSummary = .init(
+                known: configurationAtoms.joined(separator: ",")
+            )
+        }
+        updated.formatSignaling = VideoFormatSignalingSummary(
+            provenance: "AVAssetTrack.sourceFormatDescription",
+            colorPrimaries: updated.formatSignaling.colorPrimaries,
+            transferFunction: updated.formatSignaling.transferFunction,
+            yCbCrMatrix: updated.formatSignaling.yCbCrMatrix,
+            range: updated.formatSignaling.range,
+            projectionKind: stringFact(
+                extensions[kCMFormatDescriptionExtension_ProjectionKind as String]
+            ),
+            viewPackingKind: stringFact(
+                extensions[kCMFormatDescriptionExtension_ViewPackingKind as String]
+            ),
+            hasLeftStereoEyeView: boolFact(
+                extensions[kCMFormatDescriptionExtension_HasLeftStereoEyeView as String]
+            ),
+            hasRightStereoEyeView: boolFact(
+                extensions[kCMFormatDescriptionExtension_HasRightStereoEyeView as String]
+            ),
+            hvcC: atoms["hvcC"]?.isEmpty == false ? .init(known: true) : .init(.none),
+            dvcC: atoms["dvcC"]?.isEmpty == false ? .init(known: true) : .init(.none),
+            dvvC: atoms["dvvC"]?.isEmpty == false ? .init(known: true) : .init(.none)
+        )
+        return updated
+    }
+
+    private static func infoByAddingAppleImmersiveSourceClassification(
+        _ info: VideoSampleProviderInfo,
+        sourceFormat: CMFormatDescription
+    ) -> VideoSampleProviderInfo {
+        var updated = info
+        let extensions = CMFormatDescriptionGetExtensions(sourceFormat) as? [String: Any] ?? [:]
+        // These facts let the product reject Apple Immersive Video before
+        // renderer publication. They do not authorize source format substitution;
+        // codec payload and aggregate provenance remain owned by the bridge.
+        updated.formatSignaling.projectionKind = stringFact(
+            extensions[kCMFormatDescriptionExtension_ProjectionKind as String]
+        )
+        updated.formatSignaling.viewPackingKind = stringFact(
+            extensions[kCMFormatDescriptionExtension_ViewPackingKind as String]
+        )
+        updated.formatSignaling.hasLeftStereoEyeView = boolFact(
+            extensions[kCMFormatDescriptionExtension_HasLeftStereoEyeView as String]
+        )
+        updated.formatSignaling.hasRightStereoEyeView = boolFact(
+            extensions[kCMFormatDescriptionExtension_HasRightStereoEyeView as String]
+        )
+        return updated
+    }
+
+    private static func stringFact(_ value: Any?) -> ObservedStringFact {
+        if let string = value as? String { return .init(known: string) }
+        return .init(.none)
+    }
+
+    private static func boolFact(_ value: Any?) -> ObservedBooleanFact {
+        guard let value = value as? Bool else { return .init(.none) }
+        return .init(known: value)
     }
 }
 

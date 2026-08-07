@@ -10,7 +10,7 @@ import capture_validation_manifest as manifest
 
 
 class ValidationManifestRepositoryFilesTests(unittest.TestCase):
-    def test_evidence_records_do_not_change_the_product_tree(self) -> None:
+    def test_repository_files_include_tracked_and_untracked_content(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             repository = Path(directory)
             subprocess.run(
@@ -19,27 +19,21 @@ class ValidationManifestRepositoryFilesTests(unittest.TestCase):
                 check=True,
             )
             (repository / "Sources").mkdir()
-            (repository / "Sources" / "Product.swift").write_text("product\n")
-            (repository / "docs" / "acceptance" / "evidence").mkdir(parents=True)
-            (repository / "docs" / "acceptance" / "evidence.md").write_text(
-                "current evidence\n"
+            (repository / "Sources" / "Tracked.swift").write_text("tracked\n")
+            subprocess.run(
+                ["git", "add", "Sources/Tracked.swift"],
+                cwd=repository,
+                check=True,
             )
-            (repository / "docs" / "acceptance" / "evidence" / "run.json").write_text(
-                "{}\n"
-            )
-            (repository / "docs" / "acceptance" / "evidence-notes.md").write_text(
-                "product documentation\n"
-            )
+            (repository / "Sources" / "Untracked.swift").write_text("untracked\n")
 
             files = {
                 path.as_posix()
                 for path in manifest.repository_files(repository)
             }
 
-            self.assertIn("Sources/Product.swift", files)
-            self.assertIn("docs/acceptance/evidence-notes.md", files)
-            self.assertNotIn("docs/acceptance/evidence.md", files)
-            self.assertNotIn("docs/acceptance/evidence/run.json", files)
+            self.assertIn("Sources/Tracked.swift", files)
+            self.assertIn("Sources/Untracked.swift", files)
 
 
 if __name__ == "__main__":

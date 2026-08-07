@@ -188,6 +188,7 @@ struct WindowPlaybackRootView<
     private let layout: WindowPlaybackLayout
     private let preferredInitialSize: CGSize?
     private let showsWindowChrome: Bool
+    private let hidesSurfaceFromAccessibility: Bool
     private let onSurfaceTap: (() -> Void)?
     private let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
     private let videoContent: VideoContent
@@ -197,6 +198,7 @@ struct WindowPlaybackRootView<
         layout: WindowPlaybackLayout,
         preferredInitialSize: CGSize? = nil,
         showsWindowChrome: Bool,
+        hidesSurfaceFromAccessibility: Bool = false,
         onSurfaceTap: (() -> Void)? = nil,
         onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil,
         @ViewBuilder videoContent: () -> VideoContent,
@@ -205,6 +207,7 @@ struct WindowPlaybackRootView<
         self.layout = layout
         self.preferredInitialSize = preferredInitialSize
         self.showsWindowChrome = showsWindowChrome
+        self.hidesSurfaceFromAccessibility = hidesSurfaceFromAccessibility
         self.onSurfaceTap = onSurfaceTap
         self.onWindowSceneChange = onWindowSceneChange
         self.videoContent = videoContent()
@@ -305,6 +308,15 @@ struct WindowPlaybackRootView<
                         #endif
                         .accessibilityAddTraits(.isButton)
                         .accessibilityLabel("Playback surface")
+                        .accessibilityIdentifier("PlayerUI-window-playback-surface")
+                        .accessibilityAction {
+                            onSurfaceTap()
+                        }
+                        // An open secondary menu owns Accessibility interaction
+                        // in its visible bounds. The spatial tap layer remains
+                        // active outside the menu and returns to the tree when
+                        // the menu closes.
+                        .accessibilityHidden(hidesSurfaceFromAccessibility)
                 }
             }
         } else {

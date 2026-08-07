@@ -14,7 +14,7 @@ struct WindowPlayerDeckView: View {
     @ViewBuilder
     var body: some View {
         Group {
-            if resolvedPresentation == .window {
+            if usesWindowPlaybackControls {
                 WindowPlaybackControls(
                     live: live,
                     onInteraction: register,
@@ -62,7 +62,7 @@ struct WindowPlayerDeckView: View {
             mediaProfile: playbackRuntime.displayMediaProfile,
             canDock: playbackRuntime.canEnterSpatialPresentation,
             canEnterPanorama: playbackRuntime.canEnterSpatialPresentation
-                && playbackRuntime.effectiveProjectionType.isPanoramic,
+                && playbackRuntime.effectiveContentIsPanoramic,
             screenScale: appModel.screenScale,
             recommendedScreenScale: EnvironmentSceneMapping.defaultScreenScale(
                 forEnvironmentID: appModel.currentCinemaEnvironment.rawValue
@@ -70,8 +70,11 @@ struct WindowPlayerDeckView: View {
             screenDistance: appModel.screenDepthOffset,
             screenElevationDegrees: appModel.screenViewAngle,
             projection: playbackRuntime.effectiveProjectionType,
+            horizontalFieldOfViewDegrees: playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
             stereoLayout: playbackRuntime.effectiveStereoLayout,
-            canUseFisheye: playbackRuntime.supportsFisheyePresentation,
+            mediaFormatSummary: playbackRuntime.activeMediaFormatProvenance == .source
+                ? playbackRuntime.sourceMediaFormatSummary
+                : nil,
             isPlaying: transport.primaryAction == .pause,
             showsReplay: transport.primaryAction == .replay,
             canSkipForward: transport.canSkipForward,
@@ -108,7 +111,11 @@ struct WindowPlayerDeckView: View {
             },
             onEnterPanorama: { self.enterPlaybackPresentation(.panorama) },
             onEnterImmersive: { self.enterPlaybackPresentation(.docked) },
-            onExitSpatial: { self.enterPlaybackPresentation(.window) },
+            onExitSpatial: {
+                self.enterPlaybackPresentation(
+                    self.resolvedPresentation == .panorama ? .portal : .window
+                )
+            },
             onExitPlayback: {
                 if let onExitPlayback = self.onExitPlayback {
                     onExitPlayback()
@@ -132,22 +139,15 @@ struct WindowPlayerDeckView: View {
                 self.register()
                 self.appModel.resetDockedPlacement()
             },
-            onApplyFormat: { projection, stereo in
+            onApplyFormat: { projection, horizontalFieldOfViewDegrees, stereo in
                 self.register()
                 Task {
                     do {
-                        try await self.playbackLauncher.applyFormat(projection: projection, stereo: stereo)
-                    } catch {
-                        self.playbackRuntime.lastErrorMessage = error.localizedDescription
-                    }
-                }
-            },
-            onResetFormat: {
-                self.register()
-                Task {
-                    do {
-                        try await self.playbackLauncher.resetFormat()
-                        self.enterPlaybackPresentation(.window)
+                        try await self.playbackLauncher.applyFormat(
+                            projection: projection,
+                            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
+                            stereo: stereo
+                        )
                     } catch {
                         self.playbackRuntime.lastErrorMessage = error.localizedDescription
                     }
@@ -164,6 +164,11 @@ struct WindowPlayerDeckView: View {
         presentationOverride ?? appModel.playbackPresentation
     }
 
+    private var usesWindowPlaybackControls: Bool {
+        resolvedPresentation == .window
+            && playbackRuntime.effectiveContentIsPanoramic == false
+    }
+
     private var mediaName: String {
         guard let url = playbackRuntime.currentPlaybackURL else { return "Unknown" }
         let name = url.deletingPathExtension().lastPathComponent
@@ -174,17 +179,21 @@ struct WindowPlayerDeckView: View {
         register()
         guard presentation != appModel.playbackPresentation,
               appModel.pendingSpatialPlatformEffect == nil else { return }
-        if presentation != .window {
+        if presentation.usesImmersiveSpace {
             guard playbackRuntime.canEnterSpatialPresentation else { return }
         }
         if presentation == .panorama {
-            guard playbackRuntime.effectiveProjectionType.isPanoramic else { return }
+            guard playbackRuntime.effectiveContentIsPanoramic else { return }
         }
-        _ = try? appModel.requestPlaybackPresentation(
-            presentation,
-            mediaSessionID: playbackRuntime.activeSessionID,
-            wasPlaying: playbackRuntime.productLifecycle == .playing
-        )
+        do {
+            _ = try appModel.requestPlaybackPresentation(
+                presentation,
+                mediaSessionID: playbackRuntime.activeSessionID,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
+        } catch {
+            playbackRuntime.lastErrorMessage = error.localizedDescription
+        }
     }
 
     private func togglePlayPause() {

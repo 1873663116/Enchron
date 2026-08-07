@@ -362,6 +362,2383 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
     }
 
     @MainActor
+    func testH264AutomaticSourcePlaybackOnVisionPro() throws {
+        let expectation = AutomaticSourceExpectation(
+            filename: "sdr-bframe-multiaudio-avsync-30s.mp4",
+            pickerPath: ["TestVectors", "Enchron", "PlaybackBehavior"],
+            pickerLabels: ["sdr-bframe-multiaudio-avsync-30s"],
+            evidenceSlug: "matrix-h264",
+            sourceContentKind: "rectilinear",
+            projection: "flat",
+            stereoLayout: "mono",
+            presentation: "window",
+            contentType: "mono",
+            formatSignalingProjectionKind: nil,
+            actualViewingMode: "mono",
+            actualImmersiveMode: nil,
+            actualSpatialVideoMode: "screen",
+            isMVHEVC: false,
+            compressedFormat: .init(
+                providerCodecName: "h264",
+                providerCodecTag: "avc1",
+                sampleMediaSubtype: "avc1"
+            )
+        )
+        let source = try openAutomaticSourcePlayback(expectation)
+        attachProgressScrubberHumanReviewBoundary(
+            evidenceSlug: "matrix-h264-02-progress-scrubber"
+        )
+        let rewound = try performTransportSeek(
+            source,
+            direction: .rewind,
+            evidenceSlug: "matrix-h264-03-rewind"
+        )
+        let transportVerified = try performTransportSeek(
+            rewound,
+            direction: .forward,
+            evidenceSlug: "matrix-h264-04-forward"
+        )
+        var audio = try captureAudioSentinel(
+            transportVerified.state,
+            context: "H264 after progress and transport seeks"
+        )
+        let overridden180 = try applyWindowPanoramaOverride(
+            transportVerified,
+            override: .halfEquirectangular,
+            sourceContentKind: expectation.sourceContentKind,
+            evidenceSlug: "matrix-h264-05-180-override"
+        )
+        audio = try requireAudioPipelineContinues(
+            from: audio,
+            through: overridden180.state,
+            context: "H264 180 override"
+        )
+        let flatEscape = try escapePanoramaToFlatMonoWindow(
+            overridden180,
+            sourceContentKind: expectation.sourceContentKind,
+            evidenceSlug: "matrix-h264-06-flat-window-escape"
+        )
+        audio = try requireAudioSentinelContinues(
+            from: audio,
+            through: flatEscape.state,
+            context: "H264 Flat Mono escape"
+        )
+        let restored = try restoreAutomaticFormat(
+            from: flatEscape,
+            expectation: expectation,
+            evidenceSlug: "matrix-h264-07-automatic-restored"
+        )
+        _ = try requireAudioSentinelContinues(
+            from: audio,
+            through: restored.state,
+            context: "H264 Automatic restore"
+        )
+        _ = try reopenAndVerifyAutomaticSource(
+            after: restored,
+            expectation: expectation,
+            evidenceSlug: "matrix-h264-08-reopened-source"
+        )
+    }
+
+    @MainActor
+    func testHDR10AutomaticSourcePlaybackOnVisionPro() throws {
+        _ = try openAutomaticSourcePlayback(
+            .init(
+                filename: "HDR10.MP4",
+                pickerPath: ["Samples", "DynamicRange", "HDR10"],
+                pickerLabels: ["HDR10", "HDR10.MP4"],
+                evidenceSlug: "matrix-hdr10",
+                sourceContentKind: "rectilinear",
+                projection: "flat",
+                stereoLayout: "mono",
+                presentation: "window",
+                contentType: "mono",
+                formatSignalingProjectionKind: nil,
+                actualViewingMode: "mono",
+                actualImmersiveMode: nil,
+                actualSpatialVideoMode: "screen",
+                isMVHEVC: false,
+                compressedFormat: .init(
+                    providerCodecName: "hevc",
+                    providerCodecTag: "hvc1",
+                    sampleMediaSubtype: "hvc1",
+                    providerTransferToken: "2084",
+                    sampleTransferToken: "2084",
+                    requiredProviderConfigurationAtoms: ["hvcC"]
+                )
+            )
+        )
+    }
+
+    @MainActor
+    func testOfficialMVHEVCAutomaticMonoOverrideAndRestoreOnVisionPro() throws {
+        let expectation = AutomaticSourceExpectation(
+            filename: "spatial_lighthouse_flowers_waves_short.mov",
+            pickerPath: ["Samples", "Spatial", "MVHEVC-Apple-Official"],
+            pickerLabels: [
+                "spatial_lighthouse_flowers_waves_short",
+                "spatial_lighthouse_flowers_waves_short.mov"
+            ],
+            evidenceSlug: "matrix-mvhevc",
+            sourceContentKind: "spatialVideo",
+            projection: "flat",
+            stereoLayout: "multiview",
+            presentation: "window",
+            contentType: "stereo",
+            formatSignalingProjectionKind: nil,
+            actualViewingMode: "stereo",
+            actualImmersiveMode: nil,
+            actualSpatialVideoMode: "spatial",
+            isMVHEVC: true,
+            compressedFormat: nil
+        )
+        let source = try openAutomaticSourcePlayback(expectation)
+        attachProgressScrubberHumanReviewBoundary(
+            evidenceSlug: "matrix-mvhevc-02-progress-scrubber"
+        )
+        let overridden = try applyWindowFlatMonoOverride(
+            source,
+            sourceContentKind: expectation.sourceContentKind,
+            evidenceSlug: "matrix-mvhevc-03-mono-override"
+        )
+        _ = try restoreAutomaticFormat(
+            from: overridden,
+            expectation: expectation,
+            evidenceSlug: "matrix-mvhevc-04-automatic-restored"
+        )
+    }
+
+    @MainActor
+    func testAPMP180AutomaticSourcePlaybackOnVisionPro() throws {
+        try exercisePanoramicAutomaticRestore(
+            expectation: .init(
+                filename: "APMP-180-example.mp4",
+                pickerPath: ["Samples", "Spatial", "Stereo180"],
+                pickerLabels: ["APMP-180-example", "APMP-180-example.mp4"],
+                evidenceSlug: "matrix-apmp-180",
+                sourceContentKind: "halfEquirectangular",
+                projection: "equirectangular180",
+                stereoLayout: "multiview",
+                presentation: "panorama",
+                contentType: "halfEquirectangular",
+                formatSignalingProjectionKind: "HalfEquirectangular",
+                actualViewingMode: "stereo",
+                actualImmersiveMode: "progressive",
+                actualSpatialVideoMode: "screen",
+                isMVHEVC: true,
+                compressedFormat: nil
+            ),
+            explicitPanoramaOverride: nil
+        )
+    }
+
+    @MainActor
+    func testAPMP360AutomaticSourcePlaybackOnVisionPro() throws {
+        try exercisePanoramicAutomaticRestore(
+            expectation: .init(
+                filename: "APMP-360-example.mp4",
+                pickerPath: ["Samples", "Spatial", "Panorama"],
+                pickerLabels: ["APMP-360-example", "APMP-360-example.mp4"],
+                evidenceSlug: "matrix-apmp-360",
+                sourceContentKind: "equirectangular",
+                projection: "equirectangular360",
+                stereoLayout: "mono",
+                presentation: "panorama",
+                contentType: "equirectangular",
+                formatSignalingProjectionKind: "Equirectangular",
+                actualViewingMode: "mono",
+                actualImmersiveMode: "progressive",
+                actualSpatialVideoMode: "screen",
+                isMVHEVC: false,
+                compressedFormat: nil
+            ),
+            explicitPanoramaOverride: nil
+        )
+    }
+
+    @MainActor
+    func testAPMPWideFOVAutomaticSourcePlaybackOnVisionPro() throws {
+        try exercisePanoramicAutomaticRestore(
+            expectation: .init(
+                filename: "APMP-wide-FOV-example.mp4",
+                pickerPath: ["Samples", "Spatial", "Panorama"],
+                pickerLabels: ["APMP-wide-FOV-example", "APMP-wide-FOV-example.mp4"],
+                evidenceSlug: "matrix-apmp-wide-fov",
+                sourceContentKind: "parametricImmersive",
+                projection: "flat",
+                stereoLayout: "mono",
+                presentation: "panorama",
+                contentType: "parametricImmersive",
+                formatSignalingProjectionKind: "ParametricImmersive",
+                actualViewingMode: "mono",
+                actualImmersiveMode: "progressive",
+                actualSpatialVideoMode: "screen",
+                isMVHEVC: false,
+                compressedFormat: nil
+            ),
+            explicitPanoramaOverride: .equirectangular360
+        )
+    }
+
+    @MainActor
+    func testDolbyVisionProfile5AutomaticSourcePlaybackOnVisionPro() throws {
+        _ = try openAutomaticSourcePlayback(
+            .init(
+                filename:
+                    "Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",
+                pickerPath: ["Samples", "DynamicRange", "DolbyVision", "HD"],
+                pickerLabels: ["Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps"],
+                evidenceSlug: "matrix-dolby-vision-p5",
+                sourceContentKind: "rectilinear",
+                projection: "flat",
+                stereoLayout: "mono",
+                presentation: "window",
+                contentType: "mono",
+                formatSignalingProjectionKind: nil,
+                actualViewingMode: "mono",
+                actualImmersiveMode: nil,
+                actualSpatialVideoMode: "screen",
+                isMVHEVC: false,
+                compressedFormat: .init(
+                    providerCodecName: "hevc",
+                    providerCodecTag: "dvh1",
+                    sampleMediaSubtype: "dvh1",
+                    requiredProviderConfigurationAtoms: ["hvcC", "dvcC"],
+                    sampleHasDvcC: true
+                )
+            )
+        )
+    }
+
+    @MainActor
+    func testDolbyVisionProfile10AutomaticSourcePlaybackOnVisionPro() throws {
+        _ = try openAutomaticSourcePlayback(
+            .init(
+                filename: "media-video-dav1-dav1-1.mp4",
+                pickerPath: [
+                    "Samples", "DynamicRange", "DolbyVision", "Profile10",
+                    "OfficialDolby", "P10.0"
+                ],
+                pickerLabels: ["media-video-dav1-dav1-1"],
+                evidenceSlug: "matrix-dolby-vision-p10",
+                sourceContentKind: "rectilinear",
+                projection: "flat",
+                stereoLayout: "mono",
+                presentation: "window",
+                contentType: "mono",
+                formatSignalingProjectionKind: nil,
+                actualViewingMode: "mono",
+                actualImmersiveMode: nil,
+                actualSpatialVideoMode: "screen",
+                isMVHEVC: false,
+                compressedFormat: .init(
+                    providerCodecName: "av1",
+                    providerCodecTag: "dav1",
+                    sampleMediaSubtype: "av01",
+                    requiredProviderConfigurationAtoms: ["dvvC"],
+                    sampleHasDvvC: true
+                )
+            )
+        )
+    }
+
+    @MainActor
+    func testAppleImmersiveVideoIsRejectedBeforePlaybackOnVisionPro() throws {
+        let filename = "Immersive-Video-example.f99766.mp4"
+        let app = launchMediaLibrary()
+        let identifier = "MediaLibrary-grid-video-\(filename)"
+        let card = app.buttons.matching(identifier: identifier).firstMatch
+        try requireMatrix(
+            importExactRealMediaReference(
+                card: card,
+                identifier: identifier,
+                pickerPath: ["Samples", "Spatial", "Apple-Immersive"],
+                pickerLabels: ["Immersive-Video-example.f99766", filename],
+                filename: filename,
+                in: app
+            ),
+            "Apple Immersive fixture could not be imported from its exact path."
+        )
+
+        card.tap()
+        resolveResumeDecisionIfNeeded(in: app)
+        let alert = app.alerts["Failed to Load"].firstMatch
+        try requireMatrix(
+            alert.waitForExistence(timeout: 45),
+            "Apple Immersive Video did not produce the generic load failure."
+        )
+        try requireMatrix(
+            app.staticTexts["Unable to open this file."].firstMatch
+                .waitForExistence(timeout: 5),
+            "Apple Immersive Video exposed a non-generic failure message."
+        )
+        let applicationState = app.descendants(matching: .any)[
+            "PlayerUI-application-state"
+        ].firstMatch
+        let failed = try requireMatrix(
+            waitForState(applicationState, timeout: 15) {
+                $0.string("lifecycle")?.lowercased().hasPrefix("failed") == true
+                    && $0.string("session") == "none"
+                    && $0.string("attached") == "none"
+            },
+            "Rejected Apple Immersive Video did not publish its terminal failure state."
+        )
+        for field in [
+            "videoSamples", "rendererInputs", "audioSamples", "audioRendererSamples"
+        ] {
+            let count = try requireMatrix(
+                failed.uint64(field),
+                "Rejected Apple Immersive Video did not expose \(field)."
+            )
+            try requireMatrix(
+                count == 0,
+                "Rejected Apple Immersive Video published \(field)=\(count)."
+            )
+        }
+        try requireMatrix(
+            failed.bool("componentReady") == false,
+            "Rejected Apple Immersive Video prepared a video component."
+        )
+        try requireMatrix(
+            failed.bool("hasAudio") == false,
+            "Rejected Apple Immersive Video published an audio output."
+        )
+        try requireMatrix(
+            failed.string("rendererConsumer") == "none"
+                && failed.string("rendererConsumerEntity") == "none",
+            "Rejected Apple Immersive Video bound a renderer consumer."
+        )
+        try requireMatrix(
+            app.descendants(matching: .any)["PlayerUI-spatial-state"]
+                .firstMatch.waitForNonExistence(timeout: 5),
+            "Rejected Apple Immersive Video must not enter a spatial presentation."
+        )
+        attachState(failed, name: "matrix-apple-immersive-rejected-state")
+        attachScreenshot(from: app, name: "matrix-apple-immersive-rejected")
+    }
+
+    private struct CompressedFormatExpectation {
+        let providerCodecName: String
+        let providerCodecTag: String
+        let sampleMediaSubtype: String
+        let providerTransferToken: String?
+        let sampleTransferToken: String?
+        let requiredProviderConfigurationAtoms: Set<String>
+        let sampleHasDvcC: Bool?
+        let sampleHasDvvC: Bool?
+
+        init(
+            providerCodecName: String,
+            providerCodecTag: String,
+            sampleMediaSubtype: String,
+            providerTransferToken: String? = nil,
+            sampleTransferToken: String? = nil,
+            requiredProviderConfigurationAtoms: Set<String> = [],
+            sampleHasDvcC: Bool? = nil,
+            sampleHasDvvC: Bool? = nil
+        ) {
+            self.providerCodecName = providerCodecName
+            self.providerCodecTag = providerCodecTag
+            self.sampleMediaSubtype = sampleMediaSubtype
+            self.providerTransferToken = providerTransferToken
+            self.sampleTransferToken = sampleTransferToken
+            self.requiredProviderConfigurationAtoms =
+                requiredProviderConfigurationAtoms
+            self.sampleHasDvcC = sampleHasDvcC
+            self.sampleHasDvvC = sampleHasDvvC
+        }
+    }
+
+    private struct AutomaticSourceExpectation {
+        let filename: String
+        let pickerPath: [String]
+        let pickerLabels: [String]
+        let evidenceSlug: String
+        let sourceContentKind: String
+        let projection: String
+        let stereoLayout: String
+        let presentation: String
+        let contentType: String
+        let formatSignalingProjectionKind: String?
+        let actualViewingMode: String?
+        let actualImmersiveMode: String?
+        let actualSpatialVideoMode: String?
+        let isMVHEVC: Bool
+        let compressedFormat: CompressedFormatExpectation?
+    }
+
+    private struct AutomaticSourcePlayback {
+        let app: XCUIApplication
+        let stateElement: XCUIElement
+        let state: RegressionStateSnapshot
+    }
+
+    private struct PanoramaOverrideExpectation {
+        let projectionLabel: String
+        let sampleProjectionKind: String
+        let contentType: String
+
+        static let halfEquirectangular = Self(
+            projectionLabel: "180°",
+            sampleProjectionKind: "HalfEquirectangular",
+            contentType: "halfEquirectangular"
+        )
+        static let equirectangular360 = Self(
+            projectionLabel: "360°",
+            sampleProjectionKind: "Equirectangular",
+            contentType: "equirectangular"
+        )
+    }
+
+    private struct AudioSentinel {
+        let track: String
+        let streamEpoch: UInt64
+        let audioRendererEpoch: UInt64
+        let samples: UInt64
+        let rendererSamples: UInt64
+    }
+
+    private struct MatrixRequirementFailure: Error {}
+
+    @MainActor
+    private func openAutomaticSourcePlayback(
+        _ expectation: AutomaticSourceExpectation
+    ) throws -> AutomaticSourcePlayback {
+        let app = launchMediaLibrary()
+        let identifier = "MediaLibrary-grid-video-\(expectation.filename)"
+        let card = app.buttons.matching(identifier: identifier).firstMatch
+        try requireMatrix(
+            importExactRealMediaReference(
+                card: card,
+                identifier: identifier,
+                pickerPath: expectation.pickerPath,
+                pickerLabels: expectation.pickerLabels,
+                filename: expectation.filename,
+                in: app
+            ),
+            "\(expectation.filename) could not be imported from its exact path."
+        )
+
+        let sourceAttachment = XCTAttachment(
+            string: "Desktop/TestMedia/\(expectation.pickerPath.joined(separator: "/"))/\(expectation.filename)"
+        )
+        sourceAttachment.name = "\(expectation.evidenceSlug)-source-path"
+        sourceAttachment.lifetime = .keepAlways
+        add(sourceAttachment)
+
+        card.tap()
+        resolveResumeDecisionIfNeeded(in: app)
+        let stateElement = app.descendants(matching: .any)[
+            expectation.presentation == "window"
+                ? "PlayerUI-window-control-plane"
+                : "PlayerUI-spatial-state"
+        ].firstMatch
+        var observedFailures: [String] = []
+        _ = try requireMatrix(
+            waitForRealMediaSurface(
+                stateElement,
+                presentation: expectation.presentation,
+                timeout: 75,
+                app: app,
+                evidenceName: "\(expectation.evidenceSlug)-01-source-surface",
+                observedFailures: &observedFailures
+            ),
+            "\(expectation.filename) did not expose its playback surface."
+        )
+        let automatic = try requireMatrix(
+            waitForState(stateElement, timeout: 45, where: {
+                automaticSourceState($0, matches: expectation)
+            }),
+            "\(expectation.filename) did not retain its Automatic source interpretation."
+        )
+        if automaticSourceState(automatic, matches: expectation) == false {
+            attachCurrentState(
+                of: stateElement,
+                name: "\(expectation.evidenceSlug)-automatic-source-mismatch"
+            )
+            attachScreenshot(
+                from: app,
+                name: "\(expectation.evidenceSlug)-automatic-source-mismatch"
+            )
+            try requireMatrix(
+                false,
+                "\(expectation.filename) Automatic source facts did not match."
+            )
+        }
+        assertPlaybackIdentityIsReady(
+            automatic,
+            context: "\(expectation.filename) Automatic source"
+        )
+        attachState(
+            automatic,
+            name: "\(expectation.evidenceSlug)-01-automatic-source-state"
+        )
+        attachScreenshot(
+            from: app,
+            name: "\(expectation.evidenceSlug)-01-automatic-source"
+        )
+        let continuous = try requireMatrix(
+            ensureRealMediaPlaybackAdvances(
+                in: stateElement,
+                presentation: expectation.presentation,
+                app: app,
+                evidenceName: "\(expectation.evidenceSlug)-01-automatic-source",
+                observedFailures: &observedFailures
+            ),
+            "\(expectation.filename) did not continue after Automatic source detection."
+        )
+        try requireMatrix(
+            observedFailures.isEmpty,
+            observedFailures.joined(separator: "\n")
+        )
+        attachHumanReviewBoundary(
+            "Review the two retained observations and the full recording for "
+                + "continuously moving, correctly projected \(expectation.filename) "
+                + "video; state counters and identity are necessary but do not "
+                + "replace wearer-visible review.",
+            name: "\(expectation.evidenceSlug)-wearer-visible-review"
+        )
+        return AutomaticSourcePlayback(
+            app: app,
+            stateElement: stateElement,
+            state: continuous
+        )
+    }
+
+    private func requireMatrix<T>(
+        _ value: T?,
+        _ message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws -> T {
+        guard let value else {
+            XCTFail(message, file: file, line: line)
+            throw MatrixRequirementFailure()
+        }
+        return value
+    }
+
+    private func requireMatrix(
+        _ condition: @autoclosure () -> Bool,
+        _ message: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) throws {
+        guard condition() else {
+            XCTFail(message, file: file, line: line)
+            throw MatrixRequirementFailure()
+        }
+    }
+
+    private enum TransportSeekDirection {
+        case rewind
+        case forward
+
+        var offsetSeconds: Double {
+            switch self {
+            case .rewind: -15
+            case .forward: 15
+            }
+        }
+
+        var buttonIdentifier: String {
+            switch self {
+            case .rewind: "PlayerPanel-button-rewind"
+            case .forward: "PlayerPanel-button-forward"
+            }
+        }
+
+        var accessibilityLabel: String {
+            switch self {
+            case .rewind: "Rewind 15 seconds"
+            case .forward: "Forward 15 seconds"
+            }
+        }
+    }
+
+    private func requireSeekPosition(
+        _ state: RegressionStateSnapshot,
+        expectedPosition: (Double) -> Double,
+        context: String
+    ) throws {
+        let position = try requireMatrix(
+            state.double("position"),
+            "\(context) did not expose position."
+        )
+        let duration = try requireMatrix(
+            state.double("duration"),
+            "\(context) did not expose duration."
+        )
+        try requireMatrix(
+            position.isFinite && duration.isFinite && duration > 0,
+            "\(context) exposed an unusable position or duration."
+        )
+        let actualRate = try requireMatrix(
+            state.double("actualRate"),
+            "\(context) did not expose actualRate."
+        )
+        try requireMatrix(
+            actualRate.isFinite,
+            "\(context) exposed an unusable actualRate."
+        )
+        let target = expectedPosition(duration)
+        try requireMatrix(
+            target.isFinite,
+            "\(context) produced an unusable seek target."
+        )
+
+        // PlaybackSeekPresentation accepts the renderer position within 2% of
+        // duration. DeviceRegressionSupport.waitForState polls every 0.1 s, so
+        // a Playing snapshot can advance by one poll after reaching the target.
+        let allowedDelta = duration * 0.02 + abs(actualRate) * 0.1
+        try requireMatrix(
+            abs(position - target) <= allowedDelta,
+            "\(context) settled at \(position)s; expected \(target)s "
+                + "within the derived \(allowedDelta)s bound."
+        )
+    }
+
+    @MainActor
+    private func performTransportSeek(
+        _ playback: AutomaticSourcePlayback,
+        direction: TransportSeekDirection,
+        evidenceSlug: String
+    ) throws -> AutomaticSourcePlayback {
+        try requireMatrix(
+            playback.state.string("presentation") == "window",
+            "\(evidenceSlug) did not start in Window presentation."
+        )
+        try requireMatrix(
+            showWindowPlaybackControls(
+                windowState: playback.stateElement,
+                app: playback.app,
+                evidenceName: "\(evidenceSlug)-controls"
+            ),
+            "\(evidenceSlug) could not expose Window transport controls."
+        )
+        let button = playback.app.buttons[direction.buttonIdentifier].firstMatch
+        try requireMatrix(
+            requireHittable(button, named: direction.accessibilityLabel),
+            "\(evidenceSlug) did not expose its transport control."
+        )
+        try requireMatrix(
+            button.label == direction.accessibilityLabel,
+            "\(evidenceSlug) unexpectedly exposed frame-step mode."
+        )
+
+        // Read the accessibility state immediately before the tap. Using the
+        // playback value returned by an earlier continuity wait would shift a
+        // Playing relative-seek target by however long UI setup took.
+        let baselineRawValue = try requireMatrix(
+            playback.stateElement.value as? String,
+            "\(evidenceSlug) did not expose current playback state before tap."
+        )
+        let baseline = RegressionStateSnapshot(rawValue: baselineRawValue)
+        try requireMatrix(
+            baseline.string("lifecycle")?.lowercased() == "playing",
+            "\(evidenceSlug) was not Playing immediately before tap."
+        )
+        let baselinePosition = try requireMatrix(
+            baseline.double("position"),
+            "\(evidenceSlug) did not expose its latest baseline position."
+        )
+        let baselineDuration = try requireMatrix(
+            baseline.double("duration"),
+            "\(evidenceSlug) did not expose its latest duration."
+        )
+        try requireMatrix(
+            baselinePosition.isFinite
+                && baselineDuration.isFinite
+                && baselineDuration > 0,
+            "\(evidenceSlug) exposed an unusable position or duration before tap."
+        )
+        let baselineEpoch = try requireMatrix(
+            baseline.uint64("streamEpoch"),
+            "\(evidenceSlug) did not expose its latest streamEpoch."
+        )
+        let baselineSession = try requireMatrix(
+            baseline.string("session"),
+            "\(evidenceSlug) did not expose its media session."
+        )
+        button.tap()
+
+        // Predicate only on the epoch so later natural playback cannot turn a
+        // wrong transport target into a passing result.
+        let firstAdvancedEpoch = try requireMatrix(
+            waitForState(playback.stateElement, timeout: 15) {
+                ($0.uint64("streamEpoch") ?? 0) > baselineEpoch
+            },
+            "\(evidenceSlug) did not complete its transport seek."
+        )
+        attachState(firstAdvancedEpoch, name: "\(evidenceSlug)-state")
+        attachScreenshot(from: playback.app, name: evidenceSlug)
+        try requireMatrix(
+            firstAdvancedEpoch.string("lifecycle")?.lowercased() == "playing",
+            "\(evidenceSlug) was not Playing at its first advanced epoch."
+        )
+        try requireMatrix(
+            firstAdvancedEpoch.string("session") == baselineSession,
+            "\(evidenceSlug) replaced its media session during transport seek."
+        )
+        try requireSeekPosition(
+            firstAdvancedEpoch,
+            expectedPosition: { _ in
+                min(
+                    max(baselinePosition + direction.offsetSeconds, 0),
+                    baselineDuration
+                )
+            },
+            context: evidenceSlug
+        )
+        let continuous = try requireContinuousMatrixPlayback(
+            app: playback.app,
+            stateElement: playback.stateElement,
+            presentation: "window",
+            evidenceSlug: "\(evidenceSlug)-continuous",
+            requiresCurrentPixelEpoch: false
+        )
+        assertStablePlaybackIdentity(
+            from: playback.state,
+            to: continuous,
+            expectsSameFormatRevision: true,
+            requiresCurrentPixelEpoch: false,
+            context: evidenceSlug
+        )
+        return AutomaticSourcePlayback(
+            app: playback.app,
+            stateElement: playback.stateElement,
+            state: continuous
+        )
+    }
+
+    @MainActor
+    private func submitWindowFormat(
+        from playback: AutomaticSourcePlayback,
+        projectionLabel: String,
+        stereoLayoutLabel: String,
+        evidenceSlug: String
+    ) throws {
+        try requireMatrix(
+            playback.state.string("presentation") == "window",
+            "\(evidenceSlug) did not start in Window presentation."
+        )
+        try requireMatrix(
+            showWindowPlaybackControls(
+                windowState: playback.stateElement,
+                app: playback.app,
+                evidenceName: "\(evidenceSlug)-controls"
+            ),
+            "\(evidenceSlug) could not expose Window controls."
+        )
+        let format = playback.app.buttons[
+            "PlayerUI-TopAction-videoFormat"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(format, named: "\(evidenceSlug) Video Format"),
+            "\(evidenceSlug) Video Format action was unavailable."
+        )
+        format.tap()
+        let projection = playback.app.descendants(matching: .any)[
+            "PlayerUI-VideoFormat-Projection-\(projectionLabel)"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(projection, named: "\(projectionLabel) projection"),
+            "\(evidenceSlug) could not select \(projectionLabel)."
+        )
+        projection.tap()
+        let stereoLayout = playback.app.descendants(matching: .any)[
+            "PlayerUI-VideoFormat-Stereo Layout-\(stereoLayoutLabel)"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(stereoLayout, named: "\(stereoLayoutLabel) layout"),
+            "\(evidenceSlug) could not select \(stereoLayoutLabel)."
+        )
+        stereoLayout.tap()
+        let apply = playback.app.buttons["PlayerUI-VideoFormat-apply"].firstMatch
+        try requireMatrix(
+            requireHittable(apply, named: "Apply \(evidenceSlug) format"),
+            "\(evidenceSlug) Apply action was unavailable."
+        )
+        attachScreenshot(from: playback.app, name: "\(evidenceSlug)-draft")
+        apply.tap()
+    }
+
+    @MainActor
+    private func requireContinuousMatrixPlayback(
+        app: XCUIApplication,
+        stateElement: XCUIElement,
+        presentation: String,
+        evidenceSlug: String,
+        requiresCurrentPixelEpoch: Bool = true
+    ) throws -> RegressionStateSnapshot {
+        var observedFailures: [String] = []
+        let continuous = try requireMatrix(
+            ensureRealMediaPlaybackAdvances(
+                in: stateElement,
+                presentation: presentation,
+                app: app,
+                evidenceName: evidenceSlug,
+                requiresCurrentPixelEpoch: requiresCurrentPixelEpoch,
+                observedFailures: &observedFailures
+            ),
+            "\(evidenceSlug) did not produce continuous playback."
+        )
+        try requireMatrix(
+            observedFailures.isEmpty,
+            observedFailures.joined(separator: "\n")
+        )
+        return continuous
+    }
+
+    @MainActor
+    private func applyWindowFlatMonoOverride(
+        _ playback: AutomaticSourcePlayback,
+        sourceContentKind: String,
+        evidenceSlug: String
+    ) throws -> AutomaticSourcePlayback {
+        let priorFormatRevision = try requireMatrix(
+            playback.state.uint64("lastRendererInputFormatRevision"),
+            "\(evidenceSlug) did not expose its input format revision."
+        )
+        try submitWindowFormat(
+            from: playback,
+            projectionLabel: "Flat",
+            stereoLayoutLabel: "Mono",
+            evidenceSlug: evidenceSlug
+        )
+        let overridden = try requireMatrix(
+            waitForState(playback.stateElement, timeout: 30) {
+                $0.string("presentation") == "window"
+                    && $0.string("transition") == "none"
+                    && $0.string("attached") == "window"
+                    && $0.string("session") == playback.state.string("session")
+                    && $0.string("formatProvenance") == "userOverride"
+                    && $0.string("sourceContentKind") == sourceContentKind
+                    && $0.string("projection") == "flat"
+                    && $0.string("stereoLayout") == "mono"
+                    && $0.string("windowComponentContentType")?.lowercased() == "mono"
+                    && $0.string("actualViewingMode")?.lowercased() == "mono"
+                    && $0.string("actualSpatialVideoMode")?.lowercased() == "screen"
+                    && ($0.uint64("lastRendererInputFormatRevision") ?? 0)
+                        > priorFormatRevision
+            },
+            "\(evidenceSlug) did not apply Flat and Mono."
+        )
+        attachState(overridden, name: "\(evidenceSlug)-state")
+        attachScreenshot(from: playback.app, name: evidenceSlug)
+        let continuous = try requireContinuousMatrixPlayback(
+            app: playback.app,
+            stateElement: playback.stateElement,
+            presentation: "window",
+            evidenceSlug: "\(evidenceSlug)-continuous"
+        )
+        assertStablePlaybackIdentity(
+            from: playback.state,
+            to: continuous,
+            expectsSameFormatRevision: false,
+            context: evidenceSlug
+        )
+        return AutomaticSourcePlayback(
+            app: playback.app,
+            stateElement: playback.stateElement,
+            state: continuous
+        )
+    }
+
+    @MainActor
+    private func applyWindowPanoramaOverride(
+        _ playback: AutomaticSourcePlayback,
+        override: PanoramaOverrideExpectation,
+        sourceContentKind: String,
+        evidenceSlug: String
+    ) throws -> AutomaticSourcePlayback {
+        let priorFormatRevision = try requireMatrix(
+            playback.state.uint64("lastRendererInputFormatRevision"),
+            "\(evidenceSlug) did not expose its input format revision."
+        )
+        try submitWindowFormat(
+            from: playback,
+            projectionLabel: override.projectionLabel,
+            stereoLayoutLabel: "Mono",
+            evidenceSlug: evidenceSlug
+        )
+        let spatialState = playback.app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        let overridden = try requireMatrix(
+            waitForState(spatialState, timeout: 75) {
+                $0.string("presentation") == "panorama"
+                    && $0.string("transition") == "none"
+                    && $0.string("attached") == "panorama"
+                    && $0.string("session") == playback.state.string("session")
+                    && $0.string("formatProvenance") == "userOverride"
+                    && $0.string("sourceContentKind") == sourceContentKind
+                    && $0.string("sampleProjectionKind")?.lowercased()
+                        == override.sampleProjectionKind.lowercased()
+                    && $0.string("surfaceContentType")?.lowercased()
+                        == override.contentType.lowercased()
+                    && $0.string("surfaceActualViewingMode")?.lowercased() == "mono"
+                    && $0.string("surfaceActualImmersiveMode")?.lowercased()
+                        == "progressive"
+                    && $0.string("surfaceActualSpatialVideoMode")?.lowercased()
+                        == "screen"
+                    && $0.bool("surfaceSettled") == true
+                    && ($0.uint64("lastRendererInputFormatRevision") ?? 0)
+                        > priorFormatRevision
+            },
+            "\(evidenceSlug) did not reach its panoramic override."
+        )
+        attachState(overridden, name: "\(evidenceSlug)-state")
+        attachScreenshot(from: playback.app, name: evidenceSlug)
+        let continuous = try requireContinuousMatrixPlayback(
+            app: playback.app,
+            stateElement: spatialState,
+            presentation: "panorama",
+            evidenceSlug: "\(evidenceSlug)-continuous"
+        )
+        assertStablePlaybackIdentity(
+            from: playback.state,
+            to: continuous,
+            expectsSameFormatRevision: false,
+            context: evidenceSlug
+        )
+        return AutomaticSourcePlayback(
+            app: playback.app,
+            stateElement: spatialState,
+            state: continuous
+        )
+    }
+
+    @MainActor
+    private func escapePanoramaToFlatMonoWindow(
+        _ playback: AutomaticSourcePlayback,
+        sourceContentKind: String,
+        evidenceSlug: String
+    ) throws -> AutomaticSourcePlayback {
+        try requireMatrix(
+            playback.state.string("presentation") == "panorama",
+            "\(evidenceSlug) did not start in Panorama."
+        )
+        let priorFormatRevision = try requireMatrix(
+            playback.state.uint64("lastRendererInputFormatRevision"),
+            "\(evidenceSlug) did not expose its input format revision."
+        )
+        let panoramaContentType = try requireMatrix(
+            playback.state.string("surfaceContentType"),
+            "\(evidenceSlug) did not expose its Panorama content type."
+        )
+        let exit = playback.app.buttons[
+            "PlayerPanel-button-exit-spatial"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(exit, named: "Return Panorama to Portal"),
+            "\(evidenceSlug) could not return Panorama to Portal."
+        )
+        exit.tap()
+
+        let windowState = playback.app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        let portal = try requireMatrix(
+            waitForState(windowState, timeout: 45) {
+                $0.string("presentation") == "portal"
+                    && $0.string("transition") == "none"
+                    && $0.string("attached") == "portal"
+                    && $0.string("session") == playback.state.string("session")
+                    && $0.bool("videoVisible") == true
+                    && $0.bool("displayedPixel") == true
+                    && $0.string("actualImmersiveMode")?.lowercased() == "portal"
+                    && $0.string("windowComponentContentType")?.lowercased()
+                        == panoramaContentType.lowercased()
+                    && $0.uint64("lastRendererInputFormatRevision")
+                        == playback.state.uint64("lastRendererInputFormatRevision")
+            },
+            "\(evidenceSlug) did not reach Portal."
+        )
+        let continuousPortal = try requireContinuousMatrixPlayback(
+            app: playback.app,
+            stateElement: windowState,
+            presentation: "portal",
+            evidenceSlug: "\(evidenceSlug)-portal-continuous"
+        )
+        assertStablePlaybackIdentity(
+            from: playback.state,
+            to: continuousPortal,
+            expectsSameFormatRevision: true,
+            context: "\(evidenceSlug) Portal handoff"
+        )
+        attachState(portal, name: "\(evidenceSlug)-portal-state")
+        attachState(
+            continuousPortal,
+            name: "\(evidenceSlug)-portal-continuous-state"
+        )
+        attachScreenshot(from: playback.app, name: "\(evidenceSlug)-portal")
+
+        let settings = playback.app.buttons[
+            "PlayerPanel-button-settings"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(settings, named: "Portal Advanced Settings"),
+            "\(evidenceSlug) could not open Portal Advanced Settings."
+        )
+        settings.tap()
+        let flatMono = playback.app.buttons[
+            "PlayerPanel-Advanced-ReturnToMonoWindow"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(flatMono, named: "Return to Mono Window"),
+            "\(evidenceSlug) could not apply the Flat Mono escape."
+        )
+        flatMono.tap()
+
+        let flat = try requireMatrix(
+            waitForState(windowState, timeout: 45) {
+                $0.string("presentation") == "window"
+                    && $0.string("transition") == "none"
+                    && $0.string("attached") == "window"
+                    && $0.string("session") == playback.state.string("session")
+                    && $0.string("formatProvenance") == "userOverride"
+                    && $0.string("sourceContentKind") == sourceContentKind
+                    && $0.string("projection") == "flat"
+                    && $0.string("stereoLayout") == "mono"
+                    && $0.string("windowComponentContentType")?.lowercased() == "mono"
+                    && $0.string("actualViewingMode")?.lowercased() == "mono"
+                    && $0.string("actualSpatialVideoMode")?.lowercased() == "screen"
+                    && ($0.uint64("lastRendererInputFormatRevision") ?? 0)
+                        > priorFormatRevision
+            },
+            "\(evidenceSlug) did not apply Flat Mono in Window."
+        )
+        attachState(flat, name: "\(evidenceSlug)-window-state")
+        attachScreenshot(from: playback.app, name: "\(evidenceSlug)-window")
+        let continuous = try requireContinuousMatrixPlayback(
+            app: playback.app,
+            stateElement: windowState,
+            presentation: "window",
+            evidenceSlug: "\(evidenceSlug)-continuous"
+        )
+        assertStablePlaybackIdentity(
+            from: playback.state,
+            to: continuous,
+            expectsSameFormatRevision: false,
+            context: evidenceSlug
+        )
+        return AutomaticSourcePlayback(
+            app: playback.app,
+            stateElement: windowState,
+            state: continuous
+        )
+    }
+
+    @MainActor
+    private func restoreAutomaticFormat(
+        from playback: AutomaticSourcePlayback,
+        expectation: AutomaticSourceExpectation,
+        evidenceSlug: String
+    ) throws -> AutomaticSourcePlayback {
+        try requireMatrix(
+            playback.state.string("presentation") == "window",
+            "\(evidenceSlug) did not start in Window."
+        )
+        let priorFormatRevision = try requireMatrix(
+            playback.state.uint64("lastRendererInputFormatRevision"),
+            "\(evidenceSlug) did not expose its input format revision."
+        )
+        try requireMatrix(
+            showWindowPlaybackControls(
+                windowState: playback.stateElement,
+                app: playback.app,
+                evidenceName: "\(evidenceSlug)-controls"
+            ),
+            "\(evidenceSlug) could not expose Window controls."
+        )
+        let format = playback.app.buttons[
+            "PlayerUI-TopAction-videoFormat"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(format, named: "\(evidenceSlug) Video Format"),
+            "\(evidenceSlug) Video Format action was unavailable."
+        )
+        format.tap()
+        let automatic = playback.app.buttons[
+            "PlayerUI-VideoFormat-automatic"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(automatic, named: "Restore Automatic Format"),
+            "\(evidenceSlug) did not expose an actionable Automatic button."
+        )
+        automatic.tap()
+
+        let stateElement = playback.app.descendants(matching: .any)[
+            expectation.presentation == "window"
+                ? "PlayerUI-window-control-plane"
+                : "PlayerUI-spatial-state"
+        ].firstMatch
+        let restored = try requireMatrix(
+            waitForState(stateElement, timeout: 75) {
+                automaticSourceState($0, matches: expectation)
+                    && $0.string("session") == playback.state.string("session")
+                    && ($0.uint64("lastRendererInputFormatRevision") ?? 0)
+                        > priorFormatRevision
+            },
+            "\(evidenceSlug) did not restore the immutable source interpretation."
+        )
+        try requireMatrix(
+            playback.app.descendants(matching: .any)["PlayerUI-VideoFormat"]
+                .firstMatch.waitForNonExistence(timeout: 5),
+            "\(evidenceSlug) left the Video Format panel open."
+        )
+        attachState(restored, name: "\(evidenceSlug)-state")
+        attachScreenshot(from: playback.app, name: evidenceSlug)
+        let continuous = try requireContinuousMatrixPlayback(
+            app: playback.app,
+            stateElement: stateElement,
+            presentation: expectation.presentation,
+            evidenceSlug: "\(evidenceSlug)-continuous"
+        )
+        assertStablePlaybackIdentity(
+            from: playback.state,
+            to: continuous,
+            expectsSameFormatRevision: false,
+            context: evidenceSlug
+        )
+        return AutomaticSourcePlayback(
+            app: playback.app,
+            stateElement: stateElement,
+            state: continuous
+        )
+    }
+
+    @MainActor
+    private func exercisePanoramicAutomaticRestore(
+        expectation: AutomaticSourceExpectation,
+        explicitPanoramaOverride: PanoramaOverrideExpectation?
+    ) throws {
+        let source = try openAutomaticSourcePlayback(expectation)
+        attachProgressScrubberHumanReviewBoundary(
+            evidenceSlug: "\(expectation.evidenceSlug)-02-progress-scrubber"
+        )
+        var flatEscape = try escapePanoramaToFlatMonoWindow(
+            source,
+            sourceContentKind: expectation.sourceContentKind,
+            evidenceSlug: "\(expectation.evidenceSlug)-03-wrong-flat-override"
+        )
+        if let explicitPanoramaOverride {
+            let panoramicOverride = try applyWindowPanoramaOverride(
+                flatEscape,
+                override: explicitPanoramaOverride,
+                sourceContentKind: expectation.sourceContentKind,
+                evidenceSlug: "\(expectation.evidenceSlug)-04-explicit-360-override"
+            )
+            flatEscape = try escapePanoramaToFlatMonoWindow(
+                panoramicOverride,
+                sourceContentKind: expectation.sourceContentKind,
+                evidenceSlug: "\(expectation.evidenceSlug)-05-flat-window-escape"
+            )
+        }
+        let restored = try restoreAutomaticFormat(
+            from: flatEscape,
+            expectation: expectation,
+            evidenceSlug: "\(expectation.evidenceSlug)-06-automatic-restored"
+        )
+        assertStablePlaybackIdentity(
+            from: source.state,
+            to: restored.state,
+            expectsSameFormatRevision: false,
+            context: "\(expectation.filename) complete format closure"
+        )
+    }
+
+    @MainActor
+    private func attachProgressScrubberHumanReviewBoundary(evidenceSlug: String) {
+        attachHumanReviewBoundary(
+            "The collapsed progress thumb requires a wearer to press the thumb, hold for 200 ms without moving more than 20 pt, and then drag. "
+                + "visionOS XCUI synthetic input does not reliably represent that state machine, so this matrix does not claim automated progress-thumb acceptance. "
+                + "Rewind 15 seconds and Forward 15 seconds are validated separately and do not substitute for this control.",
+            name: "\(evidenceSlug)-human-review-boundary"
+        )
+    }
+
+    private func captureAudioSentinel(
+        _ state: RegressionStateSnapshot,
+        context: String
+    ) throws -> AudioSentinel {
+        try requireMatrix(state.bool("hasAudio") == true, "\(context) had no audio.")
+        let track = try requireMatrix(
+            state.string("audioTrack"),
+            "\(context) did not expose the selected audio track."
+        )
+        try requireMatrix(track != "none", "\(context) had no selected audio track.")
+        let streamEpoch = try requireMatrix(
+            state.uint64("streamEpoch"),
+            "\(context) did not expose streamEpoch."
+        )
+        let audioRendererEpoch = try requireMatrix(
+            state.uint64("audioRendererEpoch"),
+            "\(context) did not expose audioRendererEpoch."
+        )
+        try requireMatrix(
+            audioRendererEpoch == streamEpoch,
+            "\(context) audio and video epochs diverged."
+        )
+        try requireMatrix(
+            state.string("audioRendererStatus") == "rendering",
+            "\(context) audio renderer was not rendering."
+        )
+        try requireMatrix(
+            state.string("audioRendererError") == "none",
+            "\(context) audio renderer reported an error."
+        )
+        return AudioSentinel(
+            track: track,
+            streamEpoch: streamEpoch,
+            audioRendererEpoch: audioRendererEpoch,
+            samples: try requireMatrix(
+                state.uint64("audioSamples"),
+                "\(context) did not expose audio samples."
+            ),
+            rendererSamples: try requireMatrix(
+                state.uint64("audioRendererSamples"),
+                "\(context) did not expose renderer audio samples."
+            )
+        )
+    }
+
+    private func requireAudioSentinelContinues(
+        from baseline: AudioSentinel,
+        through state: RegressionStateSnapshot,
+        context: String
+    ) throws -> AudioSentinel {
+        let current = try captureAudioSentinel(state, context: context)
+        try requireMatrix(
+            current.track == baseline.track,
+            "\(context) rebuilt or changed the selected audio track."
+        )
+        try requireMatrix(
+            current.streamEpoch == baseline.streamEpoch
+                && current.audioRendererEpoch == baseline.audioRendererEpoch,
+            "\(context) rebuilt the audio/video stream epoch during a format-only change."
+        )
+        try requireMatrix(
+            current.samples > baseline.samples,
+            "\(context) stopped producing audio samples."
+        )
+        try requireMatrix(
+            current.rendererSamples > baseline.rendererSamples,
+            "\(context) stopped submitting audio renderer samples."
+        )
+        return current
+    }
+
+    private func requireAudioPipelineContinues(
+        from baseline: AudioSentinel,
+        through state: RegressionStateSnapshot,
+        context: String
+    ) throws -> AudioSentinel {
+        try requireMatrix(state.bool("hasAudio") == true, "\(context) had no audio.")
+        let streamEpoch = try requireMatrix(
+            state.uint64("streamEpoch"),
+            "\(context) did not expose streamEpoch."
+        )
+        let audioRendererEpoch = try requireMatrix(
+            state.uint64("audioRendererEpoch"),
+            "\(context) did not expose audioRendererEpoch."
+        )
+        let samples = try requireMatrix(
+            state.uint64("audioSamples"),
+            "\(context) did not expose audio samples."
+        )
+        let rendererSamples = try requireMatrix(
+            state.uint64("audioRendererSamples"),
+            "\(context) did not expose renderer audio samples."
+        )
+        try requireMatrix(
+            streamEpoch == baseline.streamEpoch
+                && audioRendererEpoch == baseline.audioRendererEpoch,
+            "\(context) rebuilt the audio/video stream epoch during a format-only change."
+        )
+        try requireMatrix(
+            state.string("audioRendererStatus") == "rendering"
+                && state.string("audioRendererError") == "none",
+            "\(context) audio renderer stopped rendering or reported an error."
+        )
+        try requireMatrix(
+            samples > baseline.samples,
+            "\(context) stopped producing audio samples."
+        )
+        try requireMatrix(
+            rendererSamples > baseline.rendererSamples,
+            "\(context) stopped submitting audio renderer samples."
+        )
+        return AudioSentinel(
+            track: baseline.track,
+            streamEpoch: streamEpoch,
+            audioRendererEpoch: audioRendererEpoch,
+            samples: samples,
+            rendererSamples: rendererSamples
+        )
+    }
+
+    @MainActor
+    private func reopenAndVerifyAutomaticSource(
+        after playback: AutomaticSourcePlayback,
+        expectation: AutomaticSourceExpectation,
+        evidenceSlug: String
+    ) throws -> AutomaticSourcePlayback {
+        let previousSession = try requireMatrix(
+            playback.state.string("session"),
+            "\(evidenceSlug) did not expose the previous session."
+        )
+        let back = playback.app.buttons[
+            "PlayerUI-InfoBar-button-back"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(back, named: "Back to Media Library"),
+            "\(evidenceSlug) could not exit playback."
+        )
+        back.tap()
+        try requireMatrix(
+            playback.stateElement.waitForNonExistence(timeout: 20),
+            "\(evidenceSlug) did not close the previous playback surface."
+        )
+        let identifier = "MediaLibrary-grid-video-\(expectation.filename)"
+        let card = try requireMatrix(
+            waitForHittableRegisteredMediaCard(
+                identifier: identifier,
+                in: playback.app,
+                timeout: 30
+            ),
+            "\(evidenceSlug) could not find the existing Media Reference."
+        )
+        card.tap()
+        resolveResumeDecisionIfNeeded(in: playback.app)
+        let stateElement = playback.app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        let reopened = try requireMatrix(
+            waitForState(stateElement, timeout: 45) {
+                automaticSourceState($0, matches: expectation)
+                    && $0.string("session") != previousSession
+            },
+            "\(evidenceSlug) retained an override or reused the previous session."
+        )
+        attachState(reopened, name: "\(evidenceSlug)-state")
+        attachScreenshot(from: playback.app, name: evidenceSlug)
+        let continuous = try requireContinuousMatrixPlayback(
+            app: playback.app,
+            stateElement: stateElement,
+            presentation: "window",
+            evidenceSlug: "\(evidenceSlug)-continuous"
+        )
+        return AutomaticSourcePlayback(
+            app: playback.app,
+            stateElement: stateElement,
+            state: continuous
+        )
+    }
+
+    private func automaticSourceState(
+        _ state: RegressionStateSnapshot,
+        matches expectation: AutomaticSourceExpectation
+    ) -> Bool {
+        guard state.string("presentation") == expectation.presentation,
+              state.string("transition") == "none",
+              state.string("formatProvenance") == "source",
+              state.string("sourceContentKind") == expectation.sourceContentKind,
+              state.string("projection")?.lowercased()
+                == expectation.projection.lowercased(),
+              state.string("stereoLayout")?.lowercased()
+                == expectation.stereoLayout.lowercased(),
+              state.bool("mvHEVC") == expectation.isMVHEVC else {
+            return false
+        }
+
+        let isWindow = expectation.presentation == "window"
+        if !isWindow, let expected = expectation.formatSignalingProjectionKind {
+            guard state.string("providerProjectionKind")?.lowercased()
+                    == expected.lowercased(),
+                  state.string("sampleProjectionKind")?.lowercased()
+                    == expected.lowercased() else {
+                return false
+            }
+        }
+        if let compressedFormat = expectation.compressedFormat,
+           compressedFormatFactsMatch(state, expectation: compressedFormat) == false {
+            return false
+        }
+        let contentTypeKey = isWindow
+            ? "windowComponentContentType"
+            : "surfaceContentType"
+        guard state.string(contentTypeKey)?.lowercased()
+            == expectation.contentType.lowercased() else {
+            return false
+        }
+        if let expected = expectation.actualViewingMode {
+            let key = isWindow ? "actualViewingMode" : "surfaceActualViewingMode"
+            guard state.string(key)?.lowercased() == expected.lowercased() else {
+                return false
+            }
+        }
+        if let expected = expectation.actualImmersiveMode {
+            let key = isWindow
+                ? "actualImmersiveMode"
+                : "surfaceActualImmersiveMode"
+            guard state.string(key)?.lowercased() == expected.lowercased() else {
+                return false
+            }
+        }
+        if let expected = expectation.actualSpatialVideoMode {
+            let key = isWindow
+                ? "actualSpatialVideoMode"
+                : "surfaceActualSpatialVideoMode"
+            guard state.string(key)?.lowercased() == expected.lowercased() else {
+                return false
+            }
+        }
+        return isWindow
+            ? state.bool("videoVisible") == true
+                && state.bool("displayedPixel") == true
+            : state.bool("surfaceSettled") == true
+                && state.bool("surfaceRenderingReady") == true
+                && state.bool("displayedPixel") == true
+    }
+
+    private func compressedFormatFactsMatch(
+        _ state: RegressionStateSnapshot,
+        expectation: CompressedFormatExpectation
+    ) -> Bool {
+        guard state.string("providerCodecName")?.lowercased()
+                == expectation.providerCodecName.lowercased(),
+              state.string("providerCodecTag")?.lowercased()
+                == expectation.providerCodecTag.lowercased(),
+              state.string("sampleMediaSubtype")?.lowercased()
+                == expectation.sampleMediaSubtype.lowercased() else {
+            return false
+        }
+        if let token = expectation.providerTransferToken,
+           state.string("providerTransferFunction")?.lowercased()
+                .contains(token.lowercased()) != true {
+            return false
+        }
+        if let token = expectation.sampleTransferToken,
+           state.string("sampleTransferFunction")?.lowercased()
+                .contains(token.lowercased()) != true {
+            return false
+        }
+        if expectation.requiredProviderConfigurationAtoms.isEmpty == false {
+            guard let configuration = state.string("providerCodecConfiguration") else {
+                return false
+            }
+            let actualAtoms = Set(
+                configuration.split(separator: ",").map {
+                    String($0).lowercased()
+                }
+            )
+            let requiredAtoms = Set(
+                expectation.requiredProviderConfigurationAtoms.map {
+                    $0.lowercased()
+                }
+            )
+            guard requiredAtoms.isSubset(of: actualAtoms) else { return false }
+        }
+        if let expected = expectation.sampleHasDvcC,
+           state.bool("sampleHasDvcC") != expected {
+            return false
+        }
+        if let expected = expectation.sampleHasDvvC,
+           state.bool("sampleHasDvvC") != expected {
+            return false
+        }
+        return true
+    }
+
+    private func assertPlaybackIdentityIsReady(
+        _ state: RegressionStateSnapshot,
+        context: String,
+        requiresCurrentPixelEpoch: Bool = true,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        guard let session = state.string("session") else {
+            XCTFail("\(context): session was not exposed.", file: file, line: line)
+            return
+        }
+        XCTAssertNotEqual(session, "none", context, file: file, line: line)
+        guard let playbackEntity = state.string("playbackEntity") else {
+            XCTFail("\(context): playbackEntity was not exposed.", file: file, line: line)
+            return
+        }
+        XCTAssertNotEqual(playbackEntity, "none", context, file: file, line: line)
+        let componentRevision = state.uint64("videoComponentRevision")
+        XCTAssertNotNil(componentRevision, context, file: file, line: line)
+        XCTAssertEqual(
+            state.uint64("boundVideoComponentRevision"),
+            componentRevision,
+            context,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            state.uint64("rendererPixelVideoComponentRevision"),
+            componentRevision,
+            context,
+            file: file,
+            line: line
+        )
+        guard let streamEpoch = state.uint64("streamEpoch") else {
+            XCTFail("\(context): streamEpoch was not exposed.", file: file, line: line)
+            return
+        }
+        if requiresCurrentPixelEpoch {
+            guard let rendererPixelStreamEpoch = state.uint64(
+                "rendererPixelStreamEpoch"
+            ) else {
+                XCTFail(
+                    "\(context): rendererPixelStreamEpoch was not exposed.",
+                    file: file,
+                    line: line
+                )
+                return
+            }
+            XCTAssertEqual(
+                rendererPixelStreamEpoch,
+                streamEpoch,
+                context,
+                file: file,
+                line: line
+            )
+        }
+        XCTAssertNotNil(
+            state.uint64("lastRendererInputGraphRevision"),
+            context,
+            file: file,
+            line: line
+        )
+        XCTAssertNotNil(
+            state.uint64("lastRendererInputFormatRevision"),
+            context,
+            file: file,
+            line: line
+        )
+    }
+
+    private func assertStablePlaybackIdentity(
+        from baseline: RegressionStateSnapshot,
+        to current: RegressionStateSnapshot,
+        expectsSameFormatRevision: Bool,
+        requiresCurrentPixelEpoch: Bool = true,
+        context: String,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        assertPlaybackIdentityIsReady(
+            current,
+            context: context,
+            requiresCurrentPixelEpoch: requiresCurrentPixelEpoch,
+            file: file,
+            line: line
+        )
+        XCTAssertEqual(
+            current.string("session"), baseline.string("session"),
+            context, file: file, line: line
+        )
+        XCTAssertEqual(
+            current.string("playbackEntity"), baseline.string("playbackEntity"),
+            context, file: file, line: line
+        )
+        XCTAssertEqual(
+            current.uint64("videoComponentRevision"),
+            baseline.uint64("videoComponentRevision"),
+            context, file: file, line: line
+        )
+        XCTAssertEqual(
+            current.uint64("lastRendererInputGraphRevision"),
+            baseline.uint64("lastRendererInputGraphRevision"),
+            context, file: file, line: line
+        )
+        if expectsSameFormatRevision {
+            XCTAssertEqual(
+                current.uint64("lastRendererInputFormatRevision"),
+                baseline.uint64("lastRendererInputFormatRevision"),
+                context,
+                file: file,
+                line: line
+            )
+        }
+    }
+
+    @MainActor
+    func testRealHEVCMOVAcrossWindowDockedAndPanoramaRoundTrips() async throws {
+        continueAfterFailure = true
+        var observedFailures: [String] = []
+        defer {
+            if observedFailures.isEmpty == false {
+                XCTFail(observedFailures.joined(separator: "\n"))
+            }
+        }
+        try await exerciseRealMediaAcrossPresentations(
+            filename: "applle.MOV",
+            pickerPath: ["Samples", "CameraOriginals", "Apple"],
+            pickerLabels: ["applle", "applle.MOV"],
+            projectionLabel: "360°",
+            stereoLayoutLabel: "Mono",
+            evidenceSlug: "real-hevc-mov",
+            metadata:
+                "MOV; HEVC Main; 2200x2200; yuvj420p; AAC stereo; 20.533 seconds",
+            observedFailures: &observedFailures
+        )
+    }
+
+    @MainActor
+    func testRealHEVC180AcrossWindowDockedAndPanoramaRoundTrips() async throws {
+        continueAfterFailure = true
+        var observedFailures: [String] = []
+        defer {
+            if observedFailures.isEmpty == false {
+                XCTFail(observedFailures.joined(separator: "\n"))
+            }
+        }
+        try await exerciseRealMediaAcrossPresentations(
+            filename: "HNVR-158_H_4096p_8K_LR_180_clip.mp4",
+            pickerPath: ["Samples", "Spatial", "Stereo180"],
+            pickerLabels: [
+                "HNVR-158_H_4096p_8K_LR_180_clip",
+                "HNVR-158_H_4096p_8K_LR_180_clip.mp4"
+            ],
+            projectionLabel: "180°",
+            stereoLayoutLabel: "Side-by-Side",
+            evidenceSlug: "real-hevc-180-side-by-side",
+            metadata:
+                "MP4; HEVC Main; 8192x4096; AAC stereo; 60.043 seconds; 180 degrees Side-by-Side",
+            observedFailures: &observedFailures
+        )
+    }
+
+    @MainActor
+    func testRealAV1360AcrossWindowDockedAndPanoramaRoundTrips() async throws {
+        continueAfterFailure = true
+        var observedFailures: [String] = []
+        defer {
+            if observedFailures.isEmpty == false {
+                XCTFail(observedFailures.joined(separator: "\n"))
+            }
+        }
+        try await exerciseRealMediaAcrossPresentations(
+            filename: "insta360.mp4",
+            pickerPath: ["Samples", "Spatial", "Panorama"],
+            pickerLabels: ["insta360", "insta360.mp4"],
+            projectionLabel: "360°",
+            stereoLayoutLabel: "Mono",
+            evidenceSlug: "real-av1-360-mono",
+            metadata:
+                "MP4; AV1 Main; 7680x3840; Opus stereo; 60.026 seconds; 360 degrees Mono",
+            observedFailures: &observedFailures
+        )
+    }
+
+    @MainActor
+    private func exerciseRealMediaAcrossPresentations(
+        filename: String,
+        pickerPath: [String],
+        pickerLabels: [String],
+        projectionLabel: String,
+        stereoLayoutLabel: String,
+        evidenceSlug: String,
+        metadata: String,
+        observedFailures: inout [String]
+    ) async throws {
+        let app = launchMediaLibrary()
+        let identifier = "MediaLibrary-grid-video-\(filename)"
+        let card = app.buttons.matching(identifier: identifier).firstMatch
+        guard ensureRealMediaImported(
+            card: card,
+            identifier: identifier,
+            pickerPath: pickerPath,
+            pickerLabels: pickerLabels,
+            filename: filename,
+            in: app
+        ) else { return }
+
+        let metadataAttachment = XCTAttachment(
+            string: "filename=\(filename)\nffprobe=\(metadata)"
+        )
+        metadataAttachment.name = "\(evidenceSlug)-sample-metadata"
+        metadataAttachment.lifetime = .keepAlways
+        add(metadataAttachment)
+
+        card.tap()
+        resolveResumeDecisionIfNeeded(in: app)
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        guard waitForRealMediaSurface(
+            windowState,
+            presentation: "window",
+            timeout: 45,
+            app: app,
+            evidenceName: "\(evidenceSlug)-window-initial",
+            observedFailures: &observedFailures
+        ) != nil else { return }
+        guard ensureRealMediaPlaybackAdvances(
+            in: windowState,
+            presentation: "window",
+            app: app,
+            evidenceName: "\(evidenceSlug)-window-initial",
+            observedFailures: &observedFailures
+        ) != nil else { return }
+
+        for cycle in 1...2 {
+            guard try await exerciseDockedRoundTrip(
+                cycle: cycle,
+                windowState: windowState,
+                app: app,
+                evidenceSlug: evidenceSlug,
+                observedFailures: &observedFailures
+            ) else { return }
+        }
+
+        for cycle in 1...2 {
+            guard try await exercisePanoramaRoundTrip(
+                cycle: cycle,
+                projectionLabel: projectionLabel,
+                stereoLayoutLabel: stereoLayoutLabel,
+                windowState: windowState,
+                app: app,
+                evidenceSlug: evidenceSlug,
+                observedFailures: &observedFailures
+            ) else { return }
+        }
+
+        attachHumanReviewBoundary(
+            "Review the full recording, contact sheet, and clear frames for the real \(filename) sample. Confirm actual moving video in Window, both Docked round trips, both Panorama round trips, and every return to Window; record black frames, frozen imagery, distortion beyond the intentionally selected projection, duplicate surfaces, alerts, or app termination.",
+            name: "\(evidenceSlug)-human-review-boundary"
+        )
+    }
+
+    @MainActor
+    private func exerciseDockedRoundTrip(
+        cycle: Int,
+        windowState: XCUIElement,
+        app: XCUIApplication,
+        evidenceSlug: String,
+        observedFailures: inout [String]
+    ) async throws -> Bool {
+        guard ensureRealMediaPlaybackAdvances(
+            in: windowState,
+            presentation: "window",
+            app: app,
+            evidenceName: "\(evidenceSlug)-dock-\(cycle)-window-before",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        guard showWindowPlaybackControls(
+            windowState: windowState,
+            app: app,
+            evidenceName: "\(evidenceSlug)-dock-\(cycle)-controls"
+        ) else { return false }
+
+        let dock = app.buttons.matching(
+            identifier: "PlayerUI-TopAction-dock"
+        ).firstMatch
+        guard requireHittable(dock, named: "Dock real media cycle \(cycle)") else {
+            return false
+        }
+        dock.tap()
+        let light = app.buttons.matching(
+            identifier: "PlayerUI-DockMenu-light"
+        ).firstMatch
+        guard requireHittable(
+            light,
+            named: "Dock real media with Light Mode cycle \(cycle)"
+        ) else { return false }
+        light.tap()
+
+        let spatialState = app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        guard waitForRealMediaSurface(
+            spatialState,
+            presentation: "docked",
+            timeout: 45,
+            app: app,
+            evidenceName: "\(evidenceSlug)-dock-\(cycle)-docked",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        guard ensureRealMediaPlaybackAdvances(
+            in: spatialState,
+            presentation: "docked",
+            app: app,
+            evidenceName: "\(evidenceSlug)-dock-\(cycle)-docked",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        try await Task.sleep(for: .seconds(1))
+        attachScreenshot(
+            from: app,
+            name: "\(evidenceSlug)-dock-\(cycle)-docked-clear-frame"
+        )
+
+        let exit = app.buttons.matching(
+            identifier: "PlayerPanel-button-exit-spatial"
+        ).firstMatch
+        guard requireHittable(
+            exit,
+            named: "Return real media from Docked cycle \(cycle)"
+        ) else { return false }
+        exit.tap()
+        guard waitForRealMediaSurface(
+            windowState,
+            presentation: "window",
+            timeout: 45,
+            app: app,
+            evidenceName: "\(evidenceSlug)-dock-\(cycle)-window-return",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        guard ensureRealMediaPlaybackAdvances(
+            in: windowState,
+            presentation: "window",
+            app: app,
+            evidenceName: "\(evidenceSlug)-dock-\(cycle)-window-return",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        attachScreenshot(
+            from: app,
+            name: "\(evidenceSlug)-dock-\(cycle)-window-return-clear-frame"
+        )
+        return true
+    }
+
+    @MainActor
+    private func exercisePanoramaRoundTrip(
+        cycle: Int,
+        projectionLabel: String,
+        stereoLayoutLabel: String,
+        windowState: XCUIElement,
+        app: XCUIApplication,
+        evidenceSlug: String,
+        observedFailures: inout [String]
+    ) async throws -> Bool {
+        guard ensureRealMediaPlaybackAdvances(
+            in: windowState,
+            presentation: "window",
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-window-before",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        guard showWindowPlaybackControls(
+            windowState: windowState,
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-controls"
+        ) else { return false }
+
+        let resumePanorama = app.buttons.matching(
+            identifier: "PlayerUI-TopAction-resumePanorama"
+        ).firstMatch
+        if resumePanorama.exists {
+            guard requireHittable(
+                resumePanorama,
+                named: "Return real media to Panorama cycle \(cycle)"
+            ) else { return false }
+            resumePanorama.tap()
+        } else {
+            let format = app.buttons.matching(
+                identifier: "PlayerUI-TopAction-videoFormat"
+            ).firstMatch
+            guard requireHittable(
+                format,
+                named: "Video Format for real media Panorama cycle \(cycle)"
+            ) else { return false }
+            format.tap()
+            let projection = app.descendants(matching: .any)[
+                "PlayerUI-VideoFormat-Projection-\(projectionLabel)"
+            ].firstMatch
+            guard requireHittable(
+                projection,
+                named: "\(projectionLabel) projection cycle \(cycle)"
+            ) else { return false }
+            projection.tap()
+            let stereoLayout = app.descendants(matching: .any)[
+                "PlayerUI-VideoFormat-Stereo Layout-\(stereoLayoutLabel)"
+            ].firstMatch
+            guard requireHittable(
+                stereoLayout,
+                named: "\(stereoLayoutLabel) stereo layout cycle \(cycle)"
+            ) else { return false }
+            stereoLayout.tap()
+            let apply = app.buttons["PlayerUI-VideoFormat-apply"].firstMatch
+            guard requireHittable(
+                apply,
+                named: "Apply real media format cycle \(cycle)"
+            ) else { return false }
+            apply.tap()
+        }
+
+        let spatialState = app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        guard let panorama = waitForRealMediaSurface(
+            spatialState,
+            presentation: "panorama",
+            timeout: 60,
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-spatial",
+            observedFailures: &observedFailures
+        ), panorama.hasRecognizedPanoramaContentType() else {
+            attachCurrentState(
+                of: spatialState,
+                name: "\(evidenceSlug)-panorama-\(cycle)-content-type-failure"
+            )
+            XCTFail("Real media Panorama did not expose a recognized spatial content type.")
+            return false
+        }
+        guard ensureRealMediaPlaybackAdvances(
+            in: spatialState,
+            presentation: "panorama",
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-spatial",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        try await Task.sleep(for: .seconds(1))
+        attachScreenshot(
+            from: app,
+            name: "\(evidenceSlug)-panorama-\(cycle)-clear-frame"
+        )
+
+        let exit = app.buttons.matching(
+            identifier: "PlayerPanel-button-exit-spatial"
+        ).firstMatch
+        guard requireHittable(
+            exit,
+            named: "Return real media from Panorama cycle \(cycle)"
+        ) else { return false }
+        exit.tap()
+        guard waitForRealMediaSurface(
+            windowState,
+            presentation: "window",
+            timeout: 60,
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-window-return",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        guard ensureRealMediaPlaybackAdvances(
+            in: windowState,
+            presentation: "window",
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-window-return",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        attachScreenshot(
+            from: app,
+            name: "\(evidenceSlug)-panorama-\(cycle)-window-return-clear-frame"
+        )
+        return true
+    }
+
+    @MainActor
+    private func waitForRealMediaSurface(
+        _ _: XCUIElement,
+        presentation: String,
+        timeout: TimeInterval,
+        app: XCUIApplication,
+        evidenceName: String,
+        observedFailures: inout [String]
+    ) -> RegressionStateSnapshot? {
+        let usesMainWindow = presentation == "window" || presentation == "portal"
+        let stateIdentifier = usesMainWindow
+            ? "PlayerUI-window-control-plane"
+            : "PlayerUI-spatial-state"
+        let deadline = Date().addingTimeInterval(timeout)
+        var state: RegressionStateSnapshot?
+        var terminalFailure: RegressionStateSnapshot?
+        var lastObservedStates: [String: RegressionStateSnapshot] = [:]
+        while Date() < deadline {
+            let currentStateElement = app.descendants(matching: .any)[
+                stateIdentifier
+            ].firstMatch
+            guard currentStateElement.exists,
+                  let rawValue = currentStateElement.value as? String,
+                  rawValue.isEmpty == false else {
+                Thread.sleep(forTimeInterval: 0.1)
+                continue
+            }
+            let current = RegressionStateSnapshot(rawValue: rawValue)
+            lastObservedStates[stateIdentifier] = current
+            if current.string("presentation") == presentation,
+               current.string("transition") == "none",
+               current.string("attached") == presentation,
+               current.bool("componentReady") == true,
+               current.bool("displayedPixel") == true,
+               (current.uint64("videoSamples") ?? 0) > 0,
+               (current.uint64("rendererInputs") ?? 0) > 0,
+               (usesMainWindow || current.bool("surfaceSettled") == true),
+               (presentation != "portal"
+                   || (current.bool("videoVisible") == true
+                       && current.string("actualImmersiveMode")?.lowercased()
+                           == "portal")) {
+                state = current
+            }
+            if current.string("lifecycle")?
+                .lowercased()
+                .hasPrefix("failed") == true {
+                terminalFailure = current
+            }
+            if state != nil || terminalFailure != nil { break }
+            Thread.sleep(forTimeInterval: 0.1)
+        }
+        if let terminalFailure {
+            attachState(
+                terminalFailure,
+                name: "\(evidenceName)-terminal-playback-failure"
+            )
+            attachScreenshot(
+                from: app,
+                name: "\(evidenceName)-terminal-playback-failure"
+            )
+            attachObservedRealMediaStates(
+                lastObservedStates,
+                evidenceName: evidenceName
+            )
+            let failureDescription = terminalFailure.string("error")
+                ?? terminalFailure.string("lifecycle")
+                ?? "Unknown playback failure."
+            observedFailures.append(
+                "\(evidenceName): playback entered a terminal failure while waiting for the \(presentation) surface. \(failureDescription)"
+            )
+            XCTAssertEqual(app.state, .runningForeground)
+            return nil
+        }
+        guard let state else {
+            XCTFail(
+                "The real media \(presentation) surface did not reach its required state within \(timeout) seconds."
+            )
+            attachObservedRealMediaStates(
+                lastObservedStates,
+                evidenceName: evidenceName
+            )
+            attachScreenshot(from: app, name: "\(evidenceName)-surface-failure")
+            XCTAssertTrue(
+                app.state == .runningForeground,
+                "Enchron was no longer running in the foreground."
+            )
+            return nil
+        }
+        attachState(state, name: "\(evidenceName)-state")
+        attachScreenshot(from: app, name: "\(evidenceName)-surface-observation")
+        let surfaceDidNotRender: Bool
+        if usesMainWindow {
+            surfaceDidNotRender = state.bool("videoVisible") != true
+                || state.bool("displayedPixel") != true
+        } else {
+            surfaceDidNotRender = state.bool("surfaceRenderingReady") != true
+                || state.bool("surfaceSettled") != true
+                || state.bool("displayedPixel") != true
+        }
+        if surfaceDidNotRender {
+            observedFailures.append(
+                "\(evidenceName): the real media pipeline advanced, but the wearer-visible surface did not display a video frame."
+            )
+        }
+        XCTAssertFalse(app.alerts["Failed to Load"].exists)
+        XCTAssertFalse(app.alerts["Playback Error"].exists)
+        XCTAssertEqual(app.state, .runningForeground)
+        return state
+    }
+
+    @MainActor
+    private func attachObservedRealMediaStates(
+        _ states: [String: RegressionStateSnapshot],
+        evidenceName: String
+    ) {
+        if let window = states["PlayerUI-window-control-plane"] {
+            attachState(window, name: "\(evidenceName)-window-state-at-failure")
+        }
+        if let spatial = states["PlayerUI-spatial-state"] {
+            attachState(spatial, name: "\(evidenceName)-spatial-state-at-failure")
+        }
+        if states.isEmpty {
+            let attachment = XCTAttachment(string: "No public playback state element was present.")
+            attachment.name = "\(evidenceName)-state-elements-absent"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+    }
+
+    @MainActor
+    private func ensureRealMediaPlaybackAdvances(
+        in stateElement: XCUIElement,
+        presentation: String,
+        app: XCUIApplication,
+        evidenceName: String,
+        requiresCurrentPixelEpoch: Bool = true,
+        observedFailures: inout [String]
+    ) -> RegressionStateSnapshot? {
+        var state = RegressionStateSnapshot(
+            rawValue: stateElement.value as? String ?? ""
+        )
+        if let position = state.double("position"),
+           let duration = state.double("duration"),
+           duration > 0,
+           duration - position < 5 {
+            if state.string("lifecycle")?.lowercased() != "ended" {
+                _ = waitForState(stateElement, timeout: 6) {
+                    $0.string("presentation") == presentation
+                        && $0.string("lifecycle")?.lowercased() == "ended"
+                }
+                state = RegressionStateSnapshot(
+                    rawValue: stateElement.value as? String ?? ""
+                )
+            }
+        }
+        if state.string("lifecycle")?.lowercased() != "playing"
+            || (state.double("actualRate") ?? 0) <= 0.1 {
+            let play = app.buttons.matching(
+                identifier: "PlayerPanel-button-play"
+            ).firstMatch
+            guard requireHittable(
+                play,
+                named: "Play or Replay real media in \(presentation)"
+            ) else { return nil }
+            play.tap()
+            guard let playing = waitForState(stateElement, timeout: 15, where: {
+                $0.string("presentation") == presentation
+                    && $0.string("lifecycle")?.lowercased() == "playing"
+                    && ($0.double("actualRate") ?? 0) > 0.5
+            }) else { return nil }
+            state = playing
+        }
+        guard let baselinePosition = state.double("position"),
+              let baselineVideoSamples = state.uint64("videoSamples"),
+              let baselineRendererInputs = state.uint64("rendererInputs"),
+              let baselineDisplayedFrameObservations = state.uint64("displayedFrameObservations"),
+              let baselineSession = state.string("session"),
+              let baselineEpoch = state.uint64("streamEpoch") else {
+            attachState(state, name: "\(evidenceName)-baseline-state-invalid")
+            attachScreenshot(from: app, name: "\(evidenceName)-baseline-invalid")
+            XCTFail(
+                "\(evidenceName) did not expose a complete playback baseline."
+            )
+            return nil
+        }
+        guard baselineSession != "none" else {
+            XCTFail("\(evidenceName) exposed no active media session.")
+            return nil
+        }
+        let usesMainWindow = presentation == "window" || presentation == "portal"
+        let minimumObservationTime = ContinuousClock.now.advanced(by: .seconds(1))
+        guard let continuous = waitForState(stateElement, timeout: 12, where: {
+            ContinuousClock.now >= minimumObservationTime
+                && $0.string("presentation") == presentation
+                && $0.string("lifecycle")?.lowercased() == "playing"
+                && ($0.double("position") ?? 0) >= baselinePosition + 0.25
+                && ($0.uint64("videoSamples") ?? 0) > baselineVideoSamples
+                && ($0.uint64("rendererInputs") ?? 0) > baselineRendererInputs
+                && ($0.uint64("displayedFrameObservations") ?? 0)
+                    > baselineDisplayedFrameObservations
+                && $0.string("session") == baselineSession
+                && $0.uint64("streamEpoch") == baselineEpoch
+                && $0.bool("displayedPixel") == true
+                && (presentation != "portal"
+                    || ($0.bool("videoVisible") == true
+                        && $0.string("actualImmersiveMode")?.lowercased()
+                            == "portal"))
+        }) else {
+            attachCurrentState(
+                of: stateElement,
+                name: "\(evidenceName)-continuous-state-at-failure"
+            )
+            attachScreenshot(from: app, name: "\(evidenceName)-continuous-failure")
+            return nil
+        }
+        attachState(continuous, name: "\(evidenceName)-continuous-state")
+        attachScreenshot(from: app, name: "\(evidenceName)-continuous-frame")
+        assertStablePlaybackIdentity(
+            from: state,
+            to: continuous,
+            expectsSameFormatRevision: true,
+            requiresCurrentPixelEpoch: requiresCurrentPixelEpoch,
+            context: "\(evidenceName) continuous playback"
+        )
+        let surfaceDidNotRender: Bool
+        if usesMainWindow {
+            surfaceDidNotRender = continuous.bool("videoVisible") != true
+                || continuous.bool("displayedPixel") != true
+        } else {
+            surfaceDidNotRender = continuous.bool("surfaceRenderingReady") != true
+                || continuous.bool("surfaceSettled") != true
+                || continuous.bool("displayedPixel") != true
+        }
+        if surfaceDidNotRender {
+            observedFailures.append(
+                "\(evidenceName): playback time and renderer input advanced, but no wearer-visible video frame appeared."
+            )
+        }
+        return continuous
+    }
+
+    @MainActor
+    private func showWindowPlaybackControls(
+        windowState: XCUIElement,
+        app: XCUIApplication,
+        evidenceName: String
+    ) -> Bool {
+        let currentStateElement = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        let current = RegressionStateSnapshot(
+            rawValue: currentStateElement.value as? String ?? ""
+        )
+        if current.string("controls") == "shown"
+            && current.string("chrome") == "on" {
+            return true
+        }
+        guard current.bool("videoVisible") == true else {
+            attachState(
+                current,
+                name: "\(evidenceName)-visible-video-prerequisite-failure"
+            )
+            attachScreenshot(
+                from: app,
+                name: "\(evidenceName)-visible-video-prerequisite-failure"
+            )
+            return false
+        }
+
+        let playbackSurface = app.buttons.matching(
+            identifier: "PlayerUI-window-playback-surface"
+        ).firstMatch
+        guard requireHittable(
+            playbackSurface,
+            named: "Window playback surface for showing controls"
+        ) else { return false }
+        for _ in 1...2 {
+            playbackSurface.tap()
+            if waitForState(currentStateElement, timeout: 4, where: {
+                $0.string("controls") == "shown"
+                    && $0.string("chrome") == "on"
+                    && $0.string("tapTrace") == "toggled:shown"
+            }) != nil {
+                return true
+            }
+            let latest = RegressionStateSnapshot(
+                rawValue: currentStateElement.value as? String ?? ""
+            )
+            if latest.string("tapTrace") != "toggled:hidden" {
+                break
+            }
+        }
+        attachCurrentState(
+            of: currentStateElement,
+            name: "\(evidenceName)-state-failure"
+        )
+        attachScreenshot(from: app, name: "\(evidenceName)-failure")
+        XCTFail("The public playback surface did not restore the Window controls.")
+        return false
+    }
+
+    @MainActor
+    private func ensureRealMediaImported(
+        card: XCUIElement,
+        identifier: String,
+        pickerPath: [String],
+        pickerLabels: [String],
+        filename: String,
+        reuseExistingReference: Bool = true,
+        in app: XCUIApplication
+    ) -> Bool {
+        if reuseExistingReference,
+           waitForHittableRegisteredMediaCard(
+            identifier: identifier,
+            in: app,
+            timeout: 30
+        ) != nil {
+            return true
+        }
+
+        openManageAction("Add Files", in: app)
+        guard waitForFilePicker(in: app, timeout: 20) else {
+            XCTFail("The system file picker did not open for real media import.")
+            return false
+        }
+        guard navigateToFixturePath(
+            pickerPath.map { [$0] },
+            selectDirectory: false,
+            in: app
+        ) else { return false }
+        guard let item = waitForHittableFilePickerItem(
+            matchingAnyLabel: pickerLabels,
+            in: app,
+            timeout: 30
+        ) else {
+            attachFilePickerState(app, name: "real-media-\(filename)-missing")
+            XCTFail("The configured real media file \(filename) was missing from iCloud Drive.")
+            return false
+        }
+        selectFilePickerItem(item, in: app)
+        confirmPickerIfNeeded(for: card, in: app)
+        guard card.waitForExistence(timeout: 45) else {
+            XCTFail("Importing real media \(filename) did not create a Media Library card.")
+            return false
+        }
+        guard waitForHittableRegisteredMediaCard(
+            identifier: identifier,
+            in: app,
+            timeout: 30
+        ) != nil else {
+            attachScreenshot(
+                from: app,
+                name: "real-media-\(filename)-card-not-hittable"
+            )
+            XCTFail(
+                "Importing real media \(filename) created a card that could not be reached through the Media Library."
+            )
+            return false
+        }
+        return true
+    }
+
+    @MainActor
+    private func importExactRealMediaReference(
+        card: XCUIElement,
+        identifier: String,
+        pickerPath: [String],
+        pickerLabels: [String],
+        filename: String,
+        in app: XCUIApplication
+    ) -> Bool {
+        let matchingCards = app.buttons.matching(identifier: identifier)
+        while matchingCards.count > 0 {
+            guard let existingCard = waitForHittableRegisteredMediaCard(
+                identifier: identifier,
+                in: app,
+                timeout: 5
+            ) else {
+                XCTFail("An existing \(filename) Media Reference could not be reached for removal.")
+                return false
+            }
+            let countBeforeRemoval = matchingCards.count
+            guard removeMediaReference(existingCard, in: app) else { return false }
+            let countDecreased = XCTNSPredicateExpectation(
+                predicate: NSPredicate { object, _ in
+                    ((object as? XCUIElementQuery)?.count ?? countBeforeRemoval)
+                        < countBeforeRemoval
+                },
+                object: matchingCards
+            )
+            guard XCTWaiter.wait(for: [countDecreased], timeout: 10) == .completed else {
+                XCTFail("Removing an existing \(filename) Media Reference did not reduce its duplicate count.")
+                return false
+            }
+        }
+        return ensureRealMediaImported(
+            card: card,
+            identifier: identifier,
+            pickerPath: pickerPath,
+            pickerLabels: pickerLabels,
+            filename: filename,
+            reuseExistingReference: false,
+            in: app
+        )
+    }
+
+    @MainActor
     private func addBaselineFile(
         using mediaCard: XCUIElement,
         in app: XCUIApplication
@@ -454,7 +2831,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         manage.tap()
 
         let action = app.buttons[actionLabel].firstMatch
-        XCTAssertTrue(action.waitForExistence(timeout: 5))
+        XCTAssertTrue(action.waitForExistence(timeout: 12))
         XCTAssertTrue(action.isEnabled)
         action.tap()
     }
@@ -477,12 +2854,24 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         selectDirectory: Bool,
         in app: XCUIApplication
     ) -> Bool {
+        navigateToFixturePath(
+            [[directoryName]],
+            selectDirectory: selectDirectory,
+            in: app
+        )
+    }
+
+    @MainActor
+    private func navigateToFixturePath(
+        _ pathComponents: [[String]],
+        selectDirectory: Bool,
+        in app: XCUIApplication
+    ) -> Bool {
         let path: [[String]] = [
             ["iCloud Drive", "iCloud云盘", "iCloud 云盘"],
             ["Desktop", "桌面"],
-            ["TestMedia"],
-            [directoryName]
-        ]
+            ["TestMedia", "Test Video", "Text Video"]
+        ] + pathComponents
         for (index, labels) in path.enumerated() {
             if index == 0 {
                 guard let location = waitForHittableElement(

@@ -7,10 +7,20 @@ public enum VideoStereoLayout: String, CaseIterable, Codable, Sendable {
     case overUnder
 }
 
-public enum VideoProjectionOverride: String, Codable, Sendable {
+public enum VideoProjectionOverride: Hashable, Codable, Sendable {
     case rectilinear
     case equirectangular
     case halfEquirectangular
+    case customEquirectangular(horizontalFieldOfViewDegrees: Int)
+
+    public var diagnosticLabel: String {
+        switch self {
+        case .rectilinear: "rectilinear"
+        case .equirectangular: "equirectangular"
+        case .halfEquirectangular: "halfEquirectangular"
+        case .customEquirectangular(let degrees): "customEquirectangular-\(degrees)"
+        }
+    }
 }
 
 public enum VideoSampleFormatOverrideError: Error, Equatable, Sendable {
@@ -98,6 +108,106 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
         return rewritten
     }
 
+    func replacingFormatDescription(
+        of sampleBuffer: CMSampleBuffer,
+        with targetFormat: CMFormatDescription
+    ) throws -> CMSampleBuffer {
+        guard let sourceFormat = CMSampleBufferGetFormatDescription(sampleBuffer) else {
+            throw VideoSampleFormatOverrideError.missingFormatDescription
+        }
+        guard CMFormatDescriptionGetMediaType(sourceFormat) == kCMMediaType_Video,
+              CMFormatDescriptionGetMediaType(targetFormat) == kCMMediaType_Video else {
+            throw VideoSampleFormatOverrideError.nonVideoFormat
+        }
+        let sourceDimensions = CMVideoFormatDescriptionGetDimensions(sourceFormat)
+        let targetDimensions = CMVideoFormatDescriptionGetDimensions(targetFormat)
+        guard CMFormatDescriptionGetMediaSubType(sourceFormat)
+                == CMFormatDescriptionGetMediaSubType(targetFormat),
+              sourceDimensions.width == targetDimensions.width,
+              sourceDimensions.height == targetDimensions.height else {
+            throw VideoSampleFormatOverrideError.formatDescriptionCreationFailed(
+                kCMFormatDescriptionError_InvalidParameter
+            )
+        }
+        guard let dataBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else {
+            throw VideoSampleFormatOverrideError.missingCompressedData
+        }
+        guard CMSampleBufferDataIsReady(sampleBuffer) else {
+            throw VideoSampleFormatOverrideError.dataNotReady
+        }
+
+        let timings = try sampleTimings(of: sampleBuffer)
+        let sampleSizes = try sampleSizes(of: sampleBuffer)
+        var replaced: CMSampleBuffer?
+        let status = timings.withUnsafeBufferPointer { timingBuffer in
+            sampleSizes.withUnsafeBufferPointer { sizeBuffer in
+                CMSampleBufferCreateReady(
+                    allocator: kCFAllocatorDefault,
+                    dataBuffer: dataBuffer,
+                    formatDescription: targetFormat,
+                    sampleCount: CMSampleBufferGetNumSamples(sampleBuffer),
+                    sampleTimingEntryCount: timingBuffer.count,
+                    sampleTimingArray: timingBuffer.baseAddress,
+                    sampleSizeEntryCount: sizeBuffer.count,
+                    sampleSizeArray: sizeBuffer.baseAddress,
+                    sampleBufferOut: &replaced
+                )
+            }
+        }
+        guard status == noErr, let replaced else {
+            throw VideoSampleFormatOverrideError.sampleBufferCreationFailed(status)
+        }
+
+        copyBufferAttachments(from: sampleBuffer, to: replaced)
+        copySampleAttachments(from: sampleBuffer, to: replaced)
+        return replaced
+    }
+
+    func taggedPresentationSample(
+        _ sampleBuffer: CMSampleBuffer,
+        stereoLayout: VideoStereoLayout?,
+        projection: VideoProjectionOverride?
+    ) -> CMSampleBuffer {
+        let usesPackedStereo = stereoLayout == .sideBySide
+            || stereoLayout == .overUnder
+        let usesProjectedSurface = projection != nil && projection != .rectilinear
+        guard usesProjectedSurface || usesPackedStereo else { return sampleBuffer }
+
+        var tags: [CMTag] = [.mediaType(.video)]
+        if let projection {
+            let projectionType: CMProjectionType = switch projection {
+            case .rectilinear: .rectangular
+            case .equirectangular: .equirectangular
+            case .halfEquirectangular: .halfEquirectangular
+            case .customEquirectangular: .equirectangular
+            }
+            tags.append(.projectionType(projectionType))
+        }
+        switch stereoLayout {
+        case .sideBySide:
+            tags.append(.packingType(.sideBySide))
+            tags.append(.stereoView([.leftEye, .rightEye]))
+        case .overUnder:
+            tags.append(.packingType(.overUnder))
+            tags.append(.stereoView([.leftEye, .rightEye]))
+        case .mono, nil:
+            break
+        }
+
+        let taggedBuffer = CMTaggedBuffer(tags: tags, sampleBuffer: sampleBuffer)
+        let format = CMTaggedBufferGroupFormatDescription(
+            taggedBuffers: [taggedBuffer]
+        )
+        let taggedSample = CMSampleBuffer(
+            taggedBuffers: [taggedBuffer],
+            presentationTimeStamp: CMSampleBufferGetPresentationTimeStamp(sampleBuffer),
+            duration: CMSampleBufferGetDuration(sampleBuffer),
+            formatDescription: format
+        )
+        copyBufferAttachments(from: sampleBuffer, to: taggedSample)
+        return taggedSample
+    }
+
     private func rewrittenFormat(
         from source: CMFormatDescription,
         stereoLayout: VideoStereoLayout?,
@@ -144,6 +254,8 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
                 kCMFormatDescriptionProjectionKind_Equirectangular
             case .halfEquirectangular:
                 kCMFormatDescriptionProjectionKind_HalfEquirectangular
+            case .customEquirectangular:
+                kCMFormatDescriptionProjectionKind_Equirectangular
             }
             extensions[kCMFormatDescriptionExtension_ProjectionKind as String] = projectionKind
             let horizontalFieldOfView: Int? = switch projection {
@@ -151,6 +263,8 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
                 360_000
             case .halfEquirectangular:
                 180_000
+            case .customEquirectangular(let degrees):
+                min(max(degrees, 180), 360) * 1_000
             case .rectilinear:
                 nil
             }

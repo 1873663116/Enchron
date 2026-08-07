@@ -75,21 +75,30 @@ struct WindowPlaybackPageGeometryTests {
         #expect(layout.hasPlaybackAspectRatio(tooLarge))
     }
 
-    @Test("window presentation never hosts the independent controls window")
+    @Test("portal and spatial presentations host the independent controls window")
     func spatialControlsScenePolicy() {
         #expect(
             SpatialPlaybackControlsScenePolicy.shouldHostControls(
-                for: .window
+                for: .window,
+                isPanoramic: false
             ) == false
         )
         #expect(
             SpatialPlaybackControlsScenePolicy.shouldHostControls(
-                for: .docked
+                for: .window,
+                isPanoramic: true
             )
         )
         #expect(
             SpatialPlaybackControlsScenePolicy.shouldHostControls(
-                for: .panorama
+                for: .docked,
+                isPanoramic: false
+            )
+        )
+        #expect(
+            SpatialPlaybackControlsScenePolicy.shouldHostControls(
+                for: .panorama,
+                isPanoramic: true
             )
         )
     }
@@ -106,7 +115,29 @@ struct WindowPlaybackPageGeometryTests {
 
         #expect(selectionToApply == nil)
         #expect(state.presentedMenu == nil)
-        #expect(state.projection == .equirectangular180)
+        #expect(state.projection == .flat)
+        #expect(state.stereoLayout == .mono)
+    }
+
+    @Test("source format synchronization never overwrites an open draft")
+    func sourceFormatSynchronizationWaitsUntilEditingEnds() {
+        var state = PlaybackTopActionsState(
+            projection: .equirectangular180,
+            stereoLayout: .sideBySide
+        )
+        state.toggleMenu(.videoFormat)
+        state.projection = .equirectangular360
+
+        state.synchronizeCommittedVideoFormat(
+            .init(projection: .flat, horizontalFieldOfViewDegrees: nil, stereoLayout: .mono)
+        )
+        #expect(state.projection == .equirectangular360)
+
+        _ = state.finishVideoFormatEditing(.cancel)
+        state.synchronizeCommittedVideoFormat(
+            .init(projection: .flat, horizontalFieldOfViewDegrees: nil, stereoLayout: .mono)
+        )
+        #expect(state.projection == .flat)
         #expect(state.stereoLayout == .mono)
     }
 
@@ -118,13 +149,13 @@ struct WindowPlaybackPageGeometryTests {
 
         let requested = state.selectDockTarget(
             environment: .scenicThree,
-            effect: .night
+            effect: .dark
         )
 
         #expect(requested.0 == .scenicThree)
-        #expect(requested.1 == .night)
+        #expect(requested.1 == .dark)
         #expect(state.selectedDockEnvironment == .scenicThree)
-        #expect(state.selectedEffect == .night)
+        #expect(state.selectedEffect == .dark)
         #expect(state.presentedMenu == nil)
     }
 
@@ -137,13 +168,13 @@ struct WindowPlaybackPageGeometryTests {
         state.toggleMenu(.dock)
 
         #expect(state.presentedMenu == .dock)
-        #expect(state.projection == .equirectangular180)
+        #expect(state.projection == .flat)
 
         state.toggleMenu(.dock)
         #expect(state.presentedMenu == nil)
     }
 
-    @Test("Skybox is a Dock target without a Day or Night appearance")
+    @Test("Skybox is a Dock target without a Light or Dark appearance")
     func selectingSkyboxRecordsNoAppearance() {
         var state = PlaybackTopActionsState()
 

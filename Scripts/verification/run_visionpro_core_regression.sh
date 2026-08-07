@@ -3,13 +3,14 @@
 set -euo pipefail
 
 repository_root=${0:A:h:h:h}
+source "$repository_root/Scripts/verification/enchron_artifact_paths.sh"
 xcode_app=${ENCHRON_XCODE_APP:-/Volumes/Cortisol/Applications/Xcode-beta3.app}
 developer_dir="$xcode_app/Contents/Developer"
 destination=${ENCHRON_VISION_TEST_DESTINATION:-}
 media_card_ids=${ENCHRON_DEVICE_REGRESSION_MEDIA_CARD_IDS:-}
-derived_data=${ENCHRON_DERIVED_DATA:-/private/tmp/EnchronVisionProCoreRegressionDerivedData}
-source_packages=${ENCHRON_SOURCE_PACKAGES:-/private/tmp/EnchronVisionProCoreRegressionSourcePackages}
-evidence_root=${ENCHRON_EVIDENCE_ROOT:-/private/tmp/enchron-validation-evidence/visionpro-core-regression-$(date +%Y%m%d-%H%M%S)}
+derived_data=${ENCHRON_DERIVED_DATA:-$artifact_root/DerivedData/VisionProCoreRegression}
+source_packages=${ENCHRON_SOURCE_PACKAGES:-$artifact_root/SourcePackages/VisionProCoreRegression}
+evidence_root=${ENCHRON_EVIDENCE_ROOT:-$artifact_root/TestEvidence/visionpro-core-regression-$(date +%Y%m%d-%H%M%S)}
 test_iterations=${ENCHRON_TEST_ITERATIONS:-1}
 test_session_timeout_seconds=${ENCHRON_TEST_SESSION_TIMEOUT_SECONDS:-}
 only_testing=${ENCHRON_ONLY_TESTING:-}
@@ -59,7 +60,7 @@ if [[ -z "$media_card_ids" ]]; then
             | "MediaLibrary-grid-video-" + (.deviceImportPath | split("/")[-1])
         ]
         | join(",")
-    ' "$repository_root/docs/acceptance/fixture-registry.json")
+    ' "$repository_root/Tests/Fixtures/fixture-registry.json")
 fi
 
 if [[ -z "$media_card_ids" || "$media_card_ids" != *,* ]]; then

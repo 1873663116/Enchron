@@ -4,6 +4,21 @@ import CoreVideo
 import Testing
 @testable import PlaybackCore
 
+@MainActor
+@Test func audioRendererAllowsMonoStereoAndMultichannelSpatialization() {
+    let session = SampleBufferPlaybackSession(
+        traceID: "multichannel-spatialization",
+        provider: FakeVideoSampleProvider(events: [.end]),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    #expect(
+        session.audioRenderer.allowedAudioSpatializationFormats
+            == .monoStereoAndMultichannel
+    )
+}
+
 @Test func ffmpegSourceLocatorPreservesRemoteSchemeHostAndCredentials() throws {
     let remote = try #require(URL(string: "http://user:pass@example.test:5244/dav/video.mkv"))
     #expect(
@@ -1403,7 +1418,7 @@ func stereoOverrideBeforeFirstSampleKeepsInitialRevision() async throws {
 }
 
 @Test
-func liveStereoOverrideUsesSharedSeamWithoutChangingTimeline() async throws {
+func liveStereoOverridePublishesAcceptedRevisionsAndKeepsImmutableRendererGraph() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 30)
     let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
     let session = SampleBufferPlaybackSession(
@@ -1413,6 +1428,10 @@ func liveStereoOverrideUsesSharedSeamWithoutChangingTimeline() async throws {
         ),
         rendererSink: sink
     )
+    let acceptedFormatRevisions = LockedBox<[UInt64]>([])
+    session.onAcceptedVideoFormatRevisionChange = { revision in
+        acceptedFormatRevisions.withLock { $0.append(revision) }
+    }
     defer { session.close() }
 
     try await session.prepare(url: URL(fileURLWithPath: "/fixtures/stereo.mov"))
@@ -1421,6 +1440,9 @@ func liveStereoOverrideUsesSharedSeamWithoutChangingTimeline() async throws {
     let baseline = session.debugSnapshot()
     let baselineRate = session.currentRate()
     let rendererIdentity = PlaybackTrace.identity(session.renderer)
+    let audioRendererIdentity = PlaybackTrace.identity(session.audioRenderer)
+    let synchronizerIdentity = PlaybackTrace.identity(session.synchronizer)
+    let graphRevision = session.graphRevision
     let baselineFlushCount = sink.flushCount
 
     let sideBySideRevision = try await session.setStereoLayout(.sideBySide)
@@ -1458,6 +1480,10 @@ func liveStereoOverrideUsesSharedSeamWithoutChangingTimeline() async throws {
     #expect(final.rendererState?.flushCount == UInt64(sink.flushCount))
     #expect(session.currentRate() == baselineRate)
     #expect(PlaybackTrace.identity(session.renderer) == rendererIdentity)
+    #expect(PlaybackTrace.identity(session.audioRenderer) == audioRendererIdentity)
+    #expect(PlaybackTrace.identity(session.synchronizer) == synchronizerIdentity)
+    #expect(session.graphRevision == graphRevision)
+    #expect(acceptedFormatRevisions.withLock { $0 } == [1, 2, 3, 4])
 }
 
 @Test
@@ -1497,41 +1523,6 @@ func suspendedVideoSampleDeliveryWaitsForTheInFlightEnqueueBeforeReturning() asy
 }
 
 @Test
-func replacingTheVideoRendererKeepsTheMediaSessionAndStopsDeliveryUntilTheNewTargetExists() async throws {
-    let sample = try makeCompressedH264Sample(durationSeconds: 30)
-    let sink = FakeRendererInputSink(
-        pausesAfterEachEnqueue: true
-    )
-    let session = SampleBufferPlaybackSession(
-        traceID: "replace-video-renderer",
-        provider: FakeVideoSampleProvider(
-            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
-        ),
-        rendererSink: sink
-    )
-    defer { session.close() }
-
-    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/replace-renderer.mov"))
-    try session.start()
-    try await waitForSampleCount(1, in: session)
-    let mediaSessionID = session.traceID
-    let previousRenderer = session.renderer
-    let previousAudioRenderer = session.audioRenderer
-    let previousSynchronizer = session.synchronizer
-    let previousGraphRevision = session.graphRevision
-
-    let replacement = try await session.replaceRendererGraphForPresentation()
-
-    #expect(session.traceID == mediaSessionID)
-    #expect(replacement === session.renderer)
-    #expect(replacement !== previousRenderer)
-    #expect(session.audioRenderer !== previousAudioRenderer)
-    #expect(session.synchronizer !== previousSynchronizer)
-    #expect(session.graphRevision == previousGraphRevision + 1)
-    #expect(session.videoSampleDeliveryIsSuspended)
-}
-
-@Test
 func rendererGraphContinuityRejectsASingleStaticFirstFrame() {
     let baseline = RendererGraphPlaybackObservation(
         graphRevision: 7,
@@ -1553,57 +1544,6 @@ func rendererGraphContinuityRejectsASingleStaticFirstFrame() {
             requiredGraphRevision: 7
         ) == .awaitingDisplayedFrameAdvance
     )
-}
-
-@MainActor
-@Test
-func presentationTransferRestartRemainsPausedUntilAnExplicitPlay() async throws {
-    let videoSample = try makeCompressedH264Sample(durationSeconds: 30)
-    let audioSample = try makeAudioSample(durationSeconds: 30)
-    let replacementSink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
-    let controller = PlaybackCoreController(
-        sessionFactory: { sessionID in
-            SampleBufferPlaybackSession(
-                traceID: sessionID,
-                provider: FakeVideoSampleProvider(
-                    events: Array(repeating: .sample(videoSample), count: 1_000) + [.end]
-                ),
-                audioProvider: FakeAudioSampleProvider(sampleAfterPrepare: audioSample),
-                rendererSink: FakeRendererInputSink(pausesAfterEachEnqueue: true),
-                replacementRendererSinkFactory: { replacementSink }
-            )
-        },
-        debugRecorderMode: .disabledForVerification
-    )
-    let session = try await controller.open(
-        URL(fileURLWithPath: "/fixtures/presentation-transfer-pauses.mov")
-    )
-    defer { session.close() }
-
-    try controller.start()
-    try await waitForSampleCount(1, in: session)
-    try await waitForAudioSampleCount(1, in: session)
-    try await setRateWhenTimelineIsReady(1, in: session)
-
-    _ = try await controller.replaceRendererGraphForPresentation()
-    try await controller.restartVideoSampleDeliveryForPresentationTransfer(at: .zero)
-
-    let settled = session.debugSnapshot()
-    let settledTime = session.currentTime().seconds
-    let settledDisplayedFrameCount = settled.rendererState?.displayedFrameObservationCount
-    try await Task.sleep(for: .milliseconds(150))
-    session.recordRendererState(at: session.currentTime())
-    let later = session.debugSnapshot()
-
-    #expect(settled.lifecycle == .paused)
-    #expect(session.currentRate() == 0)
-    #expect(CMTimebaseGetRate(session.synchronizer.timebase) == 0)
-    #expect(
-        settled.audioRendererState?.synchronizerIdentity
-            == settled.rendererState?.synchronizerIdentity
-    )
-    #expect(abs(session.currentTime().seconds - settledTime) < 0.001)
-    #expect(later.rendererState?.displayedFrameObservationCount == settledDisplayedFrameCount)
 }
 
 @Test
@@ -1643,6 +1583,51 @@ func rendererGraphContinuityBecomesReadyOnlyAfterExplicitPlaybackAdvancesEveryOu
     )
 }
 
+@Test
+func rendererGraphContinuityRejectsInputThatDidNotAdvanceAfterExplicitPlay() {
+    let baseline = RendererGraphPlaybackObservation(
+        graphRevision: 9,
+        acceptedInputCount: 977,
+        actualTimebaseRate: 0,
+        displayedFrameObservationCount: 4
+    )
+    let playingFromBufferedInput = RendererGraphPlaybackObservation(
+        graphRevision: 9,
+        acceptedInputCount: 977,
+        actualTimebaseRate: 1,
+        displayedFrameObservationCount: 4
+    )
+
+    #expect(
+        RendererGraphPlaybackContinuity.evaluate(
+            baseline: baseline,
+            current: playingFromBufferedInput,
+            requiredGraphRevision: 9
+        ) == .awaitingAcceptedSample
+    )
+}
+
+@Test
+func explicitPlayContinuesWhenOnlyDisplayedFrameIdentityRemainsUnproven() {
+    #expect(RendererGraphPlaybackContinuity.ready.explicitPlayMayContinue)
+    #expect(
+        RendererGraphPlaybackContinuity.awaitingDisplayedFrameAdvance
+            .explicitPlayMayContinue
+    )
+    #expect(
+        RendererGraphPlaybackContinuity.awaitingAcceptedSample
+            .explicitPlayMayContinue == false
+    )
+    #expect(
+        RendererGraphPlaybackContinuity.awaitingActualTimebaseRate
+            .explicitPlayMayContinue == false
+    )
+    #expect(
+        RendererGraphPlaybackContinuity.wrongGraphRevision
+            .explicitPlayMayContinue == false
+    )
+}
+
 @MainActor
 @Test
 func explicitPlayStartsTheTimebaseBeforeRendererGraphContinuityIsEvaluated() async throws {
@@ -1678,49 +1663,8 @@ func explicitPlayStartsTheTimebaseBeforeRendererGraphContinuityIsEvaluated() asy
     #expect(result != .ready)
 }
 
-@MainActor
 @Test
-func rendererInputAfterPresentationGraphReplacementUsesTheReplacementGraphRevision() async throws {
-    let sample = try makeCompressedH264Sample(durationSeconds: 30)
-    let replacementSink = FakeRendererInputSink()
-    let controller = PlaybackCoreController(
-        sessionFactory: { sessionID in
-            SampleBufferPlaybackSession(
-                traceID: sessionID,
-                provider: FakeVideoSampleProvider(
-                    events: Array(repeating: .sample(sample), count: 1_000) + [.end]
-                ),
-                rendererSink: FakeRendererInputSink(
-                    pausesAfterEachEnqueue: true,
-                    automaticallyRunsRequests: false
-                ),
-                replacementRendererSinkFactory: { replacementSink }
-            )
-        },
-        debugRecorderMode: .disabledForVerification
-    )
-    let session = try await controller.open(
-        URL(fileURLWithPath: "/fixtures/replacement-graph-revision.mov")
-    )
-    defer { session.close() }
-
-    try controller.start()
-    try await waitForSampleCount(1, in: session)
-    let acceptedInputCountBeforeReplacement = session.debugSnapshot().acceptedRendererInputCount
-
-    _ = try await controller.replaceRendererGraphForPresentation()
-    #expect(session.graphRevision == 2)
-    try await controller.restartVideoSampleDelivery(at: .zero)
-    try await waitForAcceptedRendererInputCount(
-        acceptedInputCountBeforeReplacement + 1,
-        in: session
-    )
-
-    #expect(session.debugSnapshot().lastAcceptedRendererInput?.graphRevision == 2)
-}
-
-@Test
-func liveProjectionOverrideUsesSharedSeamWithoutChangingTimeline() async throws {
+func liveProjectionOverrideKeepsImmutableRendererGraphAndTimeline() async throws {
     let sourceProjection = kCMFormatDescriptionProjectionKind_Equirectangular as String
     let sample = try makeCompressedH264Sample(
         projectionKind: kCMFormatDescriptionProjectionKind_Equirectangular
@@ -1806,6 +1750,41 @@ func panoramicProjectionOverrideMakesUntaggedInputEffectiveWithoutChangingTimeli
     #expect(final.rendererState?.graphRevision == baseline.rendererState?.graphRevision)
     #expect(session.currentRate() == baselineRate)
     #expect(PlaybackTrace.identity(session.renderer) == rendererIdentity)
+}
+
+@Test
+func stereoAndProjectionOverridesCommitAtOneFormatRevision() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 30)
+    let sink = FakeRendererInputSink(pausesAfterEachEnqueue: true)
+    let session = SampleBufferPlaybackSession(
+        traceID: "atomic-format-overrides",
+        provider: FakeVideoSampleProvider(
+            events: Array(repeating: .sample(sample), count: 1_000) + [.end]
+        ),
+        rendererSink: sink
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/atomic-format.mov"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    let revision = try await session.setFormatOverrides(
+        stereoLayout: .sideBySide,
+        projection: .halfEquirectangular
+    )
+    let snapshot = session.debugSnapshot()
+
+    #expect(revision == 2)
+    #expect(snapshot.lastVideoSample?.formatRevision == revision)
+    #expect(
+        snapshot.lastVideoSample?.formatSignaling.viewPackingKind.value
+            == kCMFormatDescriptionViewPackingKind_SideBySide as String
+    )
+    #expect(
+        snapshot.lastVideoSample?.formatSignaling.projectionKind.value
+            == kCMFormatDescriptionProjectionKind_HalfEquirectangular as String
+    )
 }
 
 @Test func clearingStereoOverrideWaitsForASourceFormatSample() async throws {
@@ -2665,6 +2644,7 @@ func providerOpenContractRecordsTheActiveProvider() async throws {
     let snapshot = session.debugSnapshot()
     #expect(snapshot.providerOpen?.providerKind == "Fake")
     #expect(snapshot.providerOpen?.openStatus == "opened")
+    #expect(snapshot.providerOpen?.isMVHEVC == false)
     #expect(snapshot.videoTrack?.selected == true)
 }
 

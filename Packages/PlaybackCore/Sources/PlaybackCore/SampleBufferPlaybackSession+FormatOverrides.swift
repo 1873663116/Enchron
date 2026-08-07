@@ -3,6 +3,198 @@ import Foundation
 import OSLog
 
 extension SampleBufferPlaybackSession {
+    @discardableResult
+    func setFormatOverrides(
+        stereoLayout: VideoStereoLayout?,
+        projection: VideoProjectionOverride?
+    ) async throws -> UInt64 {
+        guard !isClosed else { throw PlaybackControlError.mediaSessionClosed }
+        let current = deliveryQueue.sync { (stereoLayoutOverride, projectionOverride) }
+        if current.0 == stereoLayout, current.1 == projection {
+            let state = deliveryQueue.sync { (hasRequestedVideoData, formatRevision) }
+            if !state.0 { return state.1 }
+            return try await waitForFormatOverrides(
+                stereoLayout: stereoLayout,
+                projection: projection,
+                minimumRevision: state.1
+            )
+        }
+        if deliveryQueue.sync(execute: { hasRequestedVideoData }), videoProviderHasEnded {
+            throw CorePlaybackError.formatOverridesUnavailable(stereoLayout, projection)
+        }
+
+        let change = applyFormatOverrides(
+            stereoLayout: stereoLayout,
+            projection: projection
+        )
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "control.formatOverrides.started",
+            outcome: .succeeded,
+            details: [
+                "stereoLayout": stereoLayout?.rawValue ?? "source",
+                "projection": projection?.diagnosticLabel ?? "source",
+                "formatRevision": String(change.revision),
+            ]
+        )
+        guard change.awaitsSample else {
+            debugStore.emit(
+                mediaSessionID: traceID,
+                node: .rendererInputCoordination,
+                kind: "control.formatOverrides.completed",
+                outcome: .succeeded,
+                details: [
+                    "stereoLayout": stereoLayout?.rawValue ?? "source",
+                    "projection": projection?.diagnosticLabel ?? "source",
+                    "formatRevision": String(change.revision),
+                    "boundary": "beforeFirstSample",
+                ]
+            )
+            return change.revision
+        }
+
+        let effectiveRevision: UInt64
+        do {
+            effectiveRevision = try await waitForFormatOverrides(
+                stereoLayout: stereoLayout,
+                projection: projection,
+                minimumRevision: change.revision
+            )
+        } catch {
+            if error is CancellationError || Task.isCancelled {
+                debugStore.emit(
+                    mediaSessionID: traceID,
+                    node: .rendererInputCoordination,
+                    kind: "control.formatOverrides.cancelled",
+                    outcome: .terminatedByCleanup,
+                    details: [
+                        "stereoLayout": stereoLayout?.rawValue ?? "source",
+                        "projection": projection?.diagnosticLabel ?? "source",
+                    ]
+                )
+                throw error
+            }
+            let rollback = applyFormatOverrides(
+                stereoLayout: change.previousStereoLayout,
+                projection: change.previousProjection
+            )
+            var rollbackState = "restoredBeforeFirstSample"
+            if rollback.awaitsSample {
+                do {
+                    _ = try await waitForFormatOverrides(
+                        stereoLayout: change.previousStereoLayout,
+                        projection: change.previousProjection,
+                        minimumRevision: rollback.revision
+                    )
+                    rollbackState = "restored"
+                } catch {
+                    rollbackState = "failed"
+                }
+            }
+            debugStore.emit(
+                mediaSessionID: traceID,
+                node: .rendererInputCoordination,
+                kind: "control.formatOverrides.failed",
+                outcome: .failed,
+                details: [
+                    "stereoLayout": stereoLayout?.rawValue ?? "source",
+                    "projection": projection?.diagnosticLabel ?? "source",
+                    "rollback": rollbackState,
+                    "error": error.localizedDescription,
+                ]
+            )
+            throw error
+        }
+
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "control.formatOverrides.completed",
+            outcome: .succeeded,
+            details: [
+                "stereoLayout": stereoLayout?.rawValue ?? "source",
+                "projection": projection?.diagnosticLabel ?? "source",
+                "formatRevision": String(effectiveRevision),
+            ]
+        )
+        return effectiveRevision
+    }
+
+    private struct FormatOverridesChange {
+        let previousStereoLayout: VideoStereoLayout?
+        let previousProjection: VideoProjectionOverride?
+        let revision: UInt64
+        let awaitsSample: Bool
+        let shouldResumeDelivery: Bool
+    }
+
+    private func applyFormatOverrides(
+        stereoLayout: VideoStereoLayout?,
+        projection: VideoProjectionOverride?
+    ) -> FormatOverridesChange {
+        stopVideoDelivery()
+        let change = deliveryQueue.sync {
+            let providerResetIsInFlight = isResetting
+            let previousStereoLayout = stereoLayoutOverride
+            let previousProjection = projectionOverride
+            stereoLayoutOverride = stereoLayout
+            projectionOverride = projection
+            if diagnostics.enqueuedSampleCount > 0 {
+                formatRevision += 1
+            }
+            didRecordFormat = false
+            let awaitsSample = hasRequestedVideoData
+                && !videoProviderHasEnded
+                && !isClosed
+                && !isVideoRendererFailed
+            return FormatOverridesChange(
+                previousStereoLayout: previousStereoLayout,
+                previousProjection: previousProjection,
+                revision: formatRevision,
+                awaitsSample: awaitsSample,
+                shouldResumeDelivery: awaitsSample && !providerResetIsInFlight
+            )
+        }
+        if change.shouldResumeDelivery {
+            startVideoDelivery()
+        }
+        return change
+    }
+
+    private func waitForFormatOverrides(
+        stereoLayout: VideoStereoLayout?,
+        projection: VideoProjectionOverride?,
+        minimumRevision: UInt64
+    ) async throws -> UInt64 {
+        let deadline = ContinuousClock.now + .seconds(5)
+        while ContinuousClock.now < deadline {
+            try Task.checkCancellation()
+            let snapshot = debugStore.snapshot()
+            if let sample = snapshot.lastVideoSample,
+               let input = snapshot.lastAcceptedRendererInput,
+               sample.formatRevision >= minimumRevision,
+               input.formatRevision == sample.formatRevision,
+               input.sourceEventID == sample.sourceEventID,
+               input.outcome == .accepted,
+               self.stereoLayout(
+                   stereoLayout,
+                   matches: sample.formatSignaling.viewPackingKind.value
+               ),
+               projectionOverride(
+                   projection,
+                   matches: sample.formatSignaling.projectionKind.value,
+                   source: snapshot.providerOpen?.formatSignaling.projectionKind.value
+               ) {
+                return sample.formatRevision
+            }
+            if isClosed { throw CancellationError() }
+            if videoProviderHasEnded || isVideoRendererFailed { break }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        throw CorePlaybackError.formatOverridesTimedOut(stereoLayout, projection)
+    }
+
     public var effectiveStereoLayout: VideoStereoLayout {
         let snapshot = debugStore.snapshot()
         if let sample = snapshot.lastVideoSample,
@@ -278,7 +470,7 @@ extension SampleBufferPlaybackSession {
             kind: "control.projection.started",
             outcome: .succeeded,
             details: [
-                "projection": projection?.rawValue ?? "source",
+                "projection": projection?.diagnosticLabel ?? "source",
                 "formatRevision": String(change.revision),
             ]
         )
@@ -289,7 +481,7 @@ extension SampleBufferPlaybackSession {
                 kind: "control.projection.completed",
                 outcome: .succeeded,
                 details: [
-                    "projection": projection?.rawValue ?? "source",
+                    "projection": projection?.diagnosticLabel ?? "source",
                     "formatRevision": String(change.revision),
                     "boundary": "beforeFirstSample",
                 ]
@@ -310,7 +502,7 @@ extension SampleBufferPlaybackSession {
                     node: .rendererInputCoordination,
                     kind: "control.projection.cancelled",
                     outcome: .terminatedByCleanup,
-                    details: ["projection": projection?.rawValue ?? "source"]
+                    details: ["projection": projection?.diagnosticLabel ?? "source"]
                 )
                 throw error
             }
@@ -333,7 +525,7 @@ extension SampleBufferPlaybackSession {
                 kind: "control.projection.failed",
                 outcome: .failed,
                 details: [
-                    "projection": projection?.rawValue ?? "source",
+                    "projection": projection?.diagnosticLabel ?? "source",
                     "rollback": rollbackState,
                     "error": error.localizedDescription,
                 ]
@@ -347,7 +539,7 @@ extension SampleBufferPlaybackSession {
             kind: "control.projection.completed",
             outcome: .succeeded,
             details: [
-                "projection": projection?.rawValue ?? "source",
+                "projection": projection?.diagnosticLabel ?? "source",
                 "formatRevision": String(effectiveRevision),
             ]
         )
@@ -432,6 +624,9 @@ extension SampleBufferPlaybackSession {
                 && !normalized.contains("halfequirectangular")
         case .halfEquirectangular:
             return normalized.contains("halfequirectangular")
+        case .customEquirectangular:
+            return normalized.contains("equirectangular")
+                && !normalized.contains("halfequirectangular")
         case nil:
             return normalized == Self.normalizedProjection(sourceProjectionKind)
         }
@@ -445,6 +640,8 @@ extension SampleBufferPlaybackSession {
             kCMFormatDescriptionProjectionKind_Equirectangular as String
         case .halfEquirectangular:
             kCMFormatDescriptionProjectionKind_HalfEquirectangular as String
+        case .customEquirectangular:
+            kCMFormatDescriptionProjectionKind_Equirectangular as String
         }
     }
 

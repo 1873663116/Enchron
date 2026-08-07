@@ -27,6 +27,13 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         let trackSelectionPreference: TrackSelectionPreference?
     }
 
+    private struct MediaFormatRequestTarget: Equatable {
+        let requestID: UInt64
+        let launchGeneration: Int
+        let mediaSessionID: String?
+        let versionedIdentity: VersionedMediaIdentity?
+    }
+
     private let playbackRuntime: any PlaybackRuntimeControlling
     private let mediaStateStore: MediaStateStore
     private let preferencesProvider: PlaybackPreferencesProviding
@@ -37,13 +44,17 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public var nextFileProvider: (@MainActor @Sendable () async -> PlaybackLaunchRequest?)?
     public var playbackQueueProvider: (@MainActor () -> PlaybackQueueSnapshot)?
     public var queueSelectionProvider: (@MainActor @Sendable (UUID) async -> PlaybackLaunchRequest?)?
-    public var onResolvedLaunchFormatApplied: (@MainActor (MediaFormat) -> Void)?
+    public var onEffectiveMediaFormatApplied: (
+        @MainActor (EffectiveMediaFormatInterpretation) -> Void
+    )?
     public var onViewingStatesCleared: (@MainActor () -> Void)?
     public private(set) var pendingResumeDecision: ResumeDecision?
 
     private var launchTask: Task<Void, Never>?
     private var metadataTask: Task<Void, Never>?
     private var mediaStateMutationTask: Task<Void, Never>?
+    private var mediaFormatCoreOperationTask: Task<Void, Error>?
+    private var mediaFormatRequestID: UInt64 = 0
     private var generation = 0
     private var lastResolvedLaunch: ResolvedLaunch?
 
@@ -135,31 +146,12 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public func startPendingPlaybackFromBeginning() {
         guard let decision = pendingResumeDecision else { return }
         pendingResumeDecision = nil
-        guard let identity = decision.request.versionedIdentity else {
-            launchResolvedPlayback(
-                decision.request,
-                resumeAt: nil,
-                savedFormat: decision.format,
-                trackSelectionPreference: decision.trackSelectionPreference
-            )
-            return
-        }
-
-        let decisionGeneration = generation
-        let removal = enqueueMediaStateMutation { store in
-            await store.applyViewingMutation(.remove, for: identity)
-        }
-        Task { [weak self] in
-            guard let self else { return }
-            await removal.value
-            guard generation == decisionGeneration else { return }
-            launchResolvedPlayback(
-                decision.request,
-                resumeAt: nil,
-                savedFormat: decision.format,
-                trackSelectionPreference: decision.trackSelectionPreference
-            )
-        }
+        launchResolvedPlayback(
+            decision.request,
+            resumeAt: nil,
+            savedFormat: decision.format,
+            trackSelectionPreference: decision.trackSelectionPreference
+        )
     }
 
     public func beginPlayback(_ request: PlaybackLaunchRequest) {
@@ -267,33 +259,39 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
     public func applyFormat(
         projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int? = nil,
         stereo: PlaybackModel.StereoLayout
     ) async throws {
-        let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity
-        let sessionID = playbackRuntime.activeSessionID
-        try await playbackRuntime.setFormat(projection: projection, stereo: stereo)
-        guard let identity,
-              playbackRuntime.activeSessionID == sessionID,
-              playbackRuntime.currentLaunchRequest?.versionedIdentity == identity else { return }
+        let target = beginMediaFormatRequest()
+        try await performMediaFormatCoreOperation { [playbackRuntime] in
+            try await playbackRuntime.setFormat(
+                projection: projection,
+                horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
+                stereo: stereo
+            )
+        }
+        guard mediaFormatRequestIsCurrent(target) else { return }
         let format = MediaFormat(
             projection: Self.projection(from: projection),
+            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
             stereoLayout: Self.stereo(from: stereo)
         )
-        await enqueueMediaStateMutation { store in
+        guard await persistMediaFormatMutationIfCurrent(target, mutation: { store, identity in
             await store.saveFormat(format, for: identity)
-        }.value
+        }) else { return }
+        notifyEffectiveMediaFormatApplied()
     }
 
     public func resetFormat() async throws {
-        let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity
-        let sessionID = playbackRuntime.activeSessionID
-        try await playbackRuntime.setFormat(projection: .flat, stereo: .mono)
-        guard let identity,
-              playbackRuntime.activeSessionID == sessionID,
-              playbackRuntime.currentLaunchRequest?.versionedIdentity == identity else { return }
-        await enqueueMediaStateMutation { store in
+        let target = beginMediaFormatRequest()
+        try await performMediaFormatCoreOperation { [playbackRuntime] in
+            try await playbackRuntime.useSourceFormat()
+        }
+        guard mediaFormatRequestIsCurrent(target) else { return }
+        guard await persistMediaFormatMutationIfCurrent(target, mutation: { store, identity in
             await store.resetFormat(for: identity)
-        }.value
+        }) else { return }
+        notifyEffectiveMediaFormatApplied()
     }
 
     public func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws {
@@ -408,6 +406,66 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         }
     }
 
+    private func beginMediaFormatRequest() -> MediaFormatRequestTarget {
+        mediaFormatRequestID &+= 1
+        return MediaFormatRequestTarget(
+            requestID: mediaFormatRequestID,
+            launchGeneration: generation,
+            mediaSessionID: playbackRuntime.activeSessionID,
+            versionedIdentity: playbackRuntime.currentLaunchRequest?.versionedIdentity
+        )
+    }
+
+    private func mediaFormatRequestIsCurrent(
+        _ target: MediaFormatRequestTarget
+    ) -> Bool {
+        guard let mediaSessionID = target.mediaSessionID else { return false }
+        return target.requestID == mediaFormatRequestID
+            && target.launchGeneration == generation
+            && playbackRuntime.activeSessionID == mediaSessionID
+            && playbackRuntime.currentLaunchRequest?.versionedIdentity
+                == target.versionedIdentity
+    }
+
+    private func performMediaFormatCoreOperation(
+        _ operation: @escaping @MainActor () async throws -> Void
+    ) async throws {
+        let previous = mediaFormatCoreOperationTask
+        let task = Task { @MainActor in
+            if let previous {
+                _ = await previous.result
+            }
+            try Task.checkCancellation()
+            try await operation()
+        }
+        mediaFormatCoreOperationTask = task
+        try await task.value
+    }
+
+    private func persistMediaFormatMutationIfCurrent(
+        _ target: MediaFormatRequestTarget,
+        mutation: @escaping @Sendable (
+            MediaStateStore,
+            VersionedMediaIdentity
+        ) async -> Void
+    ) async -> Bool {
+        guard mediaFormatRequestIsCurrent(target) else { return false }
+        guard let identity = target.versionedIdentity else { return true }
+
+        await mediaStateMutationTask?.value
+        guard mediaFormatRequestIsCurrent(target) else { return false }
+        await enqueueMediaStateMutation { store in
+            await mutation(store, identity)
+        }.value
+        return mediaFormatRequestIsCurrent(target)
+    }
+
+    private func notifyEffectiveMediaFormatApplied() {
+        onEffectiveMediaFormatApplied?(
+            playbackRuntime.effectiveMediaFormatInterpretation
+        )
+    }
+
     @discardableResult
     private func enqueueMediaStateMutation(
         _ operation: @escaping @Sendable (MediaStateStore) async -> Void
@@ -496,13 +554,23 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             break
         }
         guard generation == expectedGeneration else { return false }
-        let format = savedFormat ?? .standard
-        try await playbackRuntime.setFormat(
-            projection: Self.projection(from: format.projection),
-            stereo: Self.stereo(from: format.stereoLayout)
-        )
+        guard let format = savedFormat else {
+            try await performMediaFormatCoreOperation { [playbackRuntime] in
+                try await playbackRuntime.useSourceFormat()
+            }
+            guard generation == expectedGeneration else { return false }
+            notifyEffectiveMediaFormatApplied()
+            return true
+        }
+        try await performMediaFormatCoreOperation { [playbackRuntime] in
+            try await playbackRuntime.setFormat(
+                projection: Self.projection(from: format.projection),
+                horizontalFieldOfViewDegrees: format.horizontalFieldOfViewDegrees,
+                stereo: Self.stereo(from: format.stereoLayout)
+            )
+        }
         guard generation == expectedGeneration else { return false }
-        onResolvedLaunchFormatApplied?(format)
+        notifyEffectiveMediaFormatApplied()
         return generation == expectedGeneration
     }
 
@@ -515,7 +583,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         case .flat: .flat
         case .equirectangular180: .equirectangular180
         case .equirectangular360: .equirectangular360
-        case .fisheye: .fisheye
+        case .customAngle: .customAngle
         }
     }
 
@@ -524,7 +592,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         case .flat: .flat
         case .equirectangular180: .equirectangular180
         case .equirectangular360: .equirectangular360
-        case .fisheye: .fisheye
+        case .customAngle: .customAngle
         }
     }
 
@@ -538,7 +606,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
     private static func stereo(from value: PlaybackModel.StereoLayout) -> MediaStereoLayout {
         switch value {
-        case .mono: .mono
+        case .mono, .multiview: .mono
         case .sideBySide: .sideBySide
         case .topBottom: .topBottom
         }

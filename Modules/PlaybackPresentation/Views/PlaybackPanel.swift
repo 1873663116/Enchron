@@ -20,8 +20,9 @@ struct FusedPlayerPanelLive {
     var screenDistance: Double
     var screenElevationDegrees: Double
     var projection: PlaybackModel.ProjectionType
+    var horizontalFieldOfViewDegrees: Int
     var stereoLayout: PlaybackModel.StereoLayout
-    var canUseFisheye: Bool
+    var mediaFormatSummary: String? = nil
     var isPlaying: Bool
     var showsReplay: Bool
     var canSkipForward: Bool
@@ -45,8 +46,7 @@ struct FusedPlayerPanelLive {
     var onSetScreenDistance: @MainActor @Sendable (Double) -> Void
     var onSetScreenElevation: @MainActor @Sendable (Double) -> Void
     var onResetDockedPlacement: () -> Void
-    var onApplyFormat: (PlaybackModel.ProjectionType, PlaybackModel.StereoLayout) -> Void
-    var onResetFormat: () -> Void
+    var onApplyFormat: (PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -57,10 +57,6 @@ struct FusedPlayerPanelLive {
 /// while the runtime's asynchronous seek result catches up.
 enum PlaybackSeekPresentation {
     static let targetMatchTolerance: CGFloat = 0.02
-    /// Position updates are the normal settlement path. This timeout only
-    /// prevents a failed or unavailable position projection from holding the
-    /// thumb forever.
-    static let pendingTargetFallbackDuration: Duration = .milliseconds(600)
 
     static func clampedTarget(_ progress: CGFloat) -> CGFloat {
         min(max(progress, 0), 1)
@@ -214,7 +210,6 @@ struct FusedPlayerPanel: View {
     /// Seek 完成锁存:松手 onSeek 后,live.progress 异步才追上,锁存期内拇指钉在目标值,
     /// 避免"跳回旧位再闪到目标"。live 追上(或超时兜底)即释放。
     @State private var pendingSeekTarget: CGFloat?
-    @State private var pendingSeekGeneration = 0
     @State private var scrubFeedbackTrigger = 0
     @State private var scrubReleaseTrigger = 0
     @State private var scrubBoundary: EnchronScrubBoundary = .none
@@ -224,8 +219,6 @@ struct FusedPlayerPanel: View {
     @State private var pixelsPerSecond: CGFloat = DesignTokens.PrecisionTimeline.initialPixelsPerSecond
     // ⋯ 菜单 Canvas mock 选择态(live 为 nil 时)。
     @State private var selectedSpeed = "1×"
-    @State private var advancedProjection: PlaybackModel.ProjectionType = .flat
-    @State private var advancedStereoLayout: PlaybackModel.StereoLayout = .mono
     @State private var placementTrackWidth: CGFloat = 280
     @Namespace private var hoverNamespace
 
@@ -309,18 +302,6 @@ struct FusedPlayerPanel: View {
                 pendingSeekTarget = nil
             }
         }
-        .task(id: pendingSeekGeneration) {
-            // 兜底:player 永远不精确落到目标时,别让锁存无限钉住拇指。
-            guard let target = pendingSeekTarget else { return }
-            let generation = pendingSeekGeneration
-            try? await Task.sleep(
-                for: PlaybackSeekPresentation.pendingTargetFallbackDuration
-            )
-            guard !Task.isCancelled,
-                  pendingSeekGeneration == generation,
-                  pendingSeekTarget == target else { return }
-            pendingSeekTarget = nil
-        }
         .onChange(of: controlsVisible) { _, isVisible in
             guard isVisible == false else { return }
             timelineExpanded = false
@@ -328,6 +309,10 @@ struct FusedPlayerPanel: View {
             isDragging = false
             isTimelineDragging = false
             scrubberActivation = .idle
+            activationGeneration += 1
+            activationOrigin = nil
+            activationCurrentLocation = nil
+            seekOrigin = nil
             pendingSeekTarget = nil
         }
     }
@@ -356,8 +341,9 @@ struct FusedPlayerPanel: View {
                 dockedPlacementControls(live)
             }
 
-            if settingsExpanded, let live, live.presentation == .panorama {
-                panoramaFormatControls(live)
+            if settingsExpanded, let live,
+               live.presentation == .panorama || live.presentation == .portal {
+                spatialPlaybackEscapeControl(live)
             }
 
             if timelineExpanded {
@@ -379,37 +365,18 @@ struct FusedPlayerPanel: View {
         max(clusterWidth - DesignTokens.Spacing.xxxl * 2, 0)
     }
 
-    private func panoramaFormatControls(_ live: FusedPlayerPanelLive) -> some View {
-        VStack(spacing: DesignTokens.Spacing.sm) {
-            Picker("Projection", selection: $advancedProjection) {
-                Text("180°").tag(PlaybackModel.ProjectionType.equirectangular180)
-                Text("360°").tag(PlaybackModel.ProjectionType.equirectangular360)
-                if live.canUseFisheye {
-                    Text("Fisheye").tag(PlaybackModel.ProjectionType.fisheye)
-                }
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("PlayerPanel-Advanced-Projection")
-
-            Picker("Stereo Layout", selection: $advancedStereoLayout) {
-                Text("Mono").tag(PlaybackModel.StereoLayout.mono)
-                Text("Side-by-Side").tag(PlaybackModel.StereoLayout.sideBySide)
-                Text("Top-Bottom").tag(PlaybackModel.StereoLayout.topBottom)
-            }
-            .pickerStyle(.segmented)
-            .accessibilityIdentifier("PlayerPanel-Advanced-StereoLayout")
-
-            HStack {
-                Button("Reset to Flat + Mono") { live.onResetFormat() }
-                    .accessibilityIdentifier("PlayerPanel-Advanced-ResetFormat")
-                Spacer()
-                Button("Apply") {
-                    live.onApplyFormat(advancedProjection, advancedStereoLayout)
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("PlayerPanel-Advanced-ApplyFormat")
-            }
+    private func spatialPlaybackEscapeControl(_ live: FusedPlayerPanelLive) -> some View {
+        Button {
+            live.onApplyFormat(.flat, nil, .mono)
+        } label: {
+            Label("Return to Mono Window", systemImage: "rectangle.on.rectangle")
+                .frame(maxWidth: .infinity)
         }
+        .buttonStyle(.borderedProminent)
+        .accessibilityHint(
+            "Overrides the source format as Flat and Mono, then returns playback to the Window presentation."
+        )
+        .accessibilityIdentifier("PlayerPanel-Advanced-ReturnToMonoWindow")
     }
 
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {
@@ -601,6 +568,9 @@ struct FusedPlayerPanel: View {
 
     private var spatialMetadataLabel: String {
         guard let live else { return "Flat · Mono" }
+        if let mediaFormatSummary = live.mediaFormatSummary {
+            return mediaFormatSummary
+        }
         return "\(projectionLabel(live.projection)) · \(stereoLabel(live.stereoLayout))"
     }
 
@@ -619,13 +589,14 @@ struct FusedPlayerPanel: View {
         case .flat: "Flat"
         case .equirectangular180: "180°"
         case .equirectangular360: "360°"
-        case .fisheye: "Fisheye"
+        case .customAngle: "Custom Angle"
         }
     }
 
     private func stereoLabel(_ stereo: PlaybackModel.StereoLayout) -> String {
         switch stereo {
         case .mono: "Mono"
+        case .multiview: "Native Multiview"
         case .sideBySide: "Side-by-Side"
         case .topBottom: "Top-Bottom"
         }
@@ -635,12 +606,18 @@ struct FusedPlayerPanel: View {
     private func returnToWindowButton(_ live: FusedPlayerPanelLive) -> some View {
         if live.presentation == .panorama {
             GlassCircleIconButton.collapseVertically(
-                accessibilityLabel: "Return to Window",
+                accessibilityLabel: "Return to Portal",
                 action: live.onExitSpatial,
                 accessibilityIdentifier: "PlayerPanel-button-exit-spatial"
             )
             .keyboardShortcut(.escape, modifiers: [])
-        } else {
+        } else if live.presentation == .portal {
+            GlassCircleIconButton.expandVertically(
+                accessibilityLabel: "Enter Panorama",
+                action: live.onEnterPanorama,
+                accessibilityIdentifier: "PlayerPanel-button-enter-panorama"
+            )
+        } else if live.presentation == .docked {
             GlassCircleIconButton.collapse(
                 accessibilityLabel: "Return to Window",
                 action: live.onExitSpatial,
@@ -852,7 +829,7 @@ struct FusedPlayerPanel: View {
             )
             Menu("Episodes") {
                 menuOption("Episode 1 · The Signal")
-                menuOption("Episode 2 · Night Crossing")
+                menuOption("Episode 2 · Evening Crossing")
                 menuOption("Episode 3 · Glass Harbor")
                 menuOption("Episode 4 · Quiet Orbit")
                 menuOption("Episode 5 · Afterimage")
@@ -1304,7 +1281,6 @@ struct FusedPlayerPanel: View {
             return
         }
         pendingSeekTarget = pendingTarget
-        pendingSeekGeneration += 1
     }
 
     private func endScrubbing() {
@@ -1358,10 +1334,6 @@ struct FusedPlayerPanel: View {
 
     private func openTimeline() {
         settingsExpanded = false
-        if let live {
-            advancedProjection = live.projection
-            advancedStereoLayout = live.stereoLayout
-        }
         var transaction = Transaction()
         transaction.animation = nil
         withTransaction(transaction) {
@@ -1461,4 +1433,5 @@ private struct DockedPlacementSliderRow: View {
             }
         }
     }
+
 }

@@ -14,6 +14,8 @@ struct GridCard: View {
     private let title: String
     private let variant: Variant
     private let explicitIdentifier: String?
+    private let selectionEnabled: Bool
+    private let isSelected: Bool
     /// When set, the whole card is a real interactive control (same contract as
     /// `FileListGroup.Item.action`). When `nil`, the card is display-only — used
     /// by showcase previews. This is what unifies grid and list interaction:
@@ -21,10 +23,19 @@ struct GridCard: View {
     /// `.onTapGesture`, which hit-tested unreliably over the card's own gestures.
     private let action: (() -> Void)?
 
-    private init(title: String, variant: Variant, identifier: String?, action: (() -> Void)?) {
+    private init(
+        title: String,
+        variant: Variant,
+        identifier: String?,
+        selectionEnabled: Bool,
+        isSelected: Bool,
+        action: (() -> Void)?
+    ) {
         self.title = title
         self.variant = variant
         self.explicitIdentifier = identifier
+        self.selectionEnabled = selectionEnabled
+        self.isSelected = isSelected
         self.action = action
     }
 
@@ -38,6 +49,8 @@ struct GridCard: View {
         /// 0…1 已观看进度;`nil` 表示未看过(不画底部进度描边)。
         watchedProgress: Double? = nil,
         accessibilityIdentifier: String? = nil,
+        selectionEnabled: Bool = false,
+        isSelected: Bool = false,
         action: (() -> Void)? = nil
     ) -> GridCard {
         GridCard(
@@ -49,6 +62,8 @@ struct GridCard: View {
                 watchedProgress: watchedProgress
             ),
             identifier: accessibilityIdentifier,
+            selectionEnabled: selectionEnabled,
+            isSelected: isSelected,
             action: action
         )
     }
@@ -59,7 +74,14 @@ struct GridCard: View {
         accessibilityIdentifier: String? = nil,
         action: (() -> Void)? = nil
     ) -> GridCard {
-        GridCard(title: title, variant: .folder(count: count), identifier: accessibilityIdentifier, action: action)
+        GridCard(
+            title: title,
+            variant: .folder(count: count),
+            identifier: accessibilityIdentifier,
+            selectionEnabled: false,
+            isSelected: false,
+            action: action
+        )
     }
 
     // MARK: 无障碍派生
@@ -97,6 +119,11 @@ struct GridCard: View {
                 .accessibilityIdentifier(resolvedIdentifier)
                 .accessibilityLabel(resolvedLabel)
                 .accessibilityAddTraits(.isButton)
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .accessibilityValue(
+                    isSelected ? "Selected" : "Not selected",
+                    isEnabled: selectionEnabled
+                )
                 .accessibilityAction { action() }
         } else {
             cardVisual
@@ -109,24 +136,76 @@ struct GridCard: View {
 
     private var cardVisual: some View {
         let shape = DesignTokens.ShapeToken.card
-        return VStack(alignment: .leading, spacing: 0) {
-            thumbnailContent(shape)
-                .frame(height: DesignTokens.Card.thumbnailHeight)
-                .clipShape(shape)
-                .enchronGlassBackground(in: shape)
-                .enchronHoverContentShape(shape)
-                .enchronHoverEffect(.highlight, in: hoverActivationGroup)
+        return ZStack {
+            VStack(alignment: .leading, spacing: 0) {
+                thumbnailContent(shape)
+                    .frame(height: DesignTokens.Card.thumbnailHeight)
+                    .clipShape(shape)
+                    .enchronGlassBackground(in: shape)
+                    .enchronHoverContentShape(shape)
+                    .enchronHoverEffect(.highlight, in: hoverActivationGroup)
+                    .overlay(alignment: .topTrailing) {
+                        if selectionEnabled {
+                            selectionIndicator
+                                .padding(DesignTokens.Spacing.sm)
+                        }
+                    }
 
-            Text(title)
-                .font(DesignTokens.Typography.headline)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22, alignment: .leading)
-                .padding(.horizontal, DesignTokens.Card.paddingH)
-                .padding(.vertical, DesignTokens.Card.paddingV)
+                Text(title)
+                    .font(DesignTokens.Typography.headline)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22, alignment: .leading)
+                    .padding(.horizontal, DesignTokens.Card.paddingH)
+                    .padding(.vertical, DesignTokens.Card.paddingV)
+            }
+
+            if selectionEnabled && isSelected {
+                shape.strokeBorder(
+                    DesignTokens.Theme.accent,
+                    lineWidth: DesignTokens.Stroke.bold
+                )
+                .allowsHitTesting(false)
+            }
         }
         .frame(width: DesignTokens.Card.gridMin)
         .contentShape(shape)
+        .background {
+            if selectionEnabled && isSelected {
+                shape.fill(DesignTokens.Surface.selected)
+            }
+        }
+        .animation(DesignTokens.AnimationToken.selection, value: isSelected)
+    }
+
+    private var selectionIndicator: some View {
+        ZStack {
+            Circle()
+                .fill(
+                    isSelected
+                        ? DesignTokens.Theme.accent
+                        : DesignTokens.Surface.overlay
+                )
+            Circle()
+                .strokeBorder(
+                    isSelected
+                        ? DesignTokens.Theme.accent
+                        : DesignTokens.Surface.accessoryText,
+                    lineWidth: isSelected
+                        ? DesignTokens.Stroke.bold
+                        : DesignTokens.Stroke.regular
+                )
+            if isSelected {
+                Image(systemName: "checkmark")
+                    .font(DesignTokens.SymbolSize.compact)
+                    .foregroundStyle(.white)
+            }
+        }
+        .frame(
+            width: DesignTokens.Interactive.compact,
+            height: DesignTokens.Interactive.compact
+        )
+        .accessibilityHidden(true)
     }
 
     @ViewBuilder

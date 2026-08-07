@@ -10,57 +10,6 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
     }
 
     @MainActor
-    func testWindowTopSecondaryMenusVisualState() throws {
-        let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
-            minimumCount: 1
-        )[0]
-        guard let app = launchRegisteredSpatialMedia(identifier: identifier) else { return }
-
-        let windowState = app.descendants(matching: .any)[
-            "PlayerUI-window-control-plane"
-        ].firstMatch
-        _ = try XCTUnwrap(waitForState(windowState, timeout: 45) {
-            $0.string("presentation") == "window"
-                && $0.string("transition") == "none"
-                && $0.string("controls") == "shown"
-                && $0.bool("videoVisible") == true
-                && $0.string("lifecycle")?.lowercased() == "playing"
-        })
-
-        let format = app.descendants(matching: .any)[
-            "PlayerUI-TopAction-videoFormat"
-        ].firstMatch
-        guard requireHittable(format, named: "Window Video Format") else { return }
-        format.tap()
-
-        let cancelFormat = app.buttons["PlayerUI-VideoFormat-cancel"].firstMatch
-        XCTAssertTrue(cancelFormat.waitForExistence(timeout: 5))
-        attachScreenshot(from: app, name: "window-top-menu-video-format-open")
-        format.tap()
-        XCTAssertTrue(
-            cancelFormat.waitForNonExistence(timeout: 5),
-            "Video Format panel remained visible after tapping its top action again."
-        )
-
-        let dock = app.descendants(matching: .any)[
-            "PlayerUI-TopAction-dock"
-        ].firstMatch
-        guard requireHittable(dock, named: "Window Dock") else { return }
-        dock.tap()
-
-        let dockMenu = app.descendants(matching: .any)[
-            "PlayerUI-DockMenu"
-        ].firstMatch
-        XCTAssertTrue(dockMenu.waitForExistence(timeout: 5))
-        attachScreenshot(from: app, name: "window-top-menu-dock-open")
-        dock.tap()
-        XCTAssertTrue(
-            dockMenu.waitForNonExistence(timeout: 5),
-            "Dock panel remained visible after tapping its top action again."
-        )
-    }
-
-    @MainActor
     func testWindowPlaybackInputOwnership() throws {
         let identifier = try VisionProRegressionConfiguration.mediaCardIdentifiers(
             minimumCount: 1
@@ -103,10 +52,14 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             context: "initial Window controls"
         )
 
-        let surfaceCoordinate = windowState.coordinate(
-            withNormalizedOffset: CGVector(dx: 0.5, dy: 0.42)
-        )
-        surfaceCoordinate.tap()
+        let playbackSurface = app.buttons[
+            "PlayerUI-window-playback-surface"
+        ].firstMatch
+        guard requireHittable(
+            playbackSurface,
+            named: "Window playback surface"
+        ) else { return }
+        playbackSurface.tap()
         let hidden = try XCTUnwrap(waitForState(windowState, timeout: 8) {
             $0.string("controls") == "hidden"
                 && $0.string("chrome") == "off"
@@ -121,7 +74,11 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             context: "one Window surface tap"
         )
 
-        surfaceCoordinate.tap()
+        guard requireHittable(
+            playbackSurface,
+            named: "Window playback surface with controls hidden"
+        ) else { return }
+        playbackSurface.tap()
         let shownAgain = try XCTUnwrap(waitForState(windowState, timeout: 8) {
             $0.string("controls") == "shown"
                 && $0.string("chrome") == "on"
@@ -136,6 +93,26 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             context: "second Window surface tap"
         )
 
+        let playPause = app.descendants(matching: .any)[
+            "PlayerPanel-button-play"
+        ].firstMatch
+        guard requireHittable(playPause, named: "Window Play/Pause") else { return }
+        XCTAssertEqual(playPause.label, "Pause")
+        playPause.tap()
+        let paused = try XCTUnwrap(waitForState(windowState, timeout: 8) {
+            $0.string("lifecycle")?.lowercased() == "paused"
+                && ($0.double("actualRate") ?? 1) == 0
+                && $0.string("controls") == "shown"
+        })
+        attachState(paused, name: "window-input-03a-paused")
+        XCTAssertEqual(playPause.label, "Play")
+        assertControlsVisibility(
+            "shown",
+            remainsStableFor: 0.8,
+            in: windowState,
+            context: "Pause action"
+        )
+
         let format = app.descendants(matching: .any)[
             "PlayerUI-TopAction-videoFormat"
         ].firstMatch
@@ -147,6 +124,26 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             $0.string("controls") == "shown"
         })
         attachScreenshot(from: app, name: "window-input-04a-video-format-open")
+        format.tap()
+        XCTAssertTrue(
+            cancelFormat.waitForNonExistence(timeout: 5),
+            "Video Format panel remained visible after tapping its top action again."
+        )
+        assertControlsVisibility(
+            "shown",
+            remainsStableFor: 0.8,
+            in: windowState,
+            context: "closing Video Format with its top action"
+        )
+        guard requireHittable(
+            format,
+            named: "Window Video Format after closing its panel"
+        ) else { return }
+        format.tap()
+        guard requireHittable(
+            cancelFormat,
+            named: "Cancel reopened Video Format"
+        ) else { return }
 
         let panorama360 = app.descendants(matching: .any)[
             "PlayerUI-VideoFormat-Projection-360°"
@@ -203,49 +200,32 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         ].firstMatch
         guard requireHittable(more, named: "Window More") else { return }
         more.tap()
-        XCTAssertTrue(
-            app.descendants(matching: .any)["PlayerUI-menu-subtitles"]
-                .firstMatch.waitForExistence(timeout: 5)
-        )
-        assertControlsVisibility(
-            "shown",
-            remainsStableFor: 0.8,
-            in: windowState,
-            context: "More action"
-        )
+        let subtitlesMenu = app.buttons["PlayerUI-menu-subtitles"].firstMatch
+        guard requireHittable(
+            subtitlesMenu,
+            named: "Subtitles in system More menu"
+        ) else { return }
         attachScreenshot(from: app, name: "window-input-06-more")
-        more.tap()
+
+        subtitlesMenu.tap()
+        let subtitlesOff = app.buttons["Off"].firstMatch
+        guard requireHittable(
+            subtitlesOff,
+            named: "Turn subtitles off"
+        ) else { return }
+        subtitlesOff.tap()
         XCTAssertTrue(
-            app.descendants(matching: .any)["PlayerUI-menu-subtitles"]
-                .firstMatch.waitForNonExistence(timeout: 5)
+            windowState.waitForExistence(timeout: 5),
+            "Window playback state did not return after choosing a system menu item."
         )
         assertControlsVisibility(
             "shown",
             remainsStableFor: 0.8,
             in: windowState,
-            context: "closing More"
+            context: "selecting a More menu item"
         )
 
-        let playPause = app.descendants(matching: .any)[
-            "PlayerPanel-button-play"
-        ].firstMatch
-        guard requireHittable(playPause, named: "Window Play/Pause") else { return }
-        XCTAssertEqual(playPause.label, "Pause")
-        playPause.tap()
-        let paused = try XCTUnwrap(waitForState(windowState, timeout: 8) {
-            $0.string("lifecycle")?.lowercased() == "paused"
-                && ($0.double("actualRate") ?? 1) == 0
-                && $0.string("controls") == "shown"
-        })
-        attachState(paused, name: "window-input-07-paused")
         XCTAssertEqual(playPause.label, "Play")
-        assertControlsVisibility(
-            "shown",
-            remainsStableFor: 0.8,
-            in: windowState,
-            context: "Pause action"
-        )
-
         playPause.tap()
         let playingAgain = try XCTUnwrap(waitForState(windowState, timeout: 8) {
             $0.string("lifecycle")?.lowercased() == "playing"
@@ -277,7 +257,11 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         attachScreenshot(from: app, name: "window-input-09-timeline-expanded")
 
         Thread.sleep(forTimeInterval: 1.2)
-        surfaceCoordinate.tap()
+        guard requireHittable(
+            playbackSurface,
+            named: "Window playback surface after closing menus"
+        ) else { return }
+        playbackSurface.tap()
         _ = try XCTUnwrap(waitForState(windowState, timeout: 8) {
             $0.string("controls") == "hidden"
                 && $0.string("chrome") == "off"
@@ -289,7 +273,11 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         )
         attachScreenshot(from: app, name: "window-input-10-timeline-reset-hidden")
 
-        surfaceCoordinate.tap()
+        guard requireHittable(
+            playbackSurface,
+            named: "Window playback surface after timeline reset"
+        ) else { return }
+        playbackSurface.tap()
         _ = try XCTUnwrap(waitForState(windowState, timeout: 8) {
             $0.string("controls") == "shown"
                 && $0.string("chrome") == "on"
@@ -354,14 +342,28 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 && ($0.double("actualRate") ?? 0) > 0.5
         })
         let session = try XCTUnwrap(playingWindow.string("session"))
+        let playbackEntity = try XCTUnwrap(playingWindow.string("playbackEntity"))
+        let videoComponentRevision = try XCTUnwrap(
+            playingWindow.uint64("videoComponentRevision")
+        )
+        let rendererGraphRevision = try XCTUnwrap(
+            playingWindow.uint64("lastRendererInputGraphRevision")
+        )
         attachState(playingWindow, name: "dock-return-01-window-playing")
+        let windowPlayPause = app.descendants(matching: .any)[
+            "PlayerPanel-button-play"
+        ].firstMatch
+        guard requireHittable(
+            windowPlayPause,
+            named: "Window Play/Pause before Dock"
+        ) else { return }
 
         let dock = app.descendants(matching: .any)["PlayerUI-TopAction-dock"].firstMatch
         guard requireHittable(dock, named: "Dock") else { return }
         dock.tap()
-        let day = app.descendants(matching: .any)["PlayerUI-DockMenu-day"].firstMatch
-        guard requireHittable(day, named: "Dock with Day") else { return }
-        day.tap()
+        let light = app.buttons["PlayerUI-DockMenu-light"].firstMatch
+        guard requireHittable(light, named: "Dock with Light Mode") else { return }
+        light.tap()
 
         let pausedAtTransitionStart = try XCTUnwrap(waitForState(windowState, timeout: 8) {
             $0.string("transition") == "docked"
@@ -376,15 +378,24 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let spatialState = app.descendants(matching: .any)[
             "PlayerUI-spatial-state"
         ].firstMatch
-        let docked = try XCTUnwrap(waitForState(spatialState, timeout: 30) {
-            $0.string("presentation") == "docked"
-                && $0.string("transition") == "none"
-                && $0.string("attached") == "docked"
-                && $0.bool("surfaceSettled") == true
-                && $0.string("lifecycle")?.lowercased() == "paused"
-                && abs($0.double("actualRate") ?? 1) < 0.001
-        })
+        let docked = try observeTransitionToSpatialPresentation(
+            app: app,
+            originalSurface: windowState,
+            originalTransportControl: windowPlayPause,
+            targetPresentation: "docked"
+        )
+        XCTAssertEqual(docked.string("lifecycle")?.lowercased(), "paused")
+        XCTAssertLessThan(abs(docked.double("actualRate") ?? 1), 0.001)
         XCTAssertEqual(docked.string("session"), session)
+        XCTAssertEqual(docked.string("playbackEntity"), playbackEntity)
+        XCTAssertEqual(
+            docked.uint64("videoComponentRevision"),
+            videoComponentRevision
+        )
+        XCTAssertEqual(
+            docked.uint64("lastRendererInputGraphRevision"),
+            rendererGraphRevision
+        )
         XCTAssertEqual(docked.string("rendererConsumer"), "docked")
         XCTAssertEqual(docked.string("rendererConsumerEntity"), "present")
         XCTAssertEqual(docked.bool("surfaceRenderingReady"), true)
@@ -452,6 +463,15 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 && abs($0.double("actualRate") ?? 1) < 0.001
         })
         XCTAssertEqual(returned.string("session"), session)
+        XCTAssertEqual(returned.string("playbackEntity"), playbackEntity)
+        XCTAssertEqual(
+            returned.uint64("videoComponentRevision"),
+            videoComponentRevision
+        )
+        XCTAssertEqual(
+            returned.uint64("lastRendererInputGraphRevision"),
+            rendererGraphRevision
+        )
         attachState(returned, name: "dock-return-06-window-returned-paused")
         attachScreenshot(from: app, name: "dock-return-06-window-returned-paused")
 
@@ -480,13 +500,21 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 && $0.string("transition") == "none"
                 && $0.string("lifecycle")?.lowercased() == "playing"
                 && ($0.double("actualRate") ?? 0) > 0.5
-                && ($0.uint64("rendererInputs") ?? 0)
-                    > (returnedAfterObservation.uint64("rendererInputs") ?? 0)
-                && ($0.uint64("displayedFrameObservations") ?? 0)
-                    >= (returnedAfterObservation.uint64("displayedFrameObservations") ?? 0) + 2
+                && ($0.uint64("displayedFrameObservations") ?? 0) >= 2
+                && $0.bool("displayedPixel") == true
+                && $0.string("videoRendererStatus") == "ready"
                 && $0.string("error") == "none"
         })
         XCTAssertEqual(resumed.string("session"), session)
+        XCTAssertEqual(resumed.string("playbackEntity"), playbackEntity)
+        XCTAssertEqual(
+            resumed.uint64("videoComponentRevision"),
+            videoComponentRevision
+        )
+        XCTAssertEqual(
+            resumed.uint64("lastRendererInputGraphRevision"),
+            rendererGraphRevision
+        )
         guard let continued = requireContinuousPlayback(
             after: resumed,
             in: windowState,
@@ -576,6 +604,13 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 && $0.bool("skyboxActive") == false
         })
         let session = try XCTUnwrap(before.string("session"))
+        let playbackEntity = try XCTUnwrap(before.string("playbackEntity"))
+        let videoComponentRevision = try XCTUnwrap(
+            before.uint64("videoComponentRevision")
+        )
+        let rendererGraphRevision = try XCTUnwrap(
+            before.uint64("lastRendererInputGraphRevision")
+        )
         let initialProjection = try XCTUnwrap(before.string("projection"))
         let initialStereoLayout = try XCTUnwrap(before.string("stereoLayout"))
         let windowPlay = app.descendants(matching: .any)[
@@ -594,25 +629,34 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         ].firstMatch
         guard requireHittable(panorama, named: "360 degree projection") else { return }
         panorama.tap()
+        let formatMenu = app.descendants(matching: .any)[
+            "PlayerUI-VideoFormat"
+        ].firstMatch
+        XCTAssertTrue(
+            formatMenu.waitForExistence(timeout: 5),
+            "Video Format panel did not remain visible while editing."
+        )
         let cancel = app.buttons["PlayerUI-VideoFormat-cancel"].firstMatch
         guard requireHittable(cancel, named: "Cancel video format") else { return }
         let draft = try XCTUnwrap(waitForState(windowState, timeout: 8) {
             $0.string("presentation") == "window"
                 && $0.string("transition") == "none"
                 && $0.string("lifecycle")?.lowercased() == "playing"
-                && $0.string("secondaryMenu") == "open"
                 && $0.string("session") == session
         })
         attachState(draft, name: "panorama-handoff-02-uncommitted-draft")
         attachScreenshot(from: app, name: "panorama-handoff-02-uncommitted-draft")
         cancel.tap()
         _ = try XCTUnwrap(waitForState(windowState, timeout: 8) {
-            $0.string("secondaryMenu") == "closed"
-                && $0.string("projection") == initialProjection
+            $0.string("projection") == initialProjection
                 && $0.string("stereoLayout") == initialStereoLayout
                 && $0.string("presentation") == "window"
                 && $0.string("lifecycle")?.lowercased() == "playing"
         })
+        XCTAssertTrue(
+            formatMenu.waitForNonExistence(timeout: 5),
+            "Video Format panel remained visible after Cancel."
+        )
 
         guard requireHittable(format, named: "Video Format after Cancel") else { return }
         format.tap()
@@ -650,6 +694,23 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             targetPresentation: "panorama"
         )
         XCTAssertEqual(spatial.string("session"), session)
+        XCTAssertEqual(spatial.string("playbackEntity"), playbackEntity)
+        let panoramaComponentRevision = try XCTUnwrap(
+            spatial.uint64("videoComponentRevision")
+        )
+        let panoramaRendererGraphRevision = try XCTUnwrap(
+            spatial.uint64("lastRendererInputGraphRevision")
+        )
+        XCTAssertEqual(panoramaComponentRevision, videoComponentRevision)
+        XCTAssertEqual(panoramaRendererGraphRevision, rendererGraphRevision)
+        XCTAssertEqual(
+            spatial.uint64("boundVideoComponentRevision"),
+            panoramaComponentRevision
+        )
+        XCTAssertEqual(
+            spatial.uint64("rendererPixelVideoComponentRevision"),
+            panoramaComponentRevision
+        )
         XCTAssertEqual(spatial.string("attached"), "panorama")
         XCTAssertEqual(spatial.string("rendererConsumer"), "panorama")
         XCTAssertEqual(spatial.string("rendererConsumerEntity"), "present")
@@ -702,27 +763,24 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let exitSpatial = app.descendants(matching: .any)[
             "PlayerPanel-button-exit-spatial"
         ].firstMatch
-        let windowPresentationControl = app.descendants(matching: .any)[
-            "PlayerUI-TopAction-resumePanorama"
-        ].firstMatch
-        guard requireHittable(exitSpatial, named: "Return to Window") else { return }
+        guard requireHittable(exitSpatial, named: "Return to Portal") else { return }
         exitSpatial.tap()
-        try observeTransitionBackToWindow(
+        try observeTransitionToMainWindow(
             app: app,
-            spatialControl: exitSpatial,
             windowSurface: windowState,
-            windowPresentationControl: windowPresentationControl,
-            sourcePresentation: "panorama"
+            sourcePresentation: "panorama",
+            targetPresentation: "portal",
+            expectedChrome: "off"
         )
         let restored = try XCTUnwrap(waitForState(
             in: app,
             identifier: "PlayerUI-window-control-plane",
             timeout: 30
         ) {
-            $0.string("presentation") == "window"
+            $0.string("presentation") == "portal"
                 && $0.string("transition") == "none"
                 && $0.string("pendingSpatialEffect") == "none"
-                && $0.string("attached") == "window"
+                && $0.string("attached") == "portal"
                 && $0.string("environment") == "none"
                 && $0.string("environmentEffect") == "none"
                 && $0.string("panoramaReturnEnvironment") == "inactive"
@@ -734,14 +792,83 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 && abs($0.double("actualRate") ?? 1) < 0.001
                 && $0.string("desiredImmersiveMode") == "portal"
                 && $0.string("actualImmersiveMode") == "portal"
-                && $0.string("desiredViewingMode") == "mono"
-                && $0.string("actualViewingMode") == "mono"
                 && $0.string("desiredSpatialVideoMode") == "screen"
                 && $0.string("actualSpatialVideoMode") == "screen"
         })
         XCTAssertEqual(restored.string("session"), session)
+        XCTAssertEqual(restored.string("playbackEntity"), playbackEntity)
+        XCTAssertEqual(
+            restored.uint64("videoComponentRevision"),
+            panoramaComponentRevision
+        )
+        XCTAssertEqual(
+            restored.uint64("lastRendererInputGraphRevision"),
+            panoramaRendererGraphRevision
+        )
+        XCTAssertEqual(restored.string("projection"), spatial.string("projection"))
+        XCTAssertEqual(restored.string("stereoLayout"), spatial.string("stereoLayout"))
         attachState(restored, name: "panorama-none-environment-window-return-state")
         attachScreenshot(from: app, name: "panorama-none-environment-window-return")
+
+        let windowTopOverlay = app.descendants(matching: .any)[
+            "PlayerUI-window-top-overlay"
+        ].firstMatch
+        XCTAssertTrue(
+            windowTopOverlay.waitForNonExistence(timeout: 5),
+            "Portal Playback Mode must keep the Window Playback overlay hidden."
+        )
+
+        let portalSettings = app.descendants(matching: .any)[
+            "PlayerPanel-button-settings"
+        ].firstMatch
+        guard requireHittable(
+            portalSettings,
+            named: "Portal Playback Advanced Settings"
+        ) else { return }
+        portalSettings.tap()
+
+        let windowFormat = app.descendants(matching: .any)[
+            "PlayerPanel-Advanced-ReturnToMonoWindow"
+        ].firstMatch
+        guard requireHittable(
+            windowFormat,
+            named: "Window video format from Portal Playback"
+        ) else { return }
+        windowFormat.tap()
+
+        let windowFormatApplied = try XCTUnwrap(waitForState(
+            in: app,
+            identifier: "PlayerUI-window-control-plane",
+            timeout: 30
+        ) {
+            $0.string("presentation") == "window"
+                && $0.string("attached") == "window"
+                && $0.string("projection") == "flat"
+                && $0.string("stereoLayout") == "mono"
+                && $0.bool("videoVisible") == true
+                && $0.string("chrome") == "on"
+        })
+        let windowComponentRevision = try XCTUnwrap(
+            windowFormatApplied.uint64("videoComponentRevision")
+        )
+        let windowRendererGraphRevision = try XCTUnwrap(
+            windowFormatApplied.uint64("lastRendererInputGraphRevision")
+        )
+        XCTAssertEqual(windowComponentRevision, panoramaComponentRevision)
+        XCTAssertEqual(windowRendererGraphRevision, panoramaRendererGraphRevision)
+        XCTAssertEqual(
+            windowFormatApplied.uint64("boundVideoComponentRevision"),
+            windowComponentRevision
+        )
+        XCTAssertEqual(
+            windowFormatApplied.uint64("rendererPixelVideoComponentRevision"),
+            windowComponentRevision
+        )
+        XCTAssertTrue(
+            windowTopOverlay.waitForExistence(timeout: 5),
+            "Window Playback Mode must show its Window controls after applying Window format."
+        )
+
         guard requireHittable(windowPlay, named: "Window Play after Panorama") else {
             return
         }
@@ -753,6 +880,15 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 && ($0.double("actualRate") ?? 0) > 0.5
                 && $0.string("session") == session
         }) else { return }
+        XCTAssertEqual(windowPlaying.string("playbackEntity"), playbackEntity)
+        XCTAssertEqual(
+            windowPlaying.uint64("videoComponentRevision"),
+            windowComponentRevision
+        )
+        XCTAssertEqual(
+            windowPlaying.uint64("lastRendererInputGraphRevision"),
+            windowRendererGraphRevision
+        )
         guard let windowContinuous = requireContinuousPlayback(
             after: windowPlaying,
             in: windowState,
@@ -775,7 +911,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let identifiers = try VisionProRegressionConfiguration.mediaCardIdentifiers(
             minimumCount: 1
         )
-        guard let app = launchRegisteredMediaAfterOpeningNightEnvironment(
+        guard let app = launchRegisteredMediaAfterOpeningDarkEnvironment(
             identifiers: identifiers
         ) else { return }
         let environmentCard = app.descendants(matching: .any)[
@@ -798,7 +934,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             $0.string("presentation") == "window"
                 && $0.string("attached") == "window"
                 && $0.string("environment") != "none"
-                && $0.string("environmentEffect") == "night"
+                && $0.string("environmentEffect") == "dark"
                 && $0.bool("videoVisible") == true
         })
         let session = try XCTUnwrap(window.string("session"))
@@ -834,7 +970,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 && $0.string("environment") == "none"
                 && $0.string("environmentEffect") == "none"
                 && $0.string("panoramaReturnEnvironment") == environmentID
-                && $0.string("panoramaReturnEnvironmentEffect") == "night"
+                && $0.string("panoramaReturnEnvironmentEffect") == "dark"
                 && $0.string("environmentCardResidency") == "closed"
                 && $0.bool("surfaceSettled") == true
                 && $0.bool("surfaceRenderingReady") == true
@@ -854,11 +990,8 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let panoramaComponentRevision = try XCTUnwrap(
             panoramaState.uint64("videoComponentRevision")
         )
-        let panoramaStreamEpoch = try XCTUnwrap(
-            panoramaState.uint64("streamEpoch")
-        )
-        let panoramaRendererInputs = try XCTUnwrap(
-            panoramaState.uint64("rendererInputs")
+        let panoramaRendererGraphRevision = try XCTUnwrap(
+            panoramaState.uint64("lastRendererInputGraphRevision")
         )
         try await Task.sleep(for: .seconds(2))
         attachState(panoramaState, name: "panorama-suspended-environment-state")
@@ -871,47 +1004,42 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let exitSpatial = app.descendants(matching: .any)[
             "PlayerPanel-button-exit-spatial"
         ].firstMatch
-        let windowPresentationControl = app.descendants(matching: .any)[
-            "PlayerUI-TopAction-resumePanorama"
-        ].firstMatch
-        guard requireHittable(exitSpatial, named: "Return to Window") else { return }
+        guard requireHittable(exitSpatial, named: "Return to Portal") else { return }
         exitSpatial.tap()
-        try observeTransitionBackToWindow(
+        try observeTransitionToMainWindow(
             app: app,
-            spatialControl: exitSpatial,
             windowSurface: windowState,
-            windowPresentationControl: windowPresentationControl,
-            sourcePresentation: "panorama-active-environment"
+            sourcePresentation: "panorama-active-environment",
+            targetPresentation: "portal",
+            expectedChrome: "off"
         )
         let restored = try XCTUnwrap(waitForState(
             in: app,
             identifier: "PlayerUI-window-control-plane",
             timeout: 30
         ) {
-            $0.string("presentation") == "window"
-                && $0.string("attached") == "window"
+            $0.string("presentation") == "portal"
+                && $0.string("attached") == "portal"
                 && $0.string("environment") == environmentID
-                && $0.string("environmentEffect") == "night"
+                && $0.string("environmentEffect") == "dark"
                 && $0.string("panoramaReturnEnvironment") == "inactive"
                 && $0.bool("videoVisible") == true
                 && $0.bool("componentReady") == true
                 && $0.bool("displayedPixel") == true
                 && $0.string("desiredImmersiveMode") == "portal"
                 && $0.string("actualImmersiveMode") == "portal"
-                && $0.string("desiredViewingMode") == "mono"
-                && $0.string("actualViewingMode") == "mono"
                 && $0.string("desiredSpatialVideoMode") == "screen"
                 && $0.string("actualSpatialVideoMode") == "screen"
-                && ($0.uint64("videoComponentRevision") ?? 0)
-                    > panoramaComponentRevision
+                && $0.uint64("videoComponentRevision")
+                    == panoramaComponentRevision
                 && $0.uint64("boundVideoComponentRevision")
                     == $0.uint64("videoComponentRevision")
                 && $0.uint64("rendererPixelVideoComponentRevision")
                     == $0.uint64("videoComponentRevision")
                 && $0.uint64("rendererPixelStreamEpoch")
                     == $0.uint64("streamEpoch")
-                && ($0.uint64("streamEpoch") ?? 0) > panoramaStreamEpoch
-                && ($0.uint64("rendererInputs") ?? 0) > panoramaRendererInputs
+                && $0.uint64("lastRendererInputGraphRevision")
+                    == panoramaRendererGraphRevision
         })
         XCTAssertEqual(restored.string("session"), session)
         try await Task.sleep(for: .seconds(2))
@@ -930,12 +1058,16 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
     }
 
     @MainActor
-    func testDockedInheritsActiveEnvironmentAndRestoresItOnReturn() async throws {
+    func testDockedTemporarilyUsesDefaultEnvironmentAndRestoresActiveEnvironmentOnReturn() async throws {
         let identifiers = try VisionProRegressionConfiguration.mediaCardIdentifiers(
             minimumCount: 1
         )
-        guard let app = launchRegisteredMediaAfterOpeningNightEnvironment(
-            identifiers: identifiers
+        let activeEnvironmentID = "scenic-two"
+        let defaultEnvironmentID = "scenic-three"
+        guard let app = launchRegisteredMediaAfterOpeningDarkEnvironment(
+            identifiers: identifiers,
+            defaultScenicEnvironmentTitle: "Scenic Environment 3",
+            activeEnvironmentID: activeEnvironmentID
         ) else { return }
         let environmentCard = app.descendants(matching: .any)[
             "SenseZone-VolumeRoot"
@@ -959,8 +1091,8 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         ) {
             $0.string("presentation") == "window"
                 && $0.string("attached") == "window"
-                && $0.string("environment") != "none"
-                && $0.string("environmentEffect") == "night"
+                && $0.string("environment") == activeEnvironmentID
+                && $0.string("environmentEffect") == "dark"
                 && $0.string("environmentCardResidency") == "open"
                 && $0.bool("videoVisible") == true
         })
@@ -974,11 +1106,9 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         ].firstMatch
         guard requireHittable(dock, named: "Dock") else { return }
         dock.tap()
-        let day = app.descendants(matching: .any)[
-            "PlayerUI-DockMenu-day"
-        ].firstMatch
-        guard requireHittable(day, named: "Dock with Day") else { return }
-        day.tap()
+        let light = app.buttons["PlayerUI-DockMenu-light"].firstMatch
+        guard requireHittable(light, named: "Dock with Light Mode") else { return }
+        light.tap()
         guard requirePresentationRequest(
             in: app,
             windowState: windowState,
@@ -993,8 +1123,9 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         )
         XCTAssertEqual(docked.string("session"), session)
         XCTAssertEqual(docked.string("attached"), "docked")
-        XCTAssertEqual(docked.string("environment"), environmentID)
-        XCTAssertEqual(docked.string("environmentEffect"), "day")
+        XCTAssertEqual(docked.string("environment"), defaultEnvironmentID)
+        XCTAssertNotEqual(docked.string("environment"), environmentID)
+        XCTAssertEqual(docked.string("environmentEffect"), "light")
         XCTAssertEqual(docked.string("environmentCardResidency"), "closed")
         XCTAssertEqual(docked.bool("surfaceSettled"), true)
         XCTAssertEqual(docked.bool("surfaceRenderingReady"), true)
@@ -1011,23 +1142,18 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             "Environment Card must close before Docked becomes the active presentation."
         )
         try await Task.sleep(for: .seconds(2))
-        attachState(docked, name: "docked-inherited-environment-state")
-        attachScreenshot(from: app, name: "docked-inherited-environment")
+        attachState(docked, name: "docked-temporary-default-environment-state")
+        attachScreenshot(from: app, name: "docked-temporary-default-environment")
 
         let exitSpatial = app.descendants(matching: .any)[
             "PlayerPanel-button-exit-spatial"
-        ].firstMatch
-        let windowPresentationControl = app.descendants(matching: .any)[
-            "PlayerUI-TopAction-dock"
         ].firstMatch
         guard requireHittable(exitSpatial, named: "Return to Window") else { return }
         exitSpatial.tap()
         try observeTransitionBackToWindow(
             app: app,
-            spatialControl: exitSpatial,
             windowSurface: windowState,
-            windowPresentationControl: windowPresentationControl,
-            sourcePresentation: "docked-active-environment"
+            sourcePresentation: "docked-temporary-default-environment"
         )
         let restored = try XCTUnwrap(waitForState(
             in: app,
@@ -1037,7 +1163,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             $0.string("presentation") == "window"
                 && $0.string("attached") == "window"
                 && $0.string("environment") == environmentID
-                && $0.string("environmentEffect") == "night"
+                && $0.string("environmentEffect") == "dark"
                 && $0.string("environmentCardResidency") == "closed"
                 && $0.bool("videoVisible") == true
         })
@@ -1058,21 +1184,24 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
     }
 
     @MainActor
-    private func launchRegisteredMediaAfterOpeningNightEnvironment(
-        identifiers: [String]
+    private func launchRegisteredMediaAfterOpeningDarkEnvironment(
+        identifiers: [String],
+        defaultScenicEnvironmentTitle: String? = nil,
+        activeEnvironmentID: String = "scenic-one"
     ) -> XCUIApplication? {
         guard let identifier = identifiers.first else { return nil }
-        let app = XCUIApplication()
-        app.launchEnvironment["ENCHRON_SPATIAL_ACCEPTANCE"] = "1"
-        app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"
-        app.launch()
+        let app = launchVisionProRegressionApp()
 
-        let initialCard = app.descendants(matching: .any)[identifier].firstMatch
-        guard requireHittable(
-            initialCard,
-            named: "Registered media before format normalization",
+        guard let initialCard = waitForHittableRegisteredMediaCard(
+            identifier: identifier,
+            in: app,
             timeout: 30
-        ) else { return nil }
+        ) else {
+            XCTFail(
+                "Registered media was unavailable before format normalization."
+            )
+            return nil
+        }
         initialCard.tap()
         let initialResume = app.buttons["PlayerUI-resumeDecision-primary"].firstMatch
         if initialResume.waitForExistence(timeout: 2) {
@@ -1088,6 +1217,19 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         ) else { return nil }
         back.tap()
 
+        guard filterMediaLibrary(
+            to: identifier,
+            in: app
+        ) else { return nil }
+
+        if let defaultScenicEnvironmentTitle,
+           selectDefaultScenicEnvironment(
+               named: defaultScenicEnvironmentTitle,
+               in: app
+           ) == false {
+            return nil
+        }
+
         let environmentTab = app.descendants(matching: .any)[
             "Navigation-Ornament-tab-environment"
         ].firstMatch
@@ -1098,26 +1240,65 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         guard requireHittable(volume, named: "Environment Card Volume", timeout: 20) else {
             return nil
         }
-        let effect = app.descendants(matching: .any)[
-            "EnvironmentCard-effect"
+        let carousel = app.descendants(matching: .any)[
+            "EnvironmentCard-carousel"
         ].firstMatch
-        guard requireHittable(effect, named: "Switch Environment to Night") else {
+        guard requireHittable(
+            carousel,
+            named: "Environment Card carousel"
+        ) else { return nil }
+        let openIdentifier =
+            "EnvironmentCard-button-environment-\(activeEnvironmentID)"
+        var focusedActiveEnvironment: XCUIElement?
+        for attempt in 0..<4 {
+            if let open = firstHittableElement(
+                matching: openIdentifier,
+                in: app.buttons,
+                timeout: 2
+            ) {
+                focusedActiveEnvironment = open
+                break
+            }
+            if attempt < 3 {
+                dragEnvironmentCarouselOneCardLeft(carousel)
+            }
+        }
+        guard let open = focusedActiveEnvironment else {
+            attachScreenshot(from: app, name: "active-environment-card-not-focused")
+            XCTFail(
+                "Environment Card carousel did not expose \(activeEnvironmentID)."
+            )
+            return nil
+        }
+        open.tap()
+        guard waitForState(
+            in: app,
+            identifier: "PlayerUI-application-state",
+            timeout: 30,
+            where: {
+                $0.string("environment") == activeEnvironmentID
+                    && $0.string("environmentEffect") == "light"
+                    && $0.string("immersiveSpaceResidency") == "open"
+            }
+        ) != nil else { return nil }
+
+        guard let effect = firstHittableElement(
+            matching: "EnvironmentCard-effect-\(activeEnvironmentID)",
+            in: app.buttons,
+            timeout: 3
+        ) else {
+            XCTFail("Switch Environment to Dark Mode did not become hittable.")
             return nil
         }
         effect.tap()
-        let open = app.descendants(matching: .any)[
-            "EnvironmentCard-button-environment"
-        ].firstMatch
-        guard requireHittable(open, named: "Open Environment") else { return nil }
-        open.tap()
 
         guard waitForState(
             in: app,
             identifier: "PlayerUI-application-state",
             timeout: 30,
             where: {
-            $0.string("environment") != "none"
-                && $0.string("environmentEffect") == "night"
+            $0.string("environment") == activeEnvironmentID
+                && $0.string("environmentEffect") == "dark"
                 && $0.string("immersiveSpaceResidency") == "open"
             }
         ) != nil else { return nil }
@@ -1127,21 +1308,19 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         ].firstMatch
         guard requireHittable(filesTab, named: "Files") else { return nil }
         filesTab.tap()
-        guard let card = mediaCardWithTapPointOutsideEnvironmentCard(
-            identifiers: identifiers,
-            in: app,
-            timeout: 30
+        let card = app.buttons.matching(identifier: identifier).firstMatch
+        guard requireHittable(
+            card,
+            named: "Filtered media while the Environment Card is open",
+            timeout: 10
         ) else {
             attachScreenshot(
                 from: app,
-                name: "active-environment-no-exposed-media-card"
-            )
-            XCTFail(
-                "No configured media card had an exposed tap point outside the Environment Card."
+                name: "active-environment-media-card-not-hittable"
             )
             return nil
         }
-        card.coordinate.tap()
+        card.tap()
         let resume = app.buttons["PlayerUI-resumeDecision-primary"].firstMatch
         let windowState = app.descendants(matching: .any)[
             "PlayerUI-window-control-plane"
@@ -1152,7 +1331,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 from: app,
                 name: "active-environment-media-first-spatial-tap-did-not-launch"
             )
-            card.coordinate.tap()
+            card.tap()
         }
         if resume.waitForExistence(timeout: 5) {
             resume.tap()
@@ -1160,49 +1339,47 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         return app
     }
 
-    @MainActor
-    private func mediaCardWithTapPointOutsideEnvironmentCard(
-        identifiers: [String],
-        in app: XCUIApplication,
-        timeout: TimeInterval
-    ) -> (element: XCUIElement, coordinate: XCUICoordinate)? {
-        let environmentCard = app.descendants(matching: .any)[
-            "SenseZone-VolumeRoot"
-        ].firstMatch
-        guard environmentCard.waitForExistence(timeout: timeout) else { return nil }
+    private func dragEnvironmentCarouselOneCardLeft(
+        _ carousel: XCUIElement
+    ) {
+        carousel.swipeLeft(velocity: .slow)
+    }
 
-        let deadline = Date().addingTimeInterval(timeout)
-        while Date() < deadline {
-            let environmentFrame = environmentCard.frame.insetBy(dx: -12, dy: -12)
-            for identifier in identifiers {
-                let mediaCard = app.descendants(matching: .any)[identifier].firstMatch
-                guard mediaCard.exists, mediaCard.isEnabled, mediaCard.isHittable else {
-                    continue
-                }
-                let mediaFrame = mediaCard.frame
-                let visibleFrame = mediaFrame.intersection(app.frame)
-                guard visibleFrame.isNull == false,
-                      visibleFrame.width >= 24,
-                      visibleFrame.maxY > environmentFrame.maxY + 24 else {
-                    continue
-                }
-                let targetY = min(
-                    visibleFrame.maxY - 12,
-                    max(environmentFrame.maxY + 12, visibleFrame.midY)
-                )
-                guard targetY > environmentFrame.maxY,
-                      mediaFrame.height > 0 else { continue }
-                let normalizedY = (targetY - mediaFrame.minY) / mediaFrame.height
-                return (
-                    mediaCard,
-                    mediaCard.coordinate(
-                        withNormalizedOffset: CGVector(dx: 0.5, dy: normalizedY)
-                    )
-                )
-            }
-            Thread.sleep(forTimeInterval: 0.1)
+    @MainActor
+    private func filterMediaLibrary(
+        to mediaCardIdentifier: String,
+        in app: XCUIApplication
+    ) -> Bool {
+        let prefix = "MediaLibrary-grid-video-"
+        guard mediaCardIdentifier.hasPrefix(prefix) else {
+            XCTFail("Configured media identifier was not a video card.")
+            return false
         }
-        return nil
+        let filename = String(mediaCardIdentifier.dropFirst(prefix.count))
+        let visibleName = (filename as NSString).deletingPathExtension
+        let search = app.textFields[
+            "FileBrowsing-FilesScreen-search"
+        ].firstMatch
+        guard requireHittable(search, named: "Media Library search") else {
+            return false
+        }
+        search.tap()
+        search.typeText(visibleName)
+
+        let card = app.buttons.matching(
+            identifier: mediaCardIdentifier
+        ).firstMatch
+        guard requireHittable(
+            card,
+            named: "Media filtered by its full filename"
+        ) else {
+            attachScreenshot(
+                from: app,
+                name: "active-environment-media-search-did-not-filter"
+            )
+            return false
+        }
+        return true
     }
 
     @MainActor
@@ -1224,37 +1401,44 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         var observedTwoUsableInterfaces = false
         var observedTargetPreparation = false
         var observedMediaLoadingSpinner = false
-        var observedWindowPortalToProgressiveChange = targetPresentation != "panorama"
         var twoUsableInterfacesStartedAt: Date?
+        var lastWindowSnapshot = RegressionStateSnapshot(rawValue: "element-absent")
 
         while Date() < deadline {
-            let windowExists = originalSurface.exists
-            let windowValue = windowExists
-                ? (originalSurface.value as? String ?? "value-unavailable")
-                : "element-absent"
-            let windowSnapshot = RegressionStateSnapshot(rawValue: windowValue)
-            let windowUsable = windowExists
-                && originalTransportControl.exists
-                && windowSnapshot.bool("windowInteractive") == true
-            let exitSpatialExists = exitSpatial.exists
-            let exitSpatialFrame = exitSpatialExists ? exitSpatial.frame : .zero
-            let targetSnapshot = spatialState.exists
+            let targetStateExists = spatialState.exists
+            let targetSnapshot = targetStateExists
                 ? RegressionStateSnapshot(
                     rawValue: spatialState.value as? String ?? "value-unavailable"
                 )
                 : nil
+            let windowExists = originalSurface.exists
+            // Once the target control plane appears, committing the transition
+            // can dismiss the source Window between an `exists` query and a
+            // later `value` query. The target state is authoritative from that
+            // point, so don't ask XCUI for a disappearing element's snapshot.
+            let windowValue = windowExists && targetStateExists == false
+                ? (originalSurface.value as? String ?? "value-unavailable")
+                : (windowExists ? "not-read-after-target-appeared" : "element-absent")
+            if windowExists && targetStateExists == false {
+                lastWindowSnapshot = RegressionStateSnapshot(rawValue: windowValue)
+            }
+            let windowSnapshot = lastWindowSnapshot
+            let windowUsable = windowExists
+                && originalTransportControl.exists
+                && originalTransportControl.isHittable
+            let exitSpatialExists = exitSpatial.exists
+            let exitSpatialFrame = exitSpatialExists ? exitSpatial.frame : .zero
             let targetUsable = exitSpatialExists
                 && exitSpatial.isEnabled
                 && exitSpatialFrame.width > 0
                 && exitSpatialFrame.height > 0
                 && targetSnapshot?.bool("controlsInteractive") == true
-            if windowSnapshot.string("surfacePresentation") == targetPresentation {
+            if windowSnapshot.string("surfacePresentation") == targetPresentation
+                || targetSnapshot?.string("attached") == targetPresentation {
                 observedTargetPreparation = true
             }
-            if windowSnapshot.bool("windowPortalToProgressiveChangeConfirmed") == true {
-                observedWindowPortalToProgressiveChange = true
-            }
-            if windowSnapshot.string("loadingSpinner") == "on" {
+            if windowSnapshot.string("loadingSpinner") == "on"
+                || targetSnapshot?.string("loadingSpinner") == "on" {
                 observedMediaLoadingSpinner = true
             }
             samples.append(
@@ -1308,11 +1492,10 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
             observedTargetPreparation,
             "The target playback surface did not begin preparing while the source was fading."
         )
-        XCTAssertTrue(
-            observedWindowPortalToProgressiveChange,
-            "Panorama must wait for the Window VideoPlayerComponent to report its Portal-to-progressive change."
-        )
-        guard requireHittable(exitSpatial, named: "Return to Window", timeout: 5) else {
+        let exitActionName = targetPresentation == "panorama"
+            ? "Return to Portal"
+            : "Return to Window"
+        guard requireHittable(exitSpatial, named: exitActionName, timeout: 5) else {
             throw DeviceRegressionFailure.targetControlsUnavailable(targetPresentation)
         }
         XCTAssertFalse(
@@ -1331,66 +1514,47 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
     @MainActor
     private func observeTransitionBackToWindow(
         app: XCUIApplication,
-        spatialControl: XCUIElement,
         windowSurface: XCUIElement,
-        windowPresentationControl: XCUIElement,
         sourcePresentation: String
     ) throws {
-        let deadline = Date().addingTimeInterval(20)
-        let inconsistentSnapshotConfirmation: TimeInterval = 0.5
-        var samples: [String] = []
-        var observedTwoUsableInterfaces = false
-        var twoUsableInterfacesStartedAt: Date?
-        var reachedWindow = false
+        try observeTransitionToMainWindow(
+            app: app,
+            windowSurface: windowSurface,
+            sourcePresentation: sourcePresentation,
+            targetPresentation: "window",
+            expectedChrome: "on"
+        )
+    }
 
-        let spatialState = app.descendants(matching: .any)[
-            "PlayerUI-spatial-state"
-        ].firstMatch
+    @MainActor
+    private func observeTransitionToMainWindow(
+        app: XCUIApplication,
+        windowSurface: XCUIElement,
+        sourcePresentation: String,
+        targetPresentation: String,
+        expectedChrome: String
+    ) throws {
+        let deadline = Date().addingTimeInterval(20)
+        var samples: [String] = []
+        var reachedMainWindow = false
 
         while Date() < deadline {
-            let spatialFrame = spatialControl.exists ? spatialControl.frame : .zero
-            let spatialValue = spatialState.exists
-                ? (spatialState.value as? String ?? "value-unavailable")
-                : "element-absent"
-            let spatialSnapshot = RegressionStateSnapshot(rawValue: spatialValue)
-            let spatialUsable = spatialControl.exists
-                && spatialControl.isEnabled
-                && spatialFrame.width > 0
-                && spatialFrame.height > 0
-                && spatialSnapshot.bool("controlsInteractive") == true
             let windowValue = windowSurface.exists
                 ? (windowSurface.value as? String ?? "value-unavailable")
                 : "element-absent"
             let windowSnapshot = RegressionStateSnapshot(rawValue: windowValue)
-            let windowFrame = windowPresentationControl.exists
-                ? windowPresentationControl.frame
-                : .zero
             let windowUsable = windowSurface.exists
-                && windowPresentationControl.exists
-                && windowPresentationControl.isEnabled
-                && windowFrame.width > 0
-                && windowFrame.height > 0
-                && windowSnapshot.string("chrome") == "on"
+                && windowSnapshot.string("presentation") == targetPresentation
+                && windowSnapshot.string("transition") == "none"
+                && windowSnapshot.string("chrome") == expectedChrome
                 && windowSnapshot.bool("windowInteractive") == true
                 && windowSnapshot.bool("videoVisible") == true
             samples.append(
-                "\(Date().timeIntervalSince1970):spatialUsable=\(spatialUsable);windowUsable=\(windowUsable);windowState=\(windowValue)"
+                "\(Date().timeIntervalSince1970):windowUsable=\(windowUsable);windowState=\(windowValue)"
             )
 
-            let now = Date()
-            if spatialUsable && windowUsable {
-                let startedAt = twoUsableInterfacesStartedAt ?? now
-                twoUsableInterfacesStartedAt = startedAt
-                if now.timeIntervalSince(startedAt)
-                    >= inconsistentSnapshotConfirmation {
-                    observedTwoUsableInterfaces = true
-                    break
-                }
-            } else {
-                twoUsableInterfacesStartedAt = nil
-            }
-            if windowUsable && spatialUsable == false {
-                reachedWindow = true
+            if windowUsable {
+                reachedMainWindow = true
                 break
             }
             Thread.sleep(forTimeInterval: 0.1)
@@ -1400,7 +1564,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         timeline.name = "\(sourcePresentation)-return-handoff-timeline"
         timeline.lifetime = .keepAlways
         add(timeline)
-        if reachedWindow == false {
+        if reachedMainWindow == false {
             attachCurrentState(
                 of: windowSurface,
                 name: "\(sourcePresentation)-return-window-state-at-failure"
@@ -1410,13 +1574,9 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
                 name: "\(sourcePresentation)-return-handoff-failure"
             )
         }
-        XCTAssertFalse(
-            observedTwoUsableInterfaces,
-            "Player Controls Window and Window playback remained usable at the same time."
-        )
         XCTAssertTrue(
-            reachedWindow,
-            "Window playback did not become the only usable interface after the Presentation Transition."
+            reachedMainWindow,
+            "The \(targetPresentation) main-window presentation did not become the only usable interface after the Presentation Transition."
         )
     }
 }

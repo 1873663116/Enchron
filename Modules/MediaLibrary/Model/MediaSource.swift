@@ -43,9 +43,7 @@ nonisolated extension FileBrowsingDomain {
 
         /// Creates a remote connection info.
         ///
-        /// For SMB: `address` must be an IP address (digits and dots only).
-        /// The connection is host-only — no share name required at this stage.
-        /// Share selection happens after successful login via the SMB adapter.
+        /// For SMB, `address` identifies one server by host name or IP address.
         ///
         /// For WebDAV: `address` is a full URL or host:port/path.
         public static func remote(
@@ -59,16 +57,19 @@ nonisolated extension FileBrowsingDomain {
             }
 
             if sourceType == .smb {
-                // SMB: address must be IP-only (digits and dots).
-                guard Self.isValidIPAddress(trimmed) else {
+                let preparedAddress = canonicalAddress(for: sourceType, rawAddress: trimmed)
+                guard let components = URLComponents(string: preparedAddress),
+                      let host = components.host,
+                      host.isEmpty == false,
+                      normalizedPath(components.path) == "/" else {
                     throw ConnectionInfoError.invalidSMBAddress
                 }
                 return ConnectionInfo(
                     sourceType: sourceType,
                     address: trimmed,
                     scheme: "smb",
-                    host: trimmed,
-                    port: nil,
+                    host: host,
+                    port: components.port,
                     username: username,
                     rootPath: "/"
                 )
@@ -91,20 +92,6 @@ nonisolated extension FileBrowsingDomain {
                 port: components.port,
                 username: username,
                 rootPath: path
-            )
-        }
-
-        /// Creates an SMB connection info with a specific share selected.
-        /// Used after the user picks a share from the share list.
-        public func withSMBShare(_ shareName: String) -> ConnectionInfo {
-            ConnectionInfo(
-                sourceType: sourceType,
-                address: address,
-                scheme: scheme,
-                host: host,
-                port: port,
-                username: username,
-                rootPath: "/\(shareName)"
             )
         }
 
@@ -173,20 +160,6 @@ nonisolated extension FileBrowsingDomain {
                     value += rootPath
                 }
                 return value
-            }
-        }
-
-        /// Validates that a string is a valid IPv4 address (digits and dots only).
-        private static func isValidIPAddress(_ string: String) -> Bool {
-            let allowedCharacters = CharacterSet(charactersIn: "0123456789.")
-            guard string.unicodeScalars.allSatisfy({ allowedCharacters.contains($0) }) else {
-                return false
-            }
-            let parts = string.split(separator: ".")
-            guard parts.count == 4 else { return false }
-            return parts.allSatisfy { part in
-                guard let num = Int(part), num >= 0, num <= 255 else { return false }
-                return true
             }
         }
 

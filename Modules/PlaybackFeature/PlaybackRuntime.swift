@@ -26,15 +26,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public enum RuntimeError: LocalizedError {
         case noSession
         case sourceAccessUnavailable
+        case unableToOpenFile
         case unsupportedProjection(PlaybackModel.ProjectionType)
         case rendererConsumerBusy(PlaybackPresentation)
         case rendererTransferPending
         case mediaSessionChanged
         case spatialPlaybackTransportUnavailable(ProductPlaybackLifecycle)
-        case videoComponentReplacementTimedOut
-        case videoSampleDeliveryRestartFailed
         case rendererGraphPlaybackDidNotAdvance(RendererGraphPlaybackContinuity)
-        case formatRollbackFailed
 
         public var errorDescription: String? {
             switch self {
@@ -42,6 +40,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 "No PlaybackCore media session is active."
             case .sourceAccessUnavailable:
                 "The original media source is no longer available. Choose it again to restore access."
+            case .unableToOpenFile:
+                "Unable to open this file."
             case .unsupportedProjection(let projection):
                 "PlaybackCore cannot currently represent the \(projection.rawValue) projection."
             case .rendererConsumerBusy(let presentation):
@@ -52,14 +52,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 "The media session changed before the operation completed."
             case .spatialPlaybackTransportUnavailable(let lifecycle):
                 "Playback cannot be paused or resumed while it is \(String(describing: lifecycle))."
-            case .videoComponentReplacementTimedOut:
-                "The video surface did not accept the updated media format in time."
-            case .videoSampleDeliveryRestartFailed:
-                "Video delivery could not restart after the media format changed."
             case .rendererGraphPlaybackDidNotAdvance(let condition):
-                "The replacement video renderer did not prove continuous playback: \(condition.rawValue)."
-            case .formatRollbackFailed:
-                "The media format could not be restored after a failed update. Reopen the media before changing its format again."
+                "The video renderer did not prove continuous playback: \(condition.rawValue)."
             }
         }
     }
@@ -91,7 +85,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var boundVideoComponentRevision: UInt64?
     public private(set) var rendererPixelVideoComponentRevision: UInt64?
     public private(set) var rendererPixelStreamEpoch: UInt64?
-    public private(set) var sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds: TimeInterval?
+    public private(set) var effectiveVideoFormatRevision: UInt64?
     public var lastErrorMessage: String?
 
     public var onPlaybackEnded: (() -> Void)?
@@ -133,8 +127,51 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public var effectiveProjectionType: PlaybackModel.ProjectionType {
         return selectedProjectionType
     }
+    public var effectiveHorizontalFieldOfViewDegrees: Int {
+        Self.effectiveHorizontalFieldOfViewDegrees(
+            for: selectedProjectionType,
+            explicitDegrees: selectedHorizontalFieldOfViewDegrees
+        )
+    }
     public var effectiveStereoLayout: PlaybackModel.StereoLayout {
         return selectedStereoLayout
+    }
+    public var activeMediaFormatProvenance: MediaFormatProvenance {
+        usesSourceFormat ? .source : .userOverride
+    }
+    public var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation {
+        let sourceProjection = Self.projectionType(for: sourceVideoContentKind)
+        let source = SourceMediaFormatFact(
+            contentKind: sourceVideoContentKind,
+            projection: sourceProjection,
+            horizontalFieldOfViewDegrees: Self.sourceHorizontalFieldOfViewDegrees(
+                for: sourceProjection
+            ),
+            stereoLayout: sourceStereoLayout
+        )
+        let formatOverride: MediaFormat? = usesSourceFormat
+            ? nil
+            : MediaFormat(
+                projection: Self.mediaProjection(from: selectedProjectionType),
+                horizontalFieldOfViewDegrees: selectedHorizontalFieldOfViewDegrees,
+                stereoLayout: Self.mediaStereoLayout(from: selectedStereoLayout)
+            )
+        return MediaFormatInterpretationResolver.resolve(
+            source: source,
+            override: formatOverride
+        )
+    }
+    public private(set) var sourceVideoContentKind: PlaybackModel.SourceVideoContentKind = .rectilinear
+    public var sourceMediaFormatSummary: String {
+        "\(sourceVideoContentKind.displayName) · \(Self.stereoLayoutDisplayName(sourceStereoLayout))"
+    }
+    public var effectiveContentIsPanoramic: Bool {
+        usesSourceFormat
+            ? sourceVideoContentKind.isPanoramic
+            : selectedProjectionType.isPanoramic
+    }
+    public var requestsSpatialVideoMode: Bool {
+        usesSourceFormat && sourceVideoContentKind == .spatialVideo
     }
     public var displayMediaProfile: PlaybackModel.MediaProfile? {
         profile(from: diagnostics) ?? prefetchedMetadata?.mediaProfile
@@ -150,35 +187,23 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var attachment: Attachment?
     private var generation = 0
     private var selectedProjectionType: PlaybackModel.ProjectionType = .flat
+    private var selectedHorizontalFieldOfViewDegrees: Int?
     private var selectedStereoLayout: PlaybackModel.StereoLayout = .mono
+    private var sourceStereoLayout: PlaybackModel.StereoLayout = .mono
+    private var sourceMediaFormatIsCaptured = false
+    private var usesSourceFormat = true
     private var displayedImageGeneration = 0
     private var lastResolvedProfile: PlaybackModel.MediaProfile?
     private var closingTask: Task<Void, Never>?
     private var startsWhenAttached = false
     private var actualPlaybackAccumulator = ActualPlaybackAccumulator()
-    private var pendingVideoComponentRevision: UInt64?
-    private var restartingVideoComponentRevision: UInt64?
     private var lastBoundVideoRendererEntityID: String?
-    private var videoSampleDeliveryRestartFailed = false
-    private var rendererGraphRecoveryInProgress = false
     private var releasedRendererConsumerEntityID: String?
-    private var existingRendererGraphTransfer: ExistingRendererGraphTransfer?
-    private var sourceVideoPlayerComponentRemovedAt: Date?
-
-    private static let videoComponentReplacementTimeout = Duration.seconds(7)
 
     private struct Attachment {
         let entityID: String
         let realityViewID: String
         let presentation: PlaybackPresentation
-    }
-
-    private struct ExistingRendererGraphTransfer {
-        let sourcePresentation: PlaybackPresentation
-        let sourceEntityID: String
-        let targetPresentation: PlaybackPresentation
-        var sourceVideoPlayerComponentWasRemoved = false
-        var targetEntityID: String?
     }
 
     public convenience init(controller: PlaybackCoreController = PlaybackCoreController()) {
@@ -200,6 +225,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
         controller.onDiagnosticsChange = { [weak self] diagnostics in
             self?.receive(diagnostics)
+        }
+        controller.onAcceptedVideoFormatRevisionChange = { [weak self] revision in
+            // Accepted renderer input is event identity only. It intentionally
+            // never triggers renderer, component, or Entity replacement.
+            guard let self,
+                  effectiveVideoFormatRevision.map({ revision >= $0 }) ?? true else {
+                return
+            }
+            effectiveVideoFormatRevision = revision
         }
         controller.onSubtitleCuesChange = { [weak self] cues in
             self?.activeSubtitleCues = cues
@@ -223,14 +257,20 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         didEndNaturally = false
         actualPlaybackAccumulator.reset()
         selectedProjectionType = .flat
+        selectedHorizontalFieldOfViewDegrees = nil
         selectedStereoLayout = .mono
+        sourceVideoContentKind = .rectilinear
+        sourceStereoLayout = .mono
+        sourceMediaFormatIsCaptured = false
+        usesSourceFormat = true
         mediaFormatIsKnown = false
-        pendingVideoComponentRevision = nil
+        videoComponentRevision = 0
+        boundVideoComponentRevision = nil
+        rendererPixelVideoComponentRevision = nil
+        rendererPixelStreamEpoch = nil
+        effectiveVideoFormatRevision = nil
         lastBoundVideoRendererEntityID = nil
         releasedRendererConsumerEntityID = nil
-        existingRendererGraphTransfer = nil
-        sourceVideoPlayerComponentRemovedAt = nil
-        sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds = nil
         invalidatePendingDisplayedImageClear()
     }
 
@@ -271,6 +311,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 provenance: "Enchron",
                 accessRequirement: request.url.isFileURL ? "securityScopedFile" : "networkSource"
             )
+            let sourceFormat = Self.sourceMediaFormat(
+                from: newSession.debugSnapshot().providerOpen
+            )
+            if sourceFormat.contentKind == .appleImmersiveVideo {
+                await controller.closeAndWait()
+                throw RuntimeError.unableToOpenFile
+            }
             guard generation == openGeneration else {
                 await controller.closeAndWait()
                 releaseSourceAccessIfUnowned(request.sourceAccess)
@@ -278,6 +325,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
             session = newSession
             updateActiveSessionID(newSession.traceID)
+            sourceVideoContentKind = sourceFormat.contentKind
+            sourceStereoLayout = sourceFormat.stereoLayout
+            sourceMediaFormatIsCaptured = true
+            publishSourceFormat()
             let selectedAudioStreamIndex = newSession.selectedAudioStreamIndex
             availableAudioTracks = controller.availableAudioTracks.map {
                 Self.audioTrack(
@@ -404,9 +455,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         presentation: PlaybackPresentation,
         entityID: String
     ) throws {
-        guard rendererGraphRecoveryInProgress == false else {
-            throw RuntimeError.rendererTransferPending
-        }
         if rendererConsumerPresentation == presentation,
            rendererConsumerEntityID == entityID {
             return
@@ -414,29 +462,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         if let rendererConsumerEntityID, rendererConsumerEntityID != entityID {
             throw RuntimeError.rendererConsumerBusy(rendererConsumerPresentation ?? presentation)
         }
-        if let existingRendererGraphTransfer {
-            let isTargetClaim = presentation == existingRendererGraphTransfer.targetPresentation
-            let isSourceRollback = presentation == existingRendererGraphTransfer.sourcePresentation
-                && entityID == existingRendererGraphTransfer.sourceEntityID
-            guard isTargetClaim || isSourceRollback else {
-                throw RuntimeError.rendererTransferPending
-            }
-            if isTargetClaim {
-                guard existingRendererGraphTransfer.sourceVideoPlayerComponentWasRemoved,
-                      existingRendererGraphTransfer.targetEntityID == nil
-                        || existingRendererGraphTransfer.targetEntityID == entityID else {
-                    throw RuntimeError.rendererTransferPending
-                }
-                var transfer = existingRendererGraphTransfer
-                transfer.targetEntityID = entityID
-                self.existingRendererGraphTransfer = transfer
-            } else {
-                guard existingRendererGraphTransfer.targetEntityID == nil else {
-                    throw RuntimeError.rendererTransferPending
-                }
-                self.existingRendererGraphTransfer = nil
-            }
-        } else if let releasedRendererConsumerEntityID {
+        if let releasedRendererConsumerEntityID {
             guard releasedRendererConsumerEntityID == entityID else {
                 throw RuntimeError.rendererTransferPending
             }
@@ -449,33 +475,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func releaseRendererConsumer(
         presentation: PlaybackPresentation,
         entityID: String,
-        retainingCurrentRendererGraphFor targetPresentation: PlaybackPresentation? = nil
+        preservingVideoComponent: Bool = false
     ) {
         guard rendererConsumerPresentation == presentation,
               rendererConsumerEntityID == entityID else { return }
-        clearVideoComponentBindingObservation(for: entityID)
-        if var existingRendererGraphTransfer,
-           presentation == existingRendererGraphTransfer.targetPresentation,
-           entityID == existingRendererGraphTransfer.targetEntityID {
-            existingRendererGraphTransfer.targetEntityID = nil
-            self.existingRendererGraphTransfer = existingRendererGraphTransfer
-            releasedRendererConsumerEntityID = nil
-        } else if pendingVideoComponentRevision == nil {
-            if presentation == .window,
-               targetPresentation == .panorama {
-                existingRendererGraphTransfer = ExistingRendererGraphTransfer(
-                    sourcePresentation: presentation,
-                    sourceEntityID: entityID,
-                    targetPresentation: .panorama
-                )
-                releasedRendererConsumerEntityID = nil
-                sourceVideoPlayerComponentRemovedAt = nil
-                sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds = nil
-            } else {
-                existingRendererGraphTransfer = nil
-                releasedRendererConsumerEntityID = entityID
-            }
+        if preservingVideoComponent == false {
+            clearVideoComponentBindingObservation(for: entityID)
         }
+        releasedRendererConsumerEntityID = entityID
         rendererConsumerPresentation = nil
         rendererConsumerEntityID = nil
         logger.notice(
@@ -483,78 +490,30 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
-    /// The App reports this only after RealityKit no longer exposes the source
-    /// VideoPlayerComponent. A renderer graph is never attached to a second
-    /// RealityKit video component. Window-to-Panorama therefore replaces the
-    /// graph only after that removal is observable.
-    public func sourceVideoPlayerComponentDidRemove(
-        presentation: PlaybackPresentation,
-        entityID: String
-    ) async throws {
-        guard var existingRendererGraphTransfer,
-              existingRendererGraphTransfer.sourcePresentation == presentation,
-              existingRendererGraphTransfer.sourceEntityID == entityID,
-              existingRendererGraphTransfer.targetEntityID == nil else {
-            return
-        }
-        existingRendererGraphTransfer.sourceVideoPlayerComponentWasRemoved = true
-        self.existingRendererGraphTransfer = existingRendererGraphTransfer
-        sourceVideoPlayerComponentRemovedAt = Date()
-        logger.notice(
-            "source video component removed presentation=\(String(describing: presentation), privacy: .public) entity=\(entityID, privacy: .public)"
-        )
-        _ = try await beginRendererGraphReplacement()
-    }
-
-    /// Once the target surface has settled, later releases are ordinary
-    /// presentation changes rather than a rollback to the Window source.
-    public func rendererGraphTransferDidSettle(
-        for presentation: PlaybackPresentation
-    ) {
-        guard let existingRendererGraphTransfer,
-              existingRendererGraphTransfer.targetPresentation == presentation,
-              existingRendererGraphTransfer.targetEntityID
-                == rendererConsumerEntityID,
-              rendererConsumerPresentation == presentation else {
-            return
-        }
-        self.existingRendererGraphTransfer = nil
-    }
-
-    public func waitUntilPanoramaRendererGraphIsPrepared(
-        timeout: Duration = .seconds(7)
-    ) async -> Bool {
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout)
-        while clock.now < deadline {
-            guard let existingRendererGraphTransfer,
-                  existingRendererGraphTransfer.targetPresentation == .panorama else {
-                return false
-            }
-            if existingRendererGraphTransfer.sourceVideoPlayerComponentWasRemoved,
-               rendererGraphRecoveryInProgress == false,
-               pendingVideoComponentRevision != nil {
-                return true
-            }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        return false
-    }
-
     func waitUntilRendererConsumerIsReleased(
+        from sourcePresentation: PlaybackPresentation? = nil,
         timeout: Duration = .seconds(2)
     ) async -> Bool {
-        if rendererConsumerEntityID == nil { return true }
+        if rendererConsumerIsReleased(from: sourcePresentation) { return true }
         let clock = ContinuousClock()
         let deadline = clock.now.advanced(by: timeout)
         while clock.now < deadline {
             try? await Task.sleep(for: .milliseconds(10))
-            if rendererConsumerEntityID == nil { return true }
+            if rendererConsumerIsReleased(from: sourcePresentation) { return true }
         }
         logger.error(
             "renderer consumer release timed out presentation=\(String(describing: self.rendererConsumerPresentation), privacy: .public)"
         )
         return false
+    }
+
+    private func rendererConsumerIsReleased(
+        from sourcePresentation: PlaybackPresentation?
+    ) -> Bool {
+        guard let sourcePresentation else {
+            return rendererConsumerEntityID == nil
+        }
+        return rendererConsumerPresentation != sourcePresentation
     }
 
     public func pause() {
@@ -623,9 +582,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
             recordAudioSessionFact()
             let continuity = try await controller.playAndVerifyRendererGraphContinuity()
-            guard continuity == .ready else {
+            guard continuity.explicitPlayMayContinue else {
                 try? controller.pause()
                 throw RuntimeError.rendererGraphPlaybackDidNotAdvance(continuity)
+            }
+            if continuity == .awaitingDisplayedFrameAdvance {
+                logger.notice(
+                    "explicit Play kept running while displayed-frame identity awaits visual evidence"
+                )
             }
             PlaybackTrace.event("runtime.resume.completed")
         }
@@ -814,126 +778,69 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     public func setFormat(
         projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int? = nil,
         stereo: PlaybackModel.StereoLayout
     ) async throws {
-        if projection == .fisheye, supportsFisheyePresentation == false {
-            throw RuntimeError.unsupportedProjection(.fisheye)
-        }
+        let resolvedHorizontalFieldOfViewDegrees = projection == .customAngle
+            ? PanoramaHorizontalCoverage.normalized(
+                horizontalFieldOfViewDegrees
+                    ?? PanoramaHorizontalCoverage.defaultCustomAngle
+            )
+            : nil
         let formatGeneration = generation
         let formatSessionID = activeSessionID
-        let previousProjection = selectedProjectionType
-        let previousStereo = selectedStereoLayout
-        let changesFormat = projection != previousProjection || stereo != previousStereo
-        do {
-            try await applyStereoLayout(stereo)
-            guard generation == formatGeneration,
-                  activeSessionID == formatSessionID else {
-                throw RuntimeError.mediaSessionChanged
-            }
-            try await applyProjection(projection)
-            guard generation == formatGeneration,
-                  activeSessionID == formatSessionID else {
-                throw RuntimeError.mediaSessionChanged
-            }
-            try await publishFormat(
-                projection: projection,
-                stereo: stereo,
-                replacingVideoComponent: changesFormat,
-                expectedGeneration: formatGeneration,
-                expectedSessionID: formatSessionID
+        let acceptedFormatRevision = try await controller.setFormatOverrides(
+            stereoLayout: Self.coreStereoLayout(for: stereo),
+            projection: Self.coreProjectionOverride(
+                for: projection,
+                horizontalFieldOfViewDegrees: resolvedHorizontalFieldOfViewDegrees
             )
-        } catch {
-            guard generation == formatGeneration,
-                  activeSessionID == formatSessionID else { throw error }
-            do {
-                try await applyStereoLayout(previousStereo)
-                guard generation == formatGeneration,
-                      activeSessionID == formatSessionID else {
-                    throw RuntimeError.mediaSessionChanged
-                }
-                try await applyProjection(previousProjection)
-                guard generation == formatGeneration,
-                      activeSessionID == formatSessionID else {
-                    throw RuntimeError.mediaSessionChanged
-                }
-                try await publishFormat(
-                    projection: previousProjection,
-                    stereo: previousStereo,
-                    replacingVideoComponent: changesFormat,
-                    expectedGeneration: formatGeneration,
-                    expectedSessionID: formatSessionID
-                )
-            } catch RuntimeError.mediaSessionChanged {
-                throw RuntimeError.mediaSessionChanged
-            } catch {
-                abandonPendingVideoComponentReplacement()
-                mediaFormatIsKnown = false
-                lastErrorMessage = RuntimeError.formatRollbackFailed.localizedDescription
-                throw RuntimeError.formatRollbackFailed
-            }
-            throw error
+        )
+        guard generation == formatGeneration,
+              activeSessionID == formatSessionID else {
+            throw RuntimeError.mediaSessionChanged
         }
+        effectiveVideoFormatRevision = acceptedFormatRevision
+        publishFormat(
+            projection: projection,
+            horizontalFieldOfViewDegrees: resolvedHorizontalFieldOfViewDegrees,
+            stereo: stereo
+        )
+    }
+
+    public func useSourceFormat() async throws {
+        let formatGeneration = generation
+        let formatSessionID = activeSessionID
+        let acceptedFormatRevision = try await controller.setFormatOverrides(
+            stereoLayout: nil,
+            projection: nil
+        )
+        guard generation == formatGeneration,
+              activeSessionID == formatSessionID else {
+            throw RuntimeError.mediaSessionChanged
+        }
+        effectiveVideoFormatRevision = acceptedFormatRevision
+        publishSourceFormat()
     }
 
     private func publishFormat(
         projection: PlaybackModel.ProjectionType,
-        stereo: PlaybackModel.StereoLayout,
-        replacingVideoComponent: Bool,
-        expectedGeneration: Int,
-        expectedSessionID: String?
-    ) async throws {
-        let requiresRendererReplacement = replacingVideoComponent
-            && (rendererConsumerEntityID != nil || pendingVideoComponentRevision != nil)
-        let replacementRenderer: AVSampleBufferVideoRenderer?
-        if requiresRendererReplacement {
-            replacementRenderer = try await controller.replaceRendererGraphForPresentation()
-            guard generation == expectedGeneration,
-                  activeSessionID == expectedSessionID else {
-                throw RuntimeError.mediaSessionChanged
-            }
-        } else {
-            replacementRenderer = nil
-        }
-
-        if replacingVideoComponent {
-            videoComponentRevision &+= 1
-            clearVideoComponentBindingObservation()
-        }
-        let revision = videoComponentRevision
-        if requiresRendererReplacement {
-            pendingVideoComponentRevision = revision
-            restartingVideoComponentRevision = nil
-            videoSampleDeliveryRestartFailed = false
-        }
+        horizontalFieldOfViewDegrees: Int?,
+        stereo: PlaybackModel.StereoLayout
+    ) {
         selectedProjectionType = projection
+        selectedHorizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
         selectedStereoLayout = stereo
+        usesSourceFormat = false
         mediaFormatIsKnown = true
-        if let replacementRenderer {
-            releaseCurrentRendererConsumerForReplacement()
-            renderer = replacementRenderer
-        }
+    }
 
-        guard requiresRendererReplacement else { return }
-        let deadline = ContinuousClock.now + Self.videoComponentReplacementTimeout
-        do {
-            while pendingVideoComponentRevision == revision,
-                  ContinuousClock.now < deadline {
-                try Task.checkCancellation()
-                guard generation == expectedGeneration,
-                      activeSessionID == expectedSessionID else {
-                    throw RuntimeError.mediaSessionChanged
-                }
-                try await Task.sleep(for: .milliseconds(25))
-            }
-        } catch {
-            throw error
-        }
-        guard pendingVideoComponentRevision != revision else {
-            throw RuntimeError.videoComponentReplacementTimedOut
-        }
-        if videoSampleDeliveryRestartFailed {
-            throw RuntimeError.videoSampleDeliveryRestartFailed
-        }
+    private func publishSourceFormat() {
+        selectedProjectionType = Self.projectionType(for: sourceVideoContentKind)
+        selectedHorizontalFieldOfViewDegrees = nil
+        selectedStereoLayout = sourceStereoLayout
+        usesSourceFormat = true
+        mediaFormatIsKnown = sourceMediaFormatIsCaptured
     }
 
     public func videoRendererTargetDidBind(
@@ -942,143 +849,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) {
         guard revision == videoComponentRevision,
               rendererConsumerEntityID == entityID else { return }
-        if let existingRendererGraphTransfer,
-           existingRendererGraphTransfer.targetEntityID == entityID,
-           let sourceVideoPlayerComponentRemovedAt {
-            sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds =
-                Date().timeIntervalSince(sourceVideoPlayerComponentRemovedAt)
-        }
         let previousEntityID = lastBoundVideoRendererEntityID
         lastBoundVideoRendererEntityID = entityID
         boundVideoComponentRevision = revision
-        let rendererReplacementIsPending = pendingVideoComponentRevision == revision
-        let videoRendererTargetChanged = previousEntityID != nil
-            && previousEntityID != entityID
-        guard rendererReplacementIsPending || videoRendererTargetChanged,
-              restartingVideoComponentRevision != revision else { return }
-        restartingVideoComponentRevision = revision
-        let expectedGeneration = generation
-        let expectedSessionID = activeSessionID
-        let restartTime = CMTime(
-            seconds: max(0, diagnostics.currentSeconds),
-            preferredTimescale: 60_000
-        )
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            do {
-                try await controller.restartVideoSampleDeliveryForPresentationTransfer(
-                    at: restartTime
-                )
-                guard generation == expectedGeneration,
-                      activeSessionID == expectedSessionID,
-                      restartingVideoComponentRevision == revision else { return }
-                restartingVideoComponentRevision = nil
-                if rendererConsumerEntityID == entityID,
-                   lastBoundVideoRendererEntityID == entityID,
-                   pendingVideoComponentRevision == revision {
-                    pendingVideoComponentRevision = nil
-                }
-            } catch {
-                guard restartingVideoComponentRevision == revision else { return }
-                restartingVideoComponentRevision = nil
-                if rendererConsumerEntityID == entityID,
-                   lastBoundVideoRendererEntityID == entityID {
-                    videoSampleDeliveryRestartFailed = true
-                    lastErrorMessage = error.localizedDescription
-                    if pendingVideoComponentRevision == revision {
-                        pendingVideoComponentRevision = nil
-                    }
-                }
-            }
+        if let previousEntityID, previousEntityID != entityID {
+            logger.error(
+                "video renderer target identity changed within one playback session previous=\(previousEntityID, privacy: .public) current=\(entityID, privacy: .public)"
+            )
         }
-    }
-
-    func recoverRendererGraphAfterPresentationTransfer() async throws {
-        guard rendererGraphRecoveryInProgress == false,
-              pendingVideoComponentRevision == nil else { return }
-        let revision = try await beginRendererGraphReplacement()
-        try await waitForRendererGraphReplacementToBind(revision: revision)
-    }
-
-    private func beginRendererGraphReplacement() async throws -> UInt64 {
-        guard activeSessionID != nil else { throw RuntimeError.noSession }
-        guard rendererGraphRecoveryInProgress == false else {
-            throw RuntimeError.rendererTransferPending
-        }
-        let expectedGeneration = generation
-        let expectedSessionID = activeSessionID
-        rendererGraphRecoveryInProgress = true
-        let replacementRenderer: AVSampleBufferVideoRenderer
-        do {
-            replacementRenderer = try await controller.replaceRendererGraphForPresentation()
-            guard generation == expectedGeneration,
-                  activeSessionID == expectedSessionID else {
-                throw RuntimeError.mediaSessionChanged
-            }
-        } catch {
-            rendererGraphRecoveryInProgress = false
-            throw error
-        }
-        rendererGraphRecoveryInProgress = false
-
-        videoComponentRevision &+= 1
-        clearVideoComponentBindingObservation()
-        let revision = videoComponentRevision
-        pendingVideoComponentRevision = revision
-        restartingVideoComponentRevision = nil
-        videoSampleDeliveryRestartFailed = false
-        releaseCurrentRendererConsumerForReplacement()
-        renderer = replacementRenderer
-        return revision
-    }
-
-    private func waitForRendererGraphReplacementToBind(revision: UInt64) async throws {
-        let expectedGeneration = generation
-        let expectedSessionID = activeSessionID
-        let deadline = ContinuousClock.now + Self.videoComponentReplacementTimeout
-        while pendingVideoComponentRevision == revision,
-              ContinuousClock.now < deadline {
-            try Task.checkCancellation()
-            guard generation == expectedGeneration,
-                  activeSessionID == expectedSessionID else {
-                throw RuntimeError.mediaSessionChanged
-            }
-            try await Task.sleep(for: .milliseconds(25))
-        }
-        guard pendingVideoComponentRevision != revision else {
-            throw RuntimeError.videoComponentReplacementTimedOut
-        }
-        if videoSampleDeliveryRestartFailed {
-            throw RuntimeError.videoSampleDeliveryRestartFailed
-        }
-    }
-
-    func prepareRendererGraphForPresentationTransfer() async throws {
-        guard releasedRendererConsumerEntityID != nil else { return }
-        guard rendererConsumerEntityID == nil,
-              rendererGraphRecoveryInProgress == false,
-              pendingVideoComponentRevision == nil else {
-            throw RuntimeError.rendererTransferPending
-        }
-        guard activeSessionID != nil else { throw RuntimeError.noSession }
-        releasedRendererConsumerEntityID = nil
-        _ = try await beginRendererGraphReplacement()
-    }
-
-    private func releaseCurrentRendererConsumerForReplacement() {
-        guard let presentation = rendererConsumerPresentation,
-              let entityID = rendererConsumerEntityID else { return }
-        releaseRendererConsumer(presentation: presentation, entityID: entityID)
-    }
-
-    private func abandonPendingVideoComponentReplacement() {
-        pendingVideoComponentRevision = nil
-        restartingVideoComponentRevision = nil
-        videoSampleDeliveryRestartFailed = false
-    }
-
-    public var supportsFisheyePresentation: Bool {
-        Self.hasAIME(from: diagnostics.projectionKind)
     }
 
     public func stop(releasingSourceAccess: Bool = true) {
@@ -1140,14 +918,16 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         subtitleErrorMessage = nil
         playbackPosition = .init(seconds: 0, duration: 0)
         selectedProjectionType = .flat
+        selectedHorizontalFieldOfViewDegrees = nil
         selectedStereoLayout = .mono
+        sourceVideoContentKind = .rectilinear
+        sourceStereoLayout = .mono
+        sourceMediaFormatIsCaptured = false
+        usesSourceFormat = true
         mediaFormatIsKnown = false
-        pendingVideoComponentRevision = nil
+        effectiveVideoFormatRevision = nil
         lastBoundVideoRendererEntityID = nil
         releasedRendererConsumerEntityID = nil
-        existingRendererGraphTransfer = nil
-        sourceVideoPlayerComponentRemovedAt = nil
-        sourceVideoPlayerComponentRemovalToTargetVideoPlayerComponentBindSeconds = nil
         clearVideoComponentBindingObservation()
         lastResolvedProfile = nil
     }
@@ -1180,22 +960,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) async -> Bool {
         if presentationIsSettled(presentation) { return true }
         let clock = ContinuousClock()
-        var deadline = clock.now.advanced(by: timeout)
-        var allowedComponentReplacement = false
+        let deadline = clock.now.advanced(by: timeout)
         while clock.now < deadline {
             guard Task.isCancelled == false else { return false }
-            if allowedComponentReplacement == false,
-               rendererGraphRecoveryInProgress || pendingVideoComponentRevision != nil {
-                allowedComponentReplacement = true
-                // A cross-RealityView transfer can require a bounded renderer
-                // replacement before the ordinary surface-settlement interval
-                // can begin. Give that operation its own documented bound and
-                // then the full settlement interval; do not make the two
-                // independently bounded operations race the same deadline.
-                deadline = clock.now.advanced(
-                    by: Self.videoComponentReplacementTimeout + timeout
-                )
-            }
             do {
                 try await Task.sleep(for: .milliseconds(25))
             } catch {
@@ -1522,23 +1289,155 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         displayedImageGeneration += 1
     }
 
-    private func applyStereoLayout(_ stereo: PlaybackModel.StereoLayout) async throws {
+    private static func coreStereoLayout(
+        for stereo: PlaybackModel.StereoLayout
+    ) -> VideoStereoLayout? {
         switch stereo {
-        case .mono: _ = try await controller.setStereoLayout(.mono)
-        case .sideBySide: _ = try await controller.setStereoLayout(.sideBySide)
-        case .topBottom: _ = try await controller.setStereoLayout(.overUnder)
+        case .mono: .mono
+        case .multiview: nil
+        case .sideBySide: .sideBySide
+        case .topBottom: .overUnder
         }
     }
 
-    private func applyProjection(_ projection: PlaybackModel.ProjectionType) async throws {
+    private static func coreProjectionOverride(
+        for projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int? = nil
+    ) -> VideoProjectionOverride {
         switch projection {
-        case .flat: _ = try await controller.setProjectionOverride(.rectilinear)
-        case .equirectangular180: _ = try await controller.setProjectionOverride(.halfEquirectangular)
-        case .equirectangular360: _ = try await controller.setProjectionOverride(.equirectangular)
-        case .fisheye:
-            // Apple fisheye playback requires source AIME metadata; retaining it
-            // means removing any app-supplied projection override.
-            _ = try await controller.clearProjectionOverride()
+        case .flat: .rectilinear
+        case .equirectangular180: .halfEquirectangular
+        case .equirectangular360: .equirectangular
+        case .customAngle:
+            .customEquirectangular(
+                horizontalFieldOfViewDegrees: PanoramaHorizontalCoverage.normalized(
+                    horizontalFieldOfViewDegrees
+                        ?? PanoramaHorizontalCoverage.defaultCustomAngle
+                )
+            )
+        }
+    }
+
+    private static func projectionType(
+        for contentKind: PlaybackModel.SourceVideoContentKind
+    ) -> PlaybackModel.ProjectionType {
+        switch contentKind {
+        case .halfEquirectangular: .equirectangular180
+        case .equirectangular: .equirectangular360
+        case .rectilinear, .spatialVideo, .parametricImmersive, .appleImmersiveVideo:
+            .flat
+        }
+    }
+
+    static func effectiveHorizontalFieldOfViewDegrees(
+        for projection: PlaybackModel.ProjectionType,
+        explicitDegrees: Int?
+    ) -> Int {
+        switch projection {
+        case .flat:
+            PanoramaHorizontalCoverage.defaultCustomAngle
+        case .equirectangular180:
+            180
+        case .equirectangular360:
+            360
+        case .customAngle:
+            PanoramaHorizontalCoverage.normalized(
+                explicitDegrees ?? PanoramaHorizontalCoverage.defaultCustomAngle
+            )
+        }
+    }
+
+    private static func sourceHorizontalFieldOfViewDegrees(
+        for projection: PlaybackModel.ProjectionType
+    ) -> Int? {
+        switch projection {
+        case .flat:
+            nil
+        case .equirectangular180:
+            180
+        case .equirectangular360:
+            360
+        case .customAngle:
+            PanoramaHorizontalCoverage.defaultCustomAngle
+        }
+    }
+
+    private static func mediaProjection(
+        from projection: PlaybackModel.ProjectionType
+    ) -> MediaProjection {
+        switch projection {
+        case .flat: .flat
+        case .equirectangular180: .equirectangular180
+        case .equirectangular360: .equirectangular360
+        case .customAngle: .customAngle
+        }
+    }
+
+    private static func mediaStereoLayout(
+        from stereoLayout: PlaybackModel.StereoLayout
+    ) -> MediaStereoLayout {
+        switch stereoLayout {
+        case .mono, .multiview: .mono
+        case .sideBySide: .sideBySide
+        case .topBottom: .topBottom
+        }
+    }
+
+    private static func sourceMediaFormat(
+        from snapshot: ProviderOpenSnapshot?
+    ) -> (
+        contentKind: PlaybackModel.SourceVideoContentKind,
+        stereoLayout: PlaybackModel.StereoLayout
+    ) {
+        let projection = snapshot?.formatSignaling.projectionKind.value ?? ""
+        let contentKind = sourceVideoContentKind(
+            from: projection,
+            isMVHEVC: snapshot?.isMVHEVC == true
+        )
+
+        let stereoLayout: PlaybackModel.StereoLayout
+        if snapshot?.isMVHEVC == true {
+            stereoLayout = .multiview
+        } else {
+            stereoLayout = Self.stereoLayout(
+                from: snapshot?.formatSignaling.viewPackingKind.value ?? ""
+            ) ?? .mono
+        }
+        return (contentKind, stereoLayout)
+    }
+
+    static func sourceVideoContentKind(
+        from projectionKind: String,
+        isMVHEVC: Bool
+    ) -> PlaybackModel.SourceVideoContentKind {
+        let normalizedProjection = projectionKind
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+        if normalizedProjection.contains("appleimmersivevideo") {
+            return .appleImmersiveVideo
+        }
+        if normalizedProjection.contains("parametricimmersive")
+                    || normalizedProjection.contains("fisheye") {
+            return .parametricImmersive
+        }
+        if normalizedProjection.contains("halfequirectangular") {
+            return .halfEquirectangular
+        }
+        if normalizedProjection.contains("equirectangular") {
+            return .equirectangular
+        }
+        if isMVHEVC { return .spatialVideo }
+        return .rectilinear
+    }
+
+    private static func stereoLayoutDisplayName(
+        _ stereoLayout: PlaybackModel.StereoLayout
+    ) -> String {
+        switch stereoLayout {
+        case .mono: "Mono"
+        case .multiview: "Native Stereo"
+        case .sideBySide: "Side-by-Side"
+        case .topBottom: "Top-Bottom"
         }
     }
 
@@ -1561,7 +1460,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             projectionType: Self.projectionType(from: diagnostics.projectionKind)
                 ?? prefetchedMetadata?.mediaProfile?.projectionType
                 ?? .flat,
-            stereoLayout: Self.stereoLayout(from: diagnostics.viewPackingKind)
+            stereoLayout: Self.stereoLayout(
+                from: diagnostics.viewPackingKind,
+                isMVHEVC: diagnostics.isMVHEVC
+            )
                 ?? prefetchedMetadata?.mediaProfile?.stereoLayout
                 ?? .mono,
             hdrType: hdr,
@@ -1609,7 +1511,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         if normalized.contains("fisheye")
             || normalized.contains("parametricimmersive")
             || normalized.contains("appleimmersivevideo") {
-            return .fisheye
+            return .flat
         }
         if normalized.contains("rectilinear") { return .flat }
         return nil
@@ -1620,11 +1522,20 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case .rectilinear: .flat
         case .equirectangular: .equirectangular360
         case .halfEquirectangular: .equirectangular180
+        case .customEquirectangular: .customAngle
         case nil: nil
         }
     }
 
     static func stereoLayout(from value: String) -> PlaybackModel.StereoLayout? {
+        stereoLayout(from: value, isMVHEVC: false)
+    }
+
+    static func stereoLayout(
+        from value: String,
+        isMVHEVC: Bool
+    ) -> PlaybackModel.StereoLayout? {
+        if isMVHEVC { return .multiview }
         let normalized = value.lowercased().filter { $0.isLetter || $0.isNumber }
         if normalized.contains("sidebyside") || normalized.contains("leftright") {
             return .sideBySide
@@ -1658,6 +1569,7 @@ private extension PlaybackPresentation {
     var sceneContainer: String {
         switch self {
         case .window: "WindowGroup"
+        case .portal: "WindowGroup.Portal"
         case .docked: "ImmersiveSpace.Docked"
         case .panorama: "ImmersiveSpace.Panorama"
         }
