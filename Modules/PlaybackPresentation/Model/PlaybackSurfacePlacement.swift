@@ -4,8 +4,18 @@ public enum WindowPlaybackSurfaceGeometry {
     nonisolated public static let unitHeight: Float = 1
     nonisolated public static let defaultSurfaceSize =
         SIMD2<Float>(16.0 / 9.0, unitHeight)
-    nonisolated public static let flatDepth: CGFloat = 0
+    nonisolated public static let flatWindowDepth: CGFloat = 0
+    /// Projected Portal video needs spatial extent inside its Window scene.
+    /// The value is in SwiftUI scene units and matches Apple's immersive-media
+    /// PlayerWindow contract; a zero-depth host can leave the component loading.
+    nonisolated public static let projectedPortalDepth: CGFloat = 1
     nonisolated public static let backgroundSortOrder: Int32 = 0
+
+    nonisolated public static func realityViewDepth(
+        for presentation: PlaybackPresentation
+    ) -> CGFloat {
+        presentation == .portal ? projectedPortalDepth : flatWindowDepth
+    }
 
     nonisolated public static func uniformScale(
         surfaceSize: SIMD2<Float>,

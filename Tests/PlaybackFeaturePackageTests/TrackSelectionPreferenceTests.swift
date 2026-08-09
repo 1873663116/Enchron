@@ -5,6 +5,52 @@ import Testing
 
 @MainActor
 struct TrackSelectionPreferenceTests {
+    @Test("playback mode persists independently from Media Format")
+    func playbackModePersistsIndependentlyFromMediaFormat() async throws {
+        let suiteName = "app.enchron.tests.playback-mode.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let identity = try #require(Self.request(revision: "revision-a").versionedIdentity)
+        let store = MediaStateStore(suiteName: suiteName)
+
+        await store.saveFormat(
+            MediaFormat(
+                projection: .equirectangular180,
+                stereoLayout: .sideBySide
+            ),
+            for: identity
+        )
+        await store.savePlaybackMode(.window, for: identity)
+        await store.resetFormat(for: identity)
+
+        let state = try #require(await store.loadValidated(for: identity))
+        #expect(state.formatPreference == nil)
+        #expect(state.playbackModePreference == .window)
+    }
+
+    @Test("cold playback resolves its Panorama mode without consulting Media Format")
+    func coldPlaybackResolvesPersistedPanoramaMode() async throws {
+        let suiteName = "app.enchron.tests.cold-playback-mode.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let request = Self.request(revision: "revision-a")
+        let identity = try #require(request.versionedIdentity)
+        let store = MediaStateStore(suiteName: suiteName)
+        await store.savePlaybackMode(.panorama, for: identity)
+
+        let runtime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        var resolvedMode: PersistedPlaybackMode?
+        coordinator.onPlaybackModeEntryStarted = { mode, isColdLaunch in
+            #expect(isColdLaunch)
+            resolvedMode = mode
+            return mode
+        }
+        coordinator.beginPlayback(request)
+        try await runtime.waitUntilConfigured()
+
+        #expect(resolvedMode == .panorama)
+        #expect(runtime.lastAppliedFormat == nil)
+    }
+
     @Test("source facts and user overrides use one effective format resolver")
     func sourceFactsAndOverridesUseOneEffectiveFormatResolver() {
         let source = SourceMediaFormatFact(
@@ -648,12 +694,18 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     func open(
         _ request: PlaybackLaunchRequest,
         startTimeSeconds: Double,
-        initialSpeed: PlaybackModel.PlaybackSpeed
+        initialSpeed: PlaybackModel.PlaybackSpeed,
+        initialFormat: MediaFormat?
     ) async throws {
         currentLaunchRequest = request
         activeSessionID = UUID().uuidString
         productLifecycle = .ready
         lastStartTimeSeconds = startTimeSeconds
+        if let initialFormat {
+            lastAppliedFormat = initialFormat
+            activeMediaFormatProvenance = .userOverride
+            formatApplicationCount += 1
+        }
         openCount += 1
     }
 

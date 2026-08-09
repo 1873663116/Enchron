@@ -13,22 +13,25 @@ import SwiftUI
 /// fields, and including both would invalidate the same classification twice.
 struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
     let sessionID: String
-    let effectiveVideoFormatRevision: UInt64?
+    let technicalSessionID: String
 
     init(
         sessionID: String,
-        effectiveVideoFormatRevision: UInt64?
+        technicalSessionID: String? = nil
     ) {
         self.sessionID = sessionID
-        self.effectiveVideoFormatRevision = effectiveVideoFormatRevision
+        self.technicalSessionID = technicalSessionID ?? sessionID
     }
 
     @MainActor
     init?(runtime: PlaybackRuntime) {
-        guard let sessionID = runtime.activeSessionID else { return nil }
+        guard let sessionID = runtime.activeSessionID,
+              let technicalSessionID = runtime.activeTechnicalSessionID else {
+            return nil
+        }
         self.init(
             sessionID: sessionID,
-            effectiveVideoFormatRevision: runtime.effectiveVideoFormatRevision
+            technicalSessionID: technicalSessionID
         )
     }
 }
@@ -36,42 +39,76 @@ struct PlaybackRealityKitContentTypeScope: Equatable, Sendable {
 @MainActor
 @Observable
 final class PlaybackVideoEntityStore {
-    let entity = Entity()
+    private(set) var entity = Entity()
+    private(set) var departingEntity: Entity?
+    let panoramaInteractionSurface = PlaybackPanoramaInteractionSurface.makeEntity()
     private(set) var realityKitContentType = "unobserved"
     private(set) var realityKitContentTypeScope: PlaybackRealityKitContentTypeScope?
     @ObservationIgnored private var renderer: AVSampleBufferVideoRenderer?
+    @ObservationIgnored private var currentPresentation: PlaybackPresentation?
+    @ObservationIgnored private var departingPresentation: PlaybackPresentation?
     @ObservationIgnored private var videoComponentRevision: UInt64 = 0
+    @ObservationIgnored private var realityViewUsesImmersiveSpace: Bool?
+    @ObservationIgnored var onRealityKitContentTypeChanged: ((
+        String,
+        PlaybackRealityKitContentTypeScope
+    ) -> Void)?
 
     var entityID: String {
         "EnchronVideo#\(ObjectIdentifier(entity))"
     }
 
+    func hostedEntity(
+        for presentation: PlaybackPresentation,
+        during transition: PlaybackPresentationTransition?
+    ) -> Entity {
+        if transition?.previousPresentation == presentation,
+           departingPresentation == presentation,
+           let departingEntity {
+            return departingEntity
+        }
+        return entity
+    }
+
+    func hostedEntityID(
+        for presentation: PlaybackPresentation,
+        during transition: PlaybackPresentationTransition?
+    ) -> String {
+        let hostedEntity = hostedEntity(for: presentation, during: transition)
+        return "EnchronVideo#\(ObjectIdentifier(hostedEntity))"
+    }
+
     func entity(
         for renderer: AVSampleBufferVideoRenderer,
+        presentation: PlaybackPresentation = .window,
         videoComponentRevision: UInt64? = nil
     ) -> Entity {
         let rendererChanged = self.renderer !== renderer
-        // A VideoPlayerComponent may only be rebuilt around a different
-        // AVSampleBufferVideoRenderer. Removing and immediately recreating the
-        // component around the same renderer can leave RealityKit's prior video
-        // target alive and abort when the second target is added.
-        if rendererChanged {
-            entity.components.remove(VideoPlayerComponent.self)
+        if self.renderer != nil, rendererChanged {
+            departingEntity = entity
+            departingPresentation = currentPresentation
+            entity = Entity()
         }
         self.renderer = renderer
+        currentPresentation = presentation
+        realityViewUsesImmersiveSpace = presentation.usesImmersiveSpace
         self.videoComponentRevision = videoComponentRevision ?? self.videoComponentRevision
         return entity
     }
 
     func hasApplied(
         videoComponentRevision: UInt64,
-        to renderer: AVSampleBufferVideoRenderer
+        to renderer: AVSampleBufferVideoRenderer,
+        presentation: PlaybackPresentation = .window
     ) -> Bool {
-        self.renderer === renderer && self.videoComponentRevision == videoComponentRevision
+        self.renderer === renderer
+            && self.videoComponentRevision == videoComponentRevision
+            && realityViewUsesImmersiveSpace == presentation.usesImmersiveSpace
     }
 
-    /// Keeps RealityKit's last observed classification across RealityView root
-    /// moves. Only a media session or effective-format scope change clears it.
+    /// RealityKit's classification belongs to one technical playback instance.
+    /// A new decoder/renderer/component session always receives a fresh scope,
+    /// even while the logical media session remains continuous.
     func synchronizeRealityKitContentTypeScope(
         _ scope: PlaybackRealityKitContentTypeScope?
     ) {
@@ -91,18 +128,16 @@ final class PlaybackVideoEntityStore {
             return
         }
         realityKitContentType = contentType
+        onRealityKitContentTypeChanged?(contentType, scope)
     }
 
-    /// Attributes a session-long RealityKit subscription event to the current
-    /// accepted format revision. Keeping the subscription stable across format
-    /// revisions avoids depending on ContentTypeDidChange being replayed after
-    /// every resubscription; a callback from a replaced session is rejected.
+    /// Rejects callbacks captured by a technical session that has been retired.
     func recordRealityKitContentType(
         _ contentType: String,
-        forSessionID sessionID: String
+        forTechnicalSessionID technicalSessionID: String
     ) {
         guard let scope = realityKitContentTypeScope,
-              scope.sessionID == sessionID else {
+              scope.technicalSessionID == technicalSessionID else {
             return
         }
         recordRealityKitContentType(contentType, for: scope)
@@ -111,9 +146,27 @@ final class PlaybackVideoEntityStore {
     func releasePlaybackComponent() {
         entity.removeFromParent()
         entity.components.remove(VideoPlayerComponent.self)
+        releaseDepartingEntity()
         renderer = nil
+        currentPresentation = nil
         videoComponentRevision = 0
+        realityViewUsesImmersiveSpace = nil
         synchronizeRealityKitContentTypeScope(nil)
+    }
+
+    /// Removes RealityKit's video target while retaining the accepted renderer
+    /// identity and media-format scope for the target RealityView. The target
+    /// will rebuild the Entity after the source Scene has disappeared.
+    func releasePlaybackComponentForRealityViewTransfer() {
+        entity.removeFromParent()
+        entity.components.remove(VideoPlayerComponent.self)
+    }
+
+    func releaseDepartingEntity() {
+        departingEntity?.removeFromParent()
+        departingEntity?.components.remove(VideoPlayerComponent.self)
+        departingEntity = nil
+        departingPresentation = nil
     }
 }
 
@@ -186,9 +239,9 @@ final class PlaybackSurfaceActivation {
     }
 }
 
-/// Routes system accessibility activation for the actual RealityKit video
-/// entity. The accessibility action and a spatial tap deliberately share one
-/// dispatcher so neither path can acquire a different control-toggle policy.
+/// Routes accessibility and spatial surface activation through one control
+/// dispatcher. Panorama uses a dedicated invisible interaction surface rather
+/// than depending on a collision volume around its projected video.
 @MainActor
 enum PlaybackSurfaceInputAction {
     enum Source {
@@ -211,6 +264,7 @@ enum PlaybackSurfaceInputAction {
 enum PlaybackSurfaceInputOwner: Equatable {
     case windowSwiftUIRoot
     case spatialVideoEntity
+    case panoramaInteractionSurface
 }
 
 @MainActor
@@ -221,8 +275,10 @@ enum PlaybackSurfaceInputOwnership {
         switch presentation {
         case .window, .portal:
             .windowSwiftUIRoot
-        case .docked, .panorama:
+        case .docked:
             .spatialVideoEntity
+        case .panorama:
+            .panoramaInteractionSurface
         }
     }
 
@@ -439,23 +495,18 @@ final class PlaybackModeRequestRetry {
         requiresImmersiveViewingModeSettlement: Bool = false,
         now: Date = Date()
     ) -> PlaybackModeRecoveryAction {
-        // A Window component can legitimately report no immersive mode before
-        // its first displayed frame. Rewriting the component during that phase
-        // can delay the frame that would make the mode observable. Panorama
-        // requires progressive mode immediately; Window only retries when a
-        // previous non-portal mode is still present.
+        // A newly installed component legitimately reports no current mode while
+        // RealityKit classifies its renderer target. Writing the same desired
+        // values again replaces RealityKit's internal component state and starts
+        // that classification over, so nil is always a wait state. A reported,
+        // conflicting mode is the only state a mode request can correct.
         let immersiveModeNeedsAnotherRequest = actualImmersiveViewingMode
-            != desiredImmersiveViewingMode
-            && (presentation == .panorama
-                || actualImmersiveViewingMode != nil
-                || requiresImmersiveViewingModeSettlement)
+            .map { $0 != desiredImmersiveViewingMode }
+            ?? false
         let spatialVideoModeNeedsAnotherRequest = actualSpatialVideoMode
             != desiredSpatialVideoMode
-        let contentTypeNeedsRecovery = presentation == .panorama
-            && contentTypeMatchesProjection == false
         guard spatialVideoModeNeedsAnotherRequest
-                || immersiveModeNeedsAnotherRequest
-                || contentTypeNeedsRecovery else {
+                || immersiveModeNeedsAnotherRequest else {
             reset()
             return .none
         }
@@ -543,7 +594,12 @@ enum PlaybackRealityPresenter {
             let collisionShape = ShapeResource.generateBox(size: [1.8, 1, 0.01])
             #endif
             entity.components.set(InputTargetComponent())
-            entity.components.set(CollisionComponent(shapes: [collisionShape]))
+            entity.components.set(
+                CollisionComponent(shapes: [.generateBox(size: [1.8, 1, 0.01])])
+            )
+        case .panorama:
+            entity.components.remove(InputTargetComponent.self)
+            entity.components.remove(CollisionComponent.self)
         }
         #if os(visionOS)
         var accessibility = AccessibilityComponent()

@@ -13,7 +13,7 @@ private func require(
 private enum SpatialPlatformExecutionLeaseChecks {
     static func main() async {
         stopReplacementInvalidatesSuspendedExecution()
-        rootReplacementInvalidatesCapturedCapability()
+        activeExecutionAdoptsNewSceneCapability()
         await staleActionCompletesBeforeReplacementAction()
         await capabilityRetrySkipsDuplicateOpen()
         preexistingSpaceFailureDoesNotDismiss()
@@ -57,7 +57,7 @@ private enum SpatialPlatformExecutionLeaseChecks {
         )
     }
 
-    private static func rootReplacementInvalidatesCapturedCapability() {
+    private static func activeExecutionAdoptsNewSceneCapability() {
         var registry = SpatialPlatformExecutionLeaseRegistry<String>()
         let requestID = UUID()
         let firstRootID = UUID()
@@ -70,24 +70,37 @@ private enum SpatialPlatformExecutionLeaseChecks {
 
         let invalidated = registry.unregister(id: firstRootID)
         require(
-            invalidated == firstClaim.lease,
-            "unregister must invalidate the captured capability generation"
+            invalidated == nil,
+            "unregister must retain a capability captured by the active execution"
         )
         require(
-            registry.isLive(firstClaim.lease) == false,
-            "a stale completion must not regain liveness"
+            registry.registeredCapabilityCount == 0,
+            "a retired capability must not accept another request"
         )
         require(
-            registry.claim(requestID: requestID, mediaSessionID: nil) == nil,
-            "the request must remain queued while no capable root exists"
+            registry.isLive(firstClaim.lease),
+            "the active execution must retain its captured capability"
         )
 
         registry.register("second-root", id: secondRootID)
+        require(
+            registry.currentCapability == "second-root",
+            "the active execution must stop using the retired scene's actions"
+        )
+        require(
+            registry.isLive(firstClaim.lease),
+            "the active execution must survive the scene capability handoff"
+        )
+        require(
+            registry.claim(requestID: requestID, mediaSessionID: nil) == nil,
+            "a replacement root must wait for the active execution to finish"
+        )
+        registry.finish(firstClaim.lease)
         let retry = registry.claim(requestID: requestID, mediaSessionID: nil)
-        require(retry?.capability == "second-root", "a new root must retry the request")
+        require(retry?.capability == "second-root", "a new root must claim the next execution")
         require(
             retry?.lease.executionID != firstClaim.lease.executionID,
-            "a retried request must use a new execution identity"
+            "a later execution must use a new execution identity"
         )
         require(
             registry.isLive(firstClaim.lease) == false,

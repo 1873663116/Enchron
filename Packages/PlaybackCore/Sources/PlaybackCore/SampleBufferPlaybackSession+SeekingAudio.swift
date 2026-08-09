@@ -3,7 +3,11 @@ import Foundation
 import OSLog
 
 extension SampleBufferPlaybackSession {
-    func seek(to time: CMTime, startsPaused: Bool) async throws {
+    func seek(
+        to time: CMTime,
+        startsPaused: Bool,
+        removingDisplayedImage: Bool = true
+    ) async throws {
         guard !isClosed, let sourceURL else { return }
         let target = try clampedSeekTime(time).seconds
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedBySeek)
@@ -32,7 +36,7 @@ extension SampleBufferPlaybackSession {
         audioDeliveryQueue.sync {
             audioProvider.cancel()
         }
-        await rendererSink.flush(removingDisplayedImage: true)
+        await rendererSink.flush(removingDisplayedImage: removingDisplayedImage)
         resetDecoderBootstrap()
         audioRendererSink.flush()
         resetEndState(requiresAudio: hasAudio)

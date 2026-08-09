@@ -40,7 +40,8 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     func open(
         _ request: PlaybackLaunchRequest,
         startTimeSeconds: Double,
-        initialSpeed: PlaybackModel.PlaybackSpeed
+        initialSpeed: PlaybackModel.PlaybackSpeed,
+        initialFormat: MediaFormat?
     ) async throws
     func setFormat(
         projection: PlaybackModel.ProjectionType,

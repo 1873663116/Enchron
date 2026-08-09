@@ -137,7 +137,6 @@ struct PlaybackControlsPreview: View {
                 screenDistance = PlaybackDockedPlacement.defaultDistance
                 screenElevation = PlaybackDockedPlacement.defaultElevationDegrees
             },
-            onApplyFormat: { projection = $0; stereoLayout = $1 },
             subtitleItems: menuItems(["Off", "English CC"], selected: "Off"),
             audioItems: menuItems(["English 5.1", "Japanese 2.0"], selected: "English 5.1"),
             speedItems: menuItems(["0.5×", "1×", "1.5×", "2×"], selected: "1×"),

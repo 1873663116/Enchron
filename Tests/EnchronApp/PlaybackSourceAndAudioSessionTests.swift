@@ -60,12 +60,12 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         let firstTap = Date(timeIntervalSinceReferenceDate: 1_000)
 
         appModel.toggleControlsFromPlaybackSurface(at: firstTap)
-        XCTAssertFalse(appModel.showControls)
+        XCTAssertTrue(appModel.showControls)
 
         appModel.toggleControlsFromPlaybackSurface(
             at: firstTap.addingTimeInterval(0.01)
         )
-        XCTAssertTrue(appModel.showControls)
+        XCTAssertFalse(appModel.showControls)
     }
 
     @MainActor
@@ -93,8 +93,8 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
 
         XCTAssertEqual(windowModel.showControls, spatialTapModel.showControls)
         XCTAssertEqual(spatialTapModel.showControls, accessibilityModel.showControls)
-        XCTAssertFalse(windowModel.showControls)
-        XCTAssertFalse(spatialTapModel.showControls)
+        XCTAssertTrue(windowModel.showControls)
+        XCTAssertTrue(spatialTapModel.showControls)
 
     }
 
@@ -459,7 +459,7 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testPresentationTransferRejectsASecondEntity() throws {
+    func testCrossRealityViewTransferAcceptsANewEntityAfterSourceRelease() throws {
         let runtime = PlaybackRuntime()
         let sourceEntityID = "window-source"
 
@@ -473,22 +473,18 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             preservingVideoComponent: true
         )
 
-        XCTAssertThrowsError(
-            try runtime.claimRendererConsumer(
-                presentation: .docked,
-                entityID: "third-presentation"
-            )
-        ) { error in
-            guard case .rendererTransferPending = error as? PlaybackRuntime.RuntimeError else {
-                return XCTFail("Expected the pending Panorama graph to reject a third presentation, got \(error)")
-            }
-        }
+        try runtime.claimRendererConsumer(
+            presentation: .docked,
+            entityID: "immersive-target"
+        )
+
         XCTAssertEqual(runtime.videoComponentRevision, 0)
-        XCTAssertNil(runtime.rendererConsumerPresentation)
+        XCTAssertEqual(runtime.rendererConsumerPresentation, .docked)
+        XCTAssertEqual(runtime.rendererConsumerEntityID, "immersive-target")
     }
 
     @MainActor
-    func testWindowToDockedAlsoRequiresTheSameEntityIdentity() throws {
+    func testTransferWithinOneRealityViewOwnershipRejectsANewEntity() throws {
         let runtime = PlaybackRuntime()
 
         try runtime.claimRendererConsumer(
@@ -503,8 +499,8 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
 
         XCTAssertThrowsError(
             try runtime.claimRendererConsumer(
-                presentation: .docked,
-                entityID: "docked-target"
+                presentation: .portal,
+                entityID: "portal-target"
             )
         ) { error in
             guard case .rendererTransferPending = error as? PlaybackRuntime.RuntimeError else {

@@ -46,7 +46,6 @@ struct FusedPlayerPanelLive {
     var onSetScreenDistance: @MainActor @Sendable (Double) -> Void
     var onSetScreenElevation: @MainActor @Sendable (Double) -> Void
     var onResetDockedPlacement: () -> Void
-    var onApplyFormat: (PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -341,11 +340,6 @@ struct FusedPlayerPanel: View {
                 dockedPlacementControls(live)
             }
 
-            if settingsExpanded, let live,
-               live.presentation == .panorama || live.presentation == .portal {
-                spatialPlaybackEscapeControl(live)
-            }
-
             if timelineExpanded {
                 timelineBlock
             } else {
@@ -363,20 +357,6 @@ struct FusedPlayerPanel: View {
 
     private var compactProgressBarWidth: CGFloat {
         max(clusterWidth - DesignTokens.Spacing.xxxl * 2, 0)
-    }
-
-    private func spatialPlaybackEscapeControl(_ live: FusedPlayerPanelLive) -> some View {
-        Button {
-            live.onApplyFormat(.flat, nil, .mono)
-        } label: {
-            Label("Return to Mono Window", systemImage: "rectangle.on.rectangle")
-                .frame(maxWidth: .infinity)
-        }
-        .buttonStyle(.borderedProminent)
-        .accessibilityHint(
-            "Overrides the source format as Flat and Mono, then returns playback to the Window presentation."
-        )
-        .accessibilityIdentifier("PlayerPanel-Advanced-ReturnToMonoWindow")
     }
 
     private func dockedPlacementControls(_ live: FusedPlayerPanelLive) -> some View {

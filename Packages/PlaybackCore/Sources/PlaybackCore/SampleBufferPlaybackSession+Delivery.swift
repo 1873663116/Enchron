@@ -381,6 +381,7 @@ extension SampleBufferPlaybackSession {
             // Waiting for renderer backpressure before submitting that crossing sample
             // can deadlock while the synchronizer is intentionally held at rate zero.
             let requiresImmediateDecoderBootstrap = bootstrapIncomplete
+            let timelineIsIntentionallyStopped = isPrerolling || synchronizer.rate == 0
             let outcome: RendererEnqueueOutcome
             do {
                 let enqueueSample = try CMSampleBuffer(copying: renderSample)
@@ -444,7 +445,25 @@ extension SampleBufferPlaybackSession {
                         decodeTime: decodeTime,
                         outcome: String(describing: outcome)
                     )
-                case .receiverBackpressure where requiresImmediateDecoderBootstrap:
+                case .receiverBackpressure
+                    where requiresImmediateDecoderBootstrap || timelineIsIntentionallyStopped:
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "boundedLead.enter",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
+                    try await waitForBoundedRendererLead(presentationTime: presentationTime)
+                    emitPlaybackDeliveryStage(
+                        lane: "video",
+                        stage: "boundedLead.returned",
+                        epoch: streamEpoch,
+                        sampleOrdinal: sampleOrdinal,
+                        presentationTime: presentationTime,
+                        decodeTime: decodeTime
+                    )
                     emitPlaybackDeliveryStage(
                         lane: "video",
                         stage: "enqueueImmediately.enter",
@@ -602,7 +621,8 @@ extension SampleBufferPlaybackSession {
                 inputKind: .compressed,
                 timelineConfiguredBeforeFirstEnqueue: hasStartedTimeline,
                 action: "enqueue",
-                outcome: .accepted
+                outcome: .accepted,
+                formatSignaling: rendererInputFormatSignalingSummary(for: renderSample)
             )
             debugStore.recordRendererInput(rendererRecord)
             if lastPublishedAcceptedVideoFormatRevision != rendererRecord.formatRevision {

@@ -56,7 +56,7 @@ public enum PlaybackPresentationAvailability {
         in presentation: PlaybackPresentation,
         isPanoramic: Bool
     ) -> Bool {
-        presentation == .window && isPanoramic
+        presentation == .portal && isPanoramic
     }
 
     public static func presentation(afterApplying format: MediaFormat) -> PlaybackPresentation {
@@ -185,19 +185,6 @@ public struct PlaybackPresentationTransition: Identifiable, Equatable, Sendable 
         self.targetEnvironment = targetEnvironment
     }
 
-    /// Presentation changes reparent one stable Video Entity. Its
-    /// VideoPlayerComponent and renderer graph remain the same objects.
-    public var keepsCurrentRendererGraph: Bool {
-        true
-    }
-
-    /// The shared component must carry a progressive-mode request before its
-    /// entity moves from a Main Window Root into a progressive Immersive
-    /// Space. The source RealityView must observe the actual progressive mode
-    /// before the Entity is reparented to the Panorama Root.
-    public var requiresProgressiveModeRequestBeforePanoramaTransfer: Bool {
-        previousPresentation.usesMainWindow && targetPresentation == .panorama
-    }
 }
 
 public enum PlaybackPresentationTransitionError: Error, Equatable, Sendable {
@@ -253,6 +240,7 @@ public struct SpatialPlaybackTransportPlan: Equatable, Sendable {
 }
 
 public enum SpatialPlatformEffect: Equatable, Sendable {
+    case presentInitialSpatialPlayback(PlaybackPresentation)
     case presentSpatialPlayback(PlaybackPresentation)
     case recoverSpatialPlayback(PlaybackPresentation)
     case switchWindowHostedPlayback(PlaybackPresentation)
@@ -272,22 +260,15 @@ public struct SpatialPlatformEffectRequest: Identifiable, Equatable, Sendable {
     public let id: UUID
     public let effect: SpatialPlatformEffect
     public let playbackTransportPlan: SpatialPlaybackTransportPlan?
-    public let requiresProgressiveModeRequestBeforePanoramaTransfer: Bool
-    public let keepsCurrentRendererGraph: Bool
 
     public init(
         id: UUID = UUID(),
         effect: SpatialPlatformEffect,
-        playbackTransportPlan: SpatialPlaybackTransportPlan? = nil,
-        requiresProgressiveModeRequestBeforePanoramaTransfer: Bool = false,
-        keepsCurrentRendererGraph: Bool = false
+        playbackTransportPlan: SpatialPlaybackTransportPlan? = nil
     ) {
         self.id = id
         self.effect = effect
         self.playbackTransportPlan = playbackTransportPlan
-        self.requiresProgressiveModeRequestBeforePanoramaTransfer =
-            requiresProgressiveModeRequestBeforePanoramaTransfer
-        self.keepsCurrentRendererGraph = keepsCurrentRendererGraph
     }
 }
 
@@ -517,6 +498,16 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         environmentBeforePanoramaPresentation = nil
     }
 
+    package mutating func preparePlaybackLaunch(
+        in presentation: PlaybackPresentation
+    ) {
+        resetForPlaybackStop()
+        presented = presentation
+        environment = presentation == .docked
+            ? .active(environment: .defaultScenic, effect: .inactiveFallback)
+            : .none
+    }
+
     package mutating func settleSpatialRecoveryFailure() {
         if let transition {
             rollback(transition.id)
@@ -688,8 +679,10 @@ public final class PlaybackPresentationModel {
            transition.targetPresentation.usesMainWindow {
             pendingSpatialPlatformEffect = SpatialPlatformEffectRequest(
                 effect: .switchWindowHostedPlayback(presentation),
-                playbackTransportPlan: playbackTransportPlan(for: playbackContext),
-                keepsCurrentRendererGraph: true
+                playbackTransportPlan: playbackTransportPlan(
+                    for: playbackContext,
+                    targetPresentation: presentation
+                )
             )
             return transition
         }
@@ -705,10 +698,10 @@ public final class PlaybackPresentationModel {
         }
         pendingSpatialPlatformEffect = SpatialPlatformEffectRequest(
             effect: platformEffect,
-            playbackTransportPlan: playbackTransportPlan(for: playbackContext),
-            requiresProgressiveModeRequestBeforePanoramaTransfer:
-                transition.requiresProgressiveModeRequestBeforePanoramaTransfer,
-            keepsCurrentRendererGraph: transition.keepsCurrentRendererGraph
+            playbackTransportPlan: playbackTransportPlan(
+                for: playbackContext,
+                targetPresentation: presentation
+            )
         )
         lastPlaybackTransportFailure = nil
         return transition
@@ -842,6 +835,21 @@ public final class PlaybackPresentationModel {
             effect: .normalizeStoppedSpatialPlayback(
                 keepsEnvironmentOpen: environmentContext.environment != nil
             )
+        )
+    }
+
+    /// Seeds a cold playback launch with its final Scene before any technical
+    /// media session exists. This path performs no renderer replacement: the
+    /// first renderer is assembled directly for the selected presentation.
+    public func prepareColdPlaybackLaunch(
+        in presentation: PlaybackPresentation
+    ) {
+        guard pendingSpatialPlatformEffect == nil,
+              activeSpatialPlatformEffectID == nil else { return }
+        presentationState.preparePlaybackLaunch(in: presentation)
+        guard presentation.usesImmersiveSpace else { return }
+        pendingSpatialPlatformEffect = SpatialPlatformEffectRequest(
+            effect: .presentInitialSpatialPlayback(presentation)
         )
     }
 
@@ -1001,6 +1009,9 @@ public final class PlaybackPresentationModel {
         _ request: SpatialPlatformEffectRequest
     ) -> SpatialPlatformEffectResolution {
         switch request.effect {
+        case .presentInitialSpatialPlayback:
+            immersiveSpaceResidency = .open
+            return .effectCompleted
         case .presentSpatialPlayback:
             immersiveSpaceResidency = .open
             return commitPendingPresentation()
@@ -1062,6 +1073,10 @@ public final class PlaybackPresentationModel {
         failure: SpatialPlatformEffectFailure
     ) -> SpatialPlatformEffectResolution {
         switch request.effect {
+        case .presentInitialSpatialPlayback:
+            presentationState.resetForPlaybackStop()
+            immersiveSpaceResidency = .closed
+            return .effectCompleted
         case .presentSpatialPlayback, .presentWindowPlayback, .switchWindowHostedPlayback:
             if let transition {
                 presentationState.rollback(transition.id)
@@ -1127,15 +1142,16 @@ public final class PlaybackPresentationModel {
     }
 
     private func playbackTransportPlan(
-        for context: SpatialPlaybackTransitionContext
+        for context: SpatialPlaybackTransitionContext,
+        targetPresentation: PlaybackPresentation? = nil
     ) -> SpatialPlaybackTransportPlan {
-        let pause: SpatialPlaybackTransportIntent? = context.wasPlaying
-            ? .pause(mediaSessionID: context.mediaSessionID)
-            : nil
+        _ = targetPresentation
         return SpatialPlaybackTransportPlan(
             mediaSessionID: context.mediaSessionID,
-            beforeEffect: pause,
-            afterSuccess: nil,
+            beforeEffect: nil,
+            afterSuccess: context.wasPlaying
+                ? .resume(mediaSessionID: context.mediaSessionID)
+                : nil,
             afterFailure: nil
         )
     }
@@ -1157,7 +1173,7 @@ public final class PlaybackPresentationModel {
         guard let plan = request.playbackTransportPlan else { return nil }
         return SpatialPlaybackTransitionContext(
             mediaSessionID: plan.mediaSessionID,
-            wasPlaying: plan.beforeEffect != nil
+            wasPlaying: plan.afterSuccess != nil
         )
     }
 

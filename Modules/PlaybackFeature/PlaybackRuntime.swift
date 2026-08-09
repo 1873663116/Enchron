@@ -23,6 +23,18 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case ended(id: String)
     }
 
+    public enum TechnicalSessionReplacementStage: String, Sendable {
+        case inactive
+        case retiringSource
+        case openingReplacement
+        case installingRenderer
+        case restoringExternalSubtitles
+        case restoringAudioTrack
+        case restoringSubtitleTrack
+        case completed
+        case failed
+    }
+
     public enum RuntimeError: LocalizedError {
         case noSession
         case sourceAccessUnavailable
@@ -31,6 +43,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case rendererConsumerBusy(PlaybackPresentation)
         case rendererTransferPending
         case mediaSessionChanged
+        case presentationDidNotSettle(PlaybackPresentation)
         case spatialPlaybackTransportUnavailable(ProductPlaybackLifecycle)
         case rendererGraphPlaybackDidNotAdvance(RendererGraphPlaybackContinuity)
 
@@ -50,6 +63,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 "The video renderer is being prepared for another RealityView."
             case .mediaSessionChanged:
                 "The media session changed before the operation completed."
+            case .presentationDidNotSettle(let presentation):
+                "The replacement playback session did not settle in the \(presentation.rawValue) presentation."
             case .spatialPlaybackTransportUnavailable(let lifecycle):
                 "Playback cannot be paused or resumed while it is \(String(describing: lifecycle))."
             case .rendererGraphPlaybackDidNotAdvance(let condition):
@@ -74,11 +89,16 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var activeSubtitleFrame: PlaybackSubtitleFrame?
     public var subtitleErrorMessage: String?
     public private(set) var activeSessionID: String?
+    public private(set) var activeTechnicalSessionID: String?
     public private(set) var actualPlaybackSeconds: Double = 0
     public private(set) var didEndNaturally = false
     public private(set) var mediaFormatIsKnown = false
     public private(set) var renderer: AVSampleBufferVideoRenderer?
     public private(set) var attachedPresentation: PlaybackPresentation?
+    /// The first RealityView presentation that received the active technical
+    /// playback instance. This resets whenever that instance is replaced.
+    public private(set) var firstAttachedPresentationForActiveTechnicalSession:
+        PlaybackPresentation?
     public private(set) var rendererConsumerPresentation: PlaybackPresentation?
     public private(set) var rendererConsumerEntityID: String?
     public private(set) var videoComponentRevision: UInt64 = 0
@@ -86,7 +106,21 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var rendererPixelVideoComponentRevision: UInt64?
     public private(set) var rendererPixelStreamEpoch: UInt64?
     public private(set) var effectiveVideoFormatRevision: UInt64?
+    public private(set) var technicalSessionFormatReplacementIsPending = false
+    public private(set) var technicalSessionReplacementStage =
+        TechnicalSessionReplacementStage.inactive
+    public private(set) var seekIsInProgress = false
     public var lastErrorMessage: String?
+    public var liveTechnicalSessionCount: Int {
+        controller.liveTechnicalSessionCount
+            + (departingTechnicalSessionController?.liveTechnicalSessionCount ?? 0)
+            + (preparedTechnicalSessionReplacement?.controller.liveTechnicalSessionCount ?? 0)
+    }
+    public var retiringTechnicalSessionCount: Int {
+        controller.retiringTechnicalSessionCount
+            + (departingTechnicalSessionController?.retiringTechnicalSessionCount ?? 0)
+            + (preparedTechnicalSessionReplacement?.controller.retiringTechnicalSessionCount ?? 0)
+    }
 
     public var onPlaybackEnded: (() -> Void)?
     public var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)?
@@ -139,6 +173,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public var activeMediaFormatProvenance: MediaFormatProvenance {
         usesSourceFormat ? .source : .userOverride
     }
+    /// The projection description accepted by the current renderer input.
+    /// User overrides must prove this boundary before RealityKit mode changes
+    /// can be treated as adoption of the override.
+    public var acceptedRendererProjectionKind: String? {
+        session?.debugSnapshot().lastAcceptedRendererInput?
+            .formatSignaling?.projectionKind.value
+    }
     public var effectiveMediaFormatInterpretation: EffectiveMediaFormatInterpretation {
         let sourceProjection = Self.projectionType(for: sourceVideoContentKind)
         let source = SourceMediaFormatFact(
@@ -179,7 +220,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public var displayFileSizeInBytes: Int64? { prefetchedMetadata?.fileSizeInBytes }
     public var isHDRContent: Bool { displayMediaProfile?.hdrType != .sdr }
 
-    private let controller: PlaybackCoreController
+    private var controller: PlaybackCoreController
     private let audioSessionLifecycle: PlaybackAudioSessionLifecycle
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackRuntime")
     private let signposter: OSSignposter
@@ -196,14 +237,50 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var lastResolvedProfile: PlaybackModel.MediaProfile?
     private var closingTask: Task<Void, Never>?
     private var startsWhenAttached = false
+    private var playbackVolume: Float = 1
+    private var playbackMuted = false
+    private var technicalSessionMediaFormatInterpretation: EffectiveMediaFormatInterpretation?
     private var actualPlaybackAccumulator = ActualPlaybackAccumulator()
     private var lastBoundVideoRendererEntityID: String?
-    private var releasedRendererConsumerEntityID: String?
+    private var releasedRendererConsumer: ReleasedRendererConsumer?
+    private var technicalSessionReplacementIsInFlight = false
+    private var preparedTechnicalSessionReplacement: PreparedTechnicalSessionReplacement?
+    private var departingTechnicalSessionController: PlaybackCoreController?
+    private var seekIntentGeneration: UInt64 = 0
+
+    private struct PreparedTechnicalSessionReplacement {
+        let controller: PlaybackCoreController
+        let session: SampleBufferPlaybackSession
+        let generation: Int
+        let logicalSessionID: String
+        let speed: PlaybackModel.PlaybackSpeed
+        let selectedAudioTrackID: String?
+        let selectedSubtitleTrackID: String?
+    }
 
     private struct Attachment {
         let entityID: String
         let realityViewID: String
         let presentation: PlaybackPresentation
+    }
+
+    /// Carries the serial handoff boundary after the source RealityView has
+    /// removed its VideoPlayerComponent. A cross-RealityView handoff must use
+    /// a new Entity because RealityKit does not reliably reactivate the same
+    /// Entity and renderer graph after it moves between Window and Immersive
+    /// roots. Transfers within one RealityView ownership class keep identity.
+    private struct ReleasedRendererConsumer {
+        let presentation: PlaybackPresentation
+        let entityID: String
+
+        func permitsClaim(
+            presentation targetPresentation: PlaybackPresentation,
+            entityID targetEntityID: String
+        ) -> Bool {
+            entityID == targetEntityID
+                || presentation.usesImmersiveSpace
+                    != targetPresentation.usesImmersiveSpace
+        }
     }
 
     public convenience init(controller: PlaybackCoreController = PlaybackCoreController()) {
@@ -220,6 +297,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         self.controller = controller
         self.audioSessionLifecycle = audioSessionLifecycle
         self.signposter = OSSignposter(logger: logger)
+        bindControllerCallbacks(to: controller)
+    }
+
+    private func bindControllerCallbacks(to controller: PlaybackCoreController) {
         controller.onStatusChange = { [weak self] status in
             self?.receive(status)
         }
@@ -241,6 +322,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         controller.onSubtitleFrameChange = { [weak self] frame in
             self?.activeSubtitleFrame = frame
         }
+    }
+
+    private func unbindControllerCallbacks(from controller: PlaybackCoreController) {
+        controller.onStatusChange = nil
+        controller.onDiagnosticsChange = nil
+        controller.onAcceptedVideoFormatRevisionChange = nil
+        controller.onSubtitleCuesChange = nil
+        controller.onSubtitleFrameChange = nil
     }
 
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
@@ -269,8 +358,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         rendererPixelVideoComponentRevision = nil
         rendererPixelStreamEpoch = nil
         effectiveVideoFormatRevision = nil
+        technicalSessionFormatReplacementIsPending = false
+        technicalSessionMediaFormatInterpretation = nil
+        activeTechnicalSessionID = nil
+        firstAttachedPresentationForActiveTechnicalSession = nil
         lastBoundVideoRendererEntityID = nil
-        releasedRendererConsumerEntityID = nil
+        releasedRendererConsumer = nil
         invalidatePendingDisplayedImageClear()
     }
 
@@ -287,7 +380,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func open(
         _ request: PlaybackLaunchRequest,
         startTimeSeconds: Double = 0,
-        initialSpeed: PlaybackModel.PlaybackSpeed = .default
+        initialSpeed: PlaybackModel.PlaybackSpeed = .default,
+        initialFormat: MediaFormat? = nil
     ) async throws {
         let interval = signposter.beginInterval("OpenPlayback")
         defer { signposter.endInterval("OpenPlayback", interval) }
@@ -296,6 +390,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let startTimeSeconds = max(0, startTimeSeconds)
         prepareForPlayback(request)
         currentPlaybackSpeed = initialSpeed
+        if let initialFormat {
+            publishFormat(
+                projection: Self.playbackProjection(from: initialFormat.projection),
+                horizontalFieldOfViewDegrees: initialFormat.horizontalFieldOfViewDegrees,
+                stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout)
+            )
+        }
         logger.info("open requested source=\(request.displayName, privacy: .public)")
 
         do {
@@ -308,6 +409,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 request.url,
                 startTime: CMTime(seconds: startTimeSeconds, preferredTimescale: 60_000),
                 initialRate: Float(initialSpeed.value),
+                initialStereoLayout: initialFormat.flatMap {
+                    Self.coreStereoLayout(
+                        for: Self.playbackStereoLayout(from: $0.stereoLayout)
+                    )
+                },
+                initialProjectionOverride: initialFormat.map {
+                    Self.coreProjectionOverride(
+                        for: Self.playbackProjection(from: $0.projection),
+                        horizontalFieldOfViewDegrees: $0.horizontalFieldOfViewDegrees
+                    )
+                },
                 provenance: "Enchron",
                 accessRequirement: request.url.isFileURL ? "securityScopedFile" : "networkSource"
             )
@@ -325,10 +437,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
             session = newSession
             updateActiveSessionID(newSession.traceID)
+            activeTechnicalSessionID = newSession.traceID
             sourceVideoContentKind = sourceFormat.contentKind
             sourceStereoLayout = sourceFormat.stereoLayout
             sourceMediaFormatIsCaptured = true
-            publishSourceFormat()
+            publishEffectiveFormatAfterSourceDiscovery(initialFormat)
+            technicalSessionMediaFormatInterpretation = effectiveMediaFormatInterpretation
             let selectedAudioStreamIndex = newSession.selectedAudioStreamIndex
             availableAudioTracks = controller.availableAudioTracks.map {
                 Self.audioTrack(
@@ -422,6 +536,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
         attachment = Attachment(entityID: entityID, realityViewID: realityViewID, presentation: presentation)
         attachedPresentation = presentation
+        if firstAttachedPresentationForActiveTechnicalSession == nil {
+            firstAttachedPresentationForActiveTechnicalSession = presentation
+        }
         presentationState = .placeholder
         clearFailureIfPlaybackIsUsable()
         logger.info("surface attached presentation=\(String(describing: presentation), privacy: .public) entity=\(entityID, privacy: .public)")
@@ -462,11 +579,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         if let rendererConsumerEntityID, rendererConsumerEntityID != entityID {
             throw RuntimeError.rendererConsumerBusy(rendererConsumerPresentation ?? presentation)
         }
-        if let releasedRendererConsumerEntityID {
-            guard releasedRendererConsumerEntityID == entityID else {
+        if let releasedRendererConsumer {
+            guard releasedRendererConsumer.permitsClaim(
+                presentation: presentation,
+                entityID: entityID
+            ) else {
                 throw RuntimeError.rendererTransferPending
             }
-            self.releasedRendererConsumerEntityID = nil
+            self.releasedRendererConsumer = nil
         }
         rendererConsumerPresentation = presentation
         rendererConsumerEntityID = entityID
@@ -482,7 +602,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         if preservingVideoComponent == false {
             clearVideoComponentBindingObservation(for: entityID)
         }
-        releasedRendererConsumerEntityID = entityID
+        releasedRendererConsumer = ReleasedRendererConsumer(
+            presentation: presentation,
+            entityID: entityID
+        )
         rendererConsumerPresentation = nil
         rendererConsumerEntityID = nil
         logger.notice(
@@ -599,6 +722,34 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
+    /// Starts a playing replacement session while its target Entity is still
+    /// attaching. The presentation settlement gate supplies the displayed-
+    /// pixel proof, so this path must not require that proof before Play can
+    /// begin.
+    public func beginPlaybackForPresentationSettlement(
+        mediaSessionID: String
+    ) async throws {
+        guard activeSessionID == mediaSessionID else {
+            throw RuntimeError.mediaSessionChanged
+        }
+        if productLifecycle == .playing { return }
+        guard productLifecycle == .paused || productLifecycle == .ready else {
+            throw RuntimeError.spatialPlaybackTransportUnavailable(productLifecycle)
+        }
+        try await audioSessionLifecycle.activateIfNeeded(
+            hasAudio: !availableAudioTracks.isEmpty
+        )
+        guard activeSessionID == mediaSessionID else {
+            throw RuntimeError.mediaSessionChanged
+        }
+        recordAudioSessionFact()
+        try await controller.waitUntilTimelineReadyForControl()
+        guard activeSessionID == mediaSessionID else {
+            throw RuntimeError.mediaSessionChanged
+        }
+        try controller.play()
+    }
+
     public func seek(
         to seconds: Double,
         event: PlaybackSeekEvent = .progressBar
@@ -619,8 +770,16 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             targetBoundary: targetBoundary
         )
         let behavior = Self.coreAfterSeekBehavior(for: intent)
+        seekIntentGeneration &+= 1
+        let seekGeneration = seekIntentGeneration
+        seekIsInProgress = true
         Task { [weak self] in
             guard let self else { return }
+            defer {
+                if self.seekIntentGeneration == seekGeneration {
+                    self.seekIsInProgress = false
+                }
+            }
             do {
                 try await controller.seek(
                     to: CMTime(seconds: target, preferredTimescale: 600),
@@ -644,8 +803,16 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             targetBoundary: .beforeEnd
         )
         let behavior = Self.coreAfterSeekBehavior(for: intent)
+        seekIntentGeneration &+= 1
+        let seekGeneration = seekIntentGeneration
+        seekIsInProgress = true
         Task { [weak self] in
             guard let self else { return }
+            defer {
+                if self.seekIntentGeneration == seekGeneration {
+                    self.seekIsInProgress = false
+                }
+            }
             do {
                 try await controller.seek(
                     by: CMTime(seconds: delta, preferredTimescale: 600),
@@ -673,6 +840,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     func setVolume(_ volume: Float) {
         do {
             try controller.setVolume(volume)
+            playbackVolume = volume
         } catch {
             fail(error)
         }
@@ -681,6 +849,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     func setMuted(_ muted: Bool) {
         do {
             try controller.setMuted(muted)
+            playbackMuted = muted
         } catch {
             fail(error)
         }
@@ -729,10 +898,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     continue
                 }
                 if let accessLease = source.accessLease {
-                    externalSubtitleAccessBySourceID.updateValue(
+                    let previousAccessLease = externalSubtitleAccessBySourceID.updateValue(
                         accessLease,
                         forKey: source.id
-                    )?.release()
+                    )
+                    if let previousAccessLease,
+                       previousAccessLease !== accessLease {
+                        previousAccessLease.release()
+                    }
                 }
                 let normalizedURL = source.url.isFileURL
                     ? source.url.standardizedFileURL
@@ -752,6 +925,24 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         if !failures.isEmpty {
             subtitleErrorMessage = ([subtitleErrorMessage].compactMap { $0 } + failures)
                 .joined(separator: "\n")
+        }
+    }
+
+    /// Adds the already-owned sidecar sources to a prepared controller without
+    /// transferring their access leases away from the active logical session.
+    private func prepareExternalSubtitleSources(
+        _ sources: [ResolvedExternalSubtitleSource],
+        on replacementController: PlaybackCoreController
+    ) async {
+        for source in sources {
+            guard source.accessLease?.ensureActive() != false else { continue }
+            _ = try? await replacementController.addExternalSubtitleSource(
+                PlaybackExternalSubtitleSource(
+                    id: source.id,
+                    url: source.url,
+                    displayName: source.displayName
+                )
+            )
         }
     }
 
@@ -787,40 +978,225 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     ?? PanoramaHorizontalCoverage.defaultCustomAngle
             )
             : nil
-        let formatGeneration = generation
-        let formatSessionID = activeSessionID
-        let acceptedFormatRevision = try await controller.setFormatOverrides(
-            stereoLayout: Self.coreStereoLayout(for: stereo),
-            projection: Self.coreProjectionOverride(
-                for: projection,
-                horizontalFieldOfViewDegrees: resolvedHorizontalFieldOfViewDegrees
-            )
-        )
-        guard generation == formatGeneration,
-              activeSessionID == formatSessionID else {
-            throw RuntimeError.mediaSessionChanged
-        }
-        effectiveVideoFormatRevision = acceptedFormatRevision
         publishFormat(
             projection: projection,
             horizontalFieldOfViewDegrees: resolvedHorizontalFieldOfViewDegrees,
             stereo: stereo
         )
+        technicalSessionFormatReplacementIsPending =
+            technicalSessionMediaFormatInterpretation != effectiveMediaFormatInterpretation
+        // The override becomes renderer input only when a fresh technical
+        // session is assembled. Mutating the live renderer would allow
+        // RealityKit to retain its previous projection classification.
+        effectiveVideoFormatRevision = nil
     }
 
     public func useSourceFormat() async throws {
-        let formatGeneration = generation
-        let formatSessionID = activeSessionID
-        let acceptedFormatRevision = try await controller.setFormatOverrides(
-            stereoLayout: nil,
-            projection: nil
-        )
-        guard generation == formatGeneration,
-              activeSessionID == formatSessionID else {
+        publishSourceFormat()
+        technicalSessionFormatReplacementIsPending =
+            technicalSessionMediaFormatInterpretation != effectiveMediaFormatInterpretation
+        effectiveVideoFormatRevision = nil
+    }
+
+    /// Builds the target decoder and renderer while the source technical
+    /// session remains alive. The prepared session is paused and has no
+    /// RealityKit consumer until `activatePreparedTechnicalSessionReplacement`.
+    public func prepareTechnicalSessionForPresentationConversion() async throws {
+        let interval = signposter.beginInterval("ReplaceTechnicalPlaybackSession")
+        defer { signposter.endInterval("ReplaceTechnicalPlaybackSession", interval) }
+        guard technicalSessionReplacementIsInFlight == false else {
+            throw RuntimeError.rendererTransferPending
+        }
+        guard let request = currentLaunchRequest,
+              let logicalSessionID = activeSessionID else {
+            throw RuntimeError.noSession
+        }
+        technicalSessionReplacementIsInFlight = true
+        technicalSessionReplacementStage = .openingReplacement
+
+        generation += 1
+        let replacementGeneration = generation
+        let startTimeSeconds = max(0, playbackPosition.seconds)
+        let speed = currentPlaybackSpeed
+        let selectedAudioTrackID = currentAudioTrackID
+        let selectedSubtitleTrackID = currentSubtitleTrackID
+        let initialStereoLayout = usesSourceFormat
+            ? nil
+            : Self.coreStereoLayout(for: selectedStereoLayout)
+        let initialProjectionOverride = usesSourceFormat
+            ? nil
+            : Self.coreProjectionOverride(
+                for: selectedProjectionType,
+                horizontalFieldOfViewDegrees: selectedHorizontalFieldOfViewDegrees
+            )
+
+        let replacementController = PlaybackCoreController()
+        do {
+            let replacement = try await replacementController.open(
+                request.url,
+                startTime: CMTime(
+                    seconds: startTimeSeconds,
+                    preferredTimescale: 60_000
+                ),
+                startsPaused: true,
+                initialRate: Float(speed.value),
+                initialStereoLayout: initialStereoLayout,
+                initialProjectionOverride: initialProjectionOverride,
+                provenance: "presentationConversionPrepared",
+                accessRequirement: request.url.isFileURL
+                    ? "securityScopedFile"
+                    : "networkSource"
+            )
+            guard generation == replacementGeneration,
+                  activeSessionID == logicalSessionID else {
+                await replacementController.closeAndWait(clearSource: false)
+                throw RuntimeError.mediaSessionChanged
+            }
+
+            technicalSessionReplacementStage = .restoringExternalSubtitles
+            await prepareExternalSubtitleSources(
+                request.externalSubtitleSources,
+                on: replacementController
+            )
+
+            if let selectedAudioTrackID,
+               let streamIndex = Int(selectedAudioTrackID),
+               replacementController.availableAudioTracks.contains(where: {
+                   $0.streamIndex == streamIndex
+               }) {
+                technicalSessionReplacementStage = .restoringAudioTrack
+                try await replacementController.selectAudioTrack(streamIndex: streamIndex)
+            }
+            if let selectedSubtitleTrackID,
+               replacementController.availableSubtitleTracks.contains(where: {
+                   $0.id == selectedSubtitleTrackID
+               }) {
+                technicalSessionReplacementStage = .restoringSubtitleTrack
+                try await replacementController.selectSubtitleTrack(id: selectedSubtitleTrackID)
+            }
+            try replacementController.setVolume(playbackVolume)
+            try replacementController.setMuted(playbackMuted)
+            preparedTechnicalSessionReplacement = PreparedTechnicalSessionReplacement(
+                controller: replacementController,
+                session: replacement,
+                generation: replacementGeneration,
+                logicalSessionID: logicalSessionID,
+                speed: speed,
+                selectedAudioTrackID: selectedAudioTrackID,
+                selectedSubtitleTrackID: selectedSubtitleTrackID
+            )
+            technicalSessionReplacementStage = .installingRenderer
+            logger.info(
+                "replacement technical session prepared logical=\(logicalSessionID, privacy: .public) technical=\(replacement.traceID, privacy: .public)"
+            )
+        } catch {
+            await replacementController.closeAndWait(clearSource: false)
+            technicalSessionReplacementIsInFlight = false
+            technicalSessionReplacementStage = .failed
+            throw error
+        }
+    }
+
+    /// Makes the prepared session current without destroying the source
+    /// controller. The source renderer can continue presenting until its Scene
+    /// disappearance is confirmed.
+    public func activatePreparedTechnicalSessionReplacement() throws {
+        guard let prepared = preparedTechnicalSessionReplacement else {
+            throw RuntimeError.noSession
+        }
+        guard generation == prepared.generation,
+              activeSessionID == prepared.logicalSessionID else {
             throw RuntimeError.mediaSessionChanged
         }
-        effectiveVideoFormatRevision = acceptedFormatRevision
-        publishSourceFormat()
+
+        let sourceController = controller
+        detach()
+        releaseRendererConsumerForVideoComponentReplacement()
+        unbindControllerCallbacks(from: sourceController)
+        departingTechnicalSessionController = sourceController
+
+        controller = prepared.controller
+        bindControllerCallbacks(to: controller)
+        session = prepared.session
+        activeTechnicalSessionID = prepared.session.traceID
+        renderer = prepared.session.renderer
+        presentationState = .placeholder
+        startsWhenAttached = true
+        firstAttachedPresentationForActiveTechnicalSession = nil
+        videoComponentRevision &+= 1
+        effectiveVideoFormatRevision = nil
+        technicalSessionMediaFormatInterpretation = effectiveMediaFormatInterpretation
+        technicalSessionFormatReplacementIsPending = false
+        currentPlaybackSpeed = prepared.speed
+        availableAudioTracks = controller.availableAudioTracks.map {
+            Self.audioTrack(
+                $0,
+                isDefault: String($0.streamIndex) == prepared.selectedAudioTrackID
+            )
+        }
+        currentAudioTrackID = prepared.session.selectedAudioStreamIndex.map(String.init)
+        availableSubtitleTracks = controller.availableSubtitleTracks.map(Self.subtitleTrack)
+        currentSubtitleTrackID = controller.selectedSubtitleTrackID
+        activeSubtitleCues = controller.activeSubtitleCues
+        activeSubtitleFrame = controller.activeSubtitleFrame
+        preparedTechnicalSessionReplacement = nil
+        technicalSessionReplacementIsInFlight = false
+        technicalSessionReplacementStage = .completed
+        receive(controller.status)
+        receive(controller.diagnostics)
+        logger.info(
+            "prepared technical session activated logical=\(prepared.logicalSessionID, privacy: .public) technical=\(prepared.session.traceID, privacy: .public)"
+        )
+    }
+
+    public func pauseDepartingTechnicalSessionForVisualCutover() {
+        guard let departingTechnicalSessionController else { return }
+        try? departingTechnicalSessionController.pause()
+    }
+
+    public func retireDepartingTechnicalSessionAfterSceneDisappearance() async {
+        guard let departingTechnicalSessionController else { return }
+        self.departingTechnicalSessionController = nil
+        await departingTechnicalSessionController.closeAndWait(clearSource: false)
+        logger.info("departing technical session retired after source Scene disappeared")
+    }
+
+    public func cancelPreparedTechnicalSessionReplacement() async {
+        guard let preparedTechnicalSessionReplacement else { return }
+        self.preparedTechnicalSessionReplacement = nil
+        technicalSessionReplacementIsInFlight = false
+        technicalSessionReplacementStage = .failed
+        await preparedTechnicalSessionReplacement.controller.closeAndWait(clearSource: false)
+    }
+
+    /// Immediate replacement remains available to conversions that don't cross
+    /// system Scene roots.
+    public func rebuildTechnicalSessionForPresentationConversion() async throws {
+        try await prepareTechnicalSessionForPresentationConversion()
+        try activatePreparedTechnicalSessionReplacement()
+        await retireDepartingTechnicalSessionAfterSceneDisappearance()
+    }
+
+    /// Replaces the technical playback instance without changing Scene type.
+    /// The new instance is born paused, binds its first frame to the current
+    /// RealityView, and only then restores the previous playing intent.
+    public func rebuildTechnicalSessionForCurrentPresentation() async throws {
+        guard technicalSessionFormatReplacementIsPending else { return }
+        guard let presentation = attachedPresentation,
+              let logicalSessionID = activeSessionID else {
+            throw RuntimeError.noSession
+        }
+        let restoresPlayingIntent = productLifecycle == .playing
+
+        try await rebuildTechnicalSessionForPresentationConversion()
+        if restoresPlayingIntent {
+            try await performSpatialPlaybackTransport(
+                .resume(mediaSessionID: logicalSessionID)
+            )
+        }
+        guard await waitUntilPresentationSettled(to: presentation) else {
+            throw RuntimeError.presentationDidNotSettle(presentation)
+        }
     }
 
     private func publishFormat(
@@ -833,6 +1209,22 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         selectedStereoLayout = stereo
         usesSourceFormat = false
         mediaFormatIsKnown = true
+    }
+
+    /// Source discovery records the file's facts without taking precedence
+    /// over a persisted user override supplied to this technical session.
+    func publishEffectiveFormatAfterSourceDiscovery(
+        _ initialFormat: MediaFormat?
+    ) {
+        guard let initialFormat else {
+            publishSourceFormat()
+            return
+        }
+        publishFormat(
+            projection: Self.playbackProjection(from: initialFormat.projection),
+            horizontalFieldOfViewDegrees: initialFormat.horizontalFieldOfViewDegrees,
+            stereo: Self.playbackStereoLayout(from: initialFormat.stereoLayout)
+        )
     }
 
     private func publishSourceFormat() {
@@ -880,11 +1272,18 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         externalSubtitleAccessBySourceID = [:]
         externalSubtitleSourceIDByURL = [:]
         let controller = controller
+        let departingController = departingTechnicalSessionController
+        departingTechnicalSessionController = nil
+        let preparedController = preparedTechnicalSessionReplacement?.controller
+        preparedTechnicalSessionReplacement = nil
+        technicalSessionReplacementIsInFlight = false
         let previousClosingTask = closingTask
         let audioSessionLifecycle = audioSessionLifecycle
         let closeTask = Task { @MainActor in
             await previousClosingTask?.value
             await controller.closeAndWait()
+            await departingController?.closeAndWait(clearSource: false)
+            await preparedController?.closeAndWait(clearSource: false)
             await audioSessionLifecycle.deactivate()
             sourceAccess?.release()
             for subtitleAccess in externalSubtitleAccesses {
@@ -906,6 +1305,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         clearPresentationForTeardown()
         session = nil
         renderer = nil
+        activeTechnicalSessionID = nil
         updateActiveSessionID(nil)
         currentLaunchRequest = nil
         prefetchedMetadata = nil
@@ -926,8 +1326,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         usesSourceFormat = true
         mediaFormatIsKnown = false
         effectiveVideoFormatRevision = nil
+        technicalSessionFormatReplacementIsPending = false
+        technicalSessionMediaFormatInterpretation = nil
         lastBoundVideoRendererEntityID = nil
-        releasedRendererConsumerEntityID = nil
+        releasedRendererConsumer = nil
         clearVideoComponentBindingObservation()
         lastResolvedProfile = nil
     }
@@ -959,10 +1361,20 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         timeout: Duration = .seconds(5)
     ) async -> Bool {
         if presentationIsSettled(presentation) { return true }
-        let clock = ContinuousClock()
-        let deadline = clock.now.advanced(by: timeout)
-        while clock.now < deadline {
+        let startedAt = clock.now
+        while true {
             guard Task.isCancelled == false else { return false }
+            guard productLifecycle != .failed,
+                  productLifecycle != .ended else {
+                return false
+            }
+            let sessionIsAvailable = currentLaunchRequest != nil
+                && activeSessionID != nil
+                && activeTechnicalSessionID != nil
+            guard sessionIsAvailable || allowsPendingSessionStart else {
+                return false
+            }
+            guard clock.now - startedAt < deadline else { return false }
             do {
                 try await Task.sleep(for: .milliseconds(25))
             } catch {
@@ -970,10 +1382,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
             if presentationIsSettled(presentation) { return true }
         }
-        logger.error(
-            "presentation settlement timed out expected=\(String(describing: presentation), privacy: .public) actual=\(String(describing: self.attachedPresentation), privacy: .public)"
-        )
-        return false
     }
 
     private func presentationIsSettled(_ presentation: PlaybackPresentation) -> Bool {
@@ -982,7 +1390,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         return Self.presentationTransitionCanCommit(
             record: record,
             presentation: presentation,
-            activeSessionID: activeSessionID,
+            activeTechnicalSessionID: activeTechnicalSessionID,
             lifecycle: productLifecycle
         )
     }
@@ -990,10 +1398,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     static func presentationTransitionCanCommit(
         record: PresentationStateRecord,
         presentation: PlaybackPresentation,
-        activeSessionID: String?,
+        activeTechnicalSessionID: String?,
         lifecycle: ProductPlaybackLifecycle
     ) -> Bool {
-        guard record.mediaSessionID == activeSessionID,
+        guard record.mediaSessionID == activeTechnicalSessionID,
               record.requestedMode == presentation.rawValue,
               let phase = PlaybackPresentationSettlementPhase(rawValue: record.phase) else {
             return false
@@ -1002,7 +1410,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case .settled:
             return true
         case .surfaceAttached:
-            return lifecycle == .ended
+            return false
         }
     }
 
@@ -1024,6 +1432,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) {
         guard let session else { return }
         let record = PresentationStateRecord(
+            // Presentation observations describe the Entity owned by this
+            // technical playback instance. The logical media identity remains
+            // stable across handoff, but PlaybackCore must reject observations
+            // from a retired renderer graph.
             mediaSessionID: session.traceID,
             requestedMode: presentation.rawValue,
             phase: phase.rawValue,
@@ -1043,8 +1455,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             transitionResult: .init(known: "succeeded")
         )
         let outputIsPresentable = phase == .settled && displayedPixelBuffer == true
-        let endedSurfaceIsPresentable = phase == .surfaceAttached
-            && productLifecycle == .ended
         if displayedPixelBuffer == true,
            rendererConsumerEntityID == entityID,
            boundVideoComponentRevision == videoComponentRevision,
@@ -1052,7 +1462,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             rendererPixelVideoComponentRevision = videoComponentRevision
             rendererPixelStreamEpoch = session.debugSnapshot().streamEpoch
         }
-        if outputIsPresentable || endedSurfaceIsPresentable {
+        if outputIsPresentable {
             if presentationState != .videoVisible {
                 presentationState = .videoVisible
             }
@@ -1072,6 +1482,22 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         boundVideoComponentRevision = nil
         rendererPixelVideoComponentRevision = nil
         rendererPixelStreamEpoch = nil
+    }
+
+    /// Releases Runtime's record of RealityKit's old VideoPlayerComponent
+    /// consumer before the presentation layer installs the replacement graph.
+    private func releaseRendererConsumerForVideoComponentReplacement() {
+        if let rendererConsumerEntityID {
+            session?.recordRealityKitBinding(
+                entityIdentity: rendererConsumerEntityID,
+                active: false
+            )
+        }
+        rendererConsumerPresentation = nil
+        rendererConsumerEntityID = nil
+        releasedRendererConsumer = nil
+        lastBoundVideoRendererEntityID = nil
+        clearVideoComponentBindingObservation()
     }
 
     func outputObservation() -> PlaybackOutputObservation {
@@ -1378,6 +1804,27 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) -> MediaStereoLayout {
         switch stereoLayout {
         case .mono, .multiview: .mono
+        case .sideBySide: .sideBySide
+        case .topBottom: .topBottom
+        }
+    }
+
+    private static func playbackProjection(
+        from projection: MediaProjection
+    ) -> PlaybackModel.ProjectionType {
+        switch projection {
+        case .flat: .flat
+        case .equirectangular180: .equirectangular180
+        case .equirectangular360: .equirectangular360
+        case .customAngle: .customAngle
+        }
+    }
+
+    private static func playbackStereoLayout(
+        from stereoLayout: MediaStereoLayout
+    ) -> PlaybackModel.StereoLayout {
+        switch stereoLayout {
+        case .mono: .mono
         case .sideBySide: .sideBySide
         case .topBottom: .topBottom
         }

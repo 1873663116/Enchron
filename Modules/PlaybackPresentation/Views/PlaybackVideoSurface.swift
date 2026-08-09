@@ -28,8 +28,7 @@ private final class PlaybackVideoComponentObservation {
         onContentTypeDidChange: @escaping @MainActor (
             String,
             String
-        ) -> Void,
-        onImmersiveViewingModeDidChange: @escaping @MainActor (Bool) -> Void
+        ) -> Void
     ) {
         let nextEntityID = ObjectIdentifier(entity)
         guard entityID != nextEntityID
@@ -56,11 +55,8 @@ private final class PlaybackVideoComponentObservation {
             content.subscribe(
                 to: VideoPlayerEvents.ImmersiveViewingModeDidChange.self,
                 on: entity
-            ) { event in
+            ) { _ in
                 Task { @MainActor in
-                    onImmersiveViewingModeDidChange(
-                        event.currentMode == .progressive
-                    )
                     onChange("immersiveViewingModeDidChange")
                 }
             },
@@ -166,7 +162,10 @@ struct PlaybackVideoSurface: View {
     #endif
 
     private var videoEntity: Entity {
-        playbackVideoEntityStore.entity
+        playbackVideoEntityStore.hostedEntity(
+            for: presentation,
+            during: appModel.presentationTransition
+        )
     }
 
     private var realityKitContentTypeScope: PlaybackRealityKitContentTypeScope? {
@@ -204,15 +203,18 @@ struct PlaybackVideoSurface: View {
 
     #if os(visionOS)
     private var visionSurface: some View {
-        GeometryReader3D { geometry in
+        let realityViewDepth = WindowPlaybackSurfaceGeometry.realityViewDepth(
+            for: presentation
+        )
+        return GeometryReader3D { geometry in
             RealityView { content in
                 scheduleVisionSurfaceUpdate(content, proxy: geometry)
             } update: { content in
                 scheduleVisionSurfaceUpdate(content, proxy: geometry)
             }
-            .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
+            .frame(depth: realityViewDepth)
         }
-        .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
+        .frame(depth: realityViewDepth)
         .task(id: surfaceReadinessKey) {
             await retrySurfaceAttachment()
         }
@@ -333,6 +335,8 @@ struct PlaybackVideoSurface: View {
         return [
             presentation.rawValue,
             isActive ? "active" : "inactive",
+            playbackRuntime.hasActivePlaybackRequest ? "requestActive" : "requestNone",
+            playbackRuntime.productLifecycle.rawValue,
             playbackRuntime.mediaFormatIsKnown ? "formatReady" : "formatPending",
             rendererID,
             contentTypeScope?.sessionID ?? "sessionNone",
@@ -341,24 +345,39 @@ struct PlaybackVideoSurface: View {
             playbackRuntime.effectiveProjectionType.rawValue,
             String(playbackRuntime.effectiveHorizontalFieldOfViewDegrees),
             playbackRuntime.effectiveStereoLayout.rawValue,
-            contentTypeScope.flatMap(\.effectiveVideoFormatRevision).map(String.init)
+            playbackRuntime.effectiveVideoFormatRevision.map(String.init)
                 ?? "formatRevisionNone"
         ].joined(separator: "|")
     }
 
     @MainActor
     private func retrySurfaceAttachment() async {
-        for _ in 0..<PlaybackSurfaceActivation.maximumRetryCountForView {
-            guard !Task.isCancelled else { return }
+        while surfaceAttachmentCanStillSettle {
+            guard Task.isCancelled == false else { return }
             if playbackRuntime.attachedPresentation == presentation,
                playbackRuntime.rendererConsumerEntityID == entityID,
                videoEntity.isActive,
-               playbackRuntime.presentationState == .videoVisible {
+               presentationPhase == .settled {
                 return
             }
             surfaceRefreshTick &+= 1
             surfaceActivation.requestRetry()
             try? await Task.sleep(for: PlaybackSurfaceActivation.retryIntervalForView)
+        }
+    }
+
+    /// Slow first frames remain eligible to attach for the lifetime of the
+    /// active media request. Only product state, not elapsed wall-clock time,
+    /// can prove that this RealityView will never settle.
+    private var surfaceAttachmentCanStillSettle: Bool {
+        guard isActive, playbackRuntime.hasActivePlaybackRequest else {
+            return false
+        }
+        switch playbackRuntime.productLifecycle {
+        case .loading, .ready, .playing, .paused, .ended:
+            return true
+        case .idle, .failed:
+            return false
         }
     }
     #endif
@@ -387,10 +406,15 @@ struct PlaybackVideoSurface: View {
             releaseSurface(from: content)
             return false
         }
+        if let rendererConsumerPresentation = playbackRuntime.rendererConsumerPresentation,
+           rendererConsumerPresentation.usesImmersiveSpace {
+            return false
+        }
 
         let videoComponentRevision = playbackRuntime.videoComponentRevision
         _ = playbackVideoEntityStore.entity(
             for: renderer,
+            presentation: presentation,
             videoComponentRevision: videoComponentRevision
         )
 
@@ -427,7 +451,7 @@ struct PlaybackVideoSurface: View {
         componentObservation.observe(
             videoEntity,
             in: content,
-            contentTypeSessionID: contentTypeScope?.sessionID,
+            contentTypeSessionID: contentTypeScope?.technicalSessionID,
             onChange: { reason in
                 logComponentState(reason: reason)
                 componentRevision &+= 1
@@ -438,12 +462,7 @@ struct PlaybackVideoSurface: View {
                 )
                 playbackVideoEntityStore.recordRealityKitContentType(
                     contentType,
-                    forSessionID: eventSessionID
-                )
-            },
-            onImmersiveViewingModeDidChange: { currentModeIsProgressive in
-                recordProgressiveImmersiveViewingModeDidChangeIfCurrent(
-                    currentModeIsProgressive: currentModeIsProgressive
+                    forTechnicalSessionID: eventSessionID
                 )
             }
         )
@@ -458,13 +477,18 @@ struct PlaybackVideoSurface: View {
             renderer: renderer,
             presentation: presentation,
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode,
-            requestsProgressiveImmersiveViewingMode:
-                requestsProgressiveModeForPanoramaTransfer
+            requestsProgressiveImmersiveViewingMode: false
+        )
+        let videoEntityOpacity = PlaybackPresentationTransitionAppearance.windowVideoEntityOpacity(
+            for: presentation,
+            settledPresentation: appModel.playbackPresentation,
+            transition: appModel.presentationTransition,
+            visualCutoverMayBegin: appModel.presentationVisualCutoverMayBegin
         )
         PlaybackRealityPresenter.setOpacity(
             of: videoEntity,
-            to: 1,
-            animated: false
+            to: Float(videoEntityOpacity),
+            animated: videoEntity.components[OpacityComponent.self] != nil
         )
         surfaceAccessibilityActivation.observe(videoEntity, in: content) {
             toggleControlsFromAccessibilityActivation()
@@ -677,8 +701,7 @@ struct PlaybackVideoSurface: View {
                 presentation: presentation
               ) else { return }
         #if os(visionOS)
-        if let component,
-           requestsProgressiveModeForPanoramaTransfer == false {
+        if let component {
             let recoveryAction = componentObservation.modeRecoveryAction(
                 to: videoEntity,
                 presentation: presentation,
@@ -740,7 +763,10 @@ struct PlaybackVideoSurface: View {
     }
 
     private var entityID: String {
-        playbackVideoEntityStore.entityID
+        playbackVideoEntityStore.hostedEntityID(
+            for: presentation,
+            during: appModel.presentationTransition
+        )
     }
 
     private var realityViewID: String {
@@ -838,27 +864,6 @@ struct PlaybackVideoSurface: View {
             && transition.targetPresentation.usesMainWindow
     }
 
-    private var requestsProgressiveModeForPanoramaTransfer: Bool {
-        presentation.usesMainWindow
-            && appModel.presentationTransition?
-                .requiresProgressiveModeRequestBeforePanoramaTransfer == true
-    }
-
-    private func recordProgressiveImmersiveViewingModeDidChangeIfCurrent(
-        currentModeIsProgressive: Bool
-    ) {
-        #if os(visionOS)
-        guard requestsProgressiveModeForPanoramaTransfer,
-              let transitionID = appModel.presentationTransition?.id else {
-            return
-        }
-        appModel.recordProgressiveImmersiveViewingModeDidChange(
-            for: transitionID,
-            currentModeIsProgressive: currentModeIsProgressive
-        )
-        #endif
-    }
-
     private func logComponentState(reason: String) {
         logSurfaceFacts(reason: reason)
     }
@@ -922,6 +927,11 @@ struct PlaybackVideoSurface: View {
         subtitleSurface.remove()
         guard removesEntity else { return }
         videoEntity.removeFromParent()
+        if playbackVideoEntityStore.departingEntity === videoEntity {
+            playbackVideoEntityStore.releaseDepartingEntity()
+            detachSurface()
+            return
+        }
         let preservesPlaybackComponent = playbackRuntime.activeSessionID != nil
         if preservesPlaybackComponent == false {
             playbackVideoEntityStore.releasePlaybackComponent()
@@ -967,7 +977,7 @@ struct PlaybackVideoSurface: View {
         playbackRuntime.releaseRendererConsumer(
             presentation: sourcePresentation,
             entityID: entityID,
-            preservingVideoComponent: true
+            preservingVideoComponent: false
         )
         detachSurface()
     }

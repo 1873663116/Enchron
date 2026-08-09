@@ -48,9 +48,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     }
 
     public let traceID: String
-    /// The renderer graph identity is immutable for the lifetime of this media session.
-    /// Presentation changes reparent the one RealityKit video entity; they never replace
-    /// this renderer, its audio renderer, or their shared synchronizer.
+    /// A technical playback session owns one immutable renderer graph for its
+    /// full lifetime. Presentation conversions create another session.
     public let renderer: AVSampleBufferVideoRenderer
     let rendererSink: RendererInputSink
     let audioRenderer: AVSampleBufferAudioRenderer
@@ -453,6 +452,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         try admitTimelineControl(.play)
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedByRateChange)
         beginOperation(.play, targetRate: preferredPlaybackRate)
+        // Play can arrive after the renderer timeline is anchored but before
+        // decoder bootstrap activates it. Keep that pending activation aligned
+        // with the latest transport intent so bootstrap cannot restore the
+        // session's earlier starts-paused state.
+        timelineStartRate = preferredPlaybackRate
         let resumeTime = synchronizer.currentTime()
         // On visionOS, a media-time-only rate change can leave the underlying
         // timebase stopped after a pause. Bind the same media time to a near
@@ -475,6 +479,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         try admitTimelineControl(.pause)
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedByPause)
         beginOperation(.pause, targetRate: 0)
+        // Pause is also the authoritative intent for a timeline whose decoder
+        // bootstrap has not finished yet.
+        timelineStartRate = 0
         synchronizer.rate = 0
         updateLifecycle(.paused)
         recordRendererState(at: currentTime())

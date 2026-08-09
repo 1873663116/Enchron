@@ -240,7 +240,13 @@ struct PlaybackTopActions: View {
 
     private var topButtonRow: some View {
         WindowPlaybackSpatialActions {
-            if canDock {
+            if resumesPanorama {
+                GlassCircleIconButton.expandVertically(
+                    accessibilityLabel: "Return to Panorama",
+                    action: { onResumePanorama?() },
+                    accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
+                )
+            } else if canDock {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "mountain.2.fill",
                     accessibilityLabel: "Dock",
@@ -250,13 +256,7 @@ struct PlaybackTopActions: View {
                 )
             }
         } formatControl: {
-            if resumesPanorama {
-                GlassCircleIconButton.expandVertically(
-                    accessibilityLabel: "Return to Panorama",
-                    action: { onResumePanorama?() },
-                    accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
-                )
-            } else {
+            if resumesPanorama == false {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "rectangle.arrowtriangle.2.outward",
                     accessibilityLabel: "Video Format",

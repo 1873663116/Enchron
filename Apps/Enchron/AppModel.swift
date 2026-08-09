@@ -3,6 +3,22 @@ import Observation
 import OSLog
 import PlaybackPresentation
 
+struct PlaybackWindowSceneIdentity: Codable, Hashable {
+    let instanceID: UUID
+
+    init(instanceID: UUID = UUID()) {
+        self.instanceID = instanceID
+    }
+}
+
+struct PlayerControlsSceneIdentity: Codable, Hashable {
+    let instanceID: UUID
+
+    init(instanceID: UUID = UUID()) {
+        self.instanceID = instanceID
+    }
+}
+
 struct SpatialPlaybackSurfaceObservation: Equatable {
     static let absent = SpatialPlaybackSurfaceObservation(
         presentation: "none",
@@ -163,13 +179,19 @@ public final class AppModel {
     }
 
     public private(set) var presentationSourceRendererMayRelease = false
-    private var progressiveImmersiveViewingModeConfirmedTransitionID: UUID?
+    public private(set) var presentationTargetRendererMayBind = false
+    public private(set) var presentationVisualCutoverMayBegin = false
+    public var presentationConversionFailureMessage: String?
+    public private(set) var lastPresentationConversionDiagnostic: String?
+    private var deferredPresentationConversionFailureMessage: String?
     private var presentationTransitionStartedAt: Date?
 
-    public var showControls: Bool = true
+    public var showControls: Bool = false
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
+    private(set) var activePlaybackWindowSceneIdentity: PlaybackWindowSceneIdentity?
+    private(set) var activePlayerControlsSceneIdentity: PlayerControlsSceneIdentity?
 
     // MARK: - Screen Position State (Immersive Mode)
     public var screenDepthOffset: Double {
@@ -242,7 +264,8 @@ public final class AppModel {
             )
         )
         presentationSourceRendererMayRelease = false
-        progressiveImmersiveViewingModeConfirmedTransitionID = nil
+        presentationTargetRendererMayBind = false
+        presentationVisualCutoverMayBegin = false
         presentationTransitionStartedAt = Date()
         if transition.targetPresentation == .panorama,
            transition.previousEnvironment.environment != nil,
@@ -311,6 +334,34 @@ public final class AppModel {
         playbackPresentationModel.requestStoppedPlaybackCleanup()
         spatialPlatformEffectReplacementHandler?()
         logger.notice("playback stopped; spatial platform cleanup requested")
+    }
+
+    public func prepareColdPlaybackLaunch(
+        in presentation: PlaybackPresentation
+    ) {
+        resetPresentationTransitionAppearance()
+        showControls = false
+        playbackPresentationModel.prepareColdPlaybackLaunch(in: presentation)
+        spatialPlatformEffectReplacementHandler?()
+    }
+
+    /// Keeps presentation-transfer failure UI out of Window scene creation.
+    /// The failure becomes visible only after the Media Library root appears.
+    public func deferPresentationConversionFailureUntilMediaLibraryIsVisible(
+        _ message: String
+    ) {
+        presentationConversionFailureMessage = nil
+        deferredPresentationConversionFailureMessage = message
+    }
+
+    func recordPresentationConversionDiagnostic(_ diagnostic: String) {
+        lastPresentationConversionDiagnostic = diagnostic
+    }
+
+    public func presentDeferredPresentationConversionFailure() {
+        guard let deferredPresentationConversionFailureMessage else { return }
+        self.deferredPresentationConversionFailureMessage = nil
+        presentationConversionFailureMessage = deferredPresentationConversionFailureMessage
     }
 
     @discardableResult
@@ -389,32 +440,38 @@ public final class AppModel {
         return true
     }
 
-    /// Records Apple's `ImmersiveViewingModeDidChange` confirmation from the
-    /// still-active main-window RealityView. Writing the desired mode alone is
-    /// not sufficient to release that source Root.
-    func recordProgressiveImmersiveViewingModeDidChange(
-        for transitionID: UUID,
-        currentModeIsProgressive: Bool
-    ) {
-        guard let transition = presentationTransition,
-              transition.id == transitionID,
-              transition.requiresProgressiveModeRequestBeforePanoramaTransfer,
-              currentModeIsProgressive else {
-            return
+    /// Opens the target binding gate after the source presentation has begun
+    /// destructive retirement. Every conversion owns a fresh renderer and
+    /// Entity, so source Scene dismissal can continue independently.
+    @discardableResult
+    func allowPresentationTargetRendererBinding() -> Bool {
+        guard presentationTransition != nil,
+              presentationSourceRendererMayRelease else {
+            return false
         }
-        progressiveImmersiveViewingModeConfirmedTransitionID = transitionID
+        presentationTargetRendererMayBind = true
+        return true
     }
 
-    func progressiveImmersiveViewingModeIsConfirmed(
-        for transitionID: UUID
-    ) -> Bool {
-        progressiveImmersiveViewingModeConfirmedTransitionID == transitionID
+    /// Starts the single visible cutover after the hidden target has produced
+    /// a presentable frame. The source Window remains fully opaque so visionOS
+    /// dismisses its content and system surface as one compositor operation.
+    @discardableResult
+    func beginPresentationVisualCutover() -> Bool {
+        guard presentationTransition != nil,
+              presentationTargetRendererMayBind else {
+            return false
+        }
+        presentationVisualCutoverMayBegin = true
+        return true
     }
 
-    // SpatialPlatformEffectExecutor's compatibility query now gates on the
-    // observed current mode, not merely on assigning the desired mode.
-    func progressiveModeRequestIsApplied(for transitionID: UUID) -> Bool {
-        progressiveImmersiveViewingModeIsConfirmed(for: transitionID)
+    /// Updates the settled control intent only after the departing Window is
+    /// gone. Hiding controls earlier can expose an empty system Window while
+    /// visionOS is still animating that Window's dismissal.
+    func finishPresentationVisualCutover() {
+        guard presentationVisualCutoverMayBegin else { return }
+        showControls = false
     }
 
     func presentationTransitionRemainingTime(
@@ -430,7 +487,8 @@ public final class AppModel {
 
     private func resetPresentationTransitionAppearance() {
         presentationSourceRendererMayRelease = false
-        progressiveImmersiveViewingModeConfirmedTransitionID = nil
+        presentationTargetRendererMayBind = false
+        presentationVisualCutoverMayBegin = false
         presentationTransitionStartedAt = nil
     }
 
@@ -483,6 +541,36 @@ public final class AppModel {
         if showControls {
             registerControlsInteraction(at: date)
         }
+    }
+
+    func beginFreshPlaybackWindowScene() -> PlaybackWindowSceneIdentity {
+        let identity = PlaybackWindowSceneIdentity()
+        activePlaybackWindowSceneIdentity = identity
+        return identity
+    }
+
+    func recordPlaybackWindowSceneAppeared(_ identity: PlaybackWindowSceneIdentity) {
+        activePlaybackWindowSceneIdentity = identity
+    }
+
+    func recordPlaybackWindowSceneDisappeared(_ identity: PlaybackWindowSceneIdentity) {
+        guard activePlaybackWindowSceneIdentity == identity else { return }
+        activePlaybackWindowSceneIdentity = nil
+    }
+
+    func beginFreshPlayerControlsScene() -> PlayerControlsSceneIdentity {
+        let identity = PlayerControlsSceneIdentity()
+        activePlayerControlsSceneIdentity = identity
+        return identity
+    }
+
+    func recordPlayerControlsSceneAppeared(_ identity: PlayerControlsSceneIdentity) {
+        activePlayerControlsSceneIdentity = identity
+    }
+
+    func recordPlayerControlsSceneDisappeared(_ identity: PlayerControlsSceneIdentity) {
+        guard activePlayerControlsSceneIdentity == identity else { return }
+        activePlayerControlsSceneIdentity = nil
     }
 
     public func setControlsFocused(_ focused: Bool, at date: Date = Date()) {

@@ -75,7 +75,7 @@ struct WindowPlaybackPageGeometryTests {
         #expect(layout.hasPlaybackAspectRatio(tooLarge))
     }
 
-    @Test("portal and spatial presentations host the independent controls window")
+    @Test("only Dock and Panorama host the independent controls window")
     func spatialControlsScenePolicy() {
         #expect(
             SpatialPlaybackControlsScenePolicy.shouldHostControls(
@@ -88,6 +88,14 @@ struct WindowPlaybackPageGeometryTests {
                 for: .window,
                 isPanoramic: true
             )
+            == false
+        )
+        #expect(
+            SpatialPlaybackControlsScenePolicy.shouldHostControls(
+                for: .portal,
+                isPanoramic: true
+            )
+            == false
         )
         #expect(
             SpatialPlaybackControlsScenePolicy.shouldHostControls(

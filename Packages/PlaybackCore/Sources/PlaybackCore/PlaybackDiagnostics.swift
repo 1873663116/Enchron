@@ -34,6 +34,12 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var formatHasAmbientViewingEnvironment = false
     public var rendererStatus = "unknown"
     public var rendererError = "none"
+    public var rendererTotalFrameCount: Int?
+    public var rendererDroppedFrameCount: Int?
+    public var rendererCorruptedFrameCount: Int?
+    public var rendererOptimizedCompositingFrameCount: Int?
+    public var rendererAccumulatedFrameDelaySeconds: TimeInterval?
+    public var rendererPerformanceMetricsObservationCount: UInt64 = 0
 
     public init() {}
 
@@ -69,7 +75,24 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
         hdrMetadata.destinationBuffer: masteringDisplay=\(destinationBufferHasMasteringDisplayMetadata), contentLightLevel=\(destinationBufferHasContentLightLevelMetadata)
         compressedFormat: hvcC=\(formatHasHvcC), dvcC=\(formatHasDvcC), dvvC=\(formatHasDvvC), amve=\(formatHasAmbientViewingEnvironment)
         renderer: status=\(rendererStatus), error=\(rendererError)
+        rendererPerformance: \(rendererPerformanceSummary)
         """
+    }
+
+    private var rendererPerformanceSummary: String {
+        let totalFrames = rendererTotalFrameCount.map { String($0) } ?? "notObserved"
+        let droppedFrames = rendererDroppedFrameCount.map { String($0) } ?? "notObserved"
+        let corruptedFrames = rendererCorruptedFrameCount.map { String($0) }
+            ?? "notObserved"
+        let optimizedFrames = rendererOptimizedCompositingFrameCount.map { String($0) }
+            ?? "notObserved"
+        let accumulatedDelay = rendererAccumulatedFrameDelaySeconds.map { String($0) }
+            ?? "notObserved"
+        return "totalFrames=\(totalFrames), droppedFrames=\(droppedFrames), "
+            + "corruptedFrames=\(corruptedFrames), "
+            + "optimizedCompositingFrames=\(optimizedFrames), "
+            + "accumulatedFrameDelaySeconds=\(accumulatedDelay), "
+            + "observationCount=\(rendererPerformanceMetricsObservationCount)"
     }
 
     private static func formatTime(_ seconds: Double) -> String {

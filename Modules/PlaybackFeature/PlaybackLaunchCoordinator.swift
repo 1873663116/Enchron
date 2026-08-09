@@ -17,6 +17,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         public let request: PlaybackLaunchRequest
         public let seconds: Double
         public let format: MediaFormat?
+        public let playbackMode: PersistedPlaybackMode
         let trackSelectionPreference: TrackSelectionPreference?
     }
 
@@ -24,6 +25,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         let request: PlaybackLaunchRequest
         let resumeSeconds: Double?
         let savedFormat: MediaFormat?
+        let playbackMode: PersistedPlaybackMode
         let trackSelectionPreference: TrackSelectionPreference?
     }
 
@@ -46,6 +48,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     public var queueSelectionProvider: (@MainActor @Sendable (UUID) async -> PlaybackLaunchRequest?)?
     public var onEffectiveMediaFormatApplied: (
         @MainActor (EffectiveMediaFormatInterpretation) -> Void
+    )?
+    public var onPlaybackModeEntryStarted: (
+        @MainActor (PersistedPlaybackMode, Bool) -> PersistedPlaybackMode
     )?
     public var onViewingStatesCleared: (@MainActor () -> Void)?
     public private(set) var pendingResumeDecision: ResumeDecision?
@@ -99,6 +104,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 await mediaStateStore.loadValidated(for: identity)
             } else { nil }
             guard generation == requestGeneration else { return }
+            let playbackMode = persistedState?.playbackModePreference ?? .window
             let seconds: Double
             if let status = persistedState?.viewingStatus,
                case .resumable(let position, _) = status {
@@ -112,6 +118,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     request: request,
                     seconds: seconds,
                     format: persistedState?.formatPreference,
+                    playbackMode: playbackMode,
                     trackSelectionPreference: persistedState?.trackSelectionPreference
                 )
             case .alwaysResume where seconds > 0:
@@ -119,6 +126,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     request,
                     resumeAt: seconds,
                     savedFormat: persistedState?.formatPreference,
+                    playbackMode: playbackMode,
                     trackSelectionPreference: persistedState?.trackSelectionPreference
                 )
             default:
@@ -126,6 +134,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     request,
                     resumeAt: nil,
                     savedFormat: persistedState?.formatPreference,
+                    playbackMode: playbackMode,
                     trackSelectionPreference: persistedState?.trackSelectionPreference
                 )
             }
@@ -139,6 +148,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             decision.request,
             resumeAt: decision.seconds,
             savedFormat: decision.format,
+            playbackMode: decision.playbackMode,
             trackSelectionPreference: decision.trackSelectionPreference
         )
     }
@@ -150,6 +160,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             decision.request,
             resumeAt: nil,
             savedFormat: decision.format,
+            playbackMode: decision.playbackMode,
             trackSelectionPreference: decision.trackSelectionPreference
         )
     }
@@ -164,6 +175,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             lastResolvedLaunch.request,
             resumeAt: lastResolvedLaunch.resumeSeconds,
             savedFormat: lastResolvedLaunch.savedFormat,
+            playbackMode: lastResolvedLaunch.playbackMode,
             trackSelectionPreference: lastResolvedLaunch.trackSelectionPreference
         )
     }
@@ -193,12 +205,19 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         _ request: PlaybackLaunchRequest,
         resumeAt seconds: Double?,
         savedFormat: MediaFormat?,
+        playbackMode: PersistedPlaybackMode,
         trackSelectionPreference: TrackSelectionPreference?
     ) {
+        let isColdLaunch = playbackRuntime.currentLaunchRequest == nil
+        let entryPlaybackMode = onPlaybackModeEntryStarted?(
+            playbackMode,
+            isColdLaunch
+        ) ?? playbackMode
         lastResolvedLaunch = ResolvedLaunch(
             request: request,
             resumeSeconds: seconds,
             savedFormat: savedFormat,
+            playbackMode: entryPlaybackMode,
             trackSelectionPreference: trackSelectionPreference
         )
         generation += 1
@@ -232,14 +251,17 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 try await playbackRuntime.open(
                     preparedRequest,
                     startTimeSeconds: seconds ?? 0,
-                    initialSpeed: initialSpeed
+                    initialSpeed: initialSpeed,
+                    initialFormat: savedFormat
                 )
                 guard generation == launchGeneration else { return }
                 guard try await applyLaunchConfiguration(
                     savedFormat: savedFormat,
+                    formatWasAppliedDuringOpen: savedFormat != nil,
                     trackSelectionPreference: trackSelectionPreference,
                     expectedGeneration: launchGeneration
                 ) else { return }
+                savePlaybackMode(entryPlaybackMode)
             } catch {
                 guard generation == launchGeneration else { return }
                 if Self.isNetworkURL(preparedRequest.url),
@@ -247,6 +269,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     preparedRequest,
                     resumeAt: seconds,
                     savedFormat: savedFormat,
+                    playbackMode: entryPlaybackMode,
                     trackSelectionPreference: trackSelectionPreference,
                     generation: launchGeneration
                    ) {
@@ -292,6 +315,17 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             await store.resetFormat(for: identity)
         }) else { return }
         notifyEffectiveMediaFormatApplied()
+    }
+
+    /// Persists only the normalized Window/Panorama playback-mode family for
+    /// the current media revision. Media Format remains a separate preference.
+    public func savePlaybackMode(_ mode: PersistedPlaybackMode) {
+        guard let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity else {
+            return
+        }
+        enqueueMediaStateMutation { store in
+            await store.savePlaybackMode(mode, for: identity)
+        }
     }
 
     public func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws {
@@ -484,6 +518,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         _ request: PlaybackLaunchRequest,
         resumeAt seconds: Double?,
         savedFormat: MediaFormat?,
+        playbackMode: PersistedPlaybackMode,
         trackSelectionPreference: TrackSelectionPreference?,
         generation: Int
     ) async -> Bool {
@@ -498,13 +533,16 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 try await playbackRuntime.open(
                     request,
                     startTimeSeconds: seconds ?? 0,
-                    initialSpeed: initialSpeed
+                    initialSpeed: initialSpeed,
+                    initialFormat: savedFormat
                 )
                 guard try await applyLaunchConfiguration(
                     savedFormat: savedFormat,
+                    formatWasAppliedDuringOpen: savedFormat != nil,
                     trackSelectionPreference: trackSelectionPreference,
                     expectedGeneration: generation
                 ) else { return false }
+                savePlaybackMode(playbackMode)
                 logger.info("network retry succeeded attempt=\(attempt)")
                 return true
             } catch {
@@ -516,6 +554,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
     private func applyLaunchConfiguration(
         savedFormat: MediaFormat?,
+        formatWasAppliedDuringOpen: Bool = false,
         trackSelectionPreference: TrackSelectionPreference?,
         expectedGeneration: Int
     ) async throws -> Bool {
@@ -554,6 +593,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             break
         }
         guard generation == expectedGeneration else { return false }
+        if savedFormat != nil, formatWasAppliedDuringOpen {
+            notifyEffectiveMediaFormatApplied()
+            return true
+        }
         guard let format = savedFormat else {
             try await performMediaFormatCoreOperation { [playbackRuntime] in
                 try await playbackRuntime.useSourceFormat()

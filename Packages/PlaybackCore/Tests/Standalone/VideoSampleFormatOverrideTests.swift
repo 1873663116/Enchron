@@ -13,8 +13,8 @@ struct VideoSampleFormatOverrideTests {
         try monoRemovesStereoPackingAndClearsEyeFlags()
         try rectilinearProjectionOverridePreservesStereoAndPayload()
         try panoramicProjectionOverridesPreservePayloadAndTiming()
-        try flatMonoKeepsTheRendererInputAsAPlainCompressedSample()
-        try projectionAndPackingUseRendererInputTags()
+        try monoKeepsTheRendererInputAsAPlainCompressedSample()
+        try compressedProjectionAndPackingStayInTheFormatDescription()
         print("GREEN video sample format override")
     }
 
@@ -190,27 +190,36 @@ struct VideoSampleFormatOverrideTests {
         }
     }
 
-    private static func flatMonoKeepsTheRendererInputAsAPlainCompressedSample() throws {
+    private static func monoKeepsTheRendererInputAsAPlainCompressedSample() throws {
         let rewriter = VideoSampleFormatOverride()
         let input = try makeCompressedH264Sample()
         let rewritten = try rewriter.rewrite(
             input,
             stereoLayout: .mono,
-            projection: .rectilinear
+            projection: .equirectangular
         )
         let output = rewriter.taggedPresentationSample(
             rewritten,
             stereoLayout: .mono,
-            projection: .rectilinear
+            projection: .equirectangular
         )
 
         expect(
             output.taggedBuffers == nil,
-            "flat mono stays a directly decodable compressed renderer input"
+            "projected mono stays a directly decodable compressed renderer input"
+        )
+        let format = try require(
+            CMSampleBufferGetFormatDescription(output),
+            "projected mono format"
+        )
+        expect(
+            extensions(of: format)[kCMFormatDescriptionExtension_ProjectionKind as String]
+                as? String == kCMFormatDescriptionProjectionKind_Equirectangular as String,
+            "projected mono retains projection signaling in its video format description"
         )
     }
 
-    private static func projectionAndPackingUseRendererInputTags() throws {
+    private static func compressedProjectionAndPackingStayInTheFormatDescription() throws {
         let rewriter = VideoSampleFormatOverride()
         let input = try makeCompressedH264Sample()
         let rewritten = try rewriter.rewrite(
@@ -223,24 +232,31 @@ struct VideoSampleFormatOverrideTests {
             stereoLayout: .sideBySide,
             projection: .equirectangular
         )
-        let taggedBuffers = try require(output.taggedBuffers, "tagged buffers")
-        expect(taggedBuffers.count == 1, "one packed video buffer is tagged")
-        let tags = taggedBuffers[0].tags
         expect(
-            tags.firstValue(matchingCategory: .projectionType) == .equirectangular,
-            "renderer input carries the equirectangular projection tag"
+            output.taggedBuffers == nil,
+            "compressed packed stereo stays a directly decodable renderer input"
+        )
+        let format = try require(
+            CMSampleBufferGetFormatDescription(output),
+            "packed stereo format"
+        )
+        let formatExtensions = extensions(of: format)
+        expect(
+            formatExtensions[kCMFormatDescriptionExtension_ProjectionKind as String]
+                as? String == kCMFormatDescriptionProjectionKind_Equirectangular as String,
+            "compressed renderer input carries projection in its format description"
         )
         expect(
-            tags.firstValue(matchingCategory: .packingType) == .sideBySide,
-            "renderer input carries the side-by-side packing tag"
+            formatExtensions[kCMFormatDescriptionExtension_ViewPackingKind as String]
+                as? String == kCMFormatDescriptionViewPackingKind_SideBySide as String,
+            "compressed renderer input carries side-by-side packing in its format description"
         )
         expect(
-            tags.firstValue(matchingCategory: .stereoView) == [.leftEye, .rightEye],
-            "renderer input carries both stereo views"
-        )
-        expect(
-            tags.firstValue(matchingCategory: .mediaType) == .video,
-            "renderer input identifies video media"
+            formatExtensions[kCMFormatDescriptionExtension_HasLeftStereoEyeView as String]
+                as? Bool == true
+                && formatExtensions[kCMFormatDescriptionExtension_HasRightStereoEyeView as String]
+                    as? Bool == true,
+            "compressed renderer input declares both stereo eyes"
         )
     }
 

@@ -233,6 +233,8 @@ public struct ImmersiveSpaceView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
+    @Environment(\.openWindow) private var openWindow
+    @Environment(\.dismissWindow) private var dismissWindow
 
     @State private var world = WorldSceneState()
     @State private var subtitleSurface = PlaybackSubtitleSurface()
@@ -247,7 +249,10 @@ public struct ImmersiveSpaceView: View {
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
 
     private var videoEntity: Entity {
-        playbackVideoEntityStore.entity
+        playbackVideoEntityStore.hostedEntity(
+            for: requestedPresentation,
+            during: appModel.presentationTransition
+        )
     }
 
     private var realityKitContentTypeScope: PlaybackRealityKitContentTypeScope? {
@@ -342,7 +347,8 @@ public struct ImmersiveSpaceView: View {
         PlaybackPresentationTransitionAppearance.opacity(
             for: requestedPresentation,
             settledPresentation: appModel.playbackPresentation,
-            transition: appModel.presentationTransition
+            transition: appModel.presentationTransition,
+            visualCutoverMayBegin: appModel.presentationVisualCutoverMayBegin
         )
     }
 
@@ -382,6 +388,18 @@ public struct ImmersiveSpaceView: View {
         )
         updateWorld(in: content)
         let presentation = requestedPresentation
+        if presentation == .panorama {
+            PlaybackPanoramaInteractionSurface.configure(
+                panoramaInteractionSurface,
+                projection: playbackRuntime.effectiveProjectionType,
+                horizontalFieldOfViewDegrees:
+                    playbackRuntime.effectiveHorizontalFieldOfViewDegrees
+            )
+        }
+        updatePanoramaInteractionSurface(
+            in: content,
+            isActive: presentation == .panorama
+        )
         guard presentation.usesImmersiveSpace else {
             appModel.recordSpatialPlaybackSurfacePreparationStage("inactive")
             removeVideo(from: content, reason: "mainWindowPresentation")
@@ -443,9 +461,31 @@ public struct ImmersiveSpaceView: View {
         dockedPlacement: PlaybackSurfaceTransform
     ) {
         let videoComponentRevision = playbackRuntime.videoComponentRevision
+        guard PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
+            for: presentation,
+            previousPresentation: appModel.presentationTransition?.previousPresentation,
+            targetPresentation: appModel.presentationTransition?.targetPresentation,
+            sourceRendererMayRelease: appModel.presentationSourceRendererMayRelease,
+            targetRendererMayBind: appModel.presentationTargetRendererMayBind
+        ) else {
+            appModel.recordSpatialPlaybackSurfacePreparationStage(
+                "waitingForSourceRendererRelease"
+            )
+            logSpatialSurfaceReadiness(reason: "waitingForSourceRendererRelease")
+            return
+        }
+        if let rendererConsumerPresentation = playbackRuntime.rendererConsumerPresentation,
+           rendererConsumerPresentation.usesMainWindow {
+            appModel.recordSpatialPlaybackSurfacePreparationStage(
+                "waitingForSourceRendererOwnershipToClear"
+            )
+            logSpatialSurfaceReadiness(reason: "waitingForSourceRendererOwnershipToClear")
+            return
+        }
         if playbackVideoEntityStore.hasApplied(
             videoComponentRevision: videoComponentRevision,
-            to: renderer
+            to: renderer,
+            presentation: presentation
         ) == false {
             surfaceActivation.cancel()
             rendererTargetObservation.cancel()
@@ -453,6 +493,7 @@ public struct ImmersiveSpaceView: View {
         }
         _ = playbackVideoEntityStore.entity(
             for: renderer,
+            presentation: presentation,
             videoComponentRevision: videoComponentRevision
         )
         let entity = videoEntity
@@ -468,18 +509,6 @@ public struct ImmersiveSpaceView: View {
                 surfaceRefreshTick &+= 1
             }
             attachSpatialSurfaceIfReady()
-        }
-        guard PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
-            for: presentation,
-            previousPresentation: appModel.presentationTransition?.previousPresentation,
-            targetPresentation: appModel.presentationTransition?.targetPresentation,
-            sourceRendererMayRelease: appModel.presentationSourceRendererMayRelease
-        ) else {
-            appModel.recordSpatialPlaybackSurfacePreparationStage(
-                "waitingForSourceRendererRelease"
-            )
-            logSpatialSurfaceReadiness(reason: "waitingForSourceRendererRelease")
-            return
         }
         if presentation == .docked {
             guard let anchor = world.playbackSurfaceAnchor else { return }
@@ -531,7 +560,7 @@ public struct ImmersiveSpaceView: View {
         presentationObservation.observe(
             entity,
             in: content,
-            contentTypeSessionID: realityKitContentTypeScope?.sessionID,
+            contentTypeSessionID: realityKitContentTypeScope?.technicalSessionID,
             onChange: {
                 recordSpatialPresentationState()
             },
@@ -541,7 +570,7 @@ public struct ImmersiveSpaceView: View {
                 )
                 playbackVideoEntityStore.recordRealityKitContentType(
                     contentType,
-                    forSessionID: eventSessionID
+                    forTechnicalSessionID: eventSessionID
                 )
             }
         )
@@ -742,9 +771,29 @@ public struct ImmersiveSpaceView: View {
                 },
                 requiresObservedMode: presentation == .panorama
             )
+        let explicitOverrideAdoptionIsConfirmed = presentation == .panorama
+            && SpatialPlaybackSurfaceSettlementPolicy
+                .explicitOverrideAdoptionIsConfirmed(
+                    projection: playbackRuntime.effectiveProjectionType,
+                    stereoLayout: playbackRuntime.effectiveStereoLayout,
+                    provenance: playbackRuntime.activeMediaFormatProvenance,
+                    acceptedRendererProjectionKind:
+                        playbackRuntime.acceptedRendererProjectionKind,
+                    desiredImmersiveViewingMode: String(
+                        describing: component.desiredImmersiveViewingMode
+                    ),
+                    observedImmersiveViewingMode:
+                        component.immersiveViewingMode.map {
+                            String(describing: $0)
+                        },
+                    observedViewingMode: component.viewingMode.map {
+                        String(describing: $0)
+                    }
+                )
         let isSettled = component.currentRenderingStatus == .ready
             && immersiveModeIsSettled
-            && contentTypeMatchesProjection
+            && (contentTypeMatchesProjection
+                || explicitOverrideAdoptionIsConfirmed)
             && viewingModeMatches
             && component.spatialVideoMode == component.desiredSpatialVideoMode
             && displayedPixelBuffer
@@ -987,10 +1036,11 @@ public struct ImmersiveSpaceView: View {
                 == entityID(for: sourcePresentation) else {
             return
         }
+        playbackVideoEntityStore.releasePlaybackComponentForRealityViewTransfer()
         playbackRuntime.releaseRendererConsumer(
             presentation: sourcePresentation,
             entityID: entityID(for: sourcePresentation),
-            preservingVideoComponent: true
+            preservingVideoComponent: false
         )
         playbackRuntime.detachSurface(
             entityID: entityID(for: sourcePresentation),
@@ -1011,19 +1061,26 @@ public struct ImmersiveSpaceView: View {
             playbackRuntime.effectiveProjectionType.rawValue,
             String(playbackRuntime.effectiveHorizontalFieldOfViewDegrees),
             playbackRuntime.effectiveStereoLayout.rawValue,
-            realityKitContentTypeScope.flatMap(\.effectiveVideoFormatRevision)
-                .map(String.init) ?? "formatRevisionNone",
+            playbackRuntime.effectiveVideoFormatRevision.map(String.init)
+                ?? "formatRevisionNone",
             rendererID,
             String(playbackRuntime.videoComponentRevision),
             playbackRuntime.rendererConsumerEntityID ?? "consumerNone",
-            playbackRuntime.attachedPresentation?.rawValue ?? "attachedNone"
+            playbackRuntime.attachedPresentation?.rawValue ?? "attachedNone",
+            playbackRuntime.hasActivePlaybackRequest ? "requestActive" : "requestNone",
+            playbackRuntime.productLifecycle.rawValue,
+            appModel.presentationSourceRendererMayRelease
+                ? "sourceMayRelease"
+                : "sourceMustRemain",
+            appModel.presentationTargetRendererMayBind
+                ? "targetMayBind"
+                : "targetMustWait"
         ].joined(separator: "|")
     }
 
     @MainActor
     private func retrySpatialSurfaceAttachment() async {
-        guard requestedPresentation.usesImmersiveSpace else { return }
-        for _ in 0..<PlaybackSurfaceActivation.maximumRetryCountForView {
+        while spatialSurfaceAttachmentCanStillSettle {
             guard Task.isCancelled == false else { return }
             if appModel.spatialPlaybackSurfaceObservation.settled,
                playbackRuntime.attachedPresentation == requestedPresentation,
@@ -1037,9 +1094,27 @@ public struct ImmersiveSpaceView: View {
         }
     }
 
+    /// An opened Immersive Space keeps driving its idempotent attach path
+    /// while the requested media session is viable. High-resolution startup
+    /// latency is not evidence that RealityKit rejected the target surface.
+    private var spatialSurfaceAttachmentCanStillSettle: Bool {
+        guard requestedPresentation.usesImmersiveSpace,
+              playbackRuntime.hasActivePlaybackRequest else {
+            return false
+        }
+        switch playbackRuntime.productLifecycle {
+        case .loading, .ready, .playing, .paused, .ended:
+            return true
+        case .idle, .failed:
+            return false
+        }
+    }
+
     private func entityID(for presentation: PlaybackPresentation) -> String {
-        _ = presentation
-        return playbackVideoEntityStore.entityID
+        playbackVideoEntityStore.hostedEntityID(
+            for: presentation,
+            during: appModel.presentationTransition
+        )
     }
 
     private func realityViewID(for presentation: PlaybackPresentation) -> String {

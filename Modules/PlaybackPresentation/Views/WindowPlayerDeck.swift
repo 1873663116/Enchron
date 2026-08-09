@@ -139,20 +139,6 @@ struct WindowPlayerDeckView: View {
                 self.register()
                 self.appModel.resetDockedPlacement()
             },
-            onApplyFormat: { projection, horizontalFieldOfViewDegrees, stereo in
-                self.register()
-                Task {
-                    do {
-                        try await self.playbackLauncher.applyFormat(
-                            projection: projection,
-                            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-                            stereo: stereo
-                        )
-                    } catch {
-                        self.playbackRuntime.lastErrorMessage = error.localizedDescription
-                    }
-                }
-            },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
@@ -165,8 +151,7 @@ struct WindowPlayerDeckView: View {
     }
 
     private var usesWindowPlaybackControls: Bool {
-        resolvedPresentation == .window
-            && playbackRuntime.effectiveContentIsPanoramic == false
+        resolvedPresentation.usesMainWindow
     }
 
     private var mediaName: String {

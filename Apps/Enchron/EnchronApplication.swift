@@ -84,11 +84,30 @@ final class EnchronApplication {
             preferencesDefaults = .standard
         }
         if let mediaStateSuiteName,
-           mediaStateSuiteName != preferencesSuiteName {
-            // Spatial acceptance uses the production Media Library, but must
-            // start without a previous run's playback position or format.
-            UserDefaults(suiteName: mediaStateSuiteName)?
-                .removePersistentDomain(forName: mediaStateSuiteName)
+           mediaStateSuiteName != preferencesSuiteName,
+           let mediaStateDefaults = UserDefaults(suiteName: mediaStateSuiteName) {
+            // A spatial acceptance test starts with isolated playback state,
+            // but a process relaunch inside that same test must preserve the
+            // format it is explicitly verifying. A new reset token marks a
+            // new test; the same token marks a cold relaunch within that test.
+            let resetToken = environment[
+                "ENCHRON_TEST_MEDIA_STATE_RESET_TOKEN"
+            ]
+            let storedResetTokenKey =
+                "enchron.spatialAcceptanceMediaStateResetToken"
+            if resetToken == nil
+                || mediaStateDefaults.string(forKey: storedResetTokenKey)
+                    != resetToken {
+                mediaStateDefaults.removePersistentDomain(
+                    forName: mediaStateSuiteName
+                )
+                if let resetToken {
+                    mediaStateDefaults.set(
+                        resetToken,
+                        forKey: storedResetTokenKey
+                    )
+                }
+            }
         }
 
         let screenPositionStore = PlaybackPresentationStorage.makeScreenPositionStore(
@@ -111,11 +130,28 @@ final class EnchronApplication {
             )
         )
         let playbackRuntime = PlaybackRuntime()
+        let playbackVideoEntityStore = PlaybackVideoEntityStore()
         let launcher = PlaybackLaunchCoordinator(
             playbackRuntime: playbackRuntime,
             mediaStateSuiteName: mediaStateSuiteName,
             preferencesProvider: preferencesStore
         )
+        launcher.onPlaybackModeEntryStarted = { [weak appModel] mode, isColdLaunch in
+            guard let appModel else { return mode }
+            appModel.showControls = false
+            guard isColdLaunch else {
+                return switch appModel.playbackPresentation {
+                case .window, .docked: .window
+                case .portal, .panorama: .panorama
+                }
+            }
+            let presentation: PlaybackPresentation = switch mode {
+            case .window: .window
+            case .panorama: .panorama
+            }
+            appModel.prepareColdPlaybackLaunch(in: presentation)
+            return mode
+        }
         launcher.onEffectiveMediaFormatApplied = {
             [weak appModel, weak playbackRuntime] interpretation in
             guard let appModel, let playbackRuntime else { return }
@@ -127,6 +163,22 @@ final class EnchronApplication {
                 switch resolution {
                 case .unchanged:
                     appModel.setAutomaticPanoramaEntryPending(false)
+                    guard playbackRuntime.technicalSessionFormatReplacementIsPending else {
+                        return
+                    }
+                    Task { @MainActor [weak appModel, weak playbackRuntime] in
+                        guard let appModel, let playbackRuntime else { return }
+                        do {
+                            try await playbackRuntime
+                                .rebuildTechnicalSessionForCurrentPresentation()
+                        } catch {
+                            appModel.deferPresentationConversionFailureUntilMediaLibraryIsVisible(
+                                "转换失败，已返回媒体资料库。"
+                            )
+                            await playbackRuntime.stopAndWait()
+                            appModel.requestStoppedPlaybackCleanup()
+                        }
+                    }
                 case .enterPanorama:
                     appModel.setAutomaticPanoramaEntryPending(false)
                     _ = try appModel.requestPlaybackPresentation(
@@ -161,6 +213,7 @@ final class EnchronApplication {
                 playbackRuntime.lastErrorMessage = error.localizedDescription
             }
         }
+        playbackVideoEntityStore.onRealityKitContentTypeChanged = nil
         let fixtureSourceID = UUID(uuidString: "00000000-0000-0000-0000-000000000101")!
         let uiTestDataset = environment["ENCHRON_UI_TEST_LIBRARY_DATASET"]
             .flatMap(MediaLibraryFeature.UITestDataset.init(rawValue:))
@@ -225,11 +278,21 @@ final class EnchronApplication {
 
         self.appModel = appModel
         self.playbackRuntime = playbackRuntime
-        playbackVideoEntityStore = PlaybackVideoEntityStore()
+        self.playbackVideoEntityStore = playbackVideoEntityStore
         #if os(visionOS)
         let spatialPlatformEffectCoordinator = SpatialPlatformEffectCoordinator(
             appModel: appModel,
-            playbackRuntime: playbackRuntime
+            playbackRuntime: playbackRuntime,
+            stopPlaybackForFailedPresentationTransfer: { [weak launcher] in
+                await launcher?.stopPlaybackAndWait()
+            },
+            persistSettledPlaybackMode: { [weak launcher] presentation in
+                let mode: PersistedPlaybackMode = switch presentation {
+                case .window, .docked: .window
+                case .portal, .panorama: .panorama
+                }
+                launcher?.savePlaybackMode(mode)
+            }
         )
         self.spatialPlatformEffectCoordinator = spatialPlatformEffectCoordinator
         playbackRuntime.setSessionLifecycleHandler { [weak spatialPlatformEffectCoordinator] event in

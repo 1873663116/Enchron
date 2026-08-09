@@ -52,6 +52,7 @@ public final class PlaybackCoreController {
     private var failedCleanupTask: Task<Void, Never>?
     private var pendingCleanupMediaSessionID: String?
     private var pendingCleanupWaiters: [CheckedContinuation<Void, Never>] = []
+    private var replacementRetirementTasks: [UUID: Task<Void, Never>] = [:]
     private var latestRequestedSeekTime: CMTime?
     private var seekGeneration: UInt64 = 0
     private var subtitleSelectionGeneration: UInt64 = 0
@@ -210,6 +211,24 @@ public final class PlaybackCoreController {
         guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
         try rejectIfSeekIsInProgress()
         try activeSession.play()
+    }
+
+    /// Waits until the first delivered sample has anchored the renderer
+    /// synchronizer. A prepared and attached session can report `ready`
+    /// before that asynchronous media-time boundary exists.
+    public func waitUntilTimelineReadyForControl() async throws {
+        guard let expectedSession = activeSession else {
+            throw PlaybackControlError.noActiveMediaSession
+        }
+        while expectedSession.debugSnapshot().rendererState?.timelineConfigured != true {
+            guard activeSession === expectedSession else {
+                throw PlaybackControlError.openTerminatedByCleanup
+            }
+            if case .failed = status {
+                throw PlaybackControlError.timelineNotReady
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
     }
 
     public func pause() throws {
@@ -456,6 +475,17 @@ public final class PlaybackCoreController {
         activeSession?.selectedSubtitleTrackID
     }
 
+    /// Includes the active decoder graph and every graph still completing its
+    /// destructive retirement. This is the physical overlap count used when
+    /// profiling high-resolution presentation changes.
+    public var liveTechnicalSessionCount: Int {
+        (activeSession == nil ? 0 : 1) + replacementRetirementTasks.count
+    }
+
+    public var retiringTechnicalSessionCount: Int {
+        replacementRetirementTasks.count
+    }
+
     public var activeSubtitleCues: [PlaybackSubtitleCue] {
         activeSession?.activeSubtitleCues ?? []
     }
@@ -690,6 +720,7 @@ public final class PlaybackCoreController {
             activeSubtitleSelectionTask = nil
             setStatus(.idle)
             await waitForPendingCleanup()
+            await waitForReplacementRetirements()
             return
         }
         if let activeSeekTask {
@@ -713,6 +744,49 @@ public final class PlaybackCoreController {
             beginPendingCleanup(for: session)
         }
         await waitForPendingCleanup()
+        await waitForReplacementRetirements()
+    }
+
+    /// Irreversibly removes the current technical session from the control
+    /// slot, then releases its decoder graph in the background. A replacement
+    /// may be opened immediately; callers must never try to reactivate the
+    /// retiring instance.
+    @discardableResult
+    public func retireActiveSessionForReplacement() -> Task<Void, Never>? {
+        failedCleanupTask?.cancel()
+        failedCleanupTask = nil
+        formatOverrideGeneration &+= 1
+        activeFormatOverrideTask?.cancel()
+        activeFormatOverrideTask = nil
+        activeSeekTask?.cancel()
+        activeSeekTask = nil
+        subtitleSelectionGeneration &+= 1
+        activeSubtitleSelectionTask?.cancel()
+        activeSubtitleSelectionTask = nil
+        latestRequestedSeekTime = nil
+
+        guard let session = activeSession else { return nil }
+        let mediaSessionID = session.traceID
+        let recorder = debugRecorder
+        debugRecorder = nil
+        activeSession = nil
+        onSessionChange?(nil)
+        diagnostics = PlaybackDiagnostics()
+        onDiagnosticsChange?(diagnostics)
+        _ = mediaSlot.release(mediaSessionID: mediaSessionID)
+        setStatus(.idle)
+
+        let retirementID = UUID()
+        let retirement = Task { @MainActor in
+            await session.closeAndWait()
+            recorder?.stop()
+        }
+        replacementRetirementTasks[retirementID] = retirement
+        Task { @MainActor [weak self] in
+            await retirement.value
+            self?.replacementRetirementTasks[retirementID] = nil
+        }
+        return retirement
     }
 
     public func writeDebugSnapshot() {
@@ -860,6 +934,13 @@ public final class PlaybackCoreController {
         guard pendingCleanupMediaSessionID != nil else { return }
         await withCheckedContinuation { continuation in
             pendingCleanupWaiters.append(continuation)
+        }
+    }
+
+    private func waitForReplacementRetirements() async {
+        let retirements = Array(replacementRetirementTasks.values)
+        for retirement in retirements {
+            await retirement.value
         }
     }
 

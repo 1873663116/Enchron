@@ -140,6 +140,9 @@ public struct RendererInputRecord: Codable, Equatable, Sendable {
     public var timelineConfiguredBeforeFirstEnqueue: Bool
     public var action: String
     public var outcome: RendererInputOutcome
+    /// Signaling read from the exact sample buffer submitted to the renderer.
+    /// This differs from the decoded source sample when presentation tags wrap it.
+    public var formatSignaling: VideoFormatSignalingSummary?
 
     public init(
         mediaSessionID: String,
@@ -151,7 +154,8 @@ public struct RendererInputRecord: Codable, Equatable, Sendable {
         inputKind: RendererInputKind = .compressed,
         timelineConfiguredBeforeFirstEnqueue: Bool = false,
         action: String,
-        outcome: RendererInputOutcome
+        outcome: RendererInputOutcome,
+        formatSignaling: VideoFormatSignalingSummary? = nil
     ) {
         self.mediaSessionID = mediaSessionID
         self.sourceEventID = sourceEventID
@@ -163,6 +167,7 @@ public struct RendererInputRecord: Codable, Equatable, Sendable {
         self.timelineConfiguredBeforeFirstEnqueue = timelineConfiguredBeforeFirstEnqueue
         self.action = action
         self.outcome = outcome
+        self.formatSignaling = formatSignaling
     }
 }
 

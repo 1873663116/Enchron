@@ -72,10 +72,11 @@ final class AVSampleBufferRendererInputSink: RendererInputSink, @unchecked Senda
         self.receiver = receiver
     }
 
-    // Decoder bootstrap is submitted synchronously by the session while its
-    // timebase is stopped. Once bootstrap completes, Receiver owns flow control
-    // so decode failures and renderer capacity remain part of delivery.
-    var enqueueStrategy: RendererEnqueueStrategy { .receiverBackpressure }
+    // A replacement session is prepared while its timeline may still be
+    // stopped. Bound media-time lead before using the Receiver's
+    // non-suspending admission so a paused handoff cannot strand the delivery
+    // task in an async capacity wait.
+    var enqueueStrategy: RendererEnqueueStrategy { .boundedImmediateLead }
 
     func enqueueImmediately(_ input: RendererInputSample) throws -> RendererEnqueueOutcome {
         let sample = input.sampleBuffer

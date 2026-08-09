@@ -23,9 +23,12 @@ extension SampleBufferPlaybackSession {
             throw CorePlaybackError.formatOverridesUnavailable(stereoLayout, projection)
         }
 
+        let boundaryTime = currentTime()
+        let boundaryStartsPaused = currentRate() == 0
         let change = applyFormatOverrides(
             stereoLayout: stereoLayout,
-            projection: projection
+            projection: projection,
+            resumesExistingDelivery: false
         )
         debugStore.emit(
             mediaSessionID: traceID,
@@ -56,6 +59,11 @@ extension SampleBufferPlaybackSession {
 
         let effectiveRevision: UInt64
         do {
+            try await rebuildRendererInputForFormatOverride(
+                at: boundaryTime,
+                startsPaused: boundaryStartsPaused,
+                revision: change.revision
+            )
             effectiveRevision = try await waitForFormatOverrides(
                 stereoLayout: stereoLayout,
                 projection: projection,
@@ -77,11 +85,17 @@ extension SampleBufferPlaybackSession {
             }
             let rollback = applyFormatOverrides(
                 stereoLayout: change.previousStereoLayout,
-                projection: change.previousProjection
+                projection: change.previousProjection,
+                resumesExistingDelivery: false
             )
             var rollbackState = "restoredBeforeFirstSample"
             if rollback.awaitsSample {
                 do {
+                    try await rebuildRendererInputForFormatOverride(
+                        at: currentTime(),
+                        startsPaused: currentRate() == 0,
+                        revision: rollback.revision
+                    )
                     _ = try await waitForFormatOverrides(
                         stereoLayout: change.previousStereoLayout,
                         projection: change.previousProjection,
@@ -131,7 +145,8 @@ extension SampleBufferPlaybackSession {
 
     private func applyFormatOverrides(
         stereoLayout: VideoStereoLayout?,
-        projection: VideoProjectionOverride?
+        projection: VideoProjectionOverride?,
+        resumesExistingDelivery: Bool = true
     ) -> FormatOverridesChange {
         stopVideoDelivery()
         let change = deliveryQueue.sync {
@@ -156,10 +171,48 @@ extension SampleBufferPlaybackSession {
                 shouldResumeDelivery: awaitsSample && !providerResetIsInFlight
             )
         }
-        if change.shouldResumeDelivery {
+        if change.shouldResumeDelivery && resumesExistingDelivery {
             startVideoDelivery()
         }
         return change
+    }
+
+    /// Establishes a decoder discontinuity for a live format revision without
+    /// replacing the renderer graph. The provider's backward seek restarts the
+    /// compressed stream from a decodable sync boundary, while the renderer flush
+    /// removes all samples classified under the previous presentation format.
+    private func rebuildRendererInputForFormatOverride(
+        at time: CMTime,
+        startsPaused: Bool,
+        revision: UInt64
+    ) async throws {
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "rendererInput.formatBoundary.started",
+            outcome: .succeeded,
+            details: [
+                "formatRevision": String(revision),
+                "targetSeconds": String(time.seconds),
+                "rendererIdentity": PlaybackTrace.identity(renderer),
+            ]
+        )
+        try await seek(
+            to: time,
+            startsPaused: startsPaused,
+            removingDisplayedImage: false
+        )
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "rendererInput.formatBoundary.completed",
+            outcome: .succeeded,
+            details: [
+                "formatRevision": String(revision),
+                "streamEpoch": String(streamEpoch),
+                "rendererIdentity": PlaybackTrace.identity(renderer),
+            ]
+        )
     }
 
     private func waitForFormatOverrides(
@@ -177,13 +230,14 @@ extension SampleBufferPlaybackSession {
                input.formatRevision == sample.formatRevision,
                input.sourceEventID == sample.sourceEventID,
                input.outcome == .accepted,
+               let rendererSignaling = input.formatSignaling,
                self.stereoLayout(
                    stereoLayout,
-                   matches: sample.formatSignaling.viewPackingKind.value
+                   matches: rendererSignaling.viewPackingKind.value
                ),
                projectionOverride(
                    projection,
-                   matches: sample.formatSignaling.projectionKind.value,
+                   matches: rendererSignaling.projectionKind.value,
                    source: snapshot.providerOpen?.formatSignaling.projectionKind.value
                ) {
                 return sample.formatRevision
@@ -372,7 +426,8 @@ extension SampleBufferPlaybackSession {
                input.formatRevision == sample.formatRevision,
                input.sourceEventID == sample.sourceEventID,
                input.outcome == .accepted,
-               stereoLayout(layout, matches: sample.formatSignaling.viewPackingKind.value) {
+               let rendererSignaling = input.formatSignaling,
+               stereoLayout(layout, matches: rendererSignaling.viewPackingKind.value) {
                 return sample.formatRevision
             }
             if videoProviderHasEnded {
@@ -596,9 +651,10 @@ extension SampleBufferPlaybackSession {
                input.formatRevision == sample.formatRevision,
                input.sourceEventID == sample.sourceEventID,
                input.outcome == .accepted,
+               let rendererSignaling = input.formatSignaling,
                projectionOverride(
                    projection,
-                   matches: sample.formatSignaling.projectionKind.value,
+                   matches: rendererSignaling.projectionKind.value,
                    source: snapshot.providerOpen?.formatSignaling.projectionKind.value
                ) {
                 return sample.formatRevision

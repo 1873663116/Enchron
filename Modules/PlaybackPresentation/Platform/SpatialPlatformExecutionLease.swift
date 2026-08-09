@@ -21,12 +21,17 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
     }
 
     private var capabilities: [UUID: CapabilityEntry] = [:]
+    private var retiredCapabilityIDs: Set<UUID> = []
     private var preferredCapabilityID: UUID?
     private var nextCapabilityGeneration: UInt64 = 1
     private(set) var activeLease: SpatialPlatformExecutionLease?
 
     var registeredCapabilityCount: Int {
-        capabilities.count
+        capabilities.keys.reduce(into: 0) { count, id in
+            if retiredCapabilityIDs.contains(id) == false {
+                count += 1
+            }
+        }
     }
 
     var currentCapability: Capability? {
@@ -40,6 +45,7 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
     ) -> SpatialPlatformExecutionLease? {
         let invalidatedLease =
             activeLease?.capabilityID == id ? invalidateActiveExecution() : nil
+        retiredCapabilityIDs.remove(id)
         capabilities[id] = CapabilityEntry(
             generation: nextCapabilityGeneration,
             capability: capability
@@ -53,12 +59,20 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
 
     @discardableResult
     mutating func unregister(id: UUID) -> SpatialPlatformExecutionLease? {
-        capabilities[id] = nil
-        if preferredCapabilityID == id {
-            preferredCapabilityID = capabilities.keys.first
+        guard capabilities[id] != nil else { return nil }
+        if activeLease?.capabilityID == id {
+            retiredCapabilityIDs.insert(id)
+            if preferredCapabilityID == id {
+                preferredCapabilityID = firstRegisteredCapabilityID()
+            }
+            return nil
         }
-        guard activeLease?.capabilityID == id else { return nil }
-        return invalidateActiveExecution()
+        capabilities[id] = nil
+        retiredCapabilityIDs.remove(id)
+        if preferredCapabilityID == id {
+            preferredCapabilityID = firstRegisteredCapabilityID()
+        }
+        return nil
     }
 
     mutating func claim(
@@ -92,22 +106,45 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
 
     @discardableResult
     mutating func invalidateActiveExecution() -> SpatialPlatformExecutionLease? {
-        defer { activeLease = nil }
+        guard let activeLease else { return nil }
+        self.activeLease = nil
+        removeRetiredCapabilityAfterExecutionEnds(activeLease.capabilityID)
         return activeLease
     }
 
     mutating func finish(_ lease: SpatialPlatformExecutionLease) {
         guard activeLease == lease else { return }
         activeLease = nil
+        removeRetiredCapabilityAfterExecutionEnds(lease.capabilityID)
     }
 
     private func currentEntry() -> (id: UUID, entry: CapabilityEntry)? {
         if let preferredCapabilityID,
+           retiredCapabilityIDs.contains(preferredCapabilityID) == false,
            let entry = capabilities[preferredCapabilityID] {
             return (preferredCapabilityID, entry)
         }
-        guard let first = capabilities.first else { return nil }
-        return (first.key, first.value)
+        guard let firstID = firstRegisteredCapabilityID(),
+              let entry = capabilities[firstID] else { return nil }
+        return (firstID, entry)
+    }
+
+    private func firstRegisteredCapabilityID() -> UUID? {
+        capabilities.keys.first { retiredCapabilityIDs.contains($0) == false }
+    }
+
+    /// A scene that disappears cannot accept another platform request. Its
+    /// active lease remains valid so the same execution can continue through a
+    /// newly registered scene root, while `currentCapability` stops exposing the
+    /// retired scene's actions immediately.
+    private mutating func removeRetiredCapabilityAfterExecutionEnds(
+        _ capabilityID: UUID
+    ) {
+        guard retiredCapabilityIDs.remove(capabilityID) != nil else { return }
+        capabilities[capabilityID] = nil
+        if preferredCapabilityID == capabilityID {
+            preferredCapabilityID = firstRegisteredCapabilityID()
+        }
     }
 }
 

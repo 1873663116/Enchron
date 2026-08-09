@@ -71,6 +71,13 @@ extension SampleBufferPlaybackSession {
             self.videoPerformanceMetricsLock.withLock {
                 self.videoPerformanceMetricsRequestInFlight = false
             }
+            let totalFrames = metrics?.totalNumberOfFrames
+            let droppedFrames = metrics?.numberOfDroppedFrames
+            let corruptedFrames = metrics?.numberOfCorruptedFrames
+            let optimizedCompositingFrames = metrics?
+                .numberOfFramesDisplayedUsingOptimizedCompositing
+            let accumulatedFrameDelay = metrics?.totalAccumulatedFrameDelay
+            let metricsAvailable = metrics != nil
             let details: [String: String]
             if let metrics {
                 details = [
@@ -85,13 +92,27 @@ extension SampleBufferPlaybackSession {
             } else {
                 details = ["availability": "none"]
             }
-            self.debugStore.emit(
-                mediaSessionID: self.traceID,
-                node: .rendererInputCoordination,
-                kind: "videoRenderer.performanceMetrics",
-                outcome: .succeeded,
-                details: details
-            )
+            self.deliveryQueue.async { [weak self] in
+                guard let self, self.isClosed == false else { return }
+                self.diagnostics.rendererTotalFrameCount = totalFrames
+                self.diagnostics.rendererDroppedFrameCount = droppedFrames
+                self.diagnostics.rendererCorruptedFrameCount = corruptedFrames
+                self.diagnostics.rendererOptimizedCompositingFrameCount =
+                    optimizedCompositingFrames
+                self.diagnostics.rendererAccumulatedFrameDelaySeconds =
+                    accumulatedFrameDelay
+                if metricsAvailable {
+                    self.diagnostics.rendererPerformanceMetricsObservationCount &+= 1
+                }
+                self.debugStore.emit(
+                    mediaSessionID: self.traceID,
+                    node: .rendererInputCoordination,
+                    kind: "videoRenderer.performanceMetrics",
+                    outcome: .succeeded,
+                    details: details
+                )
+                self.onDiagnosticsChange?(self.diagnostics)
+            }
         }
     }
 
@@ -453,6 +474,59 @@ extension SampleBufferPlaybackSession {
         )
     }
 
+    /// Reads the presentation tags from the exact renderer input while retaining
+    /// codec and color facts from the compressed sample wrapped by the tag group.
+    func rendererInputFormatSignalingSummary(
+        for sample: CMSampleBuffer
+    ) -> VideoFormatSignalingSummary {
+        guard let taggedBuffer = sample.taggedBuffers?.first else {
+            return formatSignalingSummary(for: sample)
+        }
+        let compressedSample: CMSampleBuffer? = switch taggedBuffer.buffer {
+        case .sampleBuffer(let sampleBuffer): sampleBuffer
+        case .pixelBuffer: nil
+        @unknown default: nil
+        }
+        var summary = compressedSample.map(formatSignalingSummary(for:))
+            ?? formatSignalingSummary(for: sample)
+        summary.provenance = "CMTaggedBuffer.rendererInput"
+
+        let tags = taggedBuffer.tags
+        if let projection = tags.firstValue(matchingCategory: .projectionType) {
+            let projectionKind: String = switch projection {
+            case .rectangular:
+                kCMFormatDescriptionProjectionKind_Rectilinear as String
+            case .equirectangular:
+                kCMFormatDescriptionProjectionKind_Equirectangular as String
+            case .halfEquirectangular:
+                kCMFormatDescriptionProjectionKind_HalfEquirectangular as String
+            default:
+                String(describing: projection)
+            }
+            summary.projectionKind = .init(known: projectionKind)
+        }
+        if let packing = tags.firstValue(matchingCategory: .packingType) {
+            let viewPackingKind: String = switch packing {
+            case .sideBySide:
+                kCMFormatDescriptionViewPackingKind_SideBySide as String
+            case .overUnder:
+                kCMFormatDescriptionViewPackingKind_OverUnder as String
+            default:
+                String(describing: packing)
+            }
+            summary.viewPackingKind = .init(known: viewPackingKind)
+        }
+        if let stereoViews = tags.firstValue(matchingCategory: .stereoView) {
+            summary.hasLeftStereoEyeView = .init(
+                known: stereoViews.contains(.leftEye)
+            )
+            summary.hasRightStereoEyeView = .init(
+                known: stereoViews.contains(.rightEye)
+            )
+        }
+        return summary
+    }
+
     func observedStringFact(
         _ values: [String: Any],
         key: CFString
@@ -489,7 +563,6 @@ extension SampleBufferPlaybackSession {
         presentationEnd: CMTime
     ) {
         guard requestedTimelineStart.isNumeric,
-              requestedTimelineStart > .zero,
               presentationTime < requestedTimelineStart,
               presentationEnd < requestedTimelineStart,
               let attachments = CMSampleBufferGetSampleAttachmentsArray(sample, createIfNecessary: true),
@@ -817,7 +890,7 @@ extension SampleBufferPlaybackSession {
             ),
             rendererStatus: currentVideoRendererStatus,
             rendererError: currentVideoRendererError,
-            inputModel: "decoderBootstrapThenReceiverBackpressure",
+            inputModel: "boundedImmediateReceiverLead",
             displayedPixelBuffer: displayedFrameObservationCount != nil,
             displayedFrameObservationCount: displayedFrameObservationCount,
             flushCount: flushCount

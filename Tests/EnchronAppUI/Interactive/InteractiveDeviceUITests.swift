@@ -1,0 +1,451 @@
+import Foundation
+import XCTest
+
+nonisolated final class InteractiveDeviceUITests: XCTestCase {
+    @MainActor
+    func testInteractiveDeviceSession() async throws {
+        continueAfterFailure = true
+        addUIInterruptionMonitor(
+            withDescription: "Visible system permission request"
+        ) { alert in
+            for label in ["Allow", "允许"] {
+                let button = alert.buttons[label]
+                if button.exists {
+                    button.tap()
+                    return true
+                }
+            }
+            return false
+        }
+        let app = XCUIApplication()
+        app.launch()
+        let channel = try InteractiveDeviceUIChannel(app: app)
+        try channel.publishReadyState()
+
+        while true {
+            await channel.waitForCommand()
+            guard let command = try channel.consumeCommandIfPresent() else {
+                continue
+            }
+            let shouldStop = try channel.executeAndPublish(command)
+            if shouldStop { return }
+        }
+    }
+}
+
+@MainActor
+private final class InteractiveDeviceUIChannel {
+    private static let commandNotification =
+        "com.enchron.interactive-device-ui.command"
+    private static let responseNotificationPrefix =
+        "com.enchron.interactive-device-ui.response."
+
+    private let app: XCUIApplication
+    private let fileManager = FileManager.default
+    private let sessionID = UUID().uuidString
+    private let rootURL: URL
+    private let responsesURL: URL
+    private let commandURL: URL
+    private let readyURL: URL
+    private let signal: InteractiveDeviceUICommandSignal
+
+    init(app: XCUIApplication) throws {
+        self.app = app
+        let documentsURL = try XCTUnwrap(
+            fileManager.urls(
+                for: .documentDirectory,
+                in: .userDomainMask
+            ).first
+        )
+        rootURL = documentsURL.appending(
+            path: "EnchronInteractiveUI",
+            directoryHint: .isDirectory
+        )
+        responsesURL = rootURL.appending(
+            path: "responses",
+            directoryHint: .isDirectory
+        )
+        commandURL = rootURL.appending(path: "command.json")
+        readyURL = rootURL.appending(path: "ready.json")
+        signal = InteractiveDeviceUICommandSignal(
+            notificationName: Self.commandNotification
+        )
+
+        try fileManager.createDirectory(
+            at: responsesURL,
+            withIntermediateDirectories: true
+        )
+        if fileManager.fileExists(atPath: commandURL.path) {
+            try fileManager.removeItem(at: commandURL)
+        }
+    }
+
+    func publishReadyState() throws {
+        let ready = InteractiveDeviceUIReadyState(
+            sessionID: sessionID,
+            commandNotification: Self.commandNotification,
+            responseNotificationPrefix: Self.responseNotificationPrefix,
+            appState: appStateDescription
+        )
+        try writeJSON(ready, to: readyURL)
+    }
+
+    func waitForCommand() async {
+        if fileManager.fileExists(atPath: commandURL.path) { return }
+        await signal.wait()
+    }
+
+    func consumeCommandIfPresent() throws -> InteractiveDeviceUICommand? {
+        guard fileManager.fileExists(atPath: commandURL.path) else { return nil }
+        let data = try Data(contentsOf: commandURL)
+        let command = try JSONDecoder().decode(
+            InteractiveDeviceUICommand.self,
+            from: data
+        )
+        try fileManager.removeItem(at: commandURL)
+        guard command.sessionID == sessionID else {
+            try publish(
+                responseFor: command,
+                success: false,
+                message: "The command belongs to a previous interactive UI session."
+            )
+            return nil
+        }
+        return command
+    }
+
+    func executeAndPublish(_ command: InteractiveDeviceUICommand) throws -> Bool {
+        let result = execute(command)
+        try publish(
+            responseFor: command,
+            success: result.success,
+            message: result.message
+        )
+        return command.action == .stop
+    }
+
+    private func execute(
+        _ command: InteractiveDeviceUICommand
+    ) -> (success: Bool, message: String) {
+        switch command.action {
+        case .snapshot:
+            return (true, "Current UI state captured.")
+        case .tap:
+            guard let element = element(for: command) else {
+                return (false, "No current element matches the requested identifier and index.")
+            }
+            guard element.isHittable else {
+                return (false, "The requested element exists but is not currently hittable.")
+            }
+            element.tap()
+            return (true, "Element tapped.")
+        case .doubleTap:
+            guard let element = element(for: command) else {
+                return (false, "No current element matches the requested identifier and index.")
+            }
+            guard element.isHittable else {
+                return (false, "The requested element exists but is not currently hittable.")
+            }
+            element.doubleTap()
+            return (true, "Element double-tapped.")
+        case .press:
+            guard let element = element(for: command) else {
+                return (false, "No current element matches the requested identifier and index.")
+            }
+            guard element.isHittable else {
+                return (false, "The requested element exists but is not currently hittable.")
+            }
+            guard let duration = command.duration, duration >= 0 else {
+                return (false, "Press requires a nonnegative duration.")
+            }
+            element.press(forDuration: duration)
+            return (true, "Element pressed.")
+        case .typeText:
+            guard let text = command.text else {
+                return (false, "typeText requires text.")
+            }
+            guard let element = element(for: command) else {
+                return (false, "No current element matches the requested identifier and index.")
+            }
+            guard element.isHittable else {
+                return (false, "The requested element exists but is not currently hittable.")
+            }
+            element.tap()
+            element.typeText(text)
+            return (true, "Text entered.")
+        case .swipeUp, .swipeDown, .swipeLeft, .swipeRight:
+            let surface: XCUIElement
+            if command.identifier == nil {
+                surface = app
+            } else if let element = element(for: command) {
+                surface = element
+            } else {
+                return (false, "No current element matches the requested identifier and index.")
+            }
+            guard surface.isHittable else {
+                return (false, "The requested swipe surface is not currently hittable.")
+            }
+            switch command.action {
+            case .swipeUp: surface.swipeUp()
+            case .swipeDown: surface.swipeDown()
+            case .swipeLeft: surface.swipeLeft()
+            case .swipeRight: surface.swipeRight()
+            default: break
+            }
+            return (true, "Swipe performed.")
+        case .coordinateTap:
+            guard let x = command.normalizedX,
+                  let y = command.normalizedY,
+                  (0...1).contains(x),
+                  (0...1).contains(y) else {
+                return (false, "coordinateTap requires normalizedX and normalizedY between 0 and 1.")
+            }
+            let surface: XCUIElement
+            if command.identifier == nil {
+                surface = app
+            } else if let element = element(for: command) {
+                surface = element
+            } else {
+                return (false, "No current coordinate surface matches the requested identifier and index.")
+            }
+            guard surface.isHittable else {
+                return (false, "The requested coordinate surface is not currently hittable.")
+            }
+            surface.coordinate(
+                withNormalizedOffset: CGVector(dx: x, dy: y)
+            ).tap()
+            return (true, "Normalized coordinate tapped in the requested UI surface.")
+        case .relaunch:
+            app.terminate()
+            app.launch()
+            return (true, "Target app relaunched through the resident XCTest session.")
+        case .terminate:
+            app.terminate()
+            return (true, "Target app terminated; the interactive runner remains active.")
+        case .stop:
+            return (true, "Interactive UI session stopped cleanly.")
+        }
+    }
+
+    private func element(
+        for command: InteractiveDeviceUICommand
+    ) -> XCUIElement? {
+        let descendants = app.descendants(matching: .any)
+        let matches: XCUIElementQuery
+        if let identifier = command.identifier,
+           identifier.isEmpty == false {
+            matches = descendants.matching(identifier: identifier)
+        } else if let label = command.label,
+                  label.isEmpty == false {
+            matches = descendants.matching(
+                NSPredicate(format: "label == %@", label)
+            )
+        } else {
+            return nil
+        }
+        let element = matches.element(boundBy: command.index ?? 0)
+        return element.exists ? element : nil
+    }
+
+    private func publish(
+        responseFor command: InteractiveDeviceUICommand,
+        success: Bool,
+        message: String
+    ) throws {
+        let screenshotName: String?
+        if command.includeScreenshot == false {
+            screenshotName = nil
+        } else {
+            let name = "\(command.id).png"
+            let screenshotURL = responsesURL.appending(path: name)
+            try XCUIScreen.main.screenshot().pngRepresentation.write(
+                to: screenshotURL,
+                options: .atomic
+            )
+            screenshotName = "responses/\(name)"
+        }
+
+        let response = InteractiveDeviceUIResponse(
+            id: command.id,
+            sessionID: sessionID,
+            success: success,
+            message: message,
+            appState: appStateDescription,
+            hierarchy: app.debugDescription,
+            matchedElement: matchedElementObservation(for: command),
+            screenshotRelativePath: screenshotName
+        )
+        let responseURL = responsesURL.appending(
+            path: "\(command.id).json"
+        )
+        try writeJSON(response, to: responseURL)
+        CFNotificationCenterPostNotification(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            CFNotificationName(
+                (Self.responseNotificationPrefix + command.id) as CFString
+            ),
+            nil,
+            nil,
+            true
+        )
+    }
+
+    private var appStateDescription: String {
+        switch app.state {
+        case .unknown: "unknown"
+        case .notRunning: "notRunning"
+        case .runningBackgroundSuspended: "runningBackgroundSuspended"
+        case .runningBackground: "runningBackground"
+        case .runningForeground: "runningForeground"
+        @unknown default: "futureState"
+        }
+    }
+
+    private func matchedElementObservation(
+        for command: InteractiveDeviceUICommand
+    ) -> InteractiveDeviceUIElementObservation? {
+        guard let element = element(for: command) else { return nil }
+        let frame = element.frame
+        return InteractiveDeviceUIElementObservation(
+            identifier: element.identifier,
+            label: element.label,
+            value: element.value.map { String(describing: $0) },
+            elementType: String(describing: element.elementType),
+            isEnabled: element.isEnabled,
+            isHittable: element.isHittable,
+            isSelected: element.isSelected,
+            frame: .init(
+                x: Double(frame.origin.x),
+                y: Double(frame.origin.y),
+                width: Double(frame.size.width),
+                height: Double(frame.size.height)
+            )
+        )
+    }
+
+    private func writeJSON<Value: Encodable>(
+        _ value: Value,
+        to url: URL
+    ) throws {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(value).write(to: url, options: .atomic)
+    }
+}
+
+private struct InteractiveDeviceUIReadyState: Codable {
+    let sessionID: String
+    let commandNotification: String
+    let responseNotificationPrefix: String
+    let appState: String
+}
+
+private struct InteractiveDeviceUICommand: Codable {
+    enum Action: String, Codable {
+        case snapshot
+        case tap
+        case doubleTap
+        case press
+        case typeText
+        case swipeUp
+        case swipeDown
+        case swipeLeft
+        case swipeRight
+        case coordinateTap
+        case relaunch
+        case terminate
+        case stop
+    }
+
+    let id: String
+    let sessionID: String
+    let action: Action
+    let identifier: String?
+    let label: String?
+    let index: Int?
+    let text: String?
+    let duration: TimeInterval?
+    let normalizedX: Double?
+    let normalizedY: Double?
+    let includeScreenshot: Bool?
+}
+
+private struct InteractiveDeviceUIResponse: Codable {
+    let id: String
+    let sessionID: String
+    let success: Bool
+    let message: String
+    let appState: String
+    let hierarchy: String
+    let matchedElement: InteractiveDeviceUIElementObservation?
+    let screenshotRelativePath: String?
+}
+
+private struct InteractiveDeviceUIElementObservation: Codable {
+    struct Frame: Codable {
+        let x: Double
+        let y: Double
+        let width: Double
+        let height: Double
+    }
+
+    let identifier: String
+    let label: String
+    let value: String?
+    let elementType: String
+    let isEnabled: Bool
+    let isHittable: Bool
+    let isSelected: Bool
+    let frame: Frame
+}
+
+@MainActor
+private final class InteractiveDeviceUICommandSignal {
+    private let notificationName: String
+    private var continuation: CheckedContinuation<Void, Never>?
+    private var signalIsPending = false
+
+    init(notificationName: String) {
+        self.notificationName = notificationName
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            { _, observer, _, _, _ in
+                guard let observer else { return }
+                let signal = Unmanaged<InteractiveDeviceUICommandSignal>
+                    .fromOpaque(observer)
+                    .takeUnretainedValue()
+                Task { @MainActor in signal.receive() }
+            },
+            notificationName as CFString,
+            nil,
+            .deliverImmediately
+        )
+    }
+
+    deinit {
+        CFNotificationCenterRemoveObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            Unmanaged.passUnretained(self).toOpaque(),
+            CFNotificationName(notificationName as CFString),
+            nil
+        )
+    }
+
+    func wait() async {
+        if signalIsPending {
+            signalIsPending = false
+            return
+        }
+        await withCheckedContinuation { continuation = $0 }
+    }
+
+    private func receive() {
+        if let continuation {
+            self.continuation = nil
+            continuation.resume()
+        } else {
+            signalIsPending = true
+        }
+    }
+}

@@ -43,6 +43,32 @@ nonisolated struct RegressionStateSnapshot: Equatable {
             false
         }
     }
+
+    func hasConfirmedPanoramaAdoption() -> Bool {
+        if hasRecognizedPanoramaContentType() { return true }
+        guard fields["formatProvenance"] == "userOverride",
+              fields["surfaceActualImmersiveMode"]?.lowercased() == "progressive"
+        else { return false }
+        let projectionMatches = switch fields["projection"] {
+        case "equirectangular180":
+            fields["rendererProjectionKind"]?.lowercased()
+                == "halfequirectangular"
+        case "equirectangular360", "customAngle":
+            fields["rendererProjectionKind"]?.lowercased()
+                == "equirectangular"
+        default:
+            false
+        }
+        let viewingModeMatches = switch fields["stereoLayout"] {
+        case "mono":
+            fields["surfaceActualViewingMode"]?.lowercased() == "mono"
+        case "multiview", "sideBySide", "topBottom":
+            fields["surfaceActualViewingMode"]?.lowercased() == "stereo"
+        default:
+            false
+        }
+        return projectionMatches && viewingModeMatches
+    }
 }
 
 enum DeviceRegressionFailure: LocalizedError {
@@ -97,6 +123,8 @@ extension XCTestCase {
             preferencesToken
         if isolatesPlaybackState {
             app.launchEnvironment["ENCHRON_TEST_MEDIA_STATE_SUITE"] = "1"
+            app.launchEnvironment["ENCHRON_TEST_MEDIA_STATE_RESET_TOKEN"] =
+                UUID().uuidString
         }
         app.launchEnvironment["ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] =
             String(controlsAutoHideSeconds)
@@ -269,13 +297,20 @@ extension XCTestCase {
         return nil
     }
 
-    func resolveResumeDecisionIfNeeded(in app: XCUIApplication) {
+    func resolveResumeDecisionIfNeeded(
+        in app: XCUIApplication,
+        prefersRestart: Bool = false
+    ) {
+        let restart = app.buttons["PlayerUI-resumeDecision-secondary"].firstMatch
+        if prefersRestart, restart.waitForExistence(timeout: 2) {
+            restart.tap()
+            return
+        }
         let resume = app.buttons["PlayerUI-resumeDecision-primary"].firstMatch
         if resume.waitForExistence(timeout: 2) {
             resume.tap()
             return
         }
-        let restart = app.buttons["PlayerUI-resumeDecision-secondary"].firstMatch
         if restart.waitForExistence(timeout: 0.5) {
             restart.tap()
         }

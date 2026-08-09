@@ -1,21 +1,32 @@
 import Foundation
 import MediaSource
 
+/// The playback-mode family restored on the next launch. This is deliberately
+/// independent from Media Format: projection and stereo interpretation remain
+/// in `formatPreference`.
+public enum PersistedPlaybackMode: String, Codable, Equatable, Sendable {
+    case window
+    case panorama
+}
+
 package struct PersistedMediaState: Codable, Equatable, Sendable {
     package let versionedIdentity: VersionedMediaIdentity
     package var viewingStatus: ViewingStatus?
     package var formatPreference: MediaFormat?
+    package var playbackModePreference: PersistedPlaybackMode?
     package var trackSelectionPreference: TrackSelectionPreference?
 
     package init(
         versionedIdentity: VersionedMediaIdentity,
         viewingStatus: ViewingStatus? = nil,
         formatPreference: MediaFormat? = nil,
+        playbackModePreference: PersistedPlaybackMode? = nil,
         trackSelectionPreference: TrackSelectionPreference? = nil
     ) {
         self.versionedIdentity = versionedIdentity
         self.viewingStatus = viewingStatus
         self.formatPreference = formatPreference
+        self.playbackModePreference = playbackModePreference
         self.trackSelectionPreference = trackSelectionPreference
     }
 }
@@ -85,6 +96,15 @@ package actor MediaStateStore {
         saveOrRemoveEmpty(state)
     }
 
+    package func savePlaybackMode(
+        _ mode: PersistedPlaybackMode,
+        for identity: VersionedMediaIdentity
+    ) {
+        var state = loadValidated(for: identity) ?? PersistedMediaState(versionedIdentity: identity)
+        state.playbackModePreference = mode
+        saveOrRemoveEmpty(state)
+    }
+
     package func saveAudioTrackSelection(
         id: String,
         for identity: VersionedMediaIdentity
@@ -123,6 +143,7 @@ package actor MediaStateStore {
         let key = storageKey(for: state.versionedIdentity.mediaIdentity)
         guard state.viewingStatus != nil
             || state.formatPreference != nil
+            || state.playbackModePreference != nil
             || state.trackSelectionPreference != nil else {
             defaults.removeObject(forKey: key)
             return

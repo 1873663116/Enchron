@@ -23,7 +23,11 @@ struct EnchronApp: App {
     }
 
     var body: some Scene {
-        Window("Enchron", id: "main") {
+        WindowGroup(
+            "Enchron",
+            id: "main",
+            for: PlaybackWindowSceneIdentity.self
+        ) { sceneIdentity in
             Group {
 #if DEBUG
                 if ProcessInfo.processInfo.environment[
@@ -46,13 +50,20 @@ struct EnchronApp: App {
             }
             .enchronEnvironment(application)
             .onAppear {
+                let identity = sceneIdentity.wrappedValue
+                application.appModel.recordPlaybackWindowSceneAppeared(identity)
                 application.spatialPlatformEffectCoordinator
                     .recordWindowResidency(.open, for: .main)
             }
             .onDisappear {
+                application.appModel.recordPlaybackWindowSceneDisappeared(
+                    sceneIdentity.wrappedValue
+                )
                 application.spatialPlatformEffectCoordinator
                     .recordWindowResidency(.closed, for: .main)
             }
+        } defaultValue: {
+            PlaybackWindowSceneIdentity()
         }
         .defaultSize(
             width: WindowPlaybackLayout.fallback.defaultSize.width,
@@ -63,17 +74,27 @@ struct EnchronApp: App {
         .windowStyle(.automatic)
         .windowResizability(.contentSize)
 
-        Window("Player Controls", id: "playerControls") {
-            SpatialPlaybackControlsRoot()
+        WindowGroup(
+            "Player Controls",
+            id: "playerControls",
+            for: PlayerControlsSceneIdentity.self
+        ) { sceneIdentity in
+            SpatialPlaybackControlsRoot(sceneIdentity: sceneIdentity.wrappedValue)
                 .enchronEnvironment(application)
                 .onAppear {
+                    let identity = sceneIdentity.wrappedValue
+                    application.appModel.recordPlayerControlsSceneAppeared(identity)
                     application.spatialPlatformEffectCoordinator
-                        .recordWindowResidency(.open, for: .playerControls)
+                        .recordPlayerControlsWindowResidency(.open, identity: identity)
                 }
                 .onDisappear {
+                    let identity = sceneIdentity.wrappedValue
+                    application.appModel.recordPlayerControlsSceneDisappeared(identity)
                     application.spatialPlatformEffectCoordinator
-                        .recordWindowResidency(.closed, for: .playerControls)
+                        .recordPlayerControlsWindowResidency(.closed, identity: identity)
                 }
+        } defaultValue: {
+            PlayerControlsSceneIdentity()
         }
         .defaultSize(width: 760, height: 220)
         .windowResizability(.contentSize)
@@ -86,12 +107,15 @@ struct EnchronApp: App {
         }
         .windowStyle(.volumetric)
         .defaultSize(width: 1.4, height: 0.9, depth: 0.8, in: .meters)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
 
         ImmersiveSpace(id: application.appModel.immersiveSpaceID) {
             ImmersiveSpaceView()
-                .environment(application.appModel)
-                .environment(application.playbackRuntime)
-                .environment(application.playbackVideoEntityStore)
+                .background {
+                    SpatialPlatformEffectExecutor()
+                }
+                .enchronEnvironment(application)
                 .onImmersionChange { _, newImmersion in
                     application.appModel.recordImmersionAmount(newImmersion.amount)
                 }

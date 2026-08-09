@@ -48,6 +48,46 @@ public enum SpatialPlaybackSurfaceSettlementPolicy {
         }
     }
 
+    /// Confirms a user override without depending on ContentTypeDidChange.
+    /// That event is classification evidence when delivered, but RealityKit
+    /// does not replay it for every fresh component. The accepted renderer
+    /// description plus RealityKit's actual projection and eye modes form the
+    /// equivalent adoption proof for an explicit override.
+    public nonisolated static func explicitOverrideAdoptionIsConfirmed(
+        projection: PlaybackModel.ProjectionType,
+        stereoLayout: PlaybackModel.StereoLayout,
+        provenance: MediaFormatProvenance,
+        acceptedRendererProjectionKind: String?,
+        desiredImmersiveViewingMode: String,
+        observedImmersiveViewingMode: String?,
+        observedViewingMode: String?
+    ) -> Bool {
+        guard provenance == .userOverride else { return false }
+        let acceptedProjection = acceptedRendererProjectionKind?
+            .lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+        let rendererProjectionMatches = switch projection {
+        case .flat:
+            false
+        case .equirectangular180:
+            acceptedProjection == "halfequirectangular"
+        case .equirectangular360, .customAngle:
+            acceptedProjection == "equirectangular"
+        }
+        return rendererProjectionMatches
+            && immersiveViewingModeMatches(
+                contentIsPanoramic: true,
+                requiresTransitionConfirmation: true,
+                desiredImmersiveViewingMode: desiredImmersiveViewingMode,
+                observedImmersiveViewingMode: observedImmersiveViewingMode
+            )
+            && viewingModeMatches(
+                stereoLayout: stereoLayout,
+                observedViewingMode: observedViewingMode,
+                requiresObservedMode: true
+            )
+    }
+
     public nonisolated static func immersiveViewingModeMatches(
         contentIsPanoramic: Bool,
         requiresTransitionConfirmation: Bool,

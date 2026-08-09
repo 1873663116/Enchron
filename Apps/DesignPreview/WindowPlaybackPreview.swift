@@ -89,9 +89,9 @@ private struct WindowPlaybackRealityFixture: View {
                 updateScreenLayout(in: content, geometry: geometry)
             }
             .allowsHitTesting(false)
-            .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
+            .frame(depth: WindowPlaybackSurfaceGeometry.flatWindowDepth)
         }
-        .frame(depth: WindowPlaybackSurfaceGeometry.flatDepth)
+        .frame(depth: WindowPlaybackSurfaceGeometry.flatWindowDepth)
     }
 
     @MainActor

@@ -2037,6 +2037,273 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
     }
 
     @MainActor
+    func testRealNHVR180DirectPanoramaRoundTrip() async throws {
+        try await exerciseRealMediaDirectPanoramaRoundTrip(
+            filename: "HNVR-158_H_4096p_8K_LR_180_clip.mp4",
+            pickerPath: ["Samples", "Spatial", "Stereo180"],
+            pickerLabels: [
+                "HNVR-158_H_4096p_8K_LR_180_clip",
+                "HNVR-158_H_4096p_8K_LR_180_clip.mp4"
+            ],
+            projectionLabel: "180°",
+            stereoLayoutLabel: "Side-by-Side",
+            evidenceSlug: "real-nhvr-direct-panorama"
+        )
+    }
+
+    @MainActor
+    func testRealInsta360DirectPanoramaRoundTrip() async throws {
+        try await exerciseRealMediaDirectPanoramaRoundTrip(
+            filename: "insta360.mp4",
+            pickerPath: ["Samples", "Spatial", "Panorama"],
+            pickerLabels: ["insta360", "insta360.mp4"],
+            projectionLabel: "360°",
+            stereoLayoutLabel: "Mono",
+            evidenceSlug: "real-insta360-direct-panorama"
+        )
+    }
+
+    @MainActor
+    func testRealNHVR180PersistedPanoramaColdLaunchStartsInPanorama() async throws {
+        let filename = "HNVR-158_H_4096p_8K_LR_180_clip.mp4"
+        let evidenceSlug = "real-nhvr-persisted-panorama-cold-launch"
+        var observedFailures: [String] = []
+        defer {
+            if observedFailures.isEmpty == false {
+                XCTFail(observedFailures.joined(separator: "\n"))
+            }
+        }
+        let app = launchMediaLibrary()
+        let identifier = "MediaLibrary-grid-video-\(filename)"
+        let card = app.buttons.matching(identifier: identifier).firstMatch
+        guard ensureRealMediaImported(
+            card: card,
+            identifier: identifier,
+            pickerPath: ["Samples", "Spatial", "Stereo180"],
+            pickerLabels: [
+                "HNVR-158_H_4096p_8K_LR_180_clip",
+                filename
+            ],
+            filename: filename,
+            in: app
+        ) else { return }
+
+        let initialPlaybackStartedAt = Date()
+        card.tap()
+        resolveResumeDecisionIfNeeded(in: app)
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        guard waitForRealMediaSurface(
+            windowState,
+            presentation: "window",
+            timeout: 45,
+            app: app,
+            evidenceName: "\(evidenceSlug)-initial-window",
+            observedFailures: &observedFailures
+        ) != nil,
+        showWindowPlaybackControls(
+            windowState: windowState,
+            app: app,
+            evidenceName: "\(evidenceSlug)-initial-controls"
+        ) else { return }
+        attachElapsedTime(
+            since: initialPlaybackStartedAt,
+            name: "\(evidenceSlug)-initial-window-startup"
+        )
+
+        let format = app.buttons.matching(
+            identifier: "PlayerUI-TopAction-videoFormat"
+        ).firstMatch
+        guard requireHittable(format, named: "Persisted Panorama Video Format") else {
+            return
+        }
+        format.tap()
+        let projection = app.descendants(matching: .any)[
+            "PlayerUI-VideoFormat-Projection-180°"
+        ].firstMatch
+        guard requireHittable(projection, named: "Persisted 180° projection") else {
+            return
+        }
+        projection.tap()
+        let stereoLayout = app.descendants(matching: .any)[
+            "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side"
+        ].firstMatch
+        guard requireHittable(
+            stereoLayout,
+            named: "Persisted Side-by-Side layout"
+        ) else { return }
+        stereoLayout.tap()
+        let apply = app.buttons["PlayerUI-VideoFormat-apply"].firstMatch
+        guard requireHittable(apply, named: "Apply persisted Panorama format") else {
+            return
+        }
+        apply.tap()
+
+        let spatialState = app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        guard let firstPanorama = waitForRealMediaSurface(
+            spatialState,
+            presentation: "panorama",
+            timeout: 60,
+            app: app,
+            evidenceName: "\(evidenceSlug)-before-relaunch",
+            observedFailures: &observedFailures
+        ), firstPanorama.hasConfirmedPanoramaAdoption() else { return }
+        attachState(firstPanorama, name: "\(evidenceSlug)-persisted-state")
+
+        app.terminate()
+        let coldAppLaunchStartedAt = Date()
+        app.launch()
+        let relaunchedCard = app.buttons.matching(identifier: identifier).firstMatch
+        guard requireHittable(
+            relaunchedCard,
+            named: "NHVR media after cold app relaunch",
+            timeout: 30
+        ) else { return }
+        attachElapsedTime(
+            since: coldAppLaunchStartedAt,
+            name: "\(evidenceSlug)-cold-app-launch-to-library"
+        )
+        let coldPlaybackStartedAt = Date()
+        relaunchedCard.tap()
+        resolveResumeDecisionIfNeeded(in: app)
+
+        guard let restoredPanorama = waitForRealMediaSurface(
+            spatialState,
+            presentation: "panorama",
+            timeout: 75,
+            app: app,
+            evidenceName: "\(evidenceSlug)-after-relaunch",
+            observedFailures: &observedFailures
+        ) else { return }
+        let applicationState = app.descendants(matching: .any)[
+            "PlayerUI-application-state"
+        ].firstMatch
+        let restoredApplicationState = RegressionStateSnapshot(
+            rawValue: String(describing: applicationState.value)
+        )
+        XCTAssertEqual(
+            restoredApplicationState.string("firstTechnicalSessionAttachment"),
+            "panorama",
+            "The cold technical session attached to Window before Panorama."
+        )
+        XCTAssertEqual(restoredPanorama.string("formatProvenance"), "userOverride")
+        XCTAssertEqual(restoredPanorama.string("projection"), "equirectangular180")
+        XCTAssertEqual(restoredPanorama.string("stereoLayout"), "sideBySide")
+        XCTAssertTrue(restoredPanorama.hasConfirmedPanoramaAdoption())
+        attachElapsedTime(
+            since: coldPlaybackStartedAt,
+            name: "\(evidenceSlug)-cold-playback-to-panorama-first-pixel"
+        )
+        _ = attachRendererFramePerformance(
+            in: spatialState,
+            presentation: "panorama",
+            evidenceName: "\(evidenceSlug)-cold-panorama-frame-performance"
+        )
+        attachState(restoredPanorama, name: "\(evidenceSlug)-direct-panorama-state")
+        attachScreenshot(from: app, name: "\(evidenceSlug)-direct-panorama-frame")
+
+        let exit = app.buttons.matching(
+            identifier: "PlayerPanel-button-exit-spatial"
+        ).firstMatch
+        guard requireHittable(exit, named: "Return persisted Panorama to Portal") else {
+            return
+        }
+        exit.tap()
+        guard waitForRealMediaSurface(
+            windowState,
+            presentation: "portal",
+            timeout: 60,
+            app: app,
+            evidenceName: "\(evidenceSlug)-portal-cleanup",
+            observedFailures: &observedFailures
+        ) != nil else { return }
+        let settings = app.buttons.matching(
+            identifier: "PlayerPanel-button-settings"
+        ).firstMatch
+        guard requireHittable(settings, named: "Portal Advanced Settings cleanup") else {
+            return
+        }
+        settings.tap()
+        let returnToWindow = app.buttons.matching(
+            identifier: "PlayerPanel-Advanced-ReturnToMonoWindow"
+        ).firstMatch
+        guard requireHittable(
+            returnToWindow,
+            named: "Restore Flat Window after persistence acceptance"
+        ) else { return }
+        returnToWindow.tap()
+        _ = waitForRealMediaSurface(
+            windowState,
+            presentation: "window",
+            timeout: 60,
+            app: app,
+            evidenceName: "\(evidenceSlug)-window-cleanup",
+            observedFailures: &observedFailures
+        )
+        XCTAssertTrue(observedFailures.isEmpty, observedFailures.joined(separator: "\n"))
+    }
+
+    @MainActor
+    private func exerciseRealMediaDirectPanoramaRoundTrip(
+        filename: String,
+        pickerPath: [String],
+        pickerLabels: [String],
+        projectionLabel: String,
+        stereoLayoutLabel: String,
+        evidenceSlug: String
+    ) async throws {
+        continueAfterFailure = true
+        var observedFailures: [String] = []
+        defer {
+            if observedFailures.isEmpty == false {
+                XCTFail(observedFailures.joined(separator: "\n"))
+            }
+        }
+        let app = launchMediaLibrary()
+        let identifier = "MediaLibrary-grid-video-\(filename)"
+        let card = app.buttons.matching(identifier: identifier).firstMatch
+        guard ensureRealMediaImported(
+            card: card,
+            identifier: identifier,
+            pickerPath: pickerPath,
+            pickerLabels: pickerLabels,
+            filename: filename,
+            in: app
+        ) else { return }
+
+        let initialPlaybackStartedAt = Date()
+        card.tap()
+        resolveResumeDecisionIfNeeded(in: app)
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        guard waitForRealMediaSurface(
+            windowState,
+            presentation: "window",
+            timeout: 45,
+            app: app,
+            evidenceName: "\(evidenceSlug)-window-initial",
+            observedFailures: &observedFailures
+        ) != nil else { return }
+        attachElapsedTime(
+            since: initialPlaybackStartedAt,
+            name: "\(evidenceSlug)-initial-window-startup"
+        )
+        _ = try await exercisePanoramaRoundTrip(
+            cycle: 1,
+            projectionLabel: projectionLabel,
+            stereoLayoutLabel: stereoLayoutLabel,
+            windowState: windowState,
+            app: app,
+            evidenceSlug: evidenceSlug,
+            observedFailures: &observedFailures
+        )
+    }
+
+    @MainActor
     private func exerciseRealMediaAcrossPresentations(
         filename: String,
         pickerPath: [String],
@@ -2066,8 +2333,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         metadataAttachment.lifetime = .keepAlways
         add(metadataAttachment)
 
+        let initialPlaybackStartedAt = Date()
         card.tap()
-        resolveResumeDecisionIfNeeded(in: app)
+        resolveResumeDecisionIfNeeded(in: app, prefersRestart: true)
         let windowState = app.descendants(matching: .any)[
             "PlayerUI-window-control-plane"
         ].firstMatch
@@ -2079,6 +2347,10 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             evidenceName: "\(evidenceSlug)-window-initial",
             observedFailures: &observedFailures
         ) != nil else { return }
+        attachElapsedTime(
+            since: initialPlaybackStartedAt,
+            name: "\(evidenceSlug)-initial-window-startup"
+        )
         guard ensureRealMediaPlaybackAdvances(
             in: windowState,
             presentation: "window",
@@ -2086,6 +2358,11 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             evidenceName: "\(evidenceSlug)-window-initial",
             observedFailures: &observedFailures
         ) != nil else { return }
+        _ = attachRendererFramePerformance(
+            in: windowState,
+            presentation: "window",
+            evidenceName: "\(evidenceSlug)-window-initial-frame-performance"
+        )
 
         for cycle in 1...2 {
             guard try await exerciseDockedRoundTrip(
@@ -2123,11 +2400,17 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         evidenceSlug: String,
         observedFailures: inout [String]
     ) async throws -> Bool {
+        guard rewindRealMediaForNextPresentationTransition(
+            in: windowState,
+            app: app,
+            evidenceName: "\(evidenceSlug)-dock-\(cycle)-rewind"
+        ) else { return false }
         guard ensureRealMediaPlaybackAdvances(
             in: windowState,
             presentation: "window",
             app: app,
             evidenceName: "\(evidenceSlug)-dock-\(cycle)-window-before",
+            requiresCurrentPixelEpoch: false,
             observedFailures: &observedFailures
         ) != nil else { return false }
         guard showWindowPlaybackControls(
@@ -2150,6 +2433,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             light,
             named: "Dock real media with Light Mode cycle \(cycle)"
         ) else { return false }
+        let dockTransitionStartedAt = Date()
         light.tap()
 
         let spatialState = app.descendants(matching: .any)[
@@ -2163,6 +2447,10 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             evidenceName: "\(evidenceSlug)-dock-\(cycle)-docked",
             observedFailures: &observedFailures
         ) != nil else { return false }
+        attachElapsedTime(
+            since: dockTransitionStartedAt,
+            name: "\(evidenceSlug)-dock-\(cycle)-transition-to-first-pixel"
+        )
         guard ensureRealMediaPlaybackAdvances(
             in: spatialState,
             presentation: "docked",
@@ -2170,6 +2458,11 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             evidenceName: "\(evidenceSlug)-dock-\(cycle)-docked",
             observedFailures: &observedFailures
         ) != nil else { return false }
+        _ = attachRendererFramePerformance(
+            in: spatialState,
+            presentation: "docked",
+            evidenceName: "\(evidenceSlug)-dock-\(cycle)-frame-performance"
+        )
         try await Task.sleep(for: .seconds(1))
         attachScreenshot(
             from: app,
@@ -2183,6 +2476,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             exit,
             named: "Return real media from Docked cycle \(cycle)"
         ) else { return false }
+        let windowReturnStartedAt = Date()
         exit.tap()
         guard waitForRealMediaSurface(
             windowState,
@@ -2192,6 +2486,10 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             evidenceName: "\(evidenceSlug)-dock-\(cycle)-window-return",
             observedFailures: &observedFailures
         ) != nil else { return false }
+        attachElapsedTime(
+            since: windowReturnStartedAt,
+            name: "\(evidenceSlug)-dock-\(cycle)-return-to-window-first-pixel"
+        )
         guard ensureRealMediaPlaybackAdvances(
             in: windowState,
             presentation: "window",
@@ -2216,11 +2514,17 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         evidenceSlug: String,
         observedFailures: inout [String]
     ) async throws -> Bool {
+        guard rewindRealMediaForNextPresentationTransition(
+            in: windowState,
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-rewind"
+        ) else { return false }
         guard ensureRealMediaPlaybackAdvances(
             in: windowState,
             presentation: "window",
             app: app,
             evidenceName: "\(evidenceSlug)-panorama-\(cycle)-window-before",
+            requiresCurrentPixelEpoch: false,
             observedFailures: &observedFailures
         ) != nil else { return false }
         guard showWindowPlaybackControls(
@@ -2229,6 +2533,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             evidenceName: "\(evidenceSlug)-panorama-\(cycle)-controls"
         ) else { return false }
 
+        let panoramaTransitionStartedAt: Date
         let resumePanorama = app.buttons.matching(
             identifier: "PlayerUI-TopAction-resumePanorama"
         ).firstMatch
@@ -2237,6 +2542,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
                 resumePanorama,
                 named: "Return real media to Panorama cycle \(cycle)"
             ) else { return false }
+            panoramaTransitionStartedAt = Date()
             resumePanorama.tap()
         } else {
             let format = app.buttons.matching(
@@ -2268,6 +2574,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
                 apply,
                 named: "Apply real media format cycle \(cycle)"
             ) else { return false }
+            panoramaTransitionStartedAt = Date()
             apply.tap()
         }
 
@@ -2281,14 +2588,18 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             app: app,
             evidenceName: "\(evidenceSlug)-panorama-\(cycle)-spatial",
             observedFailures: &observedFailures
-        ), panorama.hasRecognizedPanoramaContentType() else {
+        ), panorama.hasConfirmedPanoramaAdoption() else {
             attachCurrentState(
                 of: spatialState,
                 name: "\(evidenceSlug)-panorama-\(cycle)-content-type-failure"
             )
-            XCTFail("Real media Panorama did not expose a recognized spatial content type.")
+            XCTFail("Real media Panorama did not expose confirmed RealityKit adoption.")
             return false
         }
+        attachElapsedTime(
+            since: panoramaTransitionStartedAt,
+            name: "\(evidenceSlug)-panorama-\(cycle)-transition-to-first-pixel"
+        )
         guard ensureRealMediaPlaybackAdvances(
             in: spatialState,
             presentation: "panorama",
@@ -2296,6 +2607,11 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             evidenceName: "\(evidenceSlug)-panorama-\(cycle)-spatial",
             observedFailures: &observedFailures
         ) != nil else { return false }
+        _ = attachRendererFramePerformance(
+            in: spatialState,
+            presentation: "panorama",
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-frame-performance"
+        )
         try await Task.sleep(for: .seconds(1))
         attachScreenshot(
             from: app,
@@ -2307,9 +2623,52 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         ).firstMatch
         guard requireHittable(
             exit,
-            named: "Return real media from Panorama cycle \(cycle)"
+            named: "Return real media from Panorama to Portal cycle \(cycle)"
         ) else { return false }
+        let portalTransitionStartedAt = Date()
         exit.tap()
+        guard waitForRealMediaSurface(
+            windowState,
+            presentation: "portal",
+            timeout: 60,
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-portal",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        attachElapsedTime(
+            since: portalTransitionStartedAt,
+            name: "\(evidenceSlug)-panorama-\(cycle)-return-to-portal-first-pixel"
+        )
+        guard ensureRealMediaPlaybackAdvances(
+            in: windowState,
+            presentation: "portal",
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-portal",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        _ = attachRendererFramePerformance(
+            in: windowState,
+            presentation: "portal",
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-portal-frame-performance"
+        )
+
+        let settings = app.buttons.matching(
+            identifier: "PlayerPanel-button-settings"
+        ).firstMatch
+        guard requireHittable(
+            settings,
+            named: "Open Portal Advanced Settings cycle \(cycle)"
+        ) else { return false }
+        settings.tap()
+        let returnToWindow = app.buttons.matching(
+            identifier: "PlayerPanel-Advanced-ReturnToMonoWindow"
+        ).firstMatch
+        guard requireHittable(
+            returnToWindow,
+            named: "Return Portal to Window cycle \(cycle)"
+        ) else { return false }
+        let windowTransitionStartedAt = Date()
+        returnToWindow.tap()
         guard waitForRealMediaSurface(
             windowState,
             presentation: "window",
@@ -2318,6 +2677,10 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             evidenceName: "\(evidenceSlug)-panorama-\(cycle)-window-return",
             observedFailures: &observedFailures
         ) != nil else { return false }
+        attachElapsedTime(
+            since: windowTransitionStartedAt,
+            name: "\(evidenceSlug)-panorama-\(cycle)-portal-to-window-first-pixel"
+        )
         guard ensureRealMediaPlaybackAdvances(
             in: windowState,
             presentation: "window",
@@ -2330,6 +2693,186 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             name: "\(evidenceSlug)-panorama-\(cycle)-window-return-clear-frame"
         )
         return true
+    }
+
+    @MainActor
+    private func rewindRealMediaForNextPresentationTransition(
+        in windowState: XCUIElement,
+        app: XCUIApplication,
+        evidenceName: String
+    ) -> Bool {
+        guard showWindowPlaybackControls(
+            windowState: windowState,
+            app: app,
+            evidenceName: "\(evidenceName)-controls"
+        ) else { return false }
+        let state = RegressionStateSnapshot(
+            rawValue: windowState.value as? String ?? ""
+        )
+        guard let position = state.double("position"),
+              position.isFinite,
+              position >= 0 else {
+            XCTFail("\(evidenceName): playback position was unavailable.")
+            return false
+        }
+        let rewindStepSeconds = 15.0
+        guard position >= rewindStepSeconds else { return true }
+        let lifecycleAfterSeek = state.string("lifecycle")?.lowercased()
+        let playbackShouldResumeAfterSeek = lifecycleAfterSeek == "playing"
+        let rewind = app.buttons.matching(
+            identifier: "PlayerPanel-button-rewind"
+        ).firstMatch
+        guard requireHittable(rewind, named: "Rewind real media to beginning") else {
+            return false
+        }
+        guard let baselineEpoch = state.uint64("streamEpoch"),
+              let baselinePosition = state.double("position"),
+              let baselineVideoSamples = state.uint64("videoSamples") else {
+            XCTFail("\(evidenceName): rewind baseline was unavailable.")
+            return false
+        }
+        let targetPosition = max(0, baselinePosition - rewindStepSeconds)
+        rewind.tap()
+        guard let rewound = waitForState(windowState, timeout: 15, where: {
+            $0.string("presentation") == "window"
+                && ($0.uint64("streamEpoch") ?? 0) > baselineEpoch
+                && $0.string("lifecycle")?.lowercased() == lifecycleAfterSeek
+                && (!playbackShouldResumeAfterSeek
+                    || ($0.double("actualRate") ?? 0) > 0.5)
+                && (!playbackShouldResumeAfterSeek
+                    || (($0.double("position") ?? 0) >= targetPosition + 0.25
+                        && ($0.uint64("videoSamples") ?? 0) > baselineVideoSamples))
+                && $0.bool("seekInProgress") == false
+        }) else { return false }
+        attachState(rewound, name: "\(evidenceName)-one-step")
+        return true
+    }
+
+    @MainActor
+    private func attachElapsedTime(
+        since startedAt: Date,
+        name: String
+    ) {
+        let elapsedSeconds = Date().timeIntervalSince(startedAt)
+        let value = String(format: "%.6f", elapsedSeconds)
+        let attachment = XCTAttachment(string: "elapsedSeconds=\(value)")
+        attachment.name = name
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        print("ENCHRON_TIMING name=\(name) elapsedSeconds=\(value)")
+    }
+
+    /// Records the renderer's supported processing/drop metrics over one
+    /// source-second. Lifetime counters keep intentional startup catch-up
+    /// separate from drops added during settled visible playback.
+    @MainActor
+    private func attachRendererFramePerformance(
+        in stateElement: XCUIElement,
+        presentation: String,
+        evidenceName: String
+    ) -> RegressionStateSnapshot? {
+        guard let initial = waitForState(stateElement, timeout: 10, where: {
+            $0.string("presentation") == presentation
+                && ($0.double("sourceFrameRate") ?? 0) > 0
+                && ($0.uint64("rendererMetricsObservations") ?? 0) > 0
+                && $0.uint64("rendererTotalFrames") != nil
+                && $0.uint64("rendererDroppedFrames") != nil
+                && $0.uint64("rendererCorruptedFrames") != nil
+                && $0.double("rendererAccumulatedFrameDelay") != nil
+        }),
+        let initialMetricsObservation = initial.uint64("rendererMetricsObservations"),
+        let initialPosition = initial.double("position"),
+        let sourceFrameRate = initial.double("sourceFrameRate") else {
+            XCTFail("\(evidenceName): renderer performance metrics were unavailable.")
+            return nil
+        }
+
+        let oneSourceSecondFrameCount = UInt64(ceil(sourceFrameRate))
+        let oneSourceSecond = Double(oneSourceSecondFrameCount) / sourceFrameRate
+        guard let warmup = waitForState(stateElement, timeout: 10, where: {
+            $0.string("presentation") == presentation
+                && ($0.uint64("rendererMetricsObservations") ?? 0)
+                    > initialMetricsObservation
+                && ($0.double("position") ?? 0)
+                    >= initialPosition + oneSourceSecond
+        }),
+        let warmupMetricsObservation = warmup.uint64("rendererMetricsObservations"),
+        let warmupPosition = warmup.double("position"),
+        let baseline = waitForState(stateElement, timeout: 10, where: {
+            $0.string("presentation") == presentation
+                && ($0.uint64("rendererMetricsObservations") ?? 0)
+                    > warmupMetricsObservation
+                && ($0.double("position") ?? 0) > warmupPosition
+        }),
+        let baselinePosition = baseline.double("position"),
+        let baselineMetricsObservation = baseline.uint64("rendererMetricsObservations"),
+        let baselineTotalFrames = baseline.uint64("rendererTotalFrames"),
+        let baselineDroppedFrames = baseline.uint64("rendererDroppedFrames"),
+        let baselineCorruptedFrames = baseline.uint64("rendererCorruptedFrames"),
+        let baselineDelay = baseline.double("rendererAccumulatedFrameDelay") else {
+            XCTFail("\(evidenceName): renderer performance metrics were unavailable.")
+            return nil
+        }
+
+        guard let observed = waitForState(stateElement, timeout: 15, where: {
+            $0.string("presentation") == presentation
+                && ($0.uint64("rendererMetricsObservations") ?? 0)
+                    > baselineMetricsObservation
+                && ($0.double("position") ?? 0)
+                    >= baselinePosition + oneSourceSecond
+        }),
+        let observedPosition = observed.double("position"),
+        let observedMetricsObservation = observed.uint64("rendererMetricsObservations"),
+        let observedTotalFrames = observed.uint64("rendererTotalFrames"),
+        let observedDroppedFrames = observed.uint64("rendererDroppedFrames"),
+        let observedCorruptedFrames = observed.uint64("rendererCorruptedFrames"),
+        let observedDelay = observed.double("rendererAccumulatedFrameDelay") else {
+            XCTFail("\(evidenceName): renderer frame metrics did not advance with playback.")
+            return nil
+        }
+
+        guard observedTotalFrames >= baselineTotalFrames,
+              observedDroppedFrames >= baselineDroppedFrames,
+              observedCorruptedFrames >= baselineCorruptedFrames,
+              observedMetricsObservation >= baselineMetricsObservation else {
+            XCTFail("\(evidenceName): renderer metrics reset during observation.")
+            return nil
+        }
+        let mediaSeconds = observedPosition - baselinePosition
+        let processedFrames = observedTotalFrames - baselineTotalFrames
+        let droppedFrames = observedDroppedFrames - baselineDroppedFrames
+        let corruptedFrames = observedCorruptedFrames - baselineCorruptedFrames
+        let metricsObservations = observedMetricsObservation
+            - baselineMetricsObservation
+        let sourceScheduledFrames = sourceFrameRate * mediaSeconds
+        let accumulatedDelay = max(0, observedDelay - baselineDelay)
+        guard processedFrames > 0 else {
+            XCTFail("\(evidenceName): renderer frame count did not advance with playback.")
+            return nil
+        }
+        let displayedFrames = processedFrames >= droppedFrames
+            ? processedFrames - droppedFrames
+            : 0
+        let report = [
+            "presentation=\(presentation)",
+            "sourceFrameRate=\(String(format: "%.6f", sourceFrameRate))",
+            "mediaSeconds=\(String(format: "%.6f", mediaSeconds))",
+            "sourceScheduledFrames=\(String(format: "%.6f", sourceScheduledFrames))",
+            "rendererMetricsObservations=\(metricsObservations)",
+            "rendererScheduledFrames=\(processedFrames)",
+            "rendererDisplayedFrames=\(displayedFrames)",
+            "rendererDroppedFrames=\(droppedFrames)",
+            "rendererCorruptedFrames=\(corruptedFrames)",
+            "lifetimeDroppedFramesAtBaseline=\(baselineDroppedFrames)",
+            "lifetimeCorruptedFramesAtBaseline=\(baselineCorruptedFrames)",
+            "accumulatedFrameDelaySeconds=\(String(format: "%.6f", accumulatedDelay))",
+        ].joined(separator: "\n")
+        let attachment = XCTAttachment(string: report)
+        attachment.name = evidenceName
+        attachment.lifetime = .keepAlways
+        add(attachment)
+        print("ENCHRON_FRAME_PERFORMANCE name=\(evidenceName) \(report.replacingOccurrences(of: "\n", with: " "))")
+        return observed
     }
 
     @MainActor
@@ -2349,7 +2892,36 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         var state: RegressionStateSnapshot?
         var terminalFailure: RegressionStateSnapshot?
         var lastObservedStates: [String: RegressionStateSnapshot] = [:]
+        var hasObservedActivePlayback = false
         while Date() < deadline {
+            if usesMainWindow {
+                // Panorama and Dock deliberately close the Main Window. Do not
+                // read its accessibility value while that Scene is departing;
+                // it can disappear between `exists` and `value`, which XCTest
+                // reports as an application failure instead of a missing node.
+                let applicationStateElement = app.descendants(matching: .any)[
+                    "PlayerUI-application-state"
+                ].firstMatch
+                if applicationStateElement.exists,
+                   let rawApplicationState = applicationStateElement.value as? String,
+                   rawApplicationState.isEmpty == false {
+                    let applicationState = RegressionStateSnapshot(
+                        rawValue: rawApplicationState
+                    )
+                    lastObservedStates["PlayerUI-application-state"] = applicationState
+                    if applicationState.bool("active") == true
+                        || applicationState.string("session") != "none" {
+                        hasObservedActivePlayback = true
+                    }
+                    if applicationState.string("lastExecutionCheckpoint")
+                        == "presentation-conversion-failed"
+                        || (hasObservedActivePlayback
+                            && applicationState.bool("active") == false) {
+                        terminalFailure = applicationState
+                        break
+                    }
+                }
+            }
             let currentStateElement = app.descendants(matching: .any)[
                 stateIdentifier
             ].firstMatch
@@ -2453,6 +3025,12 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         if let spatial = states["PlayerUI-spatial-state"] {
             attachState(spatial, name: "\(evidenceName)-spatial-state-at-failure")
         }
+        if let application = states["PlayerUI-application-state"] {
+            attachState(
+                application,
+                name: "\(evidenceName)-application-state-at-failure"
+            )
+        }
         if states.isEmpty {
             let attachment = XCTAttachment(string: "No public playback state element was present.")
             attachment.name = "\(evidenceName)-state-elements-absent"
@@ -2507,7 +3085,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         guard let baselinePosition = state.double("position"),
               let baselineVideoSamples = state.uint64("videoSamples"),
               let baselineRendererInputs = state.uint64("rendererInputs"),
-              let baselineDisplayedFrameObservations = state.uint64("displayedFrameObservations"),
               let baselineSession = state.string("session"),
               let baselineEpoch = state.uint64("streamEpoch") else {
             attachState(state, name: "\(evidenceName)-baseline-state-invalid")
@@ -2530,8 +3107,6 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
                 && ($0.double("position") ?? 0) >= baselinePosition + 0.25
                 && ($0.uint64("videoSamples") ?? 0) > baselineVideoSamples
                 && ($0.uint64("rendererInputs") ?? 0) > baselineRendererInputs
-                && ($0.uint64("displayedFrameObservations") ?? 0)
-                    > baselineDisplayedFrameObservations
                 && $0.string("session") == baselineSession
                 && $0.uint64("streamEpoch") == baselineEpoch
                 && $0.bool("displayedPixel") == true
