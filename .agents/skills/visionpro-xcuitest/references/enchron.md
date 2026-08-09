@@ -12,31 +12,51 @@
 
 使用脚本前先读取其 `--help`。当前控制器在每条命令后返回界面层级、App 状态、匹配元素观察、session 身份，以及可选的本地 PNG。
 
-## 已验证的启动形态
+2026-08-09 实测，session 健康时一条 `snapshot --no-screenshot` 往返 2.3 到 2.5 秒。据此在前台连续发命令。命令长时间不返回不是设备慢，而是 runner 已经失效，按 [故障分流](diagnostics.md) 的“控制器无限等待响应文件”一行处理。
 
-当前源码只构建一次。只重启常驻测试时，复用同一 DerivedData 并执行 `test-without-building`，不能在单步命令之间重复构建 Enchron。曾通过真实 Files 选择器完成导入、且没有产品状态注入的成功会话使用了以下形态：
+## 诊断状态通道
+
+`PlayerUI-window-control-plane` 元素的 Accessibility value 是一条分号分隔的诊断串，字段在 `Apps/Enchron/MainView.swift` 里拼装，以那里为准。它同时给出呈现状态与切换、待执行平台效果、沉浸空间驻留与生命周期修订、表面准备阶段、渲染器消费者、组件渲染状态、格式来源与投影，以及平台执行器的最后一次操作、检查点和结论。排查呈现切换、表面附着和格式协商时先读它，它比层级和像素都先说话。
+
+`snapshot --identifier PlayerUI-window-control-plane` 返回的 `matchedElement.value` 是完整串；层级文本里的同一行会被 XCTest 截断。
+
+App 内探针写入 `Documents/surface-tap-probe.log`，取回：
 
 ```sh
-sudo -v && exec env \
-  DEVELOPER_DIR=/Volumes/Cortisol/Applications/Xcode-beta3.app/Contents/Developer \
-  /Volumes/Cortisol/Applications/Xcode-beta3.app/Contents/Developer/usr/bin/xcodebuild \
-  test-without-building \
-  -project Enchron.xcodeproj \
-  -scheme Enchron \
-  -testPlan Enchron \
-  -configuration Debug \
-  -destination 'platform=visionOS,id=00008142-001871A11491401C' \
-  -derivedDataPath <包含当前构建的 DerivedData> \
-  -clonedSourcePackagesDirPath /Volumes/Cortisol/DevSpace/Xcode/Enchron/SourcePackages/VisionProCoreRegression \
-  -parallel-testing-enabled NO \
-  -test-timeouts-enabled NO \
-  -only-testing:EnchronAppUITests/InteractiveDeviceUITests/testInteractiveDeviceSession \
-  -resultBundlePath <新的证据目录>/Interactive.xcresult
+xcrun devicectl device copy from --device <CoreDevice ID> \
+  --domain-type appDataContainer --domain-identifier com.xiongzhipeng.XrPlayer \
+  --source Documents/surface-tap-probe.log --destination <本地路径>
 ```
 
-开头的 `sudo -v` 只服务于 Mac 侧 Xcode 诊断认证，并且必须与 `xcodebuild` 共用一个 PTY。它与 Vision Pro 解锁或头显侧 UI 测试密码无关。
+探针适合记录诊断串给不出的东西：事件时序、沉浸空间开合时刻、settle 判据的逐项布尔分解、手势是否被投递。诊断串是状态快照，探针是时间线，两者互补。
 
-启动后，先通过控制器执行 `snapshot`。只有它返回 `success: true`、`runningForeground`、新的 `sessionID` 和当前层级时，才开始操作。runner 继续常驻；在有意重启之前，后续命令应保持同一个 session ID。
+通道有效范围（2026-08-09 真机证实）：settled 的沉浸呈现里主窗口仍然开着但完全空掉，全层级只剩空 Main window，`PlayerUI-window-control-plane`、PlayerPanel、顶部动作、媒体库全部不在层级里。因此诊断串只在 window/portal 及过渡的窗口阶段可读；判定 panorama/docked 的 settle 一律轮询探针文件。这也意味着 settled panorama 对 XCUIAutomation 是单向门：进入后没有任何可驱动元素，只能重建会话或由佩戴者操作退出。
+
+`Scripts/verification/playback_mode_matrix.py` 是按上述通道分工实现的播放模式矩阵 runner（cell = clip × path × rep，每 cell 独立 ensure-session，verdict 落 results.jsonl）；跑覆盖矩阵先用它，别重写轮询逻辑。
+
+## 测试媒体
+
+`TestMedia` 中分辨率足够的 180° 片源部分是成人内容。层级与诊断状态足以回答绝大多数问题，只有当结论确实取决于像素时才截图。需要目视确认时，先与佩戴者确认使用哪个片源。
+
+## 建立会话
+
+用控制器的 `ensure-session`。它内部完成 halt、启动常驻 runner、等待新 `sessionID` 发布、并用一次 `snapshot` 证明会话可用，返回 `stage: ready` 才算成立。已验证的启动形态由脚本的默认参数承载，以 `--help` 为准；2026-08-09 实测 25.7 秒返回。
+
+```sh
+python3 Scripts/verification/interactive_visionpro_ui.py \
+  --device 00008142-001871A11491401C \
+  --developer-dir /Volumes/Cortisol/Applications/Xcode-beta3.app/Contents/Developer \
+  --output-directory <证据目录> \
+  ensure-session
+```
+
+当前源码只构建一次。`ensure-session` 走的是 `test-without-building`，复用同一 DerivedData，不在单步命令之间重复构建 Enchron；源码改动后先自行 `build-for-testing`。
+
+`stage: readyTimeout` 时读返回里的 `runnerLog`，按 [故障分流](diagnostics.md) 区分授权门槛与其它停滞，不叠加第二个 runner。
+
+Mac 侧 Xcode 诊断认证可能打印 `Password:`；它与 Vision Pro 解锁和头显侧 UI 测试密码无关，认证失败也不影响 runner 常驻。
+
+runner 继续常驻；在有意重启之前，后续命令应保持同一个 session ID。
 
 ## 首次安装顺序
 

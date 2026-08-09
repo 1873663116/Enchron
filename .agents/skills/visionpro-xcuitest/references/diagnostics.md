@@ -20,6 +20,8 @@
 
 ## 干净停止
 
-命令通道仍有响应时，发送正常的 `stop` 命令，让 XCTest 完成并保存结果包。通道失去响应时，解析当前仓库和当前 session 对应的控制器、`xcodebuild` 与 test-runner 精确进程，只终止这些进程，并确认没有同范围实例残留；保留已经生成的 `.xcresult` 或 staging 录屏。
+用控制器的 `halt` 子命令。它先发 `stop` 让 XCTest 保存结果包，5 秒内没有确认就按仓库作用域解析控制器、`xcodebuild` 与 test-runner 进程并终止，返回 `terminated` 与 `remaining` 两张清单。`remaining` 为空才算停干净。
+
+作用域按进程工作目录判定，因此同一项目的另一个 checkout 或 worktree 不在范围内。自行拼 `pkill` 会按名字匹配到范围外的构建。
 
 旧 runner 尚未停止时启动新 runner，会让 session 身份、设备权限、结果包和 App 所有权变得含混。因此，干净停止是建立下一次实时闭环的一部分，不是广泛清理整台机器。
