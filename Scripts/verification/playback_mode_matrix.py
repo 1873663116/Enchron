@@ -858,24 +858,30 @@ def clean_state_preamble(
     media_path = media_root / clip
     if not media_path.is_file():
         return {"phase": "clean-media", "message": f"No such media: {media_path}"}
-    session = controller(
-        controller_directory, "--developer-dir", DEVELOPER_DIR, "ensure-session"
-    )
-    if session.get("stage") != "ready":
-        return {"phase": "clean-session", "controller": controller_summary(session)}
+    # The headset-side automation grant survives a bounded number of runner
+    # launches, so cells reuse the live session and relaunch only the APP
+    # (the runner's relaunch verb consumes no grant). ensure-session runs
+    # once to establish, then only as recovery.
     reset = app_command(controller_directory, "resetState")
     if reset.get("ok") is not True:
+        session = controller(
+            controller_directory, "--developer-dir", DEVELOPER_DIR, "ensure-session"
+        )
+        if session.get("stage") != "ready":
+            return {"phase": "clean-session", "controller": controller_summary(session)}
         reset = app_command(controller_directory, "resetState")
         if reset.get("ok") is not True:
             return {"phase": "clean-reset", "controller": controller_summary(reset)}
     # The in-memory library would re-persist its old references on the next
     # mutation, so the empty on-disk state must be loaded by a fresh process
     # BEFORE importing.
-    relaunch = controller(
-        controller_directory, "--developer-dir", DEVELOPER_DIR, "ensure-session"
-    )
-    if relaunch.get("stage") != "ready":
-        return {"phase": "clean-relaunch", "controller": controller_summary(relaunch)}
+    relaunch = controller(controller_directory, "relaunch", "--no-screenshot")
+    if relaunch.get("success") is not True:
+        relaunch = controller(
+            controller_directory, "--developer-dir", DEVELOPER_DIR, "ensure-session"
+        )
+        if relaunch.get("stage") != "ready":
+            return {"phase": "clean-relaunch", "controller": controller_summary(relaunch)}
     if (error := push_to_inbox(media_path)) is not None:
         return {"phase": "clean-push", "message": error}
     imported = app_command(
