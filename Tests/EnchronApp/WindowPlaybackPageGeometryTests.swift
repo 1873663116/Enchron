@@ -111,6 +111,86 @@ struct WindowPlaybackPageGeometryTests {
         )
     }
 
+    @Test("Video Format editing snapshots the committed selection when editing begins")
+    func videoFormatEditingSnapshotsSelection() {
+        var state = PlaybackVideoFormatEditingState(
+            projection: .customAngle,
+            horizontalFieldOfViewDegrees: 220,
+            stereoLayout: .sideBySide
+        )
+
+        state.beginEditing()
+        state.projection = .equirectangular360
+        state.horizontalFieldOfViewDegrees = 280
+        state.stereoLayout = .mono
+        state.discard()
+
+        #expect(state.projection == .customAngle)
+        #expect(state.horizontalFieldOfViewDegrees == 220)
+        #expect(state.stereoLayout == .sideBySide)
+    }
+
+    @Test("applying Video Format commits the draft as the next editing baseline")
+    func applyingVideoFormatCommitsDraft() {
+        var state = PlaybackVideoFormatEditingState()
+
+        state.beginEditing()
+        state.projection = .customAngle
+        state.horizontalFieldOfViewDegrees = 240
+        state.stereoLayout = .topBottom
+
+        let committed = state.commit()
+
+        #expect(
+            committed == PlaybackVideoFormatSelection(
+                projection: .customAngle,
+                horizontalFieldOfViewDegrees: 240,
+                stereoLayout: .topBottom
+            )
+        )
+
+        state.beginEditing()
+        state.projection = .flat
+        state.stereoLayout = .mono
+        state.discard()
+
+        #expect(state.projection == .customAngle)
+        #expect(state.horizontalFieldOfViewDegrees == 240)
+        #expect(state.stereoLayout == .topBottom)
+    }
+
+    @Test("committed Video Format synchronization waits for editing to finish")
+    func videoFormatSynchronizationWaitsForEditing() {
+        var state = PlaybackVideoFormatEditingState(
+            projection: .equirectangular180,
+            stereoLayout: .sideBySide
+        )
+        let sourceSelection = PlaybackVideoFormatSelection(
+            projection: .flat,
+            horizontalFieldOfViewDegrees: nil,
+            stereoLayout: .mono
+        )
+
+        state.synchronizeCommittedVideoFormat(sourceSelection)
+        #expect(state.projection == .flat)
+        #expect(state.stereoLayout == .mono)
+
+        state.beginEditing()
+        state.projection = .equirectangular360
+        state.synchronizeCommittedVideoFormat(
+            PlaybackVideoFormatSelection(
+                projection: .equirectangular180,
+                horizontalFieldOfViewDegrees: nil,
+                stereoLayout: .sideBySide
+            )
+        )
+        #expect(state.projection == .equirectangular360)
+
+        state.discard()
+        #expect(state.projection == .flat)
+        #expect(state.stereoLayout == .mono)
+    }
+
     @Test("cancelling Video Format closes the menu and discards its draft")
     func cancellingVideoFormatDiscardsItsDraft() {
         var state = PlaybackTopActionsState()

@@ -12,7 +12,10 @@ struct PlaybackControlsPreview: View {
     @State private var screenDistance = PlaybackDockedPlacement.defaultDistance
     @State private var screenElevation = PlaybackDockedPlacement.defaultElevationDegrees
     @State private var projection: PlaybackModel.ProjectionType = .equirectangular180
+    @State private var horizontalFieldOfViewDegrees =
+        PanoramaHorizontalCoverage.defaultCustomAngle
     @State private var stereoLayout: PlaybackModel.StereoLayout = .sideBySide
+    @State private var mediaFormatProvenance: MediaFormatProvenance = .userOverride
 
     var body: some View {
         ScrollView {
@@ -101,13 +104,16 @@ struct PlaybackControlsPreview: View {
             mediaProfile: mediaProfile(for: presentation),
             canDock: true,
             canEnterPanorama: true,
+            canApplyFormat: true,
             screenScale: screenScale,
             recommendedScreenScale: 1.0,
             screenDistance: screenDistance,
             screenElevationDegrees: screenElevation,
             projection: presentation == .panorama ? projection : .flat,
-            horizontalFieldOfViewDegrees: PanoramaHorizontalCoverage.defaultCustomAngle,
+            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
             stereoLayout: presentation == .panorama ? stereoLayout : .mono,
+            mediaFormatProvenance: mediaFormatProvenance,
+            sourceMediaFormatSummary: "Flat · Mono",
             isPlaying: isPlaying,
             showsReplay: false,
             canSkipForward: true,
@@ -136,6 +142,19 @@ struct PlaybackControlsPreview: View {
                 screenScale = 1.0
                 screenDistance = PlaybackDockedPlacement.defaultDistance
                 screenElevation = PlaybackDockedPlacement.defaultElevationDegrees
+            },
+            onApplyFormat: { selectedProjection, horizontalFieldOfView, stereo in
+                projection = selectedProjection
+                if let horizontalFieldOfView {
+                    horizontalFieldOfViewDegrees = horizontalFieldOfView
+                }
+                stereoLayout = stereo
+                mediaFormatProvenance = .userOverride
+            },
+            onRestoreAutomaticFormat: {
+                projection = .flat
+                stereoLayout = .mono
+                mediaFormatProvenance = .source
             },
             subtitleItems: menuItems(["Off", "English CC"], selected: "Off"),
             audioItems: menuItems(["English 5.1", "Japanese 2.0"], selected: "English 5.1"),

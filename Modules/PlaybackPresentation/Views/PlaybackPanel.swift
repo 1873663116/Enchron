@@ -15,6 +15,7 @@ struct FusedPlayerPanelLive {
     var mediaProfile: PlaybackModel.MediaProfile?
     var canDock: Bool
     var canEnterPanorama: Bool
+    var canApplyFormat: Bool
     var screenScale: Double
     var recommendedScreenScale: Double
     var screenDistance: Double
@@ -23,6 +24,8 @@ struct FusedPlayerPanelLive {
     var horizontalFieldOfViewDegrees: Int
     var stereoLayout: PlaybackModel.StereoLayout
     var mediaFormatSummary: String? = nil
+    var mediaFormatProvenance: MediaFormatProvenance
+    var sourceMediaFormatSummary: String
     var isPlaying: Bool
     var showsReplay: Bool
     var canSkipForward: Bool
@@ -46,6 +49,12 @@ struct FusedPlayerPanelLive {
     var onSetScreenDistance: @MainActor @Sendable (Double) -> Void
     var onSetScreenElevation: @MainActor @Sendable (Double) -> Void
     var onResetDockedPlacement: () -> Void
+    var onApplyFormat: (
+        PlaybackModel.ProjectionType,
+        Int?,
+        PlaybackModel.StereoLayout
+    ) -> Void
+    var onRestoreAutomaticFormat: () -> Void
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -162,16 +171,27 @@ struct FusedPlayerPanel: View {
         initialExpansion: PlaybackPanelInitialExpansion = .collapsed,
         controlsVisible: Bool = true
     ) {
-        self.live = live
-        self.onInteraction = onInteraction
-        self.surface = (
+        let resolvedSurface: PlaybackControlPanelSurface = (
             (live?.presentation ?? .window) == .window
                 ? .windowOrnament
                 : .playerControlDock
         )
+        self.live = live
+        self.onInteraction = onInteraction
+        self.surface = resolvedSurface
         self.controlsVisible = controlsVisible
         _timelineExpanded = State(initialValue: initialExpansion == .timeline)
         _settingsExpanded = State(initialValue: initialExpansion == .settings)
+        _videoFormatEditing = State(
+            initialValue: PlaybackVideoFormatEditingState(
+                projection: live?.projection ?? .flat,
+                horizontalFieldOfViewDegrees: live?.horizontalFieldOfViewDegrees
+                    ?? PanoramaHorizontalCoverage.defaultCustomAngle,
+                stereoLayout: live?.stereoLayout ?? .mono,
+                beginsEditing: initialExpansion == .settings
+                    && resolvedSurface == .playerControlDock
+            )
+        )
     }
 
     fileprivate init(
@@ -187,11 +207,21 @@ struct FusedPlayerPanel: View {
         self.controlsVisible = controlsVisible
         _timelineExpanded = State(initialValue: initialExpansion == .timeline)
         _settingsExpanded = State(initialValue: initialExpansion == .settings)
+        _videoFormatEditing = State(
+            initialValue: PlaybackVideoFormatEditingState(
+                projection: live.projection,
+                horizontalFieldOfViewDegrees: live.horizontalFieldOfViewDegrees,
+                stereoLayout: live.stereoLayout,
+                beginsEditing: initialExpansion == .settings
+                    && surface == .playerControlDock
+            )
+        )
     }
 
     private let controlsVisible: Bool
     @State private var timelineExpanded: Bool
     @State private var settingsExpanded: Bool
+    @State private var videoFormatEditing: PlaybackVideoFormatEditingState
     @State private var mediaInfoHovered = false
 
     // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
@@ -301,9 +331,14 @@ struct FusedPlayerPanel: View {
                 pendingSeekTarget = nil
             }
         }
+        .onChange(of: committedVideoFormatSelection) { _, selection in
+            guard let selection else { return }
+            videoFormatEditing.synchronizeCommittedVideoFormat(selection)
+        }
         .onChange(of: controlsVisible) { _, isVisible in
             guard isVisible == false else { return }
             timelineExpanded = false
+            videoFormatEditing.discard()
             settingsExpanded = false
             isDragging = false
             isTimelineDragging = false
@@ -336,8 +371,11 @@ struct FusedPlayerPanel: View {
             mediaInformationWell(width: clusterWidth)
             playerControlDockControls
 
-            if settingsExpanded, let live, live.presentation == .docked {
-                dockedPlacementControls(live)
+            if settingsExpanded, let live {
+                if live.presentation == .docked {
+                    dockedPlacementControls(live)
+                }
+                videoFormatEditor(live)
             }
 
             if timelineExpanded {
@@ -433,6 +471,71 @@ struct FusedPlayerPanel: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-DockedPlacement")
+    }
+
+    private func videoFormatEditor(_ live: FusedPlayerPanelLive) -> some View {
+        PlaybackVideoFormatEditor(
+            projection: $videoFormatEditing.projection,
+            horizontalFieldOfViewDegrees: $videoFormatEditing.horizontalFieldOfViewDegrees,
+            stereoLayout: $videoFormatEditing.stereoLayout,
+            canApplyFormat: live.canApplyFormat,
+            mediaFormatProvenance: live.mediaFormatProvenance,
+            sourceMediaFormatSummary: live.sourceMediaFormatSummary,
+            identifierPrefix: "PlayerPanel-VideoFormat",
+            onCancel: cancelVideoFormatEditing,
+            onApply: applyVideoFormatEditing,
+            onRestoreAutomaticFormat: restoreAutomaticFormat
+        )
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("PlayerPanel-VideoFormat")
+    }
+
+    private var committedVideoFormatSelection: PlaybackVideoFormatSelection? {
+        guard let live else { return nil }
+        return PlaybackVideoFormatSelection(
+            projection: live.projection,
+            horizontalFieldOfViewDegrees: live.projection == .customAngle
+                ? live.horizontalFieldOfViewDegrees
+                : nil,
+            stereoLayout: live.stereoLayout
+        )
+    }
+
+    private func cancelVideoFormatEditing() {
+        videoFormatEditing.discard()
+        collapseSettings()
+        onInteraction()
+    }
+
+    private func applyVideoFormatEditing() {
+        guard let live,
+              let selection = videoFormatEditing.commit() else { return }
+        if let committedVideoFormatSelection {
+            videoFormatEditing.synchronizeCommittedVideoFormat(
+                committedVideoFormatSelection
+            )
+        }
+        collapseSettings()
+        onInteraction()
+        live.onApplyFormat(
+            selection.projection,
+            selection.horizontalFieldOfViewDegrees,
+            selection.stereoLayout
+        )
+    }
+
+    private func restoreAutomaticFormat() {
+        guard let live else { return }
+        videoFormatEditing.discard()
+        collapseSettings()
+        onInteraction()
+        live.onRestoreAutomaticFormat()
+    }
+
+    private func collapseSettings() {
+        withAnimation(DesignTokens.AnimationToken.panelSpring) {
+            settingsExpanded = false
+        }
     }
 
     private var windowTransportControls: some View {
@@ -1313,6 +1416,7 @@ struct FusedPlayerPanel: View {
     }
 
     private func openTimeline() {
+        videoFormatEditing.discard()
         settingsExpanded = false
         var transaction = Transaction()
         transaction.animation = nil
@@ -1331,11 +1435,16 @@ struct FusedPlayerPanel: View {
 
     private func toggleSettings() {
         if settingsExpanded {
-            withAnimation(DesignTokens.AnimationToken.panelSpring) {
-                settingsExpanded = false
-            }
+            videoFormatEditing.discard()
+            collapseSettings()
         } else {
             timelineExpanded = false
+            if let committedVideoFormatSelection {
+                videoFormatEditing.synchronizeCommittedVideoFormat(
+                    committedVideoFormatSelection
+                )
+                videoFormatEditing.beginEditing()
+            }
             withAnimation(DesignTokens.AnimationToken.panelSpring) {
                 settingsExpanded = true
             }

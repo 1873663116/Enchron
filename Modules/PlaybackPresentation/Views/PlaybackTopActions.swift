@@ -19,15 +19,94 @@ enum PlaybackVideoFormatEditingDecision {
     case apply
 }
 
-struct PlaybackTopActionsState {
-    var presentedMenu: PlaybackTopSecondaryMenu?
-    var selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment
-    var selectedEffect: SpatialSceneDomain.EnvironmentEffect?
+struct PlaybackVideoFormatEditingState {
     var projection: PlaybackModel.ProjectionType
     var horizontalFieldOfViewDegrees: Int
     var stereoLayout: PlaybackModel.StereoLayout
 
     private var selectionBeforeEditing: PlaybackVideoFormatSelection
+    private var isEditing: Bool
+
+    init(
+        projection: PlaybackModel.ProjectionType = .flat,
+        horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
+        stereoLayout: PlaybackModel.StereoLayout = .mono,
+        beginsEditing: Bool = false
+    ) {
+        self.projection = projection
+        self.horizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
+        self.stereoLayout = stereoLayout
+        self.selectionBeforeEditing = PlaybackVideoFormatSelection(
+            projection: projection,
+            horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
+            stereoLayout: stereoLayout
+        )
+        self.isEditing = beginsEditing
+    }
+
+    mutating func beginEditing() {
+        selectionBeforeEditing = currentSelection
+        isEditing = true
+    }
+
+    mutating func commit() -> PlaybackVideoFormatSelection? {
+        guard isEditing else { return nil }
+        let selection = currentSelection
+        selectionBeforeEditing = selection
+        isEditing = false
+        return selection
+    }
+
+    mutating func discard() {
+        guard isEditing else { return }
+        projection = selectionBeforeEditing.projection
+        horizontalFieldOfViewDegrees = selectionBeforeEditing.horizontalFieldOfViewDegrees
+            ?? PanoramaHorizontalCoverage.defaultCustomAngle
+        stereoLayout = selectionBeforeEditing.stereoLayout
+        isEditing = false
+    }
+
+    mutating func synchronizeCommittedVideoFormat(
+        _ selection: PlaybackVideoFormatSelection
+    ) {
+        guard isEditing == false else { return }
+        projection = selection.projection
+        horizontalFieldOfViewDegrees = selection.horizontalFieldOfViewDegrees
+            ?? PanoramaHorizontalCoverage.defaultCustomAngle
+        stereoLayout = selection.stereoLayout
+        selectionBeforeEditing = selection
+    }
+
+    private var currentSelection: PlaybackVideoFormatSelection {
+        PlaybackVideoFormatSelection(
+            projection: projection,
+            horizontalFieldOfViewDegrees: projection == .customAngle
+                ? horizontalFieldOfViewDegrees
+                : nil,
+            stereoLayout: stereoLayout
+        )
+    }
+}
+
+struct PlaybackTopActionsState {
+    var presentedMenu: PlaybackTopSecondaryMenu?
+    var selectedDockEnvironment: SpatialSceneDomain.CinemaEnvironment
+    var selectedEffect: SpatialSceneDomain.EnvironmentEffect?
+
+    var projection: PlaybackModel.ProjectionType {
+        get { videoFormatEditing.projection }
+        set { videoFormatEditing.projection = newValue }
+    }
+    var horizontalFieldOfViewDegrees: Int {
+        get { videoFormatEditing.horizontalFieldOfViewDegrees }
+        set { videoFormatEditing.horizontalFieldOfViewDegrees = newValue }
+    }
+    var stereoLayout: PlaybackModel.StereoLayout {
+        get { videoFormatEditing.stereoLayout }
+        set { videoFormatEditing.stereoLayout = newValue }
+    }
+
+    private var videoFormatEditing: PlaybackVideoFormatEditingState
 
     init(
         presentedMenu: PlaybackTopSecondaryMenu? = nil,
@@ -40,13 +119,11 @@ struct PlaybackTopActionsState {
         self.presentedMenu = presentedMenu
         self.selectedDockEnvironment = selectedDockEnvironment
         self.selectedEffect = selectedEffect
-        self.projection = projection
-        self.horizontalFieldOfViewDegrees = horizontalFieldOfViewDegrees
-        self.stereoLayout = stereoLayout
-        self.selectionBeforeEditing = PlaybackVideoFormatSelection(
+        self.videoFormatEditing = PlaybackVideoFormatEditingState(
             projection: projection,
             horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
-            stereoLayout: stereoLayout
+            stereoLayout: stereoLayout,
+            beginsEditing: presentedMenu == .videoFormat
         )
     }
 
@@ -57,17 +134,17 @@ struct PlaybackTopActionsState {
         }
 
         if presentedMenu == .videoFormat {
-            discardVideoFormatChanges()
+            videoFormatEditing.discard()
         }
         if menu == .videoFormat {
-            selectionBeforeEditing = currentVideoFormatSelection
+            videoFormatEditing.beginEditing()
         }
         presentedMenu = menu
     }
 
     mutating func dismissMenu() {
         if presentedMenu == .videoFormat {
-            discardVideoFormatChanges()
+            videoFormatEditing.discard()
         }
         presentedMenu = nil
     }
@@ -79,24 +156,17 @@ struct PlaybackTopActionsState {
         presentedMenu = nil
         switch decision {
         case .cancel:
-            discardVideoFormatChanges()
+            videoFormatEditing.discard()
             return nil
         case .apply:
-            let selection = currentVideoFormatSelection
-            selectionBeforeEditing = selection
-            return selection
+            return videoFormatEditing.commit()
         }
     }
 
     mutating func synchronizeCommittedVideoFormat(
         _ selection: PlaybackVideoFormatSelection
     ) {
-        guard presentedMenu != .videoFormat else { return }
-        projection = selection.projection
-        horizontalFieldOfViewDegrees = selection.horizontalFieldOfViewDegrees
-            ?? PanoramaHorizontalCoverage.defaultCustomAngle
-        stereoLayout = selection.stereoLayout
-        selectionBeforeEditing = selection
+        videoFormatEditing.synchronizeCommittedVideoFormat(selection)
     }
 
     mutating func restoreAutomaticFormat() -> Bool {
@@ -115,21 +185,144 @@ struct PlaybackTopActionsState {
         return (environment, effect)
     }
 
-    private var currentVideoFormatSelection: PlaybackVideoFormatSelection {
-        PlaybackVideoFormatSelection(
-            projection: projection,
-            horizontalFieldOfViewDegrees: projection == .customAngle
-                ? horizontalFieldOfViewDegrees
-                : nil,
-            stereoLayout: stereoLayout
-        )
+}
+
+struct PlaybackVideoFormatEditor: View {
+    @Binding var projection: PlaybackModel.ProjectionType
+    @Binding var horizontalFieldOfViewDegrees: Int
+    @Binding var stereoLayout: PlaybackModel.StereoLayout
+
+    let canApplyFormat: Bool
+    let mediaFormatProvenance: MediaFormatProvenance
+    let sourceMediaFormatSummary: String
+    let identifierPrefix: String
+    let onCancel: () -> Void
+    let onApply: () -> Void
+    let onRestoreAutomaticFormat: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            menuHeading("Video Format", supporting: "Choose how the video is presented")
+
+            Button(action: onRestoreAutomaticFormat) {
+                HStack(spacing: DesignTokens.Spacing.md) {
+                    Image(systemName: mediaFormatProvenance == .source
+                        ? "checkmark.circle.fill"
+                        : "arrow.uturn.backward.circle")
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Automatic")
+                            .font(DesignTokens.Typography.selectionHeader)
+                        Text(sourceMediaFormatSummary)
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .disabled(mediaFormatProvenance == .source || !canApplyFormat)
+            .accessibilityIdentifier("\(identifierPrefix)-automatic")
+
+            Divider()
+
+            formatPicker(
+                title: "Projection",
+                selection: $projection,
+                options: [
+                    PlaybackModel.ProjectionType.flat,
+                    PlaybackModel.ProjectionType.equirectangular180,
+                    .equirectangular360
+                ],
+                label: projectionTitle
+            )
+
+            Menu {
+                ForEach(PanoramaHorizontalCoverage.selectableAngles, id: \.self) { degrees in
+                    Button("\(degrees)°") {
+                        projection = .customAngle
+                        horizontalFieldOfViewDegrees = degrees
+                    }
+                }
+            } label: {
+                Label(
+                    projection == .customAngle
+                        ? "Custom Angle · \(horizontalFieldOfViewDegrees)°"
+                        : "Custom Angle",
+                    systemImage: "angle"
+                )
+            }
+            .accessibilityIdentifier("\(identifierPrefix)-CustomAngle")
+
+            formatPicker(
+                title: "Stereo Layout",
+                selection: $stereoLayout,
+                options: PlaybackModel.StereoLayout.userSelectableCases,
+                label: stereoTitle
+            )
+
+            HStack {
+                Spacer()
+                Button("Cancel", action: onCancel)
+                    .accessibilityIdentifier("\(identifierPrefix)-cancel")
+                Button("Apply", action: onApply)
+                    .buttonStyle(.borderedProminent)
+                    .accessibilityIdentifier("\(identifierPrefix)-apply")
+            }
+        }
     }
 
-    private mutating func discardVideoFormatChanges() {
-        projection = selectionBeforeEditing.projection
-        horizontalFieldOfViewDegrees = selectionBeforeEditing.horizontalFieldOfViewDegrees
-            ?? PanoramaHorizontalCoverage.defaultCustomAngle
-        stereoLayout = selectionBeforeEditing.stereoLayout
+    private func menuHeading(_ title: String, supporting: String) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(title)
+                .font(DesignTokens.Typography.headline)
+            Text(supporting)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func formatPicker<Value: Hashable>(
+        title: String,
+        selection: Binding<Value>,
+        options: [Value],
+        label: @escaping (Value) -> String
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(.secondary)
+            Picker(title, selection: selection) {
+                ForEach(options, id: \.self) { option in
+                    Text(label(option))
+                        .tag(option)
+                        .accessibilityIdentifier(
+                            "\(identifierPrefix)-\(title)-\(label(option))"
+                        )
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .accessibilityLabel(title)
+        }
+    }
+
+    private func projectionTitle(_ projection: PlaybackModel.ProjectionType) -> String {
+        switch projection {
+        case .flat: "Flat"
+        case .equirectangular180: "180°"
+        case .equirectangular360: "360°"
+        case .customAngle: "Custom Angle"
+        }
+    }
+
+    private func stereoTitle(_ stereoLayout: PlaybackModel.StereoLayout) -> String {
+        switch stereoLayout {
+        case .mono: "Mono"
+        case .multiview: "Native Multiview"
+        case .sideBySide: "Side-by-Side"
+        case .topBottom: "Top-Bottom"
+        }
     }
 }
 
@@ -437,81 +630,18 @@ struct PlaybackTopActions: View {
             style: .continuous
         )
 
-        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            menuHeading("Video Format", supporting: "Choose how the video is presented")
-
-            Button {
-                restoreAutomaticFormat()
-            } label: {
-                HStack(spacing: DesignTokens.Spacing.md) {
-                    Image(systemName: mediaFormatProvenance == .source
-                        ? "checkmark.circle.fill"
-                        : "arrow.uturn.backward.circle")
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Automatic")
-                            .font(DesignTokens.Typography.selectionHeader)
-                        Text(sourceMediaFormatSummary)
-                            .font(DesignTokens.Typography.metadata)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 0)
-                }
-                .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .buttonStyle(.plain)
-            .disabled(mediaFormatProvenance == .source || !canApplyFormat)
-            .accessibilityIdentifier("PlayerUI-VideoFormat-automatic")
-
-            Divider()
-
-            formatPicker(
-                title: "Projection",
-                selection: $state.projection,
-                options: [
-                    PlaybackModel.ProjectionType.flat,
-                    PlaybackModel.ProjectionType.equirectangular180,
-                    .equirectangular360
-                ],
-                label: projectionTitle
-            )
-
-            Menu {
-                ForEach(PanoramaHorizontalCoverage.selectableAngles, id: \.self) { degrees in
-                    Button("\(degrees)°") {
-                        state.projection = .customAngle
-                        state.horizontalFieldOfViewDegrees = degrees
-                    }
-                }
-            } label: {
-                Label(
-                    state.projection == .customAngle
-                        ? "Custom Angle · \(state.horizontalFieldOfViewDegrees)°"
-                        : "Custom Angle",
-                    systemImage: "angle"
-                )
-            }
-            .accessibilityIdentifier("PlayerUI-VideoFormat-CustomAngle")
-
-            formatPicker(
-                title: "Stereo Layout",
-                selection: $state.stereoLayout,
-                options: PlaybackModel.StereoLayout.userSelectableCases,
-                label: stereoTitle
-            )
-
-            HStack {
-                Spacer()
-                Button("Cancel") {
-                    cancelVideoFormat()
-                }
-                .accessibilityIdentifier("PlayerUI-VideoFormat-cancel")
-                Button("Apply") {
-                    applyVideoFormat()
-                }
-                .buttonStyle(.borderedProminent)
-                .accessibilityIdentifier("PlayerUI-VideoFormat-apply")
-            }
-        }
+        return PlaybackVideoFormatEditor(
+            projection: $state.projection,
+            horizontalFieldOfViewDegrees: $state.horizontalFieldOfViewDegrees,
+            stereoLayout: $state.stereoLayout,
+            canApplyFormat: canApplyFormat,
+            mediaFormatProvenance: mediaFormatProvenance,
+            sourceMediaFormatSummary: sourceMediaFormatSummary,
+            identifierPrefix: "PlayerUI-VideoFormat",
+            onCancel: cancelVideoFormat,
+            onApply: applyVideoFormat,
+            onRestoreAutomaticFormat: restoreAutomaticFormat
+        )
         .padding(DesignTokens.Spacing.lg)
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
@@ -532,56 +662,6 @@ struct PlaybackTopActions: View {
             .accessibilityHidden(true)
     }
 
-    private func menuHeading(_ title: String, supporting: String) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text(title)
-                .font(DesignTokens.Typography.headline)
-            Text(supporting)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-        }
-    }
-
-    private func formatPicker<Value: Hashable>(
-        title: String,
-        selection: Binding<Value>,
-        options: [Value],
-        label: @escaping (Value) -> String
-    ) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Text(title)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-            Picker(title, selection: selection) {
-                ForEach(options, id: \.self) { option in
-                    Text(label(option))
-                        .tag(option)
-                        .accessibilityIdentifier("PlayerUI-VideoFormat-\(title)-\(label(option))")
-                }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .accessibilityLabel(title)
-        }
-    }
-
-    private func projectionTitle(_ projection: PlaybackModel.ProjectionType) -> String {
-        switch projection {
-        case .flat: "Flat"
-        case .equirectangular180: "180°"
-        case .equirectangular360: "360°"
-        case .customAngle: "Custom Angle"
-        }
-    }
-
-    private func stereoTitle(_ stereoLayout: PlaybackModel.StereoLayout) -> String {
-        switch stereoLayout {
-        case .mono: "Mono"
-        case .multiview: "Native Multiview"
-        case .sideBySide: "Side-by-Side"
-        case .topBottom: "Top-Bottom"
-        }
-    }
 }
 
 /// Opens an inline panel in the same SwiftUI tree. The glass label owns hover

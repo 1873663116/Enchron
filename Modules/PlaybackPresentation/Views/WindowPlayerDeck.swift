@@ -63,6 +63,7 @@ struct WindowPlayerDeckView: View {
             canDock: playbackRuntime.canEnterSpatialPresentation,
             canEnterPanorama: playbackRuntime.canEnterSpatialPresentation
                 && playbackRuntime.effectiveContentIsPanoramic,
+            canApplyFormat: playbackRuntime.canEnterSpatialPresentation,
             screenScale: appModel.screenScale,
             recommendedScreenScale: EnvironmentSceneMapping.defaultScreenScale(
                 forEnvironmentID: appModel.currentCinemaEnvironment.rawValue
@@ -75,6 +76,8 @@ struct WindowPlayerDeckView: View {
             mediaFormatSummary: playbackRuntime.activeMediaFormatProvenance == .source
                 ? playbackRuntime.sourceMediaFormatSummary
                 : nil,
+            mediaFormatProvenance: playbackRuntime.activeMediaFormatProvenance,
+            sourceMediaFormatSummary: playbackRuntime.sourceMediaFormatSummary,
             isPlaying: transport.primaryAction == .pause,
             showsReplay: transport.primaryAction == .replay,
             canSkipForward: transport.canSkipForward,
@@ -139,6 +142,16 @@ struct WindowPlayerDeckView: View {
                 self.register()
                 self.appModel.resetDockedPlacement()
             },
+            onApplyFormat: { projection, horizontalFieldOfViewDegrees, stereo in
+                self.applyFormat(
+                    projection,
+                    horizontalFieldOfViewDegrees,
+                    stereo
+                )
+            },
+            onRestoreAutomaticFormat: {
+                self.restoreAutomaticFormat()
+            },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
@@ -178,6 +191,38 @@ struct WindowPlayerDeckView: View {
             )
         } catch {
             playbackRuntime.lastErrorMessage = error.localizedDescription
+        }
+    }
+
+    private func applyFormat(
+        _ projection: PlaybackModel.ProjectionType,
+        _ horizontalFieldOfViewDegrees: Int?,
+        _ stereo: PlaybackModel.StereoLayout
+    ) {
+        guard playbackRuntime.canEnterSpatialPresentation else { return }
+        register()
+        Task {
+            do {
+                try await playbackLauncher.applyFormat(
+                    projection: projection,
+                    horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
+                    stereo: stereo
+                )
+            } catch {
+                playbackRuntime.lastErrorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func restoreAutomaticFormat() {
+        guard playbackRuntime.canEnterSpatialPresentation else { return }
+        register()
+        Task {
+            do {
+                try await playbackLauncher.resetFormat()
+            } catch {
+                playbackRuntime.lastErrorMessage = error.localizedDescription
+            }
         }
     }
 
