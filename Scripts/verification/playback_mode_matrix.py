@@ -163,6 +163,9 @@ PATHS: dict[str, tuple[Step, ...]] = {
         Step("open", OPEN_CLIP, "panorama"),
         Step("apply-360-mono", APPLY_360_MONO, "panorama"),
     ),
+    "clean-open": (
+        Step("open", OPEN_CLIP, "any-steady"),
+    ),
 }
 
 
@@ -811,6 +814,147 @@ def run_wedge_check(
     return "blocked", evidence
 
 
+def app_command(
+    controller_directory: Path,
+    verb: str,
+    *arguments: str,
+) -> dict[str, object]:
+    extra: list[str] = []
+    for argument in arguments:
+        extra.extend(("--arg", argument))
+    return controller(
+        controller_directory, "app-command", "--verb", verb, *extra
+    )
+
+
+def push_to_inbox(media_path: Path) -> str | None:
+    environment = {"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"}
+    completed = subprocess.run(
+        [
+            "xcrun", "devicectl", "device", "copy", "to",
+            "--device", CORE_DEVICE,
+            "--domain-type", "appDataContainer",
+            "--domain-identifier", BUNDLE,
+            "--source", str(media_path),
+            "--destination", f"Documents/TestMediaInbox/{media_path.name}",
+        ],
+        capture_output=True, text=True, env=environment,
+    )
+    if completed.returncode != 0:
+        return (completed.stderr or completed.stdout).strip()[-300:]
+    return None
+
+
+def clean_state_preamble(
+    *,
+    clip: str,
+    media_root: Path,
+    controller_directory: Path,
+) -> dict[str, object] | None:
+    """Returns a DRIVE_ERROR-shaped dict on failure, None on success. The
+    library afterwards contains exactly the clip under test, so end-of-media
+    auto-advance has nowhere to go and the banned file can never be reached."""
+    media_path = media_root / clip
+    if not media_path.is_file():
+        return {"phase": "clean-media", "message": f"No such media: {media_path}"}
+    session = controller(
+        controller_directory, "--developer-dir", DEVELOPER_DIR, "ensure-session"
+    )
+    if session.get("stage") != "ready":
+        return {"phase": "clean-session", "controller": controller_summary(session)}
+    reset = app_command(controller_directory, "resetState")
+    if reset.get("ok") is not True:
+        reset = app_command(controller_directory, "resetState")
+        if reset.get("ok") is not True:
+            return {"phase": "clean-reset", "controller": controller_summary(reset)}
+    # The in-memory library would re-persist its old references on the next
+    # mutation, so the empty on-disk state must be loaded by a fresh process
+    # BEFORE importing.
+    relaunch = controller(
+        controller_directory, "--developer-dir", DEVELOPER_DIR, "ensure-session"
+    )
+    if relaunch.get("stage") != "ready":
+        return {"phase": "clean-relaunch", "controller": controller_summary(relaunch)}
+    if (error := push_to_inbox(media_path)) is not None:
+        return {"phase": "clean-push", "message": error}
+    imported = app_command(
+        controller_directory, "importMedia", f"file={media_path.name}"
+    )
+    if imported.get("ok") is not True:
+        return {"phase": "clean-import", "controller": controller_summary(imported)}
+    listing = app_command(controller_directory, "listLibrary")
+    names = listing.get("payload")
+    if names != [media_path.name]:
+        return {
+            "phase": "clean-verify",
+            "message": f"Library after clean import is {names}.",
+        }
+    return None
+
+
+WINDOWED_STEADY_LIFECYCLES = frozenset(("playing", "ready", "paused", "ended"))
+
+
+def wait_for_clean_open(
+    *,
+    cell_directory: Path,
+    controller_directory: Path,
+    target_started_at: float,
+    probe_offset: int,
+) -> tuple[dict[str, object], list[str]]:
+    """A clean open may legitimately land windowed (no format signaling) or
+    panoramic (signaled source); the verdict records where it landed and the
+    signaling truth table instead of presuming a target presentation."""
+    deadline = target_started_at + SETTLEMENT_TIMEOUT_SECONDS
+    delta: list[str] = []
+    latest_plane: dict[str, str] | None = None
+    while time.monotonic() < deadline:
+        lines, _ = copy_probe_lines(cell_directory)
+        if lines is not None and len(lines) >= probe_offset:
+            delta = lines[probe_offset:]
+            if last_settlement_settled(delta) is True:
+                elapsed = time.monotonic() - target_started_at
+                return (
+                    {
+                        "verdict": PASS,
+                        "landed": appeared_presentation(delta) or "panorama",
+                        "time_to_target_seconds": round(elapsed, 3),
+                    },
+                    delta,
+                )
+        plane, _ = read_control_plane(controller_directory)
+        if plane is not None:
+            latest_plane = plane
+            if (
+                plane.get("presentation") == "window"
+                and plane.get("transition") == "none"
+                and plane.get("videoVisible") == "true"
+                and (plane.get("lifecycle") or "").lower()
+                    in WINDOWED_STEADY_LIFECYCLES
+            ):
+                elapsed = time.monotonic() - target_started_at
+                return (
+                    {
+                        "verdict": PASS,
+                        "landed": "window",
+                        "time_to_target_seconds": round(elapsed, 3),
+                        "control_plane": format_facts(plane),
+                    },
+                    delta,
+                )
+        time.sleep(1)
+    elapsed = time.monotonic() - target_started_at
+    return (
+        {
+            "verdict": STALL_TIMEOUT,
+            "landed": None,
+            "elapsed_seconds": round(elapsed, 3),
+            "control_plane": format_facts(latest_plane),
+        },
+        delta,
+    )
+
+
 def run_cell(
     *,
     clip: str,
@@ -820,10 +964,12 @@ def run_cell(
     rep: int,
     selected_clips: Sequence[str],
     evidence_directory: Path,
+    clean: bool = False,
+    media_root: Path | None = None,
 ) -> dict[str, object]:
     cell_directory = (
         evidence_directory
-        / f"clip-{clip_index:02d}-{safe_component(clip)}"
+        / f"clip-{clip_index:02d}-{safe_component(Path(clip).name)}"
         / f"path-{path_index:02d}-{path_name}"
         / f"rep-{rep:02d}"
     )
@@ -831,13 +977,103 @@ def run_cell(
     controller_directory.mkdir(parents=True, exist_ok=True)
     path = PATHS[path_name]
     cell_started_at = time.monotonic()
+    clip_name = Path(clip).name
 
-    session = controller(
-        controller_directory,
-        "--developer-dir",
-        DEVELOPER_DIR,
-        "ensure-session",
-    )
+    if clean:
+        failure = clean_state_preamble(
+            clip=clip,
+            media_root=media_root or Path("."),
+            controller_directory=controller_directory,
+        )
+        if failure is not None:
+            probe_lines, _ = copy_probe_lines(cell_directory)
+            first_step = path[0]
+            step_result = drive_error_step(
+                step=first_step,
+                actions=resolve_actions(first_step, clip_name),
+                phase=str(failure.get("phase", "clean-preamble")),
+                started_at=cell_started_at,
+                message=str(failure.get("message", "")) or None,
+            )
+            if "controller" in failure:
+                step_result["controller"] = failure["controller"]
+            return {
+                "clip": clip,
+                "path": path_name,
+                "rep": rep,
+                "verdict": DRIVE_ERROR,
+                "passed": False,
+                "elapsed_seconds": round(time.monotonic() - cell_started_at, 3),
+                "session": {},
+                "steps": [step_result],
+                "wedge_check": None,
+                "wedge_evidence": None,
+                "evidence_directory": str(cell_directory),
+            }
+        probe_lines, _ = copy_probe_lines(cell_directory)
+        probe_offset = len(probe_lines or [])
+        if path_name == "clean-open":
+            open_document = controller(
+                controller_directory,
+                "tap",
+                "--identifier",
+                f"MediaLibrary-grid-video-{clip_name}",
+                "--no-screenshot",
+            )
+            if open_document.get("success") is not True:
+                step_result = drive_error_step(
+                    step=path[0],
+                    actions=(f"MediaLibrary-grid-video-{clip_name}",),
+                    phase="tap",
+                    started_at=cell_started_at,
+                    controller_document=open_document,
+                )
+                verdict = DRIVE_ERROR
+                steps = [step_result]
+            else:
+                wait_result, delta = wait_for_clean_open(
+                    cell_directory=cell_directory,
+                    controller_directory=controller_directory,
+                    target_started_at=time.monotonic(),
+                    probe_offset=probe_offset,
+                )
+                excerpt_path = cell_directory / "step-01-open-probe.log"
+                text = "\n".join(delta)
+                excerpt_path.write_text(
+                    text + ("\n" if text else ""), encoding="utf-8"
+                )
+                step_result = {
+                    "name": "open",
+                    "actions": [f"MediaLibrary-grid-video-{clip_name}"],
+                    "expect_presentation": "any-steady",
+                    "probe_excerpt": str(excerpt_path),
+                    "stall_recovered": probe_shows_recovered_stall(delta),
+                    **wait_result,
+                }
+                verdict = str(wait_result["verdict"])
+                steps = [step_result]
+            return {
+                "clip": clip,
+                "path": path_name,
+                "rep": rep,
+                "verdict": verdict,
+                "landed": steps[0].get("landed"),
+                "passed": verdict in PASSING_VERDICTS,
+                "elapsed_seconds": round(time.monotonic() - cell_started_at, 3),
+                "session": {},
+                "steps": steps,
+                "wedge_check": None,
+                "wedge_evidence": None,
+                "evidence_directory": str(cell_directory),
+            }
+        session: dict[str, object] = {"stage": "ready", "success": True}
+    else:
+        session = controller(
+            controller_directory,
+            "--developer-dir",
+            DEVELOPER_DIR,
+            "ensure-session",
+        )
     steps: list[dict[str, object]] = []
     probe_offset = 0
     baseline_error: str | None = None
@@ -881,7 +1117,7 @@ def run_cell(
             step_result, probe_offset = run_step(
                 step=step,
                 step_index=step_index,
-                clip=clip,
+                clip=Path(clip).name,
                 cell_directory=cell_directory,
                 controller_directory=controller_directory,
                 probe_offset=probe_offset,
@@ -912,7 +1148,7 @@ def run_cell(
         else:
             try:
                 wedge_check, wedge_evidence = run_wedge_check(
-                    current_clip=clip,
+                    current_clip=Path(clip).name,
                     selected_clips=selected_clips,
                     controller_directory=controller_directory,
                 )
@@ -1066,6 +1302,18 @@ def parse_arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
         default=["open-default"],
     )
     parser.add_argument("--reps", type=positive_reps, default=3)
+    parser.add_argument(
+        "--clean",
+        action="store_true",
+        help="Per cell: resetState, push the clip into TestMediaInbox, import "
+        "through the production pipeline, relaunch, verify a single-item "
+        "library. Clips are then paths relative to --media-root.",
+    )
+    parser.add_argument(
+        "--media-root",
+        type=Path,
+        default=Path("/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia/Samples"),
+    )
     parser.add_argument("--evidence-dir", type=Path)
     parser.add_argument(
         "--list-paths",
@@ -1127,6 +1375,8 @@ def main() -> int:
                     rep=rep,
                     selected_clips=arguments.clips,
                     evidence_directory=evidence_directory,
+                    clean=arguments.clean,
+                    media_root=arguments.media_root,
                 )
                 append_result(results_path, result)
                 results.append(result)
