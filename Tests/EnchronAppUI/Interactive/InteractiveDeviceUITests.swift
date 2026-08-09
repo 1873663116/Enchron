@@ -18,6 +18,7 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
             return false
         }
         let app = XCUIApplication()
+        app.launchEnvironment["ENCHRON_TEST_CHANNEL"] = "1"
         app.launch()
         let channel = try InteractiveDeviceUIChannel(app: app)
         try channel.publishReadyState()
@@ -130,6 +131,11 @@ private final class InteractiveDeviceUIChannel {
         switch command.action {
         case .snapshot:
             return (true, "Current UI state captured.")
+        case .activate:
+            // Restores scene input ownership lost after an immersive-space
+            // dismissal without relaunching away the app's current state.
+            app.activate()
+            return (true, "Application activated.")
         case .tap:
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
@@ -352,6 +358,7 @@ private struct InteractiveDeviceUICommand: Codable {
         case swipeLeft
         case swipeRight
         case coordinateTap
+        case activate
         case relaunch
         case terminate
         case stop

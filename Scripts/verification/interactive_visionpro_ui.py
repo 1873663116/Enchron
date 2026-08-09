@@ -15,7 +15,10 @@ from pathlib import Path
 
 
 RUNNER_BUNDLE_ID = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
+APP_BUNDLE_ID = "com.xiongzhipeng.XrPlayer"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
+APP_COMMAND_PATH = "Documents/test-command.json"
+APP_RESPONSE_ROOT = "Documents/test-responses"
 COMMAND_NOTIFICATION = "com.enchron.interactive-device-ui.command"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 # A process belongs to this repository's automation scope only when its command
@@ -352,6 +355,75 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
         return response
 
 
+def app_command(arguments: argparse.Namespace) -> dict[str, object]:
+    if not arguments.verb:
+        raise ValueError("app-command requires --verb.")
+    if arguments.timeout_seconds <= 0:
+        raise ValueError("--timeout-seconds must be greater than zero.")
+
+    command_arguments: dict[str, str] = {}
+    for item in arguments.app_arguments:
+        key, separator, value = item.partition("=")
+        if not separator or not key:
+            raise ValueError(f"Invalid --arg {item!r}; expected key=value.")
+        command_arguments[key] = value
+
+    command_id = str(uuid.uuid4())
+    command = {
+        "id": command_id,
+        "verb": arguments.verb,
+        "args": command_arguments,
+    }
+    with tempfile.TemporaryDirectory(prefix="enchron-app-command-") as directory:
+        directory_path = Path(directory)
+        command_path = directory_path / "command.json"
+        response_path = directory_path / "response.json"
+        command_path.write_text(
+            json.dumps(command, ensure_ascii=False, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+        copy_to_device(
+            device=arguments.device,
+            runner_bundle_id=APP_BUNDLE_ID,
+            local_path=command_path,
+            remote_path=APP_COMMAND_PATH,
+        )
+
+        deadline = time.monotonic() + arguments.timeout_seconds
+        while not copy_from_device(
+            device=arguments.device,
+            runner_bundle_id=APP_BUNDLE_ID,
+            remote_path=f"{APP_RESPONSE_ROOT}/{command_id}.json",
+            local_path=response_path,
+            quiet=True,
+        ):
+            if time.monotonic() >= deadline:
+                return {
+                    "success": False,
+                    "message": (
+                        f"App command {arguments.verb} did not respond within "
+                        f"{arguments.timeout_seconds:g} seconds."
+                    ),
+                    "id": command_id,
+                }
+            time.sleep(1.0)
+
+        response = json.loads(response_path.read_text(encoding="utf-8"))
+        if not isinstance(response, dict):
+            raise ValueError("The app command response is not a JSON object.")
+        if response.get("id") != command_id:
+            raise ValueError("The app command response ID does not match its request.")
+        if not isinstance(response.get("ok"), bool):
+            raise ValueError("The app command response has no Boolean ok field.")
+        response["success"] = response["ok"]
+        response["message"] = response.get("detail") or (
+            f"App command {arguments.verb} completed."
+            if response["ok"]
+            else f"App command {arguments.verb} failed."
+        )
+        return response
+
+
 def current_session_id(arguments: argparse.Namespace) -> str | None:
     try:
         return str(read_ready_state(arguments)["sessionID"])
@@ -491,11 +563,13 @@ def parse_arguments() -> argparse.Namespace:
             "swipeLeft",
             "swipeRight",
             "coordinateTap",
+            "activate",
             "relaunch",
             "terminate",
             "stop",
             "halt",
             "ensure-session",
+            "app-command",
         ),
     )
     parser.add_argument("--project", default="Enchron.xcodeproj")
@@ -528,6 +602,14 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--normalized-x", dest="normalizedX", type=float)
     parser.add_argument("--normalized-y", dest="normalizedY", type=float)
     parser.add_argument("--no-screenshot", action="store_true")
+    parser.add_argument("--verb")
+    parser.add_argument("--arg", dest="app_arguments", action="append", default=[])
+    parser.add_argument(
+        "--timeout-seconds",
+        dest="timeout_seconds",
+        type=float,
+        default=30.0,
+    )
     return parser.parse_args()
 
 
@@ -538,6 +620,8 @@ def main() -> int:
             response = halt_session(arguments)
         elif arguments.action == "ensure-session":
             response = ensure_session(arguments)
+        elif arguments.action == "app-command":
+            response = app_command(arguments)
         else:
             response = send_command(arguments)
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
