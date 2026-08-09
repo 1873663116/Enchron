@@ -241,6 +241,49 @@ struct PlaybackPresentationStateTests {
         #expect(runtime.effectiveMediaFormatInterpretation.source.contentKind == .rectilinear)
     }
 
+    @Test("Sample projection fills a missing provider projection")
+    @MainActor
+    func sampleProjectionFillsMissingProviderProjection() {
+        let runtime = PlaybackRuntime()
+        var snapshot = PlaybackDebugSnapshotV1()
+        snapshot.providerOpen = ProviderOpenSnapshot(
+            mediaSessionID: "sample-projection-fallback",
+            providerKind: "test"
+        )
+
+        runtime.publishSourceMediaFormat(from: snapshot)
+
+        #expect(runtime.sourceVideoContentKind == .rectilinear)
+        #expect(runtime.sourceMediaFormatSummary == "Flat · Mono")
+        #expect(runtime.effectiveContentIsPanoramic == false)
+
+        snapshot.lastVideoSample = VideoSampleRecord(
+            mediaSessionID: "sample-projection-fallback",
+            videoTrackID: "video-0",
+            sourceEventID: "sample-0",
+            streamEpoch: 1,
+            formatRevision: 1,
+            inputKind: .compressed,
+            presentationTimeSeconds: 0,
+            decodeTimeSeconds: 0,
+            durationSeconds: 1.0 / 30.0,
+            mediaSubtype: "hvc1",
+            dimensions: "8192x4096",
+            formatSignaling: VideoFormatSignalingSummary(
+                provenance: "sample",
+                projectionKind: .init(known: "HalfEquirectangular"),
+                viewPackingKind: .init(known: "SideBySide")
+            )
+        )
+
+        runtime.publishSourceMediaFormat(from: snapshot)
+
+        #expect(runtime.sourceVideoContentKind == .halfEquirectangular)
+        #expect(runtime.sourceMediaFormatSummary == "180° · Side-by-Side")
+        #expect(runtime.activeMediaFormatProvenance == .source)
+        #expect(runtime.effectiveContentIsPanoramic)
+    }
+
     @Test("A persisted panoramic launch selects Panorama before its first session")
     func coldPanoramaLaunchStartsInItsFinalScene() throws {
         let model = PlaybackPresentationModel()

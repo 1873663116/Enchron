@@ -308,11 +308,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             self?.receive(diagnostics)
         }
         controller.onAcceptedVideoFormatRevisionChange = { [weak self] revision in
-            // Accepted renderer input is event identity only. It intentionally
+            // Accepted input can publish newly observed source signaling, but
             // never triggers renderer, component, or Entity replacement.
             guard let self,
                   effectiveVideoFormatRevision.map({ revision >= $0 }) ?? true else {
                 return
+            }
+            if usesSourceFormat, let session {
+                publishSourceMediaFormat(from: session.debugSnapshot())
             }
             effectiveVideoFormatRevision = revision
         }
@@ -423,9 +426,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 provenance: "Enchron",
                 accessRequirement: request.url.isFileURL ? "securityScopedFile" : "networkSource"
             )
-            let sourceFormat = Self.sourceMediaFormat(
-                from: newSession.debugSnapshot().providerOpen
-            )
+            let sourceSnapshot = newSession.debugSnapshot()
+            let sourceFormat = Self.sourceMediaFormat(from: sourceSnapshot)
             if sourceFormat.contentKind == .appleImmersiveVideo {
                 await controller.closeAndWait()
                 throw RuntimeError.unableToOpenFile
@@ -438,9 +440,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             session = newSession
             updateActiveSessionID(newSession.traceID)
             activeTechnicalSessionID = newSession.traceID
-            sourceVideoContentKind = sourceFormat.contentKind
-            sourceStereoLayout = sourceFormat.stereoLayout
-            sourceMediaFormatIsCaptured = true
+            publishSourceMediaFormat(from: sourceSnapshot)
             publishEffectiveFormatAfterSourceDiscovery(initialFormat)
             technicalSessionMediaFormatInterpretation = effectiveMediaFormatInterpretation
             let selectedAudioStreamIndex = newSession.selectedAudioStreamIndex
@@ -1235,6 +1235,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         mediaFormatIsKnown = sourceMediaFormatIsCaptured
     }
 
+    func publishSourceMediaFormat(from snapshot: PlaybackDebugSnapshotV1) {
+        let sourceFormat = Self.sourceMediaFormat(from: snapshot)
+        sourceVideoContentKind = sourceFormat.contentKind
+        sourceStereoLayout = sourceFormat.stereoLayout
+        sourceMediaFormatIsCaptured = snapshot.providerOpen != nil
+            || snapshot.lastVideoSample != nil
+        if usesSourceFormat {
+            publishSourceFormat()
+        }
+    }
+
     public func videoRendererTargetDidBind(
         revision: UInt64,
         entityID: String
@@ -1844,23 +1855,27 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private static func sourceMediaFormat(
-        from snapshot: ProviderOpenSnapshot?
+        from snapshot: PlaybackDebugSnapshotV1
     ) -> (
         contentKind: PlaybackModel.SourceVideoContentKind,
         stereoLayout: PlaybackModel.StereoLayout
     ) {
-        let projection = snapshot?.formatSignaling.projectionKind.value ?? ""
-        let contentKind = sourceVideoContentKind(
-            from: projection,
-            isMVHEVC: snapshot?.isMVHEVC == true
-        )
+        let providerOpen = snapshot.providerOpen
+        let sampleSignaling = snapshot.lastVideoSample?.formatSignaling
+        let contentKind = recognizedSourceVideoContentKind(
+            from: providerOpen?.formatSignaling.projectionKind.value
+        ) ?? recognizedSourceVideoContentKind(
+            from: sampleSignaling?.projectionKind.value
+        ) ?? (providerOpen?.isMVHEVC == true ? .spatialVideo : .rectilinear)
 
         let stereoLayout: PlaybackModel.StereoLayout
-        if snapshot?.isMVHEVC == true {
+        if providerOpen?.isMVHEVC == true {
             stereoLayout = .multiview
         } else {
             stereoLayout = Self.stereoLayout(
-                from: snapshot?.formatSignaling.viewPackingKind.value ?? ""
+                from: providerOpen?.formatSignaling.viewPackingKind.value ?? ""
+            ) ?? Self.stereoLayout(
+                from: sampleSignaling?.viewPackingKind.value ?? ""
             ) ?? .mono
         }
         return (contentKind, stereoLayout)
@@ -1870,7 +1885,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         from projectionKind: String,
         isMVHEVC: Bool
     ) -> PlaybackModel.SourceVideoContentKind {
-        let normalizedProjection = projectionKind
+        recognizedSourceVideoContentKind(from: projectionKind)
+            ?? (isMVHEVC ? .spatialVideo : .rectilinear)
+    }
+
+    private static func recognizedSourceVideoContentKind(
+        from projectionKind: String?
+    ) -> PlaybackModel.SourceVideoContentKind? {
+        let normalizedProjection = (projectionKind ?? "")
             .lowercased()
             .filter { $0.isLetter || $0.isNumber }
         if normalizedProjection.contains("appleimmersivevideo") {
@@ -1886,8 +1908,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         if normalizedProjection.contains("equirectangular") {
             return .equirectangular
         }
-        if isMVHEVC { return .spatialVideo }
-        return .rectilinear
+        if normalizedProjection.contains("rectilinear") {
+            return .rectilinear
+        }
+        return nil
     }
 
     private static func stereoLayoutDisplayName(
