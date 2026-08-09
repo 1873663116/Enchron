@@ -230,6 +230,11 @@ private final class SpatialPresentationObservation {
 }
 
 public struct ImmersiveSpaceView: View {
+    private static let panoramaTapSurfaceAttachmentID = "panoramaTapSurface"
+    private static let panoramaTapSurfacePointSize: CGFloat = 1_360
+    private static let panoramaTapSurfaceScale: Float = 6
+    private static let collisionShellInputShelved = true
+
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
@@ -246,6 +251,7 @@ public struct ImmersiveSpaceView: View {
         PlaybackVideoRendererTargetObservation()
     @State private var presentationObservation = SpatialPresentationObservation()
     @State private var surfaceRefreshTick = 0
+    @State private var hasRecordedCollisionShellShelved = false
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
 
     private var videoEntity: Entity {
@@ -306,10 +312,34 @@ public struct ImmersiveSpaceView: View {
     }
 
     public var body: some View {
-        RealityView { content in
-            scheduleSpatialSurfaceUpdate(content)
-        } update: { content in
-            scheduleSpatialSurfaceUpdate(content)
+        RealityView { content, attachments in
+            scheduleSpatialSurfaceUpdate(content, attachments: attachments)
+        } update: { content, attachments in
+            scheduleSpatialSurfaceUpdate(content, attachments: attachments)
+        } attachments: {
+            Attachment(id: Self.panoramaTapSurfaceAttachmentID) {
+                Color.clear
+                    .frame(
+                        width: Self.panoramaTapSurfacePointSize,
+                        height: Self.panoramaTapSurfacePointSize
+                    )
+                    .contentShape(Rectangle())
+                    .gesture(
+                        SpatialTapGesture()
+                            .onEnded { _ in
+                                appModel.recordSurfaceInputProbe("attachmentTap")
+                                toggleControlsFromSpatialSurface(.immersiveSwiftUI)
+                            }
+                    )
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityLabel("Playback surface")
+                    .accessibilityIdentifier("PlayerUI-immersive-playback-surface")
+                    .accessibilityAction {
+                        toggleControlsFromSpatialSurface(.immersiveSwiftUI)
+                    }
+                    .hoverEffectDisabled()
+                    .allowsHitTesting(spatialPresentationAcceptsInput)
+            }
         }
         .realityScripting()
         .gesture(spatialSurfaceTapGesture)
@@ -336,7 +366,10 @@ public struct ImmersiveSpaceView: View {
         }
     }
 
-    private func scheduleSpatialSurfaceUpdate(_ content: RealityViewContent) {
+    private func scheduleSpatialSurfaceUpdate(
+        _ content: RealityViewContent,
+        attachments: RealityViewAttachments
+    ) {
         let revision = surfaceRefreshTick
         // Read the observable placement synchronously inside RealityView's
         // update transaction. Reading it only from the deferred task prevents
@@ -344,10 +377,11 @@ public struct ImmersiveSpaceView: View {
         let dockedPlacement = currentDockedSurfaceTransform
         realityViewUpdateScheduler.schedule {
             if needsWorld {
-                await loadWorld(into: content)
+                await loadWorld(into: content, attachments: attachments)
             }
             update(
                 content,
+                attachments: attachments,
                 revision: revision,
                 dockedPlacement: dockedPlacement
             )
@@ -390,8 +424,6 @@ public struct ImmersiveSpaceView: View {
             .targetedToAnyEntity()
             .onEnded { value in
                 let accepted = value.entity === videoEntity
-                    || PlaybackPanoramaInteractionSurface.contains(value.entity)
-                    || value.entity.name.hasPrefix("EnchronHeadInput.")
                 appModel.recordSurfaceInputProbe(
                     "spatialTap entity=\(value.entity.name) accepted=\(accepted)"
                 )
@@ -448,6 +480,7 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     private func update(
         _ content: RealityViewContent,
+        attachments: RealityViewAttachments,
         revision: Int,
         dockedPlacement: PlaybackSurfaceTransform
     ) {
@@ -455,7 +488,7 @@ public struct ImmersiveSpaceView: View {
         playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(
             realityKitContentTypeScope
         )
-        updateWorld(in: content)
+        updateWorld(in: content, attachments: attachments)
         let presentation = requestedPresentation
         if presentation == .panorama {
             PlaybackPanoramaInteractionSurface.configure(
@@ -467,6 +500,11 @@ public struct ImmersiveSpaceView: View {
         }
         updatePanoramaInteractionSurface(
             in: content,
+            isActive: presentation == .panorama
+        )
+        updatePanoramaTapSurface(
+            in: content,
+            attachments: attachments,
             isActive: presentation == .panorama
         )
         guard presentation.usesImmersiveSpace else {
@@ -499,15 +537,22 @@ public struct ImmersiveSpaceView: View {
         isActive: Bool
     ) {
         if isActive {
-            panoramaInteractionSurface.position = .zero
-            panoramaInteractionSurface.orientation = .init()
-            if content.entities.contains(where: { $0 === panoramaInteractionSurface }) == false {
-                content.add(panoramaInteractionSurface)
-                appModel.recordSurfaceInputProbe(
-                    "shellAttached name=\(panoramaInteractionSurface.name)"
-                        + " children=\(panoramaInteractionSurface.children.count)"
-                        + " active=\(panoramaInteractionSurface.isActive)"
-                )
+            if Self.collisionShellInputShelved {
+                if hasRecordedCollisionShellShelved == false {
+                    hasRecordedCollisionShellShelved = true
+                    appModel.recordSurfaceInputProbe("shellShelved")
+                }
+            } else {
+                panoramaInteractionSurface.position = .zero
+                panoramaInteractionSurface.orientation = .init()
+                if content.entities.contains(where: { $0 === panoramaInteractionSurface }) == false {
+                    content.add(panoramaInteractionSurface)
+                    appModel.recordSurfaceInputProbe(
+                        "shellAttached name=\(panoramaInteractionSurface.name)"
+                            + " children=\(panoramaInteractionSurface.children.count)"
+                            + " active=\(panoramaInteractionSurface.isActive)"
+                    )
+                }
             }
             if content.entities.contains(where: { $0 === headInputProbe }) == false {
                 content.add(headInputProbe)
@@ -527,7 +572,40 @@ public struct ImmersiveSpaceView: View {
     }
 
     @MainActor
-    private func updateWorld(in content: RealityViewContent) {
+    private func updatePanoramaTapSurface(
+        in content: RealityViewContent,
+        attachments: RealityViewAttachments,
+        isActive: Bool
+    ) {
+        guard let tapSurface = attachments.entity(
+            for: Self.panoramaTapSurfaceAttachmentID
+        ) else {
+            return
+        }
+
+        if isActive {
+            tapSurface.position = [0, 1.4, -2.5]
+            tapSurface.orientation = .init()
+            tapSurface.scale = [
+                Self.panoramaTapSurfaceScale,
+                Self.panoramaTapSurfaceScale,
+                1,
+            ]
+            if content.entities.contains(where: { $0 === tapSurface }) == false {
+                content.add(tapSurface)
+                appModel.recordSurfaceInputProbe("attachmentSurfaceAttached")
+            }
+        } else if content.entities.contains(where: { $0 === tapSurface }) {
+            content.remove(tapSurface)
+            appModel.recordSurfaceInputProbe("attachmentSurfaceDetached")
+        }
+    }
+
+    @MainActor
+    private func updateWorld(
+        in content: RealityViewContent,
+        attachments: RealityViewAttachments
+    ) {
         guard needsWorld else {
             if let entity = world.entity { content.remove(entity) }
             if let anchor = world.playbackSurfaceAnchor { content.remove(anchor) }
@@ -551,7 +629,9 @@ public struct ImmersiveSpaceView: View {
             }
             recordSkyboxActivity(in: entity)
         } else if world.isLoading == false, world.hasFailed == false {
-            Task { await loadWorld(into: content) }
+            Task {
+                await loadWorld(into: content, attachments: attachments)
+            }
         }
     }
 
@@ -1016,7 +1096,10 @@ public struct ImmersiveSpaceView: View {
     }
 
     @MainActor
-    private func loadWorld(into content: RealityViewContent) async {
+    private func loadWorld(
+        into content: RealityViewContent,
+        attachments: RealityViewAttachments
+    ) async {
         guard world.entity == nil, world.isLoading == false, world.hasFailed == false else { return }
         world.isLoading = true
         appModel.recordSpatialPlaybackSurfacePreparationStage("loadingWorld")
@@ -1044,6 +1127,7 @@ public struct ImmersiveSpaceView: View {
             logger.notice("world load completed")
             update(
                 content,
+                attachments: attachments,
                 revision: surfaceRefreshTick,
                 dockedPlacement: currentDockedSurfaceTransform
             )

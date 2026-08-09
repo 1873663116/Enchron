@@ -246,6 +246,7 @@ final class PlaybackSurfaceActivation {
 enum PlaybackSurfaceInputAction {
     enum Source {
         case windowSwiftUI
+        case immersiveSwiftUI
         case spatialTap
         case accessibilityActivate
     }
