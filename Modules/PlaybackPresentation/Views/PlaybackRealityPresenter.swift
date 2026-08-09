@@ -632,10 +632,14 @@ enum PlaybackModeRecoveryAction {
 final class PlaybackModeRequestRetry {
     static let retryWindow: TimeInterval = 3
     static let minimumRequestInterval: TimeInterval = 0.25
+    /// How long an unreported immersive viewing mode stays a wait state before
+    /// it is treated as a stalled classification worth re-requesting.
+    static let unreportedModeWindow: TimeInterval = 8
 
     private var requestSignature: String?
     private var firstRequestAt: Date?
     private var lastRequestAt: Date?
+    private var unreportedModeSince: Date?
 
     func recoveryAction(
         entity _: Entity,
@@ -649,13 +653,30 @@ final class PlaybackModeRequestRetry {
         now: Date = Date()
     ) -> PlaybackModeRecoveryAction {
         // A newly installed component legitimately reports no current mode while
-        // RealityKit classifies its renderer target. Writing the same desired
-        // values again replaces RealityKit's internal component state and starts
-        // that classification over, so nil is always a wait state. A reported,
-        // conflicting mode is the only state a mode request can correct.
+        // RealityKit classifies its renderer target, and writing the same
+        // desired values again restarts that classification. Waiting is
+        // therefore right at first, but only for as long as classification
+        // plausibly takes. Measured on device, a settling surface reports its
+        // mode within about a second; a surface handed a replacement technical
+        // session mid-transition can instead report nil forever, and without a
+        // bound nothing ever retries it.
+        if actualImmersiveViewingMode == nil {
+            let startedAt = unreportedModeSince ?? now
+            guard now.timeIntervalSince(startedAt) >= Self.unreportedModeWindow else {
+                unreportedModeSince = startedAt
+                return .none
+            }
+            // Opening a fresh request episode; the stall is measured again from
+            // here, so a surface that stays unreported is re-requested at the
+            // stall interval rather than every evaluation.
+            unreportedModeSince = now
+            requestSignature = nil
+        } else {
+            unreportedModeSince = nil
+        }
         let immersiveModeNeedsAnotherRequest = actualImmersiveViewingMode
             .map { $0 != desiredImmersiveViewingMode }
-            ?? false
+            ?? true
         let spatialVideoModeNeedsAnotherRequest = actualSpatialVideoMode
             != desiredSpatialVideoMode
         guard spatialVideoModeNeedsAnotherRequest
@@ -691,6 +712,7 @@ final class PlaybackModeRequestRetry {
         requestSignature = nil
         firstRequestAt = nil
         lastRequestAt = nil
+        unreportedModeSince = nil
     }
 }
 

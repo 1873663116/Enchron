@@ -151,6 +151,78 @@ struct PlaybackPresentationStateTests {
         #expect(settled == false)
     }
 
+    /// A component whose renderer was replaced mid-transition can report no
+    /// immersive viewing mode at all and never move again. Waiting is correct
+    /// while RealityKit classifies, which takes about a second on device, but an
+    /// unbounded wait leaves the surface unrecoverable for the whole session.
+    @Test("An unreported immersive viewing mode is re-requested once it stalls")
+    @MainActor
+    func stalledImmersiveViewingModeIsRequestedAgain() {
+        let retry = PlaybackModeRequestRetry()
+        let entity = Entity()
+        let start = Date()
+        func action(at offset: TimeInterval) -> PlaybackModeRecoveryAction {
+            retry.recoveryAction(
+                entity: entity,
+                presentation: .panorama,
+                desiredImmersiveViewingMode: "progressive",
+                actualImmersiveViewingMode: nil,
+                desiredSpatialVideoMode: "stereo",
+                actualSpatialVideoMode: "stereo",
+                now: start.addingTimeInterval(offset)
+            )
+        }
+
+        #expect(action(at: 0) == .none)
+        #expect(action(at: 1) == .none)
+        #expect(action(at: PlaybackModeRequestRetry.unreportedModeWindow - 0.5) == .none)
+        #expect(action(at: PlaybackModeRequestRetry.unreportedModeWindow) == .requestModesAgain)
+    }
+
+    /// Classification in progress must not be restarted, which is what a repeat
+    /// request does. The stall window is the only thing separating the two.
+    @Test("A mode reported before the stall window keeps the wait intact")
+    @MainActor
+    func reportedImmersiveViewingModeClearsTheStall() {
+        let retry = PlaybackModeRequestRetry()
+        let entity = Entity()
+        let start = Date()
+
+        #expect(
+            retry.recoveryAction(
+                entity: entity,
+                presentation: .panorama,
+                desiredImmersiveViewingMode: "progressive",
+                actualImmersiveViewingMode: nil,
+                desiredSpatialVideoMode: "stereo",
+                actualSpatialVideoMode: "stereo",
+                now: start
+            ) == .none
+        )
+        #expect(
+            retry.recoveryAction(
+                entity: entity,
+                presentation: .panorama,
+                desiredImmersiveViewingMode: "progressive",
+                actualImmersiveViewingMode: "progressive",
+                desiredSpatialVideoMode: "stereo",
+                actualSpatialVideoMode: "stereo",
+                now: start.addingTimeInterval(1)
+            ) == .none
+        )
+        #expect(
+            retry.recoveryAction(
+                entity: entity,
+                presentation: .panorama,
+                desiredImmersiveViewingMode: "progressive",
+                actualImmersiveViewingMode: nil,
+                desiredSpatialVideoMode: "stereo",
+                actualSpatialVideoMode: "stereo",
+                now: start.addingTimeInterval(1.5)
+            ) == .none
+        )
+    }
+
     @Test("A persisted user format remains effective after source discovery")
     @MainActor
     func coldLaunchSourceDiscoveryPreservesUserOverride() {
