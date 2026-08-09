@@ -55,7 +55,7 @@ App 级测试命令通道动词：`ping`、`toggleControls`、`resetState`、`im
 - 逐 cell 权威记录：`results.jsonl`（verdict、landed、时序、探针摘录路径）。
 - 时间线：探针文件（打开链路 libraryTap→libraryOnPlayReturned、settle 判据分解、controlsWindow open/dismiss、testcmd 记录、modeRequestRetry 事件）。
 - 状态快照：窗口态读 `PlayerUI-window-control-plane` 诊断串；沉浸态只信探针。
-- 像素：默认 `--no-screenshot`；确需目视时先核对片源许可（TestMedia 部分 180° 源为成人内容，HNVR 名下文件绝对禁开）。
+- 像素：**播放 PASS 必须有视觉佐证**。runner 在通过时自动截双帧（间隔 2.5 秒）并用 ffmpeg 分析：亮度统计判黑屏（YAVG<18 且 YMAX<40），播放中双帧 SSIM>0.995 判冻结，任一命中即降级判负；raw 数值与截图留在 cell 记录供人工复审，代表性 cell 应人工目验帧内容。诊断类命令仍默认 `--no-screenshot`。目视前核对片源许可（TestMedia 部分 180° 源为成人内容，HNVR 名下文件绝对禁开）。呈现切换类验证的视觉证据形态是 xcresult 录屏提取（见 visionpro-xcuitest 流程第 5 条）。
 - 证明标准：走真实用户路径（库点击、chrome 点击、生产导入管线）；通道动词只用于真实输入物理不可合成（捏合召唤）或非产品行为（状态重置、注入）之处。
 
 ## Cleanup
