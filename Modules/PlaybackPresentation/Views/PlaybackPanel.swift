@@ -190,6 +190,7 @@ struct FusedPlayerPanel: View {
                 stereoLayout: live?.stereoLayout ?? .mono,
                 beginsEditing: initialExpansion == .settings
                     && resolvedSurface == .playerControlDock
+                    && live?.presentation != .docked
             )
         )
     }
@@ -371,11 +372,14 @@ struct FusedPlayerPanel: View {
             mediaInformationWell(width: clusterWidth)
             playerControlDockControls
 
+            // Advanced Settings swaps its content by presentation: docked owns
+            // placement, every other spatial presentation owns video format.
             if settingsExpanded, let live {
                 if live.presentation == .docked {
                     dockedPlacementControls(live)
+                } else {
+                    videoFormatEditor(live)
                 }
-                videoFormatEditor(live)
             }
 
             if timelineExpanded {
@@ -1439,7 +1443,8 @@ struct FusedPlayerPanel: View {
             collapseSettings()
         } else {
             timelineExpanded = false
-            if let committedVideoFormatSelection {
+            if live?.presentation != .docked,
+               let committedVideoFormatSelection {
                 videoFormatEditing.synchronizeCommittedVideoFormat(
                     committedVideoFormatSelection
                 )
