@@ -130,17 +130,13 @@ final class TestCommandChannel {
                 payload: [String(appModel.showControls)]
             )
         case "resetState":
+            // TestMediaInbox is harness-owned staging, not app state; clearing
+            // it here would force a re-push of every media file per cell.
             let keys = defaults.dictionaryRepresentation().keys.filter {
                 $0.hasPrefix("enchron.")
             }
             for key in keys {
                 defaults.removeObject(forKey: key)
-            }
-            for itemURL in try fileManager.contentsOfDirectory(
-                at: inboxURL,
-                includingPropertiesForKeys: nil
-            ) {
-                try fileManager.removeItem(at: itemURL)
             }
             return Response(
                 id: request.id,

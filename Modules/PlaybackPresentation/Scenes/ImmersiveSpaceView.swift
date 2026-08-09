@@ -360,6 +360,9 @@ public struct ImmersiveSpaceView: View {
         .onChange(of: spatialPresentationAcceptsInput, initial: true) { _, accepts in
             appModel.recordSurfaceInputProbe("acceptsInput=\(accepts)")
         }
+        .onChange(of: appModel.showControls, initial: true) { _, visible in
+            synchronizeControlsWindow(visible: visible)
+        }
         .onChange(of: realityKitContentTypeScope) { _, scope in
             playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(scope)
             surfaceRefreshTick &+= 1
@@ -469,11 +472,18 @@ public struct ImmersiveSpaceView: View {
         appModel.recordSurfaceInputProbe(
             "toggle source=\(source) showControls=\(appModel.showControls)"
         )
-        if appModel.showControls {
+    }
+
+    // The player-controls window tracks showControls itself so every setter
+    // (pinch, accessibility, the test channel) presents identically.
+    private func synchronizeControlsWindow(visible: Bool) {
+        if visible {
             let identity = appModel.beginFreshPlayerControlsScene()
             openWindow(id: "playerControls", value: identity)
+            appModel.recordSurfaceInputProbe("controlsWindow open")
         } else if let identity = appModel.activePlayerControlsSceneIdentity {
             dismissWindow(id: "playerControls", value: identity)
+            appModel.recordSurfaceInputProbe("controlsWindow dismiss")
         }
     }
 
@@ -845,6 +855,9 @@ public struct ImmersiveSpaceView: View {
             case .none:
                 break
             case .requestModesAgain:
+                appModel.recordSurfaceInputProbe(
+                    "modeRequestRetry presentation=\(presentation)"
+                )
                 PlaybackRealityPresenter.reapplyDesiredModesAfterSceneActivation(
                     videoEntity,
                     presentation: presentation,
