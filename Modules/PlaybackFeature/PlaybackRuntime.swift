@@ -1356,9 +1356,22 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
+    /// Waits for RealityKit to adopt the replacement session instead of
+    /// converting device speed into a presentation failure. A presentation
+    /// transfer ends only when its requested surface settles, the media
+    /// pipeline reports a real failure, or the operation is cancelled.
+    /// A surface that has not settled within this window is not merely slow to
+    /// start; it is stuck. The caller holds a platform execution lease for the
+    /// whole wait, and an unbounded wait leaves that lease claimed forever, so
+    /// every later spatial request is refused until the app is relaunched.
+    /// High-resolution panoramic startup is the reason the bound is generous.
+    public static let presentationSettlementDeadline = Duration.seconds(30)
+
     public func waitUntilPresentationSettled(
         to presentation: PlaybackPresentation,
-        timeout: Duration = .seconds(5)
+        allowsPendingSessionStart: Bool = false,
+        deadline: Duration = PlaybackRuntime.presentationSettlementDeadline,
+        clock: ContinuousClock = ContinuousClock()
     ) async -> Bool {
         if presentationIsSettled(presentation) { return true }
         let startedAt = clock.now

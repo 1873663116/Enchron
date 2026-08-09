@@ -291,7 +291,160 @@ enum PlaybackSurfaceInputOwnership {
     static func installsEntitySpatialTapGesture(
         for presentation: PlaybackPresentation
     ) -> Bool {
-        owner(for: presentation) == .spatialVideoEntity
+        switch owner(for: presentation) {
+        case .spatialVideoEntity, .panoramaInteractionSurface:
+            true
+        case .windowSwiftUIRoot:
+            false
+        }
+    }
+}
+
+@MainActor
+enum PlaybackPanoramaInteractionSurface {
+    static let entityNamePrefix = "EnchronPanoramaInput."
+
+    private enum Coverage: String {
+        case front180
+        case full360
+    }
+
+    private struct PanelConfiguration {
+        let name: String
+        let position: SIMD3<Float>
+        let orientation: simd_quatf
+        let size: SIMD3<Float>
+    }
+
+    static func makeEntity() -> Entity {
+        let root = Entity()
+        configure(
+            root,
+            projection: .equirectangular360,
+            horizontalFieldOfViewDegrees: 360
+        )
+        return root
+    }
+
+    /// The Immersive Space origin sits on the floor beneath the wearer, so the
+    /// shell has to reach well past standing eye height and ordinary room-scale
+    /// movement. Every eye position the wearer can occupy stays inside the
+    /// shell and outside each individual panel.
+    static let shellRadius: Float = 8
+
+    /// Builds an inward-facing collision shell around the viewer. A 180-degree
+    /// projection owns only the front half; 360-degree projection owns every
+    /// direction. Thin panels keep the viewer outside each individual collider,
+    /// so a gaze ray leaving the shell crosses exactly one of them.
+    static func configure(
+        _ root: Entity,
+        projection: PlaybackModel.ProjectionType,
+        horizontalFieldOfViewDegrees: Int
+    ) {
+        let coverage: Coverage = switch projection {
+        case .equirectangular180:
+            .front180
+        case .customAngle where horizontalFieldOfViewDegrees <= 180:
+            .front180
+        case .flat, .customAngle, .equirectangular360:
+            .full360
+        }
+        let configuredName = "EnchronPanoramaInput.\(coverage.rawValue)"
+        guard root.name != configuredName else { return }
+        for child in Array(root.children) {
+            child.removeFromParent()
+        }
+        root.name = configuredName
+
+        let distance = shellRadius
+        let extent = distance * 2
+        let thickness: Float = 0.01
+        let fullPanels: [PanelConfiguration] = [
+            .init(
+                name: "front",
+                position: [0, 0, -distance],
+                orientation: .init(),
+                size: [extent, extent, thickness]
+            ),
+            .init(
+                name: "back",
+                position: [0, 0, distance],
+                orientation: .init(),
+                size: [extent, extent, thickness]
+            ),
+            .init(
+                name: "left",
+                position: [-distance, 0, 0],
+                orientation: .init(angle: .pi / 2, axis: [0, 1, 0]),
+                size: [extent, extent, thickness]
+            ),
+            .init(
+                name: "right",
+                position: [distance, 0, 0],
+                orientation: .init(angle: .pi / 2, axis: [0, 1, 0]),
+                size: [extent, extent, thickness]
+            ),
+            .init(
+                name: "ceiling",
+                position: [0, distance, 0],
+                orientation: .init(angle: .pi / 2, axis: [1, 0, 0]),
+                size: [extent, extent, thickness]
+            ),
+            .init(
+                name: "floor",
+                position: [0, -distance, 0],
+                orientation: .init(angle: .pi / 2, axis: [1, 0, 0]),
+                size: [extent, extent, thickness]
+            ),
+        ]
+        let frontHalfPanels: [PanelConfiguration] = [
+            .init(
+                name: "front",
+                position: [0, 0, -distance],
+                orientation: .init(),
+                size: [extent, extent, thickness]
+            ),
+            .init(
+                name: "left-front",
+                position: [-distance, 0, -distance / 2],
+                orientation: .init(angle: .pi / 2, axis: [0, 1, 0]),
+                size: [distance, extent, thickness]
+            ),
+            .init(
+                name: "right-front",
+                position: [distance, 0, -distance / 2],
+                orientation: .init(angle: .pi / 2, axis: [0, 1, 0]),
+                size: [distance, extent, thickness]
+            ),
+            .init(
+                name: "ceiling-front",
+                position: [0, distance, -distance / 2],
+                orientation: .init(angle: .pi / 2, axis: [1, 0, 0]),
+                size: [extent, distance, thickness]
+            ),
+            .init(
+                name: "floor-front",
+                position: [0, -distance, -distance / 2],
+                orientation: .init(angle: .pi / 2, axis: [1, 0, 0]),
+                size: [extent, distance, thickness]
+            ),
+        ]
+        let panels = coverage == .front180 ? frontHalfPanels : fullPanels
+        for configuration in panels {
+            let panel = Entity()
+            panel.name = entityNamePrefix + configuration.name
+            panel.position = configuration.position
+            panel.orientation = configuration.orientation
+            panel.components.set(InputTargetComponent())
+            panel.components.set(
+                CollisionComponent(shapes: [.generateBox(size: configuration.size)])
+            )
+            root.addChild(panel)
+        }
+    }
+
+    static func contains(_ entity: Entity) -> Bool {
+        entity.name.hasPrefix(entityNamePrefix)
     }
 }
 
@@ -584,15 +737,7 @@ enum PlaybackRealityPresenter {
         case .window, .portal:
             entity.components.remove(InputTargetComponent.self)
             entity.components.remove(CollisionComponent.self)
-        case .docked, .panorama:
-            #if os(visionOS)
-            let collisionShape: ShapeResource =
-                presentation == .panorama
-                ? .generateSphere(radius: 1)
-                : .generateBox(size: [1.8, 1, 0.01])
-            #else
-            let collisionShape = ShapeResource.generateBox(size: [1.8, 1, 0.01])
-            #endif
+        case .docked:
             entity.components.set(InputTargetComponent())
             entity.components.set(
                 CollisionComponent(shapes: [.generateBox(size: [1.8, 1, 0.01])])

@@ -48,13 +48,17 @@ enum PlaybackSurfacePlacement {
         if entity.parent !== anchor {
             anchor.addChild(entity)
         }
+        // The Immersive Space origin sits on the floor beneath the wearer. The
+        // authored anchor carries the wearer's nominal eye height, and distance
+        // and elevation place the screen on a sphere centered on that point.
+        let viewerReference = SIMD3<Float>(0, anchor.position(relativeTo: nil).y, 0)
         let elevation = transform.elevationDegrees * .pi / 180
-        let position = SIMD3<Float>(
+        let position = viewerReference + SIMD3<Float>(
             0,
             Float(sin(elevation) * transform.distance),
             Float(-cos(elevation) * transform.distance)
         )
-        entity.look(at: .zero, from: position, relativeTo: nil)
+        entity.look(at: viewerReference, from: position, relativeTo: nil)
         entity.scale = .init(repeating: Float(transform.scale))
     }
 }

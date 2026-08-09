@@ -1,12 +1,242 @@
 import Foundation
 import PlaybackCore
 import PlaybackPresentation
-import PlaybackFeature
+@testable import PlaybackFeature
+import RealityKit
 import Testing
 @testable import Enchron
 
 @Suite("Playback presentation")
 struct PlaybackPresentationStateTests {
+    @Test("Panorama tap shell follows 180 and 360 degree projection coverage")
+    @MainActor
+    func panoramaTapShellFollowsProjectionCoverage() {
+        let surface = PlaybackPanoramaInteractionSurface.makeEntity()
+
+        PlaybackPanoramaInteractionSurface.configure(
+            surface,
+            projection: .equirectangular180,
+            horizontalFieldOfViewDegrees: 180
+        )
+        let frontNames = Set(surface.children.map(\.name))
+        #expect(frontNames.count == 5)
+        #expect(frontNames.contains("EnchronPanoramaInput.front"))
+        #expect(frontNames.contains("EnchronPanoramaInput.back") == false)
+
+        PlaybackPanoramaInteractionSurface.configure(
+            surface,
+            projection: .equirectangular360,
+            horizontalFieldOfViewDegrees: 360
+        )
+        let fullNames = Set(surface.children.map(\.name))
+        #expect(fullNames.count == 6)
+        #expect(fullNames.contains("EnchronPanoramaInput.back"))
+    }
+
+    /// The Immersive Space origin sits on the floor beneath the wearer, so a
+    /// gaze ray starts about a person's height above it. Every eye position a
+    /// seated or standing wearer can occupy has to fall inside the shell and
+    /// outside each individual panel. That combination is what lets the ray
+    /// leave the shell through one panel and register a hit.
+    @Test("Panorama tap shell surrounds the eye positions a wearer can occupy")
+    @MainActor
+    func panoramaTapShellSurroundsWearerEyePositions() throws {
+        for projection in [
+            PlaybackModel.ProjectionType.equirectangular360,
+            .equirectangular180
+        ] {
+            let surface = Entity()
+            PlaybackPanoramaInteractionSurface.configure(
+                surface,
+                projection: projection,
+                horizontalFieldOfViewDegrees:
+                    projection == .equirectangular180 ? 180 : 360
+            )
+            var panelBounds: [BoundingBox] = []
+            for panel in surface.children {
+                let collision = try #require(panel.components[CollisionComponent.self])
+                let shape = try #require(collision.shapes.first)
+                panelBounds.append(
+                    shape.bounds.transformed(
+                        by: panel.transformMatrix(relativeTo: surface)
+                    )
+                )
+            }
+            let shellBounds = panelBounds.reduce(BoundingBox()) { $0.union($1) }
+
+            for eyeHeight in [Float(0.9), 1.2, 1.7] {
+                let eye = SIMD3<Float>(0, eyeHeight, 0)
+                #expect(
+                    shellBounds.contains(eye),
+                    "\(projection) shell excludes an eye at \(eyeHeight)m"
+                )
+                for bounds in panelBounds {
+                    #expect(
+                        bounds.contains(eye) == false,
+                        "\(projection) panel contains an eye at \(eyeHeight)m"
+                    )
+                }
+            }
+        }
+    }
+
+    /// The authored `PlaybackSurfaceAnchor` carries the wearer's nominal eye
+    /// height, and its distance from the origin is the default screen distance.
+    /// Docking at the default placement therefore has to land on the anchor.
+    @Test("Default docked placement lands on the authored surface anchor")
+    @MainActor
+    func defaultDockedPlacementLandsOnTheAuthoredAnchor() {
+        let anchor = Entity()
+        anchor.position = [
+            0,
+            0.9296054,
+            -Float(PlaybackDockedPlacement.defaultDistance)
+        ]
+        let screen = Entity()
+
+        PlaybackSurfacePlacement.dock(
+            screen,
+            to: anchor,
+            transform: PlaybackSurfaceTransform(
+                distance: PlaybackDockedPlacement.defaultDistance,
+                elevationDegrees: PlaybackDockedPlacement.defaultElevationDegrees,
+                scale: 1
+            )
+        )
+
+        let placed = screen.position(relativeTo: nil)
+        let authored = anchor.position(relativeTo: nil)
+        #expect(abs(placed.x - authored.x) < 0.001)
+        #expect(abs(placed.y - authored.y) < 0.001)
+        #expect(abs(placed.z - authored.z) < 0.001)
+    }
+
+    @Test("Docked elevation swings the screen around the wearer's eye height")
+    @MainActor
+    func dockedElevationSwingsAroundTheWearerEyeHeight() {
+        let anchor = Entity()
+        anchor.position = [0, 0.9296054, -4]
+        let screen = Entity()
+
+        PlaybackSurfacePlacement.dock(
+            screen,
+            to: anchor,
+            transform: PlaybackSurfaceTransform(
+                distance: 4,
+                elevationDegrees: 30,
+                scale: 1
+            )
+        )
+
+        let placed = screen.position(relativeTo: nil)
+        #expect(abs(placed.y - (0.9296054 + 2)) < 0.001)
+        #expect(abs(placed.z - -4 * cos(.pi / 6)) < 0.001)
+    }
+
+    /// The caller of this wait holds a platform execution lease for its whole
+    /// duration. A surface that never settles must release the wait so the
+    /// lease can be finished; otherwise every later spatial platform request is
+    /// refused for the rest of the process lifetime.
+    @Test("A surface that never settles releases its wait instead of hanging")
+    @MainActor
+    func unsettledPresentationReleasesItsWait() async {
+        let runtime = PlaybackRuntime()
+
+        let settled = await runtime.waitUntilPresentationSettled(
+            to: .panorama,
+            allowsPendingSessionStart: true,
+            deadline: .milliseconds(120)
+        )
+
+        #expect(settled == false)
+    }
+
+    @Test("A persisted user format remains effective after source discovery")
+    @MainActor
+    func coldLaunchSourceDiscoveryPreservesUserOverride() {
+        let runtime = PlaybackRuntime()
+
+        runtime.publishEffectiveFormatAfterSourceDiscovery(
+            MediaFormat(
+                projection: .equirectangular180,
+                stereoLayout: .sideBySide
+            )
+        )
+
+        #expect(runtime.activeMediaFormatProvenance == .userOverride)
+        #expect(runtime.effectiveProjectionType == .equirectangular180)
+        #expect(runtime.effectiveStereoLayout == .sideBySide)
+        #expect(runtime.effectiveMediaFormatInterpretation.source.contentKind == .rectilinear)
+    }
+
+    @Test("A persisted panoramic launch selects Panorama before its first session")
+    func coldPanoramaLaunchStartsInItsFinalScene() throws {
+        let model = PlaybackPresentationModel()
+
+        model.prepareColdPlaybackLaunch(in: .panorama)
+
+        #expect(model.presentation == .panorama)
+        #expect(model.transition == nil)
+        let request = try #require(model.pendingSpatialPlatformEffect)
+        #expect(request.effect == .presentInitialSpatialPlayback(.panorama))
+        #expect(request.playbackTransportPlan == nil)
+    }
+
+    @Test("Presentation settlement belongs to the replacement technical session")
+    func presentationSettlementUsesTechnicalSessionIdentity() {
+        let record = PresentationStateRecord(
+            mediaSessionID: "technical-session-b",
+            requestedMode: PlaybackPresentation.panorama.rawValue,
+            phase: PlaybackPresentationSettlementPhase.settled.rawValue,
+            platform: "visionOS"
+        )
+
+        #expect(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: record,
+                presentation: .panorama,
+                activeTechnicalSessionID: "technical-session-b",
+                lifecycle: .paused
+            )
+        )
+        #expect(
+            !PlaybackRuntime.presentationTransitionCanCommit(
+                record: record,
+                presentation: .panorama,
+                activeTechnicalSessionID: "logical-session-a",
+                lifecycle: .paused
+            )
+        )
+
+        let attachedOnlyRecord = PresentationStateRecord(
+            mediaSessionID: "technical-session-b",
+            requestedMode: PlaybackPresentation.portal.rawValue,
+            phase: PlaybackPresentationSettlementPhase.surfaceAttached.rawValue,
+            platform: "visionOS"
+        )
+        #expect(
+            !PlaybackRuntime.presentationTransitionCanCommit(
+                record: attachedOnlyRecord,
+                presentation: .portal,
+                activeTechnicalSessionID: "technical-session-b",
+                lifecycle: .ended
+            )
+        )
+    }
+
+    @Test("Portal preserves spatial depth while flat Window remains planar")
+    func portalRealityViewHasProjectedMediaDepth() {
+        #expect(
+            WindowPlaybackSurfaceGeometry.realityViewDepth(for: .window)
+                == WindowPlaybackSurfaceGeometry.flatWindowDepth
+        )
+        #expect(
+            WindowPlaybackSurfaceGeometry.realityViewDepth(for: .portal)
+                == WindowPlaybackSurfaceGeometry.projectedPortalDepth
+        )
+        #expect(WindowPlaybackSurfaceGeometry.projectedPortalDepth > 0)
+    }
+
     @Test("Spatial acceptance isolates its playback state from the user's media state")
     func spatialAcceptanceUsesItsOwnMediaStateSuite() {
         #expect(
