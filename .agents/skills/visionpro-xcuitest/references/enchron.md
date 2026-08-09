@@ -30,7 +30,7 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 探针适合记录诊断串给不出的东西：事件时序、沉浸空间开合时刻、settle 判据的逐项布尔分解、手势是否被投递。诊断串是状态快照，探针是时间线，两者互补。
 
-通道有效范围（2026-08-09 真机证实）：settled 的沉浸呈现里主窗口仍然开着但完全空掉，全层级只剩空 Main window，`PlayerUI-window-control-plane`、PlayerPanel、顶部动作、媒体库全部不在层级里。因此诊断串只在 window/portal 及过渡的窗口阶段可读；判定 panorama/docked 的 settle 一律轮询探针文件。这也意味着 settled panorama 对 XCUIAutomation 是单向门：进入后没有任何可驱动元素，只能重建会话或由佩戴者操作退出。
+通道有效范围（2026-08-09 真机证实）：settled 的沉浸呈现里主窗口仍然开着但完全空掉，`PlayerUI-window-control-plane`、PlayerPanel、顶部动作、媒体库全部不在层级里。因此诊断串只在 window/portal 及过渡的窗口阶段可读；判定 panorama/docked 的 settle 一律轮询探针文件。沉浸空间的 SwiftUI attachment（如 `PlayerUI-immersive-playback-surface`）是例外：它出现在层级里且报告 isHittable，但对它 `tap --identifier` 会返回 Element tapped 而 App 的空间手势收不到任何投递——合成点击不携带注视加捏合语义，success 不等于送达，投递与否只有探针文件说了算。佩戴者的真实捏合仍是空间手势唯一的触发方式。
 
 `Scripts/verification/playback_mode_matrix.py` 是按上述通道分工实现的播放模式矩阵 runner（cell = clip × path × rep，每 cell 独立 ensure-session，verdict 落 results.jsonl）；跑覆盖矩阵先用它，别重写轮询逻辑。
 
