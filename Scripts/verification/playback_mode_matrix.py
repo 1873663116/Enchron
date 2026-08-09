@@ -925,12 +925,24 @@ def wait_for_clean_open(
         plane, _ = read_control_plane(controller_directory)
         if plane is not None:
             latest_plane = plane
+            lifecycle = plane.get("lifecycle") or ""
+            if lifecycle.lower().startswith("failed"):
+                elapsed = time.monotonic() - target_started_at
+                return (
+                    {
+                        "verdict": WRONG_STATE,
+                        "landed": "failed",
+                        "elapsed_seconds": round(elapsed, 3),
+                        "message": lifecycle,
+                        "control_plane": format_facts(plane),
+                    },
+                    delta,
+                )
             if (
                 plane.get("presentation") == "window"
                 and plane.get("transition") == "none"
                 and plane.get("videoVisible") == "true"
-                and (plane.get("lifecycle") or "").lower()
-                    in WINDOWED_STEADY_LIFECYCLES
+                and lifecycle.lower() in WINDOWED_STEADY_LIFECYCLES
             ):
                 elapsed = time.monotonic() - target_started_at
                 return (
