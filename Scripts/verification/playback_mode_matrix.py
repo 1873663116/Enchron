@@ -709,6 +709,7 @@ def run_step(
             result["stall_recovered"] = (
                 result["verdict"] == PASS and probe_shows_recovered_stall(delta)
             )
+            apply_visual_gate(result, controller_directory)
             return result, probe_offset + len(delta)
         else:
             result = {
@@ -894,6 +895,103 @@ def clean_state_preamble(
 
 WINDOWED_STEADY_LIFECYCLES = frozenset(("playing", "ready", "paused", "ended"))
 
+VISUAL_BLACK_YAVG = 18.0
+VISUAL_BLACK_YMAX = 40.0
+VISUAL_FROZEN_SSIM = 0.995
+
+
+def ffmpeg_luma_stats(image_path: str) -> tuple[float, float] | None:
+    completed = subprocess.run(
+        [
+            "ffmpeg", "-hide_banner", "-i", image_path,
+            "-vf", "signalstats,metadata=mode=print",
+            "-frames:v", "1", "-f", "null", "-",
+        ],
+        capture_output=True, text=True,
+    )
+    yavg = ymax = None
+    for line in completed.stderr.splitlines():
+        if "signalstats.YAVG=" in line:
+            yavg = float(line.rsplit("=", 1)[1])
+        elif "signalstats.YMAX=" in line:
+            ymax = float(line.rsplit("=", 1)[1])
+    if yavg is None or ymax is None:
+        return None
+    return yavg, ymax
+
+
+def ffmpeg_ssim(first_path: str, second_path: str) -> float | None:
+    completed = subprocess.run(
+        [
+            "ffmpeg", "-hide_banner", "-i", first_path, "-i", second_path,
+            "-filter_complex", "ssim", "-f", "null", "-",
+        ],
+        capture_output=True, text=True,
+    )
+    match = re.search(r"All:([0-9.]+)", completed.stderr)
+    return float(match.group(1)) if match else None
+
+
+def capture_visual_evidence(
+    *,
+    controller_directory: Path,
+    lifecycle: str | None,
+) -> dict[str, object]:
+    """Two screenshots 2.5s apart: luma statistics rule out a black frame and
+    the inter-frame SSIM rules out a frozen renderer while playing. Raw
+    numbers stay in the record so a human can re-judge borderline cells."""
+    shots: list[str] = []
+    for index in (1, 2):
+        document = controller(controller_directory, "snapshot")
+        path = document.get("localScreenshotPath")
+        if isinstance(path, str):
+            shots.append(path)
+        if index == 1:
+            time.sleep(2.5)
+    evidence: dict[str, object] = {"screenshots": shots}
+    if not shots:
+        evidence["verdict"] = "unavailable"
+        return evidence
+    stats = ffmpeg_luma_stats(shots[0])
+    if stats is not None:
+        evidence["yavg"], evidence["ymax"] = stats
+    if len(shots) == 2:
+        ssim = ffmpeg_ssim(shots[0], shots[1])
+        if ssim is not None:
+            evidence["ssim"] = ssim
+    yavg = evidence.get("yavg")
+    ymax = evidence.get("ymax")
+    ssim = evidence.get("ssim")
+    if isinstance(yavg, float) and isinstance(ymax, float) \
+            and yavg < VISUAL_BLACK_YAVG and ymax < VISUAL_BLACK_YMAX:
+        evidence["verdict"] = "black"
+    elif isinstance(ssim, float) and ssim > VISUAL_FROZEN_SSIM \
+            and (lifecycle or "").lower() == "playing":
+        evidence["verdict"] = "frozen"
+    elif "yavg" in evidence:
+        evidence["verdict"] = "content"
+    else:
+        evidence["verdict"] = "unavailable"
+    return evidence
+
+
+def apply_visual_gate(
+    step_result: dict[str, object],
+    controller_directory: Path,
+) -> None:
+    if step_result.get("verdict") != PASS:
+        return
+    plane = (step_result.get("control_plane") or {})
+    lifecycle = plane.get("lifecycle") if isinstance(plane, dict) else None
+    visual = capture_visual_evidence(
+        controller_directory=controller_directory,
+        lifecycle=lifecycle,
+    )
+    step_result["visual"] = visual
+    if visual.get("verdict") in ("black", "frozen"):
+        step_result["verdict"] = WRONG_STATE
+        step_result["message"] = f"visual evidence: {visual['verdict']}"
+
 
 def wait_for_clean_open(
     *,
@@ -1062,7 +1160,8 @@ def run_cell(
                     "stall_recovered": probe_shows_recovered_stall(delta),
                     **wait_result,
                 }
-                verdict = str(wait_result["verdict"])
+                apply_visual_gate(step_result, controller_directory)
+                verdict = str(step_result["verdict"])
                 steps = [step_result]
             return {
                 "clip": clip,
