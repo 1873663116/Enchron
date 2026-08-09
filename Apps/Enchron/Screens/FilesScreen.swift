@@ -808,6 +808,9 @@ struct FilesScreen: View {
     }
 
     private func activateMediaReference(_ reference: FileBrowsingDomain.MediaReference) {
+        AppModel.recordProbe(
+            "libraryTap name=\(reference.name) selectionActive=\(mediaReferenceSelectionIsActive)"
+        )
         guard mediaReferenceSelectionIsActive else {
             mediaLibrary.play(reference)
             return

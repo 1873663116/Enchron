@@ -224,9 +224,13 @@ final class EnchronApplication {
                 : .production,
             defaultsSuiteName: mediaLibraryDefaultsSuiteName,
             viewingStateProvider: Self.viewingStateProvider(launcher),
-            onPlay: { launcher.requestPlayback($0.playbackLaunchRequest) }
+            onPlay: {
+                AppModel.recordProbe("openRequestForwarded")
+                launcher.requestPlayback($0.playbackLaunchRequest)
+            }
         )
         let mediaLibrary = mediaLibraryFeature.library
+        mediaLibrary.diagnosticProbe = { AppModel.recordProbe($0) }
         let browser = mediaLibraryFeature.browser
 
         launcher.nextFileProvider = { [weak mediaLibrary, weak browser, weak playbackRuntime] in

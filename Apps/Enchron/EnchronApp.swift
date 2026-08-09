@@ -8,6 +8,7 @@ import UIKit
 
 @main
 struct EnchronApp: App {
+    @Environment(\.scenePhase) private var mainScenePhase
     @State private var application: EnchronApplication
     @State private var immersionStyle: ImmersionStyle = .progressive(
         SpatialImmersiveSpacePolicy.progressiveImmersionRange
@@ -47,6 +48,9 @@ struct EnchronApp: App {
             }
             .background {
                 SpatialPlatformEffectExecutor()
+            }
+            .onChange(of: mainScenePhase) { previous, current in
+                AppModel.recordProbe("mainScenePhase \(previous) -> \(current)")
             }
             .enchronEnvironment(application)
             .onAppear {
@@ -120,6 +124,11 @@ struct EnchronApp: App {
                     application.appModel.recordImmersionAmount(newImmersion.amount)
                 }
                 .onAppear {
+                    application.appModel.recordSurfaceInputProbe(
+                        "immersiveSpaceAppeared"
+                            + " presentation=\(application.appModel.playbackPresentation.rawValue)"
+                            + " transition=\(application.appModel.presentationTransition?.targetPresentation.rawValue ?? "none")"
+                    )
                     application.spatialPlatformEffectCoordinator
                         .recordImmersiveSpaceResidency(.open)
                     application.appModel.receiveSpatialPlatformResult(
@@ -128,6 +137,14 @@ struct EnchronApp: App {
                     Task { await application.appModel.loadScreenPosition() }
                 }
                 .onDisappear {
+                    application.appModel.recordSurfaceInputProbe(
+                        "immersiveSpaceDisappeared"
+                            + " presentation=\(application.appModel.playbackPresentation.rawValue)"
+                            + " transition=\(application.appModel.presentationTransition?.targetPresentation.rawValue ?? "none")"
+                            + " attached=\(application.playbackRuntime.attachedPresentation?.rawValue ?? "none")"
+                            + " lifecycle=\(application.playbackRuntime.productLifecycle)"
+                            + " stage=\(application.appModel.spatialPlaybackSurfacePreparationStage)"
+                    )
                     application.spatialPlatformEffectCoordinator
                         .recordImmersiveSpaceResidency(.closed)
                     let playbackContext = application.playbackRuntime.activeSessionID.map {

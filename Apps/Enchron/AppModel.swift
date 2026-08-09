@@ -534,6 +534,29 @@ public final class AppModel {
     /// Last surface-tap decision, exposed through Window control-plane value for XCUI.
     public var debugSurfaceTapTrace: String = "none"
 
+    /// Appends one spatial-input fact to `Documents/surface-tap-probe.log` so a
+    /// tethered Mac can read the tap chain from the app container while the
+    /// wearer drives the actual pinch. Diagnostic channel for device debugging.
+    public func recordSurfaceInputProbe(_ fact: String) {
+        Self.recordProbe(fact)
+    }
+
+    public static func recordProbe(_ fact: String) {
+        Logger(subsystem: "app.enchron", category: "Presentation")
+            .notice("surface input probe \(fact, privacy: .public)")
+        let url = URL.documentsDirectory.appending(path: "surface-tap-probe.log")
+        guard let data = "\(Date().ISO8601Format()) \(fact)\n".data(using: .utf8) else {
+            return
+        }
+        if let handle = try? FileHandle(forWritingTo: url) {
+            defer { try? handle.close() }
+            _ = try? handle.seekToEnd()
+            try? handle.write(contentsOf: data)
+        } else {
+            try? data.write(to: url)
+        }
+    }
+
     public func toggleControlsFromPlaybackSurface(at date: Date = Date()) {
         showControls.toggle()
         logger.info("surface tap controlsVisible=\(self.showControls)")

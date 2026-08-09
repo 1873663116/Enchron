@@ -255,6 +255,26 @@ public struct ImmersiveSpaceView: View {
         )
     }
 
+    private var panoramaInteractionSurface: Entity {
+        playbackVideoEntityStore.panoramaInteractionSurface
+    }
+
+    /// Diagnostic collider locked to the wearer's head, two meters straight
+    /// ahead. It is reachable from any gaze direction and any room position,
+    /// so a miss here rules geometry out of the spatial input question.
+    @State private var headInputProbe: Entity = {
+        let anchor = AnchorEntity(.head, trackingMode: .continuous)
+        let panel = Entity()
+        panel.name = "EnchronHeadInput.probe"
+        panel.position = [0, 0, -2]
+        panel.components.set(InputTargetComponent())
+        panel.components.set(
+            CollisionComponent(shapes: [.generateBox(size: [6, 6, 0.01])])
+        )
+        anchor.addChild(panel)
+        return anchor
+    }()
+
     private var realityKitContentTypeScope: PlaybackRealityKitContentTypeScope? {
         PlaybackRealityKitContentTypeScope(runtime: playbackRuntime)
     }
@@ -293,6 +313,8 @@ public struct ImmersiveSpaceView: View {
         }
         .realityScripting()
         .gesture(spatialSurfaceTapGesture)
+        .simultaneousGesture(spatialEventProbeGesture)
+        .simultaneousGesture(untargetedSpatialTapProbeGesture)
         .allowsHitTesting(spatialPresentationAcceptsInput)
         .onDisappear {
             realityViewUpdateScheduler.cancel()
@@ -304,6 +326,9 @@ public struct ImmersiveSpaceView: View {
         }
         .onChange(of: playbackRuntime.videoComponentRevision) {
             surfaceRefreshTick &+= 1
+        }
+        .onChange(of: spatialPresentationAcceptsInput, initial: true) { _, accepts in
+            appModel.recordSurfaceInputProbe("acceptsInput=\(accepts)")
         }
         .onChange(of: realityKitContentTypeScope) { _, scope in
             playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(scope)
@@ -362,9 +387,44 @@ public struct ImmersiveSpaceView: View {
 
     private var spatialSurfaceTapGesture: some Gesture {
         SpatialTapGesture()
-            .targetedToEntity(videoEntity)
-            .onEnded { _ in
+            .targetedToAnyEntity()
+            .onEnded { value in
+                let accepted = value.entity === videoEntity
+                    || PlaybackPanoramaInteractionSurface.contains(value.entity)
+                    || value.entity.name.hasPrefix("EnchronHeadInput.")
+                appModel.recordSurfaceInputProbe(
+                    "spatialTap entity=\(value.entity.name) accepted=\(accepted)"
+                )
+                guard accepted else { return }
                 toggleControlsFromSpatialSurface(.spatialTap)
+            }
+    }
+
+    /// Records view-level spatial events regardless of entity targeting. The
+    /// selection ray reports where RealityKit actually casts from, which is the
+    /// one fact no scene-graph inspection can supply.
+    private var spatialEventProbeGesture: some Gesture {
+        SpatialEventGesture()
+            .onChanged { events in
+                for event in events where event.phase == .ended {
+                    let ray = event.selectionRay.map {
+                        "origin=\($0.origin) direction=\($0.direction)"
+                    } ?? "rayNone"
+                    appModel.recordSurfaceInputProbe(
+                        "spatialEvent kind=\(event.kind)"
+                            + " target=\(event.targetedEntity?.name ?? "none")"
+                            + " \(ray)"
+                    )
+                }
+            }
+    }
+
+    private var untargetedSpatialTapProbeGesture: some Gesture {
+        SpatialTapGesture()
+            .onEnded { value in
+                appModel.recordSurfaceInputProbe(
+                    "untargetedTap location=\(value.location3D)"
+                )
             }
     }
 
@@ -373,6 +433,15 @@ public struct ImmersiveSpaceView: View {
     ) {
         withAnimation(.easeInOut(duration: 0.25)) {
             PlaybackSurfaceInputAction.perform(source, appModel: appModel)
+        }
+        appModel.recordSurfaceInputProbe(
+            "toggle source=\(source) showControls=\(appModel.showControls)"
+        )
+        if appModel.showControls {
+            let identity = appModel.beginFreshPlayerControlsScene()
+            openWindow(id: "playerControls", value: identity)
+        } else if let identity = appModel.activePlayerControlsSceneIdentity {
+            dismissWindow(id: "playerControls", value: identity)
         }
     }
 
@@ -422,6 +491,39 @@ public struct ImmersiveSpaceView: View {
             as: presentation,
             dockedPlacement: dockedPlacement
         )
+    }
+
+    @MainActor
+    private func updatePanoramaInteractionSurface(
+        in content: RealityViewContent,
+        isActive: Bool
+    ) {
+        if isActive {
+            panoramaInteractionSurface.position = .zero
+            panoramaInteractionSurface.orientation = .init()
+            if content.entities.contains(where: { $0 === panoramaInteractionSurface }) == false {
+                content.add(panoramaInteractionSurface)
+                appModel.recordSurfaceInputProbe(
+                    "shellAttached name=\(panoramaInteractionSurface.name)"
+                        + " children=\(panoramaInteractionSurface.children.count)"
+                        + " active=\(panoramaInteractionSurface.isActive)"
+                )
+            }
+            if content.entities.contains(where: { $0 === headInputProbe }) == false {
+                content.add(headInputProbe)
+                appModel.recordSurfaceInputProbe(
+                    "headProbeAttached active=\(headInputProbe.isActive)"
+                )
+            }
+        } else {
+            if content.entities.contains(where: { $0 === panoramaInteractionSurface }) {
+                content.remove(panoramaInteractionSurface)
+                appModel.recordSurfaceInputProbe("shellDetached")
+            }
+            if content.entities.contains(where: { $0 === headInputProbe }) {
+                content.remove(headInputProbe)
+            }
+        }
     }
 
     @MainActor
@@ -797,6 +899,31 @@ public struct ImmersiveSpaceView: View {
             && viewingModeMatches
             && component.spatialVideoMode == component.desiredSpatialVideoMode
             && displayedPixelBuffer
+        let settlementBreakdown = [
+            "settled=\(isSettled)",
+            "ready=\(component.currentRenderingStatus == .ready)",
+            "immersiveMode=\(immersiveModeIsSettled)",
+            "contentTypeMatches=\(contentTypeMatchesProjection)",
+            "overrideAdopted=\(explicitOverrideAdoptionIsConfirmed)",
+            "viewingMode=\(viewingModeMatches)",
+            "spatialMode=\(component.spatialVideoMode == component.desiredSpatialVideoMode)",
+            "pixels=\(displayedPixelBuffer)",
+            "rkContentType=\(playbackVideoEntityStore.realityKitContentType)",
+            "provenance=\(playbackRuntime.activeMediaFormatProvenance.rawValue)",
+            "acceptedProjection=\(String(describing: playbackRuntime.acceptedRendererProjectionKind))",
+            "status=\(String(describing: component.currentRenderingStatus))",
+            "wantImmersive=\(String(describing: component.desiredImmersiveViewingMode))",
+            "gotImmersive=\(component.immersiveViewingMode.map { String(describing: $0) } ?? "none")",
+            "wantViewing=\(String(describing: component.desiredViewingMode))",
+            "gotViewing=\(component.viewingMode.map { String(describing: $0) } ?? "none")",
+            "stereoLayout=\(playbackRuntime.effectiveStereoLayout.rawValue)",
+        ].joined(separator: ",")
+        if presentationObservation.shouldLogSurfaceReadiness(
+            reason: "settlement",
+            signature: settlementBreakdown
+        ) {
+            appModel.recordSurfaceInputProbe("settlement \(settlementBreakdown)")
+        }
         recordSpatialPlaybackSurfaceObservation(
             presentation: presentation,
             component: component,
@@ -998,6 +1125,8 @@ public struct ImmersiveSpaceView: View {
         rendererTargetObservation.cancel()
         presentationObservation.cancel()
         appModel.clearSpatialPlaybackSurfaceObservation()
+        panoramaInteractionSurface.removeFromParent()
+        headInputProbe.removeFromParent()
         guard let presentation, presentation.usesImmersiveSpace else { return }
         videoEntity.removeFromParent()
         let preservesPlaybackComponent = playbackRuntime.activeSessionID != nil
