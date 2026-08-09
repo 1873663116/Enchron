@@ -5,7 +5,8 @@
 | 可观察签名 | 含义 | 下一步 |
 | --- | --- | --- |
 | Xcode 或设备工具明确报告 Vision Pro 已锁定 | 设备启动前检查被阻塞 | 请佩戴者解锁，然后继续同一个必要操作。 |
-| 测试初始化报告 `Timed out while enabling automation mode.`，或头显中可见密码、UI 测试授权界面 | XCTest 没有在启动时限内得到 Vision Pro 佩戴者授权；这是 XCUITest 授权门槛，不是 App 卡死、设备普通锁定或 Mac 终端认证 | 请佩戴者完成头显侧授权。出现超时后，当前 runner 已经失去建立可用会话的机会；结束它，保留当前构建，只启动一个新 runner。部分 runner 重启或崩溃后可能再次要求授权。 |
+| 测试初始化报告 `Timed out while enabling automation mode.`，或头显中可见密码、UI 测试授权界面 | XCTest 没有在启动时限内得到 Vision Pro 佩戴者授权；这是 XCUITest 授权门槛，不是 App 卡死、设备普通锁定或 Mac 终端认证 | 请佩戴者完成头显侧授权。出现超时后，当前 runner 已经失去建立可用会话的机会；结束它，保留当前构建，只启动一个新 runner。授权按时间更新（佩戴者实测约 8–12 小时一次，2026-08-10），不按会话次数消耗；距上次授权不足此窗口时，授权失效不是候选解释。 |
+| `ensure-session` 返回 `readyTimeout` 或长时间悬挂，而 runner.log 里 **没有** `Timed out while enabling automation mode` 字样 | 未定性的会话建立失败：设备深度待机、连续 halt/重启带来的系统疲劳、连接抖动都可能，唯独不能未经验证就归因授权 | 先 `grep` runner.log 找上一行的字面签名；没有就对照授权时间节律排除授权解释，然后 halt 干净后重试一次。仍失败才升级调查（锁定状态 `devicectl device info lockState`、设备是否闲置过久、系统资源），并把新签名补进本表。宣称需要佩戴者的前置条件是观察到字面授权签名，模式相似不算数。 |
 | Shell 显示 `Password:` | Mac 正在等待认证；XCTest 失败后，可能来自 Xcode 的 `devicectl diagnose` 调用 `/usr/bin/sudo -- /usr/bin/true` | 在该命令所在 PTY 中完成 Mac 认证。预期会反复触发诊断认证时，在同一 PTY 中执行 `sudo -v && exec … xcodebuild …`；另一个 PTY 中预热 sudo 无效。不能把它描述成 Vision Pro 锁定。 |
 | 系统权限弹窗覆盖已启动 App | 首次启动的系统权限正在阻塞 App | interruption monitor 能触达该系统 Scene 时使用它，否则请佩戴者处理可见权限。随后用新快照和一次公开操作证明 session 健康；runner 从未可用或已经失败时，从现有构建重新启动。 |
 | 控制台打印 `Wait for <bundle> to idle` | XCTest 到达正常同步点 | 继续观察是否返回新快照或 session 响应。只有排除直接观察到的锁定与权限门槛后仍无进展，才标记为停滞。 |

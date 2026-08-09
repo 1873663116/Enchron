@@ -1012,6 +1012,7 @@ def wait_for_clean_open(
     deadline = target_started_at + SETTLEMENT_TIMEOUT_SECONDS
     delta: list[str] = []
     latest_plane: dict[str, str] | None = None
+    invisible_steady_polls = 0
     while time.monotonic() < deadline:
         lines, _ = copy_probe_lines(cell_directory)
         if lines is not None and len(lines) >= probe_offset:
@@ -1030,6 +1031,27 @@ def wait_for_clean_open(
         if plane is not None:
             latest_plane = plane
             lifecycle = plane.get("lifecycle") or ""
+            if (
+                plane.get("presentation") == "window"
+                and plane.get("transition") == "none"
+                and lifecycle.lower() in WINDOWED_STEADY_LIFECYCLES
+                and plane.get("videoVisible") != "true"
+            ):
+                invisible_steady_polls += 1
+                if invisible_steady_polls >= 4:
+                    elapsed = time.monotonic() - target_started_at
+                    return (
+                        {
+                            "verdict": WRONG_STATE,
+                            "landed": "window-invisible",
+                            "elapsed_seconds": round(elapsed, 3),
+                            "message": "steady lifecycle with videoVisible=false",
+                            "control_plane": format_facts(plane),
+                        },
+                        delta,
+                    )
+            else:
+                invisible_steady_polls = 0
             if lifecycle.lower().startswith("failed"):
                 elapsed = time.monotonic() - target_started_at
                 return (
