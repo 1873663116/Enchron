@@ -12,7 +12,7 @@
 
 使用脚本前先读取其 `--help`。当前控制器在每条命令后返回界面层级、App 状态、匹配元素观察、session 身份，以及可选的本地 PNG。
 
-2026-08-09 实测，session 健康时一条 `snapshot --no-screenshot` 往返 2.3 到 2.5 秒。据此在前台连续发命令。命令长时间不返回不是设备慢，而是 runner 已经失效，按 [故障分流](diagnostics.md) 的“控制器无限等待响应文件”一行处理。
+实测耗时的滚动记录在 `controller_timings.json`，控制器每次成功往返自动更新（2026-08-09 基线：session 健康时一条 `snapshot --no-screenshot` 往返 2.3 到 2.5 秒）。据此在前台连续发命令。命令长时间不返回时控制器返回 `responseTimeout` 与现场观察清单，按 [故障分流](diagnostics.md) 对应行处理。
 
 ## 诊断状态通道
 
@@ -52,7 +52,7 @@ python3 Scripts/verification/interactive_visionpro_ui.py \
 
 当前源码只构建一次。`ensure-session` 走的是 `test-without-building`，复用同一 DerivedData，不在单步命令之间重复构建 Enchron；源码改动后先自行 `build-for-testing`。
 
-`stage: readyTimeout` 时读返回里的 `runnerLog`，按 [故障分流](diagnostics.md) 区分授权门槛与其它停滞，不叠加第二个 runner。
+授权超时签名由 `ensure-session` 自行识别并收敛（自动重启一次，连续两次返回 `authorizationTimeout` 并说明佩戴者动作）；`readyTimeout` 的返回自带观察清单（签名检索结果与日志尾部），按 [故障分流](diagnostics.md) 区分其它停滞，不叠加第二个 runner。
 
 Mac 侧 Xcode 诊断认证可能打印 `Password:`；它与 Vision Pro 解锁和头显侧 UI 测试密码无关，认证失败也不影响 runner 常驻。
 
