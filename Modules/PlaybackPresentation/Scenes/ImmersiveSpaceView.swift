@@ -799,6 +799,14 @@ public struct ImmersiveSpaceView: View {
         } ?? false
         logSpatialSurfaceReadiness(reason: "attachCheck")
         guard presentation.usesImmersiveSpace else { return }
+        // Mirror of the window surface's ownership rule: the runtime
+        // attachment belongs to the transition's target presentation, so a
+        // departing immersive surface must not re-attach over the returning
+        // window surface.
+        let owningPresentation =
+            appModel.presentationTransition?.targetPresentation
+                ?? appModel.playbackPresentation
+        guard owningPresentation == presentation else { return }
         guard videoEntity.isActive else {
             let parent = videoEntity.parent
             appModel.recordSpatialPlaybackSurfacePreparationStage(

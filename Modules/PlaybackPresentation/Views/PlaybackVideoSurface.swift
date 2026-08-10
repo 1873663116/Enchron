@@ -691,6 +691,17 @@ struct PlaybackVideoSurface: View {
     @MainActor
     private func attachSurfaceIfReady() {
         logSurfaceFacts(reason: "attachCheck")
+        // The runtime attachment belongs to the transition's target
+        // presentation (the settled one when no transition is running). The
+        // departing window surface stays mounted while the main window
+        // dismissal completes, and re-attaching it on the replacement
+        // technical session steals the attachment back from the immersive
+        // surface, after which settlement can never commit and the open
+        // rolls back at the executor deadline.
+        let owningPresentation =
+            appModel.presentationTransition?.targetPresentation
+                ?? appModel.playbackPresentation
+        guard owningPresentation == presentation else { return }
         guard videoEntity.isActive,
               let renderer = playbackRuntime.renderer,
               isActive,
