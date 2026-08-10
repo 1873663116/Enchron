@@ -166,6 +166,88 @@ PATHS: dict[str, tuple[Step, ...]] = {
     "clean-open": (
         Step("open", OPEN_CLIP, "any-steady"),
     ),
+    # Clean-state cycles: unsignaled clips open windowed, so every spatial
+    # entry is driven through real user chrome. Windowed chrome auto-hides
+    # and must be summoned by the playback-surface tap; the player panel
+    # lives in the controls window, which only exists while showControls is
+    # on, so panel steps converge it first via the channel.
+    "clean-spatial-cycle": (
+        Step("open", OPEN_CLIP, "window"),
+        Step(
+            "apply-native-180",
+            ("PlayerUI-window-playback-surface", *APPLY_NATIVE_180),
+            "panorama",
+        ),
+        Step(
+            "exit-to-portal-1",
+            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            "portal",
+        ),
+        Step(
+            "enter-panorama-1",
+            ("ensure:controls", "PlayerPanel-button-enter-panorama"),
+            "panorama",
+        ),
+        Step(
+            "exit-to-portal-2",
+            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            "portal",
+        ),
+        Step(
+            "enter-panorama-2",
+            ("ensure:controls", "PlayerPanel-button-enter-panorama"),
+            "panorama",
+        ),
+    ),
+    "clean-dock-cycle": (
+        Step("open", OPEN_CLIP, "window"),
+        Step(
+            "enter-docked-1",
+            (
+                "PlayerUI-window-playback-surface",
+                "PlayerUI-TopAction-dock",
+                "PlayerUI-DockMenu-skybox",
+            ),
+            "docked",
+        ),
+        Step(
+            "exit-to-window-1",
+            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            "window",
+        ),
+        Step(
+            "enter-docked-2",
+            (
+                "PlayerUI-window-playback-surface",
+                "PlayerUI-TopAction-dock",
+                "PlayerUI-DockMenu-skybox",
+            ),
+            "docked",
+        ),
+        Step(
+            "exit-to-window-2",
+            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            "window",
+        ),
+    ),
+    "clean-360-cycle": (
+        Step("open", OPEN_CLIP, "window"),
+        Step(
+            "apply-360-mono",
+            ("PlayerUI-window-playback-surface", *APPLY_360_MONO),
+            "panorama",
+        ),
+        Step(
+            "exit-to-portal",
+            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            "portal",
+        ),
+        Step(
+            "enter-panorama",
+            ("ensure:controls", "PlayerPanel-button-enter-panorama"),
+            "panorama",
+        ),
+    ),
 }
 
 
@@ -662,16 +744,66 @@ def run_step(
     target_started_at: float | None = None
     result: dict[str, object] | None = None
 
-    for action_index, identifier in enumerate(actions):
-        if action_index == len(actions) - 1:
+    # Windowed chrome hides faster than consecutive controller round-trips,
+    # so consecutive taps travel as one tapSequence command and land with
+    # sub-second spacing inside the resident runner.
+    segments: list[tuple[str, tuple[str, ...]]] = []
+    for identifier in actions:
+        if identifier == "ensure:controls" or identifier.startswith("app:"):
+            segments.append(("scheme", (identifier,)))
+        elif segments and segments[-1][0] == "taps":
+            segments[-1] = ("taps", segments[-1][1] + (identifier,))
+        else:
+            segments.append(("taps", (identifier,)))
+
+    for segment_index, (kind, payload) in enumerate(segments):
+        if segment_index == len(segments) - 1:
             target_started_at = time.monotonic()
-        document = controller(
-            controller_directory,
-            "tap",
-            "--identifier",
-            identifier,
-            "--no-screenshot",
-        )
+        if kind == "scheme":
+            scheme_action = payload[0]
+            if scheme_action == "ensure:controls":
+                failure = ensure_controls_open(controller_directory)
+                if failure is not None:
+                    result = drive_error_step(
+                        step=step,
+                        actions=actions,
+                        phase="ensure-controls",
+                        started_at=step_started_at,
+                        controller_document=failure,
+                    )
+                    result["failed_action"] = scheme_action
+                    break
+            else:
+                document = app_command(
+                    controller_directory, scheme_action[len("app:"):]
+                )
+                if document.get("ok") is not True:
+                    result = drive_error_step(
+                        step=step,
+                        actions=actions,
+                        phase="app-command",
+                        started_at=step_started_at,
+                        controller_document=document,
+                    )
+                    result["failed_action"] = scheme_action
+                    break
+            continue
+        if len(payload) == 1:
+            document = controller(
+                controller_directory,
+                "tap",
+                "--identifier",
+                payload[0],
+                "--no-screenshot",
+            )
+        else:
+            document = controller(
+                controller_directory,
+                "tapSequence",
+                "--identifiers",
+                *payload,
+                "--no-screenshot",
+            )
         if document.get("success") is not True:
             result = drive_error_step(
                 step=step,
@@ -680,7 +812,7 @@ def run_step(
                 started_at=step_started_at,
                 controller_document=document,
             )
-            result["failed_action"] = identifier
+            result["failed_action"] = " -> ".join(payload)
             break
 
     if result is None:
@@ -846,19 +978,55 @@ def app_command(
     return document
 
 
+def ensure_controls_open(
+    controller_directory: Path,
+) -> dict[str, object] | None:
+    """Converge the controls window to open. toggleControls flips state, so
+    presence is checked first and after each flip; returns None when the
+    player panel is reachable, else the last controller document."""
+    # The panel shows exit-spatial in immersive presentations and
+    # enter-panorama in windowed ones, so either marker proves presence.
+    panel_markers = (
+        "PlayerPanel-button-exit-spatial",
+        "PlayerPanel-button-enter-panorama",
+    )
+    last: dict[str, object] = {}
+    for _ in range(3):
+        for marker in panel_markers:
+            probe = controller(
+                controller_directory,
+                "snapshot",
+                "--identifier",
+                marker,
+                "--no-screenshot",
+            )
+            last = probe
+            if isinstance(probe.get("matchedElement"), dict):
+                return None
+        toggled = app_command(controller_directory, "toggleControls")
+        last = toggled
+        if toggled.get("ok") is not True:
+            return toggled
+        time.sleep(1.5)
+    return last
+
+
 def push_to_inbox(media_path: Path) -> str | None:
     environment = {"DEVELOPER_DIR": DEVELOPER_DIR, "PATH": "/usr/bin:/bin"}
-    completed = subprocess.run(
-        [
-            "xcrun", "devicectl", "device", "copy", "to",
-            "--device", CORE_DEVICE,
-            "--domain-type", "appDataContainer",
-            "--domain-identifier", BUNDLE,
-            "--source", str(media_path),
-            "--destination", f"Documents/TestMediaInbox/{media_path.name}",
-        ],
-        capture_output=True, text=True, env=environment,
-    )
+    try:
+        completed = subprocess.run(
+            [
+                "xcrun", "devicectl", "device", "copy", "to",
+                "--device", CORE_DEVICE,
+                "--domain-type", "appDataContainer",
+                "--domain-identifier", BUNDLE,
+                "--source", str(media_path),
+                "--destination", f"Documents/TestMediaInbox/{media_path.name}",
+            ],
+            capture_output=True, text=True, env=environment, timeout=600,
+        )
+    except subprocess.TimeoutExpired:
+        return f"Media push exceeded 600s for {media_path.name}."
     if completed.returncode != 0:
         return (completed.stderr or completed.stdout).strip()[-300:]
     return None
@@ -1531,7 +1699,11 @@ def configuration_error(arguments: argparse.Namespace) -> str | None:
         for action in step.actions
     )
     if needs_native_stereo:
-        unknown = [clip for clip in arguments.clips if clip not in STEREO_LABELS]
+        unknown = [
+            clip
+            for clip in arguments.clips
+            if Path(clip).name not in STEREO_LABELS
+        ]
         if unknown:
             return (
                 "No SPEC stereo_label is defined for clip: "

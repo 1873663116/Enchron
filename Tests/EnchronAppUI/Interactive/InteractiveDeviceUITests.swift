@@ -145,6 +145,32 @@ private final class InteractiveDeviceUIChannel {
             }
             element.tap()
             return (true, "Element tapped.")
+        case .tapSequence:
+            // Auto-hiding chrome outlives one controller round-trip but not
+            // four, so menu sequences must land inside a single command.
+            guard let identifiers = command.identifiers,
+                  identifiers.isEmpty == false else {
+                return (false, "tapSequence requires identifiers.")
+            }
+            for (position, identifier) in identifiers.enumerated() {
+                let element = app.descendants(matching: .any)
+                    .matching(identifier: identifier)
+                    .element(boundBy: 0)
+                guard element.waitForExistence(timeout: 3) else {
+                    return (
+                        false,
+                        "tapSequence stopped at [\(position)] \(identifier): no matching element appeared."
+                    )
+                }
+                guard element.isHittable else {
+                    return (
+                        false,
+                        "tapSequence stopped at [\(position)] \(identifier): the element is not hittable."
+                    )
+                }
+                element.tap()
+            }
+            return (true, "Tapped \(identifiers.count) elements in sequence.")
         case .doubleTap:
             guard let element = element(for: command) else {
                 return (false, "No current element matches the requested identifier and index.")
@@ -350,6 +376,7 @@ private struct InteractiveDeviceUICommand: Codable {
     enum Action: String, Codable {
         case snapshot
         case tap
+        case tapSequence
         case doubleTap
         case press
         case typeText
@@ -368,6 +395,7 @@ private struct InteractiveDeviceUICommand: Codable {
     let sessionID: String
     let action: Action
     let identifier: String?
+    let identifiers: [String]?
     let label: String?
     let index: Int?
     let text: String?

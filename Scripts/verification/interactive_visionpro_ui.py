@@ -31,13 +31,25 @@ TERMINATION_DEADLINE_SECONDS = 5.0
 
 def run_devicectl(arguments: list[str], *, quiet: bool = False) -> subprocess.CompletedProcess[str]:
     command = ["xcrun", "devicectl", *arguments]
-    return subprocess.run(
-        command,
-        check=False,
-        text=True,
-        stdout=subprocess.DEVNULL if quiet else subprocess.PIPE,
-        stderr=subprocess.DEVNULL if quiet else subprocess.PIPE,
-    )
+    try:
+        return subprocess.run(
+            command,
+            check=False,
+            text=True,
+            timeout=120,
+            stdout=subprocess.DEVNULL if quiet else subprocess.PIPE,
+            stderr=subprocess.DEVNULL if quiet else subprocess.PIPE,
+        )
+    except subprocess.TimeoutExpired:
+        # The controller only moves command files and screenshots here; a
+        # transfer this slow means a wedged devicectl, and an unbounded child
+        # would hang every caller above it.
+        return subprocess.CompletedProcess(
+            command,
+            returncode=124,
+            stdout="",
+            stderr="devicectl exceeded the 120s transport deadline.",
+        )
 
 
 def copy_from_device(
@@ -289,6 +301,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
     }
     for key in (
         "identifier",
+        "identifiers",
         "label",
         "index",
         "text",
@@ -331,11 +344,23 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
                 or notification.stdout
                 or "Unable to wake the interactive UI runner."
             )
-        wait_for_response(
+        arrived = wait_for_response(
             arguments=arguments,
             command_id=command_id,
             response_path=response_path,
+            deadline_seconds=arguments.timeout_seconds,
         )
+        if not arrived:
+            return {
+                "success": False,
+                "stage": "responseTimeout",
+                "message": (
+                    f"The runner did not answer {arguments.action} within "
+                    f"{arguments.timeout_seconds:g} seconds. A dead resident "
+                    "session is the common cause: check the runner process, "
+                    "then halt and ensure-session."
+                ),
+            }
         response = json.loads(response_path.read_text(encoding="utf-8"))
         screenshot_relative_path = response.get("screenshotRelativePath")
         if screenshot_relative_path:
@@ -555,6 +580,7 @@ def parse_arguments() -> argparse.Namespace:
         choices=(
             "snapshot",
             "tap",
+            "tapSequence",
             "doubleTap",
             "press",
             "typeText",
@@ -595,6 +621,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument("--result-bundle-path", dest="result_bundle_path")
     parser.add_argument("--ready-timeout", dest="ready_timeout", type=float, default=300.0)
     parser.add_argument("--identifier")
+    parser.add_argument("--identifiers", nargs="+")
     parser.add_argument("--label")
     parser.add_argument("--index", type=int)
     parser.add_argument("--text")
