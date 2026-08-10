@@ -17,6 +17,10 @@ from pathlib import Path
 
 RUNNER_BUNDLE_ID = "com.xiongzhipeng.EnchronAppUITests.xctrunner"
 APP_BUNDLE_ID = "com.xiongzhipeng.XrPlayer"
+# The bundle id never appears in the device process table; processes are
+# listed by executable path (…/Enchron.app/Enchron, …/EnchronAppUITests-
+# Runner.app/…), so this marker matches both the app and the runner.
+DEVICE_PROCESS_MARKER = "Enchron"
 CHANNEL_ROOT = "Documents/EnchronInteractiveUI"
 APP_COMMAND_PATH = "Documents/test-command.json"
 APP_RESPONSE_ROOT = "Documents/test-responses"
@@ -408,12 +412,15 @@ def timeout_observations(arguments: argparse.Namespace) -> list[dict[str, object
         matches = [
             line.strip()
             for line in processes.stdout.splitlines()
-            if "XrPlayer" in line
+            if DEVICE_PROCESS_MARKER in line
         ]
         observations.append(
             {
                 "observation": matches
-                or "the device process table lists no XrPlayer entry",
+                or (
+                    "the device process table lists no path containing "
+                    f"'{DEVICE_PROCESS_MARKER}'"
+                ),
                 "source": "xcrun devicectl device info processes",
             }
         )
@@ -902,6 +909,10 @@ def explain_failure(arguments, response: dict) -> dict:
     as a missing accessibility surface. Facts only, stated with their source;
     what to do about them stays with the caller."""
     if response.get("success") is True:
+        return response
+    if response.get("stage") == "responseTimeout":
+        # No runner report arrived, so there is no runner-reported state to
+        # explain; the timeout observations already carry the scene.
         return response
     identifiers = list(getattr(arguments, "identifiers", None) or [])
     identifier = getattr(arguments, "identifier", None)
