@@ -34,6 +34,15 @@ SETTLEMENT_TIMEOUT_SECONDS = 40.0
 POLL_INTERVAL_SECONDS = 2.0
 STALL_RECOVERY_SECONDS = 8.0
 
+REGRESSION_BANNER = (
+    "playback_mode_matrix is the regression instrument: it sweeps the "
+    "clip x path x rep cell grid to surface cross-breakage after a batch of "
+    "fixes. Each cell re-establishes its own automation session "
+    "(ensure-session measured 25.7s, 2026-08-09); recorded full rounds take "
+    "tens of minutes, and the failing moment inside a cell is not observable "
+    "live. Per-cell verdicts stream to results.jsonl."
+)
+
 PASS = "PASS"
 STALL_RECOVERED = "STALL_RECOVERED"
 STALL_TIMEOUT = "STALL_TIMEOUT"
@@ -1809,6 +1818,7 @@ def configuration_error(arguments: argparse.Namespace) -> str | None:
 
 def main() -> int:
     parser, arguments = parse_arguments()
+    print(REGRESSION_BANNER, file=sys.stderr, flush=True)
     error = configuration_error(arguments)
     if error is not None:
         parser.error(error)
