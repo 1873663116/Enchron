@@ -1315,6 +1315,35 @@ def append_result(results_path: Path, result: dict[str, object]) -> None:
         stream.write(json.dumps(result, ensure_ascii=False, sort_keys=True) + "\n")
 
 
+AUTOMATION_TIMEOUT_SIGNATURE = "Timed out while enabling automation mode"
+
+
+def sweep_diagnosis(
+    evidence_directory: Path, controller_directory: Path
+) -> dict[str, object]:
+    """Discriminate the shared causes of a DRIVE_ERROR streak. The literal
+    runner-log signature is the only valid evidence of the wearer
+    authorization wall; the command channel answering while sessions keep
+    failing has meant device-side automation degradation, not app state."""
+    signature_logs = [
+        str(log)
+        for log in sorted(evidence_directory.rglob("runner.log"))
+        if AUTOMATION_TIMEOUT_SIGNATURE in log.read_text(errors="replace")
+    ]
+    ping = app_command(controller_directory, "ping")
+    if signature_logs:
+        diagnosis = "wearer-authorization-required"
+    elif ping.get("ok") is True:
+        diagnosis = "sessions-fail-while-app-responsive"
+    else:
+        diagnosis = "app-unreachable"
+    return {
+        "diagnosis": diagnosis,
+        "authSignatureLogs": signature_logs,
+        "ping": controller_summary(ping),
+    }
+
+
 def print_summary(
     *,
     clips: Sequence[str],
@@ -1442,6 +1471,15 @@ def parse_arguments() -> tuple[argparse.ArgumentParser, argparse.Namespace]:
     )
     parser.add_argument("--reps", type=positive_reps, default=3)
     parser.add_argument(
+        "--max-consecutive-drive-errors",
+        type=int,
+        default=3,
+        help="Abort the sweep once this many DRIVE_ERROR cells land in a row "
+        "(0 disables). A DRIVE_ERROR streak means a shared cause that would "
+        "burn every remaining cell, so the runner stops, records the "
+        "discriminators, and leaves the remainder for a diagnosed resume.",
+    )
+    parser.add_argument(
         "--clean",
         action="store_true",
         help="Per cell: resetState, push the clip into TestMediaInbox, import "
@@ -1498,33 +1536,65 @@ def main() -> int:
     results_path = evidence_directory / "results.jsonl"
     results: list[dict[str, object]] = []
 
-    for clip_index, clip in enumerate(arguments.clips, start=1):
-        for path_index, path_name in enumerate(arguments.paths, start=1):
-            for rep in range(1, arguments.reps + 1):
-                print(
-                    f"running clip={clip} path={path_name} rep={rep}",
-                    file=sys.stderr,
-                    flush=True,
-                )
-                result = run_cell(
-                    clip=clip,
-                    clip_index=clip_index,
-                    path_name=path_name,
-                    path_index=path_index,
-                    rep=rep,
-                    selected_clips=arguments.clips,
-                    evidence_directory=evidence_directory,
-                    clean=arguments.clean,
-                    media_root=arguments.media_root,
-                )
-                append_result(results_path, result)
-                results.append(result)
-                print(
-                    f"finished clip={clip} path={path_name} rep={rep} "
-                    f"verdict={result['verdict']}",
-                    file=sys.stderr,
-                    flush=True,
-                )
+    cells = [
+        (clip_index, clip, path_index, path_name, rep)
+        for clip_index, clip in enumerate(arguments.clips, start=1)
+        for path_index, path_name in enumerate(arguments.paths, start=1)
+        for rep in range(1, arguments.reps + 1)
+    ]
+    consecutive_drive_errors = 0
+    for position, (clip_index, clip, path_index, path_name, rep) in enumerate(cells):
+        print(
+            f"running clip={clip} path={path_name} rep={rep}",
+            file=sys.stderr,
+            flush=True,
+        )
+        result = run_cell(
+            clip=clip,
+            clip_index=clip_index,
+            path_name=path_name,
+            path_index=path_index,
+            rep=rep,
+            selected_clips=arguments.clips,
+            evidence_directory=evidence_directory,
+            clean=arguments.clean,
+            media_root=arguments.media_root,
+        )
+        append_result(results_path, result)
+        results.append(result)
+        print(
+            f"finished clip={clip} path={path_name} rep={rep} "
+            f"verdict={result['verdict']}",
+            file=sys.stderr,
+            flush=True,
+        )
+        if result["verdict"] == DRIVE_ERROR:
+            consecutive_drive_errors += 1
+        else:
+            consecutive_drive_errors = 0
+        limit = arguments.max_consecutive_drive_errors
+        if limit and consecutive_drive_errors >= limit:
+            controller_directory = (
+                Path(str(result["evidence_directory"])) / "controller"
+            )
+            abort = {
+                "abort": True,
+                "reason": f"{consecutive_drive_errors} consecutive DRIVE_ERROR cells",
+                **sweep_diagnosis(evidence_directory, controller_directory),
+                "remaining": [
+                    {"clip": cell_clip, "path": cell_path, "rep": cell_rep}
+                    for _, cell_clip, _, cell_path, cell_rep in cells[position + 1 :]
+                ],
+            }
+            append_result(results_path, abort)
+            print(
+                f"circuit breaker: {abort['reason']}; "
+                f"diagnosis={abort['diagnosis']}; "
+                f"skipped {len(abort['remaining'])} remaining cells",
+                file=sys.stderr,
+                flush=True,
+            )
+            break
 
     print_summary(
         clips=arguments.clips,

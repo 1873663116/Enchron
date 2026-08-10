@@ -43,6 +43,8 @@ python3 Scripts/verification/playback_mode_matrix.py \
 
 `--clean` 使每个 cell 从定义好的干净状态出发（resetState → 重启加载空库 → 推送 → 生产管线导入 → 单片源库校验）。单片源库同时是结构性防线：自动连播无处可去，被禁片源永不可达。
 
+runner 内置连续 DRIVE_ERROR 熔断（`--max-consecutive-drive-errors`，默认 3）：达到阈值即中止 sweep，在 results.jsonl 落一条 abort 记录，含判别器结论（授权签名 grep、通道 ping）与剩余 cell 清单；按其 `diagnosis` 走 visionpro-xcuitest 故障分流，再用 remaining 清单续跑。
+
 手工驱动的三条铁律（都付过学费）：
 - 窗口 chrome 秒级自动隐藏：任何 chrome 点击序列先点 `PlayerUI-window-playback-surface` 唤出并紧凑连发；格式菜单一旦打开会钉住可见性。
 - 空间捏合无法合成：settled panorama 的入场元素只有 `PlayerUI-immersive-playback-surface`，对它 tap 会报成功但不投递（详见 visionpro-xcuitest 已证伪路径）。
