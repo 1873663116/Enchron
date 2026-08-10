@@ -132,6 +132,13 @@ final class TestCommandChannel {
         case "resetState":
             // TestMediaInbox is harness-owned staging, not app state; clearing
             // it here would force a re-push of every media file per cell.
+            // The in-memory library must go first: it re-persists itself on
+            // mutation and on termination, so leaving it populated resurrects
+            // the references this reset just deleted.
+            let references = allReferences
+            for reference in references {
+                mediaLibrary.remove(reference)
+            }
             let keys = defaults.dictionaryRepresentation().keys.filter {
                 $0.hasPrefix("enchron.")
             }
@@ -141,7 +148,8 @@ final class TestCommandChannel {
             return Response(
                 id: request.id,
                 ok: true,
-                detail: "Deleted \(keys.count) enchron.* defaults keys.",
+                detail: "Removed \(references.count) library references and "
+                    + "deleted \(keys.count) enchron.* defaults keys.",
                 payload: nil
             )
         case "importMedia":
