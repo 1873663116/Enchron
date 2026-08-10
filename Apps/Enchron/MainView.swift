@@ -11,6 +11,27 @@ enum PlaybackSurfaceMountPolicy {
     }
 }
 
+/// While playback is hosted off-window the main glass stays empty only for
+/// the moments a scene operation is genuinely in flight. Once the immersive
+/// space is closed and no transition is active, a presented main window
+/// belongs to the wearer: the system can dismiss the space (crown press)
+/// with no scene left alive to execute recovery, and the window the wearer
+/// then summons from the Home View must not be a blank pane. A pending
+/// platform effect is deliberately not consulted: if recovery is about to
+/// run it repopulates the scene anyway, and if it never runs the browser is
+/// the only usable surface.
+enum BrowserWindowSurfacePolicy {
+    static func showsBrowser(
+        hasActivePlaybackRequest: Bool,
+        transitionIsActive: Bool,
+        immersiveSpaceResidency: SpatialPlatformImmersiveSpaceResidency
+    ) -> Bool {
+        guard hasActivePlaybackRequest else { return true }
+        return transitionIsActive == false
+            && immersiveSpaceResidency == .closed
+    }
+}
+
 enum PlaybackPresentationRendererBindingPolicy {
     static func shouldBindRenderer(
         for presentation: PlaybackPresentation,
@@ -332,10 +353,14 @@ public struct MainView: View {
 
     @ViewBuilder
     private var browserWindowSurface: some View {
-        if playbackRuntime.hasActivePlaybackRequest {
-            Color.clear
-        } else {
+        if BrowserWindowSurfacePolicy.showsBrowser(
+            hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
+            transitionIsActive: appModel.presentationTransition != nil,
+            immersiveSpaceResidency: appModel.immersiveSpaceResidency
+        ) {
             browser
+        } else {
+            Color.clear
         }
     }
 

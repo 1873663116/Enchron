@@ -8,6 +8,31 @@ import Testing
 
 @Suite("Playback presentation")
 struct PlaybackPresentationStateTests {
+    @Test("Main glass hosts the browser unless a scene operation is in flight")
+    func browserSurfaceFollowsSettledSceneState() {
+        #expect(BrowserWindowSurfacePolicy.showsBrowser(
+            hasActivePlaybackRequest: false,
+            transitionIsActive: false,
+            immersiveSpaceResidency: .closed
+        ))
+        #expect(BrowserWindowSurfacePolicy.showsBrowser(
+            hasActivePlaybackRequest: true,
+            transitionIsActive: false,
+            immersiveSpaceResidency: .closed
+        ))
+        #expect(BrowserWindowSurfacePolicy.showsBrowser(
+            hasActivePlaybackRequest: true,
+            transitionIsActive: true,
+            immersiveSpaceResidency: .closed
+        ) == false)
+        #expect(BrowserWindowSurfacePolicy.showsBrowser(
+            hasActivePlaybackRequest: true,
+            transitionIsActive: false,
+            immersiveSpaceResidency: .open
+        ) == false)
+    }
+
+
     @Test("Panorama tap shell follows 180 and 360 degree projection coverage")
     @MainActor
     func panoramaTapShellFollowsProjectionCoverage() {
