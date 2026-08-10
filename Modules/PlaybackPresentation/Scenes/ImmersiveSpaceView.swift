@@ -363,6 +363,10 @@ public struct ImmersiveSpaceView: View {
         .onChange(of: appModel.showControls, initial: true) { _, visible in
             synchronizeControlsWindow(visible: visible)
         }
+        .onChange(of: appModel.presentationTransition?.id) { _, transitionID in
+            guard transitionID == nil else { return }
+            synchronizeControlsWindow(visible: appModel.showControls)
+        }
         .onChange(of: realityKitContentTypeScope) { _, scope in
             playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(scope)
             surfaceRefreshTick &+= 1
@@ -477,6 +481,17 @@ public struct ImmersiveSpaceView: View {
     // The player-controls window tracks showControls itself so every setter
     // (pinch, accessibility, the test channel) presents identically.
     private func synchronizeControlsWindow(visible: Bool) {
+        // Scene operations serialize with presentation transitions: a
+        // dismissWindow landing while the immersive scene is still
+        // classifying its video component kills the pending RealityKit mode
+        // grant (paired probes, 2026-08-10). The transition-end observer
+        // replays this sync once the transition settles or rolls back.
+        guard appModel.presentationTransition == nil else {
+            appModel.recordSurfaceInputProbe(
+                "controlsWindow sync deferred visible=\(visible)"
+            )
+            return
+        }
         if visible {
             let identity = appModel.beginFreshPlayerControlsScene()
             openWindow(id: "playerControls", value: identity)

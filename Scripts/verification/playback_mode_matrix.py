@@ -348,6 +348,18 @@ def read_control_plane(
 
 
 def copy_probe_lines(cell_directory: Path) -> tuple[list[str] | None, str | None]:
+    # The probe copy races the app appending to the same file; one retry
+    # keeps a passed step from being downgraded over a transient transfer.
+    lines, error = copy_probe_lines_once(cell_directory)
+    if lines is None:
+        time.sleep(1.5)
+        lines, error = copy_probe_lines_once(cell_directory)
+    return lines, error
+
+
+def copy_probe_lines_once(
+    cell_directory: Path,
+) -> tuple[list[str] | None, str | None]:
     destination = cell_directory / f".probe-{uuid.uuid4()}.log"
     environment = {
         "DEVELOPER_DIR": DEVELOPER_DIR,
@@ -1554,9 +1566,12 @@ def print_summary(
     rows: list[list[str]] = []
     for clip in clips:
         for path_name in paths:
+            # Cells behind a circuit-breaker abort never ran and have no row.
             row_results = [
-                result_by_cell[(clip, path_name, rep)]
+                result
                 for rep in range(1, reps + 1)
+                if (result := result_by_cell.get((clip, path_name, rep)))
+                is not None
             ]
             target_times = [
                 float(step["time_to_target_seconds"])
@@ -1573,7 +1588,17 @@ def print_summary(
                 [
                     clip,
                     path_name,
-                    *(str(result["verdict"]) for result in row_results),
+                    *(
+                        str(result["verdict"])
+                        if (
+                            result := result_by_cell.get(
+                                (clip, path_name, rep)
+                            )
+                        )
+                        is not None
+                        else "SKIPPED"
+                        for rep in range(1, reps + 1)
+                    ),
                     str(
                         sum(
                             result["verdict"] in PASSING_VERDICTS
@@ -1769,15 +1794,30 @@ def main() -> int:
             controller_directory = (
                 Path(str(result["evidence_directory"])) / "controller"
             )
+            failed_actions = [
+                str(step.get("failed_action") or step.get("phase") or "")
+                for streak_result in results[-consecutive_drive_errors:]
+                for step in streak_result.get("steps", [])
+                if step.get("verdict") == DRIVE_ERROR
+            ]
             abort = {
                 "abort": True,
                 "reason": f"{consecutive_drive_errors} consecutive DRIVE_ERROR cells",
+                "failedActions": failed_actions,
                 **sweep_diagnosis(evidence_directory, controller_directory),
                 "remaining": [
                     {"clip": cell_clip, "path": cell_path, "rep": cell_rep}
                     for _, cell_clip, _, cell_path, cell_rep in cells[position + 1 :]
                 ],
             }
+            # A streak that dies at one identical step is a harness or UI
+            # defect at that step, not a session-level cause.
+            if (
+                failed_actions
+                and len(set(failed_actions)) == 1
+                and abort["diagnosis"] == "sessions-fail-while-app-responsive"
+            ):
+                abort["diagnosis"] = f"repeated-step-failure:{failed_actions[0]}"
             append_result(results_path, abort)
             print(
                 f"circuit breaker: {abort['reason']}; "

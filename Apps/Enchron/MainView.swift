@@ -1004,6 +1004,10 @@ struct SpatialPlaybackControlsRoot: View {
         }
         .onChange(of: appModel.showControls) { _, isVisible in
             guard isVisible == false else { return }
+            // Mirrors the immersive-side rule: no scene operations while a
+            // presentation transition is in flight; the transition-end sync
+            // in ImmersiveSpaceView performs the deferred dismissal.
+            guard appModel.presentationTransition == nil else { return }
             dismissWindow(id: "playerControls", value: sceneIdentity)
         }
         .onChange(of: appModel.activePlayerControlsSceneIdentity) { _, activeIdentity in
