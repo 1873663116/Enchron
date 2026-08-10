@@ -479,14 +479,17 @@ final class SpatialPlatformEffectCoordinator {
             )
             return
         }
-        guard await mainWindowClosed else {
-            guard executionIsLive(execution) else { return }
-            lastExecutionCheckpoint = "initial-spatial-main-window-did-not-close"
-            _ = await complete(
-                execution,
-                outcome: .failed(.mainWindowUnavailable)
-            )
-            return
+        // A cold spatial launch assembles its first renderer directly in the
+        // target presentation, so no renderer has to leave the main window and
+        // nothing serializes against that window going away. Closing it is
+        // cleanup. visionOS disconnects it without a lifecycle callback the app
+        // can rely on, so an unconfirmed close must not retire playback that has
+        // already settled and is showing pixels.
+        let mainWindowDidClose = await mainWindowClosed
+        guard executionIsLive(execution) else { return }
+        if mainWindowDidClose == false {
+            lastExecutionCheckpoint = "initial-spatial-main-window-close-unconfirmed"
+            appModel.recordSurfaceInputProbe(lastExecutionCheckpoint)
         }
         let resolution = await complete(execution, outcome: .succeeded)
         if resolution == .effectCompleted {
