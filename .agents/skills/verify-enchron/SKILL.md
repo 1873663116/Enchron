@@ -52,6 +52,13 @@ runner 内置连续 DRIVE_ERROR 熔断（`--max-consecutive-drive-errors`，默�
 
 App 级测试命令通道动词：`ping`、`toggleControls`、`resetState`、`importMedia`（配合 TestMediaInbox 推送）、`listLibrary`。
 
+## 长时批次的运行纪律
+
+- 每条控制器调用都有截止时间：UI 动词与 app-command 共用 `--timeout-seconds`（默认 30 秒），runner 不应答返回 `stage: responseTimeout` 而不是挂起；devicectl 传输 120 秒、媒体推送 600 秒硬上限。任何等待都不允许无界。
+- 批次（矩阵 sweep、多 cell 验证）以可流式观察的方式运行：runner 每 cell 打印 `running/finished clip=… verdict=…`，把这些行作为进度事件暴露给会话（事件监视器跟踪输出），静默超过一个 cell 的正常时长即视为异常，主动查而不是等。
+- 发起后台批次的那条回复必须写明三件事：正在跑什么、预计时长、结束信号是什么。批次结束或熔断后立即报告结果，不等追问。
+- 每次修复、定性或证伪，当次就把可复用的判据写回 skill（分流表行、路径表、纪律条目），不积压到收官。
+
 ## Evidence
 
 - 逐 cell 权威记录：`results.jsonl`（verdict、landed、时序、探针摘录路径）。

@@ -15,7 +15,7 @@
 | 外部启动目标进程后，普通 App 窗口可读，但所有合成事件都报 `Received invalid scene ID (nil) from Accessibility` | 目标 App 不属于当前 XCTest 自动化 Scene 关系 | 结束无效会话，通过正常的 `XCUIApplication.launch()` 建立 XCTest 所有的新会话；只能截图的通道不能称为可交互。 |
 | Window 控件能够接受合成事件，但 RealityKit 或沉浸表面报 `invalid activation point transform (nil)` | Window 自动化关系正常，但 XCUIAutomation 无法为该空间表面推导激活坐标变换 | 单独记录空间输入边界。产品存在真正公开的空间 Accessibility target 时使用它，否则需要佩戴者操作和直接物理证据。 |
 | 元素存在但不可命中，并且层级中还有额外的大型 Window 或 Scene | 另一个产品或系统 Scene 可能遮挡画面或持有焦点 | 对照可见像素、几何范围、Scene 声明、恢复和默认启动行为；这是产品 Scene 证据，不是传输通道失败。 |
-| 控制器无限等待响应文件 | 常驻 runner 可能已停止，命令可能携带旧 session 身份，或文件传输与信号失败 | 检查 runner 进程和当前 ready-state 身份。停止本次会话的 runner 与控制器，再建立一个新 session，不能叠加 runner。 |
+| 控制器 UI 命令返回 `stage: responseTimeout`（2026-08-10 前的版本表现为无限挂起） | 常驻 runner 已死或命令携带旧 session 身份，文件应答永远不会到达 | `pgrep -fl "xcodebuild test-without-building"` 确认 runner 是否存活；halt 干净后 ensure-session 重建，不叠加 runner。已实测一次 runner 无声死亡（前一命令正常返回，约 15 分钟空闲后进程消失）；复发时定性其触发条件并补进本表。 |
 | Device Hub 无法显示 Vision Pro，但 XCTest 截图可用 | 该观察界面不可用，XCUITest 证据通道仍然成立 | 遵循项目当前测试指引，使用 Xcode/XCTest 截图和录屏；不能把一次 Device Hub 失败泛化成设备不支持截图。 |
 | 测试动作报告成功，但截图、层级或录屏没有显示请求的产品结果 | 输入交付与产品结果发生分离 | 从实际观察到的状态继续调查。只报告动作已交付，不能报告功能已通过。 |
 | 系统控件有可见 label，但没有稳定 identifier | 语义表面存在，只是 identifier 查询能力不足 | 扩展通用控制器，使其按当前公开 label 和 index 选择；不能用 App 全局坐标替代，因为坐标可能落入错误 Scene。 |
