@@ -516,7 +516,13 @@ def appeared_presentation(lines: Sequence[str]) -> str | None:
             for part in line.split(" immersiveSpaceAppeared ", 1)[1].split()
             if "=" in part
         )
-        presentation = fields.get("presentation", presentation)
+        # Mid-transition the probe still names the departing presentation;
+        # the landing is the transition target.
+        transition = fields.get("transition")
+        if transition and transition != "none":
+            presentation = transition
+        else:
+            presentation = fields.get("presentation", presentation)
     return presentation
 
 
