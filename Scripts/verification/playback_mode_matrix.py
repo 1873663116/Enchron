@@ -45,6 +45,11 @@ DEFAULT_CLIPS = ("180_3D.mp4", "180_3D_TB.mp4")
 STEREO_LABELS = {
     "180_3D.mp4": "Side-by-Side",
     "180_3D_TB.mp4": "Top-Bottom",
+    # Ten-minute stream-copy loops of the sanctioned clips; the 60s originals
+    # end mid-path on multi-step cycle paths. Generated under
+    # TestEvidence/fixtures, selected via --media-root.
+    "180_3D_loop10.mp4": "Side-by-Side",
+    "180_3D_TB_loop10.mp4": "Top-Bottom",
 }
 
 FORMAT_FIELDS = (
@@ -107,7 +112,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         ),
         Step(
             "enter-panorama-1",
-            ("PlayerPanel-button-enter-panorama",),
+            ("PlayerUI-TopAction-resumePanorama",),
             "panorama",
         ),
         Step(
@@ -117,7 +122,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         ),
         Step(
             "enter-panorama-2",
-            ("PlayerPanel-button-enter-panorama",),
+            ("PlayerUI-TopAction-resumePanorama",),
             "panorama",
         ),
     ),
@@ -180,22 +185,22 @@ PATHS: dict[str, tuple[Step, ...]] = {
         ),
         Step(
             "exit-to-portal-1",
-            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            ("summon:PlayerPanel-button-exit-spatial",),
             "portal",
         ),
         Step(
             "enter-panorama-1",
-            ("ensure:controls", "PlayerPanel-button-enter-panorama"),
+            ("summon:PlayerUI-TopAction-resumePanorama",),
             "panorama",
         ),
         Step(
             "exit-to-portal-2",
-            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            ("summon:PlayerPanel-button-exit-spatial",),
             "portal",
         ),
         Step(
             "enter-panorama-2",
-            ("ensure:controls", "PlayerPanel-button-enter-panorama"),
+            ("summon:PlayerUI-TopAction-resumePanorama",),
             "panorama",
         ),
     ),
@@ -212,7 +217,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         ),
         Step(
             "exit-to-window-1",
-            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            ("summon:PlayerPanel-button-exit-spatial",),
             "window",
         ),
         Step(
@@ -226,7 +231,7 @@ PATHS: dict[str, tuple[Step, ...]] = {
         ),
         Step(
             "exit-to-window-2",
-            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            ("summon:PlayerPanel-button-exit-spatial",),
             "window",
         ),
     ),
@@ -239,12 +244,12 @@ PATHS: dict[str, tuple[Step, ...]] = {
         ),
         Step(
             "exit-to-portal",
-            ("ensure:controls", "PlayerPanel-button-exit-spatial"),
+            ("summon:PlayerPanel-button-exit-spatial",),
             "portal",
         ),
         Step(
             "enter-panorama",
-            ("ensure:controls", "PlayerPanel-button-enter-panorama"),
+            ("summon:PlayerUI-TopAction-resumePanorama",),
             "panorama",
         ),
     ),
@@ -761,7 +766,7 @@ def run_step(
     # sub-second spacing inside the resident runner.
     segments: list[tuple[str, tuple[str, ...]]] = []
     for identifier in actions:
-        if identifier == "ensure:controls" or identifier.startswith("app:"):
+        if identifier.startswith("summon:") or identifier.startswith("app:"):
             segments.append(("scheme", (identifier,)))
         elif segments and segments[-1][0] == "taps":
             segments[-1] = ("taps", segments[-1][1] + (identifier,))
@@ -773,15 +778,20 @@ def run_step(
             target_started_at = time.monotonic()
         if kind == "scheme":
             scheme_action = payload[0]
-            if scheme_action == "ensure:controls":
-                failure = ensure_controls_open(controller_directory)
-                if failure is not None:
+            if scheme_action.startswith("summon:"):
+                document = summon_and_tap(
+                    controller_directory, scheme_action[len("summon:"):]
+                )
+                if (
+                    document.get("success") is not True
+                    and document.get("ok") is not True
+                ):
                     result = drive_error_step(
                         step=step,
                         actions=actions,
-                        phase="ensure-controls",
+                        phase="summon-tap",
                         started_at=step_started_at,
-                        controller_document=failure,
+                        controller_document=document,
                     )
                     result["failed_action"] = scheme_action
                     break
@@ -990,37 +1000,37 @@ def app_command(
     return document
 
 
-def ensure_controls_open(
+def summon_and_tap(
     controller_directory: Path,
-) -> dict[str, object] | None:
-    """Converge the controls window to open. toggleControls flips state, so
-    presence is checked first and after each flip; returns None when the
-    player panel is reachable, else the last controller document."""
-    # The panel shows exit-spatial in immersive presentations and
-    # enter-panorama in windowed ones, so either marker proves presence.
-    panel_markers = (
-        "PlayerPanel-button-exit-spatial",
-        "PlayerPanel-button-enter-panorama",
+    identifier: str,
+) -> dict[str, object]:
+    """Tap a control that lives on auto-hiding chrome. Checking visibility in
+    a separate round-trip loses the race, so the tap itself is the probe:
+    when no element appears, toggle the controls and try again inside the
+    runner's own existence wait."""
+    document = controller(
+        controller_directory,
+        "tap",
+        "--identifier",
+        identifier,
+        "--no-screenshot",
     )
-    last: dict[str, object] = {}
-    for _ in range(3):
-        for marker in panel_markers:
-            probe = controller(
-                controller_directory,
-                "snapshot",
-                "--identifier",
-                marker,
-                "--no-screenshot",
-            )
-            last = probe
-            if isinstance(probe.get("matchedElement"), dict):
-                return None
+    if document.get("success") is True:
+        return document
+    for _ in range(2):
         toggled = app_command(controller_directory, "toggleControls")
-        last = toggled
         if toggled.get("ok") is not True:
             return toggled
-        time.sleep(1.5)
-    return last
+        document = controller(
+            controller_directory,
+            "tapSequence",
+            "--identifiers",
+            identifier,
+            "--no-screenshot",
+        )
+        if document.get("success") is True:
+            return document
+    return document
 
 
 def push_to_inbox(media_path: Path) -> str | None:
@@ -1056,10 +1066,20 @@ def clean_state_preamble(
     media_path = media_root / clip
     if not media_path.is_file():
         return {"phase": "clean-media", "message": f"No such media: {media_path}"}
-    # The headset-side automation grant survives a bounded number of runner
-    # launches, so cells reuse the live session and relaunch only the APP
-    # (the runner's relaunch verb consumes no grant). ensure-session runs
-    # once to establish, then only as recovery.
+    # Relaunch before resetting: a dying instance saves its in-memory library
+    # on termination, and that write landing after a reset resurrects the
+    # references the reset deleted (observed as duplicate single-item
+    # libraries). Terminating first removes the concurrent writer; the fresh
+    # instance then clears both its defaults and its own in-memory state.
+    # The runner's relaunch verb restarts only the app and consumes no
+    # automation grant; ensure-session runs only as recovery.
+    relaunch = controller(controller_directory, "relaunch", "--no-screenshot")
+    if relaunch.get("success") is not True:
+        relaunch = controller(
+            controller_directory, "--developer-dir", DEVELOPER_DIR, "ensure-session"
+        )
+        if relaunch.get("stage") != "ready":
+            return {"phase": "clean-relaunch", "controller": controller_summary(relaunch)}
     reset = app_command(controller_directory, "resetState")
     if reset.get("ok") is not True:
         session = controller(
@@ -1070,16 +1090,6 @@ def clean_state_preamble(
         reset = app_command(controller_directory, "resetState")
         if reset.get("ok") is not True:
             return {"phase": "clean-reset", "controller": controller_summary(reset)}
-    # The in-memory library would re-persist its old references on the next
-    # mutation, so the empty on-disk state must be loaded by a fresh process
-    # BEFORE importing.
-    relaunch = controller(controller_directory, "relaunch", "--no-screenshot")
-    if relaunch.get("success") is not True:
-        relaunch = controller(
-            controller_directory, "--developer-dir", DEVELOPER_DIR, "ensure-session"
-        )
-        if relaunch.get("stage") != "ready":
-            return {"phase": "clean-relaunch", "controller": controller_summary(relaunch)}
     if (error := push_to_inbox(media_path)) is not None:
         return {"phase": "clean-push", "message": error}
     imported = app_command(
