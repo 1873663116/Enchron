@@ -230,10 +230,11 @@ private final class SpatialPresentationObservation {
 }
 
 public struct ImmersiveSpaceView: View {
-    private static let panoramaTapSurfaceAttachmentID = "panoramaTapSurface"
-    private static let panoramaTapSurfacePointSize: CGFloat = 1_360
-    private static let panoramaTapSurfaceScale: Float = 6
-    private static let collisionShellInputShelved = true
+    // Apple's own immersive-media sample receives the controls-summoning
+    // pinch on an invisible collision entity with an input target; the
+    // transparent SwiftUI attachment was never hit by real gaze (8/8 wearer
+    // pinches arrived untargeted, 2026-08-10), so the shell is the receiver.
+    private static let collisionShellInputShelved = false
 
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
@@ -312,39 +313,17 @@ public struct ImmersiveSpaceView: View {
     }
 
     public var body: some View {
-        RealityView { content, attachments in
-            scheduleSpatialSurfaceUpdate(content, attachments: attachments)
-        } update: { content, attachments in
-            scheduleSpatialSurfaceUpdate(content, attachments: attachments)
-        } attachments: {
-            Attachment(id: Self.panoramaTapSurfaceAttachmentID) {
-                Color.clear
-                    .frame(
-                        width: Self.panoramaTapSurfacePointSize,
-                        height: Self.panoramaTapSurfacePointSize
-                    )
-                    .contentShape(Rectangle())
-                    .gesture(
-                        SpatialTapGesture()
-                            .onEnded { _ in
-                                appModel.recordSurfaceInputProbe("attachmentTap")
-                                toggleControlsFromSpatialSurface(.immersiveSwiftUI)
-                            }
-                    )
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityLabel("Playback surface")
-                    .accessibilityIdentifier("PlayerUI-immersive-playback-surface")
-                    .accessibilityAction {
-                        toggleControlsFromSpatialSurface(.immersiveSwiftUI)
-                    }
-                    .hoverEffectDisabled()
-                    .allowsHitTesting(spatialPresentationAcceptsInput)
-            }
+        RealityView { content in
+            scheduleSpatialSurfaceUpdate(content)
+        } update: { content in
+            scheduleSpatialSurfaceUpdate(content)
         }
+        // realityScripting installs its own targeted SpatialTapGesture to feed
+        // TapGestureEvent to scripts. It sits inside this view, so an ordinary
+        // .gesture here loses every pinch to it; recognizing simultaneously is
+        // what lets both the script system and playback see the tap.
         .realityScripting()
-        .gesture(spatialSurfaceTapGesture)
-        .simultaneousGesture(spatialEventProbeGesture)
-        .simultaneousGesture(untargetedSpatialTapProbeGesture)
+        .simultaneousGesture(spatialSurfaceTapGesture)
         .allowsHitTesting(spatialPresentationAcceptsInput)
         .onDisappear {
             realityViewUpdateScheduler.cancel()
@@ -374,8 +353,7 @@ public struct ImmersiveSpaceView: View {
     }
 
     private func scheduleSpatialSurfaceUpdate(
-        _ content: RealityViewContent,
-        attachments: RealityViewAttachments
+        _ content: RealityViewContent
     ) {
         let revision = surfaceRefreshTick
         // Read the observable placement synchronously inside RealityView's
@@ -384,11 +362,10 @@ public struct ImmersiveSpaceView: View {
         let dockedPlacement = currentDockedSurfaceTransform
         realityViewUpdateScheduler.schedule {
             if needsWorld {
-                await loadWorld(into: content, attachments: attachments)
+                await loadWorld(into: content)
             }
             update(
                 content,
-                attachments: attachments,
                 revision: revision,
                 dockedPlacement: dockedPlacement
             )
@@ -430,40 +407,15 @@ public struct ImmersiveSpaceView: View {
         SpatialTapGesture()
             .targetedToAnyEntity()
             .onEnded { value in
-                let accepted = value.entity === videoEntity
+                // Every entity in this RealityView is playback surface (video,
+                // collision shell, head receiver, attachments); the controls
+                // live in their own window scene and never route here. The
+                // old videoEntity-only filter silently dropped the pinches
+                // the collision shell delivered.
                 appModel.recordSurfaceInputProbe(
-                    "spatialTap entity=\(value.entity.name) accepted=\(accepted)"
+                    "spatialTap entity=\(value.entity.name) accepted=true"
                 )
-                guard accepted else { return }
                 toggleControlsFromSpatialSurface(.spatialTap)
-            }
-    }
-
-    /// Records view-level spatial events regardless of entity targeting. The
-    /// selection ray reports where RealityKit actually casts from, which is the
-    /// one fact no scene-graph inspection can supply.
-    private var spatialEventProbeGesture: some Gesture {
-        SpatialEventGesture()
-            .onChanged { events in
-                for event in events where event.phase == .ended {
-                    let ray = event.selectionRay.map {
-                        "origin=\($0.origin) direction=\($0.direction)"
-                    } ?? "rayNone"
-                    appModel.recordSurfaceInputProbe(
-                        "spatialEvent kind=\(event.kind)"
-                            + " target=\(event.targetedEntity?.name ?? "none")"
-                            + " \(ray)"
-                    )
-                }
-            }
-    }
-
-    private var untargetedSpatialTapProbeGesture: some Gesture {
-        SpatialTapGesture()
-            .onEnded { value in
-                appModel.recordSurfaceInputProbe(
-                    "untargetedTap location=\(value.location3D)"
-                )
             }
     }
 
@@ -505,7 +457,6 @@ public struct ImmersiveSpaceView: View {
     @MainActor
     private func update(
         _ content: RealityViewContent,
-        attachments: RealityViewAttachments,
         revision: Int,
         dockedPlacement: PlaybackSurfaceTransform
     ) {
@@ -513,7 +464,7 @@ public struct ImmersiveSpaceView: View {
         playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(
             realityKitContentTypeScope
         )
-        updateWorld(in: content, attachments: attachments)
+        updateWorld(in: content)
         let presentation = requestedPresentation
         if presentation == .panorama {
             PlaybackPanoramaInteractionSurface.configure(
@@ -525,11 +476,6 @@ public struct ImmersiveSpaceView: View {
         }
         updatePanoramaInteractionSurface(
             in: content,
-            isActive: presentation == .panorama
-        )
-        updatePanoramaTapSurface(
-            in: content,
-            attachments: attachments,
             isActive: presentation == .panorama
         )
         guard presentation.usesImmersiveSpace else {
@@ -597,40 +543,7 @@ public struct ImmersiveSpaceView: View {
     }
 
     @MainActor
-    private func updatePanoramaTapSurface(
-        in content: RealityViewContent,
-        attachments: RealityViewAttachments,
-        isActive: Bool
-    ) {
-        guard let tapSurface = attachments.entity(
-            for: Self.panoramaTapSurfaceAttachmentID
-        ) else {
-            return
-        }
-
-        if isActive {
-            tapSurface.position = [0, 1.4, -2.5]
-            tapSurface.orientation = .init()
-            tapSurface.scale = [
-                Self.panoramaTapSurfaceScale,
-                Self.panoramaTapSurfaceScale,
-                1,
-            ]
-            if content.entities.contains(where: { $0 === tapSurface }) == false {
-                content.add(tapSurface)
-                appModel.recordSurfaceInputProbe("attachmentSurfaceAttached")
-            }
-        } else if content.entities.contains(where: { $0 === tapSurface }) {
-            content.remove(tapSurface)
-            appModel.recordSurfaceInputProbe("attachmentSurfaceDetached")
-        }
-    }
-
-    @MainActor
-    private func updateWorld(
-        in content: RealityViewContent,
-        attachments: RealityViewAttachments
-    ) {
+    private func updateWorld(in content: RealityViewContent) {
         guard needsWorld else {
             if let entity = world.entity { content.remove(entity) }
             if let anchor = world.playbackSurfaceAnchor { content.remove(anchor) }
@@ -655,7 +568,7 @@ public struct ImmersiveSpaceView: View {
             recordSkyboxActivity(in: entity)
         } else if world.isLoading == false, world.hasFailed == false {
             Task {
-                await loadWorld(into: content, attachments: attachments)
+                await loadWorld(into: content)
             }
         }
     }
@@ -1135,10 +1048,7 @@ public struct ImmersiveSpaceView: View {
     }
 
     @MainActor
-    private func loadWorld(
-        into content: RealityViewContent,
-        attachments: RealityViewAttachments
-    ) async {
+    private func loadWorld(into content: RealityViewContent) async {
         guard world.entity == nil, world.isLoading == false, world.hasFailed == false else { return }
         world.isLoading = true
         appModel.recordSpatialPlaybackSurfacePreparationStage("loadingWorld")
@@ -1166,7 +1076,6 @@ public struct ImmersiveSpaceView: View {
             logger.notice("world load completed")
             update(
                 content,
-                attachments: attachments,
                 revision: surfaceRefreshTick,
                 dockedPlacement: currentDockedSurfaceTransform
             )
