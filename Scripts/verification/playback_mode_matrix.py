@@ -823,9 +823,21 @@ def app_command(
     extra: list[str] = []
     for argument in arguments:
         extra.extend(("--arg", argument))
-    return controller(
+    document = controller(
         controller_directory, "app-command", "--verb", verb, *extra
     )
+    # devicectl sometimes loses the race against the app's 0.5s poller while
+    # writing command.json (CoreDeviceError 7000 naming that file). The
+    # command never executed, so one retry is safe for every verb, including
+    # mutating ones.
+    if document.get("success") is not True and "test-command.json" in str(
+        document.get("error", "")
+    ):
+        time.sleep(1.5)
+        document = controller(
+            controller_directory, "app-command", "--verb", verb, *extra
+        )
+    return document
 
 
 def push_to_inbox(media_path: Path) -> str | None:
@@ -890,6 +902,8 @@ def clean_state_preamble(
     if imported.get("ok") is not True:
         return {"phase": "clean-import", "controller": controller_summary(imported)}
     listing = app_command(controller_directory, "listLibrary")
+    if listing.get("ok") is not True:
+        return {"phase": "clean-list", "controller": controller_summary(listing)}
     names = listing.get("payload")
     if names != [media_path.name]:
         return {
