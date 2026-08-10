@@ -445,9 +445,11 @@ public struct ImmersiveSpaceView: View {
             return
         }
         if visible {
-            let identity = appModel.beginFreshPlayerControlsScene()
+            let identity = appModel.playerControlsSceneIdentity()
             openWindow(id: "playerControls", value: identity)
-            appModel.recordSurfaceInputProbe("controlsWindow open")
+            appModel.recordSurfaceInputProbe(
+                "controlsWindow open identity=\(identity)"
+            )
         } else if let identity = appModel.activePlayerControlsSceneIdentity {
             dismissWindow(id: "playerControls", value: identity)
             appModel.recordSurfaceInputProbe("controlsWindow dismiss")

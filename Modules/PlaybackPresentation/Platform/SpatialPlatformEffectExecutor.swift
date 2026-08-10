@@ -984,9 +984,10 @@ final class SpatialPlatformEffectCoordinator {
                 ?? appModel.beginFreshPlaybackWindowScene()
             actions.openWindow(id: id, value: identity)
         case SpatialPlatformWindowIdentity.playerControls.rawValue:
-            let identity = appModel.activePlayerControlsSceneIdentity
-                ?? appModel.beginFreshPlayerControlsScene()
-            actions.openWindow(id: id, value: identity)
+            actions.openWindow(
+                id: id,
+                value: appModel.playerControlsSceneIdentity()
+            )
         default:
             actions.openWindow(id: id)
         }

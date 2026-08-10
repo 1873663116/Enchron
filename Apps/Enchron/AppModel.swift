@@ -581,7 +581,13 @@ public final class AppModel {
         activePlaybackWindowSceneIdentity = nil
     }
 
-    func beginFreshPlayerControlsScene() -> PlayerControlsSceneIdentity {
+    /// One policy for both call sites: reuse the live scene, mint only when
+    /// none exists. Reuse does not spare the wearer the compositor's blackout,
+    /// which measurement pinned on the window-scene lifecycle itself
+    /// (controls-flash-20260810), but two call sites disagreeing about scene
+    /// identity is its own defect.
+    func playerControlsSceneIdentity() -> PlayerControlsSceneIdentity {
+        if let identity = activePlayerControlsSceneIdentity { return identity }
         let identity = PlayerControlsSceneIdentity()
         activePlayerControlsSceneIdentity = identity
         return identity
