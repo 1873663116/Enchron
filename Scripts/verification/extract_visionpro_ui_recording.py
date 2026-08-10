@@ -254,6 +254,12 @@ def extract_frame(video: Path, seconds: float, destination: Path) -> None:
             f"{seconds:.3f}",
             "-i",
             str(video),
+            # The xcresult screen recording is anamorphic: 2732x2048 pixels
+            # carrying a 16:9 view with no aspect metadata, so square-pixel
+            # viewers stretch it vertically. Normalize to the same 16:9
+            # geometry the XCUIScreen screenshot channel delivers.
+            "-vf",
+            "scale=iw:iw*9/16",
             "-frames:v",
             "1",
             "-y",
