@@ -435,6 +435,18 @@ struct PlaybackVideoSurface: View {
             videoComponentRevision: videoComponentRevision
         )
 
+        // A technical-session replacement inside one presentation has no Scene
+        // disappearance to retire the previous video entity. Leaving it parented
+        // keeps its VideoPlayerComponent feeding the last frame above the new
+        // surface, and every retained renderer keeps its decode pipeline alive
+        // in mediaplaybackd until the daemon hits its memory ceiling.
+        if appModel.presentationTransition == nil,
+           let departingEntity = playbackVideoEntityStore.departingEntity,
+           departingEntity !== videoEntity {
+            content.remove(departingEntity)
+            playbackVideoEntityStore.releaseDepartingEntity()
+        }
+
         do {
             try playbackRuntime.claimRendererConsumer(
                 presentation: presentation,
