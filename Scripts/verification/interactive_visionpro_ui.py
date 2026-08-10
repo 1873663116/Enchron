@@ -640,6 +640,54 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+AUTO_HIDING_PREFIXES = (
+    "PlayerUI-TopAction-",
+    "PlayerUI-InfoBar-",
+    "PlayerUI-VideoFormat",
+    "PlayerUI-DockMenu-",
+    "PlayerPanel-",
+)
+
+
+def explain_failure(arguments, response: dict) -> dict:
+    """Name the two failures that otherwise read as a missing accessibility
+    surface. Both were written into the skill and both were walked into
+    anyway, so they belong at the point of failure instead."""
+    if response.get("success") is True:
+        return response
+    identifiers = list(getattr(arguments, "identifiers", None) or [])
+    identifier = getattr(arguments, "identifier", None)
+    if identifier:
+        identifiers.append(identifier)
+    message = str(response.get("message", ""))
+
+    if response.get("appState") in (None, "notRunning"):
+        response["diagnosis"] = (
+            "The app is not running in this session, so nothing could receive "
+            "the event. Confirm with `devicectl device info processes` and "
+            "rebuild the session; do not read this as a missing element."
+        )
+        return response
+
+    lowered = message.lower()
+    element_is_absent = (
+        "no matching element" in lowered or "no current element matches" in lowered
+    )
+    if element_is_absent and any(
+        name.startswith(AUTO_HIDING_PREFIXES) for name in identifiers
+    ):
+        response["diagnosis"] = (
+            "Player chrome auto-hides a few seconds after it is summoned, and "
+            "each controller command costs a round trip, so a tap issued as its "
+            "own command arrives after the chrome is gone. Put the summon and "
+            "this tap in one tapSequence, starting with "
+            "PlayerUI-window-playback-surface in window presentations. "
+            "A load-failure view also replaces the chrome entirely; tap "
+            "PlayerUI-loadFailure-primary first when it is present."
+        )
+    return response
+
+
 def main() -> int:
     arguments = parse_arguments()
     try:
@@ -650,7 +698,7 @@ def main() -> int:
         elif arguments.action == "app-command":
             response = app_command(arguments)
         else:
-            response = send_command(arguments)
+            response = explain_failure(arguments, send_command(arguments))
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
         print(json.dumps({"success": False, "error": str(error)}, ensure_ascii=False))
         return 1

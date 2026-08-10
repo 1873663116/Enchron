@@ -7,7 +7,7 @@ description: 通过 XCUITest 操作真实 Vision Pro。适用于根据运行时�
 
 开始前，先阅读 UI 测试目录内最近的指引，并检查当前 runner、控制器、录屏提取器及其 `--help` 输出。Bundle ID、命令、destination 和证据位置由项目内当前文件负责。
 
- [references/enchron.md](references/enchron.md) 中保存了已经验证的命令形态、证据基线、权限顺序和已证伪路径。
+ [references/enchron.md](references/enchron.md) 中保存了已经验证的命令形态、证据基线、权限顺序和已证伪路径。[features/README.md](features/README.md) 是 Enchron 的特性地图：每个用户可见特性一个文件，说明它是什么、用户怎么到达、什么终态算证明。只验证了便捷入口而地图列有其它入口的证明是不完整的。覆盖率用 `Scripts/verification/playback_mode_matrix.py` 跑，排查用现场驱动；播放 PASS 必须有像素佐证。
 
 ## 注意事项
 
