@@ -1,0 +1,15 @@
+{
+  "ensure-session": {
+    "samples": [
+      25.7
+    ],
+    "updatedAt": "2026-08-09T00:00:00+00:00"
+  },
+  "snapshot": {
+    "samples": [
+      2.3,
+      2.5
+    ],
+    "updatedAt": "2026-08-09T00:00:00+00:00"
+  }
+}

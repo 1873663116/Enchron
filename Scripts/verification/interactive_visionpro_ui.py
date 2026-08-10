@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import time
 import uuid
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -27,6 +28,34 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCOPE_MARKERS = ("Enchron.xcodeproj", Path(__file__).name)
 GRACEFUL_STOP_DEADLINE_SECONDS = 5.0
 TERMINATION_DEADLINE_SECONDS = 5.0
+TIMINGS_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.json"
+TIMING_SAMPLE_LIMIT = 20
+
+
+def record_timing(action: str, seconds: float) -> None:
+    """Rolling window of measured foreground round trips per action. The
+    background-context hook reads this file and stays silent about any action
+    that has no record here."""
+    try:
+        timings = json.loads(TIMINGS_PATH.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        timings = {}
+    entry = timings.get(action) or {}
+    samples = list(entry.get("samples") or [])
+    samples.append(round(seconds, 2))
+    timings[action] = {
+        "samples": samples[-TIMING_SAMPLE_LIMIT:],
+        "updatedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+    }
+    try:
+        temporary = TIMINGS_PATH.with_name(TIMINGS_PATH.name + ".tmp")
+        temporary.write_text(
+            json.dumps(timings, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+        temporary.replace(TIMINGS_PATH)
+    except OSError:
+        # Timing telemetry must not fail the device command it rode on.
+        pass
 
 
 def run_devicectl(arguments: list[str], *, quiet: bool = False) -> subprocess.CompletedProcess[str]:
@@ -290,6 +319,139 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
     }
 
 
+IMMERSIVE_ATTACHMENT_MARKER = "PlayerUI-immersive"
+TAP_ACTIONS = ("tap", "tapSequence", "doubleTap", "press")
+
+
+def session_state_path(arguments: argparse.Namespace) -> Path:
+    return Path(arguments.output_directory).expanduser() / "session-state.json"
+
+
+def load_session_state(arguments: argparse.Namespace) -> dict[str, object]:
+    try:
+        state = json.loads(session_state_path(arguments).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return {}
+    return state if isinstance(state, dict) else {}
+
+
+def save_session_state(arguments: argparse.Namespace, state: dict[str, object]) -> None:
+    try:
+        path = session_state_path(arguments)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(state, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    except OSError:
+        # Session bookkeeping must not fail the device command it rode on.
+        pass
+
+
+def annotate_response(
+    arguments: argparse.Namespace, session_id: str, response: dict[str, object]
+) -> None:
+    """Attach observed session facts to a runner response. Every sentence
+    names how it was observed; nothing here interprets or predicts."""
+    targets = list(getattr(arguments, "identifiers", None) or [])
+    identifier = getattr(arguments, "identifier", None)
+    if identifier:
+        targets.append(identifier)
+    if arguments.action in TAP_ACTIONS and any(
+        name.startswith(IMMERSIVE_ATTACHMENT_MARKER) for name in targets
+    ):
+        response["deliveryFacts"] = (
+            "Synthetic taps on immersive-space attachments report success "
+            "without carrying gaze-plus-pinch semantics; whether the app "
+            "received the gesture is recorded only in the probe file "
+            "(device-measured 2026-08-09)."
+        )
+
+    hierarchy = response.get("hierarchy")
+    if not isinstance(hierarchy, str):
+        return
+    in_immersive = IMMERSIVE_ATTACHMENT_MARKER in hierarchy
+    state = load_session_state(arguments)
+    if state.get("sessionID") != session_id:
+        state = {"sessionID": session_id, "immersiveEntries": 0, "inImmersive": False}
+    if in_immersive and not state.get("inImmersive"):
+        state["immersiveEntries"] = int(state.get("immersiveEntries") or 0) + 1
+        response["immersiveFacts"] = (
+            "This response's hierarchy contains an immersive attachment "
+            f"({IMMERSIVE_ATTACHMENT_MARKER}*): immersive entry number "
+            f"{state['immersiveEntries']} of this session (controller count "
+            "of hierarchy observations). Probe measurements (2026-08-10) "
+            "show every immersive entry disconnects the main window's "
+            "UIScene; XCTest input binds to that scene."
+        )
+    state["inImmersive"] = in_immersive
+    save_session_state(arguments, state)
+
+
+def timeout_observations(arguments: argparse.Namespace) -> list[dict[str, object]]:
+    """The scene collected when a command gets no answer: direct observations
+    only, each with its source, no inferred cause."""
+    observations: list[dict[str, object]] = []
+
+    scoped = scoped_processes()
+    observations.append(
+        {
+            "observation": [command[:160] for _, command in scoped]
+            or "no repository-scoped automation process is running on this Mac",
+            "source": "ps table filtered to this repository's scope markers",
+        }
+    )
+
+    processes = run_devicectl(
+        ["device", "info", "processes", "--device", arguments.device]
+    )
+    if processes.returncode == 0:
+        matches = [
+            line.strip()
+            for line in processes.stdout.splitlines()
+            if "XrPlayer" in line
+        ]
+        observations.append(
+            {
+                "observation": matches
+                or "the device process table lists no XrPlayer entry",
+                "source": "xcrun devicectl device info processes",
+            }
+        )
+    else:
+        failure = (processes.stderr or processes.stdout or "").strip().splitlines()
+        observations.append(
+            {
+                "observation": "device process query failed: "
+                + (failure[0] if failure else "no output"),
+                "source": "xcrun devicectl device info processes",
+            }
+        )
+
+    log_path = Path(arguments.output_directory).expanduser() / "runner.log"
+    try:
+        tail = log_path.read_text(encoding="utf-8", errors="replace").splitlines()[-5:]
+        observations.append({"observation": tail, "source": str(log_path)})
+    except OSError:
+        observations.append(
+            {
+                "observation": "no readable runner.log in the output directory",
+                "source": str(log_path),
+            }
+        )
+
+    state = load_session_state(arguments)
+    observations.append(
+        {
+            "observation": (
+                f"controller state records {int(state.get('immersiveEntries') or 0)} "
+                f"immersive entr(y/ies) for session {state.get('sessionID')}"
+            ),
+            "source": f"{session_state_path(arguments)} (hierarchy observations)",
+        }
+    )
+    return observations
+
+
 def send_command(arguments: argparse.Namespace) -> dict[str, object]:
     ready = read_ready_state(arguments)
     command_id = str(uuid.uuid4())
@@ -356,12 +518,14 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
                 "stage": "responseTimeout",
                 "message": (
                     f"The runner did not answer {arguments.action} within "
-                    f"{arguments.timeout_seconds:g} seconds. A dead resident "
-                    "session is the common cause: check the runner process, "
-                    "then halt and ensure-session."
+                    f"{arguments.timeout_seconds:g} seconds. The observations "
+                    "below were collected at the timeout; they state what was "
+                    "seen, not why."
                 ),
+                "observations": timeout_observations(arguments),
             }
         response = json.loads(response_path.read_text(encoding="utf-8"))
+        annotate_response(arguments, str(ready["sessionID"]), response)
         screenshot_relative_path = response.get("screenshotRelativePath")
         if screenshot_relative_path:
             output_directory = Path(arguments.output_directory).expanduser().resolve()
@@ -456,33 +620,12 @@ def current_session_id(arguments: argparse.Namespace) -> str | None:
         return None
 
 
-def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
-    """Brings up one live session and returns only when it can accept commands.
+AUTOMATION_AUTHORIZATION_SIGNATURE = "Timed out while enabling automation mode."
 
-    Session bring-up is the step whose apparent length invites backgrounding and
-    a handed-back turn. Collapsing halt, launch and readiness into one call keeps
-    an investigation inside a single continuous run."""
-    started_at = time.monotonic()
-    halt = halt_session(arguments)
-    if halt["remaining"]:
-        return {
-            "success": False,
-            "stage": "halt",
-            "message": "A previous automation process survived halt.",
-            "halt": halt,
-        }
-    # ready.json outlives the runner that wrote it, so a stale identity would
-    # otherwise read as success the moment halt finishes.
-    stale_session_id = current_session_id(arguments)
 
-    output_directory = Path(arguments.output_directory)
-    output_directory.mkdir(parents=True, exist_ok=True)
-    log_path = output_directory / "runner.log"
-    result_bundle = (
-        Path(arguments.result_bundle_path)
-        if arguments.result_bundle_path
-        else output_directory / f"Interactive-{int(time.time())}.xcresult"
-    )
+def launch_runner(
+    arguments: argparse.Namespace, log_path: Path, result_bundle: Path
+) -> None:
     command = [
         "xcodebuild",
         "test-without-building",
@@ -522,44 +665,149 @@ def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
             start_new_session=True,
         )
 
-    deadline = time.monotonic() + arguments.ready_timeout
-    while time.monotonic() < deadline:
-        session_id = current_session_id(arguments)
-        if session_id is not None and session_id != stale_session_id:
-            probe = argparse.Namespace(**vars(arguments))
-            probe.action = "snapshot"
-            probe.no_screenshot = True
-            try:
-                response = send_command(probe)
-            except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
+
+def log_tail(log_path: Path, lines: int = 5) -> list[str]:
+    try:
+        return log_path.read_text(encoding="utf-8", errors="replace").splitlines()[
+            -lines:
+        ]
+    except OSError:
+        return []
+
+
+def ensure_session(arguments: argparse.Namespace) -> dict[str, object]:
+    """Brings up one live session and returns only when it can accept commands
+    or the remaining step belongs to the wearer.
+
+    Session bring-up is the step whose apparent length invites backgrounding and
+    a handed-back turn. Collapsing halt, launch, readiness and the
+    authorization-timeout restart into one call keeps an investigation inside a
+    single continuous run: the caller asked for a ready session, and everything
+    here executes that one intent."""
+    started_at = time.monotonic()
+    halt = halt_session(arguments)
+    if halt["remaining"]:
+        return {
+            "success": False,
+            "stage": "halt",
+            "message": "A previous automation process survived halt.",
+            "halt": halt,
+        }
+    # ready.json outlives the runner that wrote it, so a stale identity would
+    # otherwise read as success the moment halt finishes.
+    stale_session_id = current_session_id(arguments)
+
+    output_directory = Path(arguments.output_directory)
+    output_directory.mkdir(parents=True, exist_ok=True)
+    log_path = output_directory / "runner.log"
+    archived_log = output_directory / "runner-authorization-timeout.log"
+
+    for attempt in (1, 2):
+        result_bundle = (
+            Path(arguments.result_bundle_path)
+            if arguments.result_bundle_path and attempt == 1
+            else output_directory / f"Interactive-{int(time.time())}-{attempt}.xcresult"
+        )
+        launch_runner(arguments, log_path, result_bundle)
+
+        deadline = time.monotonic() + arguments.ready_timeout
+        signature_seen = False
+        while time.monotonic() < deadline:
+            if AUTOMATION_AUTHORIZATION_SIGNATURE in "\n".join(log_tail(log_path, 200)):
+                signature_seen = True
+                break
+            session_id = current_session_id(arguments)
+            if session_id is not None and session_id != stale_session_id:
+                probe = argparse.Namespace(**vars(arguments))
+                probe.action = "snapshot"
+                probe.no_screenshot = True
+                try:
+                    response = send_command(probe)
+                except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
+                    return {
+                        "success": False,
+                        "stage": "firstCommand",
+                        "message": str(error),
+                        "sessionID": session_id,
+                        "runnerLog": str(log_path),
+                    }
                 return {
-                    "success": False,
-                    "stage": "firstCommand",
-                    "message": str(error),
+                    "success": bool(response.get("success")),
+                    "stage": "ready",
                     "sessionID": session_id,
+                    "appState": response.get("appState"),
+                    "resultBundlePath": str(result_bundle),
                     "runnerLog": str(log_path),
+                    "haltedProcessCount": len(halt["terminated"]),
+                    "authorizationRestarts": attempt - 1,
+                    "elapsedSeconds": round(time.monotonic() - started_at, 1),
                 }
+            time.sleep(3)
+
+        if not signature_seen:
+            tail = log_tail(log_path)
+            observations: list[dict[str, object]] = [
+                {
+                    "observation": (
+                        f"'{AUTOMATION_AUTHORIZATION_SIGNATURE}' does not appear "
+                        "in the runner log"
+                    ),
+                    "source": str(log_path),
+                },
+                {"observation": tail, "source": f"{log_path} (last lines)"},
+            ]
+            if any("Wait for" in line and "to idle" in line for line in tail):
+                observations.append(
+                    {
+                        "observation": (
+                            "'Wait for ... to idle' is XCTest's normal "
+                            "synchronization line; it also appears in recorded "
+                            "successful runs"
+                        ),
+                        "source": "references/diagnostics.md, device evidence 2026-08-09",
+                    }
+                )
             return {
-                "success": bool(response.get("success")),
-                "stage": "ready",
-                "sessionID": session_id,
-                "appState": response.get("appState"),
-                "resultBundlePath": str(result_bundle),
+                "success": False,
+                "stage": "readyTimeout",
+                "message": (
+                    f"No new session was published within "
+                    f"{arguments.ready_timeout:g} seconds and the authorization "
+                    "signature was not observed. The observations below state "
+                    "what was seen, not why."
+                ),
+                "observations": observations,
                 "runnerLog": str(log_path),
-                "haltedProcessCount": len(halt["terminated"]),
                 "elapsedSeconds": round(time.monotonic() - started_at, 1),
             }
-        time.sleep(3)
-    return {
-        "success": False,
-        "stage": "readyTimeout",
-        "message": (
-            "No new session was published. Read runnerLog for the XCTest "
-            "authorization signature before starting another runner."
-        ),
-        "runnerLog": str(log_path),
-        "elapsedSeconds": round(time.monotonic() - started_at, 1),
-    }
+
+        # The signature means this runner has already lost its chance to
+        # publish a usable session (device-diagnosed 2026-08-10).
+        halt_session(arguments)
+        if attempt == 1:
+            try:
+                log_path.replace(archived_log)
+            except OSError:
+                pass
+            continue
+        return {
+            "success": False,
+            "stage": "authorizationTimeout",
+            "message": (
+                f"Both runner launches logged "
+                f"'{AUTOMATION_AUTHORIZATION_SIGNATURE}'. That signature is "
+                "the automation-authorization gate: XCTest did not receive "
+                "wearer-side authorization or passcode confirmation within "
+                "the launch window (device-diagnosed 2026-08-10; "
+                "authorization renews on a measured 8-12 hour cadence). Both "
+                "runners were halted and the build is untouched. Wearer "
+                "action: complete the automation authorization or passcode "
+                "confirmation on the headset, then rerun ensure-session."
+            ),
+            "runnerLogs": [str(archived_log), str(log_path)],
+            "elapsedSeconds": round(time.monotonic() - started_at, 1),
+        }
+    raise AssertionError("unreachable: both attempts return")
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -650,9 +898,9 @@ AUTO_HIDING_PREFIXES = (
 
 
 def explain_failure(arguments, response: dict) -> dict:
-    """Name the two failures that otherwise read as a missing accessibility
-    surface. Both were written into the skill and both were walked into
-    anyway, so they belong at the point of failure instead."""
+    """Attach the design-state facts behind the failures that otherwise read
+    as a missing accessibility surface. Facts only, stated with their source;
+    what to do about them stays with the caller."""
     if response.get("success") is True:
         return response
     identifiers = list(getattr(arguments, "identifiers", None) or [])
@@ -663,9 +911,9 @@ def explain_failure(arguments, response: dict) -> dict:
 
     if response.get("appState") in (None, "notRunning"):
         response["diagnosis"] = (
-            "The app is not running in this session, so nothing could receive "
-            "the event. Confirm with `devicectl device info processes` and "
-            "rebuild the session; do not read this as a missing element."
+            "The runner reports appState notRunning: no running app was "
+            "attached to this session when the event was sent "
+            "(runner-reported state)."
         )
         return response
 
@@ -677,19 +925,21 @@ def explain_failure(arguments, response: dict) -> dict:
         name.startswith(AUTO_HIDING_PREFIXES) for name in identifiers
     ):
         response["diagnosis"] = (
-            "Player chrome auto-hides a few seconds after it is summoned, and "
-            "each controller command costs a round trip, so a tap issued as its "
-            "own command arrives after the chrome is gone. Put the summon and "
-            "this tap in one tapSequence, starting with "
-            "PlayerUI-window-playback-surface in window presentations. "
-            "A load-failure view also replaces the chrome entirely; tap "
-            "PlayerUI-loadFailure-primary first when it is present."
+            "Player chrome auto-hides about eight seconds after it is "
+            "summoned (measured design behavior, 2026-08-10), and each "
+            "controller command pays a device round trip, so a tap sent as "
+            "its own command can arrive after the hide; a tapSequence "
+            "delivers several taps inside one round trip (controller "
+            "design). A load-failure view replaces the chrome entirely "
+            "when a load fails (PlayerUI-loadFailure-primary/-secondary in "
+            "the hierarchy)."
         )
     return response
 
 
 def main() -> int:
     arguments = parse_arguments()
+    started_at = time.monotonic()
     try:
         if arguments.action == "halt":
             response = halt_session(arguments)
@@ -702,6 +952,8 @@ def main() -> int:
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError) as error:
         print(json.dumps({"success": False, "error": str(error)}, ensure_ascii=False))
         return 1
+    if response.get("success"):
+        record_timing(arguments.action, time.monotonic() - started_at)
     print(json.dumps(response, ensure_ascii=False, indent=2, sort_keys=True))
     return 0 if response.get("success") else 2
 
