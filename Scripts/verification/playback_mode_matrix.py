@@ -605,6 +605,64 @@ def last_settlement_settled(lines: Sequence[str]) -> bool | None:
     return settled
 
 
+# Mirrors the isSettled conjunction in ImmersiveSpaceView, in the same order,
+# so the first unmet conjunct names the blocker the wearer is actually stuck on.
+SETTLEMENT_CONJUNCTS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("ready", ("ready",)),
+    ("immersiveMode", ("immersiveMode",)),
+    ("contentTypeOrOverride", ("contentTypeMatches", "overrideAdopted")),
+    ("viewingMode", ("viewingMode",)),
+    ("spatialMode", ("spatialMode",)),
+    ("pixels", ("pixels",)),
+)
+
+
+def settlement_blocker(fields: dict[str, str]) -> str | None:
+    for name, alternatives in SETTLEMENT_CONJUNCTS:
+        if not any(fields.get(field) == "true" for field in alternatives):
+            return name
+    return None
+
+
+def settlement_trace(lines: Sequence[str]) -> dict[str, object] | None:
+    samples = [
+        fields
+        for fields in (parse_settlement_fields(line) for line in lines)
+        if fields is not None and "settled" in fields
+    ]
+    if not samples:
+        return None
+    settled_flags = [fields["settled"] == "true" for fields in samples]
+    terminal = samples[-1]
+    return {
+        "samples": len(samples),
+        "settled_samples": sum(settled_flags),
+        "reached_settled": any(settled_flags),
+        "regressed_after_settled": any(
+            settled_flags[index] and not settled_flags[index + 1]
+            for index in range(len(settled_flags) - 1)
+        ),
+        "terminal_settled": settled_flags[-1],
+        "terminal_blocker": settlement_blocker(terminal),
+        "terminal_fields": {
+            field: terminal.get(field)
+            for field in (
+                "ready",
+                "immersiveMode",
+                "contentTypeMatches",
+                "overrideAdopted",
+                "viewingMode",
+                "spatialMode",
+                "pixels",
+                "gotImmersive",
+                "gotViewing",
+                "status",
+                "provenance",
+            )
+        },
+    }
+
+
 def appeared_presentation(lines: Sequence[str]) -> str | None:
     presentation: str | None = None
     for line in lines:
@@ -869,6 +927,7 @@ def run_step(
             result["stall_recovered"] = (
                 result["verdict"] == PASS and probe_shows_recovered_stall(delta)
             )
+            result["settlement_trace"] = settlement_trace(delta)
             apply_visual_gate(result, controller_directory)
             return result, probe_offset + len(delta)
         else:
@@ -900,6 +959,7 @@ def run_step(
     result["stall_recovered"] = (
         result["verdict"] == PASS and probe_shows_recovered_stall(excerpt)
     )
+    result["settlement_trace"] = settlement_trace(excerpt)
     return result, new_offset
 
 

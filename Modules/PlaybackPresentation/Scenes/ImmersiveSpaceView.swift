@@ -350,6 +350,34 @@ public struct ImmersiveSpaceView: View {
             playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(scope)
             surfaceRefreshTick &+= 1
         }
+        .onChange(of: playbackRuntime.activeTechnicalSessionID) { previous, current in
+            appModel.recordSurfaceInputProbe(
+                "technicalSession \(previous ?? "none") -> \(current ?? "none")"
+            )
+        }
+        .onChange(of: playbackRuntime.effectiveProjectionType) { previous, current in
+            appModel.recordSurfaceInputProbe(
+                "projection \(previous.rawValue) -> \(current.rawValue)"
+                    + " provenance=\(playbackRuntime.activeMediaFormatProvenance.rawValue)"
+                    + " lifecycle=\(playbackRuntime.productLifecycle)"
+            )
+        }
+        .onChange(of: appModel.playbackPresentation) { previous, current in
+            appModel.recordSurfaceInputProbe(
+                "presentation \(previous.rawValue) -> \(current.rawValue)"
+                    + " pendingEffect=\(String(describing: appModel.pendingSpatialPlatformEffect?.effect))"
+            )
+        }
+#if DEBUG
+        .onChange(of: appModel.showBlackoutProbeWindow) { _, visible in
+            if visible {
+                openWindow(id: "blackoutProbe")
+            } else {
+                dismissWindow(id: "blackoutProbe")
+            }
+            appModel.recordSurfaceInputProbe("blackoutProbeWindow visible=\(visible)")
+        }
+#endif
     }
 
     private func scheduleSpatialSurfaceUpdate(

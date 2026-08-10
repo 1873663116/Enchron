@@ -187,6 +187,11 @@ public final class AppModel {
     private var presentationTransitionStartedAt: Date?
 
     public var showControls: Bool = false
+#if DEBUG
+    /// Discriminator for the immersive controls blackout: an empty window
+    /// scene carrying none of the controls content, toggled on the same path.
+    public var showBlackoutProbeWindow: Bool = false
+#endif
     public var controlsAutoHideSeconds: Int = 8
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
@@ -329,7 +334,11 @@ public final class AppModel {
         )
     }
 
-    public func requestStoppedPlaybackCleanup() {
+    public func requestStoppedPlaybackCleanup(
+        origin: String = #fileID,
+        line: Int = #line
+    ) {
+        Self.recordProbe("stoppedPlaybackCleanup origin=\(origin):\(line)")
         resetPresentationTransitionAppearance()
         playbackPresentationModel.requestStoppedPlaybackCleanup()
         spatialPlatformEffectReplacementHandler?()
@@ -356,6 +365,7 @@ public final class AppModel {
 
     func recordPresentationConversionDiagnostic(_ diagnostic: String) {
         lastPresentationConversionDiagnostic = diagnostic
+        Self.recordProbe("conversionFailed \(diagnostic)")
     }
 
     public func presentDeferredPresentationConversionFailure() {

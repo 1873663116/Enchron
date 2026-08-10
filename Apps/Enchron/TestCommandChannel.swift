@@ -129,6 +129,16 @@ final class TestCommandChannel {
                 detail: nil,
                 payload: [String(appModel.showControls)]
             )
+#if DEBUG
+        case "toggleBlackoutProbeWindow":
+            appModel.showBlackoutProbeWindow.toggle()
+            return Response(
+                id: request.id,
+                ok: true,
+                detail: nil,
+                payload: [String(appModel.showBlackoutProbeWindow)]
+            )
+#endif
         case "resetState":
             // TestMediaInbox is harness-owned staging, not app state; clearing
             // it here would force a re-push of every media file per cell.

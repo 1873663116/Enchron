@@ -1028,6 +1028,12 @@ final class SpatialPlatformEffectCoordinator {
         logger.error(
             "Window lifecycle confirmation timed out window=\(window.rawValue, privacy: .public)"
         )
+        appModel.recordSurfaceInputProbe(
+            "windowConfirmTimeout window=\(window.rawValue)"
+                + " observed=\(String(describing: windowObservation.residency(for: window)))"
+                + " baselineRevision=\(observationRevision)"
+                + " currentRevision=\(windowObservation.revision(for: window))"
+        )
         return false
     }
 
@@ -1361,6 +1367,12 @@ final class SpatialPlatformEffectCoordinator {
             expected=\(expectedResidency, privacy: .public) \
             observed=\(observedResidency, privacy: .public)
             """
+        )
+        appModel.recordSurfaceInputProbe(
+            "immersiveConfirmTimeout expected=\(expectedResidency)"
+                + " observed=\(observedResidency)"
+                + " baselineRevision=\(revision)"
+                + " currentRevision=\(immersiveSpaceObservation.revision)"
         )
         return false
     }

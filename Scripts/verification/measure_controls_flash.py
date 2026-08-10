@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
-"""Measure whether summoning the playback controls blacks out the wearer's
-field. Records a session, toggles the controls twice through the app command
-channel (the same path a pinch takes), recovers the screen recording, and
-reports the per-frame luma trough around each toggle."""
+"""Measure whether opening a window scene blacks out the wearer's field.
+Records a session, drives the requested presentation, toggles a window through
+the app command channel (the same path a pinch takes), recovers the screen
+recording, and reports the per-frame luma trough around each toggle.
+
+The report carries the probe lines the app wrote during the run, so the
+presentation the blackouts were measured in is part of the evidence rather
+than an assumption about what tapping a library item does."""
 
 from __future__ import annotations
 
@@ -13,6 +17,9 @@ import re
 import subprocess
 import sys
 import time
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from playback_mode_matrix import copy_probe_lines  # noqa: E402
 
 DEVICE = "00008142-001871A11491401C"
 CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
@@ -60,12 +67,29 @@ def luma_timeline(video: Path) -> list[tuple[float, float]]:
     return samples
 
 
+def immersive_now(evidence: Path) -> bool:
+    lines, _ = copy_probe_lines(evidence)
+    for line in reversed(lines or []):
+        if " immersiveSpaceDisappeared " in line:
+            return False
+        if " immersiveSpaceAppeared " in line:
+            return True
+    return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--evidence-dir", type=Path, required=True)
     parser.add_argument("--clip", default="180_3D_loop10.mp4")
     parser.add_argument("--black-yavg", type=float, default=18.0)
     parser.add_argument("--toggles", type=int, default=4)
+    parser.add_argument("--verb", default="toggleControls")
+    parser.add_argument(
+        "--enter-panorama",
+        action="store_true",
+        help="Apply the native 180 format so the toggles are measured inside "
+             "progressive immersion instead of the flat window.",
+    )
     arguments = parser.parse_args()
 
     evidence = arguments.evidence_dir.expanduser().resolve()
@@ -77,6 +101,11 @@ def main() -> int:
         print(f"session not ready: {session}", file=sys.stderr)
         return 1
 
+    # A prior run can leave the app restored into a presentation, where the
+    # library grid the measurement starts from does not exist.
+    controller(evidence, "relaunch")
+    time.sleep(6)
+
     opened = controller(
         evidence, "tap", "--identifier",
         f"MediaLibrary-grid-video-{arguments.clip}", "--no-screenshot",
@@ -86,16 +115,38 @@ def main() -> int:
         return 1
     time.sleep(12)
 
-    # Four toggles so the second summon, the one that can reuse a retained
-    # scene identity, is measured separately from the first.
+    if arguments.enter_panorama:
+        entered = controller(
+            evidence, "tapSequence", "--identifiers",
+            "PlayerUI-window-playback-surface",
+            "PlayerUI-TopAction-videoFormat",
+            "PlayerUI-VideoFormat-Projection-180°",
+            "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side",
+            "PlayerUI-VideoFormat-apply",
+            "--no-screenshot",
+        )
+        if entered.get("success") is not True:
+            print(f"could not enter panorama: {entered}", file=sys.stderr)
+            return 1
+        time.sleep(20)
+
+    if not immersive_now(evidence):
+        print(
+            "the app is not in an immersive presentation; the toggles would "
+            "measure the flat window instead",
+            file=sys.stderr,
+        )
+        return 1
+
     marks: list[float] = []
     started = time.monotonic()
     for _ in range(arguments.toggles):
         marks.append(round(time.monotonic() - started, 2))
-        controller(evidence, "app-command", "--verb", "toggleControls",
+        controller(evidence, "app-command", "--verb", arguments.verb,
                    "--timeout-seconds", "20")
         time.sleep(8)
 
+    probe_lines, probe_error = copy_probe_lines(evidence)
     controller(evidence, "stop")
     time.sleep(8)
 
@@ -149,6 +200,10 @@ def main() -> int:
         "blackoutCount": len(blackouts),
         "blackouts": blackouts,
         "toggleMarksSeconds": marks,
+        "verb": arguments.verb,
+        "enteredPanorama": arguments.enter_panorama,
+        "probeError": probe_error,
+        "probeLines": probe_lines or [],
     }
     (evidence / "flash-report.json").write_text(
         json.dumps(report, indent=2, sort_keys=True), encoding="utf-8"

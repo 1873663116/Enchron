@@ -106,6 +106,15 @@ struct EnchronApp: App {
         .restorationBehavior(.disabled)
         .defaultLaunchBehavior(.suppressed)
 
+#if DEBUG
+        WindowGroup("Blackout Probe", id: "blackoutProbe") {
+            Color.clear.frame(width: 760, height: 220)
+        }
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
+#endif
+
         Window("Environment", id: AppModel.senseZoneVolumeID) {
             SenseZoneVolumeRoot()
                 .enchronEnvironment(application)
