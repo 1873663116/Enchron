@@ -469,6 +469,10 @@ final class SpatialPlatformEffectCoordinator {
                 "attached=\(String(describing: playbackRuntime.attachedPresentation))",
                 "lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
             ].joined(separator: ",")
+            // The rollback that follows tears down the windowed control plane,
+            // so this checkpoint is unreadable after the fact unless it also
+            // lands in the probe file.
+            appModel.recordSurfaceInputProbe(lastExecutionCheckpoint)
             _ = await complete(
                 execution,
                 outcome: .failed(.spatialPlaybackSurfaceUnavailable)

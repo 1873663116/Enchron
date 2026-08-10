@@ -1010,6 +1010,9 @@ public struct ImmersiveSpaceView: View {
             "wantViewing=\(String(describing: component.desiredViewingMode))",
             "gotViewing=\(component.viewingMode.map { String(describing: $0) } ?? "none")",
             "stereoLayout=\(playbackRuntime.effectiveStereoLayout.rawValue)",
+            "componentBound=\(playbackRuntime.renderer.map { component.videoRenderer === $0 } ?? false)",
+            "technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")",
+            "retiring=\(playbackRuntime.retiringTechnicalSessionCount)",
         ].joined(separator: ",")
         if presentationObservation.shouldLogSurfaceReadiness(
             reason: "settlement",

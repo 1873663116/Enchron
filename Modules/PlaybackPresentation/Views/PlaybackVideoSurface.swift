@@ -727,6 +727,20 @@ struct PlaybackVideoSurface: View {
                 realityViewID: realityViewID,
                 presentation: presentation
             )
+            // The immersive-open race is only visible as the order of this
+            // attach against the immersive surface's, so it must reach the
+            // probe file, deduplicated per technical session.
+            let attachProbeSignature = [
+                "windowSurfaceAttached",
+                presentation.rawValue,
+                playbackRuntime.activeTechnicalSessionID ?? "none",
+            ].joined(separator: "|")
+            if componentObservation.shouldLogState(attachProbeSignature) {
+                appModel.recordSurfaceInputProbe(
+                    "windowSurfaceAttached presentation=\(presentation.rawValue) "
+                    + "technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")"
+                )
+            }
             playbackRuntime.recordPresentationState(
                 presentation: presentation,
                 phase: presentationPhase,
