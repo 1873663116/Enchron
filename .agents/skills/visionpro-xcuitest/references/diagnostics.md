@@ -20,6 +20,10 @@
 | Device Hub 无法显示 Vision Pro，但 XCTest 截图可用 | 该观察界面不可用，XCUITest 证据通道仍然成立 | 遵循项目当前测试指引，使用 Xcode/XCTest 截图和录屏；不能把一次 Device Hub 失败泛化成设备不支持截图。 |
 | 测试动作报告成功，但截图、层级或录屏没有显示请求的产品结果 | 输入交付与产品结果发生分离 | 从实际观察到的状态继续调查。只报告动作已交付，不能报告功能已通过。 |
 | 系统控件有可见 label，但没有稳定 identifier | 语义表面存在，只是 identifier 查询能力不足 | 扩展通用控制器，使其按当前公开 label 和 index 选择；不能用 App 全局坐标替代，因为坐标可能落入错误 Scene。 |
+| 快照里刚看到播放控件或其二级菜单，下一条命令点它却报 `No current element matches the requested identifier and index`（2026-08-10 反复踩） | 播放控件有 8 秒自动隐藏（`controlsAutoHideSeconds`）。每条控制器命令来回数秒，把召唤和点击拆成两条命令必然输给这个计时器 | 召唤与后续点击必须在**同一条** `tapSequence` 里，首个 identifier 是召唤面（窗口态 `PlayerUI-window-playback-surface`，沉浸态用 `app-command --verb toggleControls`），其后是要点的目标。矩阵 runner 的 `summon:` 前缀就是为此存在。不要据此判定 accessibility 缺失或点击不投递。 |
+| 播放器区域只剩 `PlayerUI-loadFailure-primary` / `-secondary`，工具栏与播放面板整个不存在 | 加载失败视图取代了播放控件，不是控件消失 | 先点 `PlayerUI-loadFailure-primary`（Retry）恢复播放，再召唤控件。把它当成产品状态读，不要当成层级异常。 |
+| App 崩溃后所有合成事件失效，设备上查不到 App 进程 | XCTest 会话绑定在 App 上，App 崩溃会一并带走会话 | `xcrun devicectl device info processes` 确认 App 是否存活。存活才谈投递问题；不存活就是 halt 后 ensure-session 重建。调查产品崩溃期间，每个动作后都要能区分"产品拒绝了操作"和"会话已经不在了"。 |
+| 探针文件增长到几十万行，每次取回都要等很久 | `Documents/surface-tap-probe.log` 从不自动截断，跨 App 重启持续追加 | 长批次前后各归档一次再清空（`devicectl device copy from` 取回存档，再 `copy to` 推一个空文件覆盖）。清空前先确认没有正在依赖行号偏移读取的 runner。 |
 
 ## 干净停止
 

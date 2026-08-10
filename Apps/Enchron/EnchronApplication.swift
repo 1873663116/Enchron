@@ -168,10 +168,24 @@ final class EnchronApplication {
                     }
                     Task { @MainActor [weak appModel, weak playbackRuntime] in
                         guard let appModel, let playbackRuntime else { return }
+                        AppModel.recordProbe(
+                            "formatRebuild begin"
+                                + " lifecycle=\(playbackRuntime.productLifecycle)"
+                                + " presentation=\(String(describing: playbackRuntime.attachedPresentation))"
+                        )
                         do {
                             try await playbackRuntime
                                 .rebuildTechnicalSessionForCurrentPresentation()
+                            AppModel.recordProbe(
+                                "formatRebuild ok"
+                                    + " lifecycle=\(playbackRuntime.productLifecycle)"
+                            )
                         } catch {
+                            AppModel.recordProbe(
+                                "formatRebuild failed"
+                                    + " lifecycle=\(playbackRuntime.productLifecycle)"
+                                    + " error=\(error)"
+                            )
                             appModel.deferPresentationConversionFailureUntilMediaLibraryIsVisible(
                                 "转换失败，已返回媒体资料库。"
                             )

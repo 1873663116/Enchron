@@ -18,6 +18,11 @@ private final class PlaybackVideoComponentObservation {
     private var subscriptions: [EventSubscription] = []
     private var lastLayoutSignature: String?
     private var lastStateSignature: String?
+    // One slot per log kind. Sharing a slot between the per-frame surface facts
+    // and the attach probe meant neither ever repeated its own last value, so
+    // the attach probe fired every frame and flooded the probe file.
+    private var lastAttachSignature: String?
+    private var lastPhaseSignature: String?
     private let modeRequestRetry = PlaybackModeRequestRetry()
 
     func observe<Content: RealityViewContentProtocol>(
@@ -108,6 +113,18 @@ private final class PlaybackVideoComponentObservation {
     func shouldLogState(_ signature: String) -> Bool {
         guard lastStateSignature != signature else { return false }
         lastStateSignature = signature
+        return true
+    }
+
+    func shouldLogAttach(_ signature: String) -> Bool {
+        guard lastAttachSignature != signature else { return false }
+        lastAttachSignature = signature
+        return true
+    }
+
+    func shouldLogPhase(_ signature: String) -> Bool {
+        guard lastPhaseSignature != signature else { return false }
+        lastPhaseSignature = signature
         return true
     }
 
@@ -746,7 +763,7 @@ struct PlaybackVideoSurface: View {
                 presentation.rawValue,
                 playbackRuntime.activeTechnicalSessionID ?? "none",
             ].joined(separator: "|")
-            if componentObservation.shouldLogState(attachProbeSignature) {
+            if componentObservation.shouldLogAttach(attachProbeSignature) {
                 appModel.recordSurfaceInputProbe(
                     "windowSurfaceAttached presentation=\(presentation.rawValue) "
                     + "technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")"
@@ -874,12 +891,34 @@ struct PlaybackVideoSurface: View {
                     String(describing: $0)
                 }
             )
-        return component.currentRenderingStatus == .ready
+        let renderingIsReady = component.currentRenderingStatus == .ready
+        let hasPixels = playbackRuntime.renderer?.displayedPixelBuffer() != nil
+        let isSettled = renderingIsReady
             && immersiveViewingModeIsSettled
             && viewingModeIsSettled
-            && playbackRuntime.renderer?.displayedPixelBuffer() != nil
-            ? .settled
-            : .surfaceAttached
+            && hasPixels
+        let breakdown = [
+            "settled=\(isSettled)",
+            "ready=\(renderingIsReady)",
+            "immersiveViewingMode=\(immersiveViewingModeIsSettled)",
+            "viewingMode=\(viewingModeIsSettled)",
+            "pixels=\(hasPixels)",
+            "requiresImmersiveConfirmation=\(requiresImmersiveViewingModeConfirmation)",
+            "presentation=\(presentation.rawValue)",
+            "transition=\(appModel.presentationTransition?.targetPresentation.rawValue ?? "none")",
+            "status=\(String(describing: component.currentRenderingStatus))",
+            "wantImmersive=\(String(describing: component.desiredImmersiveViewingMode))",
+            "gotImmersive=\(component.immersiveViewingMode.map { String(describing: $0) } ?? "none")",
+            "wantViewing=\(String(describing: component.desiredViewingMode))",
+            "gotViewing=\(component.viewingMode.map { String(describing: $0) } ?? "none")",
+            "stereoLayout=\(playbackRuntime.effectiveStereoLayout.rawValue)",
+            "panoramic=\(playbackRuntime.effectiveContentIsPanoramic)",
+            "lifecycle=\(playbackRuntime.productLifecycle)",
+        ].joined(separator: ",")
+        if componentObservation.shouldLogPhase(breakdown) {
+            appModel.recordSurfaceInputProbe("windowSettlement \(breakdown)")
+        }
+        return isSettled ? .settled : .surfaceAttached
     }
 
     private var requiresMainWindowModeSettlement: Bool {
