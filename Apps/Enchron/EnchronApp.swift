@@ -55,14 +55,15 @@ struct EnchronApp: App {
             .enchronEnvironment(application)
             .onAppear {
                 let identity = sceneIdentity.wrappedValue
+                AppModel.recordProbe("mainWindowScene appeared identity=\(identity)")
                 application.appModel.recordPlaybackWindowSceneAppeared(identity)
                 application.spatialPlatformEffectCoordinator
                     .recordWindowResidency(.open, for: .main)
             }
             .onDisappear {
-                application.appModel.recordPlaybackWindowSceneDisappeared(
-                    sceneIdentity.wrappedValue
-                )
+                let identity = sceneIdentity.wrappedValue
+                AppModel.recordProbe("mainWindowScene disappeared identity=\(identity)")
+                application.appModel.recordPlaybackWindowSceneDisappeared(identity)
                 application.spatialPlatformEffectCoordinator
                     .recordWindowResidency(.closed, for: .main)
             }
