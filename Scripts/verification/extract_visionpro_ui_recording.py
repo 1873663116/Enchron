@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import shutil
 import subprocess
+import sys
 from typing import Callable, Iterable
 
 
@@ -293,22 +294,33 @@ def create_contact_sheet(frame_directory: Path, frame_count: int, output: Path) 
 def export_attachments(result_bundle: Path, output_root: Path) -> tuple[Path, list[dict[str, object]]]:
     export_root = output_root / "xcresult-attachments"
     export_root.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        [
-            "xcrun",
-            "xcresulttool",
-            "export",
-            "attachments",
-            "--path",
-            str(result_bundle),
-            "--output-path",
-            str(export_root),
-        ],
-        check=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True,
-    )
+    try:
+        subprocess.run(
+            [
+                "xcrun",
+                "xcresulttool",
+                "export",
+                "attachments",
+                "--path",
+                str(result_bundle),
+                "--output-path",
+                str(export_root),
+            ],
+            check=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+    except subprocess.CalledProcessError as error:
+        # An unsealed bundle (halt before finalization leaves no Info.plist)
+        # cannot be read by xcresulttool; the Staging scan below still
+        # recovers its pending recording files.
+        print(
+            f"xcresulttool export failed; continuing with Staging recovery: "
+            f"{(error.stdout or '').strip()[-200:]}",
+            file=sys.stderr,
+        )
+        return export_root, []
     manifest_path = export_root / "manifest.json"
     if not manifest_path.is_file():
         return export_root, []
