@@ -1,15 +1,13 @@
-# Phase 6：renderer 跨场景重绑定探针（实验）
+# Phase 6：renderer 跨场景重绑定探针（已裁决，无剩余工作）
 
 [overview](overview.md)
 
-## Goal
+## 裁决（2026-08-11 真机实测）
 
-裁决横向边能否不重建 session：同一技术 session 的 renderer，在旧场景 entity 摘除组件后，于新场景 entity 上重建组件能否继续出帧。
+重绑定失败。同一技术 session 的 renderer 在旧场景组件销毁后，于新场景 entity 上以新组件包装同一 renderer：组件停留在 loading，解码输入与 renderer 时间持续推进（1373→2818 帧输入、22→46 秒），displayed-frame 计数停滞，物理截图全黑，无崩溃、无 flush 请求、无显式 RealityKit 拒绝；30 秒落定边界以 spatialPlaybackSurfaceUnavailable 回退。结论：跨 RealityView 的 renderer 转移不可行，横向边保留技术 session 重建实现（phase-7）。
+
+证据：`/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/renderer-rebind-probe-20260811/`（探针日志、截图序列、xcresult；探针代码未并入产品，diff 存档于同目录 probe-code.patch）。决定性转换 E096ACD0-CB71-419C-97C3-5AA48C9F1369。
 
 ## Changes
 
-一次性探针（DEBUG 通道或独立验证入口），portal→panorama→portal 往返，记录帧连续性、组件渲染状态、renderer 状态。探针代码不并入产品路径。
-
-## Verification
-
-录屏与诊断串证据；结论二选一回填 phase-7：转移实现或保留重建实现。
+无。探针代码已按计划撤出工作区。
