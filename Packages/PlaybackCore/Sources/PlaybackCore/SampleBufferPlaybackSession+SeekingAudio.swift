@@ -6,7 +6,8 @@ extension SampleBufferPlaybackSession {
     func seek(
         to time: CMTime,
         startsPaused: Bool,
-        removingDisplayedImage: Bool = true
+        removingDisplayedImage: Bool = true,
+        requiresAudioTarget: Bool = true
     ) async throws {
         guard !isClosed, let sourceURL else { return }
         let target = try clampedSeekTime(time).seconds
@@ -163,7 +164,7 @@ extension SampleBufferPlaybackSession {
             while ContinuousClock.now < deadline {
                 try Task.checkCancellation()
                 let snapshot = debugStore.snapshot()
-                let audioReady = !hasAudio || (
+                let audioReady = !requiresAudioTarget || !hasAudio || (
                     snapshot.lastAudioSample?.streamEpoch == expectedAudioEpoch &&
                     snapshot.lastAudioSample.map {
                         samplePresentationCoversTarget(
@@ -173,17 +174,28 @@ extension SampleBufferPlaybackSession {
                         )
                     } == true
                 )
-                if let sample = snapshot.lastVideoSample,
-                   let input = snapshot.lastAcceptedRendererInput,
-                   sample.streamEpoch == expectedEpoch,
-                   samplePresentationCoversTarget(
-                       presentationTime: sample.presentationTimeSeconds,
-                       duration: sample.durationSeconds,
-                       target: target
-                   ),
-                   input.streamEpoch == expectedEpoch,
-                   input.sourceEventID == sample.sourceEventID,
-                   input.outcome == .accepted,
+                let latestSampleReachedTarget = if let sample = snapshot.lastVideoSample,
+                    let input = snapshot.lastAcceptedRendererInput {
+                    sample.streamEpoch == expectedEpoch
+                        && samplePresentationCoversTarget(
+                            presentationTime: sample.presentationTimeSeconds,
+                            duration: sample.durationSeconds,
+                            target: target
+                        )
+                        && input.streamEpoch == expectedEpoch
+                        && input.sourceEventID == sample.sourceEventID
+                        && input.outcome == .accepted
+                } else {
+                    false
+                }
+                let maximumPresentationTimeReachedTarget = !requiresAudioTarget
+                    && maximumAcceptedVideoPresentationTime.map {
+                        CMTimeCompare(
+                            $0,
+                            CMTime(seconds: target, preferredTimescale: 60_000)
+                        ) >= 0
+                    } == true
+                if (latestSampleReachedTarget || maximumPresentationTimeReachedTarget),
                    audioReady {
                     debugStore.emit(
                         mediaSessionID: traceID,
@@ -240,6 +252,24 @@ extension SampleBufferPlaybackSession {
         recordFailure(error, node: .rendererInputCoordination, kind: "control.seek.failed")
         onStatusChange?(.failed(error.localizedDescription))
         throw error
+    }
+
+    func restoreEndedPresentation(_ continuity: PlaybackEndedContinuity) {
+        stopVideoDelivery()
+        stopAudioDelivery()
+        synchronizer.rate = 0
+        deliveryQueue.sync {
+            timelineStartRate = 0
+            requestedTimelineStart = continuity.logicalPosition
+            hasStartedTimeline = true
+        }
+        endStateLock.withLock {
+            endState.didReportEnd = true
+        }
+        diagnostics.currentSeconds = continuity.logicalPosition.seconds
+        updateLifecycle(.ended)
+        recordRendererState(at: continuity.logicalPosition)
+        publishDiagnostics(at: continuity.logicalPosition, force: true)
     }
 
     func clampedSeekTime(_ time: CMTime) throws -> CMTime {

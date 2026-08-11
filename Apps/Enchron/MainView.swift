@@ -423,7 +423,7 @@ public struct MainView: View {
     @ViewBuilder
     private var windowPlayback: some View {
         WindowPlaybackRootView(
-            layout: windowPlaybackLayout,
+            geometryPolicy: windowPlaybackGeometryPolicy,
             freeformSizeOnDisappear: {
                 BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
                     hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
@@ -793,6 +793,13 @@ public struct MainView: View {
         WindowPlaybackLayout(
             resolution: playbackRuntime.displayMediaProfile?.resolution,
             stereoLayout: playbackRuntime.effectiveStereoLayout
+        )
+    }
+
+    private var windowPlaybackGeometryPolicy: WindowPlaybackGeometryPolicy {
+        WindowPlaybackGeometryPolicy(
+            presentation: hostedPlaybackPresentation,
+            videoLayout: windowPlaybackLayout
         )
     }
 

@@ -10,7 +10,7 @@ struct WindowPlaybackPreview: View {
 
     var body: some View {
         WindowPlaybackRootView(
-            layout: fixtureLayout,
+            geometryPolicy: .aspectLocked(fixtureLayout),
             preferredInitialSize: fixtureInitialSize,
             showsWindowChrome: showsControls,
             onSurfaceTap: { showsControls.toggle() }

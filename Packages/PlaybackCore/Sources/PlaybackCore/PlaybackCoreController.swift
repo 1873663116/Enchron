@@ -42,6 +42,25 @@ public final class PlaybackCoreController {
         mediaSlot.staleUpdateCount
     }
 
+    public var endedContinuity: PlaybackEndedContinuity? {
+        guard case .ended(let reason) = status,
+              let activeSession,
+              let finalVideoPresentationTime =
+                activeSession.finalDisplayableVideoPresentationTime,
+              diagnostics.durationSeconds.isFinite,
+              diagnostics.durationSeconds >= 0 else {
+            return nil
+        }
+        return PlaybackEndedContinuity(
+            reason: reason,
+            logicalPosition: CMTime(
+                seconds: diagnostics.durationSeconds,
+                preferredTimescale: 60_000
+            ),
+            finalVideoPresentationTime: finalVideoPresentationTime
+        )
+    }
+
     private var mediaSlot = MediaSessionState()
     private var debugRecorder: PlaybackDebugRecorder?
     private let debugRecorderMode: PlaybackDebugRecorderMode
@@ -281,6 +300,36 @@ public final class PlaybackCoreController {
         activeSession.allowVideoSampleDeliveryRestart()
         do {
             try await seek(to: time, after: behavior)
+        } catch {
+            if self.activeSession === activeSession {
+                activeSession.startVideoDelivery()
+            }
+            throw error
+        }
+    }
+
+    public func restartVideoSampleDelivery(
+        preserving continuity: PlaybackEndedContinuity
+    ) async throws {
+        guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
+        activeSession.allowVideoSampleDeliveryRestart()
+        do {
+            try await seek(
+                to: continuity.finalVideoPresentationTime,
+                after: .pause,
+                removingDisplayedImage: false,
+                requiresAudioTarget: false
+            )
+            guard self.activeSession === activeSession else {
+                throw PlaybackControlError.openTerminatedByCleanup
+            }
+            activeSession.restoreEndedPresentation(continuity)
+            _ = mediaSlot.updateLifecycle(
+                .ended,
+                mediaSessionID: activeSession.traceID
+            )
+            diagnostics.currentSeconds = continuity.logicalPosition.seconds
+            setStatus(.ended(continuity.reason))
         } catch {
             if self.activeSession === activeSession {
                 activeSession.startVideoDelivery()
@@ -564,6 +613,20 @@ public final class PlaybackCoreController {
         to time: CMTime,
         after behavior: PlaybackAfterSeekBehavior = .preserveCurrentPauseState
     ) async throws {
+        try await seek(
+            to: time,
+            after: behavior,
+            removingDisplayedImage: true,
+            requiresAudioTarget: true
+        )
+    }
+
+    private func seek(
+        to time: CMTime,
+        after behavior: PlaybackAfterSeekBehavior,
+        removingDisplayedImage: Bool,
+        requiresAudioTarget: Bool
+    ) async throws {
         guard let session = activeSession else {
             throw PlaybackControlError.noActiveMediaSession
         }
@@ -593,7 +656,12 @@ public final class PlaybackCoreController {
         }
         let paused = behavior.resolvesStartsPaused(for: status)
         let task = Task {
-            try await session.seek(to: time, startsPaused: paused)
+            try await session.seek(
+                to: time,
+                startsPaused: paused,
+                removingDisplayedImage: removingDisplayedImage,
+                requiresAudioTarget: requiresAudioTarget
+            )
         }
         activeSeekTask = task
         do {

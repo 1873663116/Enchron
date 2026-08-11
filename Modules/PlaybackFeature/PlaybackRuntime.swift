@@ -259,11 +259,29 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let selectedSubtitleTrackID: String?
     }
 
-    private struct ActivatedTechnicalSessionCutover {
+    private enum TechnicalSessionRebuildContinuity: Equatable {
+        case timeline(CMTime)
+        case ended(PlaybackEndedContinuity)
+    }
+
+    private enum TechnicalSessionReplacementDelivery: Equatable {
+        case pending(TechnicalSessionRebuildContinuity)
+        case applied(TechnicalSessionRebuildContinuity)
+
+        var continuity: TechnicalSessionRebuildContinuity {
+            switch self {
+            case .pending(let continuity), .applied(let continuity):
+                continuity
+            }
+        }
+    }
+
+    private struct ActivatedTechnicalSessionCutover: Equatable {
         let generation: Int
         let logicalSessionID: String
         let activeReplacementSessionID: String
-        let finalSourceTime: CMTime
+        var delivery: TechnicalSessionReplacementDelivery
+        var naturalEndNotificationWasPublished: Bool
     }
 
     private struct Attachment {
@@ -1114,11 +1132,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             throw RuntimeError.mediaSessionChanged
         }
 
+        let sourceController = controller
+        let initiallyEndedContinuity = sourceController.endedContinuity
+        let naturalEndNotificationWasPublished =
+            productLifecycle == .ended && didEndNaturally
         try await prepared.controller.suspendVideoSampleDelivery()
         if productLifecycle == .playing {
-            try controller.pause()
+            try sourceController.pause()
         }
         let cutoverTime = sourceSession.currentTime()
+        let endedContinuity = sourceController.endedContinuity
+            ?? initiallyEndedContinuity
 
         guard generation == prepared.generation,
               activeSessionID == prepared.logicalSessionID,
@@ -1127,7 +1151,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             throw RuntimeError.mediaSessionChanged
         }
 
-        let sourceController = controller
         detach()
         releaseRendererConsumerForVideoComponentReplacement()
         unbindControllerCallbacks(from: sourceController)
@@ -1162,8 +1185,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             generation: prepared.generation,
             logicalSessionID: prepared.logicalSessionID,
             activeReplacementSessionID: prepared.session.traceID,
-            finalSourceTime: cutoverTime
+            delivery: .pending(
+                endedContinuity.map(TechnicalSessionRebuildContinuity.ended)
+                    ?? .timeline(cutoverTime)
+            ),
+            naturalEndNotificationWasPublished: naturalEndNotificationWasPublished
         )
+        if let endedContinuity {
+            adoptEndedContinuity(endedContinuity)
+        }
         receive(controller.status)
         receive(controller.diagnostics)
         logger.info(
@@ -1191,15 +1221,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard activatedTechnicalSessionCutoverIsCurrent(cutover) else {
             throw RuntimeError.mediaSessionChanged
         }
-        try await controller.restartVideoSampleDelivery(
-            at: cutover.finalSourceTime,
-            after: .pause
-        )
+        try await reconcileAndDeliverTechnicalSessionReplacementIfNeeded()
         guard activatedTechnicalSessionCutoverIsCurrent(cutover) else {
             throw RuntimeError.mediaSessionChanged
         }
-        activatedTechnicalSessionCutover = nil
-        technicalSessionReplacementIsInFlight = false
         technicalSessionReplacementStage = .completed
     }
 
@@ -1207,6 +1232,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard let departingTechnicalSessionController else { return }
         self.departingTechnicalSessionController = nil
         await departingTechnicalSessionController.closeAndWait(clearSource: false)
+        completeTechnicalSessionReplacementAfterSettlement()
         logger.info("departing technical session retired after source Scene disappeared")
     }
 
@@ -1229,8 +1255,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         try await prepareTechnicalSessionForPresentationConversion()
         try await activatePreparedTechnicalSessionReplacement()
         try await rebaseActivatedTechnicalSessionReplacement(to: presentation)
-        await retireDepartingTechnicalSessionAfterSceneDisappearance()
-        if restoresPlayingIntent {
+        if restoresPlayingIntent, productLifecycle != .ended {
             try await performSpatialPlaybackTransport(
                 .resume(mediaSessionID: logicalSessionID)
             )
@@ -1238,6 +1263,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard await waitUntilPresentationSettled(to: presentation) else {
             throw RuntimeError.presentationDidNotSettle(presentation)
         }
+        await retireDepartingTechnicalSessionAfterSceneDisappearance()
     }
 
     private func publishFormat(
@@ -1427,13 +1453,27 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         deadline: Duration = PlaybackRuntime.presentationSettlementDeadline,
         clock: ContinuousClock = ContinuousClock()
     ) async -> Bool {
-        if presentationIsSettled(presentation) { return true }
+        if activatedTechnicalSessionCutover != nil {
+            do {
+                try await reconcileAndDeliverTechnicalSessionReplacementIfNeeded()
+            } catch {
+                fail(error)
+                return false
+            }
+        }
+        if presentationIsSettled(presentation) {
+            completeTechnicalSessionReplacementAfterSettlement()
+            return true
+        }
         let startedAt = clock.now
         while true {
             guard Task.isCancelled == false else { return false }
-            guard productLifecycle != .failed,
-                  productLifecycle != .ended else {
-                return false
+            guard productLifecycle != .failed else { return false }
+            if productLifecycle == .ended {
+                guard let cutover = activatedTechnicalSessionCutover,
+                      activatedTechnicalSessionCutoverIsCurrent(cutover) else {
+                    return false
+                }
             }
             let sessionIsAvailable = currentLaunchRequest != nil
                 && activeSessionID != nil
@@ -1447,13 +1487,29 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             } catch {
                 return false
             }
-            if presentationIsSettled(presentation) { return true }
+            if activatedTechnicalSessionCutover != nil {
+                do {
+                    try await reconcileAndDeliverTechnicalSessionReplacementIfNeeded()
+                } catch {
+                    fail(error)
+                    return false
+                }
+            }
+            if presentationIsSettled(presentation) {
+                completeTechnicalSessionReplacementAfterSettlement()
+                return true
+            }
         }
     }
 
     private func presentationIsSettled(_ presentation: PlaybackPresentation) -> Bool {
         guard attachedPresentation == presentation,
-              let record = session?.debugSnapshot().presentationState else { return false }
+              let snapshot = session?.debugSnapshot(),
+              let record = snapshot.presentationState,
+              rendererPixelVideoComponentRevision == videoComponentRevision,
+              rendererPixelStreamEpoch == snapshot.streamEpoch else {
+            return false
+        }
         return Self.presentationTransitionCanCommit(
             record: record,
             presentation: presentation,
@@ -1470,6 +1526,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     ) -> Bool {
         guard record.mediaSessionID == activeTechnicalSessionID,
               record.requestedMode == presentation.rawValue,
+              record.displayedPixelBuffer == true,
+              lifecycle != .failed,
               let phase = PlaybackPresentationSettlementPhase(rawValue: record.phase) else {
             return false
         }
@@ -1562,6 +1620,118 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             && activatedTechnicalSessionCutover?.logicalSessionID == cutover.logicalSessionID
             && activatedTechnicalSessionCutover?.activeReplacementSessionID
                 == cutover.activeReplacementSessionID
+    }
+
+    private func observeEndedContinuityIfAvailable() {
+        guard var cutover = activatedTechnicalSessionCutover,
+              activatedTechnicalSessionCutoverIsCurrent(cutover) else {
+            return
+        }
+        let departingContinuity = departingTechnicalSessionController?.endedContinuity
+        guard let continuity = departingContinuity ?? controller.endedContinuity else {
+            return
+        }
+        switch cutover.delivery.continuity {
+        case .timeline:
+            break
+        case .ended(let currentContinuity):
+            guard let departingContinuity,
+                  currentContinuity != departingContinuity else {
+                return
+            }
+        }
+        cutover.delivery = .pending(.ended(continuity))
+        activatedTechnicalSessionCutover = cutover
+        adoptEndedContinuity(continuity)
+    }
+
+    private func adoptEndedContinuity(_ continuity: PlaybackEndedContinuity) {
+        guard var cutover = activatedTechnicalSessionCutover,
+              activatedTechnicalSessionCutoverIsCurrent(cutover) else {
+            return
+        }
+        invalidatePendingDisplayedImageClear()
+        lifecycle = .ended(continuity.reason)
+        didEndNaturally = continuity.reason == .naturalCompletion
+        playbackPosition = .init(
+            seconds: continuity.logicalPosition.seconds,
+            duration: max(
+                playbackPosition.duration,
+                continuity.logicalPosition.seconds
+            )
+        )
+        diagnostics.currentSeconds = continuity.logicalPosition.seconds
+        let endedSessionID = activeSessionID
+        Task { @MainActor [weak self] in
+            guard let self,
+                  activeSessionID == endedSessionID else { return }
+            await audioSessionLifecycle.deactivate()
+            guard activeSessionID == endedSessionID else { return }
+            recordAudioSessionFact()
+        }
+        if continuity.reason == .naturalCompletion,
+           cutover.naturalEndNotificationWasPublished == false {
+            cutover.naturalEndNotificationWasPublished = true
+            activatedTechnicalSessionCutover = cutover
+            onPlaybackEnded?()
+        }
+    }
+
+    private func receiveReplacementStatus(_ status: PlaybackStatus) -> Bool {
+        guard let cutover = activatedTechnicalSessionCutover,
+              activatedTechnicalSessionCutoverIsCurrent(cutover) else {
+            return false
+        }
+        if case .failed = status { return false }
+        observeEndedContinuityIfAvailable()
+        guard let currentCutover = activatedTechnicalSessionCutover,
+              activatedTechnicalSessionCutoverIsCurrent(currentCutover),
+              case .ended = currentCutover.delivery.continuity else {
+            return false
+        }
+        return true
+    }
+
+    private func reconcileAndDeliverTechnicalSessionReplacementIfNeeded()
+        async throws {
+        observeEndedContinuityIfAvailable()
+        guard let cutover = activatedTechnicalSessionCutover,
+              activatedTechnicalSessionCutoverIsCurrent(cutover) else {
+            throw RuntimeError.mediaSessionChanged
+        }
+        guard case .pending(let continuity) = cutover.delivery else { return }
+        rendererPixelVideoComponentRevision = nil
+        rendererPixelStreamEpoch = nil
+        switch continuity {
+        case .timeline(let time):
+            try await controller.restartVideoSampleDelivery(
+                at: time,
+                after: .pause
+            )
+        case .ended(let endedContinuity):
+            try await controller.restartVideoSampleDelivery(
+                preserving: endedContinuity
+            )
+        }
+        guard var currentCutover = activatedTechnicalSessionCutover,
+              activatedTechnicalSessionCutoverIsCurrent(currentCutover) else {
+            throw RuntimeError.mediaSessionChanged
+        }
+        if currentCutover.delivery == .pending(continuity) {
+            currentCutover.delivery = .applied(continuity)
+            activatedTechnicalSessionCutover = currentCutover
+        }
+        observeEndedContinuityIfAvailable()
+    }
+
+    private func completeTechnicalSessionReplacementAfterSettlement() {
+        guard let cutover = activatedTechnicalSessionCutover,
+              activatedTechnicalSessionCutoverIsCurrent(cutover) else {
+            return
+        }
+        activatedTechnicalSessionCutover = nil
+        technicalSessionReplacementIsInFlight = false
+        technicalSessionReplacementStage = .completed
     }
 
     private func replacementRendererTargetIsCurrent(
@@ -1707,6 +1877,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private func receive(_ status: PlaybackStatus) {
+        if receiveReplacementStatus(status) { return }
         lifecycle = status
         switch status {
         case .idle, .loading:
@@ -1782,10 +1953,23 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private func receive(_ diagnostics: PlaybackDiagnostics) {
         recordActualPlayback(until: diagnostics.currentSeconds)
         self.diagnostics = diagnostics
-        playbackPosition = .init(
-            seconds: diagnostics.currentSeconds,
-            duration: diagnostics.durationSeconds
-        )
+        if let cutover = activatedTechnicalSessionCutover,
+           activatedTechnicalSessionCutoverIsCurrent(cutover),
+           case .ended(let continuity) = cutover.delivery.continuity {
+            self.diagnostics.currentSeconds = continuity.logicalPosition.seconds
+            playbackPosition = .init(
+                seconds: continuity.logicalPosition.seconds,
+                duration: max(
+                    diagnostics.durationSeconds,
+                    continuity.logicalPosition.seconds
+                )
+            )
+        } else {
+            playbackPosition = .init(
+                seconds: diagnostics.currentSeconds,
+                duration: diagnostics.durationSeconds
+            )
+        }
         guard let request = currentLaunchRequest,
               let profile = profile(from: diagnostics) else { return }
         guard profile != lastResolvedProfile else { return }

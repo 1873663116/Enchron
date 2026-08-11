@@ -305,10 +305,6 @@ extension SampleBufferPlaybackSession {
             let presentationEnd = duration.isNumeric
                 ? CMTimeAdd(presentationTime, duration)
                 : presentationTime
-            recordVideoPresentation(
-                presentationTime: presentationTime,
-                presentationEnd: presentationEnd
-            )
 
             let formatSignaledSample: CMSampleBuffer
             do {
@@ -625,6 +621,10 @@ extension SampleBufferPlaybackSession {
                 formatSignaling: rendererInputFormatSignalingSummary(for: renderSample)
             )
             debugStore.recordRendererInput(rendererRecord)
+            recordVideoPresentation(
+                presentationTime: presentationTime,
+                presentationEnd: presentationEnd
+            )
             if lastPublishedAcceptedVideoFormatRevision != rendererRecord.formatRevision {
                 lastPublishedAcceptedVideoFormatRevision = rendererRecord.formatRevision
                 onAcceptedVideoFormatRevisionChange?(rendererRecord.formatRevision)
@@ -1363,6 +1363,35 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    public var finalDisplayableVideoPresentationTime: CMTime? {
+        let durationSeconds = provider.info.durationSeconds
+        guard durationSeconds.isFinite, durationSeconds > 0 else {
+            return maximumAcceptedVideoPresentationTime
+        }
+        let duration = CMTime(
+            seconds: durationSeconds,
+            preferredTimescale: 60_000
+        )
+        guard let maximumPresentationTime = maximumAcceptedVideoPresentationTime,
+              maximumPresentationTime.isNumeric else {
+            return nil
+        }
+        guard CMTimeCompare(maximumPresentationTime, duration) >= 0 else {
+            return maximumPresentationTime
+        }
+        return maximumAcceptedVideoPresentationTimeBeforeDuration
+    }
+
+    var maximumAcceptedVideoPresentationTime: CMTime? {
+        endStateLock.withLock { endState.maximumVideoPresentationTime }
+    }
+
+    var maximumAcceptedVideoPresentationTimeBeforeDuration: CMTime? {
+        endStateLock.withLock {
+            endState.maximumVideoPresentationTimeBeforeDuration
+        }
+    }
+
     func resetVideoEndState() {
         endStateLock.withLock {
             guard !endState.isClosed else { return }
@@ -1401,6 +1430,19 @@ extension SampleBufferPlaybackSession {
                    CMTimeCompare($0, presentationTime) < 0
                }) ?? true {
                 endState.maximumVideoPresentationTime = presentationTime
+            }
+            let durationSeconds = provider.info.durationSeconds
+            if presentationTime.isNumeric,
+               durationSeconds.isFinite,
+               durationSeconds > 0,
+               CMTimeCompare(
+                   presentationTime,
+                   CMTime(seconds: durationSeconds, preferredTimescale: 60_000)
+               ) < 0,
+               endState.maximumVideoPresentationTimeBeforeDuration.map({
+                   CMTimeCompare($0, presentationTime) < 0
+               }) ?? true {
+                endState.maximumVideoPresentationTimeBeforeDuration = presentationTime
             }
             if presentationEnd.isNumeric,
                endState.videoPresentationEnd.map({

@@ -1422,6 +1422,64 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(snapshot.lastVideoSample?.presentationTimeSeconds == 0.96)
 }
 
+@Test func finalDisplayableVideoTimeUsesMaximumPresentationTime() throws {
+    let session = SampleBufferPlaybackSession(traceID: "final-displayable-time")
+    defer { session.close() }
+    let finalPresentationTime = CMTime(value: 29_988, timescale: 1_000)
+
+    session.recordVideoPresentation(
+        presentationTime: finalPresentationTime,
+        presentationEnd: CMTime(value: 30_021, timescale: 1_000)
+    )
+    session.recordVideoPresentation(
+        presentationTime: CMTime(value: 29_954, timescale: 1_000),
+        presentationEnd: CMTime(value: 29_987, timescale: 1_000)
+    )
+
+    let resolvedTime = try #require(session.finalDisplayableVideoPresentationTime)
+    #expect(CMTimeCompare(resolvedTime, finalPresentationTime) == 0)
+}
+
+@Test func finalDisplayableVideoTimeRequiresAnAcceptedPresentationBeforeDuration() {
+    let session = SampleBufferPlaybackSession(
+        traceID: "final-displayable-time-fallback",
+        provider: FakeVideoSampleProvider(events: [], durationSeconds: 60),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    #expect(session.finalDisplayableVideoPresentationTime == nil)
+}
+
+@Test func finalDisplayableVideoTimeUsesLastAcceptedPresentationBeforeDuration() throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "final-displayable-time-at-end",
+        provider: FakeVideoSampleProvider(
+            events: [],
+            durationSeconds: 60.025167,
+            nominalFrameRate: 12.345
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+    let lastPresentationBeforeDuration = CMTime(
+        seconds: 59.981234,
+        preferredTimescale: 60_000
+    )
+    session.recordVideoPresentation(
+        presentationTime: lastPresentationBeforeDuration,
+        presentationEnd: CMTime(seconds: 60.025167, preferredTimescale: 60_000)
+    )
+    session.recordVideoPresentation(
+        presentationTime: CMTime(seconds: 60.025167, preferredTimescale: 60_000),
+        presentationEnd: CMTime(seconds: 60.041850, preferredTimescale: 60_000)
+    )
+
+    let resolvedTime = try #require(session.finalDisplayableVideoPresentationTime)
+
+    #expect(CMTimeCompare(resolvedTime, lastPresentationBeforeDuration) == 0)
+}
+
 @Test func markerOnlySampleDoesNotBlockFollowingVideoSample() async throws {
     let marker = try makeMarkerOnlySample(presentationTimeSeconds: 1.0 / 15.0)
     let video = try makeCompressedH264Sample(presentationTimeSeconds: 1.0 / 15.0)
@@ -2864,13 +2922,14 @@ private final class FakeVideoSampleProvider: VideoSampleProvider {
         readError: Error? = nil,
         eventDelay: Duration? = nil,
         projectionKind: String? = nil,
-        durationSeconds: Double = 60
+        durationSeconds: Double = 60,
+        nominalFrameRate: Double = 30
     ) {
         info = VideoSampleProviderInfo(
             providerKind: "Fake",
             containerFormat: "fixture",
             durationSeconds: durationSeconds,
-            nominalFrameRate: 30,
+            nominalFrameRate: nominalFrameRate,
             codecName: "fake",
             codecTag: "fake",
             dimensions: "64x64",

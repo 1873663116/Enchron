@@ -1,5 +1,6 @@
 import DesignSystem
 import PlaybackFeature
+import PlaybackPresentation
 import SwiftUI
 import UIKit
 
@@ -119,6 +120,40 @@ struct WindowPlaybackLayout: Equatable {
     }
 }
 
+enum WindowPlaybackGeometryPolicy: Equatable {
+    case aspectLocked(WindowPlaybackLayout)
+    case freeform(defaultSize: CGSize)
+
+    init(
+        presentation: PlaybackPresentation,
+        videoLayout: WindowPlaybackLayout
+    ) {
+        switch presentation {
+        case .portal:
+            self = .freeform(
+                defaultSize: WindowPlaybackLayout.fallback.defaultSize
+            )
+        case .window, .docked, .panorama:
+            self = .aspectLocked(videoLayout)
+        }
+    }
+
+    var minimumSize: CGSize? {
+        guard case let .aspectLocked(layout) = self else { return nil }
+        return layout.minimumSize
+    }
+
+    var idealSize: CGSize? {
+        guard case let .aspectLocked(layout) = self else { return nil }
+        return layout.defaultSize
+    }
+
+    var maximumSize: CGSize? {
+        guard case let .aspectLocked(layout) = self else { return nil }
+        return layout.maximumSize
+    }
+}
+
 struct WindowPlaybackTopChrome<
     NavigationControl: View,
     SpatialActions: View,
@@ -185,7 +220,7 @@ struct WindowPlaybackRootView<
     #if os(visionOS)
     @State private var owningWindowScene: UIWindowScene?
     #endif
-    private let layout: WindowPlaybackLayout
+    private let geometryPolicy: WindowPlaybackGeometryPolicy
     private let preferredInitialSize: CGSize?
     private let freeformSizeOnDisappear: @MainActor () -> CGSize?
     private let showsWindowChrome: Bool
@@ -196,7 +231,7 @@ struct WindowPlaybackRootView<
     private let topChrome: TopChrome
 
     init(
-        layout: WindowPlaybackLayout,
+        geometryPolicy: WindowPlaybackGeometryPolicy,
         preferredInitialSize: CGSize? = nil,
         freeformSizeOnDisappear: @escaping @MainActor () -> CGSize? = { nil },
         showsWindowChrome: Bool,
@@ -206,7 +241,7 @@ struct WindowPlaybackRootView<
         @ViewBuilder videoContent: () -> VideoContent,
         @ViewBuilder topChrome: () -> TopChrome
     ) {
-        self.layout = layout
+        self.geometryPolicy = geometryPolicy
         self.preferredInitialSize = preferredInitialSize
         self.freeformSizeOnDisappear = freeformSizeOnDisappear
         self.showsWindowChrome = showsWindowChrome
@@ -219,14 +254,13 @@ struct WindowPlaybackRootView<
 
     var body: some View {
         layeredContent
-            .aspectRatio(layout.aspectRatio, contentMode: .fit)
             .frame(
-                minWidth: layout.minimumSize.width,
-                idealWidth: layout.defaultSize.width,
-                maxWidth: layout.maximumSize.width,
-                minHeight: layout.minimumSize.height,
-                idealHeight: layout.defaultSize.height,
-                maxHeight: layout.maximumSize.height
+                minWidth: geometryPolicy.minimumSize?.width,
+                idealWidth: geometryPolicy.idealSize?.width,
+                maxWidth: geometryPolicy.maximumSize?.width,
+                minHeight: geometryPolicy.minimumSize?.height,
+                idealHeight: geometryPolicy.idealSize?.height,
+                maxHeight: geometryPolicy.maximumSize?.height
             )
             #if os(visionOS)
             .background {
@@ -237,7 +271,7 @@ struct WindowPlaybackRootView<
                     updateWindowGeometry(in: windowScene)
                 }
             }
-            .onChange(of: layout) { _, _ in
+            .onChange(of: geometryPolicy) { _, _ in
                 updateWindowGeometry(in: owningWindowScene)
             }
             .onDisappear {
@@ -351,12 +385,18 @@ struct WindowPlaybackRootView<
     #if os(visionOS)
     private func updateWindowGeometry(in windowScene: UIWindowScene?) {
         guard let windowScene else { return }
-        let preferences = UIWindowScene.GeometryPreferences.Vision(
-            size: preferredInitialSize ?? layout.defaultSize,
-            minimumSize: layout.minimumSize,
-            maximumSize: layout.maximumSize,
-            resizingRestrictions: .uniform
-        )
+        let preferences: UIWindowScene.GeometryPreferences.Vision
+        switch geometryPolicy {
+        case let .aspectLocked(layout):
+            preferences = UIWindowScene.GeometryPreferences.Vision(
+                size: preferredInitialSize ?? layout.defaultSize,
+                minimumSize: layout.minimumSize,
+                maximumSize: layout.maximumSize,
+                resizingRestrictions: .uniform
+            )
+        case let .freeform(defaultSize):
+            preferences = freeformWindowGeometryPreferences(size: defaultSize)
+        }
         windowScene.requestGeometryUpdate(preferences)
     }
 
@@ -365,17 +405,24 @@ struct WindowPlaybackRootView<
         size: CGSize?
     ) {
         guard let windowScene else { return }
+        windowScene.requestGeometryUpdate(
+            freeformWindowGeometryPreferences(size: size)
+        )
+    }
+
+    private func freeformWindowGeometryPreferences(
+        size: CGSize?
+    ) -> UIWindowScene.GeometryPreferences.Vision {
         let systemDefault = CGSize(
             width: UIProposedSceneSizeNoPreference,
             height: UIProposedSceneSizeNoPreference
         )
-        let preferences = UIWindowScene.GeometryPreferences.Vision(
+        return UIWindowScene.GeometryPreferences.Vision(
             size: size,
             minimumSize: systemDefault,
             maximumSize: systemDefault,
             resizingRestrictions: .freeform
         )
-        windowScene.requestGeometryUpdate(preferences)
     }
     #endif
 }

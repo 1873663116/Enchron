@@ -491,7 +491,8 @@ struct PlaybackPresentationStateTests {
             mediaSessionID: "technical-session-b",
             requestedMode: PlaybackPresentation.panorama.rawValue,
             phase: PlaybackPresentationSettlementPhase.settled.rawValue,
-            platform: "visionOS"
+            platform: "visionOS",
+            displayedPixelBuffer: true
         )
 
         #expect(
@@ -500,6 +501,14 @@ struct PlaybackPresentationStateTests {
                 presentation: .panorama,
                 activeTechnicalSessionID: "technical-session-b",
                 lifecycle: .paused
+            )
+        )
+        #expect(
+            PlaybackRuntime.presentationTransitionCanCommit(
+                record: record,
+                presentation: .panorama,
+                activeTechnicalSessionID: "technical-session-b",
+                lifecycle: .ended
             )
         )
         #expect(
@@ -521,6 +530,22 @@ struct PlaybackPresentationStateTests {
             !PlaybackRuntime.presentationTransitionCanCommit(
                 record: attachedOnlyRecord,
                 presentation: .portal,
+                activeTechnicalSessionID: "technical-session-b",
+                lifecycle: .ended
+            )
+        )
+
+        let missingPixelRecord = PresentationStateRecord(
+            mediaSessionID: "technical-session-b",
+            requestedMode: PlaybackPresentation.panorama.rawValue,
+            phase: PlaybackPresentationSettlementPhase.settled.rawValue,
+            platform: "visionOS",
+            displayedPixelBuffer: false
+        )
+        #expect(
+            !PlaybackRuntime.presentationTransitionCanCommit(
+                record: missingPixelRecord,
+                presentation: .panorama,
                 activeTechnicalSessionID: "technical-session-b",
                 lifecycle: .ended
             )

@@ -48,6 +48,34 @@ struct WindowPlaybackPageGeometryTests {
         #expect(layout.maximumSize == CGSize(width: 1_808, height: 1_017))
     }
 
+    @Test("Portal uses the browser default as a freeform viewport")
+    func portalWindowUsesFreeformBrowserDefaultGeometry() {
+        let videoLayout = WindowPlaybackLayout(aspectRatio: 1)
+
+        #expect(
+            WindowPlaybackGeometryPolicy(
+                presentation: .portal,
+                videoLayout: videoLayout
+            ) == .freeform(defaultSize: WindowPlaybackLayout.fallback.defaultSize)
+        )
+    }
+
+    @Test("Window keeps the effective per-eye aspect lock")
+    func flatWindowUsesEffectivePerEyeAspectGeometry() {
+        let sideBySide = WindowPlaybackLayout(
+            resolution: .init(width: 3_840, height: 1_080),
+            stereoLayout: .sideBySide
+        )
+
+        #expect(
+            WindowPlaybackGeometryPolicy(
+                presentation: .window,
+                videoLayout: sideBySide
+            ) == .aspectLocked(sideBySide)
+        )
+        #expect(abs(sideBySide.aspectRatio - 16.0 / 9.0) < 0.001)
+    }
+
     @Test("available canvas sizes resolve to a bounded source aspect surface")
     func fittedPlaybackWindowSizes() {
         let layout = WindowPlaybackLayout(aspectRatio: 4.0 / 3.0)
@@ -128,6 +156,17 @@ struct WindowPlaybackPageGeometryTests {
         #expect(state.projection == .customAngle)
         #expect(state.horizontalFieldOfViewDegrees == 220)
         #expect(state.stereoLayout == .sideBySide)
+    }
+
+    @Test("Portal top actions include Enter Panorama and Video Format")
+    func portalTopActionsIncludePanoramaEntryAndVideoFormat() {
+        let composition = PlaybackTopActionsComposition(
+            immersiveEntryTarget: .panorama
+        )
+
+        #expect(composition.showsPanoramaEntry)
+        #expect(composition.showsVideoFormat)
+        #expect(composition.showsDock == false)
     }
 
     @Test("applying Video Format commits the draft as the next editing baseline")

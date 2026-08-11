@@ -26,6 +26,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         var videoProviderEnded = false
         var audioProviderEnded = true
         var maximumVideoPresentationTime: CMTime?
+        var maximumVideoPresentationTimeBeforeDuration: CMTime?
         var videoPresentationEnd: CMTime?
         var audioPresentationEnd: CMTime?
         var didReportEnd = false

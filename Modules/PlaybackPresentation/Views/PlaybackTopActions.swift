@@ -8,6 +8,18 @@ enum PlaybackTopSecondaryMenu: String {
     case videoFormat
 }
 
+struct PlaybackTopActionsComposition: Equatable {
+    let showsPanoramaEntry: Bool
+    let showsDock: Bool
+    let showsVideoFormat: Bool
+
+    init(immersiveEntryTarget: PlaybackPresentation?) {
+        showsPanoramaEntry = immersiveEntryTarget == .panorama
+        showsDock = immersiveEntryTarget == .docked
+        showsVideoFormat = true
+    }
+}
+
 struct PlaybackVideoFormatSelection: Equatable {
     let projection: PlaybackModel.ProjectionType
     let horizontalFieldOfViewDegrees: Int?
@@ -427,13 +439,13 @@ struct PlaybackTopActions: View {
 
     private var topButtonRow: some View {
         WindowPlaybackSpatialActions {
-            if immersiveEntryTarget == .panorama {
+            if topActionsComposition.showsPanoramaEntry {
                 GlassCircleIconButton.expandVertically(
                     accessibilityLabel: "Enter Panorama",
                     action: { onEnterImmersive?(nil, nil) },
                     accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
                 )
-            } else if immersiveEntryTarget == .docked {
+            } else if topActionsComposition.showsDock {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "mountain.2.fill",
                     accessibilityLabel: "Dock",
@@ -443,7 +455,7 @@ struct PlaybackTopActions: View {
                 )
             }
         } formatControl: {
-            if immersiveEntryTarget != .panorama {
+            if topActionsComposition.showsVideoFormat {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "rectangle.arrowtriangle.2.outward",
                     accessibilityLabel: "Video Format",
@@ -453,6 +465,10 @@ struct PlaybackTopActions: View {
                 .disabled(!canApplyFormat)
             }
         }
+    }
+
+    private var topActionsComposition: PlaybackTopActionsComposition {
+        PlaybackTopActionsComposition(immersiveEntryTarget: immersiveEntryTarget)
     }
 
     private var dockMenu: some View {
