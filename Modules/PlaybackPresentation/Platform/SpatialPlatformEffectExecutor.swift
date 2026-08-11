@@ -37,6 +37,29 @@ final class SpatialPlatformEffectCoordinator {
         case unavailable
     }
 
+    private enum ImmersivePlaybackExitMode {
+        case appRequested(keepsEnvironmentOpen: Bool)
+        case alreadyClosedBySystem
+
+        var waitsForSourceFade: Bool {
+            switch self {
+            case .appRequested:
+                true
+            case .alreadyClosedBySystem:
+                false
+            }
+        }
+
+        var dismissesImmersiveSpace: Bool {
+            switch self {
+            case .appRequested(let keepsEnvironmentOpen):
+                keepsEnvironmentOpen == false
+            case .alreadyClosedBySystem:
+                false
+            }
+        }
+    }
+
     private enum ExecutionPhase {
         case currentRequest
         case settledRequest
@@ -390,7 +413,15 @@ final class SpatialPlatformEffectCoordinator {
         case .exitImmersivePlayback(let family, let keepsEnvironmentOpen):
             await exitImmersivePlayback(
                 family: family,
-                keepsEnvironmentOpen: keepsEnvironmentOpen,
+                mode: .appRequested(
+                    keepsEnvironmentOpen: keepsEnvironmentOpen
+                ),
+                execution: execution
+            )
+        case .collapseImmersivePlayback(let family):
+            await exitImmersivePlayback(
+                family: family,
+                mode: .alreadyClosedBySystem,
                 execution: execution
             )
         case .swapWindowPlaybackProjection(let family):
@@ -687,7 +718,7 @@ final class SpatialPlatformEffectCoordinator {
 
     private func exitImmersivePlayback(
         family: PresentationContentFamily,
-        keepsEnvironmentOpen: Bool,
+        mode: ImmersivePlaybackExitMode,
         execution: Execution
     ) async {
         let presentation = family.mainWindowPresentation
@@ -740,11 +771,16 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
 
-        guard await waitUntilPresentationTransitionTime(
-            PlaybackPresentationTransitionAppearance.sourceFadeDuration,
-            execution: execution
-        ),
-        let rendererReleased = await waitUntilRendererConsumerIsReleased(
+        if mode.waitsForSourceFade {
+            guard await waitUntilPresentationTransitionTime(
+                PlaybackPresentationTransitionAppearance.sourceFadeDuration,
+                execution: execution
+            ) else {
+                await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+                return
+            }
+        }
+        guard let rendererReleased = await waitUntilRendererConsumerIsReleased(
             from: appModel.presentationTransition?.previousPresentation,
             execution: execution
         ) else {
@@ -765,7 +801,7 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
 
-        if keepsEnvironmentOpen == false,
+        if mode.dismissesImmersiveSpace,
            await dismissImmersiveSpace(execution: execution) == false {
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
             lastPlatformOperation = "immersive-space-dismiss-failed"
@@ -1263,6 +1299,7 @@ final class SpatialPlatformEffectCoordinator {
         case .recoverSpatialPlayback(let presentation):
             .playback(presentation)
         case .exitImmersivePlayback,
+             .collapseImmersivePlayback,
              .swapWindowPlaybackProjection,
              .dismissEnvironmentPreview,
              .presentEnvironmentCard,
@@ -1527,6 +1564,7 @@ final class SpatialPlatformEffectCoordinator {
             switch execution.request.effect {
             case .enterImmersivePlayback,
                  .exitImmersivePlayback,
+                 .collapseImmersivePlayback,
                  .swapWindowPlaybackProjection:
                 appModel.deferPresentationConversionFailureUntilMediaLibraryIsVisible(
                     "无法切换播放显示方式，已返回媒体资料库。"
@@ -1548,6 +1586,7 @@ final class SpatialPlatformEffectCoordinator {
             switch execution.request.effect {
             case .enterImmersivePlayback,
                  .exitImmersivePlayback,
+                 .collapseImmersivePlayback,
                  .swapWindowPlaybackProjection:
                 appModel.presentationTransition?.previousPresentation
             default:

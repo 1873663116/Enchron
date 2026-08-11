@@ -797,127 +797,124 @@ try await MainActor.run {
         "a resume result that no current presentation request scheduled must be ignored"
     )
 
-    let dockedRecoveryModel = PlaybackPresentationModel()
-    _ = try dockedRecoveryModel.requestPresentation(
+    let dockedCollapseModel = PlaybackPresentationModel()
+    _ = try dockedCollapseModel.requestPresentation(
         .docked,
         effect: .light,
         playbackContext: playingContext
     )
-    _ = completePendingEffect(dockedRecoveryModel)
+    _ = completePendingEffect(dockedCollapseModel)
     require(
-        dockedRecoveryModel.receiveSpatialPlatformResult(
+        dockedCollapseModel.receiveSpatialPlatformResult(
             .immersiveSpaceDisappeared(playingContext)
-        ) == .spatialRecoveryRequested(.docked),
-        "unexpected Docked disappearance must request Docked recovery"
+        ) == .platformFactRecorded,
+        "system-closed Docked playback must record the closure before collapsing"
     )
-    let dockedRecoveryRequest = pendingRequest(dockedRecoveryModel)
-    let dockedRecoveryExecutionID = UUID()
+    let dockedCollapseRequest = pendingRequest(dockedCollapseModel)
+    let dockedCollapseExecutionID = UUID()
     require(
-        dockedRecoveryRequest.effect == .recoverSpatialPlayback(.docked)
-            && dockedRecoveryRequest.playbackTransportPlan?.beforeEffect
-                == .pause(mediaSessionID: playingContext.mediaSessionID)
-            && dockedRecoveryRequest.playbackTransportPlan?.afterSuccess == nil
-            && dockedRecoveryRequest.playbackTransportPlan?.afterFailure == nil,
-        "playing recovery must pause before reopening and remain paused after success"
-    )
-    guard let dockedRecoveryIntent = dockedRecoveryModel.recoveryIntent else {
-        fatalError("Docked recovery must retain an in-memory intent")
-    }
-    requireSendable(dockedRecoveryIntent)
-    require(
-        dockedRecoveryIntent.presentation == .docked
-            && dockedRecoveryIntent.mediaSessionID == playingContext.mediaSessionID
-            && dockedRecoveryIntent.wasPlaying,
-        "Spatial Recovery Intent must bind presentation, session, and prior play state"
+        dockedCollapseRequest.effect == .collapseImmersivePlayback(.flat)
+            && dockedCollapseRequest.playbackTransportPlan?.beforeEffect == nil
+            && dockedCollapseRequest.playbackTransportPlan?.afterSuccess
+                == .resume(mediaSessionID: playingContext.mediaSessionID)
+            && dockedCollapseRequest.playbackTransportPlan?.afterFailure == nil
+            && dockedCollapseModel.transition?.previousPresentation == .docked
+            && dockedCollapseModel.transition?.targetPresentation == .window
+            && dockedCollapseModel.transition?.previousEnvironment == EnvironmentContext.none
+            && dockedCollapseModel.transition?.targetEnvironment == EnvironmentContext.none
+            && dockedCollapseModel.recoveryIntent == nil,
+        "system-closed Docked playback must collapse to Window and restore playing intent"
     )
     require(
-        dockedRecoveryModel.claimSpatialPlatformEffect(
-            dockedRecoveryRequest.id,
-            executionID: dockedRecoveryExecutionID
+        dockedCollapseModel.claimSpatialPlatformEffect(
+            dockedCollapseRequest.id,
+            executionID: dockedCollapseExecutionID
         ),
-        "the recovery effect must be claimable exactly once"
+        "the collapse effect must be claimable exactly once"
     )
     require(
-        dockedRecoveryModel.receiveSpatialPlatformResult(
+        dockedCollapseModel.receiveSpatialPlatformResult(
             .effectCompleted(
                 SpatialPlatformEffectResult(
-                    requestID: dockedRecoveryRequest.id,
-                    executionID: dockedRecoveryExecutionID,
+                    requestID: dockedCollapseRequest.id,
+                    executionID: dockedCollapseExecutionID,
                     mediaSessionID: "replacement-session",
                     outcome: .succeeded
                 )
             )
         ) == .ignored
-            && dockedRecoveryModel.pendingSpatialPlatformEffect?.id
-                == dockedRecoveryRequest.id,
-        "a result for another Media Session must not resolve recovery"
+            && dockedCollapseModel.pendingSpatialPlatformEffect?.id
+                == dockedCollapseRequest.id,
+        "a result for another Media Session must not resolve collapse"
     )
     require(
-        dockedRecoveryModel.receiveSpatialPlatformResult(
+        dockedCollapseModel.receiveSpatialPlatformResult(
             .effectCompleted(
                 SpatialPlatformEffectResult(
-                    requestID: dockedRecoveryRequest.id,
-                    executionID: dockedRecoveryExecutionID,
+                    requestID: dockedCollapseRequest.id,
+                    executionID: dockedCollapseExecutionID,
                     mediaSessionID: playingContext.mediaSessionID,
                     outcome: .succeeded
                 )
             )
-        ) == .spatialRecoveryCompleted(.docked)
-            && dockedRecoveryModel.presentation == .docked
-            && dockedRecoveryModel.recoveryIntent == nil,
-        "successful recovery must retain Docked and clear the in-memory intent"
+        ) == .presentationCommitted(.window)
+            && dockedCollapseModel.presentation == .window
+            && dockedCollapseModel.environmentContext == .none
+            && dockedCollapseModel.immersiveSpaceResidency == .closed
+            && dockedCollapseModel.recoveryIntent == nil,
+        "successful Docked collapse must commit Window with closed immersive residency"
     )
     require(
-        dockedRecoveryModel.receiveSpatialPlatformResult(
+        dockedCollapseModel.receiveSpatialPlatformResult(
             .effectCompleted(
                 SpatialPlatformEffectResult(
-                    requestID: dockedRecoveryRequest.id,
-                    executionID: dockedRecoveryExecutionID,
+                    requestID: dockedCollapseRequest.id,
+                    executionID: dockedCollapseExecutionID,
                     mediaSessionID: playingContext.mediaSessionID,
                     outcome: .succeeded
                 )
             )
         ) == .ignored,
-        "duplicate recovery results must be ignored"
+        "duplicate collapse results must be ignored"
     )
 
-    let panoramaRecoveryModel = PlaybackPresentationModel()
-    panoramaRecoveryModel.prepareColdPlaybackLaunch(for: .panoramic)
-    _ = try panoramaRecoveryModel.requestPresentation(
+    let panoramaCollapseModel = PlaybackPresentationModel()
+    panoramaCollapseModel.prepareColdPlaybackLaunch(for: .panoramic)
+    _ = try panoramaCollapseModel.requestPresentation(
         .panorama,
         playbackContext: pausedContext
     )
-    _ = completePendingEffect(panoramaRecoveryModel)
+    _ = completePendingEffect(panoramaCollapseModel)
     require(
-        panoramaRecoveryModel.receiveSpatialPlatformResult(
+        panoramaCollapseModel.receiveSpatialPlatformResult(
             .immersiveSpaceDisappeared(pausedContext)
-        ) == .spatialRecoveryRequested(.panorama),
-        "unexpected Panorama disappearance must request Panorama recovery"
+        ) == .platformFactRecorded,
+        "system-closed Panorama playback must record the closure before collapsing"
     )
-    let panoramaRecoveryRequest = pendingRequest(panoramaRecoveryModel)
+    let panoramaCollapseRequest = pendingRequest(panoramaCollapseModel)
     require(
-        panoramaRecoveryRequest.playbackTransportPlan?.beforeEffect == nil
-            && panoramaRecoveryRequest.playbackTransportPlan?.afterSuccess == nil
-            && panoramaRecoveryRequest.playbackTransportPlan?.afterFailure == nil,
-        "paused recovery must not emit pause or resume transport"
-    )
-    require(
-        completePendingEffect(
-            panoramaRecoveryModel,
-            outcome: .failed(.spatialPlaybackSurfaceUnavailable)
-        ) == .spatialRecoveryFailed(.spatialPlaybackSurfaceUnavailable)
-            && panoramaRecoveryModel.presentation == .window
-            && panoramaRecoveryModel.environmentContext == .none
-            && panoramaRecoveryModel.recoveryIntent == nil
-            && panoramaRecoveryModel.pendingSpatialPlatformEffect == nil,
-        "failed recovery must settle once in a safe Window state"
+        panoramaCollapseRequest.effect == .collapseImmersivePlayback(.panoramic)
+            && panoramaCollapseRequest.playbackTransportPlan?.beforeEffect == nil
+            && panoramaCollapseRequest.playbackTransportPlan?.afterSuccess == nil
+            && panoramaCollapseRequest.playbackTransportPlan?.afterFailure == nil
+            && panoramaCollapseModel.recoveryIntent == nil,
+        "paused Panorama collapse must not emit pause, resume, or recovery"
     )
     require(
-        panoramaRecoveryModel.receiveSpatialPlatformResult(
+        completePendingEffect(panoramaCollapseModel)
+            == .presentationCommitted(.portal)
+            && panoramaCollapseModel.presentation == .portal
+            && panoramaCollapseModel.environmentContext == .none
+            && panoramaCollapseModel.immersiveSpaceResidency == .closed
+            && panoramaCollapseModel.recoveryIntent == nil,
+        "successful Panorama collapse must commit Portal without resuming paused playback"
+    )
+    require(
+        panoramaCollapseModel.receiveSpatialPlatformResult(
             .immersiveSpaceDisappeared(pausedContext)
         ) == .platformFactRecorded
-            && panoramaRecoveryModel.pendingSpatialPlatformEffect == nil,
-        "failed recovery must not enter an automatic retry loop"
+            && panoramaCollapseModel.pendingSpatialPlatformEffect == nil,
+        "a duplicate closed-space callback must not enqueue collapse or recovery"
     )
 
     let expectedDismissalModel = PlaybackPresentationModel()

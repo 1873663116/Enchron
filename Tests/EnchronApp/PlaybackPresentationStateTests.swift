@@ -2320,113 +2320,82 @@ struct PlaybackPresentationStateTests {
         #expect(model.pendingSpatialPlatformEffect == nil)
     }
 
-    @Test("unexpected Docked and Panorama disappearance requests same-session recovery")
+    @Test("system-closed Panorama falls back to Portal without spatial recovery")
     @MainActor
-    func unexpectedSpatialDisappearanceRequestsRecovery() throws {
-        for presentation in [PlaybackPresentation.docked, .panorama] {
-            let model = PlaybackPresentationModel()
-            let context = playingContext(mediaSessionID: "\(presentation.rawValue)-session")
-            if presentation == .panorama {
-                model.prepareColdPlaybackLaunch(for: .panoramic)
-            }
-            _ = try model.requestPresentation(
-                presentation,
-                effect: presentation == .docked ? .light : nil,
-                playbackContext: context
-            )
-            _ = try completePendingEffect(model)
-
-            #expect(
-                model.receiveSpatialPlatformResult(
-                    .immersiveSpaceDisappeared(context)
-                ) == .spatialRecoveryRequested(presentation)
-            )
-            let request = try #require(model.pendingSpatialPlatformEffect)
-            #expect(request.effect == .recoverSpatialPlayback(presentation))
-            #expect(model.recoveryIntent?.presentation == presentation)
-            #expect(model.recoveryIntent?.mediaSessionID == context.mediaSessionID)
-            #expect(model.recoveryIntent?.wasPlaying == true)
-            #expect(request.playbackTransportPlan?.beforeEffect == nil)
-            #expect(
-                request.playbackTransportPlan?.afterSuccess
-                    == .resume(mediaSessionID: context.mediaSessionID)
-            )
-            #expect(request.playbackTransportPlan?.afterFailure == nil)
-
-            #expect(
-                try completePendingEffect(model)
-                    == .spatialRecoveryCompleted(presentation)
-            )
-            #expect(model.presentation == presentation)
-            #expect(model.recoveryIntent == nil)
-        }
-    }
-
-    @Test("Main Window Root and Environment preview disappearance do not recover playback")
-    @MainActor
-    func nonPlaybackImmersiveDisappearanceDoesNotRecover() throws {
-        for presentation in [PlaybackPresentation.window, .portal] {
-            let mainWindowModel = PlaybackPresentationModel()
-            if presentation == .portal {
-                _ = try mainWindowModel.requestPresentation(
-                    .portal,
-                    playbackContext: playingContext()
-                )
-                _ = try completePendingEffect(mainWindowModel)
-            }
-            #expect(
-                mainWindowModel.receiveSpatialPlatformResult(
-                    .immersiveSpaceDisappeared(playingContext())
-                ) == .platformFactRecorded
-            )
-            #expect(mainWindowModel.presentation == presentation)
-            #expect(mainWindowModel.recoveryIntent == nil)
-            #expect(mainWindowModel.pendingSpatialPlatformEffect == nil)
-        }
-
-        let previewModel = PlaybackPresentationModel()
-        try previewModel.requestEnvironmentPreview(
-            environment: .scenicOne,
-            effect: .dark
-        )
-        _ = try completePendingEffect(previewModel)
-        #expect(
-            previewModel.receiveSpatialPlatformResult(
-                .immersiveSpaceDisappeared(playingContext())
-            ) == .platformFactRecorded
-        )
-        #expect(previewModel.presentation == .window)
-        #expect(previewModel.recoveryIntent == nil)
-        #expect(previewModel.pendingSpatialPlatformEffect == nil)
-    }
-
-    @Test("expected immersive dismissal does not start recovery")
-    @MainActor
-    func expectedDismissalDoesNotRecover() throws {
+    func systemClosedPanoramaFallsBackToPortalWithoutRecovery() throws {
         let model = PlaybackPresentationModel()
-        let context = playingContext()
-        _ = try model.requestPresentation(
-            .docked,
-            effect: .light,
-            playbackContext: context
-        )
+        let context = playingContext(mediaSessionID: "panorama-collapse-session")
+        try model.activateEnvironment(.scenicOne, effect: .dark)
+        _ = try model.requestPresentation(.portal, playbackContext: context)
         _ = try completePendingEffect(model)
-        _ = try model.requestPresentation(.window, playbackContext: context)
-        let dismissalRequest = try #require(model.pendingSpatialPlatformEffect)
+        _ = try model.requestPresentation(.panorama, playbackContext: context)
+        _ = try completePendingEffect(model)
 
         #expect(
             model.receiveSpatialPlatformResult(
                 .immersiveSpaceDisappeared(context)
             ) == .platformFactRecorded
         )
+
+        let transition = try #require(model.transition)
+        #expect(transition.previousPresentation == .panorama)
+        #expect(transition.targetPresentation == .portal)
+        #expect(transition.previousEnvironment == .none)
+        #expect(transition.targetEnvironment == .none)
+        #expect(model.environmentContext == .none)
+        #expect(model.panoramaReturnEnvironmentContext == nil)
         #expect(model.recoveryIntent == nil)
-        #expect(model.pendingSpatialPlatformEffect?.id == dismissalRequest.id)
-        #expect(try completePendingEffect(model) == .presentationCommitted(.window))
+        let request = try #require(model.pendingSpatialPlatformEffect)
+        #expect(request.effect == .collapseImmersivePlayback(.panoramic))
+        #expect(request.playbackTransportPlan?.mediaSessionID == context.mediaSessionID)
+        #expect(request.playbackTransportPlan?.beforeEffect == nil)
+        #expect(
+            request.playbackTransportPlan?.afterSuccess
+                == .resume(mediaSessionID: context.mediaSessionID)
+        )
+        #expect(request.playbackTransportPlan?.afterFailure == nil)
+        #expect(try completePendingEffect(model) == .presentationCommitted(.portal))
+        #expect(model.presentation == .portal)
+        #expect(model.environmentContext == .none)
+        #expect(model.immersiveSpaceResidency == .closed)
     }
 
-    @Test("paused recovery never emits pause or resume transport")
+    @Test("system-closed Docked playback falls back to Window")
     @MainActor
-    func pausedRecoveryPreservesPausedBehavior() throws {
+    func systemClosedDockedFallsBackToWindow() throws {
+        let model = PlaybackPresentationModel()
+        let context = playingContext(mediaSessionID: "docked-collapse-session")
+        _ = try model.requestPresentation(
+            .docked,
+            effect: .light,
+            playbackContext: context
+        )
+        _ = try completePendingEffect(model)
+
+        #expect(
+            model.receiveSpatialPlatformResult(
+                .immersiveSpaceDisappeared(context)
+            ) == .platformFactRecorded
+        )
+        let transition = try #require(model.transition)
+        #expect(transition.previousPresentation == .docked)
+        #expect(transition.targetPresentation == .window)
+        #expect(transition.previousEnvironment == .none)
+        #expect(transition.targetEnvironment == .none)
+        #expect(
+            model.pendingSpatialPlatformEffect?.effect
+                == .collapseImmersivePlayback(.flat)
+        )
+        #expect(model.recoveryIntent == nil)
+        #expect(try completePendingEffect(model) == .presentationCommitted(.window))
+        #expect(model.presentation == .window)
+        #expect(model.environmentContext == .none)
+        #expect(model.immersiveSpaceResidency == .closed)
+    }
+
+    @Test("system collapse keeps paused playback paused")
+    @MainActor
+    func systemCollapsePreservesPausedPlayback() throws {
         let model = PlaybackPresentationModel()
         let context = SpatialPlaybackTransitionContext(
             mediaSessionID: "paused-session",
@@ -2441,76 +2410,144 @@ struct PlaybackPresentationStateTests {
         #expect(request.playbackTransportPlan?.beforeEffect == nil)
         #expect(request.playbackTransportPlan?.afterSuccess == nil)
         #expect(request.playbackTransportPlan?.afterFailure == nil)
-        #expect(model.recoveryIntent?.wasPlaying == false)
+        #expect(request.effect == .collapseImmersivePlayback(.panoramic))
+        #expect(model.recoveryIntent == nil)
+        #expect(try completePendingEffect(model) == .presentationCommitted(.portal))
     }
 
-    @Test("recovery failure settles once in Window and ignores stale session results")
+    @Test("an app-requested immersive exit owns its disappearance callback")
     @MainActor
-    func recoveryFailureIsBoundedAndSessionBound() throws {
+    func appRequestedExitInFlightDoesNotDoubleFire() throws {
         let model = PlaybackPresentationModel()
-        let oldContext = playingContext(mediaSessionID: "old-session")
-        model.prepareColdPlaybackLaunch(for: .panoramic)
-        _ = try model.requestPresentation(.panorama, playbackContext: oldContext)
+        let context = playingContext(mediaSessionID: "app-exit-session")
+        try model.activateEnvironment(.scenicOne, effect: .dark)
+        _ = try model.requestPresentation(.docked, playbackContext: context)
         _ = try completePendingEffect(model)
-        _ = model.receiveSpatialPlatformResult(.immersiveSpaceDisappeared(oldContext))
-        let recoveryRequest = try #require(model.pendingSpatialPlatformEffect)
-        let recoveryExecutionID = UUID()
+        _ = try model.requestPresentation(.window, playbackContext: context)
+        let exitRequest = try #require(model.pendingSpatialPlatformEffect)
         #expect(
-            model.claimSpatialPlatformEffect(
-                recoveryRequest.id,
-                executionID: recoveryExecutionID
-            )
+            exitRequest.effect
+                == .exitImmersivePlayback(
+                    .flat,
+                    keepsEnvironmentOpen: true
+                )
         )
 
         #expect(
             model.receiveSpatialPlatformResult(
-                .effectCompleted(
-                    SpatialPlatformEffectResult(
-                        requestID: recoveryRequest.id,
-                        executionID: recoveryExecutionID,
-                        mediaSessionID: "new-session",
-                        outcome: .succeeded
-                    )
-                )
-            ) == .ignored
+                .immersiveSpaceDisappeared(context)
+            ) == .platformFactRecorded
         )
-        #expect(model.pendingSpatialPlatformEffect?.id == recoveryRequest.id)
+        #expect(model.pendingSpatialPlatformEffect?.id == exitRequest.id)
+        #expect(model.recoveryIntent == nil)
+        #expect(
+            model.transition?.previousEnvironment == EnvironmentContext.none
+        )
+        #expect(
+            model.transition?.targetEnvironment == EnvironmentContext.none
+        )
+        #expect(try completePendingEffect(model) == .presentationCommitted(.window))
+        #expect(model.environmentContext == .none)
+        #expect(model.immersiveSpaceResidency == .closed)
+    }
+
+    @Test("stopped cleanup owns its immersive disappearance callback")
+    @MainActor
+    func stoppedCleanupDoesNotQueueCollapseOrRecovery() throws {
+        let model = PlaybackPresentationModel()
+        let context = playingContext(mediaSessionID: "stopped-cleanup-session")
+        _ = try model.requestPresentation(
+            .docked,
+            effect: .dark,
+            playbackContext: context
+        )
+        _ = try completePendingEffect(model)
+        model.requestStoppedPlaybackCleanup()
+        let cleanupRequest = try #require(model.pendingSpatialPlatformEffect)
 
         #expect(
             model.receiveSpatialPlatformResult(
-                .effectCompleted(
-                    SpatialPlatformEffectResult(
-                        requestID: recoveryRequest.id,
-                        executionID: recoveryExecutionID,
-                        mediaSessionID: oldContext.mediaSessionID,
-                        outcome: .failed(.mediaSessionChanged)
-                    )
+                .immersiveSpaceDisappeared(context)
+            ) == .platformFactRecorded
+        )
+        #expect(model.pendingSpatialPlatformEffect?.id == cleanupRequest.id)
+        #expect(
+            cleanupRequest.effect
+                == .normalizeStoppedSpatialPlayback(
+                    keepsEnvironmentOpen: false
                 )
-            ) == .spatialRecoveryFailed(.mediaSessionChanged)
+        )
+        #expect(model.recoveryIntent == nil)
+    }
+
+    @Test("system closure without playback context resets stopped presentation state")
+    @MainActor
+    func systemClosureWithoutContextQueuesNoEffect() throws {
+        let model = PlaybackPresentationModel()
+        model.prepareColdPlaybackLaunch(for: .panoramic)
+        _ = try model.requestPresentation(
+            .panorama,
+            playbackContext: playingContext()
+        )
+        _ = try completePendingEffect(model)
+
+        #expect(
+            model.receiveSpatialPlatformResult(
+                .immersiveSpaceDisappeared(nil)
+            ) == .platformFactRecorded
         )
         #expect(model.presentation == .window)
         #expect(model.environmentContext == .none)
-        #expect(model.recoveryIntent == nil)
+        #expect(model.transition == nil)
         #expect(model.pendingSpatialPlatformEffect == nil)
+        #expect(model.recoveryIntent == nil)
+    }
+
+    @Test("duplicate system closure keeps the first collapse request")
+    @MainActor
+    func duplicateSystemClosureIsIdempotent() throws {
+        let model = PlaybackPresentationModel()
+        let context = playingContext(mediaSessionID: "duplicate-collapse-session")
+        _ = try model.requestPresentation(
+            .docked,
+            effect: .light,
+            playbackContext: context
+        )
+        _ = try completePendingEffect(model)
+        _ = model.receiveSpatialPlatformResult(
+            .immersiveSpaceDisappeared(context)
+        )
+        let collapseRequest = try #require(model.pendingSpatialPlatformEffect)
 
         #expect(
             model.receiveSpatialPlatformResult(
-                .immersiveSpaceDisappeared(oldContext)
+                .immersiveSpaceDisappeared(context)
             ) == .platformFactRecorded
         )
-        #expect(model.pendingSpatialPlatformEffect == nil)
+        #expect(model.pendingSpatialPlatformEffect?.id == collapseRequest.id)
         #expect(
-            model.receiveSpatialPlatformResult(
-                .effectCompleted(
-                    SpatialPlatformEffectResult(
-                        requestID: recoveryRequest.id,
-                        executionID: recoveryExecutionID,
-                        mediaSessionID: oldContext.mediaSessionID,
-                        outcome: .succeeded
-                    )
-                )
-            ) == .ignored
+            model.pendingSpatialPlatformEffect?.effect
+                == .collapseImmersivePlayback(.flat)
         )
+        #expect(model.recoveryIntent == nil)
+    }
+
+    @Test("no presentation source produces spatial recovery after disappearance")
+    @MainActor
+    func noPresentationSourceProducesRecovery() throws {
+        for presentation in PlaybackPresentation.allCases {
+            let model = try settledModel(in: presentation)
+            _ = model.receiveSpatialPlatformResult(
+                .immersiveSpaceDisappeared(
+                    playingContext(mediaSessionID: "\(presentation.rawValue)-closure")
+                )
+            )
+            #expect(model.recoveryIntent == nil)
+            if let effect = model.pendingSpatialPlatformEffect?.effect,
+               case .recoverSpatialPlayback = effect {
+                Issue.record("\(presentation) produced spatial recovery")
+            }
+        }
     }
 
     @Test("Environment Card residency is singleton, idempotent, and scene-driven")

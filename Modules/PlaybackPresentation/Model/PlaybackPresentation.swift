@@ -308,6 +308,7 @@ public enum SpatialPlatformEffect: Equatable, Sendable {
         PresentationContentFamily,
         keepsEnvironmentOpen: Bool
     )
+    case collapseImmersivePlayback(PresentationContentFamily)
     case swapWindowPlaybackProjection(to: PresentationContentFamily)
     case recoverSpatialPlayback(PlaybackPresentation)
     case presentEnvironmentPreview
@@ -540,6 +541,42 @@ package struct PlaybackPresentationState: Equatable, Sendable {
             throw PlaybackPresentationTransitionError.dockedPresentationRequiresEnvironment
         }
         self.environment = environment
+    }
+
+    package mutating func recordImmersiveSpaceDisappearance() {
+        environment = .none
+        environmentBeforeDockedPresentation = nil
+        environmentBeforePanoramaPresentation = nil
+        guard let transition,
+              transition.previousPresentation.usesImmersiveSpace else {
+            return
+        }
+        self.transition = PlaybackPresentationTransition(
+            id: transition.id,
+            previousPresentation: transition.previousPresentation,
+            targetPresentation: transition.targetPresentation,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+    }
+
+    @discardableResult
+    package mutating func beginImmersiveSpaceClosureCollapse(
+        id: UUID = UUID()
+    ) -> PlaybackPresentationTransition? {
+        guard transition == nil,
+              let target = presented.exitImmersiveTarget else {
+            return nil
+        }
+        let next = PlaybackPresentationTransition(
+            id: id,
+            previousPresentation: presented,
+            targetPresentation: target,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        transition = next
+        return next
     }
 
     package mutating func resetForPlaybackStop() {
@@ -956,6 +993,8 @@ public final class PlaybackPresentationModel {
             return .platformFactRecorded
         case .immersiveSpaceDisappeared(let playbackContext):
             immersiveSpaceResidency = .closed
+            presentationState.recordImmersiveSpaceDisappearance()
+            recoveryIntent = nil
             guard pendingSpatialPlatformEffect == nil,
                   transition == nil else {
                 return .platformFactRecorded
@@ -964,22 +1003,20 @@ public final class PlaybackPresentationModel {
                 return .platformFactRecorded
             }
             guard let playbackContext,
-                  playbackContext.mediaSessionID.isEmpty == false,
-                  let intent = try? SpatialRecoveryIntent(
-                    presentation: presentation,
-                    mediaSessionID: playbackContext.mediaSessionID,
-                    wasPlaying: playbackContext.wasPlaying
-                  ) else {
-                presentationState.settleSpatialRecoveryFailure()
-                recoveryIntent = nil
-                return .spatialRecoveryFailed(.mediaSessionChanged)
+                  playbackContext.mediaSessionID.isEmpty == false else {
+                resetForStoppedPlayback()
+                return .platformFactRecorded
             }
-            recoveryIntent = intent
+            let family = presentation.contentFamily
+            guard presentationState.beginImmersiveSpaceClosureCollapse()
+                != nil else {
+                return .platformFactRecorded
+            }
             pendingSpatialPlatformEffect = SpatialPlatformEffectRequest(
-                effect: .recoverSpatialPlayback(intent.presentation),
+                effect: .collapseImmersivePlayback(family),
                 playbackTransportPlan: playbackTransportPlan(for: playbackContext)
             )
-            return .spatialRecoveryRequested(intent.presentation)
+            return .platformFactRecorded
         case .effectCompleted(let result):
             return resolveSpatialPlatformEffect(result)
         case .playbackTransportFailed:
@@ -1059,7 +1096,9 @@ public final class PlaybackPresentationModel {
             immersiveSpaceResidency = .open
             return commitPendingPresentation()
         case .exitImmersivePlayback(_, let keepsEnvironmentOpen):
-            immersiveSpaceResidency = keepsEnvironmentOpen ? .open : .closed
+            if keepsEnvironmentOpen == false {
+                immersiveSpaceResidency = .closed
+            }
             let resolution = commitPendingPresentation()
             if environmentCardEntryPending, presentation == .window {
                 environmentCardEntryPending = false
@@ -1074,6 +1113,9 @@ public final class PlaybackPresentationModel {
                 }
             }
             return resolution
+        case .collapseImmersivePlayback:
+            immersiveSpaceResidency = .closed
+            return commitPendingPresentation()
         case .recoverSpatialPlayback(let presentation):
             immersiveSpaceResidency = .open
             recoveryIntent = nil
@@ -1092,10 +1134,14 @@ public final class PlaybackPresentationModel {
             environmentCardResidencyBeforeRequest = nil
             return .effectCompleted
         case .normalizeStoppedSpatialPlayback(let keepsEnvironmentOpen):
-            immersiveSpaceResidency = keepsEnvironmentOpen ? .open : .closed
+            if keepsEnvironmentOpen == false {
+                immersiveSpaceResidency = .closed
+            }
             return .effectCompleted
         case .normalizeInvalidatedSpatialPlayback(let keepsEnvironmentOpen):
-            immersiveSpaceResidency = keepsEnvironmentOpen ? .open : .closed
+            if keepsEnvironmentOpen == false {
+                immersiveSpaceResidency = .closed
+            }
             return .effectCompleted
         }
     }
@@ -1107,6 +1153,7 @@ public final class PlaybackPresentationModel {
         switch request.effect {
         case .enterImmersivePlayback,
              .exitImmersivePlayback,
+             .collapseImmersivePlayback,
              .swapWindowPlaybackProjection:
             if let transition {
                 presentationState.rollback(transition.id)

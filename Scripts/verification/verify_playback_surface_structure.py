@@ -330,6 +330,49 @@ def main() -> None:
         "private func exitImmersivePlayback(",
         "private func swapWindowPlaybackProjection(",
     )
+    immersive_disappearance = region(
+        presentation_model,
+        "case .immersiveSpaceDisappeared(let playbackContext):",
+        "case .effectCompleted(let result):",
+    )
+    require(
+        "presentationState.recordImmersiveSpaceDisappearance()"
+        in immersive_disappearance
+        and immersive_disappearance.index(
+            "presentationState.recordImmersiveSpaceDisappearance()"
+        )
+        < immersive_disappearance.index("guard pendingSpatialPlatformEffect == nil")
+        and ".collapseImmersivePlayback(family)" in immersive_disappearance
+        and "SpatialRecoveryIntent(" not in immersive_disappearance
+        and ".recoverSpatialPlayback" not in immersive_disappearance,
+        "immersive disappearance can recover or inspect stale environment state before collapse",
+    )
+    collapse_dispatch = region(
+        platform_executor,
+        "case .collapseImmersivePlayback(let family):",
+        "case .swapWindowPlaybackProjection(let family):",
+    )
+    require(
+        "await exitImmersivePlayback(" in collapse_dispatch
+        and "mode: .alreadyClosedBySystem" in collapse_dispatch
+        and "openImmersiveSpace" not in collapse_dispatch
+        and "dismissImmersiveSpace" not in collapse_dispatch,
+        "system collapse does not dispatch into the shared already-closed exit pipeline",
+    )
+    exit_mode = region(
+        platform_executor,
+        "private enum ImmersivePlaybackExitMode",
+        "private enum ExecutionPhase",
+    )
+    require(
+        "case .appRequested(let keepsEnvironmentOpen):" in exit_mode
+        and "case .alreadyClosedBySystem:" in exit_mode
+        and exit_mode.count("case .alreadyClosedBySystem:\n                false") == 2
+        and "if mode.waitsForSourceFade" in exit_immersive_playback
+        and "if mode.dismissesImmersiveSpace" in exit_immersive_playback
+        and "openImmersiveSpace" not in exit_immersive_playback,
+        "already-closed collapse can wait for source fade or issue immersive scene actions",
+    )
     require(
         "case .presentationCommitted(.window)" in exit_immersive_playback
         and 'id: "playerControls"' in exit_immersive_playback,
@@ -557,6 +600,14 @@ def main() -> None:
         exit_immersive_playback.index(
             "prepareTechnicalSessionForPresentationConversion()"
         )
+        < exit_immersive_playback.index("openWindowAndWaitForAppearance(")
+        < exit_immersive_playback.index(
+            "appModel.allowPresentationSourceRendererRelease()"
+        )
+        < exit_immersive_playback.index("detachPlaybackSurface(")
+        < exit_immersive_playback.index(
+            "waitUntilRendererConsumerIsReleased("
+        )
         < exit_immersive_playback.index(
             "activatePreparedTechnicalSessionReplacement()"
         )
@@ -569,8 +620,11 @@ def main() -> None:
         < exit_immersive_playback.index(
             "restoreTargetPlaybackIntentBeforeSettlement(execution)"
         )
-        < exit_immersive_playback.index("waitUntilPresentationSettled("),
-        "immersive exit replacement order is not prepare, activate, target binding, rebase, restore, settle",
+        < exit_immersive_playback.index("waitUntilPresentationSettled(")
+        < exit_immersive_playback.index("orderWindowToFront(")
+        < exit_immersive_playback.index("releaseDepartingPresentationResources()")
+        < exit_immersive_playback.index("complete(execution"),
+        "immersive exit omits or reorders the shared technical-session conversion sequence",
     )
     require(
         exit_immersive_playback.index("releaseDepartingPresentationResources()")
