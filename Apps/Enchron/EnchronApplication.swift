@@ -9,9 +9,8 @@ import SwiftUI
 
 enum EffectiveMediaFormatPresentationResolution: Equatable {
     case unchanged
-    case enterPanorama
+    case switchToPortal
     case returnToWindow
-    case returnToWindowThenEnterPanorama
 }
 
 enum EffectiveMediaFormatPresentationResolver {
@@ -19,18 +18,15 @@ enum EffectiveMediaFormatPresentationResolver {
         _ interpretation: EffectiveMediaFormatInterpretation,
         from presentation: PlaybackPresentation
     ) -> EffectiveMediaFormatPresentationResolution {
-        if interpretation.isPanoramic {
-            return switch presentation {
-            case .window: .enterPanorama
-            case .docked: .returnToWindowThenEnterPanorama
-            case .portal, .panorama: .unchanged
-            }
+        guard presentation.usesMainWindow else {
+            return .unchanged
         }
 
-        return switch presentation {
-        case .portal, .panorama: .returnToWindow
-        case .window, .docked: .unchanged
+        if interpretation.isPanoramic {
+            return presentation == .window ? .switchToPortal : .unchanged
         }
+
+        return presentation == .portal ? .returnToWindow : .unchanged
     }
 }
 
@@ -147,7 +143,7 @@ final class EnchronApplication {
             }
             let presentation: PlaybackPresentation = switch mode {
             case .window: .window
-            case .panorama: .panorama
+            case .panorama: .portal
             }
             appModel.prepareColdPlaybackLaunch(in: presentation)
             return mode
@@ -162,7 +158,6 @@ final class EnchronApplication {
             do {
                 switch resolution {
                 case .unchanged:
-                    appModel.setAutomaticPanoramaEntryPending(false)
                     guard playbackRuntime.technicalSessionFormatReplacementIsPending else {
                         return
                     }
@@ -193,37 +188,22 @@ final class EnchronApplication {
                             appModel.requestStoppedPlaybackCleanup()
                         }
                     }
-                case .enterPanorama:
-                    appModel.setAutomaticPanoramaEntryPending(false)
+                case .switchToPortal:
                     _ = try appModel.requestPlaybackPresentation(
-                        .panorama,
+                        .portal,
                         mediaSessionID: playbackRuntime.activeSessionID,
                         wasPlaying: playbackRuntime.productLifecycle == .playing
                     )
                 case .returnToWindow:
-                    appModel.setAutomaticPanoramaEntryPending(false)
                     _ = try appModel.requestPlaybackPresentation(
                         .window,
                         mediaSessionID: playbackRuntime.activeSessionID,
                         wasPlaying: playbackRuntime.productLifecycle == .playing
                     )
-                case .returnToWindowThenEnterPanorama:
-                    appModel.setAutomaticPanoramaEntryPending(true)
-                    do {
-                        _ = try appModel.requestPlaybackPresentation(
-                            .window,
-                            mediaSessionID: playbackRuntime.activeSessionID,
-                            wasPlaying: playbackRuntime.productLifecycle == .playing
-                        )
-                    } catch {
-                        appModel.setAutomaticPanoramaEntryPending(false)
-                        throw error
-                    }
                 }
             } catch {
                 // The core format already succeeded. Report only the distinct
                 // presentation failure and keep that effective interpretation.
-                appModel.setAutomaticPanoramaEntryPending(false)
                 playbackRuntime.lastErrorMessage = error.localizedDescription
             }
         }

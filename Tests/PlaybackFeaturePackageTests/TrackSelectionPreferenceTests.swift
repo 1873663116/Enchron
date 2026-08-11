@@ -27,8 +27,8 @@ struct TrackSelectionPreferenceTests {
         #expect(state.playbackModePreference == .window)
     }
 
-    @Test("cold playback resolves its Panorama mode without consulting Media Format")
-    func coldPlaybackResolvesPersistedPanoramaMode() async throws {
+    @Test("cold playback delivers its persisted panoramic family without consulting Media Format")
+    func coldPlaybackDeliversPersistedPanoramicFamily() async throws {
         let suiteName = "app.enchron.tests.cold-playback-mode.\(UUID().uuidString)"
         defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
         let request = Self.request(revision: "revision-a")

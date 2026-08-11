@@ -104,7 +104,7 @@ public enum PlaybackPresentationAvailability {
     }
 
     public static func presentation(afterApplying format: MediaFormat) -> PlaybackPresentation {
-        format.projection.isPanoramic ? .panorama : .window
+        format.projection.isPanoramic ? .portal : .window
     }
 }
 
@@ -603,7 +603,6 @@ public struct PlaybackPresentationSnapshot: Equatable, Sendable {
     public let recoveryIntent: SpatialRecoveryIntent?
     public let lastPlaybackTransportFailure: SpatialPlaybackTransportFailure?
     public let isTransitionExecutionOccupied: Bool
-    public let automaticPanoramaEntryPending: Bool
     public let environmentCardEntryPending: Bool
 }
 
@@ -626,7 +625,6 @@ public final class PlaybackPresentationModel {
     public private(set) var environmentCardResidency: EnvironmentCardResidency = .closed
     public private(set) var recoveryIntent: SpatialRecoveryIntent?
     public private(set) var lastPlaybackTransportFailure: SpatialPlaybackTransportFailure?
-    public private(set) var automaticPanoramaEntryPending = false
     public private(set) var environmentCardEntryPending = false
 
     @ObservationIgnored
@@ -664,7 +662,6 @@ public final class PlaybackPresentationModel {
             recoveryIntent: recoveryIntent,
             lastPlaybackTransportFailure: lastPlaybackTransportFailure,
             isTransitionExecutionOccupied: activeSpatialPlatformEffectID != nil,
-            automaticPanoramaEntryPending: automaticPanoramaEntryPending,
             environmentCardEntryPending: environmentCardEntryPending
         )
     }
@@ -861,7 +858,6 @@ public final class PlaybackPresentationModel {
 
     package func resetForStoppedPlayback() {
         presentationState.resetForPlaybackStop()
-        automaticPanoramaEntryPending = false
         environmentCardEntryPending = false
         recoveryIntent = nil
     }
@@ -968,7 +964,6 @@ public final class PlaybackPresentationModel {
                     wasPlaying: playbackContext.wasPlaying
                   ) else {
                 presentationState.settleSpatialRecoveryFailure()
-                automaticPanoramaEntryPending = false
                 recoveryIntent = nil
                 return .spatialRecoveryFailed(.mediaSessionChanged)
             }
@@ -1068,18 +1063,7 @@ public final class PlaybackPresentationModel {
         case .presentWindowPlayback(_, let keepsEnvironmentOpen, _):
             immersiveSpaceResidency = keepsEnvironmentOpen ? .open : .closed
             let resolution = commitPendingPresentation()
-            if automaticPanoramaEntryPending, presentation == .window {
-                automaticPanoramaEntryPending = false
-                if let playbackContext = playbackContext(for: request) {
-                    _ = try? requestPresentation(
-                        .panorama,
-                        playbackContext: SpatialPlaybackTransitionContext(
-                            mediaSessionID: playbackContext.mediaSessionID,
-                            wasPlaying: false
-                        )
-                    )
-                }
-            } else if environmentCardEntryPending, presentation == .window {
+            if environmentCardEntryPending, presentation == .window {
                 environmentCardEntryPending = false
                 if let playbackContext = playbackContext(for: request) {
                     enqueueEnvironmentCardPresentation(
@@ -1126,13 +1110,11 @@ public final class PlaybackPresentationModel {
                 presentationState.rollback(transition.id)
             }
             if case .presentWindowPlayback = request.effect {
-                automaticPanoramaEntryPending = false
                 environmentCardEntryPending = false
             }
             return .presentationRolledBack(failure)
         case .recoverSpatialPlayback:
             recoveryIntent = nil
-            automaticPanoramaEntryPending = false
             immersiveSpaceResidency = .closed
             presentationState.settleSpatialRecoveryFailure()
             return .spatialRecoveryFailed(failure)
@@ -1166,10 +1148,6 @@ public final class PlaybackPresentationModel {
             presentationState.rollback(transition.id)
             return .presentationRolledBack(.executionCancelled)
         }
-    }
-
-    public func setAutomaticPanoramaEntryPending(_ pending: Bool) {
-        automaticPanoramaEntryPending = pending
     }
 
     private func enqueueEnvironmentCardPresentation(

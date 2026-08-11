@@ -232,10 +232,6 @@ public final class AppModel {
         playbackPresentationModel.currentEnvironmentEffect
     }
 
-    public var automaticPanoramaEntryPending: Bool {
-        playbackPresentationModel.automaticPanoramaEntryPending
-    }
-
     @ObservationIgnored
     private var spatialPlatformEffectReplacementHandler: (() -> Void)?
 
@@ -531,10 +527,6 @@ public final class AppModel {
         _ effect: SpatialSceneDomain.EnvironmentEffect
     ) {
         playbackPresentationModel.setActiveEnvironmentEffect(effect)
-    }
-
-    public func setAutomaticPanoramaEntryPending(_ pending: Bool) {
-        playbackPresentationModel.setAutomaticPanoramaEntryPending(pending)
     }
 
     public func registerControlsInteraction(at date: Date = Date()) {

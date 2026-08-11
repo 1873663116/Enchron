@@ -103,12 +103,12 @@ require(
 
 let panoramicFormat = MediaFormat(projection: .equirectangular360, stereoLayout: .mono)
 require(
-    PlaybackPresentationAvailability.presentation(afterApplying: panoramicFormat) == .panorama,
-    "applying a panoramic format must enter Panorama"
+    PlaybackPresentationAvailability.presentation(afterApplying: panoramicFormat) == .portal,
+    "applying a panoramic format must land in Portal"
 )
 require(
-    PlaybackPresentationAvailability.windowShowsPanoramaResume(in: .window, isPanoramic: true),
-    "returning to Window must preserve access to the panoramic presentation"
+    PlaybackPresentationAvailability.windowShowsPanoramaResume(in: .portal, isPanoramic: true),
+    "Portal must preserve access to the panoramic presentation"
 )
 require(
     PlaybackPresentationAvailability.canDock(in: .window, isPanoramic: true) == false,
@@ -379,11 +379,11 @@ try await MainActor.run {
         "Docked must request the existing spatial playback platform effect"
     )
     require(
-        firstRequest.playbackTransportPlan?.beforeEffect
-            == .pause(mediaSessionID: playingContext.mediaSessionID)
-            && firstRequest.playbackTransportPlan?.afterSuccess == nil
+        firstRequest.playbackTransportPlan?.beforeEffect == nil
+            && firstRequest.playbackTransportPlan?.afterSuccess
+            == .resume(mediaSessionID: playingContext.mediaSessionID)
             && firstRequest.playbackTransportPlan?.afterFailure == nil,
-        "presentation transitions must pause playing media and remain paused after commit or rollback"
+        "presentation transitions must keep playing media and resume it after a successful commit"
     )
     do {
         _ = try presentationModel.requestPresentation(

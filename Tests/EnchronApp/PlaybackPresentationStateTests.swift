@@ -309,17 +309,75 @@ struct PlaybackPresentationStateTests {
         #expect(runtime.effectiveContentIsPanoramic)
     }
 
-    @Test("A persisted panoramic launch selects Panorama before its first session")
-    func coldPanoramaLaunchStartsInItsFinalScene() throws {
-        let model = PlaybackPresentationModel()
+    @Test(
+        "Effective Media Format resolves only within the main-window column",
+        arguments: [
+            (
+                true,
+                PlaybackPresentation.window,
+                EffectiveMediaFormatPresentationResolution.switchToPortal
+            ),
+            (true, .portal, .unchanged),
+            (true, .docked, .unchanged),
+            (true, .panorama, .unchanged),
+            (false, .window, .unchanged),
+            (false, .portal, .returnToWindow),
+            (false, .docked, .unchanged),
+            (false, .panorama, .unchanged)
+        ]
+    )
+    func effectiveMediaFormatPresentationResolution(
+        isPanoramic: Bool,
+        presentation: PlaybackPresentation,
+        expected: EffectiveMediaFormatPresentationResolution
+    ) {
+        let interpretation = MediaFormatInterpretationResolver.resolve(
+            source: SourceMediaFormatFact(
+                contentKind: isPanoramic ? .halfEquirectangular : .rectilinear,
+                projection: isPanoramic ? .equirectangular180 : .flat,
+                stereoLayout: .mono
+            ),
+            override: nil
+        )
 
-        model.prepareColdPlaybackLaunch(in: .panorama)
+        #expect(
+            EffectiveMediaFormatPresentationResolver.resolve(
+                interpretation,
+                from: presentation
+            ) == expected
+        )
+    }
 
-        #expect(model.presentation == .panorama)
-        #expect(model.transition == nil)
-        let request = try #require(model.pendingSpatialPlatformEffect)
-        #expect(request.effect == .presentInitialSpatialPlayback(.panorama))
-        #expect(request.playbackTransportPlan == nil)
+    @Test("Applying Media Format selects a main-window presentation")
+    func appliedMediaFormatSelectsMainWindowPresentation() {
+        #expect(
+            PlaybackPresentationAvailability.presentation(afterApplying: .standard)
+                == .window
+        )
+        #expect(
+            PlaybackPresentationAvailability.presentation(
+                afterApplying: MediaFormat(
+                    projection: .equirectangular180,
+                    stereoLayout: .mono
+                )
+            ) == .portal
+        )
+    }
+
+    @Test("A persisted panoramic family cold launch lands in Portal")
+    @MainActor
+    func persistedPanoramicFamilyColdLaunchLandsInPortal() throws {
+        let application = EnchronApplication(environment: [:])
+        let startEntry = try #require(
+            application.playbackLauncher.onPlaybackModeEntryStarted
+        )
+
+        let deliveredMode = startEntry(.panorama, true)
+
+        #expect(deliveredMode == .panorama)
+        #expect(application.appModel.playbackPresentation == .portal)
+        #expect(application.appModel.presentationTransition == nil)
+        #expect(application.appModel.pendingSpatialPlatformEffect == nil)
     }
 
     @Test("Presentation settlement belongs to the replacement technical session")

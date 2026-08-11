@@ -8,37 +8,6 @@ import XCTest
 
 nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     @MainActor
-    func testEffectiveFormatPresentationResolutionUsesTheSameInterpretationForSourceAndOverride() {
-        let panoramicSource = MediaFormatInterpretationResolver.resolve(
-            source: SourceMediaFormatFact(
-                contentKind: .halfEquirectangular,
-                projection: .equirectangular180,
-                stereoLayout: .mono
-            ),
-            override: nil
-        )
-        XCTAssertEqual(
-            EffectiveMediaFormatPresentationResolver.resolve(
-                panoramicSource,
-                from: .window
-            ),
-            .enterPanorama
-        )
-
-        let flatOverride = MediaFormatInterpretationResolver.resolve(
-            source: panoramicSource.source,
-            override: .standard
-        )
-        XCTAssertEqual(
-            EffectiveMediaFormatPresentationResolver.resolve(
-                flatOverride,
-                from: .panorama
-            ),
-            .returnToWindow
-        )
-    }
-
-    @MainActor
     func testVideoFormatEditorDefaultsToFlatMonoAndAutomaticDiscardsItsDraft() {
         var state = PlaybackTopActionsState()
         XCTAssertEqual(state.projection, .flat)
