@@ -1,8 +1,12 @@
+import CoreMedia
 import Foundation
 @testable import MediaLibrary
 import MediaSource
 import PlaybackCore
 import PlaybackFeature
+import RealityKit
+import SwiftUI
+import UIKit
 import XCTest
 @testable import Enchron
 
@@ -403,28 +407,192 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
     }
 
     @MainActor
-    func testWindowToPanoramaTransfersTheSameEntityWithoutReplacingItsGraph() throws {
+    func testTechnicalSessionReplacementUsesTheFinalCutoverPositionAndPreservesSelections()
+        async throws {
+        let fixture = URL(
+            fileURLWithPath:
+                "/Volumes/Cortisol/DevSpace/EnchronWorkspace/TestMedia/TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv"
+        )
+        guard FileManager.default.fileExists(atPath: fixture.path) else {
+            throw XCTSkip("The multi-track playback fixture is not available in this test process.")
+        }
         let runtime = PlaybackRuntime()
-        let entityID = "stable-video-entity"
+        addTeardownBlock { @MainActor in
+            await runtime.stopAndWait()
+        }
+        try await runtime.open(
+            PlaybackLaunchRequest(
+                url: fixture,
+                displayName: fixture.lastPathComponent
+            )
+        )
+        let logicalSessionID = try XCTUnwrap(runtime.activeSessionID)
+        let sourceTechnicalSessionID = try XCTUnwrap(runtime.activeTechnicalSessionID)
+        let selectedAudioTrack = try XCTUnwrap(
+            runtime.availableAudioTracks.first {
+                $0.id != runtime.currentAudioTrackID
+            }
+        )
+        let selectedSubtitleTrack = try XCTUnwrap(runtime.availableSubtitleTracks.first)
+        try await runtime.selectAudioTrack(selectedAudioTrack)
+        try await runtime.selectSubtitleTrack(selectedSubtitleTrack)
 
+        let sourceEntity = Entity()
+        PlaybackRealityPresenter.configure(
+            sourceEntity,
+            renderer: try XCTUnwrap(runtime.renderer),
+            presentation: .window,
+            requestsSpatialVideoMode: false
+        )
+        let sourceViewHost = try PlaybackRealityViewTestHost(entity: sourceEntity)
+        defer { sourceViewHost.close() }
+        try await sourceViewHost.waitUntilReady()
+        try runtime.attach(
+            entityID: "source-video-entity",
+            realityViewID: "source-reality-view",
+            presentation: .window
+        )
         try runtime.claimRendererConsumer(
             presentation: .window,
-            entityID: entityID
+            entityID: "source-video-entity"
         )
-        runtime.releaseRendererConsumer(
-            presentation: .window,
-            entityID: entityID,
-            preservingVideoComponent: true
+        let sourceVideoComponentRevision = runtime.videoComponentRevision
+        runtime.videoRendererTargetDidBind(
+            revision: sourceVideoComponentRevision,
+            entityID: "source-video-entity"
         )
+        try await runtime.beginPlaybackForPresentationSettlement(
+            mediaSessionID: logicalSessionID
+        )
+        let sourceSession = try XCTUnwrap(runtime.activeSessionForVerification())
+        let sourcePositionBeforePreparation = try await waitUntilPlaybackAdvances(
+            runtime,
+            sourceSession,
+            beyond: .zero
+        )
+        XCTAssertEqual(runtime.productLifecycle, .playing)
 
+        try await runtime.prepareTechnicalSessionForPresentationConversion()
+
+        let sourcePositionAfterPreparation = sourceSession.currentTime()
+        XCTAssertGreaterThan(
+            CMTimeCompare(sourcePositionAfterPreparation, sourcePositionBeforePreparation),
+            0
+        )
+        try await runtime.activatePreparedTechnicalSessionReplacement()
+
+        let firstReplacementSession = try XCTUnwrap(runtime.activeSessionForVerification())
+        let firstCutoverPosition = sourceSession.currentTime()
+        XCTAssertEqual(runtime.activeSessionID, logicalSessionID)
+        XCTAssertNotEqual(runtime.activeTechnicalSessionID, sourceTechnicalSessionID)
+        XCTAssertEqual(runtime.currentAudioTrackID, selectedAudioTrack.id)
+        XCTAssertEqual(runtime.currentSubtitleTrackID, selectedSubtitleTrack.id)
+        XCTAssertNotEqual(runtime.productLifecycle, .playing)
+        XCTAssertEqual(runtime.technicalSessionReplacementStage, .installingRenderer)
+
+        let firstTargetEntity = Entity()
+        PlaybackRealityPresenter.configure(
+            firstTargetEntity,
+            renderer: try XCTUnwrap(runtime.renderer),
+            presentation: .docked,
+            requestsSpatialVideoMode: false
+        )
+        let firstTargetViewHost = try PlaybackRealityViewTestHost(entity: firstTargetEntity)
+        defer { firstTargetViewHost.close() }
+        try await firstTargetViewHost.waitUntilReady()
         try runtime.claimRendererConsumer(
-            presentation: .panorama,
-            entityID: entityID
+            presentation: .docked,
+            entityID: "first-target-video-entity"
         )
+        try runtime.attach(
+            entityID: "first-target-video-entity",
+            realityViewID: "first-target-reality-view",
+            presentation: .docked
+        )
+        runtime.videoRendererTargetDidBind(
+            revision: sourceVideoComponentRevision,
+            entityID: "first-target-video-entity"
+        )
+        XCTAssertNil(runtime.boundVideoComponentRevision)
+        runtime.videoRendererTargetDidBind(
+            revision: runtime.videoComponentRevision,
+            entityID: "first-target-video-entity"
+        )
+        try await runtime.rebaseActivatedTechnicalSessionReplacement(to: .docked)
+        try await waitUntilPlaybackLifecycle(runtime, equals: .paused)
 
-        XCTAssertEqual(runtime.rendererConsumerPresentation, .panorama)
-        XCTAssertEqual(runtime.rendererConsumerEntityID, entityID)
-        XCTAssertEqual(runtime.videoComponentRevision, 0)
+        XCTAssertTrue(
+            acceptedVideoSample(in: firstReplacementSession, covers: firstCutoverPosition)
+        )
+        XCTAssertEqual(runtime.productLifecycle, .paused)
+        XCTAssertEqual(runtime.technicalSessionReplacementStage, .completed)
+        try await runtime.beginPlaybackForPresentationSettlement(
+            mediaSessionID: logicalSessionID
+        )
+        try await waitUntilPlaybackLifecycle(runtime, equals: .playing)
+        XCTAssertEqual(runtime.productLifecycle, .playing)
+        sourceViewHost.close()
+        await runtime.retireDepartingTechnicalSessionAfterSceneDisappearance()
+
+        try await runtime.performSpatialPlaybackTransport(
+            .pause(mediaSessionID: logicalSessionID)
+        )
+        try await waitUntilPlaybackLifecycle(runtime, equals: .paused)
+        let pausedSourcePosition = firstReplacementSession.currentTime()
+        let firstReplacementTechnicalSessionID = try XCTUnwrap(
+            runtime.activeTechnicalSessionID
+        )
+        try await runtime.prepareTechnicalSessionForPresentationConversion()
+        XCTAssertEqual(
+            CMTimeCompare(firstReplacementSession.currentTime(), pausedSourcePosition),
+            0
+        )
+        try await runtime.activatePreparedTechnicalSessionReplacement()
+
+        let pausedReplacementSession = try XCTUnwrap(runtime.activeSessionForVerification())
+        let secondCutoverPosition = firstReplacementSession.currentTime()
+        XCTAssertEqual(CMTimeCompare(secondCutoverPosition, pausedSourcePosition), 0)
+        XCTAssertEqual(runtime.activeSessionID, logicalSessionID)
+        XCTAssertNotEqual(runtime.activeTechnicalSessionID, firstReplacementTechnicalSessionID)
+        XCTAssertEqual(runtime.currentAudioTrackID, selectedAudioTrack.id)
+        XCTAssertEqual(runtime.currentSubtitleTrackID, selectedSubtitleTrack.id)
+        XCTAssertNotEqual(runtime.productLifecycle, .playing)
+
+        let pausedTargetEntity = Entity()
+        PlaybackRealityPresenter.configure(
+            pausedTargetEntity,
+            renderer: try XCTUnwrap(runtime.renderer),
+            presentation: .window,
+            requestsSpatialVideoMode: false
+        )
+        let pausedTargetViewHost = try PlaybackRealityViewTestHost(entity: pausedTargetEntity)
+        defer { pausedTargetViewHost.close() }
+        try await pausedTargetViewHost.waitUntilReady()
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: "paused-target-video-entity"
+        )
+        try runtime.attach(
+            entityID: "paused-target-video-entity",
+            realityViewID: "paused-target-reality-view",
+            presentation: .window
+        )
+        runtime.videoRendererTargetDidBind(
+            revision: runtime.videoComponentRevision,
+            entityID: "paused-target-video-entity"
+        )
+        try await runtime.rebaseActivatedTechnicalSessionReplacement(to: .window)
+        try await waitUntilPlaybackLifecycle(runtime, equals: .paused)
+
+        XCTAssertTrue(
+            acceptedVideoSample(in: pausedReplacementSession, covers: secondCutoverPosition)
+        )
+        XCTAssertEqual(runtime.productLifecycle, .paused)
+        XCTAssertNotNil(sourceEntity.components[VideoPlayerComponent.self])
+        XCTAssertNotNil(firstTargetEntity.components[VideoPlayerComponent.self])
+        XCTAssertNotNil(pausedTargetEntity.components[VideoPlayerComponent.self])
+        firstTargetViewHost.close()
+        await runtime.retireDepartingTechnicalSessionAfterSceneDisappearance()
     }
 
     @MainActor
@@ -491,6 +659,141 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         XCTAssertEqual(appModel.lastControlsInteractionAt, exited)
     }
 
+}
+
+@MainActor
+private final class PlaybackRealityViewTestHost {
+    private let readiness = PlaybackRealityViewTestReadiness()
+    private let controller: UIHostingController<PlaybackRealityViewTestSurface>
+    private let window: UIWindow
+    private var isClosed = false
+
+    init(entity: Entity) throws {
+        let readiness = self.readiness
+        controller = UIHostingController(
+            rootView: PlaybackRealityViewTestSurface(
+                entity: entity,
+                onReady: { readiness.markReady() }
+            )
+        )
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first else {
+            throw PlaybackRealityViewTestHostError.missingWindow
+        }
+        window = UIWindow(windowScene: windowScene)
+        controller.view.backgroundColor = .clear
+        controller.view.isUserInteractionEnabled = false
+        window.backgroundColor = .clear
+        window.isUserInteractionEnabled = false
+        window.rootViewController = controller
+        window.isHidden = false
+    }
+
+    func waitUntilReady() async throws {
+        try await readiness.waitUntilReady(
+            deadline: PlaybackRuntime.presentationSettlementDeadline
+        )
+    }
+
+    func close() {
+        guard isClosed == false else { return }
+        isClosed = true
+        window.isHidden = true
+        window.rootViewController = nil
+    }
+}
+
+@MainActor
+private final class PlaybackRealityViewTestReadiness {
+    private var isReady = false
+
+    func markReady() {
+        isReady = true
+    }
+
+    func waitUntilReady(deadline: Duration) async throws {
+        let clock = ContinuousClock()
+        let startedAt = clock.now
+        while isReady == false {
+            guard clock.now - startedAt < deadline else {
+                throw PlaybackRealityViewTestHostError.realityViewDidNotBecomeReady
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+    }
+}
+
+@MainActor
+private func waitUntilPlaybackAdvances(
+    _ runtime: PlaybackRuntime,
+    _ session: SampleBufferPlaybackSession,
+    beyond time: CMTime
+) async throws -> CMTime {
+    let clock = ContinuousClock()
+    let startedAt = clock.now
+    while true {
+        let currentTime = session.currentTime()
+        if runtime.productLifecycle == .playing,
+           CMTimeCompare(currentTime, time) > 0 {
+            return currentTime
+        }
+        guard clock.now - startedAt < PlaybackRuntime.presentationSettlementDeadline else {
+            throw PlaybackRealityViewTestHostError.playbackDidNotAdvance
+        }
+        try await Task.sleep(for: .milliseconds(25))
+    }
+}
+
+@MainActor
+private func waitUntilPlaybackLifecycle(
+    _ runtime: PlaybackRuntime,
+    equals lifecycle: ProductPlaybackLifecycle
+) async throws {
+    let clock = ContinuousClock()
+    let startedAt = clock.now
+    while runtime.productLifecycle != lifecycle {
+        guard clock.now - startedAt < PlaybackRuntime.presentationSettlementDeadline else {
+            throw PlaybackRealityViewTestHostError.playbackLifecycleDidNotSettle
+        }
+        try await Task.sleep(for: .milliseconds(25))
+    }
+}
+
+private func acceptedVideoSample(
+    in session: SampleBufferPlaybackSession,
+    covers time: CMTime
+) -> Bool {
+    guard let sample = session.debugSnapshot().lastVideoSample,
+          sample.presentationTimeSeconds.isFinite,
+          time.seconds.isFinite else {
+        return false
+    }
+    if sample.presentationTimeSeconds >= time.seconds {
+        return true
+    }
+    return sample.durationSeconds.isFinite
+        && sample.durationSeconds > 0
+        && sample.presentationTimeSeconds + sample.durationSeconds >= time.seconds
+}
+
+private struct PlaybackRealityViewTestSurface: View {
+    let entity: Entity
+    let onReady: @MainActor () -> Void
+
+    var body: some View {
+        RealityView { content in
+            content.add(entity)
+            onReady()
+        }
+    }
+}
+
+private enum PlaybackRealityViewTestHostError: Error {
+    case missingWindow
+    case realityViewDidNotBecomeReady
+    case playbackDidNotAdvance
+    case playbackLifecycleDidNotSettle
 }
 
 @MainActor

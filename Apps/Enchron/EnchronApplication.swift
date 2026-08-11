@@ -141,11 +141,11 @@ final class EnchronApplication {
                 case .portal, .panorama: .panorama
                 }
             }
-            let presentation: PlaybackPresentation = switch mode {
-            case .window: .window
-            case .panorama: .portal
+            let family: PresentationContentFamily = switch mode {
+            case .window: .flat
+            case .panorama: .panoramic
             }
-            appModel.prepareColdPlaybackLaunch(in: presentation)
+            appModel.prepareColdPlaybackLaunch(for: family)
             return mode
         }
         launcher.onEffectiveMediaFormatApplied = {
@@ -281,6 +281,7 @@ final class EnchronApplication {
         let spatialPlatformEffectCoordinator = SpatialPlatformEffectCoordinator(
             appModel: appModel,
             playbackRuntime: playbackRuntime,
+            playbackVideoEntityStore: playbackVideoEntityStore,
             stopPlaybackForFailedPresentationTransfer: { [weak launcher] in
                 await launcher?.stopPlaybackAndWait()
             },

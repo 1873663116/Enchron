@@ -342,11 +342,11 @@ public final class AppModel {
     }
 
     public func prepareColdPlaybackLaunch(
-        in presentation: PlaybackPresentation
+        for family: PresentationContentFamily
     ) {
         resetPresentationTransitionAppearance()
         showControls = false
-        playbackPresentationModel.prepareColdPlaybackLaunch(in: presentation)
+        playbackPresentationModel.prepareColdPlaybackLaunch(for: family)
         spatialPlatformEffectReplacementHandler?()
     }
 

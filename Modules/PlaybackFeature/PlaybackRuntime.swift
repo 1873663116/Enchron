@@ -23,7 +23,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         case ended(id: String)
     }
 
-    public enum TechnicalSessionReplacementStage: String, Sendable {
+    public enum TechnicalSessionReplacementStage: String, Sendable, Equatable {
         case inactive
         case retiringSource
         case openingReplacement
@@ -245,6 +245,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var releasedRendererConsumer: ReleasedRendererConsumer?
     private var technicalSessionReplacementIsInFlight = false
     private var preparedTechnicalSessionReplacement: PreparedTechnicalSessionReplacement?
+    private var activatedTechnicalSessionCutover: ActivatedTechnicalSessionCutover?
     private var departingTechnicalSessionController: PlaybackCoreController?
     private var seekIntentGeneration: UInt64 = 0
 
@@ -256,6 +257,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let speed: PlaybackModel.PlaybackSpeed
         let selectedAudioTrackID: String?
         let selectedSubtitleTrackID: String?
+    }
+
+    private struct ActivatedTechnicalSessionCutover {
+        let generation: Int
+        let logicalSessionID: String
+        let activeReplacementSessionID: String
+        let finalSourceTime: CMTime
     }
 
     private struct Attachment {
@@ -367,6 +375,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         firstAttachedPresentationForActiveTechnicalSession = nil
         lastBoundVideoRendererEntityID = nil
         releasedRendererConsumer = nil
+        activatedTechnicalSessionCutover = nil
         invalidatePendingDisplayedImageClear()
     }
 
@@ -998,9 +1007,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         effectiveVideoFormatRevision = nil
     }
 
-    /// Builds the target decoder and renderer while the source technical
-    /// session remains alive. The prepared session is paused and has no
-    /// RealityKit consumer until `activatePreparedTechnicalSessionReplacement`.
     public func prepareTechnicalSessionForPresentationConversion() async throws {
         let interval = signposter.beginInterval("ReplaceTechnicalPlaybackSession")
         defer { signposter.endInterval("ReplaceTechnicalPlaybackSession", interval) }
@@ -1097,15 +1103,27 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
-    /// Makes the prepared session current without destroying the source
-    /// controller. The source renderer can continue presenting until its Scene
-    /// disappearance is confirmed.
-    public func activatePreparedTechnicalSessionReplacement() throws {
+    public func activatePreparedTechnicalSessionReplacement() async throws {
         guard let prepared = preparedTechnicalSessionReplacement else {
             throw RuntimeError.noSession
         }
         guard generation == prepared.generation,
-              activeSessionID == prepared.logicalSessionID else {
+              activeSessionID == prepared.logicalSessionID,
+              let sourceSession = session,
+              preparedTechnicalSessionReplacement?.session === prepared.session else {
+            throw RuntimeError.mediaSessionChanged
+        }
+
+        try await prepared.controller.suspendVideoSampleDelivery()
+        if productLifecycle == .playing {
+            try controller.pause()
+        }
+        let cutoverTime = sourceSession.currentTime()
+
+        guard generation == prepared.generation,
+              activeSessionID == prepared.logicalSessionID,
+              session === sourceSession,
+              preparedTechnicalSessionReplacement?.session === prepared.session else {
             throw RuntimeError.mediaSessionChanged
         }
 
@@ -1140,8 +1158,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         activeSubtitleCues = controller.activeSubtitleCues
         activeSubtitleFrame = controller.activeSubtitleFrame
         preparedTechnicalSessionReplacement = nil
-        technicalSessionReplacementIsInFlight = false
-        technicalSessionReplacementStage = .completed
+        activatedTechnicalSessionCutover = ActivatedTechnicalSessionCutover(
+            generation: prepared.generation,
+            logicalSessionID: prepared.logicalSessionID,
+            activeReplacementSessionID: prepared.session.traceID,
+            finalSourceTime: cutoverTime
+        )
         receive(controller.status)
         receive(controller.diagnostics)
         logger.info(
@@ -1149,9 +1171,36 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
-    public func pauseDepartingTechnicalSessionForVisualCutover() {
-        guard let departingTechnicalSessionController else { return }
-        try? departingTechnicalSessionController.pause()
+    public func rebaseActivatedTechnicalSessionReplacement(
+        to presentation: PlaybackPresentation
+    ) async throws {
+        guard let cutover = activatedTechnicalSessionCutover else {
+            throw RuntimeError.noSession
+        }
+        let clock = ContinuousClock()
+        let startedAt = clock.now
+        while replacementRendererTargetIsCurrent(for: presentation) == false {
+            guard activatedTechnicalSessionCutoverIsCurrent(cutover) else {
+                throw RuntimeError.mediaSessionChanged
+            }
+            guard clock.now - startedAt < Self.presentationSettlementDeadline else {
+                throw RuntimeError.presentationDidNotSettle(presentation)
+            }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        guard activatedTechnicalSessionCutoverIsCurrent(cutover) else {
+            throw RuntimeError.mediaSessionChanged
+        }
+        try await controller.restartVideoSampleDelivery(
+            at: cutover.finalSourceTime,
+            after: .pause
+        )
+        guard activatedTechnicalSessionCutoverIsCurrent(cutover) else {
+            throw RuntimeError.mediaSessionChanged
+        }
+        activatedTechnicalSessionCutover = nil
+        technicalSessionReplacementIsInFlight = false
+        technicalSessionReplacementStage = .completed
     }
 
     public func retireDepartingTechnicalSessionAfterSceneDisappearance() async {
@@ -1169,17 +1218,6 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         await preparedTechnicalSessionReplacement.controller.closeAndWait(clearSource: false)
     }
 
-    /// Immediate replacement remains available to conversions that don't cross
-    /// system Scene roots.
-    public func rebuildTechnicalSessionForPresentationConversion() async throws {
-        try await prepareTechnicalSessionForPresentationConversion()
-        try activatePreparedTechnicalSessionReplacement()
-        await retireDepartingTechnicalSessionAfterSceneDisappearance()
-    }
-
-    /// Replaces the technical playback instance without changing Scene type.
-    /// The new instance is born paused, binds its first frame to the current
-    /// RealityView, and only then restores the previous playing intent.
     public func rebuildTechnicalSessionForCurrentPresentation() async throws {
         guard technicalSessionFormatReplacementIsPending else { return }
         guard let presentation = attachedPresentation,
@@ -1188,7 +1226,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
         let restoresPlayingIntent = productLifecycle == .playing
 
-        try await rebuildTechnicalSessionForPresentationConversion()
+        try await prepareTechnicalSessionForPresentationConversion()
+        try await activatePreparedTechnicalSessionReplacement()
+        try await rebaseActivatedTechnicalSessionReplacement(to: presentation)
+        await retireDepartingTechnicalSessionAfterSceneDisappearance()
         if restoresPlayingIntent {
             try await performSpatialPlaybackTransport(
                 .resume(mediaSessionID: logicalSessionID)
@@ -1287,6 +1328,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         departingTechnicalSessionController = nil
         let preparedController = preparedTechnicalSessionReplacement?.controller
         preparedTechnicalSessionReplacement = nil
+        activatedTechnicalSessionCutover = nil
         technicalSessionReplacementIsInFlight = false
         let previousClosingTask = closingTask
         let audioSessionLifecycle = audioSessionLifecycle
@@ -1339,6 +1381,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         effectiveVideoFormatRevision = nil
         technicalSessionFormatReplacementIsPending = false
         technicalSessionMediaFormatInterpretation = nil
+        activatedTechnicalSessionCutover = nil
         lastBoundVideoRendererEntityID = nil
         releasedRendererConsumer = nil
         clearVideoComponentBindingObservation()
@@ -1506,6 +1549,34 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         boundVideoComponentRevision = nil
         rendererPixelVideoComponentRevision = nil
         rendererPixelStreamEpoch = nil
+    }
+
+    private func activatedTechnicalSessionCutoverIsCurrent(
+        _ cutover: ActivatedTechnicalSessionCutover
+    ) -> Bool {
+        generation == cutover.generation
+            && activeSessionID == cutover.logicalSessionID
+            && activeTechnicalSessionID == cutover.activeReplacementSessionID
+            && session?.traceID == cutover.activeReplacementSessionID
+            && activatedTechnicalSessionCutover?.generation == cutover.generation
+            && activatedTechnicalSessionCutover?.logicalSessionID == cutover.logicalSessionID
+            && activatedTechnicalSessionCutover?.activeReplacementSessionID
+                == cutover.activeReplacementSessionID
+    }
+
+    private func replacementRendererTargetIsCurrent(
+        for presentation: PlaybackPresentation
+    ) -> Bool {
+        guard boundVideoComponentRevision == videoComponentRevision,
+              attachedPresentation == presentation,
+              attachment?.presentation == presentation,
+              rendererConsumerPresentation == presentation,
+              let entityID = attachment?.entityID,
+              rendererConsumerEntityID == entityID,
+              lastBoundVideoRendererEntityID == entityID else {
+            return false
+        }
+        return true
     }
 
     /// Releases Runtime's record of RealityKit's old VideoPlayerComponent

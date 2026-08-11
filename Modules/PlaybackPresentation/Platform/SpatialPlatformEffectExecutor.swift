@@ -53,6 +53,7 @@ final class SpatialPlatformEffectCoordinator {
 
     private let appModel: AppModel
     private let playbackRuntime: PlaybackRuntime
+    private let playbackVideoEntityStore: PlaybackVideoEntityStore
     @ObservationIgnored
     private let stopPlaybackForFailedPresentationTransfer: @MainActor () async -> Void
     @ObservationIgnored
@@ -95,11 +96,13 @@ final class SpatialPlatformEffectCoordinator {
     init(
         appModel: AppModel,
         playbackRuntime: PlaybackRuntime,
+        playbackVideoEntityStore: PlaybackVideoEntityStore,
         stopPlaybackForFailedPresentationTransfer: (@MainActor () async -> Void)? = nil,
         persistSettledPlaybackMode: (@MainActor (PlaybackPresentation) -> Void)? = nil
     ) {
         self.appModel = appModel
         self.playbackRuntime = playbackRuntime
+        self.playbackVideoEntityStore = playbackVideoEntityStore
         self.stopPlaybackForFailedPresentationTransfer =
             stopPlaybackForFailedPresentationTransfer
             ?? { await playbackRuntime.stopAndWait() }
@@ -379,31 +382,21 @@ final class SpatialPlatformEffectCoordinator {
         }
 
         switch execution.request.effect {
-        case .presentInitialSpatialPlayback(let presentation):
-            await presentInitialSpatialPlayback(
-                presentation,
+        case .enterImmersivePlayback(let family):
+            await enterImmersivePlayback(
+                family: family,
                 execution: execution
             )
-        case .presentSpatialPlayback(let presentation):
-            await presentSpatialPlayback(
-                presentation,
+        case .exitImmersivePlayback(let family, let keepsEnvironmentOpen):
+            await exitImmersivePlayback(
+                family: family,
+                keepsEnvironmentOpen: keepsEnvironmentOpen,
                 execution: execution
             )
+        case .swapWindowPlaybackProjection(let family):
+            await swapWindowPlaybackProjection(to: family, execution: execution)
         case .recoverSpatialPlayback(let presentation):
             await recoverSpatialPlayback(presentation, execution: execution)
-        case .switchWindowHostedPlayback(let presentation):
-            await switchWindowHostedPlayback(presentation, execution: execution)
-        case .presentWindowPlayback(
-            let presentation,
-            let keepsEnvironmentOpen,
-            let immersiveSpaceAlreadyClosed
-        ):
-            await presentWindowPlayback(
-                presentation: presentation,
-                execution: execution,
-                keepsEnvironmentOpen: keepsEnvironmentOpen,
-                immersiveSpaceAlreadyClosed: immersiveSpaceAlreadyClosed
-            )
         case .presentEnvironmentPreview:
             await presentEnvironmentPreview(execution)
         case .dismissEnvironmentPreview:
@@ -435,68 +428,6 @@ final class SpatialPlatformEffectCoordinator {
         }
     }
 
-    private func presentInitialSpatialPlayback(
-        _ presentation: PlaybackPresentation,
-        execution: Execution
-    ) async {
-        lastExecutionCheckpoint = "initial-spatial-scene-and-session-wait-started"
-        let openDisposition = await openImmersiveSpaceIfNeeded(execution: execution)
-        guard let openDisposition, openDisposition != .unavailable else {
-            guard executionIsLive(execution) else { return }
-            lastExecutionCheckpoint =
-                "initial-spatial-scene-unavailable:immersive=\(String(describing: openDisposition))"
-            _ = await complete(
-                execution,
-                outcome: .failed(.immersiveSpaceUnavailable)
-            )
-            return
-        }
-        async let mainWindowClosed = dismissWindowAndWaitForDisappearance(
-            .main,
-            execution: execution
-        )
-        _ = dismissWindow(id: "playerControls", execution: execution)
-        lastExecutionCheckpoint = "initial-spatial-scene-open-awaiting-surface"
-        guard await waitUntilPresentationSettled(
-            to: presentation,
-            execution: execution,
-            allowsPendingSessionStart: true
-        ) == true else {
-            guard executionIsLive(execution) else { return }
-            lastExecutionCheckpoint = [
-                "initial-spatial-surface-rejected",
-                "preparation=\(appModel.spatialPlaybackSurfacePreparationStage)",
-                "attached=\(String(describing: playbackRuntime.attachedPresentation))",
-                "lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
-            ].joined(separator: ",")
-            // The rollback that follows tears down the windowed control plane,
-            // so this checkpoint is unreadable after the fact unless it also
-            // lands in the probe file.
-            appModel.recordSurfaceInputProbe(lastExecutionCheckpoint)
-            _ = await complete(
-                execution,
-                outcome: .failed(.spatialPlaybackSurfaceUnavailable)
-            )
-            return
-        }
-        // A cold spatial launch assembles its first renderer directly in the
-        // target presentation, so no renderer has to leave the main window and
-        // nothing serializes against that window going away. Closing it is
-        // cleanup. visionOS disconnects it without a lifecycle callback the app
-        // can rely on, so an unconfirmed close must not retire playback that has
-        // already settled and is showing pixels.
-        let mainWindowDidClose = await mainWindowClosed
-        guard executionIsLive(execution) else { return }
-        if mainWindowDidClose == false {
-            lastExecutionCheckpoint = "initial-spatial-main-window-close-unconfirmed"
-            appModel.recordSurfaceInputProbe(lastExecutionCheckpoint)
-        }
-        let resolution = await complete(execution, outcome: .succeeded)
-        if resolution == .effectCompleted {
-            persistSettledPlaybackMode(presentation)
-        }
-    }
-
     private func normalizeInvalidatedSpatialPlayback(
         _ execution: Execution,
         keepsEnvironmentOpen: Bool
@@ -520,16 +451,15 @@ final class SpatialPlatformEffectCoordinator {
         }
     }
 
-    private func presentSpatialPlayback(
-        _ presentation: PlaybackPresentation,
+    private func enterImmersivePlayback(
+        family: PresentationContentFamily,
         execution: Execution
     ) async {
+        let presentation = family.immersivePresentation
         guard await yieldExecution(execution) else {
             return
         }
 
-        // Assemble the target decoder concurrently with opening the target
-        // Scene. Neither operation changes what the wearer sees yet.
         let replacementTask = Task { @MainActor [playbackRuntime] in
             try await playbackRuntime
                 .prepareTechnicalSessionForPresentationConversion()
@@ -565,7 +495,7 @@ final class SpatialPlatformEffectCoordinator {
         } catch {
             guard executionIsLive(execution),
                   setRuntimeError(
-                    "The Panorama RealityView could not assemble its replacement playback session: \(error.localizedDescription)",
+                    "The \(presentation.rawValue.capitalized) RealityView could not assemble its replacement playback session: \(error.localizedDescription)",
                     execution: execution
                   ) else {
                 return
@@ -582,12 +512,12 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
         do {
-            try playbackRuntime.activatePreparedTechnicalSessionReplacement()
+            try await playbackRuntime.activatePreparedTechnicalSessionReplacement()
         } catch {
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
             guard executionIsLive(execution),
                   setRuntimeError(
-                    "The Panorama RealityView could not activate its replacement playback session: \(error.localizedDescription)",
+                    "The \(presentation.rawValue.capitalized) RealityView could not activate its replacement playback session: \(error.localizedDescription)",
                     execution: execution
                   ) else { return }
             _ = await complete(
@@ -599,10 +529,23 @@ final class SpatialPlatformEffectCoordinator {
         guard appModel.allowPresentationTargetRendererBinding() else {
             return
         }
+        do {
+            try await playbackRuntime.rebaseActivatedTechnicalSessionReplacement(
+                to: presentation
+            )
+        } catch {
+            guard executionIsLive(execution),
+                  setRuntimeError(
+                    "The \(presentation.rawValue.capitalized) RealityView could not rebase its replacement playback session: \(error.localizedDescription)",
+                    execution: execution
+                  ) else { return }
+            _ = await complete(
+                execution,
+                outcome: .failed(.spatialPlaybackSurfaceUnavailable)
+            )
+            return
+        }
 
-        // Avoid two audible/decoding sessions while the hidden target advances
-        // to its first presentable frame. The old Entity keeps its last image.
-        playbackRuntime.pauseDepartingTechnicalSessionForVisualCutover()
         guard await restoreTargetPlaybackIntentBeforeSettlement(execution) else {
             return
         }
@@ -635,8 +578,6 @@ final class SpatialPlatformEffectCoordinator {
         }
         lastPlatformOperation = "spatial-surface-settled"
 
-        // This is the only visible boundary: reveal Panorama, fade the complete
-        // Window content, and ask visionOS to dismiss that Window together.
         guard appModel.beginPresentationVisualCutover() else { return }
         async let mainWindowClosed = dismissWindowAndWaitForDisappearance(
             .main,
@@ -645,7 +586,7 @@ final class SpatialPlatformEffectCoordinator {
         _ = dismissWindow(id: "playerControls", execution: execution)
         guard await mainWindowClosed else {
             guard setRuntimeError(
-                "The Main Window could not disappear during the Panorama cutover.",
+                "The Main Window could not disappear during the \(presentation.rawValue) cutover.",
                 execution: execution
             ) else { return }
             _ = await complete(
@@ -655,7 +596,7 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
         appModel.finishPresentationVisualCutover()
-        await playbackRuntime.retireDepartingTechnicalSessionAfterSceneDisappearance()
+        await releaseDepartingPresentationResources()
         let resolution = await complete(execution, outcome: .succeeded)
         guard resolution == .presentationCommitted(presentation) else {
             return
@@ -744,71 +685,40 @@ final class SpatialPlatformEffectCoordinator {
         )
     }
 
-    private func presentWindowPlayback(
-        presentation: PlaybackPresentation,
-        execution: Execution,
+    private func exitImmersivePlayback(
+        family: PresentationContentFamily,
         keepsEnvironmentOpen: Bool,
-        immersiveSpaceAlreadyClosed: Bool
+        execution: Execution
     ) async {
+        let presentation = family.mainWindowPresentation
         lastPlatformOperation = "window-return-started"
-        guard executionIsLive(execution),
-              appModel.allowPresentationSourceRendererRelease(),
-              detachPlaybackSurface(execution: execution) else {
-            return
-        }
-
         let replacementTask = Task { @MainActor [playbackRuntime] in
             try await playbackRuntime
-                .rebuildTechnicalSessionForPresentationConversion()
+                .prepareTechnicalSessionForPresentationConversion()
         }
         async let windowReady = openWindowAndWaitForAppearance(
             .main,
             execution: execution
         )
-        async let fadeCompleted = waitUntilPresentationTransitionTime(
-            PlaybackPresentationTransitionAppearance.sourceFadeDuration,
-            execution: execution
-        )
         _ = dismissWindow(id: "playerControls", execution: execution)
 
-        guard await fadeCompleted,
-              let rendererReleased = await waitUntilRendererConsumerIsReleased(
-                from: appModel.presentationTransition?.previousPresentation,
-                execution: execution
-              ) else {
-            replacementTask.cancel()
-            return
-        }
-        guard rendererReleased else {
-            lastPlatformOperation = "renderer-release-failed"
-            let message = immersiveSpaceAlreadyClosed
-                ? "The dismissed spatial surface could not release the video renderer."
-                : "The spatial playback surface could not release the video renderer."
-            guard setRuntimeError(message, execution: execution) else { return }
+        do {
+            try await replacementTask.value
+        } catch {
+            guard executionIsLive(execution),
+                  setRuntimeError(
+                    "The Window could not assemble its replacement playback session: \(error.localizedDescription)",
+                    execution: execution
+                  ) else { return }
             _ = await complete(
                 execution,
-                outcome: .failed(.rendererReleaseUnavailable)
+                outcome: .failed(.windowPlaybackSurfaceUnavailable)
             )
             return
         }
 
-        if keepsEnvironmentOpen == false,
-           immersiveSpaceAlreadyClosed == false,
-           await dismissImmersiveSpace(execution: execution) == false {
-            replacementTask.cancel()
-            lastPlatformOperation = "immersive-space-dismiss-failed"
-            return
-        }
-
-        guard appModel.allowPresentationTargetRendererBinding() else {
-            replacementTask.cancel()
-            return
-        }
-
-        lastPlatformOperation = "main-window-requested"
-
         guard await windowReady else {
-            replacementTask.cancel()
+            await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
             lastPlatformOperation = "main-window-appearance-failed"
             guard executionIsLive(execution) else { return }
             _ = dismissWindow(id: "main", execution: execution)
@@ -822,12 +732,73 @@ final class SpatialPlatformEffectCoordinator {
             )
             return
         }
+
+        guard executionIsLive(execution),
+              appModel.allowPresentationSourceRendererRelease(),
+              detachPlaybackSurface(execution: execution) else {
+            await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+            return
+        }
+
+        guard await waitUntilPresentationTransitionTime(
+            PlaybackPresentationTransitionAppearance.sourceFadeDuration,
+            execution: execution
+        ),
+        let rendererReleased = await waitUntilRendererConsumerIsReleased(
+            from: appModel.presentationTransition?.previousPresentation,
+            execution: execution
+        ) else {
+            await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+            return
+        }
+        guard rendererReleased else {
+            await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+            lastPlatformOperation = "renderer-release-failed"
+            guard setRuntimeError(
+                "The spatial playback surface could not release the video renderer.",
+                execution: execution
+            ) else { return }
+            _ = await complete(
+                execution,
+                outcome: .failed(.rendererReleaseUnavailable)
+            )
+            return
+        }
+
+        if keepsEnvironmentOpen == false,
+           await dismissImmersiveSpace(execution: execution) == false {
+            await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+            lastPlatformOperation = "immersive-space-dismiss-failed"
+            return
+        }
+
+        lastPlatformOperation = "main-window-requested"
         do {
-            try await replacementTask.value
+            try await playbackRuntime.activatePreparedTechnicalSessionReplacement()
+        } catch {
+            await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+            guard executionIsLive(execution),
+                  setRuntimeError(
+                    "The Window could not activate its replacement playback session: \(error.localizedDescription)",
+                    execution: execution
+                  ) else { return }
+            _ = await complete(
+                execution,
+                outcome: .failed(.windowPlaybackSurfaceUnavailable)
+            )
+            return
+        }
+        guard appModel.allowPresentationTargetRendererBinding() else {
+            return
+        }
+        do {
+            try await playbackRuntime.rebaseActivatedTechnicalSessionReplacement(
+                to: presentation
+            )
         } catch {
             guard executionIsLive(execution),
                   setRuntimeError(
-                    "The Window could not assemble its replacement playback session: \(error.localizedDescription)",
+                    "The Window could not rebase its replacement playback session: \(error.localizedDescription)",
                     execution: execution
                   ) else { return }
             _ = await complete(
@@ -850,10 +821,10 @@ final class SpatialPlatformEffectCoordinator {
             guard dismissWindow(id: "main", execution: execution) else {
                 return
             }
-            let message = immersiveSpaceAlreadyClosed
-                ? "The window playback surface could not become ready after spatial dismissal."
-                : "The window playback surface could not become ready."
-            guard setRuntimeError(message, execution: execution) else { return }
+            guard setRuntimeError(
+                "The window playback surface could not become ready.",
+                execution: execution
+            ) else { return }
             _ = await complete(
                 execution,
                 outcome: .failed(.windowPlaybackSurfaceUnavailable)
@@ -864,6 +835,7 @@ final class SpatialPlatformEffectCoordinator {
             lastPlatformOperation = "main-window-activation-failed"
             return
         }
+        await releaseDepartingPresentationResources()
         let resolution = await complete(execution, outcome: .succeeded)
         if case .presentationCommitted(let committedPresentation) = resolution {
             persistSettledPlaybackMode(committedPresentation)
@@ -878,17 +850,18 @@ final class SpatialPlatformEffectCoordinator {
         }
     }
 
-    private func switchWindowHostedPlayback(
-        _ presentation: PlaybackPresentation,
+    private func swapWindowPlaybackProjection(
+        to family: PresentationContentFamily,
         execution: Execution
     ) async {
+        let presentation = family.mainWindowPresentation
         _ = dismissWindow(id: "playerControls", execution: execution)
-        let replacementTask = Task { @MainActor [playbackRuntime] in
-            try await playbackRuntime
-                .rebuildTechnicalSessionForPresentationConversion()
-        }
         do {
-            try await replacementTask.value
+            try await playbackRuntime.prepareTechnicalSessionForPresentationConversion()
+            try await playbackRuntime.activatePreparedTechnicalSessionReplacement()
+            try await playbackRuntime.rebaseActivatedTechnicalSessionReplacement(
+                to: presentation
+            )
         } catch {
             guard setRuntimeError(
                 "The Window could not assemble its replacement playback session: \(error.localizedDescription)",
@@ -907,6 +880,7 @@ final class SpatialPlatformEffectCoordinator {
             to: presentation,
             execution: execution
         ) == true else { return }
+        await releaseDepartingPresentationResources()
         let resolution = await complete(execution, outcome: .succeeded)
         if case .presentationCommitted(let committedPresentation) = resolution {
             persistSettledPlaybackMode(committedPresentation)
@@ -918,6 +892,11 @@ final class SpatialPlatformEffectCoordinator {
                 phase: .settledRequest
             )
         }
+    }
+
+    private func releaseDepartingPresentationResources() async {
+        playbackVideoEntityStore.releaseDepartingEntity()
+        await playbackRuntime.retireDepartingTechnicalSessionAfterSceneDisappearance()
     }
 
     private func presentEnvironmentPreview(_ execution: Execution) async {
@@ -1279,16 +1258,16 @@ final class SpatialPlatformEffectCoordinator {
         switch effect {
         case .presentEnvironmentPreview:
             .environment
-        case .presentInitialSpatialPlayback(let presentation),
-             .presentSpatialPlayback(let presentation),
-             .recoverSpatialPlayback(let presentation):
+        case .enterImmersivePlayback(let family):
+            .playback(family.immersivePresentation)
+        case .recoverSpatialPlayback(let presentation):
             .playback(presentation)
-        case .presentWindowPlayback(_, _, _),
-             .switchWindowHostedPlayback,
+        case .exitImmersivePlayback,
+             .swapWindowPlaybackProjection,
              .dismissEnvironmentPreview,
              .presentEnvironmentCard,
-             .normalizeStoppedSpatialPlayback(_),
-             .normalizeInvalidatedSpatialPlayback(_):
+             .normalizeStoppedSpatialPlayback,
+             .normalizeInvalidatedSpatialPlayback:
             nil
         }
     }
@@ -1546,10 +1525,9 @@ final class SpatialPlatformEffectCoordinator {
                 "Playback presentation conversion failed \(diagnostic, privacy: .public)"
             )
             switch execution.request.effect {
-            case .presentInitialSpatialPlayback,
-                 .presentSpatialPlayback,
-                 .presentWindowPlayback,
-                 .switchWindowHostedPlayback:
+            case .enterImmersivePlayback,
+                 .exitImmersivePlayback,
+                 .swapWindowPlaybackProjection:
                 appModel.deferPresentationConversionFailureUntilMediaLibraryIsVisible(
                     "无法切换播放显示方式，已返回媒体资料库。"
                 )
@@ -1568,10 +1546,9 @@ final class SpatialPlatformEffectCoordinator {
             nil
         case .failed:
             switch execution.request.effect {
-            case .presentInitialSpatialPlayback,
-                 .presentSpatialPlayback,
-                 .presentWindowPlayback,
-                 .switchWindowHostedPlayback:
+            case .enterImmersivePlayback,
+                 .exitImmersivePlayback,
+                 .swapWindowPlaybackProjection:
                 appModel.presentationTransition?.previousPresentation
             default:
                 nil

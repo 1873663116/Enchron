@@ -259,7 +259,7 @@ try await MainActor.run {
     )
 
     let stopReplacementModel = PlaybackPresentationModel()
-    stopReplacementModel.prepareColdPlaybackLaunch(in: .portal)
+    stopReplacementModel.prepareColdPlaybackLaunch(for: .panoramic)
     _ = try stopReplacementModel.requestPresentation(
         .panorama,
         playbackContext: playingContext
@@ -303,7 +303,7 @@ try await MainActor.run {
     )
 
     let sessionReplacementModel = PlaybackPresentationModel()
-    sessionReplacementModel.prepareColdPlaybackLaunch(in: .portal)
+    sessionReplacementModel.prepareColdPlaybackLaunch(for: .panoramic)
     _ = try sessionReplacementModel.requestPresentation(
         .panorama,
         playbackContext: SpatialPlaybackTransitionContext(
@@ -378,7 +378,7 @@ try await MainActor.run {
     )
     let firstRequest = pendingRequest(presentationModel)
     require(
-        firstRequest.effect == .presentSpatialPlayback(.docked),
+        firstRequest.effect == .enterImmersivePlayback(.flat),
         "Docked must request the existing spatial playback platform effect"
     )
     require(
@@ -426,10 +426,9 @@ try await MainActor.run {
     )
     require(
         pendingRequest(temporaryEnvironmentModel).effect
-            == .presentWindowPlayback(
-                presentation: .window,
-                keepsEnvironmentOpen: false,
-                immersiveSpaceAlreadyClosed: false
+            == .exitImmersivePlayback(
+                .flat,
+                keepsEnvironmentOpen: false
             ),
         "Window must close a temporary Default Environment created only for Docking"
     )
@@ -543,10 +542,9 @@ try await MainActor.run {
     )
     require(
         pendingRequest(presentationModel).effect
-            == .presentWindowPlayback(
-                presentation: .window,
-                keepsEnvironmentOpen: true,
-                immersiveSpaceAlreadyClosed: false
+            == .exitImmersivePlayback(
+                .flat,
+                keepsEnvironmentOpen: true
             ),
         "returning to Window with an active Environment must keep its immersive space"
     )
@@ -707,15 +705,14 @@ try await MainActor.run {
     let cardWindowRequest = pendingRequest(dockedCardModel)
     require(
         cardWindowRequest.effect
-            == .presentWindowPlayback(
-                presentation: .window,
-                keepsEnvironmentOpen: false,
-                immersiveSpaceAlreadyClosed: false
+            == .exitImmersivePlayback(
+                .flat,
+                keepsEnvironmentOpen: false
             )
-            && cardWindowRequest.playbackTransportPlan?.beforeEffect
-                == .pause(mediaSessionID: playingContext.mediaSessionID)
-            && cardWindowRequest.playbackTransportPlan?.afterSuccess == nil,
-        "Docked Card entry must pause, return to Window, and defer resume"
+            && cardWindowRequest.playbackTransportPlan?.beforeEffect == nil
+            && cardWindowRequest.playbackTransportPlan?.afterSuccess
+                == .resume(mediaSessionID: playingContext.mediaSessionID),
+        "Docked Card entry must return to Window and restore its playback intent"
     )
     _ = completePendingEffect(dockedCardModel)
     let queuedCardRequest = pendingRequest(dockedCardModel)
@@ -731,7 +728,7 @@ try await MainActor.run {
     _ = completePendingEffect(dockedCardModel)
 
     let panoramaCardModel = PlaybackPresentationModel()
-    panoramaCardModel.prepareColdPlaybackLaunch(in: .portal)
+    panoramaCardModel.prepareColdPlaybackLaunch(for: .panoramic)
     _ = try panoramaCardModel.requestPresentation(
         .panorama,
         playbackContext: pausedContext
@@ -754,7 +751,7 @@ try await MainActor.run {
     )
 
     let pauseFailureModel = PlaybackPresentationModel()
-    pauseFailureModel.prepareColdPlaybackLaunch(in: .portal)
+    pauseFailureModel.prepareColdPlaybackLaunch(for: .panoramic)
     _ = try pauseFailureModel.requestPresentation(
         .panorama,
         playbackContext: playingContext
@@ -770,7 +767,7 @@ try await MainActor.run {
     )
 
     let resumeFailureModel = PlaybackPresentationModel()
-    resumeFailureModel.prepareColdPlaybackLaunch(in: .portal)
+    resumeFailureModel.prepareColdPlaybackLaunch(for: .panoramic)
     _ = try resumeFailureModel.requestPresentation(
         .panorama,
         playbackContext: playingContext
@@ -885,7 +882,7 @@ try await MainActor.run {
     )
 
     let panoramaRecoveryModel = PlaybackPresentationModel()
-    panoramaRecoveryModel.prepareColdPlaybackLaunch(in: .portal)
+    panoramaRecoveryModel.prepareColdPlaybackLaunch(for: .panoramic)
     _ = try panoramaRecoveryModel.requestPresentation(
         .panorama,
         playbackContext: pausedContext

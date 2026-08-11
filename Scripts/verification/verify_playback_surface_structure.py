@@ -272,7 +272,7 @@ def main() -> None:
     stopped_cleanup = region(
         platform_executor,
         "case .normalizeStoppedSpatialPlayback",
-        "private func presentSpatialPlayback(",
+        "private func enterImmersivePlayback(",
     )
     require(
         stopped_cleanup.index('openWindow(id: "main", execution: execution)')
@@ -325,14 +325,14 @@ def main() -> None:
         and ".defaultLaunchBehavior(.suppressed)" in player_controls_scene,
         "the context-only spatial controls window can restore or launch by itself",
     )
-    present_window_playback = region(
+    exit_immersive_playback = region(
         platform_executor,
-        "private func presentWindowPlayback(",
-        "private func presentEnvironmentPreview(",
+        "private func exitImmersivePlayback(",
+        "private func swapWindowPlaybackProjection(",
     )
     require(
-        "case .presentationCommitted(.window)" in present_window_playback
-        and 'id: "playerControls"' in present_window_playback,
+        "case .presentationCommitted(.window)" in exit_immersive_playback
+        and 'id: "playerControls"' in exit_immersive_playback,
         "committing Window Playback does not dismiss the spatial controls window",
     )
     require(
@@ -355,7 +355,7 @@ def main() -> None:
     execute_region = region(
         platform_executor,
         "private func execute(",
-        "private func presentSpatialPlayback(",
+        "private func enterImmersivePlayback(",
     )
     require(
         "executePlaybackTransport(beforeEffect, execution: execution)"
@@ -495,7 +495,7 @@ def main() -> None:
     session_cleanup = region(
         platform_executor,
         "private func normalizeInvalidatedSpatialPlayback",
-        "private func presentSpatialPlayback(",
+        "private func enterImmersivePlayback(",
     )
     require(
         session_cleanup.index("waitForImmersiveActionLane")
@@ -519,15 +519,90 @@ def main() -> None:
         and "recordOpenedSpace(" in platform_executor,
         "capability retries do not retain request-level immersive-space provenance",
     )
-    present_spatial = region(
+    enter_immersive_playback = region(
         platform_executor,
-        "private func presentSpatialPlayback(",
+        "private func enterImmersivePlayback(",
         "private func recoverSpatialPlayback(",
     )
     require(
-        "openDisposition != .preexisting" in present_spatial
-        and "dismissImmersiveSpace(execution: execution)" in present_spatial,
+        "openDisposition != .preexisting" in enter_immersive_playback
+        and "dismissImmersiveSpace(execution: execution)" in enter_immersive_playback,
         "spatial presentation failure does not distinguish pre-existing from request-opened space",
+    )
+    require(
+        enter_immersive_playback.index(
+            "prepareTechnicalSessionForPresentationConversion()"
+        )
+        < enter_immersive_playback.index(
+            "activatePreparedTechnicalSessionReplacement()"
+        )
+        < enter_immersive_playback.index(
+            "appModel.allowPresentationTargetRendererBinding()"
+        )
+        < enter_immersive_playback.index(
+            "rebaseActivatedTechnicalSessionReplacement("
+        )
+        < enter_immersive_playback.index(
+            "restoreTargetPlaybackIntentBeforeSettlement(execution)"
+        )
+        < enter_immersive_playback.index("waitUntilPresentationSettled("),
+        "immersive entry replacement order is not prepare, activate, target binding, rebase, restore, settle",
+    )
+    require(
+        enter_immersive_playback.index("releaseDepartingPresentationResources()")
+        < enter_immersive_playback.index("complete(execution"),
+        "immersive entry can commit before releasing its departing RealityKit component",
+    )
+    require(
+        exit_immersive_playback.index(
+            "prepareTechnicalSessionForPresentationConversion()"
+        )
+        < exit_immersive_playback.index(
+            "activatePreparedTechnicalSessionReplacement()"
+        )
+        < exit_immersive_playback.index(
+            "appModel.allowPresentationTargetRendererBinding()"
+        )
+        < exit_immersive_playback.index(
+            "rebaseActivatedTechnicalSessionReplacement("
+        )
+        < exit_immersive_playback.index(
+            "restoreTargetPlaybackIntentBeforeSettlement(execution)"
+        )
+        < exit_immersive_playback.index("waitUntilPresentationSettled("),
+        "immersive exit replacement order is not prepare, activate, target binding, rebase, restore, settle",
+    )
+    require(
+        exit_immersive_playback.index("releaseDepartingPresentationResources()")
+        < exit_immersive_playback.index("complete(execution"),
+        "immersive exit can commit before releasing its departing RealityKit component",
+    )
+    projection_swap = region(
+        platform_executor,
+        "private func swapWindowPlaybackProjection(",
+        "private func presentEnvironmentPreview(",
+    )
+    require(
+        projection_swap.index("prepareTechnicalSessionForPresentationConversion()")
+        < projection_swap.index("activatePreparedTechnicalSessionReplacement()")
+        < projection_swap.index("rebaseActivatedTechnicalSessionReplacement(")
+        < projection_swap.index("restoreTargetPlaybackIntentBeforeSettlement(execution)")
+        < projection_swap.index("waitUntilPresentationSettled(")
+        < projection_swap.index("releaseDepartingPresentationResources()")
+        < projection_swap.index("complete(execution"),
+        "main-window projection swap does not settle before releasing and retiring its source",
+    )
+    departing_release = region(
+        platform_executor,
+        "private func releaseDepartingPresentationResources()",
+        "private func presentEnvironmentPreview(",
+    )
+    require(
+        departing_release.index("playbackVideoEntityStore.releaseDepartingEntity()")
+        < departing_release.index(
+            "retireDepartingTechnicalSessionAfterSceneDisappearance()"
+        ),
+        "renderer retirement can wait on a RealityKit component that still owns its target",
     )
     completion = region(
         platform_executor,

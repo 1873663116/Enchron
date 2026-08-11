@@ -8,6 +8,13 @@ import Testing
 
 @Suite("Playback presentation")
 struct PlaybackPresentationStateTests {
+    private struct PresentationRequestCase {
+        let source: PlaybackPresentation
+        let target: PlaybackPresentation
+        let effect: SpatialPlatformEffect?
+        let error: PlaybackPresentationTransitionError?
+    }
+
     @Test("Main glass hosts the browser unless a scene operation is in flight")
     func browserSurfaceFollowsSettledSceneState() {
         #expect(BrowserWindowSurfacePolicy.showsBrowser(
@@ -667,17 +674,16 @@ struct PlaybackPresentationStateTests {
             mediaSessionID: "portal-test-session",
             wasPlaying: true
         )
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
 
         _ = try model.requestPresentation(.panorama, playbackContext: context)
         _ = try completePendingEffect(model)
         _ = try model.requestPresentation(.portal, playbackContext: context)
         #expect(
             model.pendingSpatialPlatformEffect?.effect
-                == .presentWindowPlayback(
-                    presentation: .portal,
-                    keepsEnvironmentOpen: false,
-                    immersiveSpaceAlreadyClosed: false
+                == .exitImmersivePlayback(
+                    .panoramic,
+                    keepsEnvironmentOpen: false
                 )
         )
         _ = try completePendingEffect(model)
@@ -686,7 +692,7 @@ struct PlaybackPresentationStateTests {
         _ = try model.requestPresentation(.panorama, playbackContext: context)
         #expect(
             model.pendingSpatialPlatformEffect?.effect
-                == .presentSpatialPlayback(.panorama)
+                == .enterImmersivePlayback(.panoramic)
         )
     }
 
@@ -826,7 +832,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func panoramaReturnRestoresEnvironmentImmersionAmount() throws {
         let appModel = AppModel()
-        appModel.prepareColdPlaybackLaunch(in: .portal)
+        appModel.prepareColdPlaybackLaunch(for: .panoramic)
         appModel.recordImmersionAmount(0.62)
         try appModel.activateEnvironment(.scenicOne, effect: .dark)
 
@@ -894,7 +900,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func portalToPanoramaGatesReplacementTargetAfterSourceRelease() throws {
         let appModel = AppModel()
-        appModel.prepareColdPlaybackLaunch(in: .portal)
+        appModel.prepareColdPlaybackLaunch(for: .panoramic)
         appModel.showControls = true
 
         _ = try appModel.requestPlaybackPresentation(
@@ -905,7 +911,7 @@ struct PlaybackPresentationStateTests {
 
         #expect(
             appModel.pendingSpatialPlatformEffect?.effect
-                == .presentSpatialPlayback(.panorama)
+                == .enterImmersivePlayback(.panoramic)
         )
         #expect(appModel.presentationSourceRendererMayRelease == false)
         #expect(appModel.presentationTargetRendererMayBind == false)
@@ -1337,7 +1343,7 @@ struct PlaybackPresentationStateTests {
         var actions: [String] = []
 
         registry.register("root", id: rootID)
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(
             .panorama,
             playbackContext: playingContext()
@@ -1660,9 +1666,120 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("Every legal non-self edge passes the model request boundary")
+    @Test("Every ordered pair produces its exact effect or rejection")
     @MainActor
-    func legalEdgesPassRequestBoundary() throws {
+    func everyOrderedPairProducesItsExactEffectOrRejection() throws {
+        let cases: [PresentationRequestCase] = [
+            .init(source: .window, target: .window, effect: nil, error: .alreadyPresented),
+            .init(
+                source: .window,
+                target: .docked,
+                effect: .enterImmersivePlayback(.flat),
+                error: nil
+            ),
+            .init(
+                source: .window,
+                target: .portal,
+                effect: .swapWindowPlaybackProjection(to: .panoramic),
+                error: nil
+            ),
+            .init(
+                source: .window,
+                target: .panorama,
+                effect: nil,
+                error: .illegalEdge(source: .window, target: .panorama)
+            ),
+            .init(
+                source: .docked,
+                target: .window,
+                effect: .exitImmersivePlayback(.flat, keepsEnvironmentOpen: false),
+                error: nil
+            ),
+            .init(source: .docked, target: .docked, effect: nil, error: .alreadyPresented),
+            .init(
+                source: .docked,
+                target: .portal,
+                effect: nil,
+                error: .illegalEdge(source: .docked, target: .portal)
+            ),
+            .init(
+                source: .docked,
+                target: .panorama,
+                effect: nil,
+                error: .illegalEdge(source: .docked, target: .panorama)
+            ),
+            .init(
+                source: .portal,
+                target: .window,
+                effect: .swapWindowPlaybackProjection(to: .flat),
+                error: nil
+            ),
+            .init(
+                source: .portal,
+                target: .docked,
+                effect: nil,
+                error: .illegalEdge(source: .portal, target: .docked)
+            ),
+            .init(source: .portal, target: .portal, effect: nil, error: .alreadyPresented),
+            .init(
+                source: .portal,
+                target: .panorama,
+                effect: .enterImmersivePlayback(.panoramic),
+                error: nil
+            ),
+            .init(
+                source: .panorama,
+                target: .window,
+                effect: nil,
+                error: .illegalEdge(source: .panorama, target: .window)
+            ),
+            .init(
+                source: .panorama,
+                target: .docked,
+                effect: nil,
+                error: .illegalEdge(source: .panorama, target: .docked)
+            ),
+            .init(
+                source: .panorama,
+                target: .portal,
+                effect: .exitImmersivePlayback(.panoramic, keepsEnvironmentOpen: false),
+                error: nil
+            ),
+            .init(source: .panorama, target: .panorama, effect: nil, error: .alreadyPresented)
+        ]
+
+        for testCase in cases {
+            let mediaSessionID = "\(testCase.source.rawValue)-to-\(testCase.target.rawValue)"
+            let model = try settledModel(in: testCase.source)
+
+            do {
+                let transition = try model.requestPresentation(
+                    testCase.target,
+                    playbackContext: playingContext(mediaSessionID: mediaSessionID)
+                )
+                #expect(testCase.error == nil)
+                #expect(transition.previousPresentation == testCase.source)
+                #expect(transition.targetPresentation == testCase.target)
+                #expect(model.pendingSpatialPlatformEffect?.effect == testCase.effect)
+                #expect(model.pendingSpatialPlatformEffect?.playbackTransportPlan?.beforeEffect == nil)
+                #expect(
+                    model.pendingSpatialPlatformEffect?.playbackTransportPlan?.afterSuccess
+                        == .resume(mediaSessionID: mediaSessionID)
+                )
+                #expect(model.pendingSpatialPlatformEffect?.playbackTransportPlan?.afterFailure == nil)
+            } catch let error as PlaybackPresentationTransitionError {
+                #expect(error == testCase.error)
+                #expect(testCase.effect == nil)
+                #expect(model.presentation == testCase.source)
+                #expect(model.transition == nil)
+                #expect(model.pendingSpatialPlatformEffect == nil)
+            }
+        }
+    }
+
+    @Test("Paused legal requests carry no resume action")
+    @MainActor
+    func pausedLegalRequestsCarryNoResumeAction() throws {
         let cases: [(source: PlaybackPresentation, target: PlaybackPresentation)] = [
             (.window, .docked),
             (.docked, .window),
@@ -1674,51 +1791,16 @@ struct PlaybackPresentationStateTests {
 
         for testCase in cases {
             let model = try settledModel(in: testCase.source)
-            let transition = try model.requestPresentation(
+            _ = try model.requestPresentation(
                 testCase.target,
-                playbackContext: playingContext(
-                    mediaSessionID: "\(testCase.source.rawValue)-to-\(testCase.target.rawValue)"
+                playbackContext: SpatialPlaybackTransitionContext(
+                    mediaSessionID: "paused-\(testCase.source.rawValue)-to-\(testCase.target.rawValue)",
+                    wasPlaying: false
                 )
             )
-
-            #expect(transition.previousPresentation == testCase.source)
-            #expect(transition.targetPresentation == testCase.target)
-            #expect(model.transition == transition)
-            #expect(model.pendingSpatialPlatformEffect != nil)
-        }
-    }
-
-    @Test("Every illegal edge is rejected without transition or platform effect")
-    @MainActor
-    func illegalEdgesAreRejectedAtRequestBoundary() throws {
-        let cases: [(source: PlaybackPresentation, target: PlaybackPresentation)] = [
-            (.window, .panorama),
-            (.docked, .portal),
-            (.docked, .panorama),
-            (.portal, .docked),
-            (.panorama, .window),
-            (.panorama, .docked)
-        ]
-
-        for testCase in cases {
-            let model = try settledModel(in: testCase.source)
-
-            #expect(
-                throws: PlaybackPresentationTransitionError.illegalEdge(
-                    source: testCase.source,
-                    target: testCase.target
-                )
-            ) {
-                try model.requestPresentation(
-                    testCase.target,
-                    playbackContext: playingContext(
-                        mediaSessionID: "illegal-\(testCase.source.rawValue)-to-\(testCase.target.rawValue)"
-                    )
-                )
-            }
-            #expect(model.presentation == testCase.source)
-            #expect(model.transition == nil)
-            #expect(model.pendingSpatialPlatformEffect == nil)
+            #expect(model.pendingSpatialPlatformEffect?.playbackTransportPlan?.beforeEffect == nil)
+            #expect(model.pendingSpatialPlatformEffect?.playbackTransportPlan?.afterSuccess == nil)
+            #expect(model.pendingSpatialPlatformEffect?.playbackTransportPlan?.afterFailure == nil)
         }
     }
 
@@ -1841,10 +1923,9 @@ struct PlaybackPresentationStateTests {
         _ = try model.requestPresentation(.window, playbackContext: playingContext())
         #expect(
             model.pendingSpatialPlatformEffect?.effect
-                == .presentWindowPlayback(
-                    presentation: .window,
-                    keepsEnvironmentOpen: false,
-                    immersiveSpaceAlreadyClosed: false
+                == .exitImmersivePlayback(
+                    .flat,
+                    keepsEnvironmentOpen: false
                 )
         )
         _ = try completePendingEffect(model)
@@ -1979,7 +2060,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func transitionRejectsSecondCommand() throws {
         let model = PlaybackPresentationModel()
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(.panorama, playbackContext: playingContext())
         let request = try #require(model.pendingSpatialPlatformEffect)
         #expect(
@@ -2126,7 +2207,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func lateResultIsIgnored() throws {
         let model = PlaybackPresentationModel()
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(.panorama, playbackContext: playingContext())
         let staleRequest = try #require(model.pendingSpatialPlatformEffect)
         _ = try completePendingEffect(
@@ -2160,7 +2241,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func mediaSessionInvalidationQueuesNormalization() throws {
         let model = PlaybackPresentationModel()
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(
             .panorama,
             playbackContext: playingContext(mediaSessionID: "session-a")
@@ -2212,7 +2293,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func mediaSessionInvalidationBeforePlatformEffects() throws {
         let model = PlaybackPresentationModel()
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(
             .panorama,
             playbackContext: playingContext(mediaSessionID: "session-a")
@@ -2246,7 +2327,7 @@ struct PlaybackPresentationStateTests {
             let model = PlaybackPresentationModel()
             let context = playingContext(mediaSessionID: "\(presentation.rawValue)-session")
             if presentation == .panorama {
-                model.prepareColdPlaybackLaunch(in: .portal)
+                model.prepareColdPlaybackLaunch(for: .panoramic)
             }
             _ = try model.requestPresentation(
                 presentation,
@@ -2351,7 +2432,7 @@ struct PlaybackPresentationStateTests {
             mediaSessionID: "paused-session",
             wasPlaying: false
         )
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(.panorama, playbackContext: context)
         _ = try completePendingEffect(model)
         _ = model.receiveSpatialPlatformResult(.immersiveSpaceDisappeared(context))
@@ -2368,7 +2449,7 @@ struct PlaybackPresentationStateTests {
     func recoveryFailureIsBoundedAndSessionBound() throws {
         let model = PlaybackPresentationModel()
         let oldContext = playingContext(mediaSessionID: "old-session")
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(.panorama, playbackContext: oldContext)
         _ = try completePendingEffect(model)
         _ = model.receiveSpatialPlatformResult(.immersiveSpaceDisappeared(oldContext))
@@ -2472,7 +2553,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func panoramaRejectsEnvironmentCard() throws {
         let model = PlaybackPresentationModel()
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(.panorama, playbackContext: playingContext())
         _ = try completePendingEffect(model)
 
@@ -2499,10 +2580,9 @@ struct PlaybackPresentationStateTests {
         let windowRequest = try #require(model.pendingSpatialPlatformEffect)
         #expect(
             windowRequest.effect
-                == .presentWindowPlayback(
-                    presentation: .window,
-                    keepsEnvironmentOpen: false,
-                    immersiveSpaceAlreadyClosed: false
+                == .exitImmersivePlayback(
+                    .flat,
+                    keepsEnvironmentOpen: false
                 )
         )
         #expect(
@@ -2534,7 +2614,7 @@ struct PlaybackPresentationStateTests {
     @MainActor
     func pauseFailureRollsBackTransition() throws {
         let model = PlaybackPresentationModel()
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(.panorama, playbackContext: playingContext())
 
         #expect(
@@ -2553,7 +2633,7 @@ struct PlaybackPresentationStateTests {
     func unscheduledResumeResultIsIgnored() throws {
         let model = PlaybackPresentationModel()
         let context = playingContext()
-        model.prepareColdPlaybackLaunch(in: .portal)
+        model.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try model.requestPresentation(.panorama, playbackContext: context)
         let request = try #require(model.pendingSpatialPlatformEffect)
         let executionID = UUID()
@@ -2585,7 +2665,7 @@ struct PlaybackPresentationStateTests {
             let model = PlaybackPresentationModel()
             let context = playingContext(mediaSessionID: "\(target.rawValue)-session")
             if target == .panorama {
-                model.prepareColdPlaybackLaunch(in: .portal)
+                model.prepareColdPlaybackLaunch(for: .panoramic)
             }
             _ = try model.requestPresentation(
                 target,
@@ -2619,7 +2699,7 @@ struct PlaybackPresentationStateTests {
 
         let rollbackModel = PlaybackPresentationModel()
         let rollbackContext = playingContext(mediaSessionID: "rollback-session")
-        rollbackModel.prepareColdPlaybackLaunch(in: .portal)
+        rollbackModel.prepareColdPlaybackLaunch(for: .panoramic)
         _ = try rollbackModel.requestPresentation(
             .panorama,
             playbackContext: rollbackContext
@@ -2681,7 +2761,7 @@ struct PlaybackPresentationStateTests {
         case .window:
             break
         case .portal:
-            model.prepareColdPlaybackLaunch(in: .portal)
+            model.prepareColdPlaybackLaunch(for: .panoramic)
         case .docked:
             _ = try model.requestPresentation(
                 .docked,
@@ -2689,7 +2769,7 @@ struct PlaybackPresentationStateTests {
             )
             _ = try completePendingEffect(model)
         case .panorama:
-            model.prepareColdPlaybackLaunch(in: .portal)
+            model.prepareColdPlaybackLaunch(for: .panoramic)
             _ = try model.requestPresentation(
                 .panorama,
                 playbackContext: playingContext()
