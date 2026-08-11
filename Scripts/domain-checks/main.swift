@@ -747,7 +747,7 @@ try await MainActor.run {
             .immersiveSpaceDisappeared(playingContext)
         ) == .platformFactRecorded
             && presentationModel.pendingSpatialPlatformEffect == nil,
-        "Window and Environment preview residency must not trigger playback recovery"
+        "Window and Environment preview residency queue no playback collapse"
     )
 
     let pauseFailureModel = PlaybackPresentationModel()
@@ -821,8 +821,7 @@ try await MainActor.run {
             && dockedCollapseModel.transition?.previousPresentation == .docked
             && dockedCollapseModel.transition?.targetPresentation == .window
             && dockedCollapseModel.transition?.previousEnvironment == EnvironmentContext.none
-            && dockedCollapseModel.transition?.targetEnvironment == EnvironmentContext.none
-            && dockedCollapseModel.recoveryIntent == nil,
+            && dockedCollapseModel.transition?.targetEnvironment == EnvironmentContext.none,
         "system-closed Docked playback must collapse to Window and restore playing intent"
     )
     require(
@@ -860,8 +859,7 @@ try await MainActor.run {
         ) == .presentationCommitted(.window)
             && dockedCollapseModel.presentation == .window
             && dockedCollapseModel.environmentContext == .none
-            && dockedCollapseModel.immersiveSpaceResidency == .closed
-            && dockedCollapseModel.recoveryIntent == nil,
+            && dockedCollapseModel.immersiveSpaceResidency == .closed,
         "successful Docked collapse must commit Window with closed immersive residency"
     )
     require(
@@ -896,17 +894,15 @@ try await MainActor.run {
         panoramaCollapseRequest.effect == .collapseImmersivePlayback(.panoramic)
             && panoramaCollapseRequest.playbackTransportPlan?.beforeEffect == nil
             && panoramaCollapseRequest.playbackTransportPlan?.afterSuccess == nil
-            && panoramaCollapseRequest.playbackTransportPlan?.afterFailure == nil
-            && panoramaCollapseModel.recoveryIntent == nil,
-        "paused Panorama collapse must not emit pause, resume, or recovery"
+            && panoramaCollapseRequest.playbackTransportPlan?.afterFailure == nil,
+        "paused Panorama collapse schedules no playback transport action"
     )
     require(
         completePendingEffect(panoramaCollapseModel)
             == .presentationCommitted(.portal)
             && panoramaCollapseModel.presentation == .portal
             && panoramaCollapseModel.environmentContext == .none
-            && panoramaCollapseModel.immersiveSpaceResidency == .closed
-            && panoramaCollapseModel.recoveryIntent == nil,
+            && panoramaCollapseModel.immersiveSpaceResidency == .closed,
         "successful Panorama collapse must commit Portal without resuming paused playback"
     )
     require(
@@ -914,7 +910,7 @@ try await MainActor.run {
             .immersiveSpaceDisappeared(pausedContext)
         ) == .platformFactRecorded
             && panoramaCollapseModel.pendingSpatialPlatformEffect == nil,
-        "a duplicate closed-space callback must not enqueue collapse or recovery"
+        "a duplicate closed-space callback queues no second collapse"
     )
 
     let expectedDismissalModel = PlaybackPresentationModel()
@@ -934,22 +930,9 @@ try await MainActor.run {
             .immersiveSpaceDisappeared(playingContext)
         ) == .platformFactRecorded
             && expectedDismissalModel.pendingSpatialPlatformEffect?.id
-                == expectedDismissalRequest.id
-            && expectedDismissalModel.recoveryIntent == nil,
-        "an expected dismissal during a Window transition must not start recovery"
+                == expectedDismissalRequest.id,
+        "an app-requested exit preserves its in-flight request"
     )
-
-    do {
-        _ = try SpatialRecoveryIntent(
-            presentation: .window,
-            mediaSessionID: "opaque-media-session",
-            wasPlaying: false
-        )
-        require(false, "Window must not create a Spatial Recovery Intent")
-    } catch SpatialRecoveryIntentError.windowDoesNotRequireSpatialRecovery {
-    } catch {
-        require(false, "Window recovery validation failed for an unexpected reason")
-    }
 }
 
 let normalizedCustomAngle = MediaFormatPolicy.normalized(

@@ -310,7 +310,6 @@ public enum SpatialPlatformEffect: Equatable, Sendable {
     )
     case collapseImmersivePlayback(PresentationContentFamily)
     case swapWindowPlaybackProjection(to: PresentationContentFamily)
-    case recoverSpatialPlayback(PlaybackPresentation)
     case presentEnvironmentPreview
     case dismissEnvironmentPreview
     case presentEnvironmentCard
@@ -393,9 +392,6 @@ public enum SpatialPlatformEffectResolution: Equatable, Sendable {
     case effectCompleted
     case presentationCommitted(PlaybackPresentation)
     case presentationRolledBack(SpatialPlatformEffectFailure)
-    case spatialRecoveryRequested(PlaybackPresentation)
-    case spatialRecoveryCompleted(PlaybackPresentation)
-    case spatialRecoveryFailed(SpatialPlatformEffectFailure)
     case playbackTransportFailureRecorded
 }
 
@@ -601,42 +597,6 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         environment = .none
     }
 
-    package mutating func settleSpatialRecoveryFailure() {
-        if let transition {
-            rollback(transition.id)
-        }
-        if presented == .docked {
-            environment = environmentBeforeDockedPresentation ?? .none
-        } else if presented == .panorama {
-            environment = environmentBeforePanoramaPresentation ?? .none
-        }
-        presented = .window
-        environmentBeforeDockedPresentation = nil
-        environmentBeforePanoramaPresentation = nil
-    }
-}
-
-public enum SpatialRecoveryIntentError: Error, Equatable, Sendable {
-    case windowDoesNotRequireSpatialRecovery
-}
-
-public struct SpatialRecoveryIntent: Equatable, Sendable {
-    public let presentation: PlaybackPresentation
-    public let mediaSessionID: String
-    public let wasPlaying: Bool
-
-    public init(
-        presentation: PlaybackPresentation,
-        mediaSessionID: String,
-        wasPlaying: Bool
-    ) throws {
-        guard presentation.usesImmersiveSpace else {
-            throw SpatialRecoveryIntentError.windowDoesNotRequireSpatialRecovery
-        }
-        self.presentation = presentation
-        self.mediaSessionID = mediaSessionID
-        self.wasPlaying = wasPlaying
-    }
 }
 
 public struct PlaybackPresentationSnapshot: Equatable, Sendable {
@@ -649,7 +609,6 @@ public struct PlaybackPresentationSnapshot: Equatable, Sendable {
     public let pendingSpatialPlatformEffect: SpatialPlatformEffectRequest?
     public let immersiveSpaceResidency: SpatialPlatformImmersiveSpaceResidency
     public let environmentCardResidency: EnvironmentCardResidency
-    public let recoveryIntent: SpatialRecoveryIntent?
     public let lastPlaybackTransportFailure: SpatialPlaybackTransportFailure?
     public let isTransitionExecutionOccupied: Bool
     public let environmentCardEntryPending: Bool
@@ -672,7 +631,6 @@ public final class PlaybackPresentationModel {
     public private(set) var immersiveSpaceResidency:
         SpatialPlatformImmersiveSpaceResidency = .closed
     public private(set) var environmentCardResidency: EnvironmentCardResidency = .closed
-    public private(set) var recoveryIntent: SpatialRecoveryIntent?
     public private(set) var lastPlaybackTransportFailure: SpatialPlaybackTransportFailure?
     public private(set) var environmentCardEntryPending = false
 
@@ -708,7 +666,6 @@ public final class PlaybackPresentationModel {
             pendingSpatialPlatformEffect: pendingSpatialPlatformEffect,
             immersiveSpaceResidency: immersiveSpaceResidency,
             environmentCardResidency: environmentCardResidency,
-            recoveryIntent: recoveryIntent,
             lastPlaybackTransportFailure: lastPlaybackTransportFailure,
             isTransitionExecutionOccupied: activeSpatialPlatformEffectID != nil,
             environmentCardEntryPending: environmentCardEntryPending
@@ -910,7 +867,6 @@ public final class PlaybackPresentationModel {
     package func resetForStoppedPlayback() {
         presentationState.resetForPlaybackStop()
         environmentCardEntryPending = false
-        recoveryIntent = nil
     }
 
     public func requestStoppedPlaybackCleanup() {
@@ -994,7 +950,6 @@ public final class PlaybackPresentationModel {
         case .immersiveSpaceDisappeared(let playbackContext):
             immersiveSpaceResidency = .closed
             presentationState.recordImmersiveSpaceDisappearance()
-            recoveryIntent = nil
             guard pendingSpatialPlatformEffect == nil,
                   transition == nil else {
                 return .platformFactRecorded
@@ -1116,10 +1071,6 @@ public final class PlaybackPresentationModel {
         case .collapseImmersivePlayback:
             immersiveSpaceResidency = .closed
             return commitPendingPresentation()
-        case .recoverSpatialPlayback(let presentation):
-            immersiveSpaceResidency = .open
-            recoveryIntent = nil
-            return .spatialRecoveryCompleted(presentation)
         case .swapWindowPlaybackProjection:
             return commitPendingPresentation()
         case .presentEnvironmentPreview:
@@ -1162,11 +1113,6 @@ public final class PlaybackPresentationModel {
                 environmentCardEntryPending = false
             }
             return .presentationRolledBack(failure)
-        case .recoverSpatialPlayback:
-            recoveryIntent = nil
-            immersiveSpaceResidency = .closed
-            presentationState.settleSpatialRecoveryFailure()
-            return .spatialRecoveryFailed(failure)
         case .presentEnvironmentPreview:
             if let environmentContextBeforePreviewRequest {
                 try? presentationState.setEnvironment(environmentContextBeforePreviewRequest)

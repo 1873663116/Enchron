@@ -426,8 +426,6 @@ final class SpatialPlatformEffectCoordinator {
             )
         case .swapWindowPlaybackProjection(let family):
             await swapWindowPlaybackProjection(to: family, execution: execution)
-        case .recoverSpatialPlayback(let presentation):
-            await recoverSpatialPlayback(presentation, execution: execution)
         case .presentEnvironmentPreview:
             await presentEnvironmentPreview(execution)
         case .dismissEnvironmentPreview:
@@ -633,87 +631,6 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
         persistSettledPlaybackMode(presentation)
-    }
-
-    private func recoverSpatialPlayback(
-        _ presentation: PlaybackPresentation,
-        execution: Execution
-    ) async {
-        guard await yieldExecution(execution),
-              let rendererReleased = await waitUntilRendererConsumerIsReleased(
-                execution: execution
-              ) else {
-            return
-        }
-        guard rendererReleased else {
-            await settleFailedRecovery(
-                execution,
-                failure: .rendererReleaseUnavailable
-            )
-            return
-        }
-        guard let openDisposition = await openImmersiveSpaceIfNeeded(
-                execution: execution
-              ) else {
-            return
-        }
-        guard openDisposition != .unavailable else {
-            await settleFailedRecovery(
-                execution,
-                failure: .immersiveSpaceUnavailable
-            )
-            return
-        }
-        guard let settled = await waitUntilPresentationSettled(
-            to: presentation,
-            execution: execution
-        ) else {
-            return
-        }
-        guard settled else {
-            guard await dismissImmersiveSpace(execution: execution),
-                  setRuntimeError(
-                    "The spatial playback surface could not be restored.",
-                    execution: execution
-                  ) else {
-                return
-            }
-            await settleFailedRecovery(
-                execution,
-                failure: .spatialPlaybackSurfaceUnavailable
-            )
-            return
-        }
-
-        guard await dismissEnvironmentCardIfNeeded(execution: execution) else { return }
-        let resolution = await complete(execution, outcome: .succeeded)
-        guard resolution == .spatialRecoveryCompleted(presentation) else { return }
-        persistSettledPlaybackMode(presentation)
-        _ = dismissWindow(
-            id: "main",
-            execution: execution,
-            phase: .settledRequest
-        )
-    }
-
-    private func settleFailedRecovery(
-        _ execution: Execution,
-        failure: SpatialPlatformEffectFailure
-    ) async {
-        let resolution = await complete(execution, outcome: .failed(failure))
-        guard case .spatialRecoveryFailed = resolution,
-              openWindow(
-                id: "main",
-                execution: execution,
-                phase: .settledRequest
-              ) else {
-            return
-        }
-        _ = dismissWindow(
-            id: "playerControls",
-            execution: execution,
-            phase: .settledRequest
-        )
     }
 
     private func exitImmersivePlayback(
@@ -1296,8 +1213,6 @@ final class SpatialPlatformEffectCoordinator {
             .environment
         case .enterImmersivePlayback(let family):
             .playback(family.immersivePresentation)
-        case .recoverSpatialPlayback(let presentation):
-            .playback(presentation)
         case .exitImmersivePlayback,
              .collapseImmersivePlayback,
              .swapWindowPlaybackProjection,

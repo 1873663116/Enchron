@@ -342,10 +342,8 @@ def main() -> None:
             "presentationState.recordImmersiveSpaceDisappearance()"
         )
         < immersive_disappearance.index("guard pendingSpatialPlatformEffect == nil")
-        and ".collapseImmersivePlayback(family)" in immersive_disappearance
-        and "SpatialRecoveryIntent(" not in immersive_disappearance
-        and ".recoverSpatialPlayback" not in immersive_disappearance,
-        "immersive disappearance can recover or inspect stale environment state before collapse",
+        and ".collapseImmersivePlayback(family)" in immersive_disappearance,
+        "immersive disappearance records closure before queuing family collapse",
     )
     collapse_dispatch = region(
         platform_executor,
@@ -565,7 +563,7 @@ def main() -> None:
     enter_immersive_playback = region(
         platform_executor,
         "private func enterImmersivePlayback(",
-        "private func recoverSpatialPlayback(",
+        "private func exitImmersivePlayback(",
     )
     require(
         "openDisposition != .preexisting" in enter_immersive_playback

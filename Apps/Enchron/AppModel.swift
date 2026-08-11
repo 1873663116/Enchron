@@ -423,12 +423,6 @@ public final class AppModel {
                 restoreImmersionAmountAfterPanoramaIfNeeded()
             }
             logger.error("platform result rolled back transition failure=\(String(describing: failure), privacy: .public)")
-        case .spatialRecoveryRequested(let presentation):
-            logger.notice("unexpected immersive dismissal; recovery requested presentation=\(presentation.rawValue, privacy: .public)")
-        case .spatialRecoveryCompleted(let presentation):
-            logger.notice("spatial recovery completed presentation=\(presentation.rawValue, privacy: .public)")
-        case .spatialRecoveryFailed(let failure):
-            logger.error("spatial recovery failed; settled in Window failure=\(String(describing: failure), privacy: .public)")
         case .playbackTransportFailureRecorded:
             logger.error("playback transport failed after platform effect settlement")
         case .ignored:
