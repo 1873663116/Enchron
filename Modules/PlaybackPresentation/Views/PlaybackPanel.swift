@@ -120,6 +120,28 @@ fileprivate enum PlaybackControlPanelSurface {
     case playerControlDock
 }
 
+enum PlaybackPanelSettingsPolicy {
+    static func showsVideoFormatEditor(
+        for presentation: PlaybackPresentation
+    ) -> Bool {
+        presentation.usesMainWindow
+    }
+
+    static func showsPlacementControls(
+        for presentation: PlaybackPresentation
+    ) -> Bool {
+        presentation.usesMainWindow == false
+            && presentation.contentFamily == .flat
+    }
+
+    static func settingsAreAvailable(
+        for presentation: PlaybackPresentation
+    ) -> Bool {
+        showsVideoFormatEditor(for: presentation)
+            || showsPlacementControls(for: presentation)
+    }
+}
+
 enum PlaybackPanelInitialExpansion {
     case collapsed
     case timeline
@@ -171,8 +193,9 @@ struct FusedPlayerPanel: View {
         initialExpansion: PlaybackPanelInitialExpansion = .collapsed,
         controlsVisible: Bool = true
     ) {
+        let presentation = live?.presentation ?? .window
         let resolvedSurface: PlaybackControlPanelSurface = (
-            (live?.presentation ?? .window) == .window
+            presentation == .window
                 ? .windowOrnament
                 : .playerControlDock
         )
@@ -181,7 +204,12 @@ struct FusedPlayerPanel: View {
         self.surface = resolvedSurface
         self.controlsVisible = controlsVisible
         _timelineExpanded = State(initialValue: initialExpansion == .timeline)
-        _settingsExpanded = State(initialValue: initialExpansion == .settings)
+        _settingsExpanded = State(
+            initialValue: initialExpansion == .settings
+                && PlaybackPanelSettingsPolicy.settingsAreAvailable(
+                    for: presentation
+                )
+        )
         _videoFormatEditing = State(
             initialValue: PlaybackVideoFormatEditingState(
                 projection: live?.projection ?? .flat,
@@ -190,7 +218,9 @@ struct FusedPlayerPanel: View {
                 stereoLayout: live?.stereoLayout ?? .mono,
                 beginsEditing: initialExpansion == .settings
                     && resolvedSurface == .playerControlDock
-                    && live?.presentation != .docked
+                    && PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
+                        for: presentation
+                    )
             )
         )
     }
@@ -207,7 +237,12 @@ struct FusedPlayerPanel: View {
         self.surface = surface
         self.controlsVisible = controlsVisible
         _timelineExpanded = State(initialValue: initialExpansion == .timeline)
-        _settingsExpanded = State(initialValue: initialExpansion == .settings)
+        _settingsExpanded = State(
+            initialValue: initialExpansion == .settings
+                && PlaybackPanelSettingsPolicy.settingsAreAvailable(
+                    for: live.presentation
+                )
+        )
         _videoFormatEditing = State(
             initialValue: PlaybackVideoFormatEditingState(
                 projection: live.projection,
@@ -215,6 +250,9 @@ struct FusedPlayerPanel: View {
                 stereoLayout: live.stereoLayout,
                 beginsEditing: initialExpansion == .settings
                     && surface == .playerControlDock
+                    && PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
+                        for: live.presentation
+                    )
             )
         )
     }
@@ -372,12 +410,14 @@ struct FusedPlayerPanel: View {
             mediaInformationWell(width: clusterWidth)
             playerControlDockControls
 
-            // Advanced Settings swaps its content by presentation: docked owns
-            // placement, every other spatial presentation owns video format.
             if settingsExpanded, let live {
-                if live.presentation == .docked {
+                if PlaybackPanelSettingsPolicy.showsPlacementControls(
+                    for: live.presentation
+                ) {
                     dockedPlacementControls(live)
-                } else {
+                } else if PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
+                    for: live.presentation
+                ) {
                     videoFormatEditor(live)
                 }
             }
@@ -556,12 +596,16 @@ struct FusedPlayerPanel: View {
             ZStack {
                 HStack(spacing: 0) {
                     HStack(spacing: DesignTokens.ControlBar.buttonSpacing) {
-                        GlassCircleIconButton.settings(
-                            isExpanded: settingsExpanded,
-                            accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
-                            action: toggleSettings,
-                            accessibilityIdentifier: "PlayerPanel-button-settings"
-                        )
+                        if PlaybackPanelSettingsPolicy.settingsAreAvailable(
+                            for: live.presentation
+                        ) {
+                            GlassCircleIconButton.settings(
+                                isExpanded: settingsExpanded,
+                                accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
+                                action: toggleSettings,
+                                accessibilityIdentifier: "PlayerPanel-button-settings"
+                            )
+                        }
                         returnToWindowButton(live)
                     }
 
@@ -1438,12 +1482,20 @@ struct FusedPlayerPanel: View {
     }
 
     private func toggleSettings() {
+        guard let presentation = live?.presentation,
+              PlaybackPanelSettingsPolicy.settingsAreAvailable(
+                  for: presentation
+              ) else {
+            return
+        }
         if settingsExpanded {
             videoFormatEditing.discard()
             collapseSettings()
         } else {
             timelineExpanded = false
-            if live?.presentation != .docked,
+            if PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
+                for: presentation
+            ),
                let committedVideoFormatSelection {
                 videoFormatEditing.synchronizeCommittedVideoFormat(
                     committedVideoFormatSelection

@@ -403,6 +403,49 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test(
+        "Panel format editor follows the main-window presentation column",
+        arguments: [
+            (PlaybackPresentation.window, true),
+            (.portal, true),
+            (.docked, false),
+            (.panorama, false)
+        ]
+    )
+    func panelFormatEditorFollowsTheMainWindowPresentationColumn(
+        presentation: PlaybackPresentation,
+        expected: Bool
+    ) {
+        #expect(
+            PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
+                for: presentation
+            ) == expected
+        )
+    }
+
+    @Test("Immersive panel settings collapse to Docked placement controls")
+    func immersivePanelSettingsCollapseToDockedPlacementControls() {
+        #expect(
+            PlaybackPanelSettingsPolicy.showsVideoFormatEditor(for: .docked)
+                == false
+        )
+        #expect(PlaybackPanelSettingsPolicy.showsPlacementControls(for: .docked))
+        #expect(PlaybackPanelSettingsPolicy.settingsAreAvailable(for: .docked))
+
+        #expect(
+            PlaybackPanelSettingsPolicy.showsVideoFormatEditor(for: .panorama)
+                == false
+        )
+        #expect(
+            PlaybackPanelSettingsPolicy.showsPlacementControls(for: .panorama)
+                == false
+        )
+        #expect(
+            PlaybackPanelSettingsPolicy.settingsAreAvailable(for: .panorama)
+                == false
+        )
+    }
+
     @Test("Applying Media Format selects a main-window presentation")
     func appliedMediaFormatSelectsMainWindowPresentation() {
         #expect(
