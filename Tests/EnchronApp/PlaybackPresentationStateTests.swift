@@ -32,6 +32,61 @@ struct PlaybackPresentationStateTests {
         ) == false)
     }
 
+    @Test("Stopped playback restores the browser default window size")
+    func stoppedPlaybackRestoresBrowserDefaultWindowSize() {
+        #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
+            hasActivePlaybackRequest: false,
+            transitionIsActive: false,
+            immersiveSpaceResidency: .closed
+        ))
+    }
+
+    @Test("Dismissing active Window playback preserves its window size")
+    func dismissingActiveWindowPlaybackPreservesWindowSize() {
+        #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
+            hasActivePlaybackRequest: true,
+            transitionIsActive: false,
+            immersiveSpaceResidency: .closed
+        ) == false)
+    }
+
+    @Test("An active presentation transition preserves the window size")
+    func activePresentationTransitionPreservesWindowSize() {
+        #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
+            hasActivePlaybackRequest: false,
+            transitionIsActive: true,
+            immersiveSpaceResidency: .closed
+        ) == false)
+    }
+
+    @Test("An open immersive space preserves the window size")
+    func openImmersiveSpacePreservesWindowSize() {
+        #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
+            hasActivePlaybackRequest: false,
+            transitionIsActive: false,
+            immersiveSpaceResidency: .open
+        ) == false)
+    }
+
+    @Test("The active-playback recovery browser preserves the window size")
+    func activePlaybackRecoveryBrowserPreservesWindowSize() {
+        let state = (
+            hasActivePlaybackRequest: true,
+            transitionIsActive: false,
+            immersiveSpaceResidency: SpatialPlatformImmersiveSpaceResidency.closed
+        )
+
+        #expect(BrowserWindowSurfacePolicy.showsBrowser(
+            hasActivePlaybackRequest: state.hasActivePlaybackRequest,
+            transitionIsActive: state.transitionIsActive,
+            immersiveSpaceResidency: state.immersiveSpaceResidency
+        ))
+        #expect(BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
+            hasActivePlaybackRequest: state.hasActivePlaybackRequest,
+            transitionIsActive: state.transitionIsActive,
+            immersiveSpaceResidency: state.immersiveSpaceResidency
+        ) == false)
+    }
 
     @Test("Panorama tap shell follows 180 and 360 degree projection coverage")
     @MainActor

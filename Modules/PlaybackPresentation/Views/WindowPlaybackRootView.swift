@@ -187,6 +187,7 @@ struct WindowPlaybackRootView<
     #endif
     private let layout: WindowPlaybackLayout
     private let preferredInitialSize: CGSize?
+    private let freeformSizeOnDisappear: @MainActor () -> CGSize?
     private let showsWindowChrome: Bool
     private let hidesSurfaceFromAccessibility: Bool
     private let onSurfaceTap: (() -> Void)?
@@ -197,6 +198,7 @@ struct WindowPlaybackRootView<
     init(
         layout: WindowPlaybackLayout,
         preferredInitialSize: CGSize? = nil,
+        freeformSizeOnDisappear: @escaping @MainActor () -> CGSize? = { nil },
         showsWindowChrome: Bool,
         hidesSurfaceFromAccessibility: Bool = false,
         onSurfaceTap: (() -> Void)? = nil,
@@ -206,6 +208,7 @@ struct WindowPlaybackRootView<
     ) {
         self.layout = layout
         self.preferredInitialSize = preferredInitialSize
+        self.freeformSizeOnDisappear = freeformSizeOnDisappear
         self.showsWindowChrome = showsWindowChrome
         self.hidesSurfaceFromAccessibility = hidesSurfaceFromAccessibility
         self.onSurfaceTap = onSurfaceTap
@@ -238,7 +241,10 @@ struct WindowPlaybackRootView<
                 updateWindowGeometry(in: owningWindowScene)
             }
             .onDisappear {
-                restoreFreeformWindowGeometry(in: owningWindowScene)
+                restoreFreeformWindowGeometry(
+                    in: owningWindowScene,
+                    size: freeformSizeOnDisappear()
+                )
             }
             #endif
     }
@@ -354,13 +360,17 @@ struct WindowPlaybackRootView<
         windowScene.requestGeometryUpdate(preferences)
     }
 
-    private func restoreFreeformWindowGeometry(in windowScene: UIWindowScene?) {
+    private func restoreFreeformWindowGeometry(
+        in windowScene: UIWindowScene?,
+        size: CGSize?
+    ) {
         guard let windowScene else { return }
         let systemDefault = CGSize(
             width: UIProposedSceneSizeNoPreference,
             height: UIProposedSceneSizeNoPreference
         )
         let preferences = UIWindowScene.GeometryPreferences.Vision(
+            size: size,
             minimumSize: systemDefault,
             maximumSize: systemDefault,
             resizingRestrictions: .freeform

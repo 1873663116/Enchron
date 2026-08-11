@@ -32,6 +32,18 @@ enum BrowserWindowSurfacePolicy {
     }
 }
 
+enum BrowserWindowGeometryPolicy {
+    static func shouldRequestDefaultSize(
+        hasActivePlaybackRequest: Bool,
+        transitionIsActive: Bool,
+        immersiveSpaceResidency: SpatialPlatformImmersiveSpaceResidency
+    ) -> Bool {
+        hasActivePlaybackRequest == false
+            && transitionIsActive == false
+            && immersiveSpaceResidency == .closed
+    }
+}
+
 enum PlaybackPresentationRendererBindingPolicy {
     static func shouldBindRenderer(
         for presentation: PlaybackPresentation,
@@ -413,6 +425,13 @@ public struct MainView: View {
     private var windowPlayback: some View {
         WindowPlaybackRootView(
             layout: windowPlaybackLayout,
+            freeformSizeOnDisappear: {
+                BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
+                    hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
+                    transitionIsActive: appModel.presentationTransition != nil,
+                    immersiveSpaceResidency: appModel.immersiveSpaceResidency
+                ) ? WindowPlaybackLayout.fallback.defaultSize : nil
+            },
             showsWindowChrome: showsPlaybackChrome
                 && hostedPlaybackPresentation.usesMainWindow,
             hidesSurfaceFromAccessibility: isWindowSecondaryMenuPresented,
