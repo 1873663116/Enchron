@@ -22,7 +22,7 @@
 - 最低 visionOS 27：`progressive(range:initialAmount:)`、`onImmersionChange`、`VideoPlayerComponent(videoRenderer:)` 全部可用。
 - renderer 与 VideoPlayerComponent 一对一，组件建成后不可换 renderer；跨场景转移的唯一形状是旧 entity 摘组件、新 entity 用同一 renderer 建新组件，该时序无文档承诺，由 phase-6 探针裁决。
 - 格式变化必须重建技术 session（RealityKit 保留旧投影分类，见 `docs/research/realitykit-runtime-video-format-override-2026-08-07.md`）。
-- 渐进沉浸下窗口永远渲染在虚拟内容之前；App 无法直接读取表冠事件；表冠单按在空间与窗口共存时只关空间（DTS 确认于 visionOS 2.x，27 上的现行为由 phase-5 复核）。见 `docs/research/visionos-progressive-crown-and-playback-continuity-2026-08-11.md`。
+- 渐进沉浸下窗口永远渲染在虚拟内容之前；App 无法直接读取表冠事件，旋转与沉浸量归系统所有，App 不基于沉浸量触发行为；表冠按压的 27 真机事实见 phase-5 裁决。见 `docs/research/visionos-progressive-crown-and-playback-continuity-2026-08-11.md`。
 
 ## Alternatives
 
