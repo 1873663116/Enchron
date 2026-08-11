@@ -11,6 +11,7 @@ Window 的进沉浸按钮通往 Dock，Portal 的进沉浸按钮通往 Panorama�
 - 窗口 chrome 与 deck 的进沉浸动作按 `contentFamily` 解析目标：flat → docked，panoramic → panorama；移除按 `effectiveContentIsPanoramic` 显隐两个按钮的旧逻辑。
 - 退出沉浸动作对称：docked → window，panorama → portal（收编 phase-1 策略）。
 - accessibility identifier 保持稳定或在特性地图（`.claude/skills/visionpro-xcuitest/features/`）同步更新。
+- 在 `requestPlaybackPresentation` 接入 phase-1 边分类器的强制拒绝（illegal 边抛错）；至此全部合法入口都已族内解析，拒绝只拦截缺陷。
 
 ## Data structures
 
