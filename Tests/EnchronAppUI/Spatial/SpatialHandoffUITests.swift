@@ -614,6 +614,9 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let rendererGraphRevision = try XCTUnwrap(
             before.uint64("lastRendererInputGraphRevision")
         )
+        let formatRevision = try XCTUnwrap(
+            before.uint64("lastRendererInputFormatRevision")
+        )
         let initialProjection = try XCTUnwrap(before.string("projection"))
         let initialStereoLayout = try XCTUnwrap(before.string("stereoLayout"))
         let windowPlay = app.descendants(matching: .any)[
@@ -702,15 +705,43 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         }
         attachScreenshot(from: app, name: "panorama-handoff-format-open")
         apply.tap()
+
+        let spatialState = app.descendants(matching: .any)[
+            "PlayerUI-spatial-state"
+        ].firstMatch
+        let portal = try XCTUnwrap(waitForState(windowState, timeout: 30) {
+            $0.string("presentation") == "portal"
+                && $0.string("transition") == "none"
+                && $0.string("pendingSpatialEffect") == "none"
+                && $0.string("attached") == "portal"
+                && $0.string("projection") == "equirectangular360"
+                && $0.string("stereoLayout") == initialStereoLayout
+                && ($0.uint64("lastRendererInputFormatRevision") ?? 0)
+                    > formatRevision
+                && $0.bool("videoVisible") == true
+                && $0.string("immersiveSpaceResidency") == "closed"
+        })
+        XCTAssertFalse(spatialState.exists)
+        XCTAssertFalse(
+            app.descendants(matching: .any)[
+                "PlayerPanel-button-exit-spatial"
+            ].firstMatch.exists
+        )
+        let enterPanorama = app.descendants(matching: .any)[
+            "PlayerPanel-button-enter-panorama"
+        ].firstMatch
+        guard requireHittable(enterPanorama, named: "Enter Panorama") else { return }
+        let portalComponentRevision = try XCTUnwrap(
+            portal.uint64("videoComponentRevision")
+        )
+        XCTAssertEqual(portalComponentRevision, videoComponentRevision + 1)
+        enterPanorama.tap()
         guard requirePresentationRequest(
             in: app,
             windowState: windowState,
             targetPresentation: "panorama"
         ) else { return }
 
-        let spatialState = app.descendants(matching: .any)[
-            "PlayerUI-spatial-state"
-        ].firstMatch
         let spatial = try observeTransitionToSpatialPresentation(
             app: app,
             originalSurface: windowState,
@@ -729,7 +760,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         )
         XCTAssertEqual(
             panoramaComponentRevision,
-            videoComponentRevision + 1,
+            portalComponentRevision + 1,
             "The Panorama conversion must install one fresh technical playback session."
         )
         XCTAssertEqual(panoramaRendererGraphRevision, rendererGraphRevision)
@@ -992,6 +1023,9 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let session = try XCTUnwrap(window.string("session"))
         let environmentID = try XCTUnwrap(window.string("environment"))
         let immersionAmount = try XCTUnwrap(window.double("immersionAmount"))
+        let formatRevision = try XCTUnwrap(
+            window.uint64("lastRendererInputFormatRevision")
+        )
         attachState(window, name: "active-environment-window-state")
 
         let format = app.descendants(matching: .any)[
@@ -1007,6 +1041,27 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let apply = app.buttons["PlayerUI-VideoFormat-apply"].firstMatch
         guard requireHittable(apply, named: "Apply video format") else { return }
         apply.tap()
+
+        let portal = try XCTUnwrap(waitForState(windowState, timeout: 30) {
+            $0.string("presentation") == "portal"
+                && $0.string("transition") == "none"
+                && $0.string("pendingSpatialEffect") == "none"
+                && $0.string("attached") == "portal"
+                && $0.string("projection") == "equirectangular360"
+                && ($0.uint64("lastRendererInputFormatRevision") ?? 0)
+                    > formatRevision
+                && $0.string("environment") == environmentID
+                && $0.string("environmentEffect") == "dark"
+                && $0.bool("videoVisible") == true
+        })
+        let portalComponentRevision = try XCTUnwrap(
+            portal.uint64("videoComponentRevision")
+        )
+        let enterPanorama = app.descendants(matching: .any)[
+            "PlayerPanel-button-enter-panorama"
+        ].firstMatch
+        guard requireHittable(enterPanorama, named: "Enter Panorama") else { return }
+        enterPanorama.tap()
         guard requirePresentationRequest(
             in: app,
             windowState: windowState,
@@ -1042,6 +1097,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         let panoramaComponentRevision = try XCTUnwrap(
             panoramaState.uint64("videoComponentRevision")
         )
+        XCTAssertEqual(panoramaComponentRevision, portalComponentRevision + 1)
         let panoramaRendererGraphRevision = try XCTUnwrap(
             panoramaState.uint64("lastRendererInputGraphRevision")
         )

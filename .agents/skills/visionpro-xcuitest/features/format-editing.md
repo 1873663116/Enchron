@@ -1,17 +1,17 @@
 # Video Format 编辑
 
-投影（Flat/180°/360°/Custom Angle）与立体布局（Mono/Side-by-Side/Top-Bottom）的用户编辑。两个宿主渲染同一个编辑器组件、走同一 `launcher.applyFormat`/`resetFormat` 下游：语义等价由结构保证。
+投影（Flat/180°/360°/Custom Angle）与立体布局（Mono/Side-by-Side/Top-Bottom）的用户编辑。编辑入口只存在于主窗口列，并走同一 `launcher.applyFormat`/`resetFormat` 下游。
 
 ## Sub-features
 
 - 窗口菜单宿主：`PlayerUI-TopAction-videoFormat` 打开，`PlayerUI-VideoFormat-*` 标识。
-- 面板 Advanced Settings 宿主（panorama/portal）：`PlayerPanel-button-settings` 展开，`PlayerPanel-VideoFormat-*` 标识；docked 的 settings 是摆位滑杆，不是格式编辑器。
+- Portal 面板 Advanced Settings 宿主：`PlayerPanel-button-settings` 展开，`PlayerPanel-VideoFormat-*` 标识。
 - Automatic 恢复（provenance 为 source 时禁用并显示对勾）。
-- 应用后的呈现路由：全景投影 → panorama，Flat → window。
+- 应用后的呈现路由：全景投影 → portal，Flat → window。进入 Panorama 需要点击 `PlayerPanel-button-enter-panorama`。
 
 ## How to get to it (user POV)
 
-窗口模式：视线点击播放表面唤出 chrome，右上 Video Format。panorama/portal：捏合召唤面板，展开 Advanced Settings。
+Window：视线点击播放表面唤出 chrome，右上 Video Format。Portal：召唤面板，展开 Advanced Settings。Panorama 先 Return to Portal，再编辑格式。
 
 ## Driving it with the controller
 
@@ -26,11 +26,11 @@ tap "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side"  # 标识含空格
 tap PlayerUI-VideoFormat-apply
 ```
 
-面板宿主在 panorama 的召唤依赖真实捏合（不可合成），属佩戴者验收面。
+Portal 面板使用同一组 `PlayerPanel-VideoFormat-*` 标识。
 
 ## 证明的终态
 
-应用全景格式后探针出现新 settle 序列（`gotImmersive=progressive`、`gotViewing=stereo`、rkContentType 与所选投影一致）；应用 Flat 后控制串 `presentation=window`。窗口宿主完整往返今晚已在真机走通（window→panorama 1 秒 settle）。
+应用全景格式后，控制串必须先满足 `presentation=portal`、`attached=portal`、`transition=none`、`pendingSpatialEffect=none`，且投影、立体布局和格式 revision 已更新。点击显式 Panorama 入口后，再用沉浸探针证明 RealityKit 采用所选投影。应用 Flat 后控制串满足 `presentation=window`。
 
 ## Gotchas
 

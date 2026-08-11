@@ -1,18 +1,19 @@
 # 呈现切换
 
-四个呈现：window、portal、docked、panorama（`PlaybackPresentation.swift`）。可达性受内容约束：dock 仅 window 且非全景内容；portal 仅全景内容；应用格式后按投影路由。runtime 附着权属于转场目标呈现（无转场时为已定呈现），控件窗口的场景操作与转场序列化执行。
+四个呈现：window、portal、docked、panorama（`PlaybackPresentation.swift`）。Window 进入 Docked，Portal 进入 Panorama；Docked 退出到 Window，Panorama 退出到 Portal。应用格式只在主窗口列切换 Window 与 Portal。runtime 附着权属于转场目标呈现（无转场时为已定呈现），控件窗口的场景操作与转场序列化执行。
 
 ## Sub-features
 
 - 打开落地（干净态按源分类；带持久覆盖按覆盖）。
-- window → panorama（应用全景格式；settle 判据走探针）。
-- panorama → portal → panorama（面板 exit；portal 侧用主窗口 chrome 的 `PlayerUI-TopAction-resumePanorama`，portal 面板没有 enter 按钮）。
+- window → portal（应用全景格式并等待主窗口稳态）。
+- portal → panorama（显式点击 `PlayerPanel-button-enter-panorama`；`PlayerUI-TopAction-resumePanorama` 的动作含义和 accessibility label 也是 Enter Panorama）。
+- panorama → portal（面板 exit）。
 - window ⇄ docked（TopAction-dock + DockMenu；面板 exit）。
 - 失败回滚：settle 超时后干净回滚，不悬挂。
 
 ## How to get to it (user POV)
 
-窗口 chrome 的 Dock 与 Video Format；panorama 内捏合召唤面板后 Return to Portal；portal 顶部动作 Return to Panorama。
+窗口 chrome 的 Dock 与 Video Format；panorama 内捏合召唤面板后 Return to Portal；portal 面板点击 Enter Panorama。
 
 ## Driving it with playback_mode_matrix
 
@@ -34,7 +35,7 @@ python3 Scripts/verification/playback_mode_matrix.py --clean --reps 1 \
 
 ## 证明的终态
 
-每步以探针 settle（沉浸目标）或控制串稳态（窗口目标）收口；未 settle 应观察到干净回滚（presentation 回 window、lifecycle 走向 idle）而非悬挂。通关基线（2026-08-10）：TB spatial 六步、360 四步、dock 三 cell 全绿。
+每步以探针 settle（沉浸目标）或控制串稳态（窗口目标）收口；全景格式 Apply 必须先证明 Portal 稳态，再点击显式入口并证明 Panorama settle。未 settle 应观察到源呈现回滚且无 pending effect。
 
 ## Gotchas
 

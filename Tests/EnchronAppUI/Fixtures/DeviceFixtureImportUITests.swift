@@ -828,16 +828,19 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
 
         card.tap()
         resolveResumeDecisionIfNeeded(in: app)
-        let stateElement = app.descendants(matching: .any)[
-            expectation.presentation == "window"
+        let firstPresentation = expectation.presentation == "panorama"
+            ? "portal"
+            : expectation.presentation
+        let firstStateElement = app.descendants(matching: .any)[
+            firstPresentation == "window" || firstPresentation == "portal"
                 ? "PlayerUI-window-control-plane"
                 : "PlayerUI-spatial-state"
         ].firstMatch
         var observedFailures: [String] = []
         _ = try requireMatrix(
             waitForRealMediaSurface(
-                stateElement,
-                presentation: expectation.presentation,
+                firstStateElement,
+                presentation: firstPresentation,
                 timeout: 75,
                 app: app,
                 evidenceName: "\(expectation.evidenceSlug)-01-source-surface",
@@ -845,6 +848,47 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             ),
             "\(expectation.filename) did not expose its playback surface."
         )
+        let stateElement: XCUIElement
+        if expectation.presentation == "panorama" {
+            let portal = try requireMatrix(
+                waitForState(firstStateElement, timeout: 45) {
+                    automaticSourceState(
+                        $0,
+                        matches: expectation,
+                        presentation: "portal"
+                    )
+                },
+                "\(expectation.filename) did not settle its Automatic source in Portal."
+            )
+            attachState(
+                portal,
+                name: "\(expectation.evidenceSlug)-01-automatic-portal-state"
+            )
+            let enterPanorama = app.buttons[
+                "PlayerPanel-button-enter-panorama"
+            ].firstMatch
+            try requireMatrix(
+                requireHittable(enterPanorama, named: "Enter Panorama"),
+                "\(expectation.filename) did not expose explicit Panorama entry."
+            )
+            enterPanorama.tap()
+            stateElement = app.descendants(matching: .any)[
+                "PlayerUI-spatial-state"
+            ].firstMatch
+            _ = try requireMatrix(
+                waitForRealMediaSurface(
+                    stateElement,
+                    presentation: "panorama",
+                    timeout: 75,
+                    app: app,
+                    evidenceName: "\(expectation.evidenceSlug)-01-panorama-surface",
+                    observedFailures: &observedFailures
+                ),
+                "\(expectation.filename) did not enter Panorama."
+            )
+        } else {
+            stateElement = firstStateElement
+        }
         let automatic = try requireMatrix(
             waitForState(stateElement, timeout: 45, where: {
                 automaticSourceState($0, matches: expectation)
@@ -1262,9 +1306,46 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             stereoLayoutLabel: "Mono",
             evidenceSlug: evidenceSlug
         )
+        let windowState = playback.app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
+        let portal = try requireMatrix(
+            waitForState(windowState, timeout: 75) {
+                $0.string("presentation") == "portal"
+                    && $0.string("transition") == "none"
+                    && $0.string("pendingSpatialEffect") == "none"
+                    && $0.string("attached") == "portal"
+                    && $0.string("session") == playback.state.string("session")
+                    && $0.string("formatProvenance") == "userOverride"
+                    && $0.string("sourceContentKind") == sourceContentKind
+                    && $0.string("sampleProjectionKind")?.lowercased()
+                        == override.sampleProjectionKind.lowercased()
+                    && $0.string("windowComponentContentType")?.lowercased()
+                        == override.contentType.lowercased()
+                    && $0.string("actualImmersiveMode")?.lowercased() == "portal"
+                    && $0.string("actualSpatialVideoMode")?.lowercased() == "screen"
+                    && $0.bool("videoVisible") == true
+                    && ($0.uint64("lastRendererInputFormatRevision") ?? 0)
+                        > priorFormatRevision
+            },
+            "\(evidenceSlug) did not settle in Portal after format application."
+        )
+        attachState(portal, name: "\(evidenceSlug)-portal-state")
         let spatialState = playback.app.descendants(matching: .any)[
             "PlayerUI-spatial-state"
         ].firstMatch
+        try requireMatrix(
+            spatialState.exists == false,
+            "\(evidenceSlug) opened Panorama before explicit entry."
+        )
+        let enterPanorama = playback.app.buttons[
+            "PlayerPanel-button-enter-panorama"
+        ].firstMatch
+        try requireMatrix(
+            requireHittable(enterPanorama, named: "Enter Panorama"),
+            "\(evidenceSlug) did not expose explicit Panorama entry."
+        )
+        enterPanorama.tap()
         let overridden = try requireMatrix(
             waitForState(spatialState, timeout: 75) {
                 $0.string("presentation") == "panorama"
@@ -1469,20 +1550,55 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         )
         automatic.tap()
 
-        let stateElement = playback.app.descendants(matching: .any)[
-            expectation.presentation == "window"
+        let firstPresentation = expectation.presentation == "panorama"
+            ? "portal"
+            : expectation.presentation
+        let firstStateElement = playback.app.descendants(matching: .any)[
+            firstPresentation == "window" || firstPresentation == "portal"
                 ? "PlayerUI-window-control-plane"
                 : "PlayerUI-spatial-state"
         ].firstMatch
-        let restored = try requireMatrix(
-            waitForState(stateElement, timeout: 75) {
-                automaticSourceState($0, matches: expectation)
+        let firstRestored = try requireMatrix(
+            waitForState(firstStateElement, timeout: 75) {
+                automaticSourceState(
+                    $0,
+                    matches: expectation,
+                    presentation: firstPresentation
+                )
                     && $0.string("session") == playback.state.string("session")
                     && ($0.uint64("lastRendererInputFormatRevision") ?? 0)
                         > priorFormatRevision
             },
             "\(evidenceSlug) did not restore the immutable source interpretation."
         )
+        let stateElement: XCUIElement
+        let restored: RegressionStateSnapshot
+        if expectation.presentation == "panorama" {
+            attachState(firstRestored, name: "\(evidenceSlug)-portal-state")
+            let enterPanorama = playback.app.buttons[
+                "PlayerPanel-button-enter-panorama"
+            ].firstMatch
+            try requireMatrix(
+                requireHittable(enterPanorama, named: "Enter Panorama"),
+                "\(evidenceSlug) did not expose explicit Panorama entry."
+            )
+            enterPanorama.tap()
+            stateElement = playback.app.descendants(matching: .any)[
+                "PlayerUI-spatial-state"
+            ].firstMatch
+            restored = try requireMatrix(
+                waitForState(stateElement, timeout: 75) {
+                    automaticSourceState($0, matches: expectation)
+                        && $0.string("session") == playback.state.string("session")
+                        && ($0.uint64("lastRendererInputFormatRevision") ?? 0)
+                            > priorFormatRevision
+                },
+                "\(evidenceSlug) did not enter Panorama after source restoration."
+            )
+        } else {
+            stateElement = firstStateElement
+            restored = firstRestored
+        }
         try requireMatrix(
             playback.app.descendants(matching: .any)["PlayerUI-VideoFormat"]
                 .firstMatch.waitForNonExistence(timeout: 5),
@@ -1712,16 +1828,49 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         )
         card.tap()
         resolveResumeDecisionIfNeeded(in: playback.app)
-        let stateElement = playback.app.descendants(matching: .any)[
+        let firstPresentation = expectation.presentation == "panorama"
+            ? "portal"
+            : expectation.presentation
+        let firstStateElement = playback.app.descendants(matching: .any)[
             "PlayerUI-window-control-plane"
         ].firstMatch
-        let reopened = try requireMatrix(
-            waitForState(stateElement, timeout: 45) {
-                automaticSourceState($0, matches: expectation)
+        let firstReopened = try requireMatrix(
+            waitForState(firstStateElement, timeout: 45) {
+                automaticSourceState(
+                    $0,
+                    matches: expectation,
+                    presentation: firstPresentation
+                )
                     && $0.string("session") != previousSession
             },
             "\(evidenceSlug) retained an override or reused the previous session."
         )
+        let stateElement: XCUIElement
+        let reopened: RegressionStateSnapshot
+        if expectation.presentation == "panorama" {
+            attachState(firstReopened, name: "\(evidenceSlug)-portal-state")
+            let enterPanorama = playback.app.buttons[
+                "PlayerPanel-button-enter-panorama"
+            ].firstMatch
+            try requireMatrix(
+                requireHittable(enterPanorama, named: "Enter Panorama"),
+                "\(evidenceSlug) did not expose explicit Panorama entry."
+            )
+            enterPanorama.tap()
+            stateElement = playback.app.descendants(matching: .any)[
+                "PlayerUI-spatial-state"
+            ].firstMatch
+            reopened = try requireMatrix(
+                waitForState(stateElement, timeout: 45) {
+                    automaticSourceState($0, matches: expectation)
+                        && $0.string("session") != previousSession
+                },
+                "\(evidenceSlug) did not enter Panorama after reopening."
+            )
+        } else {
+            stateElement = firstStateElement
+            reopened = firstReopened
+        }
         attachState(reopened, name: "\(evidenceSlug)-state")
         attachScreenshot(from: playback.app, name: evidenceSlug)
         let continuous = try requireContinuousMatrixPlayback(
@@ -1739,9 +1888,11 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
 
     private func automaticSourceState(
         _ state: RegressionStateSnapshot,
-        matches expectation: AutomaticSourceExpectation
+        matches expectation: AutomaticSourceExpectation,
+        presentation: String? = nil
     ) -> Bool {
-        guard state.string("presentation") == expectation.presentation,
+        let expectedPresentation = presentation ?? expectation.presentation
+        guard state.string("presentation") == expectedPresentation,
               state.string("transition") == "none",
               state.string("formatProvenance") == "source",
               state.string("sourceContentKind") == expectation.sourceContentKind,
@@ -1753,8 +1904,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             return false
         }
 
-        let isWindow = expectation.presentation == "window"
-        if !isWindow, let expected = expectation.formatSignalingProjectionKind {
+        let usesMainWindow = expectedPresentation == "window"
+            || expectedPresentation == "portal"
+        if let expected = expectation.formatSignalingProjectionKind {
             guard state.string("providerProjectionKind")?.lowercased()
                     == expected.lowercased(),
                   state.string("sampleProjectionKind")?.lowercased()
@@ -1766,7 +1918,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
            compressedFormatFactsMatch(state, expectation: compressedFormat) == false {
             return false
         }
-        let contentTypeKey = isWindow
+        let contentTypeKey = usesMainWindow
             ? "windowComponentContentType"
             : "surfaceContentType"
         guard state.string(contentTypeKey)?.lowercased()
@@ -1774,13 +1926,16 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             return false
         }
         if let expected = expectation.actualViewingMode {
-            let key = isWindow ? "actualViewingMode" : "surfaceActualViewingMode"
+            let key = usesMainWindow ? "actualViewingMode" : "surfaceActualViewingMode"
             guard state.string(key)?.lowercased() == expected.lowercased() else {
                 return false
             }
         }
-        if let expected = expectation.actualImmersiveMode {
-            let key = isWindow
+        let expectedImmersiveMode = expectedPresentation == "portal"
+            ? "portal"
+            : expectation.actualImmersiveMode
+        if let expected = expectedImmersiveMode {
+            let key = usesMainWindow
                 ? "actualImmersiveMode"
                 : "surfaceActualImmersiveMode"
             guard state.string(key)?.lowercased() == expected.lowercased() else {
@@ -1788,14 +1943,14 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             }
         }
         if let expected = expectation.actualSpatialVideoMode {
-            let key = isWindow
+            let key = usesMainWindow
                 ? "actualSpatialVideoMode"
                 : "surfaceActualSpatialVideoMode"
             guard state.string(key)?.lowercased() == expected.lowercased() else {
                 return false
             }
         }
-        return isWindow
+        return usesMainWindow
             ? state.bool("videoVisible") == true
                 && state.bool("displayedPixel") == true
             : state.bool("surfaceSettled") == true
@@ -2037,8 +2192,8 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
     }
 
     @MainActor
-    func testRealNHVR180DirectPanoramaRoundTrip() async throws {
-        try await exerciseRealMediaDirectPanoramaRoundTrip(
+    func testRealNHVR180ExplicitPanoramaRoundTrip() async throws {
+        try await exerciseRealMediaExplicitPanoramaRoundTrip(
             filename: "HNVR-158_H_4096p_8K_LR_180_clip.mp4",
             pickerPath: ["Samples", "Spatial", "Stereo180"],
             pickerLabels: [
@@ -2047,26 +2202,26 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             ],
             projectionLabel: "180°",
             stereoLayoutLabel: "Side-by-Side",
-            evidenceSlug: "real-nhvr-direct-panorama"
+            evidenceSlug: "real-nhvr-explicit-panorama"
         )
     }
 
     @MainActor
-    func testRealInsta360DirectPanoramaRoundTrip() async throws {
-        try await exerciseRealMediaDirectPanoramaRoundTrip(
+    func testRealInsta360ExplicitPanoramaRoundTrip() async throws {
+        try await exerciseRealMediaExplicitPanoramaRoundTrip(
             filename: "insta360.mp4",
             pickerPath: ["Samples", "Spatial", "Panorama"],
             pickerLabels: ["insta360", "insta360.mp4"],
             projectionLabel: "360°",
             stereoLayoutLabel: "Mono",
-            evidenceSlug: "real-insta360-direct-panorama"
+            evidenceSlug: "real-insta360-explicit-panorama"
         )
     }
 
     @MainActor
-    func testRealNHVR180PersistedPanoramaColdLaunchStartsInPanorama() async throws {
+    func testRealNHVR180PersistedFormatColdLaunchStartsInPortal() async throws {
         let filename = "HNVR-158_H_4096p_8K_LR_180_clip.mp4"
-        let evidenceSlug = "real-nhvr-persisted-panorama-cold-launch"
+        let evidenceSlug = "real-nhvr-persisted-portal-cold-launch"
         var observedFailures: [String] = []
         defer {
             if observedFailures.isEmpty == false {
@@ -2143,6 +2298,21 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         let spatialState = app.descendants(matching: .any)[
             "PlayerUI-spatial-state"
         ].firstMatch
+        guard waitForRealMediaSurface(
+            windowState,
+            presentation: "portal",
+            timeout: 60,
+            app: app,
+            evidenceName: "\(evidenceSlug)-portal-before-first-entry",
+            observedFailures: &observedFailures
+        ) != nil else { return }
+        let enterPanorama = app.buttons.matching(
+            identifier: "PlayerPanel-button-enter-panorama"
+        ).firstMatch
+        guard requireHittable(enterPanorama, named: "Enter persisted Panorama") else {
+            return
+        }
+        enterPanorama.tap()
         guard let firstPanorama = waitForRealMediaSurface(
             spatialState,
             presentation: "panorama",
@@ -2170,9 +2340,9 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         relaunchedCard.tap()
         resolveResumeDecisionIfNeeded(in: app)
 
-        guard let restoredPanorama = waitForRealMediaSurface(
-            spatialState,
-            presentation: "panorama",
+        guard let restoredPortal = waitForRealMediaSurface(
+            windowState,
+            presentation: "portal",
             timeout: 75,
             app: app,
             evidenceName: "\(evidenceSlug)-after-relaunch",
@@ -2186,12 +2356,25 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
         )
         XCTAssertEqual(
             restoredApplicationState.string("firstTechnicalSessionAttachment"),
-            "panorama",
-            "The cold technical session attached to Window before Panorama."
+            "portal",
+            "The cold technical session did not attach to Portal."
         )
-        XCTAssertEqual(restoredPanorama.string("formatProvenance"), "userOverride")
-        XCTAssertEqual(restoredPanorama.string("projection"), "equirectangular180")
-        XCTAssertEqual(restoredPanorama.string("stereoLayout"), "sideBySide")
+        XCTAssertEqual(restoredPortal.string("formatProvenance"), "userOverride")
+        XCTAssertEqual(restoredPortal.string("projection"), "equirectangular180")
+        XCTAssertEqual(restoredPortal.string("stereoLayout"), "sideBySide")
+        guard requireHittable(
+            enterPanorama,
+            named: "Enter persisted Panorama after cold launch"
+        ) else { return }
+        enterPanorama.tap()
+        guard let restoredPanorama = waitForRealMediaSurface(
+            spatialState,
+            presentation: "panorama",
+            timeout: 75,
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-after-entry",
+            observedFailures: &observedFailures
+        ) else { return }
         XCTAssertTrue(restoredPanorama.hasConfirmedPanoramaAdoption())
         attachElapsedTime(
             since: coldPlaybackStartedAt,
@@ -2202,8 +2385,8 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             presentation: "panorama",
             evidenceName: "\(evidenceSlug)-cold-panorama-frame-performance"
         )
-        attachState(restoredPanorama, name: "\(evidenceSlug)-direct-panorama-state")
-        attachScreenshot(from: app, name: "\(evidenceSlug)-direct-panorama-frame")
+        attachState(restoredPanorama, name: "\(evidenceSlug)-panorama-state")
+        attachScreenshot(from: app, name: "\(evidenceSlug)-panorama-frame")
 
         let exit = app.buttons.matching(
             identifier: "PlayerPanel-button-exit-spatial"
@@ -2247,7 +2430,7 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
     }
 
     @MainActor
-    private func exerciseRealMediaDirectPanoramaRoundTrip(
+    private func exerciseRealMediaExplicitPanoramaRoundTrip(
         filename: String,
         pickerPath: [String],
         pickerLabels: [String],
@@ -2533,50 +2716,54 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             evidenceName: "\(evidenceSlug)-panorama-\(cycle)-controls"
         ) else { return false }
 
-        let panoramaTransitionStartedAt: Date
-        let resumePanorama = app.buttons.matching(
-            identifier: "PlayerUI-TopAction-resumePanorama"
+        let format = app.buttons.matching(
+            identifier: "PlayerUI-TopAction-videoFormat"
         ).firstMatch
-        if resumePanorama.exists {
-            guard requireHittable(
-                resumePanorama,
-                named: "Return real media to Panorama cycle \(cycle)"
-            ) else { return false }
-            panoramaTransitionStartedAt = Date()
-            resumePanorama.tap()
-        } else {
-            let format = app.buttons.matching(
-                identifier: "PlayerUI-TopAction-videoFormat"
-            ).firstMatch
-            guard requireHittable(
-                format,
-                named: "Video Format for real media Panorama cycle \(cycle)"
-            ) else { return false }
-            format.tap()
-            let projection = app.descendants(matching: .any)[
-                "PlayerUI-VideoFormat-Projection-\(projectionLabel)"
-            ].firstMatch
-            guard requireHittable(
-                projection,
-                named: "\(projectionLabel) projection cycle \(cycle)"
-            ) else { return false }
-            projection.tap()
-            let stereoLayout = app.descendants(matching: .any)[
-                "PlayerUI-VideoFormat-Stereo Layout-\(stereoLayoutLabel)"
-            ].firstMatch
-            guard requireHittable(
-                stereoLayout,
-                named: "\(stereoLayoutLabel) stereo layout cycle \(cycle)"
-            ) else { return false }
-            stereoLayout.tap()
-            let apply = app.buttons["PlayerUI-VideoFormat-apply"].firstMatch
-            guard requireHittable(
-                apply,
-                named: "Apply real media format cycle \(cycle)"
-            ) else { return false }
-            panoramaTransitionStartedAt = Date()
-            apply.tap()
-        }
+        guard requireHittable(
+            format,
+            named: "Video Format for real media Panorama cycle \(cycle)"
+        ) else { return false }
+        format.tap()
+        let projection = app.descendants(matching: .any)[
+            "PlayerUI-VideoFormat-Projection-\(projectionLabel)"
+        ].firstMatch
+        guard requireHittable(
+            projection,
+            named: "\(projectionLabel) projection cycle \(cycle)"
+        ) else { return false }
+        projection.tap()
+        let stereoLayout = app.descendants(matching: .any)[
+            "PlayerUI-VideoFormat-Stereo Layout-\(stereoLayoutLabel)"
+        ].firstMatch
+        guard requireHittable(
+            stereoLayout,
+            named: "\(stereoLayoutLabel) stereo layout cycle \(cycle)"
+        ) else { return false }
+        stereoLayout.tap()
+        let apply = app.buttons["PlayerUI-VideoFormat-apply"].firstMatch
+        guard requireHittable(
+            apply,
+            named: "Apply real media format cycle \(cycle)"
+        ) else { return false }
+        apply.tap()
+
+        guard waitForRealMediaSurface(
+            windowState,
+            presentation: "portal",
+            timeout: 60,
+            app: app,
+            evidenceName: "\(evidenceSlug)-panorama-\(cycle)-portal-after-apply",
+            observedFailures: &observedFailures
+        ) != nil else { return false }
+        let enterPanorama = app.buttons.matching(
+            identifier: "PlayerPanel-button-enter-panorama"
+        ).firstMatch
+        guard requireHittable(
+            enterPanorama,
+            named: "Enter real media Panorama cycle \(cycle)"
+        ) else { return false }
+        let panoramaTransitionStartedAt = Date()
+        enterPanorama.tap()
 
         let spatialState = app.descendants(matching: .any)[
             "PlayerUI-spatial-state"

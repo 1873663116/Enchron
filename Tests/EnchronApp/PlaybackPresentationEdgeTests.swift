@@ -11,6 +11,31 @@ struct PlaybackPresentationEdgeTests {
         #expect(PlaybackPresentation.panorama.contentFamily == .panoramic)
     }
 
+    @Test("Every presentation derives its available immersive action target")
+    func presentationsDeriveImmersiveActionTargets() {
+        let cases: [(
+            presentation: PlaybackPresentation,
+            enter: PlaybackPresentation?,
+            exit: PlaybackPresentation?
+        )] = [
+            (.window, .docked, nil),
+            (.portal, .panorama, nil),
+            (.docked, nil, .window),
+            (.panorama, nil, .portal)
+        ]
+
+        for testCase in cases {
+            #expect(
+                testCase.presentation.enterImmersiveTarget == testCase.enter,
+                "\(testCase.presentation.rawValue) enter target"
+            )
+            #expect(
+                testCase.presentation.exitImmersiveTarget == testCase.exit,
+                "\(testCase.presentation.rawValue) exit target"
+            )
+        }
+    }
+
     @Test("Every ordered presentation pair maps to its edge")
     func everyOrderedPresentationPairMapsToItsEdge() {
         let cases: [(

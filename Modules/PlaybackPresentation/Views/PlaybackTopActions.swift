@@ -327,43 +327,38 @@ struct PlaybackVideoFormatEditor: View {
 }
 
 struct PlaybackTopActions: View {
-    private let canDock: Bool
+    private let immersiveEntryTarget: PlaybackPresentation?
     private let canApplyFormat: Bool
-    private let resumesPanorama: Bool
     private let mediaFormatProvenance: MediaFormatProvenance
     private let sourceMediaFormatSummary: String
     private let committedProjection: PlaybackModel.ProjectionType
     private let committedHorizontalFieldOfViewDegrees: Int
     private let committedStereoLayout: PlaybackModel.StereoLayout
     private let defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment
-    private let onDock: ((SpatialSceneDomain.CinemaEnvironment, SpatialSceneDomain.EnvironmentEffect?) -> Void)?
+    private let onEnterImmersive: ((SpatialSceneDomain.CinemaEnvironment?, SpatialSceneDomain.EnvironmentEffect?) -> Void)?
     private let onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)?
     private let onRestoreAutomaticFormat: (() -> Void)?
-    private let onResumePanorama: (() -> Void)?
     private let onSecondaryMenuVisibilityChange: ((Bool) -> Void)?
 
     @State private var state: PlaybackTopActionsState
 
     init(
         initialPresentedMenu: PlaybackTopSecondaryMenu? = nil,
-        canDock: Bool = true,
+        immersiveEntryTarget: PlaybackPresentation? = .docked,
         canApplyFormat: Bool = true,
-        resumesPanorama: Bool = false,
         mediaFormatProvenance: MediaFormatProvenance = .source,
         sourceMediaFormatSummary: String = "Flat · Mono",
         projection: PlaybackModel.ProjectionType = .flat,
         horizontalFieldOfViewDegrees: Int = PanoramaHorizontalCoverage.defaultCustomAngle,
         stereoLayout: PlaybackModel.StereoLayout = .mono,
         defaultScenicEnvironment: SpatialSceneDomain.CinemaEnvironment = .defaultScenic,
-        onDock: ((SpatialSceneDomain.CinemaEnvironment, SpatialSceneDomain.EnvironmentEffect?) -> Void)? = nil,
+        onEnterImmersive: ((SpatialSceneDomain.CinemaEnvironment?, SpatialSceneDomain.EnvironmentEffect?) -> Void)? = nil,
         onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout) -> Void)? = nil,
         onRestoreAutomaticFormat: (() -> Void)? = nil,
-        onResumePanorama: (() -> Void)? = nil,
         onSecondaryMenuVisibilityChange: ((Bool) -> Void)? = nil
     ) {
-        self.canDock = canDock
+        self.immersiveEntryTarget = immersiveEntryTarget
         self.canApplyFormat = canApplyFormat
-        self.resumesPanorama = resumesPanorama
         self.mediaFormatProvenance = mediaFormatProvenance
         self.sourceMediaFormatSummary = sourceMediaFormatSummary
         self.committedProjection = projection
@@ -372,10 +367,9 @@ struct PlaybackTopActions: View {
         self.defaultScenicEnvironment = defaultScenicEnvironment.isScenic
             ? defaultScenicEnvironment
             : .defaultScenic
-        self.onDock = onDock
+        self.onEnterImmersive = onEnterImmersive
         self.onApplyFormat = onApplyFormat
         self.onRestoreAutomaticFormat = onRestoreAutomaticFormat
-        self.onResumePanorama = onResumePanorama
         self.onSecondaryMenuVisibilityChange = onSecondaryMenuVisibilityChange
         _state = State(
                 initialValue: PlaybackTopActionsState(
@@ -433,13 +427,13 @@ struct PlaybackTopActions: View {
 
     private var topButtonRow: some View {
         WindowPlaybackSpatialActions {
-            if resumesPanorama {
+            if immersiveEntryTarget == .panorama {
                 GlassCircleIconButton.expandVertically(
-                    accessibilityLabel: "Return to Panorama",
-                    action: { onResumePanorama?() },
+                    accessibilityLabel: "Enter Panorama",
+                    action: { onEnterImmersive?(nil, nil) },
                     accessibilityIdentifier: "PlayerUI-TopAction-resumePanorama"
                 )
-            } else if canDock {
+            } else if immersiveEntryTarget == .docked {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "mountain.2.fill",
                     accessibilityLabel: "Dock",
@@ -449,7 +443,7 @@ struct PlaybackTopActions: View {
                 )
             }
         } formatControl: {
-            if resumesPanorama == false {
+            if immersiveEntryTarget != .panorama {
                 PlaybackTopSecondaryPanelButton(
                     systemName: "rectangle.arrowtriangle.2.outward",
                     accessibilityLabel: "Video Format",
@@ -529,7 +523,7 @@ struct PlaybackTopActions: View {
                 environment: environment,
                 effect: effect
             )
-            onDock?(requested.0, requested.1)
+            onEnterImmersive?(requested.0, requested.1)
         } label: {
             HStack(spacing: DesignTokens.Spacing.md) {
                 Image(thumbnailName)

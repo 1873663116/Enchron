@@ -60,9 +60,6 @@ struct WindowPlayerDeckView: View {
             presentation: resolvedPresentation,
             mediaName: mediaName,
             mediaProfile: playbackRuntime.displayMediaProfile,
-            canDock: playbackRuntime.canEnterSpatialPresentation,
-            canEnterPanorama: playbackRuntime.canEnterSpatialPresentation
-                && playbackRuntime.effectiveContentIsPanoramic,
             canApplyFormat: playbackRuntime.canEnterSpatialPresentation,
             screenScale: appModel.screenScale,
             recommendedScreenScale: EnvironmentSceneMapping.defaultScreenScale(
@@ -112,13 +109,8 @@ struct WindowPlayerDeckView: View {
                     self.playbackRuntime.frameStepForward()
                 }
             },
-            onEnterPanorama: { self.enterPlaybackPresentation(.panorama) },
-            onEnterImmersive: { self.enterPlaybackPresentation(.docked) },
-            onExitSpatial: {
-                self.enterPlaybackPresentation(
-                    self.resolvedPresentation == .panorama ? .portal : .window
-                )
-            },
+            onEnterImmersive: { self.enterImmersive() },
+            onExitSpatial: { self.exitImmersive() },
             onExitPlayback: {
                 if let onExitPlayback = self.onExitPlayback {
                     onExitPlayback()
@@ -180,9 +172,6 @@ struct WindowPlayerDeckView: View {
         if presentation.usesImmersiveSpace {
             guard playbackRuntime.canEnterSpatialPresentation else { return }
         }
-        if presentation == .panorama {
-            guard playbackRuntime.effectiveContentIsPanoramic else { return }
-        }
         do {
             _ = try appModel.requestPlaybackPresentation(
                 presentation,
@@ -192,6 +181,16 @@ struct WindowPlayerDeckView: View {
         } catch {
             playbackRuntime.lastErrorMessage = error.localizedDescription
         }
+    }
+
+    private func enterImmersive() {
+        guard let target = appModel.playbackPresentation.enterImmersiveTarget else { return }
+        enterPlaybackPresentation(target)
+    }
+
+    private func exitImmersive() {
+        guard let target = appModel.playbackPresentation.exitImmersiveTarget else { return }
+        enterPlaybackPresentation(target)
     }
 
     private func applyFormat(

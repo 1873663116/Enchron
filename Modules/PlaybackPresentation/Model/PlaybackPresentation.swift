@@ -33,6 +33,16 @@ public enum PlaybackPresentation: String, Codable, CaseIterable, Sendable {
         }
     }
 
+    public var enterImmersiveTarget: PlaybackPresentation? {
+        guard usesMainWindow else { return nil }
+        return contentFamily.immersivePresentation
+    }
+
+    public var exitImmersiveTarget: PlaybackPresentation? {
+        guard usesImmersiveSpace else { return nil }
+        return contentFamily.mainWindowPresentation
+    }
+
     public static func edge(
         from source: PlaybackPresentation,
         to target: PlaybackPresentation
@@ -52,6 +62,26 @@ public enum PlaybackPresentation: String, Codable, CaseIterable, Sendable {
             .projectionSwap
         case (false, _, _):
             .illegal
+        }
+    }
+}
+
+private extension PresentationContentFamily {
+    var mainWindowPresentation: PlaybackPresentation {
+        switch self {
+        case .flat:
+            .window
+        case .panoramic:
+            .portal
+        }
+    }
+
+    var immersivePresentation: PlaybackPresentation {
+        switch self {
+        case .flat:
+            .docked
+        case .panoramic:
+            .panorama
         }
     }
 }
@@ -89,20 +119,6 @@ public enum SpatialImmersiveSpacePolicy {
 }
 
 public enum PlaybackPresentationAvailability {
-    public static func canDock(
-        in presentation: PlaybackPresentation,
-        isPanoramic: Bool
-    ) -> Bool {
-        presentation == .window && isPanoramic == false
-    }
-
-    public static func windowShowsPanoramaResume(
-        in presentation: PlaybackPresentation,
-        isPanoramic: Bool
-    ) -> Bool {
-        presentation == .portal && isPanoramic
-    }
-
     public static func presentation(afterApplying format: MediaFormat) -> PlaybackPresentation {
         format.projection.isPanoramic ? .portal : .window
     }
@@ -236,7 +252,10 @@ public enum PlaybackPresentationTransitionError: Error, Equatable, Sendable {
     case platformEffectInFlight
     case mediaSessionRequired
     case alreadyPresented
-    case directSpatialTransitionNotSupported
+    case illegalEdge(
+        source: PlaybackPresentation,
+        target: PlaybackPresentation
+    )
     case dockedPresentationRequiresEnvironment
     case environmentPreviewRequiresWindow
     case environmentCardUnavailableInPanorama
@@ -449,9 +468,6 @@ package struct PlaybackPresentationState: Equatable, Sendable {
         }
         guard target != presented else {
             throw PlaybackPresentationTransitionError.alreadyPresented
-        }
-        if presented.usesImmersiveSpace, target.usesImmersiveSpace {
-            throw PlaybackPresentationTransitionError.directSpatialTransitionNotSupported
         }
 
         let targetEnvironment: EnvironmentContext
@@ -709,6 +725,13 @@ public final class PlaybackPresentationModel {
         }
         guard playbackContext.mediaSessionID.isEmpty == false else {
             throw PlaybackPresentationTransitionError.mediaSessionRequired
+        }
+        let source = presentationState.presented
+        guard PlaybackPresentation.edge(from: source, to: presentation) != .illegal else {
+            throw PlaybackPresentationTransitionError.illegalEdge(
+                source: source,
+                target: presentation
+            )
         }
         let transition = try presentationState.begin(
             presentation,

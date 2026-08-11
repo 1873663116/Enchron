@@ -13,8 +13,6 @@ struct FusedPlayerPanelLive {
     var presentation: PlaybackPresentation
     var mediaName: String
     var mediaProfile: PlaybackModel.MediaProfile?
-    var canDock: Bool
-    var canEnterPanorama: Bool
     var canApplyFormat: Bool
     var screenScale: Double
     var recommendedScreenScale: Double
@@ -41,7 +39,6 @@ struct FusedPlayerPanelLive {
     var onSeek: (CGFloat) -> Void
     var onPrecisionSeek: (CGFloat) -> Void
     var onFrameStep: (Int) -> Void
-    var onEnterPanorama: () -> Void
     var onEnterImmersive: () -> Void
     var onExitSpatial: () -> Void
     var onExitPlayback: () -> Void
@@ -745,7 +742,7 @@ struct FusedPlayerPanel: View {
         } else if live.presentation == .portal {
             GlassCircleIconButton.expandVertically(
                 accessibilityLabel: "Enter Panorama",
-                action: live.onEnterPanorama,
+                action: live.onEnterImmersive,
                 accessibilityIdentifier: "PlayerPanel-button-enter-panorama"
             )
         } else if live.presentation == .docked {

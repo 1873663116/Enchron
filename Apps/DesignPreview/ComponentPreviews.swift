@@ -102,8 +102,6 @@ struct PlaybackControlsPreview: View {
             presentation: presentation,
             mediaName: "Dune.Part.Two.2024",
             mediaProfile: mediaProfile(for: presentation),
-            canDock: true,
-            canEnterPanorama: true,
             canApplyFormat: true,
             screenScale: screenScale,
             recommendedScreenScale: 1.0,
@@ -131,7 +129,6 @@ struct PlaybackControlsPreview: View {
             onFrameStep: { direction in
                 progress = min(max(progress + CGFloat(direction) / CGFloat(855 * 24), 0), 1)
             },
-            onEnterPanorama: {},
             onEnterImmersive: {},
             onExitSpatial: {},
             onExitPlayback: {},

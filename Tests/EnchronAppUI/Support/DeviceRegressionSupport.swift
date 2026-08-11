@@ -447,13 +447,15 @@ extension XCTestCase {
             identifier: "PlayerUI-spatial-state",
             timeout: timeout,
             where: {
-                $0.string("presentation") == "panorama"
+                let presentation = $0.string("presentation")
+                return (presentation == "docked" || presentation == "panorama")
                     && $0.string("transition") == "none"
                     && $0.string("immersiveSpaceResidency") == "open"
-                    && $0.string("attached") == "panorama"
+                    && $0.string("attached") == presentation
                     && $0.bool("surfaceSettled") == true
                     && $0.bool("surfaceRenderingReady") == true
-                    && $0.hasRecognizedPanoramaContentType()
+                    && (presentation != "panorama"
+                        || $0.hasRecognizedPanoramaContentType())
             }
         ) else {
             attachCurrentState(
@@ -473,9 +475,16 @@ extension XCTestCase {
         let lifecycleBeforeReturn = settledSpatialState.uint64(
             "immersiveSpaceLifecycleRevision"
         ) ?? 0
+        let sourcePresentation = settledSpatialState.string("presentation")
+        let targetPresentation = sourcePresentation == "panorama"
+            ? "portal"
+            : "window"
+        let returnActionName = sourcePresentation == "panorama"
+            ? "Return to Portal before restoring Flat Window playback"
+            : "Return to Window before starting a Window handoff test"
         guard requireHittable(
             exitSpatial,
-            named: "Return to Window before starting a Window handoff test",
+            named: returnActionName,
             timeout: timeout
         ) else { return false }
         exitSpatial.tap()
@@ -484,12 +493,13 @@ extension XCTestCase {
             "PlayerUI-window-control-plane"
         ].firstMatch
         let restored = waitForState(windowState, timeout: timeout) {
-            $0.string("presentation") == "window"
+            $0.string("presentation") == targetPresentation
                 && $0.string("transition") == "none"
                 && $0.string("pendingSpatialEffect") == "none"
-                && $0.string("attached") == "window"
+                && $0.string("attached") == targetPresentation
                 && $0.bool("videoVisible") == true
-                && $0.string("chrome") == "on"
+                && $0.string("chrome")
+                    == (targetPresentation == "window" ? "on" : "off")
                 && ($0.uint64("immersiveSpaceLifecycleRevision") ?? 0)
                     > lifecycleBeforeReturn
         }
@@ -533,24 +543,35 @@ extension XCTestCase {
         let settings = app.descendants(matching: .any)[
             "PlayerPanel-button-settings"
         ].firstMatch
+        let windowState = app.descendants(matching: .any)[
+            "PlayerUI-window-control-plane"
+        ].firstMatch
         let readinessDeadline = Date().addingTimeInterval(timeout)
         while Date() < readinessDeadline {
             if dock.exists, format.exists { return true }
-            if settings.exists { break }
+            if settings.exists,
+               let rawValue = windowState.value as? String {
+                let state = RegressionStateSnapshot(rawValue: rawValue)
+                if state.string("presentation") == "portal",
+                   state.string("transition") == "none",
+                   state.string("attached") == "portal" {
+                    break
+                }
+            }
             if loadFailure.exists {
                 attachCurrentState(
                     of: applicationState,
-                    name: "automatic-panorama-entry-application-state-at-failure"
+                    name: "persisted-portal-readiness-application-state-at-failure"
                 )
                 attachCurrentState(
                     of: spatialState,
-                    name: "automatic-panorama-entry-spatial-state-at-failure"
+                    name: "persisted-portal-readiness-spatial-state-at-failure"
                 )
                 attachScreenshot(
                     from: app,
-                    name: "automatic-panorama-entry-failure"
+                    name: "persisted-portal-readiness-failure"
                 )
-                XCTFail("The persisted Panorama format could not restore automatically.")
+                XCTFail("The persisted panoramic format could not settle in Portal.")
                 return false
             }
             Thread.sleep(forTimeInterval: 0.1)
@@ -570,7 +591,7 @@ extension XCTestCase {
                 name: "window-format-restoration-controls-unavailable"
             )
             XCTFail(
-                "Playback controls did not reach either the Window or panoramic control surface."
+                "Playback controls did not reach Flat Window or Portal readiness."
             )
             return false
         }
@@ -590,9 +611,6 @@ extension XCTestCase {
         ) else { return false }
         windowFormat.tap()
 
-        let windowState = app.descendants(matching: .any)[
-            "PlayerUI-window-control-plane"
-        ].firstMatch
         let restored = waitForState(windowState, timeout: timeout) {
             $0.string("presentation") == "window"
                 && $0.string("attached") == "window"

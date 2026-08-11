@@ -26,16 +26,10 @@ struct PlayerInfoBarView: View {
         } spatialActions: {
             PlaybackTopActions(
                 initialPresentedMenu: initialPresentedMenu,
-                canDock: playbackRuntime.canEnterSpatialPresentation
-                    && PlaybackPresentationAvailability.canDock(
-                        in: appModel.playbackPresentation,
-                        isPanoramic: playbackRuntime.effectiveContentIsPanoramic
-                    ),
+                immersiveEntryTarget: playbackRuntime.canEnterSpatialPresentation
+                    ? appModel.playbackPresentation.enterImmersiveTarget
+                    : nil,
                 canApplyFormat: playbackRuntime.canEnterSpatialPresentation,
-                resumesPanorama: PlaybackPresentationAvailability.windowShowsPanoramaResume(
-                    in: appModel.playbackPresentation,
-                    isPanoramic: playbackRuntime.effectiveContentIsPanoramic
-                ),
                 mediaFormatProvenance: playbackRuntime.activeMediaFormatProvenance,
                 sourceMediaFormatSummary: playbackRuntime.sourceMediaFormatSummary,
                 projection: playbackRuntime.effectiveProjectionType,
@@ -43,29 +37,13 @@ struct PlayerInfoBarView: View {
                     playbackRuntime.effectiveHorizontalFieldOfViewDegrees,
                 stereoLayout: playbackRuntime.effectiveStereoLayout,
                 defaultScenicEnvironment: appModel.defaultScenicEnvironment,
-                onDock: dock,
+                onEnterImmersive: enterImmersive,
                 onApplyFormat: applyFormat,
                 onRestoreAutomaticFormat: restoreAutomaticFormat,
-                onResumePanorama: resumePanorama,
                 onSecondaryMenuVisibilityChange: onSecondaryMenuVisibilityChange
             )
         } moreControl: {
             ProductionPlaybackMoreMenu()
-        }
-    }
-
-    private func resumePanorama() {
-        appModel.registerControlsInteraction()
-        guard playbackRuntime.canEnterSpatialPresentation,
-              playbackRuntime.effectiveContentIsPanoramic else { return }
-        do {
-            _ = try appModel.requestPlaybackPresentation(
-                .panorama,
-                mediaSessionID: playbackRuntime.activeSessionID,
-                wasPlaying: playbackRuntime.productLifecycle == .playing
-            )
-        } catch {
-            playbackRuntime.lastErrorMessage = error.localizedDescription
         }
     }
 
@@ -76,14 +54,16 @@ struct PlayerInfoBarView: View {
         return PlaybackTopSecondaryMenu(rawValue: rawValue)
     }
 
-    private func dock(
-        in environment: SpatialSceneDomain.CinemaEnvironment,
+    private func enterImmersive(
+        environment: SpatialSceneDomain.CinemaEnvironment?,
         effect: SpatialSceneDomain.EnvironmentEffect?
     ) {
-        guard playbackRuntime.canEnterSpatialPresentation else { return }
+        appModel.registerControlsInteraction()
+        guard playbackRuntime.canEnterSpatialPresentation,
+              let target = appModel.playbackPresentation.enterImmersiveTarget else { return }
         do {
             _ = try appModel.requestPlaybackPresentation(
-                .docked,
+                target,
                 environment: environment,
                 effect: effect,
                 mediaSessionID: playbackRuntime.activeSessionID,

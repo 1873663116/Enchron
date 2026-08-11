@@ -107,16 +107,17 @@ require(
     "applying a panoramic format must land in Portal"
 )
 require(
-    PlaybackPresentationAvailability.windowShowsPanoramaResume(in: .portal, isPanoramic: true),
+    PlaybackPresentation.portal.enterImmersiveTarget == .panorama,
     "Portal must preserve access to the panoramic presentation"
 )
 require(
-    PlaybackPresentationAvailability.canDock(in: .window, isPanoramic: true) == false,
-    "Dock must remain unavailable while panoramic format is active"
+    PlaybackPresentation.window.enterImmersiveTarget == .docked,
+    "Window must enter Docked"
 )
 require(
-    PlaybackPresentationAvailability.canDock(in: .window, isPanoramic: false),
-    "Flat and Mono must restore Dock availability"
+    PlaybackPresentation.docked.exitImmersiveTarget == .window
+        && PlaybackPresentation.panorama.exitImmersiveTarget == .portal,
+    "immersive presentations must exit within their content family"
 )
 require(
     PlaybackDockedPlacement.defaultDistance == 4.0
@@ -258,6 +259,7 @@ try await MainActor.run {
     )
 
     let stopReplacementModel = PlaybackPresentationModel()
+    stopReplacementModel.prepareColdPlaybackLaunch(in: .portal)
     _ = try stopReplacementModel.requestPresentation(
         .panorama,
         playbackContext: playingContext
@@ -301,6 +303,7 @@ try await MainActor.run {
     )
 
     let sessionReplacementModel = PlaybackPresentationModel()
+    sessionReplacementModel.prepareColdPlaybackLaunch(in: .portal)
     _ = try sessionReplacementModel.requestPresentation(
         .panorama,
         playbackContext: SpatialPlaybackTransitionContext(
@@ -526,7 +529,10 @@ try await MainActor.run {
             playbackContext: playingContext
         )
         require(false, "Docked must not transition directly to Panorama")
-    } catch PlaybackPresentationTransitionError.directSpatialTransitionNotSupported {
+    } catch PlaybackPresentationTransitionError.illegalEdge(
+        source: .docked,
+        target: .panorama
+    ) {
     } catch {
         require(false, "Docked-to-Panorama failed for an unexpected reason")
     }
@@ -560,6 +566,11 @@ try await MainActor.run {
         "stopping Docked playback must restore the exact active pre-Docked Context"
     )
     _ = try presentationModel.requestPresentation(
+        .portal,
+        playbackContext: playingContext
+    )
+    _ = completePendingEffect(presentationModel)
+    _ = try presentationModel.requestPresentation(
         .panorama,
         playbackContext: playingContext
     )
@@ -568,9 +579,9 @@ try await MainActor.run {
         outcome: .failed(.spatialPlaybackSurfaceUnavailable)
     )
     require(
-        presentationModel.presentation == .window
+        presentationModel.presentation == .portal
             && presentationModel.transition == nil,
-        "Panorama rollback must restore Window and clear the transition"
+        "Panorama rollback must restore Portal and clear the transition"
     )
     _ = try presentationModel.requestPresentation(
         .panorama,
@@ -583,10 +594,18 @@ try await MainActor.run {
             playbackContext: playingContext
         )
         require(false, "Panorama must not transition directly to Docked")
-    } catch PlaybackPresentationTransitionError.directSpatialTransitionNotSupported {
+    } catch PlaybackPresentationTransitionError.illegalEdge(
+        source: .panorama,
+        target: .docked
+    ) {
     } catch {
         require(false, "Panorama-to-Docked failed for an unexpected reason")
     }
+    _ = try presentationModel.requestPresentation(
+        .portal,
+        playbackContext: playingContext
+    )
+    _ = completePendingEffect(presentationModel)
     _ = try presentationModel.requestPresentation(
         .window,
         playbackContext: playingContext
@@ -712,6 +731,7 @@ try await MainActor.run {
     _ = completePendingEffect(dockedCardModel)
 
     let panoramaCardModel = PlaybackPresentationModel()
+    panoramaCardModel.prepareColdPlaybackLaunch(in: .portal)
     _ = try panoramaCardModel.requestPresentation(
         .panorama,
         playbackContext: pausedContext
@@ -734,6 +754,7 @@ try await MainActor.run {
     )
 
     let pauseFailureModel = PlaybackPresentationModel()
+    pauseFailureModel.prepareColdPlaybackLaunch(in: .portal)
     _ = try pauseFailureModel.requestPresentation(
         .panorama,
         playbackContext: playingContext
@@ -743,12 +764,13 @@ try await MainActor.run {
             pauseFailureModel,
             outcome: .failed(.playbackPauseFailed)
         ) == .presentationRolledBack(.playbackPauseFailed)
-            && pauseFailureModel.presentation == .window
+            && pauseFailureModel.presentation == .portal
             && pauseFailureModel.transition == nil,
         "a failed pause must roll back before any platform presentation can commit"
     )
 
     let resumeFailureModel = PlaybackPresentationModel()
+    resumeFailureModel.prepareColdPlaybackLaunch(in: .portal)
     _ = try resumeFailureModel.requestPresentation(
         .panorama,
         playbackContext: playingContext
@@ -863,6 +885,7 @@ try await MainActor.run {
     )
 
     let panoramaRecoveryModel = PlaybackPresentationModel()
+    panoramaRecoveryModel.prepareColdPlaybackLaunch(in: .portal)
     _ = try panoramaRecoveryModel.requestPresentation(
         .panorama,
         playbackContext: pausedContext
