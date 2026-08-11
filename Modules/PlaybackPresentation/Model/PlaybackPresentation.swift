@@ -2,6 +2,19 @@ import Foundation
 import Observation
 import PlaybackFeature
 
+public enum PresentationContentFamily: Equatable, Sendable {
+    case flat
+    case panoramic
+}
+
+public enum PresentationEdge: Equatable, Sendable {
+    case inPlace
+    case enterImmersive
+    case exitImmersive
+    case projectionSwap
+    case illegal
+}
+
 public enum PlaybackPresentation: String, Codable, CaseIterable, Sendable {
     case window
     case portal
@@ -10,6 +23,37 @@ public enum PlaybackPresentation: String, Codable, CaseIterable, Sendable {
 
     public var usesMainWindow: Bool { self == .window || self == .portal }
     public var usesImmersiveSpace: Bool { self == .docked || self == .panorama }
+
+    public var contentFamily: PresentationContentFamily {
+        switch self {
+        case .window, .docked:
+            .flat
+        case .portal, .panorama:
+            .panoramic
+        }
+    }
+
+    public static func edge(
+        from source: PlaybackPresentation,
+        to target: PlaybackPresentation
+    ) -> PresentationEdge {
+        switch (
+            source.contentFamily == target.contentFamily,
+            source.usesImmersiveSpace,
+            target.usesImmersiveSpace
+        ) {
+        case (true, false, false), (true, true, true):
+            .inPlace
+        case (true, false, true):
+            .enterImmersive
+        case (true, true, false):
+            .exitImmersive
+        case (false, false, false):
+            .projectionSwap
+        case (false, _, _):
+            .illegal
+        }
+    }
 }
 
 public enum SpatialImmersiveSpaceOpeningContext: Equatable, Sendable {
