@@ -180,11 +180,6 @@ PATHS: dict[str, tuple[Step, ...]] = {
     "clean-open": (
         Step("open", OPEN_CLIP, "any-steady"),
     ),
-    # Clean-state cycles: unsignaled clips open windowed, so every spatial
-    # entry is driven through real user chrome. Windowed chrome auto-hides
-    # and must be summoned by the playback-surface tap; the player panel
-    # lives in the controls window, which only exists while showControls is
-    # on, so panel steps converge it first via the channel.
     "clean-spatial-cycle": (
         Step("open", OPEN_CLIP, "window"),
         Step(

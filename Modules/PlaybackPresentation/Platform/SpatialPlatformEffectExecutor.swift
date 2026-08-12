@@ -132,8 +132,6 @@ final class SpatialPlatformEffectCoordinator {
     @ObservationIgnored
     private var windowObservation = SpatialPlatformWindowObservation()
     @ObservationIgnored
-    private var observedPlayerControlsSceneIdentity: PlayerControlsSceneIdentity?
-    @ObservationIgnored
     private weak var mainWindowScene: UIWindowScene?
     @ObservationIgnored
     private var mainWindowSceneSessionIdentifier: String?
@@ -146,6 +144,16 @@ final class SpatialPlatformEffectCoordinator {
     private(set) var lastExecutionCheckpoint = "none"
     private(set) var executionAttemptCount: UInt64 = 0
     private(set) var lastExecutionResolution = "none"
+    private(set) var portalPlaybackViewportRefreshState =
+        PortalPlaybackViewportRefreshState()
+
+    var mainWindowPlaybackSurfaceRefreshRevision: UInt64 {
+        portalPlaybackViewportRefreshState.requestedRevision
+    }
+
+    var mainWindowPlaybackSurfaceAppliedRefreshRevision: UInt64 {
+        portalPlaybackViewportRefreshState.appliedRevision
+    }
 
     private static let immersiveSpaceLifecycleConfirmationTimeout =
         Duration.seconds(5)
@@ -167,6 +175,17 @@ final class SpatialPlatformEffectCoordinator {
         appModel.setSpatialPlatformEffectReplacementHandler { [weak self] in
             self?.requestDrain()
         }
+    }
+
+    func recordMainWindowPlaybackSurfaceRefreshApplied(_ revision: UInt64) {
+        guard revision > 0,
+              revision <= portalPlaybackViewportRefreshState.requestedRevision else {
+            return
+        }
+        portalPlaybackViewportRefreshState.recordApplied(revision)
+        appModel.recordSurfaceInputProbe(
+            "portalViewportRefresh appliedRevision=\(revision)"
+        )
     }
 
     fileprivate func register(
@@ -221,15 +240,6 @@ final class SpatialPlatformEffectCoordinator {
 
     var mainWindowObservationRevision: UInt64 {
         windowObservation.revision(for: .main)
-    }
-
-    var playerControlsWindowObservedResidency: String {
-        windowObservation.residency(for: .playerControls)
-            .map(String.init(describing:)) ?? "unobserved"
-    }
-
-    var playerControlsWindowObservationRevision: UInt64 {
-        windowObservation.revision(for: .playerControls)
     }
 
     func recordImmersiveSpaceResidency(
@@ -315,24 +325,6 @@ final class SpatialPlatformEffectCoordinator {
             revision=\(self.windowObservation.revision(for: window), privacy: .public)
             """
         )
-    }
-
-    /// Player Controls is a multi-instance WindowGroup during presentation
-    /// handoff. A stale source Scene closing must not overwrite the residency
-    /// of the newly active target controls Scene.
-    func recordPlayerControlsWindowResidency(
-        _ residency: SpatialPlatformWindowResidency,
-        identity: PlayerControlsSceneIdentity
-    ) {
-        switch residency {
-        case .open:
-            observedPlayerControlsSceneIdentity = identity
-            recordWindowResidency(.open, for: .playerControls)
-        case .closed:
-            guard observedPlayerControlsSceneIdentity == identity else { return }
-            observedPlayerControlsSceneIdentity = nil
-            recordWindowResidency(.closed, for: .playerControls)
-        }
     }
 
     func recordMainWindowScene(_ windowScene: UIWindowScene?) {
@@ -548,14 +540,7 @@ final class SpatialPlatformEffectCoordinator {
             if keepsEnvironmentOpen == false {
                 guard await dismissImmersiveSpace(execution: execution) else { return }
             }
-            let resolution = await complete(execution, outcome: .succeeded)
-            if resolution == .effectCompleted {
-                _ = dismissWindow(
-                    id: "playerControls",
-                    execution: execution,
-                    phase: .settledRequest
-                )
-            }
+            _ = await complete(execution, outcome: .succeeded)
         case .normalizeInvalidatedSpatialPlayback(let keepsEnvironmentOpen):
             await normalizeInvalidatedSpatialPlayback(
                 execution,
@@ -580,14 +565,7 @@ final class SpatialPlatformEffectCoordinator {
                 return
             }
         }
-        let resolution = await complete(execution, outcome: .succeeded)
-        if resolution == .effectCompleted {
-            _ = dismissWindow(
-                id: "playerControls",
-                execution: execution,
-                phase: .settledRequest
-            )
-        }
+        _ = await complete(execution, outcome: .succeeded)
     }
 
     private func enterImmersivePlayback(
@@ -766,7 +744,6 @@ final class SpatialPlatformEffectCoordinator {
             )
             return
         }
-        _ = dismissWindow(id: "playerControls", execution: execution)
         appModel.finishPresentationVisualCutover()
         await releaseDepartingPresentationResources()
         let resolution = await complete(execution, outcome: .succeeded)
@@ -798,8 +775,6 @@ final class SpatialPlatformEffectCoordinator {
             for: windowTransition,
             execution: execution
         )
-        _ = dismissWindow(id: "playerControls", execution: execution)
-
         do {
             try await replacementTask.value
         } catch {
@@ -913,6 +888,27 @@ final class SpatialPlatformEffectCoordinator {
             )
             return
         }
+        if PortalPlaybackViewportRefreshPolicy.requiresRefresh(
+            for: windowTransition
+        ) {
+            let refreshRevision = portalPlaybackViewportRefreshState.request()
+            lastPlatformOperation = "portal-viewport-refresh-requested"
+            guard await waitUntilPortalPlaybackViewportRefreshApplied(
+                refreshRevision,
+                execution: execution
+            ) else {
+                guard executionIsLive(execution),
+                      setRuntimeError(
+                        "The Portal viewport could not apply its foreground refresh.",
+                        execution: execution
+                      ) else { return }
+                _ = await complete(
+                    execution,
+                    outcome: .failed(.windowPlaybackSurfaceUnavailable)
+                )
+                return
+            }
+        }
         guard await restoreTargetPlaybackIntentBeforeSettlement(execution) else {
             return
         }
@@ -950,11 +946,6 @@ final class SpatialPlatformEffectCoordinator {
         }
         if case .presentationCommitted(.window) = resolution {
             lastPlatformOperation = "window-return-completed"
-            _ = dismissWindow(
-                id: "playerControls",
-                execution: execution,
-                phase: .settledRequest
-            )
         }
     }
 
@@ -963,7 +954,6 @@ final class SpatialPlatformEffectCoordinator {
         execution: Execution
     ) async {
         let presentation = family.mainWindowPresentation
-        _ = dismissWindow(id: "playerControls", execution: execution)
         do {
             try await playbackRuntime.prepareTechnicalSessionForPresentationConversion()
             try await playbackRuntime.activatePreparedTechnicalSessionReplacement()
@@ -992,13 +982,6 @@ final class SpatialPlatformEffectCoordinator {
         let resolution = await complete(execution, outcome: .succeeded)
         if case .presentationCommitted(let committedPresentation) = resolution {
             persistSettledPlaybackMode(committedPresentation)
-        }
-        if case .presentationCommitted(.window) = resolution {
-            _ = dismissWindow(
-                id: "playerControls",
-                execution: execution,
-                phase: .settledRequest
-            )
         }
     }
 
@@ -1200,6 +1183,32 @@ final class SpatialPlatformEffectCoordinator {
         return false
     }
 
+    private func waitUntilPortalPlaybackViewportRefreshApplied(
+        _ revision: UInt64,
+        execution: Execution
+    ) async -> Bool {
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(
+            by: Self.windowLifecycleConfirmationTimeout
+        )
+        while clock.now < deadline {
+            guard executionIsLive(execution) else { return false }
+            if portalPlaybackViewportRefreshState.hasApplied(revision) {
+                lastPlatformOperation = "portal-viewport-refresh-applied"
+                return true
+            }
+            do {
+                try await Task.sleep(for: .milliseconds(25))
+            } catch {
+                return false
+            }
+        }
+        logger.error(
+            "Portal viewport refresh confirmation timed out revision=\(revision)"
+        )
+        return false
+    }
+
     private func openWindow(
         id: String,
         execution: Execution,
@@ -1214,11 +1223,6 @@ final class SpatialPlatformEffectCoordinator {
             let identity = appModel.activePlaybackWindowSceneIdentity
                 ?? appModel.beginFreshPlaybackWindowScene()
             actions.openWindow(id: id, value: identity)
-        case SpatialPlatformWindowIdentity.playerControls.rawValue:
-            actions.openWindow(
-                id: id,
-                value: appModel.playerControlsSceneIdentity()
-            )
         default:
             actions.openWindow(id: id)
         }
@@ -1292,11 +1296,6 @@ final class SpatialPlatformEffectCoordinator {
         switch id {
         case SpatialPlatformWindowIdentity.main.rawValue:
             actions.dismissWindow(id: id)
-        case SpatialPlatformWindowIdentity.playerControls.rawValue:
-            guard let identity = appModel.activePlayerControlsSceneIdentity else {
-                return windowObservation.residency(for: .playerControls) != .open
-            }
-            actions.dismissWindow(id: id, value: identity)
         case SpatialPlatformWindowIdentity.immersivePlaybackResident.rawValue:
             residentWindowState = .closing
             actions.dismissWindow(id: id)

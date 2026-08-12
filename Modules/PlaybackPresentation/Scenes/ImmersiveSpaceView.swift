@@ -251,6 +251,8 @@ public struct ImmersiveSpaceView: View {
     @State private var rendererTargetObservation =
         PlaybackVideoRendererTargetObservation()
     @State private var presentationObservation = SpatialPresentationObservation()
+    @State private var controlsAttachmentController =
+        ImmersivePlaybackControlsAttachmentController()
     @State private var surfaceRefreshTick = 0
     @State private var hasRecordedCollisionShellShelved = false
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
@@ -313,10 +315,20 @@ public struct ImmersiveSpaceView: View {
     }
 
     public var body: some View {
-        RealityView { content in
+        RealityView { content, attachments in
             scheduleSpatialSurfaceUpdate(content)
-        } update: { content in
+            installControlsAttachment(from: attachments, into: content)
+        } update: { content, attachments in
             scheduleSpatialSurfaceUpdate(content)
+            installControlsAttachment(from: attachments, into: content)
+        } attachments: {
+            Attachment(
+                id: ImmersivePlaybackControlsAttachmentController.attachmentID
+            ) {
+                ImmersivePlaybackControlsAttachmentView(
+                    presentation: requestedPresentation
+                )
+            }
         }
         // realityScripting installs its own targeted SpatialTapGesture to feed
         // TapGestureEvent to scripts. It sits inside this view, so an ordinary
@@ -326,6 +338,7 @@ public struct ImmersiveSpaceView: View {
         .simultaneousGesture(spatialSurfaceTapGesture)
         .allowsHitTesting(spatialPresentationAcceptsInput)
         .onDisappear {
+            controlsAttachmentController.stop()
             realityViewUpdateScheduler.cancel()
             surfaceAccessibilityActivation.cancel()
             releaseSpatialSurface()
@@ -339,12 +352,11 @@ public struct ImmersiveSpaceView: View {
         .onChange(of: spatialPresentationAcceptsInput, initial: true) { _, accepts in
             appModel.recordSurfaceInputProbe("acceptsInput=\(accepts)")
         }
-        .onChange(of: appModel.showControls, initial: true) { _, visible in
-            synchronizeControlsWindow(visible: visible)
+        .onChange(of: appModel.showControls, initial: true) { _, _ in
+            updateControlsAttachmentVisibility()
         }
-        .onChange(of: appModel.presentationTransition?.id) { _, transitionID in
-            guard transitionID == nil else { return }
-            synchronizeControlsWindow(visible: appModel.showControls)
+        .onChange(of: appModel.presentationTransition?.id) { _, _ in
+            updateControlsAttachmentVisibility()
         }
         .onChange(of: realityKitContentTypeScope) { _, scope in
             playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(scope)
@@ -380,6 +392,32 @@ public struct ImmersiveSpaceView: View {
 #endif
     }
 
+    private func installControlsAttachment(
+        from attachments: RealityViewAttachments,
+        into content: RealityViewContent
+    ) {
+        guard let attachment = attachments.entity(
+            for: ImmersivePlaybackControlsAttachmentController.attachmentID
+        ) else {
+            return
+        }
+        if attachment.parent == nil {
+            content.add(attachment)
+        }
+        controlsAttachmentController.attach(attachment, appModel: appModel)
+        updateControlsAttachmentVisibility()
+    }
+
+    private func updateControlsAttachmentVisibility() {
+        controlsAttachmentController.setControlsVisible(
+            ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+                presentation: requestedPresentation,
+                controlsVisible: appModel.showControls,
+                transitionIsActive: appModel.presentationTransition != nil
+            )
+        )
+    }
+
     private func scheduleSpatialSurfaceUpdate(
         _ content: RealityViewContent
     ) {
@@ -391,6 +429,7 @@ public struct ImmersiveSpaceView: View {
         realityViewUpdateScheduler.schedule {
             if needsWorld {
                 await loadWorld(into: content)
+                guard Task.isCancelled == false else { return }
             }
             update(
                 content,
@@ -435,11 +474,12 @@ public struct ImmersiveSpaceView: View {
         SpatialTapGesture()
             .targetedToAnyEntity()
             .onEnded { value in
-                // Every entity in this RealityView is playback surface (video,
-                // collision shell, head receiver, attachments); the controls
-                // live in their own window scene and never route here. The
-                // old videoEntity-only filter silently dropped the pinches
-                // the collision shell delivered.
+                guard controlsAttachmentController.contains(value.entity) == false else {
+                    appModel.recordSurfaceInputProbe(
+                        "spatialTap entity=\(value.entity.name) accepted=false controls=true"
+                    )
+                    return
+                }
                 appModel.recordSurfaceInputProbe(
                     "spatialTap entity=\(value.entity.name) accepted=true"
                 )
@@ -456,32 +496,6 @@ public struct ImmersiveSpaceView: View {
         appModel.recordSurfaceInputProbe(
             "toggle source=\(source) showControls=\(appModel.showControls)"
         )
-    }
-
-    // The player-controls window tracks showControls itself so every setter
-    // (pinch, accessibility, the test channel) presents identically.
-    private func synchronizeControlsWindow(visible: Bool) {
-        // Scene operations serialize with presentation transitions: a
-        // dismissWindow landing while the immersive scene is still
-        // classifying its video component kills the pending RealityKit mode
-        // grant (paired probes, 2026-08-10). The transition-end observer
-        // replays this sync once the transition settles or rolls back.
-        guard appModel.presentationTransition == nil else {
-            appModel.recordSurfaceInputProbe(
-                "controlsWindow sync deferred visible=\(visible)"
-            )
-            return
-        }
-        if visible {
-            let identity = appModel.playerControlsSceneIdentity()
-            openWindow(id: "playerControls", value: identity)
-            appModel.recordSurfaceInputProbe(
-                "controlsWindow open identity=\(identity)"
-            )
-        } else if let identity = appModel.activePlayerControlsSceneIdentity {
-            dismissWindow(id: "playerControls", value: identity)
-            appModel.recordSurfaceInputProbe("controlsWindow dismiss")
-        }
     }
 
     @MainActor
@@ -596,10 +610,6 @@ public struct ImmersiveSpaceView: View {
                 content.add(anchor)
             }
             recordSkyboxActivity(in: entity)
-        } else if world.isLoading == false, world.hasFailed == false {
-            Task {
-                await loadWorld(into: content)
-            }
         }
     }
 
@@ -1086,6 +1096,7 @@ public struct ImmersiveSpaceView: View {
         logger.notice("world load started")
         do {
             let entity = try await Entity(named: "world")
+            try Task.checkCancellation()
             let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: entity)
             let anchorWorldTransform = anchor.transformMatrix(relativeTo: nil)
             guard applyRequestedEnvironmentAppearance(to: entity) else {
@@ -1109,6 +1120,8 @@ public struct ImmersiveSpaceView: View {
                 revision: surfaceRefreshTick,
                 dockedPlacement: currentDockedSurfaceTransform
             )
+        } catch is CancellationError {
+            logger.notice("world load cancelled")
         } catch {
             world.hasFailed = true
             appModel.recordSpatialPlaybackSurfacePreparationStage("worldLoadFailed")

@@ -50,6 +50,12 @@ def main() -> None:
         "Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession+Delivery.swift"
     )
     immersive = read("Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift")
+    immersive_controls_attachment = read(
+        "Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachment.swift"
+    )
+    reality_presenter = read(
+        "Modules/PlaybackPresentation/Views/PlaybackRealityPresenter.swift"
+    )
     spatial_acceptance = read(
         "Tests/EnchronAppUI/SpatialPresentationAcceptanceUITests.swift"
     )
@@ -90,7 +96,11 @@ def main() -> None:
         "private var hostedPlaybackPresentation",
     )
     vision_surface = region(surface, "private var visionSurface: some View", "#else")
-    spatial_controls = region(main_view, "struct SpatialPlaybackControlsRoot: View", "#endif")
+    spatial_controls = region(
+        main_view,
+        "struct ImmersivePlaybackControlsAttachmentView: View",
+        "#endif",
+    )
 
     require("PerspectiveCameraComponent(" in surface, "window camera is missing")
     require(
@@ -269,23 +279,13 @@ def main() -> None:
         "requestStoppedPlaybackCleanup()" in spatial_controls,
         "spatial stop does not request owner-coordinated platform cleanup",
     )
-    stopped_cleanup = region(
-        platform_executor,
-        "case .normalizeStoppedSpatialPlayback",
-        "private func enterImmersivePlayback(",
-    )
-    require(
-        stopped_cleanup.index('openWindow(id: "main", execution: execution)')
-        < stopped_cleanup.index('id: "playerControls",'),
-        "spatial stop dismisses controls before reopening the library",
-    )
     require(
         "SpatialPlatformEffectRequest" in presentation_model
         and "receiveSpatialPlatformResult" in presentation_model,
         "PlaybackPresentation does not own the pure platform request/result channel",
     )
     require(
-        main_view.count("SpatialPlatformEffectExecutor()") >= 2
+        app_scene.count("SpatialPlatformEffectExecutor(") >= 3
         and "SpatialPlatformEffectExecutor()" in environment_card_root,
         "the live nonimmersive roots do not register platform action capability",
     )
@@ -315,15 +315,11 @@ def main() -> None:
         and ".windowStyle(.volumetric)" in app_scene,
         "Environment Card is not a singleton volumetric Window Scene",
     )
-    player_controls_scene = region(
-        app_scene,
-        'Window("Player Controls", id: "playerControls")',
-        'Window("Environment", id: AppModel.senseZoneVolumeID)',
-    )
     require(
-        ".restorationBehavior(.disabled)" in player_controls_scene
-        and ".defaultLaunchBehavior(.suppressed)" in player_controls_scene,
-        "the context-only spatial controls window can restore or launch by itself",
+        'id: "playerControls"' not in app_scene
+        and "PlayerControlsSceneIdentity" not in app_model
+        and "ImmersivePlaybackControlsAttachmentView(" in immersive,
+        "immersive playback controls still depend on a Window Scene",
     )
     exit_immersive_playback = region(
         platform_executor,
@@ -372,15 +368,30 @@ def main() -> None:
         "already-closed collapse can wait for source fade or issue immersive scene actions",
     )
     require(
-        "case .presentationCommitted(.window)" in exit_immersive_playback
-        and 'id: "playerControls"' in exit_immersive_playback,
-        "committing Window Playback does not dismiss the spatial controls window",
+        "ImmersivePlaybackControlsAttachmentPolicy.isVisible(" in main_view
+        and ".allowsHitTesting(controlsAcceptInput)" in spatial_controls
+        and ".accessibilityHidden(controlsAcceptInput == false)" in spatial_controls
+        and "WorldTrackingProvider" in immersive_controls_attachment
+        and "queryDeviceAnchor(" in immersive_controls_attachment
+        and "OpacityComponent(" in immersive_controls_attachment
+        and "attachmentEntity.isEnabled = visible" in immersive_controls_attachment
+        and 'id: "playerControls"' not in platform_executor,
+        "the attached controls retain a legacy Window Scene operation",
     )
     require(
-        "SpatialPlaybackControlsScenePolicy.shouldHostControls(" in main_view
-        and ".allowsHitTesting(shouldHostControls)" in main_view
-        and '@Environment(\\.dismissWindow)' not in main_view,
-        "the spatial controls scene bypasses the platform executor while Window Playback is committed",
+        "PortalPlaybackViewportRefreshPolicy.requiresRefresh(" in platform_executor
+        and "mainWindowPlaybackSurfaceRefreshRevision &+= 1" in platform_executor
+        and "let viewportRefreshRevision = viewportRefreshRevision" in surface
+        and "validVisionLayoutViewportRefreshRevision = viewportRefreshRevision" in surface
+        and "recordMainWindowPlaybackSurfaceRefreshApplied" in main_view
+        and "waitUntilPortalPlaybackViewportRefreshApplied(" in platform_executor,
+        "the Portal collapse path does not invalidate a laid-out retained viewport",
+    )
+    require(
+        "case .queueLatest:" in reality_presenter
+        and "queuedOperation = operation" in reality_presenter
+        and "case .startLatest:" in reality_presenter,
+        "RealityView updates can still discard the Portal refresh while one is pending",
     )
     require(
         ".environmentCardAppeared" in app_scene

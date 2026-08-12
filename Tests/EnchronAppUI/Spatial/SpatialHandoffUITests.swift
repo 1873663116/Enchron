@@ -1599,7 +1599,7 @@ nonisolated final class SpatialHandoffUITests: XCTestCase {
         }
         XCTAssertFalse(
             observedTwoUsableInterfaces,
-            "Window playback and the target Player Controls Window were usable at the same time."
+            "Window playback and the target attached controls were usable at the same time."
         )
         XCTAssertFalse(
             observedMediaLoadingSpinner,

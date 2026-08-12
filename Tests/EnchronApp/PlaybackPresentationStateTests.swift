@@ -75,6 +75,64 @@ struct PlaybackPresentationStateTests {
         }
     }
 
+    @Test("only a system-collapsed Panorama refreshes the retained Portal viewport")
+    func portalViewportRefreshPolicy() {
+        #expect(
+            PortalPlaybackViewportRefreshPolicy.requiresRefresh(
+                for: .collapseImmersivePlayback(.panoramic)
+            )
+        )
+        #expect(
+            PortalPlaybackViewportRefreshPolicy.requiresRefresh(
+                for: .collapseImmersivePlayback(.flat)
+            ) == false
+        )
+        #expect(
+            PortalPlaybackViewportRefreshPolicy.requiresRefresh(
+                for: .exitImmersivePlayback(.panoramic)
+            ) == false
+        )
+        #expect(
+            PortalPlaybackViewportRefreshPolicy.requiresRefresh(
+                for: .normalizeSpatialPlayback
+            ) == false
+        )
+    }
+
+    @Test("Portal viewport refresh completes only after its requested revision applies")
+    func portalViewportRefreshState() {
+        var state = PortalPlaybackViewportRefreshState()
+
+        let first = state.request()
+        #expect(first == 1)
+        #expect(state.hasApplied(first) == false)
+
+        state.recordApplied(first + 1)
+        #expect(state.hasApplied(first) == false)
+
+        state.recordApplied(first)
+        #expect(state.hasApplied(first))
+
+        let second = state.request()
+        #expect(second == 2)
+        #expect(state.hasApplied(second) == false)
+    }
+
+    @Test("RealityView scheduling retains one trailing update")
+    func realityViewUpdateSchedulingState() {
+        var state = PlaybackRealityViewUpdateSchedulingState()
+
+        #expect(state.submit() == .start)
+        #expect(state.submit() == .queueLatest)
+        #expect(state.submit() == .queueLatest)
+        #expect(state.complete() == .startLatest)
+        #expect(state.complete() == .idle)
+
+        #expect(state.submit() == .start)
+        state.cancel()
+        #expect(state.complete() == .idle)
+    }
+
     @Test("Spatial playback normalization restores the retained Main Window")
     func spatialPlaybackNormalizationRestoresRetainedMainWindow() {
         #expect(
@@ -1340,18 +1398,6 @@ struct PlaybackPresentationStateTests {
             ) == 1
         )
         #expect(
-            PlaybackPresentationTransitionAppearance.playerControlsSceneHostOpacity(
-                for: .portal,
-                settledPresentation: .panorama,
-                transition: .init(
-                    previousPresentation: .panorama,
-                    targetPresentation: .portal,
-                    previousEnvironment: .none,
-                    targetEnvironment: .none
-                )
-            ) == 1
-        )
-        #expect(
             PlaybackPresentationTransitionAppearance.acceptsInput(
                 for: .panorama,
                 settledPresentation: .window,
@@ -1493,46 +1539,11 @@ struct PlaybackPresentationStateTests {
         )
     }
 
-    @Test("Player Controls Window operations require a new matching lifecycle observation")
-    func playerControlsWindowOperationRequiresNewLifecycleObservation() {
-        var observation = SpatialPlatformWindowObservation()
-
-        observation.record(.open, for: .playerControls)
-        let openingStartedAfterRevision = observation.revision(for: .playerControls)
-
-        #expect(
-            !observation.confirms(
-                .open,
-                for: .playerControls,
-                after: openingStartedAfterRevision
-            )
-        )
-
-        observation.record(.closed, for: .playerControls)
-        #expect(
-            !observation.confirms(
-                .open,
-                for: .playerControls,
-                after: openingStartedAfterRevision
-            )
-        )
-
-        observation.record(.open, for: .playerControls)
-        #expect(
-            observation.confirms(
-                .open,
-                for: .playerControls,
-                after: openingStartedAfterRevision
-            )
-        )
-    }
-
-    @Test("Resident Window observations are independent from other windows")
-    func residentWindowObservationsAreIndependentFromOtherWindows() {
+    @Test("Resident Window observations are independent from the Main Window")
+    func residentWindowObservationsAreIndependentFromMainWindow() {
         var observation = SpatialPlatformWindowObservation()
 
         observation.record(.open, for: .main)
-        observation.record(.closed, for: .playerControls)
 
         #expect(observation.residency(for: .immersivePlaybackResident) == nil)
         #expect(observation.revision(for: .immersivePlaybackResident) == 0)
@@ -1543,8 +1554,6 @@ struct PlaybackPresentationStateTests {
         #expect(observation.revision(for: .immersivePlaybackResident) == 1)
         #expect(observation.residency(for: .main) == .open)
         #expect(observation.revision(for: .main) == 1)
-        #expect(observation.residency(for: .playerControls) == .closed)
-        #expect(observation.revision(for: .playerControls) == 1)
 
         observation.record(.closed, for: .immersivePlaybackResident)
 
@@ -1554,8 +1563,6 @@ struct PlaybackPresentationStateTests {
         #expect(observation.revision(for: .immersivePlaybackResident) == 2)
         #expect(observation.residency(for: .main) == .open)
         #expect(observation.revision(for: .main) == 1)
-        #expect(observation.residency(for: .playerControls) == .closed)
-        #expect(observation.revision(for: .playerControls) == 1)
     }
 
     @Test("Immersive Space lifecycle revision changes only for appearance events")

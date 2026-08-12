@@ -490,22 +490,98 @@ final class PlaybackSurfaceAccessibilityActivationObservation {
 }
 
 @MainActor
-final class PlaybackRealityViewUpdateScheduler {
-    private var pendingTask: Task<Void, Never>?
+struct PlaybackRealityViewUpdateSchedulingState {
+    enum Submission: Equatable {
+        case start
+        case queueLatest
+    }
 
-    func schedule(_ operation: @escaping @MainActor () async -> Void) {
-        guard pendingTask == nil else { return }
+    enum Completion: Equatable {
+        case startLatest
+        case idle
+    }
+
+    private var isRunning = false
+    private var hasQueuedUpdate = false
+
+    mutating func submit() -> Submission {
+        guard isRunning else {
+            isRunning = true
+            return .start
+        }
+        hasQueuedUpdate = true
+        return .queueLatest
+    }
+
+    mutating func complete() -> Completion {
+        guard isRunning else { return .idle }
+        if hasQueuedUpdate {
+            hasQueuedUpdate = false
+            return .startLatest
+        }
+        isRunning = false
+        return .idle
+    }
+
+    mutating func cancel() {
+        isRunning = false
+        hasQueuedUpdate = false
+    }
+}
+
+@MainActor
+final class PlaybackRealityViewUpdateScheduler {
+    typealias Operation = @MainActor () async -> Void
+
+    private var pendingTask: Task<Void, Never>?
+    private var queuedOperation: Operation?
+    private var state = PlaybackRealityViewUpdateSchedulingState()
+    private var generation: UInt64 = 0
+
+    func schedule(_ operation: @escaping Operation) {
+        switch state.submit() {
+        case .start:
+            start(operation)
+        case .queueLatest:
+            queuedOperation = operation
+        }
+    }
+
+    private func start(_ operation: @escaping Operation) {
+        let generation = self.generation
         pendingTask = Task { @MainActor [weak self] in
             await Task.yield()
-            guard Task.isCancelled == false else { return }
+            guard Task.isCancelled == false,
+                  self?.generation == generation else {
+                return
+            }
             await operation()
-            self?.pendingTask = nil
+            guard Task.isCancelled == false,
+                  let self,
+                  self.generation == generation else {
+                return
+            }
+            self.pendingTask = nil
+            switch self.state.complete() {
+            case .startLatest:
+                guard let latest = self.queuedOperation else {
+                    self.state.cancel()
+                    return
+                }
+                self.queuedOperation = nil
+                self.start(latest)
+            case .idle:
+                self.queuedOperation = nil
+            }
         }
     }
 
     func cancel() {
         pendingTask?.cancel()
         pendingTask = nil
+        queuedOperation = nil
+        state.cancel()
+        generation &+= 1
     }
 }
 

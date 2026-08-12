@@ -233,7 +233,6 @@ struct SpatialPlatformImmersiveSpaceObservation {
 
 enum SpatialPlatformWindowIdentity: String, Hashable, Sendable {
     case main
-    case playerControls
     case immersivePlaybackResident
 }
 
@@ -318,6 +317,33 @@ enum SpatialPlatformPlaybackWindowPolicy {
                 .dismissResidentWindow
             }
         }
+    }
+}
+
+enum PortalPlaybackViewportRefreshPolicy {
+    static func requiresRefresh(
+        for transition: SpatialPlatformPlaybackWindowTransition
+    ) -> Bool {
+        transition == .collapseImmersivePlayback(.panoramic)
+    }
+}
+
+struct PortalPlaybackViewportRefreshState: Equatable, Sendable {
+    private(set) var requestedRevision: UInt64 = 0
+    private(set) var appliedRevision: UInt64 = 0
+
+    mutating func request() -> UInt64 {
+        requestedRevision &+= 1
+        return requestedRevision
+    }
+
+    mutating func recordApplied(_ revision: UInt64) {
+        guard revision <= requestedRevision else { return }
+        appliedRevision = max(appliedRevision, revision)
+    }
+
+    func hasApplied(_ revision: UInt64) -> Bool {
+        appliedRevision >= revision
     }
 }
 

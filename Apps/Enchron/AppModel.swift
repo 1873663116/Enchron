@@ -11,14 +11,6 @@ struct PlaybackWindowSceneIdentity: Codable, Hashable {
     }
 }
 
-struct PlayerControlsSceneIdentity: Codable, Hashable {
-    let instanceID: UUID
-
-    init(instanceID: UUID = UUID()) {
-        self.instanceID = instanceID
-    }
-}
-
 struct SpatialPlaybackSurfaceObservation: Equatable {
     static let absent = SpatialPlaybackSurfaceObservation(
         presentation: "none",
@@ -196,7 +188,6 @@ public final class AppModel {
     public var isControlsFocused: Bool = false
     public var lastControlsInteractionAt: Date = .distantPast
     private(set) var activePlaybackWindowSceneIdentity: PlaybackWindowSceneIdentity?
-    private(set) var activePlayerControlsSceneIdentity: PlayerControlsSceneIdentity?
 
     // MARK: - Screen Position State (Immersive Mode)
     public var screenDepthOffset: Double {
@@ -575,27 +566,6 @@ public final class AppModel {
     func recordPlaybackWindowSceneDisappeared(_ identity: PlaybackWindowSceneIdentity) {
         guard activePlaybackWindowSceneIdentity == identity else { return }
         activePlaybackWindowSceneIdentity = nil
-    }
-
-    /// One policy for both call sites: reuse the live scene, mint only when
-    /// none exists. Reuse does not spare the wearer the compositor's blackout,
-    /// which measurement pinned on the window-scene lifecycle itself
-    /// (controls-flash-20260810), but two call sites disagreeing about scene
-    /// identity is its own defect.
-    func playerControlsSceneIdentity() -> PlayerControlsSceneIdentity {
-        if let identity = activePlayerControlsSceneIdentity { return identity }
-        let identity = PlayerControlsSceneIdentity()
-        activePlayerControlsSceneIdentity = identity
-        return identity
-    }
-
-    func recordPlayerControlsSceneAppeared(_ identity: PlayerControlsSceneIdentity) {
-        activePlayerControlsSceneIdentity = identity
-    }
-
-    func recordPlayerControlsSceneDisappeared(_ identity: PlayerControlsSceneIdentity) {
-        guard activePlayerControlsSceneIdentity == identity else { return }
-        activePlayerControlsSceneIdentity = nil
     }
 
     public func setControlsFocused(_ focused: Bool, at date: Date = Date()) {

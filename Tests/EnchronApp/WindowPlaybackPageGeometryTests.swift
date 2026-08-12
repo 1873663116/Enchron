@@ -103,38 +103,51 @@ struct WindowPlaybackPageGeometryTests {
         #expect(layout.hasPlaybackAspectRatio(tooLarge))
     }
 
-    @Test("only Dock and Panorama host the independent controls window")
-    func spatialControlsScenePolicy() {
+    @Test("only settled immersive playback shows the attached controls")
+    func immersivePlaybackControlsAttachmentPolicy() {
         #expect(
-            SpatialPlaybackControlsScenePolicy.shouldHostControls(
-                for: .window,
-                isPanoramic: false
+            ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+                presentation: .window,
+                controlsVisible: true,
+                transitionIsActive: false
             ) == false
         )
         #expect(
-            SpatialPlaybackControlsScenePolicy.shouldHostControls(
-                for: .window,
-                isPanoramic: true
+            ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+                presentation: .portal,
+                controlsVisible: true,
+                transitionIsActive: false
             )
             == false
         )
         #expect(
-            SpatialPlaybackControlsScenePolicy.shouldHostControls(
-                for: .portal,
-                isPanoramic: true
+            ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+                presentation: .docked,
+                controlsVisible: false,
+                transitionIsActive: false
             )
             == false
         )
         #expect(
-            SpatialPlaybackControlsScenePolicy.shouldHostControls(
-                for: .docked,
-                isPanoramic: false
+            ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+                presentation: .docked,
+                controlsVisible: true,
+                transitionIsActive: true
+            )
+            == false
+        )
+        #expect(
+            ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+                presentation: .docked,
+                controlsVisible: true,
+                transitionIsActive: false
             )
         )
         #expect(
-            SpatialPlaybackControlsScenePolicy.shouldHostControls(
-                for: .panorama,
-                isPanoramic: true
+            ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+                presentation: .panorama,
+                controlsVisible: true,
+                transitionIsActive: false
             )
         )
     }

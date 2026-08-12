@@ -91,33 +91,6 @@ struct EnchronApp: App {
         .windowStyle(.automatic)
         .windowResizability(.contentSize)
 
-        WindowGroup(
-            "Player Controls",
-            id: "playerControls",
-            for: PlayerControlsSceneIdentity.self
-        ) { sceneIdentity in
-            SpatialPlaybackControlsRoot(sceneIdentity: sceneIdentity.wrappedValue)
-                .enchronEnvironment(application)
-                .onAppear {
-                    let identity = sceneIdentity.wrappedValue
-                    application.appModel.recordPlayerControlsSceneAppeared(identity)
-                    application.spatialPlatformEffectCoordinator
-                        .recordPlayerControlsWindowResidency(.open, identity: identity)
-                }
-                .onDisappear {
-                    let identity = sceneIdentity.wrappedValue
-                    application.appModel.recordPlayerControlsSceneDisappeared(identity)
-                    application.spatialPlatformEffectCoordinator
-                        .recordPlayerControlsWindowResidency(.closed, identity: identity)
-                }
-        } defaultValue: {
-            PlayerControlsSceneIdentity()
-        }
-        .defaultSize(width: 760, height: 220)
-        .windowResizability(.contentSize)
-        .restorationBehavior(.disabled)
-        .defaultLaunchBehavior(.suppressed)
-
         Window(
             "Immersive Playback Resident",
             id: SpatialPlatformWindowIdentity

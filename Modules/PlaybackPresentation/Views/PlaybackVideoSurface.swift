@@ -164,6 +164,8 @@ struct PlaybackVideoSurface: View {
 
     let presentation: PlaybackPresentation
     let isActive: Bool
+    let viewportRefreshRevision: UInt64
+    let onViewportRefreshApplied: @MainActor (UInt64) -> Void
 
     @State private var subtitleSurface = PlaybackSubtitleSurface()
     @State private var realityViewUpdateScheduler = PlaybackRealityViewUpdateScheduler()
@@ -176,6 +178,7 @@ struct PlaybackVideoSurface: View {
     @State private var componentRevision = 0
     #if os(visionOS)
     @State private var surfaceRefreshTick = 0
+    @State private var validVisionLayoutViewportRefreshRevision: UInt64?
     #endif
 
     private var videoEntity: Entity {
@@ -255,9 +258,16 @@ struct PlaybackVideoSurface: View {
         _ content: RealityViewContent,
         proxy: GeometryProxy3D
     ) {
+        let viewportRefreshRevision = viewportRefreshRevision
         let revision = componentRevision &+ surfaceRefreshTick
         realityViewUpdateScheduler.schedule {
-            updateVisionSurface(content, proxy: proxy, revision: revision)
+            guard Task.isCancelled == false else { return }
+            updateVisionSurface(
+                content,
+                proxy: proxy,
+                revision: revision,
+                viewportRefreshRevision: viewportRefreshRevision
+            )
         }
     }
     #else
@@ -534,7 +544,6 @@ struct PlaybackVideoSurface: View {
         if needsInsertion {
             logComponentState(reason: "entityAdded")
         }
-        attachSurfaceIfReady()
         return true
     }
 
@@ -543,10 +552,20 @@ struct PlaybackVideoSurface: View {
     private func updateVisionSurface(
         _ content: RealityViewContent,
         proxy: GeometryProxy3D,
-        revision: Int
+        revision: Int,
+        viewportRefreshRevision: UInt64
     ) {
+        validVisionLayoutViewportRefreshRevision = nil
         guard prepareSurface(in: content, revision: revision) else { return }
-        _ = scaleToFitWindow(videoEntity, proxy: proxy, content: content)
+        guard scaleToFitWindow(
+            videoEntity,
+            proxy: proxy,
+            content: content
+        ) != nil else {
+            return
+        }
+        validVisionLayoutViewportRefreshRevision = viewportRefreshRevision
+        attachSurfaceIfReady()
     }
 
     @MainActor
@@ -731,6 +750,9 @@ struct PlaybackVideoSurface: View {
             appModel.presentationTransition?.targetPresentation
                 ?? appModel.playbackPresentation
         guard owningPresentation == presentation else { return }
+        #if os(visionOS)
+        guard let validVisionLayoutViewportRefreshRevision else { return }
+        #endif
         guard videoEntity.isActive,
               let renderer = playbackRuntime.renderer,
               isActive,
@@ -799,6 +821,12 @@ struct PlaybackVideoSurface: View {
                 },
                 displayedPixelBuffer: renderer.displayedPixelBuffer() != nil
             )
+            if presentation == .portal,
+               validVisionLayoutViewportRefreshRevision > 0 {
+                onViewportRefreshApplied(
+                    validVisionLayoutViewportRefreshRevision
+                )
+            }
             logSurfaceFacts(reason: "attachCompleted")
         } catch {
             playbackRuntime.lastErrorMessage = error.localizedDescription

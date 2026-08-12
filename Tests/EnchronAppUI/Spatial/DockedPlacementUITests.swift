@@ -445,7 +445,7 @@ nonisolated final class DockedPlacementUITests: XCTestCase {
         attachCurrentState(of: windowState, name: "docked-entry-window-state-at-failure")
         attachCurrentState(of: spatialState, name: "docked-entry-target-state-at-failure")
         attachScreenshot(from: app, name: "docked-entry-failure")
-        XCTFail("Docked playback and its Player Controls Window did not become usable.")
+        XCTFail("Docked playback and its attached controls did not become usable.")
         return false
     }
 

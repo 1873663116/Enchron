@@ -340,7 +340,6 @@ public enum SpatialPlatformEffectFailure: Equatable, Sendable {
     case immersiveViewingModeUnavailable
     case spatialPlaybackSurfaceUnavailable
     case mainWindowUnavailable
-    case playerControlsWindowUnavailable
     case environmentCardDismissalUnavailable
     case rendererReleaseUnavailable
     case windowPlaybackSurfaceUnavailable

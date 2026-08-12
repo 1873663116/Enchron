@@ -154,26 +154,6 @@ enum PlaybackPresentationTransitionAppearance {
         )
     }
 
-    /// A departing Player Controls Window fades through Scene dismissal so its
-    /// system window and content leave as one surface with the outgoing video.
-    /// Making only the SwiftUI root transparent would instead leave an empty
-    /// gray visionOS window behind. A freshly opened target controls Scene may
-    /// also appear just before commit, after the target surface has settled.
-    static func playerControlsSceneHostOpacity(
-        for hostedPresentation: PlaybackPresentation,
-        settledPresentation: PlaybackPresentation,
-        transition: PlaybackPresentationTransition?
-    ) -> Double {
-        if transition != nil {
-            return 1
-        }
-        return windowSceneHostOpacity(
-            for: hostedPresentation,
-            settledPresentation: settledPresentation,
-            transition: transition
-        )
-    }
-
     static func acceptsInput(
         for hostedPresentation: PlaybackPresentation,
         settledPresentation: PlaybackPresentation,
@@ -492,7 +472,13 @@ public struct MainView: View {
         return ZStack {
             PlaybackVideoSurface(
                 presentation: hostedPlaybackPresentation,
-                isActive: windowSurfaceIsActive
+                isActive: windowSurfaceIsActive,
+                viewportRefreshRevision: spatialPlatformEffectCoordinator
+                    .mainWindowPlaybackSurfaceRefreshRevision,
+                onViewportRefreshApplied: {
+                    spatialPlatformEffectCoordinator
+                        .recordMainWindowPlaybackSurfaceRefreshApplied($0)
+                }
             )
 
             #if DEBUG
@@ -624,9 +610,9 @@ public struct MainView: View {
             "lastExecutionCheckpoint=\(spatialPlatformEffectCoordinator.lastExecutionCheckpoint)",
             "executionAttemptCount=\(spatialPlatformEffectCoordinator.executionAttemptCount)",
             "lastExecutionResolution=\(spatialPlatformEffectCoordinator.lastExecutionResolution)",
+            "portalViewportRefreshRevision=\(spatialPlatformEffectCoordinator.mainWindowPlaybackSurfaceRefreshRevision)",
+            "portalViewportAppliedRefreshRevision=\(spatialPlatformEffectCoordinator.mainWindowPlaybackSurfaceAppliedRefreshRevision)",
             "conversionDiagnostic=\((appModel.lastPresentationConversionDiagnostic ?? "none").replacingOccurrences(of: ";", with: ","))",
-            "playerControlsWindowResidency=\(spatialPlatformEffectCoordinator.playerControlsWindowObservedResidency)",
-            "playerControlsWindowObservationRevision=\(spatialPlatformEffectCoordinator.playerControlsWindowObservationRevision)",
             "chrome=\(showsPlaybackChrome ? "on" : "off")",
             "windowOpacityTarget=\(windowPlaybackOpacity)",
             "windowInteractive=\(windowPlaybackAcceptsInput)",
@@ -949,72 +935,31 @@ private struct PlaybackAutomationStateProbe: View {
 }
 
 #if os(visionOS)
-enum SpatialPlaybackControlsScenePolicy {
-    static func shouldHostControls(
-        for presentation: PlaybackPresentation,
-        isPanoramic: Bool
-    ) -> Bool {
-        _ = isPanoramic
-        return presentation == .docked || presentation == .panorama
-    }
-}
-
-struct SpatialPlaybackControlsRoot: View {
-    let sceneIdentity: PlayerControlsSceneIdentity
+struct ImmersivePlaybackControlsAttachmentView: View {
+    let presentation: PlaybackPresentation
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
-    @Environment(\.dismissWindow) private var dismissWindow
     @State private var isStoppingPlayback = false
 
-    private var hostedPresentation: PlaybackPresentation {
-        guard let target = appModel.presentationTransition?.targetPresentation,
-              target != .window else {
-            return appModel.playbackPresentation
-        }
-        return target
-    }
-
-    private var controlsOpacity: Double {
-        guard SpatialPlaybackControlsScenePolicy.shouldHostControls(
-            for: hostedPresentation,
-            isPanoramic: playbackRuntime.effectiveContentIsPanoramic
-        ) else { return 0 }
-        return PlaybackPresentationTransitionAppearance.playerControlsSceneHostOpacity(
-            for: hostedPresentation,
-            settledPresentation: appModel.playbackPresentation,
-            transition: appModel.presentationTransition
-        )
-    }
-
     private var controlsAcceptInput: Bool {
-        SpatialPlaybackControlsScenePolicy.shouldHostControls(
-            for: hostedPresentation,
-            isPanoramic: playbackRuntime.effectiveContentIsPanoramic
-        ) && appModel.showControls
-            && PlaybackPresentationTransitionAppearance.acceptsInput(
-            for: hostedPresentation,
-            settledPresentation: appModel.playbackPresentation,
-            transition: appModel.presentationTransition
+        ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+            presentation: presentation,
+            controlsVisible: appModel.showControls,
+            transitionIsActive: appModel.presentationTransition != nil
         )
     }
 
     var body: some View {
         WindowPlayerDeckView(
-            presentationOverride: hostedPresentation,
+            presentationOverride: presentation,
             onExitPlayback: { Task { await stopSpatialPlayback() } }
         )
-        .opacity(controlsOpacity)
-        .animation(
-            PlaybackPresentationTransitionAppearance.animation(
-                for: controlsOpacity
-            ),
-            value: controlsOpacity
-        )
         .allowsHitTesting(controlsAcceptInput)
+        .accessibilityHidden(controlsAcceptInput == false)
         .disabled(isStoppingPlayback)
         .alert(
             "Playback Error",
@@ -1044,27 +989,7 @@ struct SpatialPlaybackControlsRoot: View {
                     .accessibilityValue(spatialAcceptanceValue)
             }
         }
-        .background {
-            SpatialPlatformEffectExecutor()
-        }
-        .onChange(of: playbackRuntime.effectiveContentIsPanoramic) { _, isPanoramic in
-            guard hostedPresentation == .window,
-                  isPanoramic == false else { return }
-            dismissWindow(id: "playerControls", value: sceneIdentity)
-        }
-        .onChange(of: appModel.showControls) { _, isVisible in
-            guard isVisible == false else { return }
-            // Mirrors the immersive-side rule: no scene operations while a
-            // presentation transition is in flight; the transition-end sync
-            // in ImmersiveSpaceView performs the deferred dismissal.
-            guard appModel.presentationTransition == nil else { return }
-            dismissWindow(id: "playerControls", value: sceneIdentity)
-        }
-        .onChange(of: appModel.activePlayerControlsSceneIdentity) { _, activeIdentity in
-            guard activeIdentity != sceneIdentity else { return }
-            dismissWindow(id: "playerControls", value: sceneIdentity)
-        }
-        }
+    }
 
     private var spatialAcceptanceValue: String {
         let position = playbackRuntime.playbackPosition
@@ -1125,7 +1050,7 @@ struct SpatialPlaybackControlsRoot: View {
             "transition=\(appModel.presentationTransition?.targetPresentation.rawValue ?? "none")",
             "controls=\(appModel.showControls ? "shown" : "hidden")",
             "controlsInteractive=\(controlsAcceptInput)",
-            "controlsOpacityTarget=\(controlsOpacity)",
+            "controlsOpacityTarget=\(controlsAcceptInput ? 1 : 0)",
             "sourceRendererMayRelease=\(appModel.presentationSourceRendererMayRelease)",
             "targetRendererMayBind=\(appModel.presentationTargetRendererMayBind)",
             "immersiveSpaceResidency=\(String(describing: appModel.immersiveSpaceResidency))",
@@ -1215,9 +1140,7 @@ struct SpatialPlaybackControlsRoot: View {
             "registeredPlatformExecutorCount=\(spatialPlatformEffectCoordinator.registeredPlatformExecutorCount)",
             "lastPlatformOperation=\(spatialPlatformEffectCoordinator.lastPlatformOperation)",
             "mainWindowObservedResidency=\(spatialPlatformEffectCoordinator.mainWindowObservedResidency)",
-            "mainWindowObservationRevision=\(spatialPlatformEffectCoordinator.mainWindowObservationRevision)",
-            "playerControlsWindowResidency=\(spatialPlatformEffectCoordinator.playerControlsWindowObservedResidency)",
-            "playerControlsWindowObservationRevision=\(spatialPlatformEffectCoordinator.playerControlsWindowObservationRevision)"
+            "mainWindowObservationRevision=\(spatialPlatformEffectCoordinator.mainWindowObservationRevision)"
         ]
         fields.append(contentsOf: rendererPerformanceAccessibilityFields(
             playbackRuntime.diagnostics
