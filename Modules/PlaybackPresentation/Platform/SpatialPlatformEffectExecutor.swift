@@ -7,6 +7,22 @@ import SwiftUI
 import UIKit
 
 #if os(visionOS)
+enum SpatialPlatformImmersiveSpaceReconciliationPolicy {
+    static func shouldRecordDisappearance(
+        immersiveSpaceResidency: SpatialPlatformImmersiveSpaceResidency,
+        presentation: PlaybackPresentation,
+        transitionIsActive: Bool,
+        hasPendingSpatialPlatformEffect: Bool,
+        hasConnectedImmersiveSpaceScene: Bool
+    ) -> Bool {
+        immersiveSpaceResidency == .open
+            && presentation.usesImmersiveSpace
+            && transitionIsActive == false
+            && hasPendingSpatialPlatformEffect == false
+            && hasConnectedImmersiveSpaceScene == false
+    }
+}
+
 @MainActor
 @Observable
 final class SpatialPlatformEffectCoordinator {
@@ -200,6 +216,54 @@ final class SpatialPlatformEffectCoordinator {
             revision=\(self.immersiveSpaceObservation.revision, privacy: .public)
             """
         )
+    }
+
+    func reconcileImmersiveSpaceResidency() {
+        let hasConnectedImmersiveSpaceScene =
+            UIApplication.shared.connectedScenes.contains { scene in
+                scene.session.role == .immersiveSpaceApplication
+            }
+        reconcileImmersiveSpaceResidency(
+            hasConnectedImmersiveSpaceScene: hasConnectedImmersiveSpaceScene
+        )
+    }
+
+    func reconcileImmersiveSpaceResidency(
+        hasConnectedImmersiveSpaceScene: Bool
+    ) {
+        guard SpatialPlatformImmersiveSpaceReconciliationPolicy
+            .shouldRecordDisappearance(
+                immersiveSpaceResidency: appModel.immersiveSpaceResidency,
+                presentation: appModel.playbackPresentation,
+                transitionIsActive: appModel.presentationTransition != nil,
+                hasPendingSpatialPlatformEffect:
+                    appModel.pendingSpatialPlatformEffect != nil,
+                hasConnectedImmersiveSpaceScene: hasConnectedImmersiveSpaceScene
+            ) else {
+            return
+        }
+
+        let playbackContext = playbackRuntime.activeSessionID.map {
+            SpatialPlaybackTransitionContext(
+                mediaSessionID: $0,
+                wasPlaying: playbackRuntime.productLifecycle == .playing
+            )
+        }
+        let attachedPresentation = playbackRuntime.attachedPresentation
+        appModel.recordSurfaceInputProbe(
+            "immersiveSpaceDisappearanceReconciled"
+                + " presentation=\(appModel.playbackPresentation.rawValue)"
+                + " attached=\(attachedPresentation?.rawValue ?? "none")"
+                + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
+        )
+        if attachedPresentation != .window {
+            playbackRuntime.detach()
+        }
+        recordImmersiveSpaceResidency(.closed)
+        _ = appModel.receiveSpatialPlatformResult(
+            .immersiveSpaceDisappeared(playbackContext)
+        )
+        requestDrain()
     }
 
     func recordWindowResidency(

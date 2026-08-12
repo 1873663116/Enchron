@@ -95,6 +95,99 @@ struct PlaybackPresentationStateTests {
         ) == false)
     }
 
+    @Test("A missing system Immersive Space reconciles settled immersive playback")
+    @MainActor
+    func missingSystemImmersiveSpaceReconcilesSettledPlayback() throws {
+        for presentation in [
+            PlaybackPresentation.docked,
+            .panorama,
+        ] {
+            #expect(
+                SpatialPlatformImmersiveSpaceReconciliationPolicy
+                    .shouldRecordDisappearance(
+                        immersiveSpaceResidency: .open,
+                        presentation: presentation,
+                        transitionIsActive: false,
+                        hasPendingSpatialPlatformEffect: false,
+                        hasConnectedImmersiveSpaceScene: false
+                    )
+            )
+        }
+
+        #expect(
+            SpatialPlatformImmersiveSpaceReconciliationPolicy
+                .shouldRecordDisappearance(
+                    immersiveSpaceResidency: .open,
+                    presentation: .docked,
+                    transitionIsActive: false,
+                    hasPendingSpatialPlatformEffect: false,
+                    hasConnectedImmersiveSpaceScene: true
+                ) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveSpaceReconciliationPolicy
+                .shouldRecordDisappearance(
+                    immersiveSpaceResidency: .open,
+                    presentation: .docked,
+                    transitionIsActive: true,
+                    hasPendingSpatialPlatformEffect: false,
+                    hasConnectedImmersiveSpaceScene: false
+                ) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveSpaceReconciliationPolicy
+                .shouldRecordDisappearance(
+                    immersiveSpaceResidency: .open,
+                    presentation: .docked,
+                    transitionIsActive: false,
+                    hasPendingSpatialPlatformEffect: true,
+                    hasConnectedImmersiveSpaceScene: false
+                ) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveSpaceReconciliationPolicy
+                .shouldRecordDisappearance(
+                    immersiveSpaceResidency: .open,
+                    presentation: .window,
+                    transitionIsActive: false,
+                    hasPendingSpatialPlatformEffect: false,
+                    hasConnectedImmersiveSpaceScene: false
+                ) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveSpaceReconciliationPolicy
+                .shouldRecordDisappearance(
+                    immersiveSpaceResidency: .closed,
+                    presentation: .docked,
+                    transitionIsActive: false,
+                    hasPendingSpatialPlatformEffect: false,
+                    hasConnectedImmersiveSpaceScene: false
+                ) == false
+        )
+
+        let playbackModel = try settledModel(in: .docked)
+        let appModel = AppModel(playbackPresentationModel: playbackModel)
+        let coordinator = SpatialPlatformEffectCoordinator(
+            appModel: appModel,
+            playbackRuntime: PlaybackRuntime(),
+            playbackVideoEntityStore: PlaybackVideoEntityStore()
+        )
+
+        coordinator.reconcileImmersiveSpaceResidency(
+            hasConnectedImmersiveSpaceScene: false
+        )
+
+        #expect(appModel.playbackPresentation == .window)
+        #expect(appModel.immersiveSpaceResidency == .closed)
+        #expect(appModel.presentationTransition == nil)
+        #expect(appModel.pendingSpatialPlatformEffect == nil)
+        #expect(BrowserWindowSurfacePolicy.showsBrowser(
+            hasActivePlaybackRequest: true,
+            transitionIsActive: false,
+            immersiveSpaceResidency: appModel.immersiveSpaceResidency
+        ))
+    }
+
     @Test("Panorama tap shell follows 180 and 360 degree projection coverage")
     @MainActor
     func panoramaTapShellFollowsProjectionCoverage() {

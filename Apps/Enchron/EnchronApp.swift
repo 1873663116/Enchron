@@ -51,6 +51,13 @@ struct EnchronApp: App {
             }
             .onChange(of: mainScenePhase) { previous, current in
                 AppModel.recordProbe("mainScenePhase \(previous) -> \(current)")
+                guard current == .active else { return }
+                Task { @MainActor in
+                    await Task.yield()
+                    guard mainScenePhase == .active else { return }
+                    application.spatialPlatformEffectCoordinator
+                        .reconcileImmersiveSpaceResidency()
+                }
             }
             .enchronEnvironment(application)
             .onAppear {
@@ -59,6 +66,11 @@ struct EnchronApp: App {
                 application.appModel.recordPlaybackWindowSceneAppeared(identity)
                 application.spatialPlatformEffectCoordinator
                     .recordWindowResidency(.open, for: .main)
+                Task { @MainActor in
+                    await Task.yield()
+                    application.spatialPlatformEffectCoordinator
+                        .reconcileImmersiveSpaceResidency()
+                }
             }
             .onDisappear {
                 let identity = sceneIdentity.wrappedValue
