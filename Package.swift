@@ -10,6 +10,7 @@ let package = Package(
     ],
     products: [
         .library(name: "MediaSource", targets: ["MediaSource"]),
+        .library(name: "Emby", targets: ["Emby"]),
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
         .library(name: "MediaLibrary", targets: ["MediaLibrary"]),
         .library(name: "PlaybackFeature", targets: ["PlaybackFeature"]),
@@ -23,6 +24,11 @@ let package = Package(
         .target(
             name: "MediaSource",
             path: "Modules/MediaSource"
+        ),
+        .target(
+            name: "Emby",
+            dependencies: ["MediaSource"],
+            path: "Modules/Emby"
         ),
         .target(
             name: "DesignSystem",
@@ -78,6 +84,14 @@ let package = Package(
             name: "MediaLibraryTests",
             dependencies: ["MediaLibrary"],
             path: "Tests/MediaLibraryPackageTests"
+        ),
+        .testTarget(
+            name: "EmbyTests",
+            dependencies: ["Emby", "MediaSource"],
+            path: "Tests/EmbyPackageTests",
+            resources: [
+                .process("Fixtures"),
+            ]
         ),
         .testTarget(
             name: "PlaybackFeatureTests",

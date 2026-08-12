@@ -28,6 +28,10 @@ public struct MediaIdentity: Codable, Hashable, Sendable {
         remote(sourceKey: "legacy:\(sourceID.uuidString.lowercased())", canonicalPath: canonicalPath)
     }
 
+    public static func emby(serverID: String, itemID: String, mediaSourceID: String) -> Self {
+        make(scope: "emby", components: [serverID, itemID, mediaSourceID])
+    }
+
     static func make(scope: String, components: [String]) -> Self {
         let canonicalValue = ([scope] + components).joined(separator: "\u{1f}")
         let digest = SHA256.hash(data: Data(canonicalValue.utf8))
@@ -69,6 +73,15 @@ public struct ContentRevision: Codable, Equatable, Hashable, Sendable {
             String(modifiedAt.timeIntervalSince1970.bitPattern),
             String(sizeInBytes),
         ])
+    }
+
+    /// Emby 4.9.5 PlaybackInfo exposes source size but no media-source ETag, so the item's ETag and source size form the strongest available content signal.
+    public static func emby(itemEntityTag: String, sizeInBytes: Int64) -> Self {
+        make(components: ["emby", itemEntityTag, String(sizeInBytes)])
+    }
+
+    public static func emby(itemEntityTag: String, runTimeTicks: Int64) -> Self {
+        make(components: ["emby-item", itemEntityTag, String(runTimeTicks)])
     }
 
     private static func make(components: [String]) -> Self {
@@ -140,6 +153,35 @@ public struct VersionedMediaIdentity: Codable, Equatable, Hashable, Sendable {
             entityTag: entityTag,
             sizeInBytes: sizeInBytes,
             modifiedAt: modifiedAt
+        )
+    }
+
+    public static func emby(
+        serverID: String,
+        itemID: String,
+        mediaSourceID: String,
+        itemEntityTag: String?,
+        sizeInBytes: Int64?,
+        runTimeTicks: Int64?
+    ) -> Self? {
+        guard let itemEntityTag = itemEntityTag?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            itemEntityTag.isEmpty == false else { return nil }
+        let revision: ContentRevision
+        if let sizeInBytes {
+            revision = .emby(itemEntityTag: itemEntityTag, sizeInBytes: sizeInBytes)
+        } else if let runTimeTicks {
+            revision = .emby(itemEntityTag: itemEntityTag, runTimeTicks: runTimeTicks)
+        } else {
+            return nil
+        }
+        return Self(
+            mediaIdentity: .emby(
+                serverID: serverID,
+                itemID: itemID,
+                mediaSourceID: mediaSourceID
+            ),
+            contentRevision: revision
         )
     }
 
