@@ -33,3 +33,6 @@ logs/
 
 # RCP immersive scene binary (~42MB) — local-only per ADR-0008, not committed
 Modules/PlaybackPresentation/Resources/Immersive_Space.reality
+
+# Emby test credentials — local only, filled by the maintainer
+*.local.json
