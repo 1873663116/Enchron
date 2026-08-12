@@ -7,6 +7,8 @@ import PlaybackPresentation
 import PlaybackCore
 import SwiftUI
 
+typealias StorageCredential = MediaSource.StorageCredential
+
 enum EffectiveMediaFormatPresentationResolution: Equatable {
     case unchanged
     case enterPanorama
