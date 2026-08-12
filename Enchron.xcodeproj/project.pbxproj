@@ -22,6 +22,7 @@
 		E20000062FA2000100E1C001 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = E20000032FA2000100E1C001 /* MediaLibrary */; };
 		E21000032FA2000100E1C001 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = E21000012FA2000100E1C001 /* PlaybackFeature */; };
 		E21000042FA2000100E1C001 /* PlaybackPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = E21000022FA2000100E1C001 /* PlaybackPresentation */; };
+		E22000022FA4000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000012FA4000100E1C001 /* Emby */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -101,6 +102,7 @@
 				Components/EmptyPanelWindowContent.swift,
 				ContentView.swift,
 				DesignPreviewApp.swift,
+				EmbyPosterComponentsPreview.swift,
 				TokenPreviews.swift,
 				WindowPlaybackPreview.swift,
 			);
@@ -118,6 +120,10 @@
 				"DesignSystem/View+EnchronGlass.swift",
 				"DesignSystem/View+Platform.swift",
 				"DesignSystem/View+PressFeedback.swift",
+				Emby/EmbyAsyncPosterImage.swift,
+				Emby/EmbyClient.swift,
+				Emby/EmbyModels.swift,
+				Emby/EmbyPosterComponents.swift,
 				MediaLibrary/FileBrowsingViewModel.swift,
 				MediaLibrary/MediaLibraryFeature.swift,
 				MediaLibrary/MediaLibraryViewModel.swift,
@@ -135,11 +141,12 @@
 				MediaLibrary/Sources/Local/SecurityScopedFileReferenceResolver.swift,
 				MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift,
 				MediaLibrary/Sources/WebDAV/WebDAVDataSourceAdapter.swift,
-				MediaLibrary/Storage/KeychainStore.swift,
+				"MediaLibrary/Storage/CredentialStoring+ConnectionInfo.swift",
 				MediaLibrary/Storage/SavedDataSourceStore.swift,
 				MediaLibrary/Storage/UserDefaultsMediaLibraryStore.swift,
 				MediaLibrary/Views/ConnectionFormPanel.swift,
 				MediaSource/MediaAccessLease.swift,
+				MediaSource/KeychainStore.swift,
 				MediaSource/NaturalMediaNameOrder.swift,
 				MediaSource/NetworkMonitor.swift,
 				MediaSource/ResolvedExternalSubtitleSource.swift,
@@ -152,6 +159,7 @@
 				PlaybackFeature/Domain/PlaybackQueue.swift,
 				PlaybackFeature/Domain/PlaybackRuntimeControlling.swift,
 				PlaybackFeature/Domain/PlaybackSeekPolicy.swift,
+				PlaybackFeature/Domain/PlaybackSessionReporting.swift,
 				PlaybackFeature/Domain/TrackSelectionPreference.swift,
 				PlaybackFeature/Domain/ViewingState.swift,
 				PlaybackFeature/Model/MediaProfile.swift,
@@ -213,6 +221,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				E10000152FA1000100E1C001 /* DesignSystem in Frameworks */,
+				E22000022FA4000100E1C001 /* Emby in Frameworks */,
 				E20000062FA2000100E1C001 /* MediaLibrary in Frameworks */,
 				E21000032FA2000100E1C001 /* PlaybackFeature in Frameworks */,
 				E21000042FA2000100E1C001 /* PlaybackPresentation in Frameworks */,
@@ -312,6 +321,7 @@
 			name = DesignPreview;
 			packageProductDependencies = (
 				E10000122FA1000100E1C001 /* DesignSystem */,
+				E22000012FA4000100E1C001 /* Emby */,
 				E20000032FA2000100E1C001 /* MediaLibrary */,
 				E21000012FA2000100E1C001 /* PlaybackFeature */,
 				E21000022FA2000100E1C001 /* PlaybackPresentation */,
@@ -517,6 +527,7 @@
 			files = (
 			);
 			inputFileListPaths = (
+				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
 			);
 			inputPaths = (
 				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
@@ -524,6 +535,7 @@
 				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
 				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
 				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
+				"$(SRCROOT)/Apps/DesignPreview/EmbyPosterComponentsPreview.swift",
 				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
 				"$(SRCROOT)/Apps/DesignPreview/WindowPlaybackPreview.swift",
 				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
@@ -547,6 +559,7 @@
 			files = (
 			);
 			inputFileListPaths = (
+				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
 			);
 			inputPaths = (
 				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
@@ -554,6 +567,7 @@
 				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
 				"$(SRCROOT)/Apps/DesignPreview/ContentView.swift",
 				"$(SRCROOT)/Apps/DesignPreview/DesignPreviewApp.swift",
+				"$(SRCROOT)/Apps/DesignPreview/EmbyPosterComponentsPreview.swift",
 				"$(SRCROOT)/Apps/DesignPreview/TokenPreviews.swift",
 				"$(SRCROOT)/Apps/DesignPreview/WindowPlaybackPreview.swift",
 				"$(SRCROOT)/Config/design_source_architecture_baseline.json",
@@ -1098,6 +1112,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = PlaybackPresentation;
+		};
+		E22000012FA4000100E1C001 /* Emby */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
+			productName = Emby;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

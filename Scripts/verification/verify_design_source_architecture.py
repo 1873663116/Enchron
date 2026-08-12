@@ -14,6 +14,8 @@ import sys
 
 DEFAULT_REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_BASELINE = Path("Config/design_source_architecture_baseline.json")
+PRODUCTION_INPUT_LIST = Path("Config/design_source_architecture_inputs.xcfilelist")
+PRODUCTION_SOURCE_DIRECTORIES = ("Apps/Enchron", "Modules")
 
 PRODUCTION_IMPORTS = {
     "DesignSystem",
@@ -409,6 +411,21 @@ def find_xcode_build_input_violations(root: Path) -> list[Finding]:
         return []
 
     project_source = project_path.read_text(encoding="utf-8")
+    production_inputs_path = root / PRODUCTION_INPUT_LIST
+    expected_production_inputs = {
+        f"$(SRCROOT)/{path.as_posix()}"
+        for directory in PRODUCTION_SOURCE_DIRECTORIES
+        for path in relative_swift_files(root, directory)
+    }
+    declared_production_inputs = (
+        {
+            line.strip()
+            for line in production_inputs_path.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        }
+        if production_inputs_path.exists()
+        else set()
+    )
     phase_pattern = re.compile(
         r"^[ \t]*[A-F0-9]{24} /\* Design Source Architecture \*/ = \{"
         r"(?P<body>.*?^[ \t]*\};)",
@@ -421,6 +438,27 @@ def find_xcode_build_input_violations(root: Path) -> list[Finding]:
         path.as_posix() for path in relative_swift_files(root, "Apps/DesignPreview")
     }
     findings = []
+    if declared_production_inputs != expected_production_inputs:
+        missing = sorted(expected_production_inputs - declared_production_inputs)
+        stale = sorted(declared_production_inputs - expected_production_inputs)
+        details = []
+        if missing:
+            details.append(f"missing {', '.join(missing)}")
+        if stale:
+            details.append(f"stale {', '.join(stale)}")
+        findings.append(
+            Finding(
+                rule="xcode-production-inputs",
+                path=PRODUCTION_INPUT_LIST.as_posix(),
+                line=1,
+                signature="design-source-architecture-production-inputs",
+                message=(
+                    "Xcode Design Source Architecture production inputs must exactly "
+                    f"match scanned Swift sources: {'; '.join(details)}"
+                ),
+            )
+        )
+
     phases = list(phase_pattern.finditer(project_source))
     if len(phases) != 2:
         findings.append(
@@ -441,7 +479,14 @@ def find_xcode_build_input_violations(root: Path) -> list[Finding]:
         declared_sources = {
             match.group("path") for match in input_pattern.finditer(body)
         }
-        if declared_sources == expected_sources and "--xcode-inputs" in body:
+        has_production_input_list = (
+            f'"$(SRCROOT)/{PRODUCTION_INPUT_LIST.as_posix()}"' in body
+        )
+        if (
+            declared_sources == expected_sources
+            and "--xcode-inputs" in body
+            and has_production_input_list
+        ):
             continue
         line_number = finding_line(project_source, phase.start())
         missing = sorted(expected_sources - declared_sources)
@@ -453,6 +498,10 @@ def find_xcode_build_input_violations(root: Path) -> list[Finding]:
             details.append(f"stale {', '.join(stale)}")
         if "--xcode-inputs" not in body:
             details.append("shell script does not use --xcode-inputs")
+        if not has_production_input_list:
+            details.append(
+                f"missing production input list {PRODUCTION_INPUT_LIST.as_posix()}"
+            )
         findings.append(
             Finding(
                 rule="xcode-build-inputs",

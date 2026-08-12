@@ -15,6 +15,7 @@ DESIGN_SOURCE_ARCHITECTURE_CHECKER = (
 )
 APP_EXCEPTION_ID = "E10000162FA1000100E1C001"
 PRODUCT_TARGETS = {
+    "Emby",
     "MediaSource",
     "MediaLibrary",
     "PlaybackFeature",

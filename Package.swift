@@ -27,7 +27,7 @@ let package = Package(
         ),
         .target(
             name: "Emby",
-            dependencies: ["MediaSource"],
+            dependencies: ["MediaSource", "DesignSystem"],
             path: "Modules/Emby"
         ),
         .target(
