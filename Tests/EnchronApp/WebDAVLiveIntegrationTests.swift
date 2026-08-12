@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 @testable import MediaLibrary
 import XCTest
 @testable import Enchron
