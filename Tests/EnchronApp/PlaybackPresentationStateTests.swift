@@ -15,6 +15,98 @@ struct PlaybackPresentationStateTests {
         let error: PlaybackPresentationTransitionError?
     }
 
+    @Test("Immersive playback entry pushes a resident window")
+    func immersivePlaybackEntryPushesResidentWindow() {
+        for family in [PresentationContentFamily.flat, .panoramic] {
+            #expect(
+                SpatialPlatformPlaybackWindowPolicy.action(
+                    for: .enterImmersivePlayback(family),
+                    residentWindowState: .absent
+                ) == .pushResidentWindow
+            )
+        }
+    }
+
+    @Test("Immersive playback exit dismisses an open resident window")
+    func immersivePlaybackExitDismissesOpenResidentWindow() {
+        for family in [PresentationContentFamily.flat, .panoramic] {
+            #expect(
+                SpatialPlatformPlaybackWindowPolicy.action(
+                    for: .exitImmersivePlayback(family),
+                    residentWindowState: .open
+                ) == .dismissResidentWindow
+            )
+        }
+    }
+
+    @Test("Immersive playback collapse dismisses an open resident window")
+    func immersivePlaybackCollapseDismissesOpenResidentWindow() {
+        for family in [PresentationContentFamily.flat, .panoramic] {
+            #expect(
+                SpatialPlatformPlaybackWindowPolicy.action(
+                    for: .collapseImmersivePlayback(family),
+                    residentWindowState: .open
+                ) == .dismissResidentWindow
+            )
+        }
+    }
+
+    @Test("Immersive playback exit opens the main window without an open resident window")
+    func immersivePlaybackExitOpensMainWindowWithoutOpenResidentWindow() {
+        for family in [PresentationContentFamily.flat, .panoramic] {
+            #expect(
+                SpatialPlatformPlaybackWindowPolicy.action(
+                    for: .exitImmersivePlayback(family),
+                    residentWindowState: .absent
+                ) == .openMainWindow
+            )
+        }
+    }
+
+    @Test("Immersive playback collapse opens the main window without an open resident window")
+    func immersivePlaybackCollapseOpensMainWindowWithoutOpenResidentWindow() {
+        for family in [PresentationContentFamily.flat, .panoramic] {
+            #expect(
+                SpatialPlatformPlaybackWindowPolicy.action(
+                    for: .collapseImmersivePlayback(family),
+                    residentWindowState: .absent
+                ) == .openMainWindow
+            )
+        }
+    }
+
+    @Test("Spatial playback normalization restores the retained Main Window")
+    func spatialPlaybackNormalizationRestoresRetainedMainWindow() {
+        #expect(
+            SpatialPlatformPlaybackWindowPolicy.action(
+                for: .normalizeSpatialPlayback,
+                residentWindowState: .open
+            ) == .dismissResidentWindow
+        )
+        #expect(
+            SpatialPlatformPlaybackWindowPolicy.action(
+                for: .normalizeSpatialPlayback,
+                residentWindowState: .closing
+            ) == .dismissResidentWindow
+        )
+        #expect(
+            SpatialPlatformPlaybackWindowPolicy.action(
+                for: .normalizeSpatialPlayback,
+                residentWindowState: .absent
+            ) == .openMainWindow
+        )
+    }
+
+    @Test("Spatial invalidation dismisses a resident Window that is still opening")
+    func spatialInvalidationDismissesOpeningResidentWindow() {
+        #expect(
+            SpatialPlatformPlaybackWindowPolicy.action(
+                for: .normalizeSpatialPlayback,
+                residentWindowState: .opening
+            ) == .dismissResidentWindow
+        )
+    }
+
     @Test("Main glass hosts the browser unless a scene operation is in flight")
     func browserSurfaceFollowsSettledSceneState() {
         #expect(BrowserWindowSurfacePolicy.showsBrowser(
@@ -1435,6 +1527,37 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("Resident Window observations are independent from other windows")
+    func residentWindowObservationsAreIndependentFromOtherWindows() {
+        var observation = SpatialPlatformWindowObservation()
+
+        observation.record(.open, for: .main)
+        observation.record(.closed, for: .playerControls)
+
+        #expect(observation.residency(for: .immersivePlaybackResident) == nil)
+        #expect(observation.revision(for: .immersivePlaybackResident) == 0)
+
+        observation.record(.open, for: .immersivePlaybackResident)
+
+        #expect(observation.residency(for: .immersivePlaybackResident) == .open)
+        #expect(observation.revision(for: .immersivePlaybackResident) == 1)
+        #expect(observation.residency(for: .main) == .open)
+        #expect(observation.revision(for: .main) == 1)
+        #expect(observation.residency(for: .playerControls) == .closed)
+        #expect(observation.revision(for: .playerControls) == 1)
+
+        observation.record(.closed, for: .immersivePlaybackResident)
+
+        #expect(
+            observation.residency(for: .immersivePlaybackResident) == .closed
+        )
+        #expect(observation.revision(for: .immersivePlaybackResident) == 2)
+        #expect(observation.residency(for: .main) == .open)
+        #expect(observation.revision(for: .main) == 1)
+        #expect(observation.residency(for: .playerControls) == .closed)
+        #expect(observation.revision(for: .playerControls) == 1)
+    }
+
     @Test("Immersive Space lifecycle revision changes only for appearance events")
     @MainActor
     func immersiveSpaceLifecycleRevisionTracksAppearanceEvents() {
@@ -1571,6 +1694,41 @@ struct PlaybackPresentationStateTests {
         let secondClaim = try #require(secondClaimValue)
         #expect(secondClaim.capability == "second-root")
         #expect(secondClaim.lease.executionID != firstClaim.lease.executionID)
+    }
+
+    @Test("a pushed Window can become the preferred platform action source")
+    @MainActor
+    func pushedWindowBecomesPreferredPlatformActionSource() throws {
+        var registry = SpatialPlatformExecutionLeaseRegistry<String>()
+        let mainRootID = UUID()
+        let immersiveRootID = UUID()
+        let residentRootID = UUID()
+        let requestID = UUID()
+
+        registry.register("main-root", id: mainRootID)
+        let mainClaimValue = registry.claim(
+            requestID: requestID,
+            mediaSessionID: nil
+        )
+        let mainClaim = try #require(mainClaimValue)
+
+        registry.register("immersive-root", id: immersiveRootID)
+        registry.register(
+            "resident-root",
+            id: residentRootID,
+            makePreferred: true
+        )
+
+        #expect(registry.currentCapability == "resident-root")
+        #expect(registry.isLive(mainClaim.lease))
+
+        registry.unregister(
+            id: residentRootID,
+            preferredFallbackID: mainRootID
+        )
+
+        #expect(registry.currentCapability == "main-root")
+        #expect(registry.isLive(mainClaim.lease))
     }
     #endif
 

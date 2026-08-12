@@ -39,9 +39,20 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
     }
 
     @discardableResult
+    mutating func preferCapability(id: UUID) -> Bool {
+        guard capabilities[id] != nil,
+              retiredCapabilityIDs.contains(id) == false else {
+            return false
+        }
+        preferredCapabilityID = id
+        return true
+    }
+
+    @discardableResult
     mutating func register(
         _ capability: Capability,
-        id: UUID
+        id: UUID,
+        makePreferred: Bool = false
     ) -> SpatialPlatformExecutionLease? {
         let invalidatedLease =
             activeLease?.capabilityID == id ? invalidateActiveExecution() : nil
@@ -51,26 +62,32 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
             capability: capability
         )
         nextCapabilityGeneration &+= 1
-        if preferredCapabilityID == nil {
+        if preferredCapabilityID == nil || makePreferred {
             preferredCapabilityID = id
         }
         return invalidatedLease
     }
 
     @discardableResult
-    mutating func unregister(id: UUID) -> SpatialPlatformExecutionLease? {
+    mutating func unregister(
+        id: UUID,
+        preferredFallbackID: UUID? = nil
+    ) -> SpatialPlatformExecutionLease? {
         guard capabilities[id] != nil else { return nil }
         if activeLease?.capabilityID == id {
             retiredCapabilityIDs.insert(id)
             if preferredCapabilityID == id {
-                preferredCapabilityID = firstRegisteredCapabilityID()
+                preferredCapabilityID = liveCapabilityID(
+                    preferredFallbackID
+                ) ?? firstRegisteredCapabilityID()
             }
             return nil
         }
         capabilities[id] = nil
         retiredCapabilityIDs.remove(id)
         if preferredCapabilityID == id {
-            preferredCapabilityID = firstRegisteredCapabilityID()
+            preferredCapabilityID = liveCapabilityID(preferredFallbackID)
+                ?? firstRegisteredCapabilityID()
         }
         return nil
     }
@@ -131,6 +148,15 @@ struct SpatialPlatformExecutionLeaseRegistry<Capability> {
 
     private func firstRegisteredCapabilityID() -> UUID? {
         capabilities.keys.first { retiredCapabilityIDs.contains($0) == false }
+    }
+
+    private func liveCapabilityID(_ id: UUID?) -> UUID? {
+        guard let id,
+              capabilities[id] != nil,
+              retiredCapabilityIDs.contains(id) == false else {
+            return nil
+        }
+        return id
     }
 
     /// A scene that disappears cannot accept another platform request. Its
@@ -208,11 +234,19 @@ struct SpatialPlatformImmersiveSpaceObservation {
 enum SpatialPlatformWindowIdentity: String, Hashable, Sendable {
     case main
     case playerControls
+    case immersivePlaybackResident
 }
 
 enum SpatialPlatformWindowResidency: Equatable, Sendable {
     case open
     case closed
+}
+
+enum SpatialPlatformResidentWindowState: Equatable, Sendable {
+    case absent
+    case opening
+    case open
+    case closing
 }
 
 struct SpatialPlatformWindowObservation {
@@ -250,6 +284,40 @@ struct SpatialPlatformWindowObservation {
     ) -> Bool {
         guard let entry = entries[window] else { return false }
         return entry.revision > revision && entry.residency == residency
+    }
+}
+
+enum SpatialPlatformPlaybackWindowTransition: Equatable, Sendable {
+    case enterImmersivePlayback(PresentationContentFamily)
+    case exitImmersivePlayback(PresentationContentFamily)
+    case collapseImmersivePlayback(PresentationContentFamily)
+    case normalizeSpatialPlayback
+}
+
+enum SpatialPlatformPlaybackWindowAction: Equatable, Sendable {
+    case pushResidentWindow
+    case dismissResidentWindow
+    case openMainWindow
+}
+
+enum SpatialPlatformPlaybackWindowPolicy {
+    static func action(
+        for transition: SpatialPlatformPlaybackWindowTransition,
+        residentWindowState: SpatialPlatformResidentWindowState
+    ) -> SpatialPlatformPlaybackWindowAction {
+        switch transition {
+        case .enterImmersivePlayback:
+            .pushResidentWindow
+        case .exitImmersivePlayback,
+             .collapseImmersivePlayback,
+             .normalizeSpatialPlayback:
+            switch residentWindowState {
+            case .absent:
+                .openMainWindow
+            case .opening, .open, .closing:
+                .dismissResidentWindow
+            }
+        }
     }
 }
 

@@ -47,7 +47,7 @@ struct EnchronApp: App {
 #endif
             }
             .background {
-                SpatialPlatformEffectExecutor()
+                SpatialPlatformEffectExecutor(windowIdentity: .main)
             }
             .onChange(of: mainScenePhase) { previous, current in
                 AppModel.recordProbe("mainScenePhase \(previous) -> \(current)")
@@ -117,6 +117,44 @@ struct EnchronApp: App {
         .windowResizability(.contentSize)
         .restorationBehavior(.disabled)
         .defaultLaunchBehavior(.suppressed)
+
+        Window(
+            "Immersive Playback Resident",
+            id: SpatialPlatformWindowIdentity
+                .immersivePlaybackResident.rawValue
+        ) {
+            Color.clear
+                .frame(width: 520, height: 300)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+                .background {
+                    SpatialPlatformEffectExecutor(
+                        windowIdentity: .immersivePlaybackResident
+                    )
+                }
+                .enchronEnvironment(application)
+                .onAppear {
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowResidency(
+                            .open,
+                            for: .immersivePlaybackResident
+                        )
+                }
+                .onDisappear {
+                    application.spatialPlatformEffectCoordinator
+                        .recordWindowResidency(
+                            .closed,
+                            for: .immersivePlaybackResident
+                        )
+                }
+                .persistentSystemOverlays(.hidden)
+        }
+        .windowStyle(.plain)
+        .defaultSize(width: 520, height: 300)
+        .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
+        .defaultLaunchBehavior(.suppressed)
+        .persistentSystemOverlays(.hidden)
 
 #if DEBUG
         WindowGroup("Blackout Probe", id: "blackoutProbe") {
