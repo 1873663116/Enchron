@@ -36,6 +36,23 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         let versionedIdentity: VersionedMediaIdentity?
     }
 
+    private struct MediaServerReportingSession {
+        enum Phase {
+            case armed
+            case active
+            case finished
+        }
+
+        let generation: Int
+        let runtimeGeneration: UInt64
+        let reporter: any PlaybackSessionReporting
+        var phase: Phase
+        var lastReport: PlaybackSessionReport
+        var lastLifecycle: ProductPlaybackLifecycle
+        var nextPeriodicThresholdSeconds: Double
+        var launchConfigurationCompleted: Bool
+    }
+
     private let playbackRuntime: any PlaybackRuntimeControlling
     private let mediaStateStore: MediaStateStore
     private let preferencesProvider: PlaybackPreferencesProviding
@@ -62,6 +79,7 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     private var mediaFormatRequestID: UInt64 = 0
     private var generation = 0
     private var lastResolvedLaunch: ResolvedLaunch?
+    private var mediaServerReportingSession: MediaServerReportingSession?
 
     public init(
         playbackRuntime: any PlaybackRuntimeControlling,
@@ -82,6 +100,9 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 self.playbackRuntime.applyPrefetchedMetadata(metadata)
             }
         }
+        playbackRuntime.onPlaybackObservation = { [weak self] observation in
+            self?.receivePlaybackObservation(observation)
+        }
     }
 
     public func viewingState(for identity: MediaIdentity) async -> ViewingStatus? {
@@ -100,42 +121,60 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
             guard let self else { return }
             await mediaStateMutationTask?.value
             guard generation == requestGeneration else { return }
-            let persistedState: PersistedMediaState? = if let identity = request.versionedIdentity {
-                await mediaStateStore.loadValidated(for: identity)
-            } else { nil }
-            guard generation == requestGeneration else { return }
-            let playbackMode = persistedState?.playbackModePreference ?? .window
-            let seconds: Double
-            if let status = persistedState?.viewingStatus,
-               case .resumable(let position, _) = status {
-                seconds = position
-            } else {
-                seconds = 0
-            }
-            switch preferencesProvider.loadPlaybackPreferences().resumePolicy {
-            case .askEveryTime where seconds > 0:
-                pendingResumeDecision = ResumeDecision(
-                    request: request,
-                    seconds: seconds,
-                    format: persistedState?.formatPreference,
-                    playbackMode: playbackMode,
-                    trackSelectionPreference: persistedState?.trackSelectionPreference
-                )
-            case .alwaysResume where seconds > 0:
+            switch request.viewingStateAuthority {
+            case .enchronPersistence:
+                let persistedState: PersistedMediaState? = if let identity = request.versionedIdentity {
+                    await mediaStateStore.loadValidated(for: identity)
+                } else { nil }
+                guard generation == requestGeneration else { return }
+                let playbackMode = persistedState?.playbackModePreference ?? .window
+                let seconds: Double
+                if let status = persistedState?.viewingStatus,
+                   case .resumable(let position, _) = status {
+                    seconds = position
+                } else {
+                    seconds = 0
+                }
+                switch preferencesProvider.loadPlaybackPreferences().resumePolicy {
+                case .askEveryTime where seconds > 0:
+                    pendingResumeDecision = ResumeDecision(
+                        request: request,
+                        seconds: seconds,
+                        format: persistedState?.formatPreference,
+                        playbackMode: playbackMode,
+                        trackSelectionPreference: persistedState?.trackSelectionPreference
+                    )
+                case .alwaysResume where seconds > 0:
+                    launchResolvedPlayback(
+                        request,
+                        resumeAt: seconds,
+                        savedFormat: persistedState?.formatPreference,
+                        playbackMode: playbackMode,
+                        trackSelectionPreference: persistedState?.trackSelectionPreference
+                    )
+                default:
+                    launchResolvedPlayback(
+                        request,
+                        resumeAt: nil,
+                        savedFormat: persistedState?.formatPreference,
+                        playbackMode: playbackMode,
+                        trackSelectionPreference: persistedState?.trackSelectionPreference
+                    )
+                }
+            case .mediaServer:
+                let presentationPreferences: PersistedPlaybackPresentationPreferences? =
+                    if let identity = request.versionedIdentity {
+                        await mediaStateStore.loadPlaybackPresentationPreferencesValidated(
+                            for: identity
+                        )
+                    } else { nil }
+                guard generation == requestGeneration else { return }
                 launchResolvedPlayback(
                     request,
-                    resumeAt: seconds,
-                    savedFormat: persistedState?.formatPreference,
-                    playbackMode: playbackMode,
-                    trackSelectionPreference: persistedState?.trackSelectionPreference
-                )
-            default:
-                launchResolvedPlayback(
-                    request,
-                    resumeAt: nil,
-                    savedFormat: persistedState?.formatPreference,
-                    playbackMode: playbackMode,
-                    trackSelectionPreference: persistedState?.trackSelectionPreference
+                    resumeAt: request.startPositionSeconds,
+                    savedFormat: presentationPreferences?.format,
+                    playbackMode: presentationPreferences?.playbackMode ?? .window,
+                    trackSelectionPreference: nil
                 )
             }
         }
@@ -231,6 +270,10 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
         let preparedRequest = request.updating(metadata: request.initialMetadata)
         playbackRuntime.prepareForPlayback(preparedRequest)
+        armMediaServerReportingSession(
+            for: preparedRequest,
+            generation: launchGeneration
+        )
         logger.info("launch requested source=\(preparedRequest.displayName, privacy: .public)")
 
         metadataTask = Task { [weak self] in
@@ -256,12 +299,14 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 )
                 guard generation == launchGeneration else { return }
                 guard try await applyLaunchConfiguration(
+                    for: preparedRequest,
                     savedFormat: savedFormat,
                     formatWasAppliedDuringOpen: savedFormat != nil,
                     trackSelectionPreference: trackSelectionPreference,
                     expectedGeneration: launchGeneration
                 ) else { return }
                 savePlaybackMode(entryPlaybackMode)
+                markMediaServerLaunchConfigurationCompleted()
             } catch {
                 guard generation == launchGeneration else { return }
                 if Self.isNetworkURL(preparedRequest.url),
@@ -275,6 +320,8 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                    ) {
                     return
                 }
+                guard generation == launchGeneration, !Task.isCancelled else { return }
+                finishMediaServerReportingSession()
                 playbackRuntime.lastErrorMessage = error.localizedDescription
             }
         }
@@ -329,34 +376,46 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     public func selectAudioTrack(_ track: PlaybackModel.AudioTrack) async throws {
-        let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity
+        let request = playbackRuntime.currentLaunchRequest
         let sessionID = playbackRuntime.activeSessionID
         try await playbackRuntime.selectAudioTrack(track)
-        guard let identity,
+        guard let request,
               playbackRuntime.activeSessionID == sessionID,
-              playbackRuntime.currentLaunchRequest?.versionedIdentity == identity,
+              playbackRuntime.currentLaunchRequest == request,
               playbackRuntime.currentAudioTrackID == track.id else { return }
-        await enqueueMediaStateMutation { store in
-            await store.saveAudioTrackSelection(id: track.id, for: identity)
-        }.value
+        switch request.viewingStateAuthority {
+        case .enchronPersistence:
+            guard let identity = request.versionedIdentity else { return }
+            await enqueueMediaStateMutation { store in
+                await store.saveAudioTrackSelection(id: track.id, for: identity)
+            }.value
+        case .mediaServer:
+            reportImmediateMediaServerProgress()
+        }
     }
 
     public func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws {
-        let identity = playbackRuntime.currentLaunchRequest?.versionedIdentity
+        let request = playbackRuntime.currentLaunchRequest
         let sessionID = playbackRuntime.activeSessionID
         try await playbackRuntime.selectSubtitleTrack(track)
-        guard let identity,
+        guard let request,
               playbackRuntime.activeSessionID == sessionID,
-              playbackRuntime.currentLaunchRequest?.versionedIdentity == identity,
+              playbackRuntime.currentLaunchRequest == request,
               playbackRuntime.currentSubtitleTrackID == track?.id else { return }
-        let selection: SubtitleTrackSelectionPreference = if let track {
-            .track(id: track.id)
-        } else {
-            .off
+        switch request.viewingStateAuthority {
+        case .enchronPersistence:
+            guard let identity = request.versionedIdentity else { return }
+            let selection: SubtitleTrackSelectionPreference = if let track {
+                .track(id: track.id)
+            } else {
+                .off
+            }
+            await enqueueMediaStateMutation { store in
+                await store.saveSubtitleTrackSelection(selection, for: identity)
+            }.value
+        case .mediaServer:
+            reportImmediateMediaServerProgress()
         }
-        await enqueueMediaStateMutation { store in
-            await store.saveSubtitleTrackSelection(selection, for: identity)
-        }.value
     }
 
     public func stopPlayback() {
@@ -387,6 +446,17 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
         case .stayEnded:
             return false
         case .repeatCurrent:
+            if let request = playbackRuntime.currentLaunchRequest {
+                switch request.viewingStateAuthority {
+                case .enchronPersistence:
+                    break
+                case .mediaServer:
+                    armMediaServerReportingSession(
+                        for: request,
+                        generation: generation
+                    )
+                }
+            }
             playbackRuntime.replay()
             return false
         case .playNext:
@@ -404,13 +474,36 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
 
     private func persistCurrentSession(endedNaturally: Bool = false) {
         guard let request = playbackRuntime.currentLaunchRequest else { return }
-        switch playbackRuntime.productLifecycle {
-        case .ready, .playing, .paused, .ended:
-            break
-        case .idle, .loading, .failed:
-            return
+        switch request.viewingStateAuthority {
+        case .enchronPersistence:
+            switch playbackRuntime.productLifecycle {
+            case .ready, .playing, .paused, .ended:
+                break
+            case .idle, .loading, .failed:
+                return
+            }
+            if let identity = request.versionedIdentity {
+                let position = playbackRuntime.playbackPosition
+                let evidence = PlaybackSessionEvidence(
+                    durationSeconds: position.duration,
+                    positionSeconds: position.seconds,
+                    actualPlaybackSeconds: playbackRuntime.actualPlaybackSeconds,
+                    endedNaturally: endedNaturally || playbackRuntime.didEndNaturally
+                )
+                let mutation = ViewingStatePolicy.mutation(for: evidence)
+                enqueueMediaStateMutation { store in
+                    await store.applyViewingMutation(mutation, for: identity)
+                }
+            }
+        case .mediaServer:
+            finishMediaServerReportingSession()
+            switch playbackRuntime.productLifecycle {
+            case .ready, .playing, .paused, .ended:
+                break
+            case .idle, .loading, .failed:
+                return
+            }
         }
-        let position = playbackRuntime.playbackPosition
         let metadata = playbackRuntime.prefetchedMetadata?.merging(
             with: playbackRuntime.displayMediaProfile.map {
                 PlaybackMediaMetadata(
@@ -419,25 +512,167 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                 )
             }
         )
-        let actualPlaybackSeconds = playbackRuntime.actualPlaybackSeconds
-        let didEndNaturally = endedNaturally || playbackRuntime.didEndNaturally
-        if let identity = request.versionedIdentity {
-            let evidence = PlaybackSessionEvidence(
-                durationSeconds: position.duration,
-                positionSeconds: position.seconds,
-                actualPlaybackSeconds: actualPlaybackSeconds,
-                endedNaturally: didEndNaturally
-            )
-            let mutation = ViewingStatePolicy.mutation(for: evidence)
-            enqueueMediaStateMutation { store in
-                await store.applyViewingMutation(mutation, for: identity)
-            }
-        }
         Task.detached(priority: .utility) { [metadataService] in
             if let metadata {
                 await metadataService.persist(metadata, for: request)
             }
         }
+    }
+
+    private func armMediaServerReportingSession(
+        for request: PlaybackLaunchRequest,
+        generation: Int
+    ) {
+        switch request.viewingStateAuthority {
+        case .enchronPersistence:
+            mediaServerReportingSession = nil
+        case .mediaServer:
+            guard let reporter = request.sessionReporter else {
+                mediaServerReportingSession = nil
+                return
+            }
+            mediaServerReportingSession = MediaServerReportingSession(
+                generation: generation,
+                runtimeGeneration: playbackRuntime.observationGeneration,
+                reporter: reporter,
+                phase: .armed,
+                lastReport: currentPlaybackSessionReport(),
+                lastLifecycle: playbackRuntime.productLifecycle,
+                nextPeriodicThresholdSeconds: 10,
+                launchConfigurationCompleted: false
+            )
+        }
+    }
+
+    private func receivePlaybackObservation(_ observation: PlaybackRuntimeObservation) {
+        guard var session = mediaServerReportingSession,
+              session.generation == generation,
+              session.runtimeGeneration == observation.generation else { return }
+        if case .finished = session.phase { return }
+
+        switch observation.event {
+        case .diagnostics(let position, let actualPlaybackSeconds):
+            let report = currentPlaybackSessionReport(positionSeconds: position.seconds)
+            session.lastReport = report
+            guard case .active = session.phase,
+                  actualPlaybackSeconds >= session.nextPeriodicThresholdSeconds else {
+                mediaServerReportingSession = session
+                return
+            }
+            repeat {
+                session.nextPeriodicThresholdSeconds += 10
+            } while actualPlaybackSeconds >= session.nextPeriodicThresholdSeconds
+            mediaServerReportingSession = session
+            session.reporter.playbackProgressed(report)
+        case .lifecycle(let lifecycle):
+            let previousLifecycle = session.lastLifecycle
+            let report = currentPlaybackSessionReport(
+                isPaused: lifecycle == .paused
+            )
+            session.lastLifecycle = lifecycle
+            session.lastReport = report
+            switch lifecycle {
+            case .playing:
+                switch session.phase {
+                case .armed:
+                    session.phase = .active
+                    mediaServerReportingSession = session
+                    session.reporter.playbackStarted(report)
+                case .active where previousLifecycle == .paused:
+                    mediaServerReportingSession = session
+                    session.reporter.playbackProgressed(report)
+                case .active, .finished:
+                    mediaServerReportingSession = session
+                }
+            case .paused:
+                mediaServerReportingSession = session
+                guard case .active = session.phase,
+                      previousLifecycle != .paused else { return }
+                session.reporter.playbackProgressed(report)
+            case .ended:
+                mediaServerReportingSession = session
+                finishMediaServerReportingSession(
+                    expectedRuntimeGeneration: observation.generation,
+                    report: report
+                )
+            case .failed:
+                mediaServerReportingSession = session
+                guard session.launchConfigurationCompleted else { return }
+                finishMediaServerReportingSession(
+                    expectedRuntimeGeneration: observation.generation,
+                    report: report
+                )
+            case .idle, .loading, .ready:
+                mediaServerReportingSession = session
+            }
+        case .seekCompleted(let positionSeconds):
+            session.lastReport = currentPlaybackSessionReport(
+                positionSeconds: positionSeconds
+            )
+            mediaServerReportingSession = session
+            reportImmediateMediaServerProgress(positionSeconds: positionSeconds)
+        case .stopped:
+            finishMediaServerReportingSession(
+                expectedRuntimeGeneration: observation.generation
+            )
+        }
+    }
+
+    private func reportImmediateMediaServerProgress(positionSeconds: Double? = nil) {
+        guard var session = mediaServerReportingSession,
+              session.generation == generation,
+              session.runtimeGeneration == playbackRuntime.observationGeneration,
+              case .active = session.phase else { return }
+        let report = currentPlaybackSessionReport(positionSeconds: positionSeconds)
+        session.lastReport = report
+        mediaServerReportingSession = session
+        session.reporter.playbackProgressed(report)
+    }
+
+    private func markMediaServerLaunchConfigurationCompleted() {
+        guard var session = mediaServerReportingSession,
+              session.generation == generation,
+              session.runtimeGeneration == playbackRuntime.observationGeneration else { return }
+        session.launchConfigurationCompleted = true
+        mediaServerReportingSession = session
+        guard session.lastLifecycle == .failed else { return }
+        finishMediaServerReportingSession()
+    }
+
+    private func finishMediaServerReportingSession(
+        expectedRuntimeGeneration: UInt64? = nil,
+        report: PlaybackSessionReport? = nil
+    ) {
+        guard var session = mediaServerReportingSession else { return }
+        if case .finished = session.phase { return }
+        if let expectedRuntimeGeneration,
+           session.runtimeGeneration != expectedRuntimeGeneration {
+            return
+        }
+        let finalReport: PlaybackSessionReport
+        if let report {
+            finalReport = report
+        } else if playbackRuntime.currentLaunchRequest != nil {
+            finalReport = currentPlaybackSessionReport()
+        } else {
+            finalReport = session.lastReport
+        }
+        session.lastReport = finalReport
+        session.phase = .finished
+        mediaServerReportingSession = session
+        session.reporter.playbackStopped(finalReport)
+    }
+
+    private func currentPlaybackSessionReport(
+        positionSeconds: Double? = nil,
+        isPaused: Bool? = nil
+    ) -> PlaybackSessionReport {
+        PlaybackSessionReport(
+            positionSeconds: positionSeconds ?? playbackRuntime.playbackPosition.seconds,
+            isPaused: isPaused ?? (playbackRuntime.productLifecycle == .paused),
+            selectedAudioTrackID: playbackRuntime.currentAudioTrackID,
+            selectedSubtitleTrackID: playbackRuntime.currentSubtitleTrackID
+        )
     }
 
     private func beginMediaFormatRequest() -> MediaFormatRequestTarget {
@@ -537,12 +772,14 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
                     initialFormat: savedFormat
                 )
                 guard try await applyLaunchConfiguration(
+                    for: request,
                     savedFormat: savedFormat,
                     formatWasAppliedDuringOpen: savedFormat != nil,
                     trackSelectionPreference: trackSelectionPreference,
                     expectedGeneration: generation
                 ) else { return false }
                 savePlaybackMode(playbackMode)
+                markMediaServerLaunchConfigurationCompleted()
                 logger.info("network retry succeeded attempt=\(attempt)")
                 return true
             } catch {
@@ -553,43 +790,49 @@ public final class PlaybackLaunchCoordinator: PlaybackLaunching {
     }
 
     private func applyLaunchConfiguration(
+        for request: PlaybackLaunchRequest,
         savedFormat: MediaFormat?,
         formatWasAppliedDuringOpen: Bool = false,
         trackSelectionPreference: TrackSelectionPreference?,
         expectedGeneration: Int
     ) async throws -> Bool {
         guard generation == expectedGeneration else { return false }
-        if let audioTrackID = trackSelectionPreference?.audioTrackID,
-           let track = playbackRuntime.availableAudioTracks.first(where: { $0.id == audioTrackID }) {
-            do {
-                try await playbackRuntime.selectAudioTrack(track)
-            } catch {
-                logger.error(
-                    "saved audio track could not be restored error=\(error.localizedDescription, privacy: .public)"
-                )
-            }
-        }
-        guard generation == expectedGeneration else { return false }
-        switch trackSelectionPreference?.subtitleTrack {
-        case .off:
-            do {
-                try await playbackRuntime.selectSubtitleTrack(nil)
-            } catch {
-                logger.error(
-                    "saved subtitle-off selection could not be restored error=\(error.localizedDescription, privacy: .public)"
-                )
-            }
-        case .track(let id):
-            if let track = playbackRuntime.availableSubtitleTracks.first(where: { $0.id == id }) {
+        switch request.viewingStateAuthority {
+        case .enchronPersistence:
+            if let audioTrackID = trackSelectionPreference?.audioTrackID,
+               let track = playbackRuntime.availableAudioTracks.first(where: { $0.id == audioTrackID }) {
                 do {
-                    try await playbackRuntime.selectSubtitleTrack(track)
+                    try await playbackRuntime.selectAudioTrack(track)
                 } catch {
                     logger.error(
-                        "saved subtitle track could not be restored error=\(error.localizedDescription, privacy: .public)"
+                        "saved audio track could not be restored error=\(error.localizedDescription, privacy: .public)"
                     )
                 }
             }
-        case nil:
+            guard generation == expectedGeneration else { return false }
+            switch trackSelectionPreference?.subtitleTrack {
+            case .off:
+                do {
+                    try await playbackRuntime.selectSubtitleTrack(nil)
+                } catch {
+                    logger.error(
+                        "saved subtitle-off selection could not be restored error=\(error.localizedDescription, privacy: .public)"
+                    )
+                }
+            case .track(let id):
+                if let track = playbackRuntime.availableSubtitleTracks.first(where: { $0.id == id }) {
+                    do {
+                        try await playbackRuntime.selectSubtitleTrack(track)
+                    } catch {
+                        logger.error(
+                            "saved subtitle track could not be restored error=\(error.localizedDescription, privacy: .public)"
+                        )
+                    }
+                }
+            case nil:
+                break
+            }
+        case .mediaServer:
             break
         }
         guard generation == expectedGeneration else { return false }

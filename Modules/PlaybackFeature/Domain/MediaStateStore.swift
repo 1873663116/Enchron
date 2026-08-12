@@ -31,6 +31,11 @@ package struct PersistedMediaState: Codable, Equatable, Sendable {
     }
 }
 
+package struct PersistedPlaybackPresentationPreferences: Equatable, Sendable {
+    package let format: MediaFormat?
+    package let playbackMode: PersistedPlaybackMode?
+}
+
 package actor MediaStateStore {
     private let defaults: UserDefaults
     private let keyPrefix = "enchron.media-state.v1."
@@ -54,6 +59,16 @@ package actor MediaStateStore {
             return nil
         }
         return state
+    }
+
+    package func loadPlaybackPresentationPreferencesValidated(
+        for identity: VersionedMediaIdentity
+    ) -> PersistedPlaybackPresentationPreferences? {
+        guard let state = loadValidated(for: identity) else { return nil }
+        return PersistedPlaybackPresentationPreferences(
+            format: state.formatPreference,
+            playbackMode: state.playbackModePreference
+        )
     }
 
     /// Returns the last known viewing state for browser decoration without

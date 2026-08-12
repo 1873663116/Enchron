@@ -69,6 +69,9 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
     public let sourceAccess: MediaAccessLease?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
     public let externalSubtitleErrorMessage: String?
+    public let viewingStateAuthority: ViewingStateAuthority
+    public let startPositionSeconds: Double?
+    public let sessionReporter: (any PlaybackSessionReporting)?
 
     public init(
         url: URL,
@@ -78,7 +81,10 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         collectionOrigin: PlaybackCollectionOrigin = .standalone,
         versionedIdentity: VersionedMediaIdentity? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil
+        externalSubtitleErrorMessage: String? = nil,
+        viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
+        startPositionSeconds: Double? = nil,
+        sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
         self.id = url
         self.url = url
@@ -90,6 +96,9 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.sourceAccess = nil
         self.externalSubtitleSources = externalSubtitleSources
         self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
+        self.viewingStateAuthority = viewingStateAuthority
+        self.startPositionSeconds = startPositionSeconds
+        self.sessionReporter = sessionReporter
     }
 
     public init(
@@ -101,7 +110,10 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         versionedIdentity: VersionedMediaIdentity? = nil,
         sourceAccess: MediaAccessLease?,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
-        externalSubtitleErrorMessage: String? = nil
+        externalSubtitleErrorMessage: String? = nil,
+        viewingStateAuthority: ViewingStateAuthority = .enchronPersistence,
+        startPositionSeconds: Double? = nil,
+        sessionReporter: (any PlaybackSessionReporting)? = nil
     ) {
         self.id = url
         self.url = url
@@ -113,6 +125,9 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
         self.sourceAccess = sourceAccess
         self.externalSubtitleSources = externalSubtitleSources
         self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
+        self.viewingStateAuthority = viewingStateAuthority
+        self.startPositionSeconds = startPositionSeconds
+        self.sessionReporter = sessionReporter
     }
 
     public func updating(metadata: PlaybackMediaMetadata?) -> PlaybackLaunchRequest {
@@ -125,7 +140,10 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             versionedIdentity: versionedIdentity,
             sourceAccess: sourceAccess,
             externalSubtitleSources: externalSubtitleSources,
-            externalSubtitleErrorMessage: externalSubtitleErrorMessage
+            externalSubtitleErrorMessage: externalSubtitleErrorMessage,
+            viewingStateAuthority: viewingStateAuthority,
+            startPositionSeconds: startPositionSeconds,
+            sessionReporter: sessionReporter
         )
     }
 
@@ -138,6 +156,8 @@ public nonisolated struct PlaybackLaunchRequest: @unchecked Sendable, Equatable,
             lhs.collectionOrigin == rhs.collectionOrigin &&
             lhs.versionedIdentity == rhs.versionedIdentity &&
             lhs.externalSubtitleSources == rhs.externalSubtitleSources &&
-            lhs.externalSubtitleErrorMessage == rhs.externalSubtitleErrorMessage
+            lhs.externalSubtitleErrorMessage == rhs.externalSubtitleErrorMessage &&
+            lhs.viewingStateAuthority == rhs.viewingStateAuthority &&
+            lhs.startPositionSeconds == rhs.startPositionSeconds
     }
 }
