@@ -7,7 +7,6 @@ let package = Package(
     name: "RealityKitContent",
     platforms: [
         .visionOS("27.0"),
-        .macOS("27.0"),
         .iOS("27.0"),
         .tvOS("27.0")
     ],

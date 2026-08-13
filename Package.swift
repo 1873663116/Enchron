@@ -5,7 +5,6 @@ import PackageDescription
 let package = Package(
     name: "EnchronModules",
     platforms: [
-        .macOS("27.0"),
         .visionOS("27.0"),
     ],
     products: [

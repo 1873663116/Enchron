@@ -5,13 +5,10 @@ import PackageDescription
 let package = Package(
     name: "PlaybackCore",
     platforms: [
-        .macOS("27.0"),
         .visionOS("27.0"),
     ],
     products: [
         .library(name: "PlaybackCore", targets: ["PlaybackCore"]),
-        .executable(name: "HDRBoundaryProbe", targets: ["HDRBoundaryProbe"]),
-        .executable(name: "DolbyVisionCompressedProbe", targets: ["DolbyVisionCompressedProbe"]),
     ],
     targets: [
         .binaryTarget(
@@ -46,24 +43,6 @@ let package = Package(
             name: "PlaybackCoreTests",
             dependencies: ["PlaybackCore", "PlaybackFFmpegBridge"],
             resources: [.copy("Fixtures")]
-        ),
-        .executableTarget(
-            name: "HDRBoundaryProbe",
-            path: "Tools/HDRBoundaryProbe",
-            linkerSettings: [
-                .linkedFramework("AppKit"),
-                .linkedFramework("AVFoundation"),
-                .linkedFramework("VideoToolbox"),
-            ]
-        ),
-        .executableTarget(
-            name: "DolbyVisionCompressedProbe",
-            dependencies: ["PlaybackFFmpegBridge"],
-            path: "Tools/DolbyVisionCompressedProbe",
-            linkerSettings: [
-                .linkedFramework("AppKit"),
-                .linkedFramework("AVFoundation"),
-            ]
         ),
     ]
 )
