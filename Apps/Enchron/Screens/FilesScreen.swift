@@ -176,7 +176,7 @@ struct FilesScreen: View {
             switch result {
             case .success(let urls):
                 if fileSelectionKind == .folder, let folder = urls.first {
-                    mediaLibrary.addFolder(folder)
+                    Task { await mediaLibrary.addFolder(folder) }
                 } else {
                     mediaLibrary.addFiles(urls)
                 }
@@ -236,6 +236,7 @@ struct FilesScreen: View {
             identifierPrefix: "FileBrowsing-SourcesSidebar",
             onSelectSource: { id in select(sourceID: id) },
             onAddSource: { type in presentConnection(for: type) },
+            onImportFolder: presentFolderImporter,
             onRefresh: { Task { await viewModel.loadFiles() } },
             onDeleteSources: deleteSources
         )
@@ -290,6 +291,11 @@ struct FilesScreen: View {
             fileSelectionKind = .files
             isFileImporterPresented = true
         }
+    }
+
+    private func presentFolderImporter() {
+        fileSelectionKind = .folder
+        isFileImporterPresented = true
     }
 
     private func resetSourceConnectionFields() {
@@ -542,10 +548,9 @@ struct FilesScreen: View {
             }
             .accessibilityIdentifier("MediaLibrary-Manage-addFiles")
             Button {
-                fileSelectionKind = .folder
-                isFileImporterPresented = true
+                presentFolderImporter()
             } label: {
-                Label("Add Folder Contents", systemImage: "folder.badge.plus")
+                Label("Add Folder", systemImage: "folder.badge.plus")
             }
             .accessibilityIdentifier("MediaLibrary-Manage-addFolder")
             Button {
@@ -680,7 +685,8 @@ struct FilesScreen: View {
                     ForEach(displayedLibraryFolders) { folder in
                         GridCard.folder(
                             title: folder.name,
-                            count: mediaLibrary.library.references(in: folder.id).count,
+                            count: mediaLibrary.library.folders(in: folder.id).count
+                                + mediaLibrary.library.references(in: folder.id).count,
                             accessibilityIdentifier: "MediaLibrary-grid-folder-\(folder.name)",
                             action: { mediaLibrary.open(folder) }
                         )
@@ -744,7 +750,8 @@ struct FilesScreen: View {
             FileListGroup.Item.folder(
                 id: "library-folder-\(folder.id)",
                 title: folder.name,
-                itemCount: mediaLibrary.library.references(in: folder.id).count,
+                itemCount: mediaLibrary.library.folders(in: folder.id).count
+                    + mediaLibrary.library.references(in: folder.id).count,
                 contextActions: libraryFolderContextActions(folder),
                 action: { mediaLibrary.open(folder) }
             )

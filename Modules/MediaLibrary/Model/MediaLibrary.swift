@@ -50,6 +50,18 @@ nonisolated extension FileBrowsingDomain {
         }
     }
 
+    struct ImportedDirectory: Sendable, Equatable, Codable {
+        let rootFolderID: UUID
+        let sourceIdentity: String
+        let bookmark: Data
+
+        init(rootFolderID: UUID, sourceIdentity: String, bookmark: Data) {
+            self.rootFolderID = rootFolderID
+            self.sourceIdentity = sourceIdentity
+            self.bookmark = bookmark
+        }
+    }
+
     public struct MediaLibrary: Sendable, Equatable, Codable {
         public enum LibraryError: LocalizedError, Equatable {
             case emptyFolderName
@@ -75,8 +87,32 @@ nonisolated extension FileBrowsingDomain {
 
         private var allFolders: [LibraryFolder] = []
         private var entries: [Entry] = []
+        private var importedDirectories: [ImportedDirectory] = []
 
         public init() {}
+
+        private enum CodingKeys: String, CodingKey {
+            case allFolders
+            case entries
+            case importedDirectories
+        }
+
+        public init(from decoder: any Decoder) throws {
+            let container = try decoder.container(keyedBy: CodingKeys.self)
+            allFolders = try container.decode([LibraryFolder].self, forKey: .allFolders)
+            entries = try container.decode([Entry].self, forKey: .entries)
+            importedDirectories = try container.decodeIfPresent(
+                [ImportedDirectory].self,
+                forKey: .importedDirectories
+            ) ?? []
+        }
+
+        public func encode(to encoder: any Encoder) throws {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(allFolders, forKey: .allFolders)
+            try container.encode(entries, forKey: .entries)
+            try container.encode(importedDirectories, forKey: .importedDirectories)
+        }
 
         @discardableResult
         public mutating func createFolder(named name: String, in parentID: UUID? = nil) throws -> LibraryFolder {
@@ -126,6 +162,7 @@ nonisolated extension FileBrowsingDomain {
             }
             allFolders.removeAll { removedIDs.contains($0.id) }
             entries.removeAll { $0.folderID.map(removedIDs.contains) == true }
+            importedDirectories.removeAll { removedIDs.contains($0.rootFolderID) }
         }
 
         public mutating func moveReference(_ referenceID: UUID, to folderID: UUID?) throws {
@@ -159,6 +196,63 @@ nonisolated extension FileBrowsingDomain {
 
         public func folder(id: UUID) -> LibraryFolder? {
             allFolders.first { $0.id == id }
+        }
+
+        mutating func importDirectory(
+            _ snapshot: ImportedDirectorySnapshot,
+            into parentID: UUID?
+        ) throws -> LibraryFolder {
+            if let existing = importedDirectories.first(where: {
+                $0.sourceIdentity == snapshot.sourceIdentity
+            }), let folder = folder(id: existing.rootFolderID) {
+                return folder
+            }
+
+            let rootFolder = try createFolder(named: snapshot.name, in: parentID)
+            var folderIDsByRelativePath: [String: UUID] = ["": rootFolder.id]
+
+            for directory in snapshot.directories.sorted(by: {
+                if $0.pathComponents.count != $1.pathComponents.count {
+                    return $0.pathComponents.count < $1.pathComponents.count
+                }
+                return $0.relativePath.localizedCaseInsensitiveCompare($1.relativePath)
+                    == .orderedAscending
+            }) {
+                guard let parentFolderID = folderIDsByRelativePath[directory.parentRelativePath] else {
+                    throw LibraryError.folderNotFound
+                }
+                let folder = try createFolder(named: directory.name, in: parentFolderID)
+                folderIDsByRelativePath[directory.relativePath] = folder.id
+            }
+
+            for file in snapshot.files.sorted(by: {
+                $0.relativePath.localizedCaseInsensitiveCompare($1.relativePath)
+                    == .orderedAscending
+            }) {
+                guard let folderID = folderIDsByRelativePath[file.parentRelativePath] else {
+                    throw LibraryError.folderNotFound
+                }
+                try add(
+                    MediaReference(
+                        name: file.name,
+                        locator: .file(
+                            bookmark: snapshot.bookmark,
+                            relativePath: file.relativePath
+                        ),
+                        sizeInBytes: file.sizeInBytes,
+                        modifiedAt: file.modifiedAt,
+                        fileExtension: file.fileExtension
+                    ),
+                    to: folderID
+                )
+            }
+
+            importedDirectories.append(ImportedDirectory(
+                rootFolderID: rootFolder.id,
+                sourceIdentity: snapshot.sourceIdentity,
+                bookmark: snapshot.bookmark
+            ))
+            return rootFolder
         }
 
         public func nextReference(after referenceID: UUID) -> MediaReference? {
