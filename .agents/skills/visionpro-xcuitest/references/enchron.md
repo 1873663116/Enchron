@@ -34,6 +34,12 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 `Scripts/verification/playback_mode_matrix.py` 是按上述通道分工实现的播放模式矩阵 runner（cell = clip × path × rep，每 cell 独立 ensure-session，verdict 落 results.jsonl）；跑覆盖矩阵先用它，别重写轮询逻辑。
 
+每 cell 一次 ensure-session 只在整轮矩阵独占设备时成立。新 runner 落地时旧 runner 仍常驻，两者争用设备：新 cell 的 runner 停在 `Writing result bundle`，从不开始自己的测试，而旧 runner 照常应答 preamble 和 tap，于是 cell 看起来打开成功随后挂起，报出产品并未造成的 settle 超时。判别签名是该 cell 的 `controller/runner.log` 没有任何 `t = …s` 行，而同一 cell 的命令全部返回成功。
+
+因此**一次调查只能有一个常驻 runner**。宽度优先的扫描（同一路径跑很多片源）用 `Scripts/verification/playback_open_sweep.py`：它只建立一次会话且从不重建，每片源按 relaunch、resetState、push、importMedia、tap 顺序驱动，实测合计 13 秒。判据先读诊断串（约 2 秒往返），只有诊断串连续数次读不到（沉浸落地的签名）才去取探针文件；把容器拷贝放在每次轮询开头，会让单次迭代吃掉整个 settle 期限。
+
+`devicectl` 的 `appDataContainer` 拷贝在目标 App 未运行时不会失败而是长时间挂起，因此拷贝超时不等于 App 崩溃；App 是否存活用 `process launch --console` 判断，`device info processes` 列的是可执行文件路径（`Enchron`），不是 bundle id。
+
 ## 测试媒体
 
 `TestMedia` 中分辨率足够的 180° 片源部分是成人内容。层级与诊断状态足以回答绝大多数问题，只有当结论确实取决于像素时才截图。需要目视确认时，先与佩戴者确认使用哪个片源。
