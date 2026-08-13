@@ -18,12 +18,11 @@ $(SRCROOT)/Modules/DesignSystem/DesignTokens.swift
 $(SRCROOT)/Modules/DesignSystem/View+EnchronGlass.swift
 $(SRCROOT)/Modules/DesignSystem/View+Platform.swift
 $(SRCROOT)/Modules/DesignSystem/View+PressFeedback.swift
-$(SRCROOT)/Modules/Emby/EmbyAsyncPosterImage.swift
 $(SRCROOT)/Modules/Emby/EmbyClient.swift
 $(SRCROOT)/Modules/Emby/EmbyClientProtocol.swift
 $(SRCROOT)/Modules/Emby/EmbyModels.swift
 $(SRCROOT)/Modules/Emby/EmbyPlaybackBridge.swift
-$(SRCROOT)/Modules/Emby/EmbyPosterComponents.swift
+$(SRCROOT)/Modules/Emby/EmbyPosterShelf.swift
 $(SRCROOT)/Modules/Emby/EmbyScreenViewModels.swift
 $(SRCROOT)/Modules/Emby/EmbyScreens.swift
 $(SRCROOT)/Modules/Emby/EmbyServerStore.swift

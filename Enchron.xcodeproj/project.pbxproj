@@ -18,6 +18,7 @@
 		D00000320000000000D0A1A1 /* MediaLibrary in Frameworks */ = {isa = PBXBuildFile; productRef = D00000220000000000D0A1A1 /* MediaLibrary */; };
 		D00000330000000000D0A1A1 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = D00000230000000000D0A1A1 /* PlaybackFeature */; };
 		D00000340000000000D0A1A1 /* PlaybackCore in Frameworks */ = {isa = PBXBuildFile; productRef = D00000240000000000D0A1A1 /* PlaybackCore */; };
+		D00000350000000000D0A1A1 /* DesignSystem in Frameworks */ = {isa = PBXBuildFile; productRef = D00000250000000000D0A1A1 /* DesignSystem */; };
 		E10000052FA1000100E1C001 /* MediaSource in Frameworks */ = {isa = PBXBuildFile; productRef = E10000022FA1000100E1C001 /* MediaSource */; };
 		E10000062FA1000100E1C001 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = E10000032FA1000100E1C001 /* PlaybackFeature */; };
 		E10000072FA1000100E1C001 /* PlaybackPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = E10000042FA1000100E1C001 /* PlaybackPresentation */; };
@@ -128,12 +129,11 @@
 				"DesignSystem/View+EnchronGlass.swift",
 				"DesignSystem/View+Platform.swift",
 				"DesignSystem/View+PressFeedback.swift",
-				Emby/EmbyAsyncPosterImage.swift,
 				Emby/EmbyClient.swift,
 				Emby/EmbyClientProtocol.swift,
 				Emby/EmbyModels.swift,
 				Emby/EmbyPlaybackBridge.swift,
-				Emby/EmbyPosterComponents.swift,
+				Emby/EmbyPosterShelf.swift,
 				Emby/EmbyScreens.swift,
 				Emby/EmbyScreenViewModels.swift,
 				Emby/EmbyServerStore.swift,
@@ -293,6 +293,7 @@
 				D00000320000000000D0A1A1 /* MediaLibrary in Frameworks */,
 				D00000330000000000D0A1A1 /* PlaybackFeature in Frameworks */,
 				D00000340000000000D0A1A1 /* PlaybackCore in Frameworks */,
+				D00000350000000000D0A1A1 /* DesignSystem in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -451,6 +452,7 @@
 				D00000220000000000D0A1A1 /* MediaLibrary */,
 				D00000230000000000D0A1A1 /* PlaybackFeature */,
 				D00000240000000000D0A1A1 /* PlaybackCore */,
+				D00000250000000000D0A1A1 /* DesignSystem */,
 			);
 			productName = EnchronDomainTests;
 			productReference = D00000020000000000D0A1A1 /* EnchronDomainTests.xctest */;
@@ -1247,6 +1249,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = B1C000012FD3000100C0FFEE /* XCLocalSwiftPackageReference "Packages/PlaybackCore" */;
 			productName = PlaybackCore;
+		};
+		D00000250000000000D0A1A1 /* DesignSystem */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
+			productName = DesignSystem;
 		};
 		E10000022FA1000100E1C001 /* MediaSource */ = {
 			isa = XCSwiftPackageProductDependency;

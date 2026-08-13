@@ -218,16 +218,10 @@ private struct EmbyHomeScreen: View {
                     .font(.largeTitle)
 
                 ForEach(viewModel.shelves) { shelf in
-                    EmbyPosterShelf(
-                        title: shelf.title,
-                        items: shelf.items.map(EmbyPosterItem.init),
-                        onSelect: { poster in
-                            if let item = shelf.items.first(where: { $0.metadata.id == poster.id }) {
-                                onSelect(item)
-                            }
+                    EmbyPosterShelf(title: shelf.title) {
+                        ForEach(shelf.items, id: \.metadata.id) { item in
+                            posterCard(item, session: session, onSelect: onSelect)
                         }
-                    ) { poster in
-                        EmbyAsyncPosterImage(url: posterURL(for: poster.id, in: shelf.items, session: session))
                     }
                 }
 
@@ -324,9 +318,7 @@ private struct EmbyPosterGrid: View {
                 spacing: DesignTokens.Card.gridSpacing
             ) {
                 ForEach(items, id: \.metadata.id) { item in
-                    EmbyPosterCard(item: EmbyPosterItem(item), action: { onSelect(item) }) {
-                        EmbyAsyncPosterImage(url: posterURL(for: item, session: session))
-                    }
+                    posterCard(item, session: session, onSelect: onSelect)
                 }
             }
             .padding(DesignTokens.Spacing.xxl)
@@ -383,7 +375,7 @@ private struct EmbyDetailScreen: View {
 
     private func hero(_ item: EmbyLibraryItem) -> some View {
         ZStack(alignment: .bottomLeading) {
-            EmbyAsyncImage(url: backdropURL(for: item, session: session))
+            AsyncArtworkImage(url: backdropURL(for: item, session: session))
                 .frame(maxWidth: .infinity)
                 .frame(height: 430)
                 .clipped()
@@ -397,7 +389,7 @@ private struct EmbyDetailScreen: View {
 
             Group {
                 if let logoURL = imageURL(for: item, type: .logo, session: session) {
-                    EmbyAsyncImage(url: logoURL, contentMode: .fit)
+                    AsyncArtworkImage(url: logoURL, contentMode: .fit)
                         .frame(width: 420, height: 150, alignment: .leading)
                 } else {
                     Text(item.metadata.name)
@@ -534,7 +526,7 @@ private struct EmbyDetailScreen: View {
 
     private func episodeRow(_ episode: EmbyEpisode) -> some View {
         HStack(alignment: .top, spacing: DesignTokens.Spacing.lg) {
-            EmbyAsyncImage(url: thumbURL(for: episode.metadata, session: session))
+            AsyncArtworkImage(url: thumbURL(for: episode.metadata, session: session))
                 .frame(width: 300, height: 169)
                 .clipped()
                 .clipShape(DesignTokens.ShapeToken.element)
@@ -582,16 +574,10 @@ private struct EmbyDetailScreen: View {
     @ViewBuilder
     private func posterShelf(title: String, items: [EmbyLibraryItem]) -> some View {
         if items.isEmpty == false {
-            EmbyPosterShelf(
-                title: title,
-                items: items.map(EmbyPosterItem.init),
-                onSelect: { poster in
-                    if let item = items.first(where: { $0.metadata.id == poster.id }) {
-                        onSelect(item)
-                    }
+            EmbyPosterShelf(title: title) {
+                ForEach(items, id: \.metadata.id) { item in
+                    posterCard(item, session: session, onSelect: onSelect)
                 }
-            ) { poster in
-                EmbyAsyncPosterImage(url: posterURL(for: poster.id, in: items, session: session))
             }
             .padding(.horizontal, DesignTokens.Spacing.xxl)
         }
@@ -606,7 +592,7 @@ private struct EmbyDetailScreen: View {
                     HStack(alignment: .top, spacing: DesignTokens.Spacing.xl) {
                         ForEach(Array(people.enumerated()), id: \.offset) { _, person in
                             VStack(spacing: DesignTokens.Spacing.sm) {
-                                EmbyAsyncImage(url: personURL(person, session: session))
+                                AsyncArtworkImage(url: personURL(person, session: session))
                                     .frame(width: 132, height: 132)
                                     .clipShape(Circle())
                                 Text(person.name)
@@ -654,34 +640,30 @@ private struct EmbyDetailScreen: View {
     }
 }
 
-private extension EmbyPosterItem {
-    init(_ item: EmbyLibraryItem) {
-        let metadata = item.metadata
-        let progress: Double?
-        if let position = metadata.userData?.playbackPositionTicks,
-           let duration = metadata.runTimeTicks,
-           duration > 0,
-           position > 0 {
-            progress = Double(position) / Double(duration)
-        } else {
-            progress = nil
-        }
-        self.init(
-            id: metadata.id,
-            title: metadata.name,
-            progress: progress,
-            unplayedCount: metadata.userData?.unplayedItemCount
-        )
-    }
-}
-
 @MainActor
-private func posterURL(
-    for id: EmbyItemID,
-    in items: [EmbyLibraryItem],
-    session: EmbySessionViewModel
-) -> URL? {
-    items.first(where: { $0.metadata.id == id }).flatMap { posterURL(for: $0, session: session) }
+private func posterCard(
+    _ item: EmbyLibraryItem,
+    session: EmbySessionViewModel,
+    onSelect: @escaping (EmbyLibraryItem) -> Void
+) -> GridCard {
+    let metadata = item.metadata
+    let watchedProgress: Double?
+    if let position = metadata.userData?.playbackPositionTicks,
+       let duration = metadata.runTimeTicks,
+       duration > 0,
+       position > 0 {
+        watchedProgress = Double(position) / Double(duration)
+    } else {
+        watchedProgress = nil
+    }
+    return GridCard.poster(
+        title: metadata.name,
+        artworkURL: posterURL(for: item, session: session),
+        watchedProgress: watchedProgress,
+        unplayedCount: metadata.userData?.unplayedItemCount,
+        accessibilityIdentifier: "Emby-PosterCard-\(metadata.id.rawValue)",
+        action: { onSelect(item) }
+    )
 }
 
 @MainActor

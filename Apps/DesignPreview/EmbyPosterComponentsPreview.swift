@@ -5,46 +5,14 @@ import SwiftUI
 struct EmbyPosterComponentsPreview: View {
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                    Text("Poster cards")
-                        .font(DesignTokens.Typography.title)
-
-                    HStack(alignment: .top, spacing: DesignTokens.Card.gridSpacing) {
-                        fixtureCard(label: "Normal", item: Fixtures.normal)
-                        fixtureCard(label: "In progress", item: Fixtures.inProgress)
-                        fixtureCard(label: "Unplayed", item: Fixtures.unplayed)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                    Text("Loading states")
-                        .font(DesignTokens.Typography.title)
-
-                    HStack(alignment: .top, spacing: DesignTokens.Card.gridSpacing) {
-                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                            Text("Skeleton")
-                                .font(DesignTokens.Typography.metadata)
-                                .foregroundStyle(.secondary)
-                            EmbyPosterSkeletonCard()
-                        }
-
-                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                            Text("Async image, nil URL")
-                                .font(DesignTokens.Typography.metadata)
-                                .foregroundStyle(.secondary)
-                            EmbyPosterCard(item: Fixtures.asyncPlaceholder) {
-                                EmbyAsyncPosterImage(url: nil)
-                            }
-                        }
-                    }
-                }
-
-                EmbyPosterShelf(
-                    title: "Twelve fixture posters",
-                    items: Fixtures.shelf
-                ) { item in
-                    EmbyPosterPlaceholder(title: item.title)
+            EmbyPosterShelf(title: "Twelve fixture posters") {
+                ForEach(Fixtures.shelf) { item in
+                    GridCard.poster(
+                        title: item.title,
+                        artworkURL: nil,
+                        watchedProgress: item.progress,
+                        unplayedCount: item.unplayedCount
+                    )
                 }
             }
             .padding(DesignTokens.Spacing.xxl)
@@ -52,29 +20,10 @@ struct EmbyPosterComponentsPreview: View {
         }
         .navigationTitle("Emby Components")
     }
-
-    private func fixtureCard(
-        label: String,
-        item: EmbyPosterItem
-    ) -> some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-            Text(label)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(.secondary)
-            EmbyPosterCard(item: item) {
-                EmbyPosterPlaceholder(title: item.title)
-            }
-        }
-    }
 }
 
 private enum Fixtures {
-    static let normal = item("arrival", "Arrival")
-    static let inProgress = item("dune", "Dune: Part Two", progress: 0.42)
-    static let unplayed = item("severance", "Severance", unplayedCount: 5)
-    static let asyncPlaceholder = item("async-placeholder", "Remote poster placeholder")
-
-    static let shelf: [EmbyPosterItem] = [
+    static let shelf: [PosterFixture] = [
         item("shelf-01", "Blade Runner 2049"),
         item("shelf-02", "The Grand Budapest Hotel"),
         item("shelf-03", "Spirited Away", progress: 0.18),
@@ -94,12 +43,19 @@ private enum Fixtures {
         _ title: String,
         progress: Double? = nil,
         unplayedCount: Int? = nil
-    ) -> EmbyPosterItem {
-        EmbyPosterItem(
-            id: EmbyItemID(rawValue: id),
+    ) -> PosterFixture {
+        PosterFixture(
+            id: id,
             title: title,
             progress: progress,
             unplayedCount: unplayedCount
         )
     }
+}
+
+private struct PosterFixture: Identifiable {
+    let id: String
+    let title: String
+    let progress: Double?
+    let unplayedCount: Int?
 }

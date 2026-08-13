@@ -83,7 +83,7 @@ let package = Package(
         ),
         .testTarget(
             name: "EmbyTests",
-            dependencies: ["Emby", "MediaSource", "PlaybackFeature"],
+            dependencies: ["Emby", "MediaSource", "PlaybackFeature", "DesignSystem"],
             path: "Tests/EmbyPackageTests",
             resources: [
                 .process("Fixtures"),
