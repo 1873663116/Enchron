@@ -128,11 +128,16 @@ def judge_open(name: str, cell: Path, session: Path) -> dict[str, object]:
             }
         if plane.get("transition") != "none":
             continue
-        if plane.get("presentation") == "window" and lifecycle in WINDOWED_STEADY_LIFECYCLES:
+        # Window and portal are the two presentations that keep the control
+        # plane readable, and portal is where a signalled panoramic source
+        # lands before anyone asks for panorama. Accepting only window timed
+        # out every spatial clip in the set.
+        presentation = plane.get("presentation")
+        if presentation in ("window", "portal") and lifecycle in WINDOWED_STEADY_LIFECYCLES:
             if plane.get("videoVisible") == "true":
                 return {
                     "verdict": "PASS",
-                    "landed": "window",
+                    "landed": presentation,
                     "seconds": round(time.monotonic() - started, 1),
                     "control_plane": format_facts(plane),
                 }
