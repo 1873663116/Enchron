@@ -35,8 +35,18 @@ enum SpatialPlatformImmersiveExitWindowRevealPolicy {
         sourceRendererIsReleased && targetSessionIsActivated
     }
 
-    static func shouldBeginVisualCutover(targetIsSettled: Bool) -> Bool {
-        targetIsSettled
+    static func shouldBeginVisualCutover(
+        transition: PlaybackPresentationTransition?,
+        surfacePresentation: PlaybackPresentation,
+        targetSurfacePixelIdentityIsCurrent: Bool
+    ) -> Bool {
+        guard let transition,
+              transition.previousPresentation.usesImmersiveSpace,
+              transition.targetPresentation.usesMainWindow,
+              transition.targetPresentation == surfacePresentation else {
+            return false
+        }
+        return targetSurfacePixelIdentityIsCurrent
     }
 
     static func shouldShowLastFrameBridge(
@@ -939,27 +949,6 @@ final class SpatialPlatformEffectCoordinator {
         guard await restoreTargetPlaybackIntentBeforeSettlement(execution) else {
             return
         }
-        if PortalPlaybackViewportRefreshPolicy.requiresRefresh(
-            for: windowTransition
-        ) {
-            let refreshRevision = portalPlaybackViewportRefreshState.request()
-            lastPlatformOperation = "portal-viewport-refresh-requested"
-            guard await waitUntilPortalPlaybackViewportRefreshApplied(
-                refreshRevision,
-                execution: execution
-            ) else {
-                guard executionIsLive(execution),
-                      setRuntimeError(
-                        "The Portal viewport could not apply its foreground refresh.",
-                        execution: execution
-                      ) else { return }
-                _ = await complete(
-                    execution,
-                    outcome: .failed(.windowPlaybackSurfaceUnavailable)
-                )
-                return
-            }
-        }
         guard let settled = await waitUntilPresentationSettled(
             to: presentation,
             execution: execution
@@ -983,14 +972,39 @@ final class SpatialPlatformEffectCoordinator {
             )
             return
         }
-        guard SpatialPlatformImmersiveExitWindowRevealPolicy
-            .shouldBeginVisualCutover(targetIsSettled: settled),
-              appModel.beginPresentationVisualCutover() else {
-            return
+        // The target surface normally starts the cutover itself the moment it
+        // proves its pixels carry the current identity, which is what makes the
+        // exit fast. Settlement here is the same proof arriving one round trip
+        // later, so when the surface did not get the chance — no further
+        // RealityView update, or the transition changed underneath it — this
+        // starts the cutover instead of leaving the transition uncommitted.
+        if appModel.presentationVisualCutoverMayBegin == false {
+            guard appModel.beginPresentationVisualCutover() else { return }
+            appModel.recordSurfaceInputProbe(
+                "portalVisualCutover source=settlementFallback animated=false"
+            )
         }
-        appModel.recordSurfaceInputProbe(
-            "portalVisualCutover targetSettled=true animated=false"
-        )
+        if PortalPlaybackViewportRefreshPolicy.requiresRefresh(
+            for: windowTransition
+        ) {
+            let refreshRevision = portalPlaybackViewportRefreshState.request()
+            lastPlatformOperation = "portal-viewport-refresh-requested"
+            guard await waitUntilPortalPlaybackViewportRefreshApplied(
+                refreshRevision,
+                execution: execution
+            ) else {
+                guard executionIsLive(execution),
+                      setRuntimeError(
+                        "The Portal viewport could not apply its foreground refresh.",
+                        execution: execution
+                      ) else { return }
+                _ = await complete(
+                    execution,
+                    outcome: .failed(.windowPlaybackSurfaceUnavailable)
+                )
+                return
+            }
+        }
         guard await orderWindowToFront(.main, execution: execution) else {
             lastPlatformOperation = "main-window-activation-failed"
             return

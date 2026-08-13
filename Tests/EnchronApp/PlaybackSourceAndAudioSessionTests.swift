@@ -530,7 +530,9 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             presentation: .docked,
             phase: .settled,
             entityID: "first-target-video-entity",
+            technicalSessionID: runtime.activeTechnicalSessionID,
             videoComponentRevision: runtime.videoComponentRevision,
+            streamEpoch: firstReplacementSession.debugSnapshot().streamEpoch,
             realityViewID: "first-target-reality-view",
             displayedPixelBuffer: true
         )
@@ -606,7 +608,9 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             presentation: .window,
             phase: .settled,
             entityID: "paused-target-video-entity",
+            technicalSessionID: runtime.activeTechnicalSessionID,
             videoComponentRevision: runtime.videoComponentRevision,
+            streamEpoch: pausedReplacementSession.debugSnapshot().streamEpoch,
             realityViewID: "paused-target-reality-view",
             displayedPixelBuffer: true
         )
@@ -721,7 +725,9 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             presentation: .docked,
             phase: .settled,
             entityID: "ended-target-video-entity",
+            technicalSessionID: runtime.activeTechnicalSessionID,
             videoComponentRevision: runtime.videoComponentRevision,
+            streamEpoch: replacementSession.debugSnapshot().streamEpoch,
             realityViewID: "ended-target-reality-view",
             displayedPixelBuffer: true
         )
@@ -863,7 +869,9 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
             presentation: .portal,
             phase: .settled,
             entityID: "late-end-target-video-entity",
+            technicalSessionID: runtime.activeTechnicalSessionID,
             videoComponentRevision: runtime.videoComponentRevision,
+            streamEpoch: replacementSession.debugSnapshot().streamEpoch,
             realityViewID: "late-end-target-reality-view",
             displayedPixelBuffer: true
         )

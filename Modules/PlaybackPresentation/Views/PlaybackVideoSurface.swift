@@ -810,11 +810,16 @@ struct PlaybackVideoSurface: View {
                     + "technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")"
                 )
             }
-            playbackRuntime.recordPresentationState(
+            let reportedTechnicalSessionID = playbackRuntime.activeTechnicalSessionID
+            let reportedVideoComponentRevision = playbackRuntime.videoComponentRevision
+            let reportedStreamEpoch = playbackRuntime.debugSnapshot()?.streamEpoch
+            let currentPixelIdentityWasAccepted = playbackRuntime.recordPresentationState(
                 presentation: presentation,
                 phase: presentationPhase,
                 entityID: entityID,
-                videoComponentRevision: playbackRuntime.videoComponentRevision,
+                technicalSessionID: reportedTechnicalSessionID,
+                videoComponentRevision: reportedVideoComponentRevision,
+                streamEpoch: reportedStreamEpoch,
                 realityViewID: realityViewID,
                 entityParentID: videoEntity.parent.map { String(describing: ObjectIdentifier($0)) },
                 desiredImmersiveViewingMode: desiredImmersiveViewingMode,
@@ -828,6 +833,20 @@ struct PlaybackVideoSurface: View {
                 },
                 displayedPixelBuffer: renderer.displayedPixelBuffer() != nil
             )
+            if SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
+                transition: appModel.presentationTransition,
+                surfacePresentation: presentation,
+                targetSurfacePixelIdentityIsCurrent: currentPixelIdentityWasAccepted
+            ), appModel.presentationVisualCutoverMayBegin == false,
+               appModel.beginPresentationVisualCutover() {
+                appModel.recordSurfaceInputProbe(
+                    "portalVisualCutover source=windowSurface"
+                        + " technicalSession=\(reportedTechnicalSessionID ?? "none")"
+                        + " videoComponentRevision=\(reportedVideoComponentRevision)"
+                        + " streamEpoch=\(reportedStreamEpoch.map(String.init) ?? "none")"
+                        + " animated=false"
+                )
+            }
             if presentation == .portal,
                validVisionLayoutViewportRefreshRevision > 0 {
                 onViewportRefreshApplied(

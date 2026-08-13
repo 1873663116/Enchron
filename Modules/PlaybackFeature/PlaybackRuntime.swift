@@ -8,6 +8,12 @@ import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 
+struct PlaybackPresentationSurfacePixelIdentity: Equatable {
+    let technicalSessionID: String?
+    let videoComponentRevision: UInt64
+    let streamEpoch: UInt64?
+}
+
 @MainActor
 @Observable
 public final class PlaybackRuntime: PlaybackRuntimeControlling {
@@ -1539,11 +1545,14 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
     }
 
+    @discardableResult
     func recordPresentationState(
         presentation: PlaybackPresentation,
         phase: PlaybackPresentationSettlementPhase,
         entityID: String,
+        technicalSessionID: String?,
         videoComponentRevision: UInt64,
+        streamEpoch: UInt64?,
         realityViewID: String,
         entityParentID: String? = nil,
         desiredImmersiveViewingMode: String? = nil,
@@ -1554,8 +1563,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         actualSpatialVideoMode: String? = nil,
         componentRenderingStatus: String? = nil,
         displayedPixelBuffer: Bool? = nil
-    ) {
-        guard let session else { return }
+    ) -> Bool {
+        guard let session else { return false }
+        let snapshot = session.debugSnapshot()
         let record = PresentationStateRecord(
             // Presentation observations describe the Entity owned by this
             // technical playback instance. The logical media identity remains
@@ -1580,12 +1590,30 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             transitionResult: .init(known: "succeeded")
         )
         let outputIsPresentable = phase == .settled && displayedPixelBuffer == true
+        let reportedPixelIdentity = PlaybackPresentationSurfacePixelIdentity(
+            technicalSessionID: technicalSessionID,
+            videoComponentRevision: videoComponentRevision,
+            streamEpoch: streamEpoch
+        )
+        let currentPixelIdentity = PlaybackPresentationSurfacePixelIdentity(
+            technicalSessionID: activeTechnicalSessionID,
+            videoComponentRevision: self.videoComponentRevision,
+            streamEpoch: snapshot.streamEpoch
+        )
+        let pixelIdentityIsCurrent = boundVideoComponentRevision
+            == reportedPixelIdentity.videoComponentRevision
+            && Self.presentationSurfacePixelIdentityIsCurrent(
+                record: record,
+                presentation: presentation,
+                reported: reportedPixelIdentity,
+                current: currentPixelIdentity,
+                lifecycle: productLifecycle
+            )
         if displayedPixelBuffer == true,
            rendererConsumerEntityID == entityID,
-           boundVideoComponentRevision == videoComponentRevision,
-           self.videoComponentRevision == videoComponentRevision {
+           pixelIdentityIsCurrent {
             rendererPixelVideoComponentRevision = videoComponentRevision
-            rendererPixelStreamEpoch = session.debugSnapshot().streamEpoch
+            rendererPixelStreamEpoch = streamEpoch
         }
         if outputIsPresentable {
             if presentationState != .videoVisible {
@@ -1593,8 +1621,34 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
             clearFailureIfPlaybackIsUsable()
         }
-        guard session.debugSnapshot().presentationState != record else { return }
-        session.recordPresentationState(record)
+        if snapshot.presentationState != record {
+            session.recordPresentationState(record)
+        }
+        return attachedPresentation == presentation
+            && rendererConsumerEntityID == entityID
+            && outputIsPresentable
+            && pixelIdentityIsCurrent
+    }
+
+    static func presentationSurfacePixelIdentityIsCurrent(
+        record: PresentationStateRecord,
+        presentation: PlaybackPresentation,
+        reported: PlaybackPresentationSurfacePixelIdentity,
+        current: PlaybackPresentationSurfacePixelIdentity,
+        lifecycle: ProductPlaybackLifecycle
+    ) -> Bool {
+        guard reported == current,
+              reported.technicalSessionID != nil,
+              reported.streamEpoch != nil,
+              record.mediaSessionID == reported.technicalSessionID else {
+            return false
+        }
+        return presentationTransitionCanCommit(
+            record: record,
+            presentation: presentation,
+            activeTechnicalSessionID: current.technicalSessionID,
+            lifecycle: lifecycle
+        )
     }
 
     private func clearVideoComponentBindingObservation(

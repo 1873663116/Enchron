@@ -85,13 +85,50 @@ struct PlaybackPresentationStateTests {
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
-                targetIsSettled: false
+                transition: nil,
+                surfacePresentation: .portal,
+                targetSurfacePixelIdentityIsCurrent: true
+            ) == false
+        )
+        let panoramaExit = PlaybackPresentationTransition(
+            previousPresentation: .panorama,
+            targetPresentation: .portal,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
+                transition: panoramaExit,
+                surfacePresentation: .portal,
+                targetSurfacePixelIdentityIsCurrent: false
             ) == false
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
-                targetIsSettled: true
+                transition: panoramaExit,
+                surfacePresentation: .portal,
+                targetSurfacePixelIdentityIsCurrent: true
             )
+        )
+        let dockedExit = PlaybackPresentationTransition(
+            previousPresentation: .docked,
+            targetPresentation: .window,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
+                transition: dockedExit,
+                surfacePresentation: .window,
+                targetSurfacePixelIdentityIsCurrent: true
+            )
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
+                transition: dockedExit,
+                surfacePresentation: .portal,
+                targetSurfacePixelIdentityIsCurrent: true
+            ) == false
         )
         #expect(
             SpatialPlatformImmersiveExitWindowRevealPolicy
@@ -849,6 +886,43 @@ struct PlaybackPresentationStateTests {
                 lifecycle: .ended
             )
         )
+    }
+
+    @Test("Window surface cutover requires the current technical session, component, and stream")
+    func windowSurfaceCutoverUsesExactPixelIdentity() {
+        let record = PresentationStateRecord(
+            mediaSessionID: "technical-session-b",
+            requestedMode: PlaybackPresentation.portal.rawValue,
+            phase: PlaybackPresentationSettlementPhase.settled.rawValue,
+            platform: "visionOS",
+            displayedPixelBuffer: true
+        )
+        func accepts(
+            technicalSessionID: String? = "technical-session-b",
+            componentRevision: UInt64 = 7,
+            streamEpoch: UInt64? = 11
+        ) -> Bool {
+            PlaybackRuntime.presentationSurfacePixelIdentityIsCurrent(
+                record: record,
+                presentation: .portal,
+                reported: PlaybackPresentationSurfacePixelIdentity(
+                    technicalSessionID: technicalSessionID,
+                    videoComponentRevision: componentRevision,
+                    streamEpoch: streamEpoch
+                ),
+                current: PlaybackPresentationSurfacePixelIdentity(
+                    technicalSessionID: "technical-session-b",
+                    videoComponentRevision: 7,
+                    streamEpoch: 11
+                ),
+                lifecycle: .playing
+            )
+        }
+
+        #expect(accepts())
+        #expect(accepts(technicalSessionID: "technical-session-a") == false)
+        #expect(accepts(componentRevision: 6) == false)
+        #expect(accepts(streamEpoch: 10) == false)
     }
 
     @Test("Portal-to-Panorama pixel-proof reveal is readiness gated and identity scoped")
