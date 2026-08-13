@@ -12,6 +12,7 @@ struct FilesScreen: View {
 
     /// 0 = grid, 1 = list (UC-FILE-34). View-mode is screen-local UI state.
     @State private var viewMode = 0
+    @State private var sidebarIsVisible = true
     @State private var sortKey: SortMenuKey = .name
     @State private var sortOrder: SortMenuOrder = .ascending
     @State private var sourceItems: [SidebarSourceItem] = []
@@ -82,9 +83,13 @@ struct FilesScreen: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar
+            if sidebarIsVisible {
+                sidebar
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
             contentArea
         }
+        .animation(DesignTokens.AnimationToken.controlsTransition, value: sidebarIsVisible)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
         .accessibilityElement(children: .contain)
@@ -500,6 +505,10 @@ struct FilesScreen: View {
                     text: Binding(get: { viewModel.searchText }, set: { viewModel.searchText = $0 }),
                     placeholder: "Search media...",
                     accessibilityIdentifier: "FileBrowsing-FilesScreen-search"
+                )
+                SidebarToggleButton(
+                    isVisible: $sidebarIsVisible,
+                    accessibilityIdentifier: "FileBrowsing-FilesScreen-sidebarToggle"
                 )
             }
         }

@@ -9,6 +9,7 @@ public struct EmbyScreen: View {
     @Environment(EmbyHomeViewModel.self) private var home
     @State private var destination: SidebarDestination = .home
     @State private var path: [EmbyLibraryItem] = []
+    @State private var sidebarIsVisible = true
 
     private let onPlay: PlayHandler
 
@@ -22,7 +23,10 @@ public struct EmbyScreen: View {
                 EmbyConnectionScreen()
             } else {
                 HStack(spacing: 0) {
-                    sidebar
+                    if sidebarIsVisible {
+                        sidebar
+                            .transition(.move(edge: .leading).combined(with: .opacity))
+                    }
                     NavigationStack(path: $path) {
                         destinationContent
                             .navigationDestination(for: EmbyLibraryItem.self) { item in
@@ -36,9 +40,18 @@ public struct EmbyScreen: View {
                                     onPlay: onPlay
                                 )
                             }
+                            .toolbar {
+                                ToolbarItem(placement: .topBarTrailing) {
+                                    SidebarToggleButton(
+                                        isVisible: $sidebarIsVisible,
+                                        accessibilityIdentifier: "Emby-Sidebar-Toggle"
+                                    )
+                                }
+                            }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
+                .animation(DesignTokens.AnimationToken.controlsTransition, value: sidebarIsVisible)
             }
         }
         .accessibilityElement(children: .contain)
@@ -81,13 +94,20 @@ public struct EmbyScreen: View {
 
             Spacer(minLength: DesignTokens.Spacing.xl)
 
-            Button(role: .destructive) {
+            Button {
                 Task { await session.signOut() }
             } label: {
                 Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    .font(DesignTokens.Typography.headline)
+                    .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, DesignTokens.SourceSidebar.rowPaddingH)
+                    .frame(height: DesignTokens.SourceSidebar.rowHeight)
             }
             .buttonStyle(.plain)
+            .enchronHoverContentShape(DesignTokens.SourceSidebar.rowShape)
+            .enchronHoverEffect(.highlight)
+            .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
             .accessibilityIdentifier("Emby-SignOut")
         }
         .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
@@ -351,13 +371,7 @@ private struct EmbyDetailScreen: View {
             if let item = viewModel.item {
                 LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
                     hero(item)
-                    metadataRow(item.metadata)
-                    overview(item.metadata)
-                    if case .movie = item {
-                        actionRow(item)
-                    }
                     seriesContent
-                    trailerShelf(item.metadata.remoteTrailers)
                     posterShelf(title: "Special Features", items: viewModel.specialFeatures)
                     posterShelf(title: "Related", items: viewModel.relatedItems)
                     castAndCrew(item.metadata.people)
@@ -373,72 +387,152 @@ private struct EmbyDetailScreen: View {
         .accessibilityIdentifier("Emby-Detail-\(viewModel.itemID.rawValue)")
     }
 
+    /// The hero fills the panel the way the Apple TV app does: artwork behind, every piece of
+    /// header content overlaid on it, scrim only where text sits.
     private func hero(_ item: EmbyLibraryItem) -> some View {
         ZStack(alignment: .bottomLeading) {
             AsyncArtworkImage(url: backdropURL(for: item, session: session))
                 .frame(maxWidth: .infinity)
-                .frame(height: 430)
+                .frame(height: DesignTokens.EmbyDetail.heroHeight)
                 .clipped()
                 .overlay {
                     LinearGradient(
-                        colors: [.clear, .black.opacity(0.78)],
-                        startPoint: .center,
+                        colors: [.clear, .black.opacity(0.35), .black.opacity(0.85)],
+                        startPoint: .top,
                         endPoint: .bottom
                     )
                 }
 
-            Group {
-                if let logoURL = imageURL(for: item, type: .logo, session: session) {
-                    AsyncArtworkImage(url: logoURL, contentMode: .fit)
-                        .frame(width: 420, height: 150, alignment: .leading)
-                } else {
-                    Text(item.metadata.name)
-                        .font(.largeTitle)
-                        .fontWeight(.bold)
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                titleArtwork(item)
+                genreLine(item)
+                overview(item.metadata)
+                technicalLine(item.metadata)
+                HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
+                    actionRow(item)
+                    Spacer(minLength: DesignTokens.Spacing.xl)
+                    creditSummary(item.metadata.people)
                 }
             }
             .padding(DesignTokens.Spacing.xxl)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(height: DesignTokens.EmbyDetail.heroHeight)
+    }
+
+    @ViewBuilder
+    private func titleArtwork(_ item: EmbyLibraryItem) -> some View {
+        if let logoURL = imageURL(for: item, type: .logo, session: session) {
+            AsyncArtworkImage(url: logoURL, contentMode: .fit)
+                .frame(
+                    maxWidth: DesignTokens.EmbyDetail.logoMaxWidth,
+                    maxHeight: DesignTokens.EmbyDetail.logoMaxHeight,
+                    alignment: .leading
+                )
+        } else {
+            Text(item.metadata.name)
+                .font(.system(size: 56, weight: .heavy, design: .default))
+                .lineLimit(2)
+                .minimumScaleFactor(0.6)
         }
     }
 
-    private func metadataRow(_ metadata: EmbyItemMetadata) -> some View {
-        HStack(spacing: DesignTokens.Spacing.lg) {
+    private func genreLine(_ item: EmbyLibraryItem) -> some View {
+        HStack(spacing: DesignTokens.Spacing.sm) {
+            Text(kindLabel(item))
+            ForEach(item.metadata.genres.prefix(3), id: \.self) { genre in
+                Text("·")
+                Text(genre)
+            }
+            if let rating = item.metadata.officialRating, rating.isEmpty == false {
+                Text(rating)
+                    .font(DesignTokens.Typography.badge)
+                    .padding(.horizontal, DesignTokens.Spacing.xs)
+                    .padding(.vertical, DesignTokens.Spacing.xxs)
+                    .overlay(
+                        DesignTokens.ShapeToken.element
+                            .stroke(.secondary, lineWidth: DesignTokens.Stroke.regular)
+                    )
+            }
+        }
+        .font(DesignTokens.Typography.headline)
+    }
+
+    private func technicalLine(_ metadata: EmbyItemMetadata) -> some View {
+        let badges = EmbyTechnicalBadges(source: selectedSource(metadata))
+        return HStack(spacing: DesignTokens.Spacing.md) {
             if let year = metadata.productionYear { Text(String(year)) }
             if let ticks = metadata.runTimeTicks { Text(runtime(ticks)) }
-            if let rating = metadata.officialRating { Text(rating) }
-            if let rating = metadata.communityRating { Text(String(format: "★ %.1f", rating)) }
-            if metadata.genres.isEmpty == false { Text(metadata.genres.joined(separator: " · ")) }
+            if let rating = metadata.communityRating {
+                Label(String(format: "%.1f", rating), systemImage: "star.fill")
+                    .labelStyle(.titleAndIcon)
+            }
+            ForEach(badges.labels, id: \.self) { label in
+                Text(label)
+                    .font(DesignTokens.Typography.badge)
+                    .padding(.horizontal, DesignTokens.Spacing.xs)
+                    .padding(.vertical, DesignTokens.Spacing.xxs)
+                    .enchronGlassBadge()
+            }
         }
+        .font(DesignTokens.Typography.metadata)
         .foregroundStyle(.secondary)
-        .padding(.horizontal, DesignTokens.Spacing.xxl)
+        .accessibilityIdentifier("Emby-Detail-TechnicalLine")
     }
 
     @ViewBuilder
     private func overview(_ metadata: EmbyItemMetadata) -> some View {
         if let overview = metadata.overview, overview.isEmpty == false {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text(overview)
                     .font(.body)
-                    .lineLimit(overviewIsExpanded ? nil : 4)
-                if overview.count > 280 {
-                    Button(overviewIsExpanded ? "Show Less" : "More") {
+                    .lineLimit(overviewIsExpanded ? nil : 2)
+                    .frame(maxWidth: DesignTokens.EmbyDetail.overviewMaxWidth, alignment: .leading)
+                if overview.count > 140 {
+                    Button(overviewIsExpanded ? "Less" : "More") {
                         overviewIsExpanded.toggle()
                     }
+                    .buttonStyle(.plain)
+                    .font(DesignTokens.Typography.metadata)
                     .accessibilityIdentifier("Emby-Detail-Overview-Expand")
                 }
             }
-            .padding(.horizontal, DesignTokens.Spacing.xxl)
         }
+    }
+
+    @ViewBuilder
+    private func creditSummary(_ people: [EmbyPerson]) -> some View {
+        let cast = people.filter { $0.type?.caseInsensitiveCompare("Actor") == .orderedSame }
+        let directors = people.filter { $0.type?.caseInsensitiveCompare("Director") == .orderedSame }
+        if cast.isEmpty == false || directors.isEmpty == false {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                if cast.isEmpty == false {
+                    creditLine("Starring", cast.prefix(3).map(\.name))
+                }
+                if directors.isEmpty == false {
+                    creditLine("Directed by", directors.prefix(2).map(\.name))
+                }
+            }
+            .frame(maxWidth: DesignTokens.EmbyDetail.creditMaxWidth, alignment: .leading)
+        }
+    }
+
+    private func creditLine(_ label: String, _ names: [String]) -> some View {
+        (Text(label).foregroundStyle(.secondary) + Text(" ") + Text(names.joined(separator: ", ")))
+            .font(DesignTokens.Typography.metadata)
+            .lineLimit(2)
     }
 
     private func actionRow(_ item: EmbyLibraryItem) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
             HStack(spacing: DesignTokens.Spacing.md) {
-                if (item.metadata.userData?.playbackPositionTicks ?? 0) > 0 {
-                    playButton("Resume", systemImage: "play.fill", action: .resume)
-                    playButton("Play from Beginning", systemImage: "backward.end.fill", action: .fromBeginning)
-                } else {
-                    playButton("Play", systemImage: "play.fill", action: .fromBeginning)
+                if isPlayable(item) {
+                    if (item.metadata.userData?.playbackPositionTicks ?? 0) > 0 {
+                        playButton("Resume", systemImage: "play.fill", action: .resume)
+                        playButton("Play from Beginning", systemImage: "backward.end.fill", action: .fromBeginning)
+                    } else {
+                        playButton("Play", systemImage: "play.fill", action: .fromBeginning)
+                    }
                 }
 
                 if item.metadata.mediaSources.count > 1 {
@@ -460,7 +554,28 @@ private struct EmbyDetailScreen: View {
                     .accessibilityIdentifier("Emby-Playback-Error")
             }
         }
-        .padding(.horizontal, DesignTokens.Spacing.xxl)
+    }
+
+    private func isPlayable(_ item: EmbyLibraryItem) -> Bool {
+        switch item {
+        case .movie, .episode: true
+        case .series, .season, .boxSet: false
+        }
+    }
+
+    private func kindLabel(_ item: EmbyLibraryItem) -> String {
+        switch item {
+        case .movie: "Movie"
+        case .series: "Series"
+        case .season: "Season"
+        case .episode: "Episode"
+        case .boxSet: "Collection"
+        }
+    }
+
+    private func selectedSource(_ metadata: EmbyItemMetadata) -> EmbyMediaSourceDescription? {
+        metadata.mediaSources.first { $0.id == viewModel.selectedMediaSourceID }
+            ?? metadata.mediaSources.first
     }
 
     private func playButton(
@@ -550,28 +665,6 @@ private struct EmbyDetailScreen: View {
     }
 
     @ViewBuilder
-    private func trailerShelf(_ trailers: [EmbyRemoteTrailer]) -> some View {
-        if trailers.isEmpty == false {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                Text("Trailers").font(DesignTokens.Typography.title)
-                ScrollView(.horizontal) {
-                    HStack(spacing: DesignTokens.Spacing.lg) {
-                        ForEach(trailers) { trailer in
-                            Link(destination: trailer.url) {
-                                Label(trailer.name, systemImage: "play.rectangle.fill")
-                                    .frame(width: 280, height: 150)
-                                    .background(.thinMaterial, in: DesignTokens.ShapeToken.element)
-                            }
-                            .accessibilityIdentifier("Emby-Trailer-\(trailer.id.absoluteString)")
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, DesignTokens.Spacing.xxl)
-        }
-    }
-
-    @ViewBuilder
     private func posterShelf(title: String, items: [EmbyLibraryItem]) -> some View {
         if items.isEmpty == false {
             EmbyPosterShelf(title: title) {
@@ -614,28 +707,45 @@ private struct EmbyDetailScreen: View {
     }
 
     private func about(_ metadata: EmbyItemMetadata) -> some View {
-        let source = metadata.mediaSources.first { $0.id == viewModel.selectedMediaSourceID }
-            ?? metadata.mediaSources.first
-        let audioLanguages = languages(in: source, kind: .audio)
-        let subtitleLanguages = languages(in: source, kind: .subtitle)
-        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+        let sections = EmbyAboutSections(metadata: metadata, source: selectedSource(metadata))
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
             Text("About").font(DesignTokens.Typography.title)
-            if let overview = metadata.overview { aboutRow("Overview", overview) }
-            if let year = metadata.productionYear { aboutRow("Release Year", String(year)) }
-            if let rating = metadata.officialRating { aboutRow("Rating", rating) }
-            if metadata.studios.isEmpty == false {
-                aboutRow("Studios", metadata.studios.map(\.name).joined(separator: ", "))
+
+            if let overview = metadata.overview, overview.isEmpty == false {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                    Text(metadata.name).font(DesignTokens.Typography.headline)
+                    Text(overview).foregroundStyle(.secondary)
+                }
+                .padding(DesignTokens.Spacing.lg)
+                .frame(maxWidth: DesignTokens.EmbyDetail.aboutCardWidth, alignment: .leading)
+                .background(.thinMaterial, in: DesignTokens.ShapeToken.element)
             }
-            if audioLanguages.isEmpty == false { aboutRow("Audio", audioLanguages) }
-            if subtitleLanguages.isEmpty == false { aboutRow("Subtitles", subtitleLanguages) }
+
+            HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
+                aboutColumn("Information", sections.information)
+                aboutColumn("Languages", sections.languages)
+                aboutColumn("Accessibility", sections.accessibility)
+            }
         }
-        .padding(DesignTokens.Spacing.xxl)
+        .padding(.horizontal, DesignTokens.Spacing.xxl)
+        .accessibilityIdentifier("Emby-Detail-About")
     }
 
-    private func aboutRow(_ label: String, _ value: String) -> some View {
-        HStack(alignment: .top) {
-            Text(label).foregroundStyle(.secondary).frame(width: 140, alignment: .leading)
-            Text(value)
+    @ViewBuilder
+    private func aboutColumn(_ title: String, _ entries: [EmbyAboutSections.Entry]) -> some View {
+        if entries.isEmpty == false {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                Text(title)
+                    .font(DesignTokens.Typography.sectionHeader)
+                    .foregroundStyle(.secondary)
+                ForEach(entries) { entry in
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                        Text(entry.label).font(DesignTokens.Typography.metadata).foregroundStyle(.secondary)
+                        Text(entry.value)
+                    }
+                }
+            }
+            .frame(maxWidth: DesignTokens.EmbyDetail.aboutColumnWidth, alignment: .leading)
         }
     }
 }
@@ -746,14 +856,4 @@ private func runtime(_ ticks: Int64) -> String {
 private func episodeLabel(_ episode: EmbyEpisode) -> String {
     let number = episode.episodeNumber.map { "Episode \($0)" } ?? "Episode"
     return "\(number) · \(episode.metadata.name)"
-}
-
-private func languages(
-    in source: EmbyMediaSourceDescription?,
-    kind: EmbyMediaStreamKind
-) -> String {
-    guard let source else { return "" }
-    return Array(Set(source.mediaStreams.filter { $0.kind == kind }.compactMap { stream in
-        stream.language ?? stream.displayTitle
-    })).sorted().joined(separator: ", ")
 }

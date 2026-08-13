@@ -176,7 +176,7 @@ struct EmbyClientTests {
                     "Type":"Actor",
                     "PrimaryImageTag":"person-tag"
                   }],
-                  "RemoteTrailers":[{"Name":"Trailer","Url":"https://example.test/trailer"}],
+                  "ProductionLocations":["Japan"],
                   "MediaSources":[{
                     "Id":"source-1",
                     "Name":"Director's Cut",
@@ -204,7 +204,7 @@ struct EmbyClientTests {
         #expect(metadata.genres == ["Drama", "Science Fiction"])
         #expect(metadata.studios.map(\.name) == ["Studio One"])
         #expect(metadata.people.first?.role == "Lead")
-        #expect(metadata.remoteTrailers.first?.url.absoluteString == "https://example.test/trailer")
+        #expect(metadata.productionLocations == ["Japan"])
         #expect(metadata.mediaSources.first?.displayName == "Director's Cut")
         #expect(metadata.mediaSources.first?.mediaStreams.map(\.language) == ["eng", "jpn"])
     }

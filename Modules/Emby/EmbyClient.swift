@@ -12,7 +12,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         "Genres",
         "Studios",
         "People",
-        "RemoteTrailers",
+        "ProductionLocations",
     ].joined(separator: ",")
 
     private let session: URLSession
@@ -506,7 +506,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 studio.name?.nonEmpty.map(EmbyStudio.init(name:))
             },
             people: (item.people ?? []).compactMap(mapPerson),
-            remoteTrailers: (item.remoteTrailers ?? []).compactMap(mapRemoteTrailer),
+            productionLocations: item.productionLocations ?? [],
             mediaSources: (item.mediaSources ?? []).compactMap(mapMediaSourceDescription)
         )
         switch type.lowercased() {
@@ -550,11 +550,6 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             type: person.type?.nonEmpty,
             primaryImageTag: person.primaryImageTag?.nonEmpty.map(EmbyImageTag.init(rawValue:))
         )
-    }
-
-    private func mapRemoteTrailer(_ trailer: RemoteTrailerDTO) -> EmbyRemoteTrailer? {
-        guard let value = trailer.url, let url = URL(string: value) else { return nil }
-        return EmbyRemoteTrailer(name: trailer.name?.nonEmpty ?? "Trailer", url: url)
     }
 
     private func mapMediaSourceDescription(
@@ -630,11 +625,17 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 kind: EmbyMediaStreamKind(rawValue: stream.type ?? "") ?? .unknown,
                 codec: stream.codec,
                 language: stream.language,
+                displayLanguage: stream.displayLanguage,
                 displayTitle: stream.displayTitle ?? stream.title,
                 channels: stream.channels,
+                channelLayout: stream.channelLayout,
+                width: stream.width,
+                height: stream.height,
+                videoRange: stream.videoRange,
                 isDefault: stream.isDefault ?? false,
                 isForced: stream.isForced ?? false,
                 isExternal: stream.isExternal ?? false,
+                isHearingImpaired: stream.isHearingImpaired ?? false,
                 deliveryURL: stream.deliveryUrl
             )
         }
@@ -887,7 +888,7 @@ private struct ItemDTO: Decodable {
     let genres: [String]?
     let studios: [StudioDTO]?
     let people: [PersonDTO]?
-    let remoteTrailers: [RemoteTrailerDTO]?
+    let productionLocations: [String]?
     let mediaSources: [MediaSourceDTO]?
 }
 
@@ -901,11 +902,6 @@ private struct PersonDTO: Decodable {
     let role: String?
     let type: String?
     let primaryImageTag: String?
-}
-
-private struct RemoteTrailerDTO: Decodable {
-    let name: String?
-    let url: String?
 }
 
 private struct UserDataDTO: Decodable {
@@ -956,12 +952,18 @@ private struct MediaStreamDTO: Decodable {
     let type: String?
     let codec: String?
     let language: String?
+    let displayLanguage: String?
     let displayTitle: String?
     let title: String?
     let channels: Int?
+    let channelLayout: String?
+    let width: Int?
+    let height: Int?
+    let videoRange: String?
     let isDefault: Bool?
     let isForced: Bool?
     let isExternal: Bool?
+    let isHearingImpaired: Bool?
     let deliveryUrl: String?
 }
 

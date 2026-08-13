@@ -206,18 +206,6 @@ public struct EmbyPerson: Equatable, Hashable, Sendable, Identifiable {
     }
 }
 
-public struct EmbyRemoteTrailer: Equatable, Hashable, Sendable, Identifiable {
-    public let name: String
-    public let url: URL
-
-    public var id: URL { url }
-
-    public init(name: String, url: URL) {
-        self.name = name
-        self.url = url
-    }
-}
-
 public struct EmbyMediaSourceDescription: Equatable, Hashable, Sendable, Identifiable {
     public let id: EmbyMediaSourceID
     public let displayName: String
@@ -252,7 +240,7 @@ public struct EmbyItemMetadata: Equatable, Hashable, Sendable {
     public let genres: [String]
     public let studios: [EmbyStudio]
     public let people: [EmbyPerson]
-    public let remoteTrailers: [EmbyRemoteTrailer]
+    public let productionLocations: [String]
     public let mediaSources: [EmbyMediaSourceDescription]
 
     public init(
@@ -270,7 +258,7 @@ public struct EmbyItemMetadata: Equatable, Hashable, Sendable {
         genres: [String] = [],
         studios: [EmbyStudio] = [],
         people: [EmbyPerson] = [],
-        remoteTrailers: [EmbyRemoteTrailer] = [],
+        productionLocations: [String] = [],
         mediaSources: [EmbyMediaSourceDescription] = []
     ) {
         self.id = id
@@ -287,7 +275,7 @@ public struct EmbyItemMetadata: Equatable, Hashable, Sendable {
         self.genres = genres
         self.studios = studios
         self.people = people
-        self.remoteTrailers = remoteTrailers
+        self.productionLocations = productionLocations
         self.mediaSources = mediaSources
     }
 }
@@ -483,11 +471,17 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
     public let kind: EmbyMediaStreamKind
     public let codec: String?
     public let language: String?
+    public let displayLanguage: String?
     public let displayTitle: String?
     public let channels: Int?
+    public let channelLayout: String?
+    public let width: Int?
+    public let height: Int?
+    public let videoRange: String?
     public let isDefault: Bool
     public let isForced: Bool
     public let isExternal: Bool
+    public let isHearingImpaired: Bool
     public let deliveryURL: String?
 
     public init(
@@ -495,22 +489,34 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
         kind: EmbyMediaStreamKind,
         codec: String?,
         language: String?,
+        displayLanguage: String? = nil,
         displayTitle: String?,
         channels: Int?,
+        channelLayout: String? = nil,
+        width: Int? = nil,
+        height: Int? = nil,
+        videoRange: String? = nil,
         isDefault: Bool,
         isForced: Bool,
         isExternal: Bool,
+        isHearingImpaired: Bool = false,
         deliveryURL: String?
     ) {
         self.index = index
         self.kind = kind
         self.codec = codec
         self.language = language
+        self.displayLanguage = displayLanguage
         self.displayTitle = displayTitle
         self.channels = channels
+        self.channelLayout = channelLayout
+        self.width = width
+        self.height = height
+        self.videoRange = videoRange
         self.isDefault = isDefault
         self.isForced = isForced
         self.isExternal = isExternal
+        self.isHearingImpaired = isHearingImpaired
         self.deliveryURL = deliveryURL
     }
 }

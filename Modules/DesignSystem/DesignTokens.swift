@@ -494,6 +494,18 @@ public enum DesignTokens {
         public static let successColor: Color = Theme.accent
     }
 
+    /// Layout for the media-server detail page, whose hero fills the panel behind its header
+    /// content rather than sitting above it.
+    public enum EmbyDetail {
+        public static let heroHeight: CGFloat = 620
+        public static let logoMaxWidth: CGFloat = 460
+        public static let logoMaxHeight: CGFloat = 160
+        public static let overviewMaxWidth: CGFloat = 720
+        public static let creditMaxWidth: CGFloat = 320
+        public static let aboutCardWidth: CGFloat = 520
+        public static let aboutColumnWidth: CGFloat = 360
+    }
+
     public enum SourceSidebar {
         /// Files page source sidebar glass panel width.
         public static let width: CGFloat = 224
