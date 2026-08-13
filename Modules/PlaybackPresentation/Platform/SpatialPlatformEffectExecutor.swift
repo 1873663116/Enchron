@@ -6,7 +6,6 @@ import PlaybackPresentation
 import SwiftUI
 import UIKit
 
-#if os(visionOS)
 @MainActor
 @Observable
 final class SpatialPlatformEffectCoordinator {
@@ -1682,4 +1681,3 @@ struct SpatialPlatformEffectExecutor: View {
             }
     }
 }
-#endif

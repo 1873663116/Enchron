@@ -412,7 +412,7 @@ import Testing
     let source = URL(fileURLWithPath: "/fixtures/fake.mov")
 
     let first = try await controller.open(source)
-    #expect(first.debugSnapshot().platform == "macOS")
+    #expect(first.debugSnapshot().platform == "visionOSSimulator")
     #expect(first.debugSnapshot().hardwareDisplayFacts == .notAvailable)
     do {
         _ = try await controller.open(source)
@@ -608,7 +608,7 @@ func controllerDebugRecorderModeControlsRealRecorderLifecycle(
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
-        platform: "macOS",
+        platform: "visionOSSimulator",
         attached: true
     )
     try controller.start()
@@ -654,7 +654,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     let failedSession = try await controller.open(source)
     failedSession.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
-        platform: "macOS",
+        platform: "visionOSSimulator",
         attached: true
     )
     try controller.start()
@@ -709,7 +709,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
-        platform: "macOS",
+        platform: "visionOSSimulator",
         attached: true
     )
     try controller.start()
@@ -794,7 +794,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
-        platform: "macOS",
+        platform: "visionOSSimulator",
         attached: true
     )
     try controller.start()
@@ -847,7 +847,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
-        platform: "macOS",
+        platform: "visionOSSimulator",
         attached: true
     )
     try controller.start()
@@ -905,7 +905,7 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     )
     session.recordPresentationBinding(
         realityViewIdentity: "testRealityView",
-        platform: "macOS",
+        platform: "visionOSSimulator",
         attached: true
     )
     try controller.start()
@@ -2179,12 +2179,12 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     session.recordRealityKitBinding(entityIdentity: "entity-b", active: true)
     session.recordPresentationBinding(
         realityViewIdentity: "view-a",
-        platform: "macOS",
+        platform: "visionOSSimulator",
         attached: true
     )
     session.recordPresentationBinding(
         realityViewIdentity: "view-b",
-        platform: "macOS",
+        platform: "visionOSSimulator",
         attached: true
     )
 
@@ -2319,7 +2319,7 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
         ),
         rendererSink: FakeRendererInputSink(automaticallyRunsRequests: false)
     )
-    let recorder = PlaybackDebugRecorder(session: session, platform: "macOS")
+    let recorder = PlaybackDebugRecorder(session: session, platform: "visionOSSimulator")
     defer {
         recorder.stop()
         session.close()

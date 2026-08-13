@@ -1622,11 +1622,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private var platformName: String {
-#if os(macOS)
-        "macOS"
-#else
         "visionOS"
-#endif
     }
 
     private static func observedFact(_ value: String?) -> ObservedStringFact {

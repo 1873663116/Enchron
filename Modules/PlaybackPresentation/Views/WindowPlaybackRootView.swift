@@ -182,9 +182,7 @@ struct WindowPlaybackRootView<
     VideoContent: View,
     TopChrome: View
 >: View {
-    #if os(visionOS)
     @State private var owningWindowScene: UIWindowScene?
-    #endif
     private let layout: WindowPlaybackLayout
     private let preferredInitialSize: CGSize?
     private let showsWindowChrome: Bool
@@ -225,7 +223,6 @@ struct WindowPlaybackRootView<
                 idealHeight: layout.defaultSize.height,
                 maxHeight: layout.maximumSize.height
             )
-            #if os(visionOS)
             .background {
                 WindowPlaybackSceneReader { windowScene in
                     guard owningWindowScene !== windowScene else { return }
@@ -240,7 +237,6 @@ struct WindowPlaybackRootView<
             .onDisappear {
                 restoreFreeformWindowGeometry(in: owningWindowScene)
             }
-            #endif
     }
 
     private var layeredContent: some View {
@@ -298,14 +294,10 @@ struct WindowPlaybackRootView<
                     Color.clear
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
-                        #if os(visionOS)
                         .gesture(
                             SpatialTapGesture()
                                 .onEnded { _ in onSurfaceTap() }
                         )
-                        #else
-                        .onTapGesture(perform: onSurfaceTap)
-                        #endif
                         .accessibilityAddTraits(.isButton)
                         .accessibilityLabel("Playback surface")
                         .accessibilityIdentifier("PlayerUI-window-playback-surface")
@@ -342,7 +334,6 @@ struct WindowPlaybackRootView<
         .allowsHitTesting(false)
     }
 
-    #if os(visionOS)
     private func updateWindowGeometry(in windowScene: UIWindowScene?) {
         guard let windowScene else { return }
         let preferences = UIWindowScene.GeometryPreferences.Vision(
@@ -367,10 +358,8 @@ struct WindowPlaybackRootView<
         )
         windowScene.requestGeometryUpdate(preferences)
     }
-    #endif
 }
 
-#if os(visionOS)
 private struct WindowPlaybackSceneReader: UIViewRepresentable {
     let onChange: @MainActor (UIWindowScene?) -> Void
 
@@ -414,4 +403,3 @@ private final class WindowPlaybackSceneReportingView: UIView {
         onChange(nextScene)
     }
 }
-#endif

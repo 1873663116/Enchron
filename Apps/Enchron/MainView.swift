@@ -3,7 +3,6 @@ import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
-import UIKit
 
 enum PlaybackSurfaceMountPolicy {
     static func shouldMount(showsWindowPlayback: Bool) -> Bool {
@@ -923,7 +922,6 @@ private struct PlaybackAutomationStateProbe: View {
     }
 }
 
-#if os(visionOS)
 enum SpatialPlaybackControlsScenePolicy {
     static func shouldHostControls(
         for presentation: PlaybackPresentation,
@@ -1244,4 +1242,3 @@ private func environmentAccessibilityValues(
         (environment.rawValue, effect?.rawValue ?? "none")
     }
 }
-#endif

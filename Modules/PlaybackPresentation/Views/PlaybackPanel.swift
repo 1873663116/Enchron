@@ -1118,8 +1118,7 @@ struct FusedPlayerPanel: View {
                     inactive: 0,
                     in: hoverRevealGroup,
                     forcedActive: isDragging || isProgressHovered,
-                    animation: DesignTokens.AnimationToken.selection,
-                    macUsesLocalHover: true
+                    animation: DesignTokens.AnimationToken.selection
                 )
                 .allowsHitTesting(false)
 
@@ -1174,8 +1173,7 @@ struct FusedPlayerPanel: View {
                     inactive: 0,
                     in: hoverRevealGroup,
                     forcedActive: isDragging || isProgressHovered,
-                    animation: DesignTokens.AnimationToken.selection,
-                    macUsesLocalHover: true
+                    animation: DesignTokens.AnimationToken.selection
                 )
             }
             .frame(width: overlayWidth, height: DesignTokens.ProgressBar.trackHeight)

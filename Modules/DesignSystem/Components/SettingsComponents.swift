@@ -211,11 +211,7 @@ public struct GlassCircleIconButton: View {
     private let iconExpansion: Bool?
 
     @Environment(\.accessibilityReduceMotion) private var accessibilityReduceMotion
-#if os(visionOS)
     @Environment(\.accessibilityPrefersCrossFadeTransitions) private var accessibilityPrefersCrossFadeTransitions
-#else
-    private var accessibilityPrefersCrossFadeTransitions: Bool { false }
-#endif
 
     // iconColor 锁死:按钮永远白色图标,不暴露给调用点(Label 默认即 .white)。
     // 原生 Button 负责唯一的激活与辅助功能语义;视觉 label 自己限定 hover 圆,
@@ -951,14 +947,12 @@ public struct ListGroupRowShell<Content: View>: View {
                 .enchronHoverOpacity(
                     active: 0,
                     inactive: 1,
-                    in: rowGroup(index, .followsGroup),
-                    macShowsActive: false
+                    in: rowGroup(index, .followsGroup)
                 )
                 .enchronHoverOpacity(
                     active: 0,
                     inactive: 1,
-                    in: rowGroup(index + 1, .followsGroup),
-                    macShowsActive: false
+                    in: rowGroup(index + 1, .followsGroup)
                 )
         }
     }

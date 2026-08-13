@@ -47,9 +47,7 @@ final class EnchronApplication {
     let playbackLauncher: PlaybackLaunchCoordinator
     let settingsViewModel: SettingsViewModel
     let thumbnailService: ThumbnailService
-    #if os(visionOS)
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
-    #endif
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
         let isUITesting = environment["ENCHRON_UI_TESTING"] == "1"
@@ -299,7 +297,6 @@ final class EnchronApplication {
         self.appModel = appModel
         self.playbackRuntime = playbackRuntime
         self.playbackVideoEntityStore = playbackVideoEntityStore
-        #if os(visionOS)
         let spatialPlatformEffectCoordinator = SpatialPlatformEffectCoordinator(
             appModel: appModel,
             playbackRuntime: playbackRuntime,
@@ -318,7 +315,6 @@ final class EnchronApplication {
         playbackRuntime.setSessionLifecycleHandler { [weak spatialPlatformEffectCoordinator] event in
             spatialPlatformEffectCoordinator?.playbackSessionLifecycleChanged(event)
         }
-        #endif
         fileBrowsingViewModel = browser
         mediaLibraryViewModel = mediaLibrary
         playbackLauncher = launcher
@@ -398,9 +394,7 @@ extension View {
         environment(application.appModel)
             .environment(application.playbackRuntime)
             .environment(application.playbackVideoEntityStore)
-            #if os(visionOS)
             .environment(application.spatialPlatformEffectCoordinator)
-            #endif
             .environment(application.fileBrowsingViewModel)
             .environment(application.mediaLibraryViewModel)
             .environment(application.playbackLauncher)
