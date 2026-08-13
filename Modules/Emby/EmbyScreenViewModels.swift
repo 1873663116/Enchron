@@ -205,14 +205,35 @@ public final class EmbySearchViewModel {
     }
 }
 
+/// What a detail page browses below its hero. Each Emby container kind reaches its contents
+/// differently, so the page has one state to switch on instead of several arrays whose empty
+/// combinations would be meaningless.
+public enum EmbyDetailChildren: Equatable, Sendable {
+    case none
+    case seasons(all: [EmbySeason], selected: EmbyItemID?, episodes: [EmbyEpisode])
+    case episodes([EmbyEpisode])
+    case collection([EmbyLibraryItem])
+
+    public var episodes: [EmbyEpisode] {
+        switch self {
+        case .seasons(_, _, let episodes): episodes
+        case .episodes(let episodes): episodes
+        case .none, .collection: []
+        }
+    }
+
+    var selectedSeasonID: EmbyItemID? {
+        guard case .seasons(_, let selected, _) = self else { return nil }
+        return selected
+    }
+}
+
 @MainActor
 @Observable
 public final class EmbyDetailViewModel {
     public let itemID: EmbyItemID
     public private(set) var item: EmbyLibraryItem?
-    public private(set) var seasons: [EmbySeason] = []
-    public private(set) var selectedSeasonID: EmbyItemID?
-    public private(set) var episodes: [EmbyEpisode] = []
+    public private(set) var children: EmbyDetailChildren = .none
     public private(set) var specialFeatures: [EmbyLibraryItem] = []
     public private(set) var relatedItems: [EmbyLibraryItem] = []
     public var selectedMediaSourceID: EmbyMediaSourceID?
@@ -247,38 +268,14 @@ public final class EmbyDetailViewModel {
                 on: server,
                 limit: 20
             ).items
-            var loadedSeasons: [EmbySeason] = []
-            if case .series = freshItem {
-                loadedSeasons = try await client.children(
-                    of: freshItem,
-                    on: server,
-                    query: EmbyItemQuery(
-                        sortBy: [.sortName],
-                        sortOrder: .ascending,
-                        recursive: false
-                    )
-                ).items.compactMap { child in
-                    guard case .season(let season) = child else { return nil }
-                    return season
-                }
-            }
+            let loadedChildren = try await loadChildren(of: freshItem, on: server)
             item = freshItem
             specialFeatures = features
             relatedItems = related
-            seasons = loadedSeasons
+            children = loadedChildren
             let availableSources = freshItem.metadata.mediaSources
             if availableSources.contains(where: { $0.id == selectedMediaSourceID }) == false {
                 selectedMediaSourceID = availableSources.first?.id
-            }
-            if let selected = selectedSeasonID,
-               loadedSeasons.contains(where: { $0.metadata.id == selected }) {
-                await loadSeason(selected)
-            } else if let first = loadedSeasons.first {
-                selectedSeasonID = first.metadata.id
-                await loadSeason(first.metadata.id)
-            } else {
-                selectedSeasonID = nil
-                episodes = []
             }
             errorMessage = nil
         } catch {
@@ -289,9 +286,22 @@ public final class EmbyDetailViewModel {
     }
 
     public func selectSeason(_ seasonID: EmbyItemID) async {
-        guard selectedSeasonID != seasonID else { return }
-        selectedSeasonID = seasonID
-        await loadSeason(seasonID)
+        guard case .seasons(let all, let selected, _) = children,
+              selected != seasonID,
+              let season = all.first(where: { $0.metadata.id == seasonID }),
+              let server = session.server else { return }
+        children = .seasons(all: all, selected: seasonID, episodes: [])
+        do {
+            children = .seasons(
+                all: all,
+                selected: seasonID,
+                episodes: try await episodes(of: .season(season), on: server)
+            )
+        } catch {
+            if await session.handleRequestError(error) == false {
+                errorMessage = error.localizedDescription
+            }
+        }
     }
 
     public func playbackSelection(
@@ -310,42 +320,60 @@ public final class EmbyDetailViewModel {
             episode: episode,
             mediaSourceID: episode.metadata.mediaSources.first?.id,
             startAction: .resume,
-            seasonEpisodes: episodes
+            seasonEpisodes: children.episodes
         )
     }
 
-    private func loadSeason(_ seasonID: EmbyItemID) async {
-        guard let server = session.server,
-              let season = seasons.first(where: { $0.metadata.id == seasonID }) else {
-            episodes = []
-            return
-        }
-        do {
-            episodes = try await client.children(
-                of: .season(season),
-                on: server,
-                query: EmbyItemQuery(
-                    sortBy: [.sortName],
-                    sortOrder: .ascending,
-                    recursive: false
-                )
-            ).items.compactMap { child in
-                guard case .episode(let episode) = child else { return nil }
-                return episode
+    private func loadChildren(
+        of item: EmbyLibraryItem,
+        on server: EmbyAuthenticatedServer
+    ) async throws -> EmbyDetailChildren {
+        switch item {
+        case .movie, .episode:
+            return .none
+        case .series:
+            let seasons = try await childPage(of: item, on: server).items.compactMap(\.season)
+            guard let selected = seasons.first(where: { $0.metadata.id == children.selectedSeasonID })
+                ?? seasons.first else {
+                return .seasons(all: seasons, selected: nil, episodes: [])
             }
-        } catch {
-            episodes = []
-            if await session.handleRequestError(error) == false {
-                errorMessage = error.localizedDescription
-            }
+            return .seasons(
+                all: seasons,
+                selected: selected.metadata.id,
+                episodes: try await episodes(of: .season(selected), on: server)
+            )
+        case .season:
+            return .episodes(try await episodes(of: item, on: server))
+        case .boxSet:
+            return .collection(try await childPage(of: item, on: server).items)
         }
+    }
+
+    private func episodes(
+        of season: EmbyLibraryItem,
+        on server: EmbyAuthenticatedServer
+    ) async throws -> [EmbyEpisode] {
+        try await childPage(of: season, on: server).items.compactMap(\.episode)
+    }
+
+    private func childPage(
+        of parent: EmbyLibraryItem,
+        on server: EmbyAuthenticatedServer
+    ) async throws -> EmbyItemPage {
+        try await client.children(
+            of: parent,
+            on: server,
+            query: EmbyItemQuery(
+                sortBy: [.sortName],
+                sortOrder: .ascending,
+                recursive: false
+            )
+        )
     }
 
     private func clear() {
         item = nil
-        seasons = []
-        selectedSeasonID = nil
-        episodes = []
+        children = .none
         specialFeatures = []
         relatedItems = []
         selectedMediaSourceID = nil

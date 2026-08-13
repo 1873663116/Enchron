@@ -71,6 +71,8 @@ public struct EmbyAboutSections: Equatable, Sendable {
         public var id: String { label + value }
     }
 
+    /// Genres are not here: the About block prints them under the title, the way the Apple TV app
+    /// does, so repeating them as an Information row would say the same thing twice.
     public let information: [Entry]
     public let languages: [Entry]
     public let accessibility: [Entry]
@@ -82,9 +84,6 @@ public struct EmbyAboutSections: Equatable, Sendable {
         }
         if let rating = metadata.officialRating, rating.isEmpty == false {
             information.append(Entry(label: "Rated", value: rating))
-        }
-        if metadata.genres.isEmpty == false {
-            information.append(Entry(label: "Genres", value: metadata.genres.joined(separator: ", ")))
         }
         if metadata.studios.isEmpty == false {
             information.append(

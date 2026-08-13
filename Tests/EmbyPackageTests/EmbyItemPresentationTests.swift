@@ -40,7 +40,7 @@ struct EmbyItemPresentationTests {
         ]
         let sections = EmbyAboutSections(metadata: metadata(), source: source(streams: streams))
 
-        #expect(sections.information.map(\.label) == ["Released", "Rated", "Genres", "Studios", "Region"])
+        #expect(sections.information.map(\.label) == ["Released", "Rated", "Studios", "Region"])
         #expect(sections.information.first?.value == "2025")
         #expect(sections.languages.map(\.label) == ["Original Audio", "Audio", "Subtitles"])
         #expect(sections.languages[0].value == "Japanese")

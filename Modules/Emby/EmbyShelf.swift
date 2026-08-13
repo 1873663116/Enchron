@@ -1,12 +1,14 @@
 import DesignSystem
 import SwiftUI
 
-public struct EmbyPosterShelf<Content: View>: View {
-    private let title: String
+/// One horizontally scrolling row of cards. The episode row carries its season control instead of
+/// a title, so the title is optional.
+public struct EmbyShelf<Content: View>: View {
+    private let title: String?
     private let content: Content
 
     public init(
-        title: String,
+        title: String?,
         @ViewBuilder content: () -> Content
     ) {
         self.title = title
@@ -15,8 +17,10 @@ public struct EmbyPosterShelf<Content: View>: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            Text(title)
-                .font(DesignTokens.Typography.title)
+            if let title {
+                Text(title)
+                    .font(DesignTokens.Typography.title)
+            }
 
             ScrollView(.horizontal) {
                 LazyHStack(alignment: .top, spacing: DesignTokens.Card.gridSpacing) {
@@ -27,6 +31,6 @@ public struct EmbyPosterShelf<Content: View>: View {
             .scrollIndicators(.hidden)
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(title)
+        .accessibilityLabel(title ?? "Shelf")
     }
 }

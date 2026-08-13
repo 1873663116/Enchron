@@ -415,6 +415,9 @@ public enum DesignTokens {
         public static let paddingV: CGFloat = 14
         /// Adaptive grid minimum card width
         public static let gridMin: CGFloat = 224
+        /// Square episode card width. The still fills the card and the caption sits on top of it,
+        /// so the caption needs the height a 16:9 frame would not give it.
+        public static let episodeWidth: CGFloat = 400
         /// Thumbnail height for grid cards
         public static let thumbnailHeight: CGFloat = 140
         /// Grid inter-item spacing
@@ -503,7 +506,6 @@ public enum DesignTokens {
         public static let overviewMaxWidth: CGFloat = 720
         public static let creditMaxWidth: CGFloat = 320
         public static let aboutCardWidth: CGFloat = 520
-        public static let aboutColumnWidth: CGFloat = 360
     }
 
     public enum SourceSidebar {

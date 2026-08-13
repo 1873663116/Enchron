@@ -6,12 +6,39 @@ public struct GridCard: View {
         case video(fileSize: String, duration: String, badges: [String], watchedProgress: Double?)
         case folder(count: Int)
         case poster(PosterState)
+        case episode(EpisodeState)
     }
 
     public enum SkeletonVariant {
         case video
         case folder
         case poster
+        case episode
+    }
+
+    struct EpisodeState {
+        let artworkURL: URL?
+        let numberLabel: String?
+        let overview: String?
+        let duration: String?
+        let watchedProgress: Double?
+
+        init(
+            artworkURL: URL?,
+            numberLabel: String?,
+            overview: String?,
+            duration: String?,
+            watchedProgress: Double?
+        ) {
+            self.artworkURL = artworkURL
+            self.numberLabel = numberLabel
+            self.overview = overview
+            self.duration = duration
+            self.watchedProgress = watchedProgress.flatMap { progress in
+                guard progress.isFinite else { return nil }
+                return min(max(progress, 0), 1)
+            }
+        }
     }
 
     struct PosterState {
@@ -139,6 +166,36 @@ public struct GridCard: View {
         )
     }
 
+    /// The still fills the whole card and the caption sits on top of it, the way the Apple TV app
+    /// lays out an episode. Nothing hangs below the artwork.
+    public static func episode(
+        title: String,
+        numberLabel: String? = nil,
+        overview: String? = nil,
+        duration: String? = nil,
+        artworkURL: URL?,
+        watchedProgress: Double? = nil,
+        accessibilityIdentifier: String? = nil,
+        action: (() -> Void)? = nil
+    ) -> GridCard {
+        GridCard(
+            title: title,
+            variant: .episode(
+                EpisodeState(
+                    artworkURL: artworkURL,
+                    numberLabel: numberLabel,
+                    overview: overview,
+                    duration: duration,
+                    watchedProgress: watchedProgress
+                )
+            ),
+            identifier: accessibilityIdentifier,
+            selectionEnabled: false,
+            isSelected: false,
+            action: action
+        )
+    }
+
     public static func skeleton(_ variant: SkeletonVariant) -> GridCard {
         let cardVariant: Variant = switch variant {
         case .video:
@@ -147,6 +204,14 @@ public struct GridCard: View {
             .folder(count: 0)
         case .poster:
             .poster(PosterState(artworkURL: nil, watchedProgress: nil, unplayedCount: nil))
+        case .episode:
+            .episode(EpisodeState(
+                artworkURL: nil,
+                numberLabel: "Episode 1",
+                overview: "Placeholder episode overview text.",
+                duration: "30 min",
+                watchedProgress: nil
+            ))
         }
         return GridCard(
             title: "Placeholder card title",
@@ -166,6 +231,7 @@ public struct GridCard: View {
         case .video: return "video"
         case .folder: return "folder"
         case .poster: return "poster"
+        case .episode: return "episode"
         }
     }
 
@@ -241,13 +307,15 @@ public struct GridCard: View {
                         }
                     }
 
-                Text(title)
-                    .font(DesignTokens.Typography.headline)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22, alignment: .leading)
-                    .padding(.horizontal, DesignTokens.Card.paddingH)
-                    .padding(.vertical, DesignTokens.Card.paddingV)
+                if showsCaptionBelowThumbnail {
+                    Text(title)
+                        .font(DesignTokens.Typography.headline)
+                        .lineLimit(1)
+                        .truncationMode(.tail)
+                        .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22, alignment: .leading)
+                        .padding(.horizontal, DesignTokens.Card.paddingH)
+                        .padding(.vertical, DesignTokens.Card.paddingV)
+                }
             }
 
             if selectionEnabled && isSelected {
@@ -258,7 +326,7 @@ public struct GridCard: View {
                 .allowsHitTesting(false)
             }
         }
-        .frame(width: DesignTokens.Card.gridMin)
+        .frame(width: cardWidth)
         .contentShape(shape)
         .background {
             if selectionEnabled && isSelected {
@@ -268,12 +336,30 @@ public struct GridCard: View {
         .animation(DesignTokens.AnimationToken.selection, value: isSelected)
     }
 
+    private var cardWidth: CGFloat {
+        switch variant {
+        case .episode:
+            DesignTokens.Card.episodeWidth
+        case .video, .folder, .poster:
+            DesignTokens.Card.gridMin
+        }
+    }
+
     private var thumbnailHeight: CGFloat {
         switch variant {
         case .poster:
             DesignTokens.Card.gridMin * 3 / 2
+        case .episode:
+            DesignTokens.Card.episodeWidth
         case .video, .folder:
             DesignTokens.Card.thumbnailHeight
+        }
+    }
+
+    private var showsCaptionBelowThumbnail: Bool {
+        switch variant {
+        case .episode: false
+        case .video, .folder, .poster: true
         }
     }
 
@@ -352,8 +438,65 @@ public struct GridCard: View {
                             watchedEdgeProgressVisual(watchedProgress)
                         }
                     }
+            case let .episode(episode):
+                AsyncArtworkImage(url: episode.artworkURL)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .background(DesignTokens.Theme.surfaceContainerHighest)
+                    .overlay {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0.25),
+                                .init(color: .black.opacity(0.55), location: 0.5),
+                                .init(color: .black.opacity(0.9), location: 1)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        episodeCaption(episode)
+                    }
+                    .overlay {
+                        if let watchedProgress = episode.watchedProgress {
+                            watchedEdgeProgressVisual(watchedProgress)
+                        }
+                    }
             }
         }
+    }
+
+    private func episodeCaption(_ episode: EpisodeState) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+            if let numberLabel = episode.numberLabel {
+                Text(numberLabel)
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.Surface.supportingText)
+            }
+
+            Text(title)
+                .font(DesignTokens.Typography.headline)
+                .lineLimit(1)
+                .truncationMode(.tail)
+
+            if let overview = episode.overview {
+                Text(overview)
+                    .font(DesignTokens.Typography.metadata)
+                    .foregroundStyle(DesignTokens.Surface.supportingText)
+                    .lineLimit(4)
+            }
+
+            if let duration = episode.duration {
+                Label(duration, systemImage: "play.fill")
+                    .labelStyle(.titleAndIcon)
+                    .font(DesignTokens.Typography.metadata)
+                    .padding(.top, DesignTokens.Spacing.xxs)
+            }
+        }
+        .multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(DesignTokens.Spacing.md)
+        .allowsHitTesting(false)
     }
 
     private func videoThumbnailInfo(fileSize: String, duration: String, badges: [String]) -> some View {
@@ -495,6 +638,25 @@ private struct GridCardFamilyPreview: View {
                         unplayedCount: 5
                     )
                     GridCard.skeleton(.poster)
+                }
+
+                previewRow("Episode") {
+                    GridCard.episode(
+                        title: "Pilot",
+                        numberLabel: "Episode 1",
+                        overview: "American football coach Ted Lasso is hired to coach a wealthy divorcée's English soccer team, AFC Richmond.",
+                        duration: "30 min",
+                        artworkURL: nil
+                    )
+                    GridCard.episode(
+                        title: "Biscuits",
+                        numberLabel: "Episode 2",
+                        overview: "It's Ted's first day of coaching, and fans aren't happy. He makes little headway but remains undeterred as the team play their first match.",
+                        duration: "29 min",
+                        artworkURL: nil,
+                        watchedProgress: 0.62
+                    )
+                    GridCard.skeleton(.episode)
                 }
             }
             .padding(DesignTokens.Spacing.xl)

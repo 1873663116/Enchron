@@ -123,7 +123,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         case .season:
             itemTypes = "Episode"
         case .boxSet:
-            itemTypes = "Movie"
+            itemTypes = "Movie,Series,BoxSet"
         case .movie, .episode:
             throw EmbyError.childrenUnavailable(parent.metadata.id)
         }

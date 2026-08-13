@@ -5,7 +5,7 @@ import SwiftUI
 struct EmbyPosterComponentsPreview: View {
     var body: some View {
         ScrollView {
-            EmbyPosterShelf(title: "Twelve fixture posters") {
+            EmbyShelf(title: "Twelve fixture posters") {
                 ForEach(Fixtures.shelf) { item in
                     GridCard.poster(
                         title: item.title,

@@ -354,6 +354,16 @@ public enum EmbyLibraryItem: Equatable, Hashable, Sendable {
         case .boxSet(let item): item.metadata
         }
     }
+
+    public var season: EmbySeason? {
+        guard case .season(let season) = self else { return nil }
+        return season
+    }
+
+    public var episode: EmbyEpisode? {
+        guard case .episode(let episode) = self else { return nil }
+        return episode
+    }
 }
 
 public struct EmbyLibraryView: Equatable, Hashable, Sendable {

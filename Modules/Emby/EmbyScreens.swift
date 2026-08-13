@@ -238,7 +238,7 @@ private struct EmbyHomeScreen: View {
                     .font(.largeTitle)
 
                 ForEach(viewModel.shelves) { shelf in
-                    EmbyPosterShelf(title: shelf.title) {
+                    EmbyShelf(title: shelf.title) {
                         ForEach(shelf.items, id: \.metadata.id) { item in
                             posterCard(item, session: session, onSelect: onSelect)
                         }
@@ -371,7 +371,7 @@ private struct EmbyDetailScreen: View {
             if let item = viewModel.item {
                 LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
                     hero(item)
-                    seriesContent
+                    childrenContent
                     posterShelf(title: "Special Features", items: viewModel.specialFeatures)
                     posterShelf(title: "Related", items: viewModel.relatedItems)
                     castAndCrew(item.metadata.people)
@@ -486,7 +486,7 @@ private struct EmbyDetailScreen: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 Text(overview)
                     .font(.body)
-                    .lineLimit(overviewIsExpanded ? nil : 2)
+                    .lineLimit(overviewIsExpanded ? nil : 3)
                     .frame(maxWidth: DesignTokens.EmbyDetail.overviewMaxWidth, alignment: .leading)
                 if overview.count > 140 {
                     Button(overviewIsExpanded ? "Less" : "More") {
@@ -600,74 +600,93 @@ private struct EmbyDetailScreen: View {
     }
 
     @ViewBuilder
-    private var seriesContent: some View {
-        if viewModel.seasons.isEmpty == false {
+    private var childrenContent: some View {
+        switch viewModel.children {
+        case .none:
+            EmptyView()
+        case let .seasons(all, selected, episodes):
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                ScrollView(.horizontal) {
-                    HStack {
-                        ForEach(viewModel.seasons, id: \.metadata.id) { season in
-                            Button(season.metadata.name) {
-                                Task { await viewModel.selectSeason(season.metadata.id) }
-                            }
-                            .buttonStyle(.bordered)
-                            .fontWeight(viewModel.selectedSeasonID == season.metadata.id ? .bold : .regular)
-                            .accessibilityIdentifier("Emby-Season-\(season.metadata.id.rawValue)")
-                        }
-                    }
+                if all.count > 1 {
+                    seasonTabs(all, selected: selected)
                 }
-
-                LazyVStack(spacing: DesignTokens.Spacing.lg) {
-                    ForEach(viewModel.episodes, id: \.metadata.id) { episode in
-                        Button {
-                            Task {
-                                do {
-                                    try await onPlay(viewModel.playbackSelection(for: episode))
-                                    playbackError = nil
-                                } catch {
-                                    playbackError = error.localizedDescription
-                                }
-                            }
-                        } label: {
-                            episodeRow(episode)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityIdentifier("Emby-Episode-\(episode.metadata.id.rawValue)")
-                    }
-                }
+                episodeShelf(episodes, title: all.count > 1 ? nil : "Episodes")
             }
             .padding(.horizontal, DesignTokens.Spacing.xxl)
+        case let .episodes(episodes):
+            episodeShelf(episodes, title: "Episodes")
+                .padding(.horizontal, DesignTokens.Spacing.xxl)
+        case let .collection(members):
+            posterShelf(title: "In This Collection", items: members)
         }
     }
 
-    private func episodeRow(_ episode: EmbyEpisode) -> some View {
-        HStack(alignment: .top, spacing: DesignTokens.Spacing.lg) {
-            AsyncArtworkImage(url: thumbURL(for: episode.metadata, session: session))
-                .frame(width: 300, height: 169)
-                .clipped()
-                .clipShape(DesignTokens.ShapeToken.element)
-
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                Text(episodeLabel(episode))
-                    .font(DesignTokens.Typography.headline)
-                if let overview = episode.metadata.overview {
-                    Text(overview)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(3)
-                }
-                if let ticks = episode.metadata.runTimeTicks {
-                    Text(runtime(ticks))
-                        .foregroundStyle(.tertiary)
+    private func seasonTabs(_ seasons: [EmbySeason], selected: EmbyItemID?) -> some View {
+        ScrollView(.horizontal) {
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                ForEach(seasons, id: \.metadata.id) { season in
+                    let isSelected = selected == season.metadata.id
+                    Button {
+                        Task { await viewModel.selectSeason(season.metadata.id) }
+                    } label: {
+                        Text(season.metadata.name)
+                            .font(DesignTokens.Typography.headline)
+                            .foregroundStyle(isSelected ? .primary : .secondary)
+                            .padding(.horizontal, DesignTokens.Spacing.md)
+                            .frame(height: DesignTokens.Interactive.regular)
+                            .background(
+                                isSelected ? DesignTokens.Surface.selected : .clear,
+                                in: Capsule()
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .enchronHoverContentShape(Capsule())
+                    .enchronHoverEffect(.highlight)
+                    .accessibilityIdentifier("Emby-Season-\(season.metadata.id.rawValue)")
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
             }
-            Spacer()
         }
-        .contentShape(Rectangle())
+        .scrollIndicators(.hidden)
+    }
+
+    @ViewBuilder
+    private func episodeShelf(_ episodes: [EmbyEpisode], title: String?) -> some View {
+        if episodes.isEmpty == false {
+            EmbyShelf(title: title) {
+                ForEach(episodes, id: \.metadata.id) { episode in
+                    episodeCard(episode)
+                }
+            }
+        }
+    }
+
+    private func episodeCard(_ episode: EmbyEpisode) -> GridCard {
+        let metadata = episode.metadata
+        return GridCard.episode(
+            title: metadata.name,
+            numberLabel: episode.episodeNumber.map { "Episode \($0)" },
+            overview: metadata.overview,
+            duration: metadata.runTimeTicks.map(runtime),
+            artworkURL: thumbURL(for: metadata, session: session),
+            watchedProgress: watchedProgress(metadata),
+            accessibilityIdentifier: "Emby-Episode-\(metadata.id.rawValue)",
+            action: {
+                Task {
+                    do {
+                        try await onPlay(viewModel.playbackSelection(for: episode))
+                        playbackError = nil
+                    } catch {
+                        playbackError = error.localizedDescription
+                    }
+                }
+            }
+        )
     }
 
     @ViewBuilder
     private func posterShelf(title: String, items: [EmbyLibraryItem]) -> some View {
         if items.isEmpty == false {
-            EmbyPosterShelf(title: title) {
+            EmbyShelf(title: title) {
                 ForEach(items, id: \.metadata.id) { item in
                     posterCard(item, session: session, onSelect: onSelect)
                 }
@@ -713,7 +732,15 @@ private struct EmbyDetailScreen: View {
 
             if let overview = metadata.overview, overview.isEmpty == false {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
-                    Text(metadata.name).font(DesignTokens.Typography.headline)
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                        Text(metadata.name).font(DesignTokens.Typography.headline)
+                        if metadata.genres.isEmpty == false {
+                            Text(metadata.genres.joined(separator: ", "))
+                                .font(DesignTokens.Typography.sectionHeader)
+                                .foregroundStyle(.secondary)
+                                .textCase(.uppercase)
+                        }
+                    }
                     Text(overview).foregroundStyle(.secondary)
                 }
                 .padding(DesignTokens.Spacing.lg)
@@ -724,7 +751,7 @@ private struct EmbyDetailScreen: View {
             HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
                 aboutColumn("Information", sections.information)
                 aboutColumn("Languages", sections.languages)
-                aboutColumn("Accessibility", sections.accessibility)
+                aboutColumn("Accessibility", sections.accessibility, labelsAreBadges: true)
             }
         }
         .padding(.horizontal, DesignTokens.Spacing.xxl)
@@ -732,20 +759,35 @@ private struct EmbyDetailScreen: View {
     }
 
     @ViewBuilder
-    private func aboutColumn(_ title: String, _ entries: [EmbyAboutSections.Entry]) -> some View {
+    private func aboutColumn(
+        _ title: String,
+        _ entries: [EmbyAboutSections.Entry],
+        labelsAreBadges: Bool = false
+    ) -> some View {
         if entries.isEmpty == false {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                 Text(title)
                     .font(DesignTokens.Typography.sectionHeader)
                     .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
                 ForEach(entries) { entry in
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                        Text(entry.label).font(DesignTokens.Typography.metadata).foregroundStyle(.secondary)
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                        if labelsAreBadges {
+                            Text(entry.label)
+                                .font(DesignTokens.Typography.badge)
+                                .padding(.horizontal, DesignTokens.Spacing.xs)
+                                .padding(.vertical, DesignTokens.Spacing.xxs)
+                                .enchronGlassBadge()
+                        } else {
+                            Text(entry.label)
+                                .font(DesignTokens.Typography.metadata)
+                                .foregroundStyle(.secondary)
+                        }
                         Text(entry.value)
                     }
                 }
             }
-            .frame(maxWidth: DesignTokens.EmbyDetail.aboutColumnWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
         }
     }
 }
@@ -757,19 +799,10 @@ private func posterCard(
     onSelect: @escaping (EmbyLibraryItem) -> Void
 ) -> GridCard {
     let metadata = item.metadata
-    let watchedProgress: Double?
-    if let position = metadata.userData?.playbackPositionTicks,
-       let duration = metadata.runTimeTicks,
-       duration > 0,
-       position > 0 {
-        watchedProgress = Double(position) / Double(duration)
-    } else {
-        watchedProgress = nil
-    }
     return GridCard.poster(
         title: metadata.name,
         artworkURL: posterURL(for: item, session: session),
-        watchedProgress: watchedProgress,
+        watchedProgress: watchedProgress(metadata),
         unplayedCount: metadata.userData?.unplayedItemCount,
         accessibilityIdentifier: "Emby-PosterCard-\(metadata.id.rawValue)",
         action: { onSelect(item) }
@@ -853,7 +886,10 @@ private func runtime(_ ticks: Int64) -> String {
     return hours > 0 ? "\(hours) hr \(minutes) min" : "\(minutes) min"
 }
 
-private func episodeLabel(_ episode: EmbyEpisode) -> String {
-    let number = episode.episodeNumber.map { "Episode \($0)" } ?? "Episode"
-    return "\(number) · \(episode.metadata.name)"
+private func watchedProgress(_ metadata: EmbyItemMetadata) -> Double? {
+    guard let position = metadata.userData?.playbackPositionTicks,
+          let duration = metadata.runTimeTicks,
+          duration > 0,
+          position > 0 else { return nil }
+    return Double(position) / Double(duration)
 }

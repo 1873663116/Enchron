@@ -134,6 +134,89 @@ struct EmbyViewModelTests {
         #expect(queue.entries.map(\.isCurrent) == [true, false])
     }
 
+    @Test("a series browses its seasons and follows the selected one")
+    func seriesChildren() async {
+        let series = seriesItem(id: "series")
+        let first = seasonItem(id: "season-1", seriesID: "series")
+        let second = seasonItem(id: "season-2", seriesID: "series")
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [series.metadata.id: series],
+            childrenByID: [
+                series.metadata.id: [.season(first), .season(second)],
+                first.metadata.id: [.episode(episode(id: "episode-1", seasonID: "season-1"))],
+                second.metadata.id: [.episode(episode(id: "episode-2", seasonID: "season-2"))],
+            ]
+        )
+        let detail = EmbyDetailViewModel(
+            itemID: series.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+
+        await detail.refresh()
+        #expect(detail.children == .seasons(
+            all: [first, second],
+            selected: first.metadata.id,
+            episodes: [episode(id: "episode-1", seasonID: "season-1")]
+        ))
+
+        await detail.selectSeason(second.metadata.id)
+        #expect(detail.children.selectedSeasonID == second.metadata.id)
+        #expect(detail.children.episodes.map(\.metadata.id.rawValue) == ["episode-2"])
+    }
+
+    @Test("a season browses its episodes without a season control")
+    func seasonChildren() async {
+        let season = seasonItem(id: "season-1", seriesID: "series")
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [season.metadata.id: .season(season)],
+            childrenByID: [season.metadata.id: [.episode(episode(id: "episode-1", seasonID: "season-1"))]]
+        )
+        let detail = EmbyDetailViewModel(
+            itemID: season.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+
+        await detail.refresh()
+
+        #expect(detail.children == .episodes([episode(id: "episode-1", seasonID: "season-1")]))
+    }
+
+    @Test("a collection browses its members")
+    func collectionChildren() async {
+        let collection = boxSetItem(id: "collection")
+        let member = movie(id: "member")
+        let client = ViewModelFakeEmbyClient(
+            itemByID: [collection.metadata.id: collection],
+            childrenByID: [collection.metadata.id: [member]]
+        )
+        let detail = EmbyDetailViewModel(
+            itemID: collection.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+
+        await detail.refresh()
+
+        #expect(detail.children == .collection([member]))
+    }
+
+    @Test("a movie browses nothing")
+    func movieChildren() async {
+        let item = movie(id: "movie")
+        let client = ViewModelFakeEmbyClient(itemByID: [item.metadata.id: item])
+        let detail = EmbyDetailViewModel(
+            itemID: item.metadata.id,
+            client: client,
+            session: makeSession(client: client, server: authenticatedServer)
+        )
+
+        await detail.refresh()
+
+        #expect(detail.children == .none)
+    }
+
     @Test("connection persists successful authentication and surfaces failure")
     func connectionSuccessAndFailure() async {
         let successStore = RecordingServerStore()
@@ -361,6 +444,10 @@ private func movie(
 
 private func seriesItem(id: String) -> EmbyLibraryItem {
     .series(EmbySeries(metadata: itemMetadata(id: id)))
+}
+
+private func boxSetItem(id: String) -> EmbyLibraryItem {
+    .boxSet(EmbyBoxSet(metadata: itemMetadata(id: id)))
 }
 
 private func seasonItem(id: String, seriesID: String) -> EmbySeason {
