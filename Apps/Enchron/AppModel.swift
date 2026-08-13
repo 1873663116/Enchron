@@ -2,6 +2,7 @@ import SwiftUI
 import Observation
 import OSLog
 import PlaybackPresentation
+import CoreGraphics
 
 struct PlaybackWindowSceneIdentity: Codable, Hashable {
     let instanceID: UUID
@@ -173,6 +174,7 @@ public final class AppModel {
     public private(set) var presentationSourceRendererMayRelease = false
     public private(set) var presentationTargetRendererMayBind = false
     public private(set) var presentationVisualCutoverMayBegin = false
+    public private(set) var portalExitLastFrame: CGImage?
     public var presentationConversionFailureMessage: String?
     public private(set) var lastPresentationConversionDiagnostic: String?
     private var deferredPresentationConversionFailureMessage: String?
@@ -463,6 +465,10 @@ public final class AppModel {
     func finishPresentationVisualCutover() {
         guard presentationVisualCutoverMayBegin else { return }
         showControls = false
+    }
+
+    func setPortalExitLastFrame(_ image: CGImage?) {
+        portalExitLastFrame = image
     }
 
     func presentationTransitionRemainingTime(

@@ -528,6 +528,12 @@ struct PlaybackVideoSurface: View {
             of: videoEntity,
             to: Float(videoEntityOpacity),
             animated: videoEntity.components[OpacityComponent.self] != nil
+                && PlaybackPresentationTransitionAppearance
+                    .shouldAnimateWindowVideoEntity(
+                        transition: appModel.presentationTransition,
+                        visualCutoverMayBegin:
+                            appModel.presentationVisualCutoverMayBegin
+                    )
         )
         surfaceAccessibilityActivation.observe(videoEntity, in: content) {
             toggleControlsFromAccessibilityActivation()

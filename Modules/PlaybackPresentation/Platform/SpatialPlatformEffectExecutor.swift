@@ -1,10 +1,14 @@
+import AVFoundation
 import Foundation
+import CoreGraphics
+import CoreVideo
 import Observation
 import OSLog
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
 import UIKit
+import VideoToolbox
 
 #if os(visionOS)
 enum SpatialPlatformImmersiveSpaceReconciliationPolicy {
@@ -20,6 +24,27 @@ enum SpatialPlatformImmersiveSpaceReconciliationPolicy {
             && transitionIsActive == false
             && hasPendingSpatialPlatformEffect == false
             && hasConnectedImmersiveSpaceScene == false
+    }
+}
+
+enum SpatialPlatformImmersiveExitWindowRevealPolicy {
+    static func shouldRevealMainWindow(
+        sourceRendererIsReleased: Bool,
+        targetSessionIsActivated: Bool
+    ) -> Bool {
+        sourceRendererIsReleased && targetSessionIsActivated
+    }
+
+    static func shouldBeginVisualCutover(targetIsSettled: Bool) -> Bool {
+        targetIsSettled
+    }
+
+    static func shouldShowLastFrameBridge(
+        family: PresentationContentFamily,
+        targetIsSettled: Bool,
+        hasCapturedFrame: Bool
+    ) -> Bool {
+        family == .panoramic && targetIsSettled == false && hasCapturedFrame
     }
 }
 
@@ -771,10 +796,6 @@ final class SpatialPlatformEffectCoordinator {
             case .alreadyClosedBySystem:
                 .collapseImmersivePlayback(family)
             }
-        async let mainWindowRestoration = restoreMainWindow(
-            for: windowTransition,
-            execution: execution
-        )
         do {
             try await replacementTask.value
         } catch {
@@ -790,24 +811,11 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
 
-        let restoration = await mainWindowRestoration
-        guard restoration.isReady else {
-            await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
-            lastPlatformOperation = "main-window-appearance-failed"
-            guard executionIsLive(execution) else { return }
-            if case .openedMainWindow = restoration.method {
-                _ = dismissWindow(id: "main", execution: execution)
-            }
-            guard setRuntimeError(
-                "The Main Window could not become usable.",
-                execution: execution
-            ) else { return }
-            _ = await complete(
-                execution,
-                outcome: .failed(.mainWindowUnavailable)
-            )
-            return
-        }
+        let lastFrameBridge = family == .panoramic
+            ? portalExitLastFrameBridge()
+            : nil
+        appModel.setPortalExitLastFrame(lastFrameBridge)
+        defer { appModel.setPortalExitLastFrame(nil) }
 
         guard executionIsLive(execution),
               appModel.allowPresentationSourceRendererRelease(),
@@ -816,7 +824,7 @@ final class SpatialPlatformEffectCoordinator {
             return
         }
 
-        if mode.waitsForSourceFade {
+        if family != .panoramic, mode.waitsForSourceFade {
             guard await waitUntilPresentationTransitionTime(
                 PlaybackPresentationTransitionAppearance.sourceFadeDuration,
                 execution: execution
@@ -858,6 +866,10 @@ final class SpatialPlatformEffectCoordinator {
             try await playbackRuntime.activatePreparedTechnicalSessionReplacement()
         } catch {
             await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+            _ = await restoreMainWindow(
+                for: windowTransition,
+                execution: execution
+            )
             guard executionIsLive(execution),
                   setRuntimeError(
                     "The Window could not activate its replacement playback session: \(error.localizedDescription)",
@@ -872,10 +884,46 @@ final class SpatialPlatformEffectCoordinator {
         guard appModel.allowPresentationTargetRendererBinding() else {
             return
         }
-        do {
+        guard SpatialPlatformImmersiveExitWindowRevealPolicy.shouldRevealMainWindow(
+            sourceRendererIsReleased: rendererReleased,
+            targetSessionIsActivated: true
+        ) else {
+            return
+        }
+        recordMainWindowRevealGate(
+            immersiveSpaceWasDismissed: mode.dismissesImmersiveSpace
+        )
+
+        let rebaseTask = Task { @MainActor [playbackRuntime] in
             try await playbackRuntime.rebaseActivatedTechnicalSessionReplacement(
                 to: presentation
             )
+        }
+        let restoration = await restoreMainWindow(
+            for: windowTransition,
+            execution: execution
+        )
+        guard restoration.isReady else {
+            rebaseTask.cancel()
+            _ = try? await rebaseTask.value
+            await playbackRuntime.cancelPreparedTechnicalSessionReplacement()
+            lastPlatformOperation = "main-window-appearance-failed"
+            guard executionIsLive(execution) else { return }
+            if case .openedMainWindow = restoration.method {
+                _ = dismissWindow(id: "main", execution: execution)
+            }
+            guard setRuntimeError(
+                "The Main Window could not become usable.",
+                execution: execution
+            ) else { return }
+            _ = await complete(
+                execution,
+                outcome: .failed(.mainWindowUnavailable)
+            )
+            return
+        }
+        do {
+            try await rebaseTask.value
         } catch {
             guard executionIsLive(execution),
                   setRuntimeError(
@@ -886,6 +934,9 @@ final class SpatialPlatformEffectCoordinator {
                 execution,
                 outcome: .failed(.windowPlaybackSurfaceUnavailable)
             )
+            return
+        }
+        guard await restoreTargetPlaybackIntentBeforeSettlement(execution) else {
             return
         }
         if PortalPlaybackViewportRefreshPolicy.requiresRefresh(
@@ -908,9 +959,6 @@ final class SpatialPlatformEffectCoordinator {
                 )
                 return
             }
-        }
-        guard await restoreTargetPlaybackIntentBeforeSettlement(execution) else {
-            return
         }
         guard let settled = await waitUntilPresentationSettled(
             to: presentation,
@@ -935,6 +983,14 @@ final class SpatialPlatformEffectCoordinator {
             )
             return
         }
+        guard SpatialPlatformImmersiveExitWindowRevealPolicy
+            .shouldBeginVisualCutover(targetIsSettled: settled),
+              appModel.beginPresentationVisualCutover() else {
+            return
+        }
+        appModel.recordSurfaceInputProbe(
+            "portalVisualCutover targetSettled=true animated=false"
+        )
         guard await orderWindowToFront(.main, execution: execution) else {
             lastPlatformOperation = "main-window-activation-failed"
             return
@@ -1672,6 +1728,66 @@ final class SpatialPlatformEffectCoordinator {
         )
         guard executionIsLive(execution) else { return nil }
         return settled
+    }
+
+    private func recordMainWindowRevealGate(
+        immersiveSpaceWasDismissed: Bool
+    ) {
+        appModel.recordSurfaceInputProbe(
+            "portalWindowRevealGate"
+                + " sourceRendererReleased=true"
+                + " targetSessionActivated=true"
+                + " immersiveSpaceDismissed=\(immersiveSpaceWasDismissed)"
+        )
+    }
+
+    private func portalExitLastFrameBridge() -> CGImage? {
+        guard let pixelBuffer = playbackRuntime.renderer?.displayedPixelBuffer()
+        else {
+            appModel.recordSurfaceInputProbe(
+                "portalLastFrameBridge captured=false reason=noDisplayedPixel"
+            )
+            return nil
+        }
+        var image: CGImage?
+        guard VTCreateCGImageFromCVPixelBuffer(
+            pixelBuffer,
+            options: nil,
+            imageOut: &image
+        ) == noErr, var image else {
+            appModel.recordSurfaceInputProbe(
+                "portalLastFrameBridge captured=false reason=conversionFailed"
+            )
+            return nil
+        }
+        switch playbackRuntime.effectiveStereoLayout {
+        case .topBottom:
+            image = image.cropping(
+                to: CGRect(
+                    x: 0,
+                    y: CGFloat(image.height) / 2,
+                    width: CGFloat(image.width),
+                    height: CGFloat(image.height) / 2
+                )
+            ) ?? image
+        case .sideBySide:
+            image = image.cropping(
+                to: CGRect(
+                    x: 0,
+                    y: 0,
+                    width: CGFloat(image.width) / 2,
+                    height: CGFloat(image.height)
+                )
+            ) ?? image
+        case .mono, .multiview:
+            break
+        }
+        appModel.recordSurfaceInputProbe(
+            "portalLastFrameBridge captured=true width=\(image.width)"
+                + " height=\(image.height)"
+                + " stereoLayout=\(playbackRuntime.effectiveStereoLayout.rawValue)"
+        )
+        return image
     }
 
     private func waitUntilRendererConsumerIsReleased(

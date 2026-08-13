@@ -154,6 +154,19 @@ enum PlaybackPresentationTransitionAppearance {
         )
     }
 
+    static func shouldAnimateWindowVideoEntity(
+        transition: PlaybackPresentationTransition?,
+        visualCutoverMayBegin: Bool
+    ) -> Bool {
+        guard visualCutoverMayBegin,
+              let transition,
+              transition.previousPresentation == .panorama,
+              transition.targetPresentation.usesMainWindow else {
+            return true
+        }
+        return false
+    }
+
     static func acceptsInput(
         for hostedPresentation: PlaybackPresentation,
         settledPresentation: PlaybackPresentation,
@@ -520,6 +533,22 @@ public struct MainView: View {
                         .recordMainWindowPlaybackSurfaceRefreshApplied($0)
                 }
             )
+
+            if let lastFrame = appModel.portalExitLastFrame,
+               SpatialPlatformImmersiveExitWindowRevealPolicy
+                .shouldShowLastFrameBridge(
+                    family: .panoramic,
+                    targetIsSettled:
+                        appModel.presentationVisualCutoverMayBegin,
+                    hasCapturedFrame: true
+                ) {
+                Image(lastFrame, scale: 1, label: Text(""))
+                    .resizable()
+                    .scaledToFit()
+                    .background(.black)
+                    .allowsHitTesting(false)
+                    .accessibilityHidden(true)
+            }
 
             #if DEBUG
             if ProcessInfo.processInfo.environment[

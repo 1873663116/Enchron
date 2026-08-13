@@ -63,6 +63,62 @@ struct PlaybackPresentationStateTests {
         }
     }
 
+    @Test("Immersive playback exit reveals the Main Window only after spatial teardown and target activation")
+    func immersivePlaybackExitWaitsToRevealActivatedWindowTarget() {
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldRevealMainWindow(
+                sourceRendererIsReleased: false,
+                targetSessionIsActivated: false
+            ) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldRevealMainWindow(
+                sourceRendererIsReleased: true,
+                targetSessionIsActivated: false
+            ) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldRevealMainWindow(
+                sourceRendererIsReleased: true,
+                targetSessionIsActivated: true
+            )
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
+                targetIsSettled: false
+            ) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy.shouldBeginVisualCutover(
+                targetIsSettled: true
+            )
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy
+                .shouldShowLastFrameBridge(
+                    family: .panoramic,
+                    targetIsSettled: false,
+                    hasCapturedFrame: true
+                )
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy
+                .shouldShowLastFrameBridge(
+                    family: .panoramic,
+                    targetIsSettled: true,
+                    hasCapturedFrame: true
+                ) == false
+        )
+        #expect(
+            SpatialPlatformImmersiveExitWindowRevealPolicy
+                .shouldShowLastFrameBridge(
+                    family: .flat,
+                    targetIsSettled: false,
+                    hasCapturedFrame: true
+                ) == false
+        )
+    }
+
     @Test("Immersive playback collapse opens the main window without an open resident window")
     func immersivePlaybackCollapseOpensMainWindowWithoutOpenResidentWindow() {
         for family in [PresentationContentFamily.flat, .panoramic] {
@@ -1552,6 +1608,23 @@ struct PlaybackPresentationStateTests {
                     targetEnvironment: .none
                 )
             ) == 1
+        )
+        #expect(
+            PlaybackPresentationTransitionAppearance.shouldAnimateWindowVideoEntity(
+                transition: .init(
+                    previousPresentation: .panorama,
+                    targetPresentation: .portal,
+                    previousEnvironment: .none,
+                    targetEnvironment: .none
+                ),
+                visualCutoverMayBegin: true
+            ) == false
+        )
+        #expect(
+            PlaybackPresentationTransitionAppearance.shouldAnimateWindowVideoEntity(
+                transition: transition,
+                visualCutoverMayBegin: true
+            )
         )
         #expect(
             PlaybackPresentationTransitionAppearance.acceptsInput(
