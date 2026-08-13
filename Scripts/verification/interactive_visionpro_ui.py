@@ -242,7 +242,7 @@ def scoped_processes() -> list[tuple[int, str]]:
             continue
         if not any(marker in command for marker in SCOPE_MARKERS):
             continue
-        if root in command or working_directory(pid) == root:
+        if f"{root}/" in command or working_directory(pid) == root:
             scoped.append((pid, command))
     return scoped
 
@@ -855,7 +855,9 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument("--project", default="Enchron.xcodeproj")
     parser.add_argument("--scheme", default="Enchron")
-    parser.add_argument("--test-plan", dest="test_plan", default="Enchron")
+    parser.add_argument(
+        "--test-plan", dest="test_plan", default="InteractiveDeviceSession"
+    )
     parser.add_argument("--destination-id", dest="destination_id")
     parser.add_argument("--developer-dir", dest="developer_dir")
     parser.add_argument(

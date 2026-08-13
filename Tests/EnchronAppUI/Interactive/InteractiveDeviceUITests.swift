@@ -2,6 +2,10 @@ import Foundation
 import XCTest
 
 nonisolated final class InteractiveDeviceUITests: XCTestCase {
+    // An abandoned resident session keeps testmanagerd staging evidence on the
+    // headset until the test returns, so idle sessions must end themselves.
+    private static let maximumIdleInterval: TimeInterval = 30 * 60
+
     @MainActor
     func testInteractiveDeviceSession() async throws {
         continueAfterFailure = true
@@ -24,9 +28,12 @@ nonisolated final class InteractiveDeviceUITests: XCTestCase {
         try channel.publishReadyState()
 
         while true {
-            await channel.waitForCommand()
+            let commandArrived = await channel.waitForCommand(
+                within: Self.maximumIdleInterval
+            )
             guard let command = try channel.consumeCommandIfPresent() else {
-                continue
+                if commandArrived { continue }
+                return
             }
             let shouldStop = try channel.executeAndPublish(command)
             if shouldStop { return }
@@ -91,9 +98,9 @@ private final class InteractiveDeviceUIChannel {
         try writeJSON(ready, to: readyURL)
     }
 
-    func waitForCommand() async {
-        if fileManager.fileExists(atPath: commandURL.path) { return }
-        await signal.wait()
+    func waitForCommand(within maximumIdleInterval: TimeInterval) async -> Bool {
+        if fileManager.fileExists(atPath: commandURL.path) { return true }
+        return await signal.wait(within: maximumIdleInterval)
     }
 
     func consumeCommandIfPresent() throws -> InteractiveDeviceUICommand? {
@@ -437,7 +444,8 @@ private struct InteractiveDeviceUIElementObservation: Codable {
 @MainActor
 private final class InteractiveDeviceUICommandSignal {
     private let notificationName: String
-    private var continuation: CheckedContinuation<Void, Never>?
+    private var continuation: CheckedContinuation<Bool, Never>?
+    private var deadlineTask: Task<Void, Never>?
     private var signalIsPending = false
 
     init(notificationName: String) {
@@ -467,20 +475,34 @@ private final class InteractiveDeviceUICommandSignal {
         )
     }
 
-    func wait() async {
+    func wait(within maximumIdleInterval: TimeInterval) async -> Bool {
         if signalIsPending {
             signalIsPending = false
-            return
+            return true
         }
-        await withCheckedContinuation { continuation = $0 }
+        return await withCheckedContinuation { continuation in
+            self.continuation = continuation
+            deadlineTask = Task { @MainActor in
+                try? await Task.sleep(for: .seconds(maximumIdleInterval))
+                guard Task.isCancelled == false else { return }
+                finish(commandArrived: false)
+            }
+        }
     }
 
     private func receive() {
-        if let continuation {
-            self.continuation = nil
-            continuation.resume()
+        if continuation != nil {
+            finish(commandArrived: true)
         } else {
             signalIsPending = true
         }
+    }
+
+    private func finish(commandArrived: Bool) {
+        deadlineTask?.cancel()
+        deadlineTask = nil
+        guard let continuation else { return }
+        self.continuation = nil
+        continuation.resume(returning: commandArrived)
     }
 }

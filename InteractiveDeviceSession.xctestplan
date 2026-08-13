@@ -1,0 +1,33 @@
+{
+  "configurations" : [
+    {
+      "id" : "7C2D1E0F-9A8B-4C6D-8E5F-0123456789AB",
+      "name" : "Interactive Device Session",
+      "options" : {
+        "preferredScreenCaptureFormat" : "screenshots",
+        "uiTestingScreenshotsLifetime" : "deleteOnSuccess",
+        "userAttachmentLifetime" : "deleteOnSuccess"
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:Enchron.xcodeproj",
+      "identifier" : "C3B0F97F2F5726B30064596E",
+      "name" : "Enchron"
+    }
+  },
+  "testTargets" : [
+    {
+      "selectedTests" : [
+        "InteractiveDeviceUITests/testInteractiveDeviceSession()"
+      ],
+      "target" : {
+        "containerPath" : "container:Enchron.xcodeproj",
+        "identifier" : "E2E0000100000000DEADBEEF",
+        "name" : "EnchronAppUITests"
+      }
+    }
+  ],
+  "version" : 1
+}

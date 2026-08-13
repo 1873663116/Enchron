@@ -4,7 +4,7 @@
 
 ## Sub-features
 
-- 无信令片源（容器与样本均无投影元数据）落 window 呈现平面播放。
+- 无信令片源（容器与样本均无投影元数据）按 window 呈现平面播放。
 - 带信令片源（Apple APMP、MV-HEVC 等）按源分类进入相应呈现。
 - 观看进度从 0 开始（resetState 已清 enchron.* 键）。
 

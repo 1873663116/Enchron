@@ -50,6 +50,9 @@
          <TestPlanReference
             reference = "container:VisionProCoreRegression.xctestplan">
          </TestPlanReference>
+         <TestPlanReference
+            reference = "container:InteractiveDeviceSession.xctestplan">
+         </TestPlanReference>
       </TestPlans>
    </TestAction>
    <LaunchAction
