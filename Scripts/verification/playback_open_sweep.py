@@ -88,6 +88,9 @@ def main(arguments: argparse.Namespace) -> int:
     deadline = time.monotonic() + arguments.deadline_minutes * 60
 
     counts: dict[str, int] = {}
+    # A runner left behind by whatever ran last competes with the first
+    # cell's own, and that cell's runner then never starts its test at all.
+    kill_resident_runner()
     previous_was_clean = True
     for index, clip in enumerate(clips, start=1):
         if time.monotonic() > deadline:
