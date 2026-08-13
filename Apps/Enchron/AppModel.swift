@@ -119,7 +119,7 @@ struct SpatialPlaybackSurfaceObservation: Equatable {
 public final class AppModel {
     // MARK: - Navigation State
     public enum NavigationTab: String, CaseIterable {
-        case files, settings, environment
+        case files, emby, settings, environment
 
         /// Files/Settings render system TabView content; Environment opens a separate
         /// volume and does not park the main window on an empty tab (LNCH-03).

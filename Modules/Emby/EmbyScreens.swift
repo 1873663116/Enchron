@@ -46,33 +46,38 @@ public struct EmbyScreen: View {
     }
 
     private var sidebar: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             Text(session.server?.name ?? "Emby")
-                .font(DesignTokens.Typography.title)
-                .padding(.bottom, DesignTokens.Spacing.lg)
+                .font(DesignTokens.SourceSidebar.sectionTitleFont)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
 
-            sidebarButton(
-                title: "Home",
-                systemImage: "house.fill",
-                destination: .home,
-                identifier: "Emby-Sidebar-Home"
-            )
-
-            ForEach(home.libraries, id: \.id) { library in
+            VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
                 sidebarButton(
-                    title: library.name,
-                    systemImage: "rectangle.stack.fill",
-                    destination: .library(library.id),
-                    identifier: "Emby-Sidebar-Library-\(library.id.rawValue)"
+                    title: "Home",
+                    systemImage: "house.fill",
+                    destination: .home,
+                    identifier: "Emby-Sidebar-Home"
+                )
+
+                ForEach(home.libraries, id: \.id) { library in
+                    sidebarButton(
+                        title: library.name,
+                        systemImage: "rectangle.stack.fill",
+                        destination: .library(library.id),
+                        identifier: "Emby-Sidebar-Library-\(library.id.rawValue)"
+                    )
+                }
+
+                sidebarButton(
+                    title: "Search",
+                    systemImage: "magnifyingglass",
+                    destination: .search,
+                    identifier: "Emby-Sidebar-Search"
                 )
             }
-
-            sidebarButton(
-                title: "Search",
-                systemImage: "magnifyingglass",
-                destination: .search,
-                identifier: "Emby-Sidebar-Search"
-            )
+            .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
 
             Spacer(minLength: DesignTokens.Spacing.xl)
 
@@ -85,10 +90,12 @@ public struct EmbyScreen: View {
             .buttonStyle(.plain)
             .accessibilityIdentifier("Emby-SignOut")
         }
-        .padding(DesignTokens.Spacing.xl)
-        .frame(width: 250)
+        .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
+        .frame(width: DesignTokens.SourceSidebar.width)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .background(.thinMaterial)
+        .enchronPlateGlassBackground(in: DesignTokens.SourceSidebar.shape)
+        .padding(.leading, DesignTokens.SourceSidebar.windowInset)
+        .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
     }
 
     private func sidebarButton(
@@ -104,16 +111,18 @@ public struct EmbyScreen: View {
             Label(title, systemImage: systemImage)
                 .font(DesignTokens.Typography.headline)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, DesignTokens.Spacing.md)
-                .padding(.vertical, DesignTokens.Spacing.sm)
+                .padding(.horizontal, DesignTokens.SourceSidebar.rowPaddingH)
+                .frame(height: DesignTokens.SourceSidebar.rowHeight)
                 .background(
                     self.destination == destination
-                        ? DesignTokens.Theme.accent.opacity(0.22)
+                        ? DesignTokens.Surface.selected
                         : Color.clear,
-                    in: DesignTokens.ShapeToken.element
+                    in: DesignTokens.SourceSidebar.rowShape
                 )
         }
         .buttonStyle(.plain)
+        .enchronHoverContentShape(DesignTokens.SourceSidebar.rowShape)
+        .enchronHoverEffect(.highlight)
         .accessibilityIdentifier(identifier)
     }
 
@@ -352,7 +361,9 @@ private struct EmbyDetailScreen: View {
                     hero(item)
                     metadataRow(item.metadata)
                     overview(item.metadata)
-                    actionRow(item)
+                    if case .movie = item {
+                        actionRow(item)
+                    }
                     seriesContent
                     trailerShelf(item.metadata.remoteTrailers)
                     posterShelf(title: "Special Features", items: viewModel.specialFeatures)

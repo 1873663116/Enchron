@@ -1,4 +1,5 @@
 import DesignSystem
+import Emby
 import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
@@ -184,6 +185,7 @@ public struct MainView: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @Environment(EmbySessionViewModel.self) private var embySession
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
 
@@ -369,6 +371,15 @@ public struct MainView: View {
                 FilesScreen()
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-files")
+
+            Tab("Emby", systemImage: "play.tv.fill", value: AppModel.NavigationTab.emby) {
+                EmbyScreen { selection in
+                    let request = try await embySession.playbackRequest(for: selection)
+                    AppModel.recordProbe("openRequestForwarded")
+                    playbackLauncher.requestPlayback(request)
+                }
+            }
+            .accessibilityIdentifier("Emby-Navigation-Tab")
 
             Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
                 SettingsScreen()

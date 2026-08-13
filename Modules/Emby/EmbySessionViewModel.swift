@@ -9,6 +9,7 @@ public final class EmbySessionViewModel {
     public let playbackBridge: EmbyPlaybackBridge
     public private(set) var server: EmbyAuthenticatedServer?
     public private(set) var persistenceErrorMessage: String?
+    public private(set) var playbackQueue: PlaybackQueueSnapshot = .empty
 
     private let store: any EmbyServerStoring
 
@@ -52,6 +53,7 @@ public final class EmbySessionViewModel {
             persistenceErrorMessage = error.localizedDescription
         }
         server = nil
+        playbackQueue = .empty
         await playbackBridge.configure(server: nil)
     }
 
@@ -66,7 +68,9 @@ public final class EmbySessionViewModel {
     ) async throws -> PlaybackLaunchRequest {
         await configurePlaybackBridge()
         do {
-            return try await playbackBridge.request(for: selection)
+            let request = try await playbackBridge.request(for: selection)
+            playbackQueue = await playbackBridge.queueSnapshot
+            return request
         } catch {
             _ = await handleRequestError(error)
             throw error
@@ -74,15 +78,21 @@ public final class EmbySessionViewModel {
     }
 
     public func nextPlaybackRequest() async -> PlaybackLaunchRequest? {
-        await playbackBridge.nextRequest()
+        let request = await playbackBridge.nextRequest()
+        playbackQueue = await playbackBridge.queueSnapshot
+        return request
     }
 
     public func playbackRequest(forQueueID id: UUID) async -> PlaybackLaunchRequest? {
-        await playbackBridge.request(for: id)
+        let request = await playbackBridge.request(for: id)
+        playbackQueue = await playbackBridge.queueSnapshot
+        return request
     }
 
     public func playbackQueueSnapshot() async -> PlaybackQueueSnapshot {
-        await playbackBridge.queueSnapshot
+        let snapshot = await playbackBridge.queueSnapshot
+        playbackQueue = snapshot
+        return snapshot
     }
 
     private func configurePlaybackBridge() async {

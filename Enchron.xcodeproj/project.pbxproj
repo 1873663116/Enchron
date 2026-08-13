@@ -28,6 +28,7 @@
 		E21000032FA2000100E1C001 /* PlaybackFeature in Frameworks */ = {isa = PBXBuildFile; productRef = E21000012FA2000100E1C001 /* PlaybackFeature */; };
 		E21000042FA2000100E1C001 /* PlaybackPresentation in Frameworks */ = {isa = PBXBuildFile; productRef = E21000022FA2000100E1C001 /* PlaybackPresentation */; };
 		E22000022FA4000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000012FA4000100E1C001 /* Emby */; };
+		E22000032FA4000100E1C001 /* Emby in Frameworks */ = {isa = PBXBuildFile; productRef = E22000042FA4000100E1C001 /* Emby */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -128,8 +129,14 @@
 				"DesignSystem/View+PressFeedback.swift",
 				Emby/EmbyAsyncPosterImage.swift,
 				Emby/EmbyClient.swift,
+				Emby/EmbyClientProtocol.swift,
 				Emby/EmbyModels.swift,
+				Emby/EmbyPlaybackBridge.swift,
 				Emby/EmbyPosterComponents.swift,
+				Emby/EmbyScreens.swift,
+				Emby/EmbyScreenViewModels.swift,
+				Emby/EmbyServerStore.swift,
+				Emby/EmbySessionViewModel.swift,
 				MediaLibrary/FileBrowsingViewModel.swift,
 				MediaLibrary/MediaLibraryFeature.swift,
 				MediaLibrary/MediaLibraryViewModel.swift,
@@ -272,6 +279,7 @@
 				E10000072FA1000100E1C001 /* PlaybackPresentation in Frameworks */,
 				E10000132FA1000100E1C001 /* DesignSystem in Frameworks */,
 				E20000042FA2000100E1C001 /* MediaLibrary in Frameworks */,
+				E22000032FA4000100E1C001 /* Emby in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -410,6 +418,7 @@
 				E10000042FA1000100E1C001 /* PlaybackPresentation */,
 				E10000102FA1000100E1C001 /* DesignSystem */,
 				E20000012FA2000100E1C001 /* MediaLibrary */,
+				E22000042FA4000100E1C001 /* Emby */,
 			);
 			productName = Enchron;
 			productReference = C3B0F9802F5726B30064596E /* Enchron.app */;
@@ -1284,6 +1293,11 @@
 			productName = PlaybackPresentation;
 		};
 		E22000012FA4000100E1C001 /* Emby */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
+			productName = Emby;
+		};
+		E22000042FA4000100E1C001 /* Emby */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E10000012FA1000100E1C001 /* XCLocalSwiftPackageReference "." */;
 			productName = Emby;

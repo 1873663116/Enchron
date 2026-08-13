@@ -1,4 +1,5 @@
 import Foundation
+import Emby
 import MediaLibrary
 import MediaSource
 import Observation
@@ -6,6 +7,7 @@ import PlaybackFeature
 import PlaybackPresentation
 import PlaybackCore
 import SwiftUI
+import UIKit
 
 typealias StorageCredential = MediaSource.StorageCredential
 
@@ -42,6 +44,10 @@ final class EnchronApplication {
     let appModel: AppModel
     let playbackRuntime: PlaybackRuntime
     let playbackVideoEntityStore: PlaybackVideoEntityStore
+    let embySessionViewModel: EmbySessionViewModel
+    let embyConnectionViewModel: EmbyConnectionViewModel
+    let embyHomeViewModel: EmbyHomeViewModel
+    let embySearchViewModel: EmbySearchViewModel
     let fileBrowsingViewModel: FileBrowsingViewModel
     let mediaLibraryViewModel: MediaLibraryViewModel
     let playbackLauncher: PlaybackLaunchCoordinator
@@ -136,6 +142,18 @@ final class EnchronApplication {
             mediaStateSuiteName: mediaStateSuiteName,
             preferencesProvider: preferencesStore
         )
+        let embyClient = EmbyClient(clientIdentity: EmbyClientIdentity(
+            name: "Enchron",
+            version: Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleShortVersionString"
+            ) as? String ?? "1",
+            deviceName: UIDevice.current.name,
+            deviceID: UIDevice.current.identifierForVendor?.uuidString ?? "Enchron-visionOS"
+        ))
+        let embySession = EmbySessionViewModel(client: embyClient)
+        let embyConnection = EmbyConnectionViewModel(session: embySession)
+        let embyHome = EmbyHomeViewModel(client: embyClient, session: embySession)
+        let embySearch = EmbySearchViewModel(client: embyClient, session: embySession)
         launcher.onPlaybackModeEntryStarted = { [weak appModel] mode, isColdLaunch in
             guard let appModel else { return mode }
             appModel.showControls = false
@@ -247,30 +265,39 @@ final class EnchronApplication {
         mediaLibrary.diagnosticProbe = { AppModel.recordProbe($0) }
         let browser = mediaLibraryFeature.browser
 
-        launcher.nextFileProvider = { [weak mediaLibrary, weak browser, weak playbackRuntime] in
+        launcher.nextFileProvider = {
+            [weak embySession, weak mediaLibrary, weak browser, weak playbackRuntime] in
             switch playbackRuntime?.currentLaunchRequest?.collectionOrigin {
             case .mediaLibrary:
                 return await mediaLibrary?.nextPlaybackItem()?.playbackLaunchRequest
+            case .mediaServer:
+                return await embySession?.nextPlaybackRequest()
             case .sourceDirectory:
                 return await browser?.nextPlaybackItem()?.playbackLaunchRequest
             case .standalone, nil:
                 return nil
             }
         }
-        launcher.playbackQueueProvider = { [weak mediaLibrary, weak browser, weak playbackRuntime] in
+        launcher.playbackQueueProvider = {
+            [weak embySession, weak mediaLibrary, weak browser, weak playbackRuntime] in
             switch playbackRuntime?.currentLaunchRequest?.collectionOrigin {
             case .mediaLibrary:
                 return mediaLibrary?.mediaCollectionSnapshot.playbackQueueSnapshot ?? .empty
+            case .mediaServer:
+                return embySession?.playbackQueue ?? .empty
             case .sourceDirectory:
                 return browser?.mediaCollectionSnapshot.playbackQueueSnapshot ?? .empty
             case .standalone, nil:
                 return .empty
             }
         }
-        launcher.queueSelectionProvider = { [weak mediaLibrary, weak browser, weak playbackRuntime] id in
+        launcher.queueSelectionProvider = {
+            [weak embySession, weak mediaLibrary, weak browser, weak playbackRuntime] id in
             switch playbackRuntime?.currentLaunchRequest?.collectionOrigin {
             case .mediaLibrary:
                 return await mediaLibrary?.playbackItem(forCollectionItemID: id)?.playbackLaunchRequest
+            case .mediaServer:
+                return await embySession?.playbackRequest(forQueueID: id)
             case .sourceDirectory:
                 return await browser?.playbackItem(forCollectionItemID: id)?.playbackLaunchRequest
             case .standalone, nil:
@@ -297,6 +324,10 @@ final class EnchronApplication {
         self.appModel = appModel
         self.playbackRuntime = playbackRuntime
         self.playbackVideoEntityStore = playbackVideoEntityStore
+        embySessionViewModel = embySession
+        embyConnectionViewModel = embyConnection
+        embyHomeViewModel = embyHome
+        embySearchViewModel = embySearch
         let spatialPlatformEffectCoordinator = SpatialPlatformEffectCoordinator(
             appModel: appModel,
             playbackRuntime: playbackRuntime,
@@ -395,6 +426,10 @@ extension View {
             .environment(application.playbackRuntime)
             .environment(application.playbackVideoEntityStore)
             .environment(application.spatialPlatformEffectCoordinator)
+            .environment(application.embySessionViewModel)
+            .environment(application.embyConnectionViewModel)
+            .environment(application.embyHomeViewModel)
+            .environment(application.embySearchViewModel)
             .environment(application.fileBrowsingViewModel)
             .environment(application.mediaLibraryViewModel)
             .environment(application.playbackLauncher)

@@ -229,6 +229,9 @@ public actor EmbyPlaybackBridge {
             )
             currentQueueID = queued.id
             return request
+        } catch EmbyError.httpStatus(401) {
+            await onUnauthorized?()
+            return nil
         } catch {
             return nil
         }

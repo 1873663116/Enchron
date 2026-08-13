@@ -127,7 +127,7 @@ struct EmbyViewModelTests {
         let request = try await session.playbackRequest(
             for: detail.playbackSelection(for: episodes[0])
         )
-        let queue = await session.playbackQueueSnapshot()
+        let queue = session.playbackQueue
 
         #expect(request.collectionOrigin == .mediaServer)
         #expect(queue.entries.map(\.displayName) == ["episode-1", "episode-2"])
@@ -315,7 +315,11 @@ private final class ViewModelFakeEmbyClient: EmbyClientProtocol, Sendable {
 }
 
 private final class RecordingServerStore: EmbyServerStoring, Sendable {
-    private let value = Mutex<EmbyAuthenticatedServer?>(nil)
+    private let value: Mutex<EmbyAuthenticatedServer?>
+
+    init(server: EmbyAuthenticatedServer? = nil) {
+        value = Mutex(server)
+    }
 
     var savedServer: EmbyAuthenticatedServer? { value.withLock { $0 } }
 
@@ -329,8 +333,7 @@ private func makeSession(
     client: any EmbyClientProtocol,
     server: EmbyAuthenticatedServer
 ) -> EmbySessionViewModel {
-    let store = RecordingServerStore()
-    try! store.saveServer(server)
+    let store = RecordingServerStore(server: server)
     return EmbySessionViewModel(client: client, store: store)
 }
 
