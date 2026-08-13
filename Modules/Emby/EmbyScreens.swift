@@ -28,8 +28,17 @@ private struct EmbyHeroSnapBehavior: ScrollTargetBehavior {
     let inset: CGFloat
     /// How far up the page has to be going for the sections to win over the picture.
     let settleFraction: CGFloat
+    /// Whether the wearer has scrolled this page yet.
+    ///
+    /// The system asks this type where a scroll should end whenever it resolves a target, not only
+    /// when a gesture on this page finishes. A page pushed from a shelf the wearer had just been
+    /// scrolling is resolved while that upward motion is still in hand, and the branch that reads
+    /// upward motion as a wish to leave the picture then sends a page nobody has touched straight
+    /// past it. Until this page has been scrolled, wherever it is is where it belongs.
+    let isEnabled: Bool
 
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
+        guard isEnabled else { return }
         let measured = target.rect.origin.y + inset
         guard measured > 0, measured < travel else { return }
 
@@ -503,7 +512,16 @@ private struct EmbyDetailScreen: View {
     @State private var overviewIsExpanded = false
     @State private var playbackError: String?
     @State private var scrollOffset: CGFloat = 0
-    @State private var scrollPosition = ScrollPosition()
+    /// Set once the wearer has taken hold of this page, which is what lets it start settling to one
+    /// of its two positions. Each detail page carries its own, so arriving at one always starts over.
+    @State private var hasBeenScrolled = false
+    /// Configured to the top edge rather than left unset. A page arrives in pieces: the item, then
+    /// its episodes, then its features, related titles and credits, and each arrival makes the
+    /// content taller. SwiftUI only undertakes to hold a scroll position steady across a change of
+    /// content size when the position says what it is, and an unset one says nothing, which lets the
+    /// page drift down as it fills. Once the wearer scrolls, SwiftUI writes their position here and
+    /// this no longer applies.
+    @State private var scrollPosition = ScrollPosition(edge: .top)
 
     let onSelect: (EmbyLibraryItem) -> Void
     let onPlay: EmbyScreen.PlayHandler
@@ -603,9 +621,13 @@ private struct EmbyDetailScreen: View {
             EmbyHeroSnapBehavior(
                 travel: travel,
                 inset: topMargin,
-                settleFraction: DesignTokens.EmbyDetail.heroSettleFraction
+                settleFraction: DesignTokens.EmbyDetail.heroSettleFraction,
+                isEnabled: hasBeenScrolled
             )
         )
+        .onScrollPhaseChange { _, phase in
+            if phase == .interacting { hasBeenScrolled = true }
+        }
 #if DEBUG
         // Drives the page from the same offset the product does, so what a screenshot shows is a
         // position the page can actually come to rest in.
