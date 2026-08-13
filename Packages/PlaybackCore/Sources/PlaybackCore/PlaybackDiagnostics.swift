@@ -1,6 +1,72 @@
 import CoreMedia
 import Foundation
 
+public struct PlaybackVideoGeometry: Sendable, Equatable {
+    public struct EncodedDimensions: Sendable, Equatable {
+        public let width: Int
+        public let height: Int
+
+        public init(width: Int, height: Int) {
+            self.width = max(0, width)
+            self.height = max(0, height)
+        }
+    }
+
+    public struct SampleAspectRatio: Sendable, Equatable {
+        public static let square = SampleAspectRatio(horizontalSpacing: 1, verticalSpacing: 1)
+
+        public let horizontalSpacing: Int
+        public let verticalSpacing: Int
+
+        public init(horizontalSpacing: Int, verticalSpacing: Int) {
+            if horizontalSpacing > 0, verticalSpacing > 0 {
+                self.horizontalSpacing = horizontalSpacing
+                self.verticalSpacing = verticalSpacing
+            } else {
+                self = .square
+            }
+        }
+    }
+
+    public let encodedDimensions: EncodedDimensions
+    public let sampleAspectRatio: SampleAspectRatio
+
+    public init(
+        encodedDimensions: EncodedDimensions,
+        sampleAspectRatio: SampleAspectRatio
+    ) {
+        self.encodedDimensions = encodedDimensions
+        self.sampleAspectRatio = sampleAspectRatio
+    }
+}
+
+extension PlaybackVideoGeometry {
+    init(formatDescription: CMVideoFormatDescription) {
+        let dimensions = CMVideoFormatDescriptionGetDimensions(formatDescription)
+        let extensions = CMFormatDescriptionGetExtensions(formatDescription)
+            as? [String: Any] ?? [:]
+        let ratio = extensions[
+            kCMFormatDescriptionExtension_PixelAspectRatio as String
+        ] as? [String: Any]
+        let horizontal = ratio?[
+            kCMFormatDescriptionKey_PixelAspectRatioHorizontalSpacing as String
+        ] as? NSNumber
+        let vertical = ratio?[
+            kCMFormatDescriptionKey_PixelAspectRatioVerticalSpacing as String
+        ] as? NSNumber
+        self.init(
+            encodedDimensions: .init(
+                width: Int(dimensions.width),
+                height: Int(dimensions.height)
+            ),
+            sampleAspectRatio: .init(
+                horizontalSpacing: horizontal?.intValue ?? 1,
+                verticalSpacing: vertical?.intValue ?? 1
+            )
+        )
+    }
+}
+
 public struct PlaybackDiagnostics: Sendable, Equatable {
     public var codecName = "unknown"
     public var isMVHEVC = false
@@ -12,6 +78,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var sourcePixelFormat = "----"
     public var destinationPixelFormat = "----"
     public var dimensions = "—"
+    public var videoGeometry: PlaybackVideoGeometry?
     public var colorPrimaries = "—"
     public var transferFunction = "—"
     public var yCbCrMatrix = "—"
@@ -67,6 +134,9 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
         timelineConfiguredBeforeFirstEnqueue: \(timelineConfiguredBeforeFirstEnqueue.map { String($0) } ?? "notObserved")
         pixelFormat: \(sourcePixelFormat) -> \(destinationPixelFormat)
         dimensions: \(dimensions)
+        sampleAspectRatio: \(videoGeometry.map {
+            "\($0.sampleAspectRatio.horizontalSpacing):\($0.sampleAspectRatio.verticalSpacing)"
+        } ?? "notObserved")
         color: primaries=\(colorPrimaries), transfer=\(transferFunction), matrix=\(yCbCrMatrix), range=\(range)
         spatialFormat: projection=\(projectionKind), packing=\(viewPackingKind), leftEye=\(hasLeftStereoEyeView), rightEye=\(hasRightStereoEyeView)
         hdrMetadata.sourceBuffer: masteringDisplay=\(sourceBufferHasMasteringDisplayMetadata), contentLightLevel=\(sourceBufferHasContentLightLevelMetadata)

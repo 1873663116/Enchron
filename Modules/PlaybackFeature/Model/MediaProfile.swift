@@ -133,6 +133,23 @@ nonisolated extension PlaybackModel {
                 (inputWidth, inputHeight / 2)
             }
         }
+
+        public func outputDisplayDimensions(
+            inputWidth: Int,
+            inputHeight: Int,
+            pixelAspectRatio: MediaProfile.PixelAspectRatio
+        ) -> MediaProfile.DisplayDimensions {
+            let pixelDimensions = outputDimensions(
+                inputWidth: inputWidth,
+                inputHeight: inputHeight
+            )
+            return MediaProfile.DisplayDimensions(
+                width: Double(pixelDimensions.width)
+                    * Double(pixelAspectRatio.horizontalSpacing)
+                    / Double(pixelAspectRatio.verticalSpacing),
+                height: Double(pixelDimensions.height)
+            )
+        }
     }
 }
 
@@ -173,6 +190,35 @@ nonisolated extension PlaybackModel {
 
 nonisolated extension PlaybackModel {
     public struct MediaProfile: Sendable, Equatable, Codable {
+        public struct PixelAspectRatio: Sendable, Equatable, Codable {
+            public static let square = PixelAspectRatio(
+                horizontalSpacing: 1,
+                verticalSpacing: 1
+            )
+
+            public let horizontalSpacing: Int
+            public let verticalSpacing: Int
+
+            public init(horizontalSpacing: Int, verticalSpacing: Int) {
+                if horizontalSpacing > 0, verticalSpacing > 0 {
+                    self.horizontalSpacing = horizontalSpacing
+                    self.verticalSpacing = verticalSpacing
+                } else {
+                    self = .square
+                }
+            }
+        }
+
+        public struct DisplayDimensions: Sendable, Equatable {
+            public let width: Double
+            public let height: Double
+
+            public init(width: Double, height: Double) {
+                self.width = max(0, width)
+                self.height = max(0, height)
+            }
+        }
+
         public struct Resolution: Sendable, Equatable, Codable {
             public let width: Int
             public let height: Int
@@ -187,6 +233,7 @@ nonisolated extension PlaybackModel {
         public let stereoLayout: StereoLayout
         public let hdrType: HDRType
         public let resolution: Resolution
+        private let sampleAspectRatio: PixelAspectRatio?
         public let frameRate: Double
         public let videoCodec: String?
         public let durationSeconds: Double?
@@ -197,6 +244,7 @@ nonisolated extension PlaybackModel {
             stereoLayout: StereoLayout = .mono,
             hdrType: HDRType,
             resolution: Resolution,
+            pixelAspectRatio: PixelAspectRatio = .square,
             frameRate: Double = 0,
             videoCodec: String? = nil,
             durationSeconds: Double? = nil,
@@ -206,10 +254,23 @@ nonisolated extension PlaybackModel {
             self.stereoLayout = stereoLayout
             self.hdrType = hdrType
             self.resolution = resolution
+            sampleAspectRatio = pixelAspectRatio == .square ? nil : pixelAspectRatio
             self.frameRate = max(0, frameRate)
             self.videoCodec = videoCodec
             self.durationSeconds = durationSeconds
             self.hasCoverArt = hasCoverArt
+        }
+
+        public var pixelAspectRatio: PixelAspectRatio {
+            sampleAspectRatio ?? .square
+        }
+
+        public func displayDimensions(for stereoLayout: StereoLayout) -> DisplayDimensions {
+            stereoLayout.outputDisplayDimensions(
+                inputWidth: resolution.width,
+                inputHeight: resolution.height,
+                pixelAspectRatio: pixelAspectRatio
+            )
         }
     }
 }

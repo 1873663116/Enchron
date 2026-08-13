@@ -847,6 +847,7 @@ public struct MainView: View {
     private var windowPlaybackLayout: WindowPlaybackLayout {
         WindowPlaybackLayout(
             resolution: playbackRuntime.displayMediaProfile?.resolution,
+            pixelAspectRatio: playbackRuntime.displayMediaProfile?.pixelAspectRatio ?? .square,
             stereoLayout: playbackRuntime.effectiveStereoLayout
         )
     }

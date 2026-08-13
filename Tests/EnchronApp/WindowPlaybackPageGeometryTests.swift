@@ -38,6 +38,17 @@ struct WindowPlaybackPageGeometryTests {
         #expect(abs(topBottom.aspectRatio - 16.0 / 9.0) < 0.001)
     }
 
+    @Test("non-square pixels use the per-eye display aspect ratio")
+    func nonSquarePixelStereoDisplayAspectRatio() {
+        let topBottom = WindowPlaybackLayout(
+            resolution: .init(width: 8_192, height: 4_096),
+            pixelAspectRatio: .init(horizontalSpacing: 1, verticalSpacing: 4),
+            stereoLayout: .topBottom
+        )
+
+        #expect(abs(topBottom.aspectRatio - 1) < 0.001)
+    }
+
     @Test("window width bounds derive from the rendered ornament width")
     func ornamentDrivenWindowWidths() {
         let layout = WindowPlaybackLayout.fallback
