@@ -55,9 +55,7 @@ $(SRCROOT)/Modules/MediaLibrary/Views/LibraryListComponents.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/LibraryNavigationComponents.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/LibraryToolbarComponents.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/LibraryViewControls.swift
-$(SRCROOT)/Modules/MediaLibrary/Views/SkeletonCardView.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/SourceSidebar.swift
-$(SRCROOT)/Modules/MediaLibrary/Views/VideoCardView.swift
 $(SRCROOT)/Modules/MediaSource/KeychainStore.swift
 $(SRCROOT)/Modules/MediaSource/MediaAccessLease.swift
 $(SRCROOT)/Modules/MediaSource/NaturalMediaNameOrder.swift

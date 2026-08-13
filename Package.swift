@@ -50,9 +50,7 @@ let package = Package(
                 "Views/LibraryNavigationComponents.swift",
                 "Views/LibraryToolbarComponents.swift",
                 "Views/LibraryViewControls.swift",
-                "Views/SkeletonCardView.swift",
                 "Views/SourceSidebar.swift",
-                "Views/VideoCardView.swift",
             ]
         ),
         .target(
