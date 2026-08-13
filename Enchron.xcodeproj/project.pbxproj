@@ -125,6 +125,7 @@
 				DesignSystem/Components/GridCard.swift,
 				DesignSystem/Components/InputComponents.swift,
 				DesignSystem/Components/SettingsComponents.swift,
+				DesignSystem/Components/SidebarRow.swift,
 				DesignSystem/Components/SidebarToggleButton.swift,
 				DesignSystem/DesignTokens.swift,
 				"DesignSystem/View+EnchronGlass.swift",

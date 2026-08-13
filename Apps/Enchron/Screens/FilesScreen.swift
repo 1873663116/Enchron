@@ -86,8 +86,6 @@ struct FilesScreen: View {
             if sidebarIsVisible {
                 sidebar
                     .transition(.move(edge: .leading).combined(with: .opacity))
-            } else {
-                collapsedSidebarRail
             }
             contentArea
         }
@@ -245,23 +243,8 @@ struct FilesScreen: View {
             onSelectSource: { id in select(sourceID: id) },
             onAddSource: { type in presentConnection(for: type) },
             onRefresh: { Task { await viewModel.loadFiles() } },
-            onDeleteSources: deleteSources,
-            isVisible: $sidebarIsVisible
+            onDeleteSources: deleteSources
         )
-    }
-
-    /// The toggle keeps its own column when the sidebar is gone. Floating it over the content would
-    /// put it on top of the page title.
-    private var collapsedSidebarRail: some View {
-        VStack(spacing: 0) {
-            SidebarToggleButton(
-                isVisible: $sidebarIsVisible,
-                accessibilityIdentifier: "FileBrowsing-FilesScreen-sidebarToggle"
-            )
-            Spacer(minLength: 0)
-        }
-        .padding(DesignTokens.SourceSidebar.contentPaddingV)
-        .transition(.opacity)
     }
 
     private func syncSourceItems() {
@@ -478,6 +461,10 @@ struct FilesScreen: View {
 
     private var topBar: some View {
         HStack(alignment: .center) {
+            SidebarToggleButton(
+                isVisible: $sidebarIsVisible,
+                accessibilityIdentifier: "FileBrowsing-FilesScreen-sidebarToggle"
+            )
             NavBackForwardCapsuleControl(
                 canGoBack: isBrowsingSource
                     ? viewModel.canNavigateUp

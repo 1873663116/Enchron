@@ -54,8 +54,6 @@ struct SettingsScreen: View {
                 containerIdentifier: "Settings-MainWindow-sidebar",
                 identifierPrefix: "Settings"
             )
-            .padding(.leading, DesignTokens.SourceSidebar.windowInset)
-            .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
 
             detail
         }

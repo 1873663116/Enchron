@@ -186,6 +186,7 @@ public struct MainView: View {
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(EmbySessionViewModel.self) private var embySession
+    @Environment(EmbyHomeViewModel.self) private var embyHome
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
 
@@ -372,6 +373,7 @@ public struct MainView: View {
         TabView(selection: browserTabSelection) {
             Tab("Files", systemImage: "folder", value: AppModel.NavigationTab.files) {
                 FilesScreen()
+                    .enchronScreenAppearance()
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-files")
 
@@ -381,11 +383,13 @@ public struct MainView: View {
                     AppModel.recordProbe("openRequestForwarded")
                     playbackLauncher.requestPlayback(request)
                 }
+                .enchronScreenAppearance()
             }
             .accessibilityIdentifier("Emby-Navigation-Tab")
 
             Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
                 SettingsScreen()
+                    .enchronScreenAppearance()
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-settings")
 
@@ -397,6 +401,12 @@ public struct MainView: View {
                 Color.clear
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-environment")
+        }
+        // Loads the Emby home page at launch rather than when its tab is first opened, so its
+        // artwork is already decoded and the page does not stall on the way in.
+        .task {
+            guard embySession.server != nil, embyHome.shelves.isEmpty else { return }
+            await embyHome.refresh()
         }
 #if DEBUG
         .task {

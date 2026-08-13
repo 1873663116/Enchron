@@ -141,7 +141,29 @@ public extension View {
 }
 
 
+/// Fades a screen up as it is mounted. The tab bar swaps whole view trees itself, so the outgoing
+/// screen is already gone by the time the incoming one exists: no cross-fade is reachable from here,
+/// and the fade-in alone is what removes the cut. Opacity only, so the window never rescales.
+private struct EnchronScreenAppearance: ViewModifier {
+    @State private var hasAppeared = false
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(hasAppeared ? 1 : 0)
+            .onAppear {
+                withAnimation(DesignTokens.AnimationToken.controlsTransition) {
+                    hasAppeared = true
+                }
+            }
+            .onDisappear { hasAppeared = false }
+    }
+}
+
 public extension View {
+    func enchronScreenAppearance() -> some View {
+        modifier(EnchronScreenAppearance())
+    }
+
     @ViewBuilder
     func enchronLiteralTextInput() -> some View {
         textInputAutocapitalization(.never)

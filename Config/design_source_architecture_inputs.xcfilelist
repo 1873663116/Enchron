@@ -14,6 +14,7 @@ $(SRCROOT)/Modules/DesignSystem/Components/ButtonIcon.swift
 $(SRCROOT)/Modules/DesignSystem/Components/GridCard.swift
 $(SRCROOT)/Modules/DesignSystem/Components/InputComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SettingsComponents.swift
+$(SRCROOT)/Modules/DesignSystem/Components/SidebarRow.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SidebarToggleButton.swift
 $(SRCROOT)/Modules/DesignSystem/DesignTokens.swift
 $(SRCROOT)/Modules/DesignSystem/View+EnchronGlass.swift

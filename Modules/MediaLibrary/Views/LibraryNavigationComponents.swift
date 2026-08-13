@@ -60,45 +60,6 @@ struct SearchInputCapsule: View {
     }
 }
 
-struct SourceSidebarRow: View {
-    let icon: String
-    let title: String
-    var isSelected = false
-    var isEnabled = true
-    var isActiveSource = false
-    var showsSelectionBackground = true
-
-    var body: some View {
-        HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: icon)
-                .font(DesignTokens.Typography.headline)
-                .foregroundStyle(isSelected ? DesignTokens.Theme.accent : .secondary)
-                .frame(width: DesignTokens.Interactive.mini)
-
-            Text(title)
-                .font(DesignTokens.Typography.metadata)
-                .foregroundStyle(isEnabled ? .primary : .tertiary)
-                .lineLimit(1)
-
-            Spacer(minLength: 0)
-
-            if isActiveSource {
-                Circle()
-                    .fill(DesignTokens.Theme.accent)
-                    .frame(width: DesignTokens.Spacing.xs, height: DesignTokens.Spacing.xs)
-            }
-        }
-        .padding(.horizontal, DesignTokens.SourceSidebar.rowPaddingH)
-        .frame(minHeight: DesignTokens.SourceSidebar.rowHeight)
-        .background(
-            isSelected && showsSelectionBackground ? DesignTokens.Surface.selected : .clear,
-            in: DesignTokens.SourceSidebar.rowShape
-        )
-        .opacity(isEnabled ? 1 : 0.42)
-        .accessibilityLabel(title)
-    }
-}
-
 // MARK: - Category sidebar
 
 /// 分类器条目:图标 + 标题 + 稳定 id。
@@ -121,9 +82,7 @@ struct CategorySidebar: View {
     var identifierPrefix: String = "CategorySidebar"
 
     var body: some View {
-        let shape = DesignTokens.SourceSidebar.shape
-
-        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     Text(title)
@@ -140,19 +99,23 @@ struct CategorySidebar: View {
 
                 VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
                     ForEach(items) { item in
-                        Button {
-                            selection = item.id
-                        } label: {
-                            SourceSidebarRow(
-                                icon: item.icon,
-                                title: item.title,
-                                isSelected: selection == item.id
-                            )
-                        }
-                        .buttonStyle(.plain)
-                        .contentShape(DesignTokens.SourceSidebar.rowShape)
-                        .enchronHoverContentShape(DesignTokens.SourceSidebar.rowShape)
-                        .enchronHoverEffect(.automatic)
+                        EditableSourceSidebarRow(
+                            icon: item.icon,
+                            title: item.title,
+                            isSelected: selection == item.id,
+                            isEnabled: true,
+                            isActiveSource: false,
+                            isDeletable: false,
+                            isSelectionMode: false,
+                            isChecked: false,
+                            isAppearing: false,
+                            isSwipeExpanded: false,
+                            isDragging: false,
+                            rowOffset: 0,
+                            allowsReordering: false,
+                            allowsSwipe: false,
+                            onTap: { selection = item.id }
+                        )
                         .accessibilityLabel(item.title)
                         .accessibilityAddTraits(selection == item.id ? .isSelected : [])
                         .accessibilityIdentifier("\(identifierPrefix)-category-\(item.id)")
@@ -166,7 +129,7 @@ struct CategorySidebar: View {
         .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
         .frame(width: width)
         .frame(maxHeight: height ?? .infinity, alignment: .topLeading)
-        .enchronPlateGlassBackground(in: shape)
+        .enchronSidebarSurface()
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(containerIdentifier)
     }
