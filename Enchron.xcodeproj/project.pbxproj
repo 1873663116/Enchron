@@ -131,6 +131,7 @@
 				MediaLibrary/Services/ThumbnailCache.swift,
 				MediaLibrary/Services/ThumbnailService.swift,
 				MediaLibrary/Sources/Fake/FakeFileDataSource.swift,
+				MediaLibrary/Sources/Local/ImportedDirectoryScanner.swift,
 				MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift,
 				MediaLibrary/Sources/Local/SecurityScopedFileReferenceResolver.swift,
 				MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift,

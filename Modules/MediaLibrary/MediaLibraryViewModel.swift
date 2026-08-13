@@ -288,21 +288,18 @@ public final class MediaLibraryViewModel {
 
     private let store: MediaLibraryStoring
     private let resolver: MediaReferenceResolver
-    private let fileManager: FileManager
     private let viewingStateProvider: MediaViewingStateProvider
     private let onPlay: @MainActor (MediaPlaybackItem) -> Void
 
     init(
         store: MediaLibraryStoring = UserDefaultsMediaLibraryStore(),
         resolver: MediaReferenceResolver,
-        fileManager: FileManager = .default,
         viewingStateProvider: @escaping MediaViewingStateProvider = { _ in nil },
         initialLibrary: FileBrowsingDomain.MediaLibrary? = nil,
         onPlay: @escaping @MainActor (MediaPlaybackItem) -> Void
     ) {
         self.store = store
         self.resolver = resolver
-        self.fileManager = fileManager
         self.viewingStateProvider = viewingStateProvider
         self.onPlay = onPlay
         if let initialLibrary {
@@ -430,34 +427,23 @@ public final class MediaLibraryViewModel {
         }
     }
 
-    public func addFolder(_ folderURL: URL) {
-        mutate {
-            let accessStarted = folderURL.startAccessingSecurityScopedResource()
-            defer { if accessStarted { folderURL.stopAccessingSecurityScopedResource() } }
-            let bookmark = try folderURL.bookmarkData(
-                options: SecurityScopedFileReferenceResolver.bookmarkCreationOptions
-            )
-            let keys: [URLResourceKey] = [.isRegularFileKey, .fileSizeKey, .contentModificationDateKey]
-            guard let enumerator = fileManager.enumerator(
-                at: folderURL,
-                includingPropertiesForKeys: keys,
-                options: [.skipsHiddenFiles, .skipsPackageDescendants]
-            ) else {
-                throw MediaReferenceResolver.ResolutionError.unavailableFile
+    public func addFolder(_ folderURL: URL) async {
+        let destinationFolderID = currentFolderID
+        do {
+            let snapshot = try await Task.detached(priority: .userInitiated) {
+                try ImportedDirectoryScanner.scan(folderURL)
+            }.value
+            var candidate = library
+            _ = try candidate.importDirectory(snapshot, into: destinationFolderID)
+            guard candidate != library else {
+                lastErrorMessage = nil
+                return
             }
-            for case let url as URL in enumerator {
-                let values = try url.resourceValues(forKeys: Set(keys))
-                guard values.isRegularFile == true,
-                      FileBrowsingDomain.FileFilter.playable.matches(fileURL: url) else { continue }
-                let relativePath = String(url.path.dropFirst(folderURL.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-                let reference = FileBrowsingDomain.MediaReference(
-                    name: url.lastPathComponent,
-                    locator: .file(bookmark: bookmark, relativePath: relativePath),
-                    sizeInBytes: Int64(values.fileSize ?? 0),
-                    modifiedAt: values.contentModificationDate ?? .distantPast
-                )
-                try library.add(reference, to: currentFolderID)
-            }
+            try store.save(candidate)
+            library = candidate
+            lastErrorMessage = nil
+        } catch {
+            lastErrorMessage = error.localizedDescription
         }
     }
 

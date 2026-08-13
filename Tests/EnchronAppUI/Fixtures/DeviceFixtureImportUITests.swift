@@ -3565,20 +3565,32 @@ nonisolated final class DeviceFixtureImportUITests: XCTestCase {
             return true
         }
 
-        openManageAction("Add Folder Contents", in: app)
-        guard waitForFilePicker(in: app, timeout: 20) else {
-            XCTFail("The folder importer did not expose a browsable interface.")
+        let importedFolder = app.descendants(matching: .any)[
+            "MediaLibrary-grid-folder-Generated"
+        ].firstMatch
+
+        if importedFolder.waitForExistence(timeout: 3) == false {
+            openManageAction("Add Folder", in: app)
+            guard waitForFilePicker(in: app, timeout: 20) else {
+                XCTFail("The folder importer did not expose a browsable interface.")
+                return false
+            }
+            guard navigateToGeneratedFixtureDirectory(
+                in: app,
+                selectDirectory: true
+            ) else { return false }
+            attachFilePickerState(app, name: "generated-folder-visible")
+            confirmPickerIfNeeded(for: importedFolder, in: app)
+        }
+        guard importedFolder.waitForExistence(timeout: 30),
+              waitForElementToBecomeHittable(importedFolder, timeout: 10) else {
+            XCTFail("Importing Generated did not add its folder to the Media Library.")
             return false
         }
-        guard navigateToGeneratedFixtureDirectory(
-            in: app,
-            selectDirectory: true
-        ) else { return false }
-        attachFilePickerState(app, name: "generated-folder-visible")
-        confirmPickerIfNeeded(for: mediaCard, in: app)
+        importedFolder.tap()
         guard mediaCard.waitForExistence(timeout: 30) else {
             XCTFail(
-                "Importing the Generated folder did not add the required registered media."
+                "Opening the imported Generated folder did not show the required media."
             )
             return false
         }

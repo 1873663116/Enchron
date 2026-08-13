@@ -40,6 +40,7 @@ struct SourceSidebar: View {
     /// view-model's source switching (UC-FILE-16).
     var onSelectSource: ((SidebarSourceItem.ID) -> Void)?
     var onAddSource: ((FileBrowsingDomain.SourceType) -> Void)?
+    var onImportFolder: (() -> Void)?
     var onRefresh: (() -> Void)?
     var onDeleteSources: ((Set<SidebarSourceItem.ID>) -> Void)?
     var showsStorageMeter = false
@@ -203,6 +204,12 @@ struct SourceSidebar: View {
                     Label("Files", systemImage: "folder")
                 }
                 .accessibilityIdentifier("\(identifierPrefix)-addFiles")
+                if let onImportFolder {
+                    Button(action: onImportFolder) {
+                        Label("Folder", systemImage: "folder.badge.plus")
+                    }
+                    .accessibilityIdentifier("\(identifierPrefix)-addFolder")
+                }
                 Button {
                     onAddSource?(.photoLibrary)
                 } label: {

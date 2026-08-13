@@ -16,7 +16,7 @@ final class SecurityScopedFileReferenceResolver {
         }
     }
 
-    static var bookmarkCreationOptions: URL.BookmarkCreationOptions {
+    nonisolated static var bookmarkCreationOptions: URL.BookmarkCreationOptions {
         #if os(macOS)
         []
         #else
@@ -24,7 +24,7 @@ final class SecurityScopedFileReferenceResolver {
         #endif
     }
 
-    private static var bookmarkResolutionOptions: URL.BookmarkResolutionOptions {
+    private nonisolated static var bookmarkResolutionOptions: URL.BookmarkResolutionOptions {
         []
     }
 
@@ -41,9 +41,31 @@ final class SecurityScopedFileReferenceResolver {
         #else
         let access = MediaAccessLease.securityScoped(selectedURL)
         #endif
-        let playableURL = relativePath.isEmpty
-            ? selectedURL
-            : selectedURL.appending(path: relativePath)
+        let playableURL: URL
+        if relativePath.isEmpty {
+            playableURL = selectedURL
+        } else {
+            let components = relativePath.split(separator: "/", omittingEmptySubsequences: false)
+            guard !relativePath.hasPrefix("/"),
+                  components.allSatisfy({ component in
+                      !component.isEmpty && component != "." && component != ".."
+                  }) else {
+                access?.release()
+                throw ResolutionError.unavailable
+            }
+            playableURL = components.reduce(selectedURL) { partialURL, component in
+                partialURL.appending(path: String(component))
+            }
+            let authorizedRootComponents = selectedURL.standardizedFileURL
+                .resolvingSymlinksInPath().pathComponents
+            let resolvedPlayableComponents = playableURL.standardizedFileURL
+                .resolvingSymlinksInPath().pathComponents
+            guard resolvedPlayableComponents.count > authorizedRootComponents.count,
+                  resolvedPlayableComponents.starts(with: authorizedRootComponents) else {
+                access?.release()
+                throw ResolutionError.unavailable
+            }
+        }
         guard !stale, (try? playableURL.checkResourceIsReachable()) == true else {
             access?.release()
             throw ResolutionError.unavailable

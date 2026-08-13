@@ -183,4 +183,179 @@ struct MediaLibraryBehaviorTests {
         #expect(viewModel.currentFolderName == "Season 1")
         #expect(viewModel.references == [episode])
     }
+
+    @MainActor
+    @Test("importing a directory preserves every folder level")
+    func importingDirectoryPreservesHierarchy() async throws {
+        let fixture = try DirectoryImportFixture.make()
+        defer { fixture.remove() }
+        let viewModel = MediaLibraryViewModel(
+            store: UserDefaultsMediaLibraryStore(defaults: fixture.defaults),
+            resolver: MediaReferenceResolver(),
+            onPlay: { _ in }
+        )
+
+        await viewModel.addFolder(fixture.root)
+
+        let importedRoot = try #require(viewModel.folders.only)
+        #expect(importedRoot.name == "TestMedia")
+        #expect(viewModel.references.isEmpty)
+
+        viewModel.open(importedRoot)
+        #expect(Set(viewModel.folders.map(\.name)) == ["Empty", "Season 01"])
+        #expect(viewModel.references.map(\.name) == ["Root Movie.mp4"])
+
+        let season = try #require(viewModel.folders.first { $0.name == "Season 01" })
+        viewModel.open(season)
+        #expect(viewModel.folders.map(\.name) == ["Bonus"])
+        #expect(viewModel.references.map(\.name) == ["Episode 01.mkv"])
+
+        let bonus = try #require(viewModel.folders.only)
+        viewModel.open(bonus)
+        let bonusReference = try #require(viewModel.references.only)
+        #expect(bonusReference.name == "Behind the Scenes.mov")
+        #expect(bonusReference.fileExtension == "mov")
+        guard case .file(_, let relativePath) = bonusReference.locator else {
+            Issue.record("The imported video did not retain its folder bookmark locator.")
+            return
+        }
+        #expect(relativePath == "Season 01/Bonus/Behind the Scenes.mov")
+    }
+
+    @MainActor
+    @Test("directory import de-duplicates entries and importing the same directory is idempotent")
+    func repeatedDirectoryImportIsIdempotent() async throws {
+        let fixture = try DirectoryImportFixture.make()
+        defer { fixture.remove() }
+        let store = UserDefaultsMediaLibraryStore(defaults: fixture.defaults)
+        let viewModel = MediaLibraryViewModel(
+            store: store,
+            resolver: MediaReferenceResolver(),
+            onPlay: { _ in }
+        )
+
+        await viewModel.addFolder(fixture.root)
+        let firstLibrary = viewModel.library
+        let firstRoot = try #require(viewModel.folders.only)
+
+        await viewModel.addFolder(fixture.root)
+
+        #expect(viewModel.library == firstLibrary)
+        #expect(viewModel.folders == [firstRoot])
+        #expect(try store.load() == firstLibrary)
+        let relativePaths: [String] = viewModel.allFolders.flatMap { folder in
+            viewModel.library.references(in: folder.id).compactMap { reference -> String? in
+                guard case .file(_, let relativePath) = reference.locator else { return nil }
+                return relativePath
+            }
+        }
+        #expect(relativePaths.count == Set(relativePaths).count)
+        #expect(relativePaths.count == 3)
+    }
+
+    @MainActor
+    @Test("folder bookmarks cannot resolve a path outside the selected directory")
+    func folderBookmarkRejectsParentTraversal() throws {
+        let fixture = try DirectoryImportFixture.make()
+        defer { fixture.remove() }
+        let resolver = SecurityScopedFileReferenceResolver()
+
+        #expect(throws: SecurityScopedFileReferenceResolver.ResolutionError.unavailable) {
+            try resolver.resolve(
+                bookmark: fixture.root.bookmarkData(
+                    options: SecurityScopedFileReferenceResolver.bookmarkCreationOptions
+                ),
+                relativePath: "../Outside/Escape.mp4"
+            )
+        }
+    }
+
+    @Test("libraries saved before imported-directory metadata still decode")
+    func legacyLibraryWithoutImportedDirectoriesDecodes() throws {
+        let legacyJSON = Data(#"{"allFolders":[],"entries":[]}"#.utf8)
+
+        let library = try JSONDecoder().decode(
+            FileBrowsingDomain.MediaLibrary.self,
+            from: legacyJSON
+        )
+
+        #expect(library == FileBrowsingDomain.MediaLibrary())
+    }
+
+    @MainActor
+    @Test("a failed directory-import save does not publish a partial tree")
+    func failedDirectoryImportSaveIsAtomic() async throws {
+        let fixture = try DirectoryImportFixture.make()
+        defer { fixture.remove() }
+        let viewModel = MediaLibraryViewModel(
+            store: FailingMediaLibraryStore(),
+            resolver: MediaReferenceResolver(),
+            onPlay: { _ in }
+        )
+
+        await viewModel.addFolder(fixture.root)
+
+        #expect(viewModel.library == FileBrowsingDomain.MediaLibrary())
+        #expect(viewModel.lastErrorMessage != nil)
+    }
+}
+
+private extension Collection {
+    var only: Element? {
+        count == 1 ? first : nil
+    }
+}
+
+private struct DirectoryImportFixture {
+    let root: URL
+    let defaults: UserDefaults
+    let suiteName: String
+
+    static func make() throws -> Self {
+        let fileManager = FileManager.default
+        let container = fileManager.temporaryDirectory.appending(
+            path: "enchron-directory-import-\(UUID().uuidString)",
+            directoryHint: .isDirectory
+        )
+        let root = container.appending(path: "TestMedia", directoryHint: .isDirectory)
+        let outside = container.appending(path: "Outside", directoryHint: .isDirectory)
+        let season = root.appending(path: "Season 01", directoryHint: .isDirectory)
+        let bonus = season.appending(path: "Bonus", directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: bonus, withIntermediateDirectories: true)
+        try fileManager.createDirectory(
+            at: root.appending(path: "Empty", directoryHint: .isDirectory),
+            withIntermediateDirectories: true
+        )
+        try fileManager.createDirectory(at: outside, withIntermediateDirectories: true)
+        try Data([0x01]).write(to: root.appending(path: "Root Movie.mp4"))
+        try Data([0x02]).write(to: season.appending(path: "Episode 01.mkv"))
+        try Data([0x03]).write(to: bonus.appending(path: "Behind the Scenes.mov"))
+        try Data([0x04]).write(to: root.appending(path: "Notes.txt"))
+        try Data([0x05]).write(to: outside.appending(path: "Escape.mp4"))
+        try fileManager.createSymbolicLink(
+            at: root.appending(path: "Escape", directoryHint: .isDirectory),
+            withDestinationURL: outside
+        )
+
+        let suiteName = "app.enchron.tests.directory-import.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suiteName))
+        return Self(root: root, defaults: defaults, suiteName: suiteName)
+    }
+
+    func remove() {
+        try? FileManager.default.removeItem(at: root.deletingLastPathComponent())
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+}
+
+private struct FailingMediaLibraryStore: MediaLibraryStoring {
+    struct SaveFailure: Error {}
+
+    func load() throws -> FileBrowsingDomain.MediaLibrary {
+        FileBrowsingDomain.MediaLibrary()
+    }
+
+    func save(_: FileBrowsingDomain.MediaLibrary) throws {
+        throw SaveFailure()
+    }
 }
