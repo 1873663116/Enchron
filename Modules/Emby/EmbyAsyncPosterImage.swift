@@ -7,10 +7,25 @@ import SwiftUI
 public struct EmbyAsyncPosterImage: View {
     private let url: URL?
 
-    @State private var loadedImage: LoadedImage?
-
     public init(url: URL?) {
         self.url = url
+    }
+
+    public var body: some View {
+        EmbyAsyncImage(url: url, contentMode: .fill)
+        .aspectRatio(2.0 / 3.0, contentMode: .fit)
+    }
+}
+
+public struct EmbyAsyncImage: View {
+    private let url: URL?
+    private let contentMode: ContentMode
+
+    @State private var loadedImage: LoadedImage?
+
+    public init(url: URL?, contentMode: ContentMode = .fill) {
+        self.url = url
+        self.contentMode = contentMode
     }
 
     public var body: some View {
@@ -18,12 +33,11 @@ public struct EmbyAsyncPosterImage: View {
             if let loadedImage, loadedImage.url == url {
                 Image(decorative: loadedImage.image, scale: 1)
                     .resizable()
-                    .aspectRatio(contentMode: .fill)
+                    .aspectRatio(contentMode: contentMode)
             } else {
                 EmbyPosterPlaceholder()
             }
         }
-        .aspectRatio(2.0 / 3.0, contentMode: .fit)
         .task(id: url) {
             loadedImage = nil
             guard let url else { return }

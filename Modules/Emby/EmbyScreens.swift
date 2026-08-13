@@ -1,0 +1,766 @@
+import DesignSystem
+import Foundation
+import SwiftUI
+
+public struct EmbyScreen: View {
+    public typealias PlayHandler = @MainActor (EmbyPlaybackSelection) async throws -> Void
+
+    @Environment(EmbySessionViewModel.self) private var session
+    @Environment(EmbyHomeViewModel.self) private var home
+    @State private var destination: SidebarDestination = .home
+    @State private var path: [EmbyLibraryItem] = []
+
+    private let onPlay: PlayHandler
+
+    public init(onPlay: @escaping PlayHandler) {
+        self.onPlay = onPlay
+    }
+
+    public var body: some View {
+        Group {
+            if session.server == nil {
+                EmbyConnectionScreen()
+            } else {
+                HStack(spacing: 0) {
+                    sidebar
+                    NavigationStack(path: $path) {
+                        destinationContent
+                            .navigationDestination(for: EmbyLibraryItem.self) { item in
+                                EmbyDetailScreen(
+                                    viewModel: EmbyDetailViewModel(
+                                        itemID: item.metadata.id,
+                                        client: session.client,
+                                        session: session
+                                    ),
+                                    onSelect: { path.append($0) },
+                                    onPlay: onPlay
+                                )
+                            }
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("Emby-Root")
+    }
+
+    private var sidebar: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(session.server?.name ?? "Emby")
+                .font(DesignTokens.Typography.title)
+                .padding(.bottom, DesignTokens.Spacing.lg)
+
+            sidebarButton(
+                title: "Home",
+                systemImage: "house.fill",
+                destination: .home,
+                identifier: "Emby-Sidebar-Home"
+            )
+
+            ForEach(home.libraries, id: \.id) { library in
+                sidebarButton(
+                    title: library.name,
+                    systemImage: "rectangle.stack.fill",
+                    destination: .library(library.id),
+                    identifier: "Emby-Sidebar-Library-\(library.id.rawValue)"
+                )
+            }
+
+            sidebarButton(
+                title: "Search",
+                systemImage: "magnifyingglass",
+                destination: .search,
+                identifier: "Emby-Sidebar-Search"
+            )
+
+            Spacer(minLength: DesignTokens.Spacing.xl)
+
+            Button(role: .destructive) {
+                Task { await session.signOut() }
+            } label: {
+                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+            .accessibilityIdentifier("Emby-SignOut")
+        }
+        .padding(DesignTokens.Spacing.xl)
+        .frame(width: 250)
+        .frame(maxHeight: .infinity, alignment: .topLeading)
+        .background(.thinMaterial)
+    }
+
+    private func sidebarButton(
+        title: String,
+        systemImage: String,
+        destination: SidebarDestination,
+        identifier: String
+    ) -> some View {
+        Button {
+            self.destination = destination
+            path = []
+        } label: {
+            Label(title, systemImage: systemImage)
+                .font(DesignTokens.Typography.headline)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, DesignTokens.Spacing.md)
+                .padding(.vertical, DesignTokens.Spacing.sm)
+                .background(
+                    self.destination == destination
+                        ? DesignTokens.Theme.accent.opacity(0.22)
+                        : Color.clear,
+                    in: DesignTokens.ShapeToken.element
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityIdentifier(identifier)
+    }
+
+    @ViewBuilder
+    private var destinationContent: some View {
+        switch destination {
+        case .home:
+            EmbyHomeScreen(onSelect: { path.append($0) })
+        case .library(let id):
+            if let library = home.libraries.first(where: { $0.id == id }) {
+                EmbyLibraryScreen(
+                    viewModel: EmbyLibraryViewModel(
+                        library: library,
+                        client: session.client,
+                        session: session
+                    ),
+                    onSelect: { path.append($0) }
+                )
+            } else {
+                ContentUnavailableView("Library Unavailable", systemImage: "rectangle.stack")
+            }
+        case .search:
+            EmbySearchScreen(onSelect: { path.append($0) })
+        }
+    }
+}
+
+private enum SidebarDestination: Hashable {
+    case home
+    case library(EmbyItemID)
+    case search
+}
+
+private struct EmbyConnectionScreen: View {
+    @Environment(EmbyConnectionViewModel.self) private var viewModel
+
+    var body: some View {
+        @Bindable var viewModel = viewModel
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                Text("Connect to Emby")
+                    .font(DesignTokens.Typography.title)
+                Text("Enter the address and account for your media server.")
+                    .foregroundStyle(.secondary)
+            }
+
+            TextField("Server address", text: $viewModel.address)
+                .textContentType(.URL)
+                .accessibilityIdentifier("Emby-Connection-Address")
+            TextField("Username", text: $viewModel.username)
+                .textContentType(.username)
+                .accessibilityIdentifier("Emby-Connection-Username")
+            SecureField("Password", text: $viewModel.password)
+                .textContentType(.password)
+                .accessibilityIdentifier("Emby-Connection-Password")
+
+            if let error = viewModel.errorMessage {
+                Text(error)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("Emby-Connection-Error")
+            }
+
+            Button {
+                Task { await viewModel.connect() }
+            } label: {
+                if viewModel.isConnecting {
+                    ProgressView()
+                } else {
+                    Text("Connect")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(viewModel.isConnecting)
+            .accessibilityIdentifier("Emby-Connection-Connect")
+        }
+        .textFieldStyle(.roundedBorder)
+        .padding(DesignTokens.Spacing.xxl)
+        .frame(width: 520)
+        .background(.regularMaterial, in: DesignTokens.ShapeToken.panel)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+private struct EmbyHomeScreen: View {
+    @Environment(EmbyHomeViewModel.self) private var viewModel
+    @Environment(EmbySessionViewModel.self) private var session
+    let onSelect: (EmbyLibraryItem) -> Void
+
+    var body: some View {
+        ScrollView(.vertical) {
+            LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+                Text("Home")
+                    .font(.largeTitle)
+
+                ForEach(viewModel.shelves) { shelf in
+                    EmbyPosterShelf(
+                        title: shelf.title,
+                        items: shelf.items.map(EmbyPosterItem.init),
+                        onSelect: { poster in
+                            if let item = shelf.items.first(where: { $0.metadata.id == poster.id }) {
+                                onSelect(item)
+                            }
+                        }
+                    ) { poster in
+                        EmbyAsyncPosterImage(url: posterURL(for: poster.id, in: shelf.items, session: session))
+                    }
+                }
+
+                if viewModel.shelves.isEmpty, viewModel.isLoading == false {
+                    ContentUnavailableView("No Emby titles", systemImage: "film.stack")
+                }
+            }
+            .padding(DesignTokens.Spacing.xxl)
+        }
+        .task { await viewModel.refresh() }
+        .accessibilityIdentifier("Emby-Home")
+    }
+}
+
+private struct EmbyLibraryScreen: View {
+    @Environment(EmbySessionViewModel.self) private var session
+    @State private var viewModel: EmbyLibraryViewModel
+    let onSelect: (EmbyLibraryItem) -> Void
+
+    init(viewModel: EmbyLibraryViewModel, onSelect: @escaping (EmbyLibraryItem) -> Void) {
+        _viewModel = State(initialValue: viewModel)
+        self.onSelect = onSelect
+    }
+
+    var body: some View {
+        @Bindable var viewModel = viewModel
+        VStack(spacing: 0) {
+            HStack {
+                Text(viewModel.library.name)
+                    .font(.largeTitle)
+                Spacer()
+                Picker("Sort", selection: Binding(
+                    get: { viewModel.sort },
+                    set: { value in Task { await viewModel.selectSort(value) } }
+                )) {
+                    ForEach(EmbyLibrarySort.allCases, id: \.self) { sort in
+                        Text(sort.title).tag(sort)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 360)
+                .accessibilityIdentifier("Emby-Library-Sort")
+            }
+            .padding(DesignTokens.Spacing.xxl)
+
+            EmbyPosterGrid(items: viewModel.items, session: session, onSelect: onSelect)
+        }
+        .task { await viewModel.refresh() }
+        .accessibilityIdentifier("Emby-Library-\(viewModel.library.id.rawValue)")
+    }
+}
+
+private struct EmbySearchScreen: View {
+    @Environment(EmbySearchViewModel.self) private var viewModel
+    @Environment(EmbySessionViewModel.self) private var session
+    let onSelect: (EmbyLibraryItem) -> Void
+
+    var body: some View {
+        @Bindable var viewModel = viewModel
+        VStack(spacing: DesignTokens.Spacing.xl) {
+            TextField("Search Emby", text: $viewModel.query)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityIdentifier("Emby-Search-Field")
+                .onSubmit { Task { await viewModel.refresh() } }
+                .padding(.horizontal, DesignTokens.Spacing.xxl)
+                .padding(.top, DesignTokens.Spacing.xxl)
+
+            EmbyPosterGrid(items: viewModel.results, session: session, onSelect: onSelect)
+        }
+        .task { await viewModel.refresh() }
+        .task(id: viewModel.query) {
+            guard viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
+                await viewModel.refresh()
+                return
+            }
+            try? await Task.sleep(for: .milliseconds(300))
+            guard Task.isCancelled == false else { return }
+            await viewModel.refresh()
+        }
+        .accessibilityIdentifier("Emby-Search")
+    }
+}
+
+private struct EmbyPosterGrid: View {
+    let items: [EmbyLibraryItem]
+    let session: EmbySessionViewModel
+    let onSelect: (EmbyLibraryItem) -> Void
+
+    var body: some View {
+        ScrollView {
+            LazyVGrid(
+                columns: [GridItem(.adaptive(minimum: DesignTokens.Card.gridMin), spacing: DesignTokens.Card.gridSpacing)],
+                alignment: .leading,
+                spacing: DesignTokens.Card.gridSpacing
+            ) {
+                ForEach(items, id: \.metadata.id) { item in
+                    EmbyPosterCard(item: EmbyPosterItem(item), action: { onSelect(item) }) {
+                        EmbyAsyncPosterImage(url: posterURL(for: item, session: session))
+                    }
+                }
+            }
+            .padding(DesignTokens.Spacing.xxl)
+        }
+    }
+}
+
+private struct EmbyDetailScreen: View {
+    @Environment(EmbySessionViewModel.self) private var session
+    @State private var viewModel: EmbyDetailViewModel
+    @State private var overviewIsExpanded = false
+    @State private var playbackError: String?
+
+    let onSelect: (EmbyLibraryItem) -> Void
+    let onPlay: EmbyScreen.PlayHandler
+
+    init(
+        viewModel: EmbyDetailViewModel,
+        onSelect: @escaping (EmbyLibraryItem) -> Void,
+        onPlay: @escaping EmbyScreen.PlayHandler
+    ) {
+        _viewModel = State(initialValue: viewModel)
+        self.onSelect = onSelect
+        self.onPlay = onPlay
+    }
+
+    var body: some View {
+        @Bindable var viewModel = viewModel
+        ScrollView(.vertical) {
+            if let item = viewModel.item {
+                LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+                    hero(item)
+                    metadataRow(item.metadata)
+                    overview(item.metadata)
+                    actionRow(item)
+                    seriesContent
+                    trailerShelf(item.metadata.remoteTrailers)
+                    posterShelf(title: "Special Features", items: viewModel.specialFeatures)
+                    posterShelf(title: "Related", items: viewModel.relatedItems)
+                    castAndCrew(item.metadata.people)
+                    about(item.metadata)
+                }
+                .padding(.bottom, DesignTokens.Spacing.xxl)
+            } else if viewModel.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 400)
+            }
+        }
+        .task { await viewModel.refresh() }
+        .accessibilityIdentifier("Emby-Detail-\(viewModel.itemID.rawValue)")
+    }
+
+    private func hero(_ item: EmbyLibraryItem) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            EmbyAsyncImage(url: backdropURL(for: item, session: session))
+                .frame(maxWidth: .infinity)
+                .frame(height: 430)
+                .clipped()
+                .overlay {
+                    LinearGradient(
+                        colors: [.clear, .black.opacity(0.78)],
+                        startPoint: .center,
+                        endPoint: .bottom
+                    )
+                }
+
+            Group {
+                if let logoURL = imageURL(for: item, type: .logo, session: session) {
+                    EmbyAsyncImage(url: logoURL, contentMode: .fit)
+                        .frame(width: 420, height: 150, alignment: .leading)
+                } else {
+                    Text(item.metadata.name)
+                        .font(.largeTitle)
+                        .fontWeight(.bold)
+                }
+            }
+            .padding(DesignTokens.Spacing.xxl)
+        }
+    }
+
+    private func metadataRow(_ metadata: EmbyItemMetadata) -> some View {
+        HStack(spacing: DesignTokens.Spacing.lg) {
+            if let year = metadata.productionYear { Text(String(year)) }
+            if let ticks = metadata.runTimeTicks { Text(runtime(ticks)) }
+            if let rating = metadata.officialRating { Text(rating) }
+            if let rating = metadata.communityRating { Text(String(format: "★ %.1f", rating)) }
+            if metadata.genres.isEmpty == false { Text(metadata.genres.joined(separator: " · ")) }
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, DesignTokens.Spacing.xxl)
+    }
+
+    @ViewBuilder
+    private func overview(_ metadata: EmbyItemMetadata) -> some View {
+        if let overview = metadata.overview, overview.isEmpty == false {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                Text(overview)
+                    .font(.body)
+                    .lineLimit(overviewIsExpanded ? nil : 4)
+                if overview.count > 280 {
+                    Button(overviewIsExpanded ? "Show Less" : "More") {
+                        overviewIsExpanded.toggle()
+                    }
+                    .accessibilityIdentifier("Emby-Detail-Overview-Expand")
+                }
+            }
+            .padding(.horizontal, DesignTokens.Spacing.xxl)
+        }
+    }
+
+    private func actionRow(_ item: EmbyLibraryItem) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            HStack(spacing: DesignTokens.Spacing.md) {
+                if (item.metadata.userData?.playbackPositionTicks ?? 0) > 0 {
+                    playButton("Resume", systemImage: "play.fill", action: .resume)
+                    playButton("Play from Beginning", systemImage: "backward.end.fill", action: .fromBeginning)
+                } else {
+                    playButton("Play", systemImage: "play.fill", action: .fromBeginning)
+                }
+
+                if item.metadata.mediaSources.count > 1 {
+                    Picker("Version", selection: Binding(
+                        get: { viewModel.selectedMediaSourceID },
+                        set: { viewModel.selectedMediaSourceID = $0 }
+                    )) {
+                        ForEach(item.metadata.mediaSources) { source in
+                            Text(source.displayName).tag(Optional(source.id))
+                        }
+                    }
+                    .frame(width: 300)
+                    .accessibilityIdentifier("Emby-Detail-Version")
+                }
+            }
+            if let playbackError {
+                Text(playbackError)
+                    .foregroundStyle(.red)
+                    .accessibilityIdentifier("Emby-Playback-Error")
+            }
+        }
+        .padding(.horizontal, DesignTokens.Spacing.xxl)
+    }
+
+    private func playButton(
+        _ title: String,
+        systemImage: String,
+        action: EmbyPlaybackStartAction
+    ) -> some View {
+        Button {
+            Task {
+                do {
+                    try await onPlay(viewModel.playbackSelection(startAction: action))
+                    playbackError = nil
+                } catch {
+                    playbackError = error.localizedDescription
+                }
+            }
+        } label: {
+            Label(title, systemImage: systemImage)
+        }
+        .buttonStyle(.borderedProminent)
+        .accessibilityIdentifier("Emby-Detail-\(action == .resume ? "Resume" : "PlayFromBeginning")")
+    }
+
+    @ViewBuilder
+    private var seriesContent: some View {
+        if viewModel.seasons.isEmpty == false {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                ScrollView(.horizontal) {
+                    HStack {
+                        ForEach(viewModel.seasons, id: \.metadata.id) { season in
+                            Button(season.metadata.name) {
+                                Task { await viewModel.selectSeason(season.metadata.id) }
+                            }
+                            .buttonStyle(.bordered)
+                            .fontWeight(viewModel.selectedSeasonID == season.metadata.id ? .bold : .regular)
+                            .accessibilityIdentifier("Emby-Season-\(season.metadata.id.rawValue)")
+                        }
+                    }
+                }
+
+                LazyVStack(spacing: DesignTokens.Spacing.lg) {
+                    ForEach(viewModel.episodes, id: \.metadata.id) { episode in
+                        Button {
+                            Task {
+                                do {
+                                    try await onPlay(viewModel.playbackSelection(for: episode))
+                                    playbackError = nil
+                                } catch {
+                                    playbackError = error.localizedDescription
+                                }
+                            }
+                        } label: {
+                            episodeRow(episode)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityIdentifier("Emby-Episode-\(episode.metadata.id.rawValue)")
+                    }
+                }
+            }
+            .padding(.horizontal, DesignTokens.Spacing.xxl)
+        }
+    }
+
+    private func episodeRow(_ episode: EmbyEpisode) -> some View {
+        HStack(alignment: .top, spacing: DesignTokens.Spacing.lg) {
+            EmbyAsyncImage(url: thumbURL(for: episode.metadata, session: session))
+                .frame(width: 300, height: 169)
+                .clipped()
+                .clipShape(DesignTokens.ShapeToken.element)
+
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+                Text(episodeLabel(episode))
+                    .font(DesignTokens.Typography.headline)
+                if let overview = episode.metadata.overview {
+                    Text(overview)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(3)
+                }
+                if let ticks = episode.metadata.runTimeTicks {
+                    Text(runtime(ticks))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Spacer()
+        }
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private func trailerShelf(_ trailers: [EmbyRemoteTrailer]) -> some View {
+        if trailers.isEmpty == false {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                Text("Trailers").font(DesignTokens.Typography.title)
+                ScrollView(.horizontal) {
+                    HStack(spacing: DesignTokens.Spacing.lg) {
+                        ForEach(trailers) { trailer in
+                            Link(destination: trailer.url) {
+                                Label(trailer.name, systemImage: "play.rectangle.fill")
+                                    .frame(width: 280, height: 150)
+                                    .background(.thinMaterial, in: DesignTokens.ShapeToken.element)
+                            }
+                            .accessibilityIdentifier("Emby-Trailer-\(trailer.id.absoluteString)")
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, DesignTokens.Spacing.xxl)
+        }
+    }
+
+    @ViewBuilder
+    private func posterShelf(title: String, items: [EmbyLibraryItem]) -> some View {
+        if items.isEmpty == false {
+            EmbyPosterShelf(
+                title: title,
+                items: items.map(EmbyPosterItem.init),
+                onSelect: { poster in
+                    if let item = items.first(where: { $0.metadata.id == poster.id }) {
+                        onSelect(item)
+                    }
+                }
+            ) { poster in
+                EmbyAsyncPosterImage(url: posterURL(for: poster.id, in: items, session: session))
+            }
+            .padding(.horizontal, DesignTokens.Spacing.xxl)
+        }
+    }
+
+    @ViewBuilder
+    private func castAndCrew(_ people: [EmbyPerson]) -> some View {
+        if people.isEmpty == false {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                Text("Cast & Crew").font(DesignTokens.Typography.title)
+                ScrollView(.horizontal) {
+                    HStack(alignment: .top, spacing: DesignTokens.Spacing.xl) {
+                        ForEach(Array(people.enumerated()), id: \.offset) { _, person in
+                            VStack(spacing: DesignTokens.Spacing.sm) {
+                                EmbyAsyncImage(url: personURL(person, session: session))
+                                    .frame(width: 132, height: 132)
+                                    .clipShape(Circle())
+                                Text(person.name)
+                                    .font(DesignTokens.Typography.headline)
+                                    .multilineTextAlignment(.center)
+                                if let role = person.role ?? person.type {
+                                    Text(role)
+                                        .foregroundStyle(.secondary)
+                                        .multilineTextAlignment(.center)
+                                }
+                            }
+                            .frame(width: 150)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, DesignTokens.Spacing.xxl)
+        }
+    }
+
+    private func about(_ metadata: EmbyItemMetadata) -> some View {
+        let source = metadata.mediaSources.first { $0.id == viewModel.selectedMediaSourceID }
+            ?? metadata.mediaSources.first
+        let audioLanguages = languages(in: source, kind: .audio)
+        let subtitleLanguages = languages(in: source, kind: .subtitle)
+        return VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
+            Text("About").font(DesignTokens.Typography.title)
+            if let overview = metadata.overview { aboutRow("Overview", overview) }
+            if let year = metadata.productionYear { aboutRow("Release Year", String(year)) }
+            if let rating = metadata.officialRating { aboutRow("Rating", rating) }
+            if metadata.studios.isEmpty == false {
+                aboutRow("Studios", metadata.studios.map(\.name).joined(separator: ", "))
+            }
+            if audioLanguages.isEmpty == false { aboutRow("Audio", audioLanguages) }
+            if subtitleLanguages.isEmpty == false { aboutRow("Subtitles", subtitleLanguages) }
+        }
+        .padding(DesignTokens.Spacing.xxl)
+    }
+
+    private func aboutRow(_ label: String, _ value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(label).foregroundStyle(.secondary).frame(width: 140, alignment: .leading)
+            Text(value)
+        }
+    }
+}
+
+private extension EmbyPosterItem {
+    init(_ item: EmbyLibraryItem) {
+        let metadata = item.metadata
+        let progress: Double?
+        if let position = metadata.userData?.playbackPositionTicks,
+           let duration = metadata.runTimeTicks,
+           duration > 0,
+           position > 0 {
+            progress = Double(position) / Double(duration)
+        } else {
+            progress = nil
+        }
+        self.init(
+            id: metadata.id,
+            title: metadata.name,
+            progress: progress,
+            unplayedCount: metadata.userData?.unplayedItemCount
+        )
+    }
+}
+
+@MainActor
+private func posterURL(
+    for id: EmbyItemID,
+    in items: [EmbyLibraryItem],
+    session: EmbySessionViewModel
+) -> URL? {
+    items.first(where: { $0.metadata.id == id }).flatMap { posterURL(for: $0, session: session) }
+}
+
+@MainActor
+private func posterURL(for item: EmbyLibraryItem, session: EmbySessionViewModel) -> URL? {
+    imageURL(for: item, type: .primary, session: session)
+}
+
+@MainActor
+private func imageURL(
+    for item: EmbyLibraryItem,
+    type: EmbyImageType,
+    session: EmbySessionViewModel
+) -> URL? {
+    guard let server = session.server else { return nil }
+    let tag: EmbyImageTag? = switch type {
+    case .primary: item.metadata.imageTags.primary
+    case .logo: item.metadata.imageTags.logo
+    case .thumb: item.metadata.imageTags.thumb
+    case .backdrop: item.metadata.imageTags.backdrops.first
+    }
+    guard tag != nil else { return nil }
+    return try? session.client.imageURL(
+        for: item.metadata.id,
+        type: type,
+        tag: tag,
+        size: nil,
+        on: server
+    )
+}
+
+@MainActor
+private func backdropURL(for item: EmbyLibraryItem, session: EmbySessionViewModel) -> URL? {
+    guard let server = session.server,
+          let tag = item.metadata.imageTags.backdrops.first else { return nil }
+    return try? session.client.backdropImageURL(
+        for: item.metadata.id,
+        index: 0,
+        tag: tag,
+        size: nil,
+        on: server
+    )
+}
+
+@MainActor
+private func thumbURL(for metadata: EmbyItemMetadata, session: EmbySessionViewModel) -> URL? {
+    guard let server = session.server else { return nil }
+    let type: EmbyImageType = metadata.imageTags.thumb == nil ? .primary : .thumb
+    let tag = metadata.imageTags.thumb ?? metadata.imageTags.primary
+    guard let tag else { return nil }
+    return try? session.client.imageURL(
+        for: metadata.id,
+        type: type,
+        tag: tag,
+        size: nil,
+        on: server
+    )
+}
+
+@MainActor
+private func personURL(_ person: EmbyPerson, session: EmbySessionViewModel) -> URL? {
+    guard let server = session.server,
+          let id = person.id,
+          let tag = person.primaryImageTag else { return nil }
+    return try? session.client.imageURL(
+        for: id,
+        type: .primary,
+        tag: tag,
+        size: nil,
+        on: server
+    )
+}
+
+private func runtime(_ ticks: Int64) -> String {
+    let totalMinutes = max(0, ticks / 10_000_000 / 60)
+    let hours = totalMinutes / 60
+    let minutes = totalMinutes % 60
+    return hours > 0 ? "\(hours) hr \(minutes) min" : "\(minutes) min"
+}
+
+private func episodeLabel(_ episode: EmbyEpisode) -> String {
+    let number = episode.episodeNumber.map { "Episode \($0)" } ?? "Episode"
+    return "\(number) · \(episode.metadata.name)"
+}
+
+private func languages(
+    in source: EmbyMediaSourceDescription?,
+    kind: EmbyMediaStreamKind
+) -> String {
+    guard let source else { return "" }
+    return Array(Set(source.mediaStreams.filter { $0.kind == kind }.compactMap { stream in
+        stream.language ?? stream.displayTitle
+    })).sorted().joined(separator: ", ")
+}
