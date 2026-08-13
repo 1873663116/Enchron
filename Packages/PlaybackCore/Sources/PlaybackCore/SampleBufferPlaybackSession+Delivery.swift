@@ -52,7 +52,7 @@ extension SampleBufferPlaybackSession {
         stopVideoDelivery()
         stopAudioDelivery()
         discardPendingVideoSample()
-        synchronizer.rate = 0
+        setTimelineStopped(reason: .close)
         deliveryQueue.sync {
             isClosed = true
             provider.cancel()
@@ -153,6 +153,7 @@ extension SampleBufferPlaybackSession {
             videoDeliveryTask = nil
             return task
         }
+        invalidateTimelineProgressRecovery()
         task?.cancel()
         await task?.value
         if flushingRenderer {
@@ -175,6 +176,9 @@ extension SampleBufferPlaybackSession {
             return wasSuspended
         }
         guard wasSuspended else { return }
+        if mediaSessionRecord?.lifecycle == .playing {
+            armTimelineProgressRecoveryForCurrentMapping()
+        }
         let canResume = deliveryQueue.sync {
             hasRequestedVideoData
                 && !videoProviderHasEnded
@@ -348,7 +352,10 @@ extension SampleBufferPlaybackSession {
                     "timelineStart=\(timelineStart.seconds) " +
                     "input=\(RendererInputKind.compressed.rawValue)"
                 )
-                synchronizer.setRate(0, time: timelineStart)
+                setTimelineStopped(
+                    at: timelineStart,
+                    reason: .initialTimelineAnchor
+                )
                 hasStartedTimeline = true
                 // The timeline must remain stopped until decoder bootstrap and,
                 // when present, audio preroll have both crossed the start point.
@@ -356,6 +363,7 @@ extension SampleBufferPlaybackSession {
                 // requested start: a nonzero PTS/DTS decode pipeline can still
                 // need the bootstrap gate.
                 isPrerolling = true
+                recordTimelineControlState()
                 beginDecoderBootstrap(
                     target: targetTimelineTime(fallback: presentationTime)
                 )
@@ -406,7 +414,10 @@ extension SampleBufferPlaybackSession {
                         presentationTime: presentationTime,
                         decodeTime: decodeTime
                     )
-                    try await waitForBoundedRendererLead(presentationTime: presentationTime)
+                    try await waitForBoundedRendererLead(
+                        lane: .video,
+                        presentationTime: presentationTime
+                    )
                     emitPlaybackDeliveryStage(
                         lane: "video",
                         stage: "boundedLead.returned",
@@ -451,7 +462,10 @@ extension SampleBufferPlaybackSession {
                         presentationTime: presentationTime,
                         decodeTime: decodeTime
                     )
-                    try await waitForBoundedRendererLead(presentationTime: presentationTime)
+                    try await waitForBoundedRendererLead(
+                        lane: .video,
+                        presentationTime: presentationTime
+                    )
                     emitPlaybackDeliveryStage(
                         lane: "video",
                         stage: "boundedLead.returned",
@@ -529,7 +543,27 @@ extension SampleBufferPlaybackSession {
             let targetReached = requestedTimelineStart.isNumeric == false
                 || presentationTime >= requestedTimelineStart
                 || presentationEnd >= requestedTimelineStart
-            if isPrerolling, bootstrap.complete, targetReached {
+            // Skip host-time activation while the start rate is still 0.
+            // Rebuild entry opens startsPaused; scheduling setRate(0, atHostTime:)
+            // here can fire after a later play() and stop the running timeline.
+            if isPrerolling, bootstrap.complete, targetReached, timelineStartRate > 0 {
+                if synchronizer.rate == timelineStartRate {
+                    // play() already started the timebase. Re-stopping it here
+                    // plants a rate-0 mapping that can win about a second later.
+                    isPrerolling = false
+                    recordTimelineControlState()
+                    publishTargetTimelineState(
+                        at: targetTimelineTime(fallback: presentationTime)
+                    )
+                    publishDiagnostics(
+                        at: targetTimelineTime(fallback: presentationTime),
+                        force: true
+                    )
+                    PlaybackTrace.event(
+                        "session.timeline.activated id=\(traceID) rate=\(timelineStartRate) " +
+                        "bootstrapComplete=true alreadyRunning=true"
+                    )
+                } else {
                 let activationTime = pausedTimelineActivationTime(
                     target: targetTimelineTime(fallback: presentationTime),
                     firstDisplayablePresentationTime: presentationTime
@@ -556,8 +590,17 @@ extension SampleBufferPlaybackSession {
                 // near-future host time avoids the visionOS race where an
                 // asynchronous media-time update leaves the underlying timebase
                 // stopped even though synchronizer.rate already reports 1.
-                synchronizer.setRate(0, time: activationTime)
-                setRateAtHostTime(timelineStartRate, time: activationTime)
+                setTimelineStopped(
+                    at: activationTime,
+                    reason: .decoderBootstrapPreActivation,
+                    capturedVideoDeliveryGeneration: generation
+                )
+                setRateAtHostTime(
+                    timelineStartRate,
+                    time: activationTime,
+                    reason: .decoderBootstrap,
+                    capturedVideoDeliveryGeneration: generation
+                )
                 if let activationSequence {
                     activationObservation.rateApplicationReturned(
                         sequence: activationSequence
@@ -569,12 +612,14 @@ extension SampleBufferPlaybackSession {
                     reason: "decoderBootstrap"
                 )
                 isPrerolling = false
+                recordTimelineControlState()
                 publishTargetTimelineState(at: activationTime)
                 publishDiagnostics(at: activationTime, force: true)
                 PlaybackTrace.event(
                     "session.timeline.activated id=\(traceID) rate=\(timelineStartRate) " +
                     "bootstrapComplete=true immediateSamples=\(bootstrap.immediateEnqueueCount)"
                 )
+                }
             } else if shouldAnchorTimeline, !isPrerolling {
                 let activationTime = targetTimelineTime(fallback: presentationTime)
                 let activationSequence = activationObservation.beginActivation(
@@ -584,7 +629,12 @@ extension SampleBufferPlaybackSession {
                 // A normal open has no future timeline target to preroll toward.
                 // Start the synchronizer after the first accepted sample, matching
                 // the established AVSampleBufferRenderSynchronizer startup path.
-                setRateAtHostTime(timelineStartRate, time: activationTime)
+                setRateAtHostTime(
+                    timelineStartRate,
+                    time: activationTime,
+                    reason: .firstSample,
+                    capturedVideoDeliveryGeneration: generation
+                )
                 if let activationSequence {
                     activationObservation.rateApplicationReturned(
                         sequence: activationSequence
@@ -784,7 +834,10 @@ extension SampleBufferPlaybackSession {
                         presentationTime: presentationTime,
                         decodeTime: decodeTime
                     )
-                    try await waitForBoundedRendererLead(presentationTime: presentationTime)
+                    try await waitForBoundedRendererLead(
+                        lane: .audio,
+                        presentationTime: presentationTime
+                    )
                     emitPlaybackDeliveryStage(
                         lane: "audio",
                         stage: "boundedLead.returned",
@@ -980,22 +1033,275 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func waitForBoundedRendererLead(presentationTime: CMTime) async throws {
+    func waitForBoundedRendererLead(
+        lane: PlaybackDeliveryLane,
+        presentationTime: CMTime
+    ) async throws {
         guard presentationTime.isNumeric else { return }
         while true {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
-            let current = synchronizer.currentTime()
+            let reading = timelineClockReading()
+            let current = reading.mediaTime
             let target = targetTimelineTime(fallback: current)
             let referenceSeconds = max(
                 current.isNumeric ? current.seconds : 0,
                 target.isNumeric ? target.seconds : 0
             )
-            if presentationTime.seconds <= referenceSeconds + 1 {
+            let isBlocked = presentationTime.seconds > referenceSeconds + 1
+                || (timelineProgressRecoveryIsEligible && reading.directRate == 0)
+            let decision = timelineProgressRecoveryLock.withLock {
+                if !isBlocked {
+                    return timelineProgressRecovery.observeProgress(reading)
+                }
+                guard timelineProgressRecoveryIsEligible,
+                      timelineProgressRecovery.matches(
+                        videoStreamEpoch: streamEpoch,
+                        audioStreamEpoch: audioStreamEpoch,
+                        requestedRate: timelineStartRate
+                      ) else {
+                    return .none
+                }
+                return timelineProgressRecovery.observeBlockedLane(
+                    lane,
+                    blockedPresentationTime: presentationTime,
+                    reading: reading,
+                    requiredLanes: timelineProgressRequiredLanes
+                )
+            }
+            handleTimelineProgressDecision(decision)
+            if !isBlocked {
                 return
             }
             try await Task.sleep(for: .milliseconds(5))
         }
+    }
+
+    var timelineProgressRequiredLanes: Set<PlaybackDeliveryLane> {
+        let requiresActiveAudio = endStateLock.withLock {
+            endState.requiresAudio && !endState.audioProviderEnded
+        }
+        return requiresActiveAudio ? [.video, .audio] : [.video]
+    }
+
+    var timelineProgressRecoveryIsEligible: Bool {
+        !isClosed
+            && !isResetting
+            && !isCloseInProgress
+            && !isPrerolling
+            && !videoSampleDeliveryIsSuspended
+            && mediaSessionRecord?.lifecycle == .playing
+            && timelineStartRate > 0
+    }
+
+    var timelineProgressWatchdogIsEligible: Bool {
+        timelineProgressHostWatchdogIsEligible(
+            isClosed: isClosed,
+            isResetting: isResetting,
+            isCloseInProgress: isCloseInProgress,
+            deliveryPrerollIsPending: isPrerolling,
+            videoSampleDeliveryIsSuspended: videoSampleDeliveryIsSuspended,
+            lifecycleIsPlaying: mediaSessionRecord?.lifecycle == .playing,
+            timelineStartRate: timelineStartRate,
+            hasActiveOperation: activeOperation != nil
+        )
+    }
+
+    func receiveTimelineProgressWatchdogTick(run: PlaybackTimelineProgressRun) {
+        let decision = timelineProgressRecoveryLock.withLock {
+            guard timelineProgressWatchdogIsEligible,
+                  timelineProgressRecovery.matches(run) else {
+                return PlaybackTimelineProgressDecision.none
+            }
+            return timelineProgressRecovery.observeHostWatchdog(
+                run: run,
+                reading: timelineClockReading()
+            )
+        }
+        handleTimelineProgressDecision(decision)
+    }
+
+    func timelineClockReading() -> PlaybackTimelineClockReading {
+        var mediaTime = CMTime.invalid
+        var directRate = Float64.nan
+        _ = CMTimebaseGetTimeAndRate(
+            synchronizer.timebase,
+            timeOut: &mediaTime,
+            rateOut: &directRate
+        )
+        let source = CMTimebaseCopySource(synchronizer.timebase)
+        let ultimateSource = CMTimebaseCopyUltimateSourceClock(synchronizer.timebase)
+        return PlaybackTimelineClockReading(
+            mediaTime: mediaTime,
+            sourceTime: CMSyncGetTime(source),
+            ultimateSourceTime: CMClockGetTime(ultimateSource),
+            directRate: directRate,
+            effectiveRate: CMTimebaseGetEffectiveRate(synchronizer.timebase)
+        )
+    }
+
+    func handleTimelineProgressDecision(_ decision: PlaybackTimelineProgressDecision) {
+        switch decision {
+        case .none:
+            return
+        case .reanchor(let incident):
+            let result = timelineProgressRecoveryLock.withLock { () -> (
+                PlaybackTimelineProgressIncident,
+                PlaybackTimelineClockReading
+            )? in
+                guard timelineProgressDecisionIsEligible(
+                        incident: incident,
+                        blockedLaneIsEligible: timelineProgressRecoveryIsEligible,
+                        hostWatchdogIsEligible: timelineProgressWatchdogIsEligible
+                      ),
+                      timelineProgressRecovery.matches(incident.run) else {
+                    timelineProgressRecovery.cancelClaim(incident)
+                    return nil
+                }
+                let fresh = timelineClockReading()
+                guard CMTimeCompare(fresh.mediaTime, incident.frozenMediaTime) == 0 else {
+                    timelineProgressRecovery.cancelClaim(incident)
+                    return nil
+                }
+                let hostTime = playbackActivationHostTime()
+                let activationSequence = debugStore.beginTimelineRateActivation(
+                    reason: .timelineProgressRecovery,
+                    mediaTimeSeconds: numericSeconds(incident.frozenMediaTime),
+                    hostTimeSeconds: numericSeconds(hostTime),
+                    currentVideoDeliveryGeneration: videoDeliveryGeneration,
+                    capturedVideoDeliveryGeneration: nil,
+                    currentState: timelineControlStateRecord()
+                )
+                synchronizer.setRate(
+                    incident.run.requestedRate,
+                    time: incident.frozenMediaTime,
+                    atHostTime: hostTime
+                )
+                debugStore.recordTimelineRateActivationReturned(
+                    sequence: activationSequence
+                )
+                guard let applied = timelineProgressRecovery.didApplyReanchor(
+                    incident,
+                    at: hostTime
+                ) else { return nil }
+                return (applied, fresh)
+            }
+            guard let result else { return }
+            recordTimelineProgressRecovery(
+                outcome: .stalled,
+                incident: result.0,
+                postReading: result.1
+            )
+            recordTimelineProgressRecovery(
+                outcome: .reanchorApplied,
+                incident: result.0,
+                postReading: result.1
+            )
+        case .resumed(let incident, let reading):
+            recordTimelineProgressRecovery(
+                outcome: .resumed,
+                incident: incident,
+                postReading: reading
+            )
+        case .notResumed(let incident, let reading):
+            recordTimelineProgressRecovery(
+                outcome: .notResumed,
+                incident: incident,
+                postReading: reading
+            )
+        }
+    }
+
+    func recordTimelineProgressRecovery(
+        outcome: PlaybackTimelineProgressRecoveryOutcome,
+        incident: PlaybackTimelineProgressIncident,
+        postReading: PlaybackTimelineClockReading
+    ) {
+        let detectionSource: PlaybackTimelineProgressDetectionSource
+        let lanes: [PlaybackDeliveryLane]
+        let firstReading: PlaybackTimelineClockReading
+        let detectedReading: PlaybackTimelineClockReading
+        let watchdogCause: PlaybackTimelineHostWatchdogCause?
+        let watchdogConsecutiveObservationCount: Int?
+        switch incident.evidence {
+        case .blockedLanes(let frozenByLane):
+            lanes = frozenByLane.keys.sorted { $0.rawValue < $1.rawValue }
+            let laneEvidence = lanes.compactMap { frozenByLane[$0] }
+            guard let firstEvidence = laneEvidence.first,
+                  let lastEvidence = laneEvidence.last else { return }
+            detectionSource = .blockedLanes
+            firstReading = firstEvidence.previous
+            detectedReading = lastEvidence.detected
+            watchdogCause = nil
+            watchdogConsecutiveObservationCount = nil
+        case .hostWatchdog(let evidence):
+            detectionSource = .hostWatchdog
+            lanes = []
+            firstReading = evidence.first
+            detectedReading = evidence.detected
+            watchdogCause = evidence.cause
+            watchdogConsecutiveObservationCount = evidence.consecutiveObservationCount
+        }
+        let snapshot = debugStore.snapshot()
+        let record = PlaybackTimelineProgressRecoveryRecord(
+            incidentID: incident.incidentID,
+            outcome: outcome,
+            detectionSource: detectionSource,
+            detectingLanes: lanes.map(\.rawValue),
+            watchdogCause: watchdogCause,
+            watchdogConsecutiveObservationCount: watchdogConsecutiveObservationCount,
+            rateApplicationGeneration: incident.run.generation,
+            videoStreamEpoch: incident.run.videoStreamEpoch,
+            audioStreamEpoch: incident.run.audioStreamEpoch,
+            requestedRate: incident.run.requestedRate,
+            frozenMediaTimeSeconds: numericSeconds(incident.frozenMediaTime) ?? 0,
+            previousUltimateSourceTimeSeconds:
+                numericSeconds(firstReading.ultimateSourceTime) ?? 0,
+            detectedUltimateSourceTimeSeconds:
+                numericSeconds(detectedReading.ultimateSourceTime) ?? 0,
+            sourceTimeSeconds: numericSeconds(detectedReading.sourceTime) ?? 0,
+            directRate: detectedReading.directRate,
+            effectiveRate: detectedReading.effectiveRate,
+            reanchorHostTimeSeconds: incident.reanchorHostTime.flatMap(numericSeconds),
+            postRecoveryMediaTimeSeconds: numericSeconds(postReading.mediaTime),
+            postRecoveryUltimateSourceTimeSeconds:
+                numericSeconds(postReading.ultimateSourceTime),
+            attemptCount: 1,
+            videoSampleCount: snapshot.sampleCount,
+            acceptedRendererInputCount: snapshot.acceptedRendererInputCount,
+            audioSampleBufferCount: snapshot.audioSampleBufferCount,
+            displayedFrameObservationCount:
+                snapshot.rendererState?.displayedFrameObservationCount,
+            flushCount: flushCount
+        )
+        debugStore.recordTimelineProgressRecovery(record)
+        let details: [String: String] = [
+            "incidentID": "\(record.incidentID)",
+            "detectionSource": record.detectionSource?.rawValue ?? "unknown",
+            "lanes": record.detectingLanes.joined(separator: "+"),
+            "watchdogCause": record.watchdogCause?.rawValue ?? "none",
+            "watchdogConsecutiveObservationCount":
+                record.watchdogConsecutiveObservationCount.map(String.init) ?? "none",
+            "frozenMediaTimeSeconds": "\(record.frozenMediaTimeSeconds)",
+            "previousUltimateSourceTimeSeconds":
+                "\(record.previousUltimateSourceTimeSeconds)",
+            "detectedUltimateSourceTimeSeconds":
+                "\(record.detectedUltimateSourceTimeSeconds)",
+            "reanchorHostTimeSeconds":
+                record.reanchorHostTimeSeconds.map { "\($0)" } ?? "none",
+            "postRecoveryMediaTimeSeconds":
+                record.postRecoveryMediaTimeSeconds.map { "\($0)" } ?? "none",
+            "directRate": "\(record.directRate)",
+            "effectiveRate": "\(record.effectiveRate)",
+            "flushCount": "\(record.flushCount)",
+        ]
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: .rendererInputCoordination,
+            kind: "timelineProgress.\(outcome.rawValue)",
+            outcome: outcome == .notResumed ? .failed : .succeeded,
+            details: details
+        )
     }
 
     func emitPlaybackDeliveryStage(
@@ -1214,6 +1520,9 @@ extension SampleBufferPlaybackSession {
             enqueuedSampleBufferCount: audioSampleBufferCount,
             enqueuedAudioFrameCount: audioFrameCount,
             status: rendererStatus,
+            isReadyForMoreMediaData: audioRenderer.isReadyForMoreMediaData,
+            hasSufficientMediaDataForReliablePlaybackStart:
+                audioRenderer.hasSufficientMediaDataForReliablePlaybackStart,
             volume: audioRenderer.volume,
             muted: audioRenderer.isMuted,
             error: rendererError
@@ -1299,6 +1608,7 @@ extension SampleBufferPlaybackSession {
     }
 
     func handleProviderControlEvent(_ kind: MediaEventKind) async {
+        invalidateTimelineProgressRecovery()
         isResetting = true
         switch kind {
         case .formatChanged:
@@ -1338,6 +1648,9 @@ extension SampleBufferPlaybackSession {
         await rendererSink.flush(removingDisplayedImage: false)
         guard !isClosed else { return }
         isResetting = false
+        if mediaSessionRecord?.lifecycle == .playing {
+            armTimelineProgressRecoveryForCurrentMapping()
+        }
         recordRendererState(at: currentTime())
         startVideoDelivery()
     }
@@ -1513,4 +1826,36 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+}
+
+func timelineProgressDecisionIsEligible(
+    incident: PlaybackTimelineProgressIncident,
+    blockedLaneIsEligible: Bool,
+    hostWatchdogIsEligible: Bool
+) -> Bool {
+    switch incident.evidence {
+    case .blockedLanes:
+        blockedLaneIsEligible
+    case .hostWatchdog:
+        hostWatchdogIsEligible
+    }
+}
+
+func timelineProgressHostWatchdogIsEligible(
+    isClosed: Bool,
+    isResetting: Bool,
+    isCloseInProgress: Bool,
+    deliveryPrerollIsPending _: Bool,
+    videoSampleDeliveryIsSuspended: Bool,
+    lifecycleIsPlaying: Bool,
+    timelineStartRate: Float,
+    hasActiveOperation: Bool
+) -> Bool {
+    !isClosed
+        && !isResetting
+        && !isCloseInProgress
+        && !videoSampleDeliveryIsSuspended
+        && lifecycleIsPlaying
+        && timelineStartRate > 0
+        && !hasActiveOperation
 }

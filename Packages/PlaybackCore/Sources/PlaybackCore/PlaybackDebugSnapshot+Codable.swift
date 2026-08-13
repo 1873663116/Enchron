@@ -26,6 +26,8 @@ private enum PlaybackDebugSnapshotV1CodingKey: String, CodingKey {
     case decoderBootstrap
     case rendererState
     case audioRendererState
+    case timelineProgressRecovery
+    case timelineControlState
     case realityKitBinding
     case presentationBinding
     case presentationState
@@ -127,6 +129,14 @@ extension PlaybackDebugSnapshotV1 {
         audioRendererState = try container.decodeIfPresent(
             AudioRendererStateRecord.self,
             forKey: .audioRendererState
+        )
+        timelineProgressRecovery = try container.decodeIfPresent(
+            PlaybackTimelineProgressRecoveryRecord.self,
+            forKey: .timelineProgressRecovery
+        )
+        timelineControlState = try container.decodeIfPresent(
+            PlaybackTimelineControlStateRecord.self,
+            forKey: .timelineControlState
         )
         realityKitBinding = try container.decodeIfPresent(
             RealityKitBindingRecord.self,

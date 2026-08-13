@@ -1,5 +1,6 @@
 import AVFoundation
 import OSLog
+import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import RealityKit
@@ -19,20 +20,41 @@ enum EnvironmentSceneAppearanceApplier {
     static func apply(
         environment: SpatialSceneDomain.CinemaEnvironment,
         effect: SpatialSceneDomain.EnvironmentEffect?,
-        to world: Entity
+        to world: Entity,
+        emitEnablementWrite: (String) -> Void = { _ in }
     ) -> Float? {
         guard let skybox = world.findEntity(named: skyboxName) else {
             return nil
         }
 
         if environment == .skybox {
+            let previous = skybox.isEnabled
             skybox.isEnabled = true
+            if previous != skybox.isEnabled {
+                emitEnablementWrite(
+                    enablementWriteFact(
+                        writer: "EnvironmentSceneAppearanceApplier.apply.skybox",
+                        entity: skybox,
+                        value: true
+                    )
+                )
+            }
             skybox.components.set(OpacityComponent(opacity: 1))
             world.findEntity(named: scenicPlaceholderName)?.removeFromParent()
             return 1
         }
 
+        let skyboxWasEnabled = skybox.isEnabled
         skybox.isEnabled = false
+        if skyboxWasEnabled != skybox.isEnabled {
+            emitEnablementWrite(
+                enablementWriteFact(
+                    writer: "EnvironmentSceneAppearanceApplier.apply.skybox",
+                    entity: skybox,
+                    value: false
+                )
+            )
+        }
         let resolvedEffect = effect ?? .inactiveFallback
         let opacity = switch resolvedEffect {
         case .light: lightSkyboxOpacity
@@ -51,14 +73,63 @@ enum EnvironmentSceneAppearanceApplier {
             placeholder.name = scenicPlaceholderName
             world.addChild(placeholder)
         }
+        let placeholderWasEnabled = placeholder.isEnabled
         placeholder.isEnabled = true
+        if placeholderWasEnabled != placeholder.isEnabled {
+            emitEnablementWrite(
+                enablementWriteFact(
+                    writer: "EnvironmentSceneAppearanceApplier.apply.placeholder",
+                    entity: placeholder,
+                    value: true
+                )
+            )
+        }
         placeholder.components.set(OpacityComponent(opacity: opacity))
         return opacity
     }
 
-    static func clear(in world: Entity) {
-        world.findEntity(named: skyboxName)?.isEnabled = false
-        world.findEntity(named: scenicPlaceholderName)?.isEnabled = false
+    static func clear(
+        in world: Entity,
+        emitEnablementWrite: (String) -> Void = { _ in }
+    ) {
+        if let skybox = world.findEntity(named: skyboxName) {
+            let previous = skybox.isEnabled
+            skybox.isEnabled = false
+            if previous != skybox.isEnabled {
+                emitEnablementWrite(
+                    enablementWriteFact(
+                        writer: "EnvironmentSceneAppearanceApplier.clear.skybox",
+                        entity: skybox,
+                        value: false
+                    )
+                )
+            }
+        }
+        if let placeholder = world.findEntity(named: scenicPlaceholderName) {
+            let previous = placeholder.isEnabled
+            placeholder.isEnabled = false
+            if previous != placeholder.isEnabled {
+                emitEnablementWrite(
+                    enablementWriteFact(
+                        writer: "EnvironmentSceneAppearanceApplier.clear.placeholder",
+                        entity: placeholder,
+                        value: false
+                    )
+                )
+            }
+        }
+    }
+
+    private static func enablementWriteFact(
+        writer: String,
+        entity: Entity,
+        value: Bool
+    ) -> String {
+        "entityEnablementWrite writer=\(writer)"
+            + " entity=\(ObjectIdentifier(entity))"
+            + " name=\(entity.name.isEmpty ? "unnamed" : entity.name)"
+            + " value=\(value)"
+            + " activeAfterWrite=\(entity.isActive)"
     }
 
     private static func scenicColor(
@@ -107,6 +178,98 @@ enum SpatialPresentationRefreshTrigger: CaseIterable {
     case contentTypeDidChange
 }
 
+struct SpatialPresentationReadiness: Equatable {
+    let componentIsReady: Bool
+    let immersiveModeMatches: Bool
+    let projectionIsAdopted: Bool
+    let viewingModeMatches: Bool
+    let spatialModeMatches: Bool
+    let displayedPixelBuffer: Bool
+
+    var isReadyToRevealForPixelProof: Bool {
+        allNonPixelFactsAreReady && displayedPixelBuffer == false
+    }
+
+    var isSettled: Bool {
+        allNonPixelFactsAreReady && displayedPixelBuffer
+    }
+
+    private var allNonPixelFactsAreReady: Bool {
+        componentIsReady
+            && immersiveModeMatches
+            && projectionIsAdopted
+            && viewingModeMatches
+            && spatialModeMatches
+    }
+}
+
+enum SpatialFirstFrameUpdateDriveDecision: Equatable {
+    case requestUpdate
+    case firstFrameArrived
+    case surfaceNoLongerViable
+}
+
+enum SpatialFirstFrameUpdateDrivePolicy {
+    static func decide(
+        surfaceCanStillSettle: Bool,
+        currentRendererHasPixels: Bool
+    ) -> SpatialFirstFrameUpdateDriveDecision {
+        guard surfaceCanStillSettle else { return .surfaceNoLongerViable }
+        return currentRendererHasPixels ? .firstFrameArrived : .requestUpdate
+    }
+}
+
+struct PortalToPanoramaRevealTarget: Equatable {
+    let transitionID: UUID
+    let technicalSessionID: String
+    let videoComponentRevision: UInt64
+    let entityID: String
+
+    init?(
+        transition: PlaybackPresentationTransition?,
+        technicalSessionID: String?,
+        videoComponentRevision: UInt64,
+        entityID: String
+    ) {
+        guard let transition,
+              transition.previousPresentation == .portal,
+              transition.targetPresentation == .panorama,
+              let technicalSessionID else {
+            return nil
+        }
+        transitionID = transition.id
+        self.technicalSessionID = technicalSessionID
+        self.videoComponentRevision = videoComponentRevision
+        self.entityID = entityID
+    }
+}
+
+struct PortalToPanoramaTargetRevealState: Equatable {
+    private(set) var revealedTarget: PortalToPanoramaRevealTarget? = nil
+
+    mutating func admit(
+        _ target: PortalToPanoramaRevealTarget,
+        when readiness: SpatialPresentationReadiness
+    ) -> Bool {
+        guard readiness.isReadyToRevealForPixelProof,
+              revealedTarget != target else {
+            return false
+        }
+        revealedTarget = target
+        return true
+    }
+
+    func opacity(
+        for target: PortalToPanoramaRevealTarget?,
+        otherwise existingOpacity: Double
+    ) -> Double {
+        guard let target, target == revealedTarget else {
+            return existingOpacity
+        }
+        return 1
+    }
+}
+
 @MainActor
 private final class SpatialPresentationObservation {
     private var entityID: ObjectIdentifier?
@@ -114,6 +277,7 @@ private final class SpatialPresentationObservation {
     private var subscriptions: [EventSubscription] = []
     private let modeRequestRetry = PlaybackModeRequestRetry()
     private var lastSurfaceReadinessSignatureByReason: [String: String] = [:]
+    private var lastSurfaceReadinessEmissionByReason: [String: Date] = [:]
 
     func observe(
         _ entity: Entity,
@@ -178,6 +342,7 @@ private final class SpatialPresentationObservation {
         entityID = nil
         contentTypeSessionID = nil
         lastSurfaceReadinessSignatureByReason.removeAll()
+        lastSurfaceReadinessEmissionByReason.removeAll()
     }
 
     func cancel() {
@@ -187,12 +352,20 @@ private final class SpatialPresentationObservation {
 
     func shouldLogSurfaceReadiness(
         reason: String,
-        signature: String
+        signature: String,
+        heartbeat: TimeInterval? = nil
     ) -> Bool {
-        guard lastSurfaceReadinessSignatureByReason[reason] != signature else {
-            return false
-        }
+        let now = Date()
+        let signatureChanged =
+            lastSurfaceReadinessSignatureByReason[reason] != signature
+        let heartbeatDue = heartbeat.map { interval in
+            lastSurfaceReadinessEmissionByReason[reason].map {
+                now.timeIntervalSince($0) >= interval
+            } ?? true
+        } ?? false
+        guard signatureChanged || heartbeatDue else { return false }
         lastSurfaceReadinessSignatureByReason[reason] = signature
+        lastSurfaceReadinessEmissionByReason[reason] = now
         return true
     }
 
@@ -229,6 +402,240 @@ private final class SpatialPresentationObservation {
     }
 }
 
+@MainActor
+private final class SpatialDisplayLinkProbe {
+    private var scope: String?
+    private var startedAt: Date?
+    private var lastState: String?
+    private var lastKnownEntityIsInRealityView: Bool?
+    private var observedFirstFrame = false
+    private var realityViewUpdateCount: UInt64 = 0
+    private var lastRealityViewUpdateAt: Date?
+    private var explicitSampleCount: UInt64 = 0
+    private var lastExplicitSampleEmissionAt: Date?
+    private var lastEnablementChain: String?
+
+    func recordRealityViewUpdate(
+        technicalSessionID: String?,
+        renderer: AVSampleBufferVideoRenderer,
+        videoComponentRevision: UInt64,
+        entity: Entity,
+        entityIsInRealityView: Bool,
+        emit: (String) -> Void
+    ) {
+        prepareScopeIfNeeded(
+            technicalSessionID: technicalSessionID,
+            renderer: renderer,
+            videoComponentRevision: videoComponentRevision,
+            entity: entity,
+            emit: emit
+        )
+        realityViewUpdateCount &+= 1
+        lastRealityViewUpdateAt = Date()
+        lastKnownEntityIsInRealityView = entityIsInRealityView
+        emit(
+            "displayLink realityViewUpdate"
+                + " count=\(realityViewUpdateCount)"
+                + scopeFields(
+                    technicalSessionID: technicalSessionID,
+                    renderer: renderer,
+                    videoComponentRevision: videoComponentRevision,
+                    entity: entity
+                )
+                + " elapsed=\(elapsed)"
+                + " entityInRealityView=\(entityIsInRealityView)"
+                + " enablementChain=\(enablementChain(for: entity))"
+        )
+    }
+
+    func record(
+        event: String,
+        technicalSessionID: String?,
+        renderer: AVSampleBufferVideoRenderer,
+        videoComponentRevision: UInt64,
+        entity: Entity,
+        entityIsInRealityView: Bool?,
+        targetIsAvailable: Bool,
+        isExplicitFirstFrameWaitSample: Bool = false,
+        emit: (String) -> Void
+    ) {
+        prepareScopeIfNeeded(
+            technicalSessionID: technicalSessionID,
+            renderer: renderer,
+            videoComponentRevision: videoComponentRevision,
+            entity: entity,
+            emit: emit
+        )
+
+        if let entityIsInRealityView {
+            lastKnownEntityIsInRealityView = entityIsInRealityView
+        }
+
+        let component = entity.components[VideoPlayerComponent.self]
+        let componentRendererIdentity = component?.videoRenderer.map {
+            String(describing: ObjectIdentifier($0))
+        } ?? "none"
+        let pixelBuffer = renderer.displayedPixelBuffer()
+        let rawPixelReturn: String
+        if let pixelBuffer {
+            rawPixelReturn = [
+                "pixelBuffer",
+                "hash=\(CFHash(pixelBuffer))",
+                "width=\(CVPixelBufferGetWidth(pixelBuffer))",
+                "height=\(CVPixelBufferGetHeight(pixelBuffer))",
+            ].joined(separator: ":")
+        } else {
+            rawPixelReturn = "nil"
+        }
+        let state = [
+            "componentPresent=\(component != nil)",
+            "componentRenderer=\(componentRendererIdentity)",
+            "componentBound=\(component?.videoRenderer === renderer)",
+            "renderingStatus=\(component.map { String(describing: $0.currentRenderingStatus) } ?? "none")",
+            "entityActive=\(entity.isActive)",
+            "entityParent=\(entity.parent.map { String(describing: ObjectIdentifier($0)) } ?? "none")",
+            "entityInRealityView=\(lastKnownEntityIsInRealityView.map(String.init) ?? "unknown")",
+            "targetAvailable=\(targetIsAvailable)",
+            "displayedPixelBufferReturned=\(pixelBuffer != nil)",
+            "realityViewUpdateCount=\(realityViewUpdateCount)",
+            "lastRealityViewUpdateElapsed=\(lastRealityViewUpdateAt.map { $0.timeIntervalSince(startedAt ?? $0) } ?? -1)",
+        ].joined(separator: ",")
+        let chain = enablementChain(for: entity)
+        if chain != lastEnablementChain {
+            lastEnablementChain = chain
+            emit(
+                "displayLink entityEnablementChain"
+                    + scopeFields(
+                        technicalSessionID: technicalSessionID,
+                        renderer: renderer,
+                        videoComponentRevision: videoComponentRevision,
+                        entity: entity
+                    )
+                    + " elapsed=\(elapsed)"
+                    + " sample=\(isExplicitFirstFrameWaitSample ? "firstFrameWait" : event)"
+                    + " chain=\(chain)"
+            )
+        }
+        if isExplicitFirstFrameWaitSample {
+            explicitSampleCount &+= 1
+        }
+        let now = Date()
+        let explicitHeartbeatDue = isExplicitFirstFrameWaitSample
+            && lastExplicitSampleEmissionAt.map {
+                now.timeIntervalSince($0) >= 2
+            } ?? true
+        if state != lastState || explicitHeartbeatDue {
+            lastState = state
+            if isExplicitFirstFrameWaitSample {
+                lastExplicitSampleEmissionAt = now
+            }
+            emit(
+                "displayLink event=\(event)"
+                    + scopeFields(
+                        technicalSessionID: technicalSessionID,
+                        renderer: renderer,
+                        videoComponentRevision: videoComponentRevision,
+                        entity: entity
+                    )
+                    + " elapsed=\(elapsed)"
+                    + " explicitSampleCount=\(explicitSampleCount)"
+                    + " displayedPixelBufferRaw=\(rawPixelReturn)"
+                    + " enablementChain=\(chain)"
+                    + " \(state)"
+            )
+        }
+        if pixelBuffer != nil, observedFirstFrame == false {
+            observedFirstFrame = true
+            emit(
+                "displayLink firstFrame"
+                    + scopeFields(
+                        technicalSessionID: technicalSessionID,
+                        renderer: renderer,
+                        videoComponentRevision: videoComponentRevision,
+                        entity: entity
+                    )
+                    + " elapsed=\(elapsed)"
+                    + " realityViewUpdateCount=\(realityViewUpdateCount)"
+                    + " explicitSampleCount=\(explicitSampleCount)"
+                    + " displayedPixelBufferRaw=\(rawPixelReturn)"
+            )
+        }
+    }
+
+    private func prepareScopeIfNeeded(
+        technicalSessionID: String?,
+        renderer: AVSampleBufferVideoRenderer,
+        videoComponentRevision: UInt64,
+        entity: Entity,
+        emit: (String) -> Void
+    ) {
+        let nextScope = scopeFields(
+            technicalSessionID: technicalSessionID,
+            renderer: renderer,
+            videoComponentRevision: videoComponentRevision,
+            entity: entity
+        )
+        guard scope != nextScope else { return }
+        scope = nextScope
+        startedAt = Date()
+        lastState = nil
+        lastKnownEntityIsInRealityView = nil
+        observedFirstFrame = false
+        realityViewUpdateCount = 0
+        lastRealityViewUpdateAt = nil
+        explicitSampleCount = 0
+        lastExplicitSampleEmissionAt = nil
+        lastEnablementChain = nil
+        emit("displayLink scopeStarted" + nextScope)
+    }
+
+    private func scopeFields(
+        technicalSessionID: String?,
+        renderer: AVSampleBufferVideoRenderer,
+        videoComponentRevision: UInt64,
+        entity: Entity
+    ) -> String {
+        " technicalSession=\(technicalSessionID ?? "none")"
+            + " renderer=\(ObjectIdentifier(renderer))"
+            + " rendererGeneration=\(videoComponentRevision)"
+            + " entity=\(ObjectIdentifier(entity))"
+    }
+
+    private var elapsed: TimeInterval {
+        startedAt.map { Date().timeIntervalSince($0) } ?? 0
+    }
+
+    private func enablementChain(for entity: Entity) -> String {
+        var fields: [String] = []
+        var current: Entity? = entity
+        var depth = 0
+        while let candidate = current {
+            fields.append(
+                "\(depth):\(ObjectIdentifier(candidate))"
+                    + ":\(candidate.name.isEmpty ? "unnamed" : candidate.name)"
+                    + ":enabled=\(candidate.isEnabled)"
+                    + ":active=\(candidate.isActive)"
+            )
+            current = candidate.parent
+            depth += 1
+        }
+        return fields.joined(separator: ">")
+    }
+
+    func reset() {
+        scope = nil
+        startedAt = nil
+        lastState = nil
+        lastKnownEntityIsInRealityView = nil
+        observedFirstFrame = false
+        realityViewUpdateCount = 0
+        lastRealityViewUpdateAt = nil
+        explicitSampleCount = 0
+        lastExplicitSampleEmissionAt = nil
+        lastEnablementChain = nil
+    }
+}
+
 public struct ImmersiveSpaceView: View {
     // Apple's own immersive-media sample receives the controls-summoning
     // pinch on an invisible collision entity with an input target; the
@@ -251,8 +658,10 @@ public struct ImmersiveSpaceView: View {
     @State private var rendererTargetObservation =
         PlaybackVideoRendererTargetObservation()
     @State private var presentationObservation = SpatialPresentationObservation()
+    @State private var displayLinkProbe = SpatialDisplayLinkProbe()
     @State private var controlsAttachmentController =
         ImmersivePlaybackControlsAttachmentController()
+    @State private var targetRevealState = PortalToPanoramaTargetRevealState()
     @State private var surfaceRefreshTick = 0
     @State private var hasRecordedCollisionShellShelved = false
     private let logger = Logger(subsystem: "app.enchron", category: "SpatialSurface")
@@ -346,17 +755,14 @@ public struct ImmersiveSpaceView: View {
         .task(id: spatialSurfaceReadinessKey) {
             await retrySpatialSurfaceAttachment()
         }
+        .task(id: spatialFirstFrameProbeKey) {
+            await sampleWhileWaitingForSpatialFirstFrame()
+        }
         .onChange(of: playbackRuntime.videoComponentRevision) {
             surfaceRefreshTick &+= 1
         }
         .onChange(of: spatialPresentationAcceptsInput, initial: true) { _, accepts in
             appModel.recordSurfaceInputProbe("acceptsInput=\(accepts)")
-        }
-        .onChange(of: appModel.showControls, initial: true) { _, _ in
-            updateControlsAttachmentVisibility()
-        }
-        .onChange(of: appModel.presentationTransition?.id) { _, _ in
-            updateControlsAttachmentVisibility()
         }
         .onChange(of: realityKitContentTypeScope) { _, scope in
             playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(scope)
@@ -405,36 +811,31 @@ public struct ImmersiveSpaceView: View {
             content.add(attachment)
         }
         controlsAttachmentController.attach(attachment, appModel: appModel)
-        updateControlsAttachmentVisibility()
-    }
-
-    private func updateControlsAttachmentVisibility() {
-        controlsAttachmentController.setControlsVisible(
-            ImmersivePlaybackControlsAttachmentPolicy.isVisible(
-                presentation: requestedPresentation,
-                controlsVisible: appModel.showControls,
-                transitionIsActive: appModel.presentationTransition != nil
-            )
-        )
     }
 
     private func scheduleSpatialSurfaceUpdate(
         _ content: RealityViewContent
     ) {
         let revision = surfaceRefreshTick
-        // Read the observable placement synchronously inside RealityView's
-        // update transaction. Reading it only from the deferred task prevents
-        // SwiftUI from scheduling another update when a setting changes.
+        // Read observable presentation inputs inside RealityView's update
+        // transaction. Reading them only from the deferred task prevents
+        // SwiftUI from scheduling another update when either value changes.
         let dockedPlacement = currentDockedSurfaceTransform
+        let spatialPresentationOpacity = spatialPresentationOpacity
         realityViewUpdateScheduler.schedule {
             if needsWorld {
-                await loadWorld(into: content)
+                await loadWorld(
+                    into: content,
+                    dockedPlacement: dockedPlacement,
+                    spatialPresentationOpacity: spatialPresentationOpacity
+                )
                 guard Task.isCancelled == false else { return }
             }
             update(
                 content,
                 revision: revision,
-                dockedPlacement: dockedPlacement
+                dockedPlacement: dockedPlacement,
+                spatialPresentationOpacity: spatialPresentationOpacity
             )
         }
     }
@@ -454,11 +855,27 @@ public struct ImmersiveSpaceView: View {
     }
 
     private var spatialPresentationOpacity: Double {
-        PlaybackPresentationTransitionAppearance.opacity(
+        let existingOpacity = PlaybackPresentationTransitionAppearance.opacity(
             for: requestedPresentation,
             settledPresentation: appModel.playbackPresentation,
             transition: appModel.presentationTransition,
             visualCutoverMayBegin: appModel.presentationVisualCutoverMayBegin
+        )
+        return targetRevealState.opacity(
+            for: portalToPanoramaRevealTarget,
+            otherwise: existingOpacity
+        )
+    }
+
+    private var portalToPanoramaRevealTarget: PortalToPanoramaRevealTarget? {
+        guard let transition = appModel.presentationTransition else {
+            return nil
+        }
+        return PortalToPanoramaRevealTarget(
+            transition: transition,
+            technicalSessionID: playbackRuntime.activeTechnicalSessionID,
+            videoComponentRevision: playbackRuntime.videoComponentRevision,
+            entityID: entityID(for: transition.targetPresentation)
         )
     }
 
@@ -502,7 +919,8 @@ public struct ImmersiveSpaceView: View {
     private func update(
         _ content: RealityViewContent,
         revision: Int,
-        dockedPlacement: PlaybackSurfaceTransform
+        dockedPlacement: PlaybackSurfaceTransform,
+        spatialPresentationOpacity: Double
     ) {
         _ = revision
         playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(
@@ -542,7 +960,8 @@ public struct ImmersiveSpaceView: View {
             in: content,
             with: renderer,
             as: presentation,
-            dockedPlacement: dockedPlacement
+            dockedPlacement: dockedPlacement,
+            spatialPresentationOpacity: spatialPresentationOpacity
         )
     }
 
@@ -618,8 +1037,17 @@ public struct ImmersiveSpaceView: View {
         in content: RealityViewContent,
         with renderer: AVSampleBufferVideoRenderer,
         as presentation: PlaybackPresentation,
-        dockedPlacement: PlaybackSurfaceTransform
+        dockedPlacement: PlaybackSurfaceTransform,
+        spatialPresentationOpacity: Double
     ) {
+        displayLinkProbe.recordRealityViewUpdate(
+            technicalSessionID: playbackRuntime.activeTechnicalSessionID,
+            renderer: renderer,
+            videoComponentRevision: playbackRuntime.videoComponentRevision,
+            entity: videoEntity,
+            entityIsInRealityView: content.entities.contains { $0 === videoEntity },
+            emit: appModel.recordSurfaceInputProbe
+        )
         let videoComponentRevision = playbackRuntime.videoComponentRevision
         guard PlaybackPresentationRendererBindingPolicy.shouldBindRenderer(
             for: presentation,
@@ -657,7 +1085,10 @@ public struct ImmersiveSpaceView: View {
             videoComponentRevision: videoComponentRevision
         )
         let entity = videoEntity
-        entity.name = "EnchronVideo.\(presentation)"
+        let desiredName = "EnchronVideo.\(presentation)"
+        if entity.name != desiredName {
+            entity.name = desiredName
+        }
         PlaybackRealityPresenter.setOpacity(
             of: entity,
             to: Float(spatialPresentationOpacity),
@@ -670,26 +1101,19 @@ public struct ImmersiveSpaceView: View {
             }
             attachSpatialSurfaceIfReady()
         }
+        let dockedAnchor: Entity?
         if presentation == .docked {
             guard let anchor = world.playbackSurfaceAnchor else { return }
-            positionDockedVideo(
-                entity,
-                relativeTo: anchor,
-                transform: dockedPlacement
-            )
+            dockedAnchor = anchor
         } else {
-            entity.removeFromParent()
-            entity.position = .zero
-            entity.orientation = .init()
-            entity.scale = .one
-            if content.entities.contains(where: { $0 === entity }) == false {
-                content.add(entity)
-            }
+            dockedAnchor = nil
         }
-        // RealityKit activates an entity asynchronously after its world anchor
-        // enters the scene. Install the target renderer component while that
-        // activation is pending; attachSpatialSurfaceIfReady still requires the
-        // entity and renderer target to be active before publishing attachment.
+
+        // RealityKit activates an entity asynchronously after it enters the
+        // scene. Establish ownership before inserting the entity, then install
+        // the renderer component only after the entity has its final topology.
+        // This keeps RealityKit from occasionally accepting an off-scene
+        // VideoPlayerComponent without committing its renderer target.
         do {
             try playbackRuntime.claimRendererConsumer(
                 presentation: presentation,
@@ -713,7 +1137,13 @@ public struct ImmersiveSpaceView: View {
         rendererTargetObservation.observe(
             entity,
             videoComponentRevision: videoComponentRevision,
-            in: content
+            in: content,
+            onEvent: { event in
+                recordDisplayLinkProbe(
+                    event: event,
+                    entityIsInRealityView: content.entities.contains { $0 === entity }
+                )
+            }
         ) {
             attachSpatialSurfaceIfReady()
         }
@@ -734,22 +1164,73 @@ public struct ImmersiveSpaceView: View {
                 )
             }
         )
+        surfaceAccessibilityActivation.observe(entity, in: content) {
+            toggleControlsFromSpatialSurface(.accessibilityActivate)
+        }
+        if let dockedAnchor {
+            positionDockedVideo(
+                entity,
+                relativeTo: dockedAnchor,
+                transform: dockedPlacement
+            )
+        } else {
+            var topologyWrites: [String] = []
+            let isPanoramaRoot = content.entities.contains { $0 === entity }
+            if isPanoramaRoot == false {
+                entity.removeFromParent()
+                topologyWrites.append("removeFromParent")
+            }
+            if entity.position != .zero {
+                entity.position = .zero
+                topologyWrites.append("position")
+            }
+            if entity.orientation != .init() {
+                entity.orientation = .init()
+                topologyWrites.append("orientation")
+            }
+            if entity.scale != .one {
+                entity.scale = .one
+                topologyWrites.append("scale")
+            }
+            if isPanoramaRoot == false {
+                content.add(entity)
+                topologyWrites.append("contentAdd")
+            }
+            recordDisplayLinkProbe(
+                event: topologyWrites.isEmpty ? "topologyChecked" : "topologyReconciled",
+                entityIsInRealityView: content.entities.contains { $0 === entity }
+            )
+            if topologyWrites.isEmpty == false {
+                let component = entity.components[VideoPlayerComponent.self]
+                appModel.recordSurfaceInputProbe(
+                    "spatialVideoTopology reconciled"
+                        + " presentation=\(presentation.rawValue)"
+                        + " entity=\(ObjectIdentifier(entity))"
+                        + " componentBound=\(component?.videoRenderer === renderer)"
+                        + " componentRevision=\(videoComponentRevision)"
+                        + " technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")"
+                        + " writes=\(topologyWrites.joined(separator: ","))"
+                )
+            }
+        }
         PlaybackRealityPresenter.configure(
             entity,
             renderer: renderer,
             presentation: presentation,
             requestsSpatialVideoMode: playbackRuntime.requestsSpatialVideoMode
         )
+        recordDisplayLinkProbe(
+            event: "componentConfigured",
+            entityIsInRealityView: content.entities.contains { $0 === entity }
+        )
         appModel.recordSpatialPlaybackSurfacePreparationStage("componentConfigured")
-        surfaceAccessibilityActivation.observe(entity, in: content) {
-            toggleControlsFromSpatialSurface(.accessibilityActivate)
-        }
         subtitleSurface.update(
             on: entity,
             presentation: presentation,
             screenSize: entity.components[VideoPlayerComponent.self]?.playerScreenSize ?? .zero,
             reservedBottomFraction: 0,
-            frame: playbackRuntime.activeSubtitleFrame
+            frame: playbackRuntime.activeSubtitleFrame,
+            emitEnablementWrite: appModel.recordSurfaceInputProbe
         )
         attachSpatialSurfaceIfReady()
     }
@@ -933,7 +1414,19 @@ public struct ImmersiveSpaceView: View {
                 provenance: playbackRuntime.activeMediaFormatProvenance,
                 observedContentType: playbackVideoEntityStore.realityKitContentType
             )
-        let displayedPixelBuffer = playbackRuntime.renderer?.displayedPixelBuffer() != nil
+        let diagnostics = playbackRuntime.diagnostics
+        let debugSnapshot = playbackRuntime.debugSnapshot()
+        let rendererState = debugSnapshot?.rendererState
+        let audioRendererState = debugSnapshot?.audioRendererState
+        let timelineControlState = debugSnapshot?.timelineControlState
+        let timelineRateActivation = timelineControlState?.lastRateActivation
+        let timelineStop = timelineControlState?.lastStop
+        let displayedPixelBuffer = renderer.displayedPixelBuffer() != nil
+        recordDisplayLinkProbe(event: "presentationState", entityIsInRealityView: nil)
+        let displayedFrameObservationCount = (
+            rendererState?.displayedFrameObservationCount
+        ).map(String.init) ?? "none"
+        let surfaceOpacity = videoEntity.components[OpacityComponent.self]?.opacity ?? 1
         let viewingModeMatches =
             SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
                 stereoLayout: playbackRuntime.effectiveStereoLayout,
@@ -961,22 +1454,96 @@ public struct ImmersiveSpaceView: View {
                         String(describing: $0)
                     }
                 )
-        let isSettled = component.currentRenderingStatus == .ready
-            && immersiveModeIsSettled
-            && (contentTypeMatchesProjection
-                || explicitOverrideAdoptionIsConfirmed)
-            && viewingModeMatches
-            && component.spatialVideoMode == component.desiredSpatialVideoMode
-            && displayedPixelBuffer
-        let settlementBreakdown = [
+        let readiness = SpatialPresentationReadiness(
+            componentIsReady: component.currentRenderingStatus == .ready,
+            immersiveModeMatches: immersiveModeIsSettled,
+            projectionIsAdopted: contentTypeMatchesProjection
+                || explicitOverrideAdoptionIsConfirmed,
+            viewingModeMatches: viewingModeMatches,
+            spatialModeMatches:
+                component.spatialVideoMode == component.desiredSpatialVideoMode,
+            displayedPixelBuffer: displayedPixelBuffer
+        )
+        if let target = portalToPanoramaRevealTarget,
+           targetRevealState.admit(target, when: readiness) {
+            appModel.recordSurfaceInputProbe(
+                "panoramaPixelProofReveal"
+                    + " transition=\(target.transitionID)"
+                    + " technicalSession=\(target.technicalSessionID)"
+                    + " componentRevision=\(target.videoComponentRevision)"
+                    + " entity=\(target.entityID)"
+            )
+            surfaceRefreshTick &+= 1
+        }
+        let isSettled = readiness.isSettled
+        let settlementFields = [
             "settled=\(isSettled)",
-            "ready=\(component.currentRenderingStatus == .ready)",
-            "immersiveMode=\(immersiveModeIsSettled)",
+            "ready=\(readiness.componentIsReady)",
+            "immersiveMode=\(readiness.immersiveModeMatches)",
             "contentTypeMatches=\(contentTypeMatchesProjection)",
             "overrideAdopted=\(explicitOverrideAdoptionIsConfirmed)",
-            "viewingMode=\(viewingModeMatches)",
-            "spatialMode=\(component.spatialVideoMode == component.desiredSpatialVideoMode)",
-            "pixels=\(displayedPixelBuffer)",
+            "viewingMode=\(readiness.viewingModeMatches)",
+            "spatialMode=\(readiness.spatialModeMatches)",
+            "pixels=\(readiness.displayedPixelBuffer)",
+            "requiresFlushToResumeDecoding=\(renderer.requiresFlushToResumeDecoding)",
+            "isReadyForMoreMediaData=\(renderer.isReadyForMoreMediaData)",
+            "rendererStatus=\(String(describing: renderer.status))",
+            "rendererError=\(renderer.error?.localizedDescription ?? "none")",
+            "diagnosticRendererStatus=\(diagnostics.rendererStatus)",
+            "diagnosticRendererError=\(diagnostics.rendererError)",
+            "enqueuedSampleCount=\(diagnostics.enqueuedSampleCount)",
+            "displayedFrameObservationCount=\(displayedFrameObservationCount)",
+            "flushCount=\(rendererState.map { String($0.flushCount) } ?? "none")",
+            "timelineConfigured=\(rendererState.map { String($0.timelineConfigured) } ?? "none")",
+            "synchronizerTime=\(rendererState.map { String($0.currentTimeSeconds) } ?? "none")",
+            "synchronizerRate=\(rendererState.map { String($0.rate) } ?? "none")",
+            "actualTimebaseRate=\(rendererState?.actualTimebaseRate.map { String($0) } ?? "none")",
+            "effectiveTimebaseRate=\(rendererState?.effectiveTimebaseRate.map { String($0) } ?? "none")",
+            "timebaseSourceType=\(rendererState?.timebaseSourceType ?? "none")",
+            "timebaseSourceTime=\(rendererState?.timebaseSourceTimeSeconds.map { String($0) } ?? "none")",
+            "timebaseUltimateSourceTime=\(rendererState?.timebaseUltimateSourceTimeSeconds.map { String($0) } ?? "none")",
+            "streamEpoch=\(rendererState.map { String($0.streamEpoch) } ?? "none")",
+            "lastVideoPTS=\(debugSnapshot?.lastVideoSample.map { String($0.presentationTimeSeconds) } ?? "none")",
+            "lastVideoDTS=\(debugSnapshot?.lastVideoSample?.decodeTimeSeconds.map { String($0) } ?? "none")",
+            "decoderBootstrapComplete=\(debugSnapshot?.decoderBootstrap.map { String($0.complete) } ?? "none")",
+            "acceptedRendererInputCount=\(debugSnapshot.map { String($0.acceptedRendererInputCount) } ?? "none")",
+            "backpressureCount=\(debugSnapshot.map { String($0.backpressureCount) } ?? "none")",
+            "lastAudioPTS=\(debugSnapshot?.lastAudioSample.map { String($0.presentationTimeSeconds) } ?? "none")",
+            "audioSampleBufferCount=\(debugSnapshot.map { String($0.audioSampleBufferCount) } ?? "none")",
+            "audioRendererEnqueuedSampleBufferCount=\(audioRendererState.map { String($0.enqueuedSampleBufferCount) } ?? "none")",
+            "audioRendererStatus=\(audioRendererState?.status ?? "none")",
+            "audioRendererError=\(audioRendererState?.error ?? "none")",
+            "audioRendererReadyForMoreMediaData=\(audioRendererState.map { String($0.isReadyForMoreMediaData) } ?? "none")",
+            "audioRendererHasSufficientMediaData=\(audioRendererState.map { String($0.hasSufficientMediaDataForReliablePlaybackStart) } ?? "none")",
+            "timelineRecovery=\(debugSnapshot?.timelineProgressRecovery?.outcome.rawValue ?? "none")",
+            "timelineRecoveryIncident=\(debugSnapshot?.timelineProgressRecovery.map { String($0.incidentID) } ?? "none")",
+            "timelineRecoverySource=\(debugSnapshot?.timelineProgressRecovery?.detectionSource?.rawValue ?? "none")",
+            "timelineRecoveryLanes=\(debugSnapshot?.timelineProgressRecovery?.detectingLanes.joined(separator: "+") ?? "none")",
+            "timelineRecoveryWatchdogCause=\(debugSnapshot?.timelineProgressRecovery?.watchdogCause?.rawValue ?? "none")",
+            "timelineRecoveryWatchdogCount=\(debugSnapshot?.timelineProgressRecovery?.watchdogConsecutiveObservationCount.map(String.init) ?? "none")",
+            "timelineRecoveryFrozenMediaTime=\(debugSnapshot?.timelineProgressRecovery.map { String($0.frozenMediaTimeSeconds) } ?? "none")",
+            "timelineRecoveryReanchorHostTime=\(debugSnapshot?.timelineProgressRecovery?.reanchorHostTimeSeconds.map { String($0) } ?? "none")",
+            "timelineRecoveryPostMediaTime=\(debugSnapshot?.timelineProgressRecovery?.postRecoveryMediaTimeSeconds.map { String($0) } ?? "none")",
+            "timelineRecoveryAttemptCount=\(debugSnapshot?.timelineProgressRecovery.map { String($0.attemptCount) } ?? "none")",
+            "isPrerolling=\(timelineControlState.map { String($0.isPrerolling) } ?? "none")",
+            "hasStartedTimeline=\(timelineControlState.map { String($0.hasStartedTimeline) } ?? "none")",
+            "timelineStartRate=\(timelineControlState.map { String($0.timelineStartRate) } ?? "none")",
+            "requestedTimelineStart=\(timelineControlState?.requestedTimelineStartSeconds.map { String($0) } ?? "none")",
+            "timelineActivationReason=\(timelineRateActivation?.reason.rawValue ?? "none")",
+            "timelineActivationMediaTime=\(timelineRateActivation?.mediaTimeSeconds.map { String($0) } ?? "none")",
+            "timelineActivationHostTime=\(timelineRateActivation?.hostTimeSeconds.map { String($0) } ?? "none")",
+            "timelineActivationSequence=\(timelineRateActivation.map { String($0.sequence) } ?? "none")",
+            "timelineActivationReturned=\(timelineRateActivation.map { String($0.synchronousApplicationReturned) } ?? "none")",
+            "timelineActivationCurrentGeneration=\(timelineRateActivation.map { String($0.currentVideoDeliveryGeneration) } ?? "none")",
+            "timelineActivationCapturedGeneration=\(timelineRateActivation?.capturedVideoDeliveryGeneration.map { String($0) } ?? "none")",
+            "timelineStopReason=\(timelineStop?.reason.rawValue ?? "none")",
+            "timelineStopMediaTime=\(timelineStop?.mediaTimeSeconds.map { String($0) } ?? "none")",
+            "timelineStopSequence=\(timelineStop.map { String($0.sequence) } ?? "none")",
+            "timelineStopCurrentGeneration=\(timelineStop.map { String($0.currentVideoDeliveryGeneration) } ?? "none")",
+            "timelineStopCapturedGeneration=\(timelineStop?.capturedVideoDeliveryGeneration.map { String($0) } ?? "none")",
+            "surfaceOpacity=\(surfaceOpacity)",
+            "targetOpacity=\(spatialPresentationOpacity)",
+            "visualCutover=\(appModel.presentationVisualCutoverMayBegin)",
             "rkContentType=\(playbackVideoEntityStore.realityKitContentType)",
             "provenance=\(playbackRuntime.activeMediaFormatProvenance.rawValue)",
             "acceptedProjection=\(String(describing: playbackRuntime.acceptedRendererProjectionKind))",
@@ -989,10 +1556,34 @@ public struct ImmersiveSpaceView: View {
             "componentBound=\(playbackRuntime.renderer.map { component.videoRenderer === $0 } ?? false)",
             "technicalSession=\(playbackRuntime.activeTechnicalSessionID ?? "none")",
             "retiring=\(playbackRuntime.retiringTechnicalSessionCount)",
-        ].joined(separator: ",")
+        ]
+        let settlementBreakdown = settlementFields.joined(separator: ",")
+        // Clock and counter fields advance every frame; keeping them in the
+        // dedup signature made every settlement line unique, which grew the
+        // probe file fast enough to wedge container copies mid-run.
+        let fastChangingFieldPrefixes = [
+            "synchronizerTime=",
+            "timebaseSourceTime=",
+            "timebaseUltimateSourceTime=",
+            "lastVideoPTS=",
+            "lastVideoDTS=",
+            "lastAudioPTS=",
+            "enqueuedSampleCount=",
+            "acceptedRendererInputCount=",
+            "backpressureCount=",
+            "audioSampleBufferCount=",
+            "audioRendererEnqueuedSampleBufferCount=",
+            "displayedFrameObservationCount=",
+        ]
+        let settlementSignature = settlementFields
+            .filter { field in
+                !fastChangingFieldPrefixes.contains { field.hasPrefix($0) }
+            }
+            .joined(separator: ",")
         if presentationObservation.shouldLogSurfaceReadiness(
             reason: "settlement",
-            signature: settlementBreakdown
+            signature: settlementSignature,
+            heartbeat: 2
         ) {
             appModel.recordSurfaceInputProbe("settlement \(settlementBreakdown)")
         }
@@ -1088,7 +1679,11 @@ public struct ImmersiveSpaceView: View {
     }
 
     @MainActor
-    private func loadWorld(into content: RealityViewContent) async {
+    private func loadWorld(
+        into content: RealityViewContent,
+        dockedPlacement: PlaybackSurfaceTransform,
+        spatialPresentationOpacity: Double
+    ) async {
         guard world.entity == nil, world.isLoading == false, world.hasFailed == false else { return }
         world.isLoading = true
         appModel.recordSpatialPlaybackSurfacePreparationStage("loadingWorld")
@@ -1118,7 +1713,8 @@ public struct ImmersiveSpaceView: View {
             update(
                 content,
                 revision: surfaceRefreshTick,
-                dockedPlacement: currentDockedSurfaceTransform
+                dockedPlacement: dockedPlacement,
+                spatialPresentationOpacity: spatialPresentationOpacity
             )
         } catch is CancellationError {
             logger.notice("world load cancelled")
@@ -1134,7 +1730,10 @@ public struct ImmersiveSpaceView: View {
     @discardableResult
     private func applyRequestedEnvironmentAppearance(to entity: Entity) -> Bool {
         guard let environment = requestedEnvironmentContext.environment else {
-            EnvironmentSceneAppearanceApplier.clear(in: entity)
+            EnvironmentSceneAppearanceApplier.clear(
+                in: entity,
+                emitEnablementWrite: appModel.recordSurfaceInputProbe
+            )
             world.appliedEnvironment = nil
             world.appliedEnvironmentEffect = nil
             appModel.clearEnvironmentSceneEffectObservation()
@@ -1149,7 +1748,8 @@ public struct ImmersiveSpaceView: View {
         guard let opacity = EnvironmentSceneAppearanceApplier.apply(
             environment: environment,
             effect: effect,
-            to: entity
+            to: entity,
+            emitEnablementWrite: appModel.recordSurfaceInputProbe
         ) else {
             return false
         }
@@ -1194,11 +1794,12 @@ public struct ImmersiveSpaceView: View {
     private func releaseSpatialSurface() {
         let presentation = playbackRuntime.rendererConsumerPresentation
             ?? playbackRuntime.attachedPresentation
-        subtitleSurface.remove()
+        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
         surfaceActivation.cancel()
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         presentationObservation.cancel()
+        displayLinkProbe.reset()
         appModel.clearSpatialPlaybackSurfaceObservation()
         panoramaInteractionSurface.removeFromParent()
         headInputProbe.removeFromParent()
@@ -1234,7 +1835,8 @@ public struct ImmersiveSpaceView: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         presentationObservation.cancel()
-        subtitleSurface.remove()
+        displayLinkProbe.reset()
+        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
         guard let sourcePresentation,
               playbackRuntime.rendererConsumerEntityID
                 == entityID(for: sourcePresentation) else {
@@ -1250,6 +1852,54 @@ public struct ImmersiveSpaceView: View {
             entityID: entityID(for: sourcePresentation),
             realityViewID: realityViewID(for: sourcePresentation)
         )
+    }
+
+    private func recordDisplayLinkProbe(
+        event: String,
+        entityIsInRealityView: Bool?,
+        isExplicitFirstFrameWaitSample: Bool = false
+    ) {
+        guard let renderer = playbackRuntime.renderer else { return }
+        displayLinkProbe.record(
+            event: event,
+            technicalSessionID: playbackRuntime.activeTechnicalSessionID,
+            renderer: renderer,
+            videoComponentRevision: playbackRuntime.videoComponentRevision,
+            entity: videoEntity,
+            entityIsInRealityView: entityIsInRealityView,
+            targetIsAvailable: rendererTargetObservation.targetIsAvailable,
+            isExplicitFirstFrameWaitSample: isExplicitFirstFrameWaitSample,
+            emit: appModel.recordSurfaceInputProbe
+        )
+    }
+
+    private var spatialFirstFrameProbeKey: String {
+        [
+            requestedPresentation.rawValue,
+            playbackRuntime.activeTechnicalSessionID ?? "sessionNone",
+            String(playbackRuntime.videoComponentRevision),
+            entityID(for: requestedPresentation),
+        ].joined(separator: "|")
+    }
+
+    @MainActor
+    private func sampleWhileWaitingForSpatialFirstFrame() async {
+        guard requestedPresentation.usesImmersiveSpace else { return }
+        while spatialSurfaceAttachmentCanStillSettle {
+            guard Task.isCancelled == false,
+                  let renderer = playbackRuntime.renderer else {
+                return
+            }
+            recordDisplayLinkProbe(
+                event: "firstFrameWaitSample",
+                entityIsInRealityView: nil,
+                isExplicitFirstFrameWaitSample: true
+            )
+            if renderer.displayedPixelBuffer() != nil {
+                return
+            }
+            try? await Task.sleep(for: PlaybackSurfaceActivation.retryIntervalForView)
+        }
     }
 
     private var spatialSurfaceReadinessKey: String {
@@ -1284,18 +1934,71 @@ public struct ImmersiveSpaceView: View {
 
     @MainActor
     private func retrySpatialSurfaceAttachment() async {
-        while spatialSurfaceAttachmentCanStillSettle {
-            guard Task.isCancelled == false else { return }
-            if appModel.spatialPlaybackSurfaceObservation.settled,
-               playbackRuntime.attachedPresentation == requestedPresentation,
-               playbackRuntime.rendererConsumerEntityID
-                    == entityID(for: requestedPresentation) {
+        var requestedUpdateCount: UInt64 = 0
+        appModel.recordSurfaceInputProbe(
+            spatialFirstFrameUpdateDriveFact(
+                event: "started",
+                requestedUpdateCount: requestedUpdateCount
+            )
+        )
+        while true {
+            guard Task.isCancelled == false else {
+                appModel.recordSurfaceInputProbe(
+                    spatialFirstFrameUpdateDriveFact(
+                        event: "stopped:cancelled",
+                        requestedUpdateCount: requestedUpdateCount
+                    )
+                )
                 return
             }
+
+            let decision = SpatialFirstFrameUpdateDrivePolicy.decide(
+                surfaceCanStillSettle: spatialSurfaceAttachmentCanStillSettle,
+                currentRendererHasPixels:
+                    playbackRuntime.renderer?.displayedPixelBuffer() != nil
+            )
+            switch decision {
+            case .firstFrameArrived:
+                appModel.recordSurfaceInputProbe(
+                    spatialFirstFrameUpdateDriveFact(
+                        event: "stopped:firstFrameArrived",
+                        requestedUpdateCount: requestedUpdateCount
+                    )
+                )
+                return
+            case .surfaceNoLongerViable:
+                appModel.recordSurfaceInputProbe(
+                    spatialFirstFrameUpdateDriveFact(
+                        event: "stopped:surfaceNoLongerViable",
+                        requestedUpdateCount: requestedUpdateCount
+                    )
+                )
+                return
+            case .requestUpdate:
+                break
+            }
             surfaceRefreshTick &+= 1
+            requestedUpdateCount &+= 1
             surfaceActivation.requestRetry()
             try? await Task.sleep(for: PlaybackSurfaceActivation.retryIntervalForView)
         }
+    }
+
+    private func spatialFirstFrameUpdateDriveFact(
+        event: String,
+        requestedUpdateCount: UInt64
+    ) -> String {
+        let observation = appModel.spatialPlaybackSurfaceObservation
+        return "spatialFirstFrameUpdateDrive event=\(event)"
+            + " requestedUpdateCount=\(requestedUpdateCount)"
+            + " requestedPresentation=\(requestedPresentation.rawValue)"
+            + " observationPresentation=\(observation.presentation)"
+            + " observationSettled=\(observation.settled)"
+            + " currentRendererPixels=\(playbackRuntime.renderer?.displayedPixelBuffer() != nil)"
+            + " attachedPresentation=\(playbackRuntime.attachedPresentation?.rawValue ?? "none")"
+            + " rendererConsumer=\(playbackRuntime.rendererConsumerEntityID ?? "none")"
+            + " targetEntity=\(entityID(for: requestedPresentation))"
+            + " lifecycle=\(playbackRuntime.productLifecycle.rawValue)"
     }
 
     /// An opened Immersive Space keeps driving its idempotent attach path

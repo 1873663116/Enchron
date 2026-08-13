@@ -623,6 +623,7 @@ final class PlaybackVideoRendererTargetObservation {
         _ entity: Entity,
         videoComponentRevision: UInt64,
         in content: Content,
+        onEvent: @escaping @MainActor (String) -> Void = { _ in },
         onTargetAvailable: @escaping @MainActor () -> Void
     ) {
         let nextEntityID = ObjectIdentifier(entity)
@@ -635,7 +636,7 @@ final class PlaybackVideoRendererTargetObservation {
         self.videoComponentRevision = videoComponentRevision
 
         #if os(visionOS)
-        let confirm: @Sendable () -> Void = { [weak self] in
+        let confirm: @Sendable (String) -> Void = { [weak self] source in
             Task { @MainActor [weak self] in
                 guard let self,
                       self.entityID == nextEntityID,
@@ -643,6 +644,7 @@ final class PlaybackVideoRendererTargetObservation {
                       self.targetIsAvailable == false else {
                     return
                 }
+                onEvent("targetConfirmation source=\(source)")
                 // A component mutation only proves that RealityKit accepted the
                 // component value. Give the target one bounded commit interval,
                 // but don't debounce on later VideoPlayerComponent changes:
@@ -658,6 +660,7 @@ final class PlaybackVideoRendererTargetObservation {
                     self.targetIsAvailable = true
                     self.subscriptions.forEach { $0.cancel() }
                     self.subscriptions.removeAll()
+                    onEvent("targetAvailable source=\(source)")
                     onTargetAvailable()
                 }
             }
@@ -668,23 +671,24 @@ final class PlaybackVideoRendererTargetObservation {
                 on: entity,
                 componentType: VideoPlayerComponent.self
             ) { _ in
-                confirm()
+                confirm("componentDidAdd")
             },
             content.subscribe(
                 to: ComponentEvents.DidChange.self,
                 on: entity,
                 componentType: VideoPlayerComponent.self
             ) { _ in
-                confirm()
+                confirm("componentDidChange")
             }
         ]
         // Reparenting the stable playback entity does not add or replace its
         // VideoPlayerComponent, so a component event is not guaranteed. The
         // active-entity guard at attachment still prevents an inactive target
         // scene from being reported as ready.
-        confirm()
+        confirm("observationStarted")
         #else
         targetIsAvailable = true
+        onEvent("targetAvailable source=nonVisionOS")
         onTargetAvailable()
         #endif
     }
@@ -1009,16 +1013,21 @@ final class PlaybackSubtitleSurface {
         presentation: PlaybackPresentation,
         screenSize: SIMD2<Float>,
         reservedBottomFraction: Float,
-        frame: PlaybackSubtitleFrame?
+        frame: PlaybackSubtitleFrame?,
+        emitEnablementWrite: (String) -> Void = { _ in }
     ) {
         guard presentation != .panorama,
               let frame,
               frame.contentWidth > 0,
               frame.contentHeight > 0,
-              frame.canvasWidth > 0,
-              frame.canvasHeight > 0 else {
+            frame.canvasWidth > 0,
+            frame.canvasHeight > 0 else {
             if frame == nil || presentation == .panorama {
-                entity.isEnabled = false
+                setEnabled(
+                    false,
+                    writer: "PlaybackSubtitleSurface.update.noFrame",
+                    emit: emitEnablementWrite
+                )
                 changeIdentifier = nil
                 layout = nil
             }
@@ -1033,7 +1042,11 @@ final class PlaybackSubtitleSurface {
         guard frameChanged || layout != nextLayout else { return }
         if frameChanged {
             guard let image = Self.image(frame) else {
-                entity.isEnabled = false
+                setEnabled(
+                    false,
+                    writer: "PlaybackSubtitleSurface.update.imageFailure",
+                    emit: emitEnablementWrite
+                )
                 return
             }
             let nextSize = SIMD2(frame.contentWidth, frame.contentHeight)
@@ -1051,7 +1064,11 @@ final class PlaybackSubtitleSurface {
                     textureSize = nextSize
                 }
             } catch {
-                entity.isEnabled = false
+                setEnabled(
+                    false,
+                    writer: "PlaybackSubtitleSurface.update.textureFailure",
+                    emit: emitEnablementWrite
+                )
                 return
             }
         }
@@ -1068,19 +1085,46 @@ final class PlaybackSubtitleSurface {
             videoEntity.addChild(entity)
         }
         entity.position = nextLayout.position
-        entity.isEnabled = true
+        setEnabled(
+            true,
+            writer: "PlaybackSubtitleSurface.update.frameReady",
+            emit: emitEnablementWrite
+        )
         changeIdentifier = frame.changeIdentifier
         layout = nextLayout
     }
 
-    func remove() {
+    func remove(emitEnablementWrite: (String) -> Void = { _ in }) {
         entity.removeFromParent()
         entity.components.remove(ModelComponent.self)
-        entity.isEnabled = false
+        setEnabled(
+            false,
+            writer: "PlaybackSubtitleSurface.remove",
+            emit: emitEnablementWrite
+        )
         texture = nil
         textureSize = .zero
         changeIdentifier = nil
         layout = nil
+    }
+
+    private func enablementWriteFact(writer: String, value: Bool) -> String {
+        "entityEnablementWrite writer=\(writer)"
+            + " entity=\(ObjectIdentifier(entity))"
+            + " name=\(entity.name.isEmpty ? "unnamed" : entity.name)"
+            + " value=\(value)"
+            + " activeAfterWrite=\(entity.isActive)"
+    }
+
+    private func setEnabled(
+        _ value: Bool,
+        writer: String,
+        emit: (String) -> Void
+    ) {
+        let previous = entity.isEnabled
+        entity.isEnabled = value
+        guard previous != entity.isEnabled else { return }
+        emit(enablementWriteFact(writer: writer, value: value))
     }
 
     private static func image(_ frame: PlaybackSubtitleFrame) -> CGImage? {

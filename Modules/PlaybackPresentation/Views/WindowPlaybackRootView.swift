@@ -154,6 +154,11 @@ enum WindowPlaybackGeometryPolicy: Equatable {
     }
 }
 
+enum WindowPlaybackGeometryRefreshEvent: Equatable {
+    case requested(revision: UInt64, size: CGSize)
+    case failed(revision: UInt64, message: String)
+}
+
 struct WindowPlaybackTopChrome<
     NavigationControl: View,
     SpatialActions: View,
@@ -219,35 +224,44 @@ struct WindowPlaybackRootView<
 >: View {
     #if os(visionOS)
     @State private var owningWindowScene: UIWindowScene?
+    @State private var lastGeometryRefreshRevision: UInt64 = 0
     #endif
     private let geometryPolicy: WindowPlaybackGeometryPolicy
+    private let geometryRefreshRevision: UInt64
     private let preferredInitialSize: CGSize?
     private let freeformSizeOnDisappear: @MainActor () -> CGSize?
     private let showsWindowChrome: Bool
     private let hidesSurfaceFromAccessibility: Bool
     private let onSurfaceTap: (() -> Void)?
     private let onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)?
+    private let onGeometryRefresh: @MainActor (WindowPlaybackGeometryRefreshEvent) -> Void
     private let videoContent: VideoContent
     private let topChrome: TopChrome
 
     init(
         geometryPolicy: WindowPlaybackGeometryPolicy,
+        geometryRefreshRevision: UInt64 = 0,
         preferredInitialSize: CGSize? = nil,
         freeformSizeOnDisappear: @escaping @MainActor () -> CGSize? = { nil },
         showsWindowChrome: Bool,
         hidesSurfaceFromAccessibility: Bool = false,
         onSurfaceTap: (() -> Void)? = nil,
         onWindowSceneChange: (@MainActor (UIWindowScene?) -> Void)? = nil,
+        onGeometryRefresh: @escaping @MainActor (
+            WindowPlaybackGeometryRefreshEvent
+        ) -> Void = { _ in },
         @ViewBuilder videoContent: () -> VideoContent,
         @ViewBuilder topChrome: () -> TopChrome
     ) {
         self.geometryPolicy = geometryPolicy
+        self.geometryRefreshRevision = geometryRefreshRevision
         self.preferredInitialSize = preferredInitialSize
         self.freeformSizeOnDisappear = freeformSizeOnDisappear
         self.showsWindowChrome = showsWindowChrome
         self.hidesSurfaceFromAccessibility = hidesSurfaceFromAccessibility
         self.onSurfaceTap = onSurfaceTap
         self.onWindowSceneChange = onWindowSceneChange
+        self.onGeometryRefresh = onGeometryRefresh
         self.videoContent = videoContent()
         self.topChrome = topChrome()
     }
@@ -269,10 +283,14 @@ struct WindowPlaybackRootView<
                     owningWindowScene = windowScene
                     onWindowSceneChange?(windowScene)
                     updateWindowGeometry(in: windowScene)
+                    requestGeometryRefreshIfNeeded(in: windowScene)
                 }
             }
             .onChange(of: geometryPolicy) { _, _ in
                 updateWindowGeometry(in: owningWindowScene)
+            }
+            .onChange(of: geometryRefreshRevision) { _, _ in
+                requestGeometryRefreshIfNeeded(in: owningWindowScene)
             }
             .onDisappear {
                 restoreFreeformWindowGeometry(
@@ -385,19 +403,46 @@ struct WindowPlaybackRootView<
     #if os(visionOS)
     private func updateWindowGeometry(in windowScene: UIWindowScene?) {
         guard let windowScene else { return }
-        let preferences: UIWindowScene.GeometryPreferences.Vision
+        windowScene.requestGeometryUpdate(
+            windowGeometryPreferences(size: nil)
+        )
+    }
+
+    private func requestGeometryRefreshIfNeeded(in windowScene: UIWindowScene?) {
+        guard geometryRefreshRevision > lastGeometryRefreshRevision,
+              let windowScene else { return }
+        let revision = geometryRefreshRevision
+        let size = windowScene.effectiveGeometry.coordinateSpace.bounds.size
+        lastGeometryRefreshRevision = revision
+        onGeometryRefresh(.requested(revision: revision, size: size))
+        windowScene.requestGeometryUpdate(
+            windowGeometryPreferences(size: size)
+        ) { error in
+            Task { @MainActor in
+                onGeometryRefresh(
+                    .failed(
+                        revision: revision,
+                        message: error.localizedDescription
+                    )
+                )
+            }
+        }
+    }
+
+    private func windowGeometryPreferences(
+        size: CGSize?
+    ) -> UIWindowScene.GeometryPreferences.Vision {
         switch geometryPolicy {
         case let .aspectLocked(layout):
-            preferences = UIWindowScene.GeometryPreferences.Vision(
-                size: preferredInitialSize ?? layout.defaultSize,
+            return UIWindowScene.GeometryPreferences.Vision(
+                size: size ?? preferredInitialSize ?? layout.defaultSize,
                 minimumSize: layout.minimumSize,
                 maximumSize: layout.maximumSize,
                 resizingRestrictions: .uniform
             )
         case let .freeform(defaultSize):
-            preferences = freeformWindowGeometryPreferences(size: defaultSize)
+            return freeformWindowGeometryPreferences(size: size ?? defaultSize)
         }
-        windowScene.requestGeometryUpdate(preferences)
     }
 
     private func restoreFreeformWindowGeometry(

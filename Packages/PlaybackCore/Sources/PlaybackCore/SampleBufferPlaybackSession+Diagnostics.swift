@@ -11,7 +11,7 @@ extension SampleBufferPlaybackSession {
         publishSubtitleCues(at: time)
         publishDiagnostics(at: time)
         guard claimEndIfReady(at: time) else { return }
-        synchronizer.rate = 0
+        setTimelineStopped(reason: .playbackEnded)
         updateLifecycle(.ended)
         debugStore.emit(
             mediaSessionID: traceID,
@@ -706,7 +706,7 @@ extension SampleBufferPlaybackSession {
         guard claimRendererFailure() else { return }
         rendererFailureMonitor?.stop()
         closeEndState()
-        synchronizer.rate = 0
+        setTimelineStopped(reason: .rendererFailure)
         stopVideoDelivery()
         stopAudioDelivery()
         discardPendingVideoSample()
@@ -873,7 +873,20 @@ extension SampleBufferPlaybackSession {
     }
 
     func recordRendererState(at time: CMTime) {
+        recordTimelineControlState()
         let displayedFrameObservationCount = observeDisplayedFrame()
+        let timebaseSource = CMTimebaseCopySource(synchronizer.timebase)
+        let timebaseSourceType: String
+        if CFGetTypeID(timebaseSource) == CMTimebaseGetTypeID() {
+            timebaseSourceType = "CMTimebase"
+        } else if CFGetTypeID(timebaseSource) == CMClockGetTypeID() {
+            timebaseSourceType = "CMClock"
+        } else {
+            timebaseSourceType = "unknownCFType"
+        }
+        let ultimateSourceClock = CMTimebaseCopyUltimateSourceClock(
+            synchronizer.timebase
+        )
         debugStore.recordRendererState(RendererStateRecord(
             mediaSessionID: traceID,
             graphID: "\(traceID).rendererGraph",
@@ -887,6 +900,11 @@ extension SampleBufferPlaybackSession {
             actualTimebaseRate: Float(CMTimebaseGetRate(synchronizer.timebase)),
             effectiveTimebaseRate: Float(
                 CMTimebaseGetEffectiveRate(synchronizer.timebase)
+            ),
+            timebaseSourceType: timebaseSourceType,
+            timebaseSourceTimeSeconds: numericSeconds(CMSyncGetTime(timebaseSource)),
+            timebaseUltimateSourceTimeSeconds: numericSeconds(
+                CMClockGetTime(ultimateSourceClock)
             ),
             rendererStatus: currentVideoRendererStatus,
             rendererError: currentVideoRendererError,

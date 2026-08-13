@@ -32,30 +32,29 @@ final class ImmersivePlaybackControlsAttachmentController: NSObject {
     private var generation = UUID()
     private var lastFrameTimestamp: CFTimeInterval?
     private var hasAppliedPose = false
-    private var controlsAreVisible = false
 
     func attach(_ entity: Entity, appModel: AppModel) {
         self.appModel = appModel
         if attachmentEntity !== entity {
-            attachmentEntity?.isEnabled = false
+            if let attachmentEntity {
+                setEnabled(
+                    false,
+                    on: attachmentEntity,
+                    writer: "ImmersivePlaybackControlsAttachmentController.attach.replaced"
+                )
+            }
             attachmentEntity = entity
             entity.name = "EnchronImmersivePlaybackControls"
-            entity.isEnabled = false
+            setEnabled(
+                false,
+                on: entity,
+                writer: "ImmersivePlaybackControlsAttachmentController.attach.initial"
+            )
             entity.components.set(OpacityComponent(opacity: 0))
             hasAppliedPose = false
             lastFrameTimestamp = nil
         }
-        reconcileVisibility()
         startTrackingIfNeeded()
-    }
-
-    func setControlsVisible(_ visible: Bool) {
-        guard controlsAreVisible != visible else { return }
-        controlsAreVisible = visible
-        reconcileVisibility()
-        appModel?.recordSurfaceInputProbe(
-            "immersiveControlsAttachment visible=\(visible)"
-        )
     }
 
     func contains(_ entity: Entity) -> Bool {
@@ -77,7 +76,13 @@ final class ImmersivePlaybackControlsAttachmentController: NSObject {
         lastFrameTimestamp = nil
         hasAppliedPose = false
         attachmentEntity?.components.set(OpacityComponent(opacity: 0))
-        attachmentEntity?.isEnabled = false
+        if let attachmentEntity {
+            setEnabled(
+                false,
+                on: attachmentEntity,
+                writer: "ImmersivePlaybackControlsAttachmentController.stop"
+            )
+        }
         attachmentEntity = nil
     }
 
@@ -126,7 +131,16 @@ final class ImmersivePlaybackControlsAttachmentController: NSObject {
             lastFrameTimestamp = displayLink.timestamp
             if hasAppliedPose {
                 hasAppliedPose = false
-                reconcileVisibility()
+                self.attachmentEntity?.components.set(
+                    OpacityComponent(opacity: 0)
+                )
+                if let attachmentEntity = self.attachmentEntity {
+                    self.setEnabled(
+                        false,
+                        on: attachmentEntity,
+                        writer: "ImmersivePlaybackControlsAttachmentController.updatePose.trackingLost"
+                    )
+                }
                 appModel?.recordSurfaceInputProbe(
                     "immersiveControlsAttachment trackingLost"
                 )
@@ -168,19 +182,32 @@ final class ImmersivePlaybackControlsAttachmentController: NSObject {
         } else {
             attachmentEntity.transform = target
             hasAppliedPose = true
+            attachmentEntity.components.set(OpacityComponent(opacity: 1))
+            setEnabled(
+                true,
+                on: attachmentEntity,
+                writer: "ImmersivePlaybackControlsAttachmentController.updatePose.firstPose"
+            )
             appModel?.recordSurfaceInputProbe(
                 "immersiveControlsAttachment firstPoseApplied"
             )
         }
-        reconcileVisibility()
     }
 
-    private func reconcileVisibility() {
-        guard let attachmentEntity else { return }
-        let visible = controlsAreVisible && hasAppliedPose
-        attachmentEntity.components.set(
-            OpacityComponent(opacity: visible ? 1 : 0)
+    private func setEnabled(
+        _ value: Bool,
+        on entity: Entity,
+        writer: String
+    ) {
+        let previous = entity.isEnabled
+        entity.isEnabled = value
+        guard previous != entity.isEnabled else { return }
+        appModel?.recordSurfaceInputProbe(
+            "entityEnablementWrite writer=\(writer)"
+                + " entity=\(ObjectIdentifier(entity))"
+                + " name=\(entity.name.isEmpty ? "unnamed" : entity.name)"
+                + " value=\(value)"
+                + " activeAfterWrite=\(entity.isActive)"
         )
-        attachmentEntity.isEnabled = visible
     }
 }

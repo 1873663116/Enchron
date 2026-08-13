@@ -29,7 +29,7 @@ extension SampleBufferPlaybackSession {
         stopVideoDelivery()
         stopAudioDelivery()
         discardPendingVideoSample()
-        synchronizer.rate = 0
+        setTimelineStopped(reason: .seek)
         deliveryQueue.sync {
             isResetting = true
             provider.cancel()
@@ -86,7 +86,7 @@ extension SampleBufferPlaybackSession {
                 isPrerolling = false
                 isResetting = false
             }
-            synchronizer.setRate(0, time: endTime)
+            setTimelineStopped(at: endTime, reason: .seekToEnd)
             diagnostics.currentSeconds = diagnostics.durationSeconds
             updateLifecycle(.ended)
             recordRendererState(at: endTime)
@@ -155,6 +155,7 @@ extension SampleBufferPlaybackSession {
             didRecordFormat = false
             isResetting = false
         }
+        recordTimelineControlState()
         startVideoDelivery()
 
         let expectedEpoch = streamEpoch
@@ -257,12 +258,13 @@ extension SampleBufferPlaybackSession {
     func restoreEndedPresentation(_ continuity: PlaybackEndedContinuity) {
         stopVideoDelivery()
         stopAudioDelivery()
-        synchronizer.rate = 0
+        setTimelineStopped(reason: .restoreEndedPresentation)
         deliveryQueue.sync {
             timelineStartRate = 0
             requestedTimelineStart = continuity.logicalPosition
             hasStartedTimeline = true
         }
+        recordTimelineControlState()
         endStateLock.withLock {
             endState.didReportEnd = true
         }
@@ -345,7 +347,7 @@ extension SampleBufferPlaybackSession {
         let previouslyHadAudio = hasAudio
         let time = currentTime()
         let rate = interruptionRecoveryRate()
-        synchronizer.rate = 0
+        setTimelineStopped(reason: .audioTrackSelection)
         stopAudioDelivery()
         audioDeliveryQueue.sync { audioProvider.cancel() }
         audioRendererSink.flush()
@@ -371,7 +373,11 @@ extension SampleBufferPlaybackSession {
                 selectedAudioStreamIndex = nil
                 resetAudioEndState(requiresAudio: false)
                 debugStore.recordAudioTrack(nil)
-                synchronizer.setRate(rate, time: time)
+                setTimelineRateForDiscontinuity(
+                    rate,
+                    at: time,
+                    reason: .audioTrackRollbackFailure
+                )
                 recordFailure(
                     error,
                     node: .rendererInputCoordination,
@@ -386,7 +392,11 @@ extension SampleBufferPlaybackSession {
             if hasAudio {
                 startAudioDelivery()
             }
-            synchronizer.setRate(rate, time: time)
+            setTimelineRateForDiscontinuity(
+                rate,
+                at: time,
+                reason: .audioTrackRollback
+            )
             recordAudioRendererState()
             debugStore.emit(
                 mediaSessionID: traceID,
@@ -416,7 +426,11 @@ extension SampleBufferPlaybackSession {
         }
         audioStreamEpoch += 1
         startAudioDelivery()
-        synchronizer.setRate(rate, time: time)
+        setTimelineRateForDiscontinuity(
+            rate,
+            at: time,
+            reason: .audioTrackSelection
+        )
         recordAudioRendererState()
         debugStore.emit(
             mediaSessionID: traceID,

@@ -795,6 +795,162 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("Portal-to-Panorama pixel-proof reveal is readiness gated and identity scoped")
+    func portalToPanoramaPixelProofRevealIsReadinessGatedAndIdentityScoped() throws {
+        func readiness(
+            componentIsReady: Bool = true,
+            immersiveModeMatches: Bool = true,
+            projectionIsAdopted: Bool = true,
+            viewingModeMatches: Bool = true,
+            spatialModeMatches: Bool = true,
+            displayedPixelBuffer: Bool = false
+        ) -> SpatialPresentationReadiness {
+            SpatialPresentationReadiness(
+                componentIsReady: componentIsReady,
+                immersiveModeMatches: immersiveModeMatches,
+                projectionIsAdopted: projectionIsAdopted,
+                viewingModeMatches: viewingModeMatches,
+                spatialModeMatches: spatialModeMatches,
+                displayedPixelBuffer: displayedPixelBuffer
+            )
+        }
+
+        func revealTarget(
+            transition: PlaybackPresentationTransition,
+            technicalSessionID: String = "technical-session",
+            videoComponentRevision: UInt64 = 7,
+            entityID: String = "panorama-entity"
+        ) throws -> PortalToPanoramaRevealTarget {
+            try #require(
+                PortalToPanoramaRevealTarget(
+                    transition: transition,
+                    technicalSessionID: technicalSessionID,
+                    videoComponentRevision: videoComponentRevision,
+                    entityID: entityID
+                )
+            )
+        }
+
+        let transition = PlaybackPresentationTransition(
+            previousPresentation: .portal,
+            targetPresentation: .panorama,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        let target = try revealTarget(transition: transition)
+        let nonPixelReadinessFailures = [
+            readiness(componentIsReady: false),
+            readiness(immersiveModeMatches: false),
+            readiness(projectionIsAdopted: false),
+            readiness(viewingModeMatches: false),
+            readiness(spatialModeMatches: false)
+        ]
+
+        for incompleteReadiness in nonPixelReadinessFailures {
+            var revealState = PortalToPanoramaTargetRevealState()
+            #expect(incompleteReadiness.isReadyToRevealForPixelProof == false)
+            #expect(incompleteReadiness.isSettled == false)
+            #expect(revealState.admit(target, when: incompleteReadiness) == false)
+        }
+
+        let readyWithoutPixels = readiness()
+        var revealState = PortalToPanoramaTargetRevealState()
+        #expect(readyWithoutPixels.isReadyToRevealForPixelProof)
+        #expect(readyWithoutPixels.isSettled == false)
+        let firstAdmission = revealState.admit(target, when: readyWithoutPixels)
+        #expect(firstAdmission)
+        #expect(
+            revealState.opacity(
+                for: target,
+                otherwise: PlaybackPresentationTransitionAppearance
+                    .targetPreparationOpacity
+            ) == 1
+        )
+        let repeatedAdmission = revealState.admit(target, when: readyWithoutPixels)
+        #expect(repeatedAdmission == false)
+        #expect(
+            revealState.opacity(
+                for: target,
+                otherwise: PlaybackPresentationTransitionAppearance
+                    .targetPreparationOpacity
+            ) == 1
+        )
+
+        let readyWithPixels = readiness(displayedPixelBuffer: true)
+        #expect(readyWithPixels.isReadyToRevealForPixelProof == false)
+        #expect(readyWithPixels.isSettled)
+
+        let anotherTransition = PlaybackPresentationTransition(
+            previousPresentation: .portal,
+            targetPresentation: .panorama,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        let identityChanges = try [
+            revealTarget(transition: anotherTransition),
+            revealTarget(
+                transition: transition,
+                technicalSessionID: "replacement-technical-session"
+            ),
+            revealTarget(
+                transition: transition,
+                videoComponentRevision: 8
+            ),
+            revealTarget(
+                transition: transition,
+                entityID: "replacement-panorama-entity"
+            )
+        ]
+
+        for currentTarget in identityChanges {
+            #expect(currentTarget != target)
+            #expect(
+                revealState.opacity(
+                    for: currentTarget,
+                    otherwise: PlaybackPresentationTransitionAppearance
+                        .targetPreparationOpacity
+                ) == PlaybackPresentationTransitionAppearance.targetPreparationOpacity
+            )
+        }
+
+        let nonPortalToPanoramaTransition = PlaybackPresentationTransition(
+            previousPresentation: .window,
+            targetPresentation: .docked,
+            previousEnvironment: .none,
+            targetEnvironment: .none
+        )
+        #expect(
+            PortalToPanoramaRevealTarget(
+                transition: nonPortalToPanoramaTransition,
+                technicalSessionID: "technical-session",
+                videoComponentRevision: 7,
+                entityID: "panorama-entity"
+            ) == nil
+        )
+    }
+
+    @Test("Spatial first-frame update drive stops only for current pixels or lost viability")
+    func spatialFirstFrameUpdateDriveUsesCurrentRendererPixels() {
+        #expect(
+            SpatialFirstFrameUpdateDrivePolicy.decide(
+                surfaceCanStillSettle: true,
+                currentRendererHasPixels: false
+            ) == .requestUpdate
+        )
+        #expect(
+            SpatialFirstFrameUpdateDrivePolicy.decide(
+                surfaceCanStillSettle: true,
+                currentRendererHasPixels: true
+            ) == .firstFrameArrived
+        )
+        #expect(
+            SpatialFirstFrameUpdateDrivePolicy.decide(
+                surfaceCanStillSettle: false,
+                currentRendererHasPixels: false
+            ) == .surfaceNoLongerViable
+        )
+    }
+
     @Test("Portal preserves spatial depth while flat Window remains planar")
     func portalRealityViewHasProjectedMediaDepth() {
         #expect(

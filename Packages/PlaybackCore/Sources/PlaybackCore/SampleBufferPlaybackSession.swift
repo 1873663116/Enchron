@@ -80,6 +80,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let deliveryQueue = DispatchQueue(label: "PlaybackCore.sample-delivery")
     let audioDeliveryQueue = DispatchQueue(label: "PlaybackCore.audio-sample-delivery")
     let deliveryTaskLock = NSLock()
+    let timelineProgressRecoveryLock = NSLock()
+    var timelineProgressRecovery = PlaybackTimelineProgressRecovery()
+    let timelineProgressWatchdogQueue = DispatchQueue(
+        label: "PlaybackCore.timeline-progress-watchdog"
+    )
+    var timelineProgressWatchdog: DispatchSourceTimer?
     var videoDeliveryTask: Task<Void, Never>?
     var videoDeliveryGeneration: UInt64 = 0
     var videoSampleDeliverySuspended = false
@@ -220,6 +226,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             self?.updatePresentationStatus(at: time)
         }
         activationObservation.start()
+        recordTimelineControlState()
     }
 
     func prepare(
@@ -270,6 +277,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             details: ["count": String(subtitleTracks.count)]
         )
         requestedTimelineStart = startTime
+        recordTimelineControlState()
         beginOperation(.open, targetTimeSeconds: startTime.seconds)
         let sourceRecord = MediaSourceRecord(
             locator: url,
@@ -441,12 +449,167 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         )
     }
 
-    func setRateAtHostTime(_ rate: Float, time: CMTime) {
-        synchronizer.setRate(
-            rate,
-            time: time,
-            atHostTime: playbackActivationHostTime()
+    func timelineControlStateRecord() -> PlaybackTimelineControlStateRecord {
+        PlaybackTimelineControlStateRecord(
+            isPrerolling: isPrerolling,
+            hasStartedTimeline: hasStartedTimeline,
+            timelineStartRate: timelineStartRate,
+            requestedTimelineStartSeconds: numericSeconds(requestedTimelineStart)
         )
+    }
+
+    func recordTimelineControlState() {
+        debugStore.recordTimelineControlState(timelineControlStateRecord())
+    }
+
+    func setRateAtHostTime(
+        _ rate: Float,
+        time: CMTime,
+        reason: PlaybackTimelineControlReason = .activationReapply,
+        capturedVideoDeliveryGeneration: UInt64? = nil
+    ) {
+        let hostTime = playbackActivationHostTime()
+        let activationSequence = debugStore.beginTimelineRateActivation(
+            reason: reason,
+            mediaTimeSeconds: numericSeconds(time),
+            hostTimeSeconds: numericSeconds(hostTime),
+            currentVideoDeliveryGeneration: videoDeliveryGeneration,
+            capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration,
+            currentState: timelineControlStateRecord()
+        )
+        timelineProgressRecoveryLock.withLock {
+            invalidateTimelineProgressRecoveryLocked()
+            synchronizer.setRate(rate, time: time, atHostTime: hostTime)
+            guard rate > 0 else { return }
+            activateTimelineProgressRecoveryLocked(
+                requestedRate: rate,
+                applicationHostTime: hostTime
+            )
+        }
+        debugStore.recordTimelineRateActivationReturned(sequence: activationSequence)
+    }
+
+    func setTimelineStopped(
+        reason: PlaybackTimelineControlReason,
+        capturedVideoDeliveryGeneration: UInt64? = nil
+    ) {
+        timelineProgressRecoveryLock.withLock {
+            invalidateTimelineProgressRecoveryLocked()
+            synchronizer.rate = 0
+        }
+        debugStore.recordTimelineStop(
+            reason: reason,
+            mediaTimeSeconds: numericSeconds(synchronizer.currentTime()),
+            currentVideoDeliveryGeneration: videoDeliveryGeneration,
+            capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration,
+            currentState: timelineControlStateRecord()
+        )
+    }
+
+    func setTimelineStopped(
+        at time: CMTime,
+        reason: PlaybackTimelineControlReason,
+        capturedVideoDeliveryGeneration: UInt64? = nil
+    ) {
+        timelineProgressRecoveryLock.withLock {
+            invalidateTimelineProgressRecoveryLocked()
+            synchronizer.setRate(0, time: time)
+        }
+        debugStore.recordTimelineStop(
+            reason: reason,
+            mediaTimeSeconds: numericSeconds(time),
+            currentVideoDeliveryGeneration: videoDeliveryGeneration,
+            capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration,
+            currentState: timelineControlStateRecord()
+        )
+    }
+
+    func setTimelineRateForDiscontinuity(
+        _ rate: Float,
+        at time: CMTime,
+        reason: PlaybackTimelineControlReason
+    ) {
+        let activationSequence = rate > 0
+            ? debugStore.beginTimelineRateActivation(
+                reason: reason,
+                mediaTimeSeconds: numericSeconds(time),
+                hostTimeSeconds: nil,
+                currentVideoDeliveryGeneration: videoDeliveryGeneration,
+                capturedVideoDeliveryGeneration: nil,
+                currentState: timelineControlStateRecord()
+            )
+            : nil
+        timelineProgressRecoveryLock.withLock {
+            invalidateTimelineProgressRecoveryLocked()
+            synchronizer.setRate(rate, time: time)
+            if rate > 0 {
+                activateTimelineProgressRecoveryLocked(
+                    requestedRate: rate,
+                    applicationHostTime: CMClockGetTime(CMClockGetHostTimeClock())
+                )
+            }
+        }
+        if let activationSequence {
+            debugStore.recordTimelineRateActivationReturned(
+                sequence: activationSequence
+            )
+        } else {
+            debugStore.recordTimelineStop(
+                reason: reason,
+                mediaTimeSeconds: numericSeconds(time),
+                currentVideoDeliveryGeneration: videoDeliveryGeneration,
+                capturedVideoDeliveryGeneration: nil,
+                currentState: timelineControlStateRecord()
+            )
+        }
+    }
+
+    func armTimelineProgressRecoveryForCurrentMapping() {
+        guard timelineStartRate > 0 else { return }
+        timelineProgressRecoveryLock.withLock {
+            invalidateTimelineProgressRecoveryLocked()
+            activateTimelineProgressRecoveryLocked(
+                requestedRate: timelineStartRate,
+                applicationHostTime: CMClockGetTime(CMClockGetHostTimeClock())
+            )
+        }
+    }
+
+    func invalidateTimelineProgressRecovery() {
+        timelineProgressRecoveryLock.withLock {
+            invalidateTimelineProgressRecoveryLocked()
+        }
+    }
+
+    private func activateTimelineProgressRecoveryLocked(
+        requestedRate: Float,
+        applicationHostTime: CMTime
+    ) {
+        let run = timelineProgressRecovery.activate(
+            requestedRate: requestedRate,
+            applicationHostTime: applicationHostTime,
+            videoStreamEpoch: streamEpoch,
+            audioStreamEpoch: audioStreamEpoch
+        )
+        let timer = DispatchSource.makeTimerSource(queue: timelineProgressWatchdogQueue)
+        timer.schedule(
+            deadline: .now() + .milliseconds(500),
+            repeating: .milliseconds(500)
+        )
+        timer.setEventHandler { [weak self] in
+            self?.deliveryQueue.async { [weak self] in
+                self?.receiveTimelineProgressWatchdogTick(run: run)
+            }
+        }
+        timelineProgressWatchdog = timer
+        timer.resume()
+    }
+
+    private func invalidateTimelineProgressRecoveryLocked() {
+        timelineProgressRecovery.invalidate()
+        timelineProgressWatchdog?.setEventHandler {}
+        timelineProgressWatchdog?.cancel()
+        timelineProgressWatchdog = nil
     }
 
     func play() throws {
@@ -462,7 +625,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         // On visionOS, a media-time-only rate change can leave the underlying
         // timebase stopped after a pause. Bind the same media time to a near
         // future host time so the synchronizer has an explicit resume edge.
-        setRateAtHostTime(preferredPlaybackRate, time: resumeTime)
+        setRateAtHostTime(
+            preferredPlaybackRate,
+            time: resumeTime,
+            reason: .play
+        )
         recordAudioRateActivation(rate: preferredPlaybackRate, time: resumeTime, reason: "play")
         updateLifecycle(.playing)
         recordRendererState(at: currentTime())
@@ -483,7 +650,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         // Pause is also the authoritative intent for a timeline whose decoder
         // bootstrap has not finished yet.
         timelineStartRate = 0
-        synchronizer.rate = 0
+        setTimelineStopped(reason: .pause)
         updateLifecycle(.paused)
         recordRendererState(at: currentTime())
         debugStore.emit(
@@ -513,10 +680,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             let rateChangeTime = synchronizer.currentTime()
             // Keep rate changes on the same visionOS-safe host-time activation
             // path as play(). The current synchronizer time is the anchor.
-            setRateAtHostTime(rate, time: rateChangeTime)
+            setRateAtHostTime(rate, time: rateChangeTime, reason: .rateChange)
             recordAudioRateActivation(rate: rate, time: rateChangeTime, reason: "setRate")
         } else {
-            synchronizer.rate = 0
+            setTimelineStopped(reason: .rateChange)
         }
         let lifecycle: PlaybackLifecycle = rate == 0 ? .paused : .playing
         updateLifecycle(lifecycle)

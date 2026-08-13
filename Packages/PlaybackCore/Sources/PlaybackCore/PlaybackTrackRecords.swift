@@ -176,6 +176,8 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
     public var enqueuedSampleBufferCount: UInt64
     public var enqueuedAudioFrameCount: UInt64
     public var status: String
+    public var isReadyForMoreMediaData: Bool
+    public var hasSufficientMediaDataForReliablePlaybackStart: Bool
     public var volume: Float
     public var muted: Bool
     public var error: String?
@@ -190,6 +192,8 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
         enqueuedSampleBufferCount: UInt64,
         enqueuedAudioFrameCount: UInt64,
         status: String = "unknown",
+        isReadyForMoreMediaData: Bool = false,
+        hasSufficientMediaDataForReliablePlaybackStart: Bool = false,
         volume: Float,
         muted: Bool,
         error: String?
@@ -203,6 +207,9 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
         self.enqueuedSampleBufferCount = enqueuedSampleBufferCount
         self.enqueuedAudioFrameCount = enqueuedAudioFrameCount
         self.status = status
+        self.isReadyForMoreMediaData = isReadyForMoreMediaData
+        self.hasSufficientMediaDataForReliablePlaybackStart =
+            hasSufficientMediaDataForReliablePlaybackStart
         self.volume = volume
         self.muted = muted
         self.error = error
@@ -218,6 +225,8 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
         case enqueuedSampleBufferCount
         case enqueuedAudioFrameCount
         case status
+        case isReadyForMoreMediaData
+        case hasSufficientMediaDataForReliablePlaybackStart
         case volume
         case muted
         case error
@@ -246,6 +255,14 @@ public struct AudioRendererStateRecord: Codable, Equatable, Sendable {
             forKey: .enqueuedAudioFrameCount
         )
         status = try container.decodeIfPresent(String.self, forKey: .status) ?? "unknown"
+        isReadyForMoreMediaData = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .isReadyForMoreMediaData
+        ) ?? false
+        hasSufficientMediaDataForReliablePlaybackStart = try container.decodeIfPresent(
+            Bool.self,
+            forKey: .hasSufficientMediaDataForReliablePlaybackStart
+        ) ?? false
         volume = try container.decode(Float.self, forKey: .volume)
         muted = try container.decode(Bool.self, forKey: .muted)
         error = try container.decodeIfPresent(String.self, forKey: .error)

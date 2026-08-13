@@ -539,7 +539,8 @@ struct PlaybackVideoSurface: View {
             reservedBottomFraction: appModel.showControls
                 ? Self.subtitleControlSafeAreaFraction
                 : 0,
-            frame: playbackRuntime.activeSubtitleFrame
+            frame: playbackRuntime.activeSubtitleFrame,
+            emitEnablementWrite: appModel.recordSurfaceInputProbe
         )
         if needsInsertion {
             logComponentState(reason: "entityAdded")
@@ -932,7 +933,40 @@ struct PlaybackVideoSurface: View {
                 }
             )
         let renderingIsReady = component.currentRenderingStatus == .ready
-        let hasPixels = playbackRuntime.renderer?.displayedPixelBuffer() != nil
+        let renderer = playbackRuntime.renderer
+        let diagnostics = playbackRuntime.diagnostics
+        let debugSnapshot = playbackRuntime.debugSnapshot()
+        let rendererState = debugSnapshot?.rendererState
+        let audioRendererState = debugSnapshot?.audioRendererState
+        let hasPixels = renderer?.displayedPixelBuffer() != nil
+        let displayedFrameObservationCount = (
+            rendererState?.displayedFrameObservationCount
+        ).map(String.init) ?? "none"
+        let timelineConfigured = rendererState.map { String($0.timelineConfigured) } ?? "none"
+        let synchronizerTime = rendererState.map { String($0.currentTimeSeconds) } ?? "none"
+        let synchronizerRate = rendererState.map { String($0.rate) } ?? "none"
+        let actualTimebaseRate = rendererState?.actualTimebaseRate.map { String($0) } ?? "none"
+        let effectiveTimebaseRate = rendererState?.effectiveTimebaseRate.map { String($0) } ?? "none"
+        let timebaseSourceType = rendererState?.timebaseSourceType ?? "none"
+        let timebaseSourceTime = rendererState?.timebaseSourceTimeSeconds.map { String($0) }
+            ?? "none"
+        let timebaseUltimateSourceTime = rendererState?.timebaseUltimateSourceTimeSeconds.map {
+            String($0)
+        } ?? "none"
+        let streamEpoch = rendererState.map { String($0.streamEpoch) } ?? "none"
+        let lastVideoPTS = debugSnapshot?.lastVideoSample.map {
+            String($0.presentationTimeSeconds)
+        } ?? "none"
+        let lastVideoDTS = debugSnapshot?.lastVideoSample?.decodeTimeSeconds.map { String($0) }
+            ?? "none"
+        let decoderBootstrapComplete = debugSnapshot?.decoderBootstrap.map {
+            String($0.complete)
+        } ?? "none"
+        let acceptedRendererInputCount = debugSnapshot.map {
+            String($0.acceptedRendererInputCount)
+        } ?? "none"
+        let backpressureCount = debugSnapshot.map { String($0.backpressureCount) } ?? "none"
+        let timelineRecovery = debugSnapshot?.timelineProgressRecovery
         let isSettled = renderingIsReady
             && immersiveViewingModeIsSettled
             && viewingModeIsSettled
@@ -943,6 +977,46 @@ struct PlaybackVideoSurface: View {
             "immersiveViewingMode=\(immersiveViewingModeIsSettled)",
             "viewingMode=\(viewingModeIsSettled)",
             "pixels=\(hasPixels)",
+            "requiresFlushToResumeDecoding=\(renderer.map { String($0.requiresFlushToResumeDecoding) } ?? "none")",
+            "isReadyForMoreMediaData=\(renderer.map { String($0.isReadyForMoreMediaData) } ?? "none")",
+            "rendererStatus=\(renderer.map { String(describing: $0.status) } ?? "none")",
+            "rendererError=\(renderer?.error?.localizedDescription ?? "none")",
+            "diagnosticRendererStatus=\(diagnostics.rendererStatus)",
+            "diagnosticRendererError=\(diagnostics.rendererError)",
+            "enqueuedSampleCount=\(diagnostics.enqueuedSampleCount)",
+            "displayedFrameObservationCount=\(displayedFrameObservationCount)",
+            "flushCount=\(rendererState.map { String($0.flushCount) } ?? "none")",
+            "timelineConfigured=\(timelineConfigured)",
+            "synchronizerTime=\(synchronizerTime)",
+            "synchronizerRate=\(synchronizerRate)",
+            "actualTimebaseRate=\(actualTimebaseRate)",
+            "effectiveTimebaseRate=\(effectiveTimebaseRate)",
+            "timebaseSourceType=\(timebaseSourceType)",
+            "timebaseSourceTime=\(timebaseSourceTime)",
+            "timebaseUltimateSourceTime=\(timebaseUltimateSourceTime)",
+            "streamEpoch=\(streamEpoch)",
+            "lastVideoPTS=\(lastVideoPTS)",
+            "lastVideoDTS=\(lastVideoDTS)",
+            "decoderBootstrapComplete=\(decoderBootstrapComplete)",
+            "acceptedRendererInputCount=\(acceptedRendererInputCount)",
+            "backpressureCount=\(backpressureCount)",
+            "lastAudioPTS=\(debugSnapshot?.lastAudioSample.map { String($0.presentationTimeSeconds) } ?? "none")",
+            "audioSampleBufferCount=\(debugSnapshot.map { String($0.audioSampleBufferCount) } ?? "none")",
+            "audioRendererEnqueuedSampleBufferCount=\(audioRendererState.map { String($0.enqueuedSampleBufferCount) } ?? "none")",
+            "audioRendererStatus=\(audioRendererState?.status ?? "none")",
+            "audioRendererError=\(audioRendererState?.error ?? "none")",
+            "audioRendererReadyForMoreMediaData=\(audioRendererState.map { String($0.isReadyForMoreMediaData) } ?? "none")",
+            "audioRendererHasSufficientMediaData=\(audioRendererState.map { String($0.hasSufficientMediaDataForReliablePlaybackStart) } ?? "none")",
+            "timelineRecovery=\(timelineRecovery?.outcome.rawValue ?? "none")",
+            "timelineRecoveryIncident=\(timelineRecovery.map { String($0.incidentID) } ?? "none")",
+            "timelineRecoverySource=\(timelineRecovery?.detectionSource?.rawValue ?? "none")",
+            "timelineRecoveryLanes=\(timelineRecovery?.detectingLanes.joined(separator: "+") ?? "none")",
+            "timelineRecoveryWatchdogCause=\(timelineRecovery?.watchdogCause?.rawValue ?? "none")",
+            "timelineRecoveryWatchdogCount=\(timelineRecovery?.watchdogConsecutiveObservationCount.map(String.init) ?? "none")",
+            "timelineRecoveryFrozenMediaTime=\(timelineRecovery.map { String($0.frozenMediaTimeSeconds) } ?? "none")",
+            "timelineRecoveryReanchorHostTime=\(timelineRecovery?.reanchorHostTimeSeconds.map { String($0) } ?? "none")",
+            "timelineRecoveryPostMediaTime=\(timelineRecovery?.postRecoveryMediaTimeSeconds.map { String($0) } ?? "none")",
+            "timelineRecoveryAttemptCount=\(timelineRecovery.map { String($0.attemptCount) } ?? "none")",
             "requiresImmersiveConfirmation=\(requiresImmersiveViewingModeConfirmation)",
             "presentation=\(presentation.rawValue)",
             "transition=\(appModel.presentationTransition?.targetPresentation.rawValue ?? "none")",
@@ -1028,7 +1102,7 @@ struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
-        subtitleSurface.remove()
+        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
         guard removesEntity else { return }
         videoEntity.removeFromParent()
         if playbackVideoEntityStore.departingEntity === videoEntity {
@@ -1072,7 +1146,7 @@ struct PlaybackVideoSurface: View {
         surfaceAccessibilityActivation.cancel()
         rendererTargetObservation.cancel()
         componentObservation.cancel()
-        subtitleSurface.remove()
+        subtitleSurface.remove(emitEnablementWrite: appModel.recordSurfaceInputProbe)
         guard let sourcePresentation = playbackRuntime.rendererConsumerPresentation,
               sourcePresentation.usesMainWindow,
               playbackRuntime.rendererConsumerEntityID == entityID else {

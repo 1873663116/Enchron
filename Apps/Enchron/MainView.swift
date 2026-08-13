@@ -404,6 +404,8 @@ public struct MainView: View {
     private var windowPlayback: some View {
         WindowPlaybackRootView(
             geometryPolicy: windowPlaybackGeometryPolicy,
+            geometryRefreshRevision: spatialPlatformEffectCoordinator
+                .mainWindowPlaybackSurfaceRefreshRevision,
             freeformSizeOnDisappear: {
                 BrowserWindowGeometryPolicy.shouldRequestDefaultSize(
                     hasActivePlaybackRequest: playbackRuntime.hasActivePlaybackRequest,
@@ -426,6 +428,20 @@ public struct MainView: View {
                 spatialPlatformEffectCoordinator.recordMainWindowScene(
                     windowScene
                 )
+            },
+            onGeometryRefresh: { event in
+                switch event {
+                case let .requested(revision, size):
+                    appModel.recordSurfaceInputProbe(
+                        "mainWindowGeometryRefresh requestedRevision=\(revision)"
+                            + " size=\(size.width)x\(size.height)"
+                    )
+                case let .failed(revision, message):
+                    appModel.recordSurfaceInputProbe(
+                        "mainWindowGeometryRefresh failedRevision=\(revision)"
+                            + " error=\(message)"
+                    )
+                }
             }
         ) {
             windowPlaybackCanvas
@@ -958,9 +974,15 @@ struct ImmersivePlaybackControlsAttachmentView: View {
             presentationOverride: presentation,
             onExitPlayback: { Task { await stopSpatialPlayback() } }
         )
+        .opacity(controlsAcceptInput ? 1 : 0)
         .allowsHitTesting(controlsAcceptInput)
         .accessibilityHidden(controlsAcceptInput == false)
         .disabled(isStoppingPlayback)
+        .onChange(of: controlsAcceptInput, initial: true) { _, visible in
+            appModel.recordSurfaceInputProbe(
+                "immersiveControlsAttachment visible=\(visible) scope=attachment"
+            )
+        }
         .alert(
             "Playback Error",
             isPresented: Binding(

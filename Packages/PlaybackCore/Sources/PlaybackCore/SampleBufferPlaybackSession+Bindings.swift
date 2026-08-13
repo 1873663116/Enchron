@@ -12,7 +12,48 @@ extension SampleBufferPlaybackSession {
     }
 
     public func debugSnapshot() -> PlaybackDebugSnapshotV1 {
-        debugStore.snapshot()
+        var snapshot = debugStore.snapshot()
+        if var rendererState = snapshot.rendererState {
+            let timebaseSource = CMTimebaseCopySource(synchronizer.timebase)
+            let timebaseSourceType: String
+            if CFGetTypeID(timebaseSource) == CMTimebaseGetTypeID() {
+                timebaseSourceType = "CMTimebase"
+            } else if CFGetTypeID(timebaseSource) == CMClockGetTypeID() {
+                timebaseSourceType = "CMClock"
+            } else {
+                timebaseSourceType = "unknownCFType"
+            }
+            let ultimateSourceClock = CMTimebaseCopyUltimateSourceClock(
+                synchronizer.timebase
+            )
+            rendererState.currentTimeSeconds = numericSeconds(synchronizer.currentTime()) ?? 0
+            rendererState.rate = synchronizer.rate
+            rendererState.actualTimebaseRate = Float(
+                CMTimebaseGetRate(synchronizer.timebase)
+            )
+            rendererState.effectiveTimebaseRate = Float(
+                CMTimebaseGetEffectiveRate(synchronizer.timebase)
+            )
+            rendererState.timebaseSourceType = timebaseSourceType
+            rendererState.timebaseSourceTimeSeconds = numericSeconds(
+                CMSyncGetTime(timebaseSource)
+            )
+            rendererState.timebaseUltimateSourceTimeSeconds = numericSeconds(
+                CMClockGetTime(ultimateSourceClock)
+            )
+            snapshot.rendererState = rendererState
+        }
+        if var audioRendererState = snapshot.audioRendererState {
+            audioRendererState.status = audioRendererStatusLabel
+            audioRendererState.isReadyForMoreMediaData =
+                audioRenderer.isReadyForMoreMediaData
+            audioRendererState.hasSufficientMediaDataForReliablePlaybackStart =
+                audioRenderer.hasSufficientMediaDataForReliablePlaybackStart
+            audioRendererState.error = audioRenderer.error?.localizedDescription
+                ?? currentAudioRendererError
+            snapshot.audioRendererState = audioRendererState
+        }
+        return snapshot
     }
 
     public func debugSnapshotJSON() throws -> String {

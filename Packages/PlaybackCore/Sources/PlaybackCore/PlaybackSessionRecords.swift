@@ -230,6 +230,9 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
     public var rate: Float
     public var actualTimebaseRate: Float?
     public var effectiveTimebaseRate: Float?
+    public var timebaseSourceType: String?
+    public var timebaseSourceTimeSeconds: Double?
+    public var timebaseUltimateSourceTimeSeconds: Double?
     public var rendererStatus: String
     public var rendererError: String?
     public var inputModel: String?
@@ -251,6 +254,9 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
         rate: Float,
         actualTimebaseRate: Float? = nil,
         effectiveTimebaseRate: Float? = nil,
+        timebaseSourceType: String? = nil,
+        timebaseSourceTimeSeconds: Double? = nil,
+        timebaseUltimateSourceTimeSeconds: Double? = nil,
         rendererStatus: String,
         rendererError: String?,
         inputModel: String?,
@@ -269,6 +275,9 @@ public struct RendererStateRecord: Codable, Equatable, Sendable {
         self.rate = rate
         self.actualTimebaseRate = actualTimebaseRate
         self.effectiveTimebaseRate = effectiveTimebaseRate
+        self.timebaseSourceType = timebaseSourceType
+        self.timebaseSourceTimeSeconds = timebaseSourceTimeSeconds
+        self.timebaseUltimateSourceTimeSeconds = timebaseUltimateSourceTimeSeconds
         self.rendererStatus = rendererStatus
         self.rendererError = rendererError
         self.inputModel = inputModel

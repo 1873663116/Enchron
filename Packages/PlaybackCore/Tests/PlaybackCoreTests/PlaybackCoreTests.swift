@@ -1286,6 +1286,52 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(session.synchronizer.rate == 1)
 }
 
+@Test func pausedPrerollDoesNotScheduleAHostTimeRateZeroActivation() async throws {
+    let samples = try [
+        makeCompressedH264Sample(
+            presentationTimeSeconds: 0.021,
+            decodeTimeSeconds: -0.066
+        ),
+        makeCompressedH264Sample(
+            presentationTimeSeconds: 0.054,
+            decodeTimeSeconds: -0.033
+        ),
+        makeCompressedH264Sample(
+            presentationTimeSeconds: 0.087,
+            decodeTimeSeconds: 0.033
+        ),
+    ]
+    let session = SampleBufferPlaybackSession(
+        traceID: "paused-preroll-no-rate-zero-host-time",
+        provider: FakeVideoSampleProvider(
+            events: samples.map { .sample($0) } + [.end],
+            eventDelay: .milliseconds(100)
+        ),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/paused-preroll-no-rate-zero.mkv"),
+        startsPaused: true
+    )
+    try session.start()
+    try await waitForSampleCount(3, in: session)
+
+    let beforePlay = session.debugSnapshot()
+    #expect(beforePlay.decoderBootstrap?.complete == true)
+    #expect(session.synchronizer.rate == 0)
+    #expect(beforePlay.timelineControlState?.isPrerolling == true)
+    #expect(beforePlay.timelineControlState?.timelineStartRate == 0)
+    #expect(beforePlay.timelineControlState?.lastRateActivation == nil)
+
+    try session.play()
+    #expect(session.synchronizer.rate == 1)
+    let afterPlay = try #require(session.debugSnapshot().timelineControlState?.lastRateActivation)
+    #expect(afterPlay.reason == .play)
+    #expect(afterPlay.synchronousApplicationReturned)
+}
+
 @Test func seekToExactDurationPublishesEndedWithoutReopeningTheProvider() async throws {
     let sample = try makeCompressedH264Sample(durationSeconds: 1)
     let provider = FakeVideoSampleProvider(

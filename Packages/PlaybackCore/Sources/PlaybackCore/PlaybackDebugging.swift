@@ -68,6 +68,110 @@ public struct PlaybackActivationReapplyVerificationRecord: Codable, Equatable, S
     public var outcome: PlaybackActivationReapplyVerificationOutcome
 }
 
+public enum PlaybackTimelineProgressRecoveryOutcome: String, Codable, Sendable {
+    case stalled
+    case reanchorApplied
+    case resumed
+    case notResumed
+}
+
+public enum PlaybackTimelineProgressDetectionSource: String, Codable, Sendable {
+    case blockedLanes
+    case hostWatchdog
+}
+
+public struct PlaybackTimelineProgressRecoveryRecord: Codable, Equatable, Sendable {
+    public var incidentID: UInt64
+    public var outcome: PlaybackTimelineProgressRecoveryOutcome
+    public var detectionSource: PlaybackTimelineProgressDetectionSource?
+    public var detectingLanes: [String]
+    public var watchdogCause: PlaybackTimelineHostWatchdogCause?
+    public var watchdogConsecutiveObservationCount: Int?
+    public var rateApplicationGeneration: UInt64
+    public var videoStreamEpoch: UInt64
+    public var audioStreamEpoch: UInt64
+    public var requestedRate: Float
+    public var frozenMediaTimeSeconds: Double
+    public var previousUltimateSourceTimeSeconds: Double
+    public var detectedUltimateSourceTimeSeconds: Double
+    public var sourceTimeSeconds: Double
+    public var directRate: Float64
+    public var effectiveRate: Float64
+    public var reanchorHostTimeSeconds: Double?
+    public var postRecoveryMediaTimeSeconds: Double?
+    public var postRecoveryUltimateSourceTimeSeconds: Double?
+    public var attemptCount: Int
+    public var videoSampleCount: UInt64
+    public var acceptedRendererInputCount: UInt64
+    public var audioSampleBufferCount: UInt64
+    public var displayedFrameObservationCount: UInt64?
+    public var flushCount: UInt64
+}
+
+public enum PlaybackTimelineControlReason: String, Codable, Equatable, Sendable {
+    case activationReapply
+    case audioTrackRollback
+    case audioTrackRollbackFailure
+    case audioTrackSelection
+    case close
+    case decoderBootstrap
+    case decoderBootstrapPreActivation
+    case firstSample
+    case initialTimelineAnchor
+    case pause
+    case play
+    case playbackEnded
+    case rateChange
+    case rendererFailure
+    case restoreEndedPresentation
+    case seek
+    case seekToEnd
+    case timelineProgressRecovery
+}
+
+public struct PlaybackTimelineRateActivationRecord: Codable, Equatable, Sendable {
+    public var reason: PlaybackTimelineControlReason
+    public var mediaTimeSeconds: Double?
+    public var hostTimeSeconds: Double?
+    public var sequence: UInt64
+    public var synchronousApplicationReturned: Bool
+    public var currentVideoDeliveryGeneration: UInt64
+    public var capturedVideoDeliveryGeneration: UInt64?
+}
+
+public struct PlaybackTimelineStopRecord: Codable, Equatable, Sendable {
+    public var reason: PlaybackTimelineControlReason
+    public var mediaTimeSeconds: Double?
+    public var sequence: UInt64
+    public var currentVideoDeliveryGeneration: UInt64
+    public var capturedVideoDeliveryGeneration: UInt64?
+}
+
+public struct PlaybackTimelineControlStateRecord: Codable, Equatable, Sendable {
+    public var isPrerolling: Bool
+    public var hasStartedTimeline: Bool
+    public var timelineStartRate: Float
+    public var requestedTimelineStartSeconds: Double?
+    public var lastRateActivation: PlaybackTimelineRateActivationRecord?
+    public var lastStop: PlaybackTimelineStopRecord?
+
+    public init(
+        isPrerolling: Bool,
+        hasStartedTimeline: Bool,
+        timelineStartRate: Float,
+        requestedTimelineStartSeconds: Double?,
+        lastRateActivation: PlaybackTimelineRateActivationRecord? = nil,
+        lastStop: PlaybackTimelineStopRecord? = nil
+    ) {
+        self.isPrerolling = isPrerolling
+        self.hasStartedTimeline = hasStartedTimeline
+        self.timelineStartRate = timelineStartRate
+        self.requestedTimelineStartSeconds = requestedTimelineStartSeconds
+        self.lastRateActivation = lastRateActivation
+        self.lastStop = lastStop
+    }
+}
+
 public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var schemaVersion = 1
     public var generatedAt = Date()
@@ -94,6 +198,8 @@ public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var rendererState: RendererStateRecord?
     public var audioRendererState: AudioRendererStateRecord?
     public var activationReapplyVerification: PlaybackActivationReapplyVerificationRecord?
+    public var timelineProgressRecovery: PlaybackTimelineProgressRecoveryRecord?
+    public var timelineControlState: PlaybackTimelineControlStateRecord?
     public var cleanupState: PlaybackCleanupStateRecord?
     public var realityKitBinding: RealityKitBindingRecord?
     public var presentationBinding: PresentationBindingRecord?
@@ -124,6 +230,7 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
     private let lock = NSLock()
     private var currentSnapshot = PlaybackDebugSnapshotV1()
     private var sequenceNumber: UInt64 = 0
+    private var timelineControlSequence: UInt64 = 0
     private var subscribers: [UUID: AsyncStream<PlaybackDebugEvent>.Continuation] = [:]
     private var observers: [UUID: @Sendable (PlaybackDebugEvent) -> Void] = [:]
 
@@ -351,6 +458,77 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         currentSnapshot.activationReapplyVerification = record
     }
 
+    public func recordTimelineProgressRecovery(
+        _ record: PlaybackTimelineProgressRecoveryRecord
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        currentSnapshot.timelineProgressRecovery = record
+    }
+
+    func recordTimelineControlState(_ refreshedState: PlaybackTimelineControlStateRecord) {
+        lock.lock()
+        defer { lock.unlock() }
+        refreshTimelineControlStateLocked(refreshedState)
+    }
+
+    @discardableResult
+    func beginTimelineRateActivation(
+        reason: PlaybackTimelineControlReason,
+        mediaTimeSeconds: Double?,
+        hostTimeSeconds: Double?,
+        currentVideoDeliveryGeneration: UInt64,
+        capturedVideoDeliveryGeneration: UInt64?,
+        currentState: PlaybackTimelineControlStateRecord
+    ) -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        timelineControlSequence &+= 1
+        refreshTimelineControlStateLocked(currentState)
+        currentSnapshot.timelineControlState?.lastRateActivation =
+            PlaybackTimelineRateActivationRecord(
+                reason: reason,
+                mediaTimeSeconds: mediaTimeSeconds,
+                hostTimeSeconds: hostTimeSeconds,
+                sequence: timelineControlSequence,
+                synchronousApplicationReturned: false,
+                currentVideoDeliveryGeneration: currentVideoDeliveryGeneration,
+                capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration
+            )
+        return timelineControlSequence
+    }
+
+    func recordTimelineRateActivationReturned(sequence: UInt64) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard currentSnapshot.timelineControlState?.lastRateActivation?.sequence
+                == sequence else {
+            return
+        }
+        currentSnapshot.timelineControlState?
+            .lastRateActivation?.synchronousApplicationReturned = true
+    }
+
+    func recordTimelineStop(
+        reason: PlaybackTimelineControlReason,
+        mediaTimeSeconds: Double?,
+        currentVideoDeliveryGeneration: UInt64,
+        capturedVideoDeliveryGeneration: UInt64?,
+        currentState: PlaybackTimelineControlStateRecord
+    ) {
+        lock.lock()
+        defer { lock.unlock() }
+        timelineControlSequence &+= 1
+        refreshTimelineControlStateLocked(currentState)
+        currentSnapshot.timelineControlState?.lastStop = PlaybackTimelineStopRecord(
+            reason: reason,
+            mediaTimeSeconds: mediaTimeSeconds,
+            sequence: timelineControlSequence,
+            currentVideoDeliveryGeneration: currentVideoDeliveryGeneration,
+            capturedVideoDeliveryGeneration: capturedVideoDeliveryGeneration
+        )
+    }
+
     func recordCleanupStep(_ step: PlaybackCleanupStep) {
         lock.lock()
         defer { lock.unlock() }
@@ -425,5 +603,15 @@ public final class PlaybackDiagnosticsStore: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         subscribers.removeValue(forKey: id)
+    }
+
+    private func refreshTimelineControlStateLocked(
+        _ refreshedState: PlaybackTimelineControlStateRecord
+    ) {
+        var refreshedState = refreshedState
+        refreshedState.lastRateActivation =
+            currentSnapshot.timelineControlState?.lastRateActivation
+        refreshedState.lastStop = currentSnapshot.timelineControlState?.lastStop
+        currentSnapshot.timelineControlState = refreshedState
     }
 }
