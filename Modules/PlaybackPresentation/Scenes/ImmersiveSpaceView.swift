@@ -764,6 +764,9 @@ public struct ImmersiveSpaceView: View {
         .onChange(of: spatialPresentationAcceptsInput, initial: true) { _, accepts in
             appModel.recordSurfaceInputProbe("acceptsInput=\(accepts)")
         }
+        .onChange(of: immersiveControlsAreVisible, initial: true) { _, visible in
+            controlsAttachmentController.setVisible(visible)
+        }
         .onChange(of: realityKitContentTypeScope) { _, scope in
             playbackVideoEntityStore.synchronizeRealityKitContentTypeScope(scope)
             surfaceRefreshTick &+= 1
@@ -884,6 +887,14 @@ public struct ImmersiveSpaceView: View {
             for: requestedPresentation,
             settledPresentation: appModel.playbackPresentation,
             transition: appModel.presentationTransition
+        )
+    }
+
+    private var immersiveControlsAreVisible: Bool {
+        ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+            presentation: requestedPresentation,
+            controlsVisible: appModel.showControls,
+            transitionIsActive: appModel.presentationTransition != nil
         )
     }
 

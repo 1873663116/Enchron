@@ -48,15 +48,29 @@ struct WindowPlaybackPageGeometryTests {
         #expect(layout.maximumSize == CGSize(width: 1_808, height: 1_017))
     }
 
-    @Test("Portal uses the browser default as a freeform viewport")
-    func portalWindowUsesFreeformBrowserDefaultGeometry() {
+    @Test("Portal uses bounded freeform geometry")
+    func portalWindowUsesBoundedFreeformGeometry() {
         let videoLayout = WindowPlaybackLayout(aspectRatio: 1)
 
         #expect(
             WindowPlaybackGeometryPolicy(
                 presentation: .portal,
                 videoLayout: videoLayout
-            ) == .freeform(defaultSize: WindowPlaybackLayout.fallback.defaultSize)
+            ) == .freeform(
+                defaultSize: PortalWindowLayout.defaultSize,
+                minimumSize: PortalWindowLayout.minimumSize,
+                maximumSize: PortalWindowLayout.maximumSize
+            )
+        )
+        #expect(PortalWindowLayout.minimumSize == CGSize(width: 912, height: 513))
+        #expect(PortalWindowLayout.defaultSize == CGSize(width: 1_280, height: 720))
+        #expect(PortalWindowLayout.maximumSize == CGSize(width: 1_808, height: 1_017))
+        #expect(PortalWindowLayout.contains(PortalWindowLayout.minimumSize))
+        #expect(PortalWindowLayout.contains(PortalWindowLayout.maximumSize))
+        #expect(
+            PortalWindowLayout.contains(
+                CGSize(width: 911, height: PortalWindowLayout.minimumSize.height)
+            ) == false
         )
     }
 
@@ -103,7 +117,7 @@ struct WindowPlaybackPageGeometryTests {
         #expect(layout.hasPlaybackAspectRatio(tooLarge))
     }
 
-    @Test("only settled immersive playback shows the attached controls")
+    @Test("immersive playback visibility includes an active Docked handoff")
     func immersivePlaybackControlsAttachmentPolicy() {
         #expect(
             ImmersivePlaybackControlsAttachmentPolicy.isVisible(
@@ -134,7 +148,6 @@ struct WindowPlaybackPageGeometryTests {
                 controlsVisible: true,
                 transitionIsActive: true
             )
-            == false
         )
         #expect(
             ImmersivePlaybackControlsAttachmentPolicy.isVisible(
@@ -147,8 +160,48 @@ struct WindowPlaybackPageGeometryTests {
             ImmersivePlaybackControlsAttachmentPolicy.isVisible(
                 presentation: .panorama,
                 controlsVisible: true,
+                transitionIsActive: true
+            ) == false
+        )
+        #expect(
+            ImmersivePlaybackControlsAttachmentPolicy.isVisible(
+                presentation: .panorama,
+                controlsVisible: true,
                 transitionIsActive: false
             )
+        )
+    }
+
+    @Test("immersive controls place only on visibility rising edges")
+    func immersiveControlsPlacementUsesVisibilityRisingEdges() {
+        var state = ImmersivePlaybackControlsPlacementState()
+
+        #expect(state.setVisible(false) == .none)
+        #expect(state.setVisible(true) == .place(revision: 1))
+        #expect(state.setVisible(true) == .none)
+        #expect(state.setVisible(false) == .hide(lastPlacementRevision: 1))
+        #expect(state.setVisible(false) == .none)
+        #expect(state.setVisible(true) == .place(revision: 2))
+        #expect(state.setVisible(true) == .none)
+    }
+
+    @Test("immersive controls fall back once when head tracking is unavailable")
+    func immersiveControlsPlacementFallsBackOnVisibilityRisingEdge() {
+        var state = ImmersivePlaybackControlsPlacementState()
+
+        #expect(state.setVisible(true) == .place(revision: 1))
+        #expect(
+            state.resolvePlacement(headAnchorIsAvailable: false)
+                == .fallback(revision: 1)
+        )
+        #expect(state.resolvePlacement(headAnchorIsAvailable: true) == nil)
+        #expect(state.setVisible(true) == .none)
+
+        #expect(state.setVisible(false) == .hide(lastPlacementRevision: 1))
+        #expect(state.setVisible(true) == .place(revision: 2))
+        #expect(
+            state.resolvePlacement(headAnchorIsAvailable: true)
+                == .headAnchor(revision: 2)
         )
     }
 

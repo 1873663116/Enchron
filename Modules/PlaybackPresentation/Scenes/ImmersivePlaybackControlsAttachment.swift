@@ -11,27 +11,72 @@ enum ImmersivePlaybackControlsAttachmentPolicy {
         controlsVisible: Bool,
         transitionIsActive: Bool
     ) -> Bool {
-        presentation.usesImmersiveSpace
-            && controlsVisible
-            && transitionIsActive == false
+        guard controlsVisible else { return false }
+        return switch presentation {
+        case .docked:
+            true
+        case .panorama:
+            transitionIsActive == false
+        case .window, .portal:
+            false
+        }
+    }
+}
+
+struct ImmersivePlaybackControlsPlacementState: Equatable {
+    enum Action: Equatable {
+        case none
+        case place(revision: UInt64)
+        case hide(lastPlacementRevision: UInt64)
+    }
+
+    enum Placement: Equatable {
+        case headAnchor(revision: UInt64)
+        case fallback(revision: UInt64)
+    }
+
+    private(set) var isVisible = false
+    private(set) var placementRevision: UInt64 = 0
+    private(set) var pendingPlacementRevision: UInt64?
+
+    mutating func setVisible(_ visible: Bool) -> Action {
+        guard visible != isVisible else { return .none }
+        isVisible = visible
+        if visible {
+            placementRevision &+= 1
+            pendingPlacementRevision = placementRevision
+            return .place(revision: placementRevision)
+        }
+        pendingPlacementRevision = nil
+        return .hide(lastPlacementRevision: placementRevision)
+    }
+
+    mutating func resolvePlacement(headAnchorIsAvailable: Bool) -> Placement? {
+        guard isVisible, let revision = pendingPlacementRevision else {
+            return nil
+        }
+        pendingPlacementRevision = nil
+        if headAnchorIsAvailable {
+            return .headAnchor(revision: revision)
+        }
+        return .fallback(revision: revision)
     }
 }
 
 @MainActor
-final class ImmersivePlaybackControlsAttachmentController: NSObject {
+final class ImmersivePlaybackControlsAttachmentController {
     static let attachmentID = "immersivePlaybackControlsAttachment"
     static let forwardOffsetMeters: Float = -0.7
     static let verticalOffsetMeters: Float = -0.22
-    static let smoothingRetentionPer16Milliseconds: Float = 0.96
 
     private weak var appModel: AppModel?
     private var attachmentEntity: Entity?
     private var session: ARKitSession?
     private var provider: WorldTrackingProvider?
-    private var displayLink: CADisplayLink?
     private var generation = UUID()
-    private var lastFrameTimestamp: CFTimeInterval?
-    private var hasAppliedPose = false
+    private var trackingIsRunning = false
+    private var placementState = ImmersivePlaybackControlsPlacementState()
+    private var lockedTransform: Transform?
 
     func attach(_ entity: Entity, appModel: AppModel) {
         self.appModel = appModel
@@ -51,10 +96,38 @@ final class ImmersivePlaybackControlsAttachmentController: NSObject {
                 writer: "ImmersivePlaybackControlsAttachmentController.attach.initial"
             )
             entity.components.set(OpacityComponent(opacity: 0))
-            hasAppliedPose = false
-            lastFrameTimestamp = nil
+            if placementState.isVisible, let lockedTransform {
+                applyLockedTransform(lockedTransform, to: entity)
+            }
         }
         startTrackingIfNeeded()
+        placeForPendingVisibilityRiseIfPossible()
+    }
+
+    func setVisible(_ visible: Bool) {
+        switch placementState.setVisible(visible) {
+        case .none:
+            break
+        case let .place(revision):
+            lockedTransform = nil
+            hideAttachment(
+                writer: "ImmersivePlaybackControlsAttachmentController.setVisible.place"
+            )
+            appModel?.recordSurfaceInputProbe(
+                "immersiveControlsAttachment placementRequested revision=\(revision)"
+            )
+            startTrackingIfNeeded()
+            placeForPendingVisibilityRiseIfPossible()
+        case let .hide(lastPlacementRevision):
+            lockedTransform = nil
+            hideAttachment(
+                writer: "ImmersivePlaybackControlsAttachmentController.setVisible.hide"
+            )
+            appModel?.recordSurfaceInputProbe(
+                "immersiveControlsAttachment placementStopped"
+                    + " revision=\(lastPlacementRevision) reason=hidden"
+            )
+        }
     }
 
     func contains(_ entity: Entity) -> Bool {
@@ -67,22 +140,14 @@ final class ImmersivePlaybackControlsAttachmentController: NSObject {
     }
 
     func stop() {
-        displayLink?.invalidate()
-        displayLink = nil
         session?.stop()
         session = nil
         provider = nil
         generation = UUID()
-        lastFrameTimestamp = nil
-        hasAppliedPose = false
-        attachmentEntity?.components.set(OpacityComponent(opacity: 0))
-        if let attachmentEntity {
-            setEnabled(
-                false,
-                on: attachmentEntity,
-                writer: "ImmersivePlaybackControlsAttachmentController.stop"
-            )
-        }
+        trackingIsRunning = false
+        lockedTransform = nil
+        placementState = ImmersivePlaybackControlsPlacementState()
+        hideAttachment(writer: "ImmersivePlaybackControlsAttachmentController.stop")
         attachmentEntity = nil
     }
 
@@ -100,52 +165,68 @@ final class ImmersivePlaybackControlsAttachmentController: NSObject {
         self.provider = provider
         self.generation = generation
 
-        let displayLink = CADisplayLink(
-            target: self,
-            selector: #selector(updatePose(_:))
-        )
-        displayLink.add(to: .main, forMode: .common)
-        self.displayLink = displayLink
-
         Task { @MainActor [weak self] in
             do {
                 try await session.run([provider])
+                guard let self, self.generation == generation else { return }
+                self.trackingIsRunning = true
+                self.placeForPendingVisibilityRiseIfPossible()
             } catch {
                 guard let self, self.generation == generation else { return }
                 self.appModel?.recordSurfaceInputProbe(
                     "immersiveControlsAttachment trackingFailed=\(error.localizedDescription)"
                 )
-                self.stop()
+                session.stop()
+                self.session = nil
+                self.provider = nil
+                self.generation = UUID()
+                self.trackingIsRunning = false
             }
         }
     }
 
-    @objc
-    private func updatePose(_ displayLink: CADisplayLink) {
-        guard let provider,
-              let attachmentEntity,
-              let anchor = provider.queryDeviceAnchor(
-                atTimestamp: CACurrentMediaTime()
-              ),
-              anchor.isTracked else {
-            lastFrameTimestamp = displayLink.timestamp
-            if hasAppliedPose {
-                hasAppliedPose = false
-                self.attachmentEntity?.components.set(
-                    OpacityComponent(opacity: 0)
-                )
-                if let attachmentEntity = self.attachmentEntity {
-                    self.setEnabled(
-                        false,
-                        on: attachmentEntity,
-                        writer: "ImmersivePlaybackControlsAttachmentController.updatePose.trackingLost"
-                    )
-                }
-                appModel?.recordSurfaceInputProbe(
-                    "immersiveControlsAttachment trackingLost"
-                )
-            }
+    private func placeForPendingVisibilityRiseIfPossible() {
+        guard placementState.isVisible,
+              placementState.pendingPlacementRevision != nil,
+              let attachmentEntity else {
             return
+        }
+
+        let revision = placementState.pendingPlacementRevision!
+        let headPose: (originTransform: simd_float4x4?, fallbackReason: String)
+        if trackingIsRunning, let provider {
+            let anchor = provider.queryDeviceAnchor(
+                atTimestamp: CACurrentMediaTime()
+            )
+            appModel?.recordSurfaceInputProbe(
+                "immersiveControlsAttachment headPoseQueried revision=\(revision)"
+            )
+            if let anchor, anchor.isTracked {
+                headPose = (anchor.originFromAnchorTransform, "")
+            } else if anchor == nil {
+                headPose = (nil, "queryReturnedNil")
+            } else {
+                headPose = (nil, "anchorNotTracked")
+            }
+        } else {
+            headPose = (nil, "headTrackingUnavailable")
+        }
+        guard let placement = placementState.resolvePlacement(
+            headAnchorIsAvailable: headPose.originTransform != nil
+        ) else {
+            return
+        }
+
+        let originFromAnchorTransform: simd_float4x4
+        switch placement {
+        case .headAnchor:
+            originFromAnchorTransform = headPose.originTransform!
+        case .fallback:
+            originFromAnchorTransform = matrix_identity_float4x4
+            appModel?.recordSurfaceInputProbe(
+                "immersiveControlsAttachment placementFallback"
+                    + " reason=\(headPose.fallbackReason) revision=\(revision)"
+            )
         }
 
         var offset = matrix_identity_float4x4
@@ -155,42 +236,34 @@ final class ImmersivePlaybackControlsAttachmentController: NSObject {
             Self.forwardOffsetMeters,
             1
         )
-        let target = Transform(matrix: anchor.originFromAnchorTransform * offset)
-        let elapsed = lastFrameTimestamp.map {
-            max(0, displayLink.timestamp - $0)
-        } ?? 0
-        lastFrameTimestamp = displayLink.timestamp
+        let transform = Transform(
+            matrix: originFromAnchorTransform * offset
+        )
+        lockedTransform = transform
+        applyLockedTransform(transform, to: attachmentEntity)
+        appModel?.recordSurfaceInputProbe(
+            "immersiveControlsAttachment placementApplied revision=\(revision)"
+        )
+        appModel?.recordSurfaceInputProbe(
+            "immersiveControlsAttachment placementStopped"
+                + " revision=\(revision) reason=worldLocked"
+        )
+    }
 
-        if hasAppliedPose {
-            let retention = pow(
-                Self.smoothingRetentionPer16Milliseconds,
-                Float(elapsed / 0.016)
-            )
-            let appliedFraction = 1 - retention
-            var smoothed = attachmentEntity.transform
-            smoothed.translation = simd_mix(
-                smoothed.translation,
-                target.translation,
-                SIMD3<Float>(repeating: appliedFraction)
-            )
-            smoothed.rotation = simd_slerp(
-                smoothed.rotation,
-                target.rotation,
-                appliedFraction
-            )
-            attachmentEntity.transform = smoothed
-        } else {
-            attachmentEntity.transform = target
-            hasAppliedPose = true
-            attachmentEntity.components.set(OpacityComponent(opacity: 1))
-            setEnabled(
-                true,
-                on: attachmentEntity,
-                writer: "ImmersivePlaybackControlsAttachmentController.updatePose.firstPose"
-            )
-            appModel?.recordSurfaceInputProbe(
-                "immersiveControlsAttachment firstPoseApplied"
-            )
+    private func applyLockedTransform(_ transform: Transform, to entity: Entity) {
+        entity.transform = transform
+        entity.components.set(OpacityComponent(opacity: 1))
+        setEnabled(
+            true,
+            on: entity,
+            writer: "ImmersivePlaybackControlsAttachmentController.applyLockedTransform"
+        )
+    }
+
+    private func hideAttachment(writer: String) {
+        attachmentEntity?.components.set(OpacityComponent(opacity: 0))
+        if let attachmentEntity {
+            setEnabled(false, on: attachmentEntity, writer: writer)
         }
     }
 

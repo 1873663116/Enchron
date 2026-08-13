@@ -120,9 +120,26 @@ struct WindowPlaybackLayout: Equatable {
     }
 }
 
+enum PortalWindowLayout {
+    static let minimumSize = WindowPlaybackLayout.fallback.minimumSize
+    static let defaultSize = WindowPlaybackLayout.fallback.defaultSize
+    static let maximumSize = WindowPlaybackLayout.fallback.maximumSize
+
+    static func contains(_ size: CGSize) -> Bool {
+        size.width >= minimumSize.width
+            && size.height >= minimumSize.height
+            && size.width <= maximumSize.width
+            && size.height <= maximumSize.height
+    }
+}
+
 enum WindowPlaybackGeometryPolicy: Equatable {
     case aspectLocked(WindowPlaybackLayout)
-    case freeform(defaultSize: CGSize)
+    case freeform(
+        defaultSize: CGSize,
+        minimumSize: CGSize,
+        maximumSize: CGSize
+    )
 
     init(
         presentation: PlaybackPresentation,
@@ -131,7 +148,9 @@ enum WindowPlaybackGeometryPolicy: Equatable {
         switch presentation {
         case .portal:
             self = .freeform(
-                defaultSize: WindowPlaybackLayout.fallback.defaultSize
+                defaultSize: PortalWindowLayout.defaultSize,
+                minimumSize: PortalWindowLayout.minimumSize,
+                maximumSize: PortalWindowLayout.maximumSize
             )
         case .window, .docked, .panorama:
             self = .aspectLocked(videoLayout)
@@ -139,18 +158,24 @@ enum WindowPlaybackGeometryPolicy: Equatable {
     }
 
     var minimumSize: CGSize? {
-        guard case let .aspectLocked(layout) = self else { return nil }
-        return layout.minimumSize
+        switch self {
+        case let .aspectLocked(layout): layout.minimumSize
+        case let .freeform(_, minimumSize, _): minimumSize
+        }
     }
 
     var idealSize: CGSize? {
-        guard case let .aspectLocked(layout) = self else { return nil }
-        return layout.defaultSize
+        switch self {
+        case let .aspectLocked(layout): layout.defaultSize
+        case let .freeform(defaultSize, _, _): defaultSize
+        }
     }
 
     var maximumSize: CGSize? {
-        guard case let .aspectLocked(layout) = self else { return nil }
-        return layout.maximumSize
+        switch self {
+        case let .aspectLocked(layout): layout.maximumSize
+        case let .freeform(_, _, maximumSize): maximumSize
+        }
     }
 }
 
@@ -440,8 +465,12 @@ struct WindowPlaybackRootView<
                 maximumSize: layout.maximumSize,
                 resizingRestrictions: .uniform
             )
-        case let .freeform(defaultSize):
-            return freeformWindowGeometryPreferences(size: size ?? defaultSize)
+        case let .freeform(defaultSize, minimumSize, maximumSize):
+            return freeformWindowGeometryPreferences(
+                size: size ?? defaultSize,
+                minimumSize: minimumSize,
+                maximumSize: maximumSize
+            )
         }
     }
 
@@ -456,7 +485,9 @@ struct WindowPlaybackRootView<
     }
 
     private func freeformWindowGeometryPreferences(
-        size: CGSize?
+        size: CGSize?,
+        minimumSize: CGSize? = nil,
+        maximumSize: CGSize? = nil
     ) -> UIWindowScene.GeometryPreferences.Vision {
         let systemDefault = CGSize(
             width: UIProposedSceneSizeNoPreference,
@@ -464,8 +495,8 @@ struct WindowPlaybackRootView<
         )
         return UIWindowScene.GeometryPreferences.Vision(
             size: size,
-            minimumSize: systemDefault,
-            maximumSize: systemDefault,
+            minimumSize: minimumSize ?? systemDefault,
+            maximumSize: maximumSize ?? systemDefault,
             resizingRestrictions: .freeform
         )
     }

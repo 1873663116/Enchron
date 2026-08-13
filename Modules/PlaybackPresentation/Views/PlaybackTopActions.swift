@@ -457,7 +457,7 @@ struct PlaybackTopActions: View {
         } formatControl: {
             if topActionsComposition.showsVideoFormat {
                 PlaybackTopSecondaryPanelButton(
-                    systemName: "rectangle.arrowtriangle.2.outward",
+                    systemName: "gear",
                     accessibilityLabel: "Video Format",
                     action: { toggle(.videoFormat) },
                     accessibilityIdentifier: "PlayerUI-TopAction-videoFormat"

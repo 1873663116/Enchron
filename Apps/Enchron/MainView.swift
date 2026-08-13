@@ -279,13 +279,37 @@ public struct MainView: View {
     private var platformContent: some View {
         primaryContent
             .ornament(
-                visibility: showsPlaybackChrome ? .visible : .hidden,
+                visibility: .visible,
                 attachmentAnchor: .scene(.bottom)
             ) {
-                WindowPlayerDeckView(
-                    presentationOverride: hostedPlaybackPresentation
+                ZStack {
+                    Color.clear
+                        .frame(
+                            width: DesignTokens.ControlBar.outerWidth,
+                            height: collapsedWindowControlsOrnamentHeight
+                        )
+                        .allowsHitTesting(false)
+                        .accessibilityHidden(true)
+
+                    if showsPlaybackChrome {
+                        WindowPlayerDeckView(
+                            presentationOverride: hostedPlaybackPresentation
+                        )
+                        .transition(.opacity)
+                    }
+                }
+                .animation(
+                    DesignTokens.AnimationToken.controlsTransition,
+                    value: showsPlaybackChrome
                 )
             }
+    }
+
+    private var collapsedWindowControlsOrnamentHeight: CGFloat {
+        DesignTokens.Layout.playbackMediaInfoHeight
+            + DesignTokens.Spacing.sm
+            + DesignTokens.ProgressBar.hitHeight
+            + DesignTokens.ControlBar.paddingV * 2
     }
 
     private var primaryContent: some View {

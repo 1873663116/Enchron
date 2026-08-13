@@ -1,5 +1,9 @@
 import Foundation
 import MediaLibrary
+import PlaybackPresentation
+#if os(visionOS)
+import UIKit
+#endif
 
 @MainActor
 final class TestCommandChannel {
@@ -130,6 +134,8 @@ final class TestCommandChannel {
                 payload: [String(appModel.showControls)]
             )
 #if DEBUG
+        case "setWindowSize":
+            return try setWindowSize(request)
         case "toggleBlackoutProbeWindow":
             appModel.showBlackoutProbeWindow.toggle()
             return Response(
@@ -217,6 +223,76 @@ final class TestCommandChannel {
             )
         }
     }
+
+#if DEBUG && os(visionOS)
+    private func setWindowSize(_ request: Request) throws -> Response {
+        guard appModel.playbackPresentation == .portal else {
+            throw CommandError(message: "setWindowSize requires Portal playback.")
+        }
+        guard let widthText = request.args["width"],
+              let heightText = request.args["height"],
+              let width = Double(widthText),
+              let height = Double(heightText),
+              width.isFinite,
+              height.isFinite else {
+            throw CommandError(
+                message: "setWindowSize requires finite width and height arguments."
+            )
+        }
+        let size = CGSize(width: width, height: height)
+        guard PortalWindowLayout.contains(size) else {
+            throw CommandError(
+                message: "setWindowSize must stay within Portal bounds "
+                    + "\(PortalWindowLayout.minimumSize.width)x"
+                    + "\(PortalWindowLayout.minimumSize.height)..."
+                    + "\(PortalWindowLayout.maximumSize.width)x"
+                    + "\(PortalWindowLayout.maximumSize.height)."
+            )
+        }
+        guard let windowScene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }) else {
+            throw CommandError(message: "setWindowSize found no foreground Window scene.")
+        }
+
+        appModel.recordSurfaceInputProbe(
+            "setWindowSize requested=\(size.width)x\(size.height)"
+        )
+        windowScene.requestGeometryUpdate(
+            UIWindowScene.GeometryPreferences.Vision(
+                size: size,
+                minimumSize: PortalWindowLayout.minimumSize,
+                maximumSize: PortalWindowLayout.maximumSize,
+                resizingRestrictions: .freeform
+            )
+        ) { [weak appModel] error in
+            Task { @MainActor in
+                appModel?.recordSurfaceInputProbe(
+                    "setWindowSize failed error=\(error.localizedDescription)"
+                )
+            }
+        }
+        Task { @MainActor [weak appModel, weak windowScene] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let windowScene else { return }
+            let applied = windowScene.effectiveGeometry.coordinateSpace.bounds.size
+            appModel?.recordSurfaceInputProbe(
+                "setWindowSize observed=\(applied.width)x\(applied.height)"
+            )
+        }
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: ["\(size.width)x\(size.height)"]
+        )
+    }
+#elseif DEBUG
+    private func setWindowSize(_ request: Request) throws -> Response {
+        _ = request
+        throw CommandError(message: "setWindowSize requires visionOS.")
+    }
+#endif
 
     private var allReferences: [FileBrowsingDomain.MediaReference] {
         let library = mediaLibrary.library
