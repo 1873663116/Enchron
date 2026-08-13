@@ -42,6 +42,18 @@ struct VideoSampleFormatOverrideTests {
             outputExtensions["PlaybackCore.TestMarker"] as? String == "preserve-me",
             "unrelated format extensions are preserved"
         )
+        let pixelAspectRatio = outputExtensions[
+            kCMFormatDescriptionExtension_PixelAspectRatio as String
+        ] as? [String: Any]
+        expect(
+            pixelAspectRatio?[
+                kCMFormatDescriptionKey_PixelAspectRatioHorizontalSpacing as String
+            ] as? Int == 1
+                && pixelAspectRatio?[
+                    kCMFormatDescriptionKey_PixelAspectRatioVerticalSpacing as String
+                ] as? Int == 4,
+            "pixel aspect ratio is preserved"
+        )
         expectNonStereoExtensionsPreserved(from: inputFormat, to: outputFormat)
         expect(
             outputExtensions[kCMFormatDescriptionExtension_ViewPackingKind as String] as? String
@@ -298,6 +310,10 @@ struct VideoSampleFormatOverrideTests {
         formatExtensions[kCMFormatDescriptionExtension_ProjectionKind as String]
             = kCMFormatDescriptionProjectionKind_Equirectangular
         formatExtensions[kCMFormatDescriptionExtension_HorizontalFieldOfView as String] = 360_000
+        formatExtensions[kCMFormatDescriptionExtension_PixelAspectRatio as String] = [
+            kCMFormatDescriptionKey_PixelAspectRatioHorizontalSpacing as String: 1,
+            kCMFormatDescriptionKey_PixelAspectRatioVerticalSpacing as String: 4,
+        ]
         var format: CMFormatDescription?
         let dimensions = CMVideoFormatDescriptionGetDimensions(baseFormat)
         status = CMVideoFormatDescriptionCreate(

@@ -229,6 +229,7 @@ extension SampleBufferPlaybackSession {
         diagnostics.sourcePixelFormat = "compressed"
         diagnostics.destinationPixelFormat = fourCC(CMFormatDescriptionGetMediaSubType(format))
         diagnostics.dimensions = "\(dimensions.width)×\(dimensions.height)"
+        diagnostics.videoGeometry = PlaybackVideoGeometry(formatDescription: format)
         diagnostics.colorPrimaries = extensionString(extensions, key: kCMFormatDescriptionExtension_ColorPrimaries)
         diagnostics.transferFunction = extensionString(extensions, key: kCMFormatDescriptionExtension_TransferFunction)
         diagnostics.yCbCrMatrix = extensionString(extensions, key: kCMFormatDescriptionExtension_YCbCrMatrix)

@@ -16,6 +16,64 @@ private let playbackTestMedia = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .appendingPathComponent("TestMedia")
 
+@Test func nonSquarePixelStereoFixtureCarriesItsDisplayGeometryThroughTheBridge() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/Spatial/Stereo180/180_3D_TB.mp4"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegReaderDestroy(activeReader) }
+
+    var sample: Unmanaged<CMSampleBuffer>?
+    let result = PBFFmpegReaderCopyNextSample(
+        activeReader,
+        &sample,
+        &error,
+        error.count
+    )
+    #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+    let buffer = try #require(sample?.takeRetainedValue())
+    let format = try #require(CMSampleBufferGetFormatDescription(buffer))
+    let encoded = CMVideoFormatDescriptionGetDimensions(format)
+    let presented = CMVideoFormatDescriptionGetPresentationDimensions(
+        format,
+        usePixelAspectRatio: true,
+        useCleanAperture: false
+    )
+    let extensions = try #require(
+        CMFormatDescriptionGetExtensions(format) as? [String: Any]
+    )
+    let pixelAspectRatio = try #require(
+        extensions[kCMFormatDescriptionExtension_PixelAspectRatio as String]
+            as? [String: Any]
+    )
+
+    #expect(encoded.width == 8_192)
+    #expect(encoded.height == 4_096)
+    #expect(
+        pixelAspectRatio[
+            kCMFormatDescriptionKey_PixelAspectRatioHorizontalSpacing as String
+        ] as? Int == 1
+    )
+    #expect(
+        pixelAspectRatio[
+            kCMFormatDescriptionKey_PixelAspectRatioVerticalSpacing as String
+        ] as? Int == 4
+    )
+    #expect(presented.width == 2_048)
+    #expect(presented.height == 4_096)
+    #expect(
+        PlaybackVideoGeometry(formatDescription: format) == .init(
+            encodedDimensions: .init(width: 8_192, height: 4_096),
+            sampleAspectRatio: .init(horizontalSpacing: 1, verticalSpacing: 4)
+        )
+    )
+}
+
 @Test func vrAndDolbyFixturesCreateCompressedSamplesThroughFFmpegBridge() throws {
     silenceFFmpegDiagnostics()
     let fixtures = [

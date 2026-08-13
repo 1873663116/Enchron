@@ -710,13 +710,10 @@ struct PlaybackVideoSurface: View {
            componentSize.y > 0 {
             return componentSize
         }
-        guard let resolution = playbackRuntime.displayMediaProfile?.resolution,
-              resolution.width > 0,
-              resolution.height > 0 else { return .zero }
-        let output = playbackRuntime.effectiveStereoLayout.outputDimensions(
-            inputWidth: resolution.width,
-            inputHeight: resolution.height
-        )
+        guard let profile = playbackRuntime.displayMediaProfile,
+              profile.resolution.width > 0,
+              profile.resolution.height > 0 else { return .zero }
+        let output = profile.displayDimensions(for: playbackRuntime.effectiveStereoLayout)
         guard output.width > 0, output.height > 0 else { return .zero }
         return [Float(output.width) / Float(output.height), 1]
     }

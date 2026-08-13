@@ -21,15 +21,17 @@ struct WindowPlaybackLayout: Equatable {
 
     init(
         resolution: PlaybackModel.MediaProfile.Resolution?,
+        pixelAspectRatio: PlaybackModel.MediaProfile.PixelAspectRatio = .square,
         stereoLayout: PlaybackModel.StereoLayout
     ) {
         guard let resolution else {
             self.init(aspectRatio: Self.fallbackAspectRatio)
             return
         }
-        let dimensions = stereoLayout.outputDimensions(
+        let dimensions = stereoLayout.outputDisplayDimensions(
             inputWidth: resolution.width,
-            inputHeight: resolution.height
+            inputHeight: resolution.height,
+            pixelAspectRatio: pixelAspectRatio
         )
         guard dimensions.width > 0, dimensions.height > 0 else {
             self.init(aspectRatio: Self.fallbackAspectRatio)

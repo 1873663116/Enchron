@@ -891,6 +891,98 @@ static void add_projected_media_extensions(
     }
 }
 
+static void add_pixel_aspect_ratio_extension(
+    AVRational sampleAspectRatio,
+    CFMutableDictionaryRef extensions
+) {
+    if (sampleAspectRatio.num <= 0 || sampleAspectRatio.den <= 0 ||
+        sampleAspectRatio.num == sampleAspectRatio.den) {
+        return;
+    }
+    int32_t horizontalSpacing = sampleAspectRatio.num;
+    int32_t verticalSpacing = sampleAspectRatio.den;
+    CFNumberRef horizontal = CFNumberCreate(
+        kCFAllocatorDefault,
+        kCFNumberSInt32Type,
+        &horizontalSpacing
+    );
+    CFNumberRef vertical = CFNumberCreate(
+        kCFAllocatorDefault,
+        kCFNumberSInt32Type,
+        &verticalSpacing
+    );
+    CFMutableDictionaryRef pixelAspectRatio = CFDictionaryCreateMutable(
+        kCFAllocatorDefault,
+        0,
+        &kCFTypeDictionaryKeyCallBacks,
+        &kCFTypeDictionaryValueCallBacks
+    );
+    if (horizontal && vertical && pixelAspectRatio) {
+        CFDictionarySetValue(
+            pixelAspectRatio,
+            kCMFormatDescriptionKey_PixelAspectRatioHorizontalSpacing,
+            horizontal
+        );
+        CFDictionarySetValue(
+            pixelAspectRatio,
+            kCMFormatDescriptionKey_PixelAspectRatioVerticalSpacing,
+            vertical
+        );
+        CFDictionarySetValue(
+            extensions,
+            kCMFormatDescriptionExtension_PixelAspectRatio,
+            pixelAspectRatio
+        );
+    }
+    if (pixelAspectRatio) CFRelease(pixelAspectRatio);
+    if (vertical) CFRelease(vertical);
+    if (horizontal) CFRelease(horizontal);
+}
+
+static OSStatus create_format_by_adding_pixel_aspect_ratio(
+    CMVideoFormatDescriptionRef source,
+    CFDictionaryRef additions,
+    CMVideoFormatDescriptionRef *formatOut
+) {
+    CFTypeRef pixelAspectRatio = additions
+        ? CFDictionaryGetValue(
+            additions,
+            kCMFormatDescriptionExtension_PixelAspectRatio
+        )
+        : NULL;
+    if (!pixelAspectRatio) {
+        CFRetain(source);
+        *formatOut = source;
+        return noErr;
+    }
+    CFDictionaryRef sourceExtensions = CMFormatDescriptionGetExtensions(source);
+    CFMutableDictionaryRef merged = sourceExtensions
+        ? CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, sourceExtensions)
+        : CFDictionaryCreateMutable(
+            kCFAllocatorDefault,
+            0,
+            &kCFTypeDictionaryKeyCallBacks,
+            &kCFTypeDictionaryValueCallBacks
+        );
+    if (!merged) return kCMFormatDescriptionError_AllocationFailed;
+    CFDictionarySetValue(
+        merged,
+        kCMFormatDescriptionExtension_PixelAspectRatio,
+        pixelAspectRatio
+    );
+    CMVideoDimensions dimensions = CMVideoFormatDescriptionGetDimensions(source);
+    OSStatus status = CMVideoFormatDescriptionCreate(
+        kCFAllocatorDefault,
+        CMFormatDescriptionGetMediaSubType(source),
+        dimensions.width,
+        dimensions.height,
+        merged,
+        formatOut
+    );
+    CFRelease(merged);
+    return status;
+}
+
 static const uint8_t *find_start_code(const uint8_t *position, const uint8_t *end, size_t *length) {
     for (const uint8_t *cursor = position; cursor + 3 <= end; cursor++) {
         if (cursor[0] != 0 || cursor[1] != 0) continue;
@@ -1381,9 +1473,18 @@ static OSStatus create_annexb_format(
             kCFAllocatorDefault, required, sets, sizes, 4, extensions, formatOut
         );
     }
-    return CMVideoFormatDescriptionCreateFromH264ParameterSets(
-        kCFAllocatorDefault, required, sets, sizes, 4, formatOut
+    CMVideoFormatDescriptionRef baseFormat = NULL;
+    OSStatus status = CMVideoFormatDescriptionCreateFromH264ParameterSets(
+        kCFAllocatorDefault, required, sets, sizes, 4, &baseFormat
     );
+    if (status != noErr || !baseFormat) return status;
+    status = create_format_by_adding_pixel_aspect_ratio(
+        baseFormat,
+        extensions,
+        formatOut
+    );
+    CFRelease(baseFormat);
+    return status;
 }
 
 static OSStatus create_dolby_vision_format(
@@ -1443,6 +1544,7 @@ static OSStatus create_dolby_vision_format(
 
 static OSStatus create_compressed_format(
     const AVCodecParameters *parameters,
+    AVRational sampleAspectRatio,
     CMVideoFormatDescriptionRef *formatOut,
     bool *convertsAnnexBOut
 ) {
@@ -1480,6 +1582,7 @@ static OSStatus create_compressed_format(
     }
     add_static_hdr_extensions(parameters, extensions);
     add_projected_media_extensions(parameters, extensions);
+    add_pixel_aspect_ratio_extension(sampleAspectRatio, extensions);
     add_dovi_configuration_atom(parameters, atoms);
 
     bool annexB = (parameters->codec_id == AV_CODEC_ID_HEVC || parameters->codec_id == AV_CODEC_ID_H264)
@@ -1516,9 +1619,19 @@ static OSStatus create_compressed_format(
         }
         CFDictionarySetValue(atoms, atom, configuration);
         CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms, atoms);
-        status = type == kCMVideoCodecType_DolbyVisionHEVC
-            ? create_dolby_vision_format(parameters, atoms, formatOut)
-            : CMVideoFormatDescriptionCreate(
+        if (type == kCMVideoCodecType_DolbyVisionHEVC) {
+            CMVideoFormatDescriptionRef baseFormat = NULL;
+            status = create_dolby_vision_format(parameters, atoms, &baseFormat);
+            if (status == noErr && baseFormat) {
+                status = create_format_by_adding_pixel_aspect_ratio(
+                    baseFormat,
+                    extensions,
+                    formatOut
+                );
+                CFRelease(baseFormat);
+            }
+        } else {
+            status = CMVideoFormatDescriptionCreate(
                 kCFAllocatorDefault,
                 type,
                 parameters->width,
@@ -1526,6 +1639,7 @@ static OSStatus create_compressed_format(
                 extensions,
                 formatOut
             );
+        }
         CFRelease(configuration);
     }
     if (convertsAnnexBOut) *convertsAnnexBOut = annexB;
@@ -1670,8 +1784,16 @@ bool PBFFmpegReaderOpen(
         if (result < 0) return false;
         reader->usedBitstreamExtradataBootstrap = neededBitstreamBootstrap;
         if (cancellation_requested(&reader->cancelled)) return false;
+        AVRational sampleAspectRatio = av_guess_sample_aspect_ratio(
+            reader->formatContext,
+            stream,
+            NULL
+        );
         OSStatus status = create_compressed_format(
-            stream->codecpar, &reader->compressedFormat, &reader->convertsAnnexB
+            stream->codecpar,
+            sampleAspectRatio,
+            &reader->compressedFormat,
+            &reader->convertsAnnexB
         );
         if (status != noErr) {
             const AVPacketSideData *doviConfiguration = codec_side_data(

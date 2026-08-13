@@ -2235,7 +2235,22 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private func profile(from diagnostics: PlaybackDiagnostics) -> PlaybackModel.MediaProfile? {
-        guard let resolution = Self.parseResolution(diagnostics.dimensions) else {
+        let resolution: PlaybackModel.MediaProfile.Resolution?
+        let pixelAspectRatio: PlaybackModel.MediaProfile.PixelAspectRatio
+        if let geometry = diagnostics.videoGeometry {
+            resolution = .init(
+                width: geometry.encodedDimensions.width,
+                height: geometry.encodedDimensions.height
+            )
+            pixelAspectRatio = .init(
+                horizontalSpacing: geometry.sampleAspectRatio.horizontalSpacing,
+                verticalSpacing: geometry.sampleAspectRatio.verticalSpacing
+            )
+        } else {
+            resolution = Self.parseResolution(diagnostics.dimensions)
+            pixelAspectRatio = .square
+        }
+        guard let resolution else {
             return prefetchedMetadata?.mediaProfile
         }
         let transfer = diagnostics.transferFunction.lowercased()
@@ -2261,6 +2276,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 ?? .mono,
             hdrType: hdr,
             resolution: resolution,
+            pixelAspectRatio: pixelAspectRatio,
             frameRate: diagnostics.nominalFrameRate,
             videoCodec: diagnostics.codecName,
             durationSeconds: diagnostics.durationSeconds
