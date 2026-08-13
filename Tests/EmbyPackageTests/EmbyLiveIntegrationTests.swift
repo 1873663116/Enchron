@@ -73,10 +73,10 @@ struct EmbyLiveIntegrationTests {
     }
 
     private func loadCredentials() throws -> EmbyServerCredentials {
-        let testsDirectory = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent()
-            .deletingLastPathComponent()
-        let url = testsDirectory.appendingPathComponent("EmbyServerCredentials.local.json")
+        let url = try #require(Bundle.module.url(
+            forResource: "EmbyServerCredentials",
+            withExtension: "local.json"
+        ))
         let data: Data
         do {
             data = try Data(contentsOf: url)
