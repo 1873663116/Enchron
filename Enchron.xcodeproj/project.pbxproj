@@ -86,7 +86,6 @@
 		C3A35AC72F85434200DA0D16 /* Exceptions for "Modules" folder in "DesignPreview" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				MediaLibrary/Views/LibraryGridComponents.swift,
 				MediaLibrary/Views/LibraryListComponents.swift,
 				MediaLibrary/Views/LibraryNavigationComponents.swift,
 				MediaLibrary/Views/LibraryToolbarComponents.swift,
@@ -120,7 +119,9 @@
 			membershipExceptions = (
 				DesignSystem/Components/AnimatedDirectionalIconButton.swift,
 				DesignSystem/Components/AppearanceModeButton.swift,
+				DesignSystem/Components/AsyncArtworkImage.swift,
 				DesignSystem/Components/ButtonIcon.swift,
+				DesignSystem/Components/GridCard.swift,
 				DesignSystem/Components/InputComponents.swift,
 				DesignSystem/Components/SettingsComponents.swift,
 				DesignSystem/DesignTokens.swift,

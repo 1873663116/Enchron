@@ -9,7 +9,9 @@ $(SRCROOT)/Apps/Enchron/Settings/SettingsModel.swift
 $(SRCROOT)/Apps/Enchron/TestCommandChannel.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AnimatedDirectionalIconButton.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AppearanceModeButton.swift
+$(SRCROOT)/Modules/DesignSystem/Components/AsyncArtworkImage.swift
 $(SRCROOT)/Modules/DesignSystem/Components/ButtonIcon.swift
+$(SRCROOT)/Modules/DesignSystem/Components/GridCard.swift
 $(SRCROOT)/Modules/DesignSystem/Components/InputComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SettingsComponents.swift
 $(SRCROOT)/Modules/DesignSystem/DesignTokens.swift
@@ -50,7 +52,6 @@ $(SRCROOT)/Modules/MediaLibrary/Views/BreadcrumbView.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/ConnectionFormPanel.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/FileBrowserSidebar.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/FolderListView.swift
-$(SRCROOT)/Modules/MediaLibrary/Views/LibraryGridComponents.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/LibraryListComponents.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/LibraryNavigationComponents.swift
 $(SRCROOT)/Modules/MediaLibrary/Views/LibraryToolbarComponents.swift

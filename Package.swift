@@ -45,7 +45,6 @@ let package = Package(
                 "Views/BreadcrumbView.swift",
                 "Views/FileBrowserSidebar.swift",
                 "Views/FolderListView.swift",
-                "Views/LibraryGridComponents.swift",
                 "Views/LibraryListComponents.swift",
                 "Views/LibraryNavigationComponents.swift",
                 "Views/LibraryToolbarComponents.swift",

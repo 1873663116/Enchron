@@ -1,21 +1,48 @@
-import DesignSystem
-import MediaLibrary
 import SwiftUI
 
-struct GridCard: View {
+public struct GridCard: View {
     /// 变体轴:决定缩略图内容与悬停信息布局。缩略图内容由变体内部钉死,不开放给调用点。
-    enum Variant {
+    private enum Variant {
         case video(fileSize: String, duration: String, badges: [String], watchedProgress: Double?)
         case folder(count: Int)
+        case poster(PosterState)
+    }
+
+    public enum SkeletonVariant {
+        case video
+        case folder
+        case poster
+    }
+
+    struct PosterState {
+        let artworkURL: URL?
+        let watchedProgress: Double?
+        let unplayedCount: Int?
+
+        init(
+            artworkURL: URL?,
+            watchedProgress: Double?,
+            unplayedCount: Int?
+        ) {
+            self.artworkURL = artworkURL
+            self.watchedProgress = watchedProgress.flatMap { progress in
+                guard progress.isFinite else { return nil }
+                return min(max(progress, 0), 1)
+            }
+            self.unplayedCount = unplayedCount.flatMap { $0 > 0 ? $0 : nil }
+        }
     }
 
     @Namespace private var hoverNamespace
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var isSkeletonPulsing = false
 
     private let title: String
     private let variant: Variant
     private let explicitIdentifier: String?
     private let selectionEnabled: Bool
     private let isSelected: Bool
+    private let isSkeleton: Bool
     /// When set, the whole card is a real interactive control (same contract as
     /// `FileListGroup.Item.action`). When `nil`, the card is display-only — used
     /// by showcase previews. This is what unifies grid and list interaction:
@@ -29,6 +56,7 @@ struct GridCard: View {
         identifier: String?,
         selectionEnabled: Bool,
         isSelected: Bool,
+        isSkeleton: Bool = false,
         action: (() -> Void)?
     ) {
         self.title = title
@@ -36,12 +64,13 @@ struct GridCard: View {
         self.explicitIdentifier = identifier
         self.selectionEnabled = selectionEnabled
         self.isSelected = isSelected
+        self.isSkeleton = isSkeleton
         self.action = action
     }
 
     // MARK: 变体工厂
 
-    static func video(
+    public static func video(
         title: String,
         fileSize: String,
         duration: String,
@@ -68,7 +97,7 @@ struct GridCard: View {
         )
     }
 
-    static func folder(
+    public static func folder(
         title: String,
         count: Int,
         accessibilityIdentifier: String? = nil,
@@ -84,12 +113,59 @@ struct GridCard: View {
         )
     }
 
+    public static func poster(
+        title: String,
+        artworkURL: URL?,
+        watchedProgress: Double? = nil,
+        unplayedCount: Int? = nil,
+        accessibilityIdentifier: String? = nil,
+        selectionEnabled: Bool = false,
+        isSelected: Bool = false,
+        action: (() -> Void)? = nil
+    ) -> GridCard {
+        GridCard(
+            title: title,
+            variant: .poster(
+                PosterState(
+                    artworkURL: artworkURL,
+                    watchedProgress: watchedProgress,
+                    unplayedCount: unplayedCount
+                )
+            ),
+            identifier: accessibilityIdentifier,
+            selectionEnabled: selectionEnabled,
+            isSelected: isSelected,
+            action: action
+        )
+    }
+
+    public static func skeleton(_ variant: SkeletonVariant) -> GridCard {
+        let cardVariant: Variant = switch variant {
+        case .video:
+            .video(fileSize: "0 GB", duration: "0:00:00", badges: [], watchedProgress: nil)
+        case .folder:
+            .folder(count: 0)
+        case .poster:
+            .poster(PosterState(artworkURL: nil, watchedProgress: nil, unplayedCount: nil))
+        }
+        return GridCard(
+            title: "Placeholder card title",
+            variant: cardVariant,
+            identifier: nil,
+            selectionEnabled: false,
+            isSelected: false,
+            isSkeleton: true,
+            action: nil
+        )
+    }
+
     // MARK: 无障碍派生
 
     private var variantKey: String {
         switch variant {
         case .video: return "video"
         case .folder: return "folder"
+        case .poster: return "poster"
         }
     }
 
@@ -111,8 +187,22 @@ struct GridCard: View {
         EnchronHoverGroup(id: "grid-card-thumbnail-info", in: hoverNamespace, behavior: .followsGroup)
     }
 
-    var body: some View {
-        if let action {
+    public var body: some View {
+        if isSkeleton {
+            cardVisual
+                .redacted(reason: .placeholder)
+                .opacity(isSkeletonPulsing ? 0.55 : 1)
+                .task(id: reduceMotion) {
+                    if reduceMotion {
+                        isSkeletonPulsing = false
+                    } else {
+                        withAnimation(DesignTokens.AnimationToken.skeleton) {
+                            isSkeletonPulsing = true
+                        }
+                    }
+                }
+                .accessibilityHidden(true)
+        } else if let action {
             cardVisual
                 .onTapGesture(perform: action)
                 .accessibilityElement(children: .ignore)
@@ -139,7 +229,7 @@ struct GridCard: View {
         return ZStack {
             VStack(alignment: .leading, spacing: 0) {
                 thumbnailContent(shape)
-                    .frame(height: DesignTokens.Card.thumbnailHeight)
+                    .frame(height: thumbnailHeight)
                     .clipShape(shape)
                     .enchronGlassBackground(in: shape)
                     .enchronHoverContentShape(shape)
@@ -178,6 +268,15 @@ struct GridCard: View {
         .animation(DesignTokens.AnimationToken.selection, value: isSelected)
     }
 
+    private var thumbnailHeight: CGFloat {
+        switch variant {
+        case .poster:
+            DesignTokens.Card.gridMin * 3 / 2
+        case .video, .folder:
+            DesignTokens.Card.thumbnailHeight
+        }
+    }
+
     private var selectionIndicator: some View {
         ZStack {
             Circle()
@@ -210,29 +309,50 @@ struct GridCard: View {
 
     @ViewBuilder
     private func thumbnailContent(_ shape: RoundedRectangle) -> some View {
-        switch variant {
-        case let .video(fileSize, duration, badges, watchedProgress):
-            // 缩略图占位 — 真实 app 中为视频帧/海报
+        if isSkeleton {
             shape.fill(DesignTokens.Surface.elevated)
-                .overlay(alignment: .center) {
-                    thumbnailPlaceholderIcon("film")
-                }
-                .overlay {
-                    videoThumbnailInfo(fileSize: fileSize, duration: duration, badges: badges)
-                }
-                .overlay {
-                    if let watchedProgress {
-                        watchedProgressBar(watchedProgress)
+        } else {
+            switch variant {
+            case let .video(fileSize, duration, badges, watchedProgress):
+                // 缩略图占位 — 真实 app 中为视频帧/海报
+                shape.fill(DesignTokens.Surface.elevated)
+                    .overlay(alignment: .center) {
+                        thumbnailPlaceholderIcon("film")
                     }
-                }
-        case let .folder(count):
-            shape.fill(DesignTokens.Surface.elevated)
-                .overlay(alignment: .center) {
-                    thumbnailPlaceholderIcon("folder.fill")
-                }
-                .overlay(alignment: .bottomLeading) {
-                    folderThumbnailInfo(count: count)
-                }
+                    .overlay {
+                        videoThumbnailInfo(fileSize: fileSize, duration: duration, badges: badges)
+                    }
+                    .overlay {
+                        if let watchedProgress {
+                            watchedProgressBar(watchedProgress)
+                        }
+                    }
+            case let .folder(count):
+                shape.fill(DesignTokens.Surface.elevated)
+                    .overlay(alignment: .center) {
+                        thumbnailPlaceholderIcon("folder.fill")
+                    }
+                    .overlay(alignment: .bottomLeading) {
+                        folderThumbnailInfo(count: count)
+                    }
+            case let .poster(poster):
+                AsyncArtworkImage(url: poster.artworkURL)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .background(DesignTokens.Theme.surfaceContainerHighest)
+                    .overlay(alignment: .topTrailing) {
+                        if let unplayedCount = poster.unplayedCount {
+                            thumbnailBadge("\(unplayedCount)")
+                                .enchronSpatialOffset(z: DesignTokens.Spacing.xs)
+                                .padding(DesignTokens.Spacing.sm)
+                        }
+                    }
+                    .overlay {
+                        if let watchedProgress = poster.watchedProgress {
+                            watchedEdgeProgressVisual(watchedProgress)
+                        }
+                    }
+            }
         }
     }
 
@@ -339,40 +459,3 @@ func watchedEdgeProgressVisual(_ progress: Double) -> some View {
     .allowsHitTesting(false)
     .accessibilityHidden(true)
 }
-
-// 演示:呈现 hover 显示后的底边进度描边,25% / 50% / 100% 三态。
-// 静态渲染触发不了 gaze hover,这里直接用视觉本体常显,等价于卡片 hover 后的样子。
-private struct WatchedEdgeProgressDemo: View {
-    private let shape = DesignTokens.ShapeToken.card
-    private let samples: [Double] = [0.25, 0.5, 1.0]
-
-    var body: some View {
-        HStack(spacing: DesignTokens.Spacing.xl) {
-            ForEach(samples, id: \.self) { p in
-                VStack(spacing: DesignTokens.Spacing.sm) {
-                    shape.fill(DesignTokens.Surface.elevated)
-                        .overlay(alignment: .center) {
-                            Image(systemName: "film")
-                                .font(.system(size: DesignTokens.Card.placeholderIconSize))
-                                .foregroundStyle(DesignTokens.Surface.supportingText)
-                        }
-                        .overlay { watchedEdgeProgressVisual(p) }
-                        .frame(width: DesignTokens.Card.gridMin, height: DesignTokens.Card.thumbnailHeight)
-                        .clipShape(shape)
-                        .enchronGlassBackground(in: shape)
-
-                    Text("\(Int(p * 100))%")
-                        .font(DesignTokens.Typography.metadata)
-                        .foregroundStyle(DesignTokens.Surface.supportingText)
-                }
-            }
-        }
-        .padding(DesignTokens.Spacing.xxxl)
-    }
-}
-
-#if canImport(PreviewsMacros)
-#Preview("Watched edge · 25/50/100") {
-    WatchedEdgeProgressDemo()
-}
-#endif
