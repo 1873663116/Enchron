@@ -564,6 +564,8 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 ?? source.container?.uppercased()
                 ?? "Version",
             container: source.container,
+            sizeInBytes: source.size,
+            bitrate: source.bitrate,
             mediaStreams: streams
         )
     }
@@ -632,6 +634,14 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 width: stream.width,
                 height: stream.height,
                 videoRange: stream.videoRange,
+                bitRate: stream.bitRate,
+                bitDepth: stream.bitDepth,
+                sampleRate: stream.sampleRate,
+                profile: stream.profile,
+                averageFrameRate: stream.averageFrameRate,
+                aspectRatio: stream.aspectRatio,
+                pixelFormat: stream.pixelFormat,
+                title: stream.title,
                 isDefault: stream.isDefault ?? false,
                 isForced: stream.isForced ?? false,
                 isExternal: stream.isExternal ?? false,
@@ -929,6 +939,7 @@ private struct MediaSourceDTO: Decodable {
     let path: String?
     let container: String?
     let size: Int64?
+    let bitrate: Int?
     let supportsDirectPlay: Bool?
     let mediaStreams: [MediaStreamDTO]?
     let defaultAudioStreamIndex: Int?
@@ -960,6 +971,13 @@ private struct MediaStreamDTO: Decodable {
     let width: Int?
     let height: Int?
     let videoRange: String?
+    let bitRate: Int?
+    let bitDepth: Int?
+    let sampleRate: Int?
+    let profile: String?
+    let averageFrameRate: Double?
+    let aspectRatio: String?
+    let pixelFormat: String?
     let isDefault: Bool?
     let isForced: Bool?
     let isExternal: Bool?

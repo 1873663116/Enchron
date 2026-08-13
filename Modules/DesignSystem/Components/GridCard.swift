@@ -294,10 +294,21 @@ public struct GridCard: View {
         let shape = DesignTokens.ShapeToken.card
         return ZStack {
             VStack(alignment: .leading, spacing: 0) {
+                // Both dimensions are pinned before the clip. Constraining only the height lets an
+                // aspect-filled still grow past the card's width and spill onto its neighbours,
+                // because the outer width frame centres the oversized thumbnail instead of cutting it.
                 thumbnailContent(shape)
-                    .frame(height: thumbnailHeight)
+                    .frame(width: cardWidth, height: thumbnailHeight)
                     .clipShape(shape)
-                    .enchronGlassBackground(in: shape)
+                    // No glass behind the thumbnail. `glassBackgroundEffect` promotes the card into
+                    // its own render layer, which no ancestor can clip, mask or occlude: the card
+                    // then draws outside the window at a scroll boundary and pops out of existence
+                    // instead of sliding under the sidebar. The thumbnail carries its own fill, so
+                    // the glass only ever showed through behind a placeholder.
+                    //
+                    // The highlight belongs to the artwork alone. Carried by the whole card it also
+                    // plates the caption strip underneath, which reads as a panel appearing out of
+                    // nowhere around the card's lower half.
                     .enchronHoverContentShape(shape)
                     .enchronHoverEffect(.highlight, in: hoverActivationGroup)
                     .overlay(alignment: .topTrailing) {
@@ -307,8 +318,8 @@ public struct GridCard: View {
                         }
                     }
 
-                if showsCaptionBelowThumbnail {
-                    Text(title)
+                if let captionBelowThumbnail {
+                    Text(captionBelowThumbnail)
                         .font(DesignTokens.Typography.headline)
                         .lineLimit(1)
                         .truncationMode(.tail)
@@ -327,6 +338,7 @@ public struct GridCard: View {
             }
         }
         .frame(width: cardWidth)
+        .clipShape(shape)
         .contentShape(shape)
         .background {
             if selectionEnabled && isSelected {
@@ -339,7 +351,7 @@ public struct GridCard: View {
     private var cardWidth: CGFloat {
         switch variant {
         case .episode:
-            DesignTokens.Card.episodeWidth
+            DesignTokens.Card.stillWidth
         case .poster:
             DesignTokens.Card.posterWidth
         case .video, .folder:
@@ -352,16 +364,18 @@ public struct GridCard: View {
         case .poster:
             DesignTokens.Card.posterWidth * 3 / 2
         case .episode:
-            DesignTokens.Card.episodeWidth
+            DesignTokens.Card.stillHeight
         case .video, .folder:
             DesignTokens.Card.thumbnailHeight
         }
     }
 
-    private var showsCaptionBelowThumbnail: Bool {
+    /// What the card is called underneath its artwork. An episode is captioned by its number alone:
+    /// its title and description belong to the still, where they appear on hover.
+    private var captionBelowThumbnail: String? {
         switch variant {
-        case .episode: false
-        case .video, .folder, .poster: true
+        case .episode(let episode): episode.numberLabel
+        case .video, .folder, .poster: title
         }
     }
 
@@ -482,6 +496,11 @@ public struct GridCard: View {
                 episodeCaptionText(episode, overviewLineLimit: 0)
             }
         }
+        // Pinned to the card's own box and anchored at its bottom leading corner. Left to size itself
+        // around its text, the caption ends up wider than the card and centred over it, which pushes
+        // its first characters past the card's leading edge and into the clip.
+        .frame(width: cardWidth, height: thumbnailHeight, alignment: .bottomLeading)
+        .clipped()
         .enchronHoverOpacity(
             active: 1,
             inactive: 0,
@@ -496,12 +515,6 @@ public struct GridCard: View {
         overviewLineLimit: Int
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-            if let numberLabel = episode.numberLabel {
-                Text(numberLabel)
-                    .font(DesignTokens.Typography.metadata)
-                    .foregroundStyle(DesignTokens.Surface.supportingText)
-            }
-
             Text(title)
                 .font(DesignTokens.Typography.headline)
                 .lineLimit(2)
@@ -509,11 +522,15 @@ public struct GridCard: View {
 
             if let overview = episode.overview, overviewLineLimit > 0 {
                 Text(overview)
-                    .font(DesignTokens.Typography.metadata)
+                    // Tighter line height than the title's, so the description reads as one block of
+                    // secondary text rather than as more lines of the same weight.
+                    .font(DesignTokens.Typography.metadata.leading(.tight))
                     .foregroundStyle(DesignTokens.Surface.supportingText)
                     .lineLimit(overviewLineLimit)
             }
 
+            // The number is carried by the caption under the card, so the still shows only what
+            // that caption cannot: the episode's title, its description and its runtime.
             if let duration = episode.duration {
                 Label(duration, systemImage: "play.fill")
                     .labelStyle(.titleAndIcon)
@@ -522,8 +539,15 @@ public struct GridCard: View {
             }
         }
         .multilineTextAlignment(.leading)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(DesignTokens.Spacing.md)
+        // The text column is measured, not inferred. `ViewThatFits` gives its candidates no width to
+        // work with, so a column that asks for the space it is offered ends up wider than the card
+        // and hangs off both sides, losing its first characters to the card's clip.
+        .frame(width: cardWidth - 2 * DesignTokens.Spacing.sm, alignment: .leading)
+        // Enough to clear the corner curve at the bottom, and no more: the still is small, so every
+        // point spent on margin is a point the description loses.
+        .padding(.horizontal, DesignTokens.Spacing.sm)
+        .padding(.bottom, DesignTokens.Spacing.sm)
+        .padding(.top, DesignTokens.Spacing.xs)
     }
 
     private func videoThumbnailInfo(fileSize: String, duration: String, badges: [String]) -> some View {

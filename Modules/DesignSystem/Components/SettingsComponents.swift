@@ -1100,6 +1100,22 @@ struct SettingListGroupRow: View {
         .frame(maxWidth: .infinity, minHeight: DesignTokens.Interactive.rowHeight)
     }
 
+    /// The menu's current value, named by its title. The row is told what it currently reads as, and
+    /// each option carries the action that changes it, so the title is the only identity they share.
+    private func menuSelection(
+        title: String,
+        options: [SettingListGroup.MenuOption]
+    ) -> Binding<String> {
+        Binding(
+            get: { selectedMenuTitle ?? title },
+            set: { newTitle in
+                guard let option = options.first(where: { $0.title == newTitle }) else { return }
+                selectedMenuTitle = newTitle
+                option.action()
+            }
+        )
+    }
+
     @ViewBuilder
     private var trailingAccessory: some View {
         switch accessory {
@@ -1119,12 +1135,16 @@ struct SettingListGroupRow: View {
                 if options.isEmpty {
                     Text("No Options")
                 } else {
-                    ForEach(options) { option in
-                        Button(option.title, role: option.role) {
-                            selectedMenuTitle = option.title
-                            option.action()
+                    // The row's current value is one of these options, so the menu is a selection and
+                    // a Picker states it: the system marks the current row with a checkmark on the
+                    // trailing edge. Plain buttons show no mark at all, and a hand-built one lands in
+                    // front of the title and pushes every title right.
+                    Picker(title, selection: menuSelection(title: title, options: options)) {
+                        ForEach(options) { option in
+                            Text(option.title).tag(option.title)
                         }
                     }
+                    .pickerStyle(.inline)
                 }
             } label: {
                 SettingListActionChip(

@@ -52,7 +52,8 @@ struct EmbyViewModelTests {
         )
 
         await viewModel.refresh()
-        await viewModel.selectSort(.alphabetical)
+        viewModel.setSort(.alphabetical)
+        await viewModel.refresh()
 
         #expect(client.itemQueries.count == 2)
         #expect(client.itemQueries[0].sortBy == [.dateCreated])

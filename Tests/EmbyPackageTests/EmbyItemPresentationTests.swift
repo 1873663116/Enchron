@@ -44,9 +44,72 @@ struct EmbyItemPresentationTests {
         #expect(sections.information.first?.value == "2025")
         #expect(sections.languages.map(\.label) == ["Original Audio", "Audio", "Subtitles"])
         #expect(sections.languages[0].value == "Japanese")
-        #expect(sections.languages[1].value == "Japanese (EAC3 5.1), English (EAC3 5.1)")
-        #expect(sections.languages[2].value == "English, English (SDH)")
+        // The Languages column names languages; what a track is made of is the Audio column's job.
+        #expect(sections.languages[1].value == "Japanese, English")
+        #expect(sections.languages[2].value == "English")
         #expect(sections.accessibility.map(\.label) == ["SDH"])
+    }
+
+    @Test("every audio and subtitle track gets its own row, without repeating its own language")
+    func aboutTracks() {
+        let streams = [
+            stream(.audio, codec: "dts", language: "jpn", displayLanguage: "Japanese", channelLayout: "5.1", bitRate: 1_536_000, sampleRate: 48000, isDefault: true),
+            stream(.audio, codec: "ac3", language: "chi", displayLanguage: "Chinese", channelLayout: "stereo", bitRate: 192_000, sampleRate: 48000, title: "Mandarin"),
+            stream(.subtitle, codec: "PGSSUB", language: "eng", displayLanguage: "English"),
+        ]
+        let sections = EmbyAboutSections(metadata: metadata(), source: source(streams: streams))
+
+        #expect(sections.audio.map(\.label) == ["Japanese", "Mandarin"])
+        #expect(sections.audio[0].value == "DTS · 5.1 · 1.5 Mbps · 48 kHz · Default")
+        #expect(sections.audio[1].value == "AC3 · stereo · 192 kbps · 48 kHz · Chinese")
+        #expect(sections.subtitles.map(\.label) == ["English"])
+        #expect(sections.subtitles[0].value == "PGSSUB")
+    }
+
+    @Test("the video column reads the picture off the video stream")
+    func aboutVideo() {
+        let sections = EmbyAboutSections(
+            metadata: metadata(),
+            source: source(streams: [stream(
+                .video,
+                codec: "hevc",
+                width: 1920,
+                height: 1080,
+                videoRange: "SDR",
+                bitRate: 7_638_461,
+                bitDepth: 10,
+                profile: "Main 10",
+                averageFrameRate: 23.976025,
+                aspectRatio: "16:9"
+            )])
+        )
+
+        #expect(sections.video.map(\.label) == [
+            "Resolution", "Codec", "Profile", "Dynamic Range", "Bit Depth",
+            "Frame Rate", "Aspect Ratio", "Video Bitrate",
+        ])
+        #expect(sections.video[0].value == "1920 × 1080")
+        #expect(sections.video[5].value == "23.976 fps")
+        #expect(sections.video[7].value == "7.6 Mbps")
+    }
+
+    @Test("the file column carries the container, its size, and its total bitrate")
+    func aboutFile() {
+        let sections = EmbyAboutSections(
+            metadata: metadata(),
+            source: EmbyMediaSourceDescription(
+                id: EmbyMediaSourceID(rawValue: "source"),
+                displayName: "Sample",
+                container: "mkv",
+                sizeInBytes: 3_595_581_174,
+                bitrate: 7_638_461,
+                mediaStreams: []
+            )
+        )
+
+        #expect(sections.file.map(\.label) == ["Container", "Size", "Total Bitrate", "Version"])
+        #expect(sections.file[0].value == "MKV")
+        #expect(sections.file[2].value == "7.6 Mbps")
     }
 
     @Test("accessibility stays empty when no track claims it")
@@ -97,6 +160,13 @@ struct EmbyItemPresentationTests {
         width: Int? = nil,
         height: Int? = nil,
         videoRange: String? = nil,
+        bitRate: Int? = nil,
+        bitDepth: Int? = nil,
+        sampleRate: Int? = nil,
+        profile: String? = nil,
+        averageFrameRate: Double? = nil,
+        aspectRatio: String? = nil,
+        title: String? = nil,
         isDefault: Bool = false,
         isHearingImpaired: Bool = false
     ) -> EmbyMediaStream {
@@ -112,6 +182,13 @@ struct EmbyItemPresentationTests {
             width: width,
             height: height,
             videoRange: videoRange,
+            bitRate: bitRate,
+            bitDepth: bitDepth,
+            sampleRate: sampleRate,
+            profile: profile,
+            averageFrameRate: averageFrameRate,
+            aspectRatio: aspectRatio,
+            title: title,
             isDefault: isDefault,
             isForced: false,
             isExternal: false,

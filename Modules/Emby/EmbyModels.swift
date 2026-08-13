@@ -210,17 +210,25 @@ public struct EmbyMediaSourceDescription: Equatable, Hashable, Sendable, Identif
     public let id: EmbyMediaSourceID
     public let displayName: String
     public let container: String?
+    /// The file's size on the server.
+    public let sizeInBytes: Int64?
+    /// Bits per second across every stream in the file together.
+    public let bitrate: Int?
     public let mediaStreams: [EmbyMediaStream]
 
     public init(
         id: EmbyMediaSourceID,
         displayName: String,
         container: String?,
+        sizeInBytes: Int64? = nil,
+        bitrate: Int? = nil,
         mediaStreams: [EmbyMediaStream]
     ) {
         self.id = id
         self.displayName = displayName
         self.container = container
+        self.sizeInBytes = sizeInBytes
+        self.bitrate = bitrate
         self.mediaStreams = mediaStreams
     }
 }
@@ -402,6 +410,8 @@ public struct EmbyItemPage: Equatable, Hashable, Sendable {
 
 public enum EmbyItemSort: String, Codable, CaseIterable, Sendable {
     case sortName = "SortName"
+    /// Position within a parent: the season's number inside a series, the episode's inside a season.
+    case indexNumber = "IndexNumber"
     case dateCreated = "DateCreated"
     case premiereDate = "PremiereDate"
     case communityRating = "CommunityRating"
@@ -498,6 +508,19 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
     public let width: Int?
     public let height: Int?
     public let videoRange: String?
+    /// Bits per second the stream itself runs at, as the server measured it.
+    public let bitRate: Int?
+    /// Bits per colour sample for video, per audio sample for lossless audio.
+    public let bitDepth: Int?
+    /// Audio samples per second.
+    public let sampleRate: Int?
+    /// The codec's own profile name, such as "Main 10" or "DTS".
+    public let profile: String?
+    public let averageFrameRate: Double?
+    public let aspectRatio: String?
+    public let pixelFormat: String?
+    /// The track's own name, which is how a release distinguishes tracks that share a language.
+    public let title: String?
     public let isDefault: Bool
     public let isForced: Bool
     public let isExternal: Bool
@@ -516,6 +539,14 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
         width: Int? = nil,
         height: Int? = nil,
         videoRange: String? = nil,
+        bitRate: Int? = nil,
+        bitDepth: Int? = nil,
+        sampleRate: Int? = nil,
+        profile: String? = nil,
+        averageFrameRate: Double? = nil,
+        aspectRatio: String? = nil,
+        pixelFormat: String? = nil,
+        title: String? = nil,
         isDefault: Bool,
         isForced: Bool,
         isExternal: Bool,
@@ -533,6 +564,14 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
         self.width = width
         self.height = height
         self.videoRange = videoRange
+        self.bitRate = bitRate
+        self.bitDepth = bitDepth
+        self.sampleRate = sampleRate
+        self.profile = profile
+        self.averageFrameRate = averageFrameRate
+        self.aspectRatio = aspectRatio
+        self.pixelFormat = pixelFormat
+        self.title = title
         self.isDefault = isDefault
         self.isForced = isForced
         self.isExternal = isExternal

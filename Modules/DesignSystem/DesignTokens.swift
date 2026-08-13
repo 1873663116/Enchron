@@ -418,9 +418,11 @@ public enum DesignTokens {
         /// Poster card width. A 2:3 poster reads at a smaller width than a 16:9 thumbnail because
         /// its height carries the recognition, so it does not share `gridMin`.
         public static let posterWidth: CGFloat = 180
-        /// Square episode card width. The still fills the card and the caption sits on top of it,
-        /// so the caption needs the height a 16:9 frame would not give it.
-        public static let episodeWidth: CGFloat = 400
+        /// Landscape still card, used wherever a frame from the video itself is the subject:
+        /// an episode in a season, an item in Continue Watching. The caption sits on top of the
+        /// still, so the frame is a little taller than 16:9 to give the caption room.
+        public static let stillWidth: CGFloat = 304
+        public static let stillHeight: CGFloat = 205
         /// Thumbnail height for grid cards
         public static let thumbnailHeight: CGFloat = 140
         /// Grid inter-item spacing
@@ -512,6 +514,27 @@ public enum DesignTokens {
         public static let overviewMaxWidth: CGFloat = 720
         public static let creditMaxWidth: CGFloat = 320
         public static let aboutCardWidth: CGFloat = 520
+        /// The narrowest an About column may be before the page lays out one fewer of them. Wide
+        /// enough for a track's whole description to sit on two lines.
+        public static let aboutColumnWidth: CGFloat = 260
+        /// Pixels asked of the server for the page-filling backdrop. The original is a full-size
+        /// production still, and decoding one of those is what stalls the page on the way in.
+        public static let backdropRequestWidth = 2048
+        /// How dark the wash behind the title makes the picture at its centre. It multiplies with the
+        /// backdrop, so this is a proportion of what is already there rather than a colour of its own.
+        public static let titleWashStrength: Double = 0.4
+        /// How far the wash reaches beyond the text it is there to lift, as a multiple of the text
+        /// block. Wide and weak, so the picture darkens without the wash showing an edge.
+        public static let titleWashSpread: CGFloat = 1.7
+        /// The room the page holds open at its top edge. The back control floats there, and the
+        /// sections come to rest below it rather than under it.
+        public static let topContentInset: CGFloat = DesignTokens.Interactive.large + Spacing.lg * 2
+        /// The fraction of the hero's travel over which the backdrop fades. Short of 1, so the
+        /// picture is gone by the time the content reaches the top rather than exactly as it lands.
+        public static let backdropFadeFraction: CGFloat = 0.7
+        /// Past this much of the travel, letting go settles the page at the top instead of returning
+        /// it to the hero.
+        public static let heroSettleFraction: CGFloat = 0.35
     }
 
     public enum SourceSidebar {

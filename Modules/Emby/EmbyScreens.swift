@@ -2,6 +2,75 @@ import DesignSystem
 import Foundation
 import SwiftUI
 
+/// Height of a page's header row. The toggle, the page title and the page's own control all sit on
+/// this one line, and the page's content scrolls underneath it, so nothing is cut by a row above.
+private let embyHeaderHeight = DesignTokens.Interactive.large + DesignTokens.Spacing.xl + DesignTokens.Spacing.lg
+
+private extension View {
+    /// Bounds a page's rendering to the page. A scroll view on visionOS otherwise paints its cells
+    /// past the window's edge as they leave the viewport.
+    func embyPageBounds() -> some View {
+        clipped()
+    }
+}
+
+/// The two positions a detail page has: showing its picture, or showing its sections under the art
+/// title. Everything between them is a place the page passes through, not one it stops in.
+///
+/// This is the system's own hand-off point for deciding where a scroll ends. Adjusting the target
+/// here means the page decelerates into position on the system's curve, instead of being scrolled
+/// out from under a gesture that is still running.
+private struct EmbyHeroSnapBehavior: ScrollTargetBehavior {
+    /// Distance from rest at which the sections reach the top.
+    let travel: CGFloat
+    /// The margin held open for the art title. Scroll targets count from the content's top edge,
+    /// which sits that much higher than rest.
+    let inset: CGFloat
+    /// How far up the page has to be going for the sections to win over the picture.
+    let settleFraction: CGFloat
+
+    func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
+        let measured = target.rect.origin.y + inset
+        guard measured > 0, measured < travel else { return }
+
+        let settled: CGFloat
+        if context.velocity.dy > 0 {
+            settled = travel
+        } else if context.velocity.dy < 0 {
+            settled = 0
+        } else {
+            settled = measured / travel > settleFraction ? travel : 0
+        }
+        target.rect.origin.y = settled - inset
+    }
+}
+
+/// One page header: the sidebar toggle, the title, and whatever the page puts on its trailing edge.
+private struct EmbyPageHeader<Trailing: View>: View {
+    let title: String
+    let sidebarIsVisible: Binding<Bool>?
+    @ViewBuilder let trailing: () -> Trailing
+
+    var body: some View {
+        HStack(spacing: DesignTokens.Spacing.lg) {
+            if let sidebarIsVisible {
+                SidebarToggleButton(
+                    isVisible: sidebarIsVisible,
+                    accessibilityIdentifier: "Emby-Sidebar-Toggle"
+                )
+            }
+            Text(title)
+                .font(.largeTitle)
+            Spacer(minLength: DesignTokens.Spacing.xl)
+            trailing()
+        }
+        .frame(height: DesignTokens.Interactive.large)
+        .padding(.horizontal, DesignTokens.Spacing.xxl)
+        .padding(.top, DesignTokens.Spacing.xl)
+        .padding(.bottom, DesignTokens.Spacing.lg)
+    }
+}
+
 public struct EmbyScreen: View {
     public typealias PlayHandler = @MainActor (EmbyPlaybackSelection) async throws -> Void
 
@@ -23,22 +92,32 @@ public struct EmbyScreen: View {
                 EmbyConnectionScreen()
             } else {
                 HStack(spacing: 0) {
-                    if sidebarIsVisible {
+                    // A detail page navigates with its own back control, so the sidebar and the
+                    // control that hides it are both gone there: the sidebar only ever browses.
+                    if path.isEmpty, sidebarIsVisible {
                         sidebar
                             .transition(.move(edge: .leading).combined(with: .opacity))
-                    } else {
-                        collapsedSidebarRail
                     }
                     NavigationStack(path: $path) {
-                        destinationContent
+                        // Sidebar destinations are siblings with no direction between them, so they
+                        // cross-fade the way the Settings detail cross-fades categories. The ZStack
+                        // is what carries the animation: a modifier attached above the changing
+                        // `.id` is rebuilt along with it and animates nothing.
+                        ZStack {
+                            destinationContent
+                                .id(destination)
+                                .transition(.opacity)
+                        }
+                            .animation(DesignTokens.AnimationToken.controlsTransition, value: destination)
                             .navigationDestination(for: EmbyLibraryItem.self) { item in
                                 EmbyDetailScreen(
                                     viewModel: EmbyDetailViewModel(
                                         itemID: item.metadata.id,
                                         client: session.client,
-                                        session: session
+                                        session: session,
+                                        knownItem: item
                                     ),
-                                    onSelect: { path.append($0) },
+                                    onSelect: open,
                                     onPlay: onPlay
                                 )
                             }
@@ -46,6 +125,7 @@ public struct EmbyScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .animation(DesignTokens.AnimationToken.controlsTransition, value: sidebarIsVisible)
+                .animation(DesignTokens.AnimationToken.controlsTransition, value: path.isEmpty)
             }
         }
         .accessibilityElement(children: .contain)
@@ -53,6 +133,13 @@ public struct EmbyScreen: View {
 #if DEBUG
         .task { await openLaunchRoute() }
 #endif
+    }
+
+    /// Every route into a detail page comes through here, so the page's backdrop and art title start
+    /// loading as the push begins rather than after it lands.
+    private func open(_ item: EmbyLibraryItem) {
+        warmDetailArtwork(for: item, session: session)
+        path.append(item)
     }
 
 #if DEBUG
@@ -78,122 +165,94 @@ public struct EmbyScreen: View {
     }
 #endif
 
-    private var sidebarToggle: some View {
-        SidebarToggleButton(
-            isVisible: $sidebarIsVisible,
-            accessibilityIdentifier: "Emby-Sidebar-Toggle"
-        )
-    }
-
-    /// The toggle keeps its own column when the sidebar is gone. Floating it over the content would
-    /// put it on top of the page title.
-    private var collapsedSidebarRail: some View {
-        VStack(spacing: 0) {
-            sidebarToggle
-            Spacer(minLength: 0)
-        }
-        .padding(DesignTokens.SourceSidebar.contentPaddingV)
-        .transition(.opacity)
-    }
-
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                Text(session.server?.name ?? "Emby")
-                    .font(DesignTokens.SourceSidebar.sectionTitleFont)
-                    .foregroundStyle(.secondary)
-                    .textCase(.uppercase)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                sidebarToggle
-            }
-            .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
+            Text(session.server?.name ?? "Emby")
+                .font(DesignTokens.SourceSidebar.sectionTitleFont)
+                .foregroundStyle(.secondary)
+                .textCase(.uppercase)
+                .lineLimit(2)
+                .minimumScaleFactor(0.8)
+                .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
 
             VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
-                sidebarButton(
-                    title: "Home",
-                    systemImage: "house.fill",
-                    destination: .home,
-                    identifier: "Emby-Sidebar-Home"
-                )
+                sidebarRow(icon: "house.fill", title: "Home", destination: .home)
 
                 ForEach(home.libraries, id: \.id) { library in
-                    sidebarButton(
+                    sidebarRow(
+                        icon: "rectangle.stack.fill",
                         title: library.name,
-                        systemImage: "rectangle.stack.fill",
-                        destination: .library(library.id),
-                        identifier: "Emby-Sidebar-Library-\(library.id.rawValue)"
+                        destination: .library(library.id)
                     )
                 }
 
-                sidebarButton(
-                    title: "Search",
-                    systemImage: "magnifyingglass",
-                    destination: .search,
-                    identifier: "Emby-Sidebar-Search"
-                )
+                sidebarRow(icon: "magnifyingglass", title: "Search", destination: .search)
             }
             .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
 
-            Spacer(minLength: DesignTokens.Spacing.xl)
+            Spacer(minLength: 0)
 
-            Button {
-                Task { await session.signOut() }
-            } label: {
-                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                    .font(DesignTokens.Typography.headline)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, DesignTokens.SourceSidebar.rowPaddingH)
-                    .frame(height: DesignTokens.SourceSidebar.rowHeight)
-            }
-            .buttonStyle(.plain)
-            .enchronHoverContentShape(DesignTokens.SourceSidebar.rowShape)
-            .enchronHoverEffect(.highlight)
+            EditableSourceSidebarRow(
+                icon: "rectangle.portrait.and.arrow.right",
+                title: "Sign Out",
+                isSelected: false,
+                isEnabled: true,
+                isActiveSource: false,
+                isDeletable: false,
+                isSelectionMode: false,
+                isChecked: false,
+                isAppearing: false,
+                isSwipeExpanded: false,
+                isDragging: false,
+                rowOffset: 0,
+                allowsReordering: false,
+                allowsSwipe: false,
+                onTap: { Task { await session.signOut() } }
+            )
             .padding(.horizontal, DesignTokens.SourceSidebar.listPaddingH)
             .accessibilityIdentifier("Emby-SignOut")
         }
         .padding(.vertical, DesignTokens.SourceSidebar.contentPaddingV)
         .frame(width: DesignTokens.SourceSidebar.width)
         .frame(maxHeight: .infinity, alignment: .topLeading)
-        .enchronPlateGlassBackground(in: DesignTokens.SourceSidebar.shape)
-        .padding(.leading, DesignTokens.SourceSidebar.windowInset)
-        .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
+        .enchronSidebarSurface()
+        .accessibilityIdentifier("Emby-Sidebar")
     }
 
-    private func sidebarButton(
+    /// The same row the Media Library sidebar uses, with reordering and swipe-to-delete switched off.
+    private func sidebarRow(
+        icon: String,
         title: String,
-        systemImage: String,
-        destination: SidebarDestination,
-        identifier: String
+        destination: SidebarDestination
     ) -> some View {
-        Button {
-            self.destination = destination
-            path = []
-        } label: {
-            Label(title, systemImage: systemImage)
-                .font(DesignTokens.Typography.headline)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, DesignTokens.SourceSidebar.rowPaddingH)
-                .frame(height: DesignTokens.SourceSidebar.rowHeight)
-                .background(
-                    self.destination == destination
-                        ? DesignTokens.Surface.selected
-                        : Color.clear,
-                    in: DesignTokens.SourceSidebar.rowShape
-                )
-        }
-        .buttonStyle(.plain)
-        .enchronHoverContentShape(DesignTokens.SourceSidebar.rowShape)
-        .enchronHoverEffect(.highlight)
-        .accessibilityIdentifier(identifier)
+        EditableSourceSidebarRow(
+            icon: icon,
+            title: title,
+            isSelected: self.destination == destination,
+            isEnabled: true,
+            isActiveSource: false,
+            isDeletable: false,
+            isSelectionMode: false,
+            isChecked: false,
+            isAppearing: false,
+            isSwipeExpanded: false,
+            isDragging: false,
+            rowOffset: 0,
+            allowsReordering: false,
+            allowsSwipe: false,
+            onTap: {
+                self.destination = destination
+                path = []
+            }
+        )
+        .accessibilityIdentifier("Emby-Sidebar-\(destination.id)")
     }
 
     @ViewBuilder
     private var destinationContent: some View {
         switch destination {
         case .home:
-            EmbyHomeScreen(onSelect: { path.append($0) })
+            EmbyHomeScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
         case .library(let id):
             if let library = home.libraries.first(where: { $0.id == id }) {
                 EmbyLibraryScreen(
@@ -202,13 +261,17 @@ public struct EmbyScreen: View {
                         client: session.client,
                         session: session
                     ),
-                    onSelect: { path.append($0) }
+                    sidebarIsVisible: $sidebarIsVisible,
+                    onSelect: open
                 )
+                // Each library is its own screen. Without this, switching between two libraries
+                // reuses the view and keeps the previous library's view model in `@State`.
+                .id(id)
             } else {
                 ContentUnavailableView("Library Unavailable", systemImage: "rectangle.stack")
             }
         case .search:
-            EmbySearchScreen(onSelect: { path.append($0) })
+            EmbySearchScreen(sidebarIsVisible: $sidebarIsVisible, onSelect: open)
         }
     }
 }
@@ -217,6 +280,24 @@ private enum SidebarDestination: Hashable {
     case home
     case library(EmbyItemID)
     case search
+
+    var id: String {
+        switch self {
+        case .home: "home"
+        case .library(let id): "library-\(id.rawValue)"
+        case .search: "search"
+        }
+    }
+
+    init?(id: String) {
+        switch id {
+        case "home": self = .home
+        case "search": self = .search
+        default:
+            guard id.hasPrefix("library-") else { return nil }
+            self = .library(EmbyItemID(rawValue: String(id.dropFirst("library-".count))))
+        }
+    }
 }
 
 private struct EmbyConnectionScreen: View {
@@ -272,27 +353,37 @@ private struct EmbyConnectionScreen: View {
 private struct EmbyHomeScreen: View {
     @Environment(EmbyHomeViewModel.self) private var viewModel
     @Environment(EmbySessionViewModel.self) private var session
+    let sidebarIsVisible: Binding<Bool>?
     let onSelect: (EmbyLibraryItem) -> Void
 
     var body: some View {
         ScrollView(.vertical) {
             LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
-                Text("Home")
-                    .font(.largeTitle)
-
                 ForEach(viewModel.shelves) { shelf in
                     EmbyShelf(title: shelf.title) {
                         ForEach(shelf.items, id: \.metadata.id) { item in
-                            posterCard(item, session: session, onSelect: onSelect)
+                            // Continue Watching is about the frame you stopped on, so it uses the
+                            // same landscape still card a season's episodes use.
+                            if shelf.kind == .continueWatching {
+                                stillCard(item, session: session, onSelect: onSelect)
+                            } else {
+                                posterCard(item, session: session, onSelect: onSelect)
+                            }
                         }
                     }
                 }
 
                 if viewModel.shelves.isEmpty, viewModel.isLoading == false {
                     ContentUnavailableView("No Emby titles", systemImage: "film.stack")
+                        .padding(.horizontal, DesignTokens.Spacing.xxl)
                 }
             }
-            .padding(DesignTokens.Spacing.xxl)
+            .padding(.bottom, DesignTokens.Spacing.xxl)
+        }
+        .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
+        .embyPageBounds()
+        .overlay(alignment: .top) {
+            EmbyPageHeader(title: "Home", sidebarIsVisible: sidebarIsVisible) { EmptyView() }
         }
         .task { await viewModel.refresh() }
         .accessibilityIdentifier("Emby-Home")
@@ -302,36 +393,48 @@ private struct EmbyHomeScreen: View {
 private struct EmbyLibraryScreen: View {
     @Environment(EmbySessionViewModel.self) private var session
     @State private var viewModel: EmbyLibraryViewModel
+    let sidebarIsVisible: Binding<Bool>?
     let onSelect: (EmbyLibraryItem) -> Void
 
-    init(viewModel: EmbyLibraryViewModel, onSelect: @escaping (EmbyLibraryItem) -> Void) {
+    init(
+        viewModel: EmbyLibraryViewModel,
+        sidebarIsVisible: Binding<Bool>?,
+        onSelect: @escaping (EmbyLibraryItem) -> Void
+    ) {
         _viewModel = State(initialValue: viewModel)
+        self.sidebarIsVisible = sidebarIsVisible
         self.onSelect = onSelect
     }
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        VStack(spacing: 0) {
-            HStack {
-                Text(viewModel.library.name)
-                    .font(.largeTitle)
-                Spacer()
-                Picker("Sort", selection: Binding(
-                    get: { viewModel.sort },
-                    set: { value in Task { await viewModel.selectSort(value) } }
-                )) {
-                    ForEach(EmbyLibrarySort.allCases, id: \.self) { sort in
-                        Text(sort.title).tag(sort)
+        EmbyPosterGrid(items: viewModel.items, session: session, onSelect: onSelect)
+            .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
+            .embyPageBounds()
+            .overlay(alignment: .top) {
+                EmbyPageHeader(title: viewModel.library.name, sidebarIsVisible: sidebarIsVisible) {
+                    Picker("Sort", selection: Binding(
+                        get: { viewModel.sort },
+                        // The indicator moves with the tap. Only the reload waits on the server.
+                        set: { value in
+                            guard viewModel.sort != value else { return }
+                            withAnimation(DesignTokens.AnimationToken.selection) {
+                                viewModel.setSort(value)
+                            }
+                            Task { await viewModel.refresh() }
+                        }
+                    )) {
+                        ForEach(EmbyLibrarySort.allCases, id: \.self) { sort in
+                            Text(sort.title).tag(sort)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 360, height: DesignTokens.Interactive.regular)
+                    .enchronGlassControl()
+                    .accessibilityIdentifier("Emby-Library-Sort")
                 }
-                .pickerStyle(.segmented)
-                .frame(width: 360)
-                .accessibilityIdentifier("Emby-Library-Sort")
             }
-            .padding(DesignTokens.Spacing.xxl)
-
-            EmbyPosterGrid(items: viewModel.items, session: session, onSelect: onSelect)
-        }
         .task { await viewModel.refresh() }
         .accessibilityIdentifier("Emby-Library-\(viewModel.library.id.rawValue)")
     }
@@ -340,20 +443,25 @@ private struct EmbyLibraryScreen: View {
 private struct EmbySearchScreen: View {
     @Environment(EmbySearchViewModel.self) private var viewModel
     @Environment(EmbySessionViewModel.self) private var session
+    let sidebarIsVisible: Binding<Bool>?
     let onSelect: (EmbyLibraryItem) -> Void
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        VStack(spacing: DesignTokens.Spacing.xl) {
-            TextField("Search Emby", text: $viewModel.query)
-                .textFieldStyle(.roundedBorder)
-                .accessibilityIdentifier("Emby-Search-Field")
-                .onSubmit { Task { await viewModel.refresh() } }
-                .padding(.horizontal, DesignTokens.Spacing.xxl)
-                .padding(.top, DesignTokens.Spacing.xxl)
-
-            EmbyPosterGrid(items: viewModel.results, session: session, onSelect: onSelect)
-        }
+        EmbyPosterGrid(items: viewModel.results, session: session, onSelect: onSelect)
+            .contentMargins(.top, embyHeaderHeight, for: .scrollContent)
+            .embyPageBounds()
+            .overlay(alignment: .top) {
+                EmbyPageHeader(title: "Search", sidebarIsVisible: sidebarIsVisible) {
+                    GlassSearchField(
+                        text: $viewModel.query,
+                        placeholder: "Search Emby",
+                        accessibilityIdentifier: "Emby-Search-Field"
+                    )
+                    .frame(width: 360)
+                    .onSubmit { Task { await viewModel.refresh() } }
+                }
+            }
         .task { await viewModel.refresh() }
         .task(id: viewModel.query) {
             guard viewModel.query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false else {
@@ -394,6 +502,8 @@ private struct EmbyDetailScreen: View {
     @State private var viewModel: EmbyDetailViewModel
     @State private var overviewIsExpanded = false
     @State private var playbackError: String?
+    @State private var scrollOffset: CGFloat = 0
+    @State private var scrollPosition = ScrollPosition()
 
     let onSelect: (EmbyLibraryItem) -> Void
     let onPlay: EmbyScreen.PlayHandler
@@ -409,38 +519,133 @@ private struct EmbyDetailScreen: View {
     }
 
     var body: some View {
-        @Bindable var viewModel = viewModel
-        ScrollViewReader { scroll in
-            ScrollView(.vertical) {
+        GeometryReader { proxy in
+            let heroHeight = heroHeight(in: proxy.size.height)
+            // The page runs to the window's own top edge, under the navigation bar, so the room it
+            // holds open clears the back control. What the scroll view borrows from above it has to
+            // be given back below, or the last of the page cannot be reached.
+            let topMargin = DesignTokens.EmbyDetail.topContentInset
+            let bottomMargin = proxy.safeAreaInsets.top + DesignTokens.Spacing.xxl
+            // What the page travels before the sections reach the top: the hero's own height plus
+            // the gap under it. Measured from the hero rather than from the window, so the picture
+            // finishes leaving exactly as the sections arrive.
+            let travel = heroHeight + DesignTokens.Spacing.xxl
+            let progress = min(max(scrollOffset / travel, 0), 1)
+
+            ZStack(alignment: .top) {
                 if let item = viewModel.item {
-                    LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
-                        hero(item)
-                        childrenContent.id(Section.children)
-                        posterShelf(title: "Special Features", items: viewModel.specialFeatures)
-                        posterShelf(title: "Related", items: viewModel.relatedItems)
-                        castAndCrew(item.metadata.people)
-                        about(item.metadata).id(Section.about)
-                    }
-                    .padding(.bottom, DesignTokens.Spacing.xxl)
-                } else if viewModel.isLoading {
-                    ProgressView()
-                        .frame(maxWidth: .infinity, minHeight: 400)
+                    backdrop(item)
+                        .opacity(1 - min(progress / DesignTokens.EmbyDetail.backdropFadeFraction, 1))
                 }
+
+                pageContent(
+                    heroHeight: heroHeight,
+                    travel: travel,
+                    topMargin: topMargin,
+                    bottomMargin: bottomMargin,
+                    progress: progress
+                )
             }
-            // The hero runs under the navigation bar the way the Apple TV app does, so the back
-            // control floats on the artwork instead of sitting on a band above it.
-            .ignoresSafeArea(.container, edges: .top)
-#if DEBUG
-            .task(id: viewModel.item) {
-                guard let name = EmbyLaunchRoute.current?.sectionName,
-                      let section = Section(rawValue: name) else { return }
-                try? await Task.sleep(for: .milliseconds(600))
-                scroll.scrollTo(section, anchor: .top)
-            }
-#endif
         }
         .task { await viewModel.refresh() }
         .accessibilityIdentifier("Emby-Detail-\(viewModel.itemID.rawValue)")
+    }
+
+    private func heroHeight(in containerHeight: CGFloat) -> CGFloat {
+        max(
+            DesignTokens.EmbyDetail.heroMinimumHeight,
+            containerHeight * DesignTokens.EmbyDetail.heroHeightFraction
+        )
+    }
+
+    private func pageContent(
+        heroHeight: CGFloat,
+        travel: CGFloat,
+        topMargin: CGFloat,
+        bottomMargin: CGFloat,
+        progress: CGFloat
+    ) -> some View {
+        @Bindable var viewModel = viewModel
+        return ScrollView(.vertical) {
+            if let item = viewModel.item {
+                LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+                    hero(item)
+                        .frame(height: heroHeight, alignment: .bottom)
+                        // The header leaves with the picture it was written on, rather than
+                        // riding up over the bare page.
+                        .opacity(Double(1 - progress))
+                    childrenContent
+                    posterShelf(title: "Special Features", items: viewModel.specialFeatures)
+                    posterShelf(title: "Related", items: viewModel.relatedItems)
+                    castAndCrew(item.metadata.people)
+                    about(item.metadata)
+                }
+                .padding(.bottom, DesignTokens.Spacing.xxl)
+            } else if viewModel.isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 400)
+            }
+        }
+        // Room at the top for the settled art title and the back control, so the sections come
+        // to rest under them instead of across them.
+        .contentMargins(.top, topMargin, for: .scrollContent)
+        .contentMargins(.bottom, bottomMargin, for: .scrollContent)
+        // The page runs to the window's top edge the way the Apple TV app does: the back control and
+        // the art title float on the page, and everything passes under them.
+        .ignoresSafeArea(.container, edges: .top)
+        .scrollPosition($scrollPosition)
+        .onScrollGeometryChange(for: CGFloat.self) { geometry in
+            geometry.contentOffset.y + geometry.contentInsets.top
+        } action: { _, offset in
+            scrollOffset = offset
+        }
+        .scrollTargetBehavior(
+            EmbyHeroSnapBehavior(
+                travel: travel,
+                inset: topMargin,
+                settleFraction: DesignTokens.EmbyDetail.heroSettleFraction
+            )
+        )
+#if DEBUG
+        // Drives the page from the same offset the product does, so what a screenshot shows is a
+        // position the page can actually come to rest in.
+        .task(id: viewModel.item) {
+            guard let name = EmbyLaunchRoute.current?.sectionName else { return }
+            try? await Task.sleep(for: .milliseconds(600))
+            // A number is a distance from rest, which is how a page position between the two settled
+            // ones is reached: the only way to photograph artwork passing under the blurred band.
+            if let offset = Double(name) {
+                scroll(to: CGFloat(offset), topMargin: topMargin)
+                return
+            }
+            switch Section(rawValue: name) {
+            case .children: scroll(to: travel, topMargin: topMargin)
+            case .about: scrollPosition.scrollTo(edge: .bottom)
+            case nil: break
+            }
+        }
+#endif
+    }
+
+    /// Scroll positions are given in the same units the page measures its own travel in: distance
+    /// from rest. The scroll view counts from its content's top edge, which sits one top margin
+    /// higher because of the room held open for the art title.
+    private func scroll(to offset: CGFloat, topMargin: CGFloat) {
+        scrollPosition.scrollTo(y: offset - topMargin)
+    }
+
+    /// The picture behind the whole page. It is not part of the scrolling content: it stands still
+    /// and fades out, so the sections rise over it rather than dragging it up with them.
+    ///
+    /// It reaches every window edge at full strength. Fading its alpha at the edges does not soften
+    /// anything: it lets the page's own light surface through, and the picture ends up ringed in
+    /// white. The window's rounded corners are the only edge it needs.
+    private func backdrop(_ item: EmbyLibraryItem) -> some View {
+        AsyncArtworkImage(url: heroArtworkURL(for: item, session: session))
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
+            .ignoresSafeArea()
+            .allowsHitTesting(false)
     }
 
     enum Section: String, Hashable {
@@ -448,43 +653,52 @@ private struct EmbyDetailScreen: View {
         case about
     }
 
-    /// The hero fills the panel the way the Apple TV app does: artwork behind, every piece of
-    /// header content overlaid on it, scrim only where text sits.
+    /// The header the page opens on. It carries no artwork of its own: the picture is the page's
+    /// background, and this is what stands on it.
     private func hero(_ item: EmbyLibraryItem) -> some View {
-        ZStack(alignment: .bottomLeading) {
-            AsyncArtworkImage(url: heroArtworkURL(for: item, session: session))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .overlay {
-                    LinearGradient(
-                        colors: [.clear, .black.opacity(0.35), .black.opacity(0.85)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                }
-
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                titleArtwork(item)
-                genreLine(item)
-                overview(item.metadata)
-                technicalLine(item.metadata)
-                HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
-                    actionRow(item)
-                    Spacer(minLength: DesignTokens.Spacing.xl)
-                    creditSummary(item.metadata.people)
-                }
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+            titleArtwork(item)
+            genreLine(item)
+            overview(item.metadata)
+            technicalLine(item.metadata)
+            HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
+                actionRow(item)
+                Spacer(minLength: DesignTokens.Spacing.xl)
+                creditSummary(item.metadata.people)
             }
-            .padding(DesignTokens.Spacing.xxl)
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .containerRelativeFrame(.vertical, alignment: .bottom) { height, _ in
-            max(
-                DesignTokens.EmbyDetail.heroMinimumHeight,
-                height * DesignTokens.EmbyDetail.heroHeightFraction
+        .padding(DesignTokens.Spacing.xxl)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background { titleWash }
+    }
+
+    /// A soft darkening of the picture under the header, multiplied into it rather than laid over it.
+    /// Wide and weak on purpose: it has to lift white text off a bright still without ever reading as
+    /// a panel, so it reaches well past the text and has no edge to find.
+    private var titleWash: some View {
+        GeometryReader { proxy in
+            let spread = DesignTokens.EmbyDetail.titleWashSpread
+            // Elliptical rather than radial: a radial gradient fades out at one radius in every
+            // direction, and in a frame far wider than it is tall that leaves it still opaque where
+            // the frame ends, which draws a straight line across the picture.
+            EllipticalGradient(
+                stops: [
+                    .init(color: .black.opacity(DesignTokens.EmbyDetail.titleWashStrength), location: 0),
+                    .init(color: .black.opacity(DesignTokens.EmbyDetail.titleWashStrength * 0.45), location: 0.5),
+                    .init(color: .clear, location: 1)
+                ],
+                center: .center,
+                startRadiusFraction: 0,
+                endRadiusFraction: 0.5
             )
+            .frame(
+                width: proxy.size.width * spread,
+                height: proxy.size.height * spread
+            )
+            .position(x: proxy.size.width / 2, y: proxy.size.height / 2)
+            .blendMode(.multiply)
         }
-        // Aspect-fill artwork and bottom-aligned header both exceed the hero box; without this the
-        // overflow paints across the section below.
-        .clipped()
+        .allowsHitTesting(false)
     }
 
     @ViewBuilder
@@ -608,10 +822,13 @@ private struct EmbyDetailScreen: View {
                         set: { viewModel.selectedMediaSourceID = $0 }
                     )) {
                         ForEach(item.metadata.mediaSources) { source in
-                            Text(source.displayName).tag(Optional(source.id))
+                            Text(versionSummary(source)).tag(Optional(source.id))
                         }
                     }
-                    .frame(width: 300)
+                    .labelsHidden()
+                    .lineLimit(1)
+                    .frame(maxWidth: 220)
+                    .accessibilityLabel("Version")
                     .accessibilityIdentifier("Emby-Detail-Version")
                 }
             }
@@ -638,6 +855,30 @@ private struct EmbyDetailScreen: View {
         case .episode: "Episode"
         case .boxSet: "Collection"
         }
+    }
+
+    /// What one version of a title is worth saying out loud: how big the picture is, how it is coded,
+    /// and whether it carries wide colour. The server's own name for a source is the file's name on
+    /// disk, which is a release group's release string and is both unreadable and far too long for a
+    /// control standing next to Play.
+    private func versionSummary(_ source: EmbyMediaSourceDescription) -> String {
+        let video = source.mediaStreams.first { $0.kind == .video }
+        var parts: [String] = []
+        if let height = video?.height {
+            parts.append("\(height)p")
+        }
+        if let codec = video?.codec, codec.isEmpty == false {
+            parts.append(codec.uppercased())
+        }
+        if let range = video?.videoRange,
+           range.isEmpty == false,
+           range.caseInsensitiveCompare("SDR") != .orderedSame {
+            parts.append(range.uppercased())
+        }
+        if parts.isEmpty, let container = source.container, container.isEmpty == false {
+            parts.append(container.uppercased())
+        }
+        return parts.isEmpty ? source.displayName : parts.joined(separator: " · ")
     }
 
     private func selectedSource(_ metadata: EmbyItemMetadata) -> EmbyMediaSourceDescription? {
@@ -675,13 +916,23 @@ private struct EmbyDetailScreen: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                 if all.count > 1 {
                     seasonPicker(all, selected: selected)
+                        .padding(.horizontal, DesignTokens.Spacing.xxl)
                 }
-                episodeShelf(episodes, title: all.count > 1 ? nil : "Episodes")
+                // The row cross-fades from one season to the next. Its identity follows the episodes
+                // that are actually on screen rather than the season the menu has selected, so the
+                // fade happens when the new episodes arrive and the old row stands until then.
+                ZStack {
+                    episodeShelf(episodes, title: all.count > 1 ? nil : "Episodes")
+                        .id(episodes.first?.metadata.id)
+                        .transition(.opacity)
+                }
+                .animation(
+                    DesignTokens.AnimationToken.controlsTransition,
+                    value: episodes.first?.metadata.id
+                )
             }
-            .padding(.horizontal, DesignTokens.Spacing.xxl)
         case let .episodes(episodes):
             episodeShelf(episodes, title: "Episodes")
-                .padding(.horizontal, DesignTokens.Spacing.xxl)
         case let .collection(members):
             posterShelf(title: "In This Collection", items: members)
         }
@@ -691,18 +942,17 @@ private struct EmbyDetailScreen: View {
     /// would not survive a show with a dozen seasons inside one detail page.
     private func seasonPicker(_ seasons: [EmbySeason], selected: EmbyItemID?) -> some View {
         Menu {
-            ForEach(seasons, id: \.metadata.id) { season in
-                Button {
-                    Task { await viewModel.selectSeason(season.metadata.id) }
-                } label: {
-                    if selected == season.metadata.id {
-                        Label(season.metadata.name, systemImage: "checkmark")
-                    } else {
-                        Text(season.metadata.name)
-                    }
+            // A Picker marks the current row with the system checkmark on the trailing edge, which
+            // is the native menu idiom. A hand-built `Label(systemImage: "checkmark")` puts the mark
+            // in front of the title instead and pushes every title right.
+            Picker("Season", selection: seasonSelection(selected)) {
+                ForEach(seasons, id: \.metadata.id) { season in
+                    Text(season.metadata.name)
+                        .tag(Optional(season.metadata.id))
+                        .accessibilityIdentifier("Emby-Season-\(season.metadata.id.rawValue)")
                 }
-                .accessibilityIdentifier("Emby-Season-\(season.metadata.id.rawValue)")
             }
+            .pickerStyle(.inline)
         } label: {
             HStack(spacing: DesignTokens.Spacing.xs) {
                 Text(seasons.first { $0.metadata.id == selected }?.metadata.name ?? "Seasons")
@@ -721,6 +971,16 @@ private struct EmbyDetailScreen: View {
         .accessibilityIdentifier("Emby-Season-Picker")
     }
 
+    private func seasonSelection(_ selected: EmbyItemID?) -> Binding<EmbyItemID?> {
+        Binding(
+            get: { selected },
+            set: { value in
+                guard let value, value != selected else { return }
+                Task { await viewModel.selectSeason(value) }
+            }
+        )
+    }
+
     @ViewBuilder
     private func episodeShelf(_ episodes: [EmbyEpisode], title: String?) -> some View {
         if episodes.isEmpty == false {
@@ -736,7 +996,7 @@ private struct EmbyDetailScreen: View {
         let metadata = episode.metadata
         return GridCard.episode(
             title: metadata.name,
-            numberLabel: episode.episodeNumber.map { "Episode \($0)" },
+            numberLabel: episode.episodeNumber.map { String(format: "%02d", $0) },
             overview: metadata.overview,
             duration: metadata.runTimeTicks.map(runtime),
             artworkURL: thumbURL(for: metadata, session: session),
@@ -763,7 +1023,6 @@ private struct EmbyDetailScreen: View {
                     posterCard(item, session: session, onSelect: onSelect)
                 }
             }
-            .padding(.horizontal, DesignTokens.Spacing.xxl)
         }
     }
 
@@ -820,9 +1079,24 @@ private struct EmbyDetailScreen: View {
                 .background(.thinMaterial, in: DesignTokens.ShapeToken.element)
             }
 
-            HStack(alignment: .top, spacing: DesignTokens.Spacing.xxl) {
+            // A grid rather than a row: the columns differ in length, and a grid keeps every one of
+            // them starting on the same left edge and the same baseline however many the page has
+            // room for.
+            LazyVGrid(
+                columns: [GridItem(
+                    .adaptive(minimum: DesignTokens.EmbyDetail.aboutColumnWidth),
+                    spacing: DesignTokens.Spacing.xxl,
+                    alignment: .topLeading
+                )],
+                alignment: .leading,
+                spacing: DesignTokens.Spacing.xxl
+            ) {
                 aboutColumn("Information", sections.information)
                 aboutColumn("Languages", sections.languages)
+                aboutColumn("Video", sections.video)
+                aboutColumn("Audio", sections.audio)
+                aboutColumn("Subtitles", sections.subtitles)
+                aboutColumn("File", sections.file)
                 aboutColumn("Accessibility", sections.accessibility, labelsAreBadges: true)
             }
         }
@@ -842,7 +1116,9 @@ private struct EmbyDetailScreen: View {
                     .font(DesignTokens.Typography.sectionHeader)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                ForEach(entries) { entry in
+                // Indexed, because a release can carry two tracks that describe themselves
+                // identically and the pair would otherwise share one identity.
+                ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
                         if labelsAreBadges {
                             Text(entry.label)
@@ -881,16 +1157,39 @@ private func posterCard(
     )
 }
 
+/// The landscape still card, shared by Continue Watching and by a season's episodes.
 @MainActor
-private func posterURL(for item: EmbyLibraryItem, session: EmbySessionViewModel) -> URL? {
-    imageURL(for: item, type: .primary, session: session)
+private func stillCard(
+    _ item: EmbyLibraryItem,
+    session: EmbySessionViewModel,
+    onSelect: @escaping (EmbyLibraryItem) -> Void
+) -> GridCard {
+    let metadata = item.metadata
+    return GridCard.episode(
+        title: metadata.name,
+        numberLabel: item.episode?.episodeNumber.map { String(format: "%02d", $0) },
+        overview: metadata.overview,
+        duration: metadata.runTimeTicks.map(runtime),
+        artworkURL: thumbURL(for: metadata, session: session),
+        watchedProgress: watchedProgress(metadata),
+        accessibilityIdentifier: "Emby-StillCard-\(metadata.id.rawValue)",
+        action: { onSelect(item) }
+    )
 }
 
 @MainActor
+private func posterURL(for item: EmbyLibraryItem, session: EmbySessionViewModel) -> URL? {
+    imageURL(for: item, type: .primary, session: session, maxWidth: DesignTokens.Card.posterWidth)
+}
+
+@MainActor
+/// `maxWidth` is the card's width in points; the server is asked for that many pixels at 2×, so the
+/// decode and the bitmap it produces are sized for the card instead of for the original artwork.
 private func imageURL(
     for item: EmbyLibraryItem,
     type: EmbyImageType,
-    session: EmbySessionViewModel
+    session: EmbySessionViewModel,
+    maxWidth: CGFloat? = nil
 ) -> URL? {
     guard let server = session.server else { return nil }
     let tag: EmbyImageTag? = switch type {
@@ -904,7 +1203,7 @@ private func imageURL(
         for: item.metadata.id,
         type: type,
         tag: tag,
-        size: nil,
+        size: maxWidth.flatMap { try? EmbyImageSize.width(Int($0 * 2)) },
         on: server
     )
 }
@@ -919,13 +1218,25 @@ private func heroArtworkURL(for item: EmbyLibraryItem, session: EmbySessionViewM
            for: item.metadata.id,
            index: 0,
            tag: tag,
-           size: nil,
+           size: try? EmbyImageSize.width(DesignTokens.EmbyDetail.backdropRequestWidth),
            on: server
        ) {
         return url
     }
     return imageURL(for: item, type: .thumb, session: session)
         ?? imageURL(for: item, type: .primary, session: session)
+}
+
+/// Fetches and decodes what a detail page opens on, before it is asked for. Called as the page is
+/// pushed, so the picture and the art title travel with the navigation rather than landing after it.
+@MainActor
+func warmDetailArtwork(for item: EmbyLibraryItem, session: EmbySessionViewModel) {
+    let urls = [
+        heroArtworkURL(for: item, session: session),
+        imageURL(for: item, type: .logo, session: session)
+    ].compactMap { $0 }
+    guard urls.isEmpty == false else { return }
+    Task { await ArtworkPrefetch.warm(urls) }
 }
 
 @MainActor
@@ -938,7 +1249,7 @@ private func thumbURL(for metadata: EmbyItemMetadata, session: EmbySessionViewMo
         for: metadata.id,
         type: type,
         tag: tag,
-        size: nil,
+        size: try? EmbyImageSize.width(Int(DesignTokens.Card.stillWidth * 2)),
         on: server
     )
 }
