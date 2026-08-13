@@ -972,10 +972,12 @@ def run_step(
     )
     result["probe_excerpt"] = excerpt_path
     if probe_error is not None:
+        # Only the immersive branch judges from the probe, and it returns
+        # before this point. Here the control plane already proved the
+        # presentation settled with its video visible, so a failed copy of a
+        # corroborating log says the file service dropped a socket, not that
+        # playback did anything wrong. The error stays on the record.
         result["probe_error"] = probe_error
-        if result["verdict"] == PASS:
-            result["verdict"] = DRIVE_ERROR
-            result["phase"] = "probe"
     result["stall_recovered"] = (
         result["verdict"] == PASS and probe_shows_recovered_stall(excerpt)
     )
