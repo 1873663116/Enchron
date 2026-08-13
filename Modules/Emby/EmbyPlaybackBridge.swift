@@ -10,13 +10,13 @@ public enum EmbyPlaybackStartAction: Sendable, Equatable {
 
 public struct EmbyPlaybackSelection: Sendable, Equatable {
     public let item: EmbyLibraryItem
-    public let mediaSourceID: EmbyMediaSourceID
+    public let mediaSourceID: EmbyMediaSourceID?
     public let startAction: EmbyPlaybackStartAction
     public let seasonEpisodes: [EmbyEpisode]?
 
     public init(
         item: EmbyLibraryItem,
-        mediaSourceID: EmbyMediaSourceID,
+        mediaSourceID: EmbyMediaSourceID? = nil,
         startAction: EmbyPlaybackStartAction
     ) {
         self.item = item
@@ -27,7 +27,7 @@ public struct EmbyPlaybackSelection: Sendable, Equatable {
 
     public init(
         episode: EmbyEpisode,
-        mediaSourceID: EmbyMediaSourceID,
+        mediaSourceID: EmbyMediaSourceID? = nil,
         startAction: EmbyPlaybackStartAction,
         seasonEpisodes: [EmbyEpisode]
     ) {
@@ -148,17 +148,35 @@ public actor EmbyPlaybackBridge {
     }
 
     private let client: any EmbyClientProtocol
-    private let server: EmbyAuthenticatedServer
-    private let onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler?
+    private var server: EmbyAuthenticatedServer?
+    private var onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler?
     private var queue: [QueuedEpisode] = []
     private var currentQueueID: UUID?
 
     public init(
         client: any EmbyClientProtocol,
-        server: EmbyAuthenticatedServer,
+        server: EmbyAuthenticatedServer?,
         onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil
     ) {
         self.client = client
+        self.server = server
+        self.onUnauthorized = onUnauthorized
+    }
+
+    public init(client: any EmbyClientProtocol) {
+        self.client = client
+        server = nil
+        onUnauthorized = nil
+    }
+
+    public func configure(
+        server: EmbyAuthenticatedServer?,
+        onUnauthorized: EmbyPlaybackSessionReporter.UnauthorizedHandler? = nil
+    ) {
+        if self.server != server {
+            queue = []
+            currentQueueID = nil
+        }
         self.server = server
         self.onUnauthorized = onUnauthorized
     }
@@ -222,6 +240,7 @@ public actor EmbyPlaybackBridge {
         startAction: EmbyPlaybackStartAction,
         collectionOrigin: PlaybackCollectionOrigin
     ) async throws -> PlaybackLaunchRequest {
+        guard let server else { throw EmbyError.notAuthenticated }
         let freshItem = try await client.item(withID: item.metadata.id, on: server)
         let playback = try await client.playbackInfo(for: freshItem, on: server)
         let source: EmbyMediaSource
