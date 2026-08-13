@@ -29,7 +29,11 @@ DEFAULT_EVIDENCE_ROOT = Path(
 CONTROL_PLANE_IDENTIFIER = "PlayerUI-window-control-plane"
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 CONTROLLER_TIMEOUT_SECONDS = 600.0
-PROBE_COPY_TIMEOUT_SECONDS = 45.0
+# A copy against a container whose app is not currently running hangs rather
+# than failing, and one that catches the app mid-relaunch has been measured
+# taking 70s before recovering. The bound is there to end the hang, so it has
+# to sit above the slow-but-finite case or it converts recovery into a stall.
+PROBE_COPY_TIMEOUT_SECONDS = 150.0
 # This window must outlast the product's 31-second settlement deadline.
 SETTLEMENT_TIMEOUT_SECONDS = 40.0
 POLL_INTERVAL_SECONDS = 2.0
