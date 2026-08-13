@@ -348,6 +348,52 @@ private struct CardsSection: View {
                     )
                 }
             }
+
+            cardRow("GridCard · poster") {
+                GridCard.poster(
+                    title: "Arrival",
+                    artworkURL: nil
+                )
+            }
+
+            cardRow("GridCard · poster · in progress") {
+                GridCard.poster(
+                    title: "Dune: Part Two",
+                    artworkURL: nil,
+                    watchedProgress: 0.42
+                )
+            }
+
+            cardRow("GridCard · poster · unplayed badge") {
+                GridCard.poster(
+                    title: "Severance",
+                    artworkURL: nil,
+                    unplayedCount: 5
+                )
+            }
+
+            cardRow("GridCard · poster · skeleton") {
+                GridCard.skeleton(.poster)
+            }
+
+            cardRow("GridCard · episode") {
+                GridCard.episode(
+                    title: "Pilot",
+                    numberLabel: "Episode 1",
+                    overview: "American football coach Ted Lasso is hired to coach a wealthy divorcée's English soccer team, AFC Richmond.",
+                    duration: "30 min",
+                    artworkURL: nil
+                )
+                GridCard.episode(
+                    title: "Biscuits",
+                    numberLabel: "Episode 2",
+                    overview: "It's Ted's first day of coaching, and fans aren't happy. He makes little headway but remains undeterred as the team play their first match.",
+                    duration: "29 min",
+                    artworkURL: nil,
+                    watchedProgress: 0.62
+                )
+                GridCard.skeleton(.episode)
+            }
         }
     }
 

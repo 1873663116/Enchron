@@ -122,6 +122,42 @@ struct WindowPlaybackLayout: Equatable {
     }
 }
 
+/// The window range the browser asks for. It has no video to match, so unlike playback its range is
+/// rectangular and its floor is the size playback opens at.
+struct BrowserWindowLayout {
+    static let minimumSize = WindowPlaybackLayout.fallback.defaultSize
+    static let defaultSize = scaled(1.6)
+    static let maximumSize = scaled(3.0)
+
+    private static func scaled(_ multiplier: CGFloat) -> CGSize {
+        let base = WindowPlaybackLayout.fallback.defaultSize
+        return CGSize(
+            width: base.width * multiplier,
+            height: base.height * multiplier
+        )
+    }
+}
+
+extension View {
+    /// Every surface that can own the window states its own range. None of them restores a system
+    /// default on the way out, so the order in which one surface disappears and the next appears
+    /// cannot leave the window unconstrained.
+    func browserWindowGeometry() -> some View {
+        background {
+            WindowPlaybackSceneReader { windowScene in
+                guard let windowScene else { return }
+                windowScene.requestGeometryUpdate(
+                    UIWindowScene.GeometryPreferences.Vision(
+                        minimumSize: BrowserWindowLayout.minimumSize,
+                        maximumSize: BrowserWindowLayout.maximumSize,
+                        resizingRestrictions: .freeform
+                    )
+                )
+            }
+        }
+    }
+}
+
 enum PortalWindowLayout {
     static let minimumSize = WindowPlaybackLayout.fallback.minimumSize
     static let defaultSize = WindowPlaybackLayout.fallback.defaultSize
@@ -249,10 +285,8 @@ struct WindowPlaybackRootView<
     VideoContent: View,
     TopChrome: View
 >: View {
-    #if os(visionOS)
     @State private var owningWindowScene: UIWindowScene?
     @State private var lastGeometryRefreshRevision: UInt64 = 0
-    #endif
     private let geometryPolicy: WindowPlaybackGeometryPolicy
     private let geometryRefreshRevision: UInt64
     private let preferredInitialSize: CGSize?
@@ -303,7 +337,6 @@ struct WindowPlaybackRootView<
                 idealHeight: geometryPolicy.idealSize?.height,
                 maxHeight: geometryPolicy.maximumSize?.height
             )
-            #if os(visionOS)
             .background {
                 WindowPlaybackSceneReader { windowScene in
                     guard owningWindowScene !== windowScene else { return }
@@ -325,7 +358,6 @@ struct WindowPlaybackRootView<
                     size: freeformSizeOnDisappear()
                 )
             }
-            #endif
     }
 
     private var layeredContent: some View {
@@ -383,14 +415,10 @@ struct WindowPlaybackRootView<
                     Color.clear
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                         .contentShape(Rectangle())
-                        #if os(visionOS)
                         .gesture(
                             SpatialTapGesture()
                                 .onEnded { _ in onSurfaceTap() }
                         )
-                        #else
-                        .onTapGesture(perform: onSurfaceTap)
-                        #endif
                         .accessibilityAddTraits(.isButton)
                         .accessibilityLabel("Playback surface")
                         .accessibilityIdentifier("PlayerUI-window-playback-surface")
@@ -427,7 +455,6 @@ struct WindowPlaybackRootView<
         .allowsHitTesting(false)
     }
 
-    #if os(visionOS)
     private func updateWindowGeometry(in windowScene: UIWindowScene?) {
         guard let windowScene else { return }
         windowScene.requestGeometryUpdate(
@@ -502,11 +529,9 @@ struct WindowPlaybackRootView<
             resizingRestrictions: .freeform
         )
     }
-    #endif
 }
 
-#if os(visionOS)
-private struct WindowPlaybackSceneReader: UIViewRepresentable {
+struct WindowPlaybackSceneReader: UIViewRepresentable {
     let onChange: @MainActor (UIWindowScene?) -> Void
 
     func makeUIView(context: Context) -> WindowPlaybackSceneReportingView {
@@ -522,7 +547,7 @@ private struct WindowPlaybackSceneReader: UIViewRepresentable {
     }
 }
 
-private final class WindowPlaybackSceneReportingView: UIView {
+final class WindowPlaybackSceneReportingView: UIView {
     var onChange: @MainActor (UIWindowScene?) -> Void
     private weak var reportedScene: UIWindowScene?
 
@@ -549,4 +574,3 @@ private final class WindowPlaybackSceneReportingView: UIView {
         onChange(nextScene)
     }
 }
-#endif

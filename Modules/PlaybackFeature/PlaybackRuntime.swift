@@ -130,6 +130,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     public var onPlaybackEnded: (() -> Void)?
     public var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)?
+    public var onPlaybackObservation: ((PlaybackRuntimeObservation) -> Void)?
+    public private(set) var observationGeneration: UInt64 = 0
     @ObservationIgnored
     private var sessionLifecycleHandler: ((SessionLifecycleEvent) -> Void)?
     @ObservationIgnored
@@ -368,6 +370,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
+        if currentLaunchRequest == nil || currentLaunchRequest != request {
+            observationGeneration &+= 1
+        }
         currentLaunchRequest = request
         prefetchedMetadata = request.initialMetadata
         playbackPosition = .init(seconds: 0, duration: 0)
@@ -805,6 +810,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let behavior = Self.coreAfterSeekBehavior(for: intent)
         seekIntentGeneration &+= 1
         let seekGeneration = seekIntentGeneration
+        let playbackObservationGeneration = observationGeneration
         seekIsInProgress = true
         Task { [weak self] in
             guard let self else { return }
@@ -817,6 +823,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 try await controller.seek(
                     to: CMTime(seconds: target, preferredTimescale: 600),
                     after: behavior
+                )
+                emitPlaybackObservation(
+                    .seekCompleted(positionSeconds: target),
+                    generation: playbackObservationGeneration
                 )
             } catch let error as PlaybackControlError {
                 if case .seekSuperseded = error { return }
@@ -836,8 +846,15 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             targetBoundary: .beforeEnd
         )
         let behavior = Self.coreAfterSeekBehavior(for: intent)
+        let target = max(
+            0,
+            playbackPosition.duration > 0
+                ? min(playbackPosition.duration, playbackPosition.seconds + delta)
+                : playbackPosition.seconds + delta
+        )
         seekIntentGeneration &+= 1
         let seekGeneration = seekIntentGeneration
+        let playbackObservationGeneration = observationGeneration
         seekIsInProgress = true
         Task { [weak self] in
             guard let self else { return }
@@ -850,6 +867,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 try await controller.seek(
                     by: CMTime(seconds: delta, preferredTimescale: 600),
                     after: behavior
+                )
+                emitPlaybackObservation(
+                    .seekCompleted(positionSeconds: target),
+                    generation: playbackObservationGeneration
                 )
             } catch let error as PlaybackControlError {
                 if case .seekSuperseded = error { return }
@@ -982,6 +1003,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func replay() {
         resetActualPlaybackSampling()
         invalidatePendingDisplayedImageClear()
+        let playbackObservationGeneration = observationGeneration
         Task { [weak self] in
             guard let self else { return }
             do {
@@ -990,6 +1012,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 )
                 recordAudioSessionFact()
                 try await controller.seek(to: .zero, after: .play)
+                emitPlaybackObservation(
+                    .seekCompleted(positionSeconds: 0),
+                    generation: playbackObservationGeneration
+                )
                 try controller.play()
             } catch {
                 fail(error)
@@ -1346,6 +1372,9 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     @discardableResult
     private func beginStop(releasingSourceAccess: Bool) -> Task<Void, Never>? {
+        if currentLaunchRequest != nil {
+            emitPlaybackObservation(.stopped)
+        }
         generation += 1
         startsWhenAttached = false
         detach()
@@ -1888,11 +1917,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     private var platformName: String {
-#if os(macOS)
-        "macOS"
-#else
         "visionOS"
-#endif
     }
 
     private static func observedFact(_ value: String?) -> ObservedStringFact {
@@ -1914,12 +1939,23 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         invalidatePendingDisplayedImageClear()
         let rate = diagnostics.nominalFrameRate > 0 ? diagnostics.nominalFrameRate : 30
         let offset = direction / rate
+        let target = max(
+            0,
+            playbackPosition.duration > 0
+                ? min(playbackPosition.duration, playbackPosition.seconds + offset)
+                : playbackPosition.seconds + offset
+        )
+        let playbackObservationGeneration = observationGeneration
         Task { [weak self] in
             guard let self else { return }
             do {
                 try await controller.seek(
                     by: CMTime(seconds: offset, preferredTimescale: 60_000),
                     after: .pause
+                )
+                emitPlaybackObservation(
+                    .seekCompleted(positionSeconds: target),
+                    generation: playbackObservationGeneration
                 )
             } catch let error as PlaybackControlError {
                 if case .seekSuperseded = error { return }
@@ -1933,6 +1969,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private func receive(_ status: PlaybackStatus) {
         if receiveReplacementStatus(status) { return }
         lifecycle = status
+        emitPlaybackObservation(.lifecycle(productLifecycle))
         switch status {
         case .idle, .loading:
             break
@@ -2024,6 +2061,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 duration: diagnostics.durationSeconds
             )
         }
+        emitPlaybackObservation(
+            .diagnostics(
+                position: playbackPosition,
+                actualPlaybackSeconds: actualPlaybackSeconds
+            )
+        )
         guard let request = currentLaunchRequest,
               let profile = profile(from: diagnostics) else { return }
         guard profile != lastResolvedProfile else { return }
@@ -2042,6 +2085,18 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     private func resetActualPlaybackSampling() {
         actualPlaybackAccumulator.markDiscontinuity()
+    }
+
+    private func emitPlaybackObservation(
+        _ event: PlaybackRuntimeObservation.Event,
+        generation: UInt64? = nil
+    ) {
+        onPlaybackObservation?(
+            PlaybackRuntimeObservation(
+                generation: generation ?? observationGeneration,
+                event: event
+            )
+        )
     }
 
     private func invalidatePendingDisplayedImageClear() {

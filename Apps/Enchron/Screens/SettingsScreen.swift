@@ -3,11 +3,7 @@ import MediaLibrary
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
-#if canImport(UIKit)
 import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
 
 struct SettingsScreen: View {
     @Environment(AppModel.self) private var appModel
@@ -58,8 +54,6 @@ struct SettingsScreen: View {
                 containerIdentifier: "Settings-MainWindow-sidebar",
                 identifierPrefix: "Settings"
             )
-            .padding(.leading, DesignTokens.SourceSidebar.windowInset)
-            .padding(.vertical, DesignTokens.SourceSidebar.windowInset)
 
             detail
         }
@@ -309,12 +303,7 @@ struct SettingsScreen: View {
     }
 
     private func copy(_ string: String) {
-        #if canImport(UIKit)
         UIPasteboard.general.string = string
-        #elseif canImport(AppKit)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(string, forType: .string)
-        #endif
     }
 
     private func refreshCacheUsage() async {

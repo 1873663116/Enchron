@@ -170,14 +170,12 @@ struct MediaLibraryTests {
         #expect(fileManager.fileExists(atPath: unrelatedDestination.path) == false)
     }
 
-    @Test("the unsandboxed macOS host does not request a sandbox security scope")
+    @Test("bookmark creation asks for the minimal bookmark")
     @MainActor
-    func macOSBookmarkMatchesTheTargetSandboxModel() {
-        #if os(macOS)
+    func bookmarkCreationMatchesTheTargetSandboxModel() {
         #expect(
             SecurityScopedFileReferenceResolver.bookmarkCreationOptions
-                .contains(.withSecurityScope) == false
+                == .minimalBookmark
         )
-        #endif
     }
 }

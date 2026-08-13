@@ -10,6 +10,26 @@ public enum ProductPlaybackLifecycle: String, Codable, Sendable, Equatable {
     case failed
 }
 
+public struct PlaybackRuntimeObservation: Sendable, Equatable {
+    public enum Event: Sendable, Equatable {
+        case diagnostics(
+            position: PlaybackModel.PlaybackPosition,
+            actualPlaybackSeconds: Double
+        )
+        case lifecycle(ProductPlaybackLifecycle)
+        case seekCompleted(positionSeconds: Double)
+        case stopped
+    }
+
+    public let generation: UInt64
+    public let event: Event
+
+    public init(generation: UInt64, event: Event) {
+        self.generation = generation
+        self.event = event
+    }
+}
+
 @MainActor
 public protocol PlaybackRuntimeControlling: AnyObject {
     var productLifecycle: ProductPlaybackLifecycle { get }
@@ -33,7 +53,9 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     var availableSubtitleTracks: [PlaybackModel.SubtitleTrack] { get }
     var currentSubtitleTrackID: String? { get }
     var lastErrorMessage: String? { get set }
+    var observationGeneration: UInt64 { get }
     var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)? { get set }
+    var onPlaybackObservation: ((PlaybackRuntimeObservation) -> Void)? { get set }
 
     func prepareForPlayback(_ request: PlaybackLaunchRequest)
     func applyPrefetchedMetadata(_ metadata: PlaybackMediaMetadata)

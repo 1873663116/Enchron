@@ -1780,7 +1780,6 @@ struct PlaybackPresentationStateTests {
         #expect((0.10...0.15).contains(EnvironmentCardRevealMotion.crossFadeDuration))
     }
 
-    #if os(visionOS)
     @Test("ended and replaced sessions invalidate the previous Media Session")
     @MainActor
     func lifecycleEventsShareTheProductionInvalidationPath() {
@@ -2040,7 +2039,6 @@ struct PlaybackPresentationStateTests {
         #expect(registry.currentCapability == "main-root")
         #expect(registry.isLive(mainClaim.lease))
     }
-    #endif
 
     @Test("ended transport exposes Replay and disables forward movement")
     func endedTransportContract() {

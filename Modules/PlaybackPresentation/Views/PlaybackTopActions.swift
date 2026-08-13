@@ -249,12 +249,9 @@ struct PlaybackVideoFormatEditor: View {
                 label: projectionTitle
             )
 
-            Menu {
+            Picker(selection: customAngleSelection) {
                 ForEach(PanoramaHorizontalCoverage.selectableAngles, id: \.self) { degrees in
-                    Button("\(degrees)°") {
-                        projection = .customAngle
-                        horizontalFieldOfViewDegrees = degrees
-                    }
+                    Text("\(degrees)°").tag(Optional(degrees))
                 }
             } label: {
                 Label(
@@ -292,6 +289,19 @@ struct PlaybackVideoFormatEditor: View {
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    /// The angle in force, or nothing at all when the projection is not the custom one: an angle is
+    /// only the current selection while the projection it belongs to is the one being used.
+    private var customAngleSelection: Binding<Int?> {
+        Binding(
+            get: { projection == .customAngle ? horizontalFieldOfViewDegrees : nil },
+            set: { value in
+                guard let value else { return }
+                projection = .customAngle
+                horizontalFieldOfViewDegrees = value
+            }
+        )
     }
 
     private func formatPicker<Value: Hashable>(

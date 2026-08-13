@@ -1,9 +1,9 @@
 import DesignSystem
+import Emby
 import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
-import UIKit
 
 enum PlaybackSurfaceMountPolicy {
     static func shouldMount(showsWindowPlayback: Bool) -> Bool {
@@ -189,6 +189,8 @@ public struct MainView: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackVideoEntityStore.self) private var playbackVideoEntityStore
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @Environment(EmbySessionViewModel.self) private var embySession
+    @Environment(EmbyHomeViewModel.self) private var embyHome
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
 
@@ -331,8 +333,11 @@ public struct MainView: View {
                 showsWindowPlayback: showsWindowPlayback
             ) {
                 windowPlayback
+                    .transition(.opacity)
             } else {
                 browserWindowSurface
+                    .browserWindowGeometry()
+                    .transition(.opacity)
             }
 
             if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1" {
@@ -396,11 +401,23 @@ public struct MainView: View {
         TabView(selection: browserTabSelection) {
             Tab("Files", systemImage: "folder", value: AppModel.NavigationTab.files) {
                 FilesScreen()
+                    .enchronScreenAppearance()
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-files")
 
+            Tab("Emby", systemImage: "play.tv.fill", value: AppModel.NavigationTab.emby) {
+                EmbyScreen { selection in
+                    let request = try await embySession.playbackRequest(for: selection)
+                    AppModel.recordProbe("openRequestForwarded")
+                    playbackLauncher.requestPlayback(request)
+                }
+                .enchronScreenAppearance()
+            }
+            .accessibilityIdentifier("Emby-Navigation-Tab")
+
             Tab("Settings", systemImage: "gearshape", value: AppModel.NavigationTab.settings) {
                 SettingsScreen()
+                    .enchronScreenAppearance()
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-settings")
 
@@ -413,6 +430,18 @@ public struct MainView: View {
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-environment")
         }
+        // Loads the Emby home page at launch rather than when its tab is first opened, so its
+        // artwork is already decoded and the page does not stall on the way in.
+        .task {
+            guard embySession.server != nil, embyHome.shelves.isEmpty else { return }
+            await embyHome.refresh()
+        }
+#if DEBUG
+        .task {
+            guard EmbyLaunchRoute.current != nil else { return }
+            appModel.selectedTab = .emby
+        }
+#endif
     }
 
     private var browserTabSelection: Binding<AppModel.NavigationTab> {
@@ -1004,7 +1033,6 @@ private struct PlaybackAutomationStateProbe: View {
     }
 }
 
-#if os(visionOS)
 struct ImmersivePlaybackControlsAttachmentView: View {
     let presentation: PlaybackPresentation
     @Environment(AppModel.self) private var appModel
@@ -1268,4 +1296,3 @@ private func environmentAccessibilityValues(
         (environment.rawValue, effect?.rawValue ?? "none")
     }
 }
-#endif

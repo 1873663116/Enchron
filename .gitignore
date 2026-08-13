@@ -1,4 +1,4 @@
-# macOS
+# Finder metadata
 .DS_Store
 
 # Local agent/tooling
@@ -36,3 +36,5 @@ Modules/PlaybackPresentation/Resources/Immersive_Space.reality
 
 # Plaintext device-test credentials, local-only
 .env
+# Emby test credentials — local only, filled by the maintainer
+*.local.json

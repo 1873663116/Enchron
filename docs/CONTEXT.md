@@ -12,6 +12,9 @@
 **Library Folder**：Media Library 中由用户管理的虚拟分类容器。它不是本地文件系统或远程服务中的目录。
 **Source Directory**：本地文件系统或远程服务实际拥有的目录。它不属于 Enchron 的虚拟媒体分类。
 
+**File Source**：直接提供目录结构与文件字节流的媒体来源，如本地、SMB、WebDAV。它不提供媒体实体、元数据或服务器端用户状态。
+**Emby Source**：提供媒体实体、元数据与服务器端用户状态的媒体服务器来源。它不是 File Source；其媒体流仍以 HTTP 直连交给播放核心。
+
 **Media Reference**：从 Media Library 指向来源媒体的持久引用。它是访问入口，不是底层媒体的身份。
 **Media Identity**：Enchron 用于判断不同入口是否指向同一底层媒体的稳定身份。它独立于 Media Reference。
 **Content Revision**：同一 Media Identity 对应内容的版本凭据。它用于区分媒体身份未变但内容已经变化的情况。
@@ -19,6 +22,7 @@
 **Playback Collection**：用户开始播放时，本次连续播放可以包含媒体的范围。它不是已经生成的播放顺序。
 **Playback Queue**：从 Playback Collection 生成的本次播放顺序。它与之后继续变化的浏览结果分离。
 **Persistent Viewing State**：Enchron 为同一 Media Identity 保存的可恢复位置或已看完状态。它不是通用观看历史。
+**Viewing State Authority**：一次播放会话的观看状态权威，取值为 Enchron 持久化或媒体服务器之一。它决定播放结束时进度与观看状态写向何处。
 
 ## 空间环境
 

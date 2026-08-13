@@ -3,13 +3,9 @@ import SwiftUI
 public enum EnchronPressSensoryFeedback {
     case button
     case iconOnly
-    /// visionOS slider thumb touch-down (`press(.slider)`).
     case slider
-    /// visionOS slider thumb touch-up (`release(.slider)`).
     case sliderRelease
-    /// Discrete step upward (`increase`); plays on visionOS.
     case increase
-    /// Discrete step downward (`decrease`); plays on visionOS.
     case decrease
     case selectionMinimum
     case selectionMaximum
@@ -36,7 +32,6 @@ public extension View {
         _ feedback: EnchronPressSensoryFeedback,
         trigger: T
     ) -> some View {
-        #if os(visionOS)
         switch feedback {
         case .button:
             sensoryFeedback(.press(.button), trigger: trigger)
@@ -57,9 +52,6 @@ public extension View {
         case .selectionOn:
             sensoryFeedback(.selection(.on), trigger: trigger)
         }
-        #else
-        self
-        #endif
     }
 
     /// Press / release for a scrubbing control, plus selection min/max when the
@@ -93,7 +85,6 @@ private struct EnchronScrubSensoryModifier: ViewModifier {
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        #if os(visionOS)
         content
             .enchronPressSensoryFeedback(.slider, trigger: pressTrigger)
             .enchronPressSensoryFeedback(.sliderRelease, trigger: releaseTrigger)
@@ -105,9 +96,6 @@ private struct EnchronScrubSensoryModifier: ViewModifier {
                 case .none: return nil
                 }
             }
-        #else
-        content
-        #endif
     }
 }
 

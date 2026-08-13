@@ -1069,19 +1069,15 @@ public final class PlaybackCoreController {
     }
 
     private var platformName: String {
-#if os(visionOS)
-    #if targetEnvironment(simulator)
+#if targetEnvironment(simulator)
         "visionOSSimulator"
-    #else
-        "visionOS"
-    #endif
 #else
-        "macOS"
+        "visionOS"
 #endif
     }
 
     private var hardwareDisplayFactAvailability: FactAvailability {
-#if os(visionOS) && !targetEnvironment(simulator)
+#if !targetEnvironment(simulator)
         .unknown
 #else
         .notAvailable

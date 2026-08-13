@@ -1,6 +1,7 @@
 import Foundation
 import MediaSource
 import PlaybackFeature
+import Synchronization
 import Testing
 
 @MainActor
@@ -560,6 +561,274 @@ struct TrackSelectionPreferenceTests {
         #expect(reopenedRuntime.currentSubtitleTrackID == externalTrack.id)
     }
 
+    @Test("launch request viewing authority defaults locally and survives metadata updates")
+    func launchRequestViewingAuthorityContract() {
+        let reporter = RecordingPlaybackSessionReporter()
+        let request = Self.request(
+            revision: "revision-a",
+            authority: .mediaServer,
+            startPositionSeconds: 37,
+            reporter: reporter
+        )
+        let sameRequestWithAnotherReporter = Self.request(
+            revision: "revision-a",
+            authority: .mediaServer,
+            startPositionSeconds: 37,
+            reporter: RecordingPlaybackSessionReporter()
+        )
+        let differentStart = Self.request(
+            revision: "revision-a",
+            authority: .mediaServer,
+            startPositionSeconds: 38,
+            reporter: reporter
+        )
+        let defaultRequest = Self.request(revision: "revision-a")
+        let updated = request.updating(
+            metadata: PlaybackMediaMetadata(fileSizeInBytes: 2_048)
+        )
+
+        #expect(defaultRequest.viewingStateAuthority == .enchronPersistence)
+        #expect(defaultRequest.startPositionSeconds == nil)
+        #expect(defaultRequest.sessionReporter == nil)
+        #expect(request == sameRequestWithAnotherReporter)
+        #expect(request != differentStart)
+        #expect(updated.viewingStateAuthority == .mediaServer)
+        #expect(updated.startPositionSeconds == 37)
+        #expect((updated.sessionReporter as AnyObject?) === reporter)
+    }
+
+    @Test("media server authority ignores local viewing and track state")
+    func mediaServerAuthorityKeepsOnlyLocalPresentationPreferences() async throws {
+        let suiteName = "app.enchron.tests.server-authority.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let reporter = RecordingPlaybackSessionReporter()
+        let request = Self.request(
+            revision: "revision-a",
+            authority: .mediaServer,
+            startPositionSeconds: 321,
+            reporter: reporter
+        )
+        let identity = try #require(request.versionedIdentity)
+        let seededViewingStatus = ViewingStatus.resumable(
+            positionSeconds: 120,
+            durationSeconds: 1_200
+        )
+        let store = MediaStateStore(suiteName: suiteName)
+        await store.applyViewingMutation(.save(seededViewingStatus), for: identity)
+        await store.saveAudioTrackSelection(id: Self.audioTracks[1].id, for: identity)
+        await store.saveSubtitleTrackSelection(
+            .track(id: Self.subtitleTracks[1].id),
+            for: identity
+        )
+        await store.saveFormat(
+            MediaFormat(projection: .equirectangular180, stereoLayout: .sideBySide),
+            for: identity
+        )
+        await store.savePlaybackMode(.panorama, for: identity)
+
+        let runtime = TrackSelectionRuntime(
+            audioTracks: Self.audioTracks,
+            subtitleTracks: Self.subtitleTracks
+        )
+        let coordinator = PlaybackLaunchCoordinator(
+            playbackRuntime: runtime,
+            mediaStateSuiteName: suiteName,
+            preferencesProvider: AskToResumePreferences()
+        )
+        var resolvedMode: PersistedPlaybackMode?
+        coordinator.onPlaybackModeEntryStarted = { mode, _ in
+            resolvedMode = mode
+            return mode
+        }
+        coordinator.beginPlayback(request)
+        try await runtime.waitUntilConfigured()
+
+        #expect(coordinator.pendingResumeDecision == nil)
+        #expect(runtime.lastStartTimeSeconds == 321)
+        #expect(runtime.currentAudioTrackID == Self.audioTracks[0].id)
+        #expect(runtime.currentSubtitleTrackID == Self.subtitleTracks[0].id)
+        #expect(runtime.lastAppliedFormat?.projection == .equirectangular180)
+        #expect(resolvedMode == .panorama)
+
+        try await coordinator.selectAudioTrack(Self.audioTracks[0])
+        try await coordinator.selectSubtitleTrack(nil)
+        try await coordinator.applyFormat(projection: .flat, stereo: .mono)
+        coordinator.savePlaybackMode(.window)
+        runtime.playbackPosition = .init(seconds: 480, duration: 1_200)
+        runtime.actualPlaybackSeconds = 120
+        coordinator.stopPlayback()
+        try await Self.waitUntilPersistedState(
+            in: store,
+            identity: identity,
+            satisfies: {
+                $0.formatPreference == .standard && $0.playbackModePreference == .window
+            }
+        )
+
+        let persisted = try #require(await store.loadValidated(for: identity))
+        #expect(persisted.viewingStatus == seededViewingStatus)
+        #expect(persisted.trackSelectionPreference?.audioTrackID == Self.audioTracks[1].id)
+        #expect(
+            persisted.trackSelectionPreference?.subtitleTrack
+                == .track(id: Self.subtitleTracks[1].id)
+        )
+        #expect(persisted.formatPreference == .standard)
+        #expect(persisted.playbackModePreference == .window)
+    }
+
+    @Test("media server reporting preserves cadence and immediate state")
+    func mediaServerReportingPreservesCadenceAndImmediateState() async throws {
+        let suiteName = "app.enchron.tests.server-reporting.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let reporter = RecordingPlaybackSessionReporter()
+        let runtime = TrackSelectionRuntime(
+            audioTracks: Self.audioTracks,
+            subtitleTracks: Self.subtitleTracks
+        )
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        coordinator.beginPlayback(
+            Self.request(
+                revision: "revision-a",
+                authority: .mediaServer,
+                reporter: reporter
+            )
+        )
+        try await runtime.waitUntilConfigured()
+
+        runtime.emitLifecycle(.playing)
+        runtime.emitDiagnostics(positionSeconds: 9, actualPlaybackSeconds: 9)
+        runtime.emitDiagnostics(positionSeconds: 10, actualPlaybackSeconds: 25)
+        runtime.emitLifecycle(.paused, positionSeconds: 12)
+        runtime.emitSeekCompleted(positionSeconds: 42)
+        try await coordinator.selectAudioTrack(Self.audioTracks[1])
+        try await coordinator.selectSubtitleTrack(Self.subtitleTracks[1])
+        runtime.emitLifecycle(.playing)
+        runtime.emitDiagnostics(positionSeconds: 49, actualPlaybackSeconds: 29)
+        runtime.emitDiagnostics(positionSeconds: 50, actualPlaybackSeconds: 30)
+        coordinator.stopPlayback()
+
+        let calls = reporter.calls
+        #expect(calls.count == 9)
+        #expect(calls[0] == .started(.init(
+            positionSeconds: 0,
+            isPaused: false,
+            selectedAudioTrackID: Self.audioTracks[0].id,
+            selectedSubtitleTrackID: Self.subtitleTracks[0].id
+        )))
+        #expect(calls[1].progressedReport?.positionSeconds == 10)
+        #expect(calls[2].progressedReport?.isPaused == true)
+        #expect(calls[2].progressedReport?.positionSeconds == 12)
+        #expect(calls[3].progressedReport?.positionSeconds == 42)
+        #expect(calls[4].progressedReport?.selectedAudioTrackID == Self.audioTracks[1].id)
+        #expect(
+            calls[5].progressedReport?.selectedSubtitleTrackID == Self.subtitleTracks[1].id
+        )
+        #expect(calls[6].progressedReport?.isPaused == false)
+        #expect(calls[7].progressedReport?.positionSeconds == 50)
+        #expect(calls[8].stoppedReport?.positionSeconds == 50)
+        #expect(calls[8].stoppedReport?.selectedAudioTrackID == Self.audioTracks[1].id)
+        #expect(calls[8].stoppedReport?.selectedSubtitleTrackID == Self.subtitleTracks[1].id)
+    }
+
+    @Test("coordinator and direct runtime stops each report once")
+    func coordinatorAndDirectRuntimeStopsEachReportOnce() async throws {
+        let suiteName = "app.enchron.tests.server-stop.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        let coordinatorReporter = RecordingPlaybackSessionReporter()
+        let coordinatorRuntime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(
+            runtime: coordinatorRuntime,
+            suiteName: suiteName
+        )
+        coordinator.beginPlayback(Self.request(
+            revision: "coordinator-stop",
+            authority: .mediaServer,
+            reporter: coordinatorReporter
+        ))
+        try await coordinatorRuntime.waitUntilConfigured()
+        coordinatorRuntime.emitLifecycle(.playing)
+        coordinator.stopPlayback()
+        coordinatorRuntime.emitStopped()
+        coordinatorRuntime.emitLifecycle(.failed)
+        #expect(coordinatorReporter.stoppedCount == 1)
+
+        let runtimeReporter = RecordingPlaybackSessionReporter()
+        let directRuntime = TrackSelectionRuntime()
+        let directCoordinator = Self.coordinator(runtime: directRuntime, suiteName: suiteName)
+        directCoordinator.beginPlayback(Self.request(
+            revision: "runtime-stop",
+            authority: .mediaServer,
+            reporter: runtimeReporter
+        ))
+        try await directRuntime.waitUntilConfigured()
+        directRuntime.emitLifecycle(.playing)
+        let generation = directRuntime.observationGeneration
+        directRuntime.stop(releasingSourceAccess: true)
+        directRuntime.emitStopped(generation: generation)
+        directRuntime.emitLifecycle(.ended, generation: generation)
+        #expect(runtimeReporter.stoppedCount == 1)
+    }
+
+    @Test("replacement finishes interrupted reporting and ignores stale observations")
+    func replacementFinishesInterruptedReportingAndIgnoresStaleObservations() async throws {
+        let suiteName = "app.enchron.tests.server-replacement.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+        let firstReporter = RecordingPlaybackSessionReporter()
+        let secondReporter = RecordingPlaybackSessionReporter()
+        let runtime = TrackSelectionRuntime()
+        let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+        runtime.suspendNextOpen()
+        coordinator.beginPlayback(Self.request(
+            revision: "first",
+            authority: .mediaServer,
+            reporter: firstReporter
+        ))
+        try await runtime.waitUntilOpenIsSuspended()
+        let staleGeneration = runtime.observationGeneration
+
+        coordinator.beginPlayback(Self.request(
+            revision: "second",
+            authority: .mediaServer,
+            reporter: secondReporter
+        ))
+        try await runtime.waitUntilCurrentRevisionIs("second")
+        runtime.resumeSuspendedOpen()
+        await Task.yield()
+
+        #expect(firstReporter.stoppedCount == 1)
+        runtime.emitStopped(generation: staleGeneration)
+        runtime.emitLifecycle(.failed, generation: staleGeneration)
+        #expect(secondReporter.stoppedCount == 0)
+        coordinator.stopPlayback()
+        #expect(secondReporter.stoppedCount == 1)
+    }
+
+    @Test("natural end and runtime failure each report one stop")
+    func naturalEndAndRuntimeFailureEachReportOneStop() async throws {
+        let suiteName = "app.enchron.tests.server-terminal.\(UUID().uuidString)"
+        defer { UserDefaults.standard.removePersistentDomain(forName: suiteName) }
+
+        for lifecycle in [ProductPlaybackLifecycle.ended, .failed] {
+            let reporter = RecordingPlaybackSessionReporter()
+            let runtime = TrackSelectionRuntime()
+            let coordinator = Self.coordinator(runtime: runtime, suiteName: suiteName)
+            coordinator.beginPlayback(Self.request(
+                revision: lifecycle.rawValue,
+                authority: .mediaServer,
+                reporter: reporter
+            ))
+            try await runtime.waitUntilConfigured()
+            runtime.emitLifecycle(.playing)
+            runtime.emitLifecycle(lifecycle, positionSeconds: 75)
+            runtime.emitStopped()
+            runtime.emitLifecycle(lifecycle)
+
+            #expect(reporter.stoppedCount == 1)
+            #expect(reporter.calls.last?.stoppedReport?.positionSeconds == 75)
+        }
+    }
+
     private static let audioTracks = [
         PlaybackModel.AudioTrack(
             id: "audio.main",
@@ -599,7 +868,12 @@ struct TrackSelectionPreferenceTests {
         )
     }
 
-    private static func request(revision: String) -> PlaybackLaunchRequest {
+    private static func request(
+        revision: String,
+        authority: ViewingStateAuthority = .enchronPersistence,
+        startPositionSeconds: Double? = nil,
+        reporter: (any PlaybackSessionReporting)? = nil
+    ) -> PlaybackLaunchRequest {
         let identity = VersionedMediaIdentity(
             mediaIdentity: .remote(sourceKey: "test-source", canonicalPath: "/Movie.mkv"),
             contentRevision: .remote(entityTag: revision, sizeInBytes: 1_024)
@@ -607,8 +881,26 @@ struct TrackSelectionPreferenceTests {
         return PlaybackLaunchRequest(
             url: URL(string: "https://example.invalid/Movie.mkv")!,
             displayName: "Movie.mkv",
-            versionedIdentity: identity
+            versionedIdentity: identity,
+            viewingStateAuthority: authority,
+            startPositionSeconds: startPositionSeconds,
+            sessionReporter: reporter
         )
+    }
+
+    private static func waitUntilPersistedState(
+        in store: MediaStateStore,
+        identity: VersionedMediaIdentity,
+        satisfies predicate: (PersistedMediaState) -> Bool
+    ) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while ContinuousClock.now < deadline {
+            if let state = await store.loadValidated(for: identity), predicate(state) {
+                return
+            }
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        Issue.record("Persisted media state did not reach the expected value")
     }
 }
 
@@ -621,6 +913,54 @@ private struct StartFromBeginningPreferences: PlaybackPreferencesProviding {
 private struct AskToResumePreferences: PlaybackPreferencesProviding {
     func loadPlaybackPreferences() -> PlaybackPreferences {
         PlaybackPreferences(resumePolicy: .askEveryTime)
+    }
+}
+
+private enum PlaybackSessionReporterCall: Equatable {
+    case started(PlaybackSessionReport)
+    case progressed(PlaybackSessionReport)
+    case stopped(PlaybackSessionReport)
+
+    var progressedReport: PlaybackSessionReport? {
+        guard case .progressed(let report) = self else { return nil }
+        return report
+    }
+
+    var stoppedReport: PlaybackSessionReport? {
+        guard case .stopped(let report) = self else { return nil }
+        return report
+    }
+}
+
+private final class RecordingPlaybackSessionReporter: PlaybackSessionReporting {
+    private let recordedCalls = Mutex<[PlaybackSessionReporterCall]>([])
+
+    var calls: [PlaybackSessionReporterCall] {
+        recordedCalls.withLock { $0 }
+    }
+
+    var stoppedCount: Int {
+        calls.count { call in
+            if case .stopped = call { true } else { false }
+        }
+    }
+
+    func playbackStarted(_ report: PlaybackSessionReport) {
+        recordedCalls.withLock {
+            $0.append(.started(report))
+        }
+    }
+
+    func playbackProgressed(_ report: PlaybackSessionReport) {
+        recordedCalls.withLock {
+            $0.append(.progressed(report))
+        }
+    }
+
+    func playbackStopped(_ report: PlaybackSessionReport) {
+        recordedCalls.withLock {
+            $0.append(.stopped(report))
+        }
     }
 }
 
@@ -656,7 +996,9 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var actualPlaybackSeconds: Double = 0
     var didEndNaturally = false
     var lastErrorMessage: String?
+    private(set) var observationGeneration: UInt64 = 0
     var onMediaProfileResolved: ((PlaybackLaunchRequest, PlaybackModel.MediaProfile) -> Void)?
+    var onPlaybackObservation: ((PlaybackRuntimeObservation) -> Void)?
     let availableAudioTracks: [PlaybackModel.AudioTrack]
     private(set) var currentAudioTrackID: String?
     let availableSubtitleTracks: [PlaybackModel.SubtitleTrack]
@@ -669,6 +1011,8 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     var nextFormatApplicationError: TestError?
     private var suspendsNextFormatApplication = false
     private var suspendedFormatApplicationContinuation: CheckedContinuation<Void, Never>?
+    private var suspendsNextOpen = false
+    private var suspendedOpenContinuation: CheckedContinuation<Void, Never>?
 
     init(
         audioTracks: [PlaybackModel.AudioTrack] = [],
@@ -681,6 +1025,9 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     }
 
     func prepareForPlayback(_ request: PlaybackLaunchRequest) {
+        if currentLaunchRequest == nil || currentLaunchRequest != request {
+            observationGeneration &+= 1
+        }
         currentLaunchRequest = request
         productLifecycle = .loading
         activeMediaFormatProvenance = .source
@@ -698,6 +1045,13 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         initialFormat: MediaFormat?
     ) async throws {
         currentLaunchRequest = request
+        if suspendsNextOpen {
+            suspendsNextOpen = false
+            await withCheckedContinuation { continuation in
+                suspendedOpenContinuation = continuation
+            }
+            try Task.checkCancellation()
+        }
         activeSessionID = UUID().uuidString
         productLifecycle = .ready
         lastStartTimeSeconds = startTimeSeconds
@@ -752,6 +1106,9 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
     func replay() {}
 
     func stop(releasingSourceAccess: Bool) {
+        if currentLaunchRequest != nil {
+            emitStopped()
+        }
         productLifecycle = .idle
         currentLaunchRequest = nil
         activeSessionID = nil
@@ -819,6 +1176,83 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         suspendedFormatApplicationContinuation = nil
     }
 
+    func suspendNextOpen() {
+        suspendsNextOpen = true
+    }
+
+    func waitUntilOpenIsSuspended() async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while suspendedOpenContinuation == nil,
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(suspendedOpenContinuation != nil)
+    }
+
+    func resumeSuspendedOpen() {
+        suspendedOpenContinuation?.resume()
+        suspendedOpenContinuation = nil
+    }
+
+    func waitUntilCurrentRevisionIs(_ revision: String) async throws {
+        let deadline = ContinuousClock.now + .seconds(2)
+        while currentLaunchRequest?.versionedIdentity?.contentRevision
+                != .remote(entityTag: revision, sizeInBytes: 1_024),
+              ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+        #expect(
+            currentLaunchRequest?.versionedIdentity?.contentRevision
+                == .remote(entityTag: revision, sizeInBytes: 1_024)
+        )
+    }
+
+    func emitDiagnostics(
+        positionSeconds: Double,
+        actualPlaybackSeconds: Double,
+        generation: UInt64? = nil
+    ) {
+        playbackPosition = .init(
+            seconds: positionSeconds,
+            duration: playbackPosition.duration
+        )
+        self.actualPlaybackSeconds = actualPlaybackSeconds
+        emit(
+            .diagnostics(
+                position: playbackPosition,
+                actualPlaybackSeconds: actualPlaybackSeconds
+            ),
+            generation: generation
+        )
+    }
+
+    func emitLifecycle(
+        _ lifecycle: ProductPlaybackLifecycle,
+        positionSeconds: Double? = nil,
+        generation: UInt64? = nil
+    ) {
+        productLifecycle = lifecycle
+        if let positionSeconds {
+            playbackPosition = .init(
+                seconds: positionSeconds,
+                duration: playbackPosition.duration
+            )
+        }
+        emit(.lifecycle(lifecycle), generation: generation)
+    }
+
+    func emitSeekCompleted(positionSeconds: Double, generation: UInt64? = nil) {
+        playbackPosition = .init(
+            seconds: positionSeconds,
+            duration: playbackPosition.duration
+        )
+        emit(.seekCompleted(positionSeconds: positionSeconds), generation: generation)
+    }
+
+    func emitStopped(generation: UInt64? = nil) {
+        emit(.stopped, generation: generation)
+    }
+
     func waitForAudioTrack(id: String) async throws {
         let deadline = ContinuousClock.now + .seconds(2)
         while currentAudioTrackID != id, ContinuousClock.now < deadline {
@@ -852,5 +1286,17 @@ private final class TrackSelectionRuntime: PlaybackRuntimeControlling {
         case .sideBySide: .sideBySide
         case .topBottom: .topBottom
         }
+    }
+
+    private func emit(
+        _ event: PlaybackRuntimeObservation.Event,
+        generation: UInt64?
+    ) {
+        onPlaybackObservation?(
+            PlaybackRuntimeObservation(
+                generation: generation ?? observationGeneration,
+                event: event
+            )
+        )
     }
 }

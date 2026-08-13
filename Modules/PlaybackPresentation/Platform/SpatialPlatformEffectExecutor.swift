@@ -10,7 +10,6 @@ import SwiftUI
 import UIKit
 import VideoToolbox
 
-#if os(visionOS)
 enum SpatialPlatformImmersiveSpaceReconciliationPolicy {
     static func shouldRecordDisappearance(
         immersiveSpaceResidency: SpatialPlatformImmersiveSpaceResidency,
@@ -2083,4 +2082,3 @@ struct SpatialPlatformEffectExecutor: View {
             }
     }
 }
-#endif

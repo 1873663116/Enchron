@@ -782,8 +782,6 @@ public struct DetentedRangeSlider: View {
     }
 }
 
-/// visionOS detent ticks for glass sliders: end stops play selection min/max,
-/// mid notches play increase/decrease. Press and release stay on the host slider.
 private struct DetentedSliderTickSensoryModifier<Value: Comparable & Equatable>: ViewModifier {
     let value: Value
     let lowerBound: Value
@@ -791,15 +789,11 @@ private struct DetentedSliderTickSensoryModifier<Value: Comparable & Equatable>:
 
     @ViewBuilder
     func body(content: Content) -> some View {
-        #if os(visionOS)
         content.sensoryFeedback(trigger: value) { old, new in
             if new == old { return nil }
             if new == lowerBound { return .selection(.minimum) }
             if new == upperBound { return .selection(.maximum) }
             return new > old ? .increase : .decrease
         }
-        #else
-        content
-        #endif
     }
 }

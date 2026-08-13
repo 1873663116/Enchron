@@ -211,7 +211,6 @@ extract \
   "$BUILD_ROOT/freetype-$FREETYPE_HVF_COMMIT.tar.gz" \
   "$BUILD_ROOT/freetype-$FREETYPE_HVF_COMMIT"
 
-build_slice macos27-arm64 macosx arm64 arm64-apple-macos27.0 aarch64 aarch64-apple-darwin
 build_slice xros27-arm64 xros arm64 arm64-apple-xros27.0 aarch64 aarch64-apple-darwin
 build_slice xrsimulator27-arm64 xrsimulator arm64 arm64-apple-xros27.0-simulator aarch64 aarch64-apple-darwin
 build_slice xrsimulator27-x86_64 xrsimulator x86_64 x86_64-apple-xros27.0-simulator x86_64 x86_64-apple-darwin
@@ -225,9 +224,7 @@ lipo -create \
 cp "$BUILD_ROOT/prefix-$REVISION-xrsimulator27-arm64/include/ass/ass.h" "$SIMULATOR_DIR/include/ass/"
 cp "$BUILD_ROOT/prefix-$REVISION-xrsimulator27-arm64/include/ass/ass_types.h" "$SIMULATOR_DIR/include/ass/"
 
-MACOS_HEADERS="$BUILD_ROOT/headers-$REVISION-macos27"
 XROS_HEADERS="$BUILD_ROOT/headers-$REVISION-xros27"
-stage_headers "$BUILD_ROOT/prefix-$REVISION-macos27-arm64" "$MACOS_HEADERS"
 stage_headers "$BUILD_ROOT/prefix-$REVISION-xros27-arm64" "$XROS_HEADERS"
 
 STAGING_ROOT="$(mktemp -d "$VENDOR_DIR/.subtitle-renderer.XXXXXX")"
@@ -241,8 +238,6 @@ cleanup_staging() {
 trap cleanup_staging EXIT
 
 xcodebuild -create-xcframework \
-  -library "$BUILD_ROOT/prefix-$REVISION-macos27-arm64/lib/libPlaybackSubtitleRenderer.a" \
-  -headers "$MACOS_HEADERS" \
   -library "$BUILD_ROOT/prefix-$REVISION-xros27-arm64/lib/libPlaybackSubtitleRenderer.a" \
   -headers "$XROS_HEADERS" \
   -library "$SIMULATOR_DIR/lib/libPlaybackSubtitleRenderer.a" \

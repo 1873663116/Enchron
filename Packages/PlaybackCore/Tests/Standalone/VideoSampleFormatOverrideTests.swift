@@ -1,9 +1,11 @@
 import CoreMedia
 import Foundation
+import Testing
+@testable import PlaybackCore
 
-@main
 struct VideoSampleFormatOverrideTests {
-    static func main() throws {
+    @Test("compressed video sample format overrides preserve their contract")
+    static func allOverridesPreserveTheirContract() throws {
         expect(
             Set(VideoStereoLayout.allCases) == Set([.mono, .sideBySide, .overUnder]),
             "stereo layout has exactly the accepted three values"
@@ -15,7 +17,6 @@ struct VideoSampleFormatOverrideTests {
         try panoramicProjectionOverridesPreservePayloadAndTiming()
         try monoKeepsTheRendererInputAsAPlainCompressedSample()
         try compressedProjectionAndPackingStayInTheFormatDescription()
-        print("GREEN video sample format override")
     }
 
     private static func sideBySideRewritesOnlyStereoFormatSignaling() throws {

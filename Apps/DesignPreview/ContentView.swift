@@ -8,6 +8,7 @@ import SwiftUI
 enum DesignPreviewPage: String, CaseIterable, Identifiable {
     // MARK: Components (front)
     case components
+    case embyComponents
     case sidebar
     case settingListGroup
     case slider
@@ -30,6 +31,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .components: "Components"
+        case .embyComponents: "Emby Poster Shelf"
         case .spacing: "Spacing"
         case .radiusAndShapes: "Radius & Shapes"
         case .interactionAndLayout: "Interaction & Layout"
@@ -64,6 +66,8 @@ struct ContentView: View {
             switch selection ?? .components {
             case .components:
                 ComponentLibraryView()
+            case .embyComponents:
+                EmbyPosterComponentsPreview()
             case .spacing:
                 SpacingScalePreview()
             case .radiusAndShapes:

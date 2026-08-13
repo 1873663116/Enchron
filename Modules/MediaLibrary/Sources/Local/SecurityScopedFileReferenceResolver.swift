@@ -17,11 +17,7 @@ final class SecurityScopedFileReferenceResolver {
     }
 
     nonisolated static var bookmarkCreationOptions: URL.BookmarkCreationOptions {
-        #if os(macOS)
-        []
-        #else
         .minimalBookmark
-        #endif
     }
 
     private nonisolated static var bookmarkResolutionOptions: URL.BookmarkResolutionOptions {
@@ -36,11 +32,7 @@ final class SecurityScopedFileReferenceResolver {
             relativeTo: nil,
             bookmarkDataIsStale: &stale
         )
-        #if os(macOS)
-        let access: MediaAccessLease? = nil
-        #else
         let access = MediaAccessLease.securityScoped(selectedURL)
-        #endif
         let playableURL: URL
         if relativePath.isEmpty {
             playableURL = selectedURL

@@ -5,11 +5,11 @@ import PackageDescription
 let package = Package(
     name: "EnchronModules",
     platforms: [
-        .macOS("27.0"),
         .visionOS("27.0"),
     ],
     products: [
         .library(name: "MediaSource", targets: ["MediaSource"]),
+        .library(name: "Emby", targets: ["Emby"]),
         .library(name: "DesignSystem", targets: ["DesignSystem"]),
         .library(name: "MediaLibrary", targets: ["MediaLibrary"]),
         .library(name: "PlaybackFeature", targets: ["PlaybackFeature"]),
@@ -23,6 +23,11 @@ let package = Package(
         .target(
             name: "MediaSource",
             path: "Modules/MediaSource"
+        ),
+        .target(
+            name: "Emby",
+            dependencies: ["MediaSource", "DesignSystem", "PlaybackFeature"],
+            path: "Modules/Emby"
         ),
         .target(
             name: "DesignSystem",
@@ -40,14 +45,11 @@ let package = Package(
                 "Views/BreadcrumbView.swift",
                 "Views/FileBrowserSidebar.swift",
                 "Views/FolderListView.swift",
-                "Views/LibraryGridComponents.swift",
                 "Views/LibraryListComponents.swift",
                 "Views/LibraryNavigationComponents.swift",
                 "Views/LibraryToolbarComponents.swift",
                 "Views/LibraryViewControls.swift",
-                "Views/SkeletonCardView.swift",
                 "Views/SourceSidebar.swift",
-                "Views/VideoCardView.swift",
             ]
         ),
         .target(
@@ -78,6 +80,14 @@ let package = Package(
             name: "MediaLibraryTests",
             dependencies: ["MediaLibrary"],
             path: "Tests/MediaLibraryPackageTests"
+        ),
+        .testTarget(
+            name: "EmbyTests",
+            dependencies: ["Emby", "MediaSource", "PlaybackFeature", "DesignSystem"],
+            path: "Tests/EmbyPackageTests",
+            resources: [
+                .process("Fixtures"),
+            ]
         ),
         .testTarget(
             name: "PlaybackFeatureTests",

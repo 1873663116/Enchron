@@ -1,0 +1,22 @@
+{
+  "configurations" : [
+    {
+      "id" : "5EA71C35-0D2A-4D1B-BA7A-41C4072838A5",
+      "name" : "visionOS Simulator",
+      "options" : {
+      }
+    }
+  ],
+  "defaultOptions" : {
+  },
+  "testTargets" : [
+    {
+      "target" : {
+        "containerPath" : "container:Enchron.xcodeproj",
+        "identifier" : "D00000010000000000D0A1A1",
+        "name" : "EnchronDomainTests"
+      }
+    }
+  ],
+  "version" : 1
+}

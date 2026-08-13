@@ -413,8 +413,16 @@ public enum DesignTokens {
         public static let paddingH: CGFloat = Spacing.md        // 16
         /// Vertical padding inside card text area (project-wide constant)
         public static let paddingV: CGFloat = 14
-        /// Adaptive grid minimum card width
+        /// Adaptive grid minimum card width for landscape thumbnails.
         public static let gridMin: CGFloat = 224
+        /// Poster card width. A 2:3 poster reads at a smaller width than a 16:9 thumbnail because
+        /// its height carries the recognition, so it does not share `gridMin`.
+        public static let posterWidth: CGFloat = 180
+        /// Landscape still card, used wherever a frame from the video itself is the subject:
+        /// an episode in a season, an item in Continue Watching. The caption sits on top of the
+        /// still, so the frame is a little taller than 16:9 to give the caption room.
+        public static let stillWidth: CGFloat = 304
+        public static let stillHeight: CGFloat = 205
         /// Thumbnail height for grid cards
         public static let thumbnailHeight: CGFloat = 140
         /// Grid inter-item spacing
@@ -492,6 +500,50 @@ public enum DesignTokens {
         public static let failureColor: Color = .red
         public static let timeoutColor: Color = .orange
         public static let successColor: Color = Theme.accent
+    }
+
+    /// Layout for the media-server detail page, whose hero fills the panel behind its header
+    /// content rather than sitting above it.
+    public enum EmbyDetail {
+        /// The hero claims most of the panel on arrival, so it grows with the window rather than
+        /// holding a fixed height that would shrink to a band as the window enlarges.
+        public static let heroHeightFraction: CGFloat = 0.82
+        public static let heroMinimumHeight: CGFloat = 520
+        public static let logoMaxWidth: CGFloat = 460
+        public static let logoMaxHeight: CGFloat = 160
+        public static let overviewMaxWidth: CGFloat = 720
+        public static let creditMaxWidth: CGFloat = 320
+        public static let aboutCardWidth: CGFloat = 520
+        /// The narrowest an About column may be before the page lays out one fewer of them. Wide
+        /// enough for a track's whole description to sit on two lines.
+        public static let aboutColumnWidth: CGFloat = 260
+        /// Pixels asked of the server for the page-filling backdrop. The original is a full-size
+        /// production still, and decoding one of those is what stalls the page on the way in.
+        public static let backdropRequestWidth = 2048
+        /// How dark the wash behind the title makes the picture at its centre. It multiplies with the
+        /// backdrop, so this is a proportion of what is already there rather than a colour of its own.
+        public static let titleWashStrength: Double = 0.4
+        /// How far the wash reaches beyond the text it is there to lift, as a multiple of the text
+        /// block. Wide and weak, so the picture darkens without the wash showing an edge.
+        public static let titleWashSpread: CGFloat = 1.7
+        /// The room the page holds open at its top edge. The back control floats there, and the
+        /// sections come to rest below it rather than under it.
+        public static let topContentInset: CGFloat = DesignTokens.Interactive.large + Spacing.lg * 2
+        /// The fraction of the hero's travel over which the backdrop fades. Short of 1, so the
+        /// picture is gone by the time the content reaches the top rather than exactly as it lands.
+        public static let backdropFadeFraction: CGFloat = 0.7
+        /// Past this much of the travel, letting go settles the page at the top instead of returning
+        /// it to the hero.
+        public static let heroSettleFraction: CGFloat = 0.35
+    }
+
+    /// A block that holds more than its room, and the panel that opens when one is tapped.
+    public enum Collapsible {
+        /// How tall a block may stand before it collapses. Deep enough that a short list is simply
+        /// shown, shallow enough that one long list cannot set the height of the row it sits in.
+        public static let collapsedHeight: CGFloat = 200
+        public static let expandedWidth: CGFloat = 420
+        public static let expandedMaxHeight: CGFloat = 520
     }
 
     public enum SourceSidebar {

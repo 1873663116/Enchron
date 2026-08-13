@@ -1,5 +1,6 @@
 import DesignSystem
 import MediaLibrary
+import MediaSource
 import SwiftUI
 import PhotosUI
 @preconcurrency import Photos
@@ -11,6 +12,7 @@ struct FilesScreen: View {
 
     /// 0 = grid, 1 = list (UC-FILE-34). View-mode is screen-local UI state.
     @State private var viewMode = 0
+    @State private var sidebarIsVisible = true
     @State private var sortKey: SortMenuKey = .name
     @State private var sortOrder: SortMenuOrder = .ascending
     @State private var sourceItems: [SidebarSourceItem] = []
@@ -81,9 +83,13 @@ struct FilesScreen: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            sidebar
+            if sidebarIsVisible {
+                sidebar
+                    .transition(.move(edge: .leading).combined(with: .opacity))
+            }
             contentArea
         }
+        .animation(DesignTokens.AnimationToken.controlsTransition, value: sidebarIsVisible)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
         .accessibilityElement(children: .contain)
@@ -461,6 +467,10 @@ struct FilesScreen: View {
 
     private var topBar: some View {
         HStack(alignment: .center) {
+            SidebarToggleButton(
+                isVisible: $sidebarIsVisible,
+                accessibilityIdentifier: "FileBrowsing-FilesScreen-sidebarToggle"
+            )
             NavBackForwardCapsuleControl(
                 canGoBack: isBrowsingSource
                     ? viewModel.canNavigateUp
@@ -638,10 +648,6 @@ struct FilesScreen: View {
 
     // MARK: - Grid / List
 
-    private var gridMaxWidth: CGFloat {
-        DesignTokens.Card.gridMin * 4 + DesignTokens.Card.gridSpacing * 3
-    }
-
     private var grid: some View {
         ScrollView {
             LazyVGrid(
@@ -707,7 +713,7 @@ struct FilesScreen: View {
                     }
                 }
             }
-            .frame(maxWidth: gridMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
     }
@@ -718,7 +724,7 @@ struct FilesScreen: View {
                 accessibilityIdentifier: "FileBrowsing-FilesScreen-list",
                 items: isBrowsingSource ? sourceListItems : libraryListItems
             )
-            .frame(maxWidth: gridMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .scrollIndicators(.hidden)

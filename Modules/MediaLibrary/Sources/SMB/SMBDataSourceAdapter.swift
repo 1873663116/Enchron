@@ -1,11 +1,8 @@
+import AMSMB2
 import Foundation
 import MediaSource
-#if canImport(AMSMB2)
-import AMSMB2
-#endif
 
 public nonisolated enum SMBError: LocalizedError, Sendable {
-    case libraryNotAvailable
     case notConnected
     case invalidConnectionInfo
     case authenticationFailed
@@ -16,8 +13,6 @@ public nonisolated enum SMBError: LocalizedError, Sendable {
 
     public var errorDescription: String? {
         switch self {
-        case .libraryNotAvailable:
-            return "SMB support requires the AMSMB2 library. Add it in Xcode: File → Add Package Dependencies → https://github.com/amosavian/AMSMB2"
         case .notConnected:
             return "SMB data source is not connected."
         case .invalidConnectionInfo:
@@ -35,8 +30,6 @@ public nonisolated enum SMBError: LocalizedError, Sendable {
         }
     }
 }
-
-#if canImport(AMSMB2)
 
 nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
     private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
@@ -102,7 +95,6 @@ nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProvidin
             throw SMBError.notConnected
         }
 
-        // Disconnect previous share if any
         if connectedShareName != nil {
             try? await smb.disconnectShare()
         }
@@ -416,61 +408,3 @@ private nonisolated final class SMBPlaybackResources: @unchecked Sendable {
         stop()
     }
 }
-
-#else
-
-// Stub implementation for platforms without AMSMB2 (e.g., Linux)
-nonisolated final class SMBDataSourceAdapter: DataSourceConnecting, FileProviding, @unchecked Sendable {
-    private(set) public var connectionStatus: FileBrowsingDomain.ConnectionStatus = .disconnected
-    public var ownerDataSourceID: UUID = UUID()
-    public private(set) var currentConnectionInfo: FileBrowsingDomain.ConnectionInfo?
-
-    init(credentialStore: CredentialStoring? = nil) {
-        _ = credentialStore
-    }
-
-    public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
-        throw SMBError.libraryNotAvailable
-    }
-
-    public func disconnect() {}
-
-    public func listShares() async throws -> [String] {
-        throw SMBError.libraryNotAvailable
-    }
-
-    public func selectShare(_ shareName: String) async throws {
-        throw SMBError.libraryNotAvailable
-    }
-
-    public func listContents(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
-        throw SMBError.libraryNotAvailable
-    }
-
-    public func listSubtitleFiles(at path: String) async throws -> [FileBrowsingDomain.MediaFile] {
-        throw SMBError.libraryNotAvailable
-    }
-
-    public func listFolders(at path: String) async throws -> [FileBrowsingDomain.MediaFolder] {
-        throw SMBError.libraryNotAvailable
-    }
-
-    public func listFiles(
-        in folder: FileBrowsingDomain.MediaFolder,
-        sortBy: FileBrowsingDomain.SortCriteria
-    ) async throws -> [FileBrowsingDomain.MediaFile] {
-        throw SMBError.libraryNotAvailable
-    }
-
-    public func resolveURL(for item: FileBrowsingDomain.MediaFile) async throws -> URL {
-        throw SMBError.libraryNotAvailable
-    }
-
-    public func resolvePlayableSource(
-        for file: FileBrowsingDomain.MediaFile
-    ) async throws -> ResolvedMediaSource {
-        throw SMBError.libraryNotAvailable
-    }
-}
-
-#endif

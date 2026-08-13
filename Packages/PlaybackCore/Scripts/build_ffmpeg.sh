@@ -71,7 +71,6 @@ build_slice() {
     "$prefix/lib/libavutil.a"
 }
 
-build_slice macos27-arm64 macosx arm64 arm64-apple-macos27.0
 build_slice xros27-arm64 xros arm64 arm64-apple-xros27.0
 build_slice xrsimulator27-arm64 xrsimulator arm64 arm64-apple-xros27.0-simulator
 build_slice xrsimulator27-x86_64 xrsimulator x86_64 x86_64-apple-xros27.0-simulator
@@ -85,8 +84,6 @@ lipo -create \
 
 rm -rf "$OUTPUT"
 xcodebuild -create-xcframework \
-  -library "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-macos27-arm64/lib/libPlaybackFFmpeg.a" \
-  -headers "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-macos27-arm64/include" \
   -library "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-xros27-arm64/lib/libPlaybackFFmpeg.a" \
   -headers "$BUILD_ROOT/prefix-$CONFIGURATION_REVISION-xros27-arm64/include" \
   -library "$SIMULATOR_DIR/lib/libPlaybackFFmpeg.a" \

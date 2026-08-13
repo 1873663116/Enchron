@@ -43,7 +43,6 @@ private final class PlaybackVideoComponentObservation {
         cancelSubscriptions()
         entityID = nextEntityID
         self.contentTypeSessionID = contentTypeSessionID
-        #if os(visionOS)
         subscriptions = [
             content.subscribe(to: VideoPlayerEvents.VideoSizeDidChange.self, on: entity) { _ in
                 Task { @MainActor in onChange("videoSizeDidChange") }
@@ -89,7 +88,6 @@ private final class PlaybackVideoComponentObservation {
                 }
             )
         }
-        #endif
     }
 
     func cancel() {
@@ -128,7 +126,6 @@ private final class PlaybackVideoComponentObservation {
         return true
     }
 
-    #if os(visionOS)
     func modeRecoveryAction(
         to entity: Entity,
         presentation: PlaybackPresentation,
@@ -152,7 +149,6 @@ private final class PlaybackVideoComponentObservation {
                 requiresImmersiveViewingModeSettlement
         )
     }
-    #endif
 }
 
 struct PlaybackVideoSurface: View {
@@ -176,10 +172,8 @@ struct PlaybackVideoSurface: View {
         PlaybackVideoRendererTargetObservation()
     @State private var componentObservation = PlaybackVideoComponentObservation()
     @State private var componentRevision = 0
-    #if os(visionOS)
     @State private var surfaceRefreshTick = 0
     @State private var validVisionLayoutViewportRefreshRevision: UInt64?
-    #endif
 
     private var videoEntity: Entity {
         playbackVideoEntityStore.hostedEntity(
@@ -191,22 +185,10 @@ struct PlaybackVideoSurface: View {
     private var realityKitContentTypeScope: PlaybackRealityKitContentTypeScope? {
         PlaybackRealityKitContentTypeScope(runtime: playbackRuntime)
     }
-    #if os(macOS)
-    @State private var macOSWindowCamera = Entity()
-    @State private var macOSWorld: Entity?
-    @State private var macOSPlaybackSurfaceAnchor: Entity?
-    @State private var isLoadingMacOSWorld = false
-    @State private var macOSWorldLoadError: String?
-    #endif
-
     @ViewBuilder
     var body: some View {
         ZStack {
-            #if os(visionOS)
             visionSurface
-            #else
-            macOSSurface
-            #endif
 
             if let activeSubtitleText {
                 Text(activeSubtitleText)
@@ -221,7 +203,6 @@ struct PlaybackVideoSurface: View {
         }
     }
 
-    #if os(visionOS)
     private var visionSurface: some View {
         let realityViewDepth = WindowPlaybackSurfaceGeometry.realityViewDepth(
             for: presentation
@@ -270,80 +251,6 @@ struct PlaybackVideoSurface: View {
             )
         }
     }
-    #else
-    private var macOSSurface: some View {
-        GeometryReader { geometry in
-            ZStack {
-                RealityView { content in
-                    updateMacOSSurface(
-                        &content,
-                        canvasSize: geometry.size,
-                        revision: componentRevision
-                    )
-                } update: { content in
-                    updateMacOSSurface(
-                        &content,
-                        canvasSize: geometry.size,
-                        revision: componentRevision
-                    )
-                }
-                .realityViewCameraControls(presentation == .docked ? .orbit : .none)
-                .background(.black)
-                .gesture(surfaceTapGesture)
-
-                if presentation == .docked, isLoadingMacOSWorld {
-                    ProgressView("Loading environment…")
-                }
-
-                if presentation == .docked, let macOSWorldLoadError {
-                    ContentUnavailableView(
-                        "Environment Unavailable",
-                        systemImage: "cube.transparent",
-                        description: Text(macOSWorldLoadError)
-                    )
-                }
-
-            }
-            .task(id: presentation) {
-                guard presentation == .docked else { return }
-                await loadMacOSWorldIfNeeded()
-                componentRevision &+= 1
-            }
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("MacPlayback-\(presentation.rawValue)-SceneHost")
-        .accessibilityValue(playbackRuntime.lifecycle.label)
-        .onDisappear {
-            releaseSurface()
-        }
-    }
-    #endif
-
-    private var surfaceTapGesture: some Gesture {
-        SpatialTapGesture()
-            .targetedToEntity(videoEntity)
-            .onEnded { _ in
-                toggleControlsFromSurface()
-            }
-    }
-
-    private func toggleControlsFromSurface() {
-        Task { @MainActor in
-            // A RealityKit entity can receive the same spatial tap that
-            // activates SwiftUI playback chrome above it. Yield so the
-            // control action can register its interaction first; a genuine
-            // video-surface tap has no competing control action and still
-            // toggles the controls on this run-loop turn.
-            await Task.yield()
-            withAnimation(.easeInOut(duration: 0.25)) {
-                PlaybackSurfaceInputAction.perform(
-                    .spatialTap,
-                    appModel: appModel
-                )
-            }
-        }
-    }
-
     private func toggleControlsFromAccessibilityActivation() {
         withAnimation(.easeInOut(duration: 0.25)) {
             PlaybackSurfaceInputAction.perform(
@@ -353,7 +260,6 @@ struct PlaybackVideoSurface: View {
         }
     }
 
-    #if os(visionOS)
     private var surfaceReadinessKey: String {
         let rendererID = playbackRuntime.renderer.map {
             String(describing: ObjectIdentifier($0))
@@ -407,7 +313,6 @@ struct PlaybackVideoSurface: View {
             return false
         }
     }
-    #endif
 
     @MainActor
     private func prepareSurface<Content: RealityViewContentProtocol>(
@@ -470,12 +375,7 @@ struct PlaybackVideoSurface: View {
             return false
         }
 
-        #if os(macOS)
-        let needsInsertion = presentation.usesMainWindow
-            && content.entities.contains(where: { $0 === videoEntity }) == false
-        #else
         let needsInsertion = content.entities.contains(where: { $0 === videoEntity }) == false
-        #endif
         videoEntity.name = "EnchronVideo.\(presentation)"
         rendererTargetObservation.observe(
             videoEntity,
@@ -554,7 +454,6 @@ struct PlaybackVideoSurface: View {
         return true
     }
 
-    #if os(visionOS)
     @MainActor
     private func updateVisionSurface(
         _ content: RealityViewContent,
@@ -617,129 +516,6 @@ struct PlaybackVideoSurface: View {
         ]
     }
 
-    #else
-    @MainActor
-    private func updateMacOSSurface(
-        _ content: inout RealityViewCameraContent,
-        canvasSize: CGSize,
-        revision: Int
-    ) {
-        content.camera = .virtual
-        if let macOSWorld {
-            if content.entities.contains(where: { $0 === macOSWorld }) == false {
-                content.add(macOSWorld)
-            }
-            macOSWorld.isEnabled = presentation == .docked
-        }
-        guard presentation != .panorama else {
-            playbackRuntime.lastErrorMessage = "Panorama presentation is available on visionOS."
-            return
-        }
-        if presentation == .docked, macOSPlaybackSurfaceAnchor == nil {
-            if let macOSWorldLoadError {
-                playbackRuntime.lastErrorMessage = macOSWorldLoadError
-            }
-            return
-        }
-        guard prepareSurface(in: content, revision: revision) else {
-            content.cameraTarget = nil
-            return
-        }
-        switch presentation {
-        case .window, .portal:
-            if content.entities.contains(where: { $0 === videoEntity }) == false {
-                content.add(videoEntity)
-            }
-            PlaybackSurfacePlacement.window(videoEntity)
-            configureMacOSWindowCamera(in: &content, canvasSize: canvasSize)
-        case .docked:
-            content.remove(macOSWindowCamera)
-            guard let macOSPlaybackSurfaceAnchor else { return }
-            PlaybackSurfacePlacement.dock(
-                videoEntity,
-                to: macOSPlaybackSurfaceAnchor,
-                transform: .init(
-                    distance: appModel.screenDepthOffset,
-                    elevationDegrees: appModel.screenViewAngle,
-                    scale: appModel.screenScale
-                )
-            )
-        case .panorama:
-            return
-        }
-        content.cameraTarget = presentation == .docked ? videoEntity : nil
-        attachSurfaceIfReady()
-    }
-
-    @MainActor
-    private func configureMacOSWindowCamera(
-        in content: inout RealityViewCameraContent,
-        canvasSize: CGSize
-    ) {
-        let geometry = MacWindowPlaybackCameraGeometry.resolve(
-            screenSize: macOSWindowScreenSize,
-            canvasSize: canvasSize
-        )
-        if content.entities.contains(where: { $0 === macOSWindowCamera }) == false {
-            content.add(macOSWindowCamera)
-        }
-        macOSWindowCamera.components.set(
-            PerspectiveCameraComponent(
-                near: 0.01,
-                far: 100,
-                fieldOfViewInDegrees: MacWindowPlaybackCameraGeometry.fieldOfViewInDegrees,
-                fieldOfViewOrientation: .vertical
-            )
-        )
-        macOSWindowCamera.look(
-            at: .zero,
-            from: [0, 0, geometry.distance],
-            relativeTo: nil
-        )
-        let signature = "macOS-window-\(canvasSize)-\(geometry.screenSize)-\(geometry.distance)"
-        if componentObservation.shouldLogLayout(signature) {
-            playbackVideoSurfaceLogger.notice(
-                "macOS window camera canvasSize=\(String(describing: canvasSize), privacy: .public) screenSize=\(String(describing: geometry.screenSize), privacy: .public) distance=\(geometry.distance)"
-            )
-        }
-    }
-
-    private var macOSWindowScreenSize: SIMD2<Float> {
-        if let componentSize = component?.playerScreenSize,
-           componentSize.x > 0,
-           componentSize.y > 0 {
-            return componentSize
-        }
-        guard let profile = playbackRuntime.displayMediaProfile,
-              profile.resolution.width > 0,
-              profile.resolution.height > 0 else { return .zero }
-        let output = profile.displayDimensions(for: playbackRuntime.effectiveStereoLayout)
-        guard output.width > 0, output.height > 0 else { return .zero }
-        return [Float(output.width) / Float(output.height), 1]
-    }
-
-    @MainActor
-    private func loadMacOSWorldIfNeeded() async {
-        guard macOSWorld == nil,
-              isLoadingMacOSWorld == false,
-              macOSWorldLoadError == nil else { return }
-        isLoadingMacOSWorld = true
-        defer { isLoadingMacOSWorld = false }
-        do {
-            let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
-            macOSPlaybackSurfaceAnchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
-            world.isEnabled = false
-            macOSWorld = world
-            playbackVideoSurfaceLogger.notice("macOS RCP world loaded for shared playback RealityView")
-        } catch {
-            macOSWorldLoadError = error.localizedDescription
-            playbackVideoSurfaceLogger.error(
-                "macOS RCP world load failed error=\(error.localizedDescription, privacy: .public)"
-            )
-        }
-    }
-    #endif
-
     @MainActor
     private func attachSurfaceIfReady() {
         logSurfaceFacts(reason: "attachCheck")
@@ -766,7 +542,6 @@ struct PlaybackVideoSurface: View {
                 to: renderer,
                 presentation: presentation
               ) else { return }
-        #if os(visionOS)
         if let component {
             let recoveryAction = componentObservation.modeRecoveryAction(
                 to: videoEntity,
@@ -786,7 +561,6 @@ struct PlaybackVideoSurface: View {
                 )
             }
         }
-        #endif
         do {
             try playbackRuntime.attach(
                 entityID: entityID,
@@ -875,11 +649,7 @@ struct PlaybackVideoSurface: View {
     }
 
     private var realityViewID: String {
-        #if os(macOS)
-        "EnchronRealityView.macOS#\(ObjectIdentifier(videoEntity))"
-        #else
         "EnchronRealityView.mainWindow#\(ObjectIdentifier(videoEntity))"
-        #endif
     }
 
     private var component: VideoPlayerComponent? {
@@ -887,41 +657,24 @@ struct PlaybackVideoSurface: View {
     }
 
     private var desiredImmersiveViewingMode: String? {
-        #if os(visionOS)
         component.map { String(describing: $0.desiredImmersiveViewingMode) }
-        #else
-        nil
-        #endif
     }
 
     private var actualImmersiveViewingMode: String? {
-        #if os(visionOS)
         component?.immersiveViewingMode.map { String(describing: $0) }
-        #else
-        nil
-        #endif
     }
 
     private var desiredSpatialVideoMode: String? {
-        #if os(visionOS)
         component.map { String(describing: $0.desiredSpatialVideoMode) }
-        #else
-        nil
-        #endif
     }
 
     private var actualSpatialVideoMode: String? {
-        #if os(visionOS)
         component.map { String(describing: $0.spatialVideoMode) }
-        #else
-        nil
-        #endif
     }
 
     private var presentationPhase: PlaybackPresentationSettlementPhase {
         guard let component else { return .surfaceAttached }
         let requiresImmersiveViewingModeConfirmation: Bool
-        #if os(visionOS)
         if let transition = appModel.presentationTransition,
            (transition.previousPresentation == .panorama
                 && transition.targetPresentation.usesMainWindow)
@@ -943,10 +696,6 @@ struct PlaybackVideoSurface: View {
                     String(describing: $0)
                 }
             )
-        #else
-        requiresImmersiveViewingModeConfirmation = false
-        let immersiveViewingModeIsSettled = true
-        #endif
         let viewingModeIsSettled =
             SpatialPlaybackSurfaceSettlementPolicy.viewingModeMatches(
                 stereoLayout: playbackRuntime.effectiveStereoLayout,

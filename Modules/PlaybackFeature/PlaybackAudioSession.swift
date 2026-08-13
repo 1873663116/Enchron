@@ -1,8 +1,5 @@
-import OSLog
-
-#if os(visionOS)
 import AVFAudio
-#endif
+import OSLog
 
 public struct PlaybackAudioSessionObservation: Codable, Equatable, Sendable {
     public var category: String
@@ -36,7 +33,6 @@ public extension PlaybackAudioSessionManaging {
 
 @MainActor
 final class SystemPlaybackAudioSession: PlaybackAudioSessionManaging {
-#if os(visionOS)
     private enum SessionError: LocalizedError {
         case activationRejected
         case deactivationRejected
@@ -90,11 +86,6 @@ final class SystemPlaybackAudioSession: PlaybackAudioSessionManaging {
         }
         guard deactivated else { throw SessionError.deactivationRejected }
     }
-#else
-    var observation: PlaybackAudioSessionObservation { .init() }
-    func activateForMoviePlayback() async throws {}
-    func deactivate() async throws {}
-#endif
 }
 
 @MainActor
