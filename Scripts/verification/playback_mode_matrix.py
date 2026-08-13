@@ -18,7 +18,7 @@ import uuid
 DEVICE = "00008142-001871A11491401C"
 CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
 BUNDLE = "com.xiongzhipeng.XrPlayer"
-DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta3.app/Contents/Developer"
+DEVELOPER_DIR = "/Volumes/Cortisol/Applications/Xcode-beta5.app/Contents/Developer"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 CONTROLLER = REPOSITORY_ROOT / "Scripts/verification/interactive_visionpro_ui.py"
 DEFAULT_EVIDENCE_ROOT = Path(
@@ -29,6 +29,7 @@ DEFAULT_EVIDENCE_ROOT = Path(
 CONTROL_PLANE_IDENTIFIER = "PlayerUI-window-control-plane"
 PROBE_REMOTE_PATH = "Documents/surface-tap-probe.log"
 CONTROLLER_TIMEOUT_SECONDS = 600.0
+PROBE_COPY_TIMEOUT_SECONDS = 45.0
 # This window must outlast the product's 31-second settlement deadline.
 SETTLEMENT_TIMEOUT_SECONDS = 40.0
 POLL_INTERVAL_SECONDS = 2.0
@@ -360,7 +361,9 @@ def copy_probe_lines(cell_directory: Path) -> tuple[list[str] | None, str | None
     # The probe copy races the app appending to the same file; one retry
     # keeps a passed step from being downgraded over a transient transfer.
     lines, error = copy_probe_lines_once(cell_directory)
-    if lines is None:
+    # A timeout means the container link is congested, and a second copy only
+    # doubles the poll's cost while the caller's settle deadline runs down.
+    if lines is None and "exceeded" not in (error or ""):
         time.sleep(1.5)
         lines, error = copy_probe_lines_once(cell_directory)
     return lines, error
@@ -397,6 +400,10 @@ def copy_probe_lines_once(
             text=True,
             env=environment,
             check=False,
+            # An app whose main thread is wedged also wedges the container
+            # copy, and an unbounded wait here hangs the whole sweep instead
+            # of recording the stall it is meant to observe.
+            timeout=PROBE_COPY_TIMEOUT_SECONDS,
         )
         if completed.returncode != 0:
             detail = (completed.stderr or completed.stdout).strip()
@@ -404,6 +411,11 @@ def copy_probe_lines_once(
         if not destination.is_file():
             return None, "devicectl reported success without a probe file."
         return destination.read_text(encoding="utf-8").splitlines(), None
+    except subprocess.TimeoutExpired:
+        return None, (
+            f"Probe copy exceeded {PROBE_COPY_TIMEOUT_SECONDS:.0f}s; "
+            "the app container is not answering."
+        )
     except (OSError, UnicodeError) as error:
         return None, str(error)
     finally:
