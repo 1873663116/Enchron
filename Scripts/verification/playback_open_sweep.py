@@ -138,8 +138,13 @@ def judge_open(name: str, cell: Path, session: Path) -> dict[str, object]:
                 }
             invisible_steady += 1
             if invisible_steady >= 5:
+                # A clip that already ended without ever being seen visible
+                # may simply be shorter than one poll: the FATE ProRes
+                # vectors run 70ms. That is unjudged, not a failure. A clip
+                # sitting at ready or playing with nothing on screen is.
+                ended_before_seen = lifecycle == "ended"
                 return {
-                    "verdict": "NO_PICTURE",
+                    "verdict": "TOO_SHORT" if ended_before_seen else "NO_PICTURE",
                     "landed": "window-invisible",
                     "control_plane": format_facts(plane),
                 }
