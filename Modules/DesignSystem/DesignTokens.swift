@@ -537,6 +537,15 @@ public enum DesignTokens {
         public static let heroSettleFraction: CGFloat = 0.35
     }
 
+    /// A block that holds more than its room, and the panel that opens when one is tapped.
+    public enum Collapsible {
+        /// How tall a block may stand before it collapses. Deep enough that a short list is simply
+        /// shown, shallow enough that one long list cannot set the height of the row it sits in.
+        public static let collapsedHeight: CGFloat = 200
+        public static let expandedWidth: CGFloat = 420
+        public static let expandedMaxHeight: CGFloat = 520
+    }
+
     public enum SourceSidebar {
         /// Files page source sidebar glass panel width.
         public static let width: CGFloat = 224

@@ -634,6 +634,8 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 width: stream.width,
                 height: stream.height,
                 videoRange: stream.videoRange,
+                extendedVideoType: stream.extendedVideoType,
+                extendedVideoSubTypeDescription: stream.extendedVideoSubTypeDescription,
                 bitRate: stream.bitRate,
                 bitDepth: stream.bitDepth,
                 sampleRate: stream.sampleRate,
@@ -971,6 +973,8 @@ private struct MediaStreamDTO: Decodable {
     let width: Int?
     let height: Int?
     let videoRange: String?
+    let extendedVideoType: String?
+    let extendedVideoSubTypeDescription: String?
     let bitRate: Int?
     let bitDepth: Int?
     let sampleRate: Int?

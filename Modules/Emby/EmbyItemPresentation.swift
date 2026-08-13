@@ -64,7 +64,7 @@ public struct EmbyTechnicalBadges: Equatable, Sendable {
 }
 
 public struct EmbyAboutSections: Equatable, Sendable {
-    public struct Entry: Equatable, Sendable, Identifiable {
+    public struct Entry: Hashable, Sendable, Identifiable {
         public let label: String
         public let value: String
 
@@ -88,7 +88,11 @@ public struct EmbyAboutSections: Equatable, Sendable {
     /// The file the streams live in.
     public let file: [Entry]
 
-    public init(metadata: EmbyItemMetadata, source: EmbyMediaSourceDescription?) {
+    /// A title that plays carries one media source and describes itself. A series or a season
+    /// carries none: Emby puts the streams on the episodes. Passing the episodes' sources here is
+    /// what lets those pages say the same things a film's page says, with every distinct value the
+    /// run holds rather than one episode's taken for all of them.
+    public init(metadata: EmbyItemMetadata, sources: [EmbyMediaSourceDescription]) {
         var information: [Entry] = []
         if let year = metadata.productionYear {
             information.append(Entry(label: "Released", value: String(year)))
@@ -108,7 +112,7 @@ public struct EmbyAboutSections: Equatable, Sendable {
         }
         self.information = information
 
-        let streams = source?.mediaStreams ?? []
+        let streams = sources.flatMap(\.mediaStreams)
         let audioStreams = streams.filter { $0.kind == .audio }
         let subtitleStreams = streams.filter { $0.kind == .subtitle }
 
@@ -144,56 +148,65 @@ public struct EmbyAboutSections: Equatable, Sendable {
         }
         self.accessibility = accessibility
 
-        self.video = Self.videoEntries(streams.first { $0.kind == .video })
-        self.audio = audioStreams.map { stream in
+        self.video = Self.videoEntries(streams.filter { $0.kind == .video })
+        // Deduplicated, because a season repeats the same track list once per episode.
+        self.audio = Self.uniqued(audioStreams.map { stream in
             let name = Self.trackName(stream)
             return Entry(label: name, value: Self.audioDescription(stream, omittingLanguage: name))
-        }
-        self.subtitles = subtitleStreams.map { stream in
+        })
+        self.subtitles = Self.uniqued(subtitleStreams.map { stream in
             let name = Self.trackName(stream)
             return Entry(label: name, value: Self.subtitleDescription(stream, omittingLanguage: name))
-        }
-        self.file = Self.fileEntries(source)
+        })
+        self.file = Self.fileEntries(sources)
     }
 
-    private static func videoEntries(_ stream: EmbyMediaStream?) -> [Entry] {
-        guard let stream else { return [] }
+    /// One row per property, carrying every distinct value the given streams hold. A season whose
+    /// episodes were all encoded alike reads exactly like a film; one with a remastered episode in
+    /// it says so, instead of picking a stream and speaking for the rest.
+    private static func videoEntries(_ streams: [EmbyMediaStream]) -> [Entry] {
         var entries: [Entry] = []
-        if let width = stream.width, let height = stream.height {
-            entries.append(Entry(label: "Resolution", value: "\(width) × \(height)"))
+        func add(_ label: String, _ values: [String?]) {
+            let distinct = joined(values.compactMap { $0 })
+            if distinct.isEmpty == false { entries.append(Entry(label: label, value: distinct)) }
         }
-        if let codec = stream.codec?.nonEmptyValue {
-            entries.append(Entry(label: "Codec", value: codec.uppercased()))
-        }
-        if let profile = stream.profile?.nonEmptyValue {
-            entries.append(Entry(label: "Profile", value: profile))
-        }
-        if let range = stream.videoRange?.nonEmptyValue {
-            entries.append(Entry(label: "Dynamic Range", value: range.uppercased()))
-        }
-        if let depth = stream.bitDepth {
-            entries.append(Entry(label: "Bit Depth", value: "\(depth)-bit"))
-        }
-        if let rate = stream.averageFrameRate {
-            entries.append(Entry(label: "Frame Rate", value: frameRate(rate)))
-        }
-        if let ratio = stream.aspectRatio?.nonEmptyValue {
-            entries.append(Entry(label: "Aspect Ratio", value: ratio))
-        }
-        if let format = stream.pixelFormat?.nonEmptyValue {
-            entries.append(Entry(label: "Pixel Format", value: format))
-        }
-        if let bitRate = stream.bitRate {
-            entries.append(Entry(label: "Video Bitrate", value: bitrate(bitRate)))
-        }
+        add("Resolution", streams.map { stream in
+            guard let width = stream.width, let height = stream.height else { return nil }
+            return "\(width) × \(height)"
+        })
+        add("Codec", streams.map { $0.codec?.nonEmptyValue?.uppercased() })
+        add("Profile", streams.map { $0.profile?.nonEmptyValue })
+        add("Dynamic Range", streams.map { $0.videoRange?.nonEmptyValue?.uppercased() })
+        // Dolby Vision's profile is a different thing from the codec profile above it: that one
+        // names the bitstream's coding tools, this one names how the Dolby Vision layers and their
+        // metadata are packaged, and whether a player that does not understand them still gets a
+        // correct picture. Every Dolby Vision release is also Main 10, so the codec profile alone
+        // never distinguishes them.
+        add("Dolby Vision", streams.map { stream in
+            guard stream.extendedVideoType?.caseInsensitiveCompare("DolbyVision") == .orderedSame
+            else { return nil }
+            return stream.extendedVideoSubTypeDescription?.nonEmptyValue
+        })
+        add("Bit Depth", streams.map { $0.bitDepth.map { "\($0)-bit" } })
+        add("Frame Rate", streams.map { $0.averageFrameRate.map(frameRate) })
+        add("Aspect Ratio", streams.map { $0.aspectRatio?.nonEmptyValue })
+        add("Pixel Format", streams.map { $0.pixelFormat?.nonEmptyValue })
+        add("Video Bitrate", streams.map { $0.bitRate.map(bitrate) })
         return entries
     }
 
-    private static func fileEntries(_ source: EmbyMediaSourceDescription?) -> [Entry] {
-        guard let source else { return [] }
+    /// A single file can name its size, its overall bitrate and its release. A season is not a file,
+    /// so those are dropped there and only what every episode shares, its container, is kept.
+    private static func fileEntries(_ sources: [EmbyMediaSourceDescription]) -> [Entry] {
+        guard sources.isEmpty == false else { return [] }
         var entries: [Entry] = []
-        if let container = source.container?.nonEmptyValue {
-            entries.append(Entry(label: "Container", value: container.uppercased()))
+        let containers = joined(sources.compactMap { $0.container?.nonEmptyValue.map { $0.uppercased() } })
+        if containers.isEmpty == false {
+            entries.append(Entry(label: "Container", value: containers))
+        }
+        guard sources.count == 1, let source = sources.first else {
+            entries.append(Entry(label: "Files", value: "\(sources.count)"))
+            return entries
         }
         if let size = source.sizeInBytes {
             entries.append(Entry(label: "Size", value: size.formatted(.byteCount(style: .file))))
@@ -278,8 +291,12 @@ public struct EmbyAboutSections: Equatable, Sendable {
     /// Emby lists one stream per track, so the same language recurs; the About block reads as a
     /// language list, not a track list.
     private static func joined(_ values: [String]) -> String {
-        var seen: Set<String> = []
-        return values.filter { seen.insert($0).inserted }.joined(separator: ", ")
+        uniqued(values).joined(separator: ", ")
+    }
+
+    private static func uniqued<Value: Hashable>(_ values: [Value]) -> [Value] {
+        var seen: Set<Value> = []
+        return values.filter { seen.insert($0).inserted }
     }
 }
 

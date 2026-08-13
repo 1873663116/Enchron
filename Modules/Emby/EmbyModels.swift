@@ -508,6 +508,11 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
     public let width: Int?
     public let height: Int?
     public let videoRange: String?
+    /// Which high dynamic range system the picture is carried by, named apart from the codec: the
+    /// codec profile describes the bitstream, this describes what is layered on top of it.
+    public let extendedVideoType: String?
+    /// The server's own reading of that system's variant, such as "Profile 7.6 (Bluray)".
+    public let extendedVideoSubTypeDescription: String?
     /// Bits per second the stream itself runs at, as the server measured it.
     public let bitRate: Int?
     /// Bits per colour sample for video, per audio sample for lossless audio.
@@ -539,6 +544,8 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
         width: Int? = nil,
         height: Int? = nil,
         videoRange: String? = nil,
+        extendedVideoType: String? = nil,
+        extendedVideoSubTypeDescription: String? = nil,
         bitRate: Int? = nil,
         bitDepth: Int? = nil,
         sampleRate: Int? = nil,
@@ -564,6 +571,8 @@ public struct EmbyMediaStream: Equatable, Hashable, Sendable {
         self.width = width
         self.height = height
         self.videoRange = videoRange
+        self.extendedVideoType = extendedVideoType
+        self.extendedVideoSubTypeDescription = extendedVideoSubTypeDescription
         self.bitRate = bitRate
         self.bitDepth = bitDepth
         self.sampleRate = sampleRate

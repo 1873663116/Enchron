@@ -32,9 +32,9 @@ private struct EmbyHeroSnapBehavior: ScrollTargetBehavior {
     ///
     /// The system asks this type where a scroll should end whenever it resolves a target, not only
     /// when a gesture on this page finishes. A page pushed from a shelf the wearer had just been
-    /// scrolling is resolved while that upward motion is still in hand, and the branch that reads
-    /// upward motion as a wish to leave the picture then sends a page nobody has touched straight
-    /// past it. Until this page has been scrolled, wherever it is is where it belongs.
+    /// scrolling is resolved while that upward motion is still in hand, and answering it sends a
+    /// page that nobody has touched straight past its picture. Until this page has been scrolled,
+    /// wherever it is is where it belongs.
     let isEnabled: Bool
 
     func updateTarget(_ target: inout ScrollTarget, context: TargetContext) {
@@ -903,6 +903,15 @@ private struct EmbyDetailScreen: View {
         return parts.isEmpty ? source.displayName : parts.joined(separator: " · ")
     }
 
+    /// What the About block describes. A title that plays describes itself; a series or a season
+    /// has no streams of its own, so it is described by the episodes that are loaded under it.
+    private func aboutSources(_ metadata: EmbyItemMetadata) -> [EmbyMediaSourceDescription] {
+        if metadata.mediaSources.isEmpty == false {
+            return [selectedSource(metadata)].compactMap { $0 }
+        }
+        return viewModel.children.episodes.flatMap(\.metadata.mediaSources)
+    }
+
     private func selectedSource(_ metadata: EmbyItemMetadata) -> EmbyMediaSourceDescription? {
         metadata.mediaSources.first { $0.id == viewModel.selectedMediaSourceID }
             ?? metadata.mediaSources.first
@@ -1079,7 +1088,7 @@ private struct EmbyDetailScreen: View {
     }
 
     private func about(_ metadata: EmbyItemMetadata) -> some View {
-        let sections = EmbyAboutSections(metadata: metadata, source: selectedSource(metadata))
+        let sections = EmbyAboutSections(metadata: metadata, sources: aboutSources(metadata))
         return VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
             Text("About").font(DesignTokens.Typography.title)
 
@@ -1138,22 +1147,28 @@ private struct EmbyDetailScreen: View {
                     .font(DesignTokens.Typography.sectionHeader)
                     .foregroundStyle(.secondary)
                     .textCase(.uppercase)
-                // Indexed, because a release can carry two tracks that describe themselves
-                // identically and the pair would otherwise share one identity.
-                ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-                        if labelsAreBadges {
-                            Text(entry.label)
-                                .font(DesignTokens.Typography.badge)
-                                .padding(.horizontal, DesignTokens.Spacing.xs)
-                                .padding(.vertical, DesignTokens.Spacing.xxs)
-                                .enchronGlassBadge()
-                        } else {
-                            Text(entry.label)
-                                .font(DesignTokens.Typography.metadata)
-                                .foregroundStyle(.secondary)
+                // A column with more rows than its room becomes one surface that opens, rather than
+                // running down the page and setting the height of every column beside it.
+                CollapsibleBlock(title: title) {
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                        // Indexed, because a release can carry two tracks that describe themselves
+                        // identically and the pair would otherwise share one identity.
+                        ForEach(Array(entries.enumerated()), id: \.offset) { _, entry in
+                            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+                                if labelsAreBadges {
+                                    Text(entry.label)
+                                        .font(DesignTokens.Typography.badge)
+                                        .padding(.horizontal, DesignTokens.Spacing.xs)
+                                        .padding(.vertical, DesignTokens.Spacing.xxs)
+                                        .enchronGlassBadge()
+                                } else {
+                                    Text(entry.label)
+                                        .font(DesignTokens.Typography.metadata)
+                                        .foregroundStyle(.secondary)
+                                }
+                                Text(entry.value)
+                            }
                         }
-                        Text(entry.value)
                     }
                 }
             }

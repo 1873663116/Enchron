@@ -38,7 +38,7 @@ struct EmbyItemPresentationTests {
             stream(.subtitle, codec: "subrip", language: "eng", displayLanguage: "English"),
             stream(.subtitle, codec: "subrip", language: "eng", displayLanguage: "English", isHearingImpaired: true),
         ]
-        let sections = EmbyAboutSections(metadata: metadata(), source: source(streams: streams))
+        let sections = EmbyAboutSections(metadata: metadata(), sources: [source(streams: streams)])
 
         #expect(sections.information.map(\.label) == ["Released", "Rated", "Studios", "Region"])
         #expect(sections.information.first?.value == "2025")
@@ -57,7 +57,7 @@ struct EmbyItemPresentationTests {
             stream(.audio, codec: "ac3", language: "chi", displayLanguage: "Chinese", channelLayout: "stereo", bitRate: 192_000, sampleRate: 48000, title: "Mandarin"),
             stream(.subtitle, codec: "PGSSUB", language: "eng", displayLanguage: "English"),
         ]
-        let sections = EmbyAboutSections(metadata: metadata(), source: source(streams: streams))
+        let sections = EmbyAboutSections(metadata: metadata(), sources: [source(streams: streams)])
 
         #expect(sections.audio.map(\.label) == ["Japanese", "Mandarin"])
         #expect(sections.audio[0].value == "DTS · 5.1 · 1.5 Mbps · 48 kHz · Default")
@@ -70,7 +70,7 @@ struct EmbyItemPresentationTests {
     func aboutVideo() {
         let sections = EmbyAboutSections(
             metadata: metadata(),
-            source: source(streams: [stream(
+            sources: [source(streams: [stream(
                 .video,
                 codec: "hevc",
                 width: 1920,
@@ -81,7 +81,7 @@ struct EmbyItemPresentationTests {
                 profile: "Main 10",
                 averageFrameRate: 23.976025,
                 aspectRatio: "16:9"
-            )])
+            )])]
         )
 
         #expect(sections.video.map(\.label) == [
@@ -93,18 +93,53 @@ struct EmbyItemPresentationTests {
         #expect(sections.video[7].value == "7.6 Mbps")
     }
 
+    @Test("Dolby Vision names its own profile, which the codec profile never distinguishes")
+    func aboutDolbyVisionProfile() {
+        let sections = EmbyAboutSections(
+            metadata: metadata(),
+            sources: [source(streams: [stream(
+                .video,
+                codec: "hevc",
+                videoRange: "DolbyVision",
+                extendedVideoType: "DolbyVision",
+                extendedVideoSubTypeDescription: "Profile 7.6 (Bluray)",
+                profile: "Main 10"
+            )])]
+        )
+
+        #expect(sections.video.map(\.label) == ["Codec", "Profile", "Dynamic Range", "Dolby Vision"])
+        #expect(sections.video[1].value == "Main 10")
+        #expect(sections.video[3].value == "Profile 7.6 (Bluray)")
+    }
+
+    @Test("an HDR10 stream names no Dolby Vision profile")
+    func aboutWithoutDolbyVision() {
+        let sections = EmbyAboutSections(
+            metadata: metadata(),
+            sources: [source(streams: [stream(
+                .video,
+                codec: "hevc",
+                videoRange: "HDR 10",
+                extendedVideoType: "Hdr10",
+                extendedVideoSubTypeDescription: "HDR 10"
+            )])]
+        )
+
+        #expect(sections.video.map(\.label).contains("Dolby Vision") == false)
+    }
+
     @Test("the file column carries the container, its size, and its total bitrate")
     func aboutFile() {
         let sections = EmbyAboutSections(
             metadata: metadata(),
-            source: EmbyMediaSourceDescription(
+            sources: [EmbyMediaSourceDescription(
                 id: EmbyMediaSourceID(rawValue: "source"),
                 displayName: "Sample",
                 container: "mkv",
                 sizeInBytes: 3_595_581_174,
                 bitrate: 7_638_461,
                 mediaStreams: []
-            )
+            )]
         )
 
         #expect(sections.file.map(\.label) == ["Container", "Size", "Total Bitrate", "Version"])
@@ -116,7 +151,7 @@ struct EmbyItemPresentationTests {
     func aboutWithoutAccessibility() {
         let sections = EmbyAboutSections(
             metadata: metadata(),
-            source: source(streams: [stream(.subtitle, codec: "subrip", language: "eng")])
+            sources: [source(streams: [stream(.subtitle, codec: "subrip", language: "eng")])]
         )
 
         #expect(sections.accessibility.isEmpty)
@@ -160,6 +195,8 @@ struct EmbyItemPresentationTests {
         width: Int? = nil,
         height: Int? = nil,
         videoRange: String? = nil,
+        extendedVideoType: String? = nil,
+        extendedVideoSubTypeDescription: String? = nil,
         bitRate: Int? = nil,
         bitDepth: Int? = nil,
         sampleRate: Int? = nil,
@@ -182,6 +219,8 @@ struct EmbyItemPresentationTests {
             width: width,
             height: height,
             videoRange: videoRange,
+            extendedVideoType: extendedVideoType,
+            extendedVideoSubTypeDescription: extendedVideoSubTypeDescription,
             bitRate: bitRate,
             bitDepth: bitDepth,
             sampleRate: sampleRate,

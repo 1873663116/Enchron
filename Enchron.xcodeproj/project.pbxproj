@@ -122,6 +122,7 @@
 				DesignSystem/Components/AppearanceModeButton.swift,
 				DesignSystem/Components/AsyncArtworkImage.swift,
 				DesignSystem/Components/ButtonIcon.swift,
+				DesignSystem/Components/CollapsibleBlock.swift,
 				DesignSystem/Components/GridCard.swift,
 				DesignSystem/Components/InputComponents.swift,
 				DesignSystem/Components/SettingsComponents.swift,

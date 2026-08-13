@@ -11,6 +11,7 @@ $(SRCROOT)/Modules/DesignSystem/Components/AnimatedDirectionalIconButton.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AppearanceModeButton.swift
 $(SRCROOT)/Modules/DesignSystem/Components/AsyncArtworkImage.swift
 $(SRCROOT)/Modules/DesignSystem/Components/ButtonIcon.swift
+$(SRCROOT)/Modules/DesignSystem/Components/CollapsibleBlock.swift
 $(SRCROOT)/Modules/DesignSystem/Components/GridCard.swift
 $(SRCROOT)/Modules/DesignSystem/Components/InputComponents.swift
 $(SRCROOT)/Modules/DesignSystem/Components/SettingsComponents.swift
