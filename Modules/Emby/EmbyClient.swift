@@ -2,6 +2,19 @@ import Foundation
 import MediaSource
 
 public final class EmbyClient: EmbyClientProtocol, Sendable {
+    private static let itemFields = [
+        "Overview",
+        "MediaStreams",
+        "MediaSources",
+        "ProductionYear",
+        "OfficialRating",
+        "CommunityRating",
+        "Genres",
+        "Studios",
+        "People",
+        "RemoteTrailers",
+    ].joined(separator: ",")
+
     private let session: URLSession
     private let clientIdentity: EmbyClientIdentity
 
@@ -86,7 +99,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             server: server,
             path: "/Users/\(server.userID.rawValue)/Items/\(itemID.rawValue)",
             queryItems: [
-                URLQueryItem(name: "Fields", value: "Overview,MediaStreams"),
+                URLQueryItem(name: "Fields", value: Self.itemFields),
                 URLQueryItem(name: "EnableImages", value: "true"),
                 URLQueryItem(name: "EnableUserData", value: "true"),
             ]
@@ -137,6 +150,29 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         )
     }
 
+    public func latestItems(
+        in viewID: EmbyItemID,
+        on server: EmbyAuthenticatedServer,
+        limit: Int? = nil
+    ) async throws -> [EmbyLibraryItem] {
+        var queryItems = [
+            URLQueryItem(name: "ParentId", value: viewID.rawValue),
+            URLQueryItem(name: "Fields", value: Self.itemFields),
+            URLQueryItem(name: "EnableImages", value: "true"),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+        ]
+        if let limit {
+            queryItems.append(URLQueryItem(name: "Limit", value: String(limit)))
+        }
+        let request = try authorizedRequest(
+            server: server,
+            path: "/Users/\(server.userID.rawValue)/Items/Latest",
+            queryItems: queryItems
+        )
+        let result: [ItemDTO] = try await response(for: request)
+        return try result.compactMap(mapItem)
+    }
+
     public func nextUp(
         on server: EmbyAuthenticatedServer,
         seriesID: EmbyItemID? = nil,
@@ -154,7 +190,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
             items.append(URLQueryItem(name: "Limit", value: String(limit)))
         }
         items.append(contentsOf: [
-            URLQueryItem(name: "Fields", value: "Overview,MediaStreams"),
+            URLQueryItem(name: "Fields", value: Self.itemFields),
             URLQueryItem(name: "EnableImages", value: "true"),
             URLQueryItem(name: "EnableUserData", value: "true"),
         ])
@@ -185,6 +221,54 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         )
     }
 
+    public func specialFeatures(
+        for itemID: EmbyItemID,
+        on server: EmbyAuthenticatedServer
+    ) async throws -> [EmbyLibraryItem] {
+        let request = try authorizedRequest(
+            server: server,
+            path: "/Users/\(server.userID.rawValue)/Items/\(itemID.rawValue)/SpecialFeatures",
+            queryItems: [
+                URLQueryItem(name: "Fields", value: Self.itemFields),
+                URLQueryItem(name: "EnableImages", value: "true"),
+                URLQueryItem(name: "EnableUserData", value: "true"),
+            ]
+        )
+        let data = try await data(for: request)
+        let decoder = Self.makeDecoder()
+        if let items = try? decoder.decode([ItemDTO].self, from: data) {
+            return try items.compactMap(mapItem)
+        }
+        let result = try decoder.decode(ItemQueryResultDTO.self, from: data)
+        return try result.items.compactMap(mapItem)
+    }
+
+    public func similarItems(
+        to itemID: EmbyItemID,
+        on server: EmbyAuthenticatedServer,
+        limit: Int? = nil
+    ) async throws -> EmbyItemPage {
+        var queryItems = [
+            URLQueryItem(name: "UserId", value: server.userID.rawValue),
+            URLQueryItem(name: "Fields", value: Self.itemFields),
+            URLQueryItem(name: "EnableImages", value: "true"),
+            URLQueryItem(name: "EnableUserData", value: "true"),
+        ]
+        if let limit {
+            queryItems.append(URLQueryItem(name: "Limit", value: String(limit)))
+        }
+        let request = try authorizedRequest(
+            server: server,
+            path: "/Items/\(itemID.rawValue)/Similar",
+            queryItems: queryItems
+        )
+        let result: ItemQueryResultDTO = try await response(for: request)
+        return EmbyItemPage(
+            items: try result.items.compactMap(mapItem),
+            totalRecordCount: result.totalRecordCount
+        )
+    }
+
     public func imageURL(
         for itemID: EmbyItemID,
         type: EmbyImageType,
@@ -205,6 +289,30 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         return try url(
             address: server.baseAddress,
             path: "/Items/\(itemID.rawValue)/Images/\(type.rawValue)",
+            queryItems: queryItems
+        )
+    }
+
+    public func backdropImageURL(
+        for itemID: EmbyItemID,
+        index: Int,
+        tag: EmbyImageTag? = nil,
+        size: EmbyImageSize? = nil,
+        on server: EmbyAuthenticatedServer
+    ) throws -> URL {
+        var queryItems = [URLQueryItem(name: "api_key", value: server.accessToken)]
+        if let tag {
+            queryItems.append(URLQueryItem(name: "Tag", value: tag.rawValue))
+        }
+        if let maxWidth = size?.maxWidth {
+            queryItems.append(URLQueryItem(name: "MaxWidth", value: String(maxWidth)))
+        }
+        if let maxHeight = size?.maxHeight {
+            queryItems.append(URLQueryItem(name: "MaxHeight", value: String(maxHeight)))
+        }
+        return try url(
+            address: server.baseAddress,
+            path: "/Items/\(itemID.rawValue)/Images/Backdrop/\(index)",
             queryItems: queryItems
         )
     }
@@ -338,7 +446,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         }
         queryItems.append(contentsOf: [
             URLQueryItem(name: "Recursive", value: query.recursive ? "true" : "false"),
-            URLQueryItem(name: "Fields", value: "Overview,MediaStreams"),
+            URLQueryItem(name: "Fields", value: Self.itemFields),
             URLQueryItem(name: "EnableImages", value: "true"),
             URLQueryItem(name: "EnableUserData", value: "true"),
         ])
@@ -389,7 +497,17 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 )
             },
             entityTag: item.etag,
-            sizeInBytes: item.size
+            sizeInBytes: item.size,
+            productionYear: item.productionYear,
+            officialRating: item.officialRating,
+            communityRating: item.communityRating,
+            genres: item.genres ?? [],
+            studios: (item.studios ?? []).compactMap { studio in
+                studio.name?.nonEmpty.map(EmbyStudio.init(name:))
+            },
+            people: (item.people ?? []).compactMap(mapPerson),
+            remoteTrailers: (item.remoteTrailers ?? []).compactMap(mapRemoteTrailer),
+            mediaSources: (item.mediaSources ?? []).compactMap(mapMediaSourceDescription)
         )
         switch type.lowercased() {
         case "movie":
@@ -423,6 +541,38 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
         }
     }
 
+    private func mapPerson(_ person: PersonDTO) -> EmbyPerson? {
+        guard let name = person.name?.nonEmpty else { return nil }
+        return EmbyPerson(
+            id: person.id?.nonEmpty.map { EmbyItemID(rawValue: $0) },
+            name: name,
+            role: person.role?.nonEmpty,
+            type: person.type?.nonEmpty,
+            primaryImageTag: person.primaryImageTag?.nonEmpty.map(EmbyImageTag.init(rawValue:))
+        )
+    }
+
+    private func mapRemoteTrailer(_ trailer: RemoteTrailerDTO) -> EmbyRemoteTrailer? {
+        guard let value = trailer.url, let url = URL(string: value) else { return nil }
+        return EmbyRemoteTrailer(name: trailer.name?.nonEmpty ?? "Trailer", url: url)
+    }
+
+    private func mapMediaSourceDescription(
+        _ source: MediaSourceDTO
+    ) -> EmbyMediaSourceDescription? {
+        guard let id = source.id?.nonEmpty else { return nil }
+        let streams = mapStreams(source.mediaStreams)
+        return EmbyMediaSourceDescription(
+            id: EmbyMediaSourceID(rawValue: id),
+            displayName: source.name?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? source.path?.lastPathComponentFromServerPath
+                ?? source.container?.uppercased()
+                ?? "Version",
+            container: source.container,
+            mediaStreams: streams
+        )
+    }
+
     private func mapMediaSource(
         _ source: MediaSourceDTO,
         item: EmbyLibraryItem,
@@ -445,20 +595,7 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 URLQueryItem(name: "api_key", value: server.accessToken),
             ]
         )
-        let streams = source.mediaStreams.map { stream in
-            EmbyMediaStream(
-                index: stream.index,
-                kind: EmbyMediaStreamKind(rawValue: stream.type ?? "") ?? .unknown,
-                codec: stream.codec,
-                language: stream.language,
-                displayTitle: stream.displayTitle ?? stream.title,
-                channels: stream.channels,
-                isDefault: stream.isDefault ?? false,
-                isForced: stream.isForced ?? false,
-                isExternal: stream.isExternal ?? false,
-                deliveryURL: stream.deliveryUrl
-            )
-        }
+        let streams = mapStreams(source.mediaStreams)
         let videoIndex = streams.first { $0.kind == .video && $0.isDefault }?.index
             ?? streams.first { $0.kind == .video }?.index
         return EmbyMediaSource(
@@ -484,6 +621,23 @@ public final class EmbyClient: EmbyClientProtocol, Sendable {
                 runTimeTicks: item.metadata.runTimeTicks
             )
         )
+    }
+
+    private func mapStreams(_ sourceStreams: [MediaStreamDTO]?) -> [EmbyMediaStream] {
+        (sourceStreams ?? []).map { stream in
+            EmbyMediaStream(
+                index: stream.index,
+                kind: EmbyMediaStreamKind(rawValue: stream.type ?? "") ?? .unknown,
+                codec: stream.codec,
+                language: stream.language,
+                displayTitle: stream.displayTitle ?? stream.title,
+                channels: stream.channels,
+                isDefault: stream.isDefault ?? false,
+                isForced: stream.isForced ?? false,
+                isExternal: stream.isExternal ?? false,
+                deliveryURL: stream.deliveryUrl
+            )
+        }
     }
 
     private func imageTags(from item: ItemDTO) -> EmbyImageTags {
@@ -727,6 +881,31 @@ private struct ItemDTO: Decodable {
     let seasonId: String?
     let indexNumber: Int?
     let parentIndexNumber: Int?
+    let productionYear: Int?
+    let officialRating: String?
+    let communityRating: Double?
+    let genres: [String]?
+    let studios: [StudioDTO]?
+    let people: [PersonDTO]?
+    let remoteTrailers: [RemoteTrailerDTO]?
+    let mediaSources: [MediaSourceDTO]?
+}
+
+private struct StudioDTO: Decodable {
+    let name: String?
+}
+
+private struct PersonDTO: Decodable {
+    let id: String?
+    let name: String?
+    let role: String?
+    let type: String?
+    let primaryImageTag: String?
+}
+
+private struct RemoteTrailerDTO: Decodable {
+    let name: String?
+    let url: String?
 }
 
 private struct UserDataDTO: Decodable {
@@ -755,7 +934,7 @@ private struct MediaSourceDTO: Decodable {
     let container: String?
     let size: Int64?
     let supportsDirectPlay: Bool?
-    let mediaStreams: [MediaStreamDTO]
+    let mediaStreams: [MediaStreamDTO]?
     let defaultAudioStreamIndex: Int?
     let defaultSubtitleStreamIndex: Int?
 }

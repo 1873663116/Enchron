@@ -153,6 +153,62 @@ struct EmbyClientTests {
         #expect(recorder.requests.first?.url?.path == "/emby/Users/user-1/Items/movie-1")
     }
 
+    @Test("detail fields map into domain metadata without exposing response DTOs")
+    func detailFields() async throws {
+        MockURLProtocol.setHandler { request in
+            try response(
+                request,
+                status: 200,
+                json: """
+                {
+                  "Id":"movie-1",
+                  "Name":"Feature",
+                  "Type":"Movie",
+                  "ProductionYear":2026,
+                  "OfficialRating":"PG-13",
+                  "CommunityRating":8.4,
+                  "Genres":["Drama","Science Fiction"],
+                  "Studios":[{"Name":"Studio One"}],
+                  "People":[{
+                    "Id":"person-1",
+                    "Name":"Actor One",
+                    "Role":"Lead",
+                    "Type":"Actor",
+                    "PrimaryImageTag":"person-tag"
+                  }],
+                  "RemoteTrailers":[{"Name":"Trailer","Url":"https://example.test/trailer"}],
+                  "MediaSources":[{
+                    "Id":"source-1",
+                    "Name":"Director's Cut",
+                    "Container":"mkv",
+                    "MediaStreams":[
+                      {"Index":1,"Type":"Audio","Language":"eng"},
+                      {"Index":2,"Type":"Subtitle","Language":"jpn"}
+                    ]
+                  }]
+                }
+                """
+            )
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+
+        let item = try await makeClient().item(
+            withID: EmbyItemID(rawValue: "movie-1"),
+            on: server
+        )
+        let metadata = item.metadata
+
+        #expect(metadata.productionYear == 2026)
+        #expect(metadata.officialRating == "PG-13")
+        #expect(metadata.communityRating == 8.4)
+        #expect(metadata.genres == ["Drama", "Science Fiction"])
+        #expect(metadata.studios.map(\.name) == ["Studio One"])
+        #expect(metadata.people.first?.role == "Lead")
+        #expect(metadata.remoteTrailers.first?.url.absoluteString == "https://example.test/trailer")
+        #expect(metadata.mediaSources.first?.displayName == "Director's Cut")
+        #expect(metadata.mediaSources.first?.mediaStreams.map(\.language) == ["eng", "jpn"])
+    }
+
     @Test("children select the server entity type implied by the parent")
     func typedChildren() async throws {
         let recorder = RequestRecorder()
@@ -203,6 +259,56 @@ struct EmbyClientTests {
             resolvingAgainstBaseURL: false
         )?.queryItems
         #expect(searchQuery?.first { $0.name == "SearchTerm" }?.value == "matrix")
+    }
+
+    @Test("latest, special features, similar, and indexed backdrops use their Emby routes")
+    func productSurfaceRoutes() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.setHandler { request in
+            recorder.record(request)
+            if request.url?.path.hasSuffix("/Latest") == true
+                || request.url?.path.hasSuffix("/SpecialFeatures") == true {
+                return try response(request, status: 200, json: "[]")
+            }
+            return try response(request, status: 200, json: "{\"Items\":[],\"TotalRecordCount\":0}")
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+        let client = makeClient()
+
+        _ = try await client.latestItems(
+            in: EmbyItemID(rawValue: "view-1"),
+            on: server,
+            limit: 12
+        )
+        _ = try await client.specialFeatures(
+            for: EmbyItemID(rawValue: "movie-1"),
+            on: server
+        )
+        _ = try await client.similarItems(
+            to: EmbyItemID(rawValue: "movie-1"),
+            on: server,
+            limit: 20
+        )
+        let backdrop = try client.backdropImageURL(
+            for: EmbyItemID(rawValue: "movie-1"),
+            index: 0,
+            tag: EmbyImageTag(rawValue: "backdrop-tag"),
+            size: try EmbyImageSize.width(1920),
+            on: server
+        )
+
+        #expect(recorder.requests.compactMap(\.url?.path) == [
+            "/emby/Users/user-1/Items/Latest",
+            "/emby/Users/user-1/Items/movie-1/SpecialFeatures",
+            "/emby/Items/movie-1/Similar",
+        ])
+        #expect(backdrop.path == "/emby/Items/movie-1/Images/Backdrop/0")
+        let latestQuery = URLComponents(
+            url: try #require(recorder.requests.first?.url),
+            resolvingAgainstBaseURL: false
+        )?.queryItems
+        #expect(latestQuery?.first { $0.name == "ParentId" }?.value == "view-1")
+        #expect(latestQuery?.first { $0.name == "Limit" }?.value == "12")
     }
 
     @Test("playback info exposes original bytes and typed stream metadata")

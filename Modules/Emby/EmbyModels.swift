@@ -176,6 +176,67 @@ public struct EmbyUserData: Equatable, Hashable, Sendable {
     }
 }
 
+public struct EmbyStudio: Equatable, Hashable, Sendable {
+    public let name: String
+
+    public init(name: String) {
+        self.name = name
+    }
+}
+
+public struct EmbyPerson: Equatable, Hashable, Sendable, Identifiable {
+    public let id: EmbyItemID?
+    public let name: String
+    public let role: String?
+    public let type: String?
+    public let primaryImageTag: EmbyImageTag?
+
+    public init(
+        id: EmbyItemID?,
+        name: String,
+        role: String?,
+        type: String?,
+        primaryImageTag: EmbyImageTag?
+    ) {
+        self.id = id
+        self.name = name
+        self.role = role
+        self.type = type
+        self.primaryImageTag = primaryImageTag
+    }
+}
+
+public struct EmbyRemoteTrailer: Equatable, Hashable, Sendable, Identifiable {
+    public let name: String
+    public let url: URL
+
+    public var id: URL { url }
+
+    public init(name: String, url: URL) {
+        self.name = name
+        self.url = url
+    }
+}
+
+public struct EmbyMediaSourceDescription: Equatable, Hashable, Sendable, Identifiable {
+    public let id: EmbyMediaSourceID
+    public let displayName: String
+    public let container: String?
+    public let mediaStreams: [EmbyMediaStream]
+
+    public init(
+        id: EmbyMediaSourceID,
+        displayName: String,
+        container: String?,
+        mediaStreams: [EmbyMediaStream]
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.container = container
+        self.mediaStreams = mediaStreams
+    }
+}
+
 public struct EmbyItemMetadata: Equatable, Hashable, Sendable {
     public let id: EmbyItemID
     public let name: String
@@ -185,6 +246,14 @@ public struct EmbyItemMetadata: Equatable, Hashable, Sendable {
     public let userData: EmbyUserData?
     public let entityTag: String?
     public let sizeInBytes: Int64?
+    public let productionYear: Int?
+    public let officialRating: String?
+    public let communityRating: Double?
+    public let genres: [String]
+    public let studios: [EmbyStudio]
+    public let people: [EmbyPerson]
+    public let remoteTrailers: [EmbyRemoteTrailer]
+    public let mediaSources: [EmbyMediaSourceDescription]
 
     public init(
         id: EmbyItemID,
@@ -194,7 +263,15 @@ public struct EmbyItemMetadata: Equatable, Hashable, Sendable {
         runTimeTicks: Int64?,
         userData: EmbyUserData?,
         entityTag: String?,
-        sizeInBytes: Int64?
+        sizeInBytes: Int64?,
+        productionYear: Int? = nil,
+        officialRating: String? = nil,
+        communityRating: Double? = nil,
+        genres: [String] = [],
+        studios: [EmbyStudio] = [],
+        people: [EmbyPerson] = [],
+        remoteTrailers: [EmbyRemoteTrailer] = [],
+        mediaSources: [EmbyMediaSourceDescription] = []
     ) {
         self.id = id
         self.name = name
@@ -204,6 +281,14 @@ public struct EmbyItemMetadata: Equatable, Hashable, Sendable {
         self.userData = userData
         self.entityTag = entityTag
         self.sizeInBytes = sizeInBytes
+        self.productionYear = productionYear
+        self.officialRating = officialRating
+        self.communityRating = communityRating
+        self.genres = genres
+        self.studios = studios
+        self.people = people
+        self.remoteTrailers = remoteTrailers
+        self.mediaSources = mediaSources
     }
 }
 
@@ -521,4 +606,5 @@ public enum EmbyError: Error, Equatable, Sendable {
     case directPlayUnavailable(EmbyItemID)
     case externalSubtitleUnavailable(Int)
     case mediaSourceUnavailable(EmbyItemID, EmbyMediaSourceID)
+    case notAuthenticated
 }

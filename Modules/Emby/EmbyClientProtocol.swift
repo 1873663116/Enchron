@@ -31,6 +31,12 @@ public protocol EmbyClientProtocol: Sendable {
         query: EmbyItemQuery
     ) async throws -> EmbyItemPage
 
+    func latestItems(
+        in viewID: EmbyItemID,
+        on server: EmbyAuthenticatedServer,
+        limit: Int?
+    ) async throws -> [EmbyLibraryItem]
+
     func nextUp(
         on server: EmbyAuthenticatedServer,
         seriesID: EmbyItemID?,
@@ -44,9 +50,28 @@ public protocol EmbyClientProtocol: Sendable {
         query: EmbyItemQuery
     ) async throws -> EmbyItemPage
 
+    func specialFeatures(
+        for itemID: EmbyItemID,
+        on server: EmbyAuthenticatedServer
+    ) async throws -> [EmbyLibraryItem]
+
+    func similarItems(
+        to itemID: EmbyItemID,
+        on server: EmbyAuthenticatedServer,
+        limit: Int?
+    ) async throws -> EmbyItemPage
+
     func imageURL(
         for itemID: EmbyItemID,
         type: EmbyImageType,
+        tag: EmbyImageTag?,
+        size: EmbyImageSize?,
+        on server: EmbyAuthenticatedServer
+    ) throws -> URL
+
+    func backdropImageURL(
+        for itemID: EmbyItemID,
+        index: Int,
         tag: EmbyImageTag?,
         size: EmbyImageSize?,
         on server: EmbyAuthenticatedServer
@@ -76,4 +101,39 @@ public protocol EmbyClientProtocol: Sendable {
         _ report: EmbyPlaybackReport,
         on server: EmbyAuthenticatedServer
     ) async throws
+}
+
+public extension EmbyClientProtocol {
+    func latestItems(
+        in viewID: EmbyItemID,
+        on server: EmbyAuthenticatedServer,
+        limit: Int?
+    ) async throws -> [EmbyLibraryItem] {
+        throw EmbyError.invalidResponse
+    }
+
+    func specialFeatures(
+        for itemID: EmbyItemID,
+        on server: EmbyAuthenticatedServer
+    ) async throws -> [EmbyLibraryItem] {
+        throw EmbyError.invalidResponse
+    }
+
+    func similarItems(
+        to itemID: EmbyItemID,
+        on server: EmbyAuthenticatedServer,
+        limit: Int?
+    ) async throws -> EmbyItemPage {
+        throw EmbyError.invalidResponse
+    }
+
+    func backdropImageURL(
+        for itemID: EmbyItemID,
+        index: Int,
+        tag: EmbyImageTag?,
+        size: EmbyImageSize?,
+        on server: EmbyAuthenticatedServer
+    ) throws -> URL {
+        try imageURL(for: itemID, type: .backdrop, tag: tag, size: size, on: server)
+    }
 }
