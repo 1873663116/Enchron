@@ -38,3 +38,7 @@ Modules/PlaybackPresentation/Resources/Immersive_Space.reality
 .env
 # Emby test credentials — local only, filled by the maintainer
 *.local.json
+
+# Device evidence: recordings, result bundles, frame dumps. Lives beside
+# the repo on the external disk, never in a commit.
+TestEvidence/
