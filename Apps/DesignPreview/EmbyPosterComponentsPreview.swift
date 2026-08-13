@@ -18,7 +18,7 @@ struct EmbyPosterComponentsPreview: View {
             .padding(DesignTokens.Spacing.xxl)
             .frame(maxWidth: .infinity, alignment: .topLeading)
         }
-        .navigationTitle("Emby Components")
+        .navigationTitle("Emby Poster Shelf")
     }
 }
 

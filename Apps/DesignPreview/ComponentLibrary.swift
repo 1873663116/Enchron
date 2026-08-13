@@ -348,6 +348,33 @@ private struct CardsSection: View {
                     )
                 }
             }
+
+            cardRow("GridCard · poster") {
+                GridCard.poster(
+                    title: "Arrival",
+                    artworkURL: nil
+                )
+            }
+
+            cardRow("GridCard · poster · in progress") {
+                GridCard.poster(
+                    title: "Dune: Part Two",
+                    artworkURL: nil,
+                    watchedProgress: 0.42
+                )
+            }
+
+            cardRow("GridCard · poster · unplayed badge") {
+                GridCard.poster(
+                    title: "Severance",
+                    artworkURL: nil,
+                    unplayedCount: 5
+                )
+            }
+
+            cardRow("GridCard · poster · skeleton") {
+                GridCard.skeleton(.poster)
+            }
         }
     }
 

@@ -31,7 +31,7 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .components: "Components"
-        case .embyComponents: "Emby Components"
+        case .embyComponents: "Emby Poster Shelf"
         case .spacing: "Spacing"
         case .radiusAndShapes: "Radius & Shapes"
         case .interactionAndLayout: "Interaction & Layout"

@@ -459,3 +459,65 @@ func watchedEdgeProgressVisual(_ progress: Double) -> some View {
     .allowsHitTesting(false)
     .accessibilityHidden(true)
 }
+
+#if canImport(PreviewsMacros)
+private struct GridCardFamilyPreview: View {
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+                previewRow("Folder and video") {
+                    GridCard.folder(title: "Movies", count: 24)
+                    GridCard.video(
+                        title: "Interstellar",
+                        fileSize: "8.2 GB",
+                        duration: "2:49:00",
+                        badges: ["HDR10+"]
+                    )
+                    GridCard.video(
+                        title: "Blade Runner 2049",
+                        fileSize: "45.6 GB",
+                        duration: "2:29:55",
+                        badges: ["HDR"],
+                        watchedProgress: 0.42
+                    )
+                }
+
+                previewRow("Poster") {
+                    GridCard.poster(title: "Arrival", artworkURL: nil)
+                    GridCard.poster(
+                        title: "Dune: Part Two",
+                        artworkURL: nil,
+                        watchedProgress: 0.42
+                    )
+                    GridCard.poster(
+                        title: "Severance",
+                        artworkURL: nil,
+                        unplayedCount: 5
+                    )
+                    GridCard.skeleton(.poster)
+                }
+            }
+            .padding(DesignTokens.Spacing.xl)
+        }
+    }
+
+    private func previewRow<Content: View>(
+        _ title: String,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.sectionHeader)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .top, spacing: DesignTokens.Card.gridSpacing) {
+                content()
+            }
+        }
+    }
+}
+
+#Preview("GridCard family") {
+    GridCardFamilyPreview()
+}
+#endif
