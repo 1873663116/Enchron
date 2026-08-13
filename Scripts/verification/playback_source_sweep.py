@@ -77,10 +77,13 @@ def open_and_judge(
 
 def leave_immersive(landed: object, controller_directory: Path) -> None:
     """An immersive landing empties the main window, and the next clean
-    preamble has to reach the library again. A title that never reported
-    where it landed is the case that most needs this, so anything but a
-    settled window gets the exit."""
-    if landed == "window":
+    preamble has to reach the library again.
+
+    Only these two presentations. Trying the exit from anywhere else costs a
+    thirty-second existence wait on a control that is not there and records
+    an XCUITest failure, whose triage pass then slows every command that
+    follows. The next clip's relaunch is what recovers an unknown state."""
+    if landed not in ("panorama", "docked"):
         return
     controller(
         controller_directory,
