@@ -378,6 +378,16 @@ public struct EmbyLibraryView: Equatable, Hashable, Sendable {
         self.collectionType = collectionType
         self.imageTags = imageTags
     }
+
+    /// A library's top level shows whole titles. Emby's recursive item query returns every
+    /// descendant, so without this filter a show's seasons stand beside the show itself.
+    public var topLevelItemKinds: [EmbyItemKind] {
+        switch collectionType?.lowercased() {
+        case "tvshows": [.series]
+        case "movies": [.movie, .boxSet]
+        default: [.movie, .series, .boxSet]
+        }
+    }
 }
 
 public struct EmbyItemPage: Equatable, Hashable, Sendable {

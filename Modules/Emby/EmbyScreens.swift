@@ -26,6 +26,8 @@ public struct EmbyScreen: View {
                     if sidebarIsVisible {
                         sidebar
                             .transition(.move(edge: .leading).combined(with: .opacity))
+                    } else {
+                        collapsedSidebarRail
                     }
                     NavigationStack(path: $path) {
                         destinationContent
@@ -40,14 +42,6 @@ public struct EmbyScreen: View {
                                     onPlay: onPlay
                                 )
                             }
-                            .toolbar {
-                                ToolbarItem(placement: .topBarTrailing) {
-                                    SidebarToggleButton(
-                                        isVisible: $sidebarIsVisible,
-                                        accessibilityIdentifier: "Emby-Sidebar-Toggle"
-                                    )
-                                }
-                            }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -56,15 +50,64 @@ public struct EmbyScreen: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Emby-Root")
+#if DEBUG
+        .task { await openLaunchRoute() }
+#endif
+    }
+
+#if DEBUG
+    private func openLaunchRoute() async {
+        guard let route = EmbyLaunchRoute.current else { return }
+        if session.server == nil {
+            guard let address = URL(string: route.address) else { return }
+            try? await session.connect(
+                address: address,
+                username: route.username,
+                password: route.password
+            )
+        }
+        await home.refresh()
+        if let libraryID = route.libraryID {
+            destination = .library(libraryID)
+        }
+        sidebarIsVisible = route.sidebarIsVisible
+        guard let itemID = route.itemID, let server = session.server else { return }
+        if let item = try? await session.client.item(withID: itemID, on: server) {
+            path = [item]
+        }
+    }
+#endif
+
+    private var sidebarToggle: some View {
+        SidebarToggleButton(
+            isVisible: $sidebarIsVisible,
+            accessibilityIdentifier: "Emby-Sidebar-Toggle"
+        )
+    }
+
+    /// The toggle keeps its own column when the sidebar is gone. Floating it over the content would
+    /// put it on top of the page title.
+    private var collapsedSidebarRail: some View {
+        VStack(spacing: 0) {
+            sidebarToggle
+            Spacer(minLength: 0)
+        }
+        .padding(DesignTokens.SourceSidebar.contentPaddingV)
+        .transition(.opacity)
     }
 
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            Text(session.server?.name ?? "Emby")
-                .font(DesignTokens.SourceSidebar.sectionTitleFont)
-                .foregroundStyle(.secondary)
-                .textCase(.uppercase)
-                .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                Text(session.server?.name ?? "Emby")
+                    .font(DesignTokens.SourceSidebar.sectionTitleFont)
+                    .foregroundStyle(.secondary)
+                    .textCase(.uppercase)
+                    .lineLimit(1)
+                Spacer(minLength: 0)
+                sidebarToggle
+            }
+            .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
 
             VStack(spacing: DesignTokens.SourceSidebar.rowSpacing) {
                 sidebarButton(
@@ -333,7 +376,7 @@ private struct EmbyPosterGrid: View {
     var body: some View {
         ScrollView {
             LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: DesignTokens.Card.gridMin), spacing: DesignTokens.Card.gridSpacing)],
+                columns: [GridItem(.adaptive(minimum: DesignTokens.Card.posterWidth), spacing: DesignTokens.Card.gridSpacing)],
                 alignment: .leading,
                 spacing: DesignTokens.Card.gridSpacing
             ) {
@@ -367,34 +410,50 @@ private struct EmbyDetailScreen: View {
 
     var body: some View {
         @Bindable var viewModel = viewModel
-        ScrollView(.vertical) {
-            if let item = viewModel.item {
-                LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
-                    hero(item)
-                    childrenContent
-                    posterShelf(title: "Special Features", items: viewModel.specialFeatures)
-                    posterShelf(title: "Related", items: viewModel.relatedItems)
-                    castAndCrew(item.metadata.people)
-                    about(item.metadata)
+        ScrollViewReader { scroll in
+            ScrollView(.vertical) {
+                if let item = viewModel.item {
+                    LazyVStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+                        hero(item)
+                        childrenContent.id(Section.children)
+                        posterShelf(title: "Special Features", items: viewModel.specialFeatures)
+                        posterShelf(title: "Related", items: viewModel.relatedItems)
+                        castAndCrew(item.metadata.people)
+                        about(item.metadata).id(Section.about)
+                    }
+                    .padding(.bottom, DesignTokens.Spacing.xxl)
+                } else if viewModel.isLoading {
+                    ProgressView()
+                        .frame(maxWidth: .infinity, minHeight: 400)
                 }
-                .padding(.bottom, DesignTokens.Spacing.xxl)
-            } else if viewModel.isLoading {
-                ProgressView()
-                    .frame(maxWidth: .infinity, minHeight: 400)
             }
+            // The hero runs under the navigation bar the way the Apple TV app does, so the back
+            // control floats on the artwork instead of sitting on a band above it.
+            .ignoresSafeArea(.container, edges: .top)
+#if DEBUG
+            .task(id: viewModel.item) {
+                guard let name = EmbyLaunchRoute.current?.sectionName,
+                      let section = Section(rawValue: name) else { return }
+                try? await Task.sleep(for: .milliseconds(600))
+                scroll.scrollTo(section, anchor: .top)
+            }
+#endif
         }
         .task { await viewModel.refresh() }
         .accessibilityIdentifier("Emby-Detail-\(viewModel.itemID.rawValue)")
+    }
+
+    enum Section: String, Hashable {
+        case children
+        case about
     }
 
     /// The hero fills the panel the way the Apple TV app does: artwork behind, every piece of
     /// header content overlaid on it, scrim only where text sits.
     private func hero(_ item: EmbyLibraryItem) -> some View {
         ZStack(alignment: .bottomLeading) {
-            AsyncArtworkImage(url: backdropURL(for: item, session: session))
-                .frame(maxWidth: .infinity)
-                .frame(height: DesignTokens.EmbyDetail.heroHeight)
-                .clipped()
+            AsyncArtworkImage(url: heroArtworkURL(for: item, session: session))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .overlay {
                     LinearGradient(
                         colors: [.clear, .black.opacity(0.35), .black.opacity(0.85)],
@@ -417,7 +476,15 @@ private struct EmbyDetailScreen: View {
             .padding(DesignTokens.Spacing.xxl)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(height: DesignTokens.EmbyDetail.heroHeight)
+        .containerRelativeFrame(.vertical, alignment: .bottom) { height, _ in
+            max(
+                DesignTokens.EmbyDetail.heroMinimumHeight,
+                height * DesignTokens.EmbyDetail.heroHeightFraction
+            )
+        }
+        // Aspect-fill artwork and bottom-aligned header both exceed the hero box; without this the
+        // overflow paints across the section below.
+        .clipped()
     }
 
     @ViewBuilder
@@ -607,7 +674,7 @@ private struct EmbyDetailScreen: View {
         case let .seasons(all, selected, episodes):
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
                 if all.count > 1 {
-                    seasonTabs(all, selected: selected)
+                    seasonPicker(all, selected: selected)
                 }
                 episodeShelf(episodes, title: all.count > 1 ? nil : "Episodes")
             }
@@ -620,33 +687,38 @@ private struct EmbyDetailScreen: View {
         }
     }
 
-    private func seasonTabs(_ seasons: [EmbySeason], selected: EmbyItemID?) -> some View {
-        ScrollView(.horizontal) {
-            HStack(spacing: DesignTokens.Spacing.xs) {
-                ForEach(seasons, id: \.metadata.id) { season in
-                    let isSelected = selected == season.metadata.id
-                    Button {
-                        Task { await viewModel.selectSeason(season.metadata.id) }
-                    } label: {
+    /// One capsule naming the current season, opening a menu of the rest. A row of season tabs
+    /// would not survive a show with a dozen seasons inside one detail page.
+    private func seasonPicker(_ seasons: [EmbySeason], selected: EmbyItemID?) -> some View {
+        Menu {
+            ForEach(seasons, id: \.metadata.id) { season in
+                Button {
+                    Task { await viewModel.selectSeason(season.metadata.id) }
+                } label: {
+                    if selected == season.metadata.id {
+                        Label(season.metadata.name, systemImage: "checkmark")
+                    } else {
                         Text(season.metadata.name)
-                            .font(DesignTokens.Typography.headline)
-                            .foregroundStyle(isSelected ? .primary : .secondary)
-                            .padding(.horizontal, DesignTokens.Spacing.md)
-                            .frame(height: DesignTokens.Interactive.regular)
-                            .background(
-                                isSelected ? DesignTokens.Surface.selected : .clear,
-                                in: Capsule()
-                            )
                     }
-                    .buttonStyle(.plain)
-                    .enchronHoverContentShape(Capsule())
-                    .enchronHoverEffect(.highlight)
-                    .accessibilityIdentifier("Emby-Season-\(season.metadata.id.rawValue)")
-                    .accessibilityAddTraits(isSelected ? .isSelected : [])
                 }
+                .accessibilityIdentifier("Emby-Season-\(season.metadata.id.rawValue)")
             }
+        } label: {
+            HStack(spacing: DesignTokens.Spacing.xs) {
+                Text(seasons.first { $0.metadata.id == selected }?.metadata.name ?? "Seasons")
+                Image(systemName: "chevron.down")
+                    .font(DesignTokens.SymbolSize.label)
+            }
+            .font(DesignTokens.Typography.headline)
+            .padding(.horizontal, DesignTokens.Spacing.lg)
+            .frame(height: DesignTokens.Interactive.regular)
+            .background(DesignTokens.Surface.selected, in: Capsule())
+            .enchronHoverContentShape(Capsule())
+            .enchronHoverEffect(.highlight)
         }
-        .scrollIndicators(.hidden)
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .accessibilityIdentifier("Emby-Season-Picker")
     }
 
     @ViewBuilder
@@ -837,17 +909,23 @@ private func imageURL(
     )
 }
 
+/// Not every title carries a backdrop. A season usually has only its poster, so the hero falls back
+/// through the wide images before it settles for one that will crop.
 @MainActor
-private func backdropURL(for item: EmbyLibraryItem, session: EmbySessionViewModel) -> URL? {
-    guard let server = session.server,
-          let tag = item.metadata.imageTags.backdrops.first else { return nil }
-    return try? session.client.backdropImageURL(
-        for: item.metadata.id,
-        index: 0,
-        tag: tag,
-        size: nil,
-        on: server
-    )
+private func heroArtworkURL(for item: EmbyLibraryItem, session: EmbySessionViewModel) -> URL? {
+    guard let server = session.server else { return nil }
+    if let tag = item.metadata.imageTags.backdrops.first,
+       let url = try? session.client.backdropImageURL(
+           for: item.metadata.id,
+           index: 0,
+           tag: tag,
+           size: nil,
+           on: server
+       ) {
+        return url
+    }
+    return imageURL(for: item, type: .thumb, session: session)
+        ?? imageURL(for: item, type: .primary, session: session)
 }
 
 @MainActor

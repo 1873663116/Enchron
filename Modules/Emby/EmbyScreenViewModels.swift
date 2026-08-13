@@ -145,9 +145,17 @@ public final class EmbyLibraryViewModel {
         do {
             let query = switch sort {
             case .recentlyAdded:
-                EmbyItemQuery(sortBy: [.dateCreated], sortOrder: .descending)
+                EmbyItemQuery(
+                    sortBy: [.dateCreated],
+                    sortOrder: .descending,
+                    includeItemTypes: library.topLevelItemKinds
+                )
             case .alphabetical:
-                EmbyItemQuery(sortBy: [.sortName], sortOrder: .ascending)
+                EmbyItemQuery(
+                    sortBy: [.sortName],
+                    sortOrder: .ascending,
+                    includeItemTypes: library.topLevelItemKinds
+                )
             }
             items = try await client.items(in: library.id, on: server, query: query).items
             errorMessage = nil
@@ -194,7 +202,11 @@ public final class EmbySearchViewModel {
             results = try await client.search(
                 term,
                 on: server,
-                query: EmbyItemQuery(sortBy: [.sortName], sortOrder: .ascending)
+                query: EmbyItemQuery(
+                    sortBy: [.sortName],
+                    sortOrder: .ascending,
+                    includeItemTypes: [.movie, .series, .boxSet]
+                )
             ).items
             errorMessage = nil
         } catch {

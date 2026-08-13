@@ -70,9 +70,10 @@ struct EnchronApp: App {
         } defaultValue: {
             PlaybackWindowSceneIdentity()
         }
+        // The app opens on the browser, so the launch size is the browser's, not playback's.
         .defaultSize(
-            width: WindowPlaybackLayout.fallback.defaultSize.width,
-            height: WindowPlaybackLayout.fallback.defaultSize.height
+            width: BrowserWindowLayout.defaultSize.width,
+            height: BrowserWindowLayout.defaultSize.height
         )
         // Browser, loading, and playback remain inside one visionOS-owned
         // system window, including its outer glass and rounded boundary.

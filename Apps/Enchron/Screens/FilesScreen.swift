@@ -86,6 +86,8 @@ struct FilesScreen: View {
             if sidebarIsVisible {
                 sidebar
                     .transition(.move(edge: .leading).combined(with: .opacity))
+            } else {
+                collapsedSidebarRail
             }
             contentArea
         }
@@ -243,8 +245,23 @@ struct FilesScreen: View {
             onSelectSource: { id in select(sourceID: id) },
             onAddSource: { type in presentConnection(for: type) },
             onRefresh: { Task { await viewModel.loadFiles() } },
-            onDeleteSources: deleteSources
+            onDeleteSources: deleteSources,
+            isVisible: $sidebarIsVisible
         )
+    }
+
+    /// The toggle keeps its own column when the sidebar is gone. Floating it over the content would
+    /// put it on top of the page title.
+    private var collapsedSidebarRail: some View {
+        VStack(spacing: 0) {
+            SidebarToggleButton(
+                isVisible: $sidebarIsVisible,
+                accessibilityIdentifier: "FileBrowsing-FilesScreen-sidebarToggle"
+            )
+            Spacer(minLength: 0)
+        }
+        .padding(DesignTokens.SourceSidebar.contentPaddingV)
+        .transition(.opacity)
     }
 
     private func syncSourceItems() {
@@ -506,10 +523,6 @@ struct FilesScreen: View {
                     placeholder: "Search media...",
                     accessibilityIdentifier: "FileBrowsing-FilesScreen-search"
                 )
-                SidebarToggleButton(
-                    isVisible: $sidebarIsVisible,
-                    accessibilityIdentifier: "FileBrowsing-FilesScreen-sidebarToggle"
-                )
             }
         }
         .padding(.bottom, DesignTokens.Spacing.lg)
@@ -643,10 +656,6 @@ struct FilesScreen: View {
 
     // MARK: - Grid / List
 
-    private var gridMaxWidth: CGFloat {
-        DesignTokens.Card.gridMin * 4 + DesignTokens.Card.gridSpacing * 3
-    }
-
     private var grid: some View {
         ScrollView {
             LazyVGrid(
@@ -711,7 +720,7 @@ struct FilesScreen: View {
                     }
                 }
             }
-            .frame(maxWidth: gridMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .scrollIndicators(.hidden)
     }
@@ -722,7 +731,7 @@ struct FilesScreen: View {
                 accessibilityIdentifier: "FileBrowsing-FilesScreen-list",
                 items: isBrowsingSource ? sourceListItems : libraryListItems
             )
-            .frame(maxWidth: gridMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .scrollIndicators(.hidden)

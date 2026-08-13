@@ -304,8 +304,11 @@ public struct MainView: View {
                 showsWindowPlayback: showsWindowPlayback
             ) {
                 windowPlayback
+                    .transition(.opacity)
             } else {
                 browserWindowSurface
+                    .browserWindowGeometry()
+                    .transition(.opacity)
             }
 
             if ProcessInfo.processInfo.environment["ENCHRON_AUTOMATION_PROBE"] == "1" {
@@ -395,6 +398,12 @@ public struct MainView: View {
             }
             .accessibilityIdentifier("Navigation-Ornament-tab-environment")
         }
+#if DEBUG
+        .task {
+            guard EmbyLaunchRoute.current != nil else { return }
+            appModel.selectedTab = .emby
+        }
+#endif
     }
 
     private var browserTabSelection: Binding<AppModel.NavigationTab> {

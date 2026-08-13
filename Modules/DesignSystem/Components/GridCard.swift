@@ -340,7 +340,9 @@ public struct GridCard: View {
         switch variant {
         case .episode:
             DesignTokens.Card.episodeWidth
-        case .video, .folder, .poster:
+        case .poster:
+            DesignTokens.Card.posterWidth
+        case .video, .folder:
             DesignTokens.Card.gridMin
         }
     }
@@ -348,7 +350,7 @@ public struct GridCard: View {
     private var thumbnailHeight: CGFloat {
         switch variant {
         case .poster:
-            DesignTokens.Card.gridMin * 3 / 2
+            DesignTokens.Card.posterWidth * 3 / 2
         case .episode:
             DesignTokens.Card.episodeWidth
         case .video, .folder:
@@ -444,17 +446,6 @@ public struct GridCard: View {
                     .clipped()
                     .background(DesignTokens.Theme.surfaceContainerHighest)
                     .overlay {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0.25),
-                                .init(color: .black.opacity(0.55), location: 0.5),
-                                .init(color: .black.opacity(0.9), location: 1)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    }
-                    .overlay(alignment: .bottomLeading) {
                         episodeCaption(episode)
                     }
                     .overlay {
@@ -466,7 +457,44 @@ public struct GridCard: View {
         }
     }
 
+    // 集信息与其压暗渐变一起随卡片 hover 组显隐;未 hover 时整张剧照干净无遮挡。
     private func episodeCaption(_ episode: EpisodeState) -> some View {
+        ZStack(alignment: .bottomLeading) {
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.25),
+                    .init(color: .black.opacity(0.55), location: 0.5),
+                    .init(color: .black.opacity(0.9), location: 1)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+
+            // 集号、标题与时长必须完整可读,简介让出行数直到整块放得下,所以候选按简介
+            // 行数递减排列,最后一个完全不显示简介。
+            ViewThatFits(in: .vertical) {
+                episodeCaptionText(episode, overviewLineLimit: 6)
+                episodeCaptionText(episode, overviewLineLimit: 5)
+                episodeCaptionText(episode, overviewLineLimit: 4)
+                episodeCaptionText(episode, overviewLineLimit: 3)
+                episodeCaptionText(episode, overviewLineLimit: 2)
+                episodeCaptionText(episode, overviewLineLimit: 1)
+                episodeCaptionText(episode, overviewLineLimit: 0)
+            }
+        }
+        .enchronHoverOpacity(
+            active: 1,
+            inactive: 0,
+            in: hoverRevealGroup,
+            animation: DesignTokens.AnimationToken.controlsTransition
+        )
+        .allowsHitTesting(false)
+    }
+
+    private func episodeCaptionText(
+        _ episode: EpisodeState,
+        overviewLineLimit: Int
+    ) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
             if let numberLabel = episode.numberLabel {
                 Text(numberLabel)
@@ -476,14 +504,14 @@ public struct GridCard: View {
 
             Text(title)
                 .font(DesignTokens.Typography.headline)
-                .lineLimit(1)
+                .lineLimit(2)
                 .truncationMode(.tail)
 
-            if let overview = episode.overview {
+            if let overview = episode.overview, overviewLineLimit > 0 {
                 Text(overview)
                     .font(DesignTokens.Typography.metadata)
                     .foregroundStyle(DesignTokens.Surface.supportingText)
-                    .lineLimit(4)
+                    .lineLimit(overviewLineLimit)
             }
 
             if let duration = episode.duration {
@@ -496,7 +524,6 @@ public struct GridCard: View {
         .multilineTextAlignment(.leading)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(DesignTokens.Spacing.md)
-        .allowsHitTesting(false)
     }
 
     private func videoThumbnailInfo(fileSize: String, duration: String, badges: [String]) -> some View {

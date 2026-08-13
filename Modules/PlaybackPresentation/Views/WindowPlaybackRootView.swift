@@ -119,6 +119,42 @@ struct WindowPlaybackLayout: Equatable {
     }
 }
 
+/// The window range the browser asks for. It has no video to match, so unlike playback its range is
+/// rectangular and its floor is the size playback opens at.
+struct BrowserWindowLayout {
+    static let minimumSize = WindowPlaybackLayout.fallback.defaultSize
+    static let defaultSize = scaled(1.6)
+    static let maximumSize = scaled(3.0)
+
+    private static func scaled(_ multiplier: CGFloat) -> CGSize {
+        let base = WindowPlaybackLayout.fallback.defaultSize
+        return CGSize(
+            width: base.width * multiplier,
+            height: base.height * multiplier
+        )
+    }
+}
+
+extension View {
+    /// Every surface that can own the window states its own range. None of them restores a system
+    /// default on the way out, so the order in which one surface disappears and the next appears
+    /// cannot leave the window unconstrained.
+    func browserWindowGeometry() -> some View {
+        background {
+            WindowPlaybackSceneReader { windowScene in
+                guard let windowScene else { return }
+                windowScene.requestGeometryUpdate(
+                    UIWindowScene.GeometryPreferences.Vision(
+                        minimumSize: BrowserWindowLayout.minimumSize,
+                        maximumSize: BrowserWindowLayout.maximumSize,
+                        resizingRestrictions: .freeform
+                    )
+                )
+            }
+        }
+    }
+}
+
 struct WindowPlaybackTopChrome<
     NavigationControl: View,
     SpatialActions: View,
@@ -234,9 +270,6 @@ struct WindowPlaybackRootView<
             .onChange(of: layout) { _, _ in
                 updateWindowGeometry(in: owningWindowScene)
             }
-            .onDisappear {
-                restoreFreeformWindowGeometry(in: owningWindowScene)
-            }
     }
 
     private var layeredContent: some View {
@@ -345,22 +378,9 @@ struct WindowPlaybackRootView<
         windowScene.requestGeometryUpdate(preferences)
     }
 
-    private func restoreFreeformWindowGeometry(in windowScene: UIWindowScene?) {
-        guard let windowScene else { return }
-        let systemDefault = CGSize(
-            width: UIProposedSceneSizeNoPreference,
-            height: UIProposedSceneSizeNoPreference
-        )
-        let preferences = UIWindowScene.GeometryPreferences.Vision(
-            minimumSize: systemDefault,
-            maximumSize: systemDefault,
-            resizingRestrictions: .freeform
-        )
-        windowScene.requestGeometryUpdate(preferences)
-    }
 }
 
-private struct WindowPlaybackSceneReader: UIViewRepresentable {
+struct WindowPlaybackSceneReader: UIViewRepresentable {
     let onChange: @MainActor (UIWindowScene?) -> Void
 
     func makeUIView(context: Context) -> WindowPlaybackSceneReportingView {
@@ -376,7 +396,7 @@ private struct WindowPlaybackSceneReader: UIViewRepresentable {
     }
 }
 
-private final class WindowPlaybackSceneReportingView: UIView {
+final class WindowPlaybackSceneReportingView: UIView {
     var onChange: @MainActor (UIWindowScene?) -> Void
     private weak var reportedScene: UIWindowScene?
 

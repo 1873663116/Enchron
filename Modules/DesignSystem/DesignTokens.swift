@@ -413,8 +413,11 @@ public enum DesignTokens {
         public static let paddingH: CGFloat = Spacing.md        // 16
         /// Vertical padding inside card text area (project-wide constant)
         public static let paddingV: CGFloat = 14
-        /// Adaptive grid minimum card width
+        /// Adaptive grid minimum card width for landscape thumbnails.
         public static let gridMin: CGFloat = 224
+        /// Poster card width. A 2:3 poster reads at a smaller width than a 16:9 thumbnail because
+        /// its height carries the recognition, so it does not share `gridMin`.
+        public static let posterWidth: CGFloat = 180
         /// Square episode card width. The still fills the card and the caption sits on top of it,
         /// so the caption needs the height a 16:9 frame would not give it.
         public static let episodeWidth: CGFloat = 400
@@ -500,7 +503,10 @@ public enum DesignTokens {
     /// Layout for the media-server detail page, whose hero fills the panel behind its header
     /// content rather than sitting above it.
     public enum EmbyDetail {
-        public static let heroHeight: CGFloat = 620
+        /// The hero claims most of the panel on arrival, so it grows with the window rather than
+        /// holding a fixed height that would shrink to a band as the window enlarges.
+        public static let heroHeightFraction: CGFloat = 0.82
+        public static let heroMinimumHeight: CGFloat = 520
         public static let logoMaxWidth: CGFloat = 460
         public static let logoMaxHeight: CGFloat = 160
         public static let overviewMaxWidth: CGFloat = 720

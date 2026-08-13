@@ -42,6 +42,9 @@ struct SourceSidebar: View {
     var onAddSource: ((FileBrowsingDomain.SourceType) -> Void)?
     var onRefresh: (() -> Void)?
     var onDeleteSources: ((Set<SidebarSourceItem.ID>) -> Void)?
+    /// Supplied by hosts that can hide the sidebar, so the control that hides it sits in the header
+    /// it belongs to rather than in the page's own toolbar.
+    var isVisible: Binding<Bool>?
     var showsStorageMeter = false
 
     @State private var isSelectingSidebarItems = false
@@ -159,7 +162,15 @@ struct SourceSidebar: View {
     }
 
     private var headerTrailingControl: some View {
-        sourceMoreMenu
+        HStack(spacing: DesignTokens.Spacing.xxs) {
+            sourceMoreMenu
+            if let isVisible {
+                SidebarToggleButton(
+                    isVisible: isVisible,
+                    accessibilityIdentifier: "\(identifierPrefix)-collapse"
+                )
+            }
+        }
     }
 
     private func sidebarSectionTitle(_ title: String) -> some View {
@@ -167,6 +178,8 @@ struct SourceSidebar: View {
             .font(DesignTokens.SourceSidebar.sectionTitleFont)
             .foregroundStyle(.secondary)
             .textCase(.uppercase)
+            .lineLimit(2)
+            .minimumScaleFactor(0.8)
     }
 
     // 底部存储条:内置。DesignPreview 是 fake UX,存储数字写死 mock,不开放为参数。
