@@ -1,5 +1,6 @@
 import DesignSystem
 import MediaLibrary
+import MediaSource
 import SwiftUI
 import PhotosUI
 @preconcurrency import Photos
