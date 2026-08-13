@@ -26,7 +26,7 @@ let package = Package(
         ),
         .target(
             name: "Emby",
-            dependencies: ["MediaSource", "DesignSystem"],
+            dependencies: ["MediaSource", "DesignSystem", "PlaybackFeature"],
             path: "Modules/Emby"
         ),
         .target(
@@ -86,7 +86,7 @@ let package = Package(
         ),
         .testTarget(
             name: "EmbyTests",
-            dependencies: ["Emby", "MediaSource"],
+            dependencies: ["Emby", "MediaSource", "PlaybackFeature"],
             path: "Tests/EmbyPackageTests",
             resources: [
                 .process("Fixtures"),

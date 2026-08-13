@@ -107,7 +107,9 @@ struct EmbyClientTests {
                 sortBy: [.premiereDate, .sortName],
                 sortOrder: .descending,
                 startIndex: 10,
-                limit: 20
+                limit: 20,
+                includeItemTypes: [.movie, .boxSet],
+                recursive: false
             )
         )
 
@@ -124,6 +126,31 @@ struct EmbyClientTests {
         #expect(query["SortOrder"] == "Descending")
         #expect(query["StartIndex"] == "10")
         #expect(query["Limit"] == "20")
+        #expect(query["IncludeItemTypes"] == "Movie,BoxSet")
+        #expect(query["Recursive"] == "false")
+    }
+
+    @Test("a single item refresh uses the authenticated user item route")
+    func singleItem() async throws {
+        let recorder = RequestRecorder()
+        MockURLProtocol.setHandler { request in
+            recorder.record(request)
+            return try response(
+                request,
+                status: 200,
+                json: "{\"Id\":\"movie-1\",\"Name\":\"Fresh\",\"Type\":\"Movie\",\"UserData\":{\"PlaybackPositionTicks\":90000000}}"
+            )
+        }
+        defer { MockURLProtocol.setHandler(nil) }
+
+        let item = try await makeClient().item(
+            withID: EmbyItemID(rawValue: "movie-1"),
+            on: server
+        )
+
+        #expect(item.metadata.name == "Fresh")
+        #expect(item.metadata.userData?.playbackPositionTicks == 90_000_000)
+        #expect(recorder.requests.first?.url?.path == "/emby/Users/user-1/Items/movie-1")
     }
 
     @Test("children select the server entity type implied by the parent")
@@ -192,6 +219,7 @@ struct EmbyClientTests {
                   "MediaSources": [
                     {
                       "Id": "source-1",
+                      "Name": "Director's Cut",
                       "Container": "mkv",
                       "Size": 1234,
                       "SupportsDirectPlay": true,
@@ -226,6 +254,7 @@ struct EmbyClientTests {
         #expect(playback.id.rawValue == "play-session")
         let source = try #require(playback.mediaSources.first)
         #expect(playback.mediaSources.count == 1)
+        #expect(source.displayName == "Director's Cut")
         #expect(source.defaultStreamIndexes.video == 0)
         #expect(source.defaultStreamIndexes.audio == 1)
         #expect(source.defaultStreamIndexes.subtitle == 2)
@@ -238,6 +267,17 @@ struct EmbyClientTests {
         #expect(directQuery["MediaSourceId"] == "source-1")
         #expect(directQuery["api_key"] == "token")
         #expect(source.versionedIdentity != nil)
+
+        let subtitleURL = try client.externalSubtitleURL(
+            for: source.mediaStreams[2],
+            on: server
+        )
+        let subtitleComponents = try #require(URLComponents(
+            url: subtitleURL,
+            resolvingAgainstBaseURL: false
+        ))
+        #expect(subtitleComponents.path == "/emby/subtitle")
+        #expect(subtitleComponents.queryItems?.first { $0.name == "api_key" }?.value == "token")
 
         let request = try #require(recorder.requests.first)
         #expect(request.url?.path == "/emby/Items/movie-1/PlaybackInfo")
@@ -303,17 +343,14 @@ struct EmbyClientTests {
         #expect(Set([firstRevision, replacedBytes, changedItem]).count == 3)
     }
 
-    @Test("reporting sends direct-play events and drops response failures")
-    func reportingDropsFailures() async throws {
-        let (stream, continuation) = AsyncStream.makeStream(of: URLRequest.self)
+    @Test("reporting sends awaitable direct-play events")
+    func reportingSendsEvents() async throws {
+        let recorder = RequestRecorder()
         MockURLProtocol.setHandler { request in
-            continuation.yield(request)
-            return try response(request, status: 500, json: "failure")
+            recorder.record(request)
+            return try response(request, status: 204, json: "")
         }
-        defer {
-            continuation.finish()
-            MockURLProtocol.setHandler(nil)
-        }
+        defer { MockURLProtocol.setHandler(nil) }
         let client = makeClient()
         let report = EmbyPlaybackReport(
             itemID: EmbyItemID(rawValue: "movie-1"),
@@ -323,22 +360,17 @@ struct EmbyClientTests {
             audioStreamIndex: 1,
             subtitleStreamIndex: 2
         )
-        client.reportPlayingStarted(report, on: server)
-        client.reportProgress(report, on: server)
-        client.reportStopped(report, on: server)
+        try await client.sendPlayingStarted(report, on: server)
+        try await client.sendProgress(report, on: server)
+        try await client.sendStopped(report, on: server)
 
-        var iterator = stream.makeAsyncIterator()
-        var requests: [URLRequest] = []
-        while requests.count < 3, let request = await iterator.next() {
-            requests.append(request)
-        }
-        let paths = Set(requests.compactMap(\.url?.path))
-        #expect(paths == Set([
+        let paths = recorder.requests.compactMap(\.url?.path)
+        #expect(paths == [
             "/emby/Sessions/Playing",
             "/emby/Sessions/Playing/Progress",
             "/emby/Sessions/Playing/Stopped",
-        ]))
-        for request in requests {
+        ])
+        for request in recorder.requests {
             let body = try #require(request.httpBody)
             let json = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
             #expect(json["PositionTicks"] as? Int == 42)

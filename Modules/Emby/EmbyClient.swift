@@ -1,7 +1,7 @@
 import Foundation
 import MediaSource
 
-public final class EmbyClient: Sendable {
+public final class EmbyClient: EmbyClientProtocol, Sendable {
     private let session: URLSession
     private let clientIdentity: EmbyClientIdentity
 
@@ -74,9 +74,28 @@ public final class EmbyClient: Sendable {
             query: query,
             additionalQueryItems: [
                 URLQueryItem(name: "ParentId", value: viewID.rawValue),
-                URLQueryItem(name: "IncludeItemTypes", value: "Movie,Series,Season,Episode,BoxSet"),
             ]
         )
+    }
+
+    public func item(
+        withID itemID: EmbyItemID,
+        on server: EmbyAuthenticatedServer
+    ) async throws -> EmbyLibraryItem {
+        let request = try authorizedRequest(
+            server: server,
+            path: "/Users/\(server.userID.rawValue)/Items/\(itemID.rawValue)",
+            queryItems: [
+                URLQueryItem(name: "Fields", value: "Overview,MediaStreams"),
+                URLQueryItem(name: "EnableImages", value: "true"),
+                URLQueryItem(name: "EnableUserData", value: "true"),
+            ]
+        )
+        let result: ItemDTO = try await response(for: request)
+        guard let item = try mapItem(result) else {
+            throw EmbyError.missingRequiredField("Item.Type")
+        }
+        return item
     }
 
     public func children(
@@ -101,8 +120,8 @@ public final class EmbyClient: Sendable {
             query: query,
             additionalQueryItems: [
                 URLQueryItem(name: "ParentId", value: parent.metadata.id.rawValue),
-                URLQueryItem(name: "IncludeItemTypes", value: itemTypes),
-            ]
+            ],
+            forcedItemTypes: itemTypes
         )
     }
 
@@ -162,7 +181,6 @@ public final class EmbyClient: Sendable {
             query: query,
             additionalQueryItems: [
                 URLQueryItem(name: "SearchTerm", value: searchTerm),
-                URLQueryItem(name: "IncludeItemTypes", value: "Movie,Series,Season,Episode,BoxSet"),
             ]
         )
     }
@@ -225,32 +243,71 @@ public final class EmbyClient: Sendable {
         )
     }
 
-    public func reportPlayingStarted(
-        _ report: EmbyPlaybackReport,
+    public func externalSubtitleURL(
+        for stream: EmbyMediaStream,
         on server: EmbyAuthenticatedServer
-    ) {
-        Task { try? await sendReport(report, event: .started, server: server) }
+    ) throws -> URL {
+        guard stream.kind == .subtitle,
+              stream.isExternal,
+              let deliveryURL = stream.deliveryURL,
+              deliveryURL.isEmpty == false else {
+            throw EmbyError.externalSubtitleUnavailable(stream.index)
+        }
+        if let absoluteURL = URL(string: deliveryURL), absoluteURL.scheme != nil {
+            guard var components = URLComponents(url: absoluteURL, resolvingAgainstBaseURL: false) else {
+                throw EmbyError.externalSubtitleUnavailable(stream.index)
+            }
+            var queryItems = components.queryItems ?? []
+            if queryItems.contains(where: { $0.name == "api_key" }) == false {
+                queryItems.append(URLQueryItem(name: "api_key", value: server.accessToken))
+            }
+            components.queryItems = queryItems
+            guard let url = components.url else {
+                throw EmbyError.externalSubtitleUnavailable(stream.index)
+            }
+            return url
+        }
+        guard let deliveryComponents = URLComponents(string: deliveryURL) else {
+            throw EmbyError.externalSubtitleUnavailable(stream.index)
+        }
+        var queryItems = deliveryComponents.queryItems ?? []
+        if queryItems.contains(where: { $0.name == "api_key" }) == false {
+            queryItems.append(URLQueryItem(name: "api_key", value: server.accessToken))
+        }
+        return try url(
+            address: server.baseAddress,
+            path: deliveryComponents.path,
+            queryItems: queryItems
+        )
     }
 
-    public func reportProgress(
+    public func sendPlayingStarted(
         _ report: EmbyPlaybackReport,
         on server: EmbyAuthenticatedServer
-    ) {
-        Task { try? await sendReport(report, event: .progress, server: server) }
+    ) async throws {
+        try await sendReport(report, event: .started, server: server)
     }
 
-    public func reportStopped(
+    public func sendProgress(
         _ report: EmbyPlaybackReport,
         on server: EmbyAuthenticatedServer
-    ) {
-        Task { try? await sendReport(report, event: .stopped, server: server) }
+    ) async throws {
+        try await sendReport(report, event: .progress, server: server)
+    }
+
+    public func sendStopped(
+        _ report: EmbyPlaybackReport,
+        on server: EmbyAuthenticatedServer
+    ) async throws {
+        try await sendReport(report, event: .stopped, server: server)
     }
 
     private func itemPage(
         path: String,
         server: EmbyAuthenticatedServer,
         query: EmbyItemQuery,
-        additionalQueryItems: [URLQueryItem]
+        additionalQueryItems: [URLQueryItem],
+        forcedItemTypes: String? = nil
     ) async throws -> EmbyItemPage {
         var queryItems = additionalQueryItems
         if query.sortBy.isEmpty == false {
@@ -266,8 +323,21 @@ public final class EmbyClient: Sendable {
         if let limit = query.limit {
             queryItems.append(URLQueryItem(name: "Limit", value: String(limit)))
         }
+        if let forcedItemTypes {
+            queryItems.append(URLQueryItem(name: "IncludeItemTypes", value: forcedItemTypes))
+        } else if let includeItemTypes = query.includeItemTypes {
+            queryItems.append(URLQueryItem(
+                name: "IncludeItemTypes",
+                value: includeItemTypes.map(\.rawValue).joined(separator: ",")
+            ))
+        } else {
+            queryItems.append(URLQueryItem(
+                name: "IncludeItemTypes",
+                value: EmbyItemKind.allCases.map(\.rawValue).joined(separator: ",")
+            ))
+        }
         queryItems.append(contentsOf: [
-            URLQueryItem(name: "Recursive", value: "true"),
+            URLQueryItem(name: "Recursive", value: query.recursive ? "true" : "false"),
             URLQueryItem(name: "Fields", value: "Overview,MediaStreams"),
             URLQueryItem(name: "EnableImages", value: "true"),
             URLQueryItem(name: "EnableUserData", value: "true"),
@@ -393,6 +463,9 @@ public final class EmbyClient: Sendable {
             ?? streams.first { $0.kind == .video }?.index
         return EmbyMediaSource(
             id: EmbyMediaSourceID(rawValue: id),
+            displayName: source.name?.trimmingCharacters(in: .whitespacesAndNewlines).nonEmpty
+                ?? source.path?.lastPathComponentFromServerPath
+                ?? container.uppercased(),
             container: container,
             sizeInBytes: source.size,
             mediaStreams: streams,
@@ -677,12 +750,26 @@ private struct PlaybackInfoResponseDTO: Decodable {
 
 private struct MediaSourceDTO: Decodable {
     let id: String?
+    let name: String?
+    let path: String?
     let container: String?
     let size: Int64?
     let supportsDirectPlay: Bool?
     let mediaStreams: [MediaStreamDTO]
     let defaultAudioStreamIndex: Int?
     let defaultSubtitleStreamIndex: Int?
+}
+
+private extension String {
+    var nonEmpty: String? { isEmpty ? nil : self }
+
+    var lastPathComponentFromServerPath: String? {
+        replacingOccurrences(of: "\\", with: "/")
+            .split(separator: "/")
+            .last
+            .map(String.init)?
+            .nonEmpty
+    }
 }
 
 private struct MediaStreamDTO: Decodable {

@@ -4,6 +4,7 @@ import MediaSource
 public nonisolated enum PlaybackCollectionOrigin: String, Sendable, Equatable {
     case standalone
     case mediaLibrary
+    case mediaServer
     case sourceDirectory
 }
 

@@ -321,22 +321,36 @@ public enum EmbySortOrder: String, Codable, Sendable {
     case descending = "Descending"
 }
 
+public enum EmbyItemKind: String, Codable, CaseIterable, Sendable {
+    case movie = "Movie"
+    case series = "Series"
+    case season = "Season"
+    case episode = "Episode"
+    case boxSet = "BoxSet"
+}
+
 public struct EmbyItemQuery: Equatable, Hashable, Sendable {
     public let sortBy: [EmbyItemSort]
     public let sortOrder: EmbySortOrder
     public let startIndex: Int?
     public let limit: Int?
+    public let includeItemTypes: [EmbyItemKind]?
+    public let recursive: Bool
 
     public init(
         sortBy: [EmbyItemSort] = [.sortName],
         sortOrder: EmbySortOrder = .ascending,
         startIndex: Int? = nil,
-        limit: Int? = nil
+        limit: Int? = nil,
+        includeItemTypes: [EmbyItemKind]? = nil,
+        recursive: Bool = true
     ) {
         self.sortBy = sortBy
         self.sortOrder = sortOrder
         self.startIndex = startIndex
         self.limit = limit
+        self.includeItemTypes = includeItemTypes
+        self.recursive = recursive
     }
 }
 
@@ -430,6 +444,7 @@ public struct EmbyDefaultStreamIndexes: Equatable, Hashable, Sendable {
 
 public struct EmbyMediaSource: Equatable, Hashable, Sendable, Identifiable {
     public let id: EmbyMediaSourceID
+    public let displayName: String
     public let container: String
     public let sizeInBytes: Int64?
     public let mediaStreams: [EmbyMediaStream]
@@ -439,6 +454,7 @@ public struct EmbyMediaSource: Equatable, Hashable, Sendable, Identifiable {
 
     public init(
         id: EmbyMediaSourceID,
+        displayName: String,
         container: String,
         sizeInBytes: Int64?,
         mediaStreams: [EmbyMediaStream],
@@ -447,6 +463,7 @@ public struct EmbyMediaSource: Equatable, Hashable, Sendable, Identifiable {
         versionedIdentity: VersionedMediaIdentity?
     ) {
         self.id = id
+        self.displayName = displayName
         self.container = container
         self.sizeInBytes = sizeInBytes
         self.mediaStreams = mediaStreams
@@ -502,4 +519,6 @@ public enum EmbyError: Error, Equatable, Sendable {
     case missingRequiredField(String)
     case childrenUnavailable(EmbyItemID)
     case directPlayUnavailable(EmbyItemID)
+    case externalSubtitleUnavailable(Int)
+    case mediaSourceUnavailable(EmbyItemID, EmbyMediaSourceID)
 }
