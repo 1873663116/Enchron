@@ -88,12 +88,18 @@ def main(arguments: argparse.Namespace) -> int:
     deadline = time.monotonic() + arguments.deadline_minutes * 60
 
     counts: dict[str, int] = {}
+    previous_was_clean = True
     for index, clip in enumerate(clips, start=1):
         if time.monotonic() > deadline:
             print(f"deadline reached with {len(clips) - index + 1} clips unrun", flush=True)
             break
-        kill_resident_runner()
+        # Only after a bad cell. Killing before every clip forces a cold
+        # ensure-session, which costs 25s healthy but has been measured at
+        # 240s while recovering, and that alone can exceed the cap.
+        if not previous_was_clean:
+            kill_resident_runner()
         record = run_one(clip, Path(arguments.media_root), evidence, arguments.cap_seconds)
+        previous_was_clean = record["verdict"] in ("PASS", "WRONG_STATE")
         counts[str(record["verdict"])] = counts.get(str(record["verdict"]), 0) + 1
         with results_path.open("a") as stream:
             stream.write(json.dumps(record, ensure_ascii=False) + "\n")
