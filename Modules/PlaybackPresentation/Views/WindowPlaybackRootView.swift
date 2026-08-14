@@ -126,8 +126,8 @@ struct WindowPlaybackLayout: Equatable {
 /// rectangular and its floor is the size playback opens at.
 struct BrowserWindowLayout {
     static let minimumSize = WindowPlaybackLayout.fallback.defaultSize
-    static let defaultSize = scaled(1.6)
-    static let maximumSize = scaled(3.0)
+    static let defaultSize = scaled(1.25)
+    static let maximumSize = scaled(2.0)
 
     private static func scaled(_ multiplier: CGFloat) -> CGSize {
         let base = WindowPlaybackLayout.fallback.defaultSize
