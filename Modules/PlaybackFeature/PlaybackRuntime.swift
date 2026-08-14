@@ -257,6 +257,18 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var actualPlaybackAccumulator = ActualPlaybackAccumulator()
     private var lastBoundVideoRendererEntityID: String?
     private var releasedRendererConsumer: ReleasedRendererConsumer?
+    /// Counts renderer replacements. It advances only where `renderer` itself
+    /// changes, never on a media-request generation bump, because a replacement
+    /// is prepared long before its renderer is installed and the consumer that
+    /// still holds the old renderer is legitimate for that whole window.
+    private var rendererEpoch = 0
+    /// The renderer epoch the consumer record describes. The record names an
+    /// Entity that consumes one specific renderer, and the entity store mints a
+    /// new Entity whenever that renderer is replaced, so a record from an
+    /// earlier epoch names an Entity nothing can present again. Carrying the
+    /// epoch lets such a record be recognised as spent instead of outliving its
+    /// renderer and refusing every later claim.
+    private var rendererConsumerEpoch: Int?
     private var technicalSessionReplacementIsInFlight = false
     private var preparedTechnicalSessionReplacement: PreparedTechnicalSessionReplacement?
     private var activatedTechnicalSessionCutover: ActivatedTechnicalSessionCutover?
@@ -376,6 +388,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func prepareForPlayback(_ request: PlaybackLaunchRequest) {
+        AppModel.recordProbe(
+            "rendererOwnership.prepareForPlayback source=\(request.displayName)"
+                + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
+                + "/\(Self.probeEntity(rendererConsumerEntityID))"
+                + " renderer=\(renderer == nil ? "none" : "present")"
+        )
         if currentLaunchRequest == nil || currentLaunchRequest != request {
             observationGeneration &+= 1
         }
@@ -525,6 +543,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             }
             recordAudioSessionFact()
             renderer = newSession.renderer
+            rendererEpoch &+= 1
+            AppModel.recordProbe(
+                "rendererOwnership.open stage=rendererPublished"
+                    + " technical=\(newSession.traceID)"
+                    + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
+                    + "/\(Self.probeEntity(rendererConsumerEntityID))"
+            )
             logger.info("session prepared id=\(newSession.traceID, privacy: .public)")
         } catch {
             guard generation == openGeneration else {
@@ -617,11 +642,22 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         presentation: PlaybackPresentation,
         entityID: String
     ) throws {
+        discardRendererConsumerRecordFromASpentEpoch()
         if rendererConsumerPresentation == presentation,
            rendererConsumerEntityID == entityID {
             return
         }
+        let releasedFacts = releasedRendererConsumer.map {
+            "\($0.presentation.rawValue)/\(Self.probeEntity($0.entityID))"
+        } ?? "none"
+        let ownershipFacts = "target=\(presentation.rawValue)/\(Self.probeEntity(entityID))"
+            + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
+            + "/\(Self.probeEntity(rendererConsumerEntityID))"
+            + " released=\(releasedFacts)"
         if let rendererConsumerEntityID, rendererConsumerEntityID != entityID {
+            AppModel.recordProbe(
+                "rendererOwnership.claim outcome=busy \(ownershipFacts)"
+            )
             throw RuntimeError.rendererConsumerBusy(rendererConsumerPresentation ?? presentation)
         }
         if let releasedRendererConsumer {
@@ -629,12 +665,53 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 presentation: presentation,
                 entityID: entityID
             ) else {
+                AppModel.recordProbe(
+                    "rendererOwnership.claim outcome=transferPending \(ownershipFacts)"
+                )
                 throw RuntimeError.rendererTransferPending
             }
             self.releasedRendererConsumer = nil
         }
         rendererConsumerPresentation = presentation
         rendererConsumerEntityID = entityID
+        rendererConsumerEpoch = rendererEpoch
+        AppModel.recordProbe(
+            "rendererOwnership.claim outcome=granted \(ownershipFacts)"
+        )
+    }
+
+    /// Drops a consumer record left by an earlier media request. Ownership is
+    /// serialised between RealityViews that share one renderer; once the
+    /// renderer has been replaced there is nothing left to serialise, and the
+    /// Entity identity the record is keyed by can no longer be presented by
+    /// anyone. Without this the record refuses every claim on the new renderer
+    /// and the surface retries forever, because the only code that could clear
+    /// it is guarded by the identity the entity store has already replaced.
+    private func discardRendererConsumerRecordFromASpentEpoch() {
+        guard let rendererConsumerEpoch,
+              rendererConsumerEpoch != rendererEpoch else { return }
+        if let rendererConsumerEntityID {
+            AppModel.recordProbe(
+                "rendererOwnership.discardSpent"
+                    + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
+                    + "/\(Self.probeEntity(rendererConsumerEntityID))"
+                    + " recordEpoch=\(rendererConsumerEpoch)"
+                    + " currentEpoch=\(rendererEpoch)"
+            )
+        }
+        rendererConsumerPresentation = nil
+        rendererConsumerEntityID = nil
+        self.rendererConsumerEpoch = nil
+        releasedRendererConsumer = nil
+        lastBoundVideoRendererEntityID = nil
+        clearVideoComponentBindingObservation()
+    }
+
+    /// Shortens an Entity identity for the ownership probe. Only the object
+    /// address distinguishes two `EnchronVideo#ObjectIdentifier(...)` values.
+    static func probeEntity(_ entityID: String?) -> String {
+        guard let entityID else { return "none" }
+        return String(entityID.suffix(10))
     }
 
     public func releaseRendererConsumer(
@@ -643,7 +720,19 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         preservingVideoComponent: Bool = false
     ) {
         guard rendererConsumerPresentation == presentation,
-              rendererConsumerEntityID == entityID else { return }
+              rendererConsumerEntityID == entityID else {
+            AppModel.recordProbe(
+                "rendererOwnership.release outcome=guardRejected"
+                    + " requested=\(presentation.rawValue)/\(Self.probeEntity(entityID))"
+                    + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
+                    + "/\(Self.probeEntity(rendererConsumerEntityID))"
+            )
+            return
+        }
+        AppModel.recordProbe(
+            "rendererOwnership.release outcome=released"
+                + " holder=\(presentation.rawValue)/\(Self.probeEntity(entityID))"
+        )
         if preservingVideoComponent == false {
             clearVideoComponentBindingObservation(for: entityID)
         }
@@ -653,6 +742,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
         rendererConsumerPresentation = nil
         rendererConsumerEntityID = nil
+        rendererConsumerEpoch = nil
         logger.notice(
             "renderer consumer released presentation=\(String(describing: presentation), privacy: .public) entity=\(entityID, privacy: .public)"
         )
@@ -1200,6 +1290,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         session = prepared.session
         activeTechnicalSessionID = prepared.session.traceID
         renderer = prepared.session.renderer
+        rendererEpoch &+= 1
         presentationState = .placeholder
         startsWhenAttached = true
         firstAttachedPresentationForActiveTechnicalSession = nil
@@ -1379,6 +1470,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     @discardableResult
     private func beginStop(releasingSourceAccess: Bool) -> Task<Void, Never>? {
+        AppModel.recordProbe(
+            "rendererOwnership.stop"
+                + " holder=\(rendererConsumerPresentation?.rawValue ?? "none")"
+                + "/\(Self.probeEntity(rendererConsumerEntityID))"
+                + " renderer=\(renderer == nil ? "none" : "present")"
+        )
         if currentLaunchRequest != nil {
             emitPlaybackObservation(.stopped)
         }
@@ -1426,6 +1523,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         clearPresentationForTeardown()
         session = nil
         renderer = nil
+        rendererEpoch &+= 1
         activeTechnicalSessionID = nil
         updateActiveSessionID(nil)
         currentLaunchRequest = nil
@@ -1850,6 +1948,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
         rendererConsumerPresentation = nil
         rendererConsumerEntityID = nil
+        rendererConsumerEpoch = nil
         releasedRendererConsumer = nil
         lastBoundVideoRendererEntityID = nil
         clearVideoComponentBindingObservation()

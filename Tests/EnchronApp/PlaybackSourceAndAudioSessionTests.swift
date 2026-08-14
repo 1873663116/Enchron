@@ -916,6 +916,39 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         XCTAssertEqual(runtime.rendererConsumerEntityID, "immersive-target")
     }
 
+    /// A second media request must be able to take the renderer even when the
+    /// window RealityView never released its claim. The claim is keyed by
+    /// RealityKit Entity identity, and the store mints a new Entity for the new
+    /// renderer, so the previous key can never be matched by a later release.
+    /// Without this, the second open refuses forever and never recovers.
+    @MainActor
+    func testSecondRequestTakesTheRendererWhenTheSurfaceNeverReleasedIt() throws {
+        let runtime = PlaybackRuntime()
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: "window-entity-first-request"
+        )
+
+        runtime.stop()
+        runtime.prepareForPlayback(
+            PlaybackLaunchRequest(
+                url: URL(fileURLWithPath: "/dev/null"),
+                displayName: "second.mp4"
+            )
+        )
+
+        try runtime.claimRendererConsumer(
+            presentation: .window,
+            entityID: "window-entity-second-request"
+        )
+
+        XCTAssertEqual(runtime.rendererConsumerPresentation, .window)
+        XCTAssertEqual(
+            runtime.rendererConsumerEntityID,
+            "window-entity-second-request"
+        )
+    }
+
     @MainActor
     func testTransferWithinOneRealityViewOwnershipRejectsANewEntity() throws {
         let runtime = PlaybackRuntime()

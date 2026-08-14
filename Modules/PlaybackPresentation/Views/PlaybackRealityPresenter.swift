@@ -85,9 +85,16 @@ final class PlaybackVideoEntityStore {
     ) -> Entity {
         let rendererChanged = self.renderer !== renderer
         if self.renderer != nil, rendererChanged {
+            let retiredEntityID = entityID
             departingEntity = entity
             departingPresentation = currentPresentation
             entity = Entity()
+            AppModel.recordProbe(
+                "rendererOwnership.entityMint reason=rendererChanged"
+                    + " retired=\(PlaybackRuntime.probeEntity(retiredEntityID))"
+                    + " minted=\(PlaybackRuntime.probeEntity(entityID))"
+                    + " presentation=\(presentation.rawValue)"
+            )
         }
         self.renderer = renderer
         currentPresentation = presentation

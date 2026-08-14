@@ -335,6 +335,13 @@ struct PlaybackVideoSurface: View {
         }
         guard playbackRuntime.mediaFormatIsKnown,
               let renderer = playbackRuntime.renderer else {
+            AppModel.recordProbe(
+                "rendererOwnership.prepareSurface outcome=noRendererYet"
+                    + " presentation=\(presentation.rawValue)"
+                    + " entity=\(PlaybackRuntime.probeEntity(entityID))"
+                    + " formatKnown=\(playbackRuntime.mediaFormatIsKnown)"
+                    + " renderer=\(playbackRuntime.renderer == nil ? "none" : "present")"
+            )
             releaseSurface(from: content)
             return false
         }
