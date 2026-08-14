@@ -154,6 +154,28 @@ def copy_to_device(
         raise RuntimeError(result.stderr or result.stdout or "Unable to send UI command.")
 
 
+def wake_runner(arguments: argparse.Namespace) -> None:
+    """A runner between commands is parked on a Darwin notification, so a command
+    file that lands with no notification behind it is read only if the runner
+    happens to loop again for another reason. Every command, stop included, is
+    delivered by posting this notification."""
+    result = run_devicectl(
+        [
+            "device",
+            "notification",
+            "post",
+            "--device",
+            arguments.device,
+            "--name",
+            COMMAND_NOTIFICATION,
+        ]
+    )
+    if result.returncode != 0:
+        raise RuntimeError(
+            result.stderr or result.stdout or "Unable to wake the interactive UI runner."
+        )
+
+
 def read_ready_state(arguments: argparse.Namespace) -> dict[str, object]:
     with tempfile.TemporaryDirectory(prefix="enchron-interactive-ready-") as directory:
         ready_path = Path(directory) / "ready.json"
@@ -286,18 +308,7 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
                 local_path=command_path,
                 remote_path=f"{CHANNEL_ROOT}/command.json",
             )
-            run_devicectl(
-                [
-                    "device",
-                    "process",
-                    "signal",
-                    "--device",
-                    arguments.device,
-                    "--signal",
-                    "SIGCONT",
-                ],
-                quiet=True,
-            )
+            wake_runner(arguments)
             graceful = (
                 "acknowledged"
                 if wait_for_response(
@@ -521,23 +532,7 @@ def send_command(arguments: argparse.Namespace) -> dict[str, object]:
             local_path=command_path,
             remote_path=f"{CHANNEL_ROOT}/command.json",
         )
-        notification = run_devicectl(
-            [
-                "device",
-                "notification",
-                "post",
-                "--device",
-                arguments.device,
-                "--name",
-                COMMAND_NOTIFICATION,
-            ]
-        )
-        if notification.returncode != 0:
-            raise RuntimeError(
-                notification.stderr
-                or notification.stdout
-                or "Unable to wake the interactive UI runner."
-            )
+        wake_runner(arguments)
         arrived = wait_for_response(
             arguments=arguments,
             command_id=command_id,
