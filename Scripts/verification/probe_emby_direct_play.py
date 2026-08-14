@@ -67,12 +67,17 @@ def probe(url, token):
 
 
 def authenticate(address, username, password):
-    result = request(
-        address,
-        "/Users/AuthenticateByName",
-        method="POST",
-        body={"Username": username, "Pw": password},
-    )
+    try:
+        result = request(
+            address,
+            "/Users/AuthenticateByName",
+            method="POST",
+            body={"Username": username, "Pw": password},
+        )
+    except urllib.error.HTTPError as error:
+        if error.code == 401:
+            sys.exit(f"server rejected the password for {username}")
+        raise
     return result["AccessToken"], result["User"]["Id"]
 
 
