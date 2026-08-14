@@ -100,7 +100,7 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     /// keeps its configuration record on the enhancement stream rather than on the
     /// base layer that gets decoded. Zero means the source claims no Dolby Vision.
     public var dolbyVisionProfile = 0
-    public var dolbyVisionLevel = 0
+    public var dolbyVisionCrossCompatibilityID = 0
     /// A two-layer source delivers only its base layer, so this is what separates the
     /// Dolby Vision a source claims from the picture the wearer receives.
     public var dolbyVisionHasEnhancementLayer = false

@@ -50,7 +50,7 @@ struct PBFFmpegReader {
     int width;
     int height;
     int dolbyVisionProfile;
-    int dolbyVisionLevel;
+    int dolbyVisionCrossCompatibilityID;
     bool dolbyVisionHasEnhancementLayer;
 };
 
@@ -787,7 +787,7 @@ static void detect_dolby_vision(PBFFmpegReader *reader) {
             if (reader->dolbyVisionProfile != 0) continue;
         }
         reader->dolbyVisionProfile = record->dv_profile;
-        reader->dolbyVisionLevel = record->dv_level;
+        reader->dolbyVisionCrossCompatibilityID = record->dv_bl_signal_compatibility_id;
         reader->dolbyVisionHasEnhancementLayer = record->el_present_flag != 0;
         if (onDecodedStream) return;
     }
@@ -2298,8 +2298,8 @@ int PBFFmpegReaderGetDolbyVisionProfile(const PBFFmpegReader *reader) {
     return reader ? reader->dolbyVisionProfile : 0;
 }
 
-int PBFFmpegReaderGetDolbyVisionLevel(const PBFFmpegReader *reader) {
-    return reader ? reader->dolbyVisionLevel : 0;
+int PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(const PBFFmpegReader *reader) {
+    return reader ? reader->dolbyVisionCrossCompatibilityID : 0;
 }
 
 bool PBFFmpegReaderDolbyVisionHasEnhancementLayer(const PBFFmpegReader *reader) {

@@ -2362,7 +2362,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         let dolbyVision: PlaybackModel.DolbyVision? = claimsDolbyVision
             ? PlaybackModel.DolbyVision(
                 profile: diagnostics.dolbyVisionProfile,
-                level: diagnostics.dolbyVisionLevel,
+                crossCompatibilityID: diagnostics.dolbyVisionCrossCompatibilityID,
                 fallbackTo: diagnostics.dolbyVisionHasEnhancementLayer ? baseLayer : nil
             )
             : nil

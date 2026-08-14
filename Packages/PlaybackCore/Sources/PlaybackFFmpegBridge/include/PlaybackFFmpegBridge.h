@@ -115,7 +115,10 @@ int PBFFmpegReaderGetHeight(const PBFFmpegReader *reader);
 /// record. The record is read from whichever stream holds it, because a dual-layer
 /// source keeps it on the enhancement stream this reader never decodes.
 int PBFFmpegReaderGetDolbyVisionProfile(const PBFFmpegReader *reader);
-int PBFFmpegReaderGetDolbyVisionLevel(const PBFFmpegReader *reader);
+/// The digit after the profile in a Dolby Vision name, so Profile 8 with a
+/// cross-compatibility of 4 is the HLG-compatible Profile 8.4. Zero for a profile
+/// that is compatible with nothing else and therefore carries no second digit.
+int PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(const PBFFmpegReader *reader);
 /// True when the source splits its picture across two layers, so the decoded stream
 /// carries only the base layer and the delivered dynamic range is that layer's.
 bool PBFFmpegReaderDolbyVisionHasEnhancementLayer(const PBFFmpegReader *reader);

@@ -59,21 +59,31 @@ nonisolated extension PlaybackModel {
     /// only a name.
     public struct DolbyVision: Sendable, Equatable, Codable {
         public let profile: Int
-        public let level: Int
+        /// The digit after the profile in a Dolby Vision name, which is the dynamic
+        /// range the base layer is also readable as. Profile 8 with a cross
+        /// compatibility of 4 is the HLG-compatible Profile 8.4, and the same profile
+        /// with 1 is the HDR10-compatible Profile 8.1. This is deliberately not the
+        /// level, which counts resolution and bitrate tiers and takes its own values.
+        public let crossCompatibilityID: Int
         /// The picture delivered in place of Dolby Vision, set only when the source
         /// stores its picture across two layers and just the base layer arrives.
         public let fallbackTo: HDRType?
 
-        public init(profile: Int, level: Int, fallbackTo: HDRType? = nil) {
+        public init(profile: Int, crossCompatibilityID: Int, fallbackTo: HDRType? = nil) {
             self.profile = profile
-            self.level = level
+            self.crossCompatibilityID = crossCompatibilityID
             self.fallbackTo = fallbackTo
         }
 
         /// Reads the way the rest of the dynamic range labels do, so a title that fell
-        /// back sits in the same sentence as one that did not.
+        /// back sits in the same sentence as one that did not. A profile compatible
+        /// with nothing else is named without a second digit, so Profile 5 is written
+        /// the way its own specification writes it.
         public var label: String {
-            let name = "Dolby Vision Profile \(profile).\(level)"
+            var name = "Dolby Vision Profile \(profile)"
+            if crossCompatibilityID > 0 {
+                name += ".\(crossCompatibilityID)"
+            }
             guard let fallbackTo else { return name }
             return "\(name) Fallback to \(fallbackTo.label)"
         }

@@ -25,7 +25,7 @@ struct VideoSampleProviderInfo: Sendable {
     /// record. Profile 7 keeps that record on its enhancement stream, so reading only
     /// the decoded stream would report a plain HDR10 track and lose the claim.
     var dolbyVisionProfile = 0
-    var dolbyVisionLevel = 0
+    var dolbyVisionCrossCompatibilityID = 0
     /// Set when the source stores its picture across two layers. Only the base layer
     /// reaches a single-stream decoder input, which is what makes the delivered
     /// picture a fallback rather than the Dolby Vision the source claims.
@@ -139,7 +139,9 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
             yCbCrMatrix: String(cString: PBFFmpegReaderGetYCbCrMatrix(reader.pointer)),
             range: String(cString: PBFFmpegReaderGetColorRange(reader.pointer)),
             dolbyVisionProfile: Int(PBFFmpegReaderGetDolbyVisionProfile(reader.pointer)),
-            dolbyVisionLevel: Int(PBFFmpegReaderGetDolbyVisionLevel(reader.pointer)),
+            dolbyVisionCrossCompatibilityID: Int(
+                PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(reader.pointer)
+            ),
             dolbyVisionHasEnhancementLayer:
                 PBFFmpegReaderDolbyVisionHasEnhancementLayer(reader.pointer),
             seekability: .init(known: "providerRebuild"),
