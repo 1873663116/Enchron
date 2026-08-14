@@ -22,6 +22,11 @@ struct FusedPlayerPanelLive {
     var horizontalFieldOfViewDegrees: Int
     var stereoLayout: PlaybackModel.StereoLayout
     var mediaFormatSummary: String? = nil
+    /// Present when the source describes the title beyond its filename. A local file
+    /// has none and an Emby item does, which is what makes the information well
+    /// expandable without the well ever asking where the title came from.
+    var overview: String? = nil
+    var unmetCapabilities: [UnmetCapability] = []
     var mediaFormatProvenance: MediaFormatProvenance
     var sourceMediaFormatSummary: String
     var isPlaying: Bool
@@ -259,6 +264,7 @@ struct FusedPlayerPanel: View {
     @State private var settingsExpanded: Bool
     @State private var videoFormatEditing: PlaybackVideoFormatEditingState
     @State private var mediaInfoHovered = false
+    @State private var mediaInfoExpanded = false
 
     // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
     @State private var progress: CGFloat = 0.45
@@ -627,17 +633,27 @@ struct FusedPlayerPanel: View {
             style: .continuous
         )
         return ZStack {
-            Text(live?.mediaName ?? "Unknown")
-                .font(DesignTokens.Typography.headline)
-                .lineLimit(1)
-                .truncationMode(.middle)
-                .padding(.horizontal, DesignTokens.Spacing.xl)
-                .enchronHoverOffset(
-                    activeY: -DesignTokens.Spacing.sm,
-                    in: mediaInfoHoverRevealGroup,
-                    forcedActive: mediaInfoHovered,
-                    animation: DesignTokens.AnimationToken.informationReveal
-                )
+            HStack(spacing: DesignTokens.Spacing.sm) {
+                Text(live?.mediaName ?? "Unknown")
+                    .font(DesignTokens.Typography.headline)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                // Indication only. Gaze resolves to a coarser point than a cursor,
+                // so a small target inside this well's target would take the taps
+                // meant for the well.
+                if persistentCapabilities.isEmpty == false {
+                    Image(systemName: "exclamationmark.circle")
+                        .foregroundStyle(.secondary)
+                        .accessibilityHidden(true)
+                }
+            }
+            .padding(.horizontal, DesignTokens.Spacing.xl)
+            .enchronHoverOffset(
+                activeY: -DesignTokens.Spacing.sm,
+                in: mediaInfoHoverRevealGroup,
+                forcedActive: mediaInfoHovered,
+                animation: DesignTokens.AnimationToken.informationReveal
+            )
 
             HStack(spacing: DesignTokens.Spacing.xl) {
                 Text(spatialMetadataLabel)
@@ -680,10 +696,77 @@ struct FusedPlayerPanel: View {
                 mediaInfoHovered = hovering
             }
         }
+        .onTapGesture {
+            guard mediaInformationIsExpandable else { return }
+            withAnimation(DesignTokens.AnimationToken.panelSpring) {
+                mediaInfoExpanded.toggle()
+            }
+        }
+        .popover(isPresented: $mediaInfoExpanded, arrowEdge: .top) {
+            expandedMediaInformation
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(live?.mediaName ?? "Unknown media")
-        .accessibilityValue("\(spatialMetadataLabel), \(technicalMetadataLabel)")
+        .accessibilityValue(mediaInformationAccessibilityValue)
         .accessibilityIdentifier("PlayerPanel-media-information")
+    }
+
+    private var persistentCapabilities: [UnmetCapability] {
+        (live?.unmetCapabilities ?? []).filter { $0.preventsPlayback == false }
+    }
+
+    /// A mark the wearer cannot open is worse than no mark, so anything the well
+    /// would show when expanded also makes it expandable.
+    private var mediaInformationIsExpandable: Bool {
+        live?.overview?.isEmpty == false || persistentCapabilities.isEmpty == false
+    }
+
+    private var mediaInformationAccessibilityValue: String {
+        var parts = ["\(spatialMetadataLabel), \(technicalMetadataLabel)"]
+        parts.append(contentsOf: persistentCapabilities.map(\.summary))
+        return parts.joined(separator: ". ")
+    }
+
+    private var expandedMediaInformation: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                Text(live?.mediaName ?? "Unknown")
+                    .font(DesignTokens.Typography.headline)
+
+                if let overview = live?.overview, overview.isEmpty == false {
+                    Text(overview)
+                        .font(DesignTokens.Typography.metadata)
+                        .accessibilityIdentifier("PlayerPanel-media-information-overview")
+                }
+
+                ForEach(persistentCapabilities) { capability in
+                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                        Label(
+                            "\(capability.requested). \(capability.delivered).",
+                            systemImage: "exclamationmark.circle"
+                        )
+                        .font(DesignTokens.Typography.metadata)
+                        Text(capability.reason)
+                            .font(DesignTokens.Typography.metadata)
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityIdentifier(
+                        "PlayerPanel-media-information-unmet-\(capability.id)"
+                    )
+                }
+
+                HStack(spacing: DesignTokens.Spacing.xl) {
+                    Text(spatialMetadataLabel)
+                    Text(technicalMetadataLabel)
+                }
+                .font(DesignTokens.Typography.metadata.monospacedDigit())
+                .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(DesignTokens.Spacing.xl)
+        }
+        .frame(maxWidth: 520, maxHeight: 420)
+        .accessibilityIdentifier("PlayerPanel-media-information-expanded")
     }
 
     private var mediaInfoHoverActivationGroup: EnchronHoverGroup {
