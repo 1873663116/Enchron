@@ -587,6 +587,116 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
     #expect(provider.info.formatSignaling.provenance == "AVAssetTrack.sourceFormatDescription")
 }
 
+@Test func cameraOriginalMVHEVCPreservesItsCompleteSourceDecoderConfiguration() async throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/CameraOriginals/Apple/applle.MOV"
+    )
+    let sourceFormat = try await firstVideoFormatDescription(in: AVURLAsset(url: fixture))
+    let sourceAtoms = try sampleDescriptionAtoms(in: sourceFormat)
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var bridgeSample: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeReader,
+            &bridgeSample,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: cString(error))
+    )
+    let bridgeBuffer = try #require(bridgeSample?.takeRetainedValue())
+    let bridgeFormat = try #require(CMSampleBufferGetFormatDescription(bridgeBuffer))
+    let bridgeAtoms = try sampleDescriptionAtoms(in: bridgeFormat)
+    #expect(sourceAtoms["hvcC"] != bridgeAtoms["hvcC"])
+    #expect(sourceAtoms["lhvC"]?.isEmpty == false)
+    #expect(bridgeAtoms["lhvC"] == nil)
+
+    let provider = FFmpegSampleProvider()
+    defer { provider.cancel() }
+    try await provider.prepare(url: fixture, asset: nil, startTime: .zero)
+    let event = try await provider.nextEvent()
+    guard case .sample(let sample) = event else {
+        Issue.record("Expected a compressed MV-HEVC camera-original sample.")
+        return
+    }
+    let outputFormat = try #require(CMSampleBufferGetFormatDescription(sample))
+    let outputAtoms = try sampleDescriptionAtoms(in: outputFormat)
+
+    #expect(outputAtoms["hvcC"] == sourceAtoms["hvcC"])
+    #expect(outputAtoms["lhvC"] == sourceAtoms["lhvC"])
+    #expect(provider.info.codecConfigurationSummary.value == "hvcC,lhvC")
+    #expect(provider.info.isMVHEVC)
+    #expect(provider.info.formatSignaling.provenance == "AVAssetTrack.sourceFormatDescription")
+}
+
+@Test func mvhevcClassificationFallsBackToMonoWhenDeliveredDescriptionHasNoLhvC() async throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/CameraOriginals/Apple/applle.MOV"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var bridgeSampleReference: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeReader,
+            &bridgeSampleReference,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: cString(error))
+    )
+    let bridgeSample = try #require(bridgeSampleReference?.takeRetainedValue())
+    let bridgeFormat = try #require(CMSampleBufferGetFormatDescription(bridgeSample))
+    #expect(try sampleDescriptionAtoms(in: bridgeFormat)["lhvC"] == nil)
+    let dimensions = CMVideoFormatDescriptionGetDimensions(bridgeFormat)
+    let operations = FixedFormatVideoReaderOperations(
+        formatDescription: bridgeFormat,
+        sample: bridgeSample,
+        info: VideoSampleProviderInfo(
+            providerKind: "FixedFormatVideoTest",
+            containerFormat: "mov,mp4,m4a,3gp,3g2,mj2",
+            codecName: "hevc",
+            codecTag: "hvc1",
+            isMVHEVC: true,
+            dimensions: "\(dimensions.width)x\(dimensions.height)",
+            codecConfigurationSummary: .init(known: "hvcC"),
+            formatSignaling: VideoFormatSignalingSummary(
+                provenance: "FFmpeg.codecParameters",
+                hvcC: .init(known: true)
+            )
+        )
+    )
+    let provider = FFmpegSampleProvider(operations: operations)
+    defer { provider.cancel() }
+
+    try await provider.prepare(
+        url: fixture,
+        asset: PlaybackAsset(AVMutableComposition()),
+        startTime: .zero
+    )
+    let event = try await provider.nextEvent()
+    guard case .sample(let outputSample) = event else {
+        Issue.record("Expected the bridge sample with its hvcC-only description.")
+        return
+    }
+    let outputFormat = try #require(CMSampleBufferGetFormatDescription(outputSample))
+
+    #expect(try sampleDescriptionAtoms(in: outputFormat)["lhvC"] == nil)
+    #expect(provider.info.isMVHEVC == false)
+    #expect(provider.info.formatSignaling.provenance == "FFmpeg.codecParameters")
+}
+
 @Test func suppliedAssetWithDifferentDecoderConfigurationKeepsBridgeFormat() async throws {
     silenceFFmpegDiagnostics()
     let pqFixture = playbackTestMedia.appendingPathComponent(

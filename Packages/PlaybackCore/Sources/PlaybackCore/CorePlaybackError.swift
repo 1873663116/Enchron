@@ -2,7 +2,7 @@ import Foundation
 
 enum CorePlaybackError: LocalizedError {
     case audioPrerollTimedOut(Double)
-    case firstVideoSampleTimedOut(Double)
+    case firstVideoFrameTimedOut(Double, rendererError: String?)
     case seekTimedOut(Double)
     case seekSuperseded(Double)
     case seekTargetUnavailable(Double, Double?)
@@ -17,11 +17,14 @@ enum CorePlaybackError: LocalizedError {
         switch self {
         case .audioPrerollTimedOut(let seconds):
             "Audio did not preroll through the timeline start at \(seconds) seconds."
-        case .firstVideoSampleTimedOut(let seconds):
-            "No video frame arrived within "
-                + "\(seconds.formatted(.number.precision(.fractionLength(0...3)))) "
-                + "seconds after the source opened. Confirm that the selected file contains "
-                + "media samples and is not only an HLS initialization segment."
+        case .firstVideoFrameTimedOut(let seconds, let rendererError):
+            if let rendererError, rendererError.isEmpty == false {
+                rendererError
+            } else {
+                "No video frame was displayed within "
+                    + "\(seconds.formatted(.number.precision(.fractionLength(0...3)))) "
+                    + "seconds after playback started."
+            }
         case .seekTimedOut(let seconds): "Seek to \(seconds) seconds did not reach renderer input coordination."
         case .seekSuperseded(let seconds): "Seek to \(seconds) seconds was superseded by a newer request."
         case .seekTargetUnavailable(let target, let lastPTS):

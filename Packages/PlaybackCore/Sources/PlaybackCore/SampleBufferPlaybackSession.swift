@@ -90,10 +90,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var videoDeliveryGeneration: UInt64 = 0
     var videoSampleDeliverySuspended = false
     var audioDeliveryTask: Task<Void, Never>?
-    let firstVideoSampleDeadline: Duration
-    let firstVideoSampleLock = NSLock()
-    var firstVideoSampleDeadlineTask: Task<Void, Never>?
-    var hasDeliveredFirstVideoSample = false
+    let firstVideoFrameDeadline: Duration
+    let firstVideoFrameObservation: (@Sendable () -> Bool)?
+    let firstVideoFrameLock = NSLock()
+    var firstVideoFrameDeadlineTask: Task<Void, Never>?
     let pendingVideoSampleLock = NSLock()
     var pendingVideoSample: CMSampleBuffer?
     let decoderBootstrapLock = NSLock()
@@ -183,7 +183,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         rendererSink: RendererInputSink? = nil,
         audioRendererSink: AudioRendererInputSink? = nil,
         rendererFailureMonitor: RendererFailureMonitoring? = nil,
-        firstVideoSampleDeadline: Duration = .seconds(5),
+        firstVideoFrameDeadline: Duration = .seconds(5),
+        firstVideoFrameObservation: (@Sendable () -> Bool)? = nil,
         activationReapplyVerificationConfiguration:
             PlaybackActivationReapplyVerificationConfiguration = .processDefault,
         activationReapplyVerificationHooks: PlaybackActivationReapplyVerificationHooks = .init()
@@ -196,7 +197,8 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         self.provider = provider
         self.audioProvider = audioProvider
         self.subtitleProvider = subtitleProvider
-        self.firstVideoSampleDeadline = firstVideoSampleDeadline
+        self.firstVideoFrameDeadline = firstVideoFrameDeadline
+        self.firstVideoFrameObservation = firstVideoFrameObservation
         self.activationReapplyVerificationConfiguration =
             activationReapplyVerificationConfiguration
         self.activationReapplyVerificationHooks = activationReapplyVerificationHooks
@@ -248,7 +250,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             "session.prepare.begin id=\(traceID) start=\(startTime.seconds) paused=\(startsPaused)"
         )
         resetEndState(requiresAudio: false)
-        resetFirstVideoSampleDeadline()
+        resetFirstVideoFrameDeadline()
         resetDecoderBootstrap()
         let requestedRate = initialRate ?? 1
         preferredPlaybackRate = requestedRate > 0 ? requestedRate : 1
@@ -448,7 +450,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             recordFailure(error, node: .mediaEventStream, kind: "provider.startFailed")
             throw error
         }
-        armFirstVideoSampleDeadline()
+        armFirstVideoFrameDeadline()
         startVideoDelivery()
         PlaybackTrace.event("session.start.end id=\(traceID)")
     }

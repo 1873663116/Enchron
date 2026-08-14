@@ -31,7 +31,7 @@ extension SampleBufferPlaybackSession {
         closeLock.unlock()
 
         stopRendererFailureMonitoring()
-        cancelFirstVideoSampleDeadline()
+        cancelFirstVideoFrameDeadline()
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedByClose)
         activationObservation.stop()
 
@@ -530,7 +530,6 @@ extension SampleBufferPlaybackSession {
                 return
             }
             guard handleVideoEnqueueOutcome(outcome) else { return }
-            markFirstVideoSampleDelivered()
             activationObservation.recordAcceptedVideo(
                 epoch: streamEpoch,
                 presentationTime: presentationTime,
@@ -1406,18 +1405,17 @@ extension SampleBufferPlaybackSession {
         recordAudioRendererState()
     }
 
-    func resetFirstVideoSampleDeadline() {
-        let task = firstVideoSampleLock.withLock {
-            let task = firstVideoSampleDeadlineTask
-            firstVideoSampleDeadlineTask = nil
-            hasDeliveredFirstVideoSample = false
+    func resetFirstVideoFrameDeadline() {
+        let task = firstVideoFrameLock.withLock {
+            let task = firstVideoFrameDeadlineTask
+            firstVideoFrameDeadlineTask = nil
             return task
         }
         task?.cancel()
     }
 
-    func armFirstVideoSampleDeadline() {
-        let deadline = firstVideoSampleDeadline
+    func armFirstVideoFrameDeadline() {
+        let deadline = firstVideoFrameDeadline
         let task = Task.detached { [weak self] in
             do {
                 try await Task.sleep(for: deadline)
@@ -1425,58 +1423,58 @@ extension SampleBufferPlaybackSession {
                 return
             }
             self?.deliveryQueue.async { [weak self] in
-                self?.failIfFirstVideoSampleIsStillMissing()
+                self?.failIfFirstVideoFrameIsStillMissing()
             }
         }
-        let shouldCancel = firstVideoSampleLock.withLock {
-            guard !hasDeliveredFirstVideoSample,
-                  firstVideoSampleDeadlineTask == nil else {
+        let shouldCancel = firstVideoFrameLock.withLock {
+            guard firstVideoFrameDeadlineTask == nil else {
                 return true
             }
-            firstVideoSampleDeadlineTask = task
+            firstVideoFrameDeadlineTask = task
             return false
         }
         if shouldCancel { task.cancel() }
     }
 
-    func markFirstVideoSampleDelivered() {
-        let task = firstVideoSampleLock.withLock {
-            hasDeliveredFirstVideoSample = true
-            let task = firstVideoSampleDeadlineTask
-            firstVideoSampleDeadlineTask = nil
+    func cancelFirstVideoFrameDeadline() {
+        let task = firstVideoFrameLock.withLock {
+            let task = firstVideoFrameDeadlineTask
+            firstVideoFrameDeadlineTask = nil
             return task
         }
         task?.cancel()
     }
 
-    func cancelFirstVideoSampleDeadline() {
-        let task = firstVideoSampleLock.withLock {
-            let task = firstVideoSampleDeadlineTask
-            firstVideoSampleDeadlineTask = nil
-            return task
-        }
-        task?.cancel()
-    }
-
-    func failIfFirstVideoSampleIsStillMissing() {
-        let shouldFail = firstVideoSampleLock.withLock {
-            guard !hasDeliveredFirstVideoSample,
-                  firstVideoSampleDeadlineTask != nil else {
+    func failIfFirstVideoFrameIsStillMissing() {
+        let shouldEvaluate = firstVideoFrameLock.withLock {
+            guard firstVideoFrameDeadlineTask != nil else {
                 return false
             }
-            firstVideoSampleDeadlineTask = nil
+            firstVideoFrameDeadlineTask = nil
             return true
         }
-        guard shouldFail, !isClosed else { return }
+        guard shouldEvaluate, !isClosed else { return }
+        let displayedFrame = firstVideoFrameObservation?()
+            ?? (renderer.displayedPixelBuffer() != nil)
+        guard displayedFrame == false else { return }
         provider.cancel()
         stopVideoDelivery()
         stopAudioDelivery()
         audioProvider.cancel()
-        let components = firstVideoSampleDeadline.components
+        let components = firstVideoFrameDeadline.components
         let seconds = Double(components.seconds)
             + Double(components.attoseconds) / 1_000_000_000_000_000_000
-        let error = CorePlaybackError.firstVideoSampleTimedOut(seconds)
-        recordFailure(error, node: .mediaEventStream, kind: "videoProvider.firstSampleTimedOut")
+        let rendererError = renderer.error?.localizedDescription
+            ?? currentVideoRendererError
+        let error = CorePlaybackError.firstVideoFrameTimedOut(
+            seconds,
+            rendererError: rendererError
+        )
+        recordFailure(
+            error,
+            node: .rendererInputCoordination,
+            kind: "videoRenderer.firstFrameTimedOut"
+        )
         onStatusChange?(.failed(error.localizedDescription))
     }
 

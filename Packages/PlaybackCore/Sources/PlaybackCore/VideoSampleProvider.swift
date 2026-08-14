@@ -320,7 +320,8 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                     sourceFormat = try await Self.uniqueSourceVideoFormatDescription(
                         in: sourceAsset,
                         matching: bridgeFormat,
-                        allowsSourceOnlyLhvC: openedInfo.isMVHEVC
+                        allowsSourceOnlyLhvC: openedInfo.isMVHEVC,
+                        allowsSameFileHvcCReconstruction: asset == nil && openedInfo.isMVHEVC
                     )
                 } catch {
                     if openedInfo.isMVHEVC { throw error }
@@ -352,13 +353,19 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                     }) else {
                         throw CancellationError()
                     }
-                } else if let appleImmersiveClassificationFormat {
+                } else {
                     guard readerLock.withLock({
                         guard generation == operationGeneration else { return false }
-                        storedInfo = Self.infoByAddingAppleImmersiveSourceClassification(
+                        storedInfo = Self.infoByClassifyingDeliveredDescription(
                             storedInfo,
-                            sourceFormat: appleImmersiveClassificationFormat
+                            format: bridgeFormat
                         )
+                        if let appleImmersiveClassificationFormat {
+                            storedInfo = Self.infoByAddingAppleImmersiveSourceClassification(
+                                storedInfo,
+                                sourceFormat: appleImmersiveClassificationFormat
+                            )
+                        }
                         return true
                     }) else {
                         throw CancellationError()
@@ -500,7 +507,8 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
     private static func uniqueSourceVideoFormatDescription(
         in asset: AVAsset,
         matching bridgeFormat: CMVideoFormatDescription,
-        allowsSourceOnlyLhvC: Bool
+        allowsSourceOnlyLhvC: Bool,
+        allowsSameFileHvcCReconstruction: Bool
     ) async throws -> CMFormatDescription? {
         var match: CMFormatDescription?
         for track in try await asset.loadTracks(withMediaType: .video) {
@@ -508,7 +516,8 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                 guard sourceVideoFormat(
                     format,
                     matches: bridgeFormat,
-                    allowsSourceOnlyLhvC: allowsSourceOnlyLhvC
+                    allowsSourceOnlyLhvC: allowsSourceOnlyLhvC,
+                    allowsSameFileHvcCReconstruction: allowsSameFileHvcCReconstruction
                 ) else { continue }
                 guard match == nil else { return nil }
                 match = format
@@ -557,7 +566,8 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
     private static func sourceVideoFormat(
         _ sourceFormat: CMVideoFormatDescription,
         matches bridgeFormat: CMVideoFormatDescription,
-        allowsSourceOnlyLhvC: Bool
+        allowsSourceOnlyLhvC: Bool,
+        allowsSameFileHvcCReconstruction: Bool
     ) -> Bool {
         let sourceDimensions = CMVideoFormatDescriptionGetDimensions(sourceFormat)
         let bridgeDimensions = CMVideoFormatDescriptionGetDimensions(bridgeFormat)
@@ -565,9 +575,16 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
               sourceDimensions.height == bridgeDimensions.height else { return false }
         let sourceAtoms = decoderConfigurationAtoms(in: sourceFormat)
         let bridgeAtoms = decoderConfigurationAtoms(in: bridgeFormat)
-        for atom in ["avcC", "hvcC", "av1C"] {
+        for atom in ["avcC", "av1C"] {
             guard sourceAtoms[atom] == bridgeAtoms[atom] else { return false }
         }
+        let hvcCMatches = sourceAtoms["hvcC"] == bridgeAtoms["hvcC"]
+        let sameFileMVHEVCReconstruction = allowsSameFileHvcCReconstruction
+            && sourceAtoms["hvcC"]?.isEmpty == false
+            && bridgeAtoms["hvcC"]?.isEmpty == false
+            && sourceAtoms["lhvC"]?.isEmpty == false
+            && bridgeAtoms["lhvC"] == nil
+        guard hvcCMatches || sameFileMVHEVCReconstruction else { return false }
         let sourceSubtype = CMFormatDescriptionGetMediaSubType(sourceFormat)
         let bridgeSubtype = CMFormatDescriptionGetMediaSubType(bridgeFormat)
         if sourceSubtype != bridgeSubtype {
@@ -654,6 +671,7 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
         let atoms = extensions[
             kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
         ] as? [String: Data] ?? [:]
+        updated.isMVHEVC = atoms["lhvC"]?.isEmpty == false
         let configurationAtoms = ["avcC", "hvcC", "lhvC", "dvcC", "dvvC", "av1C"]
             .filter { atoms[$0]?.isEmpty == false }
         if !configurationAtoms.isEmpty {
@@ -683,6 +701,16 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
             dvcC: atoms["dvcC"]?.isEmpty == false ? .init(known: true) : .init(.none),
             dvvC: atoms["dvvC"]?.isEmpty == false ? .init(known: true) : .init(.none)
         )
+        return updated
+    }
+
+    private static func infoByClassifyingDeliveredDescription(
+        _ info: VideoSampleProviderInfo,
+        format: CMFormatDescription
+    ) -> VideoSampleProviderInfo {
+        var updated = info
+        let atoms = decoderConfigurationAtoms(in: format)
+        updated.isMVHEVC = atoms["lhvC"]?.isEmpty == false
         return updated
     }
 

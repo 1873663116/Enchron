@@ -47,6 +47,27 @@ private func fourCharacterCode(_ codecType: CMVideoCodecType) -> String {
     ) ?? "????"
 }
 
+@Test("this device has a Dolby Vision decoder")
+func dolbyVisionDecoderExistsOnThisDevice() throws {
+    // HEVC carries its parameter sets in extradata, so a bare description cannot open
+    // a session for either type and neither status is noErr. That still separates the
+    // two failures that matter. A decoder that was never found reports
+    // kVTCouldNotFindVideoDecoderErr, as all six ProRes types do. A decoder that was
+    // found and then rejected the description reports something else. Requiring the
+    // two types to return the same status would be the wrong bar, because different
+    // decoders describe an incomplete description differently.
+    let hevc = try decoderStatus(for: kCMVideoCodecType_HEVC)
+    let dolbyVision = try decoderStatus(for: kCMVideoCodecType_DolbyVisionHEVC)
+    let report = "hvc1=\(hevc)\ndvh1=\(dolbyVision)"
+    try? report.write(
+        to: URL.documentsDirectory.appending(path: "dolby-vision-availability.txt"),
+        atomically: true,
+        encoding: .utf8
+    )
+    #expect(dolbyVision != kVTCouldNotFindVideoDecoderErr, Comment(rawValue: report))
+    #expect(hevc != kVTCouldNotFindVideoDecoderErr, Comment(rawValue: report))
+}
+
 @Test("this device has no ProRes decoder, and the probe that says so works")
 func proResHasNoDecoderOnThisDevice() throws {
     let proRes: [CMVideoCodecType] = [

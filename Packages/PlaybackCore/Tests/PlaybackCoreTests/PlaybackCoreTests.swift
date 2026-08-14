@@ -1,8 +1,18 @@
 import Foundation
 import AVFoundation
 import CoreVideo
+import PlaybackFFmpegBridge
 import Testing
 @testable import PlaybackCore
+
+private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appendingPathComponent("TestMedia")
 
 @MainActor
 @Test func audioRendererAllowsMonoStereoAndMultichannelSpatialization() {
@@ -2764,29 +2774,80 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
 }
 
-@Test func missingFirstVideoSampleFailsWithActionableReason() async throws {
+@Test func missingFirstDisplayedFrameFailsWithoutGuessingTheCause() async throws {
+    let fixture = playbackCoreTestMedia.appendingPathComponent(
+        "Samples/DynamicRange/DolbyVision/Profile20/Apple-Historic-Planet-HLS/DoVi_P20_09180_t1080p/fileSequence0.mp4"
+    )
     let session = SampleBufferPlaybackSession(
-        traceID: "missing-first-video-sample-session",
+        traceID: "missing-first-displayed-frame-session",
         provider: FakeVideoSampleProvider(events: [.end]),
         rendererSink: FakeRendererInputSink(),
-        firstVideoSampleDeadline: .milliseconds(20)
+        firstVideoFrameDeadline: .milliseconds(20),
+        firstVideoFrameObservation: { false }
+    )
+    defer { session.close() }
+
+    #expect(
+        try #require(
+            FileManager.default.attributesOfItem(atPath: fixture.path)[.size] as? NSNumber
+        ).intValue == 1_055
+    )
+    try await session.prepare(url: fixture)
+    try session.start()
+    try await waitForLifecycle(.failed, in: session)
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.lastFailure?.stage == "videoRenderer.firstFrameTimedOut")
+    #expect(snapshot.lastFailure?.message == "No video frame was displayed within 0.02 seconds after playback started.")
+    #expect(snapshot.lastFailure?.message.contains("HLS") == false)
+}
+
+@Test func acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim() async throws {
+    let sample = try firstCompressedVideoSample(
+        relativePath: "TestVectors/Upstream/FATE/ProRes/Sequence_1-Apple_ProRes_422.mov"
+    )
+    let sink = FakeRendererInputSink(
+        enqueueOutcomes: [.acceptedWithWarnings(["Cannot Decode"])]
+    )
+    let session = SampleBufferPlaybackSession(
+        traceID: "accepted-prores-without-displayed-frame-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: sink,
+        firstVideoFrameDeadline: .milliseconds(20),
+        firstVideoFrameObservation: { false }
     )
     defer { session.close() }
 
     try await session.prepare(
-        url: URL(fileURLWithPath: "/fixtures/fileSequence0.mp4")
+        url: playbackCoreTestMedia.appendingPathComponent(
+            "TestVectors/Upstream/FATE/ProRes/Sequence_1-Apple_ProRes_422.mov"
+        )
     )
     try session.start()
     try await waitForLifecycle(.failed, in: session)
 
     let snapshot = session.debugSnapshot()
-    #expect(snapshot.lastFailure?.stage == "videoProvider.firstSampleTimedOut")
-    #expect(
-        snapshot.lastFailure?.message.contains("No video frame arrived within") == true
+    #expect(snapshot.acceptedRendererInputCount == 1)
+    #expect(snapshot.lastFailure?.stage == "videoRenderer.firstFrameTimedOut")
+    #expect(snapshot.lastFailure?.message == "Cannot Decode")
+}
+
+@Test func displayedFrameSatisfiesFirstFrameDeadline() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 1)
+    let session = SampleBufferPlaybackSession(
+        traceID: "displayed-first-frame-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameDeadline: .milliseconds(20),
+        firstVideoFrameObservation: { true }
     )
-    #expect(
-        snapshot.lastFailure?.message.contains("HLS initialization segment") == true
-    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/displayed.mp4"))
+    try session.start()
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(session.debugSnapshot().lifecycle != .failed)
 }
 
 @Test func failedAudioTrackSelectionPreservesActiveTrackAndPlaybackState() async throws {
@@ -3701,6 +3762,30 @@ private func waitForSinkSampleCount(
         try await Task.sleep(for: .milliseconds(10))
     }
     Issue.record("Timed out waiting for renderer sink sample count \(count)")
+}
+
+private func firstCompressedVideoSample(relativePath: String) throws -> CMSampleBuffer {
+    let fixture = playbackCoreTestMedia.appendingPathComponent(relativePath)
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(
+        reader,
+        Comment(rawValue: "\(relativePath): \(String(cString: error))")
+    )
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var sample: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeReader,
+            &sample,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: "\(relativePath): \(String(cString: error))")
+    )
+    return try #require(sample?.takeRetainedValue())
 }
 
 private func waitForLifecycle(
