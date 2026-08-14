@@ -30,7 +30,7 @@ both ending in `** TEST EXECUTE SUCCEEDED **`; the nine tests that ran appear on
 in the Swift Testing lines. Any rule that reads the XCTest counter alone condemns
 the good run, and any rule that reads the exit status alone accepts the empty one.
 
-Three entry points, ordered by how early they can stop a wrong conclusion:
+Four entry points, ordered by how early they can stop a wrong conclusion:
 
   resolve   takes the identifiers a run is about to select and an enumeration of
             what exists, and fails when a filter matches nothing. This is the only
@@ -39,6 +39,10 @@ Three entry points, ordered by how early they can stop a wrong conclusion:
   run       enumerates, resolves, refuses to launch xcodebuild when any filter
             matches nothing, and reads the verdict of the run it did launch,
             expecting the number of tests the filters resolved to.
+  target-run enumerates a whole target, derives one invocation per suite and one
+            batched invocation for target-level functions, proves that every enabled
+            identifier belongs to exactly one invocation, then applies the same
+            preflight and finished-run checks to each invocation.
   verdict   reads a finished log. Given an enumeration as well, it recovers the
             run's own `-only-testing:` arguments from its command line and holds
             the executed count against what those arguments select. Here the count
@@ -384,6 +388,242 @@ def selected_identifiers(resolutions: list[Resolution]) -> tuple[str, ...]:
 
 
 # ---------------------------------------------------------------------------
+# Complete target partitioning
+
+
+class PlanError(ValueError):
+    """The proposed invocations do not cover one enumerated target exactly once."""
+
+
+@dataclass(frozen=True)
+class TargetInvocation:
+    """One isolated xcodebuild call and the tests its filters must select."""
+
+    name: str
+    filters: tuple[str, ...]
+    identifiers: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TargetInvocationPlan:
+    target: str
+    invocations: tuple[TargetInvocation, ...]
+
+
+def identifiers_in_target(identifiers: tuple[str, ...], target: str) -> tuple[str, ...]:
+    return tuple(identifier for identifier in identifiers if selects(target, identifier))
+
+
+def invocation_artifact_stem(name: str) -> str:
+    stem = re.sub(r"[^A-Za-z0-9._-]", "_", name)
+    if stem in ("", ".", ".."):
+        raise PlanError(f"invocation name cannot form an artifact path: {name!r}")
+    return stem
+
+
+def plan_target_invocations(
+    enumeration: Enumeration, target: str
+) -> TargetInvocationPlan:
+    """Derives suite-isolated calls plus one call for target-level functions.
+
+    An identifier with three or more components belongs below the second component,
+    which is the suite or XCTestCase selected by `Target/Suite`. An identifier with
+    two components is a target-level Swift Testing function and has no suite prefix,
+    so those exact enumerated identifiers are batched into one invocation.
+    """
+    if not enumeration.trustworthy:
+        raise PlanError(
+            f"the enumeration lost {len(enumeration.damaged)} identifier(s), so it "
+            "cannot prove complete target coverage"
+        )
+    enabled = identifiers_in_target(enumeration.identifiers, target)
+    if not enabled:
+        raise PlanError(f"the enumeration contains no enabled tests in target {target}")
+    disabled = identifiers_in_target(enumeration.disabled, target)
+    if disabled:
+        raise PlanError(
+            f"target {target} has {len(disabled)} disabled test(s), which cannot be "
+            "covered by a test invocation: " + ", ".join(disabled[:3])
+        )
+
+    suites: dict[str, list[str]] = {}
+    target_level: list[str] = []
+    for identifier in enabled:
+        components = identifier.split("/")
+        if len(components) == 2:
+            target_level.append(identifier)
+        elif len(components) >= 3:
+            suites.setdefault(components[1], []).append(identifier)
+        else:
+            raise PlanError(f"test identifier has no test component: {identifier}")
+
+    invocations = [
+        TargetInvocation(
+            name=suite,
+            filters=(f"{target}/{suite}",),
+            identifiers=tuple(suites[suite]),
+        )
+        for suite in sorted(suites)
+    ]
+    if target_level:
+        invocations.append(
+            TargetInvocation(
+                name="TargetLevelFreeFunctions",
+                filters=tuple(target_level),
+                identifiers=tuple(target_level),
+            )
+        )
+    plan = TargetInvocationPlan(target=target, invocations=tuple(invocations))
+    audit_target_invocations(plan, enumeration)
+    return plan
+
+
+def audit_target_invocations(
+    plan: TargetInvocationPlan, enumeration: Enumeration
+) -> None:
+    """Refuses empty filters, lies about their matches, gaps, and overlaps."""
+    if not enumeration.trustworthy:
+        raise PlanError(
+            f"the enumeration lost {len(enumeration.damaged)} identifier(s), so it "
+            "cannot prove complete target coverage"
+        )
+    expected = identifiers_in_target(enumeration.identifiers, plan.target)
+    if not expected:
+        raise PlanError(
+            f"the enumeration contains no enabled tests in target {plan.target}"
+        )
+    disabled = identifiers_in_target(enumeration.disabled, plan.target)
+    if disabled:
+        raise PlanError(
+            f"target {plan.target} has {len(disabled)} disabled test(s), which cannot be "
+            "covered by a test invocation: " + ", ".join(disabled[:3])
+        )
+    if not plan.invocations:
+        raise PlanError(f"the plan has no invocations for target {plan.target}")
+
+    assignments: dict[str, list[str]] = {identifier: [] for identifier in expected}
+    names: set[str] = set()
+    artifact_stems: set[str] = set()
+    for invocation in plan.invocations:
+        if invocation.name in names:
+            raise PlanError(f"duplicate invocation name: {invocation.name}")
+        names.add(invocation.name)
+        stem = invocation_artifact_stem(invocation.name)
+        if stem in artifact_stems:
+            raise PlanError(f"invocation artifact name is not unique: {stem}")
+        artifact_stems.add(stem)
+        if not invocation.filters:
+            raise PlanError(f"invocation {invocation.name} has no -only-testing filters")
+        if len(set(invocation.identifiers)) != len(invocation.identifiers):
+            raise PlanError(
+                f"invocation {invocation.name} declares the same identifier more than once"
+            )
+
+        resolutions = resolve(list(invocation.filters), enumeration)
+        unresolved = [item.test_filter for item in resolutions if not item.ok]
+        if unresolved:
+            raise PlanError(
+                f"invocation {invocation.name} selects no enumerated test with: "
+                + ", ".join(unresolved)
+            )
+        resolved = selected_identifiers(resolutions)
+        declared = set(invocation.identifiers)
+        if set(resolved) != declared:
+            missing = sorted(set(resolved) - declared)
+            invented = sorted(declared - set(resolved))
+            details = []
+            if missing:
+                details.append(f"does not declare {len(missing)} filter match(es)")
+            if invented:
+                details.append(f"declares {len(invented)} identifier(s) its filters do not match")
+            raise PlanError(f"invocation {invocation.name} " + " and ".join(details))
+        outside = [name for name in resolved if name not in assignments]
+        if outside:
+            raise PlanError(
+                f"invocation {invocation.name} selects tests outside {plan.target}: "
+                + ", ".join(outside[:3])
+            )
+        for identifier in resolved:
+            assignments[identifier].append(invocation.name)
+
+    unassigned = [name for name, owners in assignments.items() if not owners]
+    if unassigned:
+        raise PlanError(
+            f"{len(unassigned)} enumerated {plan.target} test(s) are unassigned: "
+            + ", ".join(unassigned[:3])
+        )
+    overlapping = [(name, owners) for name, owners in assignments.items() if len(owners) > 1]
+    if overlapping:
+        examples = ", ".join(
+            f"{name} by {'/'.join(owners)}" for name, owners in overlapping[:3]
+        )
+        raise PlanError(
+            f"{len(overlapping)} enumerated {plan.target} test(s) are assigned more than "
+            f"once: {examples}"
+        )
+
+
+def target_invocation_plan_payload(plan: TargetInvocationPlan) -> dict[str, object]:
+    return {
+        "version": 1,
+        "target": plan.target,
+        "totalTests": sum(len(invocation.identifiers) for invocation in plan.invocations),
+        "invocations": [
+            {
+                "name": invocation.name,
+                "filters": list(invocation.filters),
+                "identifiers": list(invocation.identifiers),
+            }
+            for invocation in plan.invocations
+        ],
+    }
+
+
+def write_target_invocation_plan(plan: TargetInvocationPlan, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(target_invocation_plan_payload(plan), indent=2) + "\n",
+        encoding="utf-8",
+    )
+
+
+def read_target_invocation_plan(path: Path) -> TargetInvocationPlan:
+    if not path.is_file():
+        raise PlanError(f"no target invocation plan at {path}")
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        if payload.get("version") != 1:
+            raise PlanError(f"unsupported target invocation plan version: {payload.get('version')}")
+        target = payload["target"]
+        if not isinstance(target, str):
+            raise TypeError("target is not a string")
+        invocations = tuple(
+            TargetInvocation(
+                name=entry["name"],
+                filters=tuple(entry["filters"]),
+                identifiers=tuple(entry["identifiers"]),
+            )
+            for entry in payload["invocations"]
+        )
+        if any(
+            not isinstance(value, str)
+            for invocation in invocations
+            for value in (invocation.name, *invocation.filters, *invocation.identifiers)
+        ):
+            raise TypeError("an invocation name, filter, or identifier is not a string")
+    except (KeyError, TypeError, json.JSONDecodeError) as error:
+        raise PlanError(f"invalid target invocation plan at {path}: {error}") from error
+    plan = TargetInvocationPlan(target=target, invocations=invocations)
+    declared_total = payload.get("totalTests")
+    actual_total = sum(len(invocation.identifiers) for invocation in invocations)
+    if declared_total != actual_total:
+        raise PlanError(
+            f"target invocation plan declares {declared_total} tests but contains {actual_total}"
+        )
+    return plan
+
+
+# ---------------------------------------------------------------------------
 # Reading a finished run
 
 
@@ -644,6 +884,8 @@ def command_run(arguments: argparse.Namespace) -> None:
     log_path = arguments.log or (scratch / "test-run.log")
 
     print(f"enumerating into {enumeration_path}")
+    enumeration_path.parent.mkdir(parents=True, exist_ok=True)
+    enumeration_path.unlink(missing_ok=True)
     command = [xcodebuild, *enumeration_arguments(list(arguments.passthrough), enumeration_path)]
     completed = subprocess.run(command, check=False, text=True, capture_output=True)
     if not enumeration_path.is_file():
@@ -696,6 +938,146 @@ def command_run(arguments: argparse.Namespace) -> None:
     finish(verdict_problems, notes)
 
 
+def command_target_run(arguments: argparse.Namespace) -> None:
+    if not arguments.passthrough:
+        raise SystemExit("pass the xcodebuild arguments after --")
+    forbidden = [
+        argument
+        for argument in arguments.passthrough
+        if argument.startswith(
+            (
+                "-only-testing",
+                "-skip-testing",
+                "-resultBundlePath",
+                "-test-enumeration-output-path",
+            )
+        )
+    ]
+    if forbidden:
+        raise SystemExit(
+            "target-run owns test selection, result bundles, and enumeration output; "
+            "remove these passthrough arguments: " + ", ".join(forbidden)
+        )
+
+    xcodebuild = shutil.which(arguments.xcodebuild) or arguments.xcodebuild
+    evidence_root = arguments.evidence_root
+    enumeration_path = arguments.keep_enumeration
+    evidence_root.mkdir(parents=True, exist_ok=True)
+    enumeration_path.parent.mkdir(parents=True, exist_ok=True)
+    enumeration_path.unlink(missing_ok=True)
+
+    enumeration_log = evidence_root / "test-enumeration.log"
+    print(f"enumerating {arguments.target} into {enumeration_path}")
+    command = [
+        xcodebuild,
+        *enumeration_arguments(list(arguments.passthrough), enumeration_path),
+    ]
+    completed = subprocess.run(
+        command,
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    enumeration_log.write_text(completed.stdout, encoding="utf-8")
+    if completed.returncode != 0:
+        raise SystemExit(
+            f"xcodebuild enumeration exited {completed.returncode}; log: {enumeration_log}"
+        )
+    if not enumeration_path.is_file():
+        raise SystemExit(
+            "the enumeration produced no dedicated output file, so target coverage "
+            f"cannot be proved; log: {enumeration_log}"
+        )
+
+    enumeration = read_enumeration(enumeration_path)
+    try:
+        plan = plan_target_invocations(enumeration, arguments.target)
+    except PlanError as error:
+        raise SystemExit(f"target invocation planning failed: {error}") from error
+    plan_path = evidence_root / "test-invocation-plan.json"
+    write_target_invocation_plan(plan, plan_path)
+    total = sum(len(invocation.identifiers) for invocation in plan.invocations)
+    print(
+        f"planned {total} test(s) in {len(plan.invocations)} isolated invocation(s); "
+        f"plan: {plan_path}"
+    )
+    for invocation in plan.invocations:
+        print(
+            f"  {invocation.name}: {len(invocation.identifiers)} test(s), "
+            f"{len(invocation.filters)} filter(s)"
+        )
+
+    if arguments.plan_only:
+        print("plan-only mode: no test action launched")
+        return
+
+    for invocation in plan.invocations:
+        # Re-resolve immediately before constructing the command. The complete-plan
+        # audit already proved global coverage; this keeps each launch tied to the
+        # exact filters that established its expected count.
+        resolutions = resolve(list(invocation.filters), enumeration)
+        unresolved = [item.test_filter for item in resolutions if not item.ok]
+        if unresolved:
+            raise SystemExit(
+                f"refusing to launch {invocation.name}; filter(s) select nothing: "
+                + ", ".join(unresolved)
+            )
+        selected = selected_identifiers(resolutions)
+        if set(selected) != set(invocation.identifiers):
+            raise SystemExit(
+                f"refusing to launch {invocation.name}; its filters no longer match "
+                "the audited invocation plan"
+            )
+
+        stem = invocation_artifact_stem(invocation.name)
+        result_bundle = evidence_root / f"{stem}.xcresult"
+        log_path = evidence_root / f"{stem}.log"
+        launch = [
+            xcodebuild,
+            *arguments.passthrough,
+            "-resultBundlePath",
+            str(result_bundle),
+            *[f"-only-testing:{name}" for name in invocation.filters],
+        ]
+        print(
+            f"\nlaunching {invocation.name}, expecting "
+            f"{len(invocation.identifiers)} test(s); result: {result_bundle}"
+        )
+        with log_path.open("w", encoding="utf-8") as sink:
+            process = subprocess.Popen(
+                launch,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            assert process.stdout is not None
+            for line in process.stdout:
+                sink.write(line)
+                if not arguments.quiet:
+                    sys.stdout.write(line)
+            process.wait()
+
+        verdict = read_verdict(log_path.read_text(encoding="utf-8", errors="replace"))
+        report_verdict(verdict)
+        problems, notes = judge(verdict, len(invocation.identifiers))
+        if process.returncode != 0 and not problems:
+            problems.append(f"xcodebuild exited {process.returncode}.")
+        for note in notes:
+            print(f"note {note}")
+        if problems:
+            for problem in problems:
+                print(f"FAIL {invocation.name}: {problem}", file=sys.stderr)
+            raise SystemExit(1)
+        print(f"  passed {invocation.name}")
+
+    print(
+        f"all {total} enumerated {arguments.target} tests passed across "
+        f"{len(plan.invocations)} isolated invocation(s); evidence: {evidence_root}"
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
@@ -736,8 +1118,20 @@ def main() -> None:
     runner.add_argument("passthrough", nargs=argparse.REMAINDER)
     runner.set_defaults(handler=command_run)
 
+    target_runner = commands.add_parser(
+        "target-run",
+        help="Enumerate a target, partition it by suite, prove complete coverage, then run.",
+    )
+    target_runner.add_argument("--target", required=True)
+    target_runner.add_argument("--evidence-root", type=Path, required=True)
+    target_runner.add_argument("--keep-enumeration", type=Path, required=True)
+    target_runner.add_argument("--plan-only", action="store_true")
+    target_runner.add_argument("--quiet", action="store_true")
+    target_runner.add_argument("passthrough", nargs=argparse.REMAINDER)
+    target_runner.set_defaults(handler=command_target_run)
+
     arguments = parser.parse_args()
-    if arguments.command == "run" and arguments.passthrough[:1] == ["--"]:
+    if arguments.command in ("run", "target-run") and arguments.passthrough[:1] == ["--"]:
         arguments.passthrough = arguments.passthrough[1:]
     arguments.handler(arguments)
 

@@ -6,10 +6,12 @@ repository_root=${0:A:h:h:h}
 source "$repository_root/Scripts/verification/enchron_artifact_paths.sh"
 xcode_app=${ENCHRON_XCODE_APP:-/Volumes/Cortisol/Applications/Xcode-beta3.app}
 developer_dir="$xcode_app/Contents/Developer"
+xcodebuild_command=${ENCHRON_XCODEBUILD:-xcodebuild}
 destination=${ENCHRON_VISION_TEST_DESTINATION:-}
 derived_data=${ENCHRON_DERIVED_DATA:-$artifact_root/DerivedData/VisionTestSuites}
 source_packages=${ENCHRON_SOURCE_PACKAGES:-$artifact_root/SourcePackages/VisionTestSuites}
 evidence_root=${ENCHRON_EVIDENCE_ROOT:-$artifact_root/TestEvidence/vision-test-suites-$(date +%Y%m%d-%H%M%S)}
+plan_only=${ENCHRON_VISION_TEST_PLAN_ONLY:-0}
 
 if [[ -z "$destination" ]]; then
     echo "Set ENCHRON_VISION_TEST_DESTINATION to an explicit physical Vision Pro destination, for example platform=visionOS,id=<device-id>." >&2
@@ -21,31 +23,41 @@ if [[ "$destination" == *Simulator* || "$destination" == *simulator* ]]; then
     exit 64
 fi
 
-test_suites=(
-    EnvironmentSceneMappingTests
-    WindowPlaybackPageGeometryTests
-    PlaybackPresentationStateTests
-    PlaybackSourceAccessTests
-    PlaybackSourceAndAudioSessionTests
-    MediaLibraryTests
-    LocalDataSourceAdapterTests
-    FakeFileDataSourceTests
-    SMBDataSourceAdapterTests
-    WebDAVDataSourceAdapterTests
-)
-
 mkdir -p "$evidence_root"
 
-for suite in $test_suites; do
-    DEVELOPER_DIR="$developer_dir" xcodebuild test \
-        -project "$repository_root/Enchron.xcodeproj" \
-        -scheme Enchron \
-        -configuration Debug \
-        -destination "$destination" \
-        -derivedDataPath "$derived_data" \
-        -clonedSourcePackagesDirPath "$source_packages" \
-        -resultBundlePath "$evidence_root/$suite.xcresult" \
-        "-only-testing:EnchronAppTests/$suite"
-done
+selection_command=(
+    python3 "$repository_root/Scripts/verification/xcodebuild_test_selection.py"
+    --xcodebuild "$xcodebuild_command"
+    target-run
+    --target EnchronAppTests
+    --evidence-root "$evidence_root"
+    --keep-enumeration "$evidence_root/test-enumeration.json"
+)
 
-echo "Sequential visionOS Swift Testing suites passed; evidence: $evidence_root"
+case "$plan_only" in
+    0) ;;
+    1) selection_command+=(--plan-only) ;;
+    *)
+        echo "ENCHRON_VISION_TEST_PLAN_ONLY must be 0 or 1." >&2
+        exit 64
+        ;;
+esac
+
+selection_command+=(
+    --
+    test
+    -project "$repository_root/Enchron.xcodeproj"
+    -scheme Enchron
+    -configuration Debug
+    -destination "$destination"
+    -derivedDataPath "$derived_data"
+    -clonedSourcePackagesDirPath "$source_packages"
+)
+
+DEVELOPER_DIR="$developer_dir" "${selection_command[@]}"
+
+if [[ "$plan_only" == 1 ]]; then
+    echo "Vision test invocation plan passed without launching device tests; evidence: $evidence_root"
+else
+    echo "Sequential visionOS test invocations passed; evidence: $evidence_root"
+fi
