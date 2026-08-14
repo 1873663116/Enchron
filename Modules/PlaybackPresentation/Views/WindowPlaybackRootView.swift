@@ -6,10 +6,18 @@ import UIKit
 
 struct WindowPlaybackLayout: Equatable {
     static let fallbackAspectRatio: CGFloat = 16.0 / 9.0
-    static let minimumWidthMultiplier: CGFloat = 1.25
-    static let defaultWidthMultiplier: CGFloat = 1.75
-    static let maximumWidthMultiplier: CGFloat = 2.50
     static let fallback = WindowPlaybackLayout(aspectRatio: fallbackAspectRatio)
+
+    /// The control bar hangs below the window at a fixed 728pt, so a narrower
+    /// window would wear a bar wider than itself.
+    static let minimumWidth: CGFloat = 750
+    /// One ceiling for both axes, so a very tall video and a very flat one are
+    /// bounded by the same number.
+    static let maximumExtent: CGFloat = 1_808
+
+    private static let minimumArea: CGFloat = 912 * 513
+    private static let defaultArea: CGFloat = 1_280 * 720
+    private static let maximumArea: CGFloat = 1_808 * 1_017
 
     let aspectRatio: CGFloat
 
@@ -42,26 +50,11 @@ struct WindowPlaybackLayout: Equatable {
         )
     }
 
-    var minimumSize: CGSize {
-        size(width: alignedWidth(
-            DesignTokens.ControlBar.outerWidth * Self.minimumWidthMultiplier,
-            rule: .up
-        ))
-    }
+    var minimumSize: CGSize { size(area: Self.minimumArea) }
 
-    var defaultSize: CGSize {
-        size(width: alignedWidth(
-            DesignTokens.ControlBar.outerWidth * Self.defaultWidthMultiplier,
-            rule: .nearest
-        ))
-    }
+    var defaultSize: CGSize { size(area: Self.defaultArea) }
 
-    var maximumSize: CGSize {
-        size(width: alignedWidth(
-            DesignTokens.ControlBar.outerWidth * Self.maximumWidthMultiplier,
-            rule: .down
-        ))
-    }
+    var maximumSize: CGSize { size(area: Self.maximumArea) }
 
     func hasPlaybackAspectRatio(
         _ size: CGSize,
@@ -78,64 +71,40 @@ struct WindowPlaybackLayout: Equatable {
             && size.height <= maximumSize.height + tolerance
     }
 
-    func sizeThatFits(_ availableSize: CGSize) -> CGSize {
-        guard availableSize.width > 0, availableSize.height > 0 else {
-            return minimumSize
-        }
-        let widthLimitedByHeight = availableSize.height * aspectRatio
-        let fittedWidth = min(
-            availableSize.width,
-            widthLimitedByHeight,
-            maximumSize.width
-        )
-        let resolvedWidth = max(minimumSize.width, fittedWidth)
-        return CGSize(
-            width: resolvedWidth,
-            height: resolvedWidth / aspectRatio
-        )
+    /// Each tier is a target area, not a bounding box. A box carries a shape of
+    /// its own and starves whatever does not share it, which is how a
+    /// side-by-side override on a mono source used to ask for a window
+    /// thousands of points tall. Height is always taken from the width and the
+    /// video's own ratio, and both clamps scale the whole rectangle, so the
+    /// window can never disagree with the picture and earn a band of empty
+    /// glass.
+    private func size(area: CGFloat) -> CGSize {
+        let width = (area * aspectRatio).squareRoot().rounded()
+        return withinCeiling(atLeastMinimumWidth(sizeFrom(width: width)))
     }
 
-    private enum WidthAlignmentRule {
-        case up
-        case nearest
-        case down
-    }
-
-    private func alignedWidth(
-        _ width: CGFloat,
-        rule: WidthAlignmentRule
-    ) -> CGFloat {
-        let unit: CGFloat = 16
-        let quotient = width / unit
-        switch rule {
-        case .up:
-            return quotient.rounded(.up) * unit
-        case .nearest:
-            return quotient.rounded() * unit
-        case .down:
-            return quotient.rounded(.down) * unit
-        }
-    }
-
-    private func size(width: CGFloat) -> CGSize {
+    private func sizeFrom(width: CGFloat) -> CGSize {
         CGSize(width: width, height: width / aspectRatio)
+    }
+
+    private func atLeastMinimumWidth(_ size: CGSize) -> CGSize {
+        guard size.width < Self.minimumWidth else { return size }
+        return sizeFrom(width: Self.minimumWidth)
+    }
+
+    private func withinCeiling(_ size: CGSize) -> CGSize {
+        let extent = max(size.width, size.height)
+        guard extent > Self.maximumExtent else { return size }
+        return sizeFrom(width: size.width * Self.maximumExtent / extent)
     }
 }
 
-/// The window range the browser asks for. It has no video to match, so unlike playback its range is
-/// rectangular and its floor is the size playback opens at.
-struct BrowserWindowLayout {
-    static let minimumSize = WindowPlaybackLayout.fallback.defaultSize
-    static let defaultSize = scaled(1.25)
-    static let maximumSize = scaled(2.0)
-
-    private static func scaled(_ multiplier: CGFloat) -> CGSize {
-        let base = WindowPlaybackLayout.fallback.defaultSize
-        return CGSize(
-            width: base.width * multiplier,
-            height: base.height * multiplier
-        )
-    }
+/// The window range the browser asks for. It has no video to match, so its
+/// shape is fixed at 4:3 and owes nothing to playback's.
+enum BrowserWindowLayout {
+    static let minimumSize = CGSize(width: 912, height: 684)
+    static let defaultSize = CGSize(width: 1_280, height: 960)
+    static let maximumSize = CGSize(width: 1_808, height: 1_356)
 }
 
 extension View {

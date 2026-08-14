@@ -273,11 +273,19 @@ public struct MainView: View {
         }
     }
 
+    /// The controls ornament keeps one topology for as long as this window hosts
+    /// playback, because attaching or detaching it mid-playback rebuilds the
+    /// RealityKit viewport and costs a black frame. The browser hosts no
+    /// playback, so it reserves nothing and the window bar sits against the
+    /// window instead of below an empty 152pt plane.
+    private var hostsPlaybackOrnament: Bool {
+        showsWindowPlayback && appModel.playbackPresentation.usesMainWindow
+    }
+
     /// Player Controls and top chrome only after presentable video is up.
     private var showsPlaybackChrome: Bool {
         let chrome =
-            showsWindowPlayback
-            && appModel.playbackPresentation.usesMainWindow
+            hostsPlaybackOrnament
             && appModel.showControls
             && (playbackRuntime.presentationState == .videoVisible
                 || isLeavingWindowPresentation)
@@ -294,14 +302,16 @@ public struct MainView: View {
     private var platformContent: some View {
         primaryContent
             .ornament(
-                visibility: .visible,
+                visibility: hostsPlaybackOrnament ? .visible : .hidden,
                 attachmentAnchor: .scene(.bottom)
             ) {
                 ZStack {
                     Color.clear
                         .frame(
                             width: DesignTokens.ControlBar.outerWidth,
-                            height: collapsedWindowControlsOrnamentHeight
+                            height: hostsPlaybackOrnament
+                                ? collapsedWindowControlsOrnamentHeight
+                                : 0
                         )
                         .allowsHitTesting(false)
                         .accessibilityHidden(true)
