@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import re
+import sys
 
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
@@ -21,12 +22,34 @@ def region(source: str, start_marker: str, end_marker: str) -> str:
     return source[start:end]
 
 
+VIOLATIONS: list[str] = []
+
+
 def require(condition: bool, message: str) -> None:
+    """Records rather than raises, so one run names every drifted contract.
+
+    Stopping at the first one costs a rerun per finding, and this file guards
+    dozens of contracts across a codebase that moves. The exit status still
+    fails; only the reporting is complete.
+    """
     if not condition:
-        raise AssertionError(message)
+        VIOLATIONS.append(message)
 
 
-def main() -> None:
+def order(source: str, *markers: str) -> bool:
+    """True when every marker appears, in the order given. A marker that is gone
+    is a violation of the same contract as one that moved, so it answers False
+    instead of raising and ending the run."""
+    position = -1
+    for marker in markers:
+        found = source.find(marker, position + 1)
+        if found < 0:
+            return False
+        position = found
+    return True
+
+
+def main() -> int:
     surface = read("Modules/PlaybackPresentation/Views/PlaybackVideoSurface.swift")
     main_view = read("Apps/Enchron/MainView.swift")
     window_root = read(
@@ -56,11 +79,11 @@ def main() -> None:
     reality_presenter = read(
         "Modules/PlaybackPresentation/Views/PlaybackRealityPresenter.swift"
     )
-    spatial_acceptance = read(
-        "Tests/EnchronAppUI/SpatialPresentationAcceptanceUITests.swift"
-    )
-    playback_deck_acceptance = read(
-        "Tests/EnchronAppUI/PlaybackDeckUITests.swift"
+    spatial_handoff = read("Tests/EnchronAppUI/Spatial/SpatialHandoffUITests.swift")
+    docked_placement = read("Tests/EnchronAppUI/Spatial/DockedPlacementUITests.swift")
+    regression_support = read("Tests/EnchronAppUI/Support/DeviceRegressionSupport.swift")
+    device_acceptance = read(
+        "Tests/EnchronAppUI/VisionProDeviceAcceptanceUITests.swift"
     )
     app_scene = read("Apps/Enchron/EnchronApp.swift")
     application = read("Apps/Enchron/EnchronApplication.swift")
@@ -95,11 +118,15 @@ def main() -> None:
         "private var windowPlayback: some View",
         "private var hostedPlaybackPresentation",
     )
-    vision_surface = region(surface, "private var visionSurface: some View", "#else")
+    vision_surface = region(
+        surface,
+        "private var visionSurface: some View",
+        "private func scheduleVisionSurfaceUpdate(",
+    )
     spatial_controls = region(
         main_view,
         "struct ImmersivePlaybackControlsAttachmentView: View",
-        "#endif",
+        "private func rendererPerformanceAccessibilityFields(",
     )
 
     require("PerspectiveCameraComponent(" in surface, "window camera is missing")
@@ -212,21 +239,22 @@ def main() -> None:
         "DesignPreview cannot exercise WindowPlayback in a real resizable scene",
     )
     require(
-        '"PlayerUI-window-control-plane"' in spatial_acceptance
-        and "value CONTAINS[c] 'lifecycle=playing'" in spatial_acceptance
-        and "value CONTAINS 'attached=window'" in spatial_acceptance
-        and "value == 'playing'" not in spatial_acceptance,
-        "spatial acceptance relies on a system-formatted accessibility value instead of structured playback facts",
+        "struct RegressionStateSnapshot" in regression_support
+        and 'split(separator: ";")' in regression_support
+        and 'func string(_ key: String)' in regression_support
+        and 'func uint64(_ key: String)' in regression_support
+        and '$0.string("lifecycle")' in regression_support,
+        "the device suites read the diagnostic value as one formatted string instead of named fields",
     )
     require(
-        '"ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"' in spatial_acceptance
-        and '"ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"'
-            in playback_deck_acceptance,
-        "spatial UI acceptance races the unrelated production controls auto-hide timer",
+        '"ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] =' in regression_support
+        and '"ENCHRON_CONTROLS_AUTO_HIDE_SECONDS"] = "300"' in device_acceptance,
+        "device UI acceptance races the unrelated production controls auto-hide timer",
     )
     require(
         '"PlayerUI-spatial-state"' in main_view
-        and '"PlayerUI-spatial-state"' in spatial_acceptance
+        and '"PlayerUI-spatial-state"' in spatial_handoff
+        and '"PlayerUI-spatial-state"' in docked_placement
         and '"PlayerUI-spatial-control-plane"' not in main_view,
         "spatial acceptance state collapses or replaces the real Player Control Deck accessibility tree",
     )
@@ -237,12 +265,18 @@ def main() -> None:
         and '"rendererInputs=\\(output.acceptedRendererInputCount)"' in main_view
         and '"displayedPixel=\\(output.displayedPixelBuffer)"' in main_view
         and '"audioSessionActive=\\(output.audioSessionActive)"' in main_view
-        and "verifyPlaybackAdvances" in spatial_acceptance
-        and "XCTAssertGreaterThan(" in spatial_acceptance
-        and "dock.isHittable" in spatial_acceptance
-        and "format.isHittable" in spatial_acceptance
-        and "first.pngRepresentation" not in spatial_acceptance,
-        "spatial acceptance does not verify continuous production output and Window hit testing",
+        and '($0.double("position") ?? 0) >= baselinePosition' in regression_support
+        and '($0.uint64("videoSamples") ?? 0) > baselineVideoSamples' in regression_support
+        and '($0.uint64("rendererInputs") ?? 0) > baselineRendererInputs' in regression_support
+        and '$0.bool("displayedPixel") == true' in regression_support
+        and '$0.string("session") == baselineSession' in regression_support,
+        "playback is called healthy without production output advancing under one unbroken session",
+    )
+    require(
+        "requireHittable(" in regression_support
+        and '["PlayerUI-TopAction-dock"].firstMatch.isHittable' in spatial_handoff
+        and "exit.isHittable" in docked_placement,
+        "the spatial suites accept a presentation whose controls never became usable",
     )
     require(
         "case .settled:" in runtime
@@ -253,15 +287,14 @@ def main() -> None:
             in read("Tests/EnchronAppUI/VisionProDeviceAcceptanceUITests.swift"),
         "Panorama can commit without device settlement",
     )
-    docked_state_gate = spatial_acceptance.index(
-        "let dockedState = try waitForSpatialState("
-    )
-    docked_exit_gate = spatial_acceptance.index(
-        '["PlayerPanel-button-exit-spatial"].firstMatch'
-    )
     require(
-        docked_state_gate < docked_exit_gate
-        and "throw AcceptanceFailure.unmetCondition" in spatial_acceptance,
+        order(
+            spatial_handoff,
+            "guard requireHittable(exitSpatial",
+            "settledTargetSnapshot,",
+        )
+        and "throw DeviceRegressionFailure.targetControlsUnavailable"
+            in spatial_handoff,
         "spatial acceptance can operate stale UI before the presentation transaction settles",
     )
     require(
@@ -298,8 +331,11 @@ def main() -> None:
     require(
         "SpatialPlatformExecutionLeaseRegistry<SceneActions>" in platform_executor
         and "leaseRegistry.claim(" in platform_executor
-        and platform_executor.index("leaseRegistry.claim(")
-            < platform_executor.index("appModel.claimSpatialPlatformEffect("),
+        and order(
+            platform_executor,
+            'leaseRegistry.claim(',
+            'appModel.claimSpatialPlatformEffect(',
+        ),
         "a pending effect can be claimed without a durable live-root execution lease",
     )
     require(
@@ -333,10 +369,11 @@ def main() -> None:
     require(
         "presentationState.recordImmersiveSpaceDisappearance()"
         in immersive_disappearance
-        and immersive_disappearance.index(
-            "presentationState.recordImmersiveSpaceDisappearance()"
+        and order(
+            immersive_disappearance,
+            'presentationState.recordImmersiveSpaceDisappearance()',
+            'guard pendingSpatialPlatformEffect == nil',
         )
-        < immersive_disappearance.index("guard pendingSpatialPlatformEffect == nil")
         and ".collapseImmersivePlayback(family)" in immersive_disappearance,
         "immersive disappearance records closure before queuing family collapse",
     )
@@ -411,9 +448,11 @@ def main() -> None:
     require(
         "executePlaybackTransport(beforeEffect, execution: execution)"
         in execute_region
-        and execute_region.index(
-            "executePlaybackTransport(beforeEffect, execution: execution)"
-        ) < execute_region.index("switch execution.request.effect"),
+        and order(
+            execute_region,
+            'executePlaybackTransport(beforeEffect, execution: execution)',
+            'switch execution.request.effect',
+        ),
         "a platform effect can begin before the guarded media pause bridge succeeds",
     )
     require(
@@ -538,9 +577,12 @@ def main() -> None:
         "private func execute(",
     )
     require(
-        session_invalidation.index("invalidateActiveExecution()")
-        < session_invalidation.index(".mediaSessionInvalidated(")
-        < session_invalidation.index("requestDrain()"),
+        order(
+            session_invalidation,
+            'invalidateActiveExecution()',
+            '.mediaSessionInvalidated(',
+            'requestDrain()',
+        ),
         "session invalidation does not invalidate A before owner cleanup and prompt drain",
     )
     session_cleanup = region(
@@ -549,10 +591,13 @@ def main() -> None:
         "private func enterImmersivePlayback(",
     )
     require(
-        session_cleanup.index("waitForImmersiveActionLane")
-        < session_cleanup.index('openWindow(id: "main"')
-        < session_cleanup.index("dismissImmersiveSpace(execution: execution)")
-        < session_cleanup.index("complete(execution"),
+        order(
+            session_cleanup,
+            'waitForImmersiveActionLane',
+            'openWindow(id: "main"',
+            'dismissImmersiveSpace(execution: execution)',
+            'complete(execution',
+        ),
         "session cleanup is not serialized before normalizing Window and immersion",
     )
     require(
@@ -581,62 +626,50 @@ def main() -> None:
         "spatial presentation failure does not distinguish pre-existing from request-opened space",
     )
     require(
-        enter_immersive_playback.index(
-            "prepareTechnicalSessionForPresentationConversion()"
-        )
-        < enter_immersive_playback.index(
-            "activatePreparedTechnicalSessionReplacement()"
-        )
-        < enter_immersive_playback.index(
-            "appModel.allowPresentationTargetRendererBinding()"
-        )
-        < enter_immersive_playback.index(
-            "rebaseActivatedTechnicalSessionReplacement("
-        )
-        < enter_immersive_playback.index(
-            "restoreTargetPlaybackIntentBeforeSettlement(execution)"
-        )
-        < enter_immersive_playback.index("waitUntilPresentationSettled("),
+        order(
+            enter_immersive_playback,
+            'prepareTechnicalSessionForPresentationConversion()',
+            'activatePreparedTechnicalSessionReplacement()',
+            'appModel.allowPresentationTargetRendererBinding()',
+            'rebaseActivatedTechnicalSessionReplacement(',
+            'restoreTargetPlaybackIntentBeforeSettlement(execution)',
+            'waitUntilPresentationSettled(',
+        ),
         "immersive entry replacement order is not prepare, activate, target binding, rebase, restore, settle",
     )
     require(
-        enter_immersive_playback.index("releaseDepartingPresentationResources()")
-        < enter_immersive_playback.index("complete(execution"),
+        order(
+            enter_immersive_playback,
+            'releaseDepartingPresentationResources()',
+            'complete(execution',
+        ),
         "immersive entry can commit before releasing its departing RealityKit component",
     )
     require(
-        exit_immersive_playback.index(
-            "prepareTechnicalSessionForPresentationConversion()"
-        )
-        < exit_immersive_playback.index("openWindowAndWaitForAppearance(")
-        < exit_immersive_playback.index(
-            "appModel.allowPresentationSourceRendererRelease()"
-        )
-        < exit_immersive_playback.index("detachPlaybackSurface(")
-        < exit_immersive_playback.index(
-            "waitUntilRendererConsumerIsReleased("
-        )
-        < exit_immersive_playback.index(
-            "activatePreparedTechnicalSessionReplacement()"
-        )
-        < exit_immersive_playback.index(
-            "appModel.allowPresentationTargetRendererBinding()"
-        )
-        < exit_immersive_playback.index(
-            "rebaseActivatedTechnicalSessionReplacement("
-        )
-        < exit_immersive_playback.index(
-            "restoreTargetPlaybackIntentBeforeSettlement(execution)"
-        )
-        < exit_immersive_playback.index("waitUntilPresentationSettled(")
-        < exit_immersive_playback.index("orderWindowToFront(")
-        < exit_immersive_playback.index("releaseDepartingPresentationResources()")
-        < exit_immersive_playback.index("complete(execution"),
+        order(
+            exit_immersive_playback,
+            'prepareTechnicalSessionForPresentationConversion()',
+            'openWindowAndWaitForAppearance(',
+            'appModel.allowPresentationSourceRendererRelease()',
+            'detachPlaybackSurface(',
+            'waitUntilRendererConsumerIsReleased(',
+            'activatePreparedTechnicalSessionReplacement()',
+            'appModel.allowPresentationTargetRendererBinding()',
+            'rebaseActivatedTechnicalSessionReplacement(',
+            'restoreTargetPlaybackIntentBeforeSettlement(execution)',
+            'waitUntilPresentationSettled(',
+            'orderWindowToFront(',
+            'releaseDepartingPresentationResources()',
+            'complete(execution',
+        ),
         "immersive exit omits or reorders the shared technical-session conversion sequence",
     )
     require(
-        exit_immersive_playback.index("releaseDepartingPresentationResources()")
-        < exit_immersive_playback.index("complete(execution"),
+        order(
+            exit_immersive_playback,
+            'releaseDepartingPresentationResources()',
+            'complete(execution',
+        ),
         "immersive exit can commit before releasing its departing RealityKit component",
     )
     projection_swap = region(
@@ -645,13 +678,16 @@ def main() -> None:
         "private func presentEnvironmentPreview(",
     )
     require(
-        projection_swap.index("prepareTechnicalSessionForPresentationConversion()")
-        < projection_swap.index("activatePreparedTechnicalSessionReplacement()")
-        < projection_swap.index("rebaseActivatedTechnicalSessionReplacement(")
-        < projection_swap.index("restoreTargetPlaybackIntentBeforeSettlement(execution)")
-        < projection_swap.index("waitUntilPresentationSettled(")
-        < projection_swap.index("releaseDepartingPresentationResources()")
-        < projection_swap.index("complete(execution"),
+        order(
+            projection_swap,
+            'prepareTechnicalSessionForPresentationConversion()',
+            'activatePreparedTechnicalSessionReplacement()',
+            'rebaseActivatedTechnicalSessionReplacement(',
+            'restoreTargetPlaybackIntentBeforeSettlement(execution)',
+            'waitUntilPresentationSettled(',
+            'releaseDepartingPresentationResources()',
+            'complete(execution',
+        ),
         "main-window projection swap does not settle before releasing and retiring its source",
     )
     departing_release = region(
@@ -660,9 +696,10 @@ def main() -> None:
         "private func presentEnvironmentPreview(",
     )
     require(
-        departing_release.index("playbackVideoEntityStore.releaseDepartingEntity()")
-        < departing_release.index(
-            "retireDepartingTechnicalSessionAfterSceneDisappearance()"
+        order(
+            departing_release,
+            'playbackVideoEntityStore.releaseDepartingEntity()',
+            'retireDepartingTechnicalSessionAfterSceneDisappearance()',
         ),
         "renderer retirement can wait on a RealityKit component that still owns its target",
     )
@@ -715,8 +752,7 @@ def main() -> None:
     ) -> None:
         body = region(platform_executor, start_marker, end_marker)
         require(
-            "executionIsLive" in body
-            and body.index("executionIsLive") < body.index(action_token),
+            order(body, "executionIsLive", action_token),
             f"{action_token} is not immediately protected by the execution lease",
         )
 
@@ -746,11 +782,8 @@ def main() -> None:
         end_marker: str,
     ) -> None:
         body = region(platform_executor, start_marker, end_marker)
-        suspension = body.index("await ")
         require(
-            body.find("executionIsLive") >= 0
-            and body.find("executionIsLive") < suspension
-            and body.find("executionIsLive", suspension) > suspension,
+            order(body, "executionIsLive", "await ", "executionIsLive"),
             f"{start_marker} lacks liveness checks before and after suspension",
         )
 
@@ -781,14 +814,19 @@ def main() -> None:
         "immersive scene actions do not revalidate after the serialized action lane",
     )
     require(
-        open_immersive.index("platformImmersiveSpaceResidency")
-        < open_immersive.index("execution.actions.openImmersiveSpace"),
+        order(
+            open_immersive,
+            'platformImmersiveSpaceResidency',
+            'execution.actions.openImmersiveSpace',
+        ),
         "immersive residency is not re-read inside the serialized lane before open",
     )
-    open_action = open_immersive.index("execution.actions.openImmersiveSpace")
     require(
-        "platformImmersiveSpaceResidency = .open"
-            in open_immersive[open_action:]
+        order(
+            open_immersive,
+            "execution.actions.openImmersiveSpace",
+            "platformImmersiveSpaceResidency = .open",
+        )
         and app_scene.count("recordImmersiveSpaceResidency(") == 2,
         "immersive action and Scene lifecycle facts do not refresh retry residency",
     )
@@ -855,8 +893,15 @@ def main() -> None:
     require("presentationObservation.cancel()" in immersive, "immersive teardown leaves observation active")
     require("releaseRendererConsumer(" in immersive, "immersive teardown leaves renderer ownership active")
 
+    if VIOLATIONS:
+        for index, violation in enumerate(VIOLATIONS, 1):
+            print(f"  {index:2d}. {violation}")
+        print(f"\n{len(VIOLATIONS)} playback surface structure contracts no longer hold")
+        return 1
+
     print("Playback surface structure constraints passed")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
