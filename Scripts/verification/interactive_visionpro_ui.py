@@ -30,8 +30,20 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 # line carries one of these alongside the repository root. Matching a bare tool
 # name would reach an unrelated project's build on the same machine.
 SCOPE_MARKERS = ("Enchron.xcodeproj", Path(__file__).name)
-GRACEFUL_STOP_DEADLINE_SECONDS = 5.0
+# A stop is an ordinary command round trip, and those were measured at a 2.6
+# second median with the device busy. Five seconds sat close enough to that to
+# expire on a session that was merely playing, which then skipped the graceful
+# path entirely. This only elapses when the runner is genuinely not answering.
+GRACEFUL_STOP_DEADLINE_SECONDS = 30.0
 TERMINATION_DEADLINE_SECONDS = 5.0
+# The runner acknowledges a stop before XCTest has torn the test down, and a
+# recording session then spends that teardown pulling the video off the headset
+# and writing the result bundle. Killing xcodebuild during it leaves a bundle
+# with no Info.plist and a recording with no moov atom. This is how long a
+# graceful stop may take to become an exit on its own; a session with no
+# recording exits well inside it, so waiting costs nothing when there is nothing
+# to write.
+RESULT_BUNDLE_WRITE_DEADLINE_SECONDS = 180.0
 TIMINGS_PATH = REPOSITORY_ROOT / "Scripts/verification/controller_timings.json"
 TIMING_SAMPLE_LIMIT = 20
 
@@ -299,6 +311,16 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
     except (OSError, RuntimeError, ValueError, json.JSONDecodeError):
         graceful = "unavailable"
 
+    # The runner acts on a stop by ending its test, not by writing a response, so
+    # a timed-out acknowledgement does not mean the stop was ignored. Waiting for
+    # xcodebuild to exit is the only observation that distinguishes the two, and
+    # it is also the one that matters: that exit is when the result bundle and any
+    # screen recording finish being written.
+    deadline = time.monotonic() + RESULT_BUNDLE_WRITE_DEADLINE_SECONDS
+    while time.monotonic() < deadline and scoped_processes():
+        time.sleep(0.5)
+    settled = not scoped_processes()
+
     targets = scoped_processes()
     for pid, _ in targets:
         try:
@@ -317,6 +339,9 @@ def halt_session(arguments: argparse.Namespace) -> dict[str, object]:
     return {
         "success": not remaining,
         "gracefulStop": graceful,
+        # False means xcodebuild was still running when the graceful deadline
+        # passed and was killed, so its result bundle is not trustworthy.
+        "resultBundleWritten": settled,
         "scope": str(REPOSITORY_ROOT),
         "terminated": [{"pid": pid, "command": command} for pid, command in targets],
         "remaining": [{"pid": pid, "command": command} for pid, command in remaining],
