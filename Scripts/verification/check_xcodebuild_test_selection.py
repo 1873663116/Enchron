@@ -92,6 +92,16 @@ XCTEST_LOG = (
 FAILED_LOG = TEST_EVIDENCE / "visionpro-core-regression-20260807-122250/test.log"
 XCTEST_NESTED_LINES = 3
 
+# A suite whose fixtures are absent prints its count as `Executed 23 tests, with 4
+# tests skipped and 0 failures`. That clause sits between the count and the
+# failures, so a pattern written against the two-part form reads the whole run as
+# zero and the guard stops a passing suite. This is the run it stopped.
+SKIPPED_LOG = (
+    TEST_EVIDENCE
+    / "post-merge-full-20260814/PlaybackSourceAndAudioSessionTests.log"
+)
+SKIPPED_EXECUTED = 23
+
 ENUMERATED_TOTAL = 307
 SELECTED = 9
 # The identifier the interleaved block cuts in half in the preserved enumeration.
@@ -441,6 +451,18 @@ def main() -> None:
         f"Summing the nested lines gives {nested} for a run of one test, which overstates "
         "every XCTest run and would let a shortfall pass as a match.",
     )
+    skipped_verdict = module.read_verdict(
+        SKIPPED_LOG.read_text(encoding="utf-8", errors="replace")
+    )
+    require(
+        "xctest",
+        skipped_verdict.executed == SKIPPED_EXECUTED,
+        f"a suite reporting skips is read as {skipped_verdict.executed} executed tests",
+        f"a run of {SKIPPED_EXECUTED} tests with 4 skipped was read as "
+        f"{skipped_verdict.executed} executed. The skipped clause splits the count from "
+        "the failures, and reading zero there stops a passing suite mid-regression.",
+    )
+
     completed = subprocess.run(
         [sys.executable, str(tool), "verdict", str(XCTEST_LOG), "--enumeration", str(ENUMERATION)],
         check=False,

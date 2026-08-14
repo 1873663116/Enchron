@@ -97,7 +97,9 @@ SECTION = re.compile(r'"(enabledTests|disabledTests)"\s*:')
 ONLY_TESTING = re.compile(r"-only-testing:([^\s\"']+)")
 SKIP_TESTING = re.compile(r"-skip-testing:([^\s\"']+)")
 
-XCTEST_EXECUTED = re.compile(r"Executed (\d+) tests?, with (\d+) failures?")
+XCTEST_EXECUTED = re.compile(
+    r"Executed (\d+) tests?, with (?:\d+ tests? skipped and )?(\d+) failures?"
+)
 SWIFT_TESTING_RUN = re.compile(
     r"Test run with (\d+) tests?(?: in (\d+) suites?)? (passed|failed)"
 )
