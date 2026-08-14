@@ -30,6 +30,23 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 探针适合记录诊断串给不出的东西：事件时序、沉浸空间开合时刻、settle 判据的逐项布尔分解、手势是否被投递。诊断串是状态快照，探针是时间线，两者互补。
 
+PlaybackCore 自己还写第三条通道，无需改代码就能取：每个媒体会话在 App 容器的
+`tmp/playbackcore-live-debug/<mediaSessionID>/` 下留 `events.jsonl` 与 `snapshot.json`，
+根部的 `current.json` 指向最新一个。除非环境变量
+`ENCHRON_VERIFICATION_DISABLE_PLAYBACK_DEBUG_RECORDER=1`（只有
+`VisionProDeviceAcceptanceUITests` 这么设），常驻交互会话里它是开的。
+
+```sh
+xcrun devicectl device copy from --device <CoreDevice ID> \
+  --domain-type appDataContainer --domain-identifier com.xiongzhipeng.XrPlayer \
+  --source tmp/playbackcore-live-debug/current.json --destination <本地路径>
+```
+
+它回答"卡在打开的哪一步"：一个停在 Loading 的会话如果 `events.jsonl` 只有
+`source.acquired` 和 `open.admitted` 两条，说明线程还堵在 FFmpeg 的 reader open 里，
+既没读到流信息也没失败。诊断串此时只显示 `lifecycle=Loading`，说不出停在哪。
+`devicectl device info files` 的列表很长，按 `playbackcore` 过滤。
+
 通道有效范围（2026-08-09 真机证实）：settled 的沉浸呈现里主窗口仍然开着但完全空掉，`PlayerUI-window-control-plane`、PlayerPanel、顶部动作、媒体库全部不在层级里。因此诊断串只在 window/portal 及过渡的窗口阶段可读；判定 panorama/docked 的 settle 一律轮询探针文件。沉浸空间的 SwiftUI attachment（如 `PlayerUI-immersive-playback-surface`）是例外：它出现在层级里且报告 isHittable，但对它 `tap --identifier` 会返回 Element tapped 而 App 的空间手势收不到任何投递——合成点击不携带注视加捏合语义，success 不等于送达，投递与否只有探针文件说了算。佩戴者的真实捏合仍是空间手势唯一的触发方式。
 
 `Scripts/verification/playback_mode_matrix.py` 是按上述通道分工实现的播放模式矩阵 runner（cell = clip × path × rep，每 cell 独立 ensure-session，verdict 落 results.jsonl）；跑覆盖矩阵先用它，别重写轮询逻辑。
