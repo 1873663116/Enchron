@@ -4,8 +4,17 @@ set -euo pipefail
 
 repository_root=${0:A:h:h:h}
 source "$repository_root/Scripts/verification/enchron_artifact_paths.sh"
-xcode_app=${ENCHRON_XCODE_APP:-/Volumes/Cortisol/Applications/Xcode-beta3.app}
-developer_dir="$xcode_app/Contents/Developer"
+xcode_app=${ENCHRON_XCODE_APP:-}
+if [[ -n "$xcode_app" ]]; then
+    developer_dir="$xcode_app/Contents/Developer"
+else
+    developer_dir=$(xcode-select -p)
+fi
+
+if [[ ! -d "$developer_dir" ]]; then
+    echo "Developer directory does not exist: $developer_dir" >&2
+    exit 72
+fi
 xcodebuild_command=${ENCHRON_XCODEBUILD:-xcodebuild}
 destination=${ENCHRON_VISION_TEST_DESTINATION:-}
 derived_data=${ENCHRON_DERIVED_DATA:-$artifact_root/DerivedData/VisionTestSuites}
