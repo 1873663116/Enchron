@@ -40,6 +40,11 @@ def walk_attachment_records(value: object) -> list[dict[str, object]]:
     return records
 
 
+MOVIE_CONTAINER_FORMATS = frozenset(
+    {"mov", "mp4", "m4a", "3gp", "3g2", "mj2", "matroska", "webm"}
+)
+
+
 def probe_video(path: Path) -> dict[str, object] | None:
     completed = subprocess.run(
         [
@@ -47,7 +52,8 @@ def probe_video(path: Path) -> dict[str, object] | None:
             "-v",
             "error",
             "-show_entries",
-            "format=duration,size:stream=codec_name,codec_type,width,height,avg_frame_rate",
+            "format=duration,size,format_name"
+            ":stream=codec_name,codec_type,width,height,avg_frame_rate",
             "-of",
             "json",
             str(path),
@@ -66,12 +72,20 @@ def probe_video(path: Path) -> dict[str, object] | None:
             if stream.get("codec_type") == "video"
         )
         duration = float(payload["format"]["duration"])
+        formats = set(str(payload["format"]["format_name"]).split(","))
     except (KeyError, StopIteration, TypeError, ValueError, json.JSONDecodeError):
+        return None
+    # The Staging scan below offers every pending file to this probe, and ffmpeg
+    # demuxes plain text as an ANSI art video with a plausible duration and frame
+    # rate. A staged xcresult holds the runner's stdout beside its attachments, so
+    # without a container check the app's own log is recovered as the recording.
+    if not formats & MOVIE_CONTAINER_FORMATS:
         return None
     return {
         "duration": duration,
         "bytes": int(payload["format"].get("size", path.stat().st_size)),
         "codec": video_stream.get("codec_name"),
+        "container": payload["format"]["format_name"],
         "width": int(video_stream.get("width", 0)),
         "height": int(video_stream.get("height", 0)),
         "averageFrameRate": video_stream.get("avg_frame_rate"),
