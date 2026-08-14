@@ -8,13 +8,21 @@ asks the server the same questions the app asks, dumps what the server offers
 under both direct-stream settings, then tries every candidate URL so the
 answer comes from the server rather than from reading the client.
 
+The access token reaches the server but never the terminal. It is redacted out
+of every printed URL, because this probe's output is what gets pasted into an
+audit trail. Credentials come from EMBY_USER and EMBY_PASSWORD when the flags
+are absent, so the repository's own `set -a; . .env` covers it without putting
+a password in argv where every process on the machine can read it.
+
 Usage:
-    probe_emby_direct_play.py --address http://host:8096 --username u --password p
+    set -a; . .env; set +a
+    probe_emby_direct_play.py --address http://host:8096
     probe_emby_direct_play.py --address http://host:8096 --token T --user-id U
 """
 
 import argparse
 import json
+import os
 import sys
 import urllib.error
 import urllib.parse
@@ -158,8 +166,11 @@ def main():
     parser.add_argument("--item-id")
     args = parser.parse_args()
 
-    if args.username:
-        token, user_id = authenticate(args.address, args.username, args.password or "")
+    username = args.username or os.environ.get("EMBY_USER")
+    password = args.password or os.environ.get("EMBY_PASSWORD")
+
+    if username:
+        token, user_id = authenticate(args.address, username, password or "")
     elif args.token and args.user_id:
         token, user_id = args.token, args.user_id
     else:
@@ -198,7 +209,7 @@ def main():
             verdict = "OK" if status in (200, 206) else "FAIL"
             print(f"  [{verdict}] {status or 'ERR'}  {label}")
             print(f"          {detail}")
-            print(f"          {url}")
+            print(f"          {url.replace(token, 'REDACTED')}")
         print()
 
 
