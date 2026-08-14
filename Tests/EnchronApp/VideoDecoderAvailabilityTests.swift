@@ -47,13 +47,9 @@ private func fourCharacterCode(_ codecType: CMVideoCodecType) -> String {
     ) ?? "????"
 }
 
-@Test("the codecs playback claims to render have decoders on this device")
-func rendererCodecsHaveDecoders() throws {
-    let codecs: [CMVideoCodecType] = [
-        kCMVideoCodecType_H264,
-        kCMVideoCodecType_HEVC,
-        kCMVideoCodecType_DolbyVisionHEVC,
-        kCMVideoCodecType_AV1,
+@Test("this device has no ProRes decoder, and the probe that says so works")
+func proResHasNoDecoderOnThisDevice() throws {
+    let proRes: [CMVideoCodecType] = [
         kCMVideoCodecType_AppleProRes422Proxy,
         kCMVideoCodecType_AppleProRes422LT,
         kCMVideoCodecType_AppleProRes422,
@@ -61,10 +57,25 @@ func rendererCodecsHaveDecoders() throws {
         kCMVideoCodecType_AppleProRes4444,
         kCMVideoCodecType_AppleProRes4444XQ,
     ]
-    let report = try codecs.map { codec in
+    let report = try (proRes + [kCMVideoCodecType_H264]).map { codec in
         "\(fourCharacterCode(codec))=\(try decoderStatus(for: codec))"
-    }.joined(separator: " ")
+    }.joined(separator: "\n")
+    // Test host stdout does not reach the xcodebuild log or the result bundle on
+    // device. The app container does, through devicectl.
+    try? report.write(
+        to: URL.documentsDirectory.appending(path: "decoder-availability.txt"),
+        atomically: true,
+        encoding: .utf8
+    )
 
-    let proResStatus = try decoderStatus(for: kCMVideoCodecType_AppleProRes422)
-    #expect(proResStatus == noErr, Comment(rawValue: report))
+    // H.264 is the control. It is the one codec here whose sample description is
+    // complete without extradata, so a session that opens for it and not for
+    // ProRes separates a missing decoder from an incomplete description.
+    #expect(try decoderStatus(for: kCMVideoCodecType_H264) == noErr)
+    for codec in proRes {
+        #expect(
+            try decoderStatus(for: codec) == kVTCouldNotFindVideoDecoderErr,
+            Comment(rawValue: report)
+        )
+    }
 }
