@@ -6,6 +6,11 @@ let package = Package(
     name: "PlaybackCore",
     platforms: [
         .visionOS("27.0"),
+        /// The module's own tests run here. visionOS is the only platform the product
+        /// ships on, but a device run needs a build, an install and a launch, so the
+        /// engine's tests would be reached only through the app's test target if this
+        /// were dropped, and they are not in it.
+        .macOS("27.0"),
     ],
     products: [
         .library(name: "PlaybackCore", targets: ["PlaybackCore"]),
