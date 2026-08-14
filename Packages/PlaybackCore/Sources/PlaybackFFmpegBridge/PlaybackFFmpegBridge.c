@@ -431,6 +431,27 @@ static const AVInputFormat *disc_image_input_format(const char *path) {
     return isUDF ? av_find_input_format("mpegts") : NULL;
 }
 
+/// Opens `path`, naming the demuxer and setting its options where the source needs
+/// it. A disc image is the only source that needs either and both follow from the
+/// same fact about it, so one function owns what opening a path means here.
+static int open_media_source(AVFormatContext **context, const char *path) {
+    AVDictionary *options = NULL;
+    const AVInputFormat *format = disc_image_input_format(path);
+    if (format) {
+        // The stream sits behind the disc's filesystem metadata, and the demuxer
+        // stops looking for its first sync byte after 64 KB. Measured on
+        // FEL_test_for_AVS.iso, whose payload starts 917504 bytes in: at the default
+        // limit the streams are still identified, because probing reads ahead of
+        // where playback starts, and then the first av_read_frame returns nothing at
+        // all. That is the shape of the failure, an open that succeeds onto a stream
+        // no packet ever arrives from.
+        av_dict_set_int(&options, "resync_size", 16LL * 1024 * 1024, 0);
+    }
+    int result = avformat_open_input(context, path, format, &options);
+    av_dict_free(&options);
+    return result;
+}
+
 static int open_media_source_for_audio(
     const char *path,
     AVFormatContext **contextOut,
@@ -440,7 +461,7 @@ static int open_media_source_for_audio(
 ) {
     AVFormatContext *context = allocate_format_context(cancelled);
     if (context == NULL) return AVERROR(ENOMEM);
-    int result = avformat_open_input(&context, path, disc_image_input_format(path), NULL);
+    int result = open_media_source(&context, path);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open audio media source", result);
         avformat_close_input(&context);
@@ -476,7 +497,7 @@ static int open_media_source_for_audio(
     context->probesize = 100LL * 1024 * 1024;
     context->max_analyze_duration = 30LL * AV_TIME_BASE;
     context->max_probe_packets = 100000;
-    result = avformat_open_input(&context, path, disc_image_input_format(path), NULL);
+    result = open_media_source(&context, path);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Reopen audio media source", result);
         avformat_close_input(&context);
@@ -1858,9 +1879,7 @@ bool PBFFmpegReaderOpen(
         return false;
     }
 
-    int result = avformat_open_input(
-        &reader->formatContext, path, disc_image_input_format(path), NULL
-    );
+    int result = open_media_source(&reader->formatContext, path);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open media source", result);
         return false;
@@ -3238,7 +3257,7 @@ bool PBFFmpegAudioTrackCopyInfo(
 
 int PBFFmpegSubtitleTrackCount(const char *path) {
     AVFormatContext *context = NULL;
-    if (!path || avformat_open_input(&context, path, disc_image_input_format(path), NULL) < 0) return -1;
+    if (!path || open_media_source(&context, path) < 0) return -1;
     if (avformat_find_stream_info(context, NULL) < 0) {
         avformat_close_input(&context);
         return -1;
@@ -3264,7 +3283,7 @@ bool PBFFmpegSubtitleTrackCopyInfo(
 ) {
     AVFormatContext *context = NULL;
     if (!path || ordinal < 0 ||
-        avformat_open_input(&context, path, disc_image_input_format(path), NULL) < 0) return false;
+        open_media_source(&context, path) < 0) return false;
     if (avformat_find_stream_info(context, NULL) < 0) {
         avformat_close_input(&context);
         return false;
@@ -3313,9 +3332,7 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(
         return NULL;
     }
     reader->subtitleStreamIndex = streamIndex;
-    int result = avformat_open_input(
-        &reader->formatContext, path, disc_image_input_format(path), NULL
-    );
+    int result = open_media_source(&reader->formatContext, path);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open subtitle media source", result);
         PBFFmpegSubtitleReaderDestroy(reader);

@@ -71,7 +71,7 @@ nonisolated extension FileBrowsingDomain {
 
         public static let playable = FileFilter(
             allowedExtensions: [
-                "mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv"
+                "mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv", "iso"
             ]
         )
 

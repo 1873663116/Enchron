@@ -53,14 +53,17 @@ LINK_FLAGS = [
 ]
 
 
-def build_probe(reads_nothing: bool) -> Path:
+def build_probe(reads_nothing: bool, without_resync: bool = False) -> Path:
     clang = shutil.which("clang")
     if clang is None:
         raise SystemExit("clang is not on PATH; the disc image probe cannot be built.")
     source = REPOSITORY / "Scripts/verification/disc_image_probe.c"
-    binary = scratch_directory("disc-image-check") / (
-        "probe_reads_nothing" if reads_nothing else "probe"
-    )
+    name = "probe"
+    if reads_nothing:
+        name = "probe_reads_nothing"
+    elif without_resync:
+        name = "probe_without_resync"
+    binary = scratch_directory("disc-image-check") / name
     command = [
         clang, "-o", str(binary), str(source),
         "-I", str(VENDOR / "Headers"), str(VENDOR / "libPlaybackFFmpeg.a"),
@@ -68,6 +71,8 @@ def build_probe(reads_nothing: bool) -> Path:
     ]
     if reads_nothing:
         command.insert(1, "-DPROBE_READS_NOTHING")
+    if without_resync:
+        command.insert(1, "-DPROBE_WITHOUT_RESYNC")
     subprocess.run([str(part) for part in command], check=True)
     return binary
 
@@ -86,13 +91,14 @@ def measure(binary: Path, media: Path) -> dict[str, dict[str, str]]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--reads-nothing", action="store_true")
+    parser.add_argument("--without-resync", action="store_true")
     arguments = parser.parse_args()
 
     for media in (DISC_IMAGE, *NOT_DISC_IMAGES):
         if not media.exists():
             raise SystemExit(f"fixture is missing, so nothing would be measured: {media}")
 
-    binary = build_probe(arguments.reads_nothing)
+    binary = build_probe(arguments.reads_nothing, arguments.without_resync)
     failures = 0
 
     def expect(fact: str, measured: object, expected: object, because: str) -> None:
@@ -134,6 +140,16 @@ def main() -> int:
         "This is the whole point of the fix, and it must match what the sibling"
         " .m2ts reports, since they carry the same stream.",
     )
+    expect(
+        "and packets actually arrive from the stream it recovered",
+        disc["opened"]["videoPackets"],
+        "20",
+        "Identifying a stream and delivering packets from it are separate things."
+        " Naming the demuxer alone did the first and not the second: the payload sits"
+        " behind the disc's filesystem metadata and the demuxer stopped hunting for"
+        " its first sync byte after 64 KB, so the device reported duration 0 with"
+        " nothing produced while this check, which did not read packets, passed.",
+    )
 
     for media in NOT_DISC_IMAGES:
         print(f"\ncontrol, not a disc image {media.name}")
@@ -146,7 +162,7 @@ def main() -> int:
             " else would substitute our guess for a probe that was already right.",
         )
 
-    total = 4 + len(NOT_DISC_IMAGES)
+    total = 5 + len(NOT_DISC_IMAGES)
     print(f"\n{total - failures} of {total} premises hold")
     return 1 if failures else 0
 

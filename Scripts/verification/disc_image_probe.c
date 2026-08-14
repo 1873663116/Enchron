@@ -8,6 +8,15 @@
 /// host, which is the standing limit of every probe here: a matching change on both
 /// sides passes. `--reads-nothing` builds the variant that always probes, which is
 /// the state before the fix.
+/// The resync limit the bridge sets for a disc image. Zero leaves the demuxer
+/// default, which is the state that identified the streams and then delivered no
+/// packet from them.
+#ifdef PROBE_WITHOUT_RESYNC
+static const int64_t DISC_IMAGE_RESYNC_SIZE = 0;
+#else
+static const int64_t DISC_IMAGE_RESYNC_SIZE = 16LL * 1024 * 1024;
+#endif
+
 static const AVInputFormat *disc_image_input_format(const char *path) {
 #ifdef PROBE_READS_NOTHING
     (void)path;
@@ -29,9 +38,31 @@ static const AVInputFormat *disc_image_input_format(const char *path) {
 #endif
 }
 
+/// Reads until this many packets have arrived from the selected video stream, or
+/// until the source stops yielding. Identifying a stream and delivering packets from
+/// it are separate things, and a disc image did the first without the second.
+static int video_packets_delivered(AVFormatContext *context, int stream) {
+    AVPacket *packet = av_packet_alloc();
+    int delivered = 0;
+    int reads = 0;
+    while (delivered < 20 && reads < 4000 && av_read_frame(context, packet) >= 0) {
+        reads++;
+        if (packet->stream_index == stream) delivered++;
+        av_packet_unref(packet);
+    }
+    av_packet_free(&packet);
+    return delivered;
+}
+
 static void report(const char *label, const char *path, const AVInputFormat *forced) {
-    AVFormatContext *context = NULL;
-    if (avformat_open_input(&context, path, forced, NULL) < 0) {
+    AVFormatContext *context = avformat_alloc_context();
+    AVDictionary *options = NULL;
+    if (forced && DISC_IMAGE_RESYNC_SIZE > 0) {
+        av_dict_set_int(&options, "resync_size", DISC_IMAGE_RESYNC_SIZE, 0);
+    }
+    int opened = avformat_open_input(&context, path, forced, &options);
+    av_dict_free(&options);
+    if (opened < 0) {
         printf("%s open=failed\n", label);
         return;
     }
@@ -44,13 +75,14 @@ static void report(const char *label, const char *path, const AVInputFormat *for
     }
     int best = av_find_best_stream(context, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0);
     printf(
-        "%s format=%s videoStreams=%d width=%d height=%d duration=%.2f\n",
+        "%s format=%s videoStreams=%d width=%d height=%d duration=%.2f videoPackets=%d\n",
         label,
         context->iformat->name,
         videoStreams,
         best >= 0 ? context->streams[best]->codecpar->width : 0,
         best >= 0 ? context->streams[best]->codecpar->height : 0,
-        (double)context->duration / AV_TIME_BASE
+        (double)context->duration / AV_TIME_BASE,
+        best >= 0 ? video_packets_delivered(context, best) : 0
     );
     avformat_close_input(&context);
 }
