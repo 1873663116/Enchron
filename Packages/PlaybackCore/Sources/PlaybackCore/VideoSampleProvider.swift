@@ -337,12 +337,16 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                     appleImmersiveClassificationFormat = nil
                 }
                 if let sourceFormat {
+                    let preservedFormat = try Self.formatByPreservingSourceSignals(
+                        sourceFormat,
+                        on: bridgeFormat
+                    )
                     guard readerLock.withLock({
                         guard generation == operationGeneration else { return false }
-                        sourceFormatDescription = sourceFormat
+                        sourceFormatDescription = preservedFormat
                         storedInfo = Self.infoByPreservingSourceFormat(
                             storedInfo,
-                            sourceFormat: sourceFormat
+                            sourceFormat: preservedFormat
                         )
                         return true
                     }) else {
@@ -555,14 +559,27 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
         matches bridgeFormat: CMVideoFormatDescription,
         allowsSourceOnlyLhvC: Bool
     ) -> Bool {
-        guard sourceVideoFormatHasSameSubtypeAndDimensions(
-            sourceFormat,
-            as: bridgeFormat
-        ) else { return false }
+        let sourceDimensions = CMVideoFormatDescriptionGetDimensions(sourceFormat)
+        let bridgeDimensions = CMVideoFormatDescriptionGetDimensions(bridgeFormat)
+        guard sourceDimensions.width == bridgeDimensions.width,
+              sourceDimensions.height == bridgeDimensions.height else { return false }
         let sourceAtoms = decoderConfigurationAtoms(in: sourceFormat)
         let bridgeAtoms = decoderConfigurationAtoms(in: bridgeFormat)
         for atom in ["avcC", "hvcC", "av1C"] {
             guard sourceAtoms[atom] == bridgeAtoms[atom] else { return false }
+        }
+        let sourceSubtype = CMFormatDescriptionGetMediaSubType(sourceFormat)
+        let bridgeSubtype = CMFormatDescriptionGetMediaSubType(bridgeFormat)
+        if sourceSubtype != bridgeSubtype {
+            guard allowsSourceOnlyLhvC,
+                  sourceSubtype == kCMVideoCodecType_DolbyVisionHEVC,
+                  bridgeSubtype == kCMVideoCodecType_HEVC,
+                  sourceAtoms["dvcC"] == nil,
+                  sourceAtoms["dvvC"] == nil,
+                  sourceAtoms["lhvC"]?.isEmpty == false else {
+                return false
+            }
+            return true
         }
         for atom in ["dvcC", "dvvC"] {
             guard sourceAtoms[atom] == bridgeAtoms[atom] else { return false }
@@ -571,6 +588,40 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
             return sourceAtoms["lhvC"] == bridgeLhvC
         }
         return sourceAtoms["lhvC"] == nil || allowsSourceOnlyLhvC
+    }
+
+    private static func formatByPreservingSourceSignals(
+        _ sourceFormat: CMVideoFormatDescription,
+        on bridgeFormat: CMVideoFormatDescription
+    ) throws -> CMVideoFormatDescription {
+        guard CMFormatDescriptionGetMediaSubType(sourceFormat)
+                != CMFormatDescriptionGetMediaSubType(bridgeFormat) else {
+            return sourceFormat
+        }
+        var extensions = CMFormatDescriptionGetExtensions(sourceFormat)
+            as? [String: Any] ?? [:]
+        var atoms = decoderConfigurationAtoms(in: sourceFormat)
+        let bridgeAtoms = decoderConfigurationAtoms(in: bridgeFormat)
+        atoms["hvcC"] = bridgeAtoms["hvcC"]
+        atoms.removeValue(forKey: "dvcC")
+        atoms.removeValue(forKey: "dvvC")
+        extensions[
+            kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
+        ] = atoms
+        let dimensions = CMVideoFormatDescriptionGetDimensions(bridgeFormat)
+        var preserved: CMVideoFormatDescription?
+        let status = CMVideoFormatDescriptionCreate(
+            allocator: kCFAllocatorDefault,
+            codecType: CMFormatDescriptionGetMediaSubType(bridgeFormat),
+            width: dimensions.width,
+            height: dimensions.height,
+            extensions: extensions as CFDictionary,
+            formatDescriptionOut: &preserved
+        )
+        guard status == noErr, let preserved else {
+            throw VideoSampleFormatOverrideError.formatDescriptionCreationFailed(status)
+        }
+        return preserved
     }
 
     private static func sourceVideoFormatHasSameSubtypeAndDimensions(

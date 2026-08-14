@@ -31,6 +31,7 @@ extension SampleBufferPlaybackSession {
         closeLock.unlock()
 
         stopRendererFailureMonitoring()
+        cancelFirstVideoSampleDeadline()
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedByClose)
         activationObservation.stop()
 
@@ -529,6 +530,7 @@ extension SampleBufferPlaybackSession {
                 return
             }
             guard handleVideoEnqueueOutcome(outcome) else { return }
+            markFirstVideoSampleDelivered()
             activationObservation.recordAcceptedVideo(
                 epoch: streamEpoch,
                 presentationTime: presentationTime,
@@ -754,7 +756,18 @@ extension SampleBufferPlaybackSession {
                         details: ["sampleOrdinal": String(sampleOrdinal)]
                     )
                 }
-                let nextSample = try await audioProvider.copyNextSample()
+                let nextSample: CMSampleBuffer?
+                do {
+                    nextSample = try await audioProvider.copyNextSample()
+                } catch {
+                    guard !Task.isCancelled, !isClosed else { return }
+                    retireAudio(
+                        after: error,
+                        node: .mediaEventStream,
+                        kind: "audioProvider.readFailed.videoContinues"
+                    )
+                    return
+                }
                 emitPlaybackDeliveryStage(
                     lane: "audio",
                     stage: "providerRead.returned",
@@ -917,8 +930,11 @@ extension SampleBufferPlaybackSession {
                 }
             } catch {
                 guard !Task.isCancelled, !isClosed else { return }
-                recordFailure(error, node: .rendererInputCoordination, kind: "audioRenderer.deliveryFailed")
-                onStatusChange?(.failed(error.localizedDescription))
+                retireAudio(
+                    after: error,
+                    node: .rendererInputCoordination,
+                    kind: "audioRenderer.deliveryFailed.videoContinues"
+                )
                 return
             }
         }
@@ -1347,6 +1363,7 @@ extension SampleBufferPlaybackSession {
         while ContinuousClock.now < deadline {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
+            guard hasAudio else { return }
             if audioHasPrerolled(through: activationTime) {
                 let accumulatedPresentationEnd = endStateLock.withLock {
                     endState.audioPresentationEnd
@@ -1377,6 +1394,90 @@ extension SampleBufferPlaybackSession {
             try await Task.sleep(for: .milliseconds(5))
         }
         throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
+    }
+
+    func retireAudio(after error: Error, node: PlaybackNode, kind: String) {
+        hasAudio = false
+        resetAudioEndState(requiresAudio: false)
+        audioProvider.cancel()
+        audioRendererSink.flush()
+        setAudioRendererError(error.localizedDescription)
+        recordAudioRetirement(error, node: node, kind: kind)
+        recordAudioRendererState()
+    }
+
+    func resetFirstVideoSampleDeadline() {
+        let task = firstVideoSampleLock.withLock {
+            let task = firstVideoSampleDeadlineTask
+            firstVideoSampleDeadlineTask = nil
+            hasDeliveredFirstVideoSample = false
+            return task
+        }
+        task?.cancel()
+    }
+
+    func armFirstVideoSampleDeadline() {
+        let deadline = firstVideoSampleDeadline
+        let task = Task.detached { [weak self] in
+            do {
+                try await Task.sleep(for: deadline)
+            } catch {
+                return
+            }
+            self?.deliveryQueue.async { [weak self] in
+                self?.failIfFirstVideoSampleIsStillMissing()
+            }
+        }
+        let shouldCancel = firstVideoSampleLock.withLock {
+            guard !hasDeliveredFirstVideoSample,
+                  firstVideoSampleDeadlineTask == nil else {
+                return true
+            }
+            firstVideoSampleDeadlineTask = task
+            return false
+        }
+        if shouldCancel { task.cancel() }
+    }
+
+    func markFirstVideoSampleDelivered() {
+        let task = firstVideoSampleLock.withLock {
+            hasDeliveredFirstVideoSample = true
+            let task = firstVideoSampleDeadlineTask
+            firstVideoSampleDeadlineTask = nil
+            return task
+        }
+        task?.cancel()
+    }
+
+    func cancelFirstVideoSampleDeadline() {
+        let task = firstVideoSampleLock.withLock {
+            let task = firstVideoSampleDeadlineTask
+            firstVideoSampleDeadlineTask = nil
+            return task
+        }
+        task?.cancel()
+    }
+
+    func failIfFirstVideoSampleIsStillMissing() {
+        let shouldFail = firstVideoSampleLock.withLock {
+            guard !hasDeliveredFirstVideoSample,
+                  firstVideoSampleDeadlineTask != nil else {
+                return false
+            }
+            firstVideoSampleDeadlineTask = nil
+            return true
+        }
+        guard shouldFail, !isClosed else { return }
+        provider.cancel()
+        stopVideoDelivery()
+        stopAudioDelivery()
+        audioProvider.cancel()
+        let components = firstVideoSampleDeadline.components
+        let seconds = Double(components.seconds)
+            + Double(components.attoseconds) / 1_000_000_000_000_000_000
+        let error = CorePlaybackError.firstVideoSampleTimedOut(seconds)
+        recordFailure(error, node: .mediaEventStream, kind: "videoProvider.firstSampleTimedOut")
+        onStatusChange?(.failed(error.localizedDescription))
     }
 
     func audioHasPrerolled(through activationTime: CMTime) -> Bool {

@@ -2722,22 +2722,71 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(event.details["videoAcceptedCount"] == "2")
 }
 
-@Test func audioOpenFailureIsNotClassifiedByMessageText() async throws {
+@Test func audioOpenFailureRetiresAudioButVideoStillDelivers() async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 1)
     let session = SampleBufferPlaybackSession(
         traceID: "audio-open-error-session",
-        provider: FakeVideoSampleProvider(events: [.end]),
+        provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
         audioProvider: FailingAudioOpenProvider(),
         rendererSink: FakeRendererInputSink()
     )
     defer { session.close() }
 
-    do {
-        try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-error.mp4"))
-        Issue.record("Expected audio open failure to propagate")
-    } catch MisleadingAudioOpenError.failed {
-    } catch {
-        Issue.record("Expected MisleadingAudioOpenError.failed, got \(error)")
-    }
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-error.mp4"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.lifecycle != .failed)
+    #expect(snapshot.lastFailure?.stage == "audioProvider.openFailed.videoContinues")
+    #expect(snapshot.lastFailure?.message == MisleadingAudioOpenError.failed.localizedDescription)
+    #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
+}
+
+@Test func audioReadFailureRetiresAudioButVideoStillDelivers() async throws {
+    let videoSample = try makeCompressedH264Sample(durationSeconds: 1)
+    let session = SampleBufferPlaybackSession(
+        traceID: "audio-read-error-session",
+        provider: FakeVideoSampleProvider(events: [.sample(videoSample), .end]),
+        audioProvider: FakeAudioSampleProvider(readError: FakeSampleError.audioRead),
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    try await session.prepare(url: URL(fileURLWithPath: "/fixtures/audio-read-error.mp4"))
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.lifecycle != .failed)
+    #expect(snapshot.lastFailure?.stage == "audioProvider.readFailed.videoContinues")
+    #expect(snapshot.lastFailure?.message == FakeSampleError.audioRead.localizedDescription)
+    #expect(snapshot.lastFailure?.recoverability == "audioRetiredVideoContinues")
+}
+
+@Test func missingFirstVideoSampleFailsWithActionableReason() async throws {
+    let session = SampleBufferPlaybackSession(
+        traceID: "missing-first-video-sample-session",
+        provider: FakeVideoSampleProvider(events: [.end]),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoSampleDeadline: .milliseconds(20)
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/fileSequence0.mp4")
+    )
+    try session.start()
+    try await waitForLifecycle(.failed, in: session)
+
+    let snapshot = session.debugSnapshot()
+    #expect(snapshot.lastFailure?.stage == "videoProvider.firstSampleTimedOut")
+    #expect(
+        snapshot.lastFailure?.message.contains("No video frame arrived within") == true
+    )
+    #expect(
+        snapshot.lastFailure?.message.contains("HLS initialization segment") == true
+    )
 }
 
 @Test func failedAudioTrackSelectionPreservesActiveTrackAndPlaybackState() async throws {
@@ -3236,16 +3285,19 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
     private let failingStreamIndex: Int?
     private let sampleAfterPrepare: CMSampleBuffer?
     private let repeatsSample: Bool
+    private let readError: Error?
     private var nextSample: CMSampleBuffer?
 
     init(
         failingStreamIndex: Int? = nil,
         sampleAfterPrepare: CMSampleBuffer? = nil,
-        repeatsSample: Bool = false
+        repeatsSample: Bool = false,
+        readError: Error? = nil
     ) {
         self.failingStreamIndex = failingStreamIndex
         self.sampleAfterPrepare = sampleAfterPrepare
         self.repeatsSample = repeatsSample
+        self.readError = readError
     }
 
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
@@ -3280,6 +3332,7 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
     }
 
     func copyNextSample() async throws -> CMSampleBuffer? {
+        if let readError { throw readError }
         let sample = nextSample
         if !repeatsSample { nextSample = nil }
         return sample
@@ -3743,6 +3796,7 @@ private enum FakeSampleError: Error {
     case sampleBuffer(OSStatus)
     case providerRead
     case audioPrepare
+    case audioRead
 }
 
 private final class LockedBox<Value>: @unchecked Sendable {

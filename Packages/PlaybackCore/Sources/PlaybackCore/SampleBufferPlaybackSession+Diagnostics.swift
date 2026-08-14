@@ -703,6 +703,27 @@ extension SampleBufferPlaybackSession {
         }
     }
 
+    func recordAudioRetirement(_ error: Error, node: PlaybackNode, kind: String) {
+        debugStore.recordFailure(PlaybackFailureRecord(
+            mediaSessionID: traceID,
+            node: node,
+            stage: kind,
+            errorType: String(reflecting: type(of: error)),
+            message: error.localizedDescription,
+            recoverability: "audioRetiredVideoContinues"
+        ))
+        debugStore.emit(
+            mediaSessionID: traceID,
+            node: node,
+            kind: kind,
+            outcome: .failed,
+            details: [
+                "error": error.localizedDescription,
+                "videoContinues": "true"
+            ]
+        )
+    }
+
     func publishRendererFailure(_ fact: RendererFailureFact) {
         guard claimRendererFailure() else { return }
         rendererFailureMonitor?.stop()

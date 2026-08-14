@@ -90,6 +90,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var videoDeliveryGeneration: UInt64 = 0
     var videoSampleDeliverySuspended = false
     var audioDeliveryTask: Task<Void, Never>?
+    let firstVideoSampleDeadline: Duration
+    let firstVideoSampleLock = NSLock()
+    var firstVideoSampleDeadlineTask: Task<Void, Never>?
+    var hasDeliveredFirstVideoSample = false
     let pendingVideoSampleLock = NSLock()
     var pendingVideoSample: CMSampleBuffer?
     let decoderBootstrapLock = NSLock()
@@ -179,6 +183,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         rendererSink: RendererInputSink? = nil,
         audioRendererSink: AudioRendererInputSink? = nil,
         rendererFailureMonitor: RendererFailureMonitoring? = nil,
+        firstVideoSampleDeadline: Duration = .seconds(5),
         activationReapplyVerificationConfiguration:
             PlaybackActivationReapplyVerificationConfiguration = .processDefault,
         activationReapplyVerificationHooks: PlaybackActivationReapplyVerificationHooks = .init()
@@ -191,6 +196,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         self.provider = provider
         self.audioProvider = audioProvider
         self.subtitleProvider = subtitleProvider
+        self.firstVideoSampleDeadline = firstVideoSampleDeadline
         self.activationReapplyVerificationConfiguration =
             activationReapplyVerificationConfiguration
         self.activationReapplyVerificationHooks = activationReapplyVerificationHooks
@@ -242,6 +248,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             "session.prepare.begin id=\(traceID) start=\(startTime.seconds) paused=\(startsPaused)"
         )
         resetEndState(requiresAudio: false)
+        resetFirstVideoSampleDeadline()
         resetDecoderBootstrap()
         let requestedRate = initialRate ?? 1
         preferredPlaybackRate = requestedRate > 0 ? requestedRate : 1
@@ -349,8 +356,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
                 outcome: .succeeded
             )
         } catch {
-            recordFailure(error, node: .providerOpen, kind: "audioProvider.openFailed")
-            throw error
+            retireAudio(
+                after: error,
+                node: .providerOpen,
+                kind: "audioProvider.openFailed.videoContinues"
+            )
         }
         resetAudioEndState(requiresAudio: hasAudio)
         recordAudioRendererState()
@@ -438,6 +448,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             recordFailure(error, node: .mediaEventStream, kind: "provider.startFailed")
             throw error
         }
+        armFirstVideoSampleDeadline()
         startVideoDelivery()
         PlaybackTrace.event("session.start.end id=\(traceID)")
     }

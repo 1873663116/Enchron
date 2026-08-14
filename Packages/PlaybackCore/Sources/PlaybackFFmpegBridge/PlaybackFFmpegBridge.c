@@ -160,8 +160,89 @@ static AudioFormatID compressed_audio_format_id(const AVCodecParameters *paramet
     }
 }
 
+typedef struct SourcePCMFormat {
+    UInt32 bytesPerSample;
+    UInt32 bitsPerChannel;
+    AudioFormatFlags flags;
+} SourcePCMFormat;
+
+static bool source_pcm_format(enum AVCodecID codecID, SourcePCMFormat *formatOut) {
+    SourcePCMFormat format = {0};
+    switch (codecID) {
+        case AV_CODEC_ID_PCM_S8:
+            format = (SourcePCMFormat){1, 8, kAudioFormatFlagIsSignedInteger};
+            break;
+        case AV_CODEC_ID_PCM_U8:
+            format = (SourcePCMFormat){1, 8, 0};
+            break;
+        case AV_CODEC_ID_PCM_S16LE:
+            format = (SourcePCMFormat){2, 16, kAudioFormatFlagIsSignedInteger};
+            break;
+        case AV_CODEC_ID_PCM_S16BE:
+            format = (SourcePCMFormat){
+                2, 16, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsBigEndian
+            };
+            break;
+        case AV_CODEC_ID_PCM_U16LE:
+            format = (SourcePCMFormat){2, 16, 0};
+            break;
+        case AV_CODEC_ID_PCM_U16BE:
+            format = (SourcePCMFormat){2, 16, kAudioFormatFlagIsBigEndian};
+            break;
+        case AV_CODEC_ID_PCM_S24LE:
+            format = (SourcePCMFormat){3, 24, kAudioFormatFlagIsSignedInteger};
+            break;
+        case AV_CODEC_ID_PCM_S24BE:
+            format = (SourcePCMFormat){
+                3, 24, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsBigEndian
+            };
+            break;
+        case AV_CODEC_ID_PCM_U24LE:
+            format = (SourcePCMFormat){3, 24, 0};
+            break;
+        case AV_CODEC_ID_PCM_U24BE:
+            format = (SourcePCMFormat){3, 24, kAudioFormatFlagIsBigEndian};
+            break;
+        case AV_CODEC_ID_PCM_S32LE:
+            format = (SourcePCMFormat){4, 32, kAudioFormatFlagIsSignedInteger};
+            break;
+        case AV_CODEC_ID_PCM_S32BE:
+            format = (SourcePCMFormat){
+                4, 32, kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsBigEndian
+            };
+            break;
+        case AV_CODEC_ID_PCM_U32LE:
+            format = (SourcePCMFormat){4, 32, 0};
+            break;
+        case AV_CODEC_ID_PCM_U32BE:
+            format = (SourcePCMFormat){4, 32, kAudioFormatFlagIsBigEndian};
+            break;
+        case AV_CODEC_ID_PCM_F32LE:
+            format = (SourcePCMFormat){4, 32, kAudioFormatFlagIsFloat};
+            break;
+        case AV_CODEC_ID_PCM_F32BE:
+            format = (SourcePCMFormat){
+                4, 32, kAudioFormatFlagIsFloat | kAudioFormatFlagIsBigEndian
+            };
+            break;
+        case AV_CODEC_ID_PCM_F64LE:
+            format = (SourcePCMFormat){8, 64, kAudioFormatFlagIsFloat};
+            break;
+        case AV_CODEC_ID_PCM_F64BE:
+            format = (SourcePCMFormat){
+                8, 64, kAudioFormatFlagIsFloat | kAudioFormatFlagIsBigEndian
+            };
+            break;
+        default:
+            return false;
+    }
+    format.flags |= kAudioFormatFlagIsPacked;
+    if (formatOut) *formatOut = format;
+    return true;
+}
+
 static bool audio_codec_is_source_pcm(enum AVCodecID codecID) {
-    return codecID == AV_CODEC_ID_PCM_S24LE;
+    return source_pcm_format(codecID, NULL);
 }
 
 static bool audio_codec_is_supported(enum AVCodecID codecID) {
@@ -505,12 +586,22 @@ static OSType prores_codec_type(uint32_t codecTag) {
     }
 }
 
+static bool has_usable_dovi_configuration(const AVCodecParameters *parameters) {
+    const AVPacketSideData *sideData = av_packet_side_data_get(
+        parameters->coded_side_data,
+        parameters->nb_coded_side_data,
+        AV_PKT_DATA_DOVI_CONF
+    );
+    return sideData && sideData->size >= sizeof(AVDOVIDecoderConfigurationRecord);
+}
+
 static OSType codec_type(const AVCodecParameters *parameters) {
     switch (parameters->codec_id) {
         case AV_CODEC_ID_H264: return kCMVideoCodecType_H264;
         case AV_CODEC_ID_HEVC:
-            if (parameters->codec_tag == MKTAG('d', 'v', 'h', '1') ||
-                parameters->codec_tag == MKTAG('d', 'v', 'h', 'e')) {
+            if ((parameters->codec_tag == MKTAG('d', 'v', 'h', '1') ||
+                 parameters->codec_tag == MKTAG('d', 'v', 'h', 'e')) &&
+                has_usable_dovi_configuration(parameters)) {
                 return kCMVideoCodecType_DolbyVisionHEVC;
             }
             return kCMVideoCodecType_HEVC;
@@ -533,7 +624,7 @@ static bool add_dovi_configuration_atom(
         parameters->nb_coded_side_data,
         AV_PKT_DATA_DOVI_CONF
     );
-    if (!sideData || sideData->size < sizeof(AVDOVIDecoderConfigurationRecord)) return false;
+    if (!has_usable_dovi_configuration(parameters)) return false;
     const AVDOVIDecoderConfigurationRecord *configuration =
         (const AVDOVIDecoderConfigurationRecord *)sideData->data;
     uint8_t bytes[24] = {0};
@@ -2695,21 +2786,22 @@ static int ensure_source_pcm_audio_format(
     size_t errorBufferSize
 ) {
     if (reader->formatDescription) return 0;
-    if (parameters->codec_id != AV_CODEC_ID_PCM_S24LE) {
+    SourcePCMFormat sourceFormat;
+    if (!source_pcm_format(parameters->codec_id, &sourceFormat)) {
         set_error(errorBuffer, errorBufferSize, "The selected source PCM representation is not supported");
         return AVERROR(ENOSYS);
     }
     UInt32 channelCount = (UInt32)parameters->ch_layout.nb_channels;
-    UInt32 bytesPerFrame = channelCount * 3;
+    UInt32 bytesPerFrame = channelCount * sourceFormat.bytesPerSample;
     AudioStreamBasicDescription asbd = {
         .mSampleRate = parameters->sample_rate,
         .mFormatID = kAudioFormatLinearPCM,
-        .mFormatFlags = kAudioFormatFlagIsSignedInteger | kAudioFormatFlagIsPacked,
+        .mFormatFlags = sourceFormat.flags,
         .mBytesPerPacket = bytesPerFrame,
         .mFramesPerPacket = 1,
         .mBytesPerFrame = bytesPerFrame,
         .mChannelsPerFrame = channelCount,
-        .mBitsPerChannel = 24,
+        .mBitsPerChannel = sourceFormat.bitsPerChannel,
         .mReserved = 0,
     };
     size_t channelLayoutSize = 0;
@@ -2795,8 +2887,12 @@ static PBFFmpegReadResult create_audio_sample(
         status = CMBlockBufferReplaceDataBytes(packet->data, block, 0, byteCount);
     }
     bool isSourcePCM = audio_codec_is_source_pcm(parameters->codec_id);
+    SourcePCMFormat sourcePCMFormat = {0};
+    if (isSourcePCM) {
+        source_pcm_format(parameters->codec_id, &sourcePCMFormat);
+    }
     size_t bytesPerPCMFrame = isSourcePCM
-        ? (size_t)parameters->ch_layout.nb_channels * 3
+        ? (size_t)parameters->ch_layout.nb_channels * sourcePCMFormat.bytesPerSample
         : 0;
     if (isSourcePCM &&
         (bytesPerPCMFrame == 0 || byteCount % bytesPerPCMFrame != 0)) {
@@ -2907,6 +3003,11 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                 return readResult;
             }
             if (result == AVERROR_EOF) return PBFFmpegReadResultEnd;
+            if (result == AVERROR_INVALIDDATA) {
+                av_packet_unref(reader->filteredPacket);
+                av_bsf_flush(reader->bitstreamFilter);
+                continue;
+            }
             if (result != AVERROR(EAGAIN)) {
                 set_av_error(errorBuffer, errorBufferSize, "Read filtered compressed audio packet", result);
                 return PBFFmpegReadResultError;
@@ -2963,6 +3064,10 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
         result = av_bsf_send_packet(reader->bitstreamFilter, reader->packet);
         av_packet_unref(reader->packet);
         if (result < 0) {
+            if (result == AVERROR_INVALIDDATA) {
+                av_bsf_flush(reader->bitstreamFilter);
+                continue;
+            }
             set_av_error(errorBuffer, errorBufferSize, "Filter compressed audio packet", result);
             return PBFFmpegReadResultError;
         }

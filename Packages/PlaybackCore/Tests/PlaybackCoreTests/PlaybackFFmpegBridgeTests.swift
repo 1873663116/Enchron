@@ -780,6 +780,35 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
     #expect(CMSampleBufferDataIsReady(buffer))
 }
 
+@Test func dvh1WithoutDolbyVisionConfigurationUsesHEVCAndKeepsMultiviewSignals() async throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/DynamicRange/DolbyVision/Profile20/Apple-Streaming-Examples/3D-example.mp4"
+    )
+    let sourceFormat = try await firstVideoFormatDescription(in: AVURLAsset(url: fixture))
+    let sourceAtoms = try sampleDescriptionAtoms(in: sourceFormat)
+    let provider = FFmpegSampleProvider()
+    defer { provider.cancel() }
+
+    try await provider.prepare(url: fixture, asset: nil, startTime: .zero)
+    let event = try await provider.nextEvent()
+    guard case .sample(let buffer) = event else {
+        Issue.record("Expected a compressed multiview HEVC video sample.")
+        return
+    }
+    let format = try #require(CMSampleBufferGetFormatDescription(buffer))
+    let atoms = try sampleDescriptionAtoms(in: format)
+
+    #expect(provider.info.codecTag == "dvh1")
+    #expect(provider.info.formatSignaling.dvcC.availability == .none)
+    #expect(provider.info.isMVHEVC)
+    #expect(CMFormatDescriptionGetMediaSubType(format) == kCMVideoCodecType_HEVC)
+    #expect(atoms["hvcC"] == sourceAtoms["hvcC"])
+    #expect(atoms["lhvC"] == sourceAtoms["lhvC"])
+    #expect(atoms["lhvC"]?.isEmpty == false)
+    #expect(CMSampleBufferDataIsReady(buffer))
+}
+
 @Test func missingHEVCExtradataIsBootstrappedFromAnnexBBitstream() throws {
     let fixture = try decodedFixture(resource: "video-hevc-annexb", fileExtension: "h265")
     defer { try? FileManager.default.removeItem(at: fixture) }
@@ -1087,6 +1116,83 @@ private func requireBitstreamExtradataBootstrap(
     )
     #expect(channelLayout != nil)
     #expect(channelLayoutSize >= MemoryLayout<AudioChannelLayout>.size)
+}
+
+@Test func proResTransparencyPCM16LEProducesLinearPCMSamples() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "TestVectors/Upstream/FATE/ProRes/prores4444_with_transparency.mov"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegAudioReaderCreate(path, 0, -1, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegAudioReaderDestroy(activeReader) }
+
+    #expect(String(cString: PBFFmpegAudioReaderGetCodecName(activeReader)) == "pcm_s16le")
+    #expect(PBFFmpegAudioReaderOutputsPCM(activeReader))
+
+    var sample: Unmanaged<CMSampleBuffer>?
+    var metadata = PBFFmpegAudioSampleMetadata()
+    #expect(
+        PBFFmpegAudioReaderCopyNextSample(
+            activeReader,
+            &sample,
+            &metadata,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: cString(error))
+    )
+    let buffer = try #require(sample?.takeRetainedValue())
+    let format = try #require(CMSampleBufferGetFormatDescription(buffer))
+    let description = try #require(
+        CMAudioFormatDescriptionGetStreamBasicDescription(format)
+    ).pointee
+
+    #expect(description.mFormatID == kAudioFormatLinearPCM)
+    #expect(description.mBitsPerChannel == 16)
+    #expect(description.mBytesPerFrame == description.mChannelsPerFrame * 2)
+    #expect(description.mFormatFlags & kAudioFormatFlagIsSignedInteger != 0)
+    #expect(description.mFormatFlags & kAudioFormatFlagIsPacked != 0)
+    #expect(CMSampleBufferGetNumSamples(buffer) > 0)
+    #expect(metadata.payloadByteCount > 0)
+}
+
+@Test func damagedTransportStreamAACSkipsInvalidPacketsAndProducesAudio() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/DynamicRange/HLG/LG_Cymatic_Jazz_HLG_Astra_teststream.ts"
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegAudioReaderCreate(path, 0, -1, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegAudioReaderDestroy(activeReader) }
+
+    var sample: Unmanaged<CMSampleBuffer>?
+    var metadata = PBFFmpegAudioSampleMetadata()
+    #expect(
+        PBFFmpegAudioReaderCopyNextSample(
+            activeReader,
+            &sample,
+            &metadata,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: cString(error))
+    )
+    let buffer = try #require(sample?.takeRetainedValue())
+    let format = try #require(CMSampleBufferGetFormatDescription(buffer))
+    let description = try #require(
+        CMAudioFormatDescriptionGetStreamBasicDescription(format)
+    ).pointee
+
+    #expect(description.mFormatID == kAudioFormatMPEG4AAC)
+    #expect(CMSampleBufferDataIsReady(buffer))
+    #expect(metadata.payloadByteCount > 0)
 }
 
 @Test func sourcePCMIsNotReportedAsAnFFmpegDecodePath() throws {
