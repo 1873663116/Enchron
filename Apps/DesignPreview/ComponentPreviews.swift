@@ -76,7 +76,7 @@ struct PlaybackControlsPreview: View {
     private func previewState(
         _ title: String,
         presentation: PlaybackPresentation,
-        expansion: PlaybackPanelInitialExpansion
+        expansion: PlaybackPanelExpansion.Layout
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             Text(title)

@@ -144,16 +144,10 @@ enum PlaybackPanelSettingsPolicy {
     }
 }
 
-enum PlaybackPanelInitialExpansion {
-    case collapsed
-    case timeline
-    case settings
-}
-
 struct WindowPlaybackControls: View {
     let live: FusedPlayerPanelLive
     var onInteraction: () -> Void = {}
-    var initialExpansion: PlaybackPanelInitialExpansion = .collapsed
+    var initialExpansion: PlaybackPanelExpansion.Layout = .collapsed
     var controlsVisible: Bool = true
 
     var body: some View {
@@ -170,7 +164,7 @@ struct WindowPlaybackControls: View {
 struct PlayerControlDock: View {
     let live: FusedPlayerPanelLive
     var onInteraction: () -> Void = {}
-    var initialExpansion: PlaybackPanelInitialExpansion = .collapsed
+    var initialExpansion: PlaybackPanelExpansion.Layout = .collapsed
     var controlsVisible: Bool = true
 
     var body: some View {
@@ -192,7 +186,7 @@ struct FusedPlayerPanel: View {
     init(
         live: FusedPlayerPanelLive? = nil,
         onInteraction: @escaping () -> Void = {},
-        initialExpansion: PlaybackPanelInitialExpansion = .collapsed,
+        initialExpansion: PlaybackPanelExpansion.Layout = .collapsed,
         controlsVisible: Bool = true
     ) {
         let presentation = live?.presentation ?? .window
@@ -205,12 +199,10 @@ struct FusedPlayerPanel: View {
         self.onInteraction = onInteraction
         self.surface = resolvedSurface
         self.controlsVisible = controlsVisible
-        _timelineExpanded = State(initialValue: initialExpansion == .timeline)
-        _settingsExpanded = State(
-            initialValue: initialExpansion == .settings
-                && PlaybackPanelSettingsPolicy.settingsAreAvailable(
-                    for: presentation
-                )
+        _expansion = State(
+            initialValue: PlaybackPanelExpansion(
+                Self.resolvedInitialLayout(initialExpansion, presentation: presentation)
+            )
         )
         _videoFormatEditing = State(
             initialValue: PlaybackVideoFormatEditingState(
@@ -231,19 +223,20 @@ struct FusedPlayerPanel: View {
         live: FusedPlayerPanelLive,
         onInteraction: @escaping () -> Void,
         surface: PlaybackControlPanelSurface,
-        initialExpansion: PlaybackPanelInitialExpansion,
+        initialExpansion: PlaybackPanelExpansion.Layout,
         controlsVisible: Bool = true
     ) {
         self.live = live
         self.onInteraction = onInteraction
         self.surface = surface
         self.controlsVisible = controlsVisible
-        _timelineExpanded = State(initialValue: initialExpansion == .timeline)
-        _settingsExpanded = State(
-            initialValue: initialExpansion == .settings
-                && PlaybackPanelSettingsPolicy.settingsAreAvailable(
-                    for: live.presentation
+        _expansion = State(
+            initialValue: PlaybackPanelExpansion(
+                Self.resolvedInitialLayout(
+                    initialExpansion,
+                    presentation: live.presentation
                 )
+            )
         )
         _videoFormatEditing = State(
             initialValue: PlaybackVideoFormatEditingState(
@@ -259,9 +252,20 @@ struct FusedPlayerPanel: View {
         )
     }
 
+    /// Settings are not offered for every presentation, so a caller asking to open
+    /// them where they do not exist gets the collapsed panel rather than an empty one.
+    private static func resolvedInitialLayout(
+        _ requested: PlaybackPanelExpansion.Layout,
+        presentation: PlaybackPresentation
+    ) -> PlaybackPanelExpansion.Layout {
+        guard requested == .settings else { return requested }
+        return PlaybackPanelSettingsPolicy.settingsAreAvailable(for: presentation)
+            ? .settings
+            : .collapsed
+    }
+
     private let controlsVisible: Bool
-    @State private var timelineExpanded: Bool
-    @State private var settingsExpanded: Bool
+    @State private var expansion: PlaybackPanelExpansion
     @State private var videoFormatEditing: PlaybackVideoFormatEditingState
     @State private var mediaInfoHovered = false
     @State private var mediaInfoExpanded = false
@@ -324,9 +328,8 @@ struct FusedPlayerPanel: View {
         return PlaybackTimeFormatter.clock(elapsedSeconds)
     }
 
-    private var isExpanded: Bool { timelineExpanded || settingsExpanded }
     private var clusterWidth: CGFloat {
-        isExpanded
+        expansion.isExpanded
             ? DesignTokens.Layout.expandedPlayerControlsContentWidth
             : DesignTokens.ControlBar.contentWidth
     }
@@ -344,6 +347,11 @@ struct FusedPlayerPanel: View {
                 playerControlDockContent
             }
         }
+        .opacity(expansion.contentIsVisible ? 1 : 0)
+        // A gaze landing where a button used to be must not press it while the panel
+        // is between sizes, and the shell keeps absorbing the pinch because the glass
+        // background sits outside this.
+        .allowsHitTesting(expansion.contentIsVisible)
         .frame(width: clusterWidth)
         .padding(.horizontal, DesignTokens.ControlBar.paddingH)
         .padding(.vertical, DesignTokens.ControlBar.paddingV)
@@ -352,8 +360,6 @@ struct FusedPlayerPanel: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-controls")
         // 旋转(向用户抬起 30°)留到真实窗口/ornament 语境再加——Canvas 预览不出空间旋转。
-        .animation(DesignTokens.AnimationToken.panelSpring, value: timelineExpanded)
-        .animation(DesignTokens.AnimationToken.panelSpring, value: settingsExpanded)
         .enchronScrubSensoryFeedback(
             pressTrigger: scrubFeedbackTrigger,
             releaseTrigger: scrubReleaseTrigger,
@@ -379,9 +385,10 @@ struct FusedPlayerPanel: View {
         }
         .onChange(of: controlsVisible) { _, isVisible in
             guard isVisible == false else { return }
-            timelineExpanded = false
+            // Chrome that is on its way out has nothing to animate through, so the
+            // panel returns to collapsed whole rather than by the three steps.
+            expansion = PlaybackPanelExpansion()
             videoFormatEditing.discard()
-            settingsExpanded = false
             isDragging = false
             isTimelineDragging = false
             scrubberActivation = .idle
@@ -400,7 +407,7 @@ struct FusedPlayerPanel: View {
                 mediaInformationWell(width: windowMediaInformationWidth)
             }
 
-            if timelineExpanded {
+            if expansion.layout == .timeline {
                 timelineBlock
             } else {
                 progressBar(width: compactProgressBarWidth)
@@ -413,7 +420,7 @@ struct FusedPlayerPanel: View {
             mediaInformationWell(width: clusterWidth)
             playerControlDockControls
 
-            if settingsExpanded, let live {
+            if expansion.layout == .settings, let live {
                 if PlaybackPanelSettingsPolicy.showsPlacementControls(
                     for: live.presentation
                 ) {
@@ -425,7 +432,7 @@ struct FusedPlayerPanel: View {
                 }
             }
 
-            if timelineExpanded {
+            if expansion.layout == .timeline {
                 timelineBlock
             } else {
                 progressBar(width: compactProgressBarWidth)
@@ -580,8 +587,29 @@ struct FusedPlayerPanel: View {
     }
 
     private func collapseSettings() {
-        withAnimation(DesignTokens.AnimationToken.panelSpring) {
-            settingsExpanded = false
+        changeExpansion(to: .collapsed)
+    }
+
+    /// Runs a change through its three ordered steps. Each step's completion starts
+    /// the next, so the order follows the animations themselves rather than durations
+    /// repeated here that could drift from the ones in `DesignTokens`.
+    private func changeExpansion(to layout: PlaybackPanelExpansion.Layout) {
+        withAnimation(DesignTokens.AnimationToken.panelContentExit) {
+            expansion.request(layout)
+        } completion: {
+            advanceExpansion(from: .contentLeaving)
+        }
+    }
+
+    private func advanceExpansion(from completed: PlaybackPanelExpansion.Phase) {
+        let animation = completed == .contentLeaving
+            ? DesignTokens.AnimationToken.panelSpring
+            : DesignTokens.AnimationToken.panelContentEntrance
+        withAnimation(animation) {
+            expansion.advance(from: completed)
+        } completion: {
+            guard completed == .contentLeaving else { return }
+            advanceExpansion(from: .resizing)
         }
     }
 
@@ -603,8 +631,8 @@ struct FusedPlayerPanel: View {
                             for: live.presentation
                         ) {
                             GlassCircleIconButton.settings(
-                                isExpanded: settingsExpanded,
-                                accessibilityLabel: settingsExpanded ? "Close Advanced Settings" : "Open Advanced Settings",
+                                isExpanded: expansion.isShowing(.settings),
+                                accessibilityLabel: expansion.isShowing(.settings) ? "Close Advanced Settings" : "Open Advanced Settings",
                                 action: toggleSettings,
                                 accessibilityIdentifier: "PlayerPanel-button-settings"
                             )
@@ -843,7 +871,7 @@ struct FusedPlayerPanel: View {
             direction: .backward,
             compactSystemName: "gobackward.15",
             expandedSystemName: "backward.frame",
-            accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 15 seconds",
+            accessibilityLabel: expansion.layout == .timeline ? "Previous frame" : "Rewind 15 seconds",
             action: performBackwardAction,
             animationTrigger: rewindIconAnimationTrigger,
             visualSize: DesignTokens.Interactive.regular,
@@ -858,7 +886,7 @@ struct FusedPlayerPanel: View {
             direction: .forward,
             compactSystemName: "goforward.15",
             expandedSystemName: "forward.frame",
-            accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 15 seconds",
+            accessibilityLabel: expansion.layout == .timeline ? "Next frame" : "Forward 15 seconds",
             action: performForwardAction,
             animationTrigger: forwardIconAnimationTrigger,
             visualSize: DesignTokens.Interactive.regular,
@@ -867,7 +895,7 @@ struct FusedPlayerPanel: View {
         )
         .keyboardShortcut(.rightArrow, modifiers: [])
         .disabled(
-            timelineExpanded
+            expansion.layout == .timeline
                 ? live?.canStepForward == false
                 : live?.canSkipForward == false
         )
@@ -891,7 +919,7 @@ struct FusedPlayerPanel: View {
             direction: .backward,
             compactSystemName: "gobackward.15",
             expandedSystemName: "backward.frame",
-            accessibilityLabel: timelineExpanded ? "Previous frame" : "Rewind 15 seconds",
+            accessibilityLabel: expansion.layout == .timeline ? "Previous frame" : "Rewind 15 seconds",
             action: performBackwardAction,
             animationTrigger: rewindIconAnimationTrigger
         )
@@ -903,13 +931,13 @@ struct FusedPlayerPanel: View {
             direction: .forward,
             compactSystemName: "goforward.15",
             expandedSystemName: "forward.frame",
-            accessibilityLabel: timelineExpanded ? "Next frame" : "Forward 15 seconds",
+            accessibilityLabel: expansion.layout == .timeline ? "Next frame" : "Forward 15 seconds",
             action: performForwardAction,
             animationTrigger: forwardIconAnimationTrigger
         )
         .keyboardShortcut(.rightArrow, modifiers: [])
             .disabled(
-                timelineExpanded
+                expansion.layout == .timeline
                     ? live?.canStepForward == false
                     : live?.canSkipForward == false
             )
@@ -927,7 +955,7 @@ struct FusedPlayerPanel: View {
         targetSize: CGFloat = DesignTokens.Interactive.large,
         iconTier: ButtonIconTier = .standard
     ) -> some View {
-        if timelineExpanded {
+        if expansion.layout == .timeline {
             GlassCircleIconButton(
                 systemName: expandedSystemName,
                 accessibilityLabel: accessibilityLabel,
@@ -957,7 +985,7 @@ struct FusedPlayerPanel: View {
     }
 
     private func performBackwardAction() {
-        if timelineExpanded {
+        if expansion.layout == .timeline {
             stepFrame(-1)
         } else {
             rewindIconAnimationTrigger &+= 1
@@ -966,7 +994,7 @@ struct FusedPlayerPanel: View {
     }
 
     private func performForwardAction() {
-        if timelineExpanded {
+        if expansion.layout == .timeline {
             stepFrame(1)
         } else {
             forwardIconAnimationTrigger &+= 1
@@ -1543,19 +1571,18 @@ struct FusedPlayerPanel: View {
 
     private func openTimeline() {
         videoFormatEditing.discard()
-        settingsExpanded = false
         var transaction = Transaction()
         transaction.animation = nil
         withTransaction(transaction) {
             isDragging = false
         }
         timelineFeedbackTrigger += 1
-        withAnimation(DesignTokens.AnimationToken.panelSpring) { timelineExpanded = true }
+        changeExpansion(to: .timeline)
         onInteraction()
     }
 
     private func closeTimeline() {
-        withAnimation(DesignTokens.AnimationToken.panelSpring) { timelineExpanded = false }
+        changeExpansion(to: .collapsed)
         onInteraction()
     }
 
@@ -1566,11 +1593,10 @@ struct FusedPlayerPanel: View {
               ) else {
             return
         }
-        if settingsExpanded {
+        if expansion.isShowing(.settings) {
             videoFormatEditing.discard()
-            collapseSettings()
+            changeExpansion(to: .collapsed)
         } else {
-            timelineExpanded = false
             if PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
                 for: presentation
             ),
@@ -1580,9 +1606,7 @@ struct FusedPlayerPanel: View {
                 )
                 videoFormatEditing.beginEditing()
             }
-            withAnimation(DesignTokens.AnimationToken.panelSpring) {
-                settingsExpanded = true
-            }
+            changeExpansion(to: .settings)
         }
         onInteraction()
     }

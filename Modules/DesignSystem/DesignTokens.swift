@@ -118,8 +118,14 @@ public enum DesignTokens {
     public enum AnimationToken {
         /// Controls show/hide (showControls toggle)
         public static let controlsTransition: Animation = .easeInOut(duration: 0.4)
-        /// Panel expand/collapse (timeline, accordion)
+        /// Panel expand/collapse (timeline, accordion). The middle of the three steps
+        /// in `PlaybackPanelExpansion`, carrying the empty shell to its new size.
         public static let panelSpring: Animation = .spring(duration: 0.35, bounce: 0.15)
+        /// The panel's contents leaving before its shell resizes. Short, because the
+        /// wearer is waiting on the resize and this only has to clear the way.
+        public static let panelContentExit: Animation = .easeOut(duration: 0.12)
+        /// The panel's contents returning once its shell has arrived.
+        public static let panelContentEntrance: Animation = .easeIn(duration: 0.18)
         /// Menu/popover popup (same curve as panel, independent tuning)
         public static let menuPopup: Animation = .spring(duration: 0.35, bounce: 0.15)
         /// Selection state change
