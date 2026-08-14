@@ -599,6 +599,14 @@ def parse_arguments() -> argparse.Namespace:
         help="replace the baseline with the exact findings in the inspected tree",
     )
     parser.add_argument(
+        "--write-inputs",
+        action="store_true",
+        help=(
+            "regenerate the production input list this script reads under Xcode's "
+            "user script sandbox"
+        ),
+    )
+    parser.add_argument(
         "--xcode-inputs",
         action="store_true",
         help=(
@@ -615,6 +623,23 @@ def main() -> int:
     baseline_path = arguments.baseline
     if not baseline_path.is_absolute():
         baseline_path = root / baseline_path
+
+    # Xcode's user script sandbox grants this phase read access to its declared
+    # inputs and nothing else, so a production Swift file missing from the list is
+    # not a stale manifest but a build that dies on PermissionError. The list is
+    # derived from the same walk that checks it, so it is generated rather than kept
+    # by hand.
+    if arguments.write_inputs:
+        inputs_path = root / PRODUCTION_INPUT_LIST
+        entries = sorted(
+            f"$(SRCROOT)/{path.as_posix()}"
+            for directory in PRODUCTION_SOURCE_DIRECTORIES
+            for path in relative_swift_files(root, directory)
+        )
+        inputs_path.parent.mkdir(parents=True, exist_ok=True)
+        inputs_path.write_text("\n".join(entries) + "\n", encoding="utf-8")
+        print(f"Wrote {len(entries)} production input(s) to {inputs_path}")
+        return 0
 
     try:
         preview_sources = xcode_preview_sources(root) if arguments.xcode_inputs else None

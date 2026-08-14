@@ -27,11 +27,11 @@ $(SRCROOT)/Modules/Emby/EmbyItemPresentation.swift
 $(SRCROOT)/Modules/Emby/EmbyLaunchRoute.swift
 $(SRCROOT)/Modules/Emby/EmbyModels.swift
 $(SRCROOT)/Modules/Emby/EmbyPlaybackBridge.swift
-$(SRCROOT)/Modules/Emby/EmbyShelf.swift
 $(SRCROOT)/Modules/Emby/EmbyScreenViewModels.swift
 $(SRCROOT)/Modules/Emby/EmbyScreens.swift
 $(SRCROOT)/Modules/Emby/EmbyServerStore.swift
 $(SRCROOT)/Modules/Emby/EmbySessionViewModel.swift
+$(SRCROOT)/Modules/Emby/EmbyShelf.swift
 $(SRCROOT)/Modules/MediaLibrary/FileBrowsingViewModel.swift
 $(SRCROOT)/Modules/MediaLibrary/MediaLibraryFeature.swift
 $(SRCROOT)/Modules/MediaLibrary/MediaLibraryViewModel.swift
@@ -45,6 +45,7 @@ $(SRCROOT)/Modules/MediaLibrary/Services/HTTPRangeStreamingServer.swift
 $(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailCache.swift
 $(SRCROOT)/Modules/MediaLibrary/Services/ThumbnailService.swift
 $(SRCROOT)/Modules/MediaLibrary/Sources/Fake/FakeFileDataSource.swift
+$(SRCROOT)/Modules/MediaLibrary/Sources/Local/ImportedDirectoryScanner.swift
 $(SRCROOT)/Modules/MediaLibrary/Sources/Local/LocalDataSourceAdapter.swift
 $(SRCROOT)/Modules/MediaLibrary/Sources/Local/SecurityScopedFileReferenceResolver.swift
 $(SRCROOT)/Modules/MediaLibrary/Sources/SMB/SMBDataSourceAdapter.swift
@@ -80,12 +81,14 @@ $(SRCROOT)/Modules/PlaybackFeature/Domain/TrackSelectionPreference.swift
 $(SRCROOT)/Modules/PlaybackFeature/Domain/ViewingState.swift
 $(SRCROOT)/Modules/PlaybackFeature/Model/MediaProfile.swift
 $(SRCROOT)/Modules/PlaybackFeature/Model/PlaybackState.swift
+$(SRCROOT)/Modules/PlaybackFeature/Model/UnmetCapability.swift
 $(SRCROOT)/Modules/PlaybackFeature/PlaybackAudioSession.swift
 $(SRCROOT)/Modules/PlaybackFeature/PlaybackLaunchCoordinator.swift
 $(SRCROOT)/Modules/PlaybackFeature/PlaybackLaunchRequest.swift
 $(SRCROOT)/Modules/PlaybackFeature/PlaybackMediaMetadataService.swift
 $(SRCROOT)/Modules/PlaybackFeature/PlaybackRuntime.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Model/CinemaEnvironment.swift
+$(SRCROOT)/Modules/PlaybackPresentation/Model/PlaybackPanelExpansion.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Model/PlaybackPresentation.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Model/PlaybackPresentationSettlementPhase.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Model/PlaybackSurfacePlacement.swift
@@ -94,6 +97,7 @@ $(SRCROOT)/Modules/PlaybackPresentation/Model/WindowPlaybackPageGeometry.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Platform/PlaybackSurfaceRealityKitAdapter.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Platform/SpatialPlatformEffectExecutor.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Platform/SpatialPlatformExecutionLease.swift
+$(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersivePlaybackControlsAttachment.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Scenes/ImmersiveSpaceView.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Storage/ScreenPositionStore.swift
 $(SRCROOT)/Modules/PlaybackPresentation/Views/DragRotationModifier.swift
