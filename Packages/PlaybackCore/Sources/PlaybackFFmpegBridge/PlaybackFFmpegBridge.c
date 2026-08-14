@@ -403,6 +403,34 @@ static void normalize_mov_apac_codec_id(AVFormatContext *context) {
     }
 }
 
+/// A disc image carries no header a probe can read, because its first bytes are
+/// filesystem descriptors rather than media. FFmpeg scores those descriptors as an
+/// MPEG program stream and opens the image with one unreadable video stream, so the
+/// demuxer is named instead of guessed. Measured on FEL_test_for_AVS.iso: probed it
+/// reports format mpeg with 1 stream and the decoder rejects the picture, named it
+/// reports mpegts with the 2 streams the disc holds and the same 119.99 seconds.
+///
+/// Only a UDF image is claimed, which is what Blu-ray uses and where the video is
+/// always MPEG-TS. A DVD image holds a program stream and is not covered, and an
+/// encrypted disc has a payload no demuxer can read whatever it is named.
+static const AVInputFormat *disc_image_input_format(const char *path) {
+    if (!path) return NULL;
+    FILE *file = fopen(path, "rb");
+    if (!file) return NULL;
+    // The volume recognition sequence sits 32 KB in, as consecutive 2048-byte
+    // descriptors each carrying a five-character identifier one byte from its start.
+    uint8_t descriptors[2][2048];
+    bool isUDF = false;
+    if (fseek(file, 32768, SEEK_SET) == 0
+        && fread(descriptors, sizeof(descriptors[0]), 2, file) == 2
+        && memcmp(descriptors[0] + 1, "BEA01", 5) == 0) {
+        isUDF = memcmp(descriptors[1] + 1, "NSR02", 5) == 0
+            || memcmp(descriptors[1] + 1, "NSR03", 5) == 0;
+    }
+    fclose(file);
+    return isUDF ? av_find_input_format("mpegts") : NULL;
+}
+
 static int open_media_source_for_audio(
     const char *path,
     AVFormatContext **contextOut,
@@ -412,7 +440,7 @@ static int open_media_source_for_audio(
 ) {
     AVFormatContext *context = allocate_format_context(cancelled);
     if (context == NULL) return AVERROR(ENOMEM);
-    int result = avformat_open_input(&context, path, NULL, NULL);
+    int result = avformat_open_input(&context, path, disc_image_input_format(path), NULL);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open audio media source", result);
         avformat_close_input(&context);
@@ -448,7 +476,7 @@ static int open_media_source_for_audio(
     context->probesize = 100LL * 1024 * 1024;
     context->max_analyze_duration = 30LL * AV_TIME_BASE;
     context->max_probe_packets = 100000;
-    result = avformat_open_input(&context, path, NULL, NULL);
+    result = avformat_open_input(&context, path, disc_image_input_format(path), NULL);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Reopen audio media source", result);
         avformat_close_input(&context);
@@ -1830,7 +1858,9 @@ bool PBFFmpegReaderOpen(
         return false;
     }
 
-    int result = avformat_open_input(&reader->formatContext, path, NULL, NULL);
+    int result = avformat_open_input(
+        &reader->formatContext, path, disc_image_input_format(path), NULL
+    );
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open media source", result);
         return false;
@@ -3208,7 +3238,7 @@ bool PBFFmpegAudioTrackCopyInfo(
 
 int PBFFmpegSubtitleTrackCount(const char *path) {
     AVFormatContext *context = NULL;
-    if (!path || avformat_open_input(&context, path, NULL, NULL) < 0) return -1;
+    if (!path || avformat_open_input(&context, path, disc_image_input_format(path), NULL) < 0) return -1;
     if (avformat_find_stream_info(context, NULL) < 0) {
         avformat_close_input(&context);
         return -1;
@@ -3234,7 +3264,7 @@ bool PBFFmpegSubtitleTrackCopyInfo(
 ) {
     AVFormatContext *context = NULL;
     if (!path || ordinal < 0 ||
-        avformat_open_input(&context, path, NULL, NULL) < 0) return false;
+        avformat_open_input(&context, path, disc_image_input_format(path), NULL) < 0) return false;
     if (avformat_find_stream_info(context, NULL) < 0) {
         avformat_close_input(&context);
         return false;
@@ -3283,7 +3313,9 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(
         return NULL;
     }
     reader->subtitleStreamIndex = streamIndex;
-    int result = avformat_open_input(&reader->formatContext, path, NULL, NULL);
+    int result = avformat_open_input(
+        &reader->formatContext, path, disc_image_input_format(path), NULL
+    );
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open subtitle media source", result);
         PBFFmpegSubtitleReaderDestroy(reader);
