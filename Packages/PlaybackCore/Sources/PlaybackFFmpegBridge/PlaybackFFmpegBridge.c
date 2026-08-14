@@ -431,11 +431,47 @@ static const AVInputFormat *disc_image_input_format(const char *path) {
     return isUDF ? av_find_input_format("mpegts") : NULL;
 }
 
+static bool path_is_http(const char *path) {
+    return path &&
+        (strncmp(path, "http://", 7) == 0 || strncmp(path, "https://", 8) == 0);
+}
+
+/// Answers the byte length `path` will serve, or 0 when the server will not say.
+///
+/// Opening the URL and closing it again costs one request, which buys the only
+/// number that makes a bounded range request possible. The server's own
+/// Content-Length is used rather than a length the caller passes down, because a
+/// caller's record of the size can disagree with the bytes this connection will
+/// actually serve, and an end offset that disagrees truncates playback.
+static int64_t http_source_length(const char *path, const AVIOInterruptCB *interrupt) {
+    AVIOContext *probe = NULL;
+    if (avio_open2(&probe, path, AVIO_FLAG_READ, interrupt, NULL) < 0) return 0;
+    int64_t length = avio_size(probe);
+    avio_closep(&probe);
+    return length > 0 ? length : 0;
+}
+
 /// Opens `path`, naming the demuxer and setting its options where the source needs
-/// it. A disc image is the only source that needs either and both follow from the
-/// same fact about it, so one function owns what opening a path means here.
+/// it. A disc image and an HTTP source each need one, and both follow from a fact
+/// about the source, so one function owns what opening a path means here.
 static int open_media_source(AVFormatContext **context, const char *path) {
     AVDictionary *options = NULL;
+    if (path_is_http(path)) {
+        // Without an end offset FFmpeg asks for `Range: bytes=N-`, and Emby answers
+        // an open-ended range over its WebDAV-backed library by closing the body
+        // early or by returning 500. Measured against Emby 4.9.5.0 on
+        // `Blade Runner (1982).mp4`: `bytes=17129754728-` yields 81920 of 112249
+        // bytes and `bytes=17129836648-` yields 500, while the same two ranges with
+        // their last byte named yield all of it. Every demuxer read of a file's tail
+        // lands on that, so an MP4 whose moov trails the media cannot be opened and
+        // a Matroska file's Cues cannot be parsed, which leaves a resumed title
+        // failing its opening seek with no index to seek by.
+        int64_t length = http_source_length(
+            path,
+            *context ? &(*context)->interrupt_callback : NULL
+        );
+        if (length > 0) av_dict_set_int(&options, "end_offset", length, 0);
+    }
     const AVInputFormat *format = disc_image_input_format(path);
     if (format) {
         // The stream sits behind the disc's filesystem metadata, and the demuxer
