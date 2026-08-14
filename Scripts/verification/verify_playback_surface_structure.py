@@ -143,11 +143,10 @@ def main() -> None:
         "window playback geometry does not use the current displayed media dimensions",
     )
     require(
-        "minimumWidthMultiplier: CGFloat = 1.25" in window_root
-        and "defaultWidthMultiplier: CGFloat = 1.75" in window_root
-        and "maximumWidthMultiplier: CGFloat = 2.50" in window_root
-        and "DesignTokens.ControlBar.outerWidth" in window_root,
-        "window playback bounds are not derived from the rendered ornament width",
+        "minimumWidth: CGFloat = 750" in window_root
+        and "maximumExtent: CGFloat = 1_808" in window_root
+        and "private func size(area: CGFloat) -> CGSize" in window_root,
+        "window playback tiers are not derived from a target area",
     )
     require(
         "UIWindowScene.GeometryPreferences.Vision(" in window_root

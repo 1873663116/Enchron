@@ -49,14 +49,89 @@ struct WindowPlaybackPageGeometryTests {
         #expect(abs(topBottom.aspectRatio - 1) < 0.001)
     }
 
-    @Test("window width bounds derive from the rendered ornament width")
-    func ornamentDrivenWindowWidths() {
+    @Test("window tiers come from a target area, not from the ornament width")
+    func areaDrivenWindowTiers() {
         let layout = WindowPlaybackLayout.fallback
 
-        #expect(DesignTokens.ControlBar.outerWidth == 728)
         #expect(layout.minimumSize == CGSize(width: 912, height: 513))
         #expect(layout.defaultSize == CGSize(width: 1_280, height: 720))
         #expect(layout.maximumSize == CGSize(width: 1_808, height: 1_017))
+    }
+
+    @Test("every tier carries the video's shape across the ratio range")
+    func everyTierKeepsTheSourceShape() {
+        for ratio in stride(from: 0.3, through: 4.0, by: 0.05) {
+            let layout = WindowPlaybackLayout(aspectRatio: CGFloat(ratio))
+
+            #expect(layout.hasPlaybackAspectRatio(layout.minimumSize))
+            #expect(layout.hasPlaybackAspectRatio(layout.defaultSize))
+            #expect(layout.hasPlaybackAspectRatio(layout.maximumSize))
+        }
+    }
+
+    @Test("tiers never invert and never leave the ceiling")
+    func tiersStayOrderedAndBounded() {
+        let ceiling = WindowPlaybackLayout.maximumExtent
+
+        for ratio in stride(from: 0.3, through: 4.0, by: 0.05) {
+            let layout = WindowPlaybackLayout(aspectRatio: CGFloat(ratio))
+            let tiers = [layout.minimumSize, layout.defaultSize, layout.maximumSize]
+
+            for (smaller, larger) in zip(tiers, tiers.dropFirst()) {
+                #expect(smaller.width <= larger.width + 0.001)
+                #expect(smaller.height <= larger.height + 0.001)
+            }
+            for tier in tiers {
+                #expect(tier.width <= ceiling + 0.001)
+                #expect(tier.height <= ceiling + 0.001)
+            }
+        }
+    }
+
+    @Test("a side-by-side override no longer drives the window past the ceiling")
+    func sideBySideOverrideStaysBounded() {
+        let forced = WindowPlaybackLayout(
+            resolution: .init(width: 1_920, height: 1_080),
+            stereoLayout: .sideBySide
+        )
+
+        #expect(abs(forced.aspectRatio - 8.0 / 9.0) < 0.001)
+        #expect(forced.defaultSize.width == 905)
+        #expect(abs(forced.defaultSize.height - 1_018.125) < 0.01)
+        #expect(forced.maximumSize.height <= WindowPlaybackLayout.maximumExtent)
+        #expect(forced.hasPlaybackAspectRatio(forced.defaultSize))
+    }
+
+    @Test("portrait content rises to the width floor rather than growing bars")
+    func portraitContentMeetsTheWidthFloor() {
+        let portrait = WindowPlaybackLayout(
+            resolution: .init(width: 1_080, height: 1_920),
+            stereoLayout: .mono
+        )
+
+        #expect(portrait.defaultSize.width == WindowPlaybackLayout.minimumWidth)
+        #expect(abs(portrait.defaultSize.height - 1_333.3333) < 0.01)
+        #expect(portrait.hasPlaybackAspectRatio(portrait.defaultSize))
+        #expect(abs(portrait.maximumSize.height - WindowPlaybackLayout.maximumExtent) < 0.001)
+    }
+
+    @Test("a top-bottom override lands on the ceiling instead of overshooting")
+    func topBottomOverrideLandsOnTheCeiling() {
+        let flat = WindowPlaybackLayout(
+            resolution: .init(width: 1_920, height: 1_080),
+            stereoLayout: .topBottom
+        )
+
+        #expect(abs(flat.aspectRatio - 32.0 / 9.0) < 0.001)
+        #expect(abs(flat.maximumSize.width - WindowPlaybackLayout.maximumExtent) < 0.001)
+        #expect(flat.hasPlaybackAspectRatio(flat.maximumSize))
+    }
+
+    @Test("the browser window is a fixed 4:3 that owes nothing to playback")
+    func browserWindowIsFixedFourByThree() {
+        #expect(BrowserWindowLayout.minimumSize == CGSize(width: 912, height: 684))
+        #expect(BrowserWindowLayout.defaultSize == CGSize(width: 1_280, height: 960))
+        #expect(BrowserWindowLayout.maximumSize == CGSize(width: 1_808, height: 1_356))
     }
 
     @Test("Portal uses bounded freeform geometry")
@@ -101,31 +176,17 @@ struct WindowPlaybackPageGeometryTests {
         #expect(abs(sideBySide.aspectRatio - 16.0 / 9.0) < 0.001)
     }
 
-    @Test("available canvas sizes resolve to a bounded source aspect surface")
-    func fittedPlaybackWindowSizes() {
+    @Test("a 4:3 source sits inside its tiers without touching both ceilings")
+    func fourByThreeSourceStaysInsideItsTiers() {
         let layout = WindowPlaybackLayout(aspectRatio: 4.0 / 3.0)
-        let narrow = layout.sizeThatFits(
-            CGSize(width: 1_000, height: 1_000)
-        )
-        let wide = layout.sizeThatFits(
-            CGSize(width: 4_000, height: 800)
-        )
-        let tooSmall = layout.sizeThatFits(
-            CGSize(width: 100, height: 100)
-        )
-        let tooLarge = layout.sizeThatFits(
-            CGSize(width: 4_000, height: 4_000)
-        )
 
-        #expect(narrow == CGSize(width: 1_000, height: 750))
-        #expect(abs(wide.width - 1_066.6666666666667) < 0.001)
-        #expect(abs(wide.height - 800) < 0.001)
-        #expect(tooSmall == layout.minimumSize)
-        #expect(tooLarge == layout.maximumSize)
-        #expect(layout.hasPlaybackAspectRatio(narrow))
-        #expect(layout.hasPlaybackAspectRatio(wide))
-        #expect(layout.hasPlaybackAspectRatio(tooSmall))
-        #expect(layout.hasPlaybackAspectRatio(tooLarge))
+        #expect(layout.minimumSize.width == 790)
+        #expect(layout.defaultSize.width == 1_109)
+        #expect(layout.maximumSize.width == 1_566)
+        #expect(layout.hasPlaybackAspectRatio(layout.minimumSize))
+        #expect(layout.hasPlaybackAspectRatio(layout.defaultSize))
+        #expect(layout.hasPlaybackAspectRatio(layout.maximumSize))
+        #expect(layout.maximumSize.height < WindowPlaybackLayout.maximumExtent)
     }
 
     @Test("immersive playback visibility includes an active Docked handoff")
