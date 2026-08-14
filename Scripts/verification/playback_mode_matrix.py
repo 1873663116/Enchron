@@ -84,6 +84,19 @@ FORMAT_FIELDS = (
     "windowComponentContentType",
     "videoVisible",
     "lifecycle",
+    # A title that reports playing with nothing on screen fails in one of three
+    # places, and only these tell them apart: the renderer rejected the format,
+    # the renderer never accepted the samples the provider produced, or it
+    # accepted them and never displayed one.
+    "videoRendererStatus",
+    "videoRendererError",
+    "videoSamples",
+    "rendererInputs",
+    "displayedPixel",
+    "bootstrapComplete",
+    "providerCodecName",
+    "providerCodecTag",
+    "sampleMediaSubtype",
 )
 
 
