@@ -370,6 +370,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         diagnostics.nominalFrameRate = provider.info.nominalFrameRate
         diagnostics.codecName = provider.info.codecName
         diagnostics.isMVHEVC = provider.info.isMVHEVC
+        diagnostics.dolbyVisionProfile = provider.info.dolbyVisionProfile
+        diagnostics.dolbyVisionLevel = provider.info.dolbyVisionLevel
+        diagnostics.dolbyVisionHasEnhancementLayer = provider.info.dolbyVisionHasEnhancementLayer
         diagnostics.trackFormatHasMasteringDisplayMetadata = provider.info.trackFormatHasMasteringDisplayMetadata
         diagnostics.trackFormatHasContentLightLevelMetadata = provider.info.trackFormatHasContentLightLevelMetadata
         let openSnapshot = ProviderOpenSnapshot(

@@ -50,6 +50,51 @@ nonisolated extension PlaybackModel {
 
 
 nonisolated extension PlaybackModel {
+    /// The Dolby Vision a source claims, alongside the picture it actually produced.
+    ///
+    /// `HDRType` cannot carry this on its own. It names one dynamic range, and a
+    /// Profile 7 source has two answers at once: it is Dolby Vision, and what reaches
+    /// the wearer is its base layer. The profile is stored separately from the layers
+    /// because the layers are what decide the fallback, while the profile number is
+    /// only a name.
+    public struct DolbyVision: Sendable, Equatable, Codable {
+        public let profile: Int
+        public let level: Int
+        /// The picture delivered in place of Dolby Vision, set only when the source
+        /// stores its picture across two layers and just the base layer arrives.
+        public let fallbackTo: HDRType?
+
+        public init(profile: Int, level: Int, fallbackTo: HDRType? = nil) {
+            self.profile = profile
+            self.level = level
+            self.fallbackTo = fallbackTo
+        }
+
+        /// Reads the way the rest of the dynamic range labels do, so a title that fell
+        /// back sits in the same sentence as one that did not.
+        public var label: String {
+            let name = "Dolby Vision Profile \(profile).\(level)"
+            guard let fallbackTo else { return name }
+            return "\(name) Fallback to \(fallbackTo.label)"
+        }
+    }
+}
+
+
+nonisolated extension PlaybackModel.HDRType {
+    public var label: String {
+        switch self {
+        case .sdr: "SDR"
+        case .hdr10: "HDR10"
+        case .hdr10Plus: "HDR10+"
+        case .dolbyVision: "Dolby Vision"
+        case .hlg: "HLG"
+        }
+    }
+}
+
+
+nonisolated extension PlaybackModel {
     public enum ProjectionType: String, Sendable, CaseIterable, Codable {
         case flat
         case equirectangular360
@@ -231,7 +276,11 @@ nonisolated extension PlaybackModel {
 
         public let projectionType: ProjectionType
         public let stereoLayout: StereoLayout
+        /// The dynamic range of the picture that reaches the wearer. A Profile 7
+        /// source reports the base layer here and its Dolby Vision claim in
+        /// `dolbyVision`.
         public let hdrType: HDRType
+        public let dolbyVision: DolbyVision?
         public let resolution: Resolution
         private let sampleAspectRatio: PixelAspectRatio?
         public let frameRate: Double
@@ -243,6 +292,7 @@ nonisolated extension PlaybackModel {
             projectionType: ProjectionType,
             stereoLayout: StereoLayout = .mono,
             hdrType: HDRType,
+            dolbyVision: DolbyVision? = nil,
             resolution: Resolution,
             pixelAspectRatio: PixelAspectRatio = .square,
             frameRate: Double = 0,
@@ -253,6 +303,7 @@ nonisolated extension PlaybackModel {
             self.projectionType = projectionType
             self.stereoLayout = stereoLayout
             self.hdrType = hdrType
+            self.dolbyVision = dolbyVision
             self.resolution = resolution
             sampleAspectRatio = pixelAspectRatio == .square ? nil : pixelAspectRatio
             self.frameRate = max(0, frameRate)

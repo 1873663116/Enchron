@@ -49,18 +49,13 @@ enum PlaybackInfoFormatter {
     }
 
     static func hdrTypeLabel(_ hdrType: PlaybackModel.HDRType) -> String {
-        switch hdrType {
-        case .sdr:
-            return "SDR"
-        case .hdr10:
-            return "HDR10"
-        case .hdr10Plus:
-            return "HDR10+"
-        case .dolbyVision:
-            return "Dolby Vision"
-        case .hlg:
-            return "HLG"
-        }
+        hdrType.label
+    }
+
+    /// A source claiming Dolby Vision names its profile in place of the plain dynamic
+    /// range, and names what it fell back to when only its base layer was delivered.
+    static func dynamicRangeLabel(_ profile: PlaybackModel.MediaProfile) -> String {
+        profile.dolbyVision?.label ?? profile.hdrType.label
     }
 }
 

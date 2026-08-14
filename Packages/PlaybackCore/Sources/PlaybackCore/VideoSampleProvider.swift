@@ -21,6 +21,15 @@ struct VideoSampleProviderInfo: Sendable {
     var transferFunction = "unknown"
     var yCbCrMatrix = "unknown"
     var range = "unknown"
+    /// Zero when no video stream in the source carries a Dolby Vision configuration
+    /// record. Profile 7 keeps that record on its enhancement stream, so reading only
+    /// the decoded stream would report a plain HDR10 track and lose the claim.
+    var dolbyVisionProfile = 0
+    var dolbyVisionLevel = 0
+    /// Set when the source stores its picture across two layers. Only the base layer
+    /// reaches a single-stream decoder input, which is what makes the delivered
+    /// picture a fallback rather than the Dolby Vision the source claims.
+    var dolbyVisionHasEnhancementLayer = false
     var seekability = ObservedStringFact(.unknown)
     var selectedRawTrackMapping = ObservedStringFact(.notExposed)
     var timebase = ObservedStringFact(.notExposed)
@@ -129,6 +138,10 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
             transferFunction: String(cString: PBFFmpegReaderGetTransferFunction(reader.pointer)),
             yCbCrMatrix: String(cString: PBFFmpegReaderGetYCbCrMatrix(reader.pointer)),
             range: String(cString: PBFFmpegReaderGetColorRange(reader.pointer)),
+            dolbyVisionProfile: Int(PBFFmpegReaderGetDolbyVisionProfile(reader.pointer)),
+            dolbyVisionLevel: Int(PBFFmpegReaderGetDolbyVisionLevel(reader.pointer)),
+            dolbyVisionHasEnhancementLayer:
+                PBFFmpegReaderDolbyVisionHasEnhancementLayer(reader.pointer),
             seekability: .init(known: "providerRebuild"),
             selectedRawTrackMapping: .init(
                 known: "stream:\(PBFFmpegReaderGetVideoStreamIndex(reader.pointer))"

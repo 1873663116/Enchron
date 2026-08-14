@@ -111,6 +111,14 @@ const char *PBFFmpegReaderGetProjectionKind(const PBFFmpegReader *reader);
 const char *PBFFmpegReaderGetViewPackingKind(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetWidth(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetHeight(const PBFFmpegReader *reader);
+/// Zero when no video stream in the source carries a Dolby Vision configuration
+/// record. A non-zero profile found on a stream other than the decoded one describes
+/// a layer this reader never delivers, which is what
+/// `PBFFmpegReaderDolbyVisionIsOnDecodedStream` reports.
+int PBFFmpegReaderGetDolbyVisionProfile(const PBFFmpegReader *reader);
+int PBFFmpegReaderGetDolbyVisionLevel(const PBFFmpegReader *reader);
+bool PBFFmpegReaderDolbyVisionHasEnhancementLayer(const PBFFmpegReader *reader);
+bool PBFFmpegReaderDolbyVisionIsOnDecodedStream(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetVideoStreamIndex(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetTimeBaseNumerator(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetTimeBaseDenominator(const PBFFmpegReader *reader);

@@ -816,7 +816,7 @@ struct FusedPlayerPanel: View {
     private var technicalMetadataLabel: String {
         guard let profile = live?.mediaProfile else { return "Media information unavailable" }
         var parts = ["\(profile.resolution.width)×\(profile.resolution.height)"]
-        parts.append(PlaybackInfoFormatter.hdrTypeLabel(profile.hdrType))
+        parts.append(PlaybackInfoFormatter.dynamicRangeLabel(profile))
         let codec = PlaybackInfoFormatter.videoCodecLabel(profile.videoCodec)
         if codec != "Unknown" { parts.append(codec) }
         if profile.frameRate > 0 { parts.append(PlaybackInfoFormatter.frameRate(profile.frameRate)) }

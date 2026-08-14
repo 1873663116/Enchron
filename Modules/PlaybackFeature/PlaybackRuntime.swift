@@ -2346,16 +2346,30 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             return prefetchedMetadata?.mediaProfile
         }
         let transfer = diagnostics.transferFunction.lowercased()
-        let hdr: PlaybackModel.HDRType
-        if diagnostics.formatHasDvcC || diagnostics.formatHasDvvC {
-            hdr = .dolbyVision
-        } else if transfer.contains("2084") || transfer.contains("pq") {
-            hdr = .hdr10
+        // The base layer's own signalling, which is the picture the wearer receives
+        // whenever the Dolby Vision is stored across two layers.
+        let baseLayer: PlaybackModel.HDRType
+        if transfer.contains("2084") || transfer.contains("pq") {
+            baseLayer = .hdr10
         } else if transfer.contains("hlg") || transfer.contains("arib") {
-            hdr = .hlg
+            baseLayer = .hlg
         } else {
-            hdr = .sdr
+            baseLayer = .sdr
         }
+        let claimsDolbyVision = diagnostics.dolbyVisionProfile > 0
+            || diagnostics.formatHasDvcC
+            || diagnostics.formatHasDvvC
+        let dolbyVision: PlaybackModel.DolbyVision? = claimsDolbyVision
+            ? PlaybackModel.DolbyVision(
+                profile: diagnostics.dolbyVisionProfile,
+                level: diagnostics.dolbyVisionLevel,
+                fallbackTo: diagnostics.dolbyVisionHasEnhancementLayer ? baseLayer : nil
+            )
+            : nil
+        let hdr: PlaybackModel.HDRType = claimsDolbyVision
+            && diagnostics.dolbyVisionHasEnhancementLayer == false
+            ? .dolbyVision
+            : baseLayer
         return PlaybackModel.MediaProfile(
             projectionType: Self.projectionType(from: diagnostics.projectionKind)
                 ?? prefetchedMetadata?.mediaProfile?.projectionType
@@ -2367,6 +2381,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 ?? prefetchedMetadata?.mediaProfile?.stereoLayout
                 ?? .mono,
             hdrType: hdr,
+            dolbyVision: dolbyVision,
             resolution: resolution,
             pixelAspectRatio: pixelAspectRatio,
             frameRate: diagnostics.nominalFrameRate,

@@ -96,6 +96,14 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var destinationBufferHasMasteringDisplayMetadata = false
     public var destinationBufferHasContentLightLevelMetadata = false
     public var formatHasHvcC = false
+    /// Read from every video stream in the source, because Dolby Vision Profile 7
+    /// keeps its configuration record on the enhancement stream rather than on the
+    /// base layer that gets decoded. Zero means the source claims no Dolby Vision.
+    public var dolbyVisionProfile = 0
+    public var dolbyVisionLevel = 0
+    /// A two-layer source delivers only its base layer, so this is what separates the
+    /// Dolby Vision a source claims from the picture the wearer receives.
+    public var dolbyVisionHasEnhancementLayer = false
     public var formatHasDvcC = false
     public var formatHasDvvC = false
     public var formatHasAmbientViewingEnvironment = false

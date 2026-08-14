@@ -49,6 +49,10 @@ struct PBFFmpegReader {
     char viewPackingKind[64];
     int width;
     int height;
+    int dolbyVisionProfile;
+    int dolbyVisionLevel;
+    bool dolbyVisionHasEnhancementLayer;
+    bool dolbyVisionOnDecodedStream;
 };
 
 struct PBFFmpegAudioReader {
@@ -741,6 +745,37 @@ static CFStringRef color_primaries(enum AVColorPrimaries value) {
         case AVCOL_PRI_BT2020: return kCMFormatDescriptionColorPrimaries_ITU_R_2020;
         case AVCOL_PRI_SMPTE432: return kCMFormatDescriptionColorPrimaries_P3_D65;
         default: return NULL;
+    }
+}
+
+/// Dolby Vision Profile 7 stores its picture across two video streams, and the
+/// configuration record sits on the enhancement stream rather than on the base layer
+/// that gets decoded. Scanning every video stream is therefore the only way to learn
+/// that a source claims Dolby Vision at all: reading the decoded stream alone reports
+/// a plain HDR10 track and the claim disappears. Whether the record was found on the
+/// decoded stream is what separates a Dolby Vision picture from a base layer standing
+/// in for one.
+static void detect_dolby_vision(PBFFmpegReader *reader) {
+    for (unsigned index = 0; index < reader->formatContext->nb_streams; index++) {
+        AVStream *candidate = reader->formatContext->streams[index];
+        if (candidate->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) continue;
+        const AVPacketSideData *entry = av_packet_side_data_get(
+            candidate->codecpar->coded_side_data,
+            candidate->codecpar->nb_coded_side_data,
+            AV_PKT_DATA_DOVI_CONF
+        );
+        if (!entry || entry->size < sizeof(AVDOVIDecoderConfigurationRecord)) continue;
+        const AVDOVIDecoderConfigurationRecord *record =
+            (const AVDOVIDecoderConfigurationRecord *)entry->data;
+        bool onDecodedStream = (int)index == reader->videoStreamIndex;
+        // A record on the decoded stream is the authoritative one; anything found on
+        // another stream only describes a layer this reader will never deliver.
+        if (reader->dolbyVisionProfile != 0 && !onDecodedStream) continue;
+        reader->dolbyVisionProfile = record->dv_profile;
+        reader->dolbyVisionLevel = record->dv_level;
+        reader->dolbyVisionHasEnhancementLayer = record->el_present_flag != 0;
+        reader->dolbyVisionOnDecodedStream = onDecodedStream;
+        if (onDecodedStream) return;
     }
 }
 
@@ -1802,6 +1837,8 @@ bool PBFFmpegReaderOpen(
         return false;
     }
 
+    detect_dolby_vision(reader);
+
     AVStream *stream = reader->formatContext->streams[reader->videoStreamIndex];
     reader->timeBase = stream->time_base;
     reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
@@ -2093,6 +2130,65 @@ static uint8_t *copy_annexb_as_length_prefixed(
     return output;
 }
 
+/// HEVC leaves NAL types 62 and 63 unspecified, and Dolby Vision Profile 7 uses them
+/// for its per-frame metadata and its enhancement layer. Matroska interleaves both
+/// into the one video track, while mp4 and m2ts carry them on a second track this
+/// reader never selects. The renderer rejects a whole sample that contains units it
+/// cannot read, which is why the Matroska case accepted every sample and displayed no
+/// frame. Measured on FEL_test_for_AVS.mkv, first half second: 6 units of type 62 and
+/// 67 of type 63, all at layer 0.
+static bool is_dolby_vision_layer_unit(const uint8_t *nal, size_t nalSize) {
+    if (nalSize < 1) return false;
+    unsigned type = (nal[0] >> 1) & 0x3F;
+    return type == 62 || type == 63;
+}
+
+static size_t length_prefixed_nal_size(const uint8_t *source, size_t offset) {
+    return ((size_t)source[offset] << 24)
+        | ((size_t)source[offset + 1] << 16)
+        | ((size_t)source[offset + 2] << 8)
+        | (size_t)source[offset + 3];
+}
+
+/// Returns NULL when the sample carries no Dolby Vision layer units, which is every
+/// sample of every other source, so the common path neither allocates nor copies.
+static uint8_t *copy_without_dolby_vision_units(
+    const uint8_t *source,
+    size_t sourceSize,
+    size_t *outputSize
+) {
+    bool found = false;
+    for (size_t offset = 0; offset + 4 <= sourceSize;) {
+        size_t nalSize = length_prefixed_nal_size(source, offset);
+        if (nalSize == 0 || offset + 4 + nalSize > sourceSize) return NULL;
+        if (is_dolby_vision_layer_unit(source + offset + 4, nalSize)) {
+            found = true;
+            break;
+        }
+        offset += 4 + nalSize;
+    }
+    if (!found) return NULL;
+
+    uint8_t *output = malloc(sourceSize);
+    if (!output) return NULL;
+    size_t written = 0;
+    for (size_t offset = 0; offset + 4 <= sourceSize;) {
+        size_t nalSize = length_prefixed_nal_size(source, offset);
+        if (nalSize == 0 || offset + 4 + nalSize > sourceSize) break;
+        if (!is_dolby_vision_layer_unit(source + offset + 4, nalSize)) {
+            memcpy(output + written, source + offset, 4 + nalSize);
+            written += 4 + nalSize;
+        }
+        offset += 4 + nalSize;
+    }
+    if (written == 0) {
+        free(output);
+        return NULL;
+    }
+    *outputSize = written;
+    return output;
+}
+
 static PBFFmpegReadResult copy_compressed_sample(
     PBFFmpegReader *reader,
     CMSampleBufferRef *sampleOut,
@@ -2137,6 +2233,17 @@ static PBFFmpegReadResult copy_compressed_sample(
                 return PBFFmpegReadResultError;
             }
             sampleBytes = convertedBytes;
+        }
+        uint8_t *strippedBytes = NULL;
+        if (reader->dolbyVisionHasEnhancementLayer && reader->dolbyVisionOnDecodedStream) {
+            size_t strippedByteCount = 0;
+            strippedBytes = copy_without_dolby_vision_units(
+                sampleBytes, sampleByteCount, &strippedByteCount
+            );
+            if (strippedBytes) {
+                sampleBytes = strippedBytes;
+                sampleByteCount = strippedByteCount;
+            }
         }
         CMBlockBufferRef block = NULL;
         OSStatus status = CMBlockBufferCreateWithMemoryBlock(
@@ -2190,6 +2297,7 @@ static PBFFmpegReadResult copy_compressed_sample(
         }
         if (block) CFRelease(block);
         free(convertedBytes);
+        free(strippedBytes);
         av_packet_unref(packet);
         if (status != noErr) {
             char message[128];
@@ -2241,6 +2349,22 @@ const char *PBFFmpegReaderGetColorPrimaries(const PBFFmpegReader *reader) {
 
 const char *PBFFmpegReaderGetTransferFunction(const PBFFmpegReader *reader) {
     return reader ? reader->transferFunction : "unknown";
+}
+
+int PBFFmpegReaderGetDolbyVisionProfile(const PBFFmpegReader *reader) {
+    return reader ? reader->dolbyVisionProfile : 0;
+}
+
+int PBFFmpegReaderGetDolbyVisionLevel(const PBFFmpegReader *reader) {
+    return reader ? reader->dolbyVisionLevel : 0;
+}
+
+bool PBFFmpegReaderDolbyVisionHasEnhancementLayer(const PBFFmpegReader *reader) {
+    return reader ? reader->dolbyVisionHasEnhancementLayer : false;
+}
+
+bool PBFFmpegReaderDolbyVisionIsOnDecodedStream(const PBFFmpegReader *reader) {
+    return reader ? reader->dolbyVisionOnDecodedStream : false;
 }
 
 const char *PBFFmpegReaderGetYCbCrMatrix(const PBFFmpegReader *reader) {
