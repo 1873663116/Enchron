@@ -3,7 +3,8 @@
 """Asserts the measured facts that the Dolby Vision handling in
 PlaybackFFmpegBridge.c reads as given.
 
-That code makes two decisions from the source and re-derives neither at runtime.
+That code makes three decisions from the source and re-derives none of them at
+runtime.
 
 Whether to declare a track as Dolby Vision to VideoToolbox.
 `has_usable_dovi_configuration` reads the decoded stream's configuration record
@@ -17,6 +18,13 @@ some other stream only when `bl_present_flag` is clear: a pure enhancement layer
 cannot stand alone, so it belongs to the decoded stream, while a stream carrying
 its own base layer is an unrelated title whose profile is not a fact about this
 one.
+
+Which field becomes the digit after the profile in that line. It is
+`dv_bl_signal_compatibility_id`, the dynamic range the base layer is also readable
+as, and not `dv_level`, which counts resolution and bitrate tiers. The two fields
+are equal on both Profile 7.6 fixtures and on the single-layer declaration control,
+which is why three device rounds of green results said nothing about this rule and
+why separate fixtures are measured for it.
 
 A remux of a fixture, or an FFmpeg build that reports a stream layout
 differently, moves the ground under that decision without changing a line of C
@@ -32,12 +40,15 @@ asserts that something is refused, and a mirror that refuses everything would
 satisfy all of them while measuring nothing. A single-layer file proves the
 declaration condition can still return true. A constructed container carrying an
 unrelated Dolby Vision track proves the scan's rule about other streams is
-reached at all, since no file in the sample tree is shaped that way.
+reached at all, since no file in the sample tree is shaped that way. Three more
+fixtures follow, chosen only because their level and cross compatibility disagree,
+so the naming rule is measured by files that can tell the two apart.
 """
 
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
 import shutil
@@ -61,6 +72,35 @@ MATROSKA = SAMPLE_ROOT / "Profile7.6/FEL_test_for_AVS.mkv"
 MP4 = SAMPLE_ROOT / "Profile7.6/FEL_test_for_AVS.mp4"
 SINGLE_LAYER = (
     SAMPLE_ROOT / "HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+)
+
+# Files whose level and cross compatibility ID disagree, so that a name built from
+# the wrong one reads differently. Each entry carries the name the file is published
+# under and the name the level would produce. The first two disagree in opposite
+# directions, which is what rules out the two fields agreeing by convention; the
+# third is the only one that reaches the branch omitting the digit entirely.
+NAMING_FIXTURES = (
+    (
+        SAMPLE_ROOT / "HD/Patterns_Of_Nature_HLG-P8.4_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4",
+        1,
+        4,
+        "Dolby Vision Profile 8.4",
+        "Dolby Vision Profile 8.1",
+    ),
+    (
+        SAMPLE_ROOT / "Profile8.1/OfficialDolby/P81_GlassBlowing2_1920x1080-59.94fps_fmp4.mp4",
+        5,
+        1,
+        "Dolby Vision Profile 8.1",
+        "Dolby Vision Profile 8.5",
+    ),
+    (
+        SAMPLE_ROOT / "HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",
+        1,
+        0,
+        "Dolby Vision Profile 5",
+        "Dolby Vision Profile 5.1",
+    ),
 )
 
 LINK_FLAGS = [
@@ -91,7 +131,13 @@ def build_probe(source: Path, quiet: bool) -> Path:
     if clang is None:
         raise SystemExit("clang is not on PATH; the premise probe cannot be built.")
     library = VENDORED_FFMPEG / "libPlaybackFFmpeg.a"
-    binary = scratch_directory("dolby-vision-premise-probe") / "dolby_vision_premise_probe"
+    # Keyed by source path, so pointing --probe-source at a variant cannot leave its
+    # binary cached where the next default run would pick it up.
+    fingerprint = hashlib.sha256(str(source.resolve()).encode()).hexdigest()[:12]
+    binary = (
+        scratch_directory("dolby-vision-premise-probe")
+        / f"dolby_vision_premise_probe-{fingerprint}"
+    )
     newest_input = max(source.stat().st_mtime, library.stat().st_mtime)
     if binary.exists() and binary.stat().st_mtime >= newest_input:
         return binary
@@ -253,6 +299,37 @@ def check_unrelated_track(premises: Premises, measurement: dict[str, object]) ->
     )
 
 
+def check_naming(
+    premises: Premises,
+    measurements: list[tuple[dict[str, object], int, int, str, str]],
+) -> None:
+    """Pins the fixtures that can tell the two candidate fields apart. Neither
+    Profile 7.6 file can: both carry level 6 and cross compatibility 6, so a name
+    built from either reads Profile 7.6 and a regression in which field is read
+    leaves them green. The single-layer declaration control carries 1 and 1 and is
+    no better. These three disagree."""
+    print("\nnaming, files where the level and the cross compatibility differ")
+    for measurement, level, cross, published, misread in measurements:
+        stream = decoded_stream(measurement)
+        record = stream["dolbyVision"] if stream is not None else None
+        premises.require(
+            fact=f"{Path(measurement['path']).name[:38]} reads level {level}, cross {cross}",
+            measured=(
+                record["level"] if record else None,
+                record["blCompatibilityId"] if record else None,
+                measurement["detected"]["crossCompatibilityID"],
+            ),
+            expected=(level, cross, cross),
+            consequence=(
+                f"This file is published as {published}. Its level and its cross "
+                f"compatibility differ, so it is one of the few that can show which one "
+                f"the name is built from: reading the level would produce {misread}. If "
+                "the two ever agree here, this fixture stops separating the rules and "
+                "the only files left measuring the naming rule are ones that cannot."
+            ),
+        )
+
+
 def check_matroska(premises: Premises, measurement: dict[str, object]) -> None:
     print(f"\nMatroska {measurement['path']}")
     stream = decoded_stream(measurement)
@@ -284,12 +361,13 @@ def check_matroska(premises: Premises, measurement: dict[str, object]) -> None:
             ),
         )
         premises.require(
-            fact="the record reads Profile 7 Level 6",
-            measured=(record["profile"], record["level"]),
+            fact="the record reads Profile 7, cross compatibility 6",
+            measured=(detected["profile"], detected["crossCompatibilityID"]),
             expected=(7, 6),
             consequence=(
-                "The dynamic range line is worded from this profile and level; another "
-                "profile is a different picture and a different sentence."
+                "The dynamic range line is worded from these two values, and they are the "
+                "whole name: Profile 7.6. The level is not read and is not asserted, "
+                "because nothing consumes it."
             ),
         )
     premises.require(
@@ -362,11 +440,11 @@ def check_mp4(premises: Premises, measurement: dict[str, object]) -> None:
         ),
     )
     premises.require(
-        fact="the record sits on stream 1 and reads Profile 7 Level 6",
+        fact="the record sits on stream 1 and reads Profile 7, cross compatibility 6",
         measured=(
             detected["recordStreamIndex"],
             detected["profile"],
-            detected["level"],
+            detected["crossCompatibilityID"],
         ),
         expected=(1, 7, 6),
         consequence=(
@@ -428,6 +506,10 @@ def main() -> None:
     )
     matroska = measure(binary, arguments.matroska)
     mp4 = measure(binary, arguments.mp4)
+    naming = [
+        (measure(binary, path), level, cross, published, misread)
+        for path, level, cross, published, misread in NAMING_FIXTURES
+    ]
     print(f"measured through libavformat {matroska['libavformatVersion']}")
 
     if arguments.json is not None:
@@ -439,6 +521,7 @@ def main() -> None:
                     "unrelatedTrack": unrelated,
                     "matroska": matroska,
                     "mp4": mp4,
+                    "naming": [entry[0] for entry in naming],
                 },
                 indent=2,
             )
@@ -449,6 +532,7 @@ def main() -> None:
     premises = Premises()
     check_control(premises, control)
     check_unrelated_track(premises, unrelated)
+    check_naming(premises, naming)
     check_matroska(premises, matroska)
     check_mp4(premises, mp4)
 

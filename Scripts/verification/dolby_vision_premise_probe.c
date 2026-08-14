@@ -9,7 +9,8 @@
 //   videoStreams[].dolbyVision
 //                        the AV_PKT_DATA_DOVI_CONF side data detect_dolby_vision
 //                        scans for on every video stream, which is where the
-//                        dynamic range line gets its profile and level;
+//                        dynamic range line gets its profile and the digit after
+//                        it, which is the cross compatibility ID and not the level;
 //   videoStreams[].declarable
 //                        has_usable_dovi_configuration, the condition that
 //                        decides whether codec_type and add_dovi_configuration_atom
@@ -88,7 +89,11 @@ int main(int argc, char **argv) {
     // stand alone, is believed. A second stream carrying its own base layer is an
     // unrelated title and its profile is not a fact about the stream being decoded.
     int detectedProfile = 0;
-    int detectedLevel = 0;
+    // The reader publishes the cross compatibility ID and not the level, because the
+    // digit after the profile in a Dolby Vision name is the dynamic range the base
+    // layer is also readable as. The level counts resolution and bitrate tiers and
+    // takes its own values, which happen to coincide on some files and not others.
+    int detectedCrossCompatibility = 0;
     bool detectedEnhancementLayer = false;
     int recordStreamIndex = -1;
     for (unsigned index = 0; index < context->nb_streams; index++) {
@@ -102,7 +107,7 @@ int main(int argc, char **argv) {
             if (detectedProfile != 0) continue;
         }
         detectedProfile = record->dv_profile;
-        detectedLevel = record->dv_level;
+        detectedCrossCompatibility = record->dv_bl_signal_compatibility_id;
         detectedEnhancementLayer = record->el_present_flag != 0;
         recordStreamIndex = (int)index;
         if (onDecodedStream) break;
@@ -156,10 +161,10 @@ int main(int argc, char **argv) {
         }
         printf(", \"declarable\": %s}", declarable(candidate) ? "true" : "false");
     }
-    printf("\n  ],\n  \"detected\": {\"profile\": %d, \"level\": %d, "
+    printf("\n  ],\n  \"detected\": {\"profile\": %d, \"crossCompatibilityID\": %d, "
            "\"hasEnhancementLayer\": %s, \"recordStreamIndex\": %d}",
            detectedProfile,
-           detectedLevel,
+           detectedCrossCompatibility,
            detectedEnhancementLayer ? "true" : "false",
            recordStreamIndex);
     printf(",\n  \"decodedStreamDeclaresDolbyVision\": %s\n}\n",
