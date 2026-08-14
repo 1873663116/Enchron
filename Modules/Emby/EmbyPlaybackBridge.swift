@@ -292,7 +292,8 @@ public actor EmbyPlaybackBridge {
             url: source.directPlayURL,
             displayName: freshItem.metadata.name,
             initialMetadata: PlaybackMediaMetadata(
-                fileSizeInBytes: source.sizeInBytes ?? freshItem.metadata.sizeInBytes
+                fileSizeInBytes: source.sizeInBytes ?? freshItem.metadata.sizeInBytes,
+                overview: freshItem.metadata.overview
             ),
             collectionOrigin: collectionOrigin,
             versionedIdentity: source.versionedIdentity,

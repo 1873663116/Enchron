@@ -8,6 +8,7 @@ struct WindowPlayerDeckView: View {
     @Environment(AppModel.self) private var appModel
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
+    @State private var dismissedBlockingCapabilityToken: String?
     var presentationOverride: PlaybackPresentation? = nil
     var onExitPlayback: (() -> Void)? = nil
 
@@ -41,6 +42,20 @@ struct WindowPlayerDeckView: View {
         } message: {
             Text(playbackRuntime.subtitleErrorMessage ?? "The subtitle file could not be loaded.")
         }
+        .alert(
+            "Unable to Play",
+            isPresented: blockingCapabilityIsPresented
+        ) {
+            Button("OK") {
+                dismissedBlockingCapabilityToken = blockingCapabilityToken
+            }
+            .accessibilityIdentifier("PlayerUI-unmetCapability-dismiss")
+        } message: {
+            Text(
+                blockingCapability?.reason
+                    ?? "This file cannot play on this device."
+            )
+        }
     }
 
     private func register() {
@@ -73,6 +88,8 @@ struct WindowPlayerDeckView: View {
             mediaFormatSummary: playbackRuntime.activeMediaFormatProvenance == .source
                 ? playbackRuntime.sourceMediaFormatSummary
                 : nil,
+            overview: playbackRuntime.overview,
+            unmetCapabilities: playbackRuntime.unmetCapabilities,
             mediaFormatProvenance: playbackRuntime.activeMediaFormatProvenance,
             sourceMediaFormatSummary: playbackRuntime.sourceMediaFormatSummary,
             isPlaying: transport.primaryAction == .pause,
@@ -148,6 +165,30 @@ struct WindowPlayerDeckView: View {
             audioItems: audioItems,
             speedItems: speedItems,
             episodeItems: episodeItems
+        )
+    }
+
+    private var blockingCapability: UnmetCapability? {
+        playbackRuntime.unmetCapabilities.first(where: \.preventsPlayback)
+    }
+
+    private var blockingCapabilityToken: String? {
+        blockingCapability.map {
+            "\(playbackRuntime.observationGeneration)|\($0.id)"
+        }
+    }
+
+    private var blockingCapabilityIsPresented: Binding<Bool> {
+        Binding(
+            get: {
+                guard let token = blockingCapabilityToken else { return false }
+                return token != dismissedBlockingCapabilityToken
+            },
+            set: { presented in
+                if presented == false {
+                    dismissedBlockingCapabilityToken = blockingCapabilityToken
+                }
+            }
         )
     }
 

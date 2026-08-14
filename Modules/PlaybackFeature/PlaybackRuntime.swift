@@ -85,6 +85,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public private(set) var currentLaunchRequest: PlaybackLaunchRequest?
     public var currentPlaybackURL: URL? { currentLaunchRequest?.url }
     public private(set) var prefetchedMetadata: PlaybackMediaMetadata?
+    public var overview: String? { prefetchedMetadata?.overview }
     public private(set) var presentationState: PresentationState = .hidden
     public private(set) var diagnostics = PlaybackDiagnostics()
     public private(set) var availableAudioTracks: [PlaybackModel.AudioTrack] = []
@@ -177,6 +178,11 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
     public var effectiveStereoLayout: PlaybackModel.StereoLayout {
         return selectedStereoLayout
+    }
+    public var unmetCapabilities: [UnmetCapability] {
+        UnmetCapability.all(
+            from: Self.capabilityFacts(from: diagnostics)
+        )
     }
     public var activeMediaFormatProvenance: MediaFormatProvenance {
         usesSourceFormat ? .source : .userOverride
@@ -375,6 +381,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         }
         currentLaunchRequest = request
         prefetchedMetadata = request.initialMetadata
+        diagnostics = PlaybackDiagnostics()
         playbackPosition = .init(seconds: 0, duration: 0)
         currentPlaybackSpeed = .default
         presentationState = .placeholder
@@ -2008,9 +2015,39 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 guard activeSessionID == failedSessionID else { return }
                 recordAudioSessionFact()
             }
-            lastErrorMessage = message
+            lastErrorMessage = Self.userFacingPlaybackFailureMessage(
+                coreMessage: message,
+                unmetCapabilities: unmetCapabilities
+            )
             logger.error("playback failed message=\(message, privacy: .public)")
         }
+    }
+
+    /// Every fact here is published by PlaybackCore. Reading the debug snapshot
+    /// instead would cost a struct copy and several timebase queries on a value
+    /// the playback deck recomputes on every redraw, and it would give two
+    /// sources for one fact that can disagree.
+    static func capabilityFacts(from diagnostics: PlaybackDiagnostics) -> PlaybackCapabilityFacts {
+        PlaybackCapabilityFacts(
+            codecName: diagnostics.codecName,
+            // A title is only reported as flattened once a renderer input has said
+            // what it carried. Before that the answer is unknown, not "one view".
+            sourceIsMultiview: diagnostics.isMVHEVC
+                && diagnostics.rendererInputIsMultiview != nil,
+            deliveredIsMultiview: diagnostics.rendererInputIsMultiview == true,
+            audioRetired: diagnostics.audioRetired,
+            audioRetirementReason: diagnostics.audioRetirementReason,
+            rendererFailedToDecode: diagnostics.rendererFailedToDecode
+        )
+    }
+
+    static func userFacingPlaybackFailureMessage(
+        coreMessage: String,
+        unmetCapabilities: [UnmetCapability]
+    ) -> String? {
+        unmetCapabilities.contains(where: \.preventsPlayback)
+            ? nil
+            : coreMessage
     }
 
     private static func coreAfterSeekBehavior(

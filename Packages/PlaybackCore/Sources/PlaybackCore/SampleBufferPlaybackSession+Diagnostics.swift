@@ -740,6 +740,10 @@ extension SampleBufferPlaybackSession {
         switch fact.rendererKind {
         case .video:
             setVideoRendererState(status: "failed", error: fact.message)
+            diagnostics.rendererFailedToDecode = true
+            diagnostics.rendererStatus = "failed"
+            diagnostics.rendererError = fact.message
+            onDiagnosticsChange?(diagnostics)
         case .audio:
             setAudioRendererError(fact.message)
         }

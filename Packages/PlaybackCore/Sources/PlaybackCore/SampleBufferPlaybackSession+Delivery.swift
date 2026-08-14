@@ -672,6 +672,15 @@ extension SampleBufferPlaybackSession {
                 formatSignaling: rendererInputFormatSignalingSummary(for: renderSample)
             )
             debugStore.recordRendererInput(rendererRecord)
+            if let signaling = rendererRecord.formatSignaling {
+                let rendererInputIsMultiview =
+                    signaling.hasLeftStereoEyeView.value == true
+                    && signaling.hasRightStereoEyeView.value == true
+                if diagnostics.rendererInputIsMultiview != rendererInputIsMultiview {
+                    diagnostics.rendererInputIsMultiview = rendererInputIsMultiview
+                    onDiagnosticsChange?(diagnostics)
+                }
+            }
             recordVideoPresentation(
                 presentationTime: presentationTime,
                 presentationEnd: presentationEnd
@@ -1401,8 +1410,11 @@ extension SampleBufferPlaybackSession {
         audioProvider.cancel()
         audioRendererSink.flush()
         setAudioRendererError(error.localizedDescription)
+        diagnostics.audioRetired = true
+        diagnostics.audioRetirementReason = error.localizedDescription
         recordAudioRetirement(error, node: node, kind: kind)
         recordAudioRendererState()
+        onDiagnosticsChange?(diagnostics)
     }
 
     func resetFirstVideoFrameDeadline() {
@@ -1466,6 +1478,10 @@ extension SampleBufferPlaybackSession {
             + Double(components.attoseconds) / 1_000_000_000_000_000_000
         let rendererError = renderer.error?.localizedDescription
             ?? currentVideoRendererError
+        diagnostics.rendererFailedToDecode = rendererError != nil
+        diagnostics.rendererStatus = currentVideoRendererStatus
+        diagnostics.rendererError = rendererError ?? "none"
+        onDiagnosticsChange?(diagnostics)
         let error = CorePlaybackError.firstVideoFrameTimedOut(
             seconds,
             rendererError: rendererError

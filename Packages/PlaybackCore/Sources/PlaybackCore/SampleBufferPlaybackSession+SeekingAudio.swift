@@ -412,6 +412,9 @@ extension SampleBufferPlaybackSession {
         }
         selectedAudioStreamIndex = streamIndex
         hasAudio = true
+        diagnostics.audioRetired = false
+        diagnostics.audioRetirementReason = nil
+        onDiagnosticsChange?(diagnostics)
         resetAudioEndState(requiresAudio: true)
         if let info = audioProvider.info {
             debugStore.recordAudioTrack(AudioTrackRecord(

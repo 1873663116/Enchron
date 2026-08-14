@@ -29,15 +29,18 @@ public nonisolated struct PlaybackFileIdentifier: Sendable, Equatable, Hashable 
 public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
     public let mediaProfile: PlaybackModel.MediaProfile?
     public let fileSizeInBytes: Int64?
+    public let overview: String?
     public let lastUpdatedAt: Date
 
     public init(
         mediaProfile: PlaybackModel.MediaProfile? = nil,
         fileSizeInBytes: Int64? = nil,
+        overview: String? = nil,
         lastUpdatedAt: Date = Date()
     ) {
         self.mediaProfile = mediaProfile
         self.fileSizeInBytes = fileSizeInBytes
+        self.overview = overview
         self.lastUpdatedAt = lastUpdatedAt
     }
 
@@ -46,6 +49,7 @@ public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
         return PlaybackMediaMetadata(
             mediaProfile: newer.mediaProfile ?? mediaProfile,
             fileSizeInBytes: newer.fileSizeInBytes ?? fileSizeInBytes,
+            overview: newer.overview ?? overview,
             lastUpdatedAt: max(lastUpdatedAt, newer.lastUpdatedAt)
         )
     }
@@ -54,6 +58,7 @@ public nonisolated struct PlaybackMediaMetadata: Sendable, Equatable, Codable {
         PlaybackMediaMetadata(
             mediaProfile: mediaProfile,
             fileSizeInBytes: fileSizeInBytes,
+            overview: overview,
             lastUpdatedAt: Date()
         )
     }

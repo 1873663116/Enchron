@@ -101,6 +101,15 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
     public var formatHasAmbientViewingEnvironment = false
     public var rendererStatus = "unknown"
     public var rendererError = "none"
+    /// Whether the exact sample accepted by the video renderer still carries
+    /// both eye views. Nil means no renderer input has published this fact yet.
+    public var rendererInputIsMultiview: Bool?
+    /// Audio can leave the active graph while video continues.
+    public var audioRetired = false
+    public var audioRetirementReason: String?
+    /// A video renderer failure is separate from its diagnostic error text so
+    /// product surfaces never need to interpret framework wording.
+    public var rendererFailedToDecode = false
     public var rendererTotalFrameCount: Int?
     public var rendererDroppedFrameCount: Int?
     public var rendererCorruptedFrameCount: Int?
@@ -145,6 +154,9 @@ public struct PlaybackDiagnostics: Sendable, Equatable {
         hdrMetadata.destinationBuffer: masteringDisplay=\(destinationBufferHasMasteringDisplayMetadata), contentLightLevel=\(destinationBufferHasContentLightLevelMetadata)
         compressedFormat: hvcC=\(formatHasHvcC), dvcC=\(formatHasDvcC), dvvC=\(formatHasDvvC), amve=\(formatHasAmbientViewingEnvironment)
         renderer: status=\(rendererStatus), error=\(rendererError)
+        rendererInputIsMultiview: \(rendererInputIsMultiview.map(String.init) ?? "notObserved")
+        audioRetired: \(audioRetired), reason=\(audioRetirementReason ?? "none")
+        rendererFailedToDecode: \(rendererFailedToDecode)
         rendererPerformance: \(rendererPerformanceSummary)
         """
     }
