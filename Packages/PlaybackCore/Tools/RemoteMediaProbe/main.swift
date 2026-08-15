@@ -16,6 +16,7 @@ enum ProbeStage: String {
     case tracks
     case videoReader = "video-reader"
     case audioReader = "audio-reader"
+    case session
 }
 
 func errorMessage(_ buffer: [CChar]) -> String {
@@ -135,23 +136,37 @@ func run() throws {
           let stage = ProbeStage(rawValue: arguments[1]),
           arguments[2] == "--url" else {
         throw ProbeFailure.usage(
-            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader --url URL"
+            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|session --url URL"
         )
     }
     guard let monitor = PBFFmpegSourceReadMonitorCreate() else {
         throw ProbeFailure.operation("source read monitor allocation failed")
     }
     defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
-    let detail = switch stage {
-    case .tracks:
-        try enumerateTracks(source: arguments[3], monitor: monitor)
-    case .videoReader:
-        try openVideoReader(source: arguments[3], monitor: monitor)
-    case .audioReader:
-        try openAudioReader(source: arguments[3], monitor: monitor)
+    let stages: [ProbeStage] = stage == .session
+        ? [.tracks, .videoReader, .audioReader]
+        : [stage]
+    var previousBytes: UInt64 = 0
+    for currentStage in stages {
+        let detail = switch currentStage {
+        case .tracks:
+            try enumerateTracks(source: arguments[3], monitor: monitor)
+        case .videoReader:
+            try openVideoReader(source: arguments[3], monitor: monitor)
+        case .audioReader:
+            try openAudioReader(source: arguments[3], monitor: monitor)
+        case .session:
+            throw ProbeFailure.operation("nested session stage")
+        }
+        let cumulativeBytes = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
+        let bytes = cumulativeBytes - previousBytes
+        previousBytes = cumulativeBytes
+        FileHandle.standardOutput.write(
+            Data(
+                "stage=\(currentStage.rawValue) bytes_read=\(bytes) \(detail)\n".utf8
+            )
+        )
     }
-    let bytes = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
-    print("stage=\(stage.rawValue) bytes_read=\(bytes) \(detail)")
 }
 
 do {

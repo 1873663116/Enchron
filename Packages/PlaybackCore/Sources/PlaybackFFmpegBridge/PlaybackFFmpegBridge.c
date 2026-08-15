@@ -7,12 +7,14 @@
 #include <libavutil/avutil.h>
 #include <libavutil/dovi_meta.h>
 #include <libavutil/mastering_display_metadata.h>
+#include <libavutil/mem.h>
 #include <libavutil/opt.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/spherical.h>
 #include <libavutil/stereo3d.h>
 #include <limits.h>
 #include <math.h>
+#include <pthread.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdatomic.h>
@@ -20,14 +22,52 @@
 #include <string.h>
 #include <strings.h>
 
+typedef struct {
+    int64_t offset;
+    size_t length;
+    uint8_t *bytes;
+} PBFFmpegSourceByteRange;
+
+typedef enum {
+    PBFFmpegFirstOpenSourceBytesEmpty,
+    PBFFmpegFirstOpenSourceBytesRecording,
+    PBFFmpegFirstOpenSourceBytesFrozen,
+} PBFFmpegFirstOpenSourceBytesState;
+
+typedef struct {
+    pthread_mutex_t lock;
+    PBFFmpegFirstOpenSourceBytesState state;
+    char *sourcePath;
+    PBFFmpegSourceByteRange *ranges;
+    size_t rangeCount;
+    size_t rangeCapacity;
+} PBFFmpegFirstOpenSourceBytes;
+
 struct PBFFmpegSourceReadMonitor {
     atomic_uint_fast64_t totalBytesRead;
+    PBFFmpegFirstOpenSourceBytes firstOpenSourceBytes;
 };
+
+typedef enum {
+    PBFFmpegSourceIOBypassFirstOpenBytes,
+    PBFFmpegSourceIORecordFirstOpenBytes,
+    PBFFmpegSourceIOReplayFirstOpenBytes,
+} PBFFmpegSourceIOFirstOpenBytesMode;
+
+typedef struct {
+    PBFFmpegSourceReadMonitor *monitor;
+    AVIOContext *outer;
+    AVIOContext *inner;
+    int64_t position;
+    PBFFmpegSourceIOFirstOpenBytesMode firstOpenBytesMode;
+    bool firstOpenBytesEnabled;
+} PBFFmpegSourceIO;
 
 typedef struct {
     PBFFmpegSourceReadMonitor *monitor;
     atomic_bool *cancelled;
     AVFormatContext *formatContext;
+    PBFFmpegSourceIO *sourceIO;
     int64_t accountedBytesRead;
 } PBFFmpegSourceReadContext;
 
@@ -120,10 +160,293 @@ struct PBFFmpegAudioReader {
     char codecName[64];
 };
 
+static int configure_source_io_first_open_bytes(
+    PBFFmpegSourceIO *sourceIO,
+    const char *path
+) {
+    if (!sourceIO || !sourceIO->monitor) return 0;
+    PBFFmpegFirstOpenSourceBytes *bytes =
+        &sourceIO->monitor->firstOpenSourceBytes;
+    pthread_mutex_lock(&bytes->lock);
+    int result = 0;
+    if (bytes->state == PBFFmpegFirstOpenSourceBytesEmpty) {
+        bytes->sourcePath = av_strdup(path);
+        if (!bytes->sourcePath) {
+            result = AVERROR(ENOMEM);
+        } else {
+            bytes->state = PBFFmpegFirstOpenSourceBytesRecording;
+            sourceIO->firstOpenBytesMode =
+                PBFFmpegSourceIORecordFirstOpenBytes;
+            sourceIO->firstOpenBytesEnabled = true;
+        }
+    } else if (
+        bytes->state == PBFFmpegFirstOpenSourceBytesFrozen &&
+        bytes->sourcePath && strcmp(bytes->sourcePath, path) == 0
+    ) {
+        sourceIO->firstOpenBytesMode =
+            PBFFmpegSourceIOReplayFirstOpenBytes;
+        sourceIO->firstOpenBytesEnabled = true;
+    }
+    pthread_mutex_unlock(&bytes->lock);
+    return result;
+}
+
+static int copy_first_open_source_bytes(
+    PBFFmpegSourceIO *sourceIO,
+    uint8_t *buffer,
+    int bufferSize,
+    int64_t *nextRangeOffset
+) {
+    if (nextRangeOffset) *nextRangeOffset = -1;
+    if (!sourceIO || !sourceIO->monitor ||
+        !sourceIO->firstOpenBytesEnabled || bufferSize <= 0) return 0;
+    PBFFmpegFirstOpenSourceBytes *bytes =
+        &sourceIO->monitor->firstOpenSourceBytes;
+    pthread_mutex_lock(&bytes->lock);
+    int copied = 0;
+    for (size_t index = 0; index < bytes->rangeCount; index++) {
+        PBFFmpegSourceByteRange *range = &bytes->ranges[index];
+        if (range->offset > sourceIO->position) {
+            if (nextRangeOffset) *nextRangeOffset = range->offset;
+            break;
+        }
+        int64_t relativeOffset = sourceIO->position - range->offset;
+        if (relativeOffset < 0 || (uint64_t)relativeOffset >= range->length) continue;
+        size_t available = range->length - (size_t)relativeOffset;
+        copied = bufferSize < (int)available ? bufferSize : (int)available;
+        memcpy(buffer, range->bytes + relativeOffset, (size_t)copied);
+        break;
+    }
+    pthread_mutex_unlock(&bytes->lock);
+    return copied;
+}
+
+static int remember_first_open_source_bytes(
+    PBFFmpegSourceIO *sourceIO,
+    int64_t offset,
+    const uint8_t *buffer,
+    int bufferSize
+) {
+    if (!sourceIO || sourceIO->firstOpenBytesMode !=
+            PBFFmpegSourceIORecordFirstOpenBytes || bufferSize <= 0) return 0;
+    uint8_t *copy = av_memdup(buffer, (size_t)bufferSize);
+    if (!copy) return AVERROR(ENOMEM);
+    PBFFmpegFirstOpenSourceBytes *bytes =
+        &sourceIO->monitor->firstOpenSourceBytes;
+    pthread_mutex_lock(&bytes->lock);
+    int result = 0;
+    if (bytes->state != PBFFmpegFirstOpenSourceBytesRecording) {
+        result = AVERROR(EINVAL);
+        goto finish;
+    }
+    if (bytes->rangeCount == bytes->rangeCapacity) {
+        if (bytes->rangeCapacity > SIZE_MAX / 2) {
+            result = AVERROR(ENOMEM);
+            goto finish;
+        }
+        size_t capacity = bytes->rangeCapacity ? bytes->rangeCapacity * 2 : 1;
+        PBFFmpegSourceByteRange *ranges = av_realloc_array(
+            bytes->ranges,
+            capacity,
+            sizeof(*ranges)
+        );
+        if (!ranges) {
+            result = AVERROR(ENOMEM);
+            goto finish;
+        }
+        bytes->ranges = ranges;
+        bytes->rangeCapacity = capacity;
+    }
+    size_t insertionIndex = 0;
+    while (insertionIndex < bytes->rangeCount &&
+           bytes->ranges[insertionIndex].offset < offset) {
+        insertionIndex++;
+    }
+    memmove(
+        &bytes->ranges[insertionIndex + 1],
+        &bytes->ranges[insertionIndex],
+        (bytes->rangeCount - insertionIndex) * sizeof(*bytes->ranges)
+    );
+    bytes->ranges[insertionIndex] = (PBFFmpegSourceByteRange) {
+        .offset = offset,
+        .length = (size_t)bufferSize,
+        .bytes = copy,
+    };
+    bytes->rangeCount++;
+    copy = NULL;
+finish:
+    pthread_mutex_unlock(&bytes->lock);
+    av_free(copy);
+    return result;
+}
+
+static void freeze_first_open_source_bytes(PBFFmpegSourceIO *sourceIO) {
+    if (!sourceIO || !sourceIO->monitor ||
+        sourceIO->firstOpenBytesMode !=
+            PBFFmpegSourceIORecordFirstOpenBytes) return;
+    PBFFmpegFirstOpenSourceBytes *bytes =
+        &sourceIO->monitor->firstOpenSourceBytes;
+    pthread_mutex_lock(&bytes->lock);
+    if (bytes->state == PBFFmpegFirstOpenSourceBytesRecording) {
+        bytes->state = PBFFmpegFirstOpenSourceBytesFrozen;
+    }
+    pthread_mutex_unlock(&bytes->lock);
+}
+
+static int source_io_read(void *opaque, uint8_t *buffer, int bufferSize) {
+    PBFFmpegSourceIO *sourceIO = opaque;
+    if (!sourceIO || !sourceIO->inner || bufferSize <= 0) return AVERROR(EINVAL);
+    int64_t nextRangeOffset = -1;
+    int copied = copy_first_open_source_bytes(
+        sourceIO,
+        buffer,
+        bufferSize,
+        &nextRangeOffset
+    );
+    if (copied > 0) {
+        sourceIO->position += copied;
+        return copied;
+    }
+    int forwardedSize = bufferSize;
+    if (nextRangeOffset > sourceIO->position &&
+        nextRangeOffset - sourceIO->position < forwardedSize) {
+        forwardedSize = (int)(nextRangeOffset - sourceIO->position);
+    }
+    int64_t innerPosition = avio_tell(sourceIO->inner);
+    if (innerPosition != sourceIO->position) {
+        int64_t seekResult = avio_seek(
+            sourceIO->inner,
+            sourceIO->position,
+            SEEK_SET
+        );
+        if (seekResult < 0) return (int)seekResult;
+    }
+    int bytesRead = avio_read(sourceIO->inner, buffer, forwardedSize);
+    if (bytesRead <= 0) return bytesRead == 0 ? AVERROR_EOF : bytesRead;
+    int result = remember_first_open_source_bytes(
+        sourceIO,
+        sourceIO->position,
+        buffer,
+        bytesRead
+    );
+    if (result < 0) return result;
+    sourceIO->position += bytesRead;
+    return bytesRead;
+}
+
+static bool add_source_offset(int64_t base, int64_t offset, int64_t *result) {
+    if ((offset > 0 && base > INT64_MAX - offset) ||
+        (offset < 0 && base < INT64_MIN - offset)) return false;
+    *result = base + offset;
+    return *result >= 0;
+}
+
+static int64_t source_io_seek(void *opaque, int64_t offset, int whence) {
+    PBFFmpegSourceIO *sourceIO = opaque;
+    if (!sourceIO || !sourceIO->inner) return AVERROR(EINVAL);
+    if ((whence & AVSEEK_SIZE) == AVSEEK_SIZE) {
+        return avio_size(sourceIO->inner);
+    }
+    int origin = whence & ~AVSEEK_FORCE;
+    int64_t base = 0;
+    switch (origin) {
+        case SEEK_SET:
+            break;
+        case SEEK_CUR:
+            base = sourceIO->position;
+            break;
+        case SEEK_END:
+            base = avio_size(sourceIO->inner);
+            if (base < 0) return base;
+            break;
+        default:
+            return AVERROR(EINVAL);
+    }
+    int64_t position = 0;
+    if (!add_source_offset(base, offset, &position)) return AVERROR(EINVAL);
+    sourceIO->position = position;
+    return position;
+}
+
+static void destroy_source_io(PBFFmpegSourceIO **sourceIOPointer) {
+    if (!sourceIOPointer || !*sourceIOPointer) return;
+    PBFFmpegSourceIO *sourceIO = *sourceIOPointer;
+    if (sourceIO->outer) {
+        av_freep(&sourceIO->outer->buffer);
+        avio_context_free(&sourceIO->outer);
+    }
+    if (sourceIO->inner) avio_closep(&sourceIO->inner);
+    av_free(sourceIO);
+    *sourceIOPointer = NULL;
+}
+
+static int wrap_source_io(
+    AVIOContext *inner,
+    const char *path,
+    PBFFmpegSourceReadMonitor *monitor,
+    PBFFmpegSourceIO **sourceIOOut
+) {
+    *sourceIOOut = NULL;
+    if (!inner || inner->buffer_size <= 0) return AVERROR(EINVAL);
+    PBFFmpegSourceIO *sourceIO = av_mallocz(sizeof(*sourceIO));
+    if (!sourceIO) return AVERROR(ENOMEM);
+    sourceIO->monitor = monitor;
+    sourceIO->inner = inner;
+    uint8_t *buffer = av_malloc((size_t)inner->buffer_size);
+    if (!buffer) {
+        av_free(sourceIO);
+        return AVERROR(ENOMEM);
+    }
+    sourceIO->outer = avio_alloc_context(
+        buffer,
+        inner->buffer_size,
+        0,
+        sourceIO,
+        source_io_read,
+        NULL,
+        source_io_seek
+    );
+    if (!sourceIO->outer) {
+        av_free(buffer);
+        av_free(sourceIO);
+        return AVERROR(ENOMEM);
+    }
+    sourceIO->outer->seekable = inner->seekable;
+    sourceIO->outer->direct = inner->direct;
+    sourceIO->outer->max_packet_size = inner->max_packet_size;
+    int result = configure_source_io_first_open_bytes(
+        sourceIO,
+        path
+    );
+    if (result < 0) {
+        sourceIO->inner = NULL;
+        destroy_source_io(&sourceIO);
+        return result;
+    }
+    *sourceIOOut = sourceIO;
+    return 0;
+}
+
+static int finish_source_io_open(PBFFmpegSourceIO *sourceIO) {
+    if (!sourceIO || !sourceIO->outer) return 0;
+    freeze_first_open_source_bytes(sourceIO);
+    int64_t position = avio_tell(sourceIO->outer);
+    if (position < 0) return (int)position;
+    sourceIO->firstOpenBytesEnabled = false;
+    avio_flush(sourceIO->outer);
+    int64_t resetPosition = avio_seek(sourceIO->outer, position, SEEK_SET);
+    return resetPosition < 0 ? (int)resetPosition : 0;
+}
+
 static void publish_source_bytes(PBFFmpegSourceReadContext *context) {
-    if (!context || !context->monitor || !context->formatContext ||
-        !context->formatContext->pb) return;
-    int64_t bytesRead = context->formatContext->pb->bytes_read;
+    if (!context || !context->monitor) return;
+    AVIOContext *meteredIO = context->sourceIO
+        ? context->sourceIO->inner
+        : context->formatContext
+            ? context->formatContext->pb
+            : NULL;
+    if (!meteredIO) return;
+    int64_t bytesRead = meteredIO->bytes_read;
     if (bytesRead < 0) return;
     uint64_t delta = bytesRead >= context->accountedBytesRead
         ? (uint64_t)(bytesRead - context->accountedBytesRead)
@@ -157,6 +480,7 @@ static AVFormatContext *allocate_format_context(
     if (context && sourceReadContext) {
         sourceReadContext->cancelled = cancelled;
         sourceReadContext->formatContext = context;
+        sourceReadContext->sourceIO = NULL;
         sourceReadContext->accountedBytesRead = 0;
         context->interrupt_callback.callback =
             publish_source_bytes_and_check_cancellation;
@@ -172,13 +496,35 @@ static void finish_source_read_context(PBFFmpegSourceReadContext *context) {
     context->accountedBytesRead = 0;
 }
 
+static void close_media_source(
+    AVFormatContext **formatContext,
+    PBFFmpegSourceReadContext *sourceReadContext
+) {
+    finish_source_read_context(sourceReadContext);
+    avformat_close_input(formatContext);
+    if (sourceReadContext) destroy_source_io(&sourceReadContext->sourceIO);
+}
+
 PBFFmpegSourceReadMonitor *PBFFmpegSourceReadMonitorCreate(void) {
     PBFFmpegSourceReadMonitor *monitor = calloc(1, sizeof(PBFFmpegSourceReadMonitor));
-    if (monitor) atomic_init(&monitor->totalBytesRead, 0);
+    if (!monitor) return NULL;
+    atomic_init(&monitor->totalBytesRead, 0);
+    if (pthread_mutex_init(&monitor->firstOpenSourceBytes.lock, NULL) != 0) {
+        free(monitor);
+        return NULL;
+    }
     return monitor;
 }
 
 void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor) {
+    if (!monitor) return;
+    PBFFmpegFirstOpenSourceBytes *bytes = &monitor->firstOpenSourceBytes;
+    for (size_t index = 0; index < bytes->rangeCount; index++) {
+        av_free(bytes->ranges[index].bytes);
+    }
+    av_free(bytes->ranges);
+    av_free(bytes->sourcePath);
+    pthread_mutex_destroy(&bytes->lock);
     free(monitor);
 }
 
@@ -543,6 +889,7 @@ static int open_media_source(
 ) {
     AVDictionary *options = NULL;
     AVIOContext *openedIO = NULL;
+    PBFFmpegSourceIO *sourceIO = NULL;
     int result = 0;
     if (path_is_http(path)) {
         result = avio_open2(
@@ -565,7 +912,20 @@ static int open_media_source(
             );
             if (result < 0) goto finish;
         }
-        (*context)->pb = openedIO;
+        if (sourceReadContext && sourceReadContext->monitor) {
+            result = wrap_source_io(
+                openedIO,
+                path,
+                sourceReadContext->monitor,
+                &sourceIO
+            );
+            if (result < 0) goto finish;
+            sourceReadContext->sourceIO = sourceIO;
+            (*context)->pb = sourceIO->outer;
+            openedIO = NULL;
+        } else {
+            (*context)->pb = openedIO;
+        }
     }
     const AVInputFormat *format = disc_image_input_format(path);
     if (format) {
@@ -579,13 +939,19 @@ static int open_media_source(
         av_dict_set_int(&options, "resync_size", 16LL * 1024 * 1024, 0);
     }
     result = avformat_open_input(context, path, format, &options);
-    if (result >= 0 && openedIO) {
+    if (result >= 0 && sourceIO) {
+        result = finish_source_io_open(sourceIO);
+    } else if (result >= 0 && openedIO) {
         // avformat_open_input marks caller-supplied IO as custom; ownership moves
         // here so the existing avformat_close_input paths still close the socket.
         (*context)->flags &= ~AVFMT_FLAG_CUSTOM_IO;
         openedIO = NULL;
     }
 finish:
+    if (sourceIO && sourceIO->firstOpenBytesMode ==
+            PBFFmpegSourceIORecordFirstOpenBytes) {
+        freeze_first_open_source_bytes(sourceIO);
+    }
     if (result < 0 && *context && (*context)->pb == openedIO) {
         (*context)->pb = NULL;
     }
@@ -611,8 +977,7 @@ static int open_media_source_for_audio(
     int result = open_media_source(&context, path, sourceReadContext);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open audio media source", result);
-        finish_source_read_context(sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, sourceReadContext);
         return result;
     }
     normalize_mov_apac_codec_id(context);
@@ -624,8 +989,7 @@ static int open_media_source_for_audio(
     );
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read audio stream information", result);
-        finish_source_read_context(sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, sourceReadContext);
         return result;
     }
     normalize_mov_apac_codec_id(context);
@@ -653,8 +1017,7 @@ static int open_media_source_for_audio(
                     "Read audio stream information",
                     result
                 );
-                finish_source_read_context(sourceReadContext);
-                avformat_close_input(&context);
+                close_media_source(&context, sourceReadContext);
                 return result;
             }
             normalize_mov_apac_codec_id(context);
@@ -662,16 +1025,14 @@ static int open_media_source_for_audio(
         probe_delayed_audio_parameters(context);
         publish_source_bytes(sourceReadContext);
         if (cancellation_requested(cancelled)) {
-            finish_source_read_context(sourceReadContext);
-            avformat_close_input(&context);
+            close_media_source(&context, sourceReadContext);
             return AVERROR_EXIT;
         }
         *contextOut = context;
         return 0;
     }
 
-    finish_source_read_context(sourceReadContext);
-    avformat_close_input(&context);
+    close_media_source(&context, sourceReadContext);
     context = allocate_format_context(cancelled, sourceReadContext);
     if (context == NULL) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate extended audio probe context");
@@ -683,24 +1044,21 @@ static int open_media_source_for_audio(
     result = open_media_source(&context, path, sourceReadContext);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Reopen audio media source", result);
-        finish_source_read_context(sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, sourceReadContext);
         return result;
     }
     normalize_mov_apac_codec_id(context);
     result = read_stream_information(context, sourceReadContext, NULL);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read extended audio stream information", result);
-        finish_source_read_context(sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, sourceReadContext);
         return result;
     }
     normalize_mov_apac_codec_id(context);
     probe_delayed_audio_parameters(context);
     publish_source_bytes(sourceReadContext);
     if (cancellation_requested(cancelled)) {
-        finish_source_read_context(sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, sourceReadContext);
         return AVERROR_EXIT;
     }
     *contextOut = context;
@@ -2309,8 +2667,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
     int result = open_media_source(&context, path, &sourceReadContext);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open media information source", result);
-        finish_source_read_context(&sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, &sourceReadContext);
         return NULL;
     }
     normalize_mov_apac_codec_id(context);
@@ -2323,8 +2680,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
     );
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read media stream information", result);
-        finish_source_read_context(&sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, &sourceReadContext);
         return NULL;
     }
 
@@ -2340,8 +2696,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
         publish_source_bytes(&sourceReadContext);
         if (result < 0) {
             set_av_error(errorBuffer, errorBufferSize, "Read audio stream information", result);
-            finish_source_read_context(&sourceReadContext);
-            avformat_close_input(&context);
+            close_media_source(&context, &sourceReadContext);
             return NULL;
         }
         normalize_mov_apac_codec_id(context);
@@ -2353,15 +2708,13 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
 
     if (context->nb_streams > INT_MAX) {
         set_error(errorBuffer, errorBufferSize, "Media source has too many streams");
-        finish_source_read_context(&sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, &sourceReadContext);
         return NULL;
     }
     PBFFmpegMediaSourceInformation *information = calloc(1, sizeof(*information));
     if (!information) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate media source information");
-        finish_source_read_context(&sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, &sourceReadContext);
         return NULL;
     }
     information->streamCount = (int)context->nb_streams;
@@ -2374,8 +2727,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
     if (information->streamCount > 0 && !information->streams) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate media stream information");
         PBFFmpegMediaSourceInformationDestroy(information);
-        finish_source_read_context(&sourceReadContext);
-        avformat_close_input(&context);
+        close_media_source(&context, &sourceReadContext);
         return NULL;
     }
     copy_media_information_text(
@@ -2387,8 +2739,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
     for (int index = 0; index < information->streamCount; index++) {
         fill_media_stream_storage(&information->streams[index], context->streams[index]);
     }
-    finish_source_read_context(&sourceReadContext);
-    avformat_close_input(&context);
+    close_media_source(&context, &sourceReadContext);
     return information;
 }
 
@@ -2734,8 +3085,7 @@ void PBFFmpegReaderDestroy(PBFFmpegReader *reader) {
     if (reader->compressedFormat) CFRelease(reader->compressedFormat);
     discard_bootstrap_packets(reader);
     av_packet_free(&reader->packet);
-    finish_source_read_context(&reader->sourceReadContext);
-    avformat_close_input(&reader->formatContext);
+    close_media_source(&reader->formatContext, &reader->sourceReadContext);
     free(reader);
 }
 
@@ -3215,8 +3565,7 @@ void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
     av_bsf_free(&reader->bitstreamFilter);
     av_packet_free(&reader->filteredPacket);
     av_packet_free(&reader->packet);
-    finish_source_read_context(&reader->sourceReadContext);
-    avformat_close_input(&reader->formatContext);
+    close_media_source(&reader->formatContext, &reader->sourceReadContext);
     free(reader);
 }
 
@@ -3961,8 +4310,7 @@ void PBFFmpegSubtitleReaderDestroy(PBFFmpegSubtitleReader *reader) {
     if (!reader) return;
     av_packet_free(&reader->packet);
     avcodec_free_context(&reader->decoder);
-    finish_source_read_context(&reader->sourceReadContext);
-    avformat_close_input(&reader->formatContext);
+    close_media_source(&reader->formatContext, &reader->sourceReadContext);
     free(reader);
 }
 

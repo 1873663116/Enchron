@@ -152,6 +152,7 @@ def main():
             stderr=subprocess.PIPE,
             text=True,
         )
+        probe_process = None
         try:
             while not ready_file.exists():
                 if server.poll() is not None:
@@ -164,20 +165,43 @@ def main():
             )
             results = []
             event_count = 0
+            probe_process = subprocess.Popen(
+                [str(probe), "--stage", "session", "--url", url],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+            assert probe_process.stdout is not None
             for stage in STAGES:
-                completed = run_checked(
-                    [str(probe), "--stage", stage, "--url", url],
-                    capture_output=True,
-                )
+                output = probe_process.stdout.readline()
+                if not output:
+                    error = probe_process.stderr.read() if probe_process.stderr else ""
+                    probe_process.wait()
+                    raise RuntimeError(
+                        f"probe stopped before {stage}: {error.strip()}"
+                    )
+                if f"stage={stage} " not in output:
+                    probe_process.terminate()
+                    probe_process.wait()
+                    raise RuntimeError(
+                        f"probe reported the wrong stage for {stage}: {output.strip()}"
+                    )
                 events = read_events(log_file)
                 result, event_count = stage_result(
                     stage,
-                    completed.stdout,
+                    output,
                     events,
                     event_count,
                 )
                 results.append(result)
+            return_code = probe_process.wait()
+            error = probe_process.stderr.read() if probe_process.stderr else ""
+            if return_code != 0:
+                raise RuntimeError(f"probe failed: {error.strip()}")
         finally:
+            if probe_process is not None and probe_process.poll() is None:
+                probe_process.terminate()
+                probe_process.wait()
             server.terminate()
             try:
                 server.wait(timeout=5)

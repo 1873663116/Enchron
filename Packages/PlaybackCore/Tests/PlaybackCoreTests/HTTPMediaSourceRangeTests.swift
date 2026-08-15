@@ -202,3 +202,140 @@ private func reportedError(_ buffer: [CChar]) -> String {
         Comment(rawValue: "later ranges were not bounded: \(server.ranges)")
     )
 }
+
+@Test func sessionReusesFirstOpenSourceBytesForReaderIndexes() throws {
+    setFFmpegLogLevel(-8)
+    let server = try RecordingRangeServer(serving: try Data(contentsOf: tailMoovFixture))
+    defer { server.stop() }
+    let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
+    defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
+    var error = [CChar](repeating: 0, count: 512)
+
+    let information = server.url.absoluteString.withCString { path in
+        PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+            path,
+            monitor,
+            &error,
+            error.count
+        )
+    }
+    let openedInformation = try #require(
+        information,
+        Comment(rawValue: reportedError(error))
+    )
+    PBFFmpegMediaSourceInformationDestroy(openedInformation)
+    let rangesAfterInformation = server.ranges
+
+    let videoReader = try #require(PBFFmpegReaderAllocate())
+    PBFFmpegReaderSetSourceReadMonitor(videoReader, monitor)
+    let videoOpened = server.url.absoluteString.withCString { path in
+        PBFFmpegReaderOpen(
+            videoReader,
+            path,
+            PBFFmpegModeCompressed,
+            0,
+            &error,
+            error.count
+        )
+    }
+    try #require(videoOpened, Comment(rawValue: reportedError(error)))
+    let videoOpenRanges = Array(
+        server.ranges.dropFirst(rangesAfterInformation.count)
+    )
+    let bytesBeforeVideoSample = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
+    var sample: Unmanaged<CMSampleBuffer>?
+    let readResult = PBFFmpegReaderCopyNextSample(
+        videoReader,
+        &sample,
+        &error,
+        error.count
+    )
+    try #require(
+        readResult == PBFFmpegReadResultSample,
+        Comment(rawValue: reportedError(error))
+    )
+    _ = sample?.takeRetainedValue()
+    let bytesAfterVideoSample = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
+    let videoSampleRanges = Array(
+        server.ranges.dropFirst(
+            rangesAfterInformation.count + videoOpenRanges.count
+        )
+    )
+    PBFFmpegReaderDestroy(videoReader)
+
+    let audioReader = try #require(PBFFmpegAudioReaderAllocate())
+    PBFFmpegAudioReaderSetSourceReadMonitor(audioReader, monitor)
+    let audioOpened = server.url.absoluteString.withCString { path in
+        PBFFmpegAudioReaderOpen(
+            audioReader,
+            path,
+            0,
+            -1,
+            &error,
+            error.count
+        )
+    }
+    try #require(audioOpened, Comment(rawValue: reportedError(error)))
+    PBFFmpegAudioReaderDestroy(audioReader)
+    let audioRanges = Array(
+        server.ranges.dropFirst(
+            rangesAfterInformation.count +
+                videoOpenRanges.count +
+                videoSampleRanges.count
+        )
+    )
+
+    #expect(rangesAfterInformation.first?.hasSuffix("-") == true)
+    #expect(
+        rangesAfterInformation.dropFirst().allSatisfy { !$0.hasSuffix("-") }
+    )
+    #expect(videoOpenRanges == ["bytes=0-"])
+    #expect(bytesAfterVideoSample > bytesBeforeVideoSample)
+    #expect(videoSampleRanges.allSatisfy { !$0.hasSuffix("-") })
+    #expect(audioRanges == ["bytes=0-"])
+}
+
+@Test func firstOpenSourceBytesDoNotCrossSourceURLs() throws {
+    setFFmpegLogLevel(-8)
+    let payload = try Data(contentsOf: tailMoovFixture)
+    let firstServer = try RecordingRangeServer(serving: payload)
+    defer { firstServer.stop() }
+    let secondServer = try RecordingRangeServer(serving: payload)
+    defer { secondServer.stop() }
+    let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
+    defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
+    var error = [CChar](repeating: 0, count: 512)
+
+    let information = firstServer.url.absoluteString.withCString { path in
+        PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+            path,
+            monitor,
+            &error,
+            error.count
+        )
+    }
+    let openedInformation = try #require(
+        information,
+        Comment(rawValue: reportedError(error))
+    )
+    PBFFmpegMediaSourceInformationDestroy(openedInformation)
+
+    let reader = try #require(PBFFmpegReaderAllocate())
+    PBFFmpegReaderSetSourceReadMonitor(reader, monitor)
+    let opened = secondServer.url.absoluteString.withCString { path in
+        PBFFmpegReaderOpen(
+            reader,
+            path,
+            PBFFmpegModeCompressed,
+            0,
+            &error,
+            error.count
+        )
+    }
+    try #require(opened, Comment(rawValue: reportedError(error)))
+    PBFFmpegReaderDestroy(reader)
+
+    #expect(secondServer.ranges.first?.hasSuffix("-") == true)
+    #expect(secondServer.ranges.dropFirst().allSatisfy { !$0.hasSuffix("-") })
+    #expect(secondServer.ranges.count > 1)
+}
