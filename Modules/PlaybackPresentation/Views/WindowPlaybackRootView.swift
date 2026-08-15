@@ -342,10 +342,6 @@ struct WindowPlaybackRootView<
                     topChromePlane
                 }
             }
-            .animation(
-                DesignTokens.AnimationToken.panelSpring,
-                value: showsWindowChrome
-            )
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("WindowPlayback-root")
     }
@@ -359,7 +355,7 @@ struct WindowPlaybackRootView<
             .padding(.top, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .top)
             .zIndex(2)
-            .transition(.opacity.combined(with: .move(edge: .top)))
+            .transition(.opacity)
     }
 
     @ViewBuilder
