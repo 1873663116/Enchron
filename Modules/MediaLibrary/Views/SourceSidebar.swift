@@ -79,6 +79,7 @@ struct SourceSidebar: View {
                 collapseExpandedSource()
             }
         )
+        .accessibilityElement(children: .contain)
         .accessibilityIdentifier(containerIdentifier)
     }
 
@@ -194,7 +195,14 @@ struct SourceSidebar: View {
     }
 
     private var sourceMoreMenu: some View {
-        Menu {
+        GlassCircleIconMenu(
+            systemName: "ellipsis",
+            accessibilityLabel: "More source actions",
+            accessibilityIdentifier: "\(identifierPrefix)-sourceMore",
+            visualSize: DesignTokens.Interactive.compact,
+            iconTier: .compact,
+            iconColor: .secondary
+        ) {
             Menu {
                 Button {
                     onAddSource?(.local)
@@ -249,19 +257,7 @@ struct SourceSidebar: View {
                 Label("Delete", systemImage: "trash")
             }
             .disabled(!hasDeletableSources)
-        } label: {
-            GlassCircleIconLabel(
-                systemName: "ellipsis",
-                accessibilityLabel: "More source actions",
-                iconColor: .secondary,
-                visualSize: DesignTokens.Interactive.compact,
-                iconTier: .compact,
-                accessibilityIdentifier: "\(identifierPrefix)-sourceMoreLabel"
-            )
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("More source actions")
-        .accessibilityIdentifier("\(identifierPrefix)-sourceMore")
     }
 
     private var sidebarSelectionActions: some View {
