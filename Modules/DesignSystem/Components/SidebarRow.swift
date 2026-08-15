@@ -1,5 +1,12 @@
 import SwiftUI
 
+private enum SourceSidebarRowGeometry {
+    static let shape = RoundedRectangle(
+        cornerRadius: DesignTokens.SourceSidebar.rowCornerRadius,
+        style: .continuous
+    )
+}
+
 // MARK: - Sidebar rows
 //
 // 侧栏的行，从 MediaLibrary 原地搬来，行为与视觉逐字保留，只放宽了访问级别，
@@ -69,7 +76,7 @@ public struct SourceSidebarRow: View {
         .frame(minHeight: DesignTokens.SourceSidebar.rowHeight)
         .background(
             isSelected && showsSelectionBackground ? DesignTokens.Surface.selected : .clear,
-            in: DesignTokens.SourceSidebar.rowShape
+            in: SourceSidebarRowGeometry.shape
         )
         .opacity(isEnabled ? 1 : 0.42)
         .accessibilityLabel(title)
@@ -167,7 +174,7 @@ public struct EditableSourceSidebarRow: View {
     }
 
     public var body: some View {
-        let rowShape = DesignTokens.SourceSidebar.rowShape
+        let rowShape = SourceSidebarRowGeometry.shape
         let offset = clampedSwipeOffset(baseSwipeOffset + swipeDragOffset)
         let deleteRevealWidth = max(-offset, 0)
 
@@ -200,7 +207,7 @@ public struct EditableSourceSidebarRow: View {
     }
 
     private func swipeShell(offset: CGFloat, deleteRevealWidth: CGFloat) -> some View {
-        let rowShape = DesignTokens.SourceSidebar.rowShape
+        let rowShape = SourceSidebarRowGeometry.shape
 
         return ZStack {
             deleteActionBackground(revealWidth: deleteRevealWidth)

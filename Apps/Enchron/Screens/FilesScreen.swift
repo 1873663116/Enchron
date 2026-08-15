@@ -7,6 +7,21 @@ import PhotosUI
 import UniformTypeIdentifiers
 
 struct FilesScreen: View {
+    private enum SourceSelection: Equatable {
+        case mediaLibrary
+        case dataSource(UUID)
+
+        var isDataSource: Bool {
+            if case .dataSource = self { return true }
+            return false
+        }
+
+        var dataSourceID: UUID? {
+            if case .dataSource(let id) = self { return id }
+            return nil
+        }
+    }
+
     @Environment(FileBrowsingViewModel.self) private var viewModel
     @Environment(MediaLibraryViewModel.self) private var mediaLibrary
 
@@ -22,7 +37,7 @@ struct FilesScreen: View {
     @State private var sourceConnectionUsername = ""
     @State private var sourceConnectionPassword = ""
     @State private var sourceConnectionConnectsAsGuest = false
-    @State private var isBrowsingSource = false
+    @State private var sourceSelection: SourceSelection = .mediaLibrary
     @State private var isCreatingFolder = false
     @State private var newFolderName = ""
     @State private var folderToRename: FileBrowsingDomain.LibraryFolder?
@@ -35,6 +50,8 @@ struct FilesScreen: View {
     @State private var mediaReferenceSelectionIsActive = false
     @State private var selectedMediaReferenceIDs: Set<UUID> = []
     @State private var isBatchRemoveConfirmationPresented = false
+
+    private var isBrowsingSource: Bool { sourceSelection.isDataSource }
 
     private var totalItemCount: Int {
         if isBrowsingSource {
@@ -95,8 +112,7 @@ struct FilesScreen: View {
         .accessibilityIdentifier("FileBrowsing-FilesScreen")
         .onAppear { syncSourceItems() }
         .onChange(of: viewModel.savedDataSources) { _, _ in syncSourceItems() }
-        .onChange(of: viewModel.activeDataSource) { _, source in
-            if source != nil { isBrowsingSource = true }
+        .onChange(of: viewModel.activeDataSource) { _, _ in
             endMediaReferenceSelection()
             syncSourceItems()
         }
@@ -253,8 +269,8 @@ struct FilesScreen: View {
                 id: mediaLibrarySourceID,
                 icon: "rectangle.stack.fill",
                 title: "Media Library",
-                isSelected: !isBrowsingSource,
-                isActiveSource: !isBrowsingSource,
+                isSelected: sourceSelection == .mediaLibrary,
+                isActiveSource: false,
                 isDeletable: false
             )
         ]
@@ -263,7 +279,7 @@ struct FilesScreen: View {
                 id: ds.id.uuidString,
                 icon: icon(for: ds.sourceType),
                 title: ds.name,
-                isSelected: viewModel.activeDataSource?.id == ds.id,
+                isSelected: sourceSelection == .dataSource(ds.id),
                 isActiveSource: viewModel.activeDataSource?.id == ds.id
             )
         }
@@ -273,12 +289,14 @@ struct FilesScreen: View {
     private func select(sourceID: SidebarSourceItem.ID) {
         endMediaReferenceSelection()
         if sourceID == mediaLibrarySourceID {
-            isBrowsingSource = false
+            sourceSelection = .mediaLibrary
             mediaLibrary.navigateToRoot()
             syncSourceItems()
             return
         }
         guard let ds = viewModel.savedDataSources.first(where: { $0.id.uuidString == sourceID }) else { return }
+        sourceSelection = .dataSource(ds.id)
+        syncSourceItems()
         Task { await viewModel.connectToDataSource(ds) }
     }
 
@@ -355,6 +373,8 @@ struct FilesScreen: View {
                 throw error
             }
             viewModel.addDataSource(source)
+            sourceSelection = .dataSource(source.id)
+            syncSourceItems()
             return .connected
         } catch {
             return .failed(message: error.localizedDescription)
@@ -373,10 +393,16 @@ struct FilesScreen: View {
     }
 
     private func deleteSources(_ ids: Set<SidebarSourceItem.ID>) {
+        if let selectedDataSourceID = sourceSelection.dataSourceID,
+           ids.contains(selectedDataSourceID.uuidString) {
+            sourceSelection = .mediaLibrary
+            mediaLibrary.navigateToRoot()
+        }
         for id in ids {
             guard let uuid = UUID(uuidString: id) else { continue }
             viewModel.removeDataSource(id: uuid)
         }
+        syncSourceItems()
     }
 
     private func icon(for type: FileBrowsingDomain.SourceType) -> String {

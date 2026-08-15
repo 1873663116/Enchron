@@ -133,6 +133,7 @@ struct SourceSidebar: View {
                     )
                     .zIndex(draggingSourceID == item.id ? 1 : 0)
                     .transition(sourceRowTransition)
+                    .accessibilityAddTraits(item.isSelected ? .isSelected : [])
                     .accessibilityIdentifier("\(identifierPrefix)-source-\(item.id)")
                 }
             }
@@ -193,8 +194,6 @@ struct SourceSidebar: View {
             systemName: "ellipsis",
             accessibilityLabel: "More source actions",
             accessibilityIdentifier: "\(identifierPrefix)-sourceMore",
-            visualSize: DesignTokens.Interactive.compact,
-            iconTier: .compact,
             iconColor: .secondary
         ) {
             Menu {
