@@ -100,13 +100,11 @@ struct WindowPlaybackLayout: Equatable {
 }
 
 /// The window range the browser asks for. It has no video to match, so its
-/// shape is fixed at 4:3 and owes nothing to playback's.
-/// 16:10 throughout. The heights match the previous 4:3 range so the browser keeps
-/// its vertical content; the extra width buys grid columns.
+/// shape is fixed at 16:9 and owes nothing to playback's.
 enum BrowserWindowLayout {
-    static let minimumSize = CGSize(width: 1_094, height: 684)
-    static let defaultSize = CGSize(width: 1_536, height: 960)
-    static let maximumSize = CGSize(width: 1_808, height: 1_130)
+    static let minimumSize = CGSize(width: 1_094, height: 615.375)
+    static let defaultSize = CGSize(width: 1_536, height: 864)
+    static let maximumSize = CGSize(width: 1_808, height: 1_017)
 }
 
 extension View {
@@ -121,7 +119,7 @@ extension View {
                     UIWindowScene.GeometryPreferences.Vision(
                         minimumSize: BrowserWindowLayout.minimumSize,
                         maximumSize: BrowserWindowLayout.maximumSize,
-                        resizingRestrictions: .freeform
+                        resizingRestrictions: .uniform
                     )
                 )
             }
@@ -493,7 +491,7 @@ struct WindowPlaybackRootView<
             size: size,
             minimumSize: minimumSize ?? systemDefault,
             maximumSize: maximumSize ?? systemDefault,
-            resizingRestrictions: .freeform
+            resizingRestrictions: .uniform
         )
     }
 }

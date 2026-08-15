@@ -127,15 +127,18 @@ struct WindowPlaybackPageGeometryTests {
         #expect(flat.hasPlaybackAspectRatio(flat.maximumSize))
     }
 
-    @Test("the browser window is a fixed 4:3 that owes nothing to playback")
-    func browserWindowIsFixedFourByThree() {
-        #expect(BrowserWindowLayout.minimumSize == CGSize(width: 912, height: 684))
-        #expect(BrowserWindowLayout.defaultSize == CGSize(width: 1_280, height: 960))
-        #expect(BrowserWindowLayout.maximumSize == CGSize(width: 1_808, height: 1_356))
+    @Test("the browser window is a fixed 16:9 that owes nothing to playback")
+    func browserWindowIsFixedSixteenByNine() {
+        #expect(
+            BrowserWindowLayout.minimumSize
+                == CGSize(width: 1_094, height: 615.375)
+        )
+        #expect(BrowserWindowLayout.defaultSize == CGSize(width: 1_536, height: 864))
+        #expect(BrowserWindowLayout.maximumSize == CGSize(width: 1_808, height: 1_017))
     }
 
-    @Test("Portal uses bounded freeform geometry")
-    func portalWindowUsesBoundedFreeformGeometry() {
+    @Test("Portal uses bounded 16:9 geometry")
+    func portalWindowUsesBoundedSixteenByNineGeometry() {
         let videoLayout = WindowPlaybackLayout(aspectRatio: 1)
 
         #expect(
