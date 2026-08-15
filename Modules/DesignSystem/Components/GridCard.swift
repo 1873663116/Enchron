@@ -4,7 +4,7 @@ public struct GridCard: View {
     /// 变体轴:决定缩略图内容与悬停信息布局。缩略图内容由变体内部钉死,不开放给调用点。
     private enum Variant {
         case video(fileSize: String, duration: String, badges: [String], watchedProgress: Double?)
-        case folder(count: Int)
+        case folder(count: Int?)
         case poster(PosterState)
         case episode(EpisodeState)
     }
@@ -126,7 +126,7 @@ public struct GridCard: View {
 
     public static func folder(
         title: String,
-        count: Int,
+        count: Int?,
         accessibilityIdentifier: String? = nil,
         action: (() -> Void)? = nil
     ) -> GridCard {
@@ -435,7 +435,9 @@ public struct GridCard: View {
                         thumbnailPlaceholderIcon("folder.fill")
                     }
                     .overlay(alignment: .bottomLeading) {
-                        folderThumbnailInfo(count: count)
+                        if let count {
+                            folderThumbnailInfo(count: count)
+                        }
                     }
             case let .poster(poster):
                 AsyncArtworkImage(url: poster.artworkURL)
