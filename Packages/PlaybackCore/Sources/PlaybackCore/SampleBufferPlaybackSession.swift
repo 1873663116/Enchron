@@ -97,6 +97,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let firstVideoFrameObservation: (@Sendable () -> Bool)?
     let firstVideoFrameLock = NSLock()
     var firstVideoFrameDeadlineTask: Task<Void, Never>?
+    var firstVideoFrameDeadlineWaitsForPlay = false
     let pendingVideoSampleLock = NSLock()
     var pendingVideoSample: CMSampleBuffer?
     let decoderBootstrapLock = NSLock()
@@ -264,6 +265,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         resetDecoderBootstrap()
         let requestedRate = initialRate ?? 1
         preferredPlaybackRate = requestedRate > 0 ? requestedRate : 1
+        firstVideoFrameDeadlineWaitsForPlay = startsPaused || requestedRate == 0
         timelineStartRate = startsPaused || requestedRate == 0
             ? 0
             : preferredPlaybackRate
@@ -464,7 +466,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             recordFailure(error, node: .mediaEventStream, kind: "provider.startFailed")
             throw error
         }
-        armFirstVideoFrameDeadline()
+        if firstVideoFrameDeadlineWaitsForPlay == false {
+            armFirstVideoFrameDeadline()
+        }
         startVideoDelivery()
         PlaybackTrace.event("session.start.end id=\(traceID)")
     }
@@ -639,8 +643,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         timelineProgressWatchdog = nil
     }
 
-    func play() throws {
+    func play(armingFirstVideoFrameDeadline: Bool = true) throws {
         try admitTimelineControl(.play)
+        firstVideoFrameDeadlineWaitsForPlay = false
+        if armingFirstVideoFrameDeadline {
+            armFirstVideoFrameDeadline()
+        }
         activationObservation.invalidateReapplyVerification(outcome: .invalidatedByRateChange)
         beginOperation(.play, targetRate: preferredPlaybackRate)
         // Play can arrive after the renderer timeline is anchored but before
