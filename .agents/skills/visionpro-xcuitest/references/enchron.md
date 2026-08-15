@@ -57,6 +57,18 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 `devicectl` 的 `appDataContainer` 拷贝在目标 App 未运行时不会失败而是长时间挂起，因此拷贝超时不等于 App 崩溃；App 是否存活用 `process launch --console` 判断，`device info processes` 列的是可执行文件路径（`Enchron`），不是 bundle id。
 
+## 控制器取证陷阱
+
+`XCUIScreen.main.screenshot()` 在当前 visionOS 构建上返回 1×1 图像（4232 字节，仅 ICC 数据），runner 照常写文件、控制器照常报成功，肉眼看是一张黑图。runner 已改为屏幕图像退化时回退到 application 元素捕获。**判读任何截图前先看尺寸**：正常是 1920×1080、0.5 到 2.8 MB；1×1 表示捕获失败而不是画面全黑。该回退也能捕获沉浸空间内容。
+
+`app-command` 当前支持的动词以 `Apps/Enchron/TestCommandChannel.swift` 为准：ping、toggleControls、setWindowSize、toggleBlackoutProbeWindow、resetState、importMedia、listLibrary。没有退出沉浸的动词，用 `relaunch` 回到干净状态。
+
+侧栏源条目 `FileBrowsing-SourcesSidebar-source-<id>` 下挂着删除按钮、图标与文本三个元素共享同一 identifier，`tap --identifier` 命中的是删除按钮。选中源要按 label 或 `--index`。
+
+播放中 chrome 自动隐藏快于两次控制器往返，`PlayerUI-InfoBar-button-back` 等按钮会报 exists 但 isHittable 为假。格式编辑器一次开合也活不过两次往返：用 `tapSequence` 把 `PlayerUI-TopAction-videoFormat`、投影项、`PlayerUI-VideoFormat-apply` 连发，或直接读 `tap` 自己返回的层级而不是再发一次 snapshot。
+
+对 Emby 首页滚动视图发 `swipeUp` 两次都导致 runner 死亡（TEST EXECUTE FAILED、设备进程表无 Enchron、无崩溃报告），halt 后重建即恢复；未定性，取证时绕开。
+
 ## 测试媒体
 
 `TestMedia` 中分辨率足够的 180° 片源部分是成人内容。层级与诊断状态足以回答绝大多数问题，只有当结论确实取决于像素时才截图。需要目视确认时，先与佩戴者确认使用哪个片源。
