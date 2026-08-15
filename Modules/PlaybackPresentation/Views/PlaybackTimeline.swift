@@ -1,4 +1,5 @@
 import DesignSystem
+import Foundation
 import PlaybackPresentation
 import SwiftUI
 
@@ -751,6 +752,7 @@ private enum MaterialCircularIndeterminateAdvance {
 struct LoadingSpinner: View {
     var size: CGFloat = 56
     var showBorder: Bool = true
+    var sourceReadBytesPerSecond: (@MainActor () -> UInt64)?
 
     @State private var cycleAnchor = Date()
 
@@ -758,42 +760,77 @@ struct LoadingSpinner: View {
         let lineWidth = size * 0.06
         let inset = size * 0.16
 
-        TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { context in
-            let elapsed = context.date.timeIntervalSince(cycleAnchor)
-            let cycleSeconds = DesignTokens.LoadingSpinner.cycleDurationMilliseconds / 1000
-            let fraction = CGFloat(
-                (elapsed / cycleSeconds).truncatingRemainder(dividingBy: 1)
-            )
-            let segment = MaterialCircularIndeterminateAdvance.segmentFractions(
-                animationFraction: fraction
-            )
+        VStack(spacing: DesignTokens.Spacing.xs) {
+            TimelineView(.animation(minimumInterval: 1.0 / 60.0, paused: false)) { context in
+                let elapsed = context.date.timeIntervalSince(cycleAnchor)
+                let cycleSeconds = DesignTokens.LoadingSpinner.cycleDurationMilliseconds / 1000
+                let fraction = CGFloat(
+                    (elapsed / cycleSeconds).truncatingRemainder(dividingBy: 1)
+                )
+                let segment = MaterialCircularIndeterminateAdvance.segmentFractions(
+                    animationFraction: fraction
+                )
 
-            ZStack {
-                SpinnerArc(start: segment.start, end: segment.end)
-                    .stroke(
-                        DesignTokens.Theme.accent.opacity(0.15),
-                        style: StrokeStyle(lineWidth: lineWidth * 4, lineCap: .round)
-                    )
-                    .blur(radius: lineWidth * 2)
-                    .blendMode(.screen)
-                    .padding(inset)
+                ZStack {
+                    SpinnerArc(start: segment.start, end: segment.end)
+                        .stroke(
+                            DesignTokens.Theme.accent.opacity(0.15),
+                            style: StrokeStyle(lineWidth: lineWidth * 4, lineCap: .round)
+                        )
+                        .blur(radius: lineWidth * 2)
+                        .blendMode(.screen)
+                        .padding(inset)
 
-                SpinnerArc(start: segment.start, end: segment.end)
-                    .stroke(
-                        .white.opacity(0.9),
-                        style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
-                    )
-                    .padding(inset)
+                    SpinnerArc(start: segment.start, end: segment.end)
+                        .stroke(
+                            .white.opacity(0.9),
+                            style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                        )
+                        .padding(inset)
+                }
+            }
+            .frame(width: size, height: size)
+            .overlay {
+                if showBorder {
+                    Circle()
+                        .strokeBorder(DesignTokens.Theme.accent.opacity(0.3), lineWidth: 1)
+                }
+            }
+            .clipShape(Circle())
+            .enchronGlassBackground(in: Circle())
+
+            if let sourceReadBytesPerSecond {
+                TimelineView(.periodic(from: .now, by: 1)) { _ in
+                    Text(Self.sourceReadRateText(
+                        bytesPerSecond: sourceReadBytesPerSecond()
+                    ))
+                    .font(DesignTokens.Typography.metadata.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .fixedSize()
+                }
             }
         }
-        .frame(width: size, height: size)
-        .overlay {
-            if showBorder {
-                Circle()
-                    .strokeBorder(DesignTokens.Theme.accent.opacity(0.3), lineWidth: 1)
-            }
-        }
-        .clipShape(Circle())
-        .enchronGlassBackground(in: Circle())
     }
+
+    static func sourceReadRateText(bytesPerSecond: UInt64) -> String {
+        let value = Double(bytesPerSecond)
+        switch value {
+        case ..<1_000:
+            return "\(bytesPerSecond) B/s"
+        case ..<1_000_000:
+            return String(format: "%.1f KB/s", value / 1_000)
+        case ..<1_000_000_000:
+            return String(format: "%.1f MB/s", value / 1_000_000)
+        default:
+            return String(format: "%.1f GB/s", value / 1_000_000_000)
+        }
+    }
+}
+
+#Preview("Loading throughput") {
+    HStack(spacing: DesignTokens.Spacing.xl) {
+        LoadingSpinner(sourceReadBytesPerSecond: { 0 })
+        LoadingSpinner(sourceReadBytesPerSecond: { 12_400_000 })
+    }
+    .padding(DesignTokens.Spacing.xl)
 }

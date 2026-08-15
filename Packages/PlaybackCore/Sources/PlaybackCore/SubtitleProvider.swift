@@ -95,16 +95,28 @@ final class NoSubtitleProvider: SubtitleProvider {
 }
 
 final class FFmpegSubtitleProvider: SubtitleProvider {
+    private let sourceReadMeter: PlaybackSourceReadMeter
+
+    init(sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter()) {
+        self.sourceReadMeter = sourceReadMeter
+    }
+
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
         let argument = FFmpegSourceLocator.argument(for: url)
         return argument.withCString { path in
-            let count = max(0, Int(PBFFmpegSubtitleTrackCount(path)))
+            let count = max(
+                0,
+                Int(PBFFmpegSubtitleTrackCountWithSourceReadMonitor(
+                    path,
+                    sourceReadMeter.bridgeMonitor
+                ))
+            )
             return (0..<count).compactMap { ordinal in
                 var streamIndex: Int32 = -1
                 var codec = [CChar](repeating: 0, count: 64)
                 var language = [CChar](repeating: 0, count: 64)
                 var title = [CChar](repeating: 0, count: 256)
-                guard PBFFmpegSubtitleTrackCopyInfo(
+                guard PBFFmpegSubtitleTrackCopyInfoWithSourceReadMonitor(
                     path,
                     Int32(ordinal),
                     &streamIndex,
@@ -113,7 +125,8 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
                     &language,
                     language.count,
                     &title,
-                    title.count
+                    title.count,
+                    sourceReadMeter.bridgeMonitor
                 ) else { return nil }
                 let index = Int(streamIndex)
                 return PlaybackSubtitleTrack(
@@ -134,11 +147,12 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
     ) async throws -> [PlaybackSubtitleCue] {
         var error = [CChar](repeating: 0, count: 512)
         let reader = FFmpegSourceLocator.argument(for: url).withCString { path in
-            PBFFmpegSubtitleReaderCreate(
+            PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
                 path,
                 Int32(track.streamIndex),
                 &error,
-                error.count
+                error.count,
+                sourceReadMeter.bridgeMonitor
             )
         }
         guard let reader else {

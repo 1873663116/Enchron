@@ -53,6 +53,12 @@ protocol FFmpegAudioReaderOperations: Sendable {
 }
 
 struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
+    private let sourceReadMeter: PlaybackSourceReadMeter
+
+    init(sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter()) {
+        self.sourceReadMeter = sourceReadMeter
+    }
+
     func allocate() -> FFmpegAudioReaderHandle? {
         PBFFmpegAudioReaderAllocate().map(FFmpegAudioReaderHandle.init(pointer:))
     }
@@ -63,6 +69,10 @@ struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
         startSeconds: Double,
         streamIndex: Int?
     ) throws -> AudioSampleProviderInfo {
+        PBFFmpegAudioReaderSetSourceReadMonitor(
+            reader.pointer,
+            sourceReadMeter.bridgeMonitor
+        )
         var error = [CChar](repeating: 0, count: 512)
         let opened = source.withCString { path in
             PBFFmpegAudioReaderOpen(
@@ -165,18 +175,22 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
 
     private let readerLock = NSLock()
     private let readerQueue: DispatchQueue
+    private let sourceReadMeter: PlaybackSourceReadMeter
     private let operations: any FFmpegAudioReaderOperations
     private var storedInfo: AudioSampleProviderInfo?
     private var reader: FFmpegAudioReaderHandle?
     private var generation: UInt64 = 0
 
     init(
-        operations: any FFmpegAudioReaderOperations = SystemFFmpegAudioReaderOperations(),
+        sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter(),
+        operations: (any FFmpegAudioReaderOperations)? = nil,
         readerQueue: DispatchQueue = DispatchQueue(
             label: "com.enchron.playbackcore.ffmpeg-audio-reader"
         )
     ) {
+        self.sourceReadMeter = sourceReadMeter
         self.operations = operations
+            ?? SystemFFmpegAudioReaderOperations(sourceReadMeter: sourceReadMeter)
         self.readerQueue = readerQueue
     }
 
@@ -294,9 +308,15 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
         let source = FFmpegSourceLocator.argument(for: url)
         return await withCheckedContinuation { continuation in
-            readerQueue.async {
+            readerQueue.async { [sourceReadMeter] in
                 continuation.resume(returning: source.withCString { path in
-                    let count = max(0, Int(PBFFmpegAudioTrackCount(path)))
+                    let count = max(
+                        0,
+                        Int(PBFFmpegAudioTrackCountWithSourceReadMonitor(
+                            path,
+                            sourceReadMeter.bridgeMonitor
+                        ))
+                    )
                     return (0..<count).compactMap { ordinal in
                         var streamIndex: Int32 = -1
                         var sampleRate: Int32 = 0
@@ -304,9 +324,10 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
                         var codec = [CChar](repeating: 0, count: 64)
                         var language = [CChar](repeating: 0, count: 64)
                         var title = [CChar](repeating: 0, count: 256)
-                        guard PBFFmpegAudioTrackCopyInfo(
+                        guard PBFFmpegAudioTrackCopyInfoWithSourceReadMonitor(
                             path, Int32(ordinal), &streamIndex, &sampleRate, &channelCount,
-                            &codec, codec.count, &language, language.count, &title, title.count
+                            &codec, codec.count, &language, language.count, &title, title.count,
+                            sourceReadMeter.bridgeMonitor
                         ) else { return nil }
                         func string(_ buffer: [CChar]) -> String? {
                             let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }

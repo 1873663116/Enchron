@@ -204,6 +204,7 @@ public struct PlaybackDebugSnapshotV1: Codable, Equatable, Sendable {
     public var realityKitBinding: RealityKitBindingRecord?
     public var presentationBinding: PresentationBindingRecord?
     public var presentationState: PresentationStateRecord?
+    public var sourceReadObservation: PlaybackSourceReadObservation?
     public var platform: String?
     public var hardwareDisplayFacts = FactAvailability.notAvailable
     public var evidenceCorrelationIDs: [String] = []
