@@ -290,11 +290,16 @@ private func reportedError(_ buffer: [CChar]) -> String {
         finished.signal()
     }
 
-    guard finished.wait(timeout: .now() + 30) == .success else {
+    if finished.wait(timeout: .now() + 30) != .success {
+        // The readers are destroyed by this scope's defers, so the stalled thread has
+        // to leave them before it returns. Cancelling unblocks the in-flight read.
+        PBFFmpegReaderCancel(videoReader)
+        PBFFmpegAudioReaderCancel(audioReader)
+        let drained = finished.wait(timeout: .now() + 30) == .success
         Issue.record(
-            Comment(rawValue: "playback stalled after \(outcome.samples) samples "
-                + "and \(outcome.bytes) bytes; a bounded HTTP request window stops "
-                + "the read at its first boundary")
+            Comment(rawValue: "playback stalled after \(outcome.samples) samples and "
+                + "\(outcome.bytes) bytes, short of the whole \(payload.count)-byte source"
+                + (drained ? "" : "; the read did not unblock after cancellation"))
         )
         return
     }

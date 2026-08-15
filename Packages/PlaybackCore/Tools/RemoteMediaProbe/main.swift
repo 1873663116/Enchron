@@ -262,9 +262,13 @@ func decodeSamples(
     var failedFrames = 0
     var sampleBytes = 0
     var sampleCount = 0
-    var lastSeconds = 0.0
+    // Sources whose first sample carries a non-zero presentation time, such as the
+    // Apple projected-media examples starting near ten seconds, would satisfy an
+    // absolute bound before delivering a second frame.
+    var firstSeconds: Double?
+    var elapsedSeconds = 0.0
     while true {
-        if let limitSeconds, lastSeconds >= limitSeconds { break }
+        if let limitSeconds, elapsedSeconds >= limitSeconds { break }
         var sample: Unmanaged<CMSampleBuffer>?
         let result = PBFFmpegReaderCopyNextSample(videoReader, &sample, &error, error.count)
         if result == PBFFmpegReadResultEnd { break }
@@ -275,7 +279,11 @@ func decodeSamples(
         sampleCount += 1
         sampleBytes += CMSampleBufferGetTotalSampleSize(buffer)
         let presentation = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
-        if presentation.isFinite { lastSeconds = max(lastSeconds, presentation) }
+        if presentation.isFinite {
+            let origin = firstSeconds ?? presentation
+            firstSeconds = origin
+            elapsedSeconds = max(elapsedSeconds, presentation - origin)
+        }
         var flagsOut = VTDecodeInfoFlags()
         let status = VTDecompressionSessionDecodeFrame(
             session,
@@ -390,10 +398,13 @@ func measurePlayback(
     var audioSampleCount = 0
     var videoReachedLimit = false
     var audioReachedLimit = !hasAudio
+    // Measured from the first presentation time, not from zero, so a source that
+    // starts at a non-zero timestamp still delivers the requested span.
+    var originSeconds: Double?
     while !videoEnded || !audioEnded {
-        if let limitSeconds {
-            if videoEndSeconds >= limitSeconds { videoEnded = true; videoReachedLimit = true }
-            if audioEndSeconds >= limitSeconds { audioEnded = true; audioReachedLimit = true }
+        if let limitSeconds, let origin = originSeconds {
+            if videoEndSeconds - origin >= limitSeconds { videoEnded = true; videoReachedLimit = true }
+            if audioEndSeconds - origin >= limitSeconds { audioEnded = true; audioReachedLimit = true }
             if videoEnded && audioEnded { break }
         }
         let readVideo = !videoEnded && (audioEnded || videoEndSeconds <= audioEndSeconds)
@@ -411,10 +422,11 @@ func measurePlayback(
                     throw ProbeFailure.operation("video sample was unavailable")
                 }
                 let buffer = sample.takeRetainedValue()
+                let presentation = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+                if originSeconds == nil, presentation.isFinite { originSeconds = presentation }
                 videoEndSeconds = max(
                     videoEndSeconds,
-                    CMSampleBufferGetPresentationTimeStamp(buffer).seconds
-                        + max(0, CMSampleBufferGetDuration(buffer).seconds)
+                    presentation + max(0, CMSampleBufferGetDuration(buffer).seconds)
                 )
                 videoSampleCount += 1
             case PBFFmpegReadResultEnd:
@@ -457,7 +469,7 @@ func measurePlayback(
     }
     let playbackBytes = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
         - bytesAtPlaybackStart
-    let deliveredSeconds = max(videoEndSeconds, audioEndSeconds)
+    let deliveredSeconds = max(videoEndSeconds, audioEndSeconds) - (originSeconds ?? 0)
     guard deliveredSeconds > 0 else {
         throw ProbeFailure.operation("playback produced no timed samples")
     }

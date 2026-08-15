@@ -163,3 +163,17 @@ wire 上的判别证据：
 **运行手册待更正的两处**：`app-command` 现有动词只有 ping、toggleControls、setWindowSize、toggleBlackoutProbeWindow、resetState、importMedia、listLibrary，记忆里的 `exit-spatial` 已不存在，退出沉浸改用 relaunch。侧栏源条目 `FileBrowsing-SourcesSidebar-source-<id>` 同一 identifier 挂着删除按钮、图标与文本三个元素，按 identifier 直接 tap 会命中删除按钮，必须按 label 或 index 选取。
 
 **两次 runner 死亡**都发生在对 Emby 首页滚动视图 `swipeUp` 之后（TEST EXECUTE FAILED，设备进程表无 Enchron，无崩溃报告），与既有的 CoreDevice 通道间歇同签名，halt 后重建即恢复。未逐一复现定性，绕开该操作完成取证。
+
+## 2026-08-16 08:20 交叉评审推翻了 merge-ready 结论
+
+把决策轨迹与本次 transcript 交给 codex 做跨供应商评审（task `76fca2fa`）。它提出六条，我逐条核实，其中三条是真缺陷：
+
+**探针的时长界用的是绝对显示时间。** `decodeSamples` 拿 `lastSeconds >= limitSeconds` 与样本 PTS 直接比较，而没有减去首帧 PTS。三个 Apple projected-media 样本首帧 PTS 均为 10.066733，于是 `--seconds 5` 在第一帧之后立即satisfied，各只解了一帧就停。也就是说首轮"97/107 解码通过"里，这三条的覆盖只有一帧而非五秒。已改为按首帧起算，`measurePlayback` 同一处也一并修正，`delivered_seconds` 改报跨度而非绝对终点。重跑后这三条各解 150 帧，语料结论仍是 97/107，但支撑它的覆盖变实了。剩余六条不足十帧的是 FATE ProRes 一致性序列，文件本身只有一两帧。
+
+**回归测试的失败路径有并发销毁风险。** 超时后测试直接 `return`，作用域的 defer 随即销毁 reader 与 demux source，而后台线程可能仍阻塞在这些指针上的读操作里。已改为先 `PBFFmpegReaderCancel` 与 `PBFFmpegAudioReaderCancel` 解除阻塞，等线程真正退出再记录失败。修后双向验证仍成立：好代码 0.040 秒通过，坏代码 30 秒失败且不崩。
+
+**失败信息宣称了没有发生的事。** 原文写"有界窗口在第一个边界处停住读取"，而失败运行实际停在 0 样本 0 字节，从未走到 128 KiB 边界。已改为陈述读到的字节数与源大小的对比。
+
+另外三条中，两条属文档质量：`overview.md` 的三个 phase 链接指向我从未创建的文件（已改为行内描述）；提交 `af90a443` 经 `git add -A` 带进了 `Scripts/verification/controller_timings.json`，提交信息未披露，且该文件在本次会话开始前就已被并行会话改动过，其中一部分不属于本次工作。第六条关于教父三部曲 RPU/EL 为零的结论，我的扫描只读了前 15 秒，因此准确表述是"观察窗口内不含"，不是整片结论。
+
+**结论修正：撤回 merge-ready 的说法。** 生产代码的判断我仍然维持——Profile 5 修复正确、Profile 7 拆分机制被证实、HTTP 回退该做。但验收合同里"所有投影和格式正常运行"没有达成：真机只覆盖 window、portal、panorama 三格，docked 缺席，180°/top-bottom/自定义角度的格式边没有走过，Dolby Vision 片源本身没有真机像素，远程截图用的 Emby 条目 `3762` 甚至不在 54 条非 SDR 语料里。把 macOS 上的前缀解码成功升级为"visionOS 上正常播放"是过度解读，这一步不该由我替用户完成。
