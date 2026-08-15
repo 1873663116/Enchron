@@ -338,9 +338,10 @@ struct WindowPlaybackRootView<
                 }
             }
             .overlay(alignment: .top) {
-                if showsWindowChrome {
-                    topChromePlane
-                }
+                topChromePlane
+                    .opacity(showsWindowChrome ? 1 : 0)
+                    .allowsHitTesting(showsWindowChrome)
+                    .accessibilityHidden(!showsWindowChrome)
             }
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("WindowPlayback-root")
@@ -355,7 +356,6 @@ struct WindowPlaybackRootView<
             .padding(.top, DesignTokens.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .top)
             .zIndex(2)
-            .transition(.opacity)
     }
 
     @ViewBuilder

@@ -492,6 +492,7 @@ public struct MainView: View {
             windowPlaybackCanvas
         } topChrome: {
             PlayerInfoBarView(
+                controlsVisible: showsPlaybackChrome,
                 onSecondaryMenuVisibilityChange: {
                     isWindowSecondaryMenuPresented = $0
                 }

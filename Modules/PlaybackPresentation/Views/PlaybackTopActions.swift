@@ -349,6 +349,7 @@ struct PlaybackVideoFormatEditor: View {
 }
 
 struct PlaybackTopActions: View {
+    private let controlsVisible: Bool
     private let immersiveEntryTarget: PlaybackPresentation?
     private let canApplyFormat: Bool
     private let mediaFormatProvenance: MediaFormatProvenance
@@ -366,6 +367,7 @@ struct PlaybackTopActions: View {
 
     init(
         initialPresentedMenu: PlaybackTopSecondaryMenu? = nil,
+        controlsVisible: Bool = true,
         immersiveEntryTarget: PlaybackPresentation? = .docked,
         canApplyFormat: Bool = true,
         mediaFormatProvenance: MediaFormatProvenance = .source,
@@ -379,6 +381,7 @@ struct PlaybackTopActions: View {
         onRestoreAutomaticFormat: (() -> Void)? = nil,
         onSecondaryMenuVisibilityChange: ((Bool) -> Void)? = nil
     ) {
+        self.controlsVisible = controlsVisible
         self.immersiveEntryTarget = immersiveEntryTarget
         self.canApplyFormat = canApplyFormat
         self.mediaFormatProvenance = mediaFormatProvenance
@@ -434,6 +437,9 @@ struct PlaybackTopActions: View {
         }
         .onChange(of: state.presentedMenu) { _, menu in
             onSecondaryMenuVisibilityChange?(menu != nil)
+        }
+        .onChange(of: controlsVisible) { _, visible in
+            if visible == false { dismissMenu() }
         }
         .onChange(of: canApplyFormat) { _, available in
             if available == false, state.presentedMenu == .videoFormat { dismissMenu() }

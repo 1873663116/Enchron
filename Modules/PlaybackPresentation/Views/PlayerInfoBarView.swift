@@ -10,6 +10,7 @@ struct PlayerInfoBarView: View {
     @Environment(PlaybackRuntime.self) private var playbackRuntime
     @Environment(PlaybackLaunchCoordinator.self) private var launcher
 
+    var controlsVisible = true
     var onSecondaryMenuVisibilityChange: ((Bool) -> Void)?
 
     var body: some View {
@@ -26,6 +27,7 @@ struct PlayerInfoBarView: View {
         } spatialActions: {
             PlaybackTopActions(
                 initialPresentedMenu: initialPresentedMenu,
+                controlsVisible: controlsVisible,
                 immersiveEntryTarget: playbackRuntime.canEnterSpatialPresentation
                     ? appModel.playbackPresentation.enterImmersiveTarget
                     : nil,
