@@ -66,21 +66,38 @@ TOKEN_STRUCTURE_PATTERNS = (
         r"Image|Text|RoundedRectangle|Circle|Capsule)\s*\("
     ),
 )
+NUMERIC_LITERAL = r"(?<![A-Za-z0-9_.])-?\d+(?:\.\d+)?(?![A-Za-z0-9_])"
+NON_OPACITY_ENDPOINT_LITERAL = (
+    r"(?<![A-Za-z0-9_.])"
+    r"(?!(?:0(?:\.0+)?|1(?:\.0+)?)(?![\d.]))"
+    r"-?\d+(?:\.\d+)?(?![A-Za-z0-9_])"
+)
+NON_IDENTITY_SCALE_LITERAL = (
+    r"(?<![A-Za-z0-9_.])"
+    r"(?!(?:1(?:\.0+)?)(?![\d.]))"
+    r"-?\d+(?:\.\d+)?(?![A-Za-z0-9_])"
+)
 VISUAL_LITERAL_PATTERNS = (
     re.compile(
-        r"\.(?:frame|padding|offset|opacity|scaleEffect|cornerRadius|blur|shadow)"
-        r"\s*\([^)]*(?<![A-Za-z_])\d+(?:\.\d+)?(?![A-Za-z_])"
+        r"\.(?:frame|padding|offset|cornerRadius|blur|shadow)"
+        rf"\s*\([^)]*{NUMERIC_LITERAL}"
     ),
+    re.compile(rf"\.opacity\s*\([^)]*{NON_OPACITY_ENDPOINT_LITERAL}"),
+    re.compile(rf"\.scaleEffect\s*\([^)]*{NON_IDENTITY_SCALE_LITERAL}"),
     re.compile(
         r"\b(?:VStack|HStack|ZStack|LazyVGrid|LazyHGrid|Grid)\s*"
-        r"\([^)]*\bspacing:\s*-?\d+(?:\.\d+)?"
+        rf"\([^)]*\bspacing:\s*{NUMERIC_LITERAL}"
     ),
     re.compile(
         r"\b(?:RoundedRectangle|UnevenRoundedRectangle)\s*"
-        r"\([^)]*\bcornerRadius:\s*\d+(?:\.\d+)?"
+        rf"\([^)]*\bcornerRadius:\s*{NUMERIC_LITERAL}"
     ),
-    re.compile(r"\.font\s*\(\s*\.system\s*\([^)]*\bsize:\s*\d+(?:\.\d+)?"),
-    re.compile(r"\.stroke(?:Border)?\s*\([^)]*\blineWidth:\s*\d+(?:\.\d+)?"),
+    re.compile(
+        rf"\.font\s*\(\s*\.system\s*\([^)]*\bsize:\s*{NUMERIC_LITERAL}"
+    ),
+    re.compile(
+        rf"\.stroke(?:Border)?\s*\([^)]*\blineWidth:\s*{NUMERIC_LITERAL}"
+    ),
 )
 PRODUCTION_GLASS_CAPSULE_PATTERN = re.compile(
     r"\.enchronGlassBackground\s*\(\s*in:\s*Capsule\s*\(\s*\)\s*\)",
@@ -222,6 +239,36 @@ def preview_exhibition_file(relative_path: Path) -> bool:
     )
 
 
+def find_visual_literal_violations(
+    relative_path: Path,
+    source: str,
+    *,
+    rule: str,
+    message: str,
+) -> list[Finding]:
+    masked_source = mask_swift_comments(source)
+    source_text_lines = source.splitlines()
+    findings = []
+    visual_offsets = set()
+    for pattern in VISUAL_LITERAL_PATTERNS:
+        for match in pattern.finditer(masked_source):
+            line_number = finding_line(masked_source, match.start())
+            key = (line_number, signature_at(source_text_lines, line_number))
+            if key in visual_offsets:
+                continue
+            visual_offsets.add(key)
+            findings.append(
+                Finding(
+                    rule=rule,
+                    path=relative_path.as_posix(),
+                    line=line_number,
+                    signature=key[1],
+                    message=message,
+                )
+            )
+    return findings
+
+
 def find_preview_violations(
     root: Path,
     preview_sources: list[Path] | None = None,
@@ -305,30 +352,19 @@ def find_preview_violations(
                     )
                 )
 
-            visual_offsets = set()
-            for pattern in VISUAL_LITERAL_PATTERNS:
-                for match in pattern.finditer(masked_source):
-                    line_number = finding_line(masked_source, match.start())
-                    key = (line_number, signature_at(source_text_lines, line_number))
-                    if key in visual_offsets:
-                        continue
-                    visual_offsets.add(key)
-                    findings.append(
-                        Finding(
-                            rule="preview-hardcoded-visual",
-                            path=relative_path.as_posix(),
-                            line=line_number,
-                            signature=key[1],
-                            message=(
-                                "visual numeric literals in DesignPreview must come from "
-                                "DesignTokens or a production component"
-                            ),
-                        )
-                    )
+            findings += find_visual_literal_violations(
+                relative_path,
+                source,
+                rule="preview-hardcoded-visual",
+                message=(
+                    "visual numeric literals in DesignPreview must come from "
+                    "DesignTokens or a production component"
+                ),
+            )
     return findings
 
 
-def find_production_component_bypasses(root: Path) -> list[Finding]:
+def find_production_violations(root: Path) -> list[Finding]:
     findings = []
     sources = (
         relative_swift_files(root, "Apps/Enchron")
@@ -356,6 +392,15 @@ def find_production_component_bypasses(root: Path) -> list[Finding]:
                     ),
                 )
             )
+        findings += find_visual_literal_violations(
+            relative_path,
+            source,
+            rule="production-hardcoded-visual",
+            message=(
+                "production visual numeric literals must come from DesignTokens "
+                "or a DesignSystem component"
+            ),
+        )
     return findings
 
 
@@ -366,7 +411,7 @@ def collect_findings(
     return (
         find_token_layer_violations(root)
         + find_preview_violations(root, preview_sources)
-        + find_production_component_bypasses(root)
+        + find_production_violations(root)
     )
 
 
@@ -544,7 +589,7 @@ def baseline_payload(findings: list[Finding]) -> dict:
     return {
         "version": 1,
         "purpose": (
-            "Exact historical DesignPreview source-architecture violations. "
+            "Exact historical design source-architecture violations. "
             "New occurrences are forbidden; remove entries when the underlying code is fixed."
         ),
         "allowances": allowances,
