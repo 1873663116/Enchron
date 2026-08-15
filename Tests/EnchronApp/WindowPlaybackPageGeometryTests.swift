@@ -131,7 +131,7 @@ struct WindowPlaybackPageGeometryTests {
     func browserWindowIsFixedSixteenByNine() {
         #expect(
             BrowserWindowLayout.minimumSize
-                == CGSize(width: 1_094, height: 615.375)
+                == CGSize(width: 1_088, height: 612)
         )
         #expect(BrowserWindowLayout.defaultSize == CGSize(width: 1_536, height: 864))
         #expect(BrowserWindowLayout.maximumSize == CGSize(width: 1_808, height: 1_017))

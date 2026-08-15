@@ -102,7 +102,7 @@ struct WindowPlaybackLayout: Equatable {
 /// The window range the browser asks for. It has no video to match, so its
 /// shape is fixed at 16:9 and owes nothing to playback's.
 enum BrowserWindowLayout {
-    static let minimumSize = CGSize(width: 1_094, height: 615.375)
+    static let minimumSize = CGSize(width: 1_088, height: 612)
     static let defaultSize = CGSize(width: 1_536, height: 864)
     static let maximumSize = CGSize(width: 1_808, height: 1_017)
 }
