@@ -109,10 +109,16 @@ private final class RecordingRangeServer: @unchecked Sendable {
             return
         }
 
+        // Emby 4.9.5 over a WebDAV mount answers an open-ended range from a
+        // region the mount has not materialized with a Content-Length it then
+        // fails to deliver. Measured 2026-08-15 against three cold files: every
+        // `bytes=<len-4096>-` was short or 500, while every `bytes=0-` arrived
+        // whole. So the defect is reproduced only past the start of the file.
         let promised = payload[start...end]
+        let delivered = namedEnd == nil && start > 0 ? promised.prefix(256) : promised
         send(
             status: "206 Partial Content",
-            body: Data(promised),
+            body: Data(delivered),
             declaring: promised.count,
             contentRange: "bytes \(start)-\(end)/\(payload.count)",
             on: connection
