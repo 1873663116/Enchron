@@ -1,5 +1,6 @@
 import Foundation
 import CoreMedia
+import VideoToolbox
 import PlaybackFFmpegBridge
 
 enum ProbeFailure: Error, CustomStringConvertible {
@@ -19,6 +20,7 @@ enum ProbeStage: String {
     case audioReader = "audio-reader"
     case playback
     case session
+    case decode
 }
 
 func errorMessage(_ buffer: [CChar]) -> String {
@@ -187,7 +189,152 @@ func openSharedSession(source: String, monitor: OpaquePointer) throws -> String 
         + "audio_stream=\(PBFFmpegAudioReaderGetStreamIndex(audioReader))"
 }
 
-func measurePlayback(source: String, monitor: OpaquePointer) throws -> String {
+final class DecodeTally: @unchecked Sendable {
+    private let lock = NSLock()
+    private var decoded = 0
+    private var failed = 0
+    private var firstFailure: OSStatus = noErr
+
+    func record(status: OSStatus, hasImage: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        if status == noErr && hasImage {
+            decoded += 1
+        } else {
+            failed += 1
+            if firstFailure == noErr { firstFailure = status }
+        }
+    }
+
+    var decodedFrames: Int { lock.withLock { decoded } }
+    var failedFrames: Int { lock.withLock { failed } }
+    var firstFailureStatus: OSStatus { lock.withLock { firstFailure } }
+}
+
+/// Decodes the compressed samples PlaybackCore would hand its renderer. The bridge
+/// only produces compressed samples, so whether VideoToolbox accepts a format is not
+/// observable anywhere else in this package.
+func decodeSamples(
+    source: String,
+    monitor: OpaquePointer,
+    limitSeconds: Double?
+) throws -> String {
+    var error = [CChar](repeating: 0, count: 512)
+    guard let videoReader = PBFFmpegReaderAllocate() else {
+        throw ProbeFailure.operation("reader allocation failed")
+    }
+    defer { PBFFmpegReaderDestroy(videoReader) }
+    PBFFmpegReaderSetSourceReadMonitor(videoReader, monitor)
+    let opened = source.withCString {
+        PBFFmpegReaderOpen(videoReader, $0, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    guard opened else {
+        throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
+    }
+    var formatOut: Unmanaged<CMVideoFormatDescription>?
+    guard PBFFmpegReaderCopyCompressedFormatDescription(videoReader, &formatOut),
+          let format = formatOut?.takeRetainedValue() else {
+        throw ProbeFailure.operation("compressed format description unavailable")
+    }
+    let subType = CMFormatDescriptionGetMediaSubType(format)
+    let codec = String(
+        bytes: [24, 16, 8, 0].map { UInt8((subType >> $0) & 0xff) },
+        encoding: .ascii
+    ) ?? "????"
+
+    var session: VTDecompressionSession?
+    let sessionStatus = VTDecompressionSessionCreate(
+        allocator: kCFAllocatorDefault,
+        formatDescription: format,
+        decoderSpecification: nil,
+        imageBufferAttributes: nil,
+        outputCallback: nil,
+        decompressionSessionOut: &session
+    )
+    guard sessionStatus == noErr, let session else {
+        return "codec=\(codec) session_status=\(sessionStatus) decoded_frames=0 "
+            + "sample_bytes=0 decode=session_rejected"
+    }
+    defer { VTDecompressionSessionInvalidate(session) }
+
+    let tally = DecodeTally()
+    var firstDecodeStatus: OSStatus = noErr
+    var failedFrames = 0
+    var sampleBytes = 0
+    var sampleCount = 0
+    var lastSeconds = 0.0
+    while true {
+        if let limitSeconds, lastSeconds >= limitSeconds { break }
+        var sample: Unmanaged<CMSampleBuffer>?
+        let result = PBFFmpegReaderCopyNextSample(videoReader, &sample, &error, error.count)
+        if result == PBFFmpegReadResultEnd { break }
+        guard result == PBFFmpegReadResultSample, let sample else {
+            throw ProbeFailure.operation("sample read failed: \(errorMessage(error))")
+        }
+        let buffer = sample.takeRetainedValue()
+        sampleCount += 1
+        sampleBytes += CMSampleBufferGetTotalSampleSize(buffer)
+        let presentation = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+        if presentation.isFinite { lastSeconds = max(lastSeconds, presentation) }
+        var flagsOut = VTDecodeInfoFlags()
+        let status = VTDecompressionSessionDecodeFrame(
+            session,
+            sampleBuffer: buffer,
+            flags: [._EnableAsynchronousDecompression],
+            infoFlagsOut: &flagsOut,
+            outputHandler: { status, _, image, _, _ in
+                tally.record(status: status, hasImage: image != nil)
+            }
+        )
+        if status != noErr {
+            failedFrames += 1
+            if firstDecodeStatus == noErr { firstDecodeStatus = status }
+        }
+    }
+    VTDecompressionSessionWaitForAsynchronousFrames(session)
+    let decodedFrames = tally.decodedFrames
+    let callbackFailures = tally.failedFrames
+    let firstCallbackStatus = tally.firstFailureStatus
+    let verdict = decodedFrames > 0 && failedFrames == 0 && callbackFailures == 0
+        ? "ok"
+        : (decodedFrames > 0 ? "partial" : "no_frames")
+    return "codec=\(codec) session_status=0 samples=\(sampleCount) "
+        + "sample_bytes=\(sampleBytes) decoded_frames=\(decodedFrames) "
+        + "submit_failures=\(failedFrames) callback_failures=\(callbackFailures) "
+        + "first_decode_status=\(firstDecodeStatus == noErr ? firstCallbackStatus : firstDecodeStatus) "
+        + "decode=\(verdict)"
+}
+
+func demuxSourceHasAudio(_ demuxSource: OpaquePointer) throws -> Bool {
+    var error = [CChar](repeating: 0, count: 512)
+    guard let information = PBFFmpegDemuxSourceCopyInformation(
+        demuxSource,
+        &error,
+        error.count
+    ) else {
+        throw ProbeFailure.operation(
+            "demux source information failed: \(errorMessage(error))"
+        )
+    }
+    defer { PBFFmpegMediaSourceInformationDestroy(information) }
+    for ordinal in 0..<PBFFmpegMediaSourceInformationGetStreamCount(information) {
+        var stream = PBFFmpegMediaStreamInfo()
+        guard PBFFmpegMediaSourceInformationCopyStream(
+            information, ordinal, &stream,
+            nil, 0, nil, 0, nil, 0, nil, 0, nil, 0, nil, 0, nil, 0, nil, 0
+        ) else {
+            throw ProbeFailure.operation("stream info failed at ordinal \(ordinal)")
+        }
+        if stream.category == PBFFmpegMediaStreamCategoryAudio { return true }
+    }
+    return false
+}
+
+func measurePlayback(
+    source: String,
+    monitor: OpaquePointer,
+    limitSeconds: Double?
+) throws -> String {
     guard let videoReader = PBFFmpegReaderAllocate(),
           let audioReader = PBFFmpegAudioReaderAllocate() else {
         throw ProbeFailure.operation("reader allocation failed")
@@ -218,27 +365,37 @@ func measurePlayback(source: String, monitor: OpaquePointer) throws -> String {
             "video reader open failed: \(errorMessage(error))"
         )
     }
-    let audioOpened = PBFFmpegAudioReaderOpenWithDemuxSource(
-        audioReader,
-        demuxSource,
-        -1,
-        &error,
-        error.count
-    )
-    guard audioOpened else {
-        throw ProbeFailure.operation(
-            "audio reader open failed: \(errorMessage(error))"
+    let hasAudio = try demuxSourceHasAudio(demuxSource)
+    if hasAudio {
+        let audioOpened = PBFFmpegAudioReaderOpenWithDemuxSource(
+            audioReader,
+            demuxSource,
+            -1,
+            &error,
+            error.count
         )
+        guard audioOpened else {
+            throw ProbeFailure.operation(
+                "audio reader open failed: \(errorMessage(error))"
+            )
+        }
     }
 
     let bytesAtPlaybackStart = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
     var videoEndSeconds = 0.0
     var audioEndSeconds = 0.0
     var videoEnded = false
-    var audioEnded = false
+    var audioEnded = !hasAudio
     var videoSampleCount = 0
     var audioSampleCount = 0
+    var videoReachedLimit = false
+    var audioReachedLimit = !hasAudio
     while !videoEnded || !audioEnded {
+        if let limitSeconds {
+            if videoEndSeconds >= limitSeconds { videoEnded = true; videoReachedLimit = true }
+            if audioEndSeconds >= limitSeconds { audioEnded = true; audioReachedLimit = true }
+            if videoEnded && audioEnded { break }
+        }
         let readVideo = !videoEnded && (audioEnded || videoEndSeconds <= audioEndSeconds)
         if readVideo {
             var sample: Unmanaged<CMSampleBuffer>?
@@ -305,19 +462,31 @@ func measurePlayback(source: String, monitor: OpaquePointer) throws -> String {
         throw ProbeFailure.operation("playback produced no timed samples")
     }
     let bytesPerSecond = Double(playbackBytes) / deliveredSeconds
+    let completion = limitSeconds == nil
+        ? "end_of_stream"
+        : (videoReachedLimit && audioReachedLimit ? "limit" : "end_of_stream")
     return "playback_bytes=\(playbackBytes) delivered_seconds=\(deliveredSeconds) "
         + "bytes_per_second=\(bytesPerSecond) video_samples=\(videoSampleCount) "
-        + "audio_samples=\(audioSampleCount)"
+        + "audio_samples=\(audioSampleCount) has_audio=\(hasAudio) "
+        + "completion=\(completion)"
 }
 
 func run() throws {
-    let arguments = Array(CommandLine.arguments.dropFirst())
+    var arguments = Array(CommandLine.arguments.dropFirst())
+    var limitSeconds: Double?
+    if let flag = arguments.firstIndex(of: "--seconds"), flag + 1 < arguments.count {
+        guard let value = Double(arguments[flag + 1]), value > 0 else {
+            throw ProbeFailure.usage("--seconds needs a positive number")
+        }
+        limitSeconds = value
+        arguments.removeSubrange(flag...(flag + 1))
+    }
     guard arguments.count == 4,
           arguments[0] == "--stage",
           let stage = ProbeStage(rawValue: arguments[1]),
           arguments[2] == "--url" else {
         throw ProbeFailure.usage(
-            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|playback|session --url URL"
+            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|playback|session --url URL [--seconds N]"
         )
     }
     guard let monitor = PBFFmpegSourceReadMonitorCreate() else {
@@ -335,9 +504,19 @@ func run() throws {
         case .audioReader:
             try openAudioReader(source: arguments[3], monitor: monitor)
         case .playback:
-            try measurePlayback(source: arguments[3], monitor: monitor)
+            try measurePlayback(
+                source: arguments[3],
+                monitor: monitor,
+                limitSeconds: limitSeconds
+            )
         case .session:
             try openSharedSession(source: arguments[3], monitor: monitor)
+        case .decode:
+            try decodeSamples(
+                source: arguments[3],
+                monitor: monitor,
+                limitSeconds: limitSeconds
+            )
         }
         let cumulativeBytes = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
         let bytes = cumulativeBytes - previousBytes
