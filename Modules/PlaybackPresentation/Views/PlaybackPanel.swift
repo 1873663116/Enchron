@@ -268,7 +268,6 @@ struct FusedPlayerPanel: View {
     @State private var expansion: PlaybackPanelExpansion
     @State private var videoFormatEditing: PlaybackVideoFormatEditingState
     @State private var mediaInfoHovered = false
-    @State private var mediaInfoExpanded = false
 
     // 进度条状态。拖动中用本地 progress(跟手);非拖动镜像 live 位置;live 为 nil 退化纯本地 mock。
     @State private var progress: CGFloat = 0.45
@@ -340,12 +339,7 @@ struct FusedPlayerPanel: View {
 
     var body: some View {
         Group {
-            switch surface {
-            case .windowOrnament:
-                windowOrnamentContent
-            case .playerControlDock:
-                playerControlDockContent
-            }
+            panelContent
         }
         .opacity(expansion.contentIsVisible ? 1 : 0)
         // A gaze landing where a button used to be must not press it while the panel
@@ -397,6 +391,20 @@ struct FusedPlayerPanel: View {
             activationCurrentLocation = nil
             seekOrigin = nil
             pendingSeekTarget = nil
+        }
+    }
+
+    @ViewBuilder
+    private var panelContent: some View {
+        if expansion.layout == .mediaInformation {
+            expandedMediaInformation
+        } else {
+            switch surface {
+            case .windowOrnament:
+                windowOrnamentContent
+            case .playerControlDock:
+                playerControlDockContent
+            }
         }
     }
 
@@ -718,13 +726,7 @@ struct FusedPlayerPanel: View {
             }
         }
         .onTapGesture {
-            guard mediaInformationIsExpandable else { return }
-            withAnimation(DesignTokens.AnimationToken.panelSpring) {
-                mediaInfoExpanded.toggle()
-            }
-        }
-        .popover(isPresented: $mediaInfoExpanded, arrowEdge: .top) {
-            expandedMediaInformation
+            toggleMediaInformation()
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(live?.mediaName ?? "Unknown media")
@@ -749,45 +751,68 @@ struct FusedPlayerPanel: View {
     }
 
     private var expandedMediaInformation: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-                Text(live?.mediaName ?? "Unknown")
-                    .font(DesignTokens.Typography.headline)
+        ZStack(alignment: .topTrailing) {
+            ScrollView {
+                VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
+                    Text(live?.mediaName ?? "Unknown")
+                        .font(DesignTokens.Typography.headline)
+                        .fixedSize(horizontal: false, vertical: true)
 
-                if let overview = live?.overview, overview.isEmpty == false {
-                    Text(overview)
-                        .font(DesignTokens.Typography.metadata)
-                        .accessibilityIdentifier("PlayerPanel-media-information-overview")
-                }
-
-                ForEach(persistentCapabilities) { capability in
-                    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
-                        Label(
-                            "\(capability.requested). \(capability.delivered).",
-                            systemImage: "exclamationmark.circle"
-                        )
-                        .font(DesignTokens.Typography.metadata)
-                        Text(capability.reason)
+                    if let overview = live?.overview, overview.isEmpty == false {
+                        Text(overview)
                             .font(DesignTokens.Typography.metadata)
-                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityIdentifier("PlayerPanel-media-information-overview")
                     }
-                    .accessibilityIdentifier(
-                        "PlayerPanel-media-information-unmet-\(capability.id)"
-                    )
-                }
 
-                HStack(spacing: DesignTokens.Spacing.xl) {
-                    Text(spatialMetadataLabel)
-                    Text(technicalMetadataLabel)
+                    ForEach(persistentCapabilities) { capability in
+                        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
+                            Label(
+                                "\(capability.requested). \(capability.delivered).",
+                                systemImage: "exclamationmark.circle"
+                            )
+                            .font(DesignTokens.Typography.metadata)
+                            Text(capability.reason)
+                                .font(DesignTokens.Typography.metadata)
+                                .foregroundStyle(.secondary)
+                        }
+                        .accessibilityIdentifier(
+                            "PlayerPanel-media-information-unmet-\(capability.id)"
+                        )
+                    }
+
+                    HStack(spacing: DesignTokens.Spacing.xl) {
+                        Text(spatialMetadataLabel)
+                        Text(technicalMetadataLabel)
+                    }
+                    .font(DesignTokens.Typography.metadata.monospacedDigit())
+                    .foregroundStyle(.secondary)
                 }
-                .font(DesignTokens.Typography.metadata.monospacedDigit())
-                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(DesignTokens.Spacing.xl)
+                .padding(.trailing, DesignTokens.Interactive.large)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+
+            GlassCircleIconButton.close(
+                accessibilityLabel: "Close Media Information",
+                action: toggleMediaInformation,
+                accessibilityIdentifier: "PlayerPanel-media-information-close"
+            )
+            .keyboardShortcut(.escape, modifiers: [])
             .padding(DesignTokens.Spacing.xl)
         }
-        .frame(maxWidth: 520, maxHeight: 420)
+        .frame(width: clusterWidth, height: 420)
         .accessibilityIdentifier("PlayerPanel-media-information-expanded")
+    }
+
+    private func toggleMediaInformation() {
+        if expansion.isShowing(.mediaInformation) {
+            changeExpansion(to: .collapsed)
+        } else {
+            guard mediaInformationIsExpandable else { return }
+            changeExpansion(to: .mediaInformation)
+        }
+        onInteraction()
     }
 
     private var mediaInfoHoverActivationGroup: EnchronHoverGroup {

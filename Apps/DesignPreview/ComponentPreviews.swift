@@ -67,16 +67,36 @@ struct PlaybackControlsPreview: View {
             if presentation != .window {
                 previewState("Settings Expanded", presentation: presentation, expansion: .settings)
             }
+            if presentation == .window {
+                mediaInformationExpandedPreviewStates
+            }
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("DesignPreview-PlaybackControls-\(presentation.rawValue)")
+    }
+
+    private var mediaInformationExpandedPreviewStates: some View {
+        Group {
+            previewState(
+                "Media Information Expanded",
+                presentation: .window,
+                expansion: .mediaInformation
+            )
+            previewState(
+                "Media Information Overflow",
+                presentation: .window,
+                expansion: .mediaInformation,
+                overview: longOverview
+            )
+        }
     }
 
     @ViewBuilder
     private func previewState(
         _ title: String,
         presentation: PlaybackPresentation,
-        expansion: PlaybackPanelExpansion.Layout
+        expansion: PlaybackPanelExpansion.Layout,
+        overview: String? = nil
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
             Text(title)
@@ -85,22 +105,25 @@ struct PlaybackControlsPreview: View {
 
             if presentation == .window {
                 WindowPlaybackControls(
-                    live: live(presentation: presentation),
+                    live: live(presentation: presentation, overview: overview),
                     initialExpansion: expansion
                 )
             } else {
                 PlayerControlDock(
-                    live: live(presentation: presentation),
+                    live: live(presentation: presentation, overview: overview),
                     initialExpansion: expansion
                 )
             }
         }
     }
 
-    private func live(presentation: PlaybackPresentation) -> FusedPlayerPanelLive {
+    private func live(
+        presentation: PlaybackPresentation,
+        overview: String?
+    ) -> FusedPlayerPanelLive {
         FusedPlayerPanelLive(
             presentation: presentation,
-            mediaName: "Dune.Part.Two.2024",
+            mediaName: "Dune: Part Two (2024) — The Complete Feature Presentation",
             mediaProfile: mediaProfile(for: presentation),
             canApplyFormat: true,
             screenScale: screenScale,
@@ -110,6 +133,7 @@ struct PlaybackControlsPreview: View {
             projection: presentation == .panorama ? projection : .flat,
             horizontalFieldOfViewDegrees: horizontalFieldOfViewDegrees,
             stereoLayout: presentation == .panorama ? stereoLayout : .mono,
+            overview: overview ?? standardOverview,
             mediaFormatProvenance: mediaFormatProvenance,
             sourceMediaFormatSummary: "Flat · Mono",
             isPlaying: isPlaying,
@@ -160,6 +184,19 @@ struct PlaybackControlsPreview: View {
         )
     }
 
+    private var standardOverview: String {
+        [
+            "Paul Atreides unites with Chani and the Fremen while seeking revenge against the conspirators who destroyed his family.",
+            "Facing a choice between the love of his life and the fate of the known universe, he tries to prevent a terrible future only he can foresee.",
+            "As the great houses tighten their control over Arrakis, faith, politics, and survival pull Paul toward a role he never wanted.",
+            "The desert people decide how much of their future they are willing to place in one outsider's hands."
+        ].joined(separator: " ")
+    }
+
+    private var longOverview: String {
+        String(repeating: standardOverview + " ", count: 8)
+    }
+
     private func mediaProfile(
         for presentation: PlaybackPresentation
     ) -> PlaybackModel.MediaProfile {
@@ -188,6 +225,10 @@ struct PlaybackControlsPreview: View {
             )
         }
     }
+}
+
+#Preview("Playback media information expansion") {
+    PlaybackControlsPreview()
 }
 
 

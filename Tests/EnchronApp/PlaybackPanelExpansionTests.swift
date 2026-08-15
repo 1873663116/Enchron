@@ -42,6 +42,29 @@ func theBlockButtonToggles() {
     #expect(expansion.isExpanded == false)
 }
 
+@Test("media information uses the same leave resize enter sequence")
+func mediaInformationUsesThePanelExpansionSequence() {
+    var expansion = PlaybackPanelExpansion()
+    expansion.toggle(.mediaInformation)
+
+    #expect(expansion.phase == .contentLeaving)
+    #expect(expansion.layout == .collapsed)
+    #expect(expansion.isShowing(.mediaInformation))
+
+    expansion.advance(from: .contentLeaving)
+    #expect(expansion.phase == .resizing)
+    #expect(expansion.layout == .mediaInformation)
+    #expect(expansion.contentIsVisible == false)
+
+    expansion.advance(from: .resizing)
+    #expect(expansion.phase == .settled)
+    #expect(expansion.contentIsVisible)
+
+    expansion.toggle(.mediaInformation)
+    #expect(expansion.phase == .contentLeaving)
+    #expect(expansion.isShowing(.collapsed))
+}
+
 @Test("requesting the block already showing does nothing")
 func aRedundantRequestIsIgnored() {
     var expansion = PlaybackPanelExpansion(.settings)
@@ -98,4 +121,5 @@ func onlyCollapsedIsUnexpanded() {
     #expect(PlaybackPanelExpansion().isExpanded == false)
     #expect(PlaybackPanelExpansion(.timeline).isExpanded)
     #expect(PlaybackPanelExpansion(.settings).isExpanded)
+    #expect(PlaybackPanelExpansion(.mediaInformation).isExpanded)
 }
