@@ -53,7 +53,26 @@ extension SampleBufferPlaybackSession {
                 ?? currentAudioRendererError
             snapshot.audioRendererState = audioRendererState
         }
+        snapshot.sourceReadObservation = sourceReadObservation(
+            at: ProcessInfo.processInfo.systemUptime
+        )
         return snapshot
+    }
+
+    func sourceReadObservation(
+        at uptime: TimeInterval
+    ) -> PlaybackSourceReadObservation? {
+        guard let sourceReadMeter else { return nil }
+        let totalBytesRead = sourceReadMeter.totalBytesRead
+        return sourceReadObservationLock.withLock {
+            PlaybackSourceReadObservation(
+                totalBytesRead: totalBytesRead,
+                bytesPerSecond: sourceReadRateSampler.observe(
+                    totalBytesRead: totalBytesRead,
+                    at: uptime
+                )
+            )
+        }
     }
 
     public func debugSnapshotJSON() throws -> String {

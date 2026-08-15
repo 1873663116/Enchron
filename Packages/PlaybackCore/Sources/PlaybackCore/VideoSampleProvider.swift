@@ -97,6 +97,12 @@ extension FFmpegVideoReaderOperations {
 }
 
 struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
+    private let sourceReadMeter: PlaybackSourceReadMeter
+
+    init(sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter()) {
+        self.sourceReadMeter = sourceReadMeter
+    }
+
     func allocate() -> FFmpegVideoReaderHandle? {
         PBFFmpegReaderAllocate().map(FFmpegVideoReaderHandle.init(pointer:))
     }
@@ -106,6 +112,10 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
         source: String,
         startSeconds: Double
     ) throws -> VideoSampleProviderInfo {
+        PBFFmpegReaderSetSourceReadMonitor(
+            reader.pointer,
+            sourceReadMeter.bridgeMonitor
+        )
         var error = [CChar](repeating: 0, count: 512)
         let opened = source.withCString { path in
             PBFFmpegReaderOpen(
@@ -253,12 +263,14 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
     private var generation: UInt64 = 0
 
     init(
-        operations: any FFmpegVideoReaderOperations = SystemFFmpegVideoReaderOperations(),
+        sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter(),
+        operations: (any FFmpegVideoReaderOperations)? = nil,
         readerQueue: DispatchQueue = DispatchQueue(
             label: "com.enchron.playbackcore.ffmpeg-video-reader"
         )
     ) {
         self.operations = operations
+            ?? SystemFFmpegVideoReaderOperations(sourceReadMeter: sourceReadMeter)
         self.readerQueue = readerQueue
     }
 

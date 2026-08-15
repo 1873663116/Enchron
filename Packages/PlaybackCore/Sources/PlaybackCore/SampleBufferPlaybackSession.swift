@@ -72,6 +72,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let provider: VideoSampleProvider
     let audioProvider: AudioSampleProvider
     let subtitleProvider: SubtitleProvider
+    let sourceReadMeter: PlaybackSourceReadMeter?
+    let sourceReadObservationLock = NSLock()
+    var sourceReadRateSampler: PlaybackSourceReadRateSampler
     let videoSampleFormatOverride = VideoSampleFormatOverride()
     var rendererFailureMonitor: RendererFailureMonitoring?
     let rendererFailureLock = NSLock()
@@ -166,11 +169,13 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     }
 
     convenience init(traceID: String = UUID().uuidString) {
+        let sourceReadMeter = PlaybackSourceReadMeter()
         self.init(
             traceID: traceID,
-            provider: FFmpegSampleProvider(),
-            audioProvider: FFmpegAudioSampleProvider(),
-            subtitleProvider: FFmpegSubtitleProvider(),
+            provider: FFmpegSampleProvider(sourceReadMeter: sourceReadMeter),
+            audioProvider: FFmpegAudioSampleProvider(sourceReadMeter: sourceReadMeter),
+            subtitleProvider: FFmpegSubtitleProvider(sourceReadMeter: sourceReadMeter),
+            sourceReadMeter: sourceReadMeter,
             rendererSink: nil
         )
     }
@@ -180,6 +185,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         provider: VideoSampleProvider,
         audioProvider: AudioSampleProvider = NoAudioSampleProvider(),
         subtitleProvider: SubtitleProvider = NoSubtitleProvider(),
+        sourceReadMeter: PlaybackSourceReadMeter? = nil,
         rendererSink: RendererInputSink? = nil,
         audioRendererSink: AudioRendererInputSink? = nil,
         rendererFailureMonitor: RendererFailureMonitoring? = nil,
@@ -197,6 +203,10 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         self.provider = provider
         self.audioProvider = audioProvider
         self.subtitleProvider = subtitleProvider
+        self.sourceReadMeter = sourceReadMeter
+        self.sourceReadRateSampler = PlaybackSourceReadRateSampler(
+            startedAt: ProcessInfo.processInfo.systemUptime
+        )
         self.firstVideoFrameDeadline = firstVideoFrameDeadline
         self.firstVideoFrameObservation = firstVideoFrameObservation
         self.activationReapplyVerificationConfiguration =

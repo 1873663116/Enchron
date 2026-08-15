@@ -239,6 +239,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private let logger = Logger(subsystem: "app.enchron", category: "PlaybackRuntime")
     private let signposter: OSSignposter
     private var session: SampleBufferPlaybackSession?
+    @ObservationIgnored
+    private var openingTechnicalSessionReplacementController: PlaybackCoreController?
     private var attachment: Attachment?
     private var generation = 0
     private var selectedProjectionType: PlaybackModel.ProjectionType = .flat
@@ -1184,6 +1186,12 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             )
 
         let replacementController = PlaybackCoreController()
+        openingTechnicalSessionReplacementController = replacementController
+        defer {
+            if openingTechnicalSessionReplacementController === replacementController {
+                openingTechnicalSessionReplacementController = nil
+            }
+        }
         do {
             let replacement = try await replacementController.open(
                 request.url,
@@ -1956,6 +1964,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
 
     func outputObservation() -> PlaybackOutputObservation {
         let snapshot = session?.debugSnapshot()
+        let sourceReadSession = openingTechnicalSessionReplacementController?.activeSession
+            ?? preparedTechnicalSessionReplacement?.session
+            ?? controller.activeSession
+            ?? session
+        let sourceReadObservation = sourceReadSession === session
+            ? snapshot?.sourceReadObservation
+            : sourceReadSession?.debugSnapshot().sourceReadObservation
         let presentation = snapshot?.presentationState
         let audioSession = audioSessionLifecycle.observation
         return PlaybackOutputObservation(
@@ -1999,7 +2014,8 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             audioSessionCategory: audioSession.category,
             audioSessionMode: audioSession.mode,
             audioSessionOutputPortTypes: audioSession.outputPortTypes,
-            systemOutputVolume: audioSession.outputVolume
+            systemOutputVolume: audioSession.outputVolume,
+            sourceReadBytesPerSecond: sourceReadObservation?.bytesPerSecond ?? 0
         )
     }
 
