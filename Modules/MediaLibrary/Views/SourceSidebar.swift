@@ -73,12 +73,6 @@ struct SourceSidebar: View {
         .frame(width: DesignTokens.SourceSidebar.width)
         .frame(maxHeight: .infinity, alignment: .topLeading)
         .enchronSidebarSurface()
-        .contentShape(Rectangle())
-        .simultaneousGesture(
-            TapGesture().onEnded {
-                collapseExpandedSource()
-            }
-        )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(containerIdentifier)
     }
