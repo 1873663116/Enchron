@@ -109,6 +109,7 @@ extension SampleBufferPlaybackSession {
         }
 
         do {
+            try demuxSession?.seek(to: target)
             try await provider.prepare(
                 url: sourceURL,
                 asset: sourceAsset,
@@ -352,6 +353,17 @@ extension SampleBufferPlaybackSession {
         audioDeliveryQueue.sync { audioProvider.cancel() }
         audioRendererSink.flush()
         resetAudioEndState(requiresAudio: previouslyHadAudio)
+        if let demuxSession {
+            stopVideoDelivery()
+            deliveryQueue.sync { provider.cancel() }
+            try demuxSession.seek(to: time.seconds)
+            try await provider.prepare(
+                url: sourceURL,
+                asset: sourceAsset,
+                startTime: time
+            )
+            try provider.start()
+        }
         do {
             try await audioProvider.prepare(
                 url: sourceURL,
@@ -392,6 +404,9 @@ extension SampleBufferPlaybackSession {
             if hasAudio {
                 startAudioDelivery()
             }
+            if demuxSession != nil {
+                startVideoDelivery()
+            }
             setTimelineRateForDiscontinuity(
                 rate,
                 at: time,
@@ -429,6 +444,9 @@ extension SampleBufferPlaybackSession {
         }
         audioStreamEpoch += 1
         startAudioDelivery()
+        if demuxSession != nil {
+            startVideoDelivery()
+        }
         setTimelineRateForDiscontinuity(
             rate,
             at: time,

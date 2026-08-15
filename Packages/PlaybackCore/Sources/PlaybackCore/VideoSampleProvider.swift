@@ -98,9 +98,14 @@ extension FFmpegVideoReaderOperations {
 
 struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
     private let sourceReadMeter: PlaybackSourceReadMeter
+    private let demuxSession: FFmpegDemuxSession?
 
-    init(sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter()) {
+    init(
+        sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter(),
+        demuxSession: FFmpegDemuxSession? = nil
+    ) {
         self.sourceReadMeter = sourceReadMeter
+        self.demuxSession = demuxSession
     }
 
     func allocate() -> FFmpegVideoReaderHandle? {
@@ -117,15 +122,27 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
             sourceReadMeter.bridgeMonitor
         )
         var error = [CChar](repeating: 0, count: 512)
-        let opened = source.withCString { path in
-            PBFFmpegReaderOpen(
-                reader.pointer,
-                path,
-                PBFFmpegModeCompressed,
-                startSeconds,
-                &error,
-                error.count
-            )
+        let opened = if let demuxSession {
+            try demuxSession.withSource(argument: source) {
+                PBFFmpegReaderOpenWithDemuxSource(
+                    reader.pointer,
+                    $0,
+                    PBFFmpegModeCompressed,
+                    &error,
+                    error.count
+                )
+            }
+        } else {
+            source.withCString { path in
+                PBFFmpegReaderOpen(
+                    reader.pointer,
+                    path,
+                    PBFFmpegModeCompressed,
+                    startSeconds,
+                    &error,
+                    error.count
+                )
+            }
         }
         guard opened else {
             throw PlaybackProviderError.ffmpeg(ffmpegErrorMessage(error))
@@ -264,13 +281,17 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
 
     init(
         sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter(),
+        demuxSession: FFmpegDemuxSession? = nil,
         operations: (any FFmpegVideoReaderOperations)? = nil,
         readerQueue: DispatchQueue = DispatchQueue(
             label: "com.enchron.playbackcore.ffmpeg-video-reader"
         )
     ) {
         self.operations = operations
-            ?? SystemFFmpegVideoReaderOperations(sourceReadMeter: sourceReadMeter)
+            ?? SystemFFmpegVideoReaderOperations(
+                sourceReadMeter: sourceReadMeter,
+                demuxSession: demuxSession
+            )
         self.readerQueue = readerQueue
     }
 

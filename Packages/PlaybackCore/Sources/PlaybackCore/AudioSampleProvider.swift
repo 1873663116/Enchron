@@ -54,9 +54,14 @@ protocol FFmpegAudioReaderOperations: Sendable {
 
 struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
     private let sourceReadMeter: PlaybackSourceReadMeter
+    private let demuxSession: FFmpegDemuxSession?
 
-    init(sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter()) {
+    init(
+        sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter(),
+        demuxSession: FFmpegDemuxSession? = nil
+    ) {
         self.sourceReadMeter = sourceReadMeter
+        self.demuxSession = demuxSession
     }
 
     func allocate() -> FFmpegAudioReaderHandle? {
@@ -74,15 +79,27 @@ struct SystemFFmpegAudioReaderOperations: FFmpegAudioReaderOperations {
             sourceReadMeter.bridgeMonitor
         )
         var error = [CChar](repeating: 0, count: 512)
-        let opened = source.withCString { path in
-            PBFFmpegAudioReaderOpen(
-                reader.pointer,
-                path,
-                startSeconds,
-                Int32(streamIndex ?? -1),
-                &error,
-                error.count
-            )
+        let opened = if let demuxSession {
+            try demuxSession.withSource(argument: source) {
+                PBFFmpegAudioReaderOpenWithDemuxSource(
+                    reader.pointer,
+                    $0,
+                    Int32(streamIndex ?? -1),
+                    &error,
+                    error.count
+                )
+            }
+        } else {
+            source.withCString { path in
+                PBFFmpegAudioReaderOpen(
+                    reader.pointer,
+                    path,
+                    startSeconds,
+                    Int32(streamIndex ?? -1),
+                    &error,
+                    error.count
+                )
+            }
         }
         guard opened else {
             let message = ffmpegErrorMessage(error)
@@ -199,6 +216,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
 
     init(
         sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter(),
+        demuxSession: FFmpegDemuxSession? = nil,
         operations: (any FFmpegAudioReaderOperations)? = nil,
         readerQueue: DispatchQueue = DispatchQueue(
             label: "com.enchron.playbackcore.ffmpeg-audio-reader"
@@ -206,10 +224,14 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
     ) {
         self.sourceReadMeter = sourceReadMeter
         informationLoader = SystemMediaSourceInformationLoader(
-            sourceReadMeter: sourceReadMeter
+            sourceReadMeter: sourceReadMeter,
+            demuxSession: demuxSession
         )
         self.operations = operations
-            ?? SystemFFmpegAudioReaderOperations(sourceReadMeter: sourceReadMeter)
+            ?? SystemFFmpegAudioReaderOperations(
+                sourceReadMeter: sourceReadMeter,
+                demuxSession: demuxSession
+            )
         self.readerQueue = readerQueue
     }
 

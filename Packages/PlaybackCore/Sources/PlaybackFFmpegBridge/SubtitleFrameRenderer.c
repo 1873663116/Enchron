@@ -1,4 +1,5 @@
 #include "PlaybackFFmpegBridge.h"
+#include "PlaybackFFmpegBridgeInternal.h"
 #include "SubtitleSystemFont.h"
 
 #include <ass/ass.h>
@@ -17,11 +18,19 @@ typedef struct PBSubtitlePacket {
     double startSeconds;
 } PBSubtitlePacket;
 
+typedef struct PBSubtitleTextCue {
+    double startSeconds;
+    double durationSeconds;
+    CFStringRef text;
+} PBSubtitleTextCue;
+
 struct PBSubtitleFrameRenderer {
     enum AVCodecID codecID;
     AVCodecContext *decoder;
     PBSubtitlePacket *packets;
     size_t packetCount;
+    PBSubtitleTextCue *textCues;
+    size_t textCueCount;
     size_t nextPacketIndex;
     double lastRequestSeconds;
     double bitmapStartSeconds;
@@ -220,6 +229,98 @@ static bool append_packet(
     return true;
 }
 
+static CFStringRef decoded_ass_plain_text(const char *ass) {
+    const char *body = ass;
+    int commas = 0;
+    while (*body && commas < 8) {
+        if (*body++ == ',') commas++;
+    }
+    size_t length = strlen(body);
+    char *plain = calloc(length + 1, 1);
+    if (!plain) return NULL;
+    size_t output = 0;
+    bool inOverride = false;
+    for (size_t index = 0; index < length; index++) {
+        char value = body[index];
+        if (value == '{') {
+            inOverride = true;
+            continue;
+        }
+        if (value == '}' && inOverride) {
+            inOverride = false;
+            continue;
+        }
+        if (inOverride) continue;
+        if (value == '\\' && index + 1 < length) {
+            char escaped = body[index + 1];
+            if (escaped == 'N' || escaped == 'n') {
+                plain[output++] = '\n';
+                index++;
+                continue;
+            }
+            if (escaped == 'h') {
+                plain[output++] = ' ';
+                index++;
+                continue;
+            }
+        }
+        plain[output++] = value;
+    }
+    CFStringRef text = CFStringCreateWithCString(
+        kCFAllocatorDefault,
+        plain,
+        kCFStringEncodingUTF8
+    );
+    free(plain);
+    return text;
+}
+
+static CFStringRef subtitle_plain_text(const AVSubtitle *subtitle) {
+    CFMutableStringRef text = CFStringCreateMutable(kCFAllocatorDefault, 0);
+    if (!text) return NULL;
+    for (unsigned int index = 0; index < subtitle->num_rects; index++) {
+        AVSubtitleRect *rect = subtitle->rects[index];
+        if (!rect) continue;
+        CFStringRef part = rect->text
+            ? CFStringCreateWithCString(
+                kCFAllocatorDefault,
+                rect->text,
+                kCFStringEncodingUTF8
+            )
+            : (rect->ass ? decoded_ass_plain_text(rect->ass) : NULL);
+        if (!part) continue;
+        if (CFStringGetLength(text) > 0) CFStringAppend(text, CFSTR("\n"));
+        CFStringAppend(text, part);
+        CFRelease(part);
+    }
+    return text;
+}
+
+static bool append_text_cue(
+    PBSubtitleFrameRenderer *renderer,
+    const AVSubtitle *subtitle,
+    double startSeconds,
+    double endSeconds
+) {
+    CFStringRef text = subtitle_plain_text(subtitle);
+    if (!text) return false;
+    PBSubtitleTextCue *cues = realloc(
+        renderer->textCues,
+        (renderer->textCueCount + 1) * sizeof(*cues)
+    );
+    if (!cues) {
+        CFRelease(text);
+        return false;
+    }
+    renderer->textCues = cues;
+    renderer->textCues[renderer->textCueCount++] = (PBSubtitleTextCue) {
+        .startSeconds = startSeconds,
+        .durationSeconds = endSeconds - startSeconds,
+        .text = text,
+    };
+    return true;
+}
+
 static bool process_text_packet(
     PBSubtitleFrameRenderer *renderer,
     AVPacket *packet,
@@ -251,55 +352,52 @@ static bool process_text_packet(
             durationMilliseconds
         );
     }
+    bool storedCue = append_text_cue(
+        renderer,
+        &subtitle,
+        startSeconds,
+        endSeconds
+    );
     avsubtitle_free(&subtitle);
-    return true;
+    return storedCue;
 }
 
-PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
-    const char *path,
+static PBSubtitleFrameRenderer *create_subtitle_frame_renderer(
+    AVFormatContext *format,
+    PBFFmpegDemuxSource *demuxSource,
+    bool ownsFormat,
     int streamIndex,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
-    if (!path || streamIndex < 0) {
+    if (!format || streamIndex < 0) {
         set_error(errorBuffer, errorBufferSize, "Invalid subtitle frame renderer call");
         return NULL;
     }
-    AVFormatContext *format = NULL;
-    int result = avformat_open_input(&format, path, NULL, NULL);
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Open subtitle frame source", result);
-        return NULL;
-    }
-    result = avformat_find_stream_info(format, NULL);
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Read subtitle frame stream information", result);
-        avformat_close_input(&format);
-        return NULL;
-    }
+    int result = 0;
     if (streamIndex >= (int)format->nb_streams) {
         set_error(errorBuffer, errorBufferSize, "Subtitle frame stream index is unavailable");
-        avformat_close_input(&format);
+        if (ownsFormat) avformat_close_input(&format);
         return NULL;
     }
     AVStream *stream = format->streams[streamIndex];
     enum AVCodecID codecID = stream->codecpar->codec_id;
     if (!is_text_codec(codecID) && !is_bitmap_codec(codecID)) {
         set_error(errorBuffer, errorBufferSize, "Subtitle frame codec is unsupported");
-        avformat_close_input(&format);
+        if (ownsFormat) avformat_close_input(&format);
         return NULL;
     }
     const AVCodec *codec = avcodec_find_decoder(codecID);
     if (!codec) {
         set_error(errorBuffer, errorBufferSize, "Subtitle frame decoder is unavailable");
-        avformat_close_input(&format);
+        if (ownsFormat) avformat_close_input(&format);
         return NULL;
     }
 
     PBSubtitleFrameRenderer *renderer = calloc(1, sizeof(PBSubtitleFrameRenderer));
     if (!renderer) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate subtitle frame renderer");
-        avformat_close_input(&format);
+        if (ownsFormat) avformat_close_input(&format);
         return NULL;
     }
     renderer->codecID = codecID;
@@ -309,7 +407,7 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     renderer->decoder = avcodec_alloc_context3(codec);
     if (!renderer->decoder) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate subtitle decoder");
-        avformat_close_input(&format);
+        if (ownsFormat) avformat_close_input(&format);
         PBSubtitleFrameRendererDestroy(renderer);
         return NULL;
     }
@@ -320,7 +418,7 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     }
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Open subtitle frame decoder", result);
-        avformat_close_input(&format);
+        if (ownsFormat) avformat_close_input(&format);
         PBSubtitleFrameRendererDestroy(renderer);
         return NULL;
     }
@@ -349,7 +447,7 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
             : NULL;
         if (!renderer->assLibrary || !renderer->assRenderer || !renderer->assTrack) {
             set_error(errorBuffer, errorBufferSize, "Initialize libass subtitle renderer");
-            avformat_close_input(&format);
+            if (ownsFormat) avformat_close_input(&format);
             PBSubtitleFrameRendererDestroy(renderer);
             return NULL;
         }
@@ -393,11 +491,13 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     AVPacket *packet = av_packet_alloc();
     if (!packet) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate subtitle frame packet");
-        avformat_close_input(&format);
+        if (ownsFormat) avformat_close_input(&format);
         PBSubtitleFrameRendererDestroy(renderer);
         return NULL;
     }
-    while (av_read_frame(format, packet) >= 0) {
+    while ((result = demuxSource
+            ? PBFFmpegDemuxSourceCopyNextPacket(demuxSource, streamIndex, packet)
+            : av_read_frame(format, packet)) >= 0) {
         if (packet->stream_index == streamIndex && packet->size > 0 && packet->data) {
             int64_t timestamp = packet->pts != AV_NOPTS_VALUE ? packet->pts : packet->dts;
             double startSeconds = timestamp != AV_NOPTS_VALUE
@@ -408,7 +508,7 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
                 : append_packet(renderer, packet, startSeconds);
             if (!succeeded) {
                 av_packet_free(&packet);
-                avformat_close_input(&format);
+                if (ownsFormat) avformat_close_input(&format);
                 set_error(errorBuffer, errorBufferSize, "Decode subtitle frame packet");
                 PBSubtitleFrameRendererDestroy(renderer);
                 return NULL;
@@ -417,8 +517,67 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
         av_packet_unref(packet);
     }
     av_packet_free(&packet);
-    avformat_close_input(&format);
+    if (ownsFormat) avformat_close_input(&format);
     if (is_text_codec(codecID)) avcodec_flush_buffers(renderer->decoder);
+    return renderer;
+}
+
+PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
+    const char *path,
+    int streamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!path || streamIndex < 0) {
+        set_error(errorBuffer, errorBufferSize, "Invalid subtitle frame renderer call");
+        return NULL;
+    }
+    AVFormatContext *format = NULL;
+    int result = avformat_open_input(&format, path, NULL, NULL);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Open subtitle frame source", result);
+        return NULL;
+    }
+    result = avformat_find_stream_info(format, NULL);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Read subtitle frame stream information", result);
+        avformat_close_input(&format);
+        return NULL;
+    }
+    return create_subtitle_frame_renderer(
+        format,
+        NULL,
+        true,
+        streamIndex,
+        errorBuffer,
+        errorBufferSize
+    );
+}
+
+PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    AVFormatContext *format = PBFFmpegDemuxSourceGetFormatContext(source);
+    if (!format || streamIndex < 0) {
+        set_error(errorBuffer, errorBufferSize, "Invalid shared subtitle frame renderer call");
+        return NULL;
+    }
+    if (!PBFFmpegDemuxSourceSubscribe(source, streamIndex)) {
+        set_error(errorBuffer, errorBufferSize, "The shared subtitle stream already has a reader");
+        return NULL;
+    }
+    PBSubtitleFrameRenderer *renderer = create_subtitle_frame_renderer(
+        format,
+        source,
+        false,
+        streamIndex,
+        errorBuffer,
+        errorBufferSize
+    );
+    PBFFmpegDemuxSourceUnsubscribe(source, streamIndex);
     return renderer;
 }
 
@@ -429,11 +588,40 @@ void PBSubtitleFrameRendererDestroy(PBSubtitleFrameRenderer *renderer) {
         av_packet_free(&renderer->packets[index].packet);
     }
     free(renderer->packets);
+    for (size_t index = 0; index < renderer->textCueCount; index++) {
+        CFRelease(renderer->textCues[index].text);
+    }
+    free(renderer->textCues);
     avcodec_free_context(&renderer->decoder);
     if (renderer->assTrack) ass_free_track(renderer->assTrack);
     if (renderer->assRenderer) ass_renderer_done(renderer->assRenderer);
     if (renderer->assLibrary) ass_library_done(renderer->assLibrary);
     free(renderer);
+}
+
+int PBSubtitleFrameRendererGetTextCueCount(
+    const PBSubtitleFrameRenderer *renderer
+) {
+    return renderer && renderer->textCueCount <= INT_MAX
+        ? (int)renderer->textCueCount
+        : 0;
+}
+
+bool PBSubtitleFrameRendererCopyTextCue(
+    const PBSubtitleFrameRenderer *renderer,
+    int index,
+    double *startSecondsOut,
+    double *durationSecondsOut,
+    CFStringRef *textOut
+) {
+    if (!renderer || index < 0 ||
+        (size_t)index >= renderer->textCueCount ||
+        !startSecondsOut || !durationSecondsOut || !textOut) return false;
+    const PBSubtitleTextCue *cue = &renderer->textCues[index];
+    *startSecondsOut = cue->startSeconds;
+    *durationSecondsOut = cue->durationSeconds;
+    *textOut = CFRetain(cue->text);
+    return true;
 }
 
 static PBSubtitleFrameResult copy_pixels(
