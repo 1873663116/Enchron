@@ -58,7 +58,6 @@ struct SettingsScreen: View {
             detail
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Settings-SettingsScreen")
         .task { await refreshCacheUsage() }
