@@ -38,6 +38,16 @@ Emby 直连是另一条路径，它有一条真实的服务端上限。对 `~/Li
 
 测量方法与逐条数字见 `Scripts/verification/probe_remote_media_reads.py` 与 `remote_open_accounting_probe.c`。
 
+## 打开次数降到三次之后
+
+三处改动共同把一次 `prepare` 的容器打开次数从五次降到三次，每次打开的 HTTP 请求从四个降到两个。打开时不再单独探测长度，`avio_size` 在已打开的 `AVIOContext` 上取值，`end_offset` 用 `av_opt_set_int(..., AV_OPT_SEARCH_CHILDREN)` 在连接建立之后写入。合格的 MOV 家族流表不再调用 `avformat_find_stream_info`，判据要求有视频流、编解码器已知、宽高为正、H.264 与 HEVC 的配置可用或 AV1 配置记录完整，任何一条不满足就在同一个 `AVFormatContext` 上补跑探测。音轨与字幕轨由一次打开产出的 `MediaSourceInformation` 一起枚举，它可 `Codable` 且脱离 `AVFormatContext` 存活。
+
+本机量具 `Scripts/verification/measure-remote-media-open.py` 对 `HNVR-158_H_4096p_8K_LR_180_clip.mp4` 测得全过程 6 个请求 6 条连接，每个阶段两个请求，一个起点为 0 的开放式请求和一个带上界的 `moov` 范围。
+
+2026-08-15 真机实测同一部 WebDAV 片源，证据在 `TestEvidence/remote-open-levers-20260815/`，逐秒读数在 `run1_read_volume.txt` 与 `run2_read_volume.txt`。两次运行的读取量都是 23.4 MB，基线 37.4 MB。分段与三次打开一一对应：生命周期 idle 期间读 7.4 MB，即轨道枚举的一次 `moov`；进入 opening 后字节计数在 8.5 MB 冻结约十秒，结束时跳到 22.3 MB，即视频 reader 与音频 reader 的两次 `moov`。从点击到出第一帧两次分别为 14.0 秒与 15.7 秒，基线 28 秒。
+
+因此单次 `moov` 读取在设备上约五秒，有效速率 1.1 到 1.4 MB/s，而同一设备同一服务器在 `playing` 期间记录 8.3 MB/s。一次 ranged 请求的读取速率为何只有顺序播放的六分之一，尚未分离；候选是 alist 为定位 18 GB 文件尾部而在其后端付出的寻道代价，以及该请求没有得到顺序播放那样的预读。这一项决定打开时间的下限，因为把打开次数从三次压到一次只能省下其中两次。
+
 ## 剩余代价
 
 转换耗时现在由回填的 seek 主导。从渲染图替换到第一个样本 13 秒，到 seek 完成 16 秒。原因是新渲染器同时承担解码，必须从一个可独立解码的关键帧开始，而当前实现向后 seek 回切换时刻，在 HTTP 来源上这是一次新的字节范围请求。可见的副作用是位置回退，实测从 16.686 秒回到 10.427 秒。
