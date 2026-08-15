@@ -253,6 +253,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     private var lastResolvedProfile: PlaybackModel.MediaProfile?
     private var closingTask: Task<Void, Never>?
     private var startsWhenAttached = false
+    private var presentationConversionReusesMediaSession = false
     private var playbackVolume: Float = 1
     private var playbackMuted = false
     private var technicalSessionMediaFormatInterpretation: EffectiveMediaFormatInterpretation?
@@ -1167,6 +1168,17 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             throw RuntimeError.noSession
         }
         technicalSessionReplacementIsInFlight = true
+
+        // A conversion that keeps the format needs only a renderer the target
+        // Entity has never bound, and the live session can hand one out. Opening
+        // the source again would repeat its track enumeration, its demuxer and,
+        // on a network source, every one of those as a fresh connection.
+        if technicalSessionFormatReplacementIsPending == false, session != nil {
+            presentationConversionReusesMediaSession = true
+            technicalSessionReplacementStage = .installingRenderer
+            return
+        }
+        presentationConversionReusesMediaSession = false
         technicalSessionReplacementStage = .openingReplacement
 
         generation += 1
@@ -1259,6 +1271,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func activatePreparedTechnicalSessionReplacement() async throws {
+        if presentationConversionReusesMediaSession {
+            try await activateReplacementRendererGraph()
+            return
+        }
         guard let prepared = preparedTechnicalSessionReplacement else {
             throw RuntimeError.noSession
         }
@@ -1339,6 +1355,63 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         )
     }
 
+    private func activateReplacementRendererGraph() async throws {
+        guard let sourceSession = session,
+              let logicalSessionID = activeSessionID else {
+            throw RuntimeError.noSession
+        }
+        let conversionGeneration = generation
+        let initiallyEndedContinuity = controller.endedContinuity
+        let naturalEndNotificationWasPublished =
+            productLifecycle == .ended && didEndNaturally
+        if productLifecycle == .playing {
+            try controller.pause()
+        }
+        let cutoverTime = sourceSession.currentTime()
+        let endedContinuity = controller.endedContinuity ?? initiallyEndedContinuity
+
+        let replacement: AVSampleBufferVideoRenderer
+        do {
+            replacement = try await controller.replaceVideoRendererGraph()
+        } catch {
+            presentationConversionReusesMediaSession = false
+            technicalSessionReplacementIsInFlight = false
+            technicalSessionReplacementStage = .failed
+            throw error
+        }
+        guard generation == conversionGeneration,
+              activeSessionID == logicalSessionID,
+              session === sourceSession else {
+            throw RuntimeError.mediaSessionChanged
+        }
+
+        detach()
+        releaseRendererConsumerForVideoComponentReplacement()
+        renderer = replacement
+        rendererEpoch &+= 1
+        presentationState = .placeholder
+        startsWhenAttached = true
+        firstAttachedPresentationForActiveTechnicalSession = nil
+        videoComponentRevision &+= 1
+        effectiveVideoFormatRevision = nil
+        activatedTechnicalSessionCutover = ActivatedTechnicalSessionCutover(
+            generation: conversionGeneration,
+            logicalSessionID: logicalSessionID,
+            activeReplacementSessionID: sourceSession.traceID,
+            delivery: .pending(
+                endedContinuity.map(TechnicalSessionRebuildContinuity.ended)
+                    ?? .timeline(cutoverTime)
+            ),
+            naturalEndNotificationWasPublished: naturalEndNotificationWasPublished
+        )
+        if let endedContinuity {
+            adoptEndedContinuity(endedContinuity)
+        }
+        logger.info(
+            "replacement renderer graph activated logical=\(logicalSessionID, privacy: .public) technical=\(sourceSession.traceID, privacy: .public)"
+        )
+    }
+
     public func rebaseActivatedTechnicalSessionReplacement(
         to presentation: PlaybackPresentation
     ) async throws {
@@ -1367,6 +1440,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func retireDepartingTechnicalSessionAfterSceneDisappearance() async {
+        if presentationConversionReusesMediaSession {
+            presentationConversionReusesMediaSession = false
+            await controller.retireDepartingVideoRendererGraph()
+            completeTechnicalSessionReplacementAfterSettlement()
+            logger.info("departing renderer graph retired after source Scene disappeared")
+            return
+        }
         guard let departingTechnicalSessionController else { return }
         self.departingTechnicalSessionController = nil
         await departingTechnicalSessionController.closeAndWait(clearSource: false)
@@ -1375,6 +1455,13 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     }
 
     public func cancelPreparedTechnicalSessionReplacement() async {
+        if presentationConversionReusesMediaSession {
+            presentationConversionReusesMediaSession = false
+            technicalSessionReplacementIsInFlight = false
+            technicalSessionReplacementStage = .failed
+            await controller.retireDepartingVideoRendererGraph()
+            return
+        }
         guard let preparedTechnicalSessionReplacement else { return }
         self.preparedTechnicalSessionReplacement = nil
         technicalSessionReplacementIsInFlight = false
@@ -1503,6 +1590,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         preparedTechnicalSessionReplacement = nil
         activatedTechnicalSessionCutover = nil
         technicalSessionReplacementIsInFlight = false
+        presentationConversionReusesMediaSession = false
         let previousClosingTask = closingTask
         let audioSessionLifecycle = audioSessionLifecycle
         let closeTask = Task { @MainActor in

@@ -18,15 +18,17 @@
 
 两条平台约束决定了它的形状。`AVSampleBufferVideoRenderer` 在添加 video target 之前拒绝入队，因此替换后视频样本投递保持挂起，由调用方绑定新渲染器后经既有的 `restartVideoSampleDelivery(at:)` 回填。离场渲染器保留在 synchronizer 上继续呈现最后一帧，直到 `retireDepartingVideoRendererGraph()`，使转换期间旧 Scene 始终有画面。
 
-## 未实现
+## 已接线并实测
 
-`PlaybackRuntime` 与 `SpatialPlatformEffectExecutor` 仍然对每一次呈现转换构造新的 `PlaybackCoreController` 并重新 `open`。改用渲染图替换需要三步。
+`PlaybackRuntime` 的 prepare、activate、retire 三步在格式未变时改走渲染图替换，判据是 `technicalSessionFormatReplacementIsPending == false`，覆盖 portal 与 panorama 之间、window 与 docked 之间的往返。`SpatialPlatformEffectExecutor` 未改动，它原有的 prepare、activate、rebase、settle、retire 编排对两条路径同样成立。应用格式引起的 window 与 portal 互换仍走会话替换，因为它还要证明 RealityKit 不会沿用旧的投影分类。
 
-第一步，`PlaybackRuntime` 增加一条与 `prepareTechnicalSessionForPresentationConversion` 平行的转换路径，它更新 `renderer`、`rendererEpoch`、`videoComponentRevision`、`presentationState` 与 `startsWhenAttached`，但不更换 controller、session、`activeTechnicalSessionID` 与轨道列表，也不建立 `ActivatedTechnicalSessionCutover`。
+2026-08-15 同设备同片源实测，证据在 `TestEvidence/mode-switch-graph-reuse-20260815/`。远程 portal 到 panorama 从点击返回到沉浸落地，基线 78 秒，改后两次分别为 17 秒与 12 秒。`technicalSessionReplacementStage` 全程只出现 `installingRenderer`，`openingReplacement` 一次未出现。两次运行的会话事件流中 `source.acquired`、`open.admitted`、`provider.opened` 各只有一条，都属于最初的打开，转换本身没有再打开来源；`rendererGraph.replaced` 与 `rendererGraph.departingRetired` 各一条，`graphRevision` 为 2。落定后 `displayedPixelBuffer` 为真、`rate` 与 `actualTimebaseRate` 均为 1、`actualViewingMode` 为 stereo。
 
-第二步，`SpatialPlatformEffectExecutor` 的 `enterImmersivePlayback` 与 `exitImmersivePlayback` 在格式未变时走该路径。判据是 `technicalSessionFormatReplacementIsPending == false`，即 portal 与 panorama 之间、window 与 docked 之间的往返。应用格式引起的 window 与 portal 互换先保留会话替换，因为它还要证明 RealityKit 不会沿用旧的投影分类。
+## 剩余代价
 
-第三步，在物理设备上重测同一组转换，与上面的分段耗时对照。判据是远程 portal 到 panorama 的 `technicalSessionReplacementStage` 不再出现 `openingReplacement`，且 `PlaybackDebugRecorder` 不再为该转换新建会话目录。
+转换耗时现在由回填的 seek 主导。从渲染图替换到第一个样本 13 秒，到 seek 完成 16 秒。原因是新渲染器同时承担解码，必须从一个可独立解码的关键帧开始，而当前实现向后 seek 回切换时刻，在 HTTP 来源上这是一次新的字节范围请求。可见的副作用是位置回退，实测从 16.686 秒回到 10.427 秒。
+
+两条候选。一是改为向前推进到下一个关键帧，代价是播放位置小幅前跳而不是后退，这是产品取舍不是纯技术选择。二是让替换渲染器复用已缓冲的压缩样本，需要先确认 receiver 能否接受一段以非关键帧开头的输入并在下一个关键帧自愈。
 
 ## 相关决策
 
