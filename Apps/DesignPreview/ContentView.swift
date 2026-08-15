@@ -52,7 +52,11 @@ enum DesignPreviewPage: String, CaseIterable, Identifiable {
 }
 
 struct ContentView: View {
-    @State private var selection: DesignPreviewPage? = .components
+    // Screenshot lanes have no tap channel into the simulator, so the page
+    // they want has to be reachable at launch.
+    @State private var selection: DesignPreviewPage? = ProcessInfo.processInfo
+        .environment["ENCHRON_DESIGN_PREVIEW_PAGE"]
+        .flatMap(DesignPreviewPage.init(rawValue:)) ?? .components
 
     var body: some View {
         NavigationSplitView {

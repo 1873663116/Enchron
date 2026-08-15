@@ -242,6 +242,7 @@ public struct ConnectionFormPanel: View {
                     .accessibilityIdentifier(identifier("guest"))
             }
         }
+        .textFieldStyle(.roundedBorder)
         .enchronLiteralTextInput()
         .disabled(isBusy)
     }
