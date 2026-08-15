@@ -117,26 +117,47 @@ protocol MediaSourceInformationLoading: Sendable {
 
 struct SystemMediaSourceInformationLoader: MediaSourceInformationLoading {
     private let sourceReadMeter: PlaybackSourceReadMeter
+    private let demuxSession: FFmpegDemuxSession?
     private let queue = DispatchQueue(
         label: "com.enchron.playbackcore.ffmpeg-media-source-information"
     )
 
-    init(sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter()) {
+    init(
+        sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter(),
+        demuxSession: FFmpegDemuxSession? = nil
+    ) {
         self.sourceReadMeter = sourceReadMeter
+        self.demuxSession = demuxSession
     }
 
     func load(from url: URL) async throws -> MediaSourceInformation {
         let source = FFmpegSourceLocator.argument(for: url)
         return try await withCheckedThrowingContinuation { continuation in
-            queue.async { [sourceReadMeter] in
+            queue.async { [sourceReadMeter, demuxSession] in
                 var error = [CChar](repeating: 0, count: 512)
-                let handle = source.withCString {
-                    PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
-                        $0,
-                        sourceReadMeter.bridgeMonitor,
-                        &error,
-                        error.count
-                    )
+                let handle: OpaquePointer?
+                do {
+                    handle = if let demuxSession {
+                        try demuxSession.withSource(argument: source) {
+                            PBFFmpegDemuxSourceCopyInformation(
+                                $0,
+                                &error,
+                                error.count
+                            )
+                        }
+                    } else {
+                        source.withCString {
+                            PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+                                $0,
+                                sourceReadMeter.bridgeMonitor,
+                                &error,
+                                error.count
+                            )
+                        }
+                    }
+                } catch {
+                    continuation.resume(throwing: error)
+                    return
                 }
                 guard let handle else {
                     continuation.resume(

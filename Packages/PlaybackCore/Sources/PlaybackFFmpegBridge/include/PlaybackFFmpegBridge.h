@@ -18,6 +18,7 @@ typedef enum PBFFmpegReadResult {
 
 typedef struct PBFFmpegReader PBFFmpegReader;
 typedef struct PBFFmpegAudioReader PBFFmpegAudioReader;
+typedef struct PBFFmpegDemuxSource PBFFmpegDemuxSource;
 typedef struct PBFFmpegSourceReadMonitor PBFFmpegSourceReadMonitor;
 typedef struct PBFFmpegMediaSourceInformation PBFFmpegMediaSourceInformation;
 typedef enum PBFFmpegMediaStreamCategory {
@@ -60,6 +61,25 @@ PBFFmpegSourceReadMonitor *PBFFmpegSourceReadMonitorCreate(void);
 void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor);
 uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
     const PBFFmpegSourceReadMonitor *monitor
+);
+
+PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
+    const char *path,
+    PBFFmpegSourceReadMonitor *monitor,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source);
+PBFFmpegMediaSourceInformation *PBFFmpegDemuxSourceCopyInformation(
+    PBFFmpegDemuxSource *source,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+bool PBFFmpegDemuxSourceSeek(
+    PBFFmpegDemuxSource *source,
+    double seconds,
+    char *errorBuffer,
+    size_t errorBufferSize
 );
 
 PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreate(
@@ -150,6 +170,13 @@ bool PBFFmpegReaderOpen(
     char *errorBuffer,
     size_t errorBufferSize
 );
+bool PBFFmpegReaderOpenWithDemuxSource(
+    PBFFmpegReader *reader,
+    PBFFmpegDemuxSource *source,
+    PBFFmpegMode mode,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
 void PBFFmpegReaderCancel(PBFFmpegReader *reader);
 
 /// Test seam for exercising streams whose container metadata omits codec configuration.
@@ -225,6 +252,13 @@ bool PBFFmpegAudioReaderOpen(
     char *errorBuffer,
     size_t errorBufferSize
 );
+bool PBFFmpegAudioReaderOpenWithDemuxSource(
+    PBFFmpegAudioReader *reader,
+    PBFFmpegDemuxSource *source,
+    int preferredStreamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
 void PBFFmpegAudioReaderCancel(PBFFmpegAudioReader *reader);
 void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader);
 PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
@@ -253,6 +287,12 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
     size_t errorBufferSize,
     PBFFmpegSourceReadMonitor *monitor
 );
+PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithDemuxSource(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
 void PBFFmpegSubtitleReaderDestroy(PBFFmpegSubtitleReader *reader);
 PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
     PBFFmpegSubtitleReader *reader,
@@ -268,6 +308,22 @@ PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreate(
     int streamIndex,
     char *errorBuffer,
     size_t errorBufferSize
+);
+PBSubtitleFrameRenderer *PBSubtitleFrameRendererCreateWithDemuxSource(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+int PBSubtitleFrameRendererGetTextCueCount(
+    const PBSubtitleFrameRenderer *renderer
+);
+bool PBSubtitleFrameRendererCopyTextCue(
+    const PBSubtitleFrameRenderer *renderer,
+    int index,
+    double *startSecondsOut,
+    double *durationSecondsOut,
+    CFStringRef *textOut
 );
 void PBSubtitleFrameRendererDestroy(PBSubtitleFrameRenderer *renderer);
 PBSubtitleFrameResult PBSubtitleFrameRendererCopyFrame(

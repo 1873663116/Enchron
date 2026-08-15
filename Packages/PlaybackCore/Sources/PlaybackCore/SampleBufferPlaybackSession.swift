@@ -129,6 +129,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let subtitleProvider: SubtitleProvider
     let mediaSourceInformationLoader: (any MediaSourceInformationLoading)?
     let sourceReadMeter: PlaybackSourceReadMeter?
+    let demuxSession: FFmpegDemuxSession?
     let sourceReadObservationLock = NSLock()
     var sourceReadRateSampler: PlaybackSourceReadRateSampler
     let videoSampleFormatOverride = VideoSampleFormatOverride()
@@ -229,15 +230,27 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
 
     convenience init(traceID: String = UUID().uuidString) {
         let sourceReadMeter = PlaybackSourceReadMeter()
+        let demuxSession = FFmpegDemuxSession(sourceReadMeter: sourceReadMeter)
         self.init(
             traceID: traceID,
-            provider: FFmpegSampleProvider(sourceReadMeter: sourceReadMeter),
-            audioProvider: FFmpegAudioSampleProvider(sourceReadMeter: sourceReadMeter),
-            subtitleProvider: FFmpegSubtitleProvider(sourceReadMeter: sourceReadMeter),
+            provider: FFmpegSampleProvider(
+                sourceReadMeter: sourceReadMeter,
+                demuxSession: demuxSession
+            ),
+            audioProvider: FFmpegAudioSampleProvider(
+                sourceReadMeter: sourceReadMeter,
+                demuxSession: demuxSession
+            ),
+            subtitleProvider: FFmpegSubtitleProvider(
+                sourceReadMeter: sourceReadMeter,
+                demuxSession: demuxSession
+            ),
             mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
-                sourceReadMeter: sourceReadMeter
+                sourceReadMeter: sourceReadMeter,
+                demuxSession: demuxSession
             ),
             sourceReadMeter: sourceReadMeter,
+            demuxSession: demuxSession,
             rendererSink: nil
         )
     }
@@ -249,6 +262,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         subtitleProvider: SubtitleProvider = NoSubtitleProvider(),
         mediaSourceInformationLoader: (any MediaSourceInformationLoading)? = nil,
         sourceReadMeter: PlaybackSourceReadMeter? = nil,
+        demuxSession: FFmpegDemuxSession? = nil,
         rendererSink: RendererInputSink? = nil,
         audioRendererSink: AudioRendererInputSink? = nil,
         rendererFailureMonitor: RendererFailureMonitoring? = nil,
@@ -268,6 +282,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         self.subtitleProvider = subtitleProvider
         self.mediaSourceInformationLoader = mediaSourceInformationLoader
         self.sourceReadMeter = sourceReadMeter
+        self.demuxSession = demuxSession
         self.sourceReadRateSampler = PlaybackSourceReadRateSampler(
             startedAt: ProcessInfo.processInfo.systemUptime
         )
@@ -336,9 +351,16 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         sourceAsset = asset
         let sourceInformation: MediaSourceInformation?
         if let mediaSourceInformationLoader {
-            sourceInformation = try? await mediaSourceInformationLoader.load(from: url)
+            sourceInformation = if demuxSession != nil {
+                try await mediaSourceInformationLoader.load(from: url)
+            } else {
+                try? await mediaSourceInformationLoader.load(from: url)
+            }
         } else {
             sourceInformation = nil
+        }
+        if let demuxSession, startTime.isNumeric, startTime.seconds > 0 {
+            try demuxSession.seek(to: startTime.seconds)
         }
         if let sourceInformation {
             availableAudioTracks = try await audioProvider.tracks(

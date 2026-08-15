@@ -26,7 +26,7 @@ DEFAULT_MEDIA = (
 DEFAULT_SCRATCH = Path(
     "/Volumes/Cortisol/DerivedData/Enchron-remote-media-open-probe"
 )
-STAGES = ("tracks", "video-reader", "audio-reader")
+STAGES = ("session",)
 
 
 def run_checked(command, **kwargs):
@@ -78,7 +78,7 @@ def main():
     parser = argparse.ArgumentParser(
         description=(
             "Serve a real media file over authenticated range HTTP, run PlaybackCore's "
-            "track enumeration plus video and audio reader opens, and report successful "
+            "shared demux source plus video and audio reader setup, and report successful "
             "media request, media connection, FFmpeg-read byte, and authentication "
             "wire counts by stage."
         )
@@ -87,6 +87,7 @@ def main():
     parser.add_argument("--scratch-path", type=Path, default=DEFAULT_SCRATCH)
     parser.add_argument("--username", default="enchron-probe")
     parser.add_argument("--password", default="remote-media")
+    parser.add_argument("--mode", choices=("open", "playback"), default="open")
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args()
 
@@ -165,14 +166,16 @@ def main():
             )
             results = []
             event_count = 0
+            probe_stage = "session" if arguments.mode == "open" else "playback"
+            expected_stages = STAGES if arguments.mode == "open" else ("playback",)
             probe_process = subprocess.Popen(
-                [str(probe), "--stage", "session", "--url", url],
+                [str(probe), "--stage", probe_stage, "--url", url],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
             )
             assert probe_process.stdout is not None
-            for stage in STAGES:
+            for stage in expected_stages:
                 output = probe_process.stdout.readline()
                 if not output:
                     error = probe_process.stderr.read() if probe_process.stderr else ""
@@ -193,6 +196,29 @@ def main():
                     events,
                     event_count,
                 )
+                if stage == "playback":
+                    playback = re.search(
+                        r"playback_bytes=(\d+) delivered_seconds=([0-9.]+) "
+                        r"bytes_per_second=([0-9.]+)",
+                        output,
+                    )
+                    if not playback:
+                        raise RuntimeError(
+                            f"probe did not report playback growth: {output.strip()}"
+                        )
+                    delivered_seconds = float(playback.group(2))
+                    source_bytes_per_second = media.stat().st_size / delivered_seconds
+                    result.update(
+                        {
+                            "playback_bytes": int(playback.group(1)),
+                            "delivered_seconds": delivered_seconds,
+                            "playback_bytes_per_second": float(playback.group(3)),
+                            "source_bytes_per_second": source_bytes_per_second,
+                            "read_to_source_rate_ratio": (
+                                float(playback.group(3)) / source_bytes_per_second
+                            ),
+                        }
+                    )
                 results.append(result)
             return_code = probe_process.wait()
             error = probe_process.stderr.read() if probe_process.stderr else ""
@@ -210,6 +236,7 @@ def main():
                 server.wait()
 
     report = {
+        "mode": arguments.mode,
         "media": str(media),
         "stages": results,
         "total": {

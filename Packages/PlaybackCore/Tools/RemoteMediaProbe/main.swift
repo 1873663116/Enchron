@@ -1,4 +1,5 @@
 import Foundation
+import CoreMedia
 import PlaybackFFmpegBridge
 
 enum ProbeFailure: Error, CustomStringConvertible {
@@ -16,6 +17,7 @@ enum ProbeStage: String {
     case tracks
     case videoReader = "video-reader"
     case audioReader = "audio-reader"
+    case playback
     case session
 }
 
@@ -129,6 +131,185 @@ func openAudioReader(source: String, monitor: OpaquePointer) throws -> String {
     return "audio_stream=\(streamIndex)"
 }
 
+func openSharedSession(source: String, monitor: OpaquePointer) throws -> String {
+    var error = [CChar](repeating: 0, count: 512)
+    let demuxSource = source.withCString {
+        PBFFmpegDemuxSourceCreate($0, monitor, &error, error.count)
+    }
+    guard let demuxSource else {
+        throw ProbeFailure.operation(
+            "demux source open failed: \(errorMessage(error))"
+        )
+    }
+    defer { PBFFmpegDemuxSourceDestroy(demuxSource) }
+    guard let information = PBFFmpegDemuxSourceCopyInformation(
+        demuxSource,
+        &error,
+        error.count
+    ) else {
+        throw ProbeFailure.operation(
+            "demux source information failed: \(errorMessage(error))"
+        )
+    }
+    defer { PBFFmpegMediaSourceInformationDestroy(information) }
+    guard let videoReader = PBFFmpegReaderAllocate(),
+          let audioReader = PBFFmpegAudioReaderAllocate() else {
+        throw ProbeFailure.operation("shared reader allocation failed")
+    }
+    defer {
+        PBFFmpegReaderDestroy(videoReader)
+        PBFFmpegAudioReaderDestroy(audioReader)
+    }
+    guard PBFFmpegReaderOpenWithDemuxSource(
+        videoReader,
+        demuxSource,
+        PBFFmpegModeCompressed,
+        &error,
+        error.count
+    ) else {
+        throw ProbeFailure.operation(
+            "shared video reader open failed: \(errorMessage(error))"
+        )
+    }
+    guard PBFFmpegAudioReaderOpenWithDemuxSource(
+        audioReader,
+        demuxSource,
+        -1,
+        &error,
+        error.count
+    ) else {
+        throw ProbeFailure.operation(
+            "shared audio reader open failed: \(errorMessage(error))"
+        )
+    }
+    return "streams=\(PBFFmpegMediaSourceInformationGetStreamCount(information)) "
+        + "video_stream=\(PBFFmpegReaderGetVideoStreamIndex(videoReader)) "
+        + "audio_stream=\(PBFFmpegAudioReaderGetStreamIndex(audioReader))"
+}
+
+func measurePlayback(source: String, monitor: OpaquePointer) throws -> String {
+    guard let videoReader = PBFFmpegReaderAllocate(),
+          let audioReader = PBFFmpegAudioReaderAllocate() else {
+        throw ProbeFailure.operation("reader allocation failed")
+    }
+    var error = [CChar](repeating: 0, count: 512)
+    let demuxSource = source.withCString {
+        PBFFmpegDemuxSourceCreate($0, monitor, &error, error.count)
+    }
+    guard let demuxSource else {
+        throw ProbeFailure.operation(
+            "demux source open failed: \(errorMessage(error))"
+        )
+    }
+    defer {
+        PBFFmpegReaderDestroy(videoReader)
+        PBFFmpegAudioReaderDestroy(audioReader)
+        PBFFmpegDemuxSourceDestroy(demuxSource)
+    }
+    let videoOpened = PBFFmpegReaderOpenWithDemuxSource(
+        videoReader,
+        demuxSource,
+        PBFFmpegModeCompressed,
+        &error,
+        error.count
+    )
+    guard videoOpened else {
+        throw ProbeFailure.operation(
+            "video reader open failed: \(errorMessage(error))"
+        )
+    }
+    let audioOpened = PBFFmpegAudioReaderOpenWithDemuxSource(
+        audioReader,
+        demuxSource,
+        -1,
+        &error,
+        error.count
+    )
+    guard audioOpened else {
+        throw ProbeFailure.operation(
+            "audio reader open failed: \(errorMessage(error))"
+        )
+    }
+
+    let bytesAtPlaybackStart = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
+    var videoEndSeconds = 0.0
+    var audioEndSeconds = 0.0
+    var videoEnded = false
+    var audioEnded = false
+    var videoSampleCount = 0
+    var audioSampleCount = 0
+    while !videoEnded || !audioEnded {
+        let readVideo = !videoEnded && (audioEnded || videoEndSeconds <= audioEndSeconds)
+        if readVideo {
+            var sample: Unmanaged<CMSampleBuffer>?
+            let result = PBFFmpegReaderCopyNextSample(
+                videoReader,
+                &sample,
+                &error,
+                error.count
+            )
+            switch result {
+            case PBFFmpegReadResultSample:
+                guard let sample else {
+                    throw ProbeFailure.operation("video sample was unavailable")
+                }
+                let buffer = sample.takeRetainedValue()
+                videoEndSeconds = max(
+                    videoEndSeconds,
+                    CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+                        + max(0, CMSampleBufferGetDuration(buffer).seconds)
+                )
+                videoSampleCount += 1
+            case PBFFmpegReadResultEnd:
+                videoEnded = true
+            default:
+                throw ProbeFailure.operation(
+                    "video sample read failed: \(errorMessage(error))"
+                )
+            }
+        } else {
+            var sample: Unmanaged<CMSampleBuffer>?
+            var metadata = PBFFmpegAudioSampleMetadata()
+            let result = PBFFmpegAudioReaderCopyNextSample(
+                audioReader,
+                &sample,
+                &metadata,
+                &error,
+                error.count
+            )
+            switch result {
+            case PBFFmpegReadResultSample:
+                guard let sample else {
+                    throw ProbeFailure.operation("audio sample was unavailable")
+                }
+                let buffer = sample.takeRetainedValue()
+                audioEndSeconds = max(
+                    audioEndSeconds,
+                    CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+                        + max(0, CMSampleBufferGetDuration(buffer).seconds)
+                )
+                audioSampleCount += 1
+            case PBFFmpegReadResultEnd:
+                audioEnded = true
+            default:
+                throw ProbeFailure.operation(
+                    "audio sample read failed: \(errorMessage(error))"
+                )
+            }
+        }
+    }
+    let playbackBytes = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
+        - bytesAtPlaybackStart
+    let deliveredSeconds = max(videoEndSeconds, audioEndSeconds)
+    guard deliveredSeconds > 0 else {
+        throw ProbeFailure.operation("playback produced no timed samples")
+    }
+    let bytesPerSecond = Double(playbackBytes) / deliveredSeconds
+    return "playback_bytes=\(playbackBytes) delivered_seconds=\(deliveredSeconds) "
+        + "bytes_per_second=\(bytesPerSecond) video_samples=\(videoSampleCount) "
+        + "audio_samples=\(audioSampleCount)"
+}
+
 func run() throws {
     let arguments = Array(CommandLine.arguments.dropFirst())
     guard arguments.count == 4,
@@ -136,16 +317,14 @@ func run() throws {
           let stage = ProbeStage(rawValue: arguments[1]),
           arguments[2] == "--url" else {
         throw ProbeFailure.usage(
-            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|session --url URL"
+            "usage: PlaybackCoreRemoteMediaProbe --stage tracks|video-reader|audio-reader|playback|session --url URL"
         )
     }
     guard let monitor = PBFFmpegSourceReadMonitorCreate() else {
         throw ProbeFailure.operation("source read monitor allocation failed")
     }
     defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
-    let stages: [ProbeStage] = stage == .session
-        ? [.tracks, .videoReader, .audioReader]
-        : [stage]
+    let stages: [ProbeStage] = [stage]
     var previousBytes: UInt64 = 0
     for currentStage in stages {
         let detail = switch currentStage {
@@ -155,8 +334,10 @@ func run() throws {
             try openVideoReader(source: arguments[3], monitor: monitor)
         case .audioReader:
             try openAudioReader(source: arguments[3], monitor: monitor)
+        case .playback:
+            try measurePlayback(source: arguments[3], monitor: monitor)
         case .session:
-            throw ProbeFailure.operation("nested session stage")
+            try openSharedSession(source: arguments[3], monitor: monitor)
         }
         let cumulativeBytes = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
         let bytes = cumulativeBytes - previousBytes

@@ -68,6 +68,26 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
         self.renderer = renderer
     }
 
+    init(
+        demuxSession: FFmpegDemuxSession,
+        source: String,
+        track: PlaybackSubtitleTrack
+    ) throws {
+        var error = [CChar](repeating: 0, count: 512)
+        let renderer = try demuxSession.withSource(argument: source) {
+            PBSubtitleFrameRendererCreateWithDemuxSource(
+                $0,
+                Int32(track.streamIndex),
+                &error,
+                error.count
+            )
+        }
+        guard let renderer else {
+            throw SubtitleProviderError.open(Self.errorMessage(error))
+        }
+        self.renderer = renderer
+    }
+
     deinit {
         PBSubtitleFrameRendererDestroy(renderer)
     }
@@ -114,6 +134,38 @@ final class FFmpegSubtitleFrameRenderer: SubtitleFrameRendering, @unchecked Send
                 return nil
             default:
                 throw SubtitleProviderError.read(Self.errorMessage(error))
+            }
+        }
+    }
+
+    func textCues(for track: PlaybackSubtitleTrack) throws -> [PlaybackSubtitleCue] {
+        try lock.withLock {
+            let count = Int(PBSubtitleFrameRendererGetTextCueCount(renderer))
+            return try (0..<count).map { index in
+                var startSeconds = 0.0
+                var durationSeconds = 0.0
+                var text: Unmanaged<CFString>?
+                guard PBSubtitleFrameRendererCopyTextCue(
+                    renderer,
+                    Int32(index),
+                    &startSeconds,
+                    &durationSeconds,
+                    &text
+                ), let text else {
+                    throw SubtitleProviderError.read(
+                        "Subtitle cue \(index) is unavailable"
+                    )
+                }
+                let start = CMTime(seconds: startSeconds, preferredTimescale: 60_000)
+                let duration = CMTime(seconds: durationSeconds, preferredTimescale: 60_000)
+                return PlaybackSubtitleCue(
+                    id: "\(track.id).cue.\(index)",
+                    trackID: track.id,
+                    timeRange: CMTimeRange(start: start, duration: duration),
+                    text: (text.takeRetainedValue() as String)
+                        .replacingOccurrences(of: "\r\n", with: "\n")
+                        .replacingOccurrences(of: "\r", with: "\n")
+                )
             }
         }
     }

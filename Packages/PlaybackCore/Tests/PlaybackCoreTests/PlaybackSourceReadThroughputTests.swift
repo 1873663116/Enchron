@@ -62,7 +62,7 @@ import Testing
     #expect(PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor) > bytesAfterAudioScan)
 }
 
-@Test func sourceReadMonitorCountsLongLivedVideoAndAudioReaders() throws {
+@Test func sourceReadMonitorCountsSharedDemuxReads() throws {
     let fixture = playbackSourceReadTestMedia.appendingPathComponent(
         "TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv"
     )
@@ -70,31 +70,84 @@ import Testing
     defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
     var error = [CChar](repeating: 0, count: 512)
 
-    let videoReader = try #require(PBFFmpegReaderAllocate())
-    PBFFmpegReaderSetSourceReadMonitor(videoReader, monitor)
-    let videoOpened = fixture.path.withCString {
-        PBFFmpegReaderOpen(
-            videoReader,
-            $0,
-            PBFFmpegModeCompressed,
-            0,
-            &error,
-            error.count
-        )
+    let source = fixture.path.withCString {
+        PBFFmpegDemuxSourceCreate($0, monitor, &error, error.count)
     }
+    let openedSource = try #require(source)
+    defer { PBFFmpegDemuxSourceDestroy(openedSource) }
+    let bytesAfterSourceOpen = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
+    #expect(bytesAfterSourceOpen > 0)
+
+    let videoReader = try #require(PBFFmpegReaderAllocate())
+    let videoOpened = PBFFmpegReaderOpenWithDemuxSource(
+        videoReader,
+        openedSource,
+        PBFFmpegModeCompressed,
+        &error,
+        error.count
+    )
     try #require(videoOpened)
     defer { PBFFmpegReaderDestroy(videoReader) }
-    let bytesAfterVideoOpen = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
-    #expect(bytesAfterVideoOpen > 0)
 
     let audioReader = try #require(PBFFmpegAudioReaderAllocate())
-    PBFFmpegAudioReaderSetSourceReadMonitor(audioReader, monitor)
-    let audioOpened = fixture.path.withCString {
-        PBFFmpegAudioReaderOpen(audioReader, $0, 0, -1, &error, error.count)
-    }
+    let audioOpened = PBFFmpegAudioReaderOpenWithDemuxSource(
+        audioReader,
+        openedSource,
+        -1,
+        &error,
+        error.count
+    )
     try #require(audioOpened)
     defer { PBFFmpegAudioReaderDestroy(audioReader) }
-    #expect(PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor) > bytesAfterVideoOpen)
+
+    var sample: Unmanaged<CMSampleBuffer>?
+    let result = PBFFmpegReaderCopyNextSample(
+        videoReader,
+        &sample,
+        &error,
+        error.count
+    )
+    try #require(result == PBFFmpegReadResultSample)
+    _ = sample?.takeRetainedValue()
+    #expect(PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor) >= bytesAfterSourceOpen)
+
+    try #require(PBFFmpegDemuxSourceSeek(
+        openedSource,
+        5,
+        &error,
+        error.count
+    ))
+    var videoSeconds = -Double.infinity
+    var audioSeconds = -Double.infinity
+    while videoSeconds < 5 || audioSeconds < 5 {
+        if videoSeconds <= audioSeconds {
+            var videoSample: Unmanaged<CMSampleBuffer>?
+            let readResult = PBFFmpegReaderCopyNextSample(
+                videoReader,
+                &videoSample,
+                &error,
+                error.count
+            )
+            try #require(readResult == PBFFmpegReadResultSample)
+            let buffer = try #require(videoSample?.takeRetainedValue())
+            videoSeconds = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+        } else {
+            var audioSample: Unmanaged<CMSampleBuffer>?
+            var metadata = PBFFmpegAudioSampleMetadata()
+            let readResult = PBFFmpegAudioReaderCopyNextSample(
+                audioReader,
+                &audioSample,
+                &metadata,
+                &error,
+                error.count
+            )
+            try #require(readResult == PBFFmpegReadResultSample)
+            let buffer = try #require(audioSample?.takeRetainedValue())
+            audioSeconds = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+        }
+    }
+    #expect(videoSeconds >= 5)
+    #expect(audioSeconds >= 5)
 }
 
 private let playbackSourceReadTestMedia = URL(fileURLWithPath: #filePath)

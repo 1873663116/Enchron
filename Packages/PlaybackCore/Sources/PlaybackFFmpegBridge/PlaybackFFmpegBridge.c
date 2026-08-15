@@ -1,4 +1,5 @@
 #include "PlaybackFFmpegBridge.h"
+#include "PlaybackFFmpegBridgeInternal.h"
 
 #include <AudioToolbox/AudioToolbox.h>
 #include <libavcodec/avcodec.h>
@@ -22,54 +23,46 @@
 #include <string.h>
 #include <strings.h>
 
-typedef struct {
-    int64_t offset;
-    size_t length;
-    uint8_t *bytes;
-} PBFFmpegSourceByteRange;
-
-typedef enum {
-    PBFFmpegFirstOpenSourceBytesEmpty,
-    PBFFmpegFirstOpenSourceBytesRecording,
-    PBFFmpegFirstOpenSourceBytesFrozen,
-} PBFFmpegFirstOpenSourceBytesState;
-
-typedef struct {
-    pthread_mutex_t lock;
-    PBFFmpegFirstOpenSourceBytesState state;
-    char *sourcePath;
-    PBFFmpegSourceByteRange *ranges;
-    size_t rangeCount;
-    size_t rangeCapacity;
-} PBFFmpegFirstOpenSourceBytes;
-
 struct PBFFmpegSourceReadMonitor {
     atomic_uint_fast64_t totalBytesRead;
-    PBFFmpegFirstOpenSourceBytes firstOpenSourceBytes;
 };
-
-typedef enum {
-    PBFFmpegSourceIOBypassFirstOpenBytes,
-    PBFFmpegSourceIORecordFirstOpenBytes,
-    PBFFmpegSourceIOReplayFirstOpenBytes,
-} PBFFmpegSourceIOFirstOpenBytesMode;
-
-typedef struct {
-    PBFFmpegSourceReadMonitor *monitor;
-    AVIOContext *outer;
-    AVIOContext *inner;
-    int64_t position;
-    PBFFmpegSourceIOFirstOpenBytesMode firstOpenBytesMode;
-    bool firstOpenBytesEnabled;
-} PBFFmpegSourceIO;
 
 typedef struct {
     PBFFmpegSourceReadMonitor *monitor;
     atomic_bool *cancelled;
     AVFormatContext *formatContext;
-    PBFFmpegSourceIO *sourceIO;
     int64_t accountedBytesRead;
 } PBFFmpegSourceReadContext;
+
+typedef struct PBFFmpegPacketNode {
+    AVPacket *packet;
+    struct PBFFmpegPacketNode *next;
+} PBFFmpegPacketNode;
+
+typedef struct {
+    PBFFmpegPacketNode *head;
+    PBFFmpegPacketNode *tail;
+    unsigned int subscribers;
+    unsigned int waiters;
+} PBFFmpegPacketQueue;
+
+struct PBFFmpegDemuxSource {
+    atomic_bool interrupted;
+    pthread_mutex_t lock;
+    pthread_cond_t changed;
+    pthread_t readThread;
+    bool readThreadStarted;
+    bool stopsReadThread;
+    bool reachedEnd;
+    int readResult;
+    PBFFmpegSourceReadContext sourceReadContext;
+    AVFormatContext *formatContext;
+    PBFFmpegPacketQueue *queues;
+    unsigned int queueCount;
+    int videoStreamIndex;
+    char *path;
+    bool prebuffersAudio;
+};
 
 typedef struct {
     bool movFamily;
@@ -105,6 +98,7 @@ struct PBFFmpegReader {
     atomic_bool cancelled;
     PBFFmpegSourceReadContext sourceReadContext;
     AVFormatContext *formatContext;
+    PBFFmpegDemuxSource *demuxSource;
     AVPacket *packet;
     int videoStreamIndex;
     AVRational timeBase;
@@ -141,6 +135,7 @@ struct PBFFmpegAudioReader {
     atomic_bool cancelled;
     PBFFmpegSourceReadContext sourceReadContext;
     AVFormatContext *formatContext;
+    PBFFmpegDemuxSource *demuxSource;
     AVPacket *packet;
     AVPacket *filteredPacket;
     AVBSFContext *bitstreamFilter;
@@ -160,291 +155,11 @@ struct PBFFmpegAudioReader {
     char codecName[64];
 };
 
-static int configure_source_io_first_open_bytes(
-    PBFFmpegSourceIO *sourceIO,
-    const char *path
-) {
-    if (!sourceIO || !sourceIO->monitor) return 0;
-    PBFFmpegFirstOpenSourceBytes *bytes =
-        &sourceIO->monitor->firstOpenSourceBytes;
-    pthread_mutex_lock(&bytes->lock);
-    int result = 0;
-    if (bytes->state == PBFFmpegFirstOpenSourceBytesEmpty) {
-        bytes->sourcePath = av_strdup(path);
-        if (!bytes->sourcePath) {
-            result = AVERROR(ENOMEM);
-        } else {
-            bytes->state = PBFFmpegFirstOpenSourceBytesRecording;
-            sourceIO->firstOpenBytesMode =
-                PBFFmpegSourceIORecordFirstOpenBytes;
-            sourceIO->firstOpenBytesEnabled = true;
-        }
-    } else if (
-        bytes->state == PBFFmpegFirstOpenSourceBytesFrozen &&
-        bytes->sourcePath && strcmp(bytes->sourcePath, path) == 0
-    ) {
-        sourceIO->firstOpenBytesMode =
-            PBFFmpegSourceIOReplayFirstOpenBytes;
-        sourceIO->firstOpenBytesEnabled = true;
-    }
-    pthread_mutex_unlock(&bytes->lock);
-    return result;
-}
-
-static int copy_first_open_source_bytes(
-    PBFFmpegSourceIO *sourceIO,
-    uint8_t *buffer,
-    int bufferSize,
-    int64_t *nextRangeOffset
-) {
-    if (nextRangeOffset) *nextRangeOffset = -1;
-    if (!sourceIO || !sourceIO->monitor ||
-        !sourceIO->firstOpenBytesEnabled || bufferSize <= 0) return 0;
-    PBFFmpegFirstOpenSourceBytes *bytes =
-        &sourceIO->monitor->firstOpenSourceBytes;
-    pthread_mutex_lock(&bytes->lock);
-    int copied = 0;
-    for (size_t index = 0; index < bytes->rangeCount; index++) {
-        PBFFmpegSourceByteRange *range = &bytes->ranges[index];
-        if (range->offset > sourceIO->position) {
-            if (nextRangeOffset) *nextRangeOffset = range->offset;
-            break;
-        }
-        int64_t relativeOffset = sourceIO->position - range->offset;
-        if (relativeOffset < 0 || (uint64_t)relativeOffset >= range->length) continue;
-        size_t available = range->length - (size_t)relativeOffset;
-        copied = bufferSize < (int)available ? bufferSize : (int)available;
-        memcpy(buffer, range->bytes + relativeOffset, (size_t)copied);
-        break;
-    }
-    pthread_mutex_unlock(&bytes->lock);
-    return copied;
-}
-
-static int remember_first_open_source_bytes(
-    PBFFmpegSourceIO *sourceIO,
-    int64_t offset,
-    const uint8_t *buffer,
-    int bufferSize
-) {
-    if (!sourceIO || sourceIO->firstOpenBytesMode !=
-            PBFFmpegSourceIORecordFirstOpenBytes || bufferSize <= 0) return 0;
-    uint8_t *copy = av_memdup(buffer, (size_t)bufferSize);
-    if (!copy) return AVERROR(ENOMEM);
-    PBFFmpegFirstOpenSourceBytes *bytes =
-        &sourceIO->monitor->firstOpenSourceBytes;
-    pthread_mutex_lock(&bytes->lock);
-    int result = 0;
-    if (bytes->state != PBFFmpegFirstOpenSourceBytesRecording) {
-        result = AVERROR(EINVAL);
-        goto finish;
-    }
-    if (bytes->rangeCount == bytes->rangeCapacity) {
-        if (bytes->rangeCapacity > SIZE_MAX / 2) {
-            result = AVERROR(ENOMEM);
-            goto finish;
-        }
-        size_t capacity = bytes->rangeCapacity ? bytes->rangeCapacity * 2 : 1;
-        PBFFmpegSourceByteRange *ranges = av_realloc_array(
-            bytes->ranges,
-            capacity,
-            sizeof(*ranges)
-        );
-        if (!ranges) {
-            result = AVERROR(ENOMEM);
-            goto finish;
-        }
-        bytes->ranges = ranges;
-        bytes->rangeCapacity = capacity;
-    }
-    size_t insertionIndex = 0;
-    while (insertionIndex < bytes->rangeCount &&
-           bytes->ranges[insertionIndex].offset < offset) {
-        insertionIndex++;
-    }
-    memmove(
-        &bytes->ranges[insertionIndex + 1],
-        &bytes->ranges[insertionIndex],
-        (bytes->rangeCount - insertionIndex) * sizeof(*bytes->ranges)
-    );
-    bytes->ranges[insertionIndex] = (PBFFmpegSourceByteRange) {
-        .offset = offset,
-        .length = (size_t)bufferSize,
-        .bytes = copy,
-    };
-    bytes->rangeCount++;
-    copy = NULL;
-finish:
-    pthread_mutex_unlock(&bytes->lock);
-    av_free(copy);
-    return result;
-}
-
-static void freeze_first_open_source_bytes(PBFFmpegSourceIO *sourceIO) {
-    if (!sourceIO || !sourceIO->monitor ||
-        sourceIO->firstOpenBytesMode !=
-            PBFFmpegSourceIORecordFirstOpenBytes) return;
-    PBFFmpegFirstOpenSourceBytes *bytes =
-        &sourceIO->monitor->firstOpenSourceBytes;
-    pthread_mutex_lock(&bytes->lock);
-    if (bytes->state == PBFFmpegFirstOpenSourceBytesRecording) {
-        bytes->state = PBFFmpegFirstOpenSourceBytesFrozen;
-    }
-    pthread_mutex_unlock(&bytes->lock);
-}
-
-static int source_io_read(void *opaque, uint8_t *buffer, int bufferSize) {
-    PBFFmpegSourceIO *sourceIO = opaque;
-    if (!sourceIO || !sourceIO->inner || bufferSize <= 0) return AVERROR(EINVAL);
-    int64_t nextRangeOffset = -1;
-    int copied = copy_first_open_source_bytes(
-        sourceIO,
-        buffer,
-        bufferSize,
-        &nextRangeOffset
-    );
-    if (copied > 0) {
-        sourceIO->position += copied;
-        return copied;
-    }
-    int forwardedSize = bufferSize;
-    if (nextRangeOffset > sourceIO->position &&
-        nextRangeOffset - sourceIO->position < forwardedSize) {
-        forwardedSize = (int)(nextRangeOffset - sourceIO->position);
-    }
-    int64_t innerPosition = avio_tell(sourceIO->inner);
-    if (innerPosition != sourceIO->position) {
-        int64_t seekResult = avio_seek(
-            sourceIO->inner,
-            sourceIO->position,
-            SEEK_SET
-        );
-        if (seekResult < 0) return (int)seekResult;
-    }
-    int bytesRead = avio_read(sourceIO->inner, buffer, forwardedSize);
-    if (bytesRead <= 0) return bytesRead == 0 ? AVERROR_EOF : bytesRead;
-    int result = remember_first_open_source_bytes(
-        sourceIO,
-        sourceIO->position,
-        buffer,
-        bytesRead
-    );
-    if (result < 0) return result;
-    sourceIO->position += bytesRead;
-    return bytesRead;
-}
-
-static bool add_source_offset(int64_t base, int64_t offset, int64_t *result) {
-    if ((offset > 0 && base > INT64_MAX - offset) ||
-        (offset < 0 && base < INT64_MIN - offset)) return false;
-    *result = base + offset;
-    return *result >= 0;
-}
-
-static int64_t source_io_seek(void *opaque, int64_t offset, int whence) {
-    PBFFmpegSourceIO *sourceIO = opaque;
-    if (!sourceIO || !sourceIO->inner) return AVERROR(EINVAL);
-    if ((whence & AVSEEK_SIZE) == AVSEEK_SIZE) {
-        return avio_size(sourceIO->inner);
-    }
-    int origin = whence & ~AVSEEK_FORCE;
-    int64_t base = 0;
-    switch (origin) {
-        case SEEK_SET:
-            break;
-        case SEEK_CUR:
-            base = sourceIO->position;
-            break;
-        case SEEK_END:
-            base = avio_size(sourceIO->inner);
-            if (base < 0) return base;
-            break;
-        default:
-            return AVERROR(EINVAL);
-    }
-    int64_t position = 0;
-    if (!add_source_offset(base, offset, &position)) return AVERROR(EINVAL);
-    sourceIO->position = position;
-    return position;
-}
-
-static void destroy_source_io(PBFFmpegSourceIO **sourceIOPointer) {
-    if (!sourceIOPointer || !*sourceIOPointer) return;
-    PBFFmpegSourceIO *sourceIO = *sourceIOPointer;
-    if (sourceIO->outer) {
-        av_freep(&sourceIO->outer->buffer);
-        avio_context_free(&sourceIO->outer);
-    }
-    if (sourceIO->inner) avio_closep(&sourceIO->inner);
-    av_free(sourceIO);
-    *sourceIOPointer = NULL;
-}
-
-static int wrap_source_io(
-    AVIOContext *inner,
-    const char *path,
-    PBFFmpegSourceReadMonitor *monitor,
-    PBFFmpegSourceIO **sourceIOOut
-) {
-    *sourceIOOut = NULL;
-    if (!inner || inner->buffer_size <= 0) return AVERROR(EINVAL);
-    PBFFmpegSourceIO *sourceIO = av_mallocz(sizeof(*sourceIO));
-    if (!sourceIO) return AVERROR(ENOMEM);
-    sourceIO->monitor = monitor;
-    sourceIO->inner = inner;
-    uint8_t *buffer = av_malloc((size_t)inner->buffer_size);
-    if (!buffer) {
-        av_free(sourceIO);
-        return AVERROR(ENOMEM);
-    }
-    sourceIO->outer = avio_alloc_context(
-        buffer,
-        inner->buffer_size,
-        0,
-        sourceIO,
-        source_io_read,
-        NULL,
-        source_io_seek
-    );
-    if (!sourceIO->outer) {
-        av_free(buffer);
-        av_free(sourceIO);
-        return AVERROR(ENOMEM);
-    }
-    sourceIO->outer->seekable = inner->seekable;
-    sourceIO->outer->direct = inner->direct;
-    sourceIO->outer->max_packet_size = inner->max_packet_size;
-    int result = configure_source_io_first_open_bytes(
-        sourceIO,
-        path
-    );
-    if (result < 0) {
-        sourceIO->inner = NULL;
-        destroy_source_io(&sourceIO);
-        return result;
-    }
-    *sourceIOOut = sourceIO;
-    return 0;
-}
-
-static int finish_source_io_open(PBFFmpegSourceIO *sourceIO) {
-    if (!sourceIO || !sourceIO->outer) return 0;
-    freeze_first_open_source_bytes(sourceIO);
-    int64_t position = avio_tell(sourceIO->outer);
-    if (position < 0) return (int)position;
-    sourceIO->firstOpenBytesEnabled = false;
-    avio_flush(sourceIO->outer);
-    int64_t resetPosition = avio_seek(sourceIO->outer, position, SEEK_SET);
-    return resetPosition < 0 ? (int)resetPosition : 0;
-}
-
 static void publish_source_bytes(PBFFmpegSourceReadContext *context) {
     if (!context || !context->monitor) return;
-    AVIOContext *meteredIO = context->sourceIO
-        ? context->sourceIO->inner
-        : context->formatContext
-            ? context->formatContext->pb
-            : NULL;
+    AVIOContext *meteredIO = context->formatContext
+        ? context->formatContext->pb
+        : NULL;
     if (!meteredIO) return;
     int64_t bytesRead = meteredIO->bytes_read;
     if (bytesRead < 0) return;
@@ -480,7 +195,6 @@ static AVFormatContext *allocate_format_context(
     if (context && sourceReadContext) {
         sourceReadContext->cancelled = cancelled;
         sourceReadContext->formatContext = context;
-        sourceReadContext->sourceIO = NULL;
         sourceReadContext->accountedBytesRead = 0;
         context->interrupt_callback.callback =
             publish_source_bytes_and_check_cancellation;
@@ -502,29 +216,16 @@ static void close_media_source(
 ) {
     finish_source_read_context(sourceReadContext);
     avformat_close_input(formatContext);
-    if (sourceReadContext) destroy_source_io(&sourceReadContext->sourceIO);
 }
 
 PBFFmpegSourceReadMonitor *PBFFmpegSourceReadMonitorCreate(void) {
     PBFFmpegSourceReadMonitor *monitor = calloc(1, sizeof(PBFFmpegSourceReadMonitor));
     if (!monitor) return NULL;
     atomic_init(&monitor->totalBytesRead, 0);
-    if (pthread_mutex_init(&monitor->firstOpenSourceBytes.lock, NULL) != 0) {
-        free(monitor);
-        return NULL;
-    }
     return monitor;
 }
 
 void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor) {
-    if (!monitor) return;
-    PBFFmpegFirstOpenSourceBytes *bytes = &monitor->firstOpenSourceBytes;
-    for (size_t index = 0; index < bytes->rangeCount; index++) {
-        av_free(bytes->ranges[index].bytes);
-    }
-    av_free(bytes->ranges);
-    av_free(bytes->sourcePath);
-    pthread_mutex_destroy(&bytes->lock);
     free(monitor);
 }
 
@@ -536,9 +237,228 @@ uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
         : 0;
 }
 
+static void clear_packet_queue(PBFFmpegPacketQueue *queue) {
+    if (!queue) return;
+    PBFFmpegPacketNode *node = queue->head;
+    while (node) {
+        PBFFmpegPacketNode *next = node->next;
+        av_packet_free(&node->packet);
+        free(node);
+        node = next;
+    }
+    queue->head = NULL;
+    queue->tail = NULL;
+}
+
+static bool demux_source_has_waiter(const PBFFmpegDemuxSource *source) {
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        if (source->queues[index].waiters > 0) return true;
+    }
+    return false;
+}
+
+static void *demux_source_read_loop(void *opaque) {
+    PBFFmpegDemuxSource *source = opaque;
+    AVPacket *packet = av_packet_alloc();
+    if (!packet) {
+        pthread_mutex_lock(&source->lock);
+        source->readResult = AVERROR(ENOMEM);
+        source->reachedEnd = true;
+        pthread_cond_broadcast(&source->changed);
+        pthread_mutex_unlock(&source->lock);
+        return NULL;
+    }
+    while (true) {
+        pthread_mutex_lock(&source->lock);
+        while (!source->stopsReadThread &&
+               !source->reachedEnd &&
+               !demux_source_has_waiter(source)) {
+            pthread_cond_wait(&source->changed, &source->lock);
+        }
+        bool stop = source->stopsReadThread || source->reachedEnd;
+        pthread_mutex_unlock(&source->lock);
+        if (stop) break;
+
+        int result = av_read_frame(source->formatContext, packet);
+        publish_source_bytes(&source->sourceReadContext);
+
+        pthread_mutex_lock(&source->lock);
+        if (source->stopsReadThread) {
+            av_packet_unref(packet);
+            pthread_cond_broadcast(&source->changed);
+            pthread_mutex_unlock(&source->lock);
+            break;
+        }
+        if (result < 0) {
+            source->readResult = result;
+            source->reachedEnd = true;
+            pthread_cond_broadcast(&source->changed);
+            pthread_mutex_unlock(&source->lock);
+            break;
+        }
+        if (packet->stream_index >= 0 &&
+            (unsigned int)packet->stream_index < source->queueCount) {
+            PBFFmpegPacketQueue *queue = &source->queues[packet->stream_index];
+            bool prebuffersAudio = source->prebuffersAudio &&
+                source->formatContext->streams[packet->stream_index]
+                    ->codecpar->codec_type == AVMEDIA_TYPE_AUDIO;
+            bool prebuffersSubtitle = source->formatContext
+                ->streams[packet->stream_index]->codecpar->codec_type ==
+                    AVMEDIA_TYPE_SUBTITLE;
+            if (queue->subscribers > 0 || prebuffersAudio || prebuffersSubtitle) {
+                PBFFmpegPacketNode *node = calloc(1, sizeof(*node));
+                if (node) node->packet = av_packet_alloc();
+                if (!node || !node->packet) {
+                    if (node) free(node);
+                    source->readResult = AVERROR(ENOMEM);
+                    source->reachedEnd = true;
+                } else {
+                    av_packet_move_ref(node->packet, packet);
+                    if (queue->tail) {
+                        queue->tail->next = node;
+                    } else {
+                        queue->head = node;
+                    }
+                    queue->tail = node;
+                }
+            }
+        }
+        av_packet_unref(packet);
+        pthread_cond_broadcast(&source->changed);
+        pthread_mutex_unlock(&source->lock);
+    }
+    av_packet_free(&packet);
+    return NULL;
+}
+
+static bool start_demux_source_read_thread(PBFFmpegDemuxSource *source) {
+    if (source->readThreadStarted) return true;
+    source->stopsReadThread = false;
+    if (pthread_create(
+            &source->readThread,
+            NULL,
+            demux_source_read_loop,
+            source
+        ) != 0) return false;
+    source->readThreadStarted = true;
+    return true;
+}
+
+static void stop_demux_source_read_thread(PBFFmpegDemuxSource *source) {
+    pthread_mutex_lock(&source->lock);
+    bool join = source->readThreadStarted;
+    source->stopsReadThread = true;
+    atomic_store_explicit(&source->interrupted, true, memory_order_relaxed);
+    pthread_cond_broadcast(&source->changed);
+    pthread_mutex_unlock(&source->lock);
+    if (join) pthread_join(source->readThread, NULL);
+    pthread_mutex_lock(&source->lock);
+    source->readThreadStarted = false;
+    atomic_store_explicit(&source->interrupted, false, memory_order_relaxed);
+    pthread_mutex_unlock(&source->lock);
+}
+
+static bool subscribe_to_demux_stream(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+) {
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return false;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    bool subscribed = queue->subscribers == 0;
+    if (subscribed) queue->subscribers = 1;
+    pthread_mutex_unlock(&source->lock);
+    return subscribed;
+}
+
+static void unsubscribe_from_demux_stream(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+) {
+    if (!source || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    queue->subscribers = 0;
+    clear_packet_queue(queue);
+    pthread_cond_broadcast(&source->changed);
+    pthread_mutex_unlock(&source->lock);
+}
+
+static int copy_next_demux_packet(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    atomic_bool *cancelled,
+    AVPacket *packet
+) {
+    if (!source || !packet || streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) return AVERROR(EINVAL);
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+    queue->waiters++;
+    if (!start_demux_source_read_thread(source)) {
+        queue->waiters--;
+        pthread_mutex_unlock(&source->lock);
+        return AVERROR(ENOMEM);
+    }
+    pthread_cond_broadcast(&source->changed);
+    while (!queue->head && !source->reachedEnd &&
+           !cancellation_requested(cancelled)) {
+        pthread_cond_wait(&source->changed, &source->lock);
+    }
+    queue->waiters--;
+    if (cancellation_requested(cancelled)) {
+        pthread_mutex_unlock(&source->lock);
+        return AVERROR_EXIT;
+    }
+    if (!queue->head) {
+        int result = source->readResult < 0 ? source->readResult : AVERROR_EOF;
+        pthread_mutex_unlock(&source->lock);
+        return result;
+    }
+    PBFFmpegPacketNode *node = queue->head;
+    queue->head = node->next;
+    if (!queue->head) queue->tail = NULL;
+    av_packet_move_ref(packet, node->packet);
+    av_packet_free(&node->packet);
+    free(node);
+    pthread_mutex_unlock(&source->lock);
+    return 0;
+}
+
+AVFormatContext *PBFFmpegDemuxSourceGetFormatContext(
+    PBFFmpegDemuxSource *source
+) {
+    return source ? source->formatContext : NULL;
+}
+
+int PBFFmpegDemuxSourceCopyNextPacket(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    AVPacket *packet
+) {
+    return copy_next_demux_packet(source, streamIndex, NULL, packet);
+}
+
+bool PBFFmpegDemuxSourceSubscribe(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+) {
+    return subscribe_to_demux_stream(source, streamIndex);
+}
+
+void PBFFmpegDemuxSourceUnsubscribe(
+    PBFFmpegDemuxSource *source,
+    int streamIndex
+) {
+    unsubscribe_from_demux_stream(source, streamIndex);
+}
+
 struct PBFFmpegSubtitleReader {
     PBFFmpegSourceReadContext sourceReadContext;
     AVFormatContext *formatContext;
+    PBFFmpegDemuxSource *demuxSource;
     AVPacket *packet;
     AVCodecContext *decoder;
     int subtitleStreamIndex;
@@ -888,7 +808,6 @@ static int open_media_source(
 ) {
     AVDictionary *options = NULL;
     AVIOContext *openedIO = NULL;
-    PBFFmpegSourceIO *sourceIO = NULL;
     int result = 0;
     if (path_is_http(path)) {
         result = avio_open2(
@@ -911,20 +830,7 @@ static int open_media_source(
             );
             if (result < 0) goto finish;
         }
-        if (sourceReadContext && sourceReadContext->monitor) {
-            result = wrap_source_io(
-                openedIO,
-                path,
-                sourceReadContext->monitor,
-                &sourceIO
-            );
-            if (result < 0) goto finish;
-            sourceReadContext->sourceIO = sourceIO;
-            (*context)->pb = sourceIO->outer;
-            openedIO = NULL;
-        } else {
-            (*context)->pb = openedIO;
-        }
+        (*context)->pb = openedIO;
     }
     const AVInputFormat *format = disc_image_input_format(path);
     if (format) {
@@ -938,19 +844,13 @@ static int open_media_source(
         av_dict_set_int(&options, "resync_size", 16LL * 1024 * 1024, 0);
     }
     result = avformat_open_input(context, path, format, &options);
-    if (result >= 0 && sourceIO) {
-        result = finish_source_io_open(sourceIO);
-    } else if (result >= 0 && openedIO) {
+    if (result >= 0 && openedIO) {
         // avformat_open_input marks caller-supplied IO as custom; ownership moves
         // here so the existing avformat_close_input paths still close the socket.
         (*context)->flags &= ~AVFMT_FLAG_CUSTOM_IO;
         openedIO = NULL;
     }
 finish:
-    if (sourceIO && sourceIO->firstOpenBytesMode ==
-            PBFFmpegSourceIORecordFirstOpenBytes) {
-        freeze_first_open_source_bytes(sourceIO);
-    }
     if (result < 0 && *context && (*context)->pb == openedIO) {
         (*context)->pb = NULL;
     }
@@ -2159,8 +2059,15 @@ static int bootstrap_video_extradata(
             result = AVERROR_EXIT;
             break;
         }
-        result = av_read_frame(reader->formatContext, input);
-        publish_source_bytes(&reader->sourceReadContext);
+        result = reader->demuxSource
+            ? copy_next_demux_packet(
+                reader->demuxSource,
+                reader->videoStreamIndex,
+                &reader->cancelled,
+                input
+            )
+            : av_read_frame(reader->formatContext, input);
+        if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
         if (result < 0) break;
         if (input->stream_index != reader->videoStreamIndex) {
             av_packet_unref(input);
@@ -2634,6 +2541,44 @@ static void fill_media_stream_storage(
     );
 }
 
+static PBFFmpegMediaSourceInformation *copy_media_source_information(
+    AVFormatContext *context,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!context || context->nb_streams > INT_MAX) {
+        set_error(errorBuffer, errorBufferSize, "Media source has too many streams");
+        return NULL;
+    }
+    PBFFmpegMediaSourceInformation *information = calloc(1, sizeof(*information));
+    if (!information) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate media source information");
+        return NULL;
+    }
+    information->streamCount = (int)context->nb_streams;
+    if (information->streamCount > 0) {
+        information->streams = calloc(
+            (size_t)information->streamCount,
+            sizeof(*information->streams)
+        );
+    }
+    if (information->streamCount > 0 && !information->streams) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate media stream information");
+        PBFFmpegMediaSourceInformationDestroy(information);
+        return NULL;
+    }
+    copy_media_information_text(
+        information->containerFormat,
+        sizeof(information->containerFormat),
+        context->iformat && context->iformat->name ? context->iformat->name : "unknown"
+    );
+    information->durationSeconds = media_source_duration_seconds(context);
+    for (int index = 0; index < information->streamCount; index++) {
+        fill_media_stream_storage(&information->streams[index], context->streams[index]);
+    }
+    return information;
+}
+
 PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreate(
     const char *path,
     char *errorBuffer,
@@ -2705,41 +2650,195 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
         publish_source_bytes(&sourceReadContext);
     }
 
-    if (context->nb_streams > INT_MAX) {
-        set_error(errorBuffer, errorBufferSize, "Media source has too many streams");
-        close_media_source(&context, &sourceReadContext);
-        return NULL;
-    }
-    PBFFmpegMediaSourceInformation *information = calloc(1, sizeof(*information));
-    if (!information) {
-        set_error(errorBuffer, errorBufferSize, "Unable to allocate media source information");
-        close_media_source(&context, &sourceReadContext);
-        return NULL;
-    }
-    information->streamCount = (int)context->nb_streams;
-    if (information->streamCount > 0) {
-        information->streams = calloc(
-            (size_t)information->streamCount,
-            sizeof(*information->streams)
-        );
-    }
-    if (information->streamCount > 0 && !information->streams) {
-        set_error(errorBuffer, errorBufferSize, "Unable to allocate media stream information");
-        PBFFmpegMediaSourceInformationDestroy(information);
-        close_media_source(&context, &sourceReadContext);
-        return NULL;
-    }
-    copy_media_information_text(
-        information->containerFormat,
-        sizeof(information->containerFormat),
-        context->iformat && context->iformat->name ? context->iformat->name : "unknown"
+    PBFFmpegMediaSourceInformation *information = copy_media_source_information(
+        context,
+        errorBuffer,
+        errorBufferSize
     );
-    information->durationSeconds = media_source_duration_seconds(context);
-    for (int index = 0; index < information->streamCount; index++) {
-        fill_media_stream_storage(&information->streams[index], context->streams[index]);
-    }
     close_media_source(&context, &sourceReadContext);
     return information;
+}
+
+PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
+    const char *path,
+    PBFFmpegSourceReadMonitor *monitor,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!path) {
+        set_error(errorBuffer, errorBufferSize, "Invalid FFmpeg demux source call");
+        return NULL;
+    }
+    PBFFmpegDemuxSource *source = calloc(1, sizeof(*source));
+    if (!source) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg demux source");
+        return NULL;
+    }
+    atomic_init(&source->interrupted, false);
+    if (pthread_mutex_init(&source->lock, NULL) != 0) {
+        set_error(errorBuffer, errorBufferSize, "Unable to initialize FFmpeg demux source");
+        free(source);
+        return NULL;
+    }
+    if (pthread_cond_init(&source->changed, NULL) != 0) {
+        set_error(errorBuffer, errorBufferSize, "Unable to initialize FFmpeg demux source");
+        pthread_mutex_destroy(&source->lock);
+        free(source);
+        return NULL;
+    }
+    source->path = av_strdup(path);
+    source->sourceReadContext.monitor = monitor;
+    source->formatContext = allocate_format_context(
+        &source->interrupted,
+        &source->sourceReadContext
+    );
+    if (!source->path || !source->formatContext) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg demux context");
+        PBFFmpegDemuxSourceDestroy(source);
+        return NULL;
+    }
+    int result = open_media_source(
+        &source->formatContext,
+        path,
+        &source->sourceReadContext
+    );
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Open demux media source", result);
+        PBFFmpegDemuxSourceDestroy(source);
+        return NULL;
+    }
+    normalize_mov_apac_codec_id(source->formatContext);
+    normalize_mov_dolby_vision_av1_codec_id(source->formatContext);
+    PBStreamInformationRead informationRead = {0};
+    result = read_stream_information(
+        source->formatContext,
+        &source->sourceReadContext,
+        &informationRead
+    );
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Read demux stream information", result);
+        PBFFmpegDemuxSourceDestroy(source);
+        return NULL;
+    }
+    bool needsAudioProbe = false;
+    for (unsigned int index = 0; index < source->formatContext->nb_streams; index++) {
+        if (audio_stream_needs_more_probe(source->formatContext->streams[index])) {
+            needsAudioProbe = true;
+            break;
+        }
+    }
+    if (needsAudioProbe && informationRead.skippedProbe) {
+        result = avformat_find_stream_info(source->formatContext, NULL);
+        publish_source_bytes(&source->sourceReadContext);
+        if (result < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Read demux audio information", result);
+            PBFFmpegDemuxSourceDestroy(source);
+            return NULL;
+        }
+        normalize_mov_apac_codec_id(source->formatContext);
+    }
+    if (needsAudioProbe) {
+        probe_delayed_audio_parameters(source->formatContext);
+        publish_source_bytes(&source->sourceReadContext);
+        result = avformat_seek_file(
+            source->formatContext,
+            -1,
+            INT64_MIN,
+            0,
+            INT64_MAX,
+            AVSEEK_FLAG_BACKWARD
+        );
+        if (result < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Rewind demux media source", result);
+            PBFFmpegDemuxSourceDestroy(source);
+            return NULL;
+        }
+    }
+    source->queueCount = source->formatContext->nb_streams;
+    if (source->queueCount > 0) {
+        source->queues = calloc(source->queueCount, sizeof(*source->queues));
+    }
+    if (source->queueCount > 0 && !source->queues) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg packet queues");
+        PBFFmpegDemuxSourceDestroy(source);
+        return NULL;
+    }
+    source->videoStreamIndex = av_find_best_stream(
+        source->formatContext,
+        AVMEDIA_TYPE_VIDEO,
+        -1,
+        -1,
+        NULL,
+        0
+    );
+    source->prebuffersAudio = true;
+    return source;
+}
+
+void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source) {
+    if (!source) return;
+    stop_demux_source_read_thread(source);
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        clear_packet_queue(&source->queues[index]);
+    }
+    free(source->queues);
+    close_media_source(&source->formatContext, &source->sourceReadContext);
+    av_free(source->path);
+    pthread_cond_destroy(&source->changed);
+    pthread_mutex_destroy(&source->lock);
+    free(source);
+}
+
+PBFFmpegMediaSourceInformation *PBFFmpegDemuxSourceCopyInformation(
+    PBFFmpegDemuxSource *source,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!source || !source->formatContext) {
+        set_error(errorBuffer, errorBufferSize, "Invalid FFmpeg demux source information call");
+        return NULL;
+    }
+    return copy_media_source_information(
+        source->formatContext,
+        errorBuffer,
+        errorBufferSize
+    );
+}
+
+bool PBFFmpegDemuxSourceSeek(
+    PBFFmpegDemuxSource *source,
+    double seconds,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!source || !source->formatContext || !isfinite(seconds) || seconds < 0) {
+        set_error(errorBuffer, errorBufferSize, "Invalid FFmpeg demux seek call");
+        return false;
+    }
+    stop_demux_source_read_thread(source);
+    pthread_mutex_lock(&source->lock);
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        clear_packet_queue(&source->queues[index]);
+    }
+    source->reachedEnd = false;
+    source->readResult = 0;
+    source->prebuffersAudio = true;
+    pthread_mutex_unlock(&source->lock);
+    int64_t timestamp = (int64_t)llround(seconds * AV_TIME_BASE);
+    int result = avformat_seek_file(
+        source->formatContext,
+        -1,
+        INT64_MIN,
+        timestamp,
+        INT64_MAX,
+        AVSEEK_FLAG_BACKWARD
+    );
+    publish_source_bytes(&source->sourceReadContext);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Seek demux media source", result);
+        return false;
+    }
+    return true;
 }
 
 void PBFFmpegMediaSourceInformationDestroy(
@@ -2827,11 +2926,11 @@ bool PBFFmpegMediaSourceInformationCopyStream(
     return true;
 }
 
-bool PBFFmpegReaderOpen(
+static bool configure_video_reader(
     PBFFmpegReader *reader,
-    const char *path,
     PBFFmpegMode mode,
     double startSeconds,
+    bool seeksContext,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
@@ -2842,41 +2941,17 @@ bool PBFFmpegReaderOpen(
     if (cancellation_requested(&reader->cancelled)) return false;
     reader->mode = mode;
     reader->videoStreamIndex = -1;
-    reader->formatContext = allocate_format_context(
-        &reader->cancelled,
-        &reader->sourceReadContext
-    );
-    if (reader->formatContext == NULL) {
-        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg format context");
-        return false;
-    }
-
-    int result = open_media_source(
-        &reader->formatContext,
-        path,
-        &reader->sourceReadContext
-    );
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Open media source", result);
-        return false;
-    }
-    if (cancellation_requested(&reader->cancelled)) return false;
-    normalize_mov_dolby_vision_av1_codec_id(reader->formatContext);
-    result = read_stream_information(
-        reader->formatContext,
-        &reader->sourceReadContext,
-        NULL
-    );
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Read stream information", result);
-        return false;
-    }
-    if (cancellation_requested(&reader->cancelled)) return false;
+    int result = 0;
     reader->videoStreamIndex = av_find_best_stream(
         reader->formatContext, AVMEDIA_TYPE_VIDEO, -1, -1, NULL, 0
     );
     if (reader->videoStreamIndex < 0) {
         set_error(errorBuffer, errorBufferSize, "The selected source has no video stream");
+        return false;
+    }
+    if (reader->demuxSource &&
+        !subscribe_to_demux_stream(reader->demuxSource, reader->videoStreamIndex)) {
+        set_error(errorBuffer, errorBufferSize, "The shared video stream already has a reader");
         return false;
     }
 
@@ -3023,7 +3098,7 @@ bool PBFFmpegReaderOpen(
         return false;
     }
 
-    if (startSeconds > 0) {
+    if (seeksContext && startSeconds > 0) {
         int64_t timestamp = reader->startTimestamp +
             (int64_t)(startSeconds / av_q2d(reader->timeBase));
         result = avformat_seek_file(
@@ -3044,6 +3119,82 @@ bool PBFFmpegReaderOpen(
     }
     if (cancellation_requested(&reader->cancelled)) return false;
     return true;
+}
+
+bool PBFFmpegReaderOpen(
+    PBFFmpegReader *reader,
+    const char *path,
+    PBFFmpegMode mode,
+    double startSeconds,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!reader || !path) {
+        set_error(errorBuffer, errorBufferSize, "Invalid FFmpeg reader call");
+        return false;
+    }
+    reader->formatContext = allocate_format_context(
+        &reader->cancelled,
+        &reader->sourceReadContext
+    );
+    if (!reader->formatContext) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg format context");
+        return false;
+    }
+    int result = open_media_source(
+        &reader->formatContext,
+        path,
+        &reader->sourceReadContext
+    );
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Open media source", result);
+        return false;
+    }
+    normalize_mov_dolby_vision_av1_codec_id(reader->formatContext);
+    result = read_stream_information(
+        reader->formatContext,
+        &reader->sourceReadContext,
+        NULL
+    );
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Read stream information", result);
+        return false;
+    }
+    return configure_video_reader(
+        reader,
+        mode,
+        startSeconds,
+        true,
+        errorBuffer,
+        errorBufferSize
+    );
+}
+
+bool PBFFmpegReaderOpenWithDemuxSource(
+    PBFFmpegReader *reader,
+    PBFFmpegDemuxSource *source,
+    PBFFmpegMode mode,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!reader || !source || !source->formatContext) {
+        set_error(errorBuffer, errorBufferSize, "Invalid shared FFmpeg reader call");
+        return false;
+    }
+    reader->demuxSource = source;
+    reader->formatContext = source->formatContext;
+    bool opened = configure_video_reader(
+        reader,
+        mode,
+        0,
+        false,
+        errorBuffer,
+        errorBufferSize
+    );
+    pthread_mutex_lock(&source->lock);
+    source->prebuffersAudio = false;
+    pthread_mutex_unlock(&source->lock);
+    return opened;
 }
 
 PBFFmpegReader *PBFFmpegReaderCreate(
@@ -3068,7 +3219,13 @@ PBFFmpegReader *PBFFmpegReaderCreate(
 }
 
 void PBFFmpegReaderCancel(PBFFmpegReader *reader) {
-    if (reader) atomic_store_explicit(&reader->cancelled, true, memory_order_relaxed);
+    if (!reader) return;
+    atomic_store_explicit(&reader->cancelled, true, memory_order_relaxed);
+    if (reader->demuxSource) {
+        pthread_mutex_lock(&reader->demuxSource->lock);
+        pthread_cond_broadcast(&reader->demuxSource->changed);
+        pthread_mutex_unlock(&reader->demuxSource->lock);
+    }
 }
 
 void PBFFmpegReaderForceBitstreamExtradataBootstrap(PBFFmpegReader *reader) {
@@ -3084,7 +3241,11 @@ void PBFFmpegReaderDestroy(PBFFmpegReader *reader) {
     if (reader->compressedFormat) CFRelease(reader->compressedFormat);
     discard_bootstrap_packets(reader);
     av_packet_free(&reader->packet);
-    close_media_source(&reader->formatContext, &reader->sourceReadContext);
+    if (reader->demuxSource) {
+        unsubscribe_from_demux_stream(reader->demuxSource, reader->videoStreamIndex);
+    } else {
+        close_media_source(&reader->formatContext, &reader->sourceReadContext);
+    }
     free(reader);
 }
 
@@ -3194,8 +3355,15 @@ static PBFFmpegReadResult copy_compressed_sample(
             av_packet_move_ref(packet, *buffered);
             av_packet_free(buffered);
         } else {
-            readResult = av_read_frame(reader->formatContext, packet);
-            publish_source_bytes(&reader->sourceReadContext);
+            readResult = reader->demuxSource
+                ? copy_next_demux_packet(
+                    reader->demuxSource,
+                    reader->videoStreamIndex,
+                    &reader->cancelled,
+                    packet
+                )
+                : av_read_frame(reader->formatContext, packet);
+            if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
         }
         if (readResult < 0) {
             if (readResult == AVERROR_EXIT
@@ -3390,11 +3558,12 @@ void PBFFmpegAudioReaderSetSourceReadMonitor(
     if (reader) reader->sourceReadContext.monitor = monitor;
 }
 
-bool PBFFmpegAudioReaderOpen(
+static bool configure_audio_reader(
     PBFFmpegAudioReader *reader,
     const char *path,
     double startSeconds,
     int preferredStreamIndex,
+    bool seeksContext,
     char *errorBuffer,
     size_t errorBufferSize
 ) {
@@ -3404,19 +3573,7 @@ bool PBFFmpegAudioReaderOpen(
     }
     if (cancellation_requested(&reader->cancelled)) return false;
     reader->audioStreamIndex = -1;
-
-    int result = open_media_source_for_audio(
-        path,
-        &reader->formatContext,
-        &reader->cancelled,
-        &reader->sourceReadContext,
-        errorBuffer,
-        errorBufferSize
-    );
-    if (result < 0) {
-        return false;
-    }
-    if (cancellation_requested(&reader->cancelled)) return false;
+    int result = 0;
 
     if (preferredStreamIndex >= 0) {
         if (preferredStreamIndex < (int)reader->formatContext->nb_streams &&
@@ -3449,6 +3606,11 @@ bool PBFFmpegAudioReaderOpen(
             errorBuffer,
             errorBufferSize
         );
+        return false;
+    }
+    if (reader->demuxSource &&
+        !subscribe_to_demux_stream(reader->demuxSource, reader->audioStreamIndex)) {
+        set_error(errorBuffer, errorBufferSize, "The shared audio stream already has a reader");
         return false;
     }
 
@@ -3508,7 +3670,7 @@ bool PBFFmpegAudioReaderOpen(
         }
     }
 
-    if (startSeconds > 0) {
+    if (seeksContext && startSeconds > 0) {
         int64_t timestamp = reader->startTimestamp +
             (int64_t)(startSeconds / av_q2d(reader->timeBase));
         result = avformat_seek_file(
@@ -3529,6 +3691,62 @@ bool PBFFmpegAudioReaderOpen(
     }
     if (cancellation_requested(&reader->cancelled)) return false;
     return true;
+}
+
+bool PBFFmpegAudioReaderOpen(
+    PBFFmpegAudioReader *reader,
+    const char *path,
+    double startSeconds,
+    int preferredStreamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!reader || !path) {
+        set_error(errorBuffer, errorBufferSize, "Invalid FFmpeg audio reader call");
+        return false;
+    }
+    int result = open_media_source_for_audio(
+        path,
+        &reader->formatContext,
+        &reader->cancelled,
+        &reader->sourceReadContext,
+        errorBuffer,
+        errorBufferSize
+    );
+    if (result < 0) return false;
+    return configure_audio_reader(
+        reader,
+        path,
+        startSeconds,
+        preferredStreamIndex,
+        true,
+        errorBuffer,
+        errorBufferSize
+    );
+}
+
+bool PBFFmpegAudioReaderOpenWithDemuxSource(
+    PBFFmpegAudioReader *reader,
+    PBFFmpegDemuxSource *source,
+    int preferredStreamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!reader || !source || !source->formatContext) {
+        set_error(errorBuffer, errorBufferSize, "Invalid shared FFmpeg audio reader call");
+        return false;
+    }
+    reader->demuxSource = source;
+    reader->formatContext = source->formatContext;
+    return configure_audio_reader(
+        reader,
+        source->path,
+        0,
+        preferredStreamIndex,
+        false,
+        errorBuffer,
+        errorBufferSize
+    );
 }
 
 PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
@@ -3554,7 +3772,13 @@ PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
 }
 
 void PBFFmpegAudioReaderCancel(PBFFmpegAudioReader *reader) {
-    if (reader) atomic_store_explicit(&reader->cancelled, true, memory_order_relaxed);
+    if (!reader) return;
+    atomic_store_explicit(&reader->cancelled, true, memory_order_relaxed);
+    if (reader->demuxSource) {
+        pthread_mutex_lock(&reader->demuxSource->lock);
+        pthread_cond_broadcast(&reader->demuxSource->changed);
+        pthread_mutex_unlock(&reader->demuxSource->lock);
+    }
 }
 
 void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
@@ -3564,7 +3788,11 @@ void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
     av_bsf_free(&reader->bitstreamFilter);
     av_packet_free(&reader->filteredPacket);
     av_packet_free(&reader->packet);
-    close_media_source(&reader->formatContext, &reader->sourceReadContext);
+    if (reader->demuxSource) {
+        unsubscribe_from_demux_stream(reader->demuxSource, reader->audioStreamIndex);
+    } else {
+        close_media_source(&reader->formatContext, &reader->sourceReadContext);
+    }
     free(reader);
 }
 
@@ -4133,8 +4361,15 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
             }
         }
 
-        int result = av_read_frame(reader->formatContext, reader->packet);
-        publish_source_bytes(&reader->sourceReadContext);
+        int result = reader->demuxSource
+            ? copy_next_demux_packet(
+                reader->demuxSource,
+                reader->audioStreamIndex,
+                &reader->cancelled,
+                reader->packet
+            )
+            : av_read_frame(reader->formatContext, reader->packet);
+        if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
         if (result < 0) {
             if (result == AVERROR_EXIT || cancellation_requested(&reader->cancelled)) {
                 return PBFFmpegReadResultCancelled;
@@ -4202,6 +4437,58 @@ bool PBFFmpegAudioReaderOutputsPCM(const PBFFmpegAudioReader *reader) {
     return reader && reader->outputsPCM;
 }
 
+static bool configure_subtitle_reader(
+    PBFFmpegSubtitleReader *reader,
+    int streamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (streamIndex >= (int)reader->formatContext->nb_streams ||
+        !subtitle_stream_is_supported(reader->formatContext->streams[streamIndex])) {
+        set_error(
+            errorBuffer,
+            errorBufferSize,
+            "The selected subtitle stream codec is unsupported"
+        );
+        return false;
+    }
+    if (reader->demuxSource &&
+        !subscribe_to_demux_stream(reader->demuxSource, streamIndex)) {
+        set_error(errorBuffer, errorBufferSize, "The shared subtitle stream already has a reader");
+        return false;
+    }
+    AVStream *stream = reader->formatContext->streams[streamIndex];
+    reader->subtitleStreamIndex = streamIndex;
+    reader->codecID = stream->codecpar->codec_id;
+    reader->timeBase = stream->time_base;
+    reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
+    const AVCodec *decoder = avcodec_find_decoder(reader->codecID);
+    if (!decoder) {
+        set_error(errorBuffer, errorBufferSize, "The selected subtitle decoder is unavailable");
+        return false;
+    }
+    reader->decoder = avcodec_alloc_context3(decoder);
+    if (!reader->decoder) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg subtitle decoder");
+        return false;
+    }
+    int result = avcodec_parameters_to_context(reader->decoder, stream->codecpar);
+    if (result >= 0) {
+        reader->decoder->pkt_timebase = stream->time_base;
+        result = avcodec_open2(reader->decoder, decoder, NULL);
+    }
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Open FFmpeg subtitle decoder", result);
+        return false;
+    }
+    reader->packet = av_packet_alloc();
+    if (!reader->packet) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg subtitle packet");
+        return false;
+    }
+    return true;
+}
+
 PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(
     const char *path,
     int streamIndex,
@@ -4260,45 +4547,31 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
         PBFFmpegSubtitleReaderDestroy(reader);
         return NULL;
     }
-    if (streamIndex >= (int)reader->formatContext->nb_streams ||
-        !subtitle_stream_is_supported(reader->formatContext->streams[streamIndex])) {
-        set_error(
-            errorBuffer,
-            errorBufferSize,
-            "The selected subtitle stream codec is unsupported"
-        );
+    if (!configure_subtitle_reader(reader, streamIndex, errorBuffer, errorBufferSize)) {
         PBFFmpegSubtitleReaderDestroy(reader);
         return NULL;
     }
-    AVStream *stream = reader->formatContext->streams[streamIndex];
-    reader->codecID = stream->codecpar->codec_id;
-    reader->timeBase = stream->time_base;
-    reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
-    const AVCodec *decoder = avcodec_find_decoder(reader->codecID);
-    if (!decoder) {
-        set_error(errorBuffer, errorBufferSize, "The selected subtitle decoder is unavailable");
-        PBFFmpegSubtitleReaderDestroy(reader);
+    return reader;
+}
+
+PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithDemuxSource(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!source || !source->formatContext || streamIndex < 0) {
+        set_error(errorBuffer, errorBufferSize, "Invalid shared FFmpeg subtitle reader call");
         return NULL;
     }
-    reader->decoder = avcodec_alloc_context3(decoder);
-    if (!reader->decoder) {
-        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg subtitle decoder");
-        PBFFmpegSubtitleReaderDestroy(reader);
+    PBFFmpegSubtitleReader *reader = calloc(1, sizeof(*reader));
+    if (!reader) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg subtitle reader");
         return NULL;
     }
-    result = avcodec_parameters_to_context(reader->decoder, stream->codecpar);
-    if (result >= 0) {
-        reader->decoder->pkt_timebase = stream->time_base;
-        result = avcodec_open2(reader->decoder, decoder, NULL);
-    }
-    if (result < 0) {
-        set_av_error(errorBuffer, errorBufferSize, "Open FFmpeg subtitle decoder", result);
-        PBFFmpegSubtitleReaderDestroy(reader);
-        return NULL;
-    }
-    reader->packet = av_packet_alloc();
-    if (!reader->packet) {
-        set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg subtitle packet");
+    reader->demuxSource = source;
+    reader->formatContext = source->formatContext;
+    if (!configure_subtitle_reader(reader, streamIndex, errorBuffer, errorBufferSize)) {
         PBFFmpegSubtitleReaderDestroy(reader);
         return NULL;
     }
@@ -4309,7 +4582,11 @@ void PBFFmpegSubtitleReaderDestroy(PBFFmpegSubtitleReader *reader) {
     if (!reader) return;
     av_packet_free(&reader->packet);
     avcodec_free_context(&reader->decoder);
-    close_media_source(&reader->formatContext, &reader->sourceReadContext);
+    if (reader->demuxSource) {
+        unsubscribe_from_demux_stream(reader->demuxSource, reader->subtitleStreamIndex);
+    } else {
+        close_media_source(&reader->formatContext, &reader->sourceReadContext);
+    }
     free(reader);
 }
 
@@ -4393,8 +4670,16 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
         return PBFFmpegReadResultError;
     }
     *textOut = NULL;
-    while (av_read_frame(reader->formatContext, reader->packet) >= 0) {
-        publish_source_bytes(&reader->sourceReadContext);
+    int packetResult = 0;
+    while ((packetResult = reader->demuxSource
+            ? copy_next_demux_packet(
+                reader->demuxSource,
+                reader->subtitleStreamIndex,
+                NULL,
+                reader->packet
+            )
+            : av_read_frame(reader->formatContext, reader->packet)) >= 0) {
+        if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
         if (reader->packet->stream_index != reader->subtitleStreamIndex) {
             av_packet_unref(reader->packet);
             continue;
@@ -4446,5 +4731,6 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
         *textOut = text;
         return PBFFmpegReadResultSample;
     }
+    if (packetResult == AVERROR_EXIT) return PBFFmpegReadResultCancelled;
     return PBFFmpegReadResultEnd;
 }

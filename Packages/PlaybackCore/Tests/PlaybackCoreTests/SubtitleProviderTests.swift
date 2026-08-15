@@ -31,6 +31,35 @@ import Testing
     #expect(abs(cues[1].timeRange.end.seconds - 4.25) < 0.001)
 }
 
+@Test func sharedDemuxSourceBuildsSubtitleCuesAndFramesWithoutReopening() async throws {
+    let fixture = try subtitleFixtureURL()
+    let meter = PlaybackSourceReadMeter()
+    let demuxSession = FFmpegDemuxSession(sourceReadMeter: meter)
+    let loader = SystemMediaSourceInformationLoader(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let provider = FFmpegSubtitleProvider(
+        sourceReadMeter: meter,
+        demuxSession: demuxSession
+    )
+    let information = try await loader.load(from: fixture)
+    let track = try #require(information.playbackSubtitleTracks.first)
+
+    let cues = try await provider.cues(in: fixture, asset: nil, track: track)
+    #expect(cues.map(\.text) == ["第一行\n第二行", "再见"])
+    let renderer = try #require(try await provider.frameRenderer(
+        in: fixture,
+        asset: nil,
+        track: track
+    ))
+    #expect(try renderer.frame(
+        at: CMTime(seconds: 1, preferredTimescale: 600),
+        viewportWidth: 1_920,
+        viewportHeight: 1_080
+    ) != nil)
+}
+
 @Test func libassRendererProducesPremultipliedSubtitleFrameAtCueTime() async throws {
     let fixture = try subtitleFixtureURL()
     let provider = FFmpegSubtitleProvider()

@@ -109,12 +109,20 @@ final class NoSubtitleProvider: SubtitleProvider {
 
 final class FFmpegSubtitleProvider: SubtitleProvider {
     private let sourceReadMeter: PlaybackSourceReadMeter
+    private let demuxSession: FFmpegDemuxSession?
     private let informationLoader: SystemMediaSourceInformationLoader
+    private let rendererLock = NSLock()
+    private var sharedRenderers: [PlaybackSubtitleTrack.ID: FFmpegSubtitleFrameRenderer] = [:]
 
-    init(sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter()) {
+    init(
+        sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter(),
+        demuxSession: FFmpegDemuxSession? = nil
+    ) {
         self.sourceReadMeter = sourceReadMeter
+        self.demuxSession = demuxSession
         informationLoader = SystemMediaSourceInformationLoader(
-            sourceReadMeter: sourceReadMeter
+            sourceReadMeter: sourceReadMeter,
+            demuxSession: demuxSession
         )
     }
 
@@ -137,7 +145,22 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         track: PlaybackSubtitleTrack
     ) async throws -> [PlaybackSubtitleCue] {
         var error = [CChar](repeating: 0, count: 512)
-        let reader = FFmpegSourceLocator.argument(for: url).withCString { path in
+        let source = FFmpegSourceLocator.argument(for: url)
+        if let demuxSession, demuxSession.isOpen(for: source) {
+            let renderer = try rendererLock.withLock {
+                if let renderer = sharedRenderers[track.id] { return renderer }
+                let renderer = try FFmpegSubtitleFrameRenderer(
+                    demuxSession: demuxSession,
+                    source: source,
+                    track: track
+                )
+                sharedRenderers[track.id] = renderer
+                return renderer
+            }
+            return try renderer.textCues(for: track)
+        }
+        let reader: OpaquePointer?
+        reader = source.withCString { path in
             PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
                 path,
                 Int32(track.streamIndex),
@@ -189,14 +212,20 @@ final class FFmpegSubtitleProvider: SubtitleProvider {
         }
     }
 
-    func cancel() {}
+    func cancel() {
+        rendererLock.withLock { sharedRenderers.removeAll() }
+    }
 
     func frameRenderer(
         in url: URL,
         asset: PlaybackAsset?,
         track: PlaybackSubtitleTrack
     ) async throws -> SubtitleFrameRendering? {
-        try FFmpegSubtitleFrameRenderer(url: url, track: track)
+        let source = FFmpegSourceLocator.argument(for: url)
+        if let demuxSession, demuxSession.isOpen(for: source) {
+            return rendererLock.withLock { sharedRenderers[track.id] }
+        }
+        return try FFmpegSubtitleFrameRenderer(url: url, track: track)
     }
 
     private static func string(_ buffer: [CChar]) -> String? {
