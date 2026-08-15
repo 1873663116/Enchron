@@ -2277,7 +2277,7 @@ static OSStatus create_dolby_vision_format(
         description,
         descriptionSize,
         CFStringGetSystemEncoding(),
-        NULL,
+        kCMImageDescriptionFlavor_ISOFamily,
         formatOut
     );
     free(description);

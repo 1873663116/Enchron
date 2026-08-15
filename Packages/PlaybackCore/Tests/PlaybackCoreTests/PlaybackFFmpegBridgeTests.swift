@@ -242,6 +242,66 @@ func dolbyVisionFixturesPreserveConfigurationAtomsAndCompressedSamples(
     }
 }
 
+@Test(arguments: [
+    "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_DoVi_24_P5_HD_HEVC-2mbps_DD+JOC-768kbps_iOS.mp4",
+    "Samples/DynamicRange/DolbyVision/UHD/Patterns_Of_Nature_DoVi_24_P5_UHD_HEVC-10mbps_DD+JOC-768kbps_iOS.mp4",
+    "Samples/DynamicRange/DolbyVision/Dolby Vision Profile 5_8.1 Test/CM4_L3L8_Test_with_CM29_fallback_IPT_P5.mp4",
+])
+func profile5BridgeMatchesAVFoundationDolbyVisionDecoderConfiguration(
+    relativePath: String
+) async throws {
+    silenceFFmpegDiagnostics()
+    let fixture = playbackTestMedia.appendingPathComponent(relativePath)
+    let sourceFormat = try await firstVideoFormatDescription(in: AVURLAsset(url: fixture))
+    let sourceAtoms = try sampleDescriptionAtoms(in: sourceFormat)
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegReaderCreate(path, PBFFmpegModeCompressed, 0, &error, error.count)
+    }
+    let activeReader = try #require(
+        reader,
+        Comment(rawValue: "\(relativePath): \(cString(error))")
+    )
+    defer { PBFFmpegReaderDestroy(activeReader) }
+    var sampleReference: Unmanaged<CMSampleBuffer>?
+    #expect(
+        PBFFmpegReaderCopyNextSample(
+            activeReader,
+            &sampleReference,
+            &error,
+            error.count
+        ) == PBFFmpegReadResultSample,
+        Comment(rawValue: "\(relativePath): \(cString(error))")
+    )
+    let sample = try #require(sampleReference?.takeRetainedValue())
+    let format = try #require(CMSampleBufferGetFormatDescription(sample))
+    let atoms = try sampleDescriptionAtoms(in: format)
+    let sourceExtensions = try #require(
+        CMFormatDescriptionGetExtensions(sourceFormat) as? [String: Any]
+    )
+    let bridgeExtensions = try #require(
+        CMFormatDescriptionGetExtensions(format) as? [String: Any]
+    )
+
+    #expect(CMFormatDescriptionGetMediaSubType(format) == kCMVideoCodecType_DolbyVisionHEVC)
+    #expect(atoms["dvcC"]?.isEmpty == false)
+    #expect(atoms["hvcC"] == sourceAtoms["hvcC"])
+    #expect(atoms["dvcC"] == sourceAtoms["dvcC"])
+    #expect(
+        sourceExtensions[kCMFormatDescriptionExtension_VerbatimISOSampleEntry as String]
+            != nil
+    )
+    #expect(
+        bridgeExtensions[kCMFormatDescriptionExtension_VerbatimISOSampleEntry as String]
+            != nil
+    )
+    #expect(
+        bridgeExtensions[kCMFormatDescriptionExtension_VerbatimSampleDescription as String]
+            == nil
+    )
+    #expect(CMSampleBufferDataIsReady(sample))
+}
+
 @Test func profile10Dav1FixtureCreatesCompressedAV1SamplesWithDolbyVisionConfiguration() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
