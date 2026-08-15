@@ -666,8 +666,6 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
         var extensions = CMFormatDescriptionGetExtensions(sourceFormat)
             as? [String: Any] ?? [:]
         var atoms = decoderConfigurationAtoms(in: sourceFormat)
-        let bridgeAtoms = decoderConfigurationAtoms(in: bridgeFormat)
-        atoms["hvcC"] = bridgeAtoms["hvcC"]
         atoms.removeValue(forKey: "dvcC")
         atoms.removeValue(forKey: "dvvC")
         extensions[
