@@ -79,7 +79,11 @@ def run_probe(probe, url, seconds, timeout):
         return {"decode": "timeout"}
     if completed.returncode != 0:
         detail = (completed.stderr or "").strip().splitlines()
-        return {"decode": "probe_failed", "error": detail[-1] if detail else "unknown"}
+        message = detail[-1] if detail else "unknown"
+        # The corpus globs by suffix, and .mp4 also carries audio-only vectors.
+        if "no audio stream" in message or "no video stream" in message:
+            return {"decode": "not_video", "error": message}
+        return {"decode": "probe_failed", "error": message}
     line = (completed.stdout or "").strip().splitlines()
     if not line:
         return {"decode": "no_output"}
@@ -225,9 +229,12 @@ def main():
                 print(f"  {entry.get('decode'):14s} {entry['range']:12s} "
                       f"{(entry['name'] or '')[:60]}", file=sys.stderr)
 
-    failures = [r for r in results if r.get("decode") != "ok"]
+    skipped = [r for r in results if r.get("decode") == "not_video"]
+    failures = [r for r in results
+                if r.get("decode") not in ("ok", "not_video")]
     mismatches = [r for r in results if r.get("differences")]
     print(f"\n{len(results)} probed, {len(failures)} not ok, "
+          f"{len(skipped)} carried no video track, "
           f"{len(mismatches)} with transport differences")
     for entry in failures:
         print(f"  FAIL {entry.get('decode')}: {entry['name'][:70]} "

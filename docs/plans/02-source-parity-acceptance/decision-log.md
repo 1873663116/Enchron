@@ -112,3 +112,54 @@ wire 上的判别证据：
 测试写法上有一处必须留意：读取阻塞在 FFmpeg 的 socket 读里，Swift Testing 的 `.timeLimit` 依赖协作式取消，无法打断它（实测挂满 220 秒外层超时才被杀）。因此读循环放到后台队列，用信号量硬等 30 秒，超时判失败。**判据教训**：给可能死锁的路径写回归测试时，超时机制本身必须不依赖被测线程的配合。
 
 通道二复测：201 测试 13 issue，失败集合仍是那 8 个基线既有失败，无新增。
+
+## 2026-08-16 02:30 全语料解码结果
+
+**本地 107 条**（`local-decode-20260816.json`）：97 条解码通过。其余十条逐条裁决，无一是本次合并引入：
+
+- 6 条根本没有视频轨（Fraunhofer HE-AAC/xHE-AAC、Apple APAC-HLS 等纯音频测试向量），是我按后缀取语料把音频 `.mp4` 扫了进来。已在 `verify_source_parity_matrix.py` 里把"无视频轨"单列，不再计为失败。
+- `ProRes RAW HQ 4.2K`：产品明确回 `prores_raw is not available for compressed sample rendering on this device`，属既定不支持。
+- `DoVi_P20_09180_t1080p/fileSequence0.mp4`：整文件 1055 字节，只有 `ftyp` 与 `moov`，是 HLS 初始化分片，本身不含任何媒体样本，零帧正确。
+- `LG_Cymatic_Jazz_HLG_Astra_teststream.ts`：293 样本解出 261 帧，32 帧报 `kVTVideoDecoderBadDataErr`。广播流从 GOP 中间截取，前导帧不可解属该 fixture 固有形态。
+
+后两条都用合并前的 `c2cf9ed6` 构建复测，输出逐字段相同，确认为既有状态而非回归。
+
+**远程 Emby 非 SDR 54 条**（`emby-decode-20260816.json`）：**54 条全部解码通过，零失败**。构成为 profile 7 标称 8 条、profile 8 五条、profile 5 一条、HDR10 四十条。
+
+### Profile 7 拆分的真实覆盖面
+
+用样本总字节做判别，在真实 Emby 影片上对照合并前后：`Source Code` 由 1,998,787 降到 1,008,684（降 49.5%），拆分确实生效；`The Godfather` 前 90 秒 109,658,996 字节前后逐字节相同，拆分未生效。
+
+对这处矛盾做了 NAL 层面取证，不留作"大概是黑场"。先证伪了"增强层在独立轨"（两者都是单视频轨）与"增强层在 nuh_layer_id>0"（两者都只有 layer 0），最后按 NAL 类型清点得到结论：
+
+| 标称 profile 7 的 Emby 条目 | DV RPU (type 62) | DV EL (type 63) |
+|---|---:|---:|
+| Furiosa: A Mad Max Saga | 361 | 4160 |
+| Project Hail Mary | 361 | 4104 |
+| Source Code | 361 | 3743 |
+| Upgrade | 363 | 1564 |
+| 十二只猴子 | 362 | 836 |
+| The Godfather | 0 | 0 |
+| The Godfather Part II | 0 | 0 |
+| The Godfather Part III | 0 | 0 |
+
+即八条里五条真带增强层，拆分对它们生效；教父三部曲的容器写着 profile 7 双层，码流里既无 RPU 也无增强层 NAL，实为带着过期 Dolby Vision 配置记录的 HDR10，拆分对它们是正确的空操作。两种情形都解码通过。
+
+## 2026-08-16 02:50 真机取证
+
+**截图通道先坏了，修好才取证。** `XCUIScreen.main.screenshot()` 在当前 visionOS 构建上返回 1×1 图像（4232 字节，只有 ICC 数据），控制器照常写文件并报成功，于是每张"截图"看起来都是黑屏。历史证据里同一通道是 1920×1080、0.5 到 2.8 MB，说明是通道腐化不是产品黑屏。**若不先查尺寸就按图判读，会得出"播放全黑"的错误结论。** 修法是屏幕图像退化时改用 application 元素捕获（提交 `d716ed70`），修后恢复 1920×1080。
+
+取证结果（证据目录 `TestEvidence/source-parity-20260816/`）：
+
+| 场景 | 呈现 | 判据 | 像素 |
+|---|---|---|---|
+| 本地 `180_3D.mp4` | window | `PlayerUI-window-playback=Playing` | 有，左右眼并排 |
+| 远程 Emby 剧集 | window | 同上，字幕正常渲染 | 有 |
+| 远程条目应用 360° | portal | `projection=equirectangular360`、`immersiveSpaceResidency=closed` | 有 |
+| 远程条目进全景 | panorama | 控制面板退出层级（沉浸落定签名）、`lifecycle=playing`、`rendererState.rate=1` | 有，充满视野 |
+
+本地源与远程源在 window 呈现下行为一致；远程源走完 window→portal→panorama 三格，格式应用停在 portal 不自动进沉浸，与状态机裁决一致。
+
+**运行手册待更正的两处**：`app-command` 现有动词只有 ping、toggleControls、setWindowSize、toggleBlackoutProbeWindow、resetState、importMedia、listLibrary，记忆里的 `exit-spatial` 已不存在，退出沉浸改用 relaunch。侧栏源条目 `FileBrowsing-SourcesSidebar-source-<id>` 同一 identifier 挂着删除按钮、图标与文本三个元素，按 identifier 直接 tap 会命中删除按钮，必须按 label 或 index 选取。
+
+**两次 runner 死亡**都发生在对 Emby 首页滚动视图 `swipeUp` 之后（TEST EXECUTE FAILED，设备进程表无 Enchron，无崩溃报告），与既有的 CoreDevice 通道间歇同签名，halt 后重建即恢复。未逐一复现定性，绕开该操作完成取证。
