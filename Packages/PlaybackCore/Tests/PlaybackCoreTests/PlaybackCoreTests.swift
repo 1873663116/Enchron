@@ -3113,7 +3113,7 @@ private func fixtureSource(_ name: String) -> MediaSourceRecord {
     )
 }
 
-private final class FakeVideoSampleProvider: VideoSampleProvider {
+final class FakeVideoSampleProvider: VideoSampleProvider {
     let info: VideoSampleProviderInfo
 
     private var events: [VideoSampleProviderEvent]
@@ -3537,7 +3537,7 @@ private enum MisleadingAudioOpenError: LocalizedError {
     }
 }
 
-private func makeCompressedH264Sample(
+func makeCompressedH264Sample(
     presentationTimeSeconds: Double = 0,
     decodeTimeSeconds: Double? = nil,
     durationSeconds: Double = 1.0 / 30.0,

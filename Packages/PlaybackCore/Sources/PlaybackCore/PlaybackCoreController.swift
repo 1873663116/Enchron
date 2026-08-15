@@ -298,6 +298,25 @@ public final class PlaybackCoreController {
         activeSession.resumeVideoSampleDelivery()
     }
 
+    /// Hands the caller a renderer its next RealityView Entity has never bound,
+    /// leaving the source open and the timeline running. Video sample delivery
+    /// stays suspended until the caller has bound the renderer and calls
+    /// `restartVideoSampleDelivery(at:)`.
+    public func replaceVideoRendererGraph() async throws -> AVSampleBufferVideoRenderer {
+        guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
+        let replacement = try await activeSession.replaceVideoRendererGraph()
+        guard self.activeSession === activeSession else {
+            throw PlaybackControlError.openTerminatedByCleanup
+        }
+        return replacement
+    }
+
+    /// Removes the renderer the previous Scene was presenting. Call it once that
+    /// Scene has gone, not before, so the transition never shows an empty surface.
+    public func retireDepartingVideoRendererGraph() async {
+        await activeSession?.retireDepartingVideoRendererGraph()
+    }
+
     public func restartVideoSampleDelivery(
         at time: CMTime,
         after behavior: PlaybackAfterSeekBehavior = .preserveCurrentPauseState

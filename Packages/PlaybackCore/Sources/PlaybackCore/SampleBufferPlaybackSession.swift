@@ -49,10 +49,65 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     }
 
     public let traceID: String
-    /// A technical playback session owns one immutable renderer graph for its
-    /// full lifetime. Presentation conversions create another session.
-    public let renderer: AVSampleBufferVideoRenderer
-    let rendererSink: RendererInputSink
+    /// A presentation conversion needs a renderer its new RealityView Entity has
+    /// never bound, which is a different renderer graph on the same timeline and
+    /// the same open source. `videoRendererGraph` is the only mutable part of the
+    /// session, so a conversion replaces it instead of the session.
+    private struct VideoRendererGraph {
+        var renderer: AVSampleBufferVideoRenderer
+        var sink: RendererInputSink
+        var revision: UInt64
+        var departingRenderer: AVSampleBufferVideoRenderer?
+    }
+
+    private let videoRendererGraphLock = NSLock()
+    private var videoRendererGraph: VideoRendererGraph
+
+    public var renderer: AVSampleBufferVideoRenderer {
+        videoRendererGraphLock.withLock { videoRendererGraph.renderer }
+    }
+
+    var rendererSink: RendererInputSink {
+        videoRendererGraphLock.withLock { videoRendererGraph.sink }
+    }
+
+    /// Callers must have suspended video sample delivery, so the departing sink
+    /// has no enqueue in flight when the replacement takes its place.
+    func adoptVideoRendererGraph(
+        renderer: AVSampleBufferVideoRenderer,
+        sink: RendererInputSink,
+        departing departingRenderer: AVSampleBufferVideoRenderer
+    ) -> UInt64 {
+        let departingSink = videoRendererGraphLock.withLock { () -> RendererInputSink in
+            let departingSink = videoRendererGraph.sink
+            videoRendererGraph = VideoRendererGraph(
+                renderer: renderer,
+                sink: sink,
+                revision: videoRendererGraph.revision &+ 1,
+                departingRenderer: departingRenderer
+            )
+            return departingSink
+        }
+        departingSink.stopRenderingEventObservation()
+        rendererStateLock.withLock {
+            videoRendererStatus = "unknown"
+            videoRendererError = nil
+        }
+        deliveryQueue.sync {
+            lastDisplayedFrameIdentity = nil
+            displayedFrameObservationCount = 0
+            didRecordFormat = false
+        }
+        return graphRevision
+    }
+
+    func takeDepartingVideoRenderer() -> AVSampleBufferVideoRenderer? {
+        videoRendererGraphLock.withLock {
+            let departing = videoRendererGraph.departingRenderer
+            videoRendererGraph.departingRenderer = nil
+            return departing
+        }
+    }
     let audioRenderer: AVSampleBufferAudioRenderer
     let audioRendererSink: AudioRendererInputSink
     let synchronizer: AVSampleBufferRenderSynchronizer
@@ -134,7 +189,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     var isPrerolling = false
     var activeOperation: PlaybackOperationRecord?
     var flushCount: UInt64 = 0
-    let graphRevision: UInt64 = 1
+    var graphRevision: UInt64 {
+        videoRendererGraphLock.withLock { videoRendererGraph.revision }
+    }
     var displayedFrameObservationCount: UInt64 = 0
     var lastDisplayedFrameIdentity: UInt64?
     var stereoLayoutOverride: VideoStereoLayout?
@@ -216,16 +273,16 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         initialSynchronizer.delaysRateChangeUntilHasSufficientMediaData = false
         initialAudioRenderer.audioTimePitchAlgorithm = .timeDomain
         initialAudioRenderer.allowedAudioSpatializationFormats = .monoStereoAndMultichannel
-        renderer = initialRenderer
         audioRenderer = initialAudioRenderer
         synchronizer = initialSynchronizer
-        if let rendererSink {
-            self.rendererSink = rendererSink
-        } else {
-            self.rendererSink = AVSampleBufferRendererInputSink(
+        videoRendererGraph = VideoRendererGraph(
+            renderer: initialRenderer,
+            sink: rendererSink ?? AVSampleBufferRendererInputSink(
                 receiver: initialSynchronizer.sampleBufferReceiver(adding: initialRenderer)
-            )
-        }
+            ),
+            revision: 1,
+            departingRenderer: nil
+        )
         if let audioRendererSink {
             self.audioRendererSink = audioRendererSink
         } else {
