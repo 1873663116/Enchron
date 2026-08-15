@@ -126,6 +126,15 @@ public struct GlassToggle: View {
         .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
         .padding(.horizontal, (DesignTokens.Interactive.large - 50) / 2)
         .contentShape(Capsule())
+        .enchronHoverContentShape(
+            Capsule(),
+            insets: EdgeInsets(
+                top: (DesignTokens.Interactive.large - 30) / 2,
+                leading: (DesignTokens.Interactive.large - 50) / 2,
+                bottom: (DesignTokens.Interactive.large - 30) / 2,
+                trailing: (DesignTokens.Interactive.large - 50) / 2
+            )
+        )
     }
 }
 
@@ -164,6 +173,15 @@ public struct BoundGlassToggle: View {
         .padding(.vertical, (DesignTokens.Interactive.large - 30) / 2)
         .padding(.horizontal, (DesignTokens.Interactive.large - 50) / 2)
         .contentShape(Capsule())
+        .enchronHoverContentShape(
+            Capsule(),
+            insets: EdgeInsets(
+                top: (DesignTokens.Interactive.large - 30) / 2,
+                leading: (DesignTokens.Interactive.large - 50) / 2,
+                bottom: (DesignTokens.Interactive.large - 30) / 2,
+                trailing: (DesignTokens.Interactive.large - 50) / 2
+            )
+        )
     }
 }
 

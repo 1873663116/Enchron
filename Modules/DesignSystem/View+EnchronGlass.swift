@@ -4,14 +4,14 @@ import SwiftUI
 
 /// Named glass effect variants for the Enchron design system.
 ///
-/// Each modifier binds **four shape layers** in one call:
+/// Each modifier binds **four shape layers** at its current bounds:
 ///   1. `clipShape` — visual boundary
 ///   2. `glassBackgroundEffect(in:)` — material boundary
 ///   3. `contentShape(.hoverEffect, ...)` — hover highlight region
 ///   4. `contentShape(.interaction, ...)` — hit-test region
 ///
-/// This guarantees that clip, glass, hover, and tap shapes are always
-/// identical. Call sites never need to construct shapes manually.
+/// Later wrappers that enlarge interaction bounds must use
+/// `enchronHoverContentShape(_:insets:)` to keep hover at the visual bounds.
 ///
 /// **Rule:** Apply glass effects to the *container* view, not to child views
 /// inside a ZStack — otherwise the rendering is incorrect on visionOS.

@@ -32,6 +32,21 @@ public struct EnchronHoverGroup {
     }
 }
 
+private struct EnchronInsetHoverShape<Base: Shape>: Shape {
+    let base: Base
+    let insets: EdgeInsets
+
+    func path(in rect: CGRect) -> Path {
+        let insetRect = CGRect(
+            x: rect.minX + insets.leading,
+            y: rect.minY + insets.top,
+            width: max(rect.width - insets.leading - insets.trailing, 0),
+            height: max(rect.height - insets.top - insets.bottom, 0)
+        )
+        return base.path(in: insetRect)
+    }
+}
+
 public extension View {
     @ViewBuilder
     func enchronGlassBackground<S: InsettableShape>(in shape: S) -> some View {
@@ -46,6 +61,17 @@ public extension View {
     @ViewBuilder
     func enchronHoverContentShape<S: Shape>(_ shape: S) -> some View {
         contentShape(.hoverEffect, shape)
+    }
+
+    @ViewBuilder
+    func enchronHoverContentShape<S: Shape>(
+        _ shape: S,
+        insets: EdgeInsets
+    ) -> some View {
+        contentShape(
+            .hoverEffect,
+            EnchronInsetHoverShape(base: shape, insets: insets)
+        )
     }
 
     @ViewBuilder

@@ -710,6 +710,15 @@ private struct PlaybackTopSecondaryPanelButton: View {
         }
         .buttonStyle(.plain)
         .contentShape(Circle())
+        .enchronHoverContentShape(
+            Circle(),
+            insets: EdgeInsets(
+                top: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                leading: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                trailing: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2
+            )
+        )
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier)
     }
