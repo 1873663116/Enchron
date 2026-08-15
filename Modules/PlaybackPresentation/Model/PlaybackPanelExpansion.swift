@@ -17,6 +17,7 @@ public struct PlaybackPanelExpansion: Equatable, Sendable {
         case collapsed
         case timeline
         case settings
+        case mediaInformation
     }
 
     /// Which of the three ordered steps the panel is in.
