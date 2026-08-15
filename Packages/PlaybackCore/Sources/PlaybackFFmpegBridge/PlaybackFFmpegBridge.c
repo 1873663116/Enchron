@@ -100,6 +100,8 @@ struct PBFFmpegReader {
     AVFormatContext *formatContext;
     PBFFmpegDemuxSource *demuxSource;
     AVPacket *packet;
+    AVPacket *filteredPacket;
+    AVBSFContext *dolbyVisionSplitFilter;
     int videoStreamIndex;
     AVRational timeBase;
     int64_t startTimestamp;
@@ -129,6 +131,12 @@ struct PBFFmpegReader {
     int dolbyVisionProfile;
     int dolbyVisionCrossCompatibilityID;
     bool dolbyVisionHasEnhancementLayer;
+    bool reordersProfile7BaseLayerParameterSets;
+    size_t hevcNALLengthSize;
+    uint8_t *pendingHEVCParameterSets;
+    size_t pendingHEVCParameterSetSize;
+    bool inputEnded;
+    bool filterDrained;
 };
 
 struct PBFFmpegAudioReader {
@@ -1118,22 +1126,37 @@ static OSType prores_codec_type(uint32_t codecTag) {
     }
 }
 
-/// A dual-layer source is not declared as Dolby Vision, because only its base layer
-/// reaches this reader's one decoder input. Declaring it makes VideoToolbox reject a
-/// base layer it would otherwise decode as HDR10, which is what the wearer is shown
-/// and what the dynamic range line already says.
-static bool has_usable_dovi_configuration(const AVCodecParameters *parameters) {
+static const AVDOVIDecoderConfigurationRecord *dovi_configuration(
+    const AVCodecParameters *parameters
+) {
     const AVPacketSideData *sideData = av_packet_side_data_get(
         parameters->coded_side_data,
         parameters->nb_coded_side_data,
         AV_PKT_DATA_DOVI_CONF
     );
     if (!sideData || sideData->size < sizeof(AVDOVIDecoderConfigurationRecord)) {
-        return false;
+        return NULL;
     }
-    const AVDOVIDecoderConfigurationRecord *record =
-        (const AVDOVIDecoderConfigurationRecord *)sideData->data;
+    return (const AVDOVIDecoderConfigurationRecord *)sideData->data;
+}
+
+/// A dual-layer source is not declared as Dolby Vision. A format description carrying
+/// its Profile 7 dvcC can be created, but VideoToolbox rejects the format before a
+/// decompression session exists. The split path below sends only its HDR10 base layer.
+static bool has_usable_dovi_configuration(const AVCodecParameters *parameters) {
+    const AVDOVIDecoderConfigurationRecord *record = dovi_configuration(parameters);
+    if (!record) return false;
     return record->el_present_flag == 0;
+}
+
+static bool requires_dolby_vision_base_layer_split(
+    const AVCodecParameters *parameters
+) {
+    const AVDOVIDecoderConfigurationRecord *record = dovi_configuration(parameters);
+    return record &&
+        record->dv_profile == 7 &&
+        record->bl_present_flag != 0 &&
+        record->el_present_flag != 0;
 }
 
 static OSType codec_type(const AVCodecParameters *parameters) {
@@ -1320,6 +1343,59 @@ static void detect_dolby_vision(PBFFmpegReader *reader) {
         reader->dolbyVisionHasEnhancementLayer = record->el_present_flag != 0;
         if (onDecodedStream) return;
     }
+}
+
+static bool context_uses_mov_demuxer(const AVFormatContext *context);
+
+static int configure_dolby_vision_base_layer_split(
+    PBFFmpegReader *reader,
+    AVStream *stream,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    reader->reordersProfile7BaseLayerParameterSets =
+        reader->dolbyVisionProfile == 7 &&
+        reader->usedBitstreamExtradataBootstrap &&
+        stream->codecpar->codec_id == AV_CODEC_ID_HEVC &&
+        context_uses_mov_demuxer(reader->formatContext);
+    if (reader->reordersProfile7BaseLayerParameterSets) {
+        if (!stream->codecpar->extradata || stream->codecpar->extradata_size <= 21) {
+            set_error(errorBuffer, errorBufferSize, "Profile 7 base-layer hvcC is incomplete");
+            return AVERROR_INVALIDDATA;
+        }
+        reader->hevcNALLengthSize =
+            (size_t)(stream->codecpar->extradata[21] & 0x03) + 1;
+    }
+    if (!requires_dolby_vision_base_layer_split(stream->codecpar)) return 0;
+    const AVBitStreamFilter *filter = av_bsf_get_by_name("dovi_split");
+    if (!filter) {
+        set_error(errorBuffer, errorBufferSize, "FFmpeg dovi_split filter is unavailable");
+        return AVERROR(ENOSYS);
+    }
+    AVBSFContext *context = NULL;
+    int result = av_bsf_alloc(filter, &context);
+    if (result >= 0) {
+        result = av_opt_set(context->priv_data, "mode", "bl", 0);
+    }
+    if (result >= 0) {
+        result = avcodec_parameters_copy(context->par_in, stream->codecpar);
+    }
+    if (result >= 0) {
+        context->time_base_in = stream->time_base;
+        result = av_bsf_init(context);
+    }
+    if (result < 0) {
+        av_bsf_free(&context);
+        set_av_error(
+            errorBuffer,
+            errorBufferSize,
+            "Initialize Dolby Vision Profile 7 base-layer split",
+            result
+        );
+        return result;
+    }
+    reader->dolbyVisionSplitFilter = context;
+    return 0;
 }
 
 static CFStringRef transfer_function(enum AVColorTransferCharacteristic value) {
@@ -3068,6 +3144,13 @@ static bool configure_video_reader(
         result = bootstrap_video_extradata(reader, stream, errorBuffer, errorBufferSize);
         if (result < 0) return false;
         reader->usedBitstreamExtradataBootstrap = neededBitstreamBootstrap;
+        result = configure_dolby_vision_base_layer_split(
+            reader,
+            stream,
+            errorBuffer,
+            errorBufferSize
+        );
+        if (result < 0) return false;
         if (cancellation_requested(&reader->cancelled)) return false;
         AVRational sampleAspectRatio = av_guess_sample_aspect_ratio(
             reader->formatContext,
@@ -3129,7 +3212,11 @@ static bool configure_video_reader(
     }
 
     reader->packet = av_packet_alloc();
-    if (reader->packet == NULL) {
+    if (reader->dolbyVisionSplitFilter) {
+        reader->filteredPacket = av_packet_alloc();
+    }
+    if (reader->packet == NULL ||
+        (reader->dolbyVisionSplitFilter && reader->filteredPacket == NULL)) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg packet");
         return false;
     }
@@ -3276,6 +3363,9 @@ void PBFFmpegReaderDestroy(PBFFmpegReader *reader) {
     if (reader == NULL) return;
     if (reader->compressedFormat) CFRelease(reader->compressedFormat);
     discard_bootstrap_packets(reader);
+    av_bsf_free(&reader->dolbyVisionSplitFilter);
+    free(reader->pendingHEVCParameterSets);
+    av_packet_free(&reader->filteredPacket);
     av_packet_free(&reader->packet);
     if (reader->demuxSource) {
         unsubscribe_from_demux_stream(reader->demuxSource, reader->videoStreamIndex);
@@ -3374,24 +3464,16 @@ static uint8_t *copy_annexb_as_length_prefixed(
     return output;
 }
 
-static PBFFmpegReadResult copy_compressed_sample(
-    PBFFmpegReader *reader,
-    CMSampleBufferRef *sampleOut,
-    char *errorBuffer,
-    size_t errorBufferSize
-) {
+static int read_next_source_video_packet(PBFFmpegReader *reader) {
     AVPacket *packet = reader->packet;
     while (true) {
-        if (atomic_load_explicit(&reader->cancelled, memory_order_relaxed)) {
-            return PBFFmpegReadResultCancelled;
-        }
-        int readResult = 0;
+        int result = 0;
         if (reader->bootstrapPacketIndex < reader->bootstrapPacketCount) {
             AVPacket **buffered = &reader->bootstrapPackets[reader->bootstrapPacketIndex++];
             av_packet_move_ref(packet, *buffered);
             av_packet_free(buffered);
         } else {
-            readResult = reader->demuxSource
+            result = reader->demuxSource
                 ? copy_next_demux_packet(
                     reader->demuxSource,
                     reader->videoStreamIndex,
@@ -3401,26 +3483,226 @@ static PBFFmpegReadResult copy_compressed_sample(
                 : av_read_frame(reader->formatContext, packet);
             if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
         }
+        if (result < 0) return result;
+        if (packet->stream_index == reader->videoStreamIndex) return 0;
+        av_packet_unref(packet);
+    }
+}
+
+static int read_next_compressed_video_packet(
+    PBFFmpegReader *reader,
+    AVPacket **packetOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!reader->dolbyVisionSplitFilter) {
+        int result = read_next_source_video_packet(reader);
+        if (result >= 0) *packetOut = reader->packet;
+        return result;
+    }
+
+    while (true) {
+        int result = av_bsf_receive_packet(
+            reader->dolbyVisionSplitFilter,
+            reader->filteredPacket
+        );
+        if (result == 0) {
+            *packetOut = reader->filteredPacket;
+            return 0;
+        }
+        if (result == AVERROR_EOF) return result;
+        if (result != AVERROR(EAGAIN)) {
+            set_av_error(
+                errorBuffer,
+                errorBufferSize,
+                "Read Dolby Vision Profile 7 base layer",
+                result
+            );
+            return result;
+        }
+
+        if (reader->inputEnded) {
+            if (reader->filterDrained) return AVERROR_EOF;
+            result = av_bsf_send_packet(reader->dolbyVisionSplitFilter, NULL);
+            reader->filterDrained = true;
+            if (result < 0 && result != AVERROR_EOF) {
+                set_av_error(
+                    errorBuffer,
+                    errorBufferSize,
+                    "Finish Dolby Vision Profile 7 base-layer split",
+                    result
+                );
+                return result;
+            }
+            continue;
+        }
+
+        result = read_next_source_video_packet(reader);
+        if (result < 0) {
+            if (result == AVERROR_EXIT ||
+                atomic_load_explicit(&reader->cancelled, memory_order_relaxed)) {
+                return result;
+            }
+            if (result != AVERROR_EOF) {
+                set_av_error(
+                    errorBuffer,
+                    errorBufferSize,
+                    "Read Dolby Vision Profile 7 source packet",
+                    result
+                );
+                return result;
+            }
+            reader->inputEnded = true;
+            continue;
+        }
+        result = av_bsf_send_packet(reader->dolbyVisionSplitFilter, reader->packet);
+        av_packet_unref(reader->packet);
+        if (result < 0) {
+            set_av_error(
+                errorBuffer,
+                errorBufferSize,
+                "Prepare Dolby Vision Profile 7 base-layer packet",
+                result
+            );
+            return result;
+        }
+    }
+}
+
+static bool prepare_profile7_base_layer_sample_bytes(
+    PBFFmpegReader *reader,
+    const AVPacket *packet,
+    const uint8_t **bytesOut,
+    size_t *byteCountOut,
+    uint8_t **allocatedBytesOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    *bytesOut = packet->data;
+    *byteCountOut = (size_t)packet->size;
+    *allocatedBytesOut = NULL;
+    if (!reader->reordersProfile7BaseLayerParameterSets) return true;
+
+    // The split-track Profile 7 MP4 places the next GOP's VPS/SPS/PPS after the
+    // preceding VCL NAL. VideoToolbox rejects that sample. Keep those parameter
+    // sets and prefix them to the following IRAP sample, where they take effect.
+    size_t lengthSize = reader->hevcNALLengthSize;
+    if (!packet->data || packet->size <= 0 ||
+        reader->pendingHEVCParameterSetSize > SIZE_MAX - (size_t)packet->size) {
+        set_error(errorBuffer, errorBufferSize, "Profile 7 base-layer sample is empty or too large");
+        return false;
+    }
+    size_t packetSize = (size_t)packet->size;
+    uint8_t *output = malloc(reader->pendingHEVCParameterSetSize + packetSize);
+    uint8_t *nextParameterSets = malloc(packetSize);
+    if (!output || !nextParameterSets) {
+        free(output);
+        free(nextParameterSets);
+        set_error(errorBuffer, errorBufferSize, "Prepare Profile 7 base-layer sample failed");
+        return false;
+    }
+
+    size_t outputSize = reader->pendingHEVCParameterSetSize;
+    if (outputSize > 0) {
+        memcpy(output, reader->pendingHEVCParameterSets, outputSize);
+    }
+    size_t nextParameterSetSize = 0;
+    size_t offset = 0;
+    bool sawVCL = false;
+    while (offset + lengthSize <= packetSize) {
+        size_t nalStart = offset;
+        uint32_t nalSize = 0;
+        for (size_t index = 0; index < lengthSize; index++) {
+            nalSize = (nalSize << 8) | packet->data[offset + index];
+        }
+        offset += lengthSize;
+        if (nalSize == 0 || nalSize > packetSize - offset) {
+            free(output);
+            free(nextParameterSets);
+            set_error(errorBuffer, errorBufferSize, "Profile 7 base-layer sample has invalid HEVC NAL lengths");
+            return false;
+        }
+        uint8_t nalType = (packet->data[offset] >> 1) & 0x3f;
+        if (nalType <= 31) sawVCL = true;
+        size_t encodedNALSize = lengthSize + (size_t)nalSize;
+        uint8_t *destination = sawVCL && nalType >= 32 && nalType <= 34
+            ? nextParameterSets + nextParameterSetSize
+            : output + outputSize;
+        memcpy(destination, packet->data + nalStart, encodedNALSize);
+        if (sawVCL && nalType >= 32 && nalType <= 34) {
+            nextParameterSetSize += encodedNALSize;
+        } else {
+            outputSize += encodedNALSize;
+        }
+        offset += nalSize;
+    }
+    if (offset != packetSize || outputSize == 0) {
+        free(output);
+        free(nextParameterSets);
+        set_error(errorBuffer, errorBufferSize, "Profile 7 base-layer sample is not length-prefixed HEVC");
+        return false;
+    }
+
+    free(reader->pendingHEVCParameterSets);
+    reader->pendingHEVCParameterSets = nextParameterSetSize > 0
+        ? nextParameterSets
+        : NULL;
+    reader->pendingHEVCParameterSetSize = nextParameterSetSize;
+    if (nextParameterSetSize == 0) free(nextParameterSets);
+    *bytesOut = output;
+    *byteCountOut = outputSize;
+    *allocatedBytesOut = output;
+    return true;
+}
+
+static PBFFmpegReadResult copy_compressed_sample(
+    PBFFmpegReader *reader,
+    CMSampleBufferRef *sampleOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    while (true) {
+        if (atomic_load_explicit(&reader->cancelled, memory_order_relaxed)) {
+            return PBFFmpegReadResultCancelled;
+        }
+        AVPacket *packet = NULL;
+        int readResult = read_next_compressed_video_packet(
+            reader,
+            &packet,
+            errorBuffer,
+            errorBufferSize
+        );
         if (readResult < 0) {
             if (readResult == AVERROR_EXIT
                 || atomic_load_explicit(&reader->cancelled, memory_order_relaxed)) {
                 return PBFFmpegReadResultCancelled;
             }
+            if (readResult != AVERROR_EOF) return PBFFmpegReadResultError;
             return PBFFmpegReadResultEnd;
         }
-        if (packet->stream_index != reader->videoStreamIndex) {
-            av_packet_unref(packet);
-            continue;
-        }
 
-        const uint8_t *sampleBytes = packet->data;
-        size_t sampleByteCount = (size_t)packet->size;
+        const uint8_t *sampleBytes = NULL;
+        size_t sampleByteCount = 0;
+        uint8_t *preparedBytes = NULL;
+        if (!prepare_profile7_base_layer_sample_bytes(
+                reader,
+                packet,
+                &sampleBytes,
+                &sampleByteCount,
+                &preparedBytes,
+                errorBuffer,
+                errorBufferSize
+            )) {
+            av_packet_unref(packet);
+            return PBFFmpegReadResultError;
+        }
         uint8_t *convertedBytes = NULL;
         if (reader->convertsAnnexB) {
             convertedBytes = copy_annexb_as_length_prefixed(
-                packet->data, (size_t)packet->size, &sampleByteCount
+                sampleBytes, sampleByteCount, &sampleByteCount
             );
             if (!convertedBytes) {
+                free(preparedBytes);
                 av_packet_unref(packet);
                 set_error(errorBuffer, errorBufferSize, "Convert Annex-B packet to length-prefixed sample failed");
                 return PBFFmpegReadResultError;
@@ -3478,6 +3760,7 @@ static PBFFmpegReadResult copy_compressed_sample(
             }
         }
         if (block) CFRelease(block);
+        free(preparedBytes);
         free(convertedBytes);
         av_packet_unref(packet);
         if (status != noErr) {
