@@ -752,6 +752,16 @@ static void set_av_error(char *buffer, size_t size, const char *operation, int c
     snprintf(buffer, size, "%s: %s (%d)", operation, detail, code);
 }
 
+// Apple Positional Audio Codec reaches this bridge under two different FFmpeg
+// codec IDs depending on version. 8.0.1 exposed the sample entry and the
+// packets but left the public ID unresolved, so it arrived as
+// AV_CODEC_ID_NONE. 9.0 added AV_CODEC_ID_APPLE_APAC and the mov demuxer now
+// resolves it. AV_CODEC_ID_APAC is a third, unrelated codec that FFmpeg names
+// almost identically, and it is the ID the rest of this bridge already keys on
+// to reach kAudioFormatAPAC, the magic cookie and the 1024-sample frame size.
+// Collapsing onto it keeps one branch downstream. The 'apac' sample entry tag
+// is what actually establishes the stream is Apple's, so it gates the rewrite.
+// Apple decodes it either way; FFmpeg only carries the packets.
 static void normalize_mov_apac_codec_id(AVFormatContext *context) {
     if (!context) return;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
