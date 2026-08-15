@@ -83,7 +83,7 @@ struct CategorySidebar: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
-            VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            VStack(alignment: .leading, spacing: DesignTokens.SourceSidebar.headerContentGap) {
                 HStack(spacing: DesignTokens.Spacing.xs) {
                     Text(title)
                         .font(DesignTokens.SourceSidebar.sectionTitleFont)

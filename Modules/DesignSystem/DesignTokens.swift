@@ -565,10 +565,14 @@ public enum DesignTokens {
         public static let listPaddingH: CGFloat = Spacing.xs
         /// Inner vertical padding between sidebar content and its glass panel.
         public static let contentPaddingV: CGFloat = Spacing.lg
-        /// Compact visual height for source rows.
-        public static let rowHeight: CGFloat = 48
-        /// Vertical spacing between adjacent source rows.
-        public static let rowSpacing: CGFloat = 0
+        /// Distance from the section header row to the first source row. Gaze needs
+        /// the header's own target cleared before the list starts.
+        public static let headerContentGap: CGFloat = Spacing.lg
+        /// Visual height for source rows.
+        public static let rowHeight: CGFloat = Interactive.rowHeight
+        /// Vertical spacing between adjacent source rows. With `rowHeight`, this puts
+        /// adjacent row centers 68pt apart, past the 60pt visionOS gaze separation.
+        public static let rowSpacing: CGFloat = Spacing.xs
         /// Inner horizontal padding for source rows.
         public static let rowPaddingH: CGFloat = Spacing.xs
         /// Compact source row shape.

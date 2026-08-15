@@ -78,7 +78,7 @@ struct SourceSidebar: View {
     }
 
     private var sourcesSection: some View {
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+        VStack(alignment: .leading, spacing: DesignTokens.SourceSidebar.headerContentGap) {
             HStack(spacing: DesignTokens.Spacing.xs) {
                 sidebarSectionTitle(title)
                 Spacer(minLength: 0)
