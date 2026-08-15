@@ -28,7 +28,7 @@ struct FileListGroup: View {
         let kind: Kind
         let title: String
         /// Trailing metadata revealed on gaze.
-        let metadata: String
+        let metadata: String?
         var action: () -> Void = {}
         var contextActions: [ContextAction] = []
         var selectionEnabled = false
@@ -62,7 +62,7 @@ struct FileListGroup: View {
         static func folder(
             id: String? = nil,
             title: String,
-            itemCount: Int,
+            itemCount: Int?,
             contextActions: [ContextAction] = [],
             action: @escaping () -> Void = {}
         ) -> Item {
@@ -70,7 +70,7 @@ struct FileListGroup: View {
                 id: id ?? "folder-\(title)",
                 kind: .folder,
                 title: title,
-                metadata: "\(itemCount) items",
+                metadata: itemCount.map { "\($0) items" },
                 action: action,
                 contextActions: contextActions
             )
@@ -172,23 +172,81 @@ struct FileListGroupRow: View {
 
     @ViewBuilder
     private func metadataView(reveal rowHoverGroup: EnchronHoverGroup?) -> some View {
-        let label = Text(item.metadata)
-            .font(DesignTokens.Typography.metadata)
-            .foregroundStyle(DesignTokens.Surface.accessoryText)
-            .lineLimit(1)
+        if let metadata = item.metadata {
+            let label = Text(metadata)
+                .font(DesignTokens.Typography.metadata)
+                .foregroundStyle(DesignTokens.Surface.accessoryText)
+                .lineLimit(1)
 
-        if let rowHoverGroup {
-            label
-                .enchronHoverOpacity(
-                    active: 1,
-                    inactive: 0,
-                    in: rowHoverGroup,
-                    animation: DesignTokens.AnimationToken.controlsTransition
-                )
-                .allowsHitTesting(false)
-        } else {
-            label.allowsHitTesting(false)
+            if let rowHoverGroup {
+                label
+                    .enchronHoverOpacity(
+                        active: 1,
+                        inactive: 0,
+                        in: rowHoverGroup,
+                        animation: DesignTokens.AnimationToken.controlsTransition
+                    )
+                    .allowsHitTesting(false)
+            } else {
+                label.allowsHitTesting(false)
+            }
         }
+    }
+}
+
+struct UncountedFolderGridCard: View {
+    let title: String
+    let accessibilityIdentifier: String
+    let action: () -> Void
+
+    @Namespace private var hoverNamespace
+
+    private var shape: RoundedRectangle {
+        DesignTokens.ShapeToken.card
+    }
+
+    private var hoverGroup: EnchronHoverGroup {
+        EnchronHoverGroup(
+            id: "uncounted-folder-grid-card",
+            in: hoverNamespace,
+            behavior: .activatesGroup
+        )
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            shape
+                .fill(DesignTokens.Surface.elevated)
+                .overlay {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: DesignTokens.Card.placeholderIconSize))
+                        .foregroundStyle(DesignTokens.Surface.supportingText)
+                }
+                .frame(
+                    width: DesignTokens.Card.gridMin,
+                    height: DesignTokens.Card.thumbnailHeight
+                )
+                .clipShape(shape)
+                .enchronHoverContentShape(shape)
+                .enchronHoverEffect(.highlight, in: hoverGroup)
+
+            Text(title)
+                .font(DesignTokens.Typography.headline)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, minHeight: 22, maxHeight: 22, alignment: .leading)
+                .padding(.horizontal, DesignTokens.Card.paddingH)
+                .padding(.vertical, DesignTokens.Card.paddingV)
+        }
+        .frame(width: DesignTokens.Card.gridMin)
+        .clipShape(shape)
+        .contentShape(shape)
+        .onTapGesture(perform: action)
+        .accessibilityElement(children: .ignore)
+        .accessibilityIdentifier(accessibilityIdentifier)
+        .accessibilityLabel("\(title), folder")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { action() }
     }
 }
 

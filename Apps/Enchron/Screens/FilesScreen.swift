@@ -659,9 +659,8 @@ struct FilesScreen: View {
             ) {
                 if isBrowsingSource {
                     ForEach(viewModel.displayedFolders) { folder in
-                        GridCard.folder(
+                        UncountedFolderGridCard(
                             title: folder.name,
-                            count: 0,
                             accessibilityIdentifier: "FileBrowsing-grid-folder-\(folder.name)",
                             action: { Task { await viewModel.navigateToFolder(folder) } }
                         )
@@ -736,7 +735,7 @@ struct FilesScreen: View {
                         FileListGroup.Item.folder(
                             id: "folder-\(folder.id)",
                             title: folder.name,
-                            itemCount: 0,
+                            itemCount: nil,
                             action: { Task { await viewModel.navigateToFolder(folder) } }
                         )
                     } + viewModel.displayedFiles.map { file in
