@@ -91,7 +91,6 @@ struct FilesScreen: View {
         }
         .animation(DesignTokens.AnimationToken.controlsTransition, value: sidebarIsVisible)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .glassBackgroundEffect(.plate, in: DesignTokens.ShapeToken.panel, displayMode: .always)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("FileBrowsing-FilesScreen")
         .onAppear { syncSourceItems() }
