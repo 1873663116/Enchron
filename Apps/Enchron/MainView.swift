@@ -273,11 +273,6 @@ public struct MainView: View {
         }
     }
 
-    /// The controls ornament keeps one topology for as long as this window hosts
-    /// playback, because attaching or detaching it mid-playback rebuilds the
-    /// RealityKit viewport and costs a black frame. The browser hosts no
-    /// playback, so it reserves nothing and the window bar sits against the
-    /// window instead of below an empty 152pt plane.
     private var hostsPlaybackOrnament: Bool {
         showsWindowPlayback && appModel.playbackPresentation.usesMainWindow
     }
@@ -302,39 +297,13 @@ public struct MainView: View {
     private var platformContent: some View {
         primaryContent
             .ornament(
-                visibility: hostsPlaybackOrnament ? .visible : .hidden,
+                visibility: showsPlaybackChrome ? .visible : .hidden,
                 attachmentAnchor: .scene(.bottom)
             ) {
-                ZStack {
-                    Color.clear
-                        .frame(
-                            width: DesignTokens.ControlBar.outerWidth,
-                            height: hostsPlaybackOrnament
-                                ? collapsedWindowControlsOrnamentHeight
-                                : 0
-                        )
-                        .allowsHitTesting(false)
-                        .accessibilityHidden(true)
-
-                    if showsPlaybackChrome {
-                        WindowPlayerDeckView(
-                            presentationOverride: hostedPlaybackPresentation
-                        )
-                        .transition(.opacity)
-                    }
-                }
-                .animation(
-                    DesignTokens.AnimationToken.controlsTransition,
-                    value: showsPlaybackChrome
+                WindowPlayerDeckView(
+                    presentationOverride: hostedPlaybackPresentation
                 )
             }
-    }
-
-    private var collapsedWindowControlsOrnamentHeight: CGFloat {
-        DesignTokens.Layout.playbackMediaInfoHeight
-            + DesignTokens.Spacing.sm
-            + DesignTokens.ProgressBar.hitHeight
-            + DesignTokens.ControlBar.paddingV * 2
     }
 
     private var primaryContent: some View {
