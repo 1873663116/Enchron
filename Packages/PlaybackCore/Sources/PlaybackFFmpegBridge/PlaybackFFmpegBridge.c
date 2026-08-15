@@ -457,15 +457,22 @@ static int64_t http_source_length(const char *path, const AVIOInterruptCB *inter
 static int open_media_source(AVFormatContext **context, const char *path) {
     AVDictionary *options = NULL;
     if (path_is_http(path)) {
-        // Without an end offset FFmpeg asks for `Range: bytes=N-`, and Emby answers
-        // an open-ended range over its WebDAV-backed library by closing the body
-        // early or by returning 500. Measured against Emby 4.9.5.0 on
-        // `Blade Runner (1982).mp4`: `bytes=17129754728-` yields 81920 of 112249
-        // bytes and `bytes=17129836648-` yields 500, while the same two ranges with
-        // their last byte named yield all of it. Every demuxer read of a file's tail
-        // lands on that, so an MP4 whose moov trails the media cannot be opened and
-        // a Matroska file's Cues cannot be parsed, which leaves a resumed title
-        // failing its opening seek with no index to seek by.
+        // Without an end offset FFmpeg asks for `Range: bytes=N-`, and a server
+        // reading from a file system that does not shorten a read at end of file
+        // cannot answer that. Apple's WebDAV client is one: until it has finished
+        // caching a file it pads a read past the end with zeroes instead of
+        // returning fewer bytes, so a server looping until end of file writes more
+        // than the Content-Length it already sent and its own host aborts the
+        // response. Measured through Emby 4.9.5.0 on `Blade Runner (1982).mp4`,
+        // where `bytes=17129754728-` yields 81920 of the 112249 bytes promised and
+        // `bytes=17129836648-` yields `too many bytes written (81920 of 30329)`.
+        //
+        // A named last byte is what keeps that shortfall away from the demuxer,
+        // because the server then reads only as far as it undertook to write. Every
+        // read of a file's tail depends on it, so without it an MP4 whose moov
+        // trails the media cannot be opened at all, and a Matroska file's Cues
+        // cannot be parsed, which leaves a resumed title failing its opening seek
+        // with no index to seek by.
         int64_t length = http_source_length(
             path,
             *context ? &(*context)->interrupt_callback : NULL
