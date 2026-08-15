@@ -916,6 +916,28 @@ nonisolated final class PlaybackSourceAndAudioSessionTests: XCTestCase {
         XCTAssertEqual(runtime.rendererConsumerEntityID, "immersive-target")
     }
 
+    @MainActor
+    func testOnlyPortalToPanoramaRetiresTheSourceSessionBeforeDelivery() {
+        XCTAssertTrue(
+            PlaybackRuntime.shouldRetireDepartingTechnicalSessionBeforeDelivery(
+                from: .portal,
+                to: .panorama
+            )
+        )
+        XCTAssertFalse(
+            PlaybackRuntime.shouldRetireDepartingTechnicalSessionBeforeDelivery(
+                from: .window,
+                to: .docked
+            )
+        )
+        XCTAssertFalse(
+            PlaybackRuntime.shouldRetireDepartingTechnicalSessionBeforeDelivery(
+                from: .panorama,
+                to: .portal
+            )
+        )
+    }
+
     /// A second media request must be able to take the renderer even when the
     /// window RealityView never released its claim. The claim is keyed by
     /// RealityKit Entity identity, and the store mints a new Entity for the new
