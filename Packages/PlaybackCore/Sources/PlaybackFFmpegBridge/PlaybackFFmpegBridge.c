@@ -837,10 +837,9 @@ static void normalize_mov_apac_codec_id(AVFormatContext *context) {
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         AVCodecParameters *parameters = context->streams[index]->codecpar;
         if (parameters->codec_type == AVMEDIA_TYPE_AUDIO &&
-            parameters->codec_id == AV_CODEC_ID_NONE &&
+            (parameters->codec_id == AV_CODEC_ID_NONE ||
+             parameters->codec_id == AV_CODEC_ID_APPLE_APAC) &&
             parameters->codec_tag == MKTAG('a', 'p', 'a', 'c')) {
-            // FFmpeg 8.0.1 exposes the APAC sample entry and packets but leaves
-            // the public codec ID unresolved. Apple remains the decoder.
             parameters->codec_id = AV_CODEC_ID_APAC;
         }
     }
