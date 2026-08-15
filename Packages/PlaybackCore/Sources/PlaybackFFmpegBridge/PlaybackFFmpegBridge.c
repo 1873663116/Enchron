@@ -817,15 +817,40 @@ static int open_media_source(
     PBFFmpegSourceReadContext *sourceReadContext
 ) {
     AVDictionary *options = NULL;
+    AVDictionary *ioOptions = NULL;
     AVIOContext *openedIO = NULL;
     int result = 0;
     if (path_is_http(path)) {
+        // FFmpeg's AVIO read buffer and generic short-seek threshold are both
+        // 32 KB. The tail header in the remote-open acceptance fixture needs
+        // four such units, so this bound preserves its two requests while the
+        // MOV demuxer drains each response and reuses the socket for the next
+        // range. request_size stays unset so playback reads remain unbounded.
+        const int64_t initialRequestSize = 4LL * 32 * 1024;
+        result = av_dict_set_int(&ioOptions, "seekable", 1, 0);
+        if (result < 0) goto finish;
+        result = av_dict_set_int(&ioOptions, "multiple_requests", 1, 0);
+        if (result < 0) goto finish;
+        result = av_dict_set_int(
+            &ioOptions,
+            "initial_request_size",
+            initialRequestSize,
+            0
+        );
+        if (result < 0) goto finish;
+        result = av_dict_set_int(
+            &ioOptions,
+            "short_seek_size",
+            initialRequestSize,
+            0
+        );
+        if (result < 0) goto finish;
         result = avio_open2(
             &openedIO,
             path,
             AVIO_FLAG_READ,
             *context ? &(*context)->interrupt_callback : NULL,
-            NULL
+            &ioOptions
         );
         if (result < 0) goto finish;
         int64_t length = avio_size(openedIO);
@@ -865,6 +890,7 @@ finish:
         (*context)->pb = NULL;
     }
     if (openedIO) avio_closep(&openedIO);
+    av_dict_free(&ioOptions);
     av_dict_free(&options);
     if (sourceReadContext) {
         sourceReadContext->formatContext = result >= 0 ? *context : NULL;

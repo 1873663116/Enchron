@@ -182,7 +182,7 @@ private func reportedError(_ buffer: [CChar]) -> String {
     )
 }
 
-@Test func openedHTTPContextBoundsRangesAfterTheInitialRequest() throws {
+@Test func openedHTTPContextBoundsInitialAndLaterRequests() throws {
     setFFmpegLogLevel(-8)
     let server = try RecordingRangeServer(serving: try Data(contentsOf: tailMoovFixture))
     defer { server.stop() }
@@ -194,7 +194,7 @@ private func reportedError(_ buffer: [CChar]) -> String {
     let activeReader = try #require(reader, Comment(rawValue: reportedError(error)))
     PBFFmpegReaderDestroy(activeReader)
 
-    #expect(server.ranges.first?.hasSuffix("-") == true)
+    #expect(server.ranges.first == "bytes=0-131071")
     let bodyReadingRanges = server.ranges.dropFirst()
     #expect(
         bodyReadingRanges.isEmpty == false &&
@@ -269,10 +269,10 @@ private func reportedError(_ buffer: [CChar]) -> String {
     )
     _ = sample?.takeRetainedValue()
     let bytesAfterVideoSample = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
-    #expect(rangesAfterSourceOpen.first?.hasSuffix("-") == true)
+    #expect(rangesAfterSourceOpen.first == "bytes=0-131071")
     #expect(
         rangesAfterSourceOpen.dropFirst().allSatisfy { !$0.hasSuffix("-") }
     )
-    #expect(server.ranges.count == rangesAfterSourceOpen.count + 1)
+    #expect(server.ranges.count == rangesAfterSourceOpen.count + 2)
     #expect(bytesAfterVideoSample > bytesBeforeVideoSample)
 }
