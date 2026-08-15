@@ -82,60 +82,6 @@ public enum SourceConnectionOutcome: Sendable, Equatable {
     case timedOut(message: String)
 }
 
-private struct ConnectionFormField: View {
-    let label: String
-    let placeholder: String
-    @Binding var text: String
-    var isSecure = false
-    let accessibilityIdentifier: String
-
-    @FocusState private var isFocused: Bool
-
-    var body: some View {
-        let shape = RoundedRectangle(
-            cornerRadius: DesignTokens.Radius.small,
-            style: .continuous
-        )
-
-        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
-            Text(label)
-                .font(DesignTokens.Typography.sectionHeader)
-                .foregroundStyle(DesignTokens.Surface.supportingText)
-
-            Group {
-                if isSecure {
-                    SecureField(placeholder, text: $text)
-                } else {
-                    TextField(placeholder, text: $text)
-                }
-            }
-            .textFieldStyle(.plain)
-            .font(.body)
-            .foregroundStyle(.primary)
-            .focused($isFocused)
-            .enchronLiteralTextInput()
-            .enchronHoverEffectDisabled()
-            .padding(.horizontal, DesignTokens.Spacing.md)
-            .frame(height: DesignTokens.Interactive.regular)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .clipShape(shape)
-            .enchronGlassBackground(in: shape)
-            .enchronHoverContentShape(shape)
-            .enchronHoverEffect(.automatic)
-            .contentShape(shape)
-            .overlay {
-                shape.strokeBorder(
-                    isFocused ? DesignTokens.Surface.focusBorder : .clear,
-                    lineWidth: DesignTokens.Stroke.bold
-                )
-                .animation(DesignTokens.AnimationToken.selection, value: isFocused)
-            }
-            .accessibilityIdentifier(accessibilityIdentifier)
-            .accessibilityLabel(label)
-        }
-    }
-}
-
 public struct ConnectionFormPanel: View {
     public typealias ConnectAction = @MainActor (
         SourceConnectionRequest
@@ -258,34 +204,33 @@ public struct ConnectionFormPanel: View {
     @ViewBuilder
     private var fields: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            ConnectionFormField(
-                label: "Display Name",
-                placeholder: "Optional",
-                text: $name,
-                accessibilityIdentifier: identifier("name")
-            )
-            ConnectionFormField(
-                label: kind.addressLabel,
-                placeholder: kind.addressPlaceholder,
-                text: $address,
-                accessibilityIdentifier: identifier("address")
-            )
+            labelledField("Display Name", identifierSuffix: "name") {
+                TextField("Display Name", text: $name, prompt: Text("Optional"))
+            }
+            labelledField(kind.addressLabel, identifierSuffix: "address") {
+                TextField(
+                    kind.addressLabel,
+                    text: $address,
+                    prompt: Text(kind.addressPlaceholder)
+                )
+            }
 
             if showsCredentials {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                    ConnectionFormField(
-                        label: "Username",
-                        placeholder: "Username",
-                        text: $username,
-                        accessibilityIdentifier: identifier("username")
-                    )
-                    ConnectionFormField(
-                        label: "Password",
-                        placeholder: "Password",
-                        text: $password,
-                        isSecure: true,
-                        accessibilityIdentifier: identifier("password")
-                    )
+                    labelledField("Username", identifierSuffix: "username") {
+                        TextField(
+                            "Username",
+                            text: $username,
+                            prompt: Text("Username")
+                        )
+                    }
+                    labelledField("Password", identifierSuffix: "password") {
+                        SecureField(
+                            "Password",
+                            text: $password,
+                            prompt: Text("Password")
+                        )
+                    }
                 }
                 .transition(credentialsTransition)
             }
@@ -297,7 +242,23 @@ public struct ConnectionFormPanel: View {
                     .accessibilityIdentifier(identifier("guest"))
             }
         }
+        .enchronLiteralTextInput()
         .disabled(isBusy)
+    }
+
+    private func labelledField(
+        _ label: String,
+        identifierSuffix: String,
+        @ViewBuilder field: () -> some View
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
+            Text(label)
+                .font(DesignTokens.Typography.sectionHeader)
+                .foregroundStyle(DesignTokens.Surface.supportingText)
+            field()
+                .accessibilityIdentifier(identifier(identifierSuffix))
+                .accessibilityLabel(label)
+        }
     }
 
     @ViewBuilder
