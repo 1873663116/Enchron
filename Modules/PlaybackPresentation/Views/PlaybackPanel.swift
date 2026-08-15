@@ -683,17 +683,10 @@ struct FusedPlayerPanel: View {
                 animation: DesignTokens.AnimationToken.informationReveal
             )
 
-            HStack(spacing: DesignTokens.Spacing.xl) {
-                Text(spatialMetadataLabel)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                Text(technicalMetadataLabel)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-            }
-            .font(DesignTokens.Typography.metadata.monospacedDigit())
-            .foregroundStyle(.secondary)
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
-            .padding(.horizontal, DesignTokens.Spacing.xl)
+            PlaybackMediaMetadataRow(
+                spatialMetadataLabel: spatialMetadataLabel,
+                technicalMetadataLabel: technicalMetadataLabel
+            )
             .frame(maxHeight: .infinity, alignment: .bottom)
             .padding(.bottom, DesignTokens.Spacing.sm)
             .enchronHoverOffset(
@@ -1682,4 +1675,70 @@ private struct DockedPlacementSliderRow: View {
         }
     }
 
+}
+
+private struct PlaybackMediaMetadataRow: View {
+    let spatialMetadataLabel: String
+    let technicalMetadataLabel: String
+
+    var body: some View {
+        HStack(spacing: 0) {
+            Text(spatialMetadataLabel)
+            Spacer(minLength: DesignTokens.Spacing.xl)
+            Text(technicalMetadataLabel)
+                .multilineTextAlignment(.trailing)
+                .layoutPriority(1)
+        }
+        .font(DesignTokens.Typography.metadata.monospacedDigit())
+        .foregroundStyle(.secondary)
+        .lineLimit(1)
+        .padding(.horizontal, DesignTokens.Spacing.xl)
+    }
+}
+
+#Preview("Player metadata lengths") {
+    VStack(alignment: .leading, spacing: DesignTokens.Spacing.xl) {
+        Text("Short")
+        PlaybackMediaMetadataRow(
+            spatialMetadataLabel: "Flat · Mono",
+            technicalMetadataLabel: "1920×1080 · SDR · H.264"
+        )
+        .frame(width: 440, height: DesignTokens.Layout.playbackMediaInfoHeight)
+        .background(
+            .thickMaterial,
+            in: RoundedRectangle(
+                cornerRadius: DesignTokens.Radius.element,
+                style: .continuous
+            )
+        )
+
+        Text("Dolby Vision Profile 5")
+        PlaybackMediaMetadataRow(
+            spatialMetadataLabel: "Flat · Mono",
+            technicalMetadataLabel: "3840×2160 · Dolby Vision Profile 5 · HEVC · 24 fps"
+        )
+        .frame(width: 440, height: DesignTokens.Layout.playbackMediaInfoHeight)
+        .background(
+            .thickMaterial,
+            in: RoundedRectangle(
+                cornerRadius: DesignTokens.Radius.element,
+                style: .continuous
+            )
+        )
+
+        Text("Synthetic overflow")
+        PlaybackMediaMetadataRow(
+            spatialMetadataLabel: "Flat · Mono",
+            technicalMetadataLabel: "1234567890×1234567890 · Dolby Vision Profile 2147483647.2147483647 Fallback to HDR10 · EXPERIMENTAL-EXTENDED-CODEC-IDENTIFIER · 119.88 fps"
+        )
+        .frame(width: 440, height: DesignTokens.Layout.playbackMediaInfoHeight)
+        .background(
+            .thickMaterial,
+            in: RoundedRectangle(
+                cornerRadius: DesignTokens.Radius.element,
+                style: .continuous
+            )
+        )
+    }
+    .padding(DesignTokens.Spacing.xxl)
 }
