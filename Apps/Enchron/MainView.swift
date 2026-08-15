@@ -571,7 +571,9 @@ public struct MainView: View {
             #endif
 
             if showsLoadingChrome {
-                LoadingSpinner()
+                LoadingSpinner(sourceReadBytesPerSecond: {
+                    playbackRuntime.outputObservation().sourceReadBytesPerSecond
+                })
                     .accessibilityIdentifier("PlayerUI-loading-spinner")
                     .accessibilityLabel("Loading")
                     .allowsHitTesting(false)
@@ -994,6 +996,7 @@ private struct PlaybackAutomationStateProbe: View {
             "systemOutputVolume=\(output.systemOutputVolume)",
             "audioSessionActive=\(output.audioSessionActive)",
             "outputBoundary=\(outputBoundary.rawValue)",
+            "sourceReadBytesPerSecond=\(output.sourceReadBytesPerSecond)",
             "audioTrack=\(playbackRuntime.currentAudioTrackID ?? "none")",
             "subtitleTrack=\(playbackRuntime.currentSubtitleTrackID ?? "off")",
             "subtitleCues=\(playbackRuntime.activeSubtitleCues.count)",
