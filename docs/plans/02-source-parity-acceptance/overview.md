@@ -36,6 +36,10 @@ Profile 7 双层占 Emby Dolby Vision 条目的八分之五，是本次新增拆
 
 播放预言：语料中每一条在真机上出画，且 dynamic range 与投影分类与 ffprobe 所述一致。
 
+## 决策轨迹
+
+[decisions.tsv](decisions.tsv) 一行一个决策点，按时间排列，evidence 列指向提交、脚本或证据文件。[decision-log.md](decision-log.md) 承载同一批决策的完整推理与取证过程。前者用于快速扫读与核对，后者用于理解为什么。
+
 ## Phases
 
 1. [phase-1-parity-harness.md](phase-1-parity-harness.md)
