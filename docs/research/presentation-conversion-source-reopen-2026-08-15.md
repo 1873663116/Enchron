@@ -26,13 +26,17 @@
 
 ## 一次远程打开的读取量
 
-用 `TestEvidence/mode-switch-graph-reuse-20260815/open_read_volume.py` 轮询会话快照的 `sourceReadObservation` 测得，同一部片源从点击到出第一帧共读取约 38 MB，有效速率 1.1 到 2.2 MB/s。字节计数只在 `avformat_open_input` 与 `avformat_find_stream_info` 返回时发布，因此读数呈阶梯，阶梯的平台期就是一次探测正在进行。
+用 `TestEvidence/mode-switch-graph-reuse-20260815/open_read_volume.py` 轮询会话快照的 `sourceReadObservation` 测得，同一部片源从点击到出第一帧共读取约 37.4 MB，其中视频 reader 开始之前就读掉约 22 MB。字节计数只在 `avformat_open_input` 与 `avformat_find_stream_info` 返回时发布，因此读数呈阶梯，一级阶梯不对应一次探测。
 
-分段是这样。视频 reader 尚未开始、生命周期还是 idle 时已经读掉约 22 MB，这段属于音轨与字幕轨枚举。随后生命周期进入 opening 并在约 10 秒里字节计数冻结在 23.5 MB，这是视频 reader 的一次 `avformat_find_stream_info`，它结束时计数跳到 37.4 MB，即这一次探测本身消耗约 14 MB。
+读取量由容器索引主导，与探测无关。该片源 18416527997 字节，顶层只有 `ftyp`、`mdat` 与位于尾部的 `moov` 三个 box，`moov` 长 7360986 字节，不是分片 MP4，流表只有 HEVC 3840×2160 与 AC3 六声道两条，没有字幕轨。`mov_read_header` 在 `avformat_open_input` 内把整个 `moov` 读入，`probesize` 不管辖这段字节，它只管辖 `avformat_find_stream_info` 的读包循环。用产品自己 vendored 的 FFmpeg 8.0.1 照抄 `open_media_source` 的调用顺序与字节发布点对同一 URL 实测，`avformat_open_input` 返回时读取 7368761 字节，`avformat_find_stream_info` 的增量只有 7774 字节。因此 37.4 MB 是 7.36 MB 的 `moov` 被读了五次，22 MB 是它被读了三次。
 
-因此打开慢由三件事叠加：探测发生在播放时刻而不是入库时刻；同一个文件被独立打开四到五次，每次重做探测；单次探测读取量按十兆计。对照 Emby 的三到四秒，其服务端在扫描时就已经建立媒体信息，播放时不再探测，客户端也不需要跨网络读取和解析索引。
+因此打开慢由两件事叠加：媒体信息建立在播放时刻而不是入库时刻，因而完全不复用；同一个文件被独立打开四到五次，每次重读整个 `moov`。对照 Emby 的三到四秒，其服务端在扫描时就已经把轨道表落库，播放时只查库。
 
-尚未测的是这条链路的裸速率。1 到 2 MB/s 究竟是服务端到其后端存储的上限，还是我们的读取形态（`end_offset` 之后每次 seek 都是新的 ranged 请求）造成的，需要绕开 App 直接对该服务器计时才能分开。
+有效速率 1.1 到 2.2 MB/s 是这个打开序列自身的请求空转，不是链路上限。同一台服务器上单条连接顺序读实测 8.9 到 15.7 MB/s，设备进入 `playing` 之后自己记录的 `bytesPerSecond` 是 8342433。每个请求的连接建立加首字节耗时 330 到 520 毫秒，乘以每次打开四个请求、每次准备四到五次打开，正好摊成 1 到 2 MB/s。压请求数直接压打开时间，加带宽或调缓冲不会。
+
+Emby 直连是另一条路径，它有一条真实的服务端上限。对 `~/Library/CloudStorage/EmbyMedia` 挂载尚未落地的区域，单条连接顺序读实测 0.42 MB/s，比 alist 慢 20 到 37 倍，与读取形态无关。来源选择对打开时间的影响大于任何 FFmpeg 选项。
+
+测量方法与逐条数字见 `Scripts/verification/probe_remote_media_reads.py` 与 `remote_open_accounting_probe.c`。
 
 ## 剩余代价
 
