@@ -286,6 +286,17 @@ private final class InteractiveDeviceUIChannel {
         return element.exists ? element : nil
     }
 
+    /// `XCUIScreen.main` answers with a 1x1 image on this visionOS build, which reads
+    /// as a black frame rather than a capture failure. The application element still
+    /// captures, so a degenerate screen image falls back to it.
+    private func capturedScreenPNG() -> Data {
+        let screen = XCUIScreen.main.screenshot()
+        if screen.image.size.width > 1, screen.image.size.height > 1 {
+            return screen.pngRepresentation
+        }
+        return app.screenshot().pngRepresentation
+    }
+
     private func publish(
         responseFor command: InteractiveDeviceUICommand,
         success: Bool,
@@ -297,10 +308,7 @@ private final class InteractiveDeviceUIChannel {
         } else {
             let name = "\(command.id).png"
             let screenshotURL = responsesURL.appending(path: name)
-            try XCUIScreen.main.screenshot().pngRepresentation.write(
-                to: screenshotURL,
-                options: .atomic
-            )
+            try capturedScreenPNG().write(to: screenshotURL, options: .atomic)
             screenshotName = "responses/\(name)"
         }
 
