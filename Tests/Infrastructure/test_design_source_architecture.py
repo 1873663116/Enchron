@@ -118,6 +118,102 @@ class DesignSourceArchitectureTests(unittest.TestCase):
         result = self.invoke()
         self.assertIn("Design source architecture passed", result.stdout)
 
+    def test_production_visual_literals_must_use_design_tokens(self):
+        literal_lines = (
+            ".frame(width: 17)",
+            ".padding(.horizontal, 17)",
+            ".offset(x: -17)",
+            "HStack(spacing: 17) { EmptyView() }",
+            "RoundedRectangle(cornerRadius: 17)",
+            ".font(.system(size: 17))",
+            ".stroke(.white, lineWidth: 17)",
+        )
+        for literal_line in literal_lines:
+            with self.subTest(literal_line=literal_line):
+                self.write(
+                    "Apps/Enchron/PlayerControls.swift",
+                    "import SwiftUI\n"
+                    "struct PlayerControls: View {\n"
+                    "    var body: some View {\n"
+                    "        Text(\"Controls\")\n"
+                    f"            {literal_line}\n"
+                    "    }\n"
+                    "}\n",
+                )
+                result = self.invoke(expected_code=1)
+                self.assertIn(
+                    "Apps/Enchron/PlayerControls.swift:5: error: "
+                    "[production-hardcoded-visual]",
+                    result.stderr,
+                )
+
+    def test_production_identity_values_and_unbounded_frame_are_not_visual_literals(self):
+        self.write(
+            "Apps/Enchron/PlayerControls.swift",
+            "import DesignSystem\n"
+            "import SwiftUI\n"
+            "struct PlayerControls: View {\n"
+            "    let isEnabled: Bool\n"
+            "    let progress: Double\n"
+            "    var body: some View {\n"
+            "        Text(\"Controls\")\n"
+            "            .frame(maxWidth: .infinity)\n"
+            "            .opacity(isEnabled ? 1 : 0)\n"
+            "            .opacity(1 - min(progress, 1))\n"
+            "            .scaleEffect(isEnabled ? DesignTokens.Motion.pressScale : 1.0)\n"
+            "    }\n"
+            "}\n",
+        )
+        result = self.invoke()
+        self.assertIn("Design source architecture passed", result.stdout)
+
+    def test_non_identity_opacity_and_scale_values_remain_visual_literals(self):
+        self.write(
+            "Apps/Enchron/PlayerControls.swift",
+            "import SwiftUI\n"
+            "struct PlayerControls: View {\n"
+            "    let isEnabled: Bool\n"
+            "    var body: some View {\n"
+            "        Text(\"Controls\")\n"
+            "            .opacity(isEnabled ? 1 : 0.42)\n"
+            "            .scaleEffect(isEnabled ? 1 : 0.98)\n"
+            "    }\n"
+            "}\n",
+        )
+        result = self.invoke(expected_code=1)
+        self.assertEqual(result.stderr.count("[production-hardcoded-visual]"), 2)
+
+    def test_design_system_owns_visual_literals(self):
+        self.write(
+            "Modules/DesignSystem/MeasuredCard.swift",
+            "import SwiftUI\n"
+            "public struct MeasuredCard: View {\n"
+            "    public var body: some View {\n"
+            "        RoundedRectangle(cornerRadius: 17)\n"
+            "            .frame(width: 44)\n"
+            "            .padding(8)\n"
+            "    }\n"
+            "}\n",
+        )
+        result = self.invoke()
+        self.assertIn("Design source architecture passed", result.stdout)
+
+    def test_swift_comments_do_not_create_production_visual_findings(self):
+        self.write(
+            "Apps/Enchron/PlayerControls.swift",
+            "import SwiftUI\n"
+            "struct PlayerControls: View {\n"
+            "    // .padding(.horizontal, 17)\n"
+            "    /*\n"
+            "     .frame(width: 44)\n"
+            "     HStack(spacing: 8) {}\n"
+            "     */\n"
+            "    var body: some View { Text(\"Controls\") }\n"
+            "}\n",
+        )
+        result = self.invoke()
+        self.assertIn("Design source architecture passed", result.stdout)
+
     def test_xcode_mode_also_checks_production_sources(self):
         self.write(
             "Apps/Enchron/PlayerControls.swift",
@@ -148,6 +244,36 @@ class DesignSourceArchitectureTests(unittest.TestCase):
             ),
         )
         self.assertIn("[production-parallel-glass-component]", result.stderr)
+
+    def test_xcode_mode_also_checks_production_visual_literals(self):
+        self.write(
+            "Apps/Enchron/PlayerControls.swift",
+            "import SwiftUI\n"
+            "struct PlayerControls: View {\n"
+            "    var body: some View {\n"
+            "        Text(\"Controls\")\n"
+            "            .padding(.horizontal, 17)\n"
+            "    }\n"
+            "}\n",
+        )
+        self.write(
+            "Apps/DesignPreview/CardPreview.swift",
+            "import DesignSystem\n"
+            "import SwiftUI\n"
+            "struct CardPreview: View {\n"
+            "    var body: some View { ProductionCard.sample() }\n"
+            "}\n",
+        )
+        result = self.invoke(
+            "--xcode-inputs",
+            expected_code=1,
+            environment=self.xcode_environment(
+                "Apps/DesignPreview/CardPreview.swift",
+                "Config/baseline.json",
+                "Modules/DesignSystem/DesignTokens.swift",
+            ),
+        )
+        self.assertIn("[production-hardcoded-visual]", result.stderr)
 
     def test_parallel_style_raw_control_and_literal_report_file_and_line(self):
         self.write(
@@ -321,6 +447,31 @@ class DesignSourceArchitectureTests(unittest.TestCase):
         )
         result = self.invoke(expected_code=1)
         self.assertIn("[preview-raw-control]", result.stderr)
+
+    def test_baseline_signature_survives_unrelated_line_movement(self):
+        self.write(
+            "Apps/Enchron/PlayerControls.swift",
+            "import SwiftUI\n"
+            "struct PlayerControls: View {\n"
+            "    var body: some View {\n"
+            "        Text(\"Controls\")\n"
+            "            .padding(.horizontal, 17)\n"
+            "    }\n"
+            "}\n",
+        )
+        self.invoke("--write-baseline")
+
+        path = self.root / "Apps/Enchron/PlayerControls.swift"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace(
+                "struct PlayerControls: View {",
+                "// Unrelated declaration moved the finding down.\n"
+                "struct PlayerControls: View {",
+            ),
+            encoding="utf-8",
+        )
+        result = self.invoke()
+        self.assertIn("Design source architecture passed", result.stdout)
 
     def test_stale_baseline_must_be_shrunk(self):
         baseline = {
