@@ -8,10 +8,12 @@ private final class RecordingRangeServer: @unchecked Sendable {
     private let lock = NSLock()
     private var observedRanges: [String] = []
     private var listening = true
+    private let reusesConnections: Bool
 
     let port: UInt16
 
-    init(serving payload: Data) throws {
+    init(serving payload: Data, reusingConnections: Bool = false) throws {
+        self.reusesConnections = reusingConnections
         let descriptor = Darwin.socket(AF_INET, SOCK_STREAM, 0)
         guard descriptor >= 0 else { throw ServerError.unavailable("socket") }
 
@@ -78,14 +80,18 @@ private final class RecordingRangeServer: @unchecked Sendable {
                 socklen_t(MemoryLayout<Int32>.size)
             )
             Thread.detachNewThread { [weak self] in
-                self?.respond(on: connection)
+                guard let self else { return }
+                repeat {
+                    if !self.respond(on: connection) { break }
+                } while self.reusesConnections
                 Darwin.close(connection)
             }
         }
     }
 
-    private func respond(on connection: Int32) {
-        guard let header = readRequestHeader(from: connection) else { return }
+    @discardableResult
+    private func respond(on connection: Int32) -> Bool {
+        guard let header = readRequestHeader(from: connection) else { return false }
         let rangeValue = header
             .split(separator: "\r\n")
             .first { $0.lowercased().hasPrefix("range:") }
@@ -93,7 +99,7 @@ private final class RecordingRangeServer: @unchecked Sendable {
 
         guard let rangeValue else {
             send(status: "200 OK", body: payload, declaring: payload.count, on: connection)
-            return
+            return true
         }
         lock.withLock { observedRanges.append(rangeValue) }
 
@@ -106,7 +112,7 @@ private final class RecordingRangeServer: @unchecked Sendable {
         let end = min(namedEnd ?? payload.count - 1, payload.count - 1)
         guard start <= end else {
             send(status: "500 Internal Server Error", body: Data(), declaring: 0, on: connection)
-            return
+            return false
         }
 
         // Emby 4.9.5 over a WebDAV mount answers an open-ended range from a
@@ -123,6 +129,7 @@ private final class RecordingRangeServer: @unchecked Sendable {
             contentRange: "bytes \(start)-\(end)/\(payload.count)",
             on: connection
         )
+        return delivered.count == promised.count
     }
 
     private func readRequestHeader(from connection: Int32) -> String? {
@@ -146,7 +153,9 @@ private final class RecordingRangeServer: @unchecked Sendable {
     ) {
         var head = "HTTP/1.1 \(status)\r\nAccept-Ranges: bytes\r\nContent-Length: \(length)\r\n"
         if let contentRange { head += "Content-Range: \(contentRange)\r\n" }
-        head += "Connection: close\r\n\r\n"
+        head += reusesConnections
+            ? "Connection: keep-alive\r\n\r\n"
+            : "Connection: close\r\n\r\n"
         var response = Data(head.utf8)
         response.append(body)
         response.withUnsafeBytes { buffer in
@@ -182,7 +191,7 @@ private func reportedError(_ buffer: [CChar]) -> String {
     )
 }
 
-@Test func openedHTTPContextBoundsInitialAndLaterRequests() throws {
+@Test func openedHTTPContextBoundsRangesAfterTheInitialRequest() throws {
     setFFmpegLogLevel(-8)
     let server = try RecordingRangeServer(serving: try Data(contentsOf: tailMoovFixture))
     defer { server.stop() }
@@ -194,13 +203,127 @@ private func reportedError(_ buffer: [CChar]) -> String {
     let activeReader = try #require(reader, Comment(rawValue: reportedError(error)))
     PBFFmpegReaderDestroy(activeReader)
 
-    #expect(server.ranges.first == "bytes=0-131071")
+    #expect(server.ranges.first?.hasSuffix("-") == true)
     let bodyReadingRanges = server.ranges.dropFirst()
     #expect(
         bodyReadingRanges.isEmpty == false &&
             bodyReadingRanges.allSatisfy { $0.hasSuffix("-") == false },
         Comment(rawValue: "later ranges were not bounded: \(server.ranges)")
     )
+}
+
+/// Bounding an HTTP request to a fixed window makes FFmpeg apply that window to every
+/// later request too, and playback then stalls at the first byte past one window with
+/// no further request on the wire. Opening a source only reads its header, so the
+/// stall is invisible until something reads the body to the end.
+@Test func httpPlaybackReadsTheWholeSourceWithoutStalling() throws {
+    setFFmpegLogLevel(-8)
+    let payload = try Data(contentsOf: tailMoovFixture)
+    let server = try RecordingRangeServer(serving: payload, reusingConnections: true)
+    defer { server.stop() }
+
+    var error = [CChar](repeating: 0, count: 512)
+    let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
+    defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
+    let source = server.url.absoluteString.withCString { path in
+        PBFFmpegDemuxSourceCreate(path, monitor, &error, error.count)
+    }
+    let openedSource = try #require(source, Comment(rawValue: reportedError(error)))
+    defer { PBFFmpegDemuxSourceDestroy(openedSource) }
+
+    let videoReader = try #require(PBFFmpegReaderAllocate())
+    defer { PBFFmpegReaderDestroy(videoReader) }
+    try #require(
+        PBFFmpegReaderOpenWithDemuxSource(
+            videoReader, openedSource, PBFFmpegModeCompressed, &error, error.count
+        ),
+        Comment(rawValue: reportedError(error))
+    )
+    let audioReader = try #require(PBFFmpegAudioReaderAllocate())
+    defer { PBFFmpegAudioReaderDestroy(audioReader) }
+    try #require(
+        PBFFmpegAudioReaderOpenWithDemuxSource(
+            audioReader, openedSource, -1, &error, error.count
+        ),
+        Comment(rawValue: reportedError(error))
+    )
+
+    // A stalled read blocks inside FFmpeg's socket read, which cooperative
+    // cancellation cannot interrupt, so the read runs where it can be abandoned.
+    let outcome = DrainOutcome()
+    let finished = DispatchSemaphore(value: 0)
+    DispatchQueue.global().async {
+        var scratch = [CChar](repeating: 0, count: 512)
+        var videoSeconds = 0.0
+        var audioSeconds = 0.0
+        var videoEnded = false
+        var audioEnded = false
+        while !videoEnded || !audioEnded {
+            var sample: Unmanaged<CMSampleBuffer>?
+            if !videoEnded && (audioEnded || videoSeconds <= audioSeconds) {
+                let result = PBFFmpegReaderCopyNextSample(
+                    videoReader, &sample, &scratch, scratch.count
+                )
+                if result == PBFFmpegReadResultEnd { videoEnded = true; continue }
+                guard result == PBFFmpegReadResultSample, let sample else {
+                    outcome.fail("video read failed: \(reportedError(scratch))")
+                    break
+                }
+                let buffer = sample.takeRetainedValue()
+                videoSeconds = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+                outcome.add(bytes: CMSampleBufferGetTotalSampleSize(buffer))
+            } else {
+                var metadata = PBFFmpegAudioSampleMetadata()
+                let result = PBFFmpegAudioReaderCopyNextSample(
+                    audioReader, &sample, &metadata, &scratch, scratch.count
+                )
+                if result == PBFFmpegReadResultEnd { audioEnded = true; continue }
+                guard result == PBFFmpegReadResultSample, let sample else {
+                    outcome.fail("audio read failed: \(reportedError(scratch))")
+                    break
+                }
+                let buffer = sample.takeRetainedValue()
+                audioSeconds = CMSampleBufferGetPresentationTimeStamp(buffer).seconds
+                outcome.add(bytes: CMSampleBufferGetTotalSampleSize(buffer))
+            }
+        }
+        finished.signal()
+    }
+
+    guard finished.wait(timeout: .now() + 30) == .success else {
+        Issue.record(
+            Comment(rawValue: "playback stalled after \(outcome.samples) samples "
+                + "and \(outcome.bytes) bytes; a bounded HTTP request window stops "
+                + "the read at its first boundary")
+        )
+        return
+    }
+    #expect(outcome.failure == nil, Comment(rawValue: outcome.failure ?? ""))
+    #expect(outcome.samples > 0)
+    #expect(
+        outcome.bytes > 131_072,
+        Comment(rawValue: "read \(outcome.bytes) bytes from \(outcome.samples) "
+            + "samples, too few to cross a request window")
+    )
+}
+
+private final class DrainOutcome: @unchecked Sendable {
+    private let lock = NSLock()
+    private var totalBytes = 0
+    private var totalSamples = 0
+    private var reportedFailure: String?
+
+    func add(bytes: Int) {
+        lock.withLock { totalBytes += bytes; totalSamples += 1 }
+    }
+
+    func fail(_ message: String) {
+        lock.withLock { if reportedFailure == nil { reportedFailure = message } }
+    }
+
+    var bytes: Int { lock.withLock { totalBytes } }
+    var samples: Int { lock.withLock { totalSamples } }
+    var failure: String? { lock.withLock { reportedFailure } }
 }
 
 @Test func sharedDemuxSourceOpensHTTPContainerOnceForAllReaders() throws {
@@ -269,10 +392,10 @@ private func reportedError(_ buffer: [CChar]) -> String {
     )
     _ = sample?.takeRetainedValue()
     let bytesAfterVideoSample = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
-    #expect(rangesAfterSourceOpen.first == "bytes=0-131071")
+    #expect(rangesAfterSourceOpen.first?.hasSuffix("-") == true)
     #expect(
         rangesAfterSourceOpen.dropFirst().allSatisfy { !$0.hasSuffix("-") }
     )
-    #expect(server.ranges.count == rangesAfterSourceOpen.count + 2)
+    #expect(server.ranges.count == rangesAfterSourceOpen.count + 1)
     #expect(bytesAfterVideoSample > bytesBeforeVideoSample)
 }

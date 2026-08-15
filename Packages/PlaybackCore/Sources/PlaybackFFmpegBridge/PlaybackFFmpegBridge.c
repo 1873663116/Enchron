@@ -829,29 +829,14 @@ static int open_media_source(
     AVIOContext *openedIO = NULL;
     int result = 0;
     if (path_is_http(path)) {
-        // FFmpeg's AVIO read buffer and generic short-seek threshold are both
-        // 32 KB. The tail header in the remote-open acceptance fixture needs
-        // four such units, so this bound preserves its two requests while the
-        // MOV demuxer drains each response and reuses the socket for the next
-        // range. request_size stays unset so playback reads remain unbounded.
-        const int64_t initialRequestSize = 4LL * 32 * 1024;
+        // The first response to an authenticated source is the 401 challenge and
+        // carries no Content-Range, which makes FFmpeg give up its seekable state
+        // before the authenticated 206 arrives. Declaring the source seekable keeps
+        // the tail-header seek on the byte-range path instead of a blind re-read.
         result = av_dict_set_int(&ioOptions, "seekable", 1, 0);
         if (result < 0) goto finish;
+        // Reuse one socket across the ranges a single open needs.
         result = av_dict_set_int(&ioOptions, "multiple_requests", 1, 0);
-        if (result < 0) goto finish;
-        result = av_dict_set_int(
-            &ioOptions,
-            "initial_request_size",
-            initialRequestSize,
-            0
-        );
-        if (result < 0) goto finish;
-        result = av_dict_set_int(
-            &ioOptions,
-            "short_seek_size",
-            initialRequestSize,
-            0
-        );
         if (result < 0) goto finish;
         result = avio_open2(
             &openedIO,
