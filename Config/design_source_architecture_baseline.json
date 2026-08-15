@@ -133,12 +133,6 @@
       "path": "Modules/DesignSystem/DesignTokens.swift",
       "signature": "public static let panel = RoundedRectangle(cornerRadius: Radius.panel, style: .continuous)",
       "count": 1
-    },
-    {
-      "rule": "token-layer-structure",
-      "path": "Modules/DesignSystem/DesignTokens.swift",
-      "signature": "public static let rowShape = RoundedRectangle(cornerRadius: Radius.small, style: .continuous)",
-      "count": 1
     }
   ]
 }

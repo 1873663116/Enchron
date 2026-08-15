@@ -554,7 +554,7 @@ public enum DesignTokens {
 
     public enum SourceSidebar {
         /// Files page source sidebar glass panel width.
-        public static let width: CGFloat = 224
+        public static let width: CGFloat = 280
         /// Distance between the sidebar glass panel and the WindowGroup container edge.
         public static let windowInset: CGFloat = Spacing.xs
         /// Distance from the sidebar glass panel edge to the first content control.
@@ -562,21 +562,24 @@ public enum DesignTokens {
         /// Inner horizontal padding between sidebar content and its glass panel.
         public static let contentPaddingH: CGFloat = Spacing.lg
         /// Horizontal inset for source row groups inside the glass panel.
-        public static let listPaddingH: CGFloat = Spacing.xs
+        public static let listPaddingH: CGFloat = Spacing.md
         /// Inner vertical padding between sidebar content and its glass panel.
-        public static let contentPaddingV: CGFloat = Spacing.lg
+        public static let contentPaddingV: CGFloat = Spacing.xl
         /// Distance from the section header row to the first source row. Gaze needs
         /// the header's own target cleared before the list starts.
         public static let headerContentGap: CGFloat = Spacing.lg
         /// Visual height for source rows.
         public static let rowHeight: CGFloat = Interactive.rowHeight
-        /// Vertical spacing between adjacent source rows. With `rowHeight`, this puts
-        /// adjacent row centers 68pt apart, past the 60pt visionOS gaze separation.
-        public static let rowSpacing: CGFloat = Spacing.xs
+        /// Adjacent 60pt source rows touch, so their centers remain 60pt apart while
+        /// selection backgrounds form one compact grouped list.
+        public static let rowSpacing: CGFloat = .zero
         /// Inner horizontal padding for source rows.
         public static let rowPaddingH: CGFloat = Spacing.xs
-        /// Compact source row shape.
-        public static let rowShape = RoundedRectangle(cornerRadius: Radius.small, style: .continuous)
+        /// A row is inset 16pt from the 40pt panel edge, yielding a concentric 24pt radius.
+        public static let rowCornerRadius = Radius.concentric(
+            outer: Radius.panel,
+            padding: listPaddingH
+        )
         /// Section labels inside the source sidebar.
         public static let sectionTitleFont: Font = Typography.headline.weight(.bold)
         /// Unchecked selection indicator color inside the source sidebar.
