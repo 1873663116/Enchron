@@ -18,6 +18,7 @@
 **Media Reference**：从 Media Library 指向来源媒体的持久引用。它是访问入口，不是底层媒体的身份。
 **Media Identity**：Enchron 用于判断不同入口是否指向同一底层媒体的稳定身份。它独立于 Media Reference。
 **Content Revision**：同一 Media Identity 对应内容的版本凭据。它用于区分媒体身份未变但内容已经变化的情况。
+**Media Source Information**：同一 Content Revision 的来源媒体所具有的可持久技术事实。它不是实时读取状态，也不是用户选择的 Media Format。
 
 **Playback Collection**：用户开始播放时，本次连续播放可以包含媒体的范围。它不是已经生成的播放顺序。
 **Playback Queue**：从 Playback Collection 生成的本次播放顺序。它与之后继续变化的浏览结果分离。

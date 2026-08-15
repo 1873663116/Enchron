@@ -21,17 +21,24 @@ import Testing
     #expect(sampler.observe(totalBytesRead: 1_100, at: 44.5) == 1_000)
 }
 
-@Test func sourceReadMonitorCountsTemporaryTrackScans() throws {
+@Test func sourceReadMonitorCountsMediaInformationReads() throws {
     let monitor = try #require(PBFFmpegSourceReadMonitorCreate())
     defer { PBFFmpegSourceReadMonitorDestroy(monitor) }
 
     let audioFixture = playbackSourceReadTestMedia.appendingPathComponent(
         "TestVectors/Enchron/PlaybackBehavior/av1-flac-avsync-10s.mkv"
     )
-    let audioTrackCount = audioFixture.path.withCString {
-        PBFFmpegAudioTrackCountWithSourceReadMonitor($0, monitor)
+    var error = [CChar](repeating: 0, count: 512)
+    let audioInformation = audioFixture.path.withCString {
+        PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+            $0,
+            monitor,
+            &error,
+            error.count
+        )
     }
-    #expect(audioTrackCount > 0)
+    let openedAudioInformation = try #require(audioInformation)
+    PBFFmpegMediaSourceInformationDestroy(openedAudioInformation)
     let bytesAfterAudioScan = PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor)
     #expect(bytesAfterAudioScan > 0)
 
@@ -42,10 +49,16 @@ import Testing
             subdirectory: "Fixtures"
         )
     )
-    let subtitleTrackCount = subtitleFixture.path.withCString {
-        PBFFmpegSubtitleTrackCountWithSourceReadMonitor($0, monitor)
+    let subtitleInformation = subtitleFixture.path.withCString {
+        PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+            $0,
+            monitor,
+            &error,
+            error.count
+        )
     }
-    #expect(subtitleTrackCount > 0)
+    let openedSubtitleInformation = try #require(subtitleInformation)
+    PBFFmpegMediaSourceInformationDestroy(openedSubtitleInformation)
     #expect(PBFFmpegSourceReadMonitorGetTotalBytesRead(monitor) > bytesAfterAudioScan)
 }
 

@@ -16,6 +16,51 @@ private let playbackTestMedia = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .appendingPathComponent("TestMedia")
 
+private struct TestMediaStreamInformation {
+    let raw: PBFFmpegMediaStreamInfo
+    let codecName: String
+    let language: String
+    let title: String
+}
+
+private func mediaStreams(in fixture: URL) -> [TestMediaStreamInformation] {
+    var error = [CChar](repeating: 0, count: 512)
+    let information = fixture.path.withCString {
+        PBFFmpegMediaSourceInformationCreate($0, &error, error.count)
+    }
+    guard let information else {
+        Issue.record("\(fixture.lastPathComponent): \(cString(error))")
+        return []
+    }
+    defer { PBFFmpegMediaSourceInformationDestroy(information) }
+    return (0..<PBFFmpegMediaSourceInformationGetStreamCount(information)).compactMap {
+        ordinal in
+        var raw = PBFFmpegMediaStreamInfo()
+        var codecName = [CChar](repeating: 0, count: 64)
+        var language = [CChar](repeating: 0, count: 64)
+        var title = [CChar](repeating: 0, count: 256)
+        guard PBFFmpegMediaSourceInformationCopyStream(
+            information,
+            ordinal,
+            &raw,
+            &codecName, codecName.count,
+            &language, language.count,
+            &title, title.count,
+            nil, 0,
+            nil, 0,
+            nil, 0,
+            nil, 0,
+            nil, 0
+        ) else { return nil }
+        return TestMediaStreamInformation(
+            raw: raw,
+            codecName: cString(codecName),
+            language: cString(language),
+            title: cString(title)
+        )
+    }
+}
+
 @Test func nonSquarePixelStereoFixtureCarriesItsDisplayGeometryThroughTheBridge() throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
@@ -974,32 +1019,14 @@ private func requireBitstreamExtradataBootstrap(
         )
     )
 
-    let count = fixture.path.withCString(PBFFmpegSubtitleTrackCount)
-    #expect(count == 2)
-
-    var streamIndex: Int32 = -1
-    var codec = [CChar](repeating: 0, count: 64)
-    var language = [CChar](repeating: 0, count: 64)
-    var title = [CChar](repeating: 0, count: 256)
-    let copied = fixture.path.withCString { path in
-        PBFFmpegSubtitleTrackCopyInfo(
-            path,
-            0,
-            &streamIndex,
-            &codec,
-            codec.count,
-            &language,
-            language.count,
-            &title,
-            title.count
-        )
+    let tracks = mediaStreams(in: fixture).filter {
+        $0.raw.category == PBFFmpegMediaStreamCategorySubtitle
     }
-
-    #expect(copied)
-    #expect(streamIndex == 1)
-    #expect(cString(codec) == "subrip")
-    #expect(cString(language) == "zho")
-    #expect(cString(title) == "简体中文")
+    #expect(tracks.count == 2)
+    #expect(tracks.first?.raw.streamIndex == 1)
+    #expect(tracks.first?.codecName == "subrip")
+    #expect(tracks.first?.language == "zho")
+    #expect(tracks.first?.title == "简体中文")
 }
 
 @Test func embeddedSubRipCuesPreserveTimingUTF8AndLineBreaks() throws {
@@ -1042,7 +1069,9 @@ private func requireBitstreamExtradataBootstrap(
     let fixture = try delayedAACTransportStream()
     defer { try? FileManager.default.removeItem(at: fixture) }
 
-    let trackCount = fixture.path.withCString(PBFFmpegAudioTrackCount)
+    let trackCount = mediaStreams(in: fixture).count {
+        $0.raw.category == PBFFmpegMediaStreamCategoryAudio
+    }
 
     #expect(trackCount == 1)
 }
@@ -1179,7 +1208,9 @@ private func requireBitstreamExtradataBootstrap(
     let fixture = playbackTestMedia.appendingPathComponent(
         "Samples/Professional/ProRes/ARRI-AMIRA/B001C001_140702_R3VJ.mov"
     )
-    #expect(fixture.path.withCString(PBFFmpegAudioTrackCount) == 1)
+    #expect(mediaStreams(in: fixture).count {
+        $0.raw.category == PBFFmpegMediaStreamCategoryAudio
+    } == 1)
 
     var error = [CChar](repeating: 0, count: 512)
     let reader = fixture.path.withCString { path in
@@ -1493,7 +1524,9 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
         CMAudioFormatDescriptionGetStreamBasicDescription(nativeFormat)
     ).pointee
 
-    #expect(fixture.path.withCString(PBFFmpegAudioTrackCount) == 1)
+    #expect(mediaStreams(in: fixture).count {
+        $0.raw.category == PBFFmpegMediaStreamCategoryAudio
+    } == 1)
     var error = [CChar](repeating: 0, count: 512)
     let reader = fixture.path.withCString { path in
         PBFFmpegAudioReaderCreate(path, 0, -1, &error, error.count)
@@ -1570,30 +1603,14 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
     let fixture = playbackTestMedia.appendingPathComponent(
         "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-audio-codec-matrix-15s.mkv"
     )
-    var streamIndex: Int32 = -1
-    var sampleRate: Int32 = 0
-    var channelCount: Int32 = 0
-    var codec = [CChar](repeating: 0, count: 32)
-    var language = [CChar](repeating: 0, count: 32)
-    var title = [CChar](repeating: 0, count: 128)
-    #expect(
-        fixture.path.withCString { path in
-            PBFFmpegAudioTrackCopyInfo(
-                path,
-                6,
-                &streamIndex,
-                &sampleRate,
-                &channelCount,
-                &codec,
-                codec.count,
-                &language,
-                language.count,
-                &title,
-                title.count
-            )
-        }
+    let audioStreams = mediaStreams(in: fixture).filter {
+        $0.raw.category == PBFFmpegMediaStreamCategoryAudio
+    }
+    let opusStream = try #require(
+        audioStreams.indices.contains(6) ? audioStreams[6] : nil
     )
-    #expect(cString(codec) == "opus")
+    let streamIndex = opusStream.raw.streamIndex
+    #expect(opusStream.codecName == "opus")
 
     var error = [CChar](repeating: 0, count: 512)
     let reader = fixture.path.withCString { path in
@@ -1691,40 +1708,24 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
         ("flac", kAudioFormatFLAC, false),
     ]
 
-    #expect(fixture.path.withCString(PBFFmpegAudioTrackCount) == expectedFormats.count)
+    let audioStreams = mediaStreams(in: fixture).filter {
+        $0.raw.category == PBFFmpegMediaStreamCategoryAudio
+    }
+    #expect(audioStreams.count == expectedFormats.count)
     for (ordinal, expected) in expectedFormats.enumerated() {
-        var streamIndex: Int32 = -1
-        var sampleRate: Int32 = 0
-        var channelCount: Int32 = 0
-        var codec = [CChar](repeating: 0, count: 32)
-        var language = [CChar](repeating: 0, count: 32)
-        var title = [CChar](repeating: 0, count: 128)
-        let copied = fixture.path.withCString { path in
-            PBFFmpegAudioTrackCopyInfo(
-                path,
-                Int32(ordinal),
-                &streamIndex,
-                &sampleRate,
-                &channelCount,
-                &codec,
-                codec.count,
-                &language,
-                language.count,
-                &title,
-                title.count
-            )
-        }
-        #expect(copied)
-        #expect(cString(codec) == expected.codec)
-        #expect(sampleRate == 48_000)
-        #expect(channelCount == 2)
+        let stream = try #require(
+            audioStreams.indices.contains(ordinal) ? audioStreams[ordinal] : nil
+        )
+        #expect(stream.codecName == expected.codec)
+        #expect(stream.raw.sampleRate == 48_000)
+        #expect(stream.raw.channelCount == 2)
 
         var error = [CChar](repeating: 0, count: 512)
         let reader = fixture.path.withCString { path in
             PBFFmpegAudioReaderCreate(
                 path,
                 0,
-                Int32(streamIndex),
+                stream.raw.streamIndex,
                 &error,
                 error.count
             )
@@ -1797,7 +1798,9 @@ func highEfficiencyAACProfilesKeepTheirCoreAudioFormat(
     let fixture = playbackTestMedia.appendingPathComponent(
         "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-video-only-15s.mp4"
     )
-    #expect(fixture.path.withCString(PBFFmpegAudioTrackCount) == 0)
+    #expect(mediaStreams(in: fixture).contains {
+        $0.raw.category == PBFFmpegMediaStreamCategoryAudio
+    } == false)
 }
 
 private func decodedFixture(resource: String, fileExtension: String) throws -> URL {

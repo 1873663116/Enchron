@@ -39,31 +39,48 @@ def read_events(path):
     return [json.loads(line) for line in path.read_text().splitlines() if line]
 
 
-def stage_result(stage, output, events, previous_request_count):
+def stage_result(
+    stage,
+    output,
+    events,
+    previous_event_count,
+):
     match = re.search(r"bytes_read=(\d+)", output)
     if not match:
         raise RuntimeError(f"probe did not report bytes for {stage}: {output.strip()}")
-    requests = [
-        entry
-        for entry in events
-        if entry["event"] == "request" and 200 <= entry["status"] < 400
+    current_events = events[previous_event_count:]
+    wire_requests = [entry for entry in current_events if entry["event"] == "request"]
+    media_requests = [
+        entry for entry in wire_requests if 200 <= entry["status"] < 400
     ]
-    current = requests[previous_request_count:]
+    authentication_requests = [
+        entry for entry in wire_requests if entry["status"] == 401
+    ]
+    connections = [
+        entry for entry in current_events if entry["event"] == "connection_open"
+    ]
     return {
         "stage": stage,
-        "requests": len(current),
-        "tcp_connections": len({entry["connection_id"] for entry in current}),
+        "requests": len(media_requests),
+        "tcp_connections": len(
+            {entry["connection_id"] for entry in media_requests}
+        ),
         "bytes_read": int(match.group(1)),
-        "ranges": [entry.get("range") for entry in current],
-    }, len(requests)
+        "authentication_requests": len(authentication_requests),
+        "wire_requests": len(wire_requests),
+        "wire_tcp_connections": len(connections),
+        "statuses": [entry["status"] for entry in wire_requests],
+        "ranges": [entry.get("range") for entry in media_requests],
+    }, len(events)
 
 
 def main():
     parser = argparse.ArgumentParser(
         description=(
             "Serve a real media file over authenticated range HTTP, run PlaybackCore's "
-            "track enumeration plus video and audio reader opens, and report request, "
-            "connection, and FFmpeg-read byte counts by stage."
+            "track enumeration plus video and audio reader opens, and report successful "
+            "media request, media connection, FFmpeg-read byte, and authentication "
+            "wire counts by stage."
         )
     )
     parser.add_argument("--media", type=Path, default=DEFAULT_MEDIA)
@@ -146,15 +163,18 @@ def main():
                 f"@127.0.0.1:{port}/{quote(media.name)}"
             )
             results = []
-            request_count = 0
+            event_count = 0
             for stage in STAGES:
                 completed = run_checked(
                     [str(probe), "--stage", stage, "--url", url],
                     capture_output=True,
                 )
                 events = read_events(log_file)
-                result, request_count = stage_result(
-                    stage, completed.stdout, events, request_count
+                result, event_count = stage_result(
+                    stage,
+                    completed.stdout,
+                    events,
+                    event_count,
                 )
                 results.append(result)
         finally:
@@ -173,6 +193,15 @@ def main():
             "tcp_connections": sum(item["tcp_connections"] for item in results),
             "bytes_read": sum(item["bytes_read"] for item in results),
         },
+        "wire_total": {
+            "requests": sum(item["wire_requests"] for item in results),
+            "tcp_connections": sum(
+                item["wire_tcp_connections"] for item in results
+            ),
+            "authentication_requests": sum(
+                item["authentication_requests"] for item in results
+            ),
+        },
     }
     if arguments.json:
         print(json.dumps(report, indent=2))
@@ -182,11 +211,22 @@ def main():
             f"{item['stage']}: requests={item['requests']} "
             f"connections={item['tcp_connections']} bytes={item['bytes_read']}"
         )
+        print(
+            f"  wire_requests={item['wire_requests']} "
+            f"wire_connections={item['wire_tcp_connections']} "
+            f"authentication_requests={item['authentication_requests']}"
+        )
         print("  ranges=" + ", ".join(value or "none" for value in item["ranges"]))
     total = report["total"]
     print(
         f"total: requests={total['requests']} "
         f"connections={total['tcp_connections']} bytes={total['bytes_read']}"
+    )
+    wire_total = report["wire_total"]
+    print(
+        f"wire_total: requests={wire_total['requests']} "
+        f"connections={wire_total['tcp_connections']} "
+        f"authentication_requests={wire_total['authentication_requests']}"
     )
 
 

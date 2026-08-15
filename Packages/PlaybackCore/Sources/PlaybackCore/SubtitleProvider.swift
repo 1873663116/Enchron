@@ -61,6 +61,11 @@ public struct PlaybackSubtitleCue: Identifiable, Sendable, Equatable {
 
 protocol SubtitleProvider: AnyObject {
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack]
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?
+    ) async throws -> [PlaybackSubtitleTrack]
     func cues(
         in url: URL,
         asset: PlaybackAsset?,
@@ -75,6 +80,14 @@ protocol SubtitleProvider: AnyObject {
 }
 
 extension SubtitleProvider {
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?
+    ) async throws -> [PlaybackSubtitleTrack] {
+        try await tracks(in: url, asset: asset)
+    }
+
     func frameRenderer(
         in url: URL,
         asset: PlaybackAsset?,
@@ -96,48 +109,26 @@ final class NoSubtitleProvider: SubtitleProvider {
 
 final class FFmpegSubtitleProvider: SubtitleProvider {
     private let sourceReadMeter: PlaybackSourceReadMeter
+    private let informationLoader: SystemMediaSourceInformationLoader
 
     init(sourceReadMeter: PlaybackSourceReadMeter = PlaybackSourceReadMeter()) {
         self.sourceReadMeter = sourceReadMeter
+        informationLoader = SystemMediaSourceInformationLoader(
+            sourceReadMeter: sourceReadMeter
+        )
     }
 
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackSubtitleTrack] {
-        let argument = FFmpegSourceLocator.argument(for: url)
-        return argument.withCString { path in
-            let count = max(
-                0,
-                Int(PBFFmpegSubtitleTrackCountWithSourceReadMonitor(
-                    path,
-                    sourceReadMeter.bridgeMonitor
-                ))
-            )
-            return (0..<count).compactMap { ordinal in
-                var streamIndex: Int32 = -1
-                var codec = [CChar](repeating: 0, count: 64)
-                var language = [CChar](repeating: 0, count: 64)
-                var title = [CChar](repeating: 0, count: 256)
-                guard PBFFmpegSubtitleTrackCopyInfoWithSourceReadMonitor(
-                    path,
-                    Int32(ordinal),
-                    &streamIndex,
-                    &codec,
-                    codec.count,
-                    &language,
-                    language.count,
-                    &title,
-                    title.count,
-                    sourceReadMeter.bridgeMonitor
-                ) else { return nil }
-                let index = Int(streamIndex)
-                return PlaybackSubtitleTrack(
-                    id: "ffmpeg.subtitle.\(index)",
-                    streamIndex: index,
-                    codecName: Self.string(codec) ?? "unknown",
-                    language: Self.string(language),
-                    title: Self.string(title)
-                )
-            }
-        }
+        (try? await informationLoader.load(from: url))?.playbackSubtitleTracks ?? []
+    }
+
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?
+    ) async throws -> [PlaybackSubtitleTrack] {
+        if let sourceInformation { return sourceInformation.playbackSubtitleTracks }
+        return try await tracks(in: url, asset: asset)
     }
 
     func cues(

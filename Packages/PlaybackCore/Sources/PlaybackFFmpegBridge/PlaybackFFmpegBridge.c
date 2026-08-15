@@ -42,6 +42,25 @@ static int read_stream_information(
     PBStreamInformationRead *readOut
 );
 
+typedef struct {
+    PBFFmpegMediaStreamInfo info;
+    char codecName[64];
+    char language[64];
+    char title[256];
+    char colorPrimaries[64];
+    char transferFunction[64];
+    char yCbCrMatrix[64];
+    char colorRange[64];
+    char projectionKind[64];
+} PBFFmpegMediaStreamStorage;
+
+struct PBFFmpegMediaSourceInformation {
+    char containerFormat[64];
+    double durationSeconds;
+    int streamCount;
+    PBFFmpegMediaStreamStorage *streams;
+};
+
 struct PBFFmpegReader {
     atomic_bool cancelled;
     PBFFmpegSourceReadContext sourceReadContext;
@@ -1468,6 +1487,40 @@ static bool mov_stream_table_is_qualified(const AVFormatContext *context) {
     return hasVideo;
 }
 
+static void fill_video_color_from_codec_configuration(AVFormatContext *context) {
+    for (unsigned int index = 0; index < context->nb_streams; index++) {
+        AVCodecParameters *parameters = context->streams[index]->codecpar;
+        if (parameters->codec_type != AVMEDIA_TYPE_VIDEO ||
+            !parameters->extradata || parameters->extradata_size <= 0) continue;
+        if (parameters->color_primaries != AVCOL_PRI_UNSPECIFIED &&
+            parameters->color_trc != AVCOL_TRC_UNSPECIFIED &&
+            parameters->color_space != AVCOL_SPC_UNSPECIFIED &&
+            parameters->color_range != AVCOL_RANGE_UNSPECIFIED) continue;
+        const AVCodec *decoder = avcodec_find_decoder(parameters->codec_id);
+        AVCodecContext *codecContext = decoder
+            ? avcodec_alloc_context3(decoder)
+            : NULL;
+        if (!codecContext) continue;
+        int result = avcodec_parameters_to_context(codecContext, parameters);
+        if (result >= 0) result = avcodec_open2(codecContext, decoder, NULL);
+        if (result >= 0) {
+            if (parameters->color_primaries == AVCOL_PRI_UNSPECIFIED) {
+                parameters->color_primaries = codecContext->color_primaries;
+            }
+            if (parameters->color_trc == AVCOL_TRC_UNSPECIFIED) {
+                parameters->color_trc = codecContext->color_trc;
+            }
+            if (parameters->color_space == AVCOL_SPC_UNSPECIFIED) {
+                parameters->color_space = codecContext->colorspace;
+            }
+            if (parameters->color_range == AVCOL_RANGE_UNSPECIFIED) {
+                parameters->color_range = codecContext->color_range;
+            }
+        }
+        avcodec_free_context(&codecContext);
+    }
+}
+
 static int read_stream_information(
     AVFormatContext *context,
     PBFFmpegSourceReadContext *sourceReadContext,
@@ -1478,6 +1531,7 @@ static int read_stream_information(
         .skippedProbe = false,
     };
     if (read.movFamily && mov_stream_table_is_qualified(context)) {
+        fill_video_color_from_codec_configuration(context);
         read.skippedProbe = true;
         if (readOut) *readOut = read;
         return 0;
@@ -2088,6 +2142,339 @@ static void normalize_mov_dolby_vision_av1_codec_id(AVFormatContext *context) {
             parameters->codec_id = AV_CODEC_ID_AV1;
         }
     }
+}
+
+static PBFFmpegMediaStreamCategory media_stream_category(enum AVMediaType type) {
+    switch (type) {
+        case AVMEDIA_TYPE_VIDEO: return PBFFmpegMediaStreamCategoryVideo;
+        case AVMEDIA_TYPE_AUDIO: return PBFFmpegMediaStreamCategoryAudio;
+        case AVMEDIA_TYPE_SUBTITLE: return PBFFmpegMediaStreamCategorySubtitle;
+        default: return PBFFmpegMediaStreamCategoryOther;
+    }
+}
+
+static const char *media_stream_projection_kind(const AVCodecParameters *parameters) {
+    const AVPacketSideData *data = codec_side_data(
+        parameters,
+        AV_PKT_DATA_SPHERICAL
+    );
+    if (!data || data->size < sizeof(AVSphericalMapping)) return "unknown";
+    const AVSphericalMapping *mapping = (const AVSphericalMapping *)data->data;
+    switch (mapping->projection) {
+        case AV_SPHERICAL_RECTILINEAR: return "rectilinear";
+        case AV_SPHERICAL_EQUIRECTANGULAR: return "equirectangular";
+        case AV_SPHERICAL_HALF_EQUIRECTANGULAR: return "half-equirectangular";
+        case AV_SPHERICAL_PARAMETRIC_IMMERSIVE: return "parametric-immersive";
+        default: return "unknown";
+    }
+}
+
+static double media_source_duration_seconds(const AVFormatContext *context) {
+    int videoIndex = av_find_best_stream(
+        (AVFormatContext *)context,
+        AVMEDIA_TYPE_VIDEO,
+        -1,
+        -1,
+        NULL,
+        0
+    );
+    if (videoIndex >= 0) {
+        const AVStream *stream = context->streams[videoIndex];
+        if (stream->duration != AV_NOPTS_VALUE && stream->duration > 0) {
+            return stream->duration * av_q2d(stream->time_base);
+        }
+    }
+    return context->duration > 0
+        ? (double)context->duration / AV_TIME_BASE
+        : 0;
+}
+
+static void copy_media_information_text(
+    char *buffer,
+    size_t bufferSize,
+    const char *value
+) {
+    if (!buffer || bufferSize == 0) return;
+    snprintf(buffer, bufferSize, "%s", value ? value : "");
+}
+
+static void fill_media_stream_storage(
+    PBFFmpegMediaStreamStorage *storage,
+    const AVStream *stream
+) {
+    const AVCodecParameters *parameters = stream->codecpar;
+    storage->info.streamIndex = stream->index;
+    storage->info.category = media_stream_category(parameters->codec_type);
+    storage->info.codecID = parameters->codec_id;
+    storage->info.codecTag = parameters->codec_tag;
+    storage->info.disposition = stream->disposition;
+    storage->info.width = parameters->width;
+    storage->info.height = parameters->height;
+    storage->info.nominalFrameRate = av_q2d(stream->avg_frame_rate);
+    if (!isfinite(storage->info.nominalFrameRate) ||
+        storage->info.nominalFrameRate <= 0) {
+        storage->info.nominalFrameRate = av_q2d(stream->r_frame_rate);
+    }
+    if (!isfinite(storage->info.nominalFrameRate) ||
+        storage->info.nominalFrameRate <= 0) {
+        storage->info.nominalFrameRate = 0;
+    }
+    storage->info.sampleRate = parameters->sample_rate;
+    storage->info.channelCount = parameters->ch_layout.nb_channels;
+
+    const AVCodecDescriptor *descriptor = avcodec_descriptor_get(parameters->codec_id);
+    copy_media_information_text(
+        storage->codecName,
+        sizeof(storage->codecName),
+        descriptor ? descriptor->name : "unknown"
+    );
+    const AVDictionaryEntry *language = av_dict_get(
+        stream->metadata,
+        "language",
+        NULL,
+        0
+    );
+    const AVDictionaryEntry *title = av_dict_get(
+        stream->metadata,
+        "title",
+        NULL,
+        0
+    );
+    copy_media_information_text(
+        storage->language,
+        sizeof(storage->language),
+        language ? language->value : ""
+    );
+    copy_media_information_text(
+        storage->title,
+        sizeof(storage->title),
+        title ? title->value : ""
+    );
+    copy_media_information_text(
+        storage->colorPrimaries,
+        sizeof(storage->colorPrimaries),
+        av_color_primaries_name(parameters->color_primaries) ?: "unknown"
+    );
+    copy_media_information_text(
+        storage->transferFunction,
+        sizeof(storage->transferFunction),
+        av_color_transfer_name(parameters->color_trc) ?: "unknown"
+    );
+    copy_media_information_text(
+        storage->yCbCrMatrix,
+        sizeof(storage->yCbCrMatrix),
+        av_color_space_name(parameters->color_space) ?: "unknown"
+    );
+    copy_media_information_text(
+        storage->colorRange,
+        sizeof(storage->colorRange),
+        av_color_range_name(parameters->color_range) ?: "unknown"
+    );
+    copy_media_information_text(
+        storage->projectionKind,
+        sizeof(storage->projectionKind),
+        media_stream_projection_kind(parameters)
+    );
+}
+
+PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreate(
+    const char *path,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    return PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+        path,
+        NULL,
+        errorBuffer,
+        errorBufferSize
+    );
+}
+
+PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+    const char *path,
+    PBFFmpegSourceReadMonitor *monitor,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!path) {
+        set_error(errorBuffer, errorBufferSize, "Invalid media source information call");
+        return NULL;
+    }
+    PBFFmpegSourceReadContext sourceReadContext = {.monitor = monitor};
+    AVFormatContext *context = allocate_format_context(NULL, &sourceReadContext);
+    if (!context) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate media information context");
+        return NULL;
+    }
+    int result = open_media_source(&context, path, &sourceReadContext);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Open media information source", result);
+        finish_source_read_context(&sourceReadContext);
+        avformat_close_input(&context);
+        return NULL;
+    }
+    normalize_mov_apac_codec_id(context);
+    normalize_mov_dolby_vision_av1_codec_id(context);
+    PBStreamInformationRead informationRead = {0};
+    result = read_stream_information(
+        context,
+        &sourceReadContext,
+        &informationRead
+    );
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Read media stream information", result);
+        finish_source_read_context(&sourceReadContext);
+        avformat_close_input(&context);
+        return NULL;
+    }
+
+    bool needsAudioProbe = false;
+    for (unsigned int index = 0; index < context->nb_streams; index++) {
+        if (audio_stream_needs_more_probe(context->streams[index])) {
+            needsAudioProbe = true;
+            break;
+        }
+    }
+    if (needsAudioProbe && informationRead.skippedProbe) {
+        result = avformat_find_stream_info(context, NULL);
+        publish_source_bytes(&sourceReadContext);
+        if (result < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Read audio stream information", result);
+            finish_source_read_context(&sourceReadContext);
+            avformat_close_input(&context);
+            return NULL;
+        }
+        normalize_mov_apac_codec_id(context);
+    }
+    if (needsAudioProbe) {
+        probe_delayed_audio_parameters(context);
+        publish_source_bytes(&sourceReadContext);
+    }
+
+    if (context->nb_streams > INT_MAX) {
+        set_error(errorBuffer, errorBufferSize, "Media source has too many streams");
+        finish_source_read_context(&sourceReadContext);
+        avformat_close_input(&context);
+        return NULL;
+    }
+    PBFFmpegMediaSourceInformation *information = calloc(1, sizeof(*information));
+    if (!information) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate media source information");
+        finish_source_read_context(&sourceReadContext);
+        avformat_close_input(&context);
+        return NULL;
+    }
+    information->streamCount = (int)context->nb_streams;
+    if (information->streamCount > 0) {
+        information->streams = calloc(
+            (size_t)information->streamCount,
+            sizeof(*information->streams)
+        );
+    }
+    if (information->streamCount > 0 && !information->streams) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate media stream information");
+        PBFFmpegMediaSourceInformationDestroy(information);
+        finish_source_read_context(&sourceReadContext);
+        avformat_close_input(&context);
+        return NULL;
+    }
+    copy_media_information_text(
+        information->containerFormat,
+        sizeof(information->containerFormat),
+        context->iformat && context->iformat->name ? context->iformat->name : "unknown"
+    );
+    information->durationSeconds = media_source_duration_seconds(context);
+    for (int index = 0; index < information->streamCount; index++) {
+        fill_media_stream_storage(&information->streams[index], context->streams[index]);
+    }
+    finish_source_read_context(&sourceReadContext);
+    avformat_close_input(&context);
+    return information;
+}
+
+void PBFFmpegMediaSourceInformationDestroy(
+    PBFFmpegMediaSourceInformation *information
+) {
+    if (!information) return;
+    free(information->streams);
+    free(information);
+}
+
+const char *PBFFmpegMediaSourceInformationGetContainerFormat(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->containerFormat : "unknown";
+}
+
+double PBFFmpegMediaSourceInformationGetDurationSeconds(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->durationSeconds : 0;
+}
+
+int PBFFmpegMediaSourceInformationGetStreamCount(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->streamCount : 0;
+}
+
+bool PBFFmpegMediaSourceInformationCopyStream(
+    const PBFFmpegMediaSourceInformation *information,
+    int ordinal,
+    PBFFmpegMediaStreamInfo *infoOut,
+    char *codecNameBuffer,
+    size_t codecNameBufferSize,
+    char *languageBuffer,
+    size_t languageBufferSize,
+    char *titleBuffer,
+    size_t titleBufferSize,
+    char *colorPrimariesBuffer,
+    size_t colorPrimariesBufferSize,
+    char *transferFunctionBuffer,
+    size_t transferFunctionBufferSize,
+    char *yCbCrMatrixBuffer,
+    size_t yCbCrMatrixBufferSize,
+    char *colorRangeBuffer,
+    size_t colorRangeBufferSize,
+    char *projectionKindBuffer,
+    size_t projectionKindBufferSize
+) {
+    if (!information || ordinal < 0 || ordinal >= information->streamCount) return false;
+    const PBFFmpegMediaStreamStorage *stream = &information->streams[ordinal];
+    if (infoOut) *infoOut = stream->info;
+    copy_media_information_text(
+        codecNameBuffer,
+        codecNameBufferSize,
+        stream->codecName
+    );
+    copy_media_information_text(languageBuffer, languageBufferSize, stream->language);
+    copy_media_information_text(titleBuffer, titleBufferSize, stream->title);
+    copy_media_information_text(
+        colorPrimariesBuffer,
+        colorPrimariesBufferSize,
+        stream->colorPrimaries
+    );
+    copy_media_information_text(
+        transferFunctionBuffer,
+        transferFunctionBufferSize,
+        stream->transferFunction
+    );
+    copy_media_information_text(
+        yCbCrMatrixBuffer,
+        yCbCrMatrixBufferSize,
+        stream->yCbCrMatrix
+    );
+    copy_media_information_text(
+        colorRangeBuffer,
+        colorRangeBufferSize,
+        stream->colorRange
+    );
+    copy_media_information_text(
+        projectionKindBuffer,
+        projectionKindBufferSize,
+        stream->projectionKind
+    );
+    return true;
 }
 
 bool PBFFmpegReaderOpen(
@@ -3465,189 +3852,6 @@ const char *PBFFmpegAudioReaderGetCodecName(const PBFFmpegAudioReader *reader) {
 
 bool PBFFmpegAudioReaderOutputsPCM(const PBFFmpegAudioReader *reader) {
     return reader && reader->outputsPCM;
-}
-
-int PBFFmpegAudioTrackCount(const char *path) {
-    return PBFFmpegAudioTrackCountWithSourceReadMonitor(path, NULL);
-}
-
-int PBFFmpegAudioTrackCountWithSourceReadMonitor(
-    const char *path,
-    PBFFmpegSourceReadMonitor *monitor
-) {
-    AVFormatContext *context = NULL;
-    PBFFmpegSourceReadContext sourceReadContext = {.monitor = monitor};
-    if (!path || open_media_source_for_audio(
-            path, &context, NULL, &sourceReadContext, NULL, 0
-        ) < 0) return -1;
-    int count = 0;
-    for (unsigned int index = 0; index < context->nb_streams; index++) {
-        if (audio_stream_is_supported(context->streams[index])) count++;
-    }
-    finish_source_read_context(&sourceReadContext);
-    avformat_close_input(&context);
-    return count;
-}
-
-bool PBFFmpegAudioTrackCopyInfo(
-    const char *path,
-    int ordinal,
-    int *streamIndexOut,
-    int *sampleRateOut,
-    int *channelCountOut,
-    char *codecBuffer,
-    size_t codecBufferSize,
-    char *languageBuffer,
-    size_t languageBufferSize,
-    char *titleBuffer,
-    size_t titleBufferSize
-) {
-    return PBFFmpegAudioTrackCopyInfoWithSourceReadMonitor(
-        path, ordinal, streamIndexOut, sampleRateOut, channelCountOut,
-        codecBuffer, codecBufferSize, languageBuffer, languageBufferSize,
-        titleBuffer, titleBufferSize, NULL
-    );
-}
-
-bool PBFFmpegAudioTrackCopyInfoWithSourceReadMonitor(
-    const char *path,
-    int ordinal,
-    int *streamIndexOut,
-    int *sampleRateOut,
-    int *channelCountOut,
-    char *codecBuffer,
-    size_t codecBufferSize,
-    char *languageBuffer,
-    size_t languageBufferSize,
-    char *titleBuffer,
-    size_t titleBufferSize,
-    PBFFmpegSourceReadMonitor *monitor
-) {
-    AVFormatContext *context = NULL;
-    PBFFmpegSourceReadContext sourceReadContext = {.monitor = monitor};
-    if (!path || ordinal < 0 ||
-        open_media_source_for_audio(
-            path, &context, NULL, &sourceReadContext, NULL, 0
-        ) < 0) return false;
-    AVStream *selected = NULL;
-    int current = 0;
-    for (unsigned int index = 0; index < context->nb_streams; index++) {
-        AVStream *stream = context->streams[index];
-        if (!audio_stream_is_supported(stream)) continue;
-        if (current++ == ordinal) { selected = stream; break; }
-    }
-    if (!selected) {
-        finish_source_read_context(&sourceReadContext);
-        avformat_close_input(&context);
-        return false;
-    }
-    if (streamIndexOut) *streamIndexOut = selected->index;
-    if (sampleRateOut) *sampleRateOut = selected->codecpar->sample_rate;
-    if (channelCountOut) *channelCountOut = selected->codecpar->ch_layout.nb_channels;
-    const AVCodecDescriptor *descriptor = avcodec_descriptor_get(selected->codecpar->codec_id);
-    snprintf(codecBuffer, codecBufferSize, "%s", descriptor ? descriptor->name : "unknown");
-    AVDictionaryEntry *language = av_dict_get(selected->metadata, "language", NULL, 0);
-    AVDictionaryEntry *title = av_dict_get(selected->metadata, "title", NULL, 0);
-    snprintf(languageBuffer, languageBufferSize, "%s", language ? language->value : "");
-    snprintf(titleBuffer, titleBufferSize, "%s", title ? title->value : "");
-    finish_source_read_context(&sourceReadContext);
-    avformat_close_input(&context);
-    return true;
-}
-
-int PBFFmpegSubtitleTrackCount(const char *path) {
-    return PBFFmpegSubtitleTrackCountWithSourceReadMonitor(path, NULL);
-}
-
-int PBFFmpegSubtitleTrackCountWithSourceReadMonitor(
-    const char *path,
-    PBFFmpegSourceReadMonitor *monitor
-) {
-    if (!path) return -1;
-    PBFFmpegSourceReadContext sourceReadContext = {.monitor = monitor};
-    AVFormatContext *context = allocate_format_context(NULL, &sourceReadContext);
-    if (!context ||
-        open_media_source(&context, path, &sourceReadContext) < 0) return -1;
-    if (read_stream_information(context, &sourceReadContext, NULL) < 0) {
-        finish_source_read_context(&sourceReadContext);
-        avformat_close_input(&context);
-        return -1;
-    }
-    int count = 0;
-    for (unsigned int index = 0; index < context->nb_streams; index++) {
-        if (subtitle_stream_is_supported(context->streams[index])) count++;
-    }
-    finish_source_read_context(&sourceReadContext);
-    avformat_close_input(&context);
-    return count;
-}
-
-bool PBFFmpegSubtitleTrackCopyInfo(
-    const char *path,
-    int ordinal,
-    int *streamIndexOut,
-    char *codecBuffer,
-    size_t codecBufferSize,
-    char *languageBuffer,
-    size_t languageBufferSize,
-    char *titleBuffer,
-    size_t titleBufferSize
-) {
-    return PBFFmpegSubtitleTrackCopyInfoWithSourceReadMonitor(
-        path, ordinal, streamIndexOut, codecBuffer, codecBufferSize,
-        languageBuffer, languageBufferSize, titleBuffer, titleBufferSize, NULL
-    );
-}
-
-bool PBFFmpegSubtitleTrackCopyInfoWithSourceReadMonitor(
-    const char *path,
-    int ordinal,
-    int *streamIndexOut,
-    char *codecBuffer,
-    size_t codecBufferSize,
-    char *languageBuffer,
-    size_t languageBufferSize,
-    char *titleBuffer,
-    size_t titleBufferSize,
-    PBFFmpegSourceReadMonitor *monitor
-) {
-    if (!path || ordinal < 0) return false;
-    PBFFmpegSourceReadContext sourceReadContext = {.monitor = monitor};
-    AVFormatContext *context = allocate_format_context(NULL, &sourceReadContext);
-    if (!context || open_media_source(&context, path, &sourceReadContext) < 0) return false;
-    if (read_stream_information(context, &sourceReadContext, NULL) < 0) {
-        finish_source_read_context(&sourceReadContext);
-        avformat_close_input(&context);
-        return false;
-    }
-    AVStream *selected = NULL;
-    int current = 0;
-    for (unsigned int index = 0; index < context->nb_streams; index++) {
-        AVStream *stream = context->streams[index];
-        if (!subtitle_stream_is_supported(stream)) continue;
-        if (current++ == ordinal) { selected = stream; break; }
-    }
-    if (!selected) {
-        finish_source_read_context(&sourceReadContext);
-        avformat_close_input(&context);
-        return false;
-    }
-    if (streamIndexOut) *streamIndexOut = selected->index;
-    const AVCodecDescriptor *descriptor = avcodec_descriptor_get(selected->codecpar->codec_id);
-    if (codecBuffer && codecBufferSize > 0) {
-        snprintf(codecBuffer, codecBufferSize, "%s", descriptor ? descriptor->name : "unknown");
-    }
-    AVDictionaryEntry *language = av_dict_get(selected->metadata, "language", NULL, 0);
-    AVDictionaryEntry *title = av_dict_get(selected->metadata, "title", NULL, 0);
-    if (languageBuffer && languageBufferSize > 0) {
-        snprintf(languageBuffer, languageBufferSize, "%s", language ? language->value : "");
-    }
-    if (titleBuffer && titleBufferSize > 0) {
-        snprintf(titleBuffer, titleBufferSize, "%s", title ? title->value : "");
-    }
-    finish_source_read_context(&sourceReadContext);
-    avformat_close_input(&context);
-    return true;
 }
 
 PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(

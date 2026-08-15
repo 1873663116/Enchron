@@ -40,6 +40,89 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     #expect(FFmpegSourceLocator.argument(for: local) == "/tmp/video.mkv")
 }
 
+@Test func prepareSharesOneMediaSourceInformationValueWithTrackProviders() async throws {
+    let information = MediaSourceInformation(
+        containerFormat: "mov,mp4,m4a,3gp,3g2,mj2",
+        durationSeconds: 42,
+        streams: [
+            MediaSourceStreamInformation(
+                streamIndex: 0,
+                category: .video,
+                codecID: 173,
+                codecName: "hevc",
+                codecTag: 0x31637668,
+                language: nil,
+                title: "Main",
+                disposition: 1,
+                video: MediaSourceVideoInformation(
+                    width: 8_192,
+                    height: 4_096,
+                    nominalFrameRate: 30,
+                    colorPrimaries: "bt2020",
+                    transferFunction: "smpte2084",
+                    yCbCrMatrix: "bt2020nc",
+                    colorRange: "tv",
+                    projectionKind: "equirectangular"
+                ),
+                audio: nil
+            ),
+            MediaSourceStreamInformation(
+                streamIndex: 1,
+                category: .audio,
+                codecID: 86018,
+                codecName: "aac",
+                codecTag: 0x6134706D,
+                language: "eng",
+                title: "English",
+                disposition: 1,
+                video: nil,
+                audio: MediaSourceAudioInformation(
+                    sampleRate: 48_000,
+                    channelCount: 2
+                )
+            ),
+            MediaSourceStreamInformation(
+                streamIndex: 2,
+                category: .subtitle,
+                codecID: 94213,
+                codecName: "mov_text",
+                codecTag: 0x74786574,
+                language: "zho",
+                title: "简体中文",
+                disposition: 0,
+                video: nil,
+                audio: nil
+            ),
+        ]
+    )
+    let persisted = try JSONEncoder().encode(information)
+    #expect(
+        try JSONDecoder().decode(MediaSourceInformation.self, from: persisted)
+            == information
+    )
+    let loader = FixedMediaSourceInformationLoader(information)
+    let audioProvider = FakeAudioSampleProvider()
+    let subtitleProvider = MediaInformationRecordingSubtitleProvider()
+    let session = SampleBufferPlaybackSession(
+        traceID: "shared-media-source-information",
+        provider: FakeVideoSampleProvider(events: [.end]),
+        audioProvider: audioProvider,
+        subtitleProvider: subtitleProvider,
+        mediaSourceInformationLoader: loader,
+        rendererSink: FakeRendererInputSink()
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/source.mp4"),
+        startsPaused: true
+    )
+
+    #expect(loader.loadCount == 1)
+    #expect(audioProvider.sourceInformationReceived == information)
+    #expect(subtitleProvider.sourceInformationReceived == information)
+}
+
 @MainActor
 @Test func productOpenUsesTheDemuxProviderForURLSources() async throws {
     let controller = PlaybackCoreController { sessionID in
@@ -3396,6 +3479,7 @@ private final class FakeRendererFailureMonitor: RendererFailureMonitoring, @unch
 private final class FakeAudioSampleProvider: AudioSampleProvider {
     private(set) var info: AudioSampleProviderInfo?
     private(set) var preparedStreamIndices: [Int?] = []
+    private(set) var sourceInformationReceived: MediaSourceInformation?
     private let failingStreamIndex: Int?
     private let sampleAfterPrepare: CMSampleBuffer?
     private let repeatsSample: Bool
@@ -3427,6 +3511,18 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
         ]
     }
 
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?
+    ) async throws -> [PlaybackAudioTrack] {
+        sourceInformationReceived = sourceInformation
+        if let sourceInformation {
+            return sourceInformation.playbackAudioTracks
+        }
+        return try await tracks(in: url, asset: asset)
+    }
+
     func prepare(
         url: URL,
         asset: PlaybackAsset?,
@@ -3456,6 +3552,56 @@ private final class FakeAudioSampleProvider: AudioSampleProvider {
         info = nil
         nextSample = nil
     }
+}
+
+private final class FixedMediaSourceInformationLoader:
+    MediaSourceInformationLoading,
+    @unchecked Sendable
+{
+    private let lock = NSLock()
+    private let information: MediaSourceInformation
+    private var storedLoadCount = 0
+
+    init(_ information: MediaSourceInformation) {
+        self.information = information
+    }
+
+    var loadCount: Int { lock.withLock { storedLoadCount } }
+
+    func load(from url: URL) async throws -> MediaSourceInformation {
+        lock.withLock { storedLoadCount += 1 }
+        return information
+    }
+}
+
+private final class MediaInformationRecordingSubtitleProvider: SubtitleProvider {
+    private(set) var sourceInformationReceived: MediaSourceInformation?
+
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?
+    ) async throws -> [PlaybackSubtitleTrack] {
+        []
+    }
+
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?
+    ) async throws -> [PlaybackSubtitleTrack] {
+        sourceInformationReceived = sourceInformation
+        return sourceInformation?.playbackSubtitleTracks ?? []
+    }
+
+    func cues(
+        in url: URL,
+        asset: PlaybackAsset?,
+        track: PlaybackSubtitleTrack
+    ) async throws -> [PlaybackSubtitleCue] {
+        []
+    }
+
+    func cancel() {}
 }
 
 private final class FakeAudioRendererInputSink: AudioRendererInputSink, @unchecked Sendable {

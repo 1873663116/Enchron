@@ -127,6 +127,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
     let provider: VideoSampleProvider
     let audioProvider: AudioSampleProvider
     let subtitleProvider: SubtitleProvider
+    let mediaSourceInformationLoader: (any MediaSourceInformationLoading)?
     let sourceReadMeter: PlaybackSourceReadMeter?
     let sourceReadObservationLock = NSLock()
     var sourceReadRateSampler: PlaybackSourceReadRateSampler
@@ -233,6 +234,9 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             provider: FFmpegSampleProvider(sourceReadMeter: sourceReadMeter),
             audioProvider: FFmpegAudioSampleProvider(sourceReadMeter: sourceReadMeter),
             subtitleProvider: FFmpegSubtitleProvider(sourceReadMeter: sourceReadMeter),
+            mediaSourceInformationLoader: SystemMediaSourceInformationLoader(
+                sourceReadMeter: sourceReadMeter
+            ),
             sourceReadMeter: sourceReadMeter,
             rendererSink: nil
         )
@@ -243,6 +247,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         provider: VideoSampleProvider,
         audioProvider: AudioSampleProvider = NoAudioSampleProvider(),
         subtitleProvider: SubtitleProvider = NoSubtitleProvider(),
+        mediaSourceInformationLoader: (any MediaSourceInformationLoading)? = nil,
         sourceReadMeter: PlaybackSourceReadMeter? = nil,
         rendererSink: RendererInputSink? = nil,
         audioRendererSink: AudioRendererInputSink? = nil,
@@ -261,6 +266,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         self.provider = provider
         self.audioProvider = audioProvider
         self.subtitleProvider = subtitleProvider
+        self.mediaSourceInformationLoader = mediaSourceInformationLoader
         self.sourceReadMeter = sourceReadMeter
         self.sourceReadRateSampler = PlaybackSourceReadRateSampler(
             startedAt: ProcessInfo.processInfo.systemUptime
@@ -328,9 +334,36 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             : preferredPlaybackRate
         sourceURL = url
         sourceAsset = asset
-        availableAudioTracks = try await audioProvider.tracks(in: url, asset: asset)
+        let sourceInformation: MediaSourceInformation?
+        if let mediaSourceInformationLoader {
+            sourceInformation = try? await mediaSourceInformationLoader.load(from: url)
+        } else {
+            sourceInformation = nil
+        }
+        if let sourceInformation {
+            availableAudioTracks = try await audioProvider.tracks(
+                in: url,
+                asset: asset,
+                sourceInformation: sourceInformation
+            )
+        } else if mediaSourceInformationLoader != nil {
+            availableAudioTracks = []
+        } else {
+            availableAudioTracks = try await audioProvider.tracks(in: url, asset: asset)
+        }
         debugStore.recordAvailableAudioTracks(availableAudioTracks)
-        let subtitleTracks = try await subtitleProvider.tracks(in: url, asset: asset)
+        let subtitleTracks: [PlaybackSubtitleTrack]
+        if let sourceInformation {
+            subtitleTracks = try await subtitleProvider.tracks(
+                in: url,
+                asset: asset,
+                sourceInformation: sourceInformation
+            )
+        } else if mediaSourceInformationLoader != nil {
+            subtitleTracks = []
+        } else {
+            subtitleTracks = try await subtitleProvider.tracks(in: url, asset: asset)
+        }
         subtitleStateLock.withLock {
             subtitleState.availableTracks = subtitleTracks
             subtitleState.sourceURLByTrackID = [:]

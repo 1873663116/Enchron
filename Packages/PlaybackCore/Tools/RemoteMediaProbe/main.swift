@@ -26,68 +26,58 @@ func errorMessage(_ buffer: [CChar]) -> String {
 }
 
 func enumerateTracks(source: String, monitor: OpaquePointer) throws -> String {
-    let audioCount = source.withCString {
-        PBFFmpegAudioTrackCountWithSourceReadMonitor($0, monitor)
+    var error = [CChar](repeating: 0, count: 512)
+    let information = source.withCString {
+        PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+            $0,
+            monitor,
+            &error,
+            error.count
+        )
     }
-    guard audioCount >= 0 else { throw ProbeFailure.operation("audio track count failed") }
-    for ordinal in 0..<audioCount {
-        var streamIndex: Int32 = -1
-        var sampleRate: Int32 = 0
-        var channelCount: Int32 = 0
-        var codec = [CChar](repeating: 0, count: 64)
-        var language = [CChar](repeating: 0, count: 64)
-        var title = [CChar](repeating: 0, count: 256)
-        let copied = source.withCString {
-            PBFFmpegAudioTrackCopyInfoWithSourceReadMonitor(
-                $0,
-                ordinal,
-                &streamIndex,
-                &sampleRate,
-                &channelCount,
-                &codec,
-                codec.count,
-                &language,
-                language.count,
-                &title,
-                title.count,
-                monitor
-            )
-        }
+    guard let information else {
+        throw ProbeFailure.operation(
+            "media source information failed: \(errorMessage(error))"
+        )
+    }
+    defer { PBFFmpegMediaSourceInformationDestroy(information) }
+    let streamCount = PBFFmpegMediaSourceInformationGetStreamCount(information)
+    var videoCount = 0
+    var audioCount = 0
+    var subtitleCount = 0
+    for ordinal in 0..<streamCount {
+        var stream = PBFFmpegMediaStreamInfo()
+        let copied = PBFFmpegMediaSourceInformationCopyStream(
+            information,
+            ordinal,
+            &stream,
+            nil, 0,
+            nil, 0,
+            nil, 0,
+            nil, 0,
+            nil, 0,
+            nil, 0,
+            nil, 0,
+            nil, 0
+        )
         guard copied else {
-            throw ProbeFailure.operation("audio track info failed at ordinal \(ordinal)")
+            throw ProbeFailure.operation("stream info failed at ordinal \(ordinal)")
+        }
+        switch stream.category {
+        case PBFFmpegMediaStreamCategoryVideo:
+            videoCount += 1
+        case PBFFmpegMediaStreamCategoryAudio:
+            guard stream.sampleRate > 0, stream.channelCount > 0 else {
+                throw ProbeFailure.operation("audio stream parameters are unavailable")
+            }
+            audioCount += 1
+        case PBFFmpegMediaStreamCategorySubtitle:
+            subtitleCount += 1
+        default:
+            break
         }
     }
-
-    let subtitleCount = source.withCString {
-        PBFFmpegSubtitleTrackCountWithSourceReadMonitor($0, monitor)
-    }
-    guard subtitleCount >= 0 else {
-        throw ProbeFailure.operation("subtitle track count failed")
-    }
-    for ordinal in 0..<subtitleCount {
-        var streamIndex: Int32 = -1
-        var codec = [CChar](repeating: 0, count: 64)
-        var language = [CChar](repeating: 0, count: 64)
-        var title = [CChar](repeating: 0, count: 256)
-        let copied = source.withCString {
-            PBFFmpegSubtitleTrackCopyInfoWithSourceReadMonitor(
-                $0,
-                ordinal,
-                &streamIndex,
-                &codec,
-                codec.count,
-                &language,
-                language.count,
-                &title,
-                title.count,
-                monitor
-            )
-        }
-        guard copied else {
-            throw ProbeFailure.operation("subtitle track info failed at ordinal \(ordinal)")
-        }
-    }
-    return "audio_tracks=\(audioCount) subtitle_tracks=\(subtitleCount)"
+    return "video_tracks=\(videoCount) audio_tracks=\(audioCount) subtitle_tracks=\(subtitleCount)"
 }
 
 func openVideoReader(source: String, monitor: OpaquePointer) throws -> String {

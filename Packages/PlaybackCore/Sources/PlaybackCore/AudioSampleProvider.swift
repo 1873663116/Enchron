@@ -140,6 +140,11 @@ protocol AudioSampleProvider: AnyObject {
     var info: AudioSampleProviderInfo? { get }
 
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack]
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?
+    ) async throws -> [PlaybackAudioTrack]
     func prepare(
         url: URL,
         asset: PlaybackAsset?,
@@ -148,6 +153,16 @@ protocol AudioSampleProvider: AnyObject {
     ) async throws
     func copyNextSample() async throws -> CMSampleBuffer?
     func cancel()
+}
+
+extension AudioSampleProvider {
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?
+    ) async throws -> [PlaybackAudioTrack] {
+        try await tracks(in: url, asset: asset)
+    }
 }
 
 final class NoAudioSampleProvider: AudioSampleProvider {
@@ -177,6 +192,7 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
     private let readerQueue: DispatchQueue
     private let sourceReadMeter: PlaybackSourceReadMeter
     private let operations: any FFmpegAudioReaderOperations
+    private let informationLoader: SystemMediaSourceInformationLoader
     private var storedInfo: AudioSampleProviderInfo?
     private var reader: FFmpegAudioReaderHandle?
     private var generation: UInt64 = 0
@@ -189,6 +205,9 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
         )
     ) {
         self.sourceReadMeter = sourceReadMeter
+        informationLoader = SystemMediaSourceInformationLoader(
+            sourceReadMeter: sourceReadMeter
+        )
         self.operations = operations
             ?? SystemFFmpegAudioReaderOperations(sourceReadMeter: sourceReadMeter)
         self.readerQueue = readerQueue
@@ -306,43 +325,16 @@ final class FFmpegAudioSampleProvider: AudioSampleProvider, @unchecked Sendable 
     }
 
     func tracks(in url: URL, asset: PlaybackAsset?) async throws -> [PlaybackAudioTrack] {
-        let source = FFmpegSourceLocator.argument(for: url)
-        return await withCheckedContinuation { continuation in
-            readerQueue.async { [sourceReadMeter] in
-                continuation.resume(returning: source.withCString { path in
-                    let count = max(
-                        0,
-                        Int(PBFFmpegAudioTrackCountWithSourceReadMonitor(
-                            path,
-                            sourceReadMeter.bridgeMonitor
-                        ))
-                    )
-                    return (0..<count).compactMap { ordinal in
-                        var streamIndex: Int32 = -1
-                        var sampleRate: Int32 = 0
-                        var channelCount: Int32 = 0
-                        var codec = [CChar](repeating: 0, count: 64)
-                        var language = [CChar](repeating: 0, count: 64)
-                        var title = [CChar](repeating: 0, count: 256)
-                        guard PBFFmpegAudioTrackCopyInfoWithSourceReadMonitor(
-                            path, Int32(ordinal), &streamIndex, &sampleRate, &channelCount,
-                            &codec, codec.count, &language, language.count, &title, title.count,
-                            sourceReadMeter.bridgeMonitor
-                        ) else { return nil }
-                        func string(_ buffer: [CChar]) -> String? {
-                            let bytes = buffer.prefix { $0 != 0 }.map { UInt8(bitPattern: $0) }
-                            let value = String(decoding: bytes, as: UTF8.self)
-                            return value.isEmpty ? nil : value
-                        }
-                        return PlaybackAudioTrack(
-                            streamIndex: Int(streamIndex), codecName: string(codec) ?? "unknown",
-                            sampleRate: Int(sampleRate), channelCount: Int(channelCount),
-                            language: string(language), title: string(title)
-                        )
-                    }
-                })
-            }
-        }
+        (try? await informationLoader.load(from: url))?.playbackAudioTracks ?? []
+    }
+
+    func tracks(
+        in url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?
+    ) async throws -> [PlaybackAudioTrack] {
+        if let sourceInformation { return sourceInformation.playbackAudioTracks }
+        return try await tracks(in: url, asset: asset)
     }
 
     private func cancel(generation expectedGeneration: UInt64?) {

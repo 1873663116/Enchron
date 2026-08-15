@@ -19,6 +19,25 @@ typedef enum PBFFmpegReadResult {
 typedef struct PBFFmpegReader PBFFmpegReader;
 typedef struct PBFFmpegAudioReader PBFFmpegAudioReader;
 typedef struct PBFFmpegSourceReadMonitor PBFFmpegSourceReadMonitor;
+typedef struct PBFFmpegMediaSourceInformation PBFFmpegMediaSourceInformation;
+typedef enum PBFFmpegMediaStreamCategory {
+    PBFFmpegMediaStreamCategoryOther = 0,
+    PBFFmpegMediaStreamCategoryVideo = 1,
+    PBFFmpegMediaStreamCategoryAudio = 2,
+    PBFFmpegMediaStreamCategorySubtitle = 3,
+} PBFFmpegMediaStreamCategory;
+typedef struct PBFFmpegMediaStreamInfo {
+    int streamIndex;
+    PBFFmpegMediaStreamCategory category;
+    int codecID;
+    uint32_t codecTag;
+    int disposition;
+    int width;
+    int height;
+    double nominalFrameRate;
+    int sampleRate;
+    int channelCount;
+} PBFFmpegMediaStreamInfo;
 typedef enum PBFFmpegAudioCookieSource {
     PBFFmpegAudioCookieSourceUnavailable = 0,
     PBFFmpegAudioCookieSourceExtradata = 1,
@@ -41,6 +60,51 @@ PBFFmpegSourceReadMonitor *PBFFmpegSourceReadMonitorCreate(void);
 void PBFFmpegSourceReadMonitorDestroy(PBFFmpegSourceReadMonitor *monitor);
 uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
     const PBFFmpegSourceReadMonitor *monitor
+);
+
+PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreate(
+    const char *path,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceReadMonitor(
+    const char *path,
+    PBFFmpegSourceReadMonitor *monitor,
+    char *errorBuffer,
+    size_t errorBufferSize
+);
+void PBFFmpegMediaSourceInformationDestroy(
+    PBFFmpegMediaSourceInformation *information
+);
+const char *PBFFmpegMediaSourceInformationGetContainerFormat(
+    const PBFFmpegMediaSourceInformation *information
+);
+double PBFFmpegMediaSourceInformationGetDurationSeconds(
+    const PBFFmpegMediaSourceInformation *information
+);
+int PBFFmpegMediaSourceInformationGetStreamCount(
+    const PBFFmpegMediaSourceInformation *information
+);
+bool PBFFmpegMediaSourceInformationCopyStream(
+    const PBFFmpegMediaSourceInformation *information,
+    int ordinal,
+    PBFFmpegMediaStreamInfo *infoOut,
+    char *codecNameBuffer,
+    size_t codecNameBufferSize,
+    char *languageBuffer,
+    size_t languageBufferSize,
+    char *titleBuffer,
+    size_t titleBufferSize,
+    char *colorPrimariesBuffer,
+    size_t colorPrimariesBufferSize,
+    char *transferFunctionBuffer,
+    size_t transferFunctionBufferSize,
+    char *yCbCrMatrixBuffer,
+    size_t yCbCrMatrixBufferSize,
+    char *colorRangeBuffer,
+    size_t colorRangeBufferSize,
+    char *projectionKindBuffer,
+    size_t projectionKindBufferSize
 );
 
 typedef enum PBSubtitleFrameResult {
@@ -176,67 +240,6 @@ int PBFFmpegAudioReaderGetChannelCount(const PBFFmpegAudioReader *reader);
 const char *PBFFmpegAudioReaderGetCodecName(const PBFFmpegAudioReader *reader);
 bool PBFFmpegAudioReaderOutputsPCM(const PBFFmpegAudioReader *reader);
 
-int PBFFmpegAudioTrackCount(const char *path);
-int PBFFmpegAudioTrackCountWithSourceReadMonitor(
-    const char *path,
-    PBFFmpegSourceReadMonitor *monitor
-);
-bool PBFFmpegAudioTrackCopyInfo(
-    const char *path,
-    int ordinal,
-    int *streamIndexOut,
-    int *sampleRateOut,
-    int *channelCountOut,
-    char *codecBuffer,
-    size_t codecBufferSize,
-    char *languageBuffer,
-    size_t languageBufferSize,
-    char *titleBuffer,
-    size_t titleBufferSize
-);
-bool PBFFmpegAudioTrackCopyInfoWithSourceReadMonitor(
-    const char *path,
-    int ordinal,
-    int *streamIndexOut,
-    int *sampleRateOut,
-    int *channelCountOut,
-    char *codecBuffer,
-    size_t codecBufferSize,
-    char *languageBuffer,
-    size_t languageBufferSize,
-    char *titleBuffer,
-    size_t titleBufferSize,
-    PBFFmpegSourceReadMonitor *monitor
-);
-
-int PBFFmpegSubtitleTrackCount(const char *path);
-int PBFFmpegSubtitleTrackCountWithSourceReadMonitor(
-    const char *path,
-    PBFFmpegSourceReadMonitor *monitor
-);
-bool PBFFmpegSubtitleTrackCopyInfo(
-    const char *path,
-    int ordinal,
-    int *streamIndexOut,
-    char *codecBuffer,
-    size_t codecBufferSize,
-    char *languageBuffer,
-    size_t languageBufferSize,
-    char *titleBuffer,
-    size_t titleBufferSize
-);
-bool PBFFmpegSubtitleTrackCopyInfoWithSourceReadMonitor(
-    const char *path,
-    int ordinal,
-    int *streamIndexOut,
-    char *codecBuffer,
-    size_t codecBufferSize,
-    char *languageBuffer,
-    size_t languageBufferSize,
-    char *titleBuffer,
-    size_t titleBufferSize,
-    PBFFmpegSourceReadMonitor *monitor
-);
 PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreate(
     const char *path,
     int streamIndex,
