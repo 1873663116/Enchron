@@ -91,8 +91,8 @@ struct CategorySidebar: View {
                         .textCase(.uppercase)
                     Spacer(minLength: 0)
                     Color.clear
-                        .frame(width: DesignTokens.Interactive.compact,
-                               height: DesignTokens.Interactive.compact)
+                        .frame(width: DesignTokens.Interactive.large,
+                               height: DesignTokens.Interactive.large)
                         .accessibilityHidden(true)
                 }
                 .padding(.horizontal, DesignTokens.SourceSidebar.contentPaddingH)
