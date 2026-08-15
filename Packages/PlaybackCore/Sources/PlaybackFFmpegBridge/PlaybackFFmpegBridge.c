@@ -31,6 +31,17 @@ typedef struct {
     int64_t accountedBytesRead;
 } PBFFmpegSourceReadContext;
 
+typedef struct {
+    bool movFamily;
+    bool skippedProbe;
+} PBStreamInformationRead;
+
+static int read_stream_information(
+    AVFormatContext *context,
+    PBFFmpegSourceReadContext *sourceReadContext,
+    PBStreamInformationRead *readOut
+);
+
 struct PBFFmpegReader {
     atomic_bool cancelled;
     PBFFmpegSourceReadContext sourceReadContext;
@@ -586,8 +597,12 @@ static int open_media_source_for_audio(
         return result;
     }
     normalize_mov_apac_codec_id(context);
-    result = avformat_find_stream_info(context, NULL);
-    publish_source_bytes(sourceReadContext);
+    PBStreamInformationRead informationRead = {0};
+    result = read_stream_information(
+        context,
+        sourceReadContext,
+        &informationRead
+    );
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read audio stream information", result);
         finish_source_read_context(sourceReadContext);
@@ -604,6 +619,34 @@ static int open_media_source_for_audio(
         }
     }
     if (!needsMoreProbe) {
+        *contextOut = context;
+        return 0;
+    }
+
+    if (informationRead.movFamily) {
+        if (informationRead.skippedProbe) {
+            result = avformat_find_stream_info(context, NULL);
+            publish_source_bytes(sourceReadContext);
+            if (result < 0) {
+                set_av_error(
+                    errorBuffer,
+                    errorBufferSize,
+                    "Read audio stream information",
+                    result
+                );
+                finish_source_read_context(sourceReadContext);
+                avformat_close_input(&context);
+                return result;
+            }
+            normalize_mov_apac_codec_id(context);
+        }
+        probe_delayed_audio_parameters(context);
+        publish_source_bytes(sourceReadContext);
+        if (cancellation_requested(cancelled)) {
+            finish_source_read_context(sourceReadContext);
+            avformat_close_input(&context);
+            return AVERROR_EXIT;
+        }
         *contextOut = context;
         return 0;
     }
@@ -626,8 +669,7 @@ static int open_media_source_for_audio(
         return result;
     }
     normalize_mov_apac_codec_id(context);
-    result = avformat_find_stream_info(context, NULL);
-    publish_source_bytes(sourceReadContext);
+    result = read_stream_information(context, sourceReadContext, NULL);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read extended audio stream information", result);
         finish_source_read_context(sourceReadContext);
@@ -1390,6 +1432,62 @@ static bool video_codec_configuration_is_usable(const AVCodecParameters *paramet
     }
 }
 
+static bool context_uses_mov_demuxer(const AVFormatContext *context) {
+    return context && context->iformat && context->iformat->name &&
+        strcmp(context->iformat->name, "mov,mp4,m4a,3gp,3g2,mj2") == 0;
+}
+
+static bool mov_av1_configuration_is_complete(const AVCodecParameters *parameters) {
+    return parameters && parameters->extradata && parameters->extradata_size >= 4 &&
+        (parameters->extradata[0] & 0x80) != 0 &&
+        (parameters->extradata[0] & 0x7f) == 1;
+}
+
+static bool mov_stream_table_is_qualified(const AVFormatContext *context) {
+    bool hasVideo = false;
+    for (unsigned int index = 0; index < context->nb_streams; index++) {
+        const AVCodecParameters *parameters = context->streams[index]->codecpar;
+        if (parameters->codec_type != AVMEDIA_TYPE_VIDEO) continue;
+        hasVideo = true;
+        if (parameters->codec_id == AV_CODEC_ID_NONE ||
+            parameters->width <= 0 || parameters->height <= 0) {
+            return false;
+        }
+        switch (parameters->codec_id) {
+            case AV_CODEC_ID_H264:
+            case AV_CODEC_ID_HEVC:
+                if (!video_codec_configuration_is_usable(parameters)) return false;
+                break;
+            case AV_CODEC_ID_AV1:
+                if (!mov_av1_configuration_is_complete(parameters)) return false;
+                break;
+            default:
+                break;
+        }
+    }
+    return hasVideo;
+}
+
+static int read_stream_information(
+    AVFormatContext *context,
+    PBFFmpegSourceReadContext *sourceReadContext,
+    PBStreamInformationRead *readOut
+) {
+    PBStreamInformationRead read = {
+        .movFamily = context_uses_mov_demuxer(context),
+        .skippedProbe = false,
+    };
+    if (read.movFamily && mov_stream_table_is_qualified(context)) {
+        read.skippedProbe = true;
+        if (readOut) *readOut = read;
+        return 0;
+    }
+    int result = avformat_find_stream_info(context, NULL);
+    publish_source_bytes(sourceReadContext);
+    if (readOut) *readOut = read;
+    return result;
+}
+
 typedef struct PBParameterSet {
     uint8_t *bytes;
     size_t size;
@@ -2027,8 +2125,11 @@ bool PBFFmpegReaderOpen(
     }
     if (cancellation_requested(&reader->cancelled)) return false;
     normalize_mov_dolby_vision_av1_codec_id(reader->formatContext);
-    result = avformat_find_stream_info(reader->formatContext, NULL);
-    publish_source_bytes(&reader->sourceReadContext);
+    result = read_stream_information(
+        reader->formatContext,
+        &reader->sourceReadContext,
+        NULL
+    );
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read stream information", result);
         return false;
@@ -2047,9 +2148,12 @@ bool PBFFmpegReaderOpen(
     AVStream *stream = reader->formatContext->streams[reader->videoStreamIndex];
     reader->timeBase = stream->time_base;
     reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
-    reader->durationSeconds = reader->formatContext->duration > 0
-        ? (double)reader->formatContext->duration / AV_TIME_BASE
-        : 0;
+    reader->durationSeconds = stream->duration != AV_NOPTS_VALUE &&
+        stream->duration > 0
+        ? stream->duration * av_q2d(stream->time_base)
+        : (reader->formatContext->duration > 0
+            ? (double)reader->formatContext->duration / AV_TIME_BASE
+            : 0);
     reader->nominalFrameRate = av_q2d(stream->avg_frame_rate);
     if (!isfinite(reader->nominalFrameRate) || reader->nominalFrameRate < 0) {
         reader->nominalFrameRate = 0;
@@ -3464,12 +3568,11 @@ int PBFFmpegSubtitleTrackCountWithSourceReadMonitor(
     AVFormatContext *context = allocate_format_context(NULL, &sourceReadContext);
     if (!context ||
         open_media_source(&context, path, &sourceReadContext) < 0) return -1;
-    if (avformat_find_stream_info(context, NULL) < 0) {
+    if (read_stream_information(context, &sourceReadContext, NULL) < 0) {
         finish_source_read_context(&sourceReadContext);
         avformat_close_input(&context);
         return -1;
     }
-    publish_source_bytes(&sourceReadContext);
     int count = 0;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         if (subtitle_stream_is_supported(context->streams[index])) count++;
@@ -3512,12 +3615,11 @@ bool PBFFmpegSubtitleTrackCopyInfoWithSourceReadMonitor(
     PBFFmpegSourceReadContext sourceReadContext = {.monitor = monitor};
     AVFormatContext *context = allocate_format_context(NULL, &sourceReadContext);
     if (!context || open_media_source(&context, path, &sourceReadContext) < 0) return false;
-    if (avformat_find_stream_info(context, NULL) < 0) {
+    if (read_stream_information(context, &sourceReadContext, NULL) < 0) {
         finish_source_read_context(&sourceReadContext);
         avformat_close_input(&context);
         return false;
     }
-    publish_source_bytes(&sourceReadContext);
     AVStream *selected = NULL;
     int current = 0;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
@@ -3596,8 +3698,11 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithSourceReadMonitor(
         PBFFmpegSubtitleReaderDestroy(reader);
         return NULL;
     }
-    result = avformat_find_stream_info(reader->formatContext, NULL);
-    publish_source_bytes(&reader->sourceReadContext);
+    result = read_stream_information(
+        reader->formatContext,
+        &reader->sourceReadContext,
+        NULL
+    );
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read subtitle stream information", result);
         PBFFmpegSubtitleReaderDestroy(reader);

@@ -69,8 +69,18 @@ private final class RecordingRangeServer: @unchecked Sendable {
         while lock.withLock({ listening }) {
             let connection = Darwin.accept(socket, nil, nil)
             guard connection >= 0 else { return }
-            respond(on: connection)
-            close(connection)
+            var noSignal: Int32 = 1
+            setsockopt(
+                connection,
+                SOL_SOCKET,
+                SO_NOSIGPIPE,
+                &noSignal,
+                socklen_t(MemoryLayout<Int32>.size)
+            )
+            Thread.detachNewThread { [weak self] in
+                self?.respond(on: connection)
+                Darwin.close(connection)
+            }
         }
     }
 
@@ -152,7 +162,8 @@ private let tailMoovFixture = URL(fileURLWithPath: #filePath)
     .deletingLastPathComponent()
     .deletingLastPathComponent()
     .appendingPathComponent(
-        "TestMedia/TestVectors/Enchron/Calibration/Sources/equirect_grid.mp4"
+        "TestMedia/Samples/Spatial/MVHEVC-Apple-Official/" +
+            "spatial_lighthouse_flowers_waves_short.mov"
     )
 
 @_silgen_name("av_log_set_level")

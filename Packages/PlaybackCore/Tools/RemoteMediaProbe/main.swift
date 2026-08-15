@@ -111,8 +111,13 @@ func openVideoReader(source: String, monitor: OpaquePointer) throws -> String {
         throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
     }
     let streamIndex = PBFFmpegReaderGetVideoStreamIndex(reader)
+    let duration = PBFFmpegReaderGetDurationSeconds(reader)
+    guard duration.isFinite, duration > 0 else {
+        PBFFmpegReaderDestroy(reader)
+        throw ProbeFailure.operation("video stream duration is unavailable")
+    }
     PBFFmpegReaderDestroy(reader)
-    return "video_stream=\(streamIndex)"
+    return "video_stream=\(streamIndex) duration_seconds=\(duration)"
 }
 
 func openAudioReader(source: String, monitor: OpaquePointer) throws -> String {
