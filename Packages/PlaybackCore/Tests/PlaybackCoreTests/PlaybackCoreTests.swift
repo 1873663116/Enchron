@@ -2802,6 +2802,59 @@ func stereoOverrideAfterProviderResetDoesNotOwnItsFlush(
     #expect(snapshot.lastFailure?.message.contains("HLS") == false)
 }
 
+@Test func pausedStartBeginsFirstFrameDeadlineOnlyAfterPlay() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 1)
+    let session = SampleBufferPlaybackSession(
+        traceID: "paused-first-frame-deadline-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameDeadline: .milliseconds(20),
+        firstVideoFrameObservation: { false }
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/paused.mp4"),
+        startsPaused: true
+    )
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(session.debugSnapshot().lifecycle != .failed)
+
+    try session.play()
+    try await waitForLifecycle(.failed, in: session)
+    #expect(
+        session.debugSnapshot().lastFailure?.stage
+            == "videoRenderer.firstFrameTimedOut"
+    )
+}
+
+@Test func externallyManagedFirstFrameDeadlineDoesNotFailPlayback() async throws {
+    let sample = try makeCompressedH264Sample(durationSeconds: 1)
+    let session = SampleBufferPlaybackSession(
+        traceID: "externally-managed-first-frame-deadline-session",
+        provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+        rendererSink: FakeRendererInputSink(),
+        firstVideoFrameDeadline: .milliseconds(20),
+        firstVideoFrameObservation: { false }
+    )
+    defer { session.close() }
+
+    try await session.prepare(
+        url: URL(fileURLWithPath: "/fixtures/externally-managed.mp4"),
+        startsPaused: true
+    )
+    try session.start()
+    try await waitForSampleCount(1, in: session)
+    try session.play(armingFirstVideoFrameDeadline: false)
+    try await Task.sleep(for: .milliseconds(50))
+
+    #expect(session.debugSnapshot().lifecycle != .failed)
+    #expect(session.debugSnapshot().lastFailure == nil)
+}
+
 @Test func acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim() async throws {
     let sample = try firstCompressedVideoSample(
         relativePath: "TestVectors/Upstream/FATE/ProRes/Sequence_1-Apple_ProRes_422.mov"

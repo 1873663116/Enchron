@@ -884,7 +884,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
         guard activeSessionID == mediaSessionID else {
             throw RuntimeError.mediaSessionChanged
         }
-        try controller.play()
+        try controller.playWithExternallyManagedFirstVideoFrameDeadline()
     }
 
     public func seek(

@@ -232,6 +232,12 @@ public final class PlaybackCoreController {
         try activeSession.play()
     }
 
+    public func playWithExternallyManagedFirstVideoFrameDeadline() throws {
+        guard let activeSession else { throw PlaybackControlError.noActiveMediaSession }
+        try rejectIfSeekIsInProgress()
+        try activeSession.play(armingFirstVideoFrameDeadline: false)
+    }
+
     /// Waits until the first delivered sample has anchored the renderer
     /// synchronizer. A prepared and attached session can report `ready`
     /// before that asynchronous media-time boundary exists.
