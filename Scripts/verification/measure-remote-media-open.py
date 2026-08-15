@@ -88,6 +88,16 @@ def main():
     parser.add_argument("--username", default="enchron-probe")
     parser.add_argument("--password", default="remote-media")
     parser.add_argument("--mode", choices=("open", "playback"), default="open")
+    parser.add_argument(
+        "--expect-connections",
+        type=int,
+        help="fail unless successful media requests use this many TCP connections",
+    )
+    parser.add_argument(
+        "--expect-requests",
+        type=int,
+        help="fail unless the probe makes this many successful media requests",
+    )
     parser.add_argument("--json", action="store_true")
     arguments = parser.parse_args()
 
@@ -254,6 +264,23 @@ def main():
             ),
         },
     }
+    if (
+        arguments.expect_connections is not None
+        and report["total"]["tcp_connections"] != arguments.expect_connections
+    ):
+        raise RuntimeError(
+            "expected "
+            f"{arguments.expect_connections} media TCP connection(s), observed "
+            f"{report['total']['tcp_connections']}"
+        )
+    if (
+        arguments.expect_requests is not None
+        and report["total"]["requests"] != arguments.expect_requests
+    ):
+        raise RuntimeError(
+            f"expected {arguments.expect_requests} successful media request(s), "
+            f"observed {report['total']['requests']}"
+        )
     if arguments.json:
         print(json.dumps(report, indent=2))
         return
