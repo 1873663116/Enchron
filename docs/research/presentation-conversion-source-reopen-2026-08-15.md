@@ -24,6 +24,16 @@
 
 2026-08-15 同设备同片源实测，证据在 `TestEvidence/mode-switch-graph-reuse-20260815/`。远程 portal 到 panorama 从点击返回到沉浸落地，基线 78 秒，改后两次分别为 17 秒与 12 秒。`technicalSessionReplacementStage` 全程只出现 `installingRenderer`，`openingReplacement` 一次未出现。两次运行的会话事件流中 `source.acquired`、`open.admitted`、`provider.opened` 各只有一条，都属于最初的打开，转换本身没有再打开来源；`rendererGraph.replaced` 与 `rendererGraph.departingRetired` 各一条，`graphRevision` 为 2。落定后 `displayedPixelBuffer` 为真、`rate` 与 `actualTimebaseRate` 均为 1、`actualViewingMode` 为 stereo。
 
+## 一次远程打开的读取量
+
+用 `TestEvidence/mode-switch-graph-reuse-20260815/open_read_volume.py` 轮询会话快照的 `sourceReadObservation` 测得，同一部片源从点击到出第一帧共读取约 38 MB，有效速率 1.1 到 2.2 MB/s。字节计数只在 `avformat_open_input` 与 `avformat_find_stream_info` 返回时发布，因此读数呈阶梯，阶梯的平台期就是一次探测正在进行。
+
+分段是这样。视频 reader 尚未开始、生命周期还是 idle 时已经读掉约 22 MB，这段属于音轨与字幕轨枚举。随后生命周期进入 opening 并在约 10 秒里字节计数冻结在 23.5 MB，这是视频 reader 的一次 `avformat_find_stream_info`，它结束时计数跳到 37.4 MB，即这一次探测本身消耗约 14 MB。
+
+因此打开慢由三件事叠加：探测发生在播放时刻而不是入库时刻；同一个文件被独立打开四到五次，每次重做探测；单次探测读取量按十兆计。对照 Emby 的三到四秒，其服务端在扫描时就已经建立媒体信息，播放时不再探测，客户端也不需要跨网络读取和解析索引。
+
+尚未测的是这条链路的裸速率。1 到 2 MB/s 究竟是服务端到其后端存储的上限，还是我们的读取形态（`end_offset` 之后每次 seek 都是新的 ranged 请求）造成的，需要绕开 App 直接对该服务器计时才能分开。
+
 ## 剩余代价
 
 转换耗时现在由回填的 seek 主导。从渲染图替换到第一个样本 13 秒，到 seek 完成 16 秒。原因是新渲染器同时承担解码，必须从一个可独立解码的关键帧开始，而当前实现向后 seek 回切换时刻，在 HTTP 来源上这是一次新的字节范围请求。可见的副作用是位置回退，实测从 16.686 秒回到 10.427 秒。
