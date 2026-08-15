@@ -123,6 +123,15 @@ public struct GlassCapsuleIconLabelButton: View {
             (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2
         )
         .contentShape(Capsule())
+        .enchronHoverContentShape(
+            Capsule(),
+            insets: EdgeInsets(
+                top: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                leading: 0,
+                bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.regular) / 2,
+                trailing: 0
+            )
+        )
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(accessibilityIdentifier ?? "DesignPreview-button-\(title)")
     }
@@ -335,6 +344,15 @@ public struct GlassCircleIconButton: View {
         }
         .buttonStyle(EnchronPressFeedbackButtonStyle(.icon))
         .contentShape(Circle())
+        .enchronHoverContentShape(
+            Circle(),
+            insets: EdgeInsets(
+                top: (targetSize - visualSize) / 2,
+                leading: (targetSize - visualSize) / 2,
+                bottom: (targetSize - visualSize) / 2,
+                trailing: (targetSize - visualSize) / 2
+            )
+        )
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(resolvedAccessibilityIdentifier)
     }
@@ -538,6 +556,15 @@ public struct GlassCircleIconMenu<Content: View>: View {
         }
         .buttonStyle(EnchronPressFeedbackButtonStyle.menuIcon())
         .contentShape(Circle())
+        .enchronHoverContentShape(
+            Circle(),
+            insets: EdgeInsets(
+                top: (targetSize - visualSize) / 2,
+                leading: (targetSize - visualSize) / 2,
+                bottom: (targetSize - visualSize) / 2,
+                trailing: (targetSize - visualSize) / 2
+            )
+        )
         .accessibilityLabel(accessibilityLabel)
         .accessibilityIdentifier(
             accessibilityIdentifier ?? "DesignPreview-menu-\(systemName)"
@@ -1155,6 +1182,15 @@ struct SettingListGroupRow: View {
             }
             .buttonStyle(.plain)
             .frame(minHeight: DesignTokens.Interactive.large)
+            .enchronHoverContentShape(
+                Capsule(),
+                insets: EdgeInsets(
+                    top: (DesignTokens.Interactive.large - DesignTokens.Interactive.compact) / 2,
+                    leading: 0,
+                    bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.compact) / 2,
+                    trailing: 0
+                )
+            )
             .accessibilityLabel(title)
 
         case .action(let title, let feedback, let systemName, let role, let action):
@@ -1622,6 +1658,15 @@ private struct SettingListAccessoryButton<Label: View>: View {
         }
         .buttonStyle(.plain)
         .frame(minHeight: DesignTokens.Interactive.large)
+        .enchronHoverContentShape(
+            Capsule(),
+            insets: EdgeInsets(
+                top: (DesignTokens.Interactive.large - DesignTokens.Interactive.compact) / 2,
+                leading: 0,
+                bottom: (DesignTokens.Interactive.large - DesignTokens.Interactive.compact) / 2,
+                trailing: 0
+            )
+        )
         .accessibilityLabel(accessibilityLabel)
     }
 }

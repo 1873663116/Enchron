@@ -51,6 +51,15 @@ public struct AppearanceModeButton: View {
         }
         .buttonStyle(EnchronPressFeedbackButtonStyle(.icon))
         .contentShape(Circle())
+        .enchronHoverContentShape(
+            Circle(),
+            insets: EdgeInsets(
+                top: (targetSize - visualSize) / 2,
+                leading: (targetSize - visualSize) / 2,
+                bottom: (targetSize - visualSize) / 2,
+                trailing: (targetSize - visualSize) / 2
+            )
+        )
         .accessibilityLabel(accessibilityLabel)
         .accessibilityValue(isActive ? "Active" : "Inactive")
         .accessibilityIdentifier(
