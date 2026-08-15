@@ -7,6 +7,7 @@
 #include <libavutil/avutil.h>
 #include <libavutil/dovi_meta.h>
 #include <libavutil/mastering_display_metadata.h>
+#include <libavutil/opt.h>
 #include <libavutil/pixdesc.h>
 #include <libavutil/spherical.h>
 #include <libavutil/stereo3d.h>
@@ -502,21 +503,6 @@ static bool path_is_http(const char *path) {
         (strncmp(path, "http://", 7) == 0 || strncmp(path, "https://", 8) == 0);
 }
 
-/// Answers the byte length `path` will serve, or 0 when the server will not say.
-///
-/// Opening the URL and closing it again costs one request, which buys the only
-/// number that makes a bounded range request possible. The server's own
-/// Content-Length is used rather than a length the caller passes down, because a
-/// caller's record of the size can disagree with the bytes this connection will
-/// actually serve, and an end offset that disagrees truncates playback.
-static int64_t http_source_length(const char *path, const AVIOInterruptCB *interrupt) {
-    AVIOContext *probe = NULL;
-    if (avio_open2(&probe, path, AVIO_FLAG_READ, interrupt, NULL) < 0) return 0;
-    int64_t length = avio_size(probe);
-    avio_closep(&probe);
-    return length > 0 ? length : 0;
-}
-
 /// Opens `path`, naming the demuxer and setting its options where the source needs
 /// it. A disc image and an HTTP source each need one, and both follow from a fact
 /// about the source, so one function owns what opening a path means here.
@@ -526,28 +512,30 @@ static int open_media_source(
     PBFFmpegSourceReadContext *sourceReadContext
 ) {
     AVDictionary *options = NULL;
+    AVIOContext *openedIO = NULL;
+    int result = 0;
     if (path_is_http(path)) {
-        // Without an end offset FFmpeg asks for `Range: bytes=N-`, and a server
-        // reading from a file system that does not shorten a read at end of file
-        // cannot answer that. Apple's WebDAV client is one: until it has finished
-        // caching a file it pads a read past the end with zeroes instead of
-        // returning fewer bytes, so a server looping until end of file writes more
-        // than the Content-Length it already sent and its own host aborts the
-        // response. Measured through Emby 4.9.5.0 on `Blade Runner (1982).mp4`,
-        // where `bytes=17129754728-` yields 81920 of the 112249 bytes promised and
-        // `bytes=17129836648-` yields `too many bytes written (81920 of 30329)`.
-        //
-        // A named last byte is what keeps that shortfall away from the demuxer,
-        // because the server then reads only as far as it undertook to write. Every
-        // read of a file's tail depends on it, so without it an MP4 whose moov
-        // trails the media cannot be opened at all, and a Matroska file's Cues
-        // cannot be parsed, which leaves a resumed title failing its opening seek
-        // with no index to seek by.
-        int64_t length = http_source_length(
+        result = avio_open2(
+            &openedIO,
             path,
-            *context ? &(*context)->interrupt_callback : NULL
+            AVIO_FLAG_READ,
+            *context ? &(*context)->interrupt_callback : NULL,
+            NULL
         );
-        if (length > 0) av_dict_set_int(&options, "end_offset", length, 0);
+        if (result < 0) goto finish;
+        int64_t length = avio_size(openedIO);
+        if (length > 0) {
+            // HTTP uses end_offset as its effective EOF, so only this response's
+            // length can bound later ranges without silently truncating the tail.
+            result = av_opt_set_int(
+                openedIO,
+                "end_offset",
+                length,
+                AV_OPT_SEARCH_CHILDREN
+            );
+            if (result < 0) goto finish;
+        }
+        (*context)->pb = openedIO;
     }
     const AVInputFormat *format = disc_image_input_format(path);
     if (format) {
@@ -560,7 +548,18 @@ static int open_media_source(
         // no packet ever arrives from.
         av_dict_set_int(&options, "resync_size", 16LL * 1024 * 1024, 0);
     }
-    int result = avformat_open_input(context, path, format, &options);
+    result = avformat_open_input(context, path, format, &options);
+    if (result >= 0 && openedIO) {
+        // avformat_open_input marks caller-supplied IO as custom; ownership moves
+        // here so the existing avformat_close_input paths still close the socket.
+        (*context)->flags &= ~AVFMT_FLAG_CUSTOM_IO;
+        openedIO = NULL;
+    }
+finish:
+    if (result < 0 && *context && (*context)->pb == openedIO) {
+        (*context)->pb = NULL;
+    }
+    if (openedIO) avio_closep(&openedIO);
     av_dict_free(&options);
     if (sourceReadContext) {
         sourceReadContext->formatContext = result >= 0 ? *context : NULL;

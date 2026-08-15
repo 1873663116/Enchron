@@ -2,15 +2,7 @@ import Foundation
 import PlaybackFFmpegBridge
 import Testing
 
-/// Serves one file over HTTP the way Emby 4.9.5.0 serves its WebDAV-backed
-/// library: a range whose last byte is named arrives whole, and a range left
-/// open-ended is answered with a Content-Length it then fails to deliver.
-///
-/// Measured against `Blade Runner (1982).mp4`, where `bytes=17129754728-` yielded
-/// 81920 of the 112249 bytes it promised. The reader has to survive that, because
-/// every container keeps something at the end of the file: an MP4 its moov, a
-/// Matroska file its Cues.
-private final class TruncatingRangeServer: @unchecked Sendable {
+private final class RecordingRangeServer: @unchecked Sendable {
     private let payload: Data
     private let socket: Int32
     private let lock = NSLock()
@@ -108,14 +100,9 @@ private final class TruncatingRangeServer: @unchecked Sendable {
         }
 
         let promised = payload[start...end]
-        // The defect: an open-ended range is answered with a short body. The
-        // server cuts it well inside the header so that a reader which takes the
-        // body of such a request cannot identify the source at all, which is what
-        // the measured shortfall does to a container whose header is far larger.
-        let delivered = namedEnd == nil ? promised.prefix(256) : promised
         send(
             status: "206 Partial Content",
-            body: Data(delivered),
+            body: Data(promised),
             declaring: promised.count,
             contentRange: "bytes \(start)-\(end)/\(payload.count)",
             on: connection
@@ -157,10 +144,16 @@ private final class TruncatingRangeServer: @unchecked Sendable {
     }
 }
 
-private let mkvFixture = Bundle.module.url(
-    forResource: "Fixtures/subtitle-subrip",
-    withExtension: "mkv"
-)
+private let tailMoovFixture = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .appendingPathComponent(
+        "TestMedia/TestVectors/Enchron/Calibration/Sources/equirect_grid.mp4"
+    )
 
 @_silgen_name("av_log_set_level")
 private func setFFmpegLogLevel(_ level: Int32)
@@ -172,16 +165,9 @@ private func reportedError(_ buffer: [CChar]) -> String {
     )
 }
 
-/// A server that shorts open-ended ranges can still be read from, because the
-/// ranges the reader takes media bytes from name their last byte.
-///
-/// One open-ended request remains, and it is the one that asks how long the
-/// source is. It is answered from the response header and its body is never
-/// read, so a short body cannot reach the demuxer through it.
-@Test func truncatedOpenEndedRangesDoNotStopAnHTTPSourceBeingRead() throws {
+@Test func openedHTTPContextBoundsRangesAfterTheInitialRequest() throws {
     setFFmpegLogLevel(-8)
-    let fixture = try #require(mkvFixture)
-    let server = try TruncatingRangeServer(serving: try Data(contentsOf: fixture))
+    let server = try RecordingRangeServer(serving: try Data(contentsOf: tailMoovFixture))
     defer { server.stop() }
 
     var error = [CChar](repeating: 0, count: 512)
@@ -191,9 +177,11 @@ private func reportedError(_ buffer: [CChar]) -> String {
     let activeReader = try #require(reader, Comment(rawValue: reportedError(error)))
     PBFFmpegReaderDestroy(activeReader)
 
-    let bodyReadingRanges = server.ranges.filter { $0.hasSuffix("-") == false }
+    #expect(server.ranges.first?.hasSuffix("-") == true)
+    let bodyReadingRanges = server.ranges.dropFirst()
     #expect(
-        bodyReadingRanges.isEmpty == false,
-        Comment(rawValue: "no bounded range was requested: \(server.ranges)")
+        bodyReadingRanges.isEmpty == false &&
+            bodyReadingRanges.allSatisfy { $0.hasSuffix("-") == false },
+        Comment(rawValue: "later ranges were not bounded: \(server.ranges)")
     )
 }

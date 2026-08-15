@@ -14,6 +14,10 @@ let package = Package(
     ],
     products: [
         .library(name: "PlaybackCore", targets: ["PlaybackCore"]),
+        .executable(
+            name: "PlaybackCoreRemoteMediaProbe",
+            targets: ["PlaybackCoreRemoteMediaProbe"]
+        ),
     ],
     targets: [
         .binaryTarget(
@@ -43,6 +47,11 @@ let package = Package(
             name: "PlaybackCore",
             dependencies: ["PlaybackFFmpegBridge"],
             path: "Sources/PlaybackCore"
+        ),
+        .executableTarget(
+            name: "PlaybackCoreRemoteMediaProbe",
+            dependencies: ["PlaybackFFmpegBridge"],
+            path: "Tools/RemoteMediaProbe"
         ),
         .testTarget(
             name: "PlaybackCoreTests",
