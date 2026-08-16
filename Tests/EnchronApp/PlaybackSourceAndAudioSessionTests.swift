@@ -3,7 +3,7 @@ import Foundation
 @testable import MediaLibrary
 import MediaSource
 import PlaybackCore
-import PlaybackFeature
+@_spi(Testing) import PlaybackFeature
 import RealityKit
 import SwiftUI
 import UIKit

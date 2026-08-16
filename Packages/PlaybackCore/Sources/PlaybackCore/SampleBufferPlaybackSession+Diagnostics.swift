@@ -6,6 +6,17 @@ import OSLog
 import VideoToolbox
 
 extension SampleBufferPlaybackSession {
+    public func displayedArtworkImage() -> CGImage? {
+        guard let pixelBuffer = renderer.displayedPixelBuffer() else { return nil }
+        var image: CGImage?
+        guard VTCreateCGImageFromCVPixelBuffer(
+            pixelBuffer,
+            options: nil,
+            imageOut: &image
+        ) == noErr else { return nil }
+        return image
+    }
+
     func updatePresentationStatus(at time: CMTime) {
         recordSubtitleState(at: time)
         publishSubtitleCues(at: time)

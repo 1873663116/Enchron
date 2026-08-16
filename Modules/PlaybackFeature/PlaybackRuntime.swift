@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreMedia
+import CoreGraphics
 import Foundation
 import MediaSource
 import Observation
@@ -474,24 +475,34 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
             guard request.sourceAccess?.ensureActive() != false else {
                 throw RuntimeError.sourceAccessUnavailable
             }
-            let newSession = try await controller.open(
-                request.url,
-                startTime: CMTime(seconds: startTimeSeconds, preferredTimescale: 60_000),
-                initialRate: Float(initialSpeed.value),
-                initialStereoLayout: initialFormat.flatMap {
-                    Self.coreStereoLayout(
-                        for: Self.playbackStereoLayout(from: $0.stereoLayout)
-                    )
-                },
-                initialProjectionOverride: initialFormat.map {
-                    Self.coreProjectionOverride(
-                        for: Self.playbackProjection(from: $0.projection),
-                        horizontalFieldOfViewDegrees: $0.horizontalFieldOfViewDegrees
-                    )
-                },
-                provenance: "Enchron",
-                accessRequirement: request.url.isFileURL ? "securityScopedFile" : "networkSource"
+            request.source.byteStreamHandle?.useContainerIndex(
+                for: request.versionedIdentity?.contentRevision
             )
+            let newSession: SampleBufferPlaybackSession
+            do {
+                newSession = try await controller.open(
+                    request.url,
+                    startTime: CMTime(seconds: startTimeSeconds, preferredTimescale: 60_000),
+                    initialRate: Float(initialSpeed.value),
+                    initialStereoLayout: initialFormat.flatMap {
+                        Self.coreStereoLayout(
+                            for: Self.playbackStereoLayout(from: $0.stereoLayout)
+                        )
+                    },
+                    initialProjectionOverride: initialFormat.map {
+                        Self.coreProjectionOverride(
+                            for: Self.playbackProjection(from: $0.projection),
+                            horizontalFieldOfViewDegrees: $0.horizontalFieldOfViewDegrees
+                        )
+                    },
+                    provenance: "Enchron",
+                    accessRequirement: request.source.isRemote ? "networkSource" : "securityScopedFile"
+                )
+                request.source.byteStreamHandle?.finishContainerIndex()
+            } catch {
+                request.source.byteStreamHandle?.discardContainerIndex()
+                throw error
+            }
             let sourceSnapshot = newSession.debugSnapshot()
             let sourceFormat = Self.sourceMediaFormat(from: sourceSnapshot)
             if sourceFormat.contentKind == .appleImmersiveVideo {
@@ -1561,6 +1572,10 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
     public func stopAndWait(releasingSourceAccess: Bool = true) async {
         let closeTask = beginStop(releasingSourceAccess: releasingSourceAccess)
         await closeTask?.value
+    }
+
+    public func displayedArtworkImage() -> CGImage? {
+        session?.displayedArtworkImage()
     }
 
     @discardableResult

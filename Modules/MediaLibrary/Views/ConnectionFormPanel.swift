@@ -2,54 +2,7 @@ import DesignSystem
 import Foundation
 import SwiftUI
 
-public enum SourceConnectionKind: String, CaseIterable, Identifiable, Sendable {
-    case smb
-    case webDAV
-
-    public var id: String { rawValue }
-
-    public var title: String {
-        switch self {
-        case .smb: "SMB"
-        case .webDAV: "WebDAV"
-        }
-    }
-
-    public var sourceType: FileBrowsingDomain.SourceType {
-        switch self {
-        case .smb: .smb
-        case .webDAV: .webDAV
-        }
-    }
-
-    var subtitle: String {
-        switch self {
-        case .smb: "Local network share · Host name or IP address"
-        case .webDAV: "HTTP(S) server · Full server address"
-        }
-    }
-
-    var systemImage: String {
-        switch self {
-        case .smb: "externaldrive.connected.to.line.below"
-        case .webDAV: "network"
-        }
-    }
-
-    var addressLabel: String {
-        switch self {
-        case .smb: "Address"
-        case .webDAV: "Server Address"
-        }
-    }
-
-    var addressPlaceholder: String {
-        switch self {
-        case .smb: "192.168.1.20"
-        case .webDAV: "https://server.example/dav/"
-        }
-    }
-}
+public typealias SourceConnectionKind = FileBrowsingDomain.SourceType
 
 public struct SourceConnectionRequest: Sendable, Equatable {
     public let kind: SourceConnectionKind
@@ -152,7 +105,7 @@ public struct ConnectionFormPanel: View {
     }
 
     private var showsCredentials: Bool {
-        kind == .webDAV || !connectsAsGuest
+        kind.alwaysShowsCredentials || !connectsAsGuest
     }
 
     private var isBusy: Bool {
@@ -170,7 +123,7 @@ public struct ConnectionFormPanel: View {
 
     private var header: some View {
         HStack(spacing: DesignTokens.Spacing.sm) {
-            Image(systemName: kind.systemImage)
+            Image(systemName: kind.connectionIcon)
                 .font(DesignTokens.SymbolSize.selectionHeaderIcon)
                 .foregroundStyle(DesignTokens.Theme.accent)
                 .frame(width: DesignTokens.Interactive.regular)
@@ -178,7 +131,7 @@ public struct ConnectionFormPanel: View {
             VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                 Text("Connect to \(kind.title)")
                     .font(DesignTokens.Typography.headline)
-                Text(kind.subtitle)
+                Text(kind.connectionSubtitle)
                     .font(DesignTokens.Typography.metadata)
                     .foregroundStyle(DesignTokens.Surface.supportingText)
             }
@@ -235,7 +188,7 @@ public struct ConnectionFormPanel: View {
                 .transition(credentialsTransition)
             }
 
-            if kind == .smb {
+            if kind.allowsGuestAccess {
                 Toggle("Connect as Guest", isOn: $connectsAsGuest)
                     .font(DesignTokens.Typography.selectionHeader)
                     .tint(DesignTokens.Theme.accent)

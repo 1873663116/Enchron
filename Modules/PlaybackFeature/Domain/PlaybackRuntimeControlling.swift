@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 public enum ProductPlaybackLifecycle: String, Codable, Sendable, Equatable {
@@ -75,11 +76,14 @@ public protocol PlaybackRuntimeControlling: AnyObject {
     func selectSubtitleTrack(_ track: PlaybackModel.SubtitleTrack?) async throws
     func setSpeed(_ speed: PlaybackModel.PlaybackSpeed)
     func replay()
+    func displayedArtworkImage() -> CGImage?
     func stop(releasingSourceAccess: Bool)
     func stopAndWait(releasingSourceAccess: Bool) async
 }
 
 public extension PlaybackRuntimeControlling {
+    func displayedArtworkImage() -> CGImage? { nil }
+
     func setFormat(
         projection: PlaybackModel.ProjectionType,
         stereo: PlaybackModel.StereoLayout

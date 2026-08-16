@@ -573,6 +573,7 @@ public final class MediaLibraryViewModel {
             collectionOrigin: .mediaLibrary,
             versionedIdentity: versionedIdentity,
             accessLease: source.accessLease,
+            byteStreamHandle: source.byteStreamHandle,
             externalSubtitleSources: externalSubtitles.sources,
             externalSubtitleErrorMessage: externalSubtitles.errorMessage
         )
@@ -618,6 +619,24 @@ public final class MediaLibraryViewModel {
 
     public func refreshViewingStates() {
         Task { await loadViewingStatesForCurrentFolder() }
+    }
+
+    public func artworkURL(for reference: FileBrowsingDomain.MediaReference) -> URL? {
+        let identity: MediaIdentity?
+        switch reference.locator {
+        case .sourceItem(let dataSourceID, let path):
+            identity = .remote(
+                sourceKey: reference.remoteSourceKey
+                    ?? "legacy:\(dataSourceID.uuidString.lowercased())",
+                canonicalPath: path
+            )
+        case .photoAsset(let localIdentifier):
+            identity = .photo(localIdentifier: localIdentifier)
+        case .file:
+            identity = nil
+        }
+        guard let identity else { return nil }
+        return ArtworkStore.shared.fileURL(for: ArtworkKey(mediaIdentity: identity))
     }
 
     private func addFile(_ url: URL) throws {

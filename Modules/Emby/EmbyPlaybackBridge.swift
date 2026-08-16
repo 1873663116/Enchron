@@ -258,14 +258,20 @@ public actor EmbyPlaybackBridge {
             }
             source = firstSource
         }
-        let subtitles = try source.mediaStreams.compactMap { stream -> ResolvedExternalSubtitleSource? in
-            guard stream.kind == .subtitle, stream.isExternal else { return nil }
+        var subtitles: [ResolvedExternalSubtitleSource] = []
+        for stream in source.mediaStreams where stream.kind == .subtitle && stream.isExternal {
             let sourceID = Self.externalSubtitleSourceID(for: stream.index)
-            return ResolvedExternalSubtitleSource(
-                id: sourceID,
-                url: try client.externalSubtitleURL(for: stream, on: server),
-                displayName: stream.displayTitle ?? stream.language ?? "Subtitle \(stream.index)"
+            let subtitleURL = try client.externalSubtitleURL(for: stream, on: server)
+            let subtitleHandle = try await MediaByteStreamServer.shared.register(
+                source: EmbyByteRangeSource(url: subtitleURL, reportedContentLength: nil),
+                filename: stream.displayTitle ?? "Subtitle \(stream.index)"
             )
+            subtitles.append(ResolvedExternalSubtitleSource(
+                id: sourceID,
+                url: subtitleHandle.url,
+                displayName: stream.displayTitle ?? stream.language ?? "Subtitle \(stream.index)",
+                byteStreamHandle: subtitleHandle
+            ))
         }
         let externalIndexes: [String: Int] = Dictionary(
             uniqueKeysWithValues: source.mediaStreams.compactMap { stream -> (String, Int)? in
@@ -288,8 +294,16 @@ public actor EmbyPlaybackBridge {
         case .fromBeginning:
             0
         }
-        return PlaybackLaunchRequest(
+        let byteSource = EmbyByteRangeSource(
             url: source.directPlayURL,
+            reportedContentLength: source.sizeInBytes ?? freshItem.metadata.sizeInBytes
+        )
+        let byteStreamHandle = try await MediaByteStreamServer.shared.register(
+            source: byteSource,
+            filename: source.displayName
+        )
+        return PlaybackLaunchRequest(
+            source: PlaybackAddress(byteStreamHandle: byteStreamHandle),
             displayName: freshItem.metadata.name,
             initialMetadata: PlaybackMediaMetadata(
                 fileSizeInBytes: source.sizeInBytes ?? freshItem.metadata.sizeInBytes,
@@ -316,5 +330,48 @@ public actor EmbyPlaybackBridge {
 
     private static func externalSubtitleSourceID(for streamIndex: Int) -> String {
         "emby.subtitle.\(streamIndex)"
+    }
+}
+
+private final class EmbyByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes: MediaByteStreamAttributes
+    private let url: URL
+    private let session: URLSession
+
+    init(url: URL, reportedContentLength: Int64?, session: URLSession = MediaSourceNetwork.shared.session) {
+        self.url = url
+        self.session = session
+        byteStreamAttributes = MediaByteStreamAttributes(
+            contentLength: reportedContentLength,
+            supportsSeeking: true,
+            isLive: false,
+            preferredBufferDepth: .automatic
+        )
+    }
+
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
+        var request = URLRequest(url: url)
+        request.setValue("bytes=\(range.lowerBound)-\(range.upperBound - 1)", forHTTPHeaderField: "Range")
+        request.setValue("identity", forHTTPHeaderField: "Accept-Encoding")
+        let (data, response) = try await session.data(for: request)
+        guard let response = response as? HTTPURLResponse else { throw EmbyError.invalidResponse }
+        if response.statusCode == 200 {
+            return MediaByteRangeRead(
+                data: data,
+                contentLength: response.expectedContentLength >= 0
+                    ? response.expectedContentLength
+                    : nil,
+                supportsSeeking: false
+            )
+        }
+        guard response.statusCode == 206 else { throw EmbyError.httpStatus(response.statusCode) }
+        guard let contentRange = response.value(forHTTPHeaderField: "Content-Range"),
+              contentRange.lowercased().hasPrefix("bytes \(range.lowerBound)-") else {
+            throw EmbyError.invalidResponse
+        }
+        let total = contentRange.lastIndex(of: "/").flatMap {
+            Int64(contentRange[contentRange.index(after: $0)...])
+        }
+        return MediaByteRangeRead(data: data, contentLength: total, supportsSeeking: true)
     }
 }
