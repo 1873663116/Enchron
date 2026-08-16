@@ -1,8 +1,6 @@
 import Foundation
-import MediaLibrary
 import MediaSource
 import Testing
-@testable import Enchron
 
 struct PlaybackSourceAccessTests {
     @Test("source access releases its security scope exactly once")

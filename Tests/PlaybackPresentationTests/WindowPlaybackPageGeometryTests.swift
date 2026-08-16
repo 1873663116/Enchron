@@ -5,6 +5,7 @@ import PlaybackPresentation
 import Testing
 @testable import Enchron
 
+@MainActor
 @Suite("Window playback page geometry")
 struct WindowPlaybackPageGeometryTests {
     @Test("window playback bounds use the source display aspect ratio")

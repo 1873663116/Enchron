@@ -2,7 +2,6 @@ import Foundation
 import MediaSource
 import Testing
 @testable import MediaLibrary
-@testable import Enchron
 
 @Suite(.serialized)
 struct SMBDataSourceAdapterTests {

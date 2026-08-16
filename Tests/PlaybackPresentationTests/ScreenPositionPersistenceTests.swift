@@ -1,6 +1,5 @@
 import PlaybackPresentation
 import XCTest
-@testable import Enchron
 
 nonisolated final class ScreenPositionPersistenceTests: XCTestCase {
     func testDockedPlacementRoundTripsDistanceElevationAndScale() async throws {

@@ -2,7 +2,6 @@ import Foundation
 import MediaSource
 @testable import MediaLibrary
 import Testing
-@testable import Enchron
 
 @Suite(.serialized)
 struct WebDAVDataSourceAdapterTests {
