@@ -540,6 +540,26 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
     }
 }
 
+@Test func mediaSourceInformationCarriesContainerDolbyAndStereoFacts() async throws {
+    let loader = SystemMediaSourceInformationLoader()
+    let profile7 = try await loader.load(
+        from: playbackTestMedia.appendingPathComponent(
+            "Samples/DynamicRange/DolbyVision/Profile7.6/FEL_test_for_AVS.mkv"
+        )
+    )
+    #expect(profile7.containerSupportsSourceFormatDescription == false)
+    #expect(profile7.dolbyVisionProfile == 7)
+    #expect(profile7.dolbyVisionHasEnhancementLayer)
+
+    let mvhevc = try await loader.load(
+        from: playbackTestMedia.appendingPathComponent(
+            "Samples/CameraOriginals/Apple/applle.MOV"
+        )
+    )
+    #expect(mvhevc.containerSupportsSourceFormatDescription)
+    #expect(mvhevc.hasStereoVideoEnhancementLayer)
+}
+
 @Test func appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat() async throws {
     silenceFFmpegDiagnostics()
     let fixture = playbackTestMedia.appendingPathComponent(
@@ -895,6 +915,34 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
     #expect(outputAtoms["hvcC"] == bridgeAtoms["hvcC"])
     #expect(outputAtoms["dvvC"] == nil)
     #expect(provider.info.formatSignaling.provenance == "FFmpeg.codecParameters")
+}
+
+@Test func formatDescriptionOwnerFillsOnlyMissingDecoderConfigurationAtoms() async throws {
+    let fixture = playbackTestMedia.appendingPathComponent(
+        "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
+    )
+    let bridgeFormat = try await firstVideoFormatDescription(in: AVURLAsset(url: fixture))
+    let sourceFormat = try videoFormatDescription(
+        byRemovingSampleDescriptionAtom: "dvvC",
+        from: bridgeFormat
+    )
+    let sourceAtoms = try sampleDescriptionAtoms(in: sourceFormat)
+    let bridgeAtoms = try sampleDescriptionAtoms(in: bridgeFormat)
+    var mergedReference: Unmanaged<CMVideoFormatDescription>?
+
+    let status = PBFFmpegVideoFormatDescriptionCreate(
+        nil,
+        sourceFormat,
+        bridgeFormat,
+        nil,
+        &mergedReference
+    )
+    #expect(status == noErr)
+    let merged = try #require(mergedReference?.takeRetainedValue())
+    let mergedAtoms = try sampleDescriptionAtoms(in: merged)
+
+    #expect(mergedAtoms["hvcC"] == sourceAtoms["hvcC"])
+    #expect(mergedAtoms["dvvC"] == bridgeAtoms["dvvC"])
 }
 
 @Test func suppliedAssetWithMultipleMatchingVideoFormatsKeepsBridgeFormat() async throws {

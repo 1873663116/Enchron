@@ -101,11 +101,12 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
             == information
     )
     let loader = FixedMediaSourceInformationLoader(information)
+    let videoProvider = FakeVideoSampleProvider(events: [.end])
     let audioProvider = FakeAudioSampleProvider()
     let subtitleProvider = MediaInformationRecordingSubtitleProvider()
     let session = SampleBufferPlaybackSession(
         traceID: "shared-media-source-information",
-        provider: FakeVideoSampleProvider(events: [.end]),
+        provider: videoProvider,
         audioProvider: audioProvider,
         subtitleProvider: subtitleProvider,
         mediaSourceInformationLoader: loader,
@@ -119,6 +120,7 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
     )
 
     #expect(loader.loadCount == 1)
+    #expect(videoProvider.sourceInformationReceived == information)
     #expect(audioProvider.sourceInformationReceived == information)
     #expect(subtitleProvider.sourceInformationReceived == information)
 }
@@ -3206,6 +3208,7 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
     private let readError: Error?
     private let eventDelay: Duration?
     private(set) var startCount = 0
+    private(set) var sourceInformationReceived: MediaSourceInformation?
 
     init(
         events: [VideoSampleProviderEvent],
@@ -3251,7 +3254,13 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
         self.eventDelay = eventDelay
     }
 
-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
+    func prepare(
+        url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?,
+        startTime: CMTime
+    ) async throws {
+        sourceInformationReceived = sourceInformation
         if startTime > .zero, let seekPrepareDelay {
             if seekPrepareIgnoresCancellation {
                 await Task.detached {

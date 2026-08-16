@@ -99,15 +99,74 @@ public struct MediaSourceInformation: Codable, Equatable, Sendable {
     public let containerFormat: String
     public let durationSeconds: Double
     public let streams: [MediaSourceStreamInformation]
+    public let containerSupportsSourceFormatDescription: Bool
+    public let dolbyVisionProfile: Int
+    public let dolbyVisionCrossCompatibilityID: Int
+    public let dolbyVisionHasEnhancementLayer: Bool
+    public let hasStereoVideoEnhancementLayer: Bool
 
     public init(
         containerFormat: String,
         durationSeconds: Double,
-        streams: [MediaSourceStreamInformation]
+        streams: [MediaSourceStreamInformation],
+        containerSupportsSourceFormatDescription: Bool = false,
+        dolbyVisionProfile: Int = 0,
+        dolbyVisionCrossCompatibilityID: Int = 0,
+        dolbyVisionHasEnhancementLayer: Bool = false,
+        hasStereoVideoEnhancementLayer: Bool = false
     ) {
         self.containerFormat = containerFormat
         self.durationSeconds = durationSeconds
         self.streams = streams
+        self.containerSupportsSourceFormatDescription =
+            containerSupportsSourceFormatDescription
+        self.dolbyVisionProfile = dolbyVisionProfile
+        self.dolbyVisionCrossCompatibilityID = dolbyVisionCrossCompatibilityID
+        self.dolbyVisionHasEnhancementLayer = dolbyVisionHasEnhancementLayer
+        self.hasStereoVideoEnhancementLayer = hasStereoVideoEnhancementLayer
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case containerFormat
+        case durationSeconds
+        case streams
+        case containerSupportsSourceFormatDescription
+        case dolbyVisionProfile
+        case dolbyVisionCrossCompatibilityID
+        case dolbyVisionHasEnhancementLayer
+        case hasStereoVideoEnhancementLayer
+    }
+
+    public init(from decoder: any Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            containerFormat: try container.decode(String.self, forKey: .containerFormat),
+            durationSeconds: try container.decode(Double.self, forKey: .durationSeconds),
+            streams: try container.decode(
+                [MediaSourceStreamInformation].self,
+                forKey: .streams
+            ),
+            containerSupportsSourceFormatDescription: try container.decodeIfPresent(
+                Bool.self,
+                forKey: .containerSupportsSourceFormatDescription
+            ) ?? false,
+            dolbyVisionProfile: try container.decodeIfPresent(
+                Int.self,
+                forKey: .dolbyVisionProfile
+            ) ?? 0,
+            dolbyVisionCrossCompatibilityID: try container.decodeIfPresent(
+                Int.self,
+                forKey: .dolbyVisionCrossCompatibilityID
+            ) ?? 0,
+            dolbyVisionHasEnhancementLayer: try container.decodeIfPresent(
+                Bool.self,
+                forKey: .dolbyVisionHasEnhancementLayer
+            ) ?? false,
+            hasStereoVideoEnhancementLayer: try container.decodeIfPresent(
+                Bool.self,
+                forKey: .hasStereoVideoEnhancementLayer
+            ) ?? false
+        )
     }
 }
 
@@ -177,7 +236,7 @@ struct SystemMediaSourceInformationLoader: MediaSourceInformationLoading {
         }
     }
 
-    private static func copy(
+    static func copy(
         _ handle: OpaquePointer
     ) throws -> MediaSourceInformation {
         let streamCount = Int(PBFFmpegMediaSourceInformationGetStreamCount(handle))
@@ -253,7 +312,19 @@ struct SystemMediaSourceInformationLoader: MediaSourceInformationLoading {
                 cString: PBFFmpegMediaSourceInformationGetContainerFormat(handle)
             ),
             durationSeconds: PBFFmpegMediaSourceInformationGetDurationSeconds(handle),
-            streams: streams
+            streams: streams,
+            containerSupportsSourceFormatDescription:
+                PBFFmpegMediaSourceInformationContainerSupportsSourceFormatDescription(handle),
+            dolbyVisionProfile: Int(
+                PBFFmpegMediaSourceInformationGetDolbyVisionProfile(handle)
+            ),
+            dolbyVisionCrossCompatibilityID: Int(
+                PBFFmpegMediaSourceInformationGetDolbyVisionCrossCompatibilityID(handle)
+            ),
+            dolbyVisionHasEnhancementLayer:
+                PBFFmpegMediaSourceInformationDolbyVisionHasEnhancementLayer(handle),
+            hasStereoVideoEnhancementLayer:
+                PBFFmpegMediaSourceInformationHasStereoVideoEnhancementLayer(handle)
         )
     }
 

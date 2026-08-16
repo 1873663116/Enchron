@@ -345,7 +345,12 @@ private final class VerificationLockedBox<Value>: @unchecked Sendable {
 
 private final class ReapplyNullVideoProvider: VideoSampleProvider {
   var info = VideoSampleProviderInfo(providerKind: "ReapplyNull")
-  func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {}
+  func prepare(
+    url: URL,
+    asset: PlaybackAsset?,
+    sourceInformation: MediaSourceInformation?,
+    startTime: CMTime
+  ) async throws {}
   func start() throws {}
   func nextEvent() async throws -> VideoSampleProviderEvent { .end }
   func cancel() {}

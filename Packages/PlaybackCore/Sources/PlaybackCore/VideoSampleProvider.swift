@@ -21,15 +21,6 @@ struct VideoSampleProviderInfo: Sendable {
     var transferFunction = "unknown"
     var yCbCrMatrix = "unknown"
     var range = "unknown"
-    /// Zero when no video stream in the source carries a Dolby Vision configuration
-    /// record. Profile 7 keeps that record on its enhancement stream, so reading only
-    /// the decoded stream would report a plain HDR10 track and lose the claim.
-    var dolbyVisionProfile = 0
-    var dolbyVisionCrossCompatibilityID = 0
-    /// Set when the source stores its picture across two layers. Only the base layer
-    /// reaches a single-stream decoder input, which is what makes the delivered
-    /// picture a fallback rather than the Dolby Vision the source claims.
-    var dolbyVisionHasEnhancementLayer = false
     var seekability = ObservedStringFact(.unknown)
     var selectedRawTrackMapping = ObservedStringFact(.notExposed)
     var timebase = ObservedStringFact(.notExposed)
@@ -42,10 +33,26 @@ struct VideoSampleProviderInfo: Sendable {
 protocol VideoSampleProvider: AnyObject {
     var info: VideoSampleProviderInfo { get }
 
-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws
+    func prepare(
+        url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation: MediaSourceInformation?,
+        startTime: CMTime
+    ) async throws
     func start() throws
     func nextEvent() async throws -> VideoSampleProviderEvent
     func cancel()
+}
+
+extension VideoSampleProvider {
+    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
+        try await prepare(
+            url: url,
+            asset: asset,
+            sourceInformation: nil,
+            startTime: startTime
+        )
+    }
 }
 
 enum VideoSampleProviderEvent {
@@ -84,6 +91,9 @@ protocol FFmpegVideoReaderOperations: Sendable {
     func copyCompressedFormatDescription(
         from reader: FFmpegVideoReaderHandle
     ) -> SendableVideoFormatDescription?
+    func copyMediaSourceInformation(
+        from reader: FFmpegVideoReaderHandle
+    ) -> MediaSourceInformation?
     func cancel(_ reader: FFmpegVideoReaderHandle)
     func destroy(_ reader: FFmpegVideoReaderHandle)
 }
@@ -92,6 +102,12 @@ extension FFmpegVideoReaderOperations {
     func copyCompressedFormatDescription(
         from reader: FFmpegVideoReaderHandle
     ) -> SendableVideoFormatDescription? {
+        nil
+    }
+
+    func copyMediaSourceInformation(
+        from reader: FFmpegVideoReaderHandle
+    ) -> MediaSourceInformation? {
         nil
     }
 }
@@ -165,12 +181,6 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
             transferFunction: String(cString: PBFFmpegReaderGetTransferFunction(reader.pointer)),
             yCbCrMatrix: String(cString: PBFFmpegReaderGetYCbCrMatrix(reader.pointer)),
             range: String(cString: PBFFmpegReaderGetColorRange(reader.pointer)),
-            dolbyVisionProfile: Int(PBFFmpegReaderGetDolbyVisionProfile(reader.pointer)),
-            dolbyVisionCrossCompatibilityID: Int(
-                PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(reader.pointer)
-            ),
-            dolbyVisionHasEnhancementLayer:
-                PBFFmpegReaderDolbyVisionHasEnhancementLayer(reader.pointer),
             seekability: .init(known: "providerRebuild"),
             selectedRawTrackMapping: .init(
                 known: "stream:\(PBFFmpegReaderGetVideoStreamIndex(reader.pointer))"
@@ -240,11 +250,27 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
         from reader: FFmpegVideoReaderHandle
     ) -> SendableVideoFormatDescription? {
         var format: Unmanaged<CMVideoFormatDescription>?
-        guard PBFFmpegReaderCopyCompressedFormatDescription(reader.pointer, &format),
-              let format else {
+        let status = PBFFmpegVideoFormatDescriptionCreate(
+            reader.pointer,
+            nil,
+            nil,
+            nil,
+            &format
+        )
+        guard status == noErr, let format else {
             return nil
         }
         return SendableVideoFormatDescription(value: format.takeRetainedValue())
+    }
+
+    func copyMediaSourceInformation(
+        from reader: FFmpegVideoReaderHandle
+    ) -> MediaSourceInformation? {
+        guard let handle = PBFFmpegReaderCopyMediaSourceInformation(reader.pointer) else {
+            return nil
+        }
+        defer { PBFFmpegMediaSourceInformationDestroy(handle) }
+        return try? SystemMediaSourceInformationLoader.copy(handle)
     }
 
     func cancel(_ reader: FFmpegVideoReaderHandle) {
@@ -295,13 +321,18 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
         self.readerQueue = readerQueue
     }
 
-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
+    func prepare(
+        url: URL,
+        asset: PlaybackAsset?,
+        sourceInformation suppliedSourceInformation: MediaSourceInformation?,
+        startTime: CMTime
+    ) async throws {
         cancel()
         let operationGeneration = readerLock.withLock { generation }
         let source = FFmpegSourceLocator.argument(for: url)
         try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation {
-                (continuation: CheckedContinuation<Void, any Error>) in
+            let openedSourceInformation = try await withCheckedThrowingContinuation {
+                (continuation: CheckedContinuation<MediaSourceInformation?, any Error>) in
                 readerQueue.async { [self] in
                     guard isCurrent(operationGeneration) else {
                         continuation.resume(throwing: CancellationError())
@@ -333,6 +364,9 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                         let bridgeFormat = operations.copyCompressedFormatDescription(
                             from: newReader
                         )
+                        let sourceInformation = operations.copyMediaSourceInformation(
+                            from: newReader
+                        )
                         guard accept(
                             newInfo,
                             bridgeFormatDescription: bridgeFormat?.value,
@@ -342,7 +376,7 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                             continuation.resume(throwing: CancellationError())
                             return
                         }
-                        continuation.resume()
+                        continuation.resume(returning: sourceInformation)
                     } catch {
                         guard removeIfCurrent(newReader, generation: operationGeneration) else {
                             continuation.resume(throwing: CancellationError())
@@ -354,13 +388,13 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
                 }
             }
             try Task.checkCancellation()
+            let sourceInformation = suppliedSourceInformation ?? openedSourceInformation
             let (openedInfo, bridgeFormat) = readerLock.withLock {
                 (storedInfo, bridgeFormatDescription)
             }
-            if Self.shouldPreserveAppleSourceFormat(
-                for: url,
+            if Self.shouldConsultAVFoundation(
                 suppliedAsset: asset,
-                info: openedInfo
+                sourceInformation: sourceInformation
             ), let bridgeFormat {
                 let sourceAsset = asset?.value ?? AVURLAsset(url: url)
                 let sourceFormat: CMFormatDescription?
@@ -574,16 +608,12 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
         return match
     }
 
-    private static func shouldPreserveAppleSourceFormat(
-        for url: URL,
+    private static func shouldConsultAVFoundation(
         suppliedAsset: PlaybackAsset?,
-        info: VideoSampleProviderInfo
+        sourceInformation: MediaSourceInformation?
     ) -> Bool {
-        if info.isMVHEVC || suppliedAsset != nil { return true }
-        let fileExtension = url.pathExtension.lowercased()
-        if ["mov", "mp4", "m4v"].contains(fileExtension) { return true }
-        let container = info.containerFormat.lowercased()
-        return container.contains("mov") || container.contains("mp4")
+        suppliedAsset != nil ||
+            sourceInformation?.containerSupportsSourceFormatDescription == true
     }
 
     private static func uniqueAppleImmersiveSourceFormatMetadata(
@@ -659,32 +689,18 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
         _ sourceFormat: CMVideoFormatDescription,
         on bridgeFormat: CMVideoFormatDescription
     ) throws -> CMVideoFormatDescription {
-        guard CMFormatDescriptionGetMediaSubType(sourceFormat)
-                != CMFormatDescriptionGetMediaSubType(bridgeFormat) else {
-            return sourceFormat
-        }
-        var extensions = CMFormatDescriptionGetExtensions(sourceFormat)
-            as? [String: Any] ?? [:]
-        var atoms = decoderConfigurationAtoms(in: sourceFormat)
-        atoms.removeValue(forKey: "dvcC")
-        atoms.removeValue(forKey: "dvvC")
-        extensions[
-            kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
-        ] = atoms
-        let dimensions = CMVideoFormatDescriptionGetDimensions(bridgeFormat)
-        var preserved: CMVideoFormatDescription?
-        let status = CMVideoFormatDescriptionCreate(
-            allocator: kCFAllocatorDefault,
-            codecType: CMFormatDescriptionGetMediaSubType(bridgeFormat),
-            width: dimensions.width,
-            height: dimensions.height,
-            extensions: extensions as CFDictionary,
-            formatDescriptionOut: &preserved
+        var preserved: Unmanaged<CMVideoFormatDescription>?
+        let status = PBFFmpegVideoFormatDescriptionCreate(
+            nil,
+            sourceFormat,
+            bridgeFormat,
+            nil,
+            &preserved
         )
         guard status == noErr, let preserved else {
             throw VideoSampleFormatOverrideError.formatDescriptionCreationFailed(status)
         }
-        return preserved
+        return preserved.takeRetainedValue()
     }
 
     private static func sourceVideoFormatHasSameSubtypeAndDimensions(

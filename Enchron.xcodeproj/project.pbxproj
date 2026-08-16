@@ -639,6 +639,11 @@
 				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
 			);
 			inputPaths = (
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
+				"$(SRCROOT)/Scripts/verification/verify_format_description_ownership.py",
 				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
 				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
 				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
@@ -659,7 +664,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
+			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\npython3 \"$SRCROOT/Scripts/verification/verify_format_description_ownership.py\"\n";
 		};
 		E30000022FA3000100E1C001 /* Design Source Architecture */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -671,6 +676,11 @@
 				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
 			);
 			inputPaths = (
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
+				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
+				"$(SRCROOT)/Scripts/verification/verify_format_description_ownership.py",
 				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
 				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
 				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
@@ -691,7 +701,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
+			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\npython3 \"$SRCROOT/Scripts/verification/verify_format_description_ownership.py\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 

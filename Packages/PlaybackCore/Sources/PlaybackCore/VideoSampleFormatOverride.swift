@@ -1,5 +1,6 @@
 import CoreMedia
 import Foundation
+import PlaybackFFmpegBridge
 
 public enum VideoStereoLayout: String, CaseIterable, Codable, Sendable {
     case mono
@@ -287,24 +288,23 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
             )
         }
 
-        let dimensions = CMVideoFormatDescriptionGetDimensions(source)
-        var target: CMFormatDescription?
-        let status = CMVideoFormatDescriptionCreate(
-            allocator: kCFAllocatorDefault,
-            codecType: CMFormatDescriptionGetMediaSubType(source),
-            width: dimensions.width,
-            height: dimensions.height,
-            extensions: extensions as CFDictionary,
-            formatDescriptionOut: &target
+        var target: Unmanaged<CMVideoFormatDescription>?
+        let status = PBFFmpegVideoFormatDescriptionCreate(
+            nil,
+            source,
+            nil,
+            extensions as CFDictionary,
+            &target
         )
         guard status == noErr, let target else {
             throw VideoSampleFormatOverrideError.formatDescriptionCreationFailed(status)
         }
+        let rewritten = target.takeRetainedValue()
 
         cacheLock.lock()
-        formatCache[key] = CachedFormat(source: source, rewritten: target)
+        formatCache[key] = CachedFormat(source: source, rewritten: rewritten)
         cacheLock.unlock()
-        return target
+        return rewritten
     }
 
     private func sampleTimings(of sampleBuffer: CMSampleBuffer) throws -> [CMSampleTimingInfo] {

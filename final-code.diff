@@ -1,0 +1,1638 @@
+diff --git a/.audit/format-description-owner.tsv b/.audit/format-description-owner.tsv
+new file mode 100644
+index 0000000000000000000000000000000000000000..d8b46e0959b7b44aa43da47eafc002b1d261f6f7
+--- /dev/null
++++ b/.audit/format-description-owner.tsv
+@@ -0,0 +1,10 @@
++ts	phase	decision	why	evidence	result
++2026-08-16T20:05:00+09:00	frame	accepted F1 through F5 and G1 through G2 as the complete contract	the plan and user request define both the result and minimum proof	/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/docs/plans/03-media-byte-stream/overview.md	contract fixed
++2026-08-16T20:10:00+09:00	baseline	restored the ignored FFmpeg xcframework from the main worktree	the worktree omitted the local binary target required by both verification paths	Packages/PlaybackCore/.gitignore	verification channel restored
++2026-08-16T20:15:00+09:00	baseline	captured the named PlaybackCore failure baseline	parity and unit comparison must bracket the refactor	Packages/PlaybackCore	8 fixed baseline failures and 13 issues reproduced; one documented ProRes flake appeared only on a neighboring run
++2026-08-16T20:30:00+09:00	implementation	replaced all public construction paths with PBFFmpegVideoFormatDescriptionCreate	F2 and G1 require one owner and one construction entry	Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c	reader, source-preservation, and presentation-override requests share one C entry; five file-shape branches remain internal
++2026-08-16T20:33:00+09:00	implementation	moved source Dolby Vision and stereo enhancement facts into MediaSourceInformation	F3 requires source facts to live in one value	Packages/PlaybackCore/Sources/PlaybackCore/MediaSourceInformation.swift	old JSON decodes with zero and false defaults; provider diagnostics read the shared source value
++2026-08-16T20:35:00+09:00	defense	added the format-description ownership checker to both app build phases	G1 and G2 require build failure for violations and unavailable checks	Scripts/verification/verify_format_description_ownership.py	direct pass returned 0; missing-root simulation returned 2 with a file-specific reason
++2026-08-16T20:40:00+09:00	verification	built the visionOS app and reran PlaybackCore tests	the build phase and behavior baseline must execute on the changed artifacts	Enchron.xcodeproj/project.pbxproj	visionOS generic build succeeded; PlaybackCore retained the fixed 8 failure names and 13 issues
++2026-08-16T20:41:00+09:00	review	accepted one Comment Sicko deletion and retained the public conflict-rule contract	the implementation comment repeated the header while F5 requires the rule to remain explicit	Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h	deleted 2 repeated C comment lines; no MUST KILL or suppression findings remained
++2026-08-16T22:02:30+09:00	verification	compared the complete before and after source parity matrices by sample, transport, and decode-visible field	V1 requires field equality across the refactor, independent of pre-existing local-to-HTTP differences	/tmp/ench-format-parity-before.json and /tmp/ench-format-parity-after.json	107 matching sample names, zero field mismatches, and matching normalized SHA-256 cf669d9ec9480ee6b019e6f4b48178080b91eadfa8d9208c29f7b54d2beda97c
+diff --git a/Enchron.xcodeproj/project.pbxproj b/Enchron.xcodeproj/project.pbxproj
+index 107517ca1044edb675558c572a74c0b0dda03f02..9b72125e8fd38b06b6ef9237c7ed839e99d18bce 100644
+--- a/Enchron.xcodeproj/project.pbxproj
++++ b/Enchron.xcodeproj/project.pbxproj
+@@ -639,6 +639,11 @@
+ 				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
+ 			);
+ 			inputPaths = (
++				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift",
++				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
++				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
++				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
++				"$(SRCROOT)/Scripts/verification/verify_format_description_ownership.py",
+ 				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
+ 				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
+ 				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
+@@ -659,7 +664,7 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 			shellPath = /bin/sh;
+-			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
++			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\npython3 \"$SRCROOT/Scripts/verification/verify_format_description_ownership.py\"\n";
+ 		};
+ 		E30000022FA3000100E1C001 /* Design Source Architecture */ = {
+ 			isa = PBXShellScriptBuildPhase;
+@@ -671,6 +676,11 @@
+ 				"$(SRCROOT)/Config/design_source_architecture_inputs.xcfilelist",
+ 			);
+ 			inputPaths = (
++				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift",
++				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift",
++				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c",
++				"$(SRCROOT)/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h",
++				"$(SRCROOT)/Scripts/verification/verify_format_description_ownership.py",
+ 				"$(SRCROOT)/Apps/DesignPreview/ComponentLibrary.swift",
+ 				"$(SRCROOT)/Apps/DesignPreview/ComponentPreviews.swift",
+ 				"$(SRCROOT)/Apps/DesignPreview/Components/EmptyPanelWindowContent.swift",
+@@ -691,7 +701,7 @@
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
+ 			shellPath = /bin/sh;
+-			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\n";
++			shellScript = "python3 \"$SRCROOT/Scripts/verification/verify_design_source_architecture.py\" --xcode-inputs\npython3 \"$SRCROOT/Scripts/verification/verify_format_description_ownership.py\"\n";
+ 		};
+ /* End PBXShellScriptBuildPhase section */
+ 
+diff --git a/Packages/PlaybackCore/Sources/PlaybackCore/MediaSourceInformation.swift b/Packages/PlaybackCore/Sources/PlaybackCore/MediaSourceInformation.swift
+index 788f30d3092ddf5bb05c2084c15670bfc85e8f99..c8bc788c9cc47974b0e51a3984dd0d85f197b298 100644
+--- a/Packages/PlaybackCore/Sources/PlaybackCore/MediaSourceInformation.swift
++++ b/Packages/PlaybackCore/Sources/PlaybackCore/MediaSourceInformation.swift
+@@ -99,15 +99,74 @@ public struct MediaSourceInformation: Codable, Equatable, Sendable {
+     public let containerFormat: String
+     public let durationSeconds: Double
+     public let streams: [MediaSourceStreamInformation]
++    public let containerSupportsSourceFormatDescription: Bool
++    public let dolbyVisionProfile: Int
++    public let dolbyVisionCrossCompatibilityID: Int
++    public let dolbyVisionHasEnhancementLayer: Bool
++    public let hasStereoVideoEnhancementLayer: Bool
+ 
+     public init(
+         containerFormat: String,
+         durationSeconds: Double,
+-        streams: [MediaSourceStreamInformation]
++        streams: [MediaSourceStreamInformation],
++        containerSupportsSourceFormatDescription: Bool = false,
++        dolbyVisionProfile: Int = 0,
++        dolbyVisionCrossCompatibilityID: Int = 0,
++        dolbyVisionHasEnhancementLayer: Bool = false,
++        hasStereoVideoEnhancementLayer: Bool = false
+     ) {
+         self.containerFormat = containerFormat
+         self.durationSeconds = durationSeconds
+         self.streams = streams
++        self.containerSupportsSourceFormatDescription =
++            containerSupportsSourceFormatDescription
++        self.dolbyVisionProfile = dolbyVisionProfile
++        self.dolbyVisionCrossCompatibilityID = dolbyVisionCrossCompatibilityID
++        self.dolbyVisionHasEnhancementLayer = dolbyVisionHasEnhancementLayer
++        self.hasStereoVideoEnhancementLayer = hasStereoVideoEnhancementLayer
++    }
++
++    private enum CodingKeys: String, CodingKey {
++        case containerFormat
++        case durationSeconds
++        case streams
++        case containerSupportsSourceFormatDescription
++        case dolbyVisionProfile
++        case dolbyVisionCrossCompatibilityID
++        case dolbyVisionHasEnhancementLayer
++        case hasStereoVideoEnhancementLayer
++    }
++
++    public init(from decoder: any Decoder) throws {
++        let container = try decoder.container(keyedBy: CodingKeys.self)
++        self.init(
++            containerFormat: try container.decode(String.self, forKey: .containerFormat),
++            durationSeconds: try container.decode(Double.self, forKey: .durationSeconds),
++            streams: try container.decode(
++                [MediaSourceStreamInformation].self,
++                forKey: .streams
++            ),
++            containerSupportsSourceFormatDescription: try container.decodeIfPresent(
++                Bool.self,
++                forKey: .containerSupportsSourceFormatDescription
++            ) ?? false,
++            dolbyVisionProfile: try container.decodeIfPresent(
++                Int.self,
++                forKey: .dolbyVisionProfile
++            ) ?? 0,
++            dolbyVisionCrossCompatibilityID: try container.decodeIfPresent(
++                Int.self,
++                forKey: .dolbyVisionCrossCompatibilityID
++            ) ?? 0,
++            dolbyVisionHasEnhancementLayer: try container.decodeIfPresent(
++                Bool.self,
++                forKey: .dolbyVisionHasEnhancementLayer
++            ) ?? false,
++            hasStereoVideoEnhancementLayer: try container.decodeIfPresent(
++                Bool.self,
++                forKey: .hasStereoVideoEnhancementLayer
++            ) ?? false
++        )
+     }
+ }
+ 
+@@ -177,7 +236,7 @@ struct SystemMediaSourceInformationLoader: MediaSourceInformationLoading {
+         }
+     }
+ 
+-    private static func copy(
++    static func copy(
+         _ handle: OpaquePointer
+     ) throws -> MediaSourceInformation {
+         let streamCount = Int(PBFFmpegMediaSourceInformationGetStreamCount(handle))
+@@ -253,7 +312,19 @@ struct SystemMediaSourceInformationLoader: MediaSourceInformationLoading {
+                 cString: PBFFmpegMediaSourceInformationGetContainerFormat(handle)
+             ),
+             durationSeconds: PBFFmpegMediaSourceInformationGetDurationSeconds(handle),
+-            streams: streams
++            streams: streams,
++            containerSupportsSourceFormatDescription:
++                PBFFmpegMediaSourceInformationContainerSupportsSourceFormatDescription(handle),
++            dolbyVisionProfile: Int(
++                PBFFmpegMediaSourceInformationGetDolbyVisionProfile(handle)
++            ),
++            dolbyVisionCrossCompatibilityID: Int(
++                PBFFmpegMediaSourceInformationGetDolbyVisionCrossCompatibilityID(handle)
++            ),
++            dolbyVisionHasEnhancementLayer:
++                PBFFmpegMediaSourceInformationDolbyVisionHasEnhancementLayer(handle),
++            hasStereoVideoEnhancementLayer:
++                PBFFmpegMediaSourceInformationHasStereoVideoEnhancementLayer(handle)
+         )
+     }
+ 
+diff --git a/Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession.swift b/Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession.swift
+index 941408fef131b739968dda13ab1ce27a62a67a85..3d32d38e40751c6c4c3dbb9c17f82aa12a683118 100644
+--- a/Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession.swift
++++ b/Packages/PlaybackCore/Sources/PlaybackCore/SampleBufferPlaybackSession.swift
+@@ -435,7 +435,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
+             details: ["source": url.lastPathComponent]
+         )
+         do {
+-            try await provider.prepare(url: url, asset: asset, startTime: startTime)
++            try await provider.prepare(
++                url: url,
++                asset: asset,
++                sourceInformation: sourceInformation,
++                startTime: startTime
++            )
+         } catch {
+             recordFailure(error, node: .providerOpen, kind: "provider.openFailed")
+             throw error
+@@ -494,10 +499,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
+         diagnostics.nominalFrameRate = provider.info.nominalFrameRate
+         diagnostics.codecName = provider.info.codecName
+         diagnostics.isMVHEVC = provider.info.isMVHEVC
+-        diagnostics.dolbyVisionProfile = provider.info.dolbyVisionProfile
++        diagnostics.dolbyVisionProfile = sourceInformation?.dolbyVisionProfile ?? 0
+         diagnostics.dolbyVisionCrossCompatibilityID =
+-            provider.info.dolbyVisionCrossCompatibilityID
+-        diagnostics.dolbyVisionHasEnhancementLayer = provider.info.dolbyVisionHasEnhancementLayer
++            sourceInformation?.dolbyVisionCrossCompatibilityID ?? 0
++        diagnostics.dolbyVisionHasEnhancementLayer =
++            sourceInformation?.dolbyVisionHasEnhancementLayer ?? false
+         diagnostics.trackFormatHasMasteringDisplayMetadata = provider.info.trackFormatHasMasteringDisplayMetadata
+         diagnostics.trackFormatHasContentLightLevelMetadata = provider.info.trackFormatHasContentLightLevelMetadata
+         let openSnapshot = ProviderOpenSnapshot(
+diff --git a/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift b/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift
+index 83cbf748275a7d0651247540536844c6e62a41cb..6e499ce3f667f5e5893d122c07698e5f39c09a1d 100644
+--- a/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift
++++ b/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleFormatOverride.swift
+@@ -1,5 +1,6 @@
+ import CoreMedia
+ import Foundation
++import PlaybackFFmpegBridge
+ 
+ public enum VideoStereoLayout: String, CaseIterable, Codable, Sendable {
+     case mono
+@@ -287,24 +288,23 @@ public final class VideoSampleFormatOverride: @unchecked Sendable {
+             )
+         }
+ 
+-        let dimensions = CMVideoFormatDescriptionGetDimensions(source)
+-        var target: CMFormatDescription?
+-        let status = CMVideoFormatDescriptionCreate(
+-            allocator: kCFAllocatorDefault,
+-            codecType: CMFormatDescriptionGetMediaSubType(source),
+-            width: dimensions.width,
+-            height: dimensions.height,
+-            extensions: extensions as CFDictionary,
+-            formatDescriptionOut: &target
++        var target: Unmanaged<CMVideoFormatDescription>?
++        let status = PBFFmpegVideoFormatDescriptionCreate(
++            nil,
++            source,
++            nil,
++            extensions as CFDictionary,
++            &target
+         )
+         guard status == noErr, let target else {
+             throw VideoSampleFormatOverrideError.formatDescriptionCreationFailed(status)
+         }
++        let rewritten = target.takeRetainedValue()
+ 
+         cacheLock.lock()
+-        formatCache[key] = CachedFormat(source: source, rewritten: target)
++        formatCache[key] = CachedFormat(source: source, rewritten: rewritten)
+         cacheLock.unlock()
+-        return target
++        return rewritten
+     }
+ 
+     private func sampleTimings(of sampleBuffer: CMSampleBuffer) throws -> [CMSampleTimingInfo] {
+diff --git a/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift b/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift
+index d3bec2b65f2b6974c074504c0d46b68e97d11fd4..6586f9630a4c68c41bf270a75b4002311cb4e293 100644
+--- a/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift
++++ b/Packages/PlaybackCore/Sources/PlaybackCore/VideoSampleProvider.swift
+@@ -21,15 +21,6 @@ struct VideoSampleProviderInfo: Sendable {
+     var transferFunction = "unknown"
+     var yCbCrMatrix = "unknown"
+     var range = "unknown"
+-    /// Zero when no video stream in the source carries a Dolby Vision configuration
+-    /// record. Profile 7 keeps that record on its enhancement stream, so reading only
+-    /// the decoded stream would report a plain HDR10 track and lose the claim.
+-    var dolbyVisionProfile = 0
+-    var dolbyVisionCrossCompatibilityID = 0
+-    /// Set when the source stores its picture across two layers. Only the base layer
+-    /// reaches a single-stream decoder input, which is what makes the delivered
+-    /// picture a fallback rather than the Dolby Vision the source claims.
+-    var dolbyVisionHasEnhancementLayer = false
+     var seekability = ObservedStringFact(.unknown)
+     var selectedRawTrackMapping = ObservedStringFact(.notExposed)
+     var timebase = ObservedStringFact(.notExposed)
+@@ -42,12 +33,28 @@ struct VideoSampleProviderInfo: Sendable {
+ protocol VideoSampleProvider: AnyObject {
+     var info: VideoSampleProviderInfo { get }
+ 
+-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws
++    func prepare(
++        url: URL,
++        asset: PlaybackAsset?,
++        sourceInformation: MediaSourceInformation?,
++        startTime: CMTime
++    ) async throws
+     func start() throws
+     func nextEvent() async throws -> VideoSampleProviderEvent
+     func cancel()
+ }
+ 
++extension VideoSampleProvider {
++    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
++        try await prepare(
++            url: url,
++            asset: asset,
++            sourceInformation: nil,
++            startTime: startTime
++        )
++    }
++}
++
+ enum VideoSampleProviderEvent {
+     case sample(CMSampleBuffer)
+     case formatChanged
+@@ -84,6 +91,9 @@ protocol FFmpegVideoReaderOperations: Sendable {
+     func copyCompressedFormatDescription(
+         from reader: FFmpegVideoReaderHandle
+     ) -> SendableVideoFormatDescription?
++    func copyMediaSourceInformation(
++        from reader: FFmpegVideoReaderHandle
++    ) -> MediaSourceInformation?
+     func cancel(_ reader: FFmpegVideoReaderHandle)
+     func destroy(_ reader: FFmpegVideoReaderHandle)
+ }
+@@ -94,6 +104,12 @@ extension FFmpegVideoReaderOperations {
+     ) -> SendableVideoFormatDescription? {
+         nil
+     }
++
++    func copyMediaSourceInformation(
++        from reader: FFmpegVideoReaderHandle
++    ) -> MediaSourceInformation? {
++        nil
++    }
+ }
+ 
+ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
+@@ -165,12 +181,6 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
+             transferFunction: String(cString: PBFFmpegReaderGetTransferFunction(reader.pointer)),
+             yCbCrMatrix: String(cString: PBFFmpegReaderGetYCbCrMatrix(reader.pointer)),
+             range: String(cString: PBFFmpegReaderGetColorRange(reader.pointer)),
+-            dolbyVisionProfile: Int(PBFFmpegReaderGetDolbyVisionProfile(reader.pointer)),
+-            dolbyVisionCrossCompatibilityID: Int(
+-                PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(reader.pointer)
+-            ),
+-            dolbyVisionHasEnhancementLayer:
+-                PBFFmpegReaderDolbyVisionHasEnhancementLayer(reader.pointer),
+             seekability: .init(known: "providerRebuild"),
+             selectedRawTrackMapping: .init(
+                 known: "stream:\(PBFFmpegReaderGetVideoStreamIndex(reader.pointer))"
+@@ -240,13 +250,29 @@ struct SystemFFmpegVideoReaderOperations: FFmpegVideoReaderOperations {
+         from reader: FFmpegVideoReaderHandle
+     ) -> SendableVideoFormatDescription? {
+         var format: Unmanaged<CMVideoFormatDescription>?
+-        guard PBFFmpegReaderCopyCompressedFormatDescription(reader.pointer, &format),
+-              let format else {
++        let status = PBFFmpegVideoFormatDescriptionCreate(
++            reader.pointer,
++            nil,
++            nil,
++            nil,
++            &format
++        )
++        guard status == noErr, let format else {
+             return nil
+         }
+         return SendableVideoFormatDescription(value: format.takeRetainedValue())
+     }
+ 
++    func copyMediaSourceInformation(
++        from reader: FFmpegVideoReaderHandle
++    ) -> MediaSourceInformation? {
++        guard let handle = PBFFmpegReaderCopyMediaSourceInformation(reader.pointer) else {
++            return nil
++        }
++        defer { PBFFmpegMediaSourceInformationDestroy(handle) }
++        return try? SystemMediaSourceInformationLoader.copy(handle)
++    }
++
+     func cancel(_ reader: FFmpegVideoReaderHandle) {
+         PBFFmpegReaderCancel(reader.pointer)
+     }
+@@ -295,13 +321,18 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
+         self.readerQueue = readerQueue
+     }
+ 
+-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
++    func prepare(
++        url: URL,
++        asset: PlaybackAsset?,
++        sourceInformation suppliedSourceInformation: MediaSourceInformation?,
++        startTime: CMTime
++    ) async throws {
+         cancel()
+         let operationGeneration = readerLock.withLock { generation }
+         let source = FFmpegSourceLocator.argument(for: url)
+         try await withTaskCancellationHandler {
+-            try await withCheckedThrowingContinuation {
+-                (continuation: CheckedContinuation<Void, any Error>) in
++            let openedSourceInformation = try await withCheckedThrowingContinuation {
++                (continuation: CheckedContinuation<MediaSourceInformation?, any Error>) in
+                 readerQueue.async { [self] in
+                     guard isCurrent(operationGeneration) else {
+                         continuation.resume(throwing: CancellationError())
+@@ -333,6 +364,9 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
+                         let bridgeFormat = operations.copyCompressedFormatDescription(
+                             from: newReader
+                         )
++                        let sourceInformation = operations.copyMediaSourceInformation(
++                            from: newReader
++                        )
+                         guard accept(
+                             newInfo,
+                             bridgeFormatDescription: bridgeFormat?.value,
+@@ -342,7 +376,7 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
+                             continuation.resume(throwing: CancellationError())
+                             return
+                         }
+-                        continuation.resume()
++                        continuation.resume(returning: sourceInformation)
+                     } catch {
+                         guard removeIfCurrent(newReader, generation: operationGeneration) else {
+                             continuation.resume(throwing: CancellationError())
+@@ -354,13 +388,13 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
+                 }
+             }
+             try Task.checkCancellation()
++            let sourceInformation = suppliedSourceInformation ?? openedSourceInformation
+             let (openedInfo, bridgeFormat) = readerLock.withLock {
+                 (storedInfo, bridgeFormatDescription)
+             }
+-            if Self.shouldPreserveAppleSourceFormat(
+-                for: url,
++            if Self.shouldConsultAVFoundation(
+                 suppliedAsset: asset,
+-                info: openedInfo
++                sourceInformation: sourceInformation
+             ), let bridgeFormat {
+                 let sourceAsset = asset?.value ?? AVURLAsset(url: url)
+                 let sourceFormat: CMFormatDescription?
+@@ -574,16 +608,12 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
+         return match
+     }
+ 
+-    private static func shouldPreserveAppleSourceFormat(
+-        for url: URL,
++    private static func shouldConsultAVFoundation(
+         suppliedAsset: PlaybackAsset?,
+-        info: VideoSampleProviderInfo
++        sourceInformation: MediaSourceInformation?
+     ) -> Bool {
+-        if info.isMVHEVC || suppliedAsset != nil { return true }
+-        let fileExtension = url.pathExtension.lowercased()
+-        if ["mov", "mp4", "m4v"].contains(fileExtension) { return true }
+-        let container = info.containerFormat.lowercased()
+-        return container.contains("mov") || container.contains("mp4")
++        suppliedAsset != nil ||
++            sourceInformation?.containerSupportsSourceFormatDescription == true
+     }
+ 
+     private static func uniqueAppleImmersiveSourceFormatMetadata(
+@@ -659,32 +689,18 @@ final class FFmpegSampleProvider: VideoSampleProvider, @unchecked Sendable {
+         _ sourceFormat: CMVideoFormatDescription,
+         on bridgeFormat: CMVideoFormatDescription
+     ) throws -> CMVideoFormatDescription {
+-        guard CMFormatDescriptionGetMediaSubType(sourceFormat)
+-                != CMFormatDescriptionGetMediaSubType(bridgeFormat) else {
+-            return sourceFormat
+-        }
+-        var extensions = CMFormatDescriptionGetExtensions(sourceFormat)
+-            as? [String: Any] ?? [:]
+-        var atoms = decoderConfigurationAtoms(in: sourceFormat)
+-        atoms.removeValue(forKey: "dvcC")
+-        atoms.removeValue(forKey: "dvvC")
+-        extensions[
+-            kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms as String
+-        ] = atoms
+-        let dimensions = CMVideoFormatDescriptionGetDimensions(bridgeFormat)
+-        var preserved: CMVideoFormatDescription?
+-        let status = CMVideoFormatDescriptionCreate(
+-            allocator: kCFAllocatorDefault,
+-            codecType: CMFormatDescriptionGetMediaSubType(bridgeFormat),
+-            width: dimensions.width,
+-            height: dimensions.height,
+-            extensions: extensions as CFDictionary,
+-            formatDescriptionOut: &preserved
++        var preserved: Unmanaged<CMVideoFormatDescription>?
++        let status = PBFFmpegVideoFormatDescriptionCreate(
++            nil,
++            sourceFormat,
++            bridgeFormat,
++            nil,
++            &preserved
+         )
+         guard status == noErr, let preserved else {
+             throw VideoSampleFormatOverrideError.formatDescriptionCreationFailed(status)
+         }
+-        return preserved
++        return preserved.takeRetainedValue()
+     }
+ 
+     private static func sourceVideoFormatHasSameSubtypeAndDimensions(
+diff --git a/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c b/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c
+index f99b5ce7bcc90a42c984792710934fe93f9bbc83..240ef15a83d1d491733a65510755727fbd4a46fa 100644
+--- a/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c
++++ b/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c
+@@ -90,6 +90,11 @@ typedef struct {
+ struct PBFFmpegMediaSourceInformation {
+     char containerFormat[64];
+     double durationSeconds;
++    bool containerSupportsSourceFormatDescription;
++    int dolbyVisionProfile;
++    int dolbyVisionCrossCompatibilityID;
++    bool dolbyVisionHasEnhancementLayer;
++    bool hasStereoVideoEnhancementLayer;
+     int streamCount;
+     PBFFmpegMediaStreamStorage *streams;
+ };
+@@ -770,7 +775,7 @@ static void set_av_error(char *buffer, size_t size, const char *operation, int c
+ // Collapsing onto it keeps one branch downstream. The 'apac' sample entry tag
+ // is what actually establishes the stream is Apple's, so it gates the rewrite.
+ // Apple decodes it either way; FFmpeg only carries the packets.
+-static void normalize_mov_apac_codec_id(AVFormatContext *context) {
++static void normalize_mov_codec_ids(AVFormatContext *context) {
+     if (!context) return;
+     for (unsigned int index = 0; index < context->nb_streams; index++) {
+         AVCodecParameters *parameters = context->streams[index]->codecpar;
+@@ -780,9 +785,29 @@ static void normalize_mov_apac_codec_id(AVFormatContext *context) {
+             parameters->codec_tag == MKTAG('a', 'p', 'a', 'c')) {
+             parameters->codec_id = AV_CODEC_ID_APAC;
+         }
++        if (parameters->codec_type == AVMEDIA_TYPE_VIDEO &&
++            parameters->codec_id == AV_CODEC_ID_NONE &&
++            parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
++            // FFmpeg 8.0.1 preserves the dav1 sample entry, av1C extradata, and
++            // Dolby Vision configuration but does not classify the track as AV1.
++            parameters->codec_id = AV_CODEC_ID_AV1;
++        }
+     }
+ }
+ 
++static int finalize_stream_information(
++    AVFormatContext *context,
++    PBFFmpegSourceReadContext *sourceReadContext,
++    bool probesStreamInformation
++) {
++    int result = probesStreamInformation
++        ? avformat_find_stream_info(context, NULL)
++        : 0;
++    if (probesStreamInformation) publish_source_bytes(sourceReadContext);
++    normalize_mov_codec_ids(context);
++    return result;
++}
++
+ /// A disc image carries no header a probe can read, because its first bytes are
+ /// filesystem descriptors rather than media. FFmpeg scores those descriptors as an
+ /// MPEG program stream and opens the image with one unreadable video stream, so the
+@@ -908,7 +933,6 @@ static int open_media_source_for_audio(
+         close_media_source(&context, sourceReadContext);
+         return result;
+     }
+-    normalize_mov_apac_codec_id(context);
+     PBStreamInformationRead informationRead = {0};
+     result = read_stream_information(
+         context,
+@@ -920,8 +944,6 @@ static int open_media_source_for_audio(
+         close_media_source(&context, sourceReadContext);
+         return result;
+     }
+-    normalize_mov_apac_codec_id(context);
+-
+     bool needsMoreProbe = false;
+     for (unsigned int index = 0; index < context->nb_streams; index++) {
+         if (audio_stream_needs_more_probe(context->streams[index])) {
+@@ -936,8 +958,11 @@ static int open_media_source_for_audio(
+ 
+     if (informationRead.movFamily) {
+         if (informationRead.skippedProbe) {
+-            result = avformat_find_stream_info(context, NULL);
+-            publish_source_bytes(sourceReadContext);
++            result = finalize_stream_information(
++                context,
++                sourceReadContext,
++                true
++            );
+             if (result < 0) {
+                 set_av_error(
+                     errorBuffer,
+@@ -948,7 +973,6 @@ static int open_media_source_for_audio(
+                 close_media_source(&context, sourceReadContext);
+                 return result;
+             }
+-            normalize_mov_apac_codec_id(context);
+         }
+         probe_delayed_audio_parameters(context);
+         publish_source_bytes(sourceReadContext);
+@@ -975,14 +999,12 @@ static int open_media_source_for_audio(
+         close_media_source(&context, sourceReadContext);
+         return result;
+     }
+-    normalize_mov_apac_codec_id(context);
+     result = read_stream_information(context, sourceReadContext, NULL);
+     if (result < 0) {
+         set_av_error(errorBuffer, errorBufferSize, "Read extended audio stream information", result);
+         close_media_source(&context, sourceReadContext);
+         return result;
+     }
+-    normalize_mov_apac_codec_id(context);
+     probe_delayed_audio_parameters(context);
+     publish_source_bytes(sourceReadContext);
+     if (cancellation_requested(cancelled)) {
+@@ -1293,6 +1315,11 @@ static CFStringRef color_primaries(enum AVColorPrimaries value) {
+     }
+ }
+ 
++static const AVPacketSideData *codec_side_data(
++    const AVCodecParameters *parameters,
++    enum AVPacketSideDataType type
++);
++
+ /// Dolby Vision Profile 7 stores its picture across two video streams, and the
+ /// configuration record sits on the enhancement stream rather than on the base layer
+ /// that gets decoded. Scanning every video stream is therefore the only way to learn
+@@ -1300,9 +1327,35 @@ static CFStringRef color_primaries(enum AVColorPrimaries value) {
+ /// reports a plain HDR10 track and the claim disappears. What separates a Dolby Vision
+ /// picture from a base layer standing in for one is the enhancement layer flag, which
+ /// reads the same wherever the record was found.
+-static void detect_dolby_vision(PBFFmpegReader *reader) {
+-    for (unsigned index = 0; index < reader->formatContext->nb_streams; index++) {
+-        AVStream *candidate = reader->formatContext->streams[index];
++typedef struct {
++    int dolbyVisionProfile;
++    int dolbyVisionCrossCompatibilityID;
++    bool dolbyVisionHasEnhancementLayer;
++    bool hasStereoVideoEnhancementLayer;
++} PBVideoSourceFacts;
++
++static PBVideoSourceFacts video_source_facts(
++    const AVFormatContext *context,
++    int decodedStreamIndex
++) {
++    PBVideoSourceFacts facts = {0};
++    if (!context || decodedStreamIndex < 0 ||
++        decodedStreamIndex >= (int)context->nb_streams) {
++        return facts;
++    }
++    const AVCodecParameters *decodedParameters =
++        context->streams[decodedStreamIndex]->codecpar;
++    const AVPacketSideData *stereoData = codec_side_data(
++        decodedParameters,
++        AV_PKT_DATA_STEREO3D
++    );
++    if (stereoData && stereoData->size >= sizeof(AVStereo3D)) {
++        const AVStereo3D *stereo = (const AVStereo3D *)stereoData->data;
++        facts.hasStereoVideoEnhancementLayer =
++            stereo->view == AV_STEREO3D_VIEW_PACKED;
++    }
++    for (unsigned index = 0; index < context->nb_streams; index++) {
++        AVStream *candidate = context->streams[index];
+         if (candidate->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) continue;
+         const AVPacketSideData *entry = av_packet_side_data_get(
+             candidate->codecpar->coded_side_data,
+@@ -1312,7 +1365,7 @@ static void detect_dolby_vision(PBFFmpegReader *reader) {
+         if (!entry || entry->size < sizeof(AVDOVIDecoderConfigurationRecord)) continue;
+         const AVDOVIDecoderConfigurationRecord *record =
+             (const AVDOVIDecoderConfigurationRecord *)entry->data;
+-        bool onDecodedStream = (int)index == reader->videoStreamIndex;
++        bool onDecodedStream = (int)index == decodedStreamIndex;
+         if (!onDecodedStream) {
+             // Believed only when it describes a pure enhancement layer, because such a
+             // layer cannot stand alone and so belongs to the stream being decoded. A
+@@ -1321,13 +1374,27 @@ static void detect_dolby_vision(PBFFmpegReader *reader) {
+             if (record->bl_present_flag != 0) continue;
+             // The decoded stream's own record outranks this one, so a record already
+             // taken from anywhere is left in place until that stream is reached.
+-            if (reader->dolbyVisionProfile != 0) continue;
++            if (facts.dolbyVisionProfile != 0) continue;
+         }
+-        reader->dolbyVisionProfile = record->dv_profile;
+-        reader->dolbyVisionCrossCompatibilityID = record->dv_bl_signal_compatibility_id;
+-        reader->dolbyVisionHasEnhancementLayer = record->el_present_flag != 0;
+-        if (onDecodedStream) return;
++        facts.dolbyVisionProfile = record->dv_profile;
++        facts.dolbyVisionCrossCompatibilityID =
++            record->dv_bl_signal_compatibility_id;
++        facts.dolbyVisionHasEnhancementLayer = record->el_present_flag != 0;
++        if (onDecodedStream) return facts;
+     }
++    return facts;
++}
++
++static void detect_dolby_vision(PBFFmpegReader *reader) {
++    PBVideoSourceFacts facts = video_source_facts(
++        reader->formatContext,
++        reader->videoStreamIndex
++    );
++    reader->dolbyVisionProfile = facts.dolbyVisionProfile;
++    reader->dolbyVisionCrossCompatibilityID =
++        facts.dolbyVisionCrossCompatibilityID;
++    reader->dolbyVisionHasEnhancementLayer =
++        facts.dolbyVisionHasEnhancementLayer;
+ }
+ 
+ static bool context_uses_mov_demuxer(const AVFormatContext *context);
+@@ -1713,6 +1780,119 @@ static OSStatus create_format_by_adding_pixel_aspect_ratio(
+     return status;
+ }
+ 
++static CFDictionaryRef decoder_configuration_atoms(
++    CMVideoFormatDescriptionRef format
++) {
++    if (!format) return NULL;
++    CFTypeRef atoms = CMFormatDescriptionGetExtension(
++        format,
++        kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms
++    );
++    return atoms && CFGetTypeID(atoms) == CFDictionaryGetTypeID()
++        ? (CFDictionaryRef)atoms
++        : NULL;
++}
++
++static OSStatus create_format_from_source(
++    CMVideoFormatDescriptionRef sourceFormat,
++    CMVideoFormatDescriptionRef bridgeFormat,
++    CFDictionaryRef replacementExtensions,
++    CMVideoFormatDescriptionRef *formatOut
++) {
++    if (!formatOut) return kCMFormatDescriptionError_InvalidParameter;
++    *formatOut = NULL;
++    if ((bridgeFormat != NULL) == (replacementExtensions != NULL)) {
++        return kCMFormatDescriptionError_InvalidParameter;
++    }
++    if (!sourceFormat ||
++        CMFormatDescriptionGetMediaType(sourceFormat) != kCMMediaType_Video) {
++        return kCMFormatDescriptionError_InvalidParameter;
++    }
++    if (bridgeFormat &&
++        CMFormatDescriptionGetMediaType(bridgeFormat) != kCMMediaType_Video) {
++        return kCMFormatDescriptionError_InvalidParameter;
++    }
++
++    FourCharCode sourceType = CMFormatDescriptionGetMediaSubType(sourceFormat);
++    FourCharCode targetType = bridgeFormat
++        ? CMFormatDescriptionGetMediaSubType(bridgeFormat)
++        : sourceType;
++
++    CFDictionaryRef sourceExtensions = CMFormatDescriptionGetExtensions(sourceFormat);
++    CFMutableDictionaryRef extensions = replacementExtensions && !bridgeFormat
++        ? CFDictionaryCreateMutableCopy(
++            kCFAllocatorDefault,
++            0,
++            replacementExtensions
++        )
++        : (sourceExtensions
++            ? CFDictionaryCreateMutableCopy(
++                kCFAllocatorDefault,
++                0,
++                sourceExtensions
++            )
++            : CFDictionaryCreateMutable(
++                kCFAllocatorDefault,
++                0,
++                &kCFTypeDictionaryKeyCallBacks,
++                &kCFTypeDictionaryValueCallBacks
++            ));
++    if (!extensions) return kCMFormatDescriptionError_AllocationFailed;
++
++    if (bridgeFormat) {
++        CFDictionaryRef sourceAtoms = decoder_configuration_atoms(sourceFormat);
++        CFDictionaryRef bridgeAtoms = decoder_configuration_atoms(bridgeFormat);
++        CFMutableDictionaryRef mergedAtoms = sourceAtoms
++            ? CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, sourceAtoms)
++            : CFDictionaryCreateMutable(
++                kCFAllocatorDefault,
++                0,
++                &kCFTypeDictionaryKeyCallBacks,
++                &kCFTypeDictionaryValueCallBacks
++            );
++        if (!mergedAtoms) {
++            CFRelease(extensions);
++            return kCMFormatDescriptionError_AllocationFailed;
++        }
++        const CFStringRef configurationAtoms[] = {
++            CFSTR("avcC"), CFSTR("hvcC"), CFSTR("lhvC"),
++            CFSTR("dvcC"), CFSTR("dvvC"), CFSTR("av1C"),
++        };
++        if (bridgeAtoms) {
++            for (size_t index = 0;
++                 index < sizeof(configurationAtoms) / sizeof(configurationAtoms[0]);
++                 index++) {
++                CFStringRef atom = configurationAtoms[index];
++                if (CFDictionaryContainsKey(mergedAtoms, atom)) continue;
++                CFTypeRef value = CFDictionaryGetValue(bridgeAtoms, atom);
++                if (value) CFDictionarySetValue(mergedAtoms, atom, value);
++            }
++        }
++        if (CFDictionaryGetCount(mergedAtoms) > 0) {
++            CFDictionarySetValue(
++                extensions,
++                kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms,
++                mergedAtoms
++            );
++        }
++        CFRelease(mergedAtoms);
++    }
++
++    CMVideoDimensions dimensions = bridgeFormat
++        ? CMVideoFormatDescriptionGetDimensions(bridgeFormat)
++        : CMVideoFormatDescriptionGetDimensions(sourceFormat);
++    OSStatus status = CMVideoFormatDescriptionCreate(
++        kCFAllocatorDefault,
++        targetType,
++        dimensions.width,
++        dimensions.height,
++        extensions,
++        formatOut
++    );
++    CFRelease(extensions);
++    return status;
++}
++
+ static const uint8_t *find_start_code(const uint8_t *position, const uint8_t *end, size_t *length) {
+     for (const uint8_t *cursor = position; cursor + 3 <= end; cursor++) {
+         if (cursor[0] != 0 || cursor[1] != 0) continue;
+@@ -1822,11 +2002,16 @@ static bool mov_stream_table_is_qualified(const AVFormatContext *context) {
+         const AVCodecParameters *parameters = context->streams[index]->codecpar;
+         if (parameters->codec_type != AVMEDIA_TYPE_VIDEO) continue;
+         hasVideo = true;
+-        if (parameters->codec_id == AV_CODEC_ID_NONE ||
++        enum AVCodecID codecID = parameters->codec_id;
++        if (codecID == AV_CODEC_ID_NONE &&
++            parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
++            codecID = AV_CODEC_ID_AV1;
++        }
++        if (codecID == AV_CODEC_ID_NONE ||
+             parameters->width <= 0 || parameters->height <= 0) {
+             return false;
+         }
+-        switch (parameters->codec_id) {
++        switch (codecID) {
+             case AV_CODEC_ID_H264:
+             case AV_CODEC_ID_HEVC:
+                 if (!video_codec_configuration_is_usable(parameters)) return false;
+@@ -1884,14 +2069,14 @@ static int read_stream_information(
+         .movFamily = context_uses_mov_demuxer(context),
+         .skippedProbe = false,
+     };
++    int result;
+     if (read.movFamily && mov_stream_table_is_qualified(context)) {
++        result = finalize_stream_information(context, sourceReadContext, false);
+         fill_video_color_from_codec_configuration(context);
+         read.skippedProbe = true;
+-        if (readOut) *readOut = read;
+-        return 0;
++    } else {
++        result = finalize_stream_information(context, sourceReadContext, true);
+     }
+-    int result = avformat_find_stream_info(context, NULL);
+-    publish_source_bytes(sourceReadContext);
+     if (readOut) *readOut = read;
+     return result;
+ }
+@@ -2477,6 +2662,50 @@ static OSStatus create_compressed_format(
+     return status;
+ }
+ 
++OSStatus PBFFmpegVideoFormatDescriptionCreate(
++    PBFFmpegReader *reader,
++    CMVideoFormatDescriptionRef sourceFormat,
++    CMVideoFormatDescriptionRef bridgeFormat,
++    CFDictionaryRef replacementExtensions,
++    CMVideoFormatDescriptionRef *formatOut
++) {
++    if (!formatOut) return kCMFormatDescriptionError_InvalidParameter;
++    *formatOut = NULL;
++    if (reader) {
++        if (sourceFormat || bridgeFormat || replacementExtensions) {
++            return kCMFormatDescriptionError_InvalidParameter;
++        }
++        if (reader->compressedFormat) {
++            *formatOut = (CMVideoFormatDescriptionRef)CFRetain(
++                reader->compressedFormat
++            );
++            return noErr;
++        }
++        if (!reader->formatContext || reader->videoStreamIndex < 0 ||
++            reader->videoStreamIndex >= (int)reader->formatContext->nb_streams) {
++            return kCMFormatDescriptionError_InvalidParameter;
++        }
++        AVStream *stream = reader->formatContext->streams[reader->videoStreamIndex];
++        AVRational sampleAspectRatio = av_guess_sample_aspect_ratio(
++            reader->formatContext,
++            stream,
++            NULL
++        );
++        return create_compressed_format(
++            stream->codecpar,
++            sampleAspectRatio,
++            formatOut,
++            &reader->convertsAnnexB
++        );
++    }
++    return create_format_from_source(
++        sourceFormat,
++        bridgeFormat,
++        replacementExtensions,
++        formatOut
++    );
++}
++
+ PBFFmpegReader *PBFFmpegReaderAllocate(void) {
+     PBFFmpegReader *reader = calloc(1, sizeof(PBFFmpegReader));
+     if (reader) atomic_init(&reader->cancelled, false);
+@@ -2490,21 +2719,6 @@ void PBFFmpegReaderSetSourceReadMonitor(
+     if (reader) reader->sourceReadContext.monitor = monitor;
+ }
+ 
+-static void normalize_mov_dolby_vision_av1_codec_id(AVFormatContext *context) {
+-    if (!context) return;
+-    for (unsigned int index = 0; index < context->nb_streams; index++) {
+-        AVCodecParameters *parameters = context->streams[index]->codecpar;
+-        if (parameters->codec_type == AVMEDIA_TYPE_VIDEO &&
+-            parameters->codec_id == AV_CODEC_ID_NONE &&
+-            parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
+-            // FFmpeg 8.0.1 preserves the dav1 sample entry, av1C extradata, and
+-            // Dolby Vision configuration but does not classify the track as AV1.
+-            // Normalize only that incomplete MOV result before stream probing.
+-            parameters->codec_id = AV_CODEC_ID_AV1;
+-        }
+-    }
+-}
+-
+ static PBFFmpegMediaStreamCategory media_stream_category(enum AVMediaType type) {
+     switch (type) {
+         case AVMEDIA_TYPE_VIDEO: return PBFFmpegMediaStreamCategoryVideo;
+@@ -2670,6 +2884,24 @@ static PBFFmpegMediaSourceInformation *copy_media_source_information(
+         context->iformat && context->iformat->name ? context->iformat->name : "unknown"
+     );
+     information->durationSeconds = media_source_duration_seconds(context);
++    information->containerSupportsSourceFormatDescription =
++        context_uses_mov_demuxer(context);
++    int videoStreamIndex = av_find_best_stream(
++        context,
++        AVMEDIA_TYPE_VIDEO,
++        -1,
++        -1,
++        NULL,
++        0
++    );
++    PBVideoSourceFacts facts = video_source_facts(context, videoStreamIndex);
++    information->dolbyVisionProfile = facts.dolbyVisionProfile;
++    information->dolbyVisionCrossCompatibilityID =
++        facts.dolbyVisionCrossCompatibilityID;
++    information->dolbyVisionHasEnhancementLayer =
++        facts.dolbyVisionHasEnhancementLayer;
++    information->hasStereoVideoEnhancementLayer =
++        facts.hasStereoVideoEnhancementLayer;
+     for (int index = 0; index < information->streamCount; index++) {
+         fill_media_stream_storage(&information->streams[index], context->streams[index]);
+     }
+@@ -2711,8 +2943,6 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
+         close_media_source(&context, &sourceReadContext);
+         return NULL;
+     }
+-    normalize_mov_apac_codec_id(context);
+-    normalize_mov_dolby_vision_av1_codec_id(context);
+     PBStreamInformationRead informationRead = {0};
+     result = read_stream_information(
+         context,
+@@ -2733,14 +2963,12 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
+         }
+     }
+     if (needsAudioProbe && informationRead.skippedProbe) {
+-        result = avformat_find_stream_info(context, NULL);
+-        publish_source_bytes(&sourceReadContext);
++        result = finalize_stream_information(context, &sourceReadContext, true);
+         if (result < 0) {
+             set_av_error(errorBuffer, errorBufferSize, "Read audio stream information", result);
+             close_media_source(&context, &sourceReadContext);
+             return NULL;
+         }
+-        normalize_mov_apac_codec_id(context);
+     }
+     if (needsAudioProbe) {
+         probe_delayed_audio_parameters(context);
+@@ -2804,8 +3032,6 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
+         PBFFmpegDemuxSourceDestroy(source);
+         return NULL;
+     }
+-    normalize_mov_apac_codec_id(source->formatContext);
+-    normalize_mov_dolby_vision_av1_codec_id(source->formatContext);
+     PBStreamInformationRead informationRead = {0};
+     result = read_stream_information(
+         source->formatContext,
+@@ -2825,14 +3051,16 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
+         }
+     }
+     if (needsAudioProbe && informationRead.skippedProbe) {
+-        result = avformat_find_stream_info(source->formatContext, NULL);
+-        publish_source_bytes(&source->sourceReadContext);
++        result = finalize_stream_information(
++            source->formatContext,
++            &source->sourceReadContext,
++            true
++        );
+         if (result < 0) {
+             set_av_error(errorBuffer, errorBufferSize, "Read demux audio information", result);
+             PBFFmpegDemuxSourceDestroy(source);
+             return NULL;
+         }
+-        normalize_mov_apac_codec_id(source->formatContext);
+     }
+     if (needsAudioProbe) {
+         probe_delayed_audio_parameters(source->formatContext);
+@@ -2958,6 +3186,38 @@ double PBFFmpegMediaSourceInformationGetDurationSeconds(
+     return information ? information->durationSeconds : 0;
+ }
+ 
++bool PBFFmpegMediaSourceInformationContainerSupportsSourceFormatDescription(
++    const PBFFmpegMediaSourceInformation *information
++) {
++    return information
++        ? information->containerSupportsSourceFormatDescription
++        : false;
++}
++
++int PBFFmpegMediaSourceInformationGetDolbyVisionProfile(
++    const PBFFmpegMediaSourceInformation *information
++) {
++    return information ? information->dolbyVisionProfile : 0;
++}
++
++int PBFFmpegMediaSourceInformationGetDolbyVisionCrossCompatibilityID(
++    const PBFFmpegMediaSourceInformation *information
++) {
++    return information ? information->dolbyVisionCrossCompatibilityID : 0;
++}
++
++bool PBFFmpegMediaSourceInformationDolbyVisionHasEnhancementLayer(
++    const PBFFmpegMediaSourceInformation *information
++) {
++    return information ? information->dolbyVisionHasEnhancementLayer : false;
++}
++
++bool PBFFmpegMediaSourceInformationHasStereoVideoEnhancementLayer(
++    const PBFFmpegMediaSourceInformation *information
++) {
++    return information ? information->hasStereoVideoEnhancementLayer : false;
++}
++
+ int PBFFmpegMediaSourceInformationGetStreamCount(
+     const PBFFmpegMediaSourceInformation *information
+ ) {
+@@ -3137,16 +3397,12 @@ static bool configure_video_reader(
+         );
+         if (result < 0) return false;
+         if (cancellation_requested(&reader->cancelled)) return false;
+-        AVRational sampleAspectRatio = av_guess_sample_aspect_ratio(
+-            reader->formatContext,
+-            stream,
+-            NULL
+-        );
+-        OSStatus status = create_compressed_format(
+-            stream->codecpar,
+-            sampleAspectRatio,
+-            &reader->compressedFormat,
+-            &reader->convertsAnnexB
++        OSStatus status = PBFFmpegVideoFormatDescriptionCreate(
++            reader,
++            NULL,
++            NULL,
++            NULL,
++            &reader->compressedFormat
+         );
+         if (status != noErr) {
+             const AVPacketSideData *doviConfiguration = codec_side_data(
+@@ -3258,7 +3514,6 @@ bool PBFFmpegReaderOpen(
+         set_av_error(errorBuffer, errorBufferSize, "Open media source", result);
+         return false;
+     }
+-    normalize_mov_dolby_vision_av1_codec_id(reader->formatContext);
+     result = read_stream_information(
+         reader->formatContext,
+         &reader->sourceReadContext,
+@@ -3360,15 +3615,12 @@ void PBFFmpegReaderDestroy(PBFFmpegReader *reader) {
+     free(reader);
+ }
+ 
+-bool PBFFmpegReaderCopyCompressedFormatDescription(
+-    const PBFFmpegReader *reader,
+-    CMVideoFormatDescriptionRef *formatOut
++PBFFmpegMediaSourceInformation *PBFFmpegReaderCopyMediaSourceInformation(
++    const PBFFmpegReader *reader
+ ) {
+-    if (!formatOut) return false;
+-    *formatOut = NULL;
+-    if (!reader || !reader->compressedFormat) return false;
+-    *formatOut = (CMVideoFormatDescriptionRef)CFRetain(reader->compressedFormat);
+-    return true;
++    return reader && reader->formatContext
++        ? copy_media_source_information(reader->formatContext, NULL, 0)
++        : NULL;
+ }
+ 
+ static bool reader_format_has_atom(const PBFFmpegReader *reader, CFStringRef atom) {
+@@ -3800,19 +4052,6 @@ const char *PBFFmpegReaderGetTransferFunction(const PBFFmpegReader *reader) {
+     return reader ? reader->transferFunction : "unknown";
+ }
+ 
+-int PBFFmpegReaderGetDolbyVisionProfile(const PBFFmpegReader *reader) {
+-    return reader ? reader->dolbyVisionProfile : 0;
+-}
+-
+-int PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(const PBFFmpegReader *reader) {
+-    return reader ? reader->dolbyVisionCrossCompatibilityID : 0;
+-}
+-
+-bool PBFFmpegReaderDolbyVisionHasEnhancementLayer(const PBFFmpegReader *reader) {
+-    return reader ? reader->dolbyVisionHasEnhancementLayer : false;
+-}
+-
+-
+ const char *PBFFmpegReaderGetYCbCrMatrix(const PBFFmpegReader *reader) {
+     return reader ? reader->yCbCrMatrix : "unknown";
+ }
+diff --git a/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h b/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h
+index 110bd1c4ea1935fa6d6a2badf2b715fdd5dcade0..7fd680738cb2c10056e417963989c1601a1acbe9 100644
+--- a/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h
++++ b/Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h
+@@ -102,6 +102,21 @@ const char *PBFFmpegMediaSourceInformationGetContainerFormat(
+ double PBFFmpegMediaSourceInformationGetDurationSeconds(
+     const PBFFmpegMediaSourceInformation *information
+ );
++bool PBFFmpegMediaSourceInformationContainerSupportsSourceFormatDescription(
++    const PBFFmpegMediaSourceInformation *information
++);
++int PBFFmpegMediaSourceInformationGetDolbyVisionProfile(
++    const PBFFmpegMediaSourceInformation *information
++);
++int PBFFmpegMediaSourceInformationGetDolbyVisionCrossCompatibilityID(
++    const PBFFmpegMediaSourceInformation *information
++);
++bool PBFFmpegMediaSourceInformationDolbyVisionHasEnhancementLayer(
++    const PBFFmpegMediaSourceInformation *information
++);
++bool PBFFmpegMediaSourceInformationHasStereoVideoEnhancementLayer(
++    const PBFFmpegMediaSourceInformation *information
++);
+ int PBFFmpegMediaSourceInformationGetStreamCount(
+     const PBFFmpegMediaSourceInformation *information
+ );
+@@ -186,10 +201,21 @@ bool PBFFmpegReaderUsedBitstreamExtradataBootstrap(const PBFFmpegReader *reader)
+ 
+ void PBFFmpegReaderDestroy(PBFFmpegReader *reader);
+ 
+-/// Copies the actual compressed video format created by the bridge.
++PBFFmpegMediaSourceInformation *PBFFmpegReaderCopyMediaSourceInformation(
++    const PBFFmpegReader *reader
++);
++
++/// Creates or copies every compressed video format description owned by the bridge.
++/// Pass only `reader` to create or copy its compressed format. Otherwise, pass
++/// `sourceFormat` with either `bridgeFormat` or `replacementExtensions`. A bridge
++/// format fills missing decoder-configuration atoms without replacing source atoms;
++/// replacement extensions form the complete extension dictionary.
+ /// The caller owns the returned format description and must release it.
+-bool PBFFmpegReaderCopyCompressedFormatDescription(
+-    const PBFFmpegReader *reader,
++OSStatus PBFFmpegVideoFormatDescriptionCreate(
++    PBFFmpegReader *reader,
++    CMVideoFormatDescriptionRef sourceFormat,
++    CMVideoFormatDescriptionRef bridgeFormat,
++    CFDictionaryRef replacementExtensions,
+     CMVideoFormatDescriptionRef *formatOut
+ );
+ 
+@@ -213,17 +239,6 @@ const char *PBFFmpegReaderGetProjectionKind(const PBFFmpegReader *reader);
+ const char *PBFFmpegReaderGetViewPackingKind(const PBFFmpegReader *reader);
+ int PBFFmpegReaderGetWidth(const PBFFmpegReader *reader);
+ int PBFFmpegReaderGetHeight(const PBFFmpegReader *reader);
+-/// Zero when no video stream in the source carries a Dolby Vision configuration
+-/// record. The record is read from whichever stream holds it, because a dual-layer
+-/// source keeps it on the enhancement stream this reader never decodes.
+-int PBFFmpegReaderGetDolbyVisionProfile(const PBFFmpegReader *reader);
+-/// The digit after the profile in a Dolby Vision name, so Profile 8 with a
+-/// cross-compatibility of 4 is the HLG-compatible Profile 8.4. Zero for a profile
+-/// that is compatible with nothing else and therefore carries no second digit.
+-int PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(const PBFFmpegReader *reader);
+-/// True when the source splits its picture across two layers, so the decoded stream
+-/// carries only the base layer and the delivered dynamic range is that layer's.
+-bool PBFFmpegReaderDolbyVisionHasEnhancementLayer(const PBFFmpegReader *reader);
+ int PBFFmpegReaderGetVideoStreamIndex(const PBFFmpegReader *reader);
+ int PBFFmpegReaderGetTimeBaseNumerator(const PBFFmpegReader *reader);
+ int PBFFmpegReaderGetTimeBaseDenominator(const PBFFmpegReader *reader);
+diff --git a/Packages/PlaybackCore/Tests/PlaybackCoreTests/DolbyVisionProfile7SplitTests.swift b/Packages/PlaybackCore/Tests/PlaybackCoreTests/DolbyVisionProfile7SplitTests.swift
+index 45638c440d9760ff4db9f344c3b5debe81946a5c..60d4fe9d6bd5f2d284ff8eb8c42debe1b1e7d3f9 100644
+--- a/Packages/PlaybackCore/Tests/PlaybackCoreTests/DolbyVisionProfile7SplitTests.swift
++++ b/Packages/PlaybackCore/Tests/PlaybackCoreTests/DolbyVisionProfile7SplitTests.swift
+@@ -56,6 +56,16 @@ private func verifyProfile7Source(_ relativePath: String) throws {
+         Comment(rawValue: profile7ErrorString(error))
+     )
+     defer { PBFFmpegDemuxSourceDestroy(activeSource) }
++    let information = try #require(
++        PBFFmpegDemuxSourceCopyInformation(activeSource, &error, error.count),
++        Comment(rawValue: profile7ErrorString(error))
++    )
++    defer { PBFFmpegMediaSourceInformationDestroy(information) }
++    #expect(PBFFmpegMediaSourceInformationGetDolbyVisionProfile(information) == 7)
++    #expect(
++        PBFFmpegMediaSourceInformationGetDolbyVisionCrossCompatibilityID(information) == 6
++    )
++    #expect(PBFFmpegMediaSourceInformationDolbyVisionHasEnhancementLayer(information))
+     let activeReader = try #require(PBFFmpegReaderAllocate())
+     defer { PBFFmpegReaderDestroy(activeReader) }
+     try #require(PBFFmpegReaderOpenWithDemuxSource(
+@@ -66,17 +76,19 @@ private func verifyProfile7Source(_ relativePath: String) throws {
+         error.count
+     ), Comment(rawValue: profile7ErrorString(error)))
+ 
+-    #expect(PBFFmpegReaderGetDolbyVisionProfile(activeReader) == 7)
+-    #expect(PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(activeReader) == 6)
+-    #expect(PBFFmpegReaderDolbyVisionHasEnhancementLayer(activeReader))
+     #expect(PBFFmpegReaderFormatHasHvcC(activeReader))
+     #expect(!PBFFmpegReaderFormatHasDvcC(activeReader))
+     #expect(!PBFFmpegReaderFormatHasDvvC(activeReader))
+ 
+     var formatReference: Unmanaged<CMVideoFormatDescription>?
+-    try #require(
+-        PBFFmpegReaderCopyCompressedFormatDescription(activeReader, &formatReference)
++    let formatStatus = PBFFmpegVideoFormatDescriptionCreate(
++        activeReader,
++        nil,
++        nil,
++        nil,
++        &formatReference
+     )
++    #expect(formatStatus == noErr)
+     let activeFormat = try #require(formatReference?.takeRetainedValue())
+     #expect(CMFormatDescriptionGetMediaSubType(activeFormat) == kCMVideoCodecType_HEVC)
+ 
+diff --git a/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackActivationReapplyVerificationTests.swift b/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackActivationReapplyVerificationTests.swift
+index 68e178377f878f30d725f16b79b40887492fb942..1cba748f787cc124ac99a6e198aceff2b1b1abf1 100644
+--- a/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackActivationReapplyVerificationTests.swift
++++ b/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackActivationReapplyVerificationTests.swift
+@@ -345,7 +345,12 @@ private final class VerificationLockedBox<Value>: @unchecked Sendable {
+ 
+ private final class ReapplyNullVideoProvider: VideoSampleProvider {
+   var info = VideoSampleProviderInfo(providerKind: "ReapplyNull")
+-  func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {}
++  func prepare(
++    url: URL,
++    asset: PlaybackAsset?,
++    sourceInformation: MediaSourceInformation?,
++    startTime: CMTime
++  ) async throws {}
+   func start() throws {}
+   func nextEvent() async throws -> VideoSampleProviderEvent { .end }
+   func cancel() {}
+diff --git a/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackCoreTests.swift b/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackCoreTests.swift
+index faeed6ce744f6d610f2f71b258440a61f0d67706..8c5e9e94ef343bc4f08ba19410ea971f4096fbfe 100644
+--- a/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackCoreTests.swift
++++ b/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackCoreTests.swift
+@@ -101,11 +101,12 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
+             == information
+     )
+     let loader = FixedMediaSourceInformationLoader(information)
++    let videoProvider = FakeVideoSampleProvider(events: [.end])
+     let audioProvider = FakeAudioSampleProvider()
+     let subtitleProvider = MediaInformationRecordingSubtitleProvider()
+     let session = SampleBufferPlaybackSession(
+         traceID: "shared-media-source-information",
+-        provider: FakeVideoSampleProvider(events: [.end]),
++        provider: videoProvider,
+         audioProvider: audioProvider,
+         subtitleProvider: subtitleProvider,
+         mediaSourceInformationLoader: loader,
+@@ -119,6 +120,7 @@ private let playbackCoreTestMedia = URL(fileURLWithPath: #filePath)
+     )
+ 
+     #expect(loader.loadCount == 1)
++    #expect(videoProvider.sourceInformationReceived == information)
+     #expect(audioProvider.sourceInformationReceived == information)
+     #expect(subtitleProvider.sourceInformationReceived == information)
+ }
+@@ -3206,6 +3208,7 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
+     private let readError: Error?
+     private let eventDelay: Duration?
+     private(set) var startCount = 0
++    private(set) var sourceInformationReceived: MediaSourceInformation?
+ 
+     init(
+         events: [VideoSampleProviderEvent],
+@@ -3251,7 +3254,13 @@ final class FakeVideoSampleProvider: VideoSampleProvider {
+         self.eventDelay = eventDelay
+     }
+ 
+-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {
++    func prepare(
++        url: URL,
++        asset: PlaybackAsset?,
++        sourceInformation: MediaSourceInformation?,
++        startTime: CMTime
++    ) async throws {
++        sourceInformationReceived = sourceInformation
+         if startTime > .zero, let seekPrepareDelay {
+             if seekPrepareIgnoresCancellation {
+                 await Task.detached {
+diff --git a/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackFFmpegBridgeTests.swift b/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackFFmpegBridgeTests.swift
+index 63e8d14ae500b31660920afe4fed07ff1f066914..7854b96625d623b66f38a1c27aea3b1f22613a70 100644
+--- a/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackFFmpegBridgeTests.swift
++++ b/Packages/PlaybackCore/Tests/PlaybackCoreTests/PlaybackFFmpegBridgeTests.swift
+@@ -540,6 +540,26 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
+     }
+ }
+ 
++@Test func mediaSourceInformationCarriesContainerDolbyAndStereoFacts() async throws {
++    let loader = SystemMediaSourceInformationLoader()
++    let profile7 = try await loader.load(
++        from: playbackTestMedia.appendingPathComponent(
++            "Samples/DynamicRange/DolbyVision/Profile7.6/FEL_test_for_AVS.mkv"
++        )
++    )
++    #expect(profile7.containerSupportsSourceFormatDescription == false)
++    #expect(profile7.dolbyVisionProfile == 7)
++    #expect(profile7.dolbyVisionHasEnhancementLayer)
++
++    let mvhevc = try await loader.load(
++        from: playbackTestMedia.appendingPathComponent(
++            "Samples/CameraOriginals/Apple/applle.MOV"
++        )
++    )
++    #expect(mvhevc.containerSupportsSourceFormatDescription)
++    #expect(mvhevc.hasStereoVideoEnhancementLayer)
++}
++
+ @Test func appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat() async throws {
+     silenceFFmpegDiagnostics()
+     let fixture = playbackTestMedia.appendingPathComponent(
+@@ -897,6 +917,34 @@ func officialProResCameraOriginalsDoNotRequireCodecExtradata(
+     #expect(provider.info.formatSignaling.provenance == "FFmpeg.codecParameters")
+ }
+ 
++@Test func formatDescriptionOwnerFillsOnlyMissingDecoderConfigurationAtoms() async throws {
++    let fixture = playbackTestMedia.appendingPathComponent(
++        "Samples/DynamicRange/DolbyVision/HD/Patterns_Of_Nature_HDR10-P8.1_HD_24_H265-2Mbps_DD+JOC-768Kbps.mp4"
++    )
++    let bridgeFormat = try await firstVideoFormatDescription(in: AVURLAsset(url: fixture))
++    let sourceFormat = try videoFormatDescription(
++        byRemovingSampleDescriptionAtom: "dvvC",
++        from: bridgeFormat
++    )
++    let sourceAtoms = try sampleDescriptionAtoms(in: sourceFormat)
++    let bridgeAtoms = try sampleDescriptionAtoms(in: bridgeFormat)
++    var mergedReference: Unmanaged<CMVideoFormatDescription>?
++
++    let status = PBFFmpegVideoFormatDescriptionCreate(
++        nil,
++        sourceFormat,
++        bridgeFormat,
++        nil,
++        &mergedReference
++    )
++    #expect(status == noErr)
++    let merged = try #require(mergedReference?.takeRetainedValue())
++    let mergedAtoms = try sampleDescriptionAtoms(in: merged)
++
++    #expect(mergedAtoms["hvcC"] == sourceAtoms["hvcC"])
++    #expect(mergedAtoms["dvvC"] == bridgeAtoms["dvvC"])
++}
++
+ @Test func suppliedAssetWithMultipleMatchingVideoFormatsKeepsBridgeFormat() async throws {
+     silenceFFmpegDiagnostics()
+     let fixture = playbackTestMedia.appendingPathComponent(
+diff --git a/Packages/PlaybackCore/Tests/PlaybackCoreTests/SubtitleProviderTests.swift b/Packages/PlaybackCore/Tests/PlaybackCoreTests/SubtitleProviderTests.swift
+index 344fd7b96cc419449eaa298b139ead91aa94ba4c..9303e2b76b66182b9fb5135211364c3cda5ede77 100644
+--- a/Packages/PlaybackCore/Tests/PlaybackCoreTests/SubtitleProviderTests.swift
++++ b/Packages/PlaybackCore/Tests/PlaybackCoreTests/SubtitleProviderTests.swift
+@@ -648,7 +648,12 @@ private final class SubtitleTestVideoProvider: VideoSampleProvider {
+         dimensions: "160x90"
+     )
+ 
+-    func prepare(url: URL, asset: PlaybackAsset?, startTime: CMTime) async throws {}
++    func prepare(
++        url: URL,
++        asset: PlaybackAsset?,
++        sourceInformation: MediaSourceInformation?,
++        startTime: CMTime
++    ) async throws {}
+     func start() throws {}
+     func nextEvent() async throws -> VideoSampleProviderEvent { .end }
+     func cancel() {}
+diff --git a/Packages/PlaybackCore/Tools/RemoteMediaProbe/main.swift b/Packages/PlaybackCore/Tools/RemoteMediaProbe/main.swift
+index 70bb24b5b88e7621c9b8d8bd5c760a092a154deb..70a3f9c70bdc25f0e31d8a757a86f8fbc3c6d1d2 100644
+--- a/Packages/PlaybackCore/Tools/RemoteMediaProbe/main.swift
++++ b/Packages/PlaybackCore/Tools/RemoteMediaProbe/main.swift
+@@ -232,8 +232,14 @@ func decodeSamples(
+         throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
+     }
+     var formatOut: Unmanaged<CMVideoFormatDescription>?
+-    guard PBFFmpegReaderCopyCompressedFormatDescription(videoReader, &formatOut),
+-          let format = formatOut?.takeRetainedValue() else {
++    let formatStatus = PBFFmpegVideoFormatDescriptionCreate(
++        videoReader,
++        nil,
++        nil,
++        nil,
++        &formatOut
++    )
++    guard formatStatus == noErr, let format = formatOut?.takeRetainedValue() else {
+         throw ProbeFailure.operation("compressed format description unavailable")
+     }
+     let subType = CMFormatDescriptionGetMediaSubType(format)
+diff --git a/REPORT.md b/REPORT.md
+new file mode 100644
+index 0000000000000000000000000000000000000000..1293775c6e03f511a6efc1051424ce4d38fd8772
+--- /dev/null
++++ b/REPORT.md
+@@ -0,0 +1,58 @@
++# Format Description 所有权重构报告
++
++本次改动完成规格 F1 至 F5、G1 和 G2。构造仍在 C 侧，Swift 只提交 reader、AVFoundation 源格式或 presentation override 请求。五类真实文件所需的分支没有删除。
++
++## 判据与证据
++
++| 判据 | 结果 | 证据 |
++|---|---|---|
++| F1 | 已验证 | `normalize_mov_codec_ids` 只有一个静态调用点。所有 `avformat_find_stream_info` 路径都经过 `finalize_stream_information`。`verify_format_description_ownership.py` 返回 0。 |
++| F2 | 已验证 | 唯一公开构造入口是 `PBFFmpegVideoFormatDescriptionCreate`。旧的 `PBFFmpegReaderCopyCompressedFormatDescription` 已删除。reader 构造、AVFoundation 保真合并和 presentation override 都调用该入口。容器无配置、Annex B 参数集、Dolby Vision 样本描述、像素长宽比补全和正常路径仍是 C 所有者的内部支路。 |
++| F3 | 已验证 | `MediaSourceInformation` 现在持有容器是否支持源 Format Description、Dolby Vision profile、cross-compatibility ID、Dolby Vision enhancement layer 和 stereo video enhancement layer。`VideoSampleProviderInfo` 不再持有这些源事实。session 把同一个 `MediaSourceInformation` 交给视频、音频和字幕 provider；共享值测试通过。旧 JSON 缺少新键时按 `0` 或 `false` 解码。 |
++| F4 | 已验证 | `shouldConsultAVFoundation` 只读取 supplied asset 和 `MediaSourceInformation.containerSupportsSourceFormatDescription`。函数内没有 `pathExtension`、容器名称或 MOV、MP4 后缀表。容器事实由 C demuxer 明确报告。 |
++| F5 | 已验证 | `create_format_from_source` 先复制 AVFoundation extensions 和 decoder atoms，只用 bridge 中缺失的 `avcC`、`hvcC`、`lhvC`、`dvcC`、`dvvC` 或 `av1C` 补空位。`formatDescriptionOwnerFillsOnlyMissingDecoderConfigurationAtoms` 验证补缺；现有 camera-original、MV-HEVC、APMP 和 Dolby Vision 测试验证容器原文优先。公开头文件写明冲突规则和返回值所有权。 |
++| G1 | 已验证 | 检查脚本进入 Enchron 和 DesignPreview 的 `Design Source Architecture` 构建阶段。正常 visionOS generic build 输出 `format-description structure check passed` 和 `BUILD SUCCEEDED`。临时加入 `pathExtension` 违规后，同一构建输出违规原因并以 65 退出；临时改动随后恢复。 |
++| G2 | 已验证 | `ENCHRON_FORMAT_CHECK_ROOT=/tmp/ench-format-check-missing python3 Scripts/verification/verify_format_description_ownership.py` 以 2 退出，并打印缺失的 `PlaybackFFmpegBridge.c` 路径。 |
++| V1 | 已验证 | 改动前和改动后各运行一次 107 文件的 `verify_source_parity_matrix.py --mode parity`。两个 JSON 的样本名相同；逐项比较本地与 HTTP 的 `codec`、`samples`、`sample_bytes`、`decoded_frames`、`submit_failures`、`callback_failures` 和 `decode` 后，差异为 0。两份规范化结果的 SHA-256 都是 `cf669d9ec9480ee6b019e6f4b48178080b91eadfa8d9208c29f7b54d2beda97c`。 |
++| V3 | 已验证 | 改动前后失败名相同，均为 8 个失败和 13 个 issue。最终改动后运行执行 203 个测试，其中新增测试通过。 |
++
++V3 的固定失败名如下：
++
++- `appleMVHEVCFixtureIsDistinguishedFromOrdinaryHEVC`
++- `appleImmersiveProviderClassifiesSourceWithoutReplacingMismatchedBridgeFormat`
++- `controllerRejectsSecondOpenAndRecordsTheRejection`
++- `rapidSeeksOnlyPublishCuesAtTheNewestCommittedPosition`
++- `controllerSeekKeepsSessionAndAdvancesStreamEpoch`
++- `newerSeekSupersedesOlderSeekAndOwnsFinalTarget`
++- `threeRapidSeeksOnlyAllowNewestWaiterToEnterSession`
++- `rapidRelativeSeeksAccumulateInsideTheCore`
++
++一次相邻的改动前运行和一次相邻的改动后运行还出现了已记录的 `acceptedProResWithoutDisplayedFrameReportsRendererErrorVerbatim` 负载 flake。干净重跑均回到上述固定 8 个失败和 13 个 issue，因此没有把数量相同当作失败名相同的替代证据。
++
++两次 V1 脚本都报告 97 个 `ok`、7 个 `not_video` 和 3 个既有非成功本地结果。两次也都有相同的 4 个 HTTP 超时差异，因此脚本各自以 1 退出，但都正常写出 JSON。V1 比较的是这些完整结果在改动前后是否逐字段一致，不把脚本的本地与 HTTP 差异隐藏成成功。
++
++## 主要验证命令
++
++```text
++python3 Scripts/verification/verify_format_description_ownership.py
++ENCHRON_FORMAT_CHECK_ROOT=/tmp/ench-format-check-missing python3 Scripts/verification/verify_format_description_ownership.py
++swift build --package-path Packages/PlaybackCore --target PlaybackCore
++swift test --package-path Packages/PlaybackCore
++xcodebuild -project Enchron.xcodeproj -scheme Enchron -configuration Debug -destination 'generic/platform=visionOS' CODE_SIGNING_ALLOWED=NO build
++python3 Scripts/verification/verify_source_parity_matrix.py --mode parity --output /tmp/ench-format-parity-before.json
++python3 Scripts/verification/verify_source_parity_matrix.py --mode parity --scratch-path /Volumes/Cortisol/DevSpace/Xcode/Enchron/PlaybackCoreBuild-format-after-final --output /tmp/ench-format-parity-after.json
++```
++
++## 范围与代价
++
++`Modules/MediaSource`、`Modules/MediaLibrary`、`Modules/Emby` 和 `Modules/PlaybackFeature` 没有改动。`PlaybackFFmpegBridge.c` 原始第 250 至 420 行范围没有 diff hunk，解封装读线程没有改动。
++
++单一 C 入口用互斥的可空参数表达三种请求，并拒绝混合请求。代价是 Swift 调用必须显式传入未使用的 `nil`。这比保留 reader 专用的第二入口更容易做结构检查。
++
++`MediaSourceInformation` 的新键会出现在新编码结果中。自定义解码保留旧编码结果的可读性。绕过 session 直接使用 FFmpeg video provider 时，provider 从已经打开的 reader 复制同一种 `MediaSourceInformation`，不会为格式判断再次打开媒体。
++
++本 worktree 原本缺少被忽略的 FFmpeg binary artifact。验证时从主工作树复制了相同的 `PlaybackFFmpeg.xcframework` 到忽略路径；该文件不在提交和 `final-code.diff` 中。
++
++## 未完成项
++
++没有。F1 至 F5、G1、G2、V1 和指定的 V3 底线都已取得证据。
+diff --git a/Scripts/verification/verify_format_description_ownership.py b/Scripts/verification/verify_format_description_ownership.py
+new file mode 100644
+index 0000000000000000000000000000000000000000..f406b364a73df5c9e4483dd1a8e876215e554fe5
+--- /dev/null
++++ b/Scripts/verification/verify_format_description_ownership.py
+@@ -0,0 +1,169 @@
++#!/usr/bin/env python3
++
++from pathlib import Path
++import os
++import re
++import sys
++
++
++REPOSITORY = Path(
++    os.environ.get(
++        "ENCHRON_FORMAT_CHECK_ROOT",
++        Path(__file__).resolve().parents[2],
++    )
++)
++BRIDGE = Path(
++    "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/PlaybackFFmpegBridge.c"
++)
++HEADER = Path(
++    "Packages/PlaybackCore/Sources/PlaybackFFmpegBridge/include/PlaybackFFmpegBridge.h"
++)
++PLAYBACK_CORE = Path("Packages/PlaybackCore/Sources/PlaybackCore")
++OWNER = "PBFFmpegVideoFormatDescriptionCreate"
++LOW_LEVEL_CONSTRUCTOR = re.compile(
++    r"\bCMVideoFormatDescriptionCreate(?:From[A-Za-z0-9]+)?\s*\("
++)
++
++
++def read(relative_path: Path) -> str:
++    path = REPOSITORY / relative_path
++    if not path.is_file():
++        raise RuntimeError(f"required source file is missing: {relative_path}")
++    try:
++        return path.read_text(encoding="utf-8")
++    except OSError as error:
++        raise RuntimeError(f"cannot read {relative_path}: {error}") from error
++
++
++def function_region(source: str, marker: str) -> str:
++    start = source.find(marker)
++    if start < 0:
++        raise RuntimeError(f"required function is missing: {marker}")
++    following = re.search(r"\n    private static func ", source[start + len(marker):])
++    if not following:
++        raise RuntimeError(f"cannot find the end of function: {marker}")
++    return source[start:start + len(marker) + following.start()]
++
++
++def require(condition: bool, message: str, violations: list[str]) -> None:
++    if not condition:
++        violations.append(message)
++
++
++def main() -> int:
++    bridge = read(BRIDGE)
++    header = read(HEADER)
++    swift_sources = sorted((REPOSITORY / PLAYBACK_CORE).glob("*.swift"))
++    if not swift_sources:
++        raise RuntimeError(f"no Swift sources found under {PLAYBACK_CORE}")
++    sources = {path.relative_to(REPOSITORY): path.read_text(encoding="utf-8")
++               for path in swift_sources}
++    sources[BRIDGE] = bridge
++
++    violations: list[str] = []
++    low_level_owners = [
++        path for path, source in sources.items()
++        if LOW_LEVEL_CONSTRUCTOR.search(source)
++    ]
++    require(
++        low_level_owners == [BRIDGE],
++        "CMVideoFormatDescription constructors must have exactly one production "
++        f"owner, {BRIDGE}; found {', '.join(map(str, low_level_owners)) or 'none'}",
++        violations,
++    )
++    require(
++        len(re.findall(rf"\bOSStatus\s+{OWNER}\s*\(", bridge)) == 1,
++        f"{OWNER} must have exactly one implementation",
++        violations,
++    )
++    require(
++        len(re.findall(rf"\bOSStatus\s+{OWNER}\s*\(", header)) == 1,
++        f"{OWNER} must have exactly one exported declaration",
++        violations,
++    )
++    require(
++        "PBFFmpegReaderCopyCompressedFormatDescription" not in bridge
++        and "PBFFmpegReaderCopyCompressedFormatDescription" not in header,
++        "the legacy reader-specific construction entry must not return",
++        violations,
++    )
++    swift_direct_constructors = [
++        str(path) for path, source in sources.items()
++        if path.suffix == ".swift" and LOW_LEVEL_CONSTRUCTOR.search(source)
++    ]
++    require(
++        not swift_direct_constructors,
++        "Swift must construct video format descriptions only through the bridge owner: "
++        + ", ".join(swift_direct_constructors),
++        violations,
++    )
++    swift_owner_calls = sum(
++        len(re.findall(rf"\b{OWNER}\s*\(", source))
++        for path, source in sources.items()
++        if path.suffix == ".swift"
++    )
++    require(
++        swift_owner_calls >= 3,
++        "reader, source-preservation, and presentation-override paths must all "
++        f"use {OWNER}; found {swift_owner_calls} Swift calls",
++        violations,
++    )
++
++    normalization_mentions = re.findall(r"\bnormalize_mov_codec_ids\s*\(", bridge)
++    require(
++        len(normalization_mentions) == 2,
++        "normalize_mov_codec_ids must have one definition and exactly one call; "
++        f"found {len(normalization_mentions)} total mentions",
++        violations,
++    )
++    require(
++        "normalize_mov_apac_codec_id" not in bridge
++        and "normalize_mov_dolby_vision_av1_codec_id" not in bridge,
++        "legacy MOV codec normalizers must not return",
++        violations,
++    )
++
++    provider = read(PLAYBACK_CORE / "VideoSampleProvider.swift")
++    gate = function_region(provider, "private static func shouldConsultAVFoundation(")
++    forbidden_gate_inputs = (
++        "pathExtension",
++        "containerFormat",
++        '.contains("mov")',
++        '.contains("mp4")',
++        '["mov", "mp4", "m4v"]',
++    )
++    for forbidden in forbidden_gate_inputs:
++        require(
++            forbidden not in gate,
++            f"AVFoundation format gate must not infer source facts from {forbidden}",
++            violations,
++        )
++    require(
++        "sourceInformation?.containerSupportsSourceFormatDescription" in gate,
++        "AVFoundation format gate must consume MediaSourceInformation's "
++        "bridge-reported container fact",
++        violations,
++    )
++
++    if violations:
++        for violation in violations:
++            print(f"format-description structure violation: {violation}", file=sys.stderr)
++        return 1
++    print("format-description structure check passed")
++    print(f"  constructor owner: {BRIDGE}")
++    print(f"  construction entry: {OWNER}")
++    print("  MOV codec normalization call sites: 1")
++    print("  AVFoundation gate uses explicit bridge facts")
++    return 0
++
++
++if __name__ == "__main__":
++    try:
++        sys.exit(main())
++    except Exception as error:
++        print(
++            "format-description structure check could not run: "
++            f"{type(error).__name__}: {error}",
++            file=sys.stderr,
++        )
++        sys.exit(2)
