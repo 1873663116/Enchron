@@ -102,6 +102,21 @@ const char *PBFFmpegMediaSourceInformationGetContainerFormat(
 double PBFFmpegMediaSourceInformationGetDurationSeconds(
     const PBFFmpegMediaSourceInformation *information
 );
+bool PBFFmpegMediaSourceInformationContainerSupportsSourceFormatDescription(
+    const PBFFmpegMediaSourceInformation *information
+);
+int PBFFmpegMediaSourceInformationGetDolbyVisionProfile(
+    const PBFFmpegMediaSourceInformation *information
+);
+int PBFFmpegMediaSourceInformationGetDolbyVisionCrossCompatibilityID(
+    const PBFFmpegMediaSourceInformation *information
+);
+bool PBFFmpegMediaSourceInformationDolbyVisionHasEnhancementLayer(
+    const PBFFmpegMediaSourceInformation *information
+);
+bool PBFFmpegMediaSourceInformationHasStereoVideoEnhancementLayer(
+    const PBFFmpegMediaSourceInformation *information
+);
 int PBFFmpegMediaSourceInformationGetStreamCount(
     const PBFFmpegMediaSourceInformation *information
 );
@@ -186,10 +201,21 @@ bool PBFFmpegReaderUsedBitstreamExtradataBootstrap(const PBFFmpegReader *reader)
 
 void PBFFmpegReaderDestroy(PBFFmpegReader *reader);
 
-/// Copies the actual compressed video format created by the bridge.
+PBFFmpegMediaSourceInformation *PBFFmpegReaderCopyMediaSourceInformation(
+    const PBFFmpegReader *reader
+);
+
+/// Creates or copies every compressed video format description owned by the bridge.
+/// Pass only `reader` to create or copy its compressed format. Otherwise, pass
+/// `sourceFormat` with either `bridgeFormat` or `replacementExtensions`. A bridge
+/// format fills missing decoder-configuration atoms without replacing source atoms;
+/// replacement extensions form the complete extension dictionary.
 /// The caller owns the returned format description and must release it.
-bool PBFFmpegReaderCopyCompressedFormatDescription(
-    const PBFFmpegReader *reader,
+OSStatus PBFFmpegVideoFormatDescriptionCreate(
+    PBFFmpegReader *reader,
+    CMVideoFormatDescriptionRef sourceFormat,
+    CMVideoFormatDescriptionRef bridgeFormat,
+    CFDictionaryRef replacementExtensions,
     CMVideoFormatDescriptionRef *formatOut
 );
 
@@ -213,17 +239,6 @@ const char *PBFFmpegReaderGetProjectionKind(const PBFFmpegReader *reader);
 const char *PBFFmpegReaderGetViewPackingKind(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetWidth(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetHeight(const PBFFmpegReader *reader);
-/// Zero when no video stream in the source carries a Dolby Vision configuration
-/// record. The record is read from whichever stream holds it, because a dual-layer
-/// source keeps it on the enhancement stream this reader never decodes.
-int PBFFmpegReaderGetDolbyVisionProfile(const PBFFmpegReader *reader);
-/// The digit after the profile in a Dolby Vision name, so Profile 8 with a
-/// cross-compatibility of 4 is the HLG-compatible Profile 8.4. Zero for a profile
-/// that is compatible with nothing else and therefore carries no second digit.
-int PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(const PBFFmpegReader *reader);
-/// True when the source splits its picture across two layers, so the decoded stream
-/// carries only the base layer and the delivered dynamic range is that layer's.
-bool PBFFmpegReaderDolbyVisionHasEnhancementLayer(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetVideoStreamIndex(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetTimeBaseNumerator(const PBFFmpegReader *reader);
 int PBFFmpegReaderGetTimeBaseDenominator(const PBFFmpegReader *reader);

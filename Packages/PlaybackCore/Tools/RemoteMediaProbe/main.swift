@@ -232,8 +232,14 @@ func decodeSamples(
         throw ProbeFailure.operation("video reader open failed: \(errorMessage(error))")
     }
     var formatOut: Unmanaged<CMVideoFormatDescription>?
-    guard PBFFmpegReaderCopyCompressedFormatDescription(videoReader, &formatOut),
-          let format = formatOut?.takeRetainedValue() else {
+    let formatStatus = PBFFmpegVideoFormatDescriptionCreate(
+        videoReader,
+        nil,
+        nil,
+        nil,
+        &formatOut
+    )
+    guard formatStatus == noErr, let format = formatOut?.takeRetainedValue() else {
         throw ProbeFailure.operation("compressed format description unavailable")
     }
     let subType = CMFormatDescriptionGetMediaSubType(format)

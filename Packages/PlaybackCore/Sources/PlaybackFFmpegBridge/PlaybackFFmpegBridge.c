@@ -90,6 +90,11 @@ typedef struct {
 struct PBFFmpegMediaSourceInformation {
     char containerFormat[64];
     double durationSeconds;
+    bool containerSupportsSourceFormatDescription;
+    int dolbyVisionProfile;
+    int dolbyVisionCrossCompatibilityID;
+    bool dolbyVisionHasEnhancementLayer;
+    bool hasStereoVideoEnhancementLayer;
     int streamCount;
     PBFFmpegMediaStreamStorage *streams;
 };
@@ -770,7 +775,7 @@ static void set_av_error(char *buffer, size_t size, const char *operation, int c
 // Collapsing onto it keeps one branch downstream. The 'apac' sample entry tag
 // is what actually establishes the stream is Apple's, so it gates the rewrite.
 // Apple decodes it either way; FFmpeg only carries the packets.
-static void normalize_mov_apac_codec_id(AVFormatContext *context) {
+static void normalize_mov_codec_ids(AVFormatContext *context) {
     if (!context) return;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         AVCodecParameters *parameters = context->streams[index]->codecpar;
@@ -780,7 +785,27 @@ static void normalize_mov_apac_codec_id(AVFormatContext *context) {
             parameters->codec_tag == MKTAG('a', 'p', 'a', 'c')) {
             parameters->codec_id = AV_CODEC_ID_APAC;
         }
+        if (parameters->codec_type == AVMEDIA_TYPE_VIDEO &&
+            parameters->codec_id == AV_CODEC_ID_NONE &&
+            parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
+            // FFmpeg 8.0.1 preserves the dav1 sample entry, av1C extradata, and
+            // Dolby Vision configuration but does not classify the track as AV1.
+            parameters->codec_id = AV_CODEC_ID_AV1;
+        }
     }
+}
+
+static int finalize_stream_information(
+    AVFormatContext *context,
+    PBFFmpegSourceReadContext *sourceReadContext,
+    bool probesStreamInformation
+) {
+    int result = probesStreamInformation
+        ? avformat_find_stream_info(context, NULL)
+        : 0;
+    if (probesStreamInformation) publish_source_bytes(sourceReadContext);
+    normalize_mov_codec_ids(context);
+    return result;
 }
 
 /// A disc image carries no header a probe can read, because its first bytes are
@@ -908,7 +933,6 @@ static int open_media_source_for_audio(
         close_media_source(&context, sourceReadContext);
         return result;
     }
-    normalize_mov_apac_codec_id(context);
     PBStreamInformationRead informationRead = {0};
     result = read_stream_information(
         context,
@@ -920,8 +944,6 @@ static int open_media_source_for_audio(
         close_media_source(&context, sourceReadContext);
         return result;
     }
-    normalize_mov_apac_codec_id(context);
-
     bool needsMoreProbe = false;
     for (unsigned int index = 0; index < context->nb_streams; index++) {
         if (audio_stream_needs_more_probe(context->streams[index])) {
@@ -936,8 +958,11 @@ static int open_media_source_for_audio(
 
     if (informationRead.movFamily) {
         if (informationRead.skippedProbe) {
-            result = avformat_find_stream_info(context, NULL);
-            publish_source_bytes(sourceReadContext);
+            result = finalize_stream_information(
+                context,
+                sourceReadContext,
+                true
+            );
             if (result < 0) {
                 set_av_error(
                     errorBuffer,
@@ -948,7 +973,6 @@ static int open_media_source_for_audio(
                 close_media_source(&context, sourceReadContext);
                 return result;
             }
-            normalize_mov_apac_codec_id(context);
         }
         probe_delayed_audio_parameters(context);
         publish_source_bytes(sourceReadContext);
@@ -975,14 +999,12 @@ static int open_media_source_for_audio(
         close_media_source(&context, sourceReadContext);
         return result;
     }
-    normalize_mov_apac_codec_id(context);
     result = read_stream_information(context, sourceReadContext, NULL);
     if (result < 0) {
         set_av_error(errorBuffer, errorBufferSize, "Read extended audio stream information", result);
         close_media_source(&context, sourceReadContext);
         return result;
     }
-    normalize_mov_apac_codec_id(context);
     probe_delayed_audio_parameters(context);
     publish_source_bytes(sourceReadContext);
     if (cancellation_requested(cancelled)) {
@@ -1293,6 +1315,11 @@ static CFStringRef color_primaries(enum AVColorPrimaries value) {
     }
 }
 
+static const AVPacketSideData *codec_side_data(
+    const AVCodecParameters *parameters,
+    enum AVPacketSideDataType type
+);
+
 /// Dolby Vision Profile 7 stores its picture across two video streams, and the
 /// configuration record sits on the enhancement stream rather than on the base layer
 /// that gets decoded. Scanning every video stream is therefore the only way to learn
@@ -1300,9 +1327,35 @@ static CFStringRef color_primaries(enum AVColorPrimaries value) {
 /// reports a plain HDR10 track and the claim disappears. What separates a Dolby Vision
 /// picture from a base layer standing in for one is the enhancement layer flag, which
 /// reads the same wherever the record was found.
-static void detect_dolby_vision(PBFFmpegReader *reader) {
-    for (unsigned index = 0; index < reader->formatContext->nb_streams; index++) {
-        AVStream *candidate = reader->formatContext->streams[index];
+typedef struct {
+    int dolbyVisionProfile;
+    int dolbyVisionCrossCompatibilityID;
+    bool dolbyVisionHasEnhancementLayer;
+    bool hasStereoVideoEnhancementLayer;
+} PBVideoSourceFacts;
+
+static PBVideoSourceFacts video_source_facts(
+    const AVFormatContext *context,
+    int decodedStreamIndex
+) {
+    PBVideoSourceFacts facts = {0};
+    if (!context || decodedStreamIndex < 0 ||
+        decodedStreamIndex >= (int)context->nb_streams) {
+        return facts;
+    }
+    const AVCodecParameters *decodedParameters =
+        context->streams[decodedStreamIndex]->codecpar;
+    const AVPacketSideData *stereoData = codec_side_data(
+        decodedParameters,
+        AV_PKT_DATA_STEREO3D
+    );
+    if (stereoData && stereoData->size >= sizeof(AVStereo3D)) {
+        const AVStereo3D *stereo = (const AVStereo3D *)stereoData->data;
+        facts.hasStereoVideoEnhancementLayer =
+            stereo->view == AV_STEREO3D_VIEW_PACKED;
+    }
+    for (unsigned index = 0; index < context->nb_streams; index++) {
+        AVStream *candidate = context->streams[index];
         if (candidate->codecpar->codec_type != AVMEDIA_TYPE_VIDEO) continue;
         const AVPacketSideData *entry = av_packet_side_data_get(
             candidate->codecpar->coded_side_data,
@@ -1312,7 +1365,7 @@ static void detect_dolby_vision(PBFFmpegReader *reader) {
         if (!entry || entry->size < sizeof(AVDOVIDecoderConfigurationRecord)) continue;
         const AVDOVIDecoderConfigurationRecord *record =
             (const AVDOVIDecoderConfigurationRecord *)entry->data;
-        bool onDecodedStream = (int)index == reader->videoStreamIndex;
+        bool onDecodedStream = (int)index == decodedStreamIndex;
         if (!onDecodedStream) {
             // Believed only when it describes a pure enhancement layer, because such a
             // layer cannot stand alone and so belongs to the stream being decoded. A
@@ -1321,13 +1374,27 @@ static void detect_dolby_vision(PBFFmpegReader *reader) {
             if (record->bl_present_flag != 0) continue;
             // The decoded stream's own record outranks this one, so a record already
             // taken from anywhere is left in place until that stream is reached.
-            if (reader->dolbyVisionProfile != 0) continue;
+            if (facts.dolbyVisionProfile != 0) continue;
         }
-        reader->dolbyVisionProfile = record->dv_profile;
-        reader->dolbyVisionCrossCompatibilityID = record->dv_bl_signal_compatibility_id;
-        reader->dolbyVisionHasEnhancementLayer = record->el_present_flag != 0;
-        if (onDecodedStream) return;
+        facts.dolbyVisionProfile = record->dv_profile;
+        facts.dolbyVisionCrossCompatibilityID =
+            record->dv_bl_signal_compatibility_id;
+        facts.dolbyVisionHasEnhancementLayer = record->el_present_flag != 0;
+        if (onDecodedStream) return facts;
     }
+    return facts;
+}
+
+static void detect_dolby_vision(PBFFmpegReader *reader) {
+    PBVideoSourceFacts facts = video_source_facts(
+        reader->formatContext,
+        reader->videoStreamIndex
+    );
+    reader->dolbyVisionProfile = facts.dolbyVisionProfile;
+    reader->dolbyVisionCrossCompatibilityID =
+        facts.dolbyVisionCrossCompatibilityID;
+    reader->dolbyVisionHasEnhancementLayer =
+        facts.dolbyVisionHasEnhancementLayer;
 }
 
 static bool context_uses_mov_demuxer(const AVFormatContext *context);
@@ -1713,6 +1780,119 @@ static OSStatus create_format_by_adding_pixel_aspect_ratio(
     return status;
 }
 
+static CFDictionaryRef decoder_configuration_atoms(
+    CMVideoFormatDescriptionRef format
+) {
+    if (!format) return NULL;
+    CFTypeRef atoms = CMFormatDescriptionGetExtension(
+        format,
+        kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms
+    );
+    return atoms && CFGetTypeID(atoms) == CFDictionaryGetTypeID()
+        ? (CFDictionaryRef)atoms
+        : NULL;
+}
+
+static OSStatus create_format_from_source(
+    CMVideoFormatDescriptionRef sourceFormat,
+    CMVideoFormatDescriptionRef bridgeFormat,
+    CFDictionaryRef replacementExtensions,
+    CMVideoFormatDescriptionRef *formatOut
+) {
+    if (!formatOut) return kCMFormatDescriptionError_InvalidParameter;
+    *formatOut = NULL;
+    if ((bridgeFormat != NULL) == (replacementExtensions != NULL)) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+    if (!sourceFormat ||
+        CMFormatDescriptionGetMediaType(sourceFormat) != kCMMediaType_Video) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+    if (bridgeFormat &&
+        CMFormatDescriptionGetMediaType(bridgeFormat) != kCMMediaType_Video) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+
+    FourCharCode sourceType = CMFormatDescriptionGetMediaSubType(sourceFormat);
+    FourCharCode targetType = bridgeFormat
+        ? CMFormatDescriptionGetMediaSubType(bridgeFormat)
+        : sourceType;
+
+    CFDictionaryRef sourceExtensions = CMFormatDescriptionGetExtensions(sourceFormat);
+    CFMutableDictionaryRef extensions = replacementExtensions && !bridgeFormat
+        ? CFDictionaryCreateMutableCopy(
+            kCFAllocatorDefault,
+            0,
+            replacementExtensions
+        )
+        : (sourceExtensions
+            ? CFDictionaryCreateMutableCopy(
+                kCFAllocatorDefault,
+                0,
+                sourceExtensions
+            )
+            : CFDictionaryCreateMutable(
+                kCFAllocatorDefault,
+                0,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks
+            ));
+    if (!extensions) return kCMFormatDescriptionError_AllocationFailed;
+
+    if (bridgeFormat) {
+        CFDictionaryRef sourceAtoms = decoder_configuration_atoms(sourceFormat);
+        CFDictionaryRef bridgeAtoms = decoder_configuration_atoms(bridgeFormat);
+        CFMutableDictionaryRef mergedAtoms = sourceAtoms
+            ? CFDictionaryCreateMutableCopy(kCFAllocatorDefault, 0, sourceAtoms)
+            : CFDictionaryCreateMutable(
+                kCFAllocatorDefault,
+                0,
+                &kCFTypeDictionaryKeyCallBacks,
+                &kCFTypeDictionaryValueCallBacks
+            );
+        if (!mergedAtoms) {
+            CFRelease(extensions);
+            return kCMFormatDescriptionError_AllocationFailed;
+        }
+        const CFStringRef configurationAtoms[] = {
+            CFSTR("avcC"), CFSTR("hvcC"), CFSTR("lhvC"),
+            CFSTR("dvcC"), CFSTR("dvvC"), CFSTR("av1C"),
+        };
+        if (bridgeAtoms) {
+            for (size_t index = 0;
+                 index < sizeof(configurationAtoms) / sizeof(configurationAtoms[0]);
+                 index++) {
+                CFStringRef atom = configurationAtoms[index];
+                if (CFDictionaryContainsKey(mergedAtoms, atom)) continue;
+                CFTypeRef value = CFDictionaryGetValue(bridgeAtoms, atom);
+                if (value) CFDictionarySetValue(mergedAtoms, atom, value);
+            }
+        }
+        if (CFDictionaryGetCount(mergedAtoms) > 0) {
+            CFDictionarySetValue(
+                extensions,
+                kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms,
+                mergedAtoms
+            );
+        }
+        CFRelease(mergedAtoms);
+    }
+
+    CMVideoDimensions dimensions = bridgeFormat
+        ? CMVideoFormatDescriptionGetDimensions(bridgeFormat)
+        : CMVideoFormatDescriptionGetDimensions(sourceFormat);
+    OSStatus status = CMVideoFormatDescriptionCreate(
+        kCFAllocatorDefault,
+        targetType,
+        dimensions.width,
+        dimensions.height,
+        extensions,
+        formatOut
+    );
+    CFRelease(extensions);
+    return status;
+}
+
 static const uint8_t *find_start_code(const uint8_t *position, const uint8_t *end, size_t *length) {
     for (const uint8_t *cursor = position; cursor + 3 <= end; cursor++) {
         if (cursor[0] != 0 || cursor[1] != 0) continue;
@@ -1822,11 +2002,16 @@ static bool mov_stream_table_is_qualified(const AVFormatContext *context) {
         const AVCodecParameters *parameters = context->streams[index]->codecpar;
         if (parameters->codec_type != AVMEDIA_TYPE_VIDEO) continue;
         hasVideo = true;
-        if (parameters->codec_id == AV_CODEC_ID_NONE ||
+        enum AVCodecID codecID = parameters->codec_id;
+        if (codecID == AV_CODEC_ID_NONE &&
+            parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
+            codecID = AV_CODEC_ID_AV1;
+        }
+        if (codecID == AV_CODEC_ID_NONE ||
             parameters->width <= 0 || parameters->height <= 0) {
             return false;
         }
-        switch (parameters->codec_id) {
+        switch (codecID) {
             case AV_CODEC_ID_H264:
             case AV_CODEC_ID_HEVC:
                 if (!video_codec_configuration_is_usable(parameters)) return false;
@@ -1884,14 +2069,14 @@ static int read_stream_information(
         .movFamily = context_uses_mov_demuxer(context),
         .skippedProbe = false,
     };
+    int result;
     if (read.movFamily && mov_stream_table_is_qualified(context)) {
+        result = finalize_stream_information(context, sourceReadContext, false);
         fill_video_color_from_codec_configuration(context);
         read.skippedProbe = true;
-        if (readOut) *readOut = read;
-        return 0;
+    } else {
+        result = finalize_stream_information(context, sourceReadContext, true);
     }
-    int result = avformat_find_stream_info(context, NULL);
-    publish_source_bytes(sourceReadContext);
     if (readOut) *readOut = read;
     return result;
 }
@@ -2477,6 +2662,50 @@ static OSStatus create_compressed_format(
     return status;
 }
 
+OSStatus PBFFmpegVideoFormatDescriptionCreate(
+    PBFFmpegReader *reader,
+    CMVideoFormatDescriptionRef sourceFormat,
+    CMVideoFormatDescriptionRef bridgeFormat,
+    CFDictionaryRef replacementExtensions,
+    CMVideoFormatDescriptionRef *formatOut
+) {
+    if (!formatOut) return kCMFormatDescriptionError_InvalidParameter;
+    *formatOut = NULL;
+    if (reader) {
+        if (sourceFormat || bridgeFormat || replacementExtensions) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        if (reader->compressedFormat) {
+            *formatOut = (CMVideoFormatDescriptionRef)CFRetain(
+                reader->compressedFormat
+            );
+            return noErr;
+        }
+        if (!reader->formatContext || reader->videoStreamIndex < 0 ||
+            reader->videoStreamIndex >= (int)reader->formatContext->nb_streams) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        AVStream *stream = reader->formatContext->streams[reader->videoStreamIndex];
+        AVRational sampleAspectRatio = av_guess_sample_aspect_ratio(
+            reader->formatContext,
+            stream,
+            NULL
+        );
+        return create_compressed_format(
+            stream->codecpar,
+            sampleAspectRatio,
+            formatOut,
+            &reader->convertsAnnexB
+        );
+    }
+    return create_format_from_source(
+        sourceFormat,
+        bridgeFormat,
+        replacementExtensions,
+        formatOut
+    );
+}
+
 PBFFmpegReader *PBFFmpegReaderAllocate(void) {
     PBFFmpegReader *reader = calloc(1, sizeof(PBFFmpegReader));
     if (reader) atomic_init(&reader->cancelled, false);
@@ -2488,21 +2717,6 @@ void PBFFmpegReaderSetSourceReadMonitor(
     PBFFmpegSourceReadMonitor *monitor
 ) {
     if (reader) reader->sourceReadContext.monitor = monitor;
-}
-
-static void normalize_mov_dolby_vision_av1_codec_id(AVFormatContext *context) {
-    if (!context) return;
-    for (unsigned int index = 0; index < context->nb_streams; index++) {
-        AVCodecParameters *parameters = context->streams[index]->codecpar;
-        if (parameters->codec_type == AVMEDIA_TYPE_VIDEO &&
-            parameters->codec_id == AV_CODEC_ID_NONE &&
-            parameters->codec_tag == MKTAG('d', 'a', 'v', '1')) {
-            // FFmpeg 8.0.1 preserves the dav1 sample entry, av1C extradata, and
-            // Dolby Vision configuration but does not classify the track as AV1.
-            // Normalize only that incomplete MOV result before stream probing.
-            parameters->codec_id = AV_CODEC_ID_AV1;
-        }
-    }
 }
 
 static PBFFmpegMediaStreamCategory media_stream_category(enum AVMediaType type) {
@@ -2670,6 +2884,24 @@ static PBFFmpegMediaSourceInformation *copy_media_source_information(
         context->iformat && context->iformat->name ? context->iformat->name : "unknown"
     );
     information->durationSeconds = media_source_duration_seconds(context);
+    information->containerSupportsSourceFormatDescription =
+        context_uses_mov_demuxer(context);
+    int videoStreamIndex = av_find_best_stream(
+        context,
+        AVMEDIA_TYPE_VIDEO,
+        -1,
+        -1,
+        NULL,
+        0
+    );
+    PBVideoSourceFacts facts = video_source_facts(context, videoStreamIndex);
+    information->dolbyVisionProfile = facts.dolbyVisionProfile;
+    information->dolbyVisionCrossCompatibilityID =
+        facts.dolbyVisionCrossCompatibilityID;
+    information->dolbyVisionHasEnhancementLayer =
+        facts.dolbyVisionHasEnhancementLayer;
+    information->hasStereoVideoEnhancementLayer =
+        facts.hasStereoVideoEnhancementLayer;
     for (int index = 0; index < information->streamCount; index++) {
         fill_media_stream_storage(&information->streams[index], context->streams[index]);
     }
@@ -2711,8 +2943,6 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
         close_media_source(&context, &sourceReadContext);
         return NULL;
     }
-    normalize_mov_apac_codec_id(context);
-    normalize_mov_dolby_vision_av1_codec_id(context);
     PBStreamInformationRead informationRead = {0};
     result = read_stream_information(
         context,
@@ -2733,14 +2963,12 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
         }
     }
     if (needsAudioProbe && informationRead.skippedProbe) {
-        result = avformat_find_stream_info(context, NULL);
-        publish_source_bytes(&sourceReadContext);
+        result = finalize_stream_information(context, &sourceReadContext, true);
         if (result < 0) {
             set_av_error(errorBuffer, errorBufferSize, "Read audio stream information", result);
             close_media_source(&context, &sourceReadContext);
             return NULL;
         }
-        normalize_mov_apac_codec_id(context);
     }
     if (needsAudioProbe) {
         probe_delayed_audio_parameters(context);
@@ -2804,8 +3032,6 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         PBFFmpegDemuxSourceDestroy(source);
         return NULL;
     }
-    normalize_mov_apac_codec_id(source->formatContext);
-    normalize_mov_dolby_vision_av1_codec_id(source->formatContext);
     PBStreamInformationRead informationRead = {0};
     result = read_stream_information(
         source->formatContext,
@@ -2825,14 +3051,16 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         }
     }
     if (needsAudioProbe && informationRead.skippedProbe) {
-        result = avformat_find_stream_info(source->formatContext, NULL);
-        publish_source_bytes(&source->sourceReadContext);
+        result = finalize_stream_information(
+            source->formatContext,
+            &source->sourceReadContext,
+            true
+        );
         if (result < 0) {
             set_av_error(errorBuffer, errorBufferSize, "Read demux audio information", result);
             PBFFmpegDemuxSourceDestroy(source);
             return NULL;
         }
-        normalize_mov_apac_codec_id(source->formatContext);
     }
     if (needsAudioProbe) {
         probe_delayed_audio_parameters(source->formatContext);
@@ -2956,6 +3184,38 @@ double PBFFmpegMediaSourceInformationGetDurationSeconds(
     const PBFFmpegMediaSourceInformation *information
 ) {
     return information ? information->durationSeconds : 0;
+}
+
+bool PBFFmpegMediaSourceInformationContainerSupportsSourceFormatDescription(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information
+        ? information->containerSupportsSourceFormatDescription
+        : false;
+}
+
+int PBFFmpegMediaSourceInformationGetDolbyVisionProfile(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->dolbyVisionProfile : 0;
+}
+
+int PBFFmpegMediaSourceInformationGetDolbyVisionCrossCompatibilityID(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->dolbyVisionCrossCompatibilityID : 0;
+}
+
+bool PBFFmpegMediaSourceInformationDolbyVisionHasEnhancementLayer(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->dolbyVisionHasEnhancementLayer : false;
+}
+
+bool PBFFmpegMediaSourceInformationHasStereoVideoEnhancementLayer(
+    const PBFFmpegMediaSourceInformation *information
+) {
+    return information ? information->hasStereoVideoEnhancementLayer : false;
 }
 
 int PBFFmpegMediaSourceInformationGetStreamCount(
@@ -3137,16 +3397,12 @@ static bool configure_video_reader(
         );
         if (result < 0) return false;
         if (cancellation_requested(&reader->cancelled)) return false;
-        AVRational sampleAspectRatio = av_guess_sample_aspect_ratio(
-            reader->formatContext,
-            stream,
-            NULL
-        );
-        OSStatus status = create_compressed_format(
-            stream->codecpar,
-            sampleAspectRatio,
-            &reader->compressedFormat,
-            &reader->convertsAnnexB
+        OSStatus status = PBFFmpegVideoFormatDescriptionCreate(
+            reader,
+            NULL,
+            NULL,
+            NULL,
+            &reader->compressedFormat
         );
         if (status != noErr) {
             const AVPacketSideData *doviConfiguration = codec_side_data(
@@ -3258,7 +3514,6 @@ bool PBFFmpegReaderOpen(
         set_av_error(errorBuffer, errorBufferSize, "Open media source", result);
         return false;
     }
-    normalize_mov_dolby_vision_av1_codec_id(reader->formatContext);
     result = read_stream_information(
         reader->formatContext,
         &reader->sourceReadContext,
@@ -3360,15 +3615,12 @@ void PBFFmpegReaderDestroy(PBFFmpegReader *reader) {
     free(reader);
 }
 
-bool PBFFmpegReaderCopyCompressedFormatDescription(
-    const PBFFmpegReader *reader,
-    CMVideoFormatDescriptionRef *formatOut
+PBFFmpegMediaSourceInformation *PBFFmpegReaderCopyMediaSourceInformation(
+    const PBFFmpegReader *reader
 ) {
-    if (!formatOut) return false;
-    *formatOut = NULL;
-    if (!reader || !reader->compressedFormat) return false;
-    *formatOut = (CMVideoFormatDescriptionRef)CFRetain(reader->compressedFormat);
-    return true;
+    return reader && reader->formatContext
+        ? copy_media_source_information(reader->formatContext, NULL, 0)
+        : NULL;
 }
 
 static bool reader_format_has_atom(const PBFFmpegReader *reader, CFStringRef atom) {
@@ -3799,19 +4051,6 @@ const char *PBFFmpegReaderGetColorPrimaries(const PBFFmpegReader *reader) {
 const char *PBFFmpegReaderGetTransferFunction(const PBFFmpegReader *reader) {
     return reader ? reader->transferFunction : "unknown";
 }
-
-int PBFFmpegReaderGetDolbyVisionProfile(const PBFFmpegReader *reader) {
-    return reader ? reader->dolbyVisionProfile : 0;
-}
-
-int PBFFmpegReaderGetDolbyVisionCrossCompatibilityID(const PBFFmpegReader *reader) {
-    return reader ? reader->dolbyVisionCrossCompatibilityID : 0;
-}
-
-bool PBFFmpegReaderDolbyVisionHasEnhancementLayer(const PBFFmpegReader *reader) {
-    return reader ? reader->dolbyVisionHasEnhancementLayer : false;
-}
-
 
 const char *PBFFmpegReaderGetYCbCrMatrix(const PBFFmpegReader *reader) {
     return reader ? reader->yCbCrMatrix : "unknown";

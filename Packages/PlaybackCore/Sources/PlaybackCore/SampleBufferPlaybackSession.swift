@@ -435,7 +435,12 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             details: ["source": url.lastPathComponent]
         )
         do {
-            try await provider.prepare(url: url, asset: asset, startTime: startTime)
+            try await provider.prepare(
+                url: url,
+                asset: asset,
+                sourceInformation: sourceInformation,
+                startTime: startTime
+            )
         } catch {
             recordFailure(error, node: .providerOpen, kind: "provider.openFailed")
             throw error
@@ -494,10 +499,11 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         diagnostics.nominalFrameRate = provider.info.nominalFrameRate
         diagnostics.codecName = provider.info.codecName
         diagnostics.isMVHEVC = provider.info.isMVHEVC
-        diagnostics.dolbyVisionProfile = provider.info.dolbyVisionProfile
+        diagnostics.dolbyVisionProfile = sourceInformation?.dolbyVisionProfile ?? 0
         diagnostics.dolbyVisionCrossCompatibilityID =
-            provider.info.dolbyVisionCrossCompatibilityID
-        diagnostics.dolbyVisionHasEnhancementLayer = provider.info.dolbyVisionHasEnhancementLayer
+            sourceInformation?.dolbyVisionCrossCompatibilityID ?? 0
+        diagnostics.dolbyVisionHasEnhancementLayer =
+            sourceInformation?.dolbyVisionHasEnhancementLayer ?? false
         diagnostics.trackFormatHasMasteringDisplayMetadata = provider.info.trackFormatHasMasteringDisplayMetadata
         diagnostics.trackFormatHasContentLightLevelMetadata = provider.info.trackFormatHasContentLightLevelMetadata
         let openSnapshot = ProviderOpenSnapshot(
