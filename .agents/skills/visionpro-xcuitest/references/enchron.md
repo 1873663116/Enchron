@@ -67,7 +67,11 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 播放中 chrome 自动隐藏快于两次控制器往返，`PlayerUI-InfoBar-button-back` 等按钮会报 exists 但 isHittable 为假。格式编辑器一次开合也活不过两次往返：用 `tapSequence` 把 `PlayerUI-TopAction-videoFormat`、投影项、`PlayerUI-VideoFormat-apply` 连发，或直接读 `tap` 自己返回的层级而不是再发一次 snapshot。
 
-对 Emby 首页滚动视图发 `swipeUp` 两次都导致 runner 死亡（TEST EXECUTE FAILED、设备进程表无 Enchron、无崩溃报告），halt 后重建即恢复；未定性，取证时绕开。
+对 Emby 滚动视图发 `swipeUp` 导致 runner 死亡（TEST EXECUTE FAILED、设备进程表无 Enchron、无崩溃报告），halt 后重建即恢复；未定性。范围不限首页：2026-08-16 在剧集详情页复现，一次即死。Emby 界面一律不发合成滑动。
+
+Emby 不滑动时的播放入口（2026-08-16 真机验证）：首页"接下来看"横条的 `Emby-StillCard-<id>` 打开单集详情，可视区内有 `Emby-Detail-Resume` 与 `Emby-Detail-PlayFromBeginning`。系列详情页的剧集条在窗口折叠线以下不可达，顶部 label 为 "Play button on a TV, filled" 的无 identifier 图标点按无可观察效果。海报横条只有可视区内的卡可点，靠右的卡 tap 返回 False。
+
+播放控制面板前缀是 `PlayerPanel-`（play、forward 等），与 `PlayerUI-` 顶栏不同族。跳转用 `PlayerPanel-button-forward`；进度条拖动是佩戴者专属（200ms 稳定按住的状态机）。More 菜单里 Subtitles 有 identifier（`PlayerUI-menu-subtitles`），Audio Track 及音轨条目无 identifier，按 label 命中，且菜单活不过两次往返，读 tap 自身返回的层级。
 
 ## 测试媒体
 
