@@ -71,7 +71,9 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 Emby 不滑动时的播放入口（2026-08-16 真机验证）：首页"接下来看"横条的 `Emby-StillCard-<id>` 打开单集详情，可视区内有 `Emby-Detail-Resume` 与 `Emby-Detail-PlayFromBeginning`。系列详情页的剧集条在窗口折叠线以下不可达，顶部 label 为 "Play button on a TV, filled" 的无 identifier 图标点按无可观察效果。海报横条只有可视区内的卡可点，靠右的卡 tap 返回 False。
 
-播放控制面板前缀是 `PlayerPanel-`（play、forward 等），与 `PlayerUI-` 顶栏不同族。跳转用 `PlayerPanel-button-forward`；进度条拖动是佩戴者专属（200ms 稳定按住的状态机）。More 菜单里 Subtitles 有 identifier（`PlayerUI-menu-subtitles`），Audio Track 及音轨条目无 identifier，按 label 命中，且菜单活不过两次往返，读 tap 自身返回的层级。
+播放控制面板前缀是 `PlayerPanel-`（play、forward 等），与 `PlayerUI-` 顶栏不同族。跳转用 `PlayerPanel-button-forward`；进度条拖动是佩戴者专属（200ms 稳定按住的状态机）。More 菜单里 Subtitles 有 identifier（`PlayerUI-menu-subtitles`），Audio Track 及音轨条目无 identifier，按 label 命中，且菜单活不过两次往返，读 tap 自身返回的层级。同名条目（如两条 `und · aac · 2ch` 音轨）用 `--label` 加 `--index` 组合。
+
+`typeText` 必须带 `--identifier`：runner 解析目标元素后自己先 tap 再输入；不带 identifier 时返回"无匹配元素"，字段保持为空且没有别的失败信号。SMB 连接表单可全程合成驱动（`FileBrowsing-SourceConnection-{name,address,username,password,guest,connect,cancel}`，2026-08-16 真机验证）。首次凭据连接后系统弹"保存密码?"对话框，`tap --label '以后'` 可以合成关掉，不属于必须佩戴者的权限 Scene。从播放器退出后浏览位置回到 Media Library 根，重进远程目录要从侧栏重走。
 
 ## 测试媒体
 
