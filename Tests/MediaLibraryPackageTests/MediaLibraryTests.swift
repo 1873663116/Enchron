@@ -1,7 +1,6 @@
 import Foundation
 import Testing
 @testable import MediaLibrary
-@testable import Enchron
 
 struct MediaLibraryTests {
     @Test("adding a media reference keeps the original source outside the library")

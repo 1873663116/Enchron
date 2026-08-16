@@ -1,7 +1,6 @@
 import Foundation
 @testable import MediaLibrary
 import Testing
-@testable import Enchron
 
 struct FakeFileDataSourceTests {
 

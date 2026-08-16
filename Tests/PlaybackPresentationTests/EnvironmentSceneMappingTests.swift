@@ -3,6 +3,7 @@ import Testing
 @testable import Enchron
 
 /// Verifies the four Environment identities and the narrower Scenic default set.
+@MainActor
 struct EnvironmentSceneMappingTests {
 
     @Test("the catalog exposes the three Scenic environments and Skybox")

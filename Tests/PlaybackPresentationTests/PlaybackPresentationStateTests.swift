@@ -6,6 +6,7 @@ import RealityKit
 import Testing
 @testable import Enchron
 
+@MainActor
 @Suite("Playback presentation")
 struct PlaybackPresentationStateTests {
     private struct PresentationRequestCase {

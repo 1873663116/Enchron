@@ -1,6 +1,5 @@
 import MediaLibrary
 import XCTest
-@testable import Enchron
 
 nonisolated final class SortCriteriaTests: XCTestCase {
     func testSortByNameAscendingUsesLocalizedCaseInsensitiveOrder() {
