@@ -547,8 +547,24 @@ extension SampleBufferPlaybackSession {
             // Skip host-time activation while the start rate is still 0.
             // Rebuild entry opens startsPaused; scheduling setRate(0, atHostTime:)
             // here can fire after a later play() and stop the running timeline.
-            if isPrerolling, bootstrap.complete, targetReached, timelineStartRate > 0 {
-                if synchronizer.rate == timelineStartRate {
+            if isPrerolling, bootstrap.complete, targetReached {
+                if timelineStartRate == 0 {
+                    if activeOperation?.kind == .seek {
+                        let activationTime = pausedTimelineActivationTime(
+                            target: targetTimelineTime(fallback: presentationTime),
+                            firstDisplayablePresentationTime: presentationTime
+                        )
+                        setTimelineStopped(
+                            at: activationTime,
+                            reason: .decoderBootstrap,
+                            capturedVideoDeliveryGeneration: generation
+                        )
+                        isPrerolling = false
+                        recordTimelineControlState()
+                        publishTargetTimelineState(at: activationTime)
+                        publishDiagnostics(at: activationTime, force: true)
+                    }
+                } else if synchronizer.rate == timelineStartRate {
                     // play() already started the timebase. Re-stopping it here
                     // plants a rate-0 mapping that can win about a second later.
                     isPrerolling = false

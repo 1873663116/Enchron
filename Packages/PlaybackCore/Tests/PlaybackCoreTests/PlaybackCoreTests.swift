@@ -790,11 +790,22 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
 @MainActor
 @Test func controllerSeekKeepsSessionAndAdvancesStreamEpoch() async throws {
-    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 10)
+    let initialSample = try makeCompressedH264Sample()
+    let seekSample = try makeCompressedH264Sample(presentationTimeSeconds: 5)
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 7)
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
             traceID: sessionID,
-            provider: FakeVideoSampleProvider(events: [.sample(sample), .end]),
+            // A remote first PTS would block on bounded lead and test the watchdog,
+            // not whether the seek keeps the session and commits its target epoch.
+            provider: FakeVideoSampleProvider(
+                events: [
+                    .sample(initialSample),
+                    .sample(seekSample),
+                    .sample(holdingSample),
+                    .end,
+                ]
+            ),
             rendererSink: FakeRendererInputSink()
         )
     }
@@ -872,12 +883,23 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
 @MainActor
 @Test func newerSeekSupersedesOlderSeekAndOwnsFinalTarget() async throws {
-    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 20)
+    let initialSample = try makeCompressedH264Sample()
+    let firstSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 5)
+    let secondSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 10)
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 12)
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                events: [.sample(sample), .end],
+                // Every generation must be able to reach its requested position;
+                // a lone PTS 20 sample stalls in bounded lead before ownership is tested.
+                events: [
+                    .sample(initialSample),
+                    .sample(firstSeekSample),
+                    .sample(secondSeekSample),
+                    .sample(holdingSample),
+                    .end,
+                ],
                 seekPrepareDelay: .milliseconds(150)
             ),
             rendererSink: FakeRendererInputSink()
@@ -924,12 +946,25 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
 @MainActor
 @Test func threeRapidSeeksOnlyAllowNewestWaiterToEnterSession() async throws {
-    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 20)
+    let initialSample = try makeCompressedH264Sample()
+    let firstSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 5)
+    let secondSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 10)
+    let thirdSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 15)
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 17)
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                events: [.sample(sample), .end],
+                // Reachable samples keep the test on controller generation ordering;
+                // a lone PTS 20 sample instead waits for the first-frame watchdog.
+                events: [
+                    .sample(initialSample),
+                    .sample(firstSeekSample),
+                    .sample(secondSeekSample),
+                    .sample(thirdSeekSample),
+                    .sample(holdingSample),
+                    .end,
+                ],
                 seekPrepareDelay: .milliseconds(150),
                 seekPrepareIgnoresCancellation: true
             ),
@@ -983,12 +1018,23 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
 
 @MainActor
 @Test func rapidRelativeSeeksAccumulateInsideTheCore() async throws {
-    let sample = try makeCompressedH264Sample(presentationTimeSeconds: 30)
+    let initialSample = try makeCompressedH264Sample()
+    let firstSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 10.5)
+    let secondSeekSample = try makeCompressedH264Sample(presentationTimeSeconds: 20.5)
+    let holdingSample = try makeCompressedH264Sample(presentationTimeSeconds: 22.5)
     let controller = PlaybackCoreController { sessionID in
         SampleBufferPlaybackSession(
             traceID: sessionID,
             provider: FakeVideoSampleProvider(
-                events: [.sample(sample), .end],
+                // The half-second margin covers the live base time while remaining
+                // inside bounded lead, so this test reaches relative accumulation.
+                events: [
+                    .sample(initialSample),
+                    .sample(firstSeekSample),
+                    .sample(secondSeekSample),
+                    .sample(holdingSample),
+                    .end,
+                ],
                 seekPrepareDelay: .milliseconds(150)
             ),
             rendererSink: FakeRendererInputSink()
