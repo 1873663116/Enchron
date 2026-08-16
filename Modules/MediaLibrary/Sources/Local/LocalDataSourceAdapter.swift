@@ -8,6 +8,37 @@ public nonisolated enum LocalDataSourceError: Error, Sendable {
     case itemNotReachable
 }
 
+/// Local files implement the common byte contract for capability parity, while
+/// playback deliberately receives their file URL directly and never registers it.
+private final class LocalFileByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes: MediaByteStreamAttributes
+    private let url: URL
+
+    init(url: URL) throws {
+        self.url = url
+        let values = try url.resourceValues(forKeys: [.fileSizeKey])
+        byteStreamAttributes = MediaByteStreamAttributes(
+            contentLength: values.fileSize.map(Int64.init),
+            supportsSeeking: true,
+            isLive: false,
+            preferredBufferDepth: .none
+        )
+    }
+
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
+        let handle = try FileHandle(forReadingFrom: url)
+        defer { try? handle.close() }
+        try handle.seek(toOffset: UInt64(range.lowerBound))
+        let data = try handle.read(upToCount: range.count) ?? Data()
+        let length = try handle.seekToEnd()
+        return MediaByteRangeRead(
+            data: data,
+            contentLength: Int64(length),
+            supportsSeeking: true
+        )
+    }
+}
+
 nonisolated final class LocalDataSourceAdapter: LocalFileSource, @unchecked Sendable {
     private let fileManager: FileManager
     private let filter: FileBrowsingDomain.FileFilter

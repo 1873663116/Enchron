@@ -1,4 +1,5 @@
 import Foundation
+import MediaSource
 import Testing
 @testable import MediaLibrary
 @testable import Enchron
@@ -79,9 +80,10 @@ struct SMBDataSourceAdapterTests {
     @Test("SMB playback bridge serves only the requested byte range")
     func requestedByteRange() async throws {
         let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
-        let server = HTTPRangeStreamingServer(source: source, filename: "feature.mp4")
-        let url = try await server.start()
-        defer { server.stop() }
+        let server = MediaByteStreamServer()
+        let handle = try await server.register(source: source, filename: "feature.mp4")
+        let url = handle.url
+        defer { handle.release() }
 
         var request = URLRequest(url: url)
         request.setValue("bytes=3-6", forHTTPHeaderField: "Range")
@@ -97,13 +99,10 @@ struct SMBDataSourceAdapterTests {
     @Test("SMB playback bridge applies backpressure-sized source reads")
     func boundedReads() async throws {
         let source = RecordingByteRangeSource(data: Data(repeating: 0x2a, count: 11))
-        let server = HTTPRangeStreamingServer(
-            source: source,
-            filename: "feature.mkv",
-            readChunkSize: 4
-        )
-        let url = try await server.start()
-        defer { server.stop() }
+        let server = MediaByteStreamServer(readChunkSize: 4)
+        let handle = try await server.register(source: source, filename: "feature.mkv")
+        let url = handle.url
+        defer { handle.release() }
 
         let (data, response) = try await URLSession.shared.data(from: url)
         let httpResponse = try #require(response as? HTTPURLResponse)
@@ -116,9 +115,10 @@ struct SMBDataSourceAdapterTests {
     @Test("playback bridge supports open-ended seek ranges")
     func openEndedRange() async throws {
         let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
-        let server = HTTPRangeStreamingServer(source: source, filename: "feature.mp4")
-        let url = try await server.start()
-        defer { server.stop() }
+        let server = MediaByteStreamServer()
+        let handle = try await server.register(source: source, filename: "feature.mp4")
+        let url = handle.url
+        defer { handle.release() }
 
         var request = URLRequest(url: url)
         request.setValue("bytes=7-", forHTTPHeaderField: "Range")
@@ -134,9 +134,10 @@ struct SMBDataSourceAdapterTests {
     @Test("HEAD reports range capability without reading SMB bytes")
     func headDoesNotReadSource() async throws {
         let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
-        let server = HTTPRangeStreamingServer(source: source, filename: "feature.mp4")
-        let url = try await server.start()
-        defer { server.stop() }
+        let server = MediaByteStreamServer()
+        let handle = try await server.register(source: source, filename: "feature.mp4")
+        let url = handle.url
+        defer { handle.release() }
 
         var request = URLRequest(url: url)
         request.httpMethod = "HEAD"
@@ -149,11 +150,102 @@ struct SMBDataSourceAdapterTests {
         #expect(source.requestedRanges.isEmpty)
     }
 
+    @Test("successive requests reuse one loopback connection")
+    func successiveRequestsReuseConnection() async throws {
+        let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
+        let server = MediaByteStreamServer()
+        let handle = try await server.register(source: source, filename: "feature.mp4")
+        let session = URLSession(configuration: .ephemeral)
+        defer {
+            session.invalidateAndCancel()
+            handle.release()
+        }
+
+        for bounds in ["bytes=0-1", "bytes=2-3"] {
+            var request = URLRequest(url: handle.url)
+            request.setValue(bounds, forHTTPHeaderField: "Range")
+            let (_, response) = try await session.data(for: request)
+            #expect((response as? HTTPURLResponse)?.statusCode == 206)
+        }
+
+        let statistics = server.snapshot()
+        #expect(statistics.requestCount == 2)
+        #expect(statistics.acceptedConnectionCount == 1)
+    }
+
+    @Test("unknown source length uses chunked transfer and disables seeking")
+    func unknownLengthUsesChunkedTransfer() async throws {
+        let source = UnknownLengthByteRangeSource(data: Data("0123456789".utf8))
+        let server = MediaByteStreamServer(readChunkSize: 4)
+        let handle = try await server.register(source: source, filename: "live.mkv")
+        defer { handle.release() }
+
+        let (data, response) = try await URLSession.shared.data(from: handle.url)
+        let httpResponse = try #require(response as? HTTPURLResponse)
+
+        #expect(httpResponse.statusCode == 200)
+        #expect(httpResponse.value(forHTTPHeaderField: "Accept-Ranges") == "none")
+        #expect(httpResponse.value(forHTTPHeaderField: "Content-Length") == nil)
+        #expect(data == Data("0123456789".utf8))
+        #expect(source.requestedRanges == [0..<4, 4..<8, 8..<12, 10..<14])
+    }
+
+    @Test("a zero-based range can fall back to a non-seekable source")
+    func zeroBasedRangeFallsBackToSequentialTransfer() async throws {
+        let source = UnknownLengthByteRangeSource(data: Data("0123456789".utf8))
+        let server = MediaByteStreamServer(readChunkSize: 4)
+        let handle = try await server.register(source: source, filename: "live.mkv")
+        defer { handle.release() }
+
+        var request = URLRequest(url: handle.url)
+        request.setValue("bytes=0-", forHTTPHeaderField: "Range")
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let httpResponse = try #require(response as? HTTPURLResponse)
+
+        #expect(httpResponse.statusCode == 200)
+        #expect(httpResponse.value(forHTTPHeaderField: "Accept-Ranges") == "none")
+        #expect(data == Data("0123456789".utf8))
+    }
+
+    @Test("container index cache reuses bytes for the same content revision")
+    func containerIndexCacheReusesRevisionBytes() async throws {
+        let revision = ContentRevision.remote(
+            entityTag: UUID().uuidString,
+            sizeInBytes: 10
+        )
+        let firstSource = RecordingByteRangeSource(data: Data("0123456789".utf8))
+        let firstServer = MediaByteStreamServer(readChunkSize: 4)
+        let firstHandle = try await firstServer.register(source: firstSource, filename: "feature.mkv")
+        firstHandle.useContainerIndex(for: revision)
+
+        var firstRequest = URLRequest(url: firstHandle.url)
+        firstRequest.setValue("bytes=0-3", forHTTPHeaderField: "Range")
+        let (firstData, _) = try await URLSession.shared.data(for: firstRequest)
+        firstHandle.finishContainerIndex()
+        firstHandle.release()
+
+        let secondSource = RecordingByteRangeSource(data: Data("abcdefghij".utf8))
+        let secondServer = MediaByteStreamServer(readChunkSize: 4)
+        let secondHandle = try await secondServer.register(source: secondSource, filename: "feature.mkv")
+        defer { secondHandle.release() }
+        secondHandle.useContainerIndex(for: revision)
+
+        var secondRequest = URLRequest(url: secondHandle.url)
+        secondRequest.setValue("bytes=0-3", forHTTPHeaderField: "Range")
+        let (secondData, _) = try await URLSession.shared.data(for: secondRequest)
+
+        #expect(firstData == Data("0123".utf8))
+        #expect(secondData == firstData)
+        #expect(firstSource.requestedRanges == [0..<4])
+        #expect(secondSource.requestedRanges.isEmpty)
+    }
+
     @Test("stopping the playback bridge cancels accepted connections and in-flight reads")
     func stopCancelsInFlightRead() async throws {
         let source = CancellationAwareByteRangeSource()
-        let server = HTTPRangeStreamingServer(source: source, filename: "feature.mkv")
-        let url = try await server.start()
+        let server = MediaByteStreamServer()
+        let handle = try await server.register(source: source, filename: "feature.mkv")
+        let url = handle.url
         let request = Task {
             try await URLSession.shared.data(from: url)
         }
@@ -170,8 +262,8 @@ struct SMBDataSourceAdapterTests {
     }
 }
 
-private final class RecordingByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
-    let contentLength: Int64
+private final class RecordingByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes: MediaByteStreamAttributes
     private let data: Data
     private let lock = NSLock()
     private var ranges: [Range<Int64>] = []
@@ -182,17 +274,62 @@ private final class RecordingByteRangeSource: ByteRangeStreamingSource, @uncheck
 
     init(data: Data) {
         self.data = data
-        contentLength = Int64(data.count)
+        byteStreamAttributes = MediaByteStreamAttributes(
+            contentLength: Int64(data.count),
+            supportsSeeking: true,
+            isLive: false,
+            preferredBufferDepth: .automatic
+        )
     }
 
-    func read(in range: Range<Int64>) async throws -> Data {
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
         lock.withLock { ranges.append(range) }
-        return data[Int(range.lowerBound)..<Int(range.upperBound)]
+        return MediaByteRangeRead(
+            data: data[Int(range.lowerBound)..<Int(range.upperBound)],
+            contentLength: Int64(data.count),
+            supportsSeeking: true
+        )
     }
 }
 
-private final class CancellationAwareByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
-    let contentLength: Int64 = 1_024
+private final class UnknownLengthByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes = MediaByteStreamAttributes(
+        contentLength: nil,
+        supportsSeeking: false,
+        isLive: true,
+        preferredBufferDepth: .none
+    )
+    private let data: Data
+    private let lock = NSLock()
+    private var ranges: [Range<Int64>] = []
+
+    var requestedRanges: [Range<Int64>] {
+        lock.withLock { ranges }
+    }
+
+    init(data: Data) {
+        self.data = data
+    }
+
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
+        lock.withLock { ranges.append(range) }
+        let lower = min(Int(range.lowerBound), data.count)
+        let upper = min(Int(range.upperBound), data.count)
+        return MediaByteRangeRead(
+            data: data[lower..<upper],
+            contentLength: nil,
+            supportsSeeking: false
+        )
+    }
+}
+
+private final class CancellationAwareByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes = MediaByteStreamAttributes(
+        contentLength: 1_024,
+        supportsSeeking: true,
+        isLive: false,
+        preferredBufferDepth: .automatic
+    )
     private let lock = NSLock()
     private var readStarted = false
     private var cancellationObserved = false
@@ -205,11 +342,15 @@ private final class CancellationAwareByteRangeSource: ByteRangeStreamingSource, 
         lock.withLock { cancellationObserved }
     }
 
-    func read(in range: Range<Int64>) async throws -> Data {
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
         lock.withLock { readStarted = true }
         do {
             try await Task.sleep(for: .seconds(30))
-            return Data(repeating: 0, count: range.count)
+            return MediaByteRangeRead(
+                data: Data(repeating: 0, count: range.count),
+                contentLength: 1_024,
+                supportsSeeking: true
+            )
         } catch {
             lock.withLock { cancellationObserved = true }
             throw error

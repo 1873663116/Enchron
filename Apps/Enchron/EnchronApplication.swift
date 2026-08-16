@@ -1,4 +1,5 @@
 import Foundation
+import DesignSystem
 import Emby
 import MediaLibrary
 import MediaSource
@@ -48,7 +49,7 @@ final class EnchronApplication {
     let mediaLibraryViewModel: MediaLibraryViewModel
     let playbackLauncher: PlaybackLaunchCoordinator
     let settingsViewModel: SettingsViewModel
-    let thumbnailService: ThumbnailService
+    let certificateTrustPrompt: CertificateTrustPrompt
     let spatialPlatformEffectCoordinator: SpatialPlatformEffectCoordinator
 
     init(environment: [String: String] = ProcessInfo.processInfo.environment) {
@@ -132,6 +133,19 @@ final class EnchronApplication {
             )
         )
         let playbackRuntime = PlaybackRuntime()
+        ArtworkNetworkConfiguration.use(
+            session: MediaSourceNetwork.shared.session,
+            imageProvider: {
+                ArtworkStore.shared.image(for: ArtworkKey(remoteImageURL: $0))
+            },
+            imageStorer: {
+                try ArtworkStore.shared.store($1, for: ArtworkKey(remoteImageURL: $0))
+            }
+        )
+        let certificateTrustPrompt = CertificateTrustPrompt()
+        ServerTrustPolicy.shared.approvalHandler = { [weak certificateTrustPrompt] certificate in
+            await certificateTrustPrompt?.requestApproval(for: certificate) ?? false
+        }
         let playbackVideoEntityStore = PlaybackVideoEntityStore()
         let launcher = PlaybackLaunchCoordinator(
             playbackRuntime: playbackRuntime,
@@ -331,7 +345,7 @@ final class EnchronApplication {
         mediaLibraryViewModel = mediaLibrary
         playbackLauncher = launcher
         settingsViewModel = SettingsViewModel(store: preferencesStore)
-        thumbnailService = .shared
+        self.certificateTrustPrompt = certificateTrustPrompt
     }
 
     static func mediaStateSuiteName(
@@ -379,8 +393,18 @@ private extension MediaPlaybackItem {
         case .mediaLibrary: .mediaLibrary
         case .sourceDirectory: .sourceDirectory
         }
+        let playbackAddress: PlaybackAddress
+        if let byteStreamHandle {
+            playbackAddress = PlaybackAddress(byteStreamHandle: byteStreamHandle)
+        } else {
+            do {
+                playbackAddress = try PlaybackAddress(localFileURL: url)
+            } catch {
+                preconditionFailure("A remote media item reached playback without a byte-stream handle.")
+            }
+        }
         return PlaybackLaunchRequest(
-            url: url,
+            source: playbackAddress,
             displayName: displayName,
             fileIdentifier: stableIdentifier.map(PlaybackFileIdentifier.init(rawValue:)),
             initialMetadata: PlaybackMediaMetadata(fileSizeInBytes: sizeInBytes),
@@ -415,6 +439,6 @@ extension View {
             .environment(application.mediaLibraryViewModel)
             .environment(application.playbackLauncher)
             .environment(application.settingsViewModel)
-            .environment(application.thumbnailService)
+            .environment(application.certificateTrustPrompt)
     }
 }

@@ -3,7 +3,13 @@ import SwiftUI
 public struct GridCard: View {
     /// 变体轴:决定缩略图内容与悬停信息布局。缩略图内容由变体内部钉死,不开放给调用点。
     private enum Variant {
-        case video(fileSize: String, duration: String, badges: [String], watchedProgress: Double?)
+        case video(
+            artworkURL: URL?,
+            fileSize: String,
+            duration: String,
+            badges: [String],
+            watchedProgress: Double?
+        )
         case folder(count: Int?)
         case poster(PosterState)
         case episode(EpisodeState)
@@ -99,6 +105,7 @@ public struct GridCard: View {
 
     public static func video(
         title: String,
+        artworkURL: URL? = nil,
         fileSize: String,
         duration: String,
         badges: [String] = [],
@@ -112,6 +119,7 @@ public struct GridCard: View {
         GridCard(
             title: title,
             variant: .video(
+                artworkURL: artworkURL,
                 fileSize: fileSize,
                 duration: duration,
                 badges: badges,
@@ -199,7 +207,13 @@ public struct GridCard: View {
     public static func skeleton(_ variant: SkeletonVariant) -> GridCard {
         let cardVariant: Variant = switch variant {
         case .video:
-            .video(fileSize: "0 GB", duration: "0:00:00", badges: [], watchedProgress: nil)
+            .video(
+                artworkURL: nil,
+                fileSize: "0 GB",
+                duration: "0:00:00",
+                badges: [],
+                watchedProgress: nil
+            )
         case .folder:
             .folder(count: 0)
         case .poster:
@@ -415,12 +429,11 @@ public struct GridCard: View {
             shape.fill(DesignTokens.Surface.elevated)
         } else {
             switch variant {
-            case let .video(fileSize, duration, badges, watchedProgress):
-                // 缩略图占位 — 真实 app 中为视频帧/海报
-                shape.fill(DesignTokens.Surface.elevated)
-                    .overlay(alignment: .center) {
-                        thumbnailPlaceholderIcon("film")
-                    }
+            case let .video(artworkURL, fileSize, duration, badges, watchedProgress):
+                AsyncArtworkImage(url: artworkURL)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .clipped()
+                    .background(DesignTokens.Surface.elevated)
                     .overlay {
                         videoThumbnailInfo(fileSize: fileSize, duration: duration, badges: badges)
                     }

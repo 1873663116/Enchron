@@ -1,5 +1,6 @@
 import DesignSystem
 import MediaLibrary
+import MediaSource
 import PlaybackFeature
 import PlaybackPresentation
 import SwiftUI
@@ -10,7 +11,8 @@ struct SettingsScreen: View {
     @Environment(PlaybackLaunchCoordinator.self) private var playbackLauncher
     @Environment(SettingsViewModel.self) private var viewModel
     @State private var selectedCategoryID: String = Category.playback.rawValue
-    @State private var cacheUsageInBytes: Int64 = 0
+    @State private var artworkUsageInBytes: Int64 = 0
+    @State private var containerIndexUsageInBytes: Int64 = 0
     @State private var showsLicenses = false
 
     private enum Category: String, CaseIterable {
@@ -176,14 +178,28 @@ struct SettingsScreen: View {
     private var storagePrivacyItems: [SettingListGroup.Item] {
         [
             SettingListGroup.Item(
-                id: "clear-cache",
-                title: "Thumbnail Cache",
+                id: "clear-artwork-cache",
+                title: "Artwork Cache",
                 systemName: "photo.stack",
                 accessory: .valueAction(
-                    value: ByteCountFormatter.string(fromByteCount: cacheUsageInBytes, countStyle: .file),
+                    value: ByteCountFormatter.string(fromByteCount: artworkUsageInBytes, countStyle: .file),
                     actionTitle: "Clear",
                     feedback: "Cleared",
-                    action: clearCache
+                    action: clearArtworkCache
+                )
+            ),
+            SettingListGroup.Item(
+                id: "clear-container-index-cache",
+                title: "Container Index Cache",
+                systemName: "shippingbox",
+                accessory: .valueAction(
+                    value: ByteCountFormatter.string(
+                        fromByteCount: containerIndexUsageInBytes,
+                        countStyle: .file
+                    ),
+                    actionTitle: "Clear",
+                    feedback: "Cleared",
+                    action: clearContainerIndexCache
                 )
             ),
             SettingListGroup.Item(
@@ -306,12 +322,22 @@ struct SettingsScreen: View {
     }
 
     private func refreshCacheUsage() async {
-        cacheUsageInBytes = await ThumbnailService.shared.cacheUsageInBytes()
+        async let artwork = ArtworkStore.shared.diskUsageInBytes()
+        async let containerIndex = ContainerIndexCache.shared.diskUsageInBytes()
+        artworkUsageInBytes = await artwork
+        containerIndexUsageInBytes = await containerIndex
     }
 
-    private func clearCache() {
+    private func clearArtworkCache() {
         Task {
-            await ThumbnailService.shared.clearCache()
+            await ArtworkStore.shared.clear()
+            await refreshCacheUsage()
+        }
+    }
+
+    private func clearContainerIndexCache() {
+        Task {
+            await ContainerIndexCache.shared.clear()
             await refreshCacheUsage()
         }
     }

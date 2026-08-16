@@ -43,7 +43,7 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
 
     init(credentialStore: CredentialStoring? = nil, session: URLSession? = nil) {
         self.credentialStore = credentialStore
-        self.session = session ?? URLSession(configuration: .default)
+        self.session = session ?? MediaSourceNetwork.shared.session
     }
 
     public func connect(with info: FileBrowsingDomain.ConnectionInfo) async throws {
@@ -52,7 +52,11 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
         do {
             let rootURL = try buildBaseURL(from: info)
             authHeader = try buildAuthHeader(info: info)
-            let validatedURL = try await validateConnection(startingAt: rootURL)
+            let validatedURL = try await MediaSourceNetwork.shared.withConnectionApproval(
+                to: rootURL
+            ) { [self] in
+                try await validateConnection(startingAt: rootURL)
+            }
 
             baseURL = validatedURL
             connectionInfo = info
@@ -169,25 +173,19 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
         guard connectionInfo != nil else {
             throw WebDAVError.notConnected
         }
-        guard file.sizeInBytes > 0 else {
-            throw WebDAVError.streamingFailed("The server did not report the remote file size.")
-        }
-
         let source = WebDAVByteRangeSource(
             url: file.url,
-            contentLength: file.sizeInBytes,
+            reportedContentLength: file.sizeInBytes,
             authorizationHeader: authHeader,
             session: session
         )
-        let server = HTTPRangeStreamingServer(source: source, filename: file.name)
         do {
-            let url = try await server.start()
-            return ResolvedMediaSource(
-                url: url,
-                accessLease: MediaAccessLease { server.stop() }
+            let handle = try await MediaByteStreamServer.shared.register(
+                source: source,
+                filename: file.name
             )
+            return ResolvedMediaSource(byteStreamHandle: handle)
         } catch {
-            server.stop()
             throw WebDAVError.streamingFailed(error.localizedDescription)
         }
     }
@@ -441,25 +439,30 @@ nonisolated final class WebDAVDataSourceAdapter: DataSourceConnecting, FileProvi
     }()
 }
 
-private nonisolated final class WebDAVByteRangeSource: ByteRangeStreamingSource, @unchecked Sendable {
-    let contentLength: Int64
+private nonisolated final class WebDAVByteRangeSource: MediaByteRangeSource, @unchecked Sendable {
+    let byteStreamAttributes: MediaByteStreamAttributes
     private let url: URL
     private let authorizationHeader: String?
     private let session: URLSession
 
     init(
         url: URL,
-        contentLength: Int64,
+        reportedContentLength: Int64,
         authorizationHeader: String?,
         session: URLSession
     ) {
         self.url = url
-        self.contentLength = contentLength
+        byteStreamAttributes = MediaByteStreamAttributes(
+            contentLength: reportedContentLength > 0 ? reportedContentLength : nil,
+            supportsSeeking: true,
+            isLive: false,
+            preferredBufferDepth: .automatic
+        )
         self.authorizationHeader = authorizationHeader
         self.session = session
     }
 
-    func read(in range: Range<Int64>) async throws -> Data {
+    func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
         var request = URLRequest(url: url)
         request.setValue(
             "bytes=\(range.lowerBound)-\(range.upperBound - 1)",
@@ -474,21 +477,35 @@ private nonisolated final class WebDAVByteRangeSource: ByteRangeStreamingSource,
         guard let response = response as? HTTPURLResponse else {
             throw WebDAVError.invalidResponse
         }
+        if response.statusCode == 200 {
+            return MediaByteRangeRead(
+                data: data,
+                contentLength: response.expectedContentLength >= 0
+                    ? response.expectedContentLength
+                    : nil,
+                supportsSeeking: false
+            )
+        }
         guard response.statusCode == 206 else {
             throw WebDAVError.requestFailed(response.statusCode)
         }
-        let expectedContentRange = "bytes \(range.lowerBound)-\(range.upperBound - 1)/"
+        let expectedContentRange = "bytes \(range.lowerBound)-"
         guard response.value(forHTTPHeaderField: "Content-Range")?
             .lowercased()
             .hasPrefix(expectedContentRange) == true else {
             throw WebDAVError.streamingFailed("The server returned a mismatched byte range.")
         }
-        guard data.count == range.count else {
-            throw WebDAVError.streamingFailed(
-                "Expected \(range.count) bytes but received \(data.count)."
-            )
-        }
-        return data
+        return MediaByteRangeRead(
+            data: data,
+            contentLength: Self.contentLength(from: response),
+            supportsSeeking: true
+        )
+    }
+
+    private static func contentLength(from response: HTTPURLResponse) -> Int64? {
+        guard let value = response.value(forHTTPHeaderField: "Content-Range"),
+              let slash = value.lastIndex(of: "/") else { return nil }
+        return Int64(value[value.index(after: slash)...])
     }
 }
 

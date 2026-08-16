@@ -481,9 +481,24 @@ public final class FileBrowsingViewModel {
             collectionOrigin: .sourceDirectory,
             versionedIdentity: versionedIdentity,
             accessLease: sourceAccess,
+            byteStreamHandle: resolvedSource.byteStreamHandle,
             externalSubtitleSources: externalSubtitles.sources,
             externalSubtitleErrorMessage: externalSubtitles.errorMessage
         )
+    }
+
+    public func artworkURL(for file: FileBrowsingDomain.MediaFile) -> URL? {
+        let identity: MediaIdentity?
+        if let dataSource = activeDataSource {
+            identity = .remote(
+                sourceKey: dataSource.connectionInfo.mediaIdentitySourceKey,
+                canonicalPath: file.url.path
+            )
+        } else {
+            identity = VersionedMediaIdentity.localIdentity(file.url)
+        }
+        guard let identity else { return nil }
+        return ArtworkStore.shared.fileURL(for: ArtworkKey(mediaIdentity: identity))
     }
 
     private func resolvedExternalSubtitleSources(
@@ -533,7 +548,8 @@ public final class FileBrowsingViewModel {
                     url: resolved.url,
                     displayName: candidate.name,
                     versionedIdentity: versionedIdentity,
-                    accessLease: resolved.accessLease
+                    accessLease: resolved.accessLease,
+                    byteStreamHandle: resolved.byteStreamHandle
                 )
             )
         }

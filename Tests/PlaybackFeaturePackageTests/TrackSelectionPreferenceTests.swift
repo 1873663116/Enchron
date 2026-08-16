@@ -1,6 +1,6 @@
 import Foundation
 import MediaSource
-import PlaybackFeature
+@_spi(Testing) import PlaybackFeature
 import Synchronization
 import Testing
 

@@ -277,7 +277,7 @@ struct FilesScreen: View {
         items += viewModel.savedDataSources.map { ds in
             SidebarSourceItem(
                 id: ds.id.uuidString,
-                icon: icon(for: ds.sourceType),
+                icon: ds.sourceType.sidebarIcon,
                 title: ds.name,
                 isSelected: sourceSelection == .dataSource(ds.id),
                 isActiveSource: viewModel.activeDataSource?.id == ds.id
@@ -301,16 +301,13 @@ struct FilesScreen: View {
     }
 
     private func presentConnection(for sourceType: FileBrowsingDomain.SourceType) {
-        switch sourceType {
-        case .webDAV:
+        switch sourceType.presentation {
+        case .serverConnection:
             resetSourceConnectionFields()
-            presentedSourceConnection = .webDAV
-        case .smb:
-            resetSourceConnectionFields()
-            presentedSourceConnection = .smb
-        case .photoLibrary:
+            presentedSourceConnection = sourceType
+        case .photoPicker:
             requestPhotosAccessAndPresentPicker()
-        case .local:
+        case .fileImporter:
             fileSelectionKind = .files
             isFileImporterPresented = true
         }
@@ -338,13 +335,13 @@ struct FilesScreen: View {
     ) async -> SourceConnectionOutcome {
         do {
             let connection = try FileBrowsingDomain.ConnectionInfo.remote(
-                sourceType: request.kind.sourceType,
+                sourceType: request.kind,
                 address: request.address,
                 username: request.connectsAsGuest ? nil : request.username
             )
             let source = FileBrowsingDomain.DataSource(
                 name: sourceName(for: request, connection: connection),
-                sourceType: request.kind.sourceType,
+                sourceType: request.kind,
                 connectionInfo: connection
             )
             let credential = StorageCredential(
@@ -403,15 +400,6 @@ struct FilesScreen: View {
             viewModel.removeDataSource(id: uuid)
         }
         syncSourceItems()
-    }
-
-    private func icon(for type: FileBrowsingDomain.SourceType) -> String {
-        switch type {
-        case .local: "externaldrive.fill"
-        case .smb: "server.rack"
-        case .webDAV: "cloud.fill"
-        case .photoLibrary: "photo.on.rectangle"
-        }
     }
 
     private let mediaLibrarySourceID = "media-library"
@@ -694,6 +682,7 @@ struct FilesScreen: View {
                     ForEach(viewModel.displayedFiles) { file in
                         GridCard.video(
                             title: displayTitle(file),
+                            artworkURL: viewModel.artworkURL(for: file),
                             fileSize: fileSizeText(file),
                             duration: "",
                             watchedProgress: viewModel.fileViewingStates[file.id]?.progress,
@@ -726,6 +715,7 @@ struct FilesScreen: View {
                     ForEach(displayedLibraryReferences) { reference in
                         GridCard.video(
                             title: displayTitle(reference),
+                            artworkURL: mediaLibrary.artworkURL(for: reference),
                             fileSize: fileSizeText(reference),
                             duration: "",
                             watchedProgress: mediaLibrary.referenceViewingStates[reference.id]?.progress,

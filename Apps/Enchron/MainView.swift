@@ -1,5 +1,6 @@
 import DesignSystem
 import Emby
+import MediaSource
 import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
@@ -193,6 +194,7 @@ public struct MainView: View {
     @Environment(EmbyHomeViewModel.self) private var embyHome
     @Environment(SpatialPlatformEffectCoordinator.self)
     private var spatialPlatformEffectCoordinator
+    @Environment(CertificateTrustPrompt.self) private var certificateTrustPrompt
 
     @State private var controlsTimer: Task<Void, Never>?
     @State private var reapplyVerificationSnapshotTick = 0
@@ -271,6 +273,32 @@ public struct MainView: View {
                     .accessibilityValue(windowPlaybackStateValue)
             }
         }
+        .alert(
+            "无法验证服务器证书",
+            isPresented: Binding(
+                get: { certificateTrustPrompt.certificate != nil },
+                set: { if $0 == false { certificateTrustPrompt.resolve(approved: false) } }
+            )
+        ) {
+            Button("信任", role: .destructive) {
+                certificateTrustPrompt.resolve(approved: true)
+            }
+            Button("取消", role: .cancel) {
+                certificateTrustPrompt.resolve(approved: false)
+            }
+        } message: {
+            if let certificate = certificateTrustPrompt.certificate {
+                Text(Self.certificateDescription(certificate))
+            }
+        }
+    }
+
+    private static func certificateDescription(_ certificate: ServerCertificateInfo) -> String {
+        let validFrom = certificate.validFrom?.formatted(date: .abbreviated, time: .shortened)
+            ?? "未知"
+        let validUntil = certificate.validUntil?.formatted(date: .abbreviated, time: .shortened)
+            ?? "未知"
+        return "地址：\(certificate.address)\n证书名：\(certificate.certificateName)\n指纹：\(certificate.sha256Fingerprint)\n有效期：\(validFrom) – \(validUntil)"
     }
 
     private var hostsPlaybackOrnament: Bool {

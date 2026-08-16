@@ -41,13 +41,15 @@ struct EmbyPlaybackBridgeTests {
         #expect(resumed.viewingStateAuthority == .mediaServer)
         #expect(resumed.startPositionSeconds == 5)
         #expect(restarted.startPositionSeconds == 0)
-        #expect(resumed.url == selectedSource.directPlayURL)
+        #expect(resumed.url.scheme == "http")
+        #expect(resumed.url.host == "127.0.0.1")
+        #expect(resumed.source.byteStreamHandle != nil)
+        #expect(resumed.url != selectedSource.directPlayURL)
         #expect(resumed.versionedIdentity == selectedSource.versionedIdentity)
         #expect(resumed.collectionOrigin == .standalone)
         #expect(resumed.externalSubtitleSources.map(\.id) == ["emby.subtitle.4"])
-        #expect(resumed.externalSubtitleSources.map(\.url) == [
-            URL(string: "http://example.test/emby/subtitle/4?api_key=token")!,
-        ])
+        #expect(resumed.externalSubtitleSources.map(\.url.host) == ["127.0.0.1"])
+        #expect(resumed.externalSubtitleSources.allSatisfy { $0.byteStreamHandle != nil })
     }
 
     @Test("the reporter preserves callback order and maps runtime track IDs")

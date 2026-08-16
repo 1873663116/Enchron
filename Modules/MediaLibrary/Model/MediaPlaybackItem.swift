@@ -16,6 +16,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
     public let collectionOrigin: MediaCollectionOrigin
     public let versionedIdentity: VersionedMediaIdentity?
     public let accessLease: MediaAccessLease?
+    public let byteStreamHandle: MediaByteStreamHandle?
     public let externalSubtitleSources: [ResolvedExternalSubtitleSource]
     public let externalSubtitleErrorMessage: String?
 
@@ -28,6 +29,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         collectionOrigin: MediaCollectionOrigin,
         versionedIdentity: VersionedMediaIdentity? = nil,
         accessLease: MediaAccessLease? = nil,
+        byteStreamHandle: MediaByteStreamHandle? = nil,
         externalSubtitleSources: [ResolvedExternalSubtitleSource] = [],
         externalSubtitleErrorMessage: String? = nil
     ) {
@@ -39,6 +41,7 @@ public struct MediaPlaybackItem: @unchecked Sendable, Equatable, Identifiable {
         self.collectionOrigin = collectionOrigin
         self.versionedIdentity = versionedIdentity
         self.accessLease = accessLease
+        self.byteStreamHandle = byteStreamHandle
         self.externalSubtitleSources = externalSubtitleSources
         self.externalSubtitleErrorMessage = externalSubtitleErrorMessage
     }
