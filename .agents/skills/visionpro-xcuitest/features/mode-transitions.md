@@ -33,6 +33,15 @@ python3 Scripts/verification/playback_mode_matrix.py --clean --reps 1 \
 - **summon 原语**（`summon:<identifier>`）：自动隐藏 chrome 上的控件必须在一个收敛循环里"先试点、不中则 toggle 后经 runner 内 3 秒存在等待重试"；分离的可见性探测永远输给隐藏计时器。
 - **tapSequence**：窗口菜单序列（格式编辑五击）必须在一条 runner 命令内以亚秒间隔落点。
 
+## 证据
+
+| 种类 | 判据 | 谁守 |
+|---|---|---|
+| 结构 | 保持格式的切换复用媒体会话，不重开来源 | PlaybackCore 单测（RendererGraphReplacementTests） |
+| 结构 | 附着权属于转场目标呈现；场景操作与转场序列化 | `verify_playback_surface_structure.py` |
+| 物理 | 每步 settle 或稳态收口，失败干净回滚不悬挂 | `playback_mode_matrix.py` 的循环路径 |
+| 感知 | 切换过程是否突兀、有无闪烁 | **待做** |
+
 ## 证明的终态
 
 每步以探针 settle（沉浸目标）或控制串稳态（窗口目标）收口；全景格式 Apply 必须先证明 Portal 稳态和 1280×720 自由缩放策略，再点击显式入口并证明 Panorama settle。Window 目标还必须证明窗口按有效逐眼比例锁定。ended 转换的目标必须显示最终帧和 Replay，且 lifecycle 保持 ended。未 settle 应观察到源呈现回滚且无 pending effect。

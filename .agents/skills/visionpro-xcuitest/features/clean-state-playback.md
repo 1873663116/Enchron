@@ -21,6 +21,15 @@ python3 Scripts/verification/playback_mode_matrix.py \
   --evidence-dir <evidence>/clean-open-<stamp>
 ```
 
+## 证据
+
+| 种类 | 判据 | 谁守 |
+|---|---|---|
+| 结构 | 解封装、时间线、轨道结构正确 | PlaybackCore 单测 |
+| 结构 | 干净态无持久化残留 | 模拟器单测 |
+| 物理 | 落地呈现正确，画面非黑非冻结 | `playback_mode_matrix.py` 的双帧亮度与 SSIM 闸 |
+| 感知 | 不适用（本条只证明"能播"，画面解释的正确性见 [picture-interpretation.md](picture-interpretation.md)） | |
+
 ## 证明的终态
 
 `results.jsonl` 该 cell `verdict: PASS`，`landed` 记录落地呈现（window 或 panorama）。window 落地要求控制串 `videoVisible=true` 且 lifecycle 稳态；panorama 落地要求探针 `settled=true`。此外 PASS 必须带 `visual.verdict = content`（双帧截图 + 亮度/SSIM 分析，黑屏或冻结即判负），截图路径在 cell 记录里供人工复审。40 秒未达任一稳态即失败，证据在 cell 目录的探针摘录与最后控制串。

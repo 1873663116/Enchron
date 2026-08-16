@@ -26,6 +26,15 @@ tap "PlayerUI-VideoFormat-Stereo Layout-Side-by-Side"  # 标识含空格
 tap PlayerUI-VideoFormat-apply
 ```
 
+## 证据
+
+| 种类 | 判据 | 谁守 |
+|---|---|---|
+| 结构 | 用户偏好只改 Media Format，不改来源声明的 Format Description | `verify_format_description_ownership.py` |
+| 结构 | Automatic 恢复与 provenance 判定正确 | 模拟器单测 |
+| 物理 | 应用后控制串的投影、立体布局、revision 已更新，且落地呈现正确 | 真机，本文的控制器序列 |
+| 感知 | 所选投影下画面包裹是否自然 | **待做**，见 [picture-interpretation.md](picture-interpretation.md) |
+
 ## 证明的终态
 
 应用全景格式后，控制串必须先满足 `presentation=portal`、`attached=portal`、`transition=none`、`pendingSpatialEffect=none`，且投影、立体布局和格式 revision 已更新。Portal 窗口使用自由缩放策略，并在进入时请求 `WindowPlaybackLayout.fallback.defaultSize`（1280×720）。点击显式 Panorama 入口后，再用沉浸探针证明 RealityKit 采用所选投影。应用 Flat 后控制串满足 `presentation=window`，窗口重新按有效逐眼画面比例锁定。
