@@ -22,6 +22,10 @@ def require(condition: bool, message: str) -> None:
 
 def main() -> int:
     byte_stream = text("Modules/MediaSource/MediaByteStream.swift")
+    conformance_suite = text(
+        "Tests/MediaByteStreamConformance/Tests/"
+        "MediaByteStreamConformanceTests/MediaByteStreamConformanceTests.swift"
+    )
     playback_request = text("Modules/PlaybackFeature/PlaybackLaunchRequest.swift")
     media_library = ROOT / "Modules/MediaLibrary"
 
@@ -32,6 +36,15 @@ def main() -> int:
         "M2: MediaLibrary still owns an HTTP range server",
     )
     require("Transfer-Encoding: chunked" in byte_stream, "M3: unknown-length chunking is missing")
+    require(
+        "MediaByteStreamAttributes.contentLength` is a pre-open hint" in conformance_suite,
+        "M3: the byte-range authority contract is missing from its executable suite",
+    )
+    require(
+        "RequestShape.allCases" in conformance_suite
+        and "SourceShape.allCases" in conformance_suite,
+        "M3: the request-by-source conformance matrix is missing",
+    )
     raw_url_initializers = playback_request.count("public init(\n        url: URL")
     testing_initializers = playback_request.count(
         "@_spi(Testing)\n    public init(\n        url: URL"
