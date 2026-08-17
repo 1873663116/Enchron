@@ -24,15 +24,6 @@ DEFAULT_LOG_ROOT = Path(
 PLAYBACK_CORE_SCRATCH = Path(
     "/Volumes/Cortisol/DevSpace/Xcode/Enchron/VerificationGauntlet/PlaybackCore"
 )
-STRUCTURE_CHECKS = (
-    ("design-source-architecture", "verify_design_source_architecture.py"),
-    ("package-membership", "verify_package_membership.py"),
-    ("playback-surface-structure", "verify_playback_surface_structure.py"),
-    ("format-description-ownership", "verify_format_description_ownership.py"),
-    ("media-byte-stream", "verify_media_byte_stream.py"),
-    ("hover-region-clipping", "check_hover_region_clipping.py"),
-    ("visionpro-core-regression-plan", "verify_visionpro_core_regression_plan.py"),
-)
 TEST_FAILURE = re.compile(
     r"\bTest (?P<name>[A-Za-z_][A-Za-z0-9_]*)"
     r"(?:\([^)]*\))? (?:recorded an issue|failed after)"
@@ -56,6 +47,33 @@ class LayerResult:
 class TestSummary:
     count: int
     verdict: str
+
+
+@dataclass(frozen=True)
+class StructureCheck:
+    identifier: str
+    filename: str
+    runs_in_quick_mode: bool = True
+
+
+STRUCTURE_CHECKS = (
+    StructureCheck("design-source-architecture", "verify_design_source_architecture.py"),
+    StructureCheck("package-membership", "verify_package_membership.py"),
+    StructureCheck("playback-surface-structure", "verify_playback_surface_structure.py"),
+    StructureCheck("format-description-ownership", "verify_format_description_ownership.py"),
+    StructureCheck(
+        "format-description-identity",
+        "verify_format_description_identity.py",
+        runs_in_quick_mode=False,
+    ),
+    StructureCheck("media-byte-stream", "verify_media_byte_stream.py"),
+    StructureCheck("glass-usage", "verify_glass_usage.py"),
+    StructureCheck("hover-region-clipping", "check_hover_region_clipping.py"),
+    StructureCheck(
+        "visionpro-core-regression-plan",
+        "verify_visionpro_core_regression_plan.py",
+    ),
+)
 
 
 def load_baseline(path: Path = BASELINE_PATH) -> dict[str, object]:
@@ -162,20 +180,29 @@ def relative_log(path: Path, run_directory: Path) -> str:
 def run_structure_checks(
     run_directory: Path,
     environment: dict[str, str],
+    quick: bool,
 ) -> LayerResult:
     failures: list[str] = []
     logs: list[str] = []
-    for identifier, filename in STRUCTURE_CHECKS:
-        log = run_directory / "structure" / f"{identifier}.log"
+    checks = tuple(
+        check
+        for check in STRUCTURE_CHECKS
+        if not quick or check.runs_in_quick_mode
+    )
+    for check in checks:
+        log = run_directory / "structure" / f"{check.identifier}.log"
         code, _ = run_logged(
-            f"structure: {identifier}",
-            [sys.executable, str(REPOSITORY_ROOT / "Scripts/verification" / filename)],
+            f"structure: {check.identifier}",
+            [
+                sys.executable,
+                str(REPOSITORY_ROOT / "Scripts/verification" / check.filename),
+            ],
             log,
             environment,
         )
         logs.append(relative_log(log, run_directory))
         if code != 0:
-            failures.append(f"{identifier} exited {code}")
+            failures.append(f"{check.identifier} exited {code}")
     if failures:
         return LayerResult(
             "Structure checks",
@@ -186,7 +213,7 @@ def run_structure_checks(
     return LayerResult(
         "Structure checks",
         "PASS",
-        f"all {len(STRUCTURE_CHECKS)} checks passed",
+        f"all {len(checks)} {'quick ' if quick else ''}checks passed",
         tuple(logs),
     )
 
@@ -569,7 +596,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--quick",
         action="store_true",
-        help="run structure checks and PlaybackCore full tests only",
+        help=(
+            "run quick structure checks and PlaybackCore full tests only; "
+            "the media-corpus format identity check runs only in full mode"
+        ),
     )
     parser.add_argument("--log-root", type=Path, default=DEFAULT_LOG_ROOT)
     parser.add_argument("--retain-runs", type=int, default=14)
@@ -612,7 +642,9 @@ def main() -> int:
             return 1
 
         results = [install_git_hooks(environment)]
-        results.append(run_structure_checks(run_directory, environment))
+        results.append(
+            run_structure_checks(run_directory, environment, arguments.quick)
+        )
         try:
             results.append(
                 run_playback_core_tests(run_directory, environment, baseline)
