@@ -1,13 +1,22 @@
 import AVFoundation
 import PlaybackPresentation
 import RealityKit
+import RealityKitContent
 import XCTest
 @testable import Enchron
 
 nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
     @MainActor
+    private func loadAuthoredWorld() async throws -> Entity {
+        try await Entity(
+            named: EnvironmentSceneMapping.worldSceneName,
+            in: realityKitContentBundle
+        )
+    }
+
+    @MainActor
     func testDockingWorldCanLoadFromProductResources() async throws {
-        let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
+        let world = try await loadAuthoredWorld()
         let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: world)
 
         XCTAssertFalse(world.name.isEmpty)
@@ -18,7 +27,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
 
     @MainActor
     func testScenicEnvironmentReplacesSkyboxWithTintedPlaceholder() async throws {
-        let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
+        let world = try await loadAuthoredWorld()
         let skybox = try XCTUnwrap(
             world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
         )
@@ -47,7 +56,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
 
     @MainActor
     func testSkyboxRestoresTheProductResourceWithoutAnEffect() async throws {
-        let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
+        let world = try await loadAuthoredWorld()
         let skybox = try XCTUnwrap(
             world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
         )
@@ -74,7 +83,7 @@ nonisolated final class PlaybackRealityPresenterTests: XCTestCase {
 
     @MainActor
     func testClearingEnvironmentDisablesEveryEnvironmentBackdrop() async throws {
-        let world = try await Entity(named: EnvironmentSceneMapping.worldSceneName)
+        let world = try await loadAuthoredWorld()
         let skybox = try XCTUnwrap(
             world.findEntity(named: EnvironmentSceneAppearanceApplier.skyboxName)
         )

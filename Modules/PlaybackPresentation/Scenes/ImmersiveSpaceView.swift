@@ -4,6 +4,7 @@ import PlaybackCore
 import PlaybackFeature
 import PlaybackPresentation
 import RealityKit
+import RealityKitContent
 import RealityKitScripting
 import SwiftUI
 import UIKit
@@ -11,7 +12,7 @@ import simd
 
 @MainActor
 enum EnvironmentSceneAppearanceApplier {
-    static let skyboxName = "skybox"
+    static let skyboxName = "SkyDome"
     static let scenicPlaceholderName = "EnchronScenicPlaceholder"
     static let lightSkyboxOpacity: Float = 1
     static let darkSkyboxOpacity: Float = 0.35
@@ -962,7 +963,14 @@ public struct ImmersiveSpaceView: View {
             return
         }
         guard presentation != .docked || world.playbackSurfaceAnchor != nil else {
-            appModel.recordSpatialPlaybackSurfacePreparationStage("waitingForDockedAnchor")
+            let stage = if world.hasFailed {
+                "worldLoadFailed"
+            } else if world.isLoading {
+                "loadingWorld"
+            } else {
+                "waitingForDockedAnchor"
+            }
+            appModel.recordSpatialPlaybackSurfacePreparationStage(stage)
             return
         }
 
@@ -1708,8 +1716,18 @@ public struct ImmersiveSpaceView: View {
         appModel.recordSpatialPlaybackSurfacePreparationStage("loadingWorld")
         defer { world.isLoading = false }
         logger.notice("world load started")
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "worldLoad event=started"
+                + " resource=\(EnvironmentSceneMapping.worldSceneName)"
+                + " bundle=RealityKitContent"
+        )
+#endif
         do {
-            let entity = try await Entity(named: "world")
+            let entity = try await Entity(
+                named: EnvironmentSceneMapping.worldSceneName,
+                in: realityKitContentBundle
+            )
             try Task.checkCancellation()
             let anchor = try PlaybackSurfaceAnchorResolver.resolve(in: entity)
             let anchorWorldTransform = anchor.transformMatrix(relativeTo: nil)
@@ -1729,6 +1747,12 @@ public struct ImmersiveSpaceView: View {
             appModel.recordSpatialPlaybackSurfacePreparationStage("worldReady")
             recordSkyboxActivity(in: entity)
             logger.notice("world load completed")
+#if DEBUG
+            appModel.recordSurfaceInputProbe(
+                "worldLoad event=completed"
+                    + " anchor=\(PlaybackSurfaceAnchorResolver.canonicalName)"
+            )
+#endif
             update(
                 content,
                 revision: surfaceRefreshTick,
@@ -1737,10 +1761,20 @@ public struct ImmersiveSpaceView: View {
             )
         } catch is CancellationError {
             logger.notice("world load cancelled")
+#if DEBUG
+            appModel.recordSurfaceInputProbe("worldLoad event=cancelled")
+#endif
         } catch {
             world.hasFailed = true
             appModel.recordSpatialPlaybackSurfacePreparationStage("worldLoadFailed")
             logger.error("world load failed error=\(error.localizedDescription, privacy: .public)")
+#if DEBUG
+            appModel.recordSurfaceInputProbe(
+                "worldLoad event=failed"
+                    + " errorType=\(String(reflecting: type(of: error)))"
+                    + " error=\(error.localizedDescription)"
+            )
+#endif
             playbackRuntime.setUserVisibleIssue(.environmentLoadingFailed)
         }
     }

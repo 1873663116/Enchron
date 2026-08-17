@@ -25,6 +25,7 @@ struct EnvironmentSceneMappingTests {
 
     @Test("all environment identities resolve through the shared world scene")
     func environmentsResolveToSharedWorldScene() {
+        #expect(EnvironmentSceneMapping.worldSceneName == "Immersive")
         for environment in SpatialSceneDomain.CinemaEnvironment.allCases {
             #expect(
                 EnvironmentSceneMapping.sceneName(forEnvironmentID: environment.rawValue)
