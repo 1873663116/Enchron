@@ -6,14 +6,14 @@
     <string>com.enchron.verification-gauntlet</string>
     <key>ProgramArguments</key>
     <array>
-        <string>/Volumes/Cortisol/DevSpace/EnchronWorkspace/wt-guardrails/Scripts/verification/run_verification_gauntlet.py</string>
+        <string>/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron/Scripts/verification/run_verification_gauntlet.py</string>
         <string>--log-root</string>
         <string>/Volumes/Cortisol/DevSpace/Xcode/Enchron/VerificationGauntlet/runs</string>
         <string>--retain-runs</string>
         <string>14</string>
     </array>
     <key>WorkingDirectory</key>
-    <string>/Volumes/Cortisol/DevSpace/EnchronWorkspace/wt-guardrails</string>
+    <string>/Volumes/Cortisol/DevSpace/EnchronWorkspace/Enchron</string>
     <key>StartCalendarInterval</key>
     <dict>
         <key>Hour</key>
