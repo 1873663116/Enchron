@@ -602,12 +602,15 @@ extension SampleBufferPlaybackSession {
                     firstDisplayablePresentationTime: presentationTime
                 )
                 do {
-                    let audioPrerollEnd = requiredPreroll?.audioEnd
+                    let audioRequirement = requiredPreroll
                         ?? PlaybackBufferingPolicy.seekRequirement(
                             target: activationTime,
                             durationSeconds: diagnostics.durationSeconds
-                        ).audioEnd
-                    try await waitForAudioPreroll(through: audioPrerollEnd)
+                        )
+                    try await waitForAudioPreroll(
+                        through: audioRequirement.audioEnd,
+                        after: audioRequirement.timelineStart
+                    )
                 } catch {
                     guard isCurrentVideoDelivery(generation), !isClosed else { return }
                     guard !(error is CancellationError), !Task.isCancelled else { return }
@@ -1458,14 +1461,17 @@ extension SampleBufferPlaybackSession {
         }
     }
 
-    func waitForAudioPreroll(through activationTime: CMTime) async throws {
-        guard hasAudio, activationTime.isNumeric else { return }
+    func waitForAudioPreroll(
+        through requiredEnd: CMTime,
+        after timelineStart: CMTime
+    ) async throws {
+        guard hasAudio, requiredEnd.isNumeric, timelineStart.isNumeric else { return }
         let deadline = ContinuousClock.now + PlaybackBufferingPolicy.audioPrerollTimeout
         while ContinuousClock.now < deadline {
             try Task.checkCancellation()
             guard !isClosed, !isResetting else { throw CancellationError() }
             guard hasAudio else { return }
-            if audioHasPrerolled(through: activationTime) {
+            if audioHasPrerolled(through: requiredEnd, after: timelineStart) {
                 let accumulatedPresentationEnd = endStateLock.withLock {
                     endState.audioPresentationEnd
                 }
@@ -1478,7 +1484,8 @@ extension SampleBufferPlaybackSession {
                     kind: "audioRenderer.prerollCompleted",
                     outcome: .succeeded,
                     details: [
-                        "activationTimeSeconds": String(activationTime.seconds),
+                        "requiredEndSeconds": String(requiredEnd.seconds),
+                        "timelineStartSeconds": String(timelineStart.seconds),
                         "accumulatedPresentationEndSeconds": accumulatedPresentationEndSeconds,
                         "streamEpoch": String(audioStreamEpoch),
                         "rendererStatus": audioRendererStatusLabel,
@@ -1490,11 +1497,11 @@ extension SampleBufferPlaybackSession {
                 return
             }
             if debugStore.snapshot().lifecycle == .failed {
-                throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
+                throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
             }
             try await Task.sleep(for: PlaybackBufferingPolicy.audioPrerollPollInterval)
         }
-        throw CorePlaybackError.audioPrerollTimedOut(activationTime.seconds)
+        throw CorePlaybackError.audioPrerollTimedOut(requiredEnd.seconds)
     }
 
     func retireAudio(
@@ -1599,13 +1606,16 @@ extension SampleBufferPlaybackSession {
         onStatusChange?(.failed(error.localizedDescription))
     }
 
-    func audioHasPrerolled(through activationTime: CMTime) -> Bool {
+    func audioHasPrerolled(
+        through requiredEnd: CMTime,
+        after timelineStart: CMTime
+    ) -> Bool {
         return endStateLock.withLock {
             guard let audioEnd = endState.audioPresentationEnd,
                   audioEnd.isNumeric else { return false }
-            if CMTimeCompare(audioEnd, activationTime) >= 0 { return true }
+            if CMTimeCompare(audioEnd, requiredEnd) >= 0 { return true }
             return endState.audioProviderEnded
-                && CMTimeCompare(audioEnd, activationTime) > 0
+                && CMTimeCompare(audioEnd, timelineStart) > 0
         }
     }
 

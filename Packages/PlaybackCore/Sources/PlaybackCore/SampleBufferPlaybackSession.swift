@@ -20,6 +20,7 @@ protocol RendererFailureMonitoring: AnyObject {
 }
 
 struct PlaybackPrerollRequirement: Equatable {
+    let timelineStart: CMTime
     let videoEnd: CMTime
     let audioEnd: CMTime
 }
@@ -60,6 +61,7 @@ enum PlaybackBufferingPolicy {
         durationSeconds: Double
     ) -> PlaybackPrerollRequirement {
         PlaybackPrerollRequirement(
+            timelineStart: target,
             videoEnd: target,
             audioEnd: clampedEnd(
                 from: target,
@@ -78,7 +80,11 @@ enum PlaybackBufferingPolicy {
             leadSeconds: deliveryLagRecoveryLeadSeconds,
             durationSeconds: durationSeconds
         )
-        return PlaybackPrerollRequirement(videoEnd: end, audioEnd: end)
+        return PlaybackPrerollRequirement(
+            timelineStart: timelineTime,
+            videoEnd: end,
+            audioEnd: end
+        )
     }
 
     private static func clampedEnd(

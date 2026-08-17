@@ -1177,6 +1177,23 @@ func failedSessionCleanupBlocksNewOpenUntilFlushCompletes(
     #expect(endClampedRequirement.audioEnd.seconds == 30.5)
 }
 
+@Test func endOfStreamAudioMayUseTheAvailablePartialStartupBuffer() {
+    let session = SampleBufferPlaybackSession(traceID: "partial-end-audio-preroll")
+    defer { session.close() }
+    session.endStateLock.withLock {
+        session.endState.audioPresentationEnd = CMTime(
+            seconds: 12.1,
+            preferredTimescale: 48_000
+        )
+        session.endState.audioProviderEnded = true
+    }
+
+    #expect(session.audioHasPrerolled(
+        through: CMTime(seconds: 12.2, preferredTimescale: 48_000),
+        after: CMTime(seconds: 12, preferredTimescale: 48_000)
+    ))
+}
+
 @Test func zeroRequestedStartOwnsTimelineWhenFirstVideoSampleStartsLater() async throws {
     let sample = try makeCompressedH264Sample(presentationTimeSeconds: 0.021)
     let session = SampleBufferPlaybackSession(
