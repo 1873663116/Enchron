@@ -2,6 +2,7 @@
 #include "PlaybackFFmpegBridgeInternal.h"
 
 #include <AudioToolbox/AudioToolbox.h>
+#include <errno.h>
 #include <libavcodec/avcodec.h>
 #include <libavcodec/bsf.h>
 #include <libavformat/avformat.h>
@@ -22,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
+#include <time.h>
 
 struct PBFFmpegSourceReadMonitor {
     atomic_uint_fast64_t totalBytesRead;
@@ -36,6 +38,8 @@ typedef struct {
 
 typedef struct PBFFmpegPacketNode {
     AVPacket *packet;
+    int64_t timestampMicroseconds;
+    int64_t durationMicroseconds;
     struct PBFFmpegPacketNode *next;
 } PBFFmpegPacketNode;
 
@@ -44,6 +48,8 @@ typedef struct {
     PBFFmpegPacketNode *tail;
     unsigned int subscribers;
     unsigned int waiters;
+    int64_t summedDurationMicroseconds;
+    int64_t bufferedDurationMicroseconds;
 } PBFFmpegPacketQueue;
 
 struct PBFFmpegDemuxSource {
@@ -62,7 +68,22 @@ struct PBFFmpegDemuxSource {
     int videoStreamIndex;
     char *path;
     bool prebuffersAudio;
+    bool isRemote;
+    int64_t knownByteLength;
+    int64_t *lastQueuedTimestamps;
+    int64_t *replayThroughTimestamps;
+    bool *replayCaughtUp;
+    unsigned int reconnectAttemptCount;
 };
+
+// Six seconds covers the complete 1.75-second retry schedule plus two equal
+// budgets for reopening, seeking, and refilling. REPORT.md records the fixture
+// throughput and fault-injection measurements behind this value.
+static const int64_t PB_DEMUX_PREFETCH_DURATION_MICROSECONDS = 6LL * AV_TIME_BASE;
+static const long PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[] = {250, 500, 1000};
+static const unsigned int PB_DEMUX_RECONNECT_ATTEMPT_LIMIT =
+    sizeof(PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS) /
+    sizeof(PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[0]);
 
 typedef struct {
     bool movFamily;
@@ -73,6 +94,11 @@ static int read_stream_information(
     AVFormatContext *context,
     PBFFmpegSourceReadContext *sourceReadContext,
     PBStreamInformationRead *readOut
+);
+static int open_media_source(
+    AVFormatContext **context,
+    const char *path,
+    PBFFmpegSourceReadContext *sourceReadContext
 );
 
 typedef struct {
@@ -158,6 +184,7 @@ struct PBFFmpegAudioReader {
     int sampleRate;
     int channelCount;
     bool inputEnded;
+    int inputReadResult;
     bool filterDrained;
     bool outputsPCM;
     CFDataRef codecMagicCookie;
@@ -166,6 +193,7 @@ struct PBFFmpegAudioReader {
     int64_t pendingOriginalDuration;
     CMAudioFormatDescriptionRef formatDescription;
     char codecName[64];
+    AVCodecParameters *codecParameters;
 };
 
 static void publish_source_bytes(PBFFmpegSourceReadContext *context) {
@@ -261,13 +289,174 @@ static void clear_packet_queue(PBFFmpegPacketQueue *queue) {
     }
     queue->head = NULL;
     queue->tail = NULL;
+    queue->summedDurationMicroseconds = 0;
+    queue->bufferedDurationMicroseconds = 0;
 }
 
-static bool demux_source_has_waiter(const PBFFmpegDemuxSource *source) {
+static void update_packet_queue_buffered_duration(PBFFmpegPacketQueue *queue) {
+    if (!queue || !queue->head || !queue->tail) {
+        if (queue) queue->bufferedDurationMicroseconds = 0;
+        return;
+    }
+    int64_t timestampSpan = 0;
+    if (queue->head->timestampMicroseconds != AV_NOPTS_VALUE &&
+        queue->tail->timestampMicroseconds != AV_NOPTS_VALUE &&
+        queue->tail->timestampMicroseconds >= queue->head->timestampMicroseconds) {
+        timestampSpan = queue->tail->timestampMicroseconds -
+            queue->head->timestampMicroseconds +
+            queue->tail->durationMicroseconds;
+    }
+    queue->bufferedDurationMicroseconds = FFMAX(
+        queue->summedDurationMicroseconds,
+        timestampSpan
+    );
+}
+
+static bool demux_source_needs_more_data(const PBFFmpegDemuxSource *source) {
     for (unsigned int index = 0; index < source->queueCount; index++) {
-        if (source->queues[index].waiters > 0) return true;
+        const PBFFmpegPacketQueue *queue = &source->queues[index];
+        if (queue->subscribers > 0 &&
+            queue->bufferedDurationMicroseconds <
+                PB_DEMUX_PREFETCH_DURATION_MICROSECONDS) return true;
     }
     return false;
+}
+
+static int64_t packet_timestamp_microseconds(
+    const PBFFmpegDemuxSource *source,
+    const AVPacket *packet
+) {
+    if (!source || !source->formatContext || !packet || packet->stream_index < 0 ||
+        (unsigned int)packet->stream_index >= source->formatContext->nb_streams) {
+        return AV_NOPTS_VALUE;
+    }
+    int64_t timestamp = packet->dts != AV_NOPTS_VALUE ? packet->dts : packet->pts;
+    if (timestamp == AV_NOPTS_VALUE) return AV_NOPTS_VALUE;
+    return av_rescale_q(
+        timestamp,
+        source->formatContext->streams[packet->stream_index]->time_base,
+        AV_TIME_BASE_Q
+    );
+}
+
+static int64_t packet_duration_microseconds(
+    const PBFFmpegDemuxSource *source,
+    const AVPacket *packet
+) {
+    if (!source || !source->formatContext || !packet || packet->duration <= 0 ||
+        packet->stream_index < 0 ||
+        (unsigned int)packet->stream_index >= source->formatContext->nb_streams) return 0;
+    return av_rescale_q(
+        packet->duration,
+        source->formatContext->streams[packet->stream_index]->time_base,
+        AV_TIME_BASE_Q
+    );
+}
+
+static bool demux_source_reached_known_end(const PBFFmpegDemuxSource *source) {
+    if (!source || source->knownByteLength <= 0 || !source->formatContext ||
+        !source->formatContext->pb) return false;
+    // A demuxer can finish before the last container byte, so byte position is
+    // not an end test. A declared total length plus EOF with no AVIO transport
+    // error distinguishes normal container completion from a short response.
+    return source->formatContext->pb->error >= 0;
+}
+
+static bool wait_for_reconnect_backoff(
+    PBFFmpegDemuxSource *source,
+    long milliseconds
+) {
+    struct timespec deadline;
+    clock_gettime(CLOCK_REALTIME, &deadline);
+    deadline.tv_sec += milliseconds / 1000;
+    deadline.tv_nsec += (milliseconds % 1000) * 1000000L;
+    if (deadline.tv_nsec >= 1000000000L) {
+        deadline.tv_sec++;
+        deadline.tv_nsec -= 1000000000L;
+    }
+    pthread_mutex_lock(&source->lock);
+    while (!source->stopsReadThread) {
+        int result = pthread_cond_timedwait(&source->changed, &source->lock, &deadline);
+        if (result == ETIMEDOUT) break;
+    }
+    bool continues = !source->stopsReadThread;
+    pthread_mutex_unlock(&source->lock);
+    return continues;
+}
+
+static int64_t demux_source_resume_timestamp(
+    const PBFFmpegDemuxSource *source
+) {
+    int64_t resume = AV_NOPTS_VALUE;
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        int64_t timestamp = source->lastQueuedTimestamps[index];
+        if (timestamp != AV_NOPTS_VALUE &&
+            (resume == AV_NOPTS_VALUE || timestamp < resume)) resume = timestamp;
+    }
+    return resume;
+}
+
+static int reopen_demux_source(PBFFmpegDemuxSource *source) {
+    int64_t resumeTimestamp = demux_source_resume_timestamp(source);
+    PBFFmpegSourceReadContext replacementReadContext = {
+        .monitor = source->sourceReadContext.monitor,
+    };
+    AVFormatContext *replacement = allocate_format_context(
+        &source->interrupted,
+        &replacementReadContext
+    );
+    if (!replacement) return AVERROR(ENOMEM);
+    int result = open_media_source(
+        &replacement,
+        source->path,
+        &replacementReadContext
+    );
+    if (result >= 0) {
+        result = read_stream_information(
+            replacement,
+            &replacementReadContext,
+            NULL
+        );
+    }
+    if (result >= 0 && replacement->nb_streams != source->queueCount) {
+        result = AVERROR_INVALIDDATA;
+    }
+    int64_t knownByteLength = source->knownByteLength;
+    if (result >= 0) {
+        int64_t length = replacement->pb
+            ? avio_size(replacement->pb)
+            : AVERROR(ENOSYS);
+        if (length > 0) knownByteLength = length;
+    }
+    if (result >= 0 && resumeTimestamp != AV_NOPTS_VALUE) {
+        result = avformat_seek_file(
+            replacement,
+            -1,
+            INT64_MIN,
+            resumeTimestamp,
+            INT64_MAX,
+            AVSEEK_FLAG_BACKWARD
+        );
+        publish_source_bytes(&replacementReadContext);
+    }
+    if (result < 0) {
+        close_media_source(&replacement, &replacementReadContext);
+        return result;
+    }
+    pthread_mutex_lock(&source->lock);
+    AVFormatContext *previous = source->formatContext;
+    PBFFmpegSourceReadContext previousReadContext = source->sourceReadContext;
+    source->formatContext = replacement;
+    source->sourceReadContext = replacementReadContext;
+    source->knownByteLength = knownByteLength;
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        source->replayThroughTimestamps[index] = source->lastQueuedTimestamps[index];
+        source->replayCaughtUp[index] =
+            source->replayThroughTimestamps[index] == AV_NOPTS_VALUE;
+    }
+    pthread_mutex_unlock(&source->lock);
+    close_media_source(&previous, &previousReadContext);
+    return 0;
 }
 
 static void *demux_source_read_loop(void *opaque) {
@@ -281,11 +470,12 @@ static void *demux_source_read_loop(void *opaque) {
         pthread_mutex_unlock(&source->lock);
         return NULL;
     }
+    unsigned int consecutiveReconnectAttempts = 0;
     while (true) {
         pthread_mutex_lock(&source->lock);
         while (!source->stopsReadThread &&
                !source->reachedEnd &&
-               !demux_source_has_waiter(source)) {
+               !demux_source_needs_more_data(source)) {
             pthread_cond_wait(&source->changed, &source->lock);
         }
         bool stop = source->stopsReadThread || source->reachedEnd;
@@ -303,7 +493,41 @@ static void *demux_source_read_loop(void *opaque) {
             break;
         }
         if (result < 0) {
-            source->readResult = result;
+            bool reachedEnd = result == AVERROR_EOF &&
+                demux_source_reached_known_end(source);
+            bool retries = source->isRemote && !reachedEnd;
+            pthread_mutex_unlock(&source->lock);
+            if (retries) {
+                bool reconnected = false;
+                while (consecutiveReconnectAttempts <
+                       PB_DEMUX_RECONNECT_ATTEMPT_LIMIT) {
+                    long backoff = PB_DEMUX_RECONNECT_BACKOFF_MILLISECONDS[
+                        consecutiveReconnectAttempts
+                    ];
+                    consecutiveReconnectAttempts++;
+                    pthread_mutex_lock(&source->lock);
+                    source->reconnectAttemptCount++;
+                    pthread_mutex_unlock(&source->lock);
+                    if (!wait_for_reconnect_backoff(source, backoff)) break;
+                    int reconnectResult = reopen_demux_source(source);
+                    if (reconnectResult >= 0) {
+                        reconnected = true;
+                        break;
+                    }
+                    result = reconnectResult;
+                }
+                if (reconnected) continue;
+                pthread_mutex_lock(&source->lock);
+                if (source->stopsReadThread) {
+                    pthread_mutex_unlock(&source->lock);
+                    break;
+                }
+                pthread_mutex_unlock(&source->lock);
+            }
+            pthread_mutex_lock(&source->lock);
+            source->readResult = reachedEnd
+                ? AVERROR_EOF
+                : (result == AVERROR_EOF ? AVERROR(EIO) : result);
             source->reachedEnd = true;
             pthread_cond_broadcast(&source->changed);
             pthread_mutex_unlock(&source->lock);
@@ -311,6 +535,19 @@ static void *demux_source_read_loop(void *opaque) {
         }
         if (packet->stream_index >= 0 &&
             (unsigned int)packet->stream_index < source->queueCount) {
+            int64_t timestamp = packet_timestamp_microseconds(source, packet);
+            unsigned int streamIndex = (unsigned int)packet->stream_index;
+            if (!source->replayCaughtUp[streamIndex]) {
+                int64_t replayThrough = source->replayThroughTimestamps[streamIndex];
+                if (timestamp != AV_NOPTS_VALUE && timestamp <= replayThrough) {
+                    av_packet_unref(packet);
+                    pthread_cond_broadcast(&source->changed);
+                    pthread_mutex_unlock(&source->lock);
+                    continue;
+                }
+                source->replayCaughtUp[streamIndex] = true;
+            }
+            consecutiveReconnectAttempts = 0;
             PBFFmpegPacketQueue *queue = &source->queues[packet->stream_index];
             bool prebuffersAudio = source->prebuffersAudio &&
                 source->formatContext->streams[packet->stream_index]
@@ -326,6 +563,9 @@ static void *demux_source_read_loop(void *opaque) {
                     source->readResult = AVERROR(ENOMEM);
                     source->reachedEnd = true;
                 } else {
+                    node->timestampMicroseconds = timestamp;
+                    node->durationMicroseconds =
+                        packet_duration_microseconds(source, packet);
                     av_packet_move_ref(node->packet, packet);
                     if (queue->tail) {
                         queue->tail->next = node;
@@ -333,6 +573,10 @@ static void *demux_source_read_loop(void *opaque) {
                         queue->head = node;
                     }
                     queue->tail = node;
+                    queue->summedDurationMicroseconds +=
+                        node->durationMicroseconds;
+                    update_packet_queue_buffered_duration(queue);
+                    source->lastQueuedTimestamps[streamIndex] = timestamp;
                 }
             }
         }
@@ -385,6 +629,15 @@ static bool subscribe_to_demux_stream(
     return subscribed;
 }
 
+static bool begin_demux_source_prefetch(PBFFmpegDemuxSource *source) {
+    if (!source) return false;
+    pthread_mutex_lock(&source->lock);
+    bool started = start_demux_source_read_thread(source);
+    pthread_cond_broadcast(&source->changed);
+    pthread_mutex_unlock(&source->lock);
+    return started;
+}
+
 static void unsubscribe_from_demux_stream(
     PBFFmpegDemuxSource *source,
     int streamIndex
@@ -395,6 +648,9 @@ static void unsubscribe_from_demux_stream(
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
     queue->subscribers = 0;
     clear_packet_queue(queue);
+    source->lastQueuedTimestamps[streamIndex] = AV_NOPTS_VALUE;
+    source->replayThroughTimestamps[streamIndex] = AV_NOPTS_VALUE;
+    source->replayCaughtUp[streamIndex] = true;
     pthread_cond_broadcast(&source->changed);
     pthread_mutex_unlock(&source->lock);
 }
@@ -433,9 +689,15 @@ static int copy_next_demux_packet(
     PBFFmpegPacketNode *node = queue->head;
     queue->head = node->next;
     if (!queue->head) queue->tail = NULL;
+    queue->summedDurationMicroseconds -= node->durationMicroseconds;
+    if (queue->summedDurationMicroseconds < 0) {
+        queue->summedDurationMicroseconds = 0;
+    }
+    update_packet_queue_buffered_duration(queue);
     av_packet_move_ref(packet, node->packet);
     av_packet_free(&node->packet);
     free(node);
+    pthread_cond_broadcast(&source->changed);
     pthread_mutex_unlock(&source->lock);
     return 0;
 }
@@ -836,55 +1098,14 @@ static const AVInputFormat *disc_image_input_format(const char *path) {
     return isUDF ? av_find_input_format("mpegts") : NULL;
 }
 
-static bool path_is_http(const char *path) {
-    return path &&
-        (strncmp(path, "http://", 7) == 0 || strncmp(path, "https://", 8) == 0);
-}
-
-/// Opens `path`, naming the demuxer and setting its options where the source needs
-/// it. A disc image and an HTTP source each need one, and both follow from a fact
-/// about the source, so one function owns what opening a path means here.
+/// Opens `path`, naming the demuxer only when the media itself requires one.
 static int open_media_source(
     AVFormatContext **context,
     const char *path,
     PBFFmpegSourceReadContext *sourceReadContext
 ) {
     AVDictionary *options = NULL;
-    AVDictionary *ioOptions = NULL;
-    AVIOContext *openedIO = NULL;
     int result = 0;
-    if (path_is_http(path)) {
-        // The first response to an authenticated source is the 401 challenge and
-        // carries no Content-Range, which makes FFmpeg give up its seekable state
-        // before the authenticated 206 arrives. Declaring the source seekable keeps
-        // the tail-header seek on the byte-range path instead of a blind re-read.
-        result = av_dict_set_int(&ioOptions, "seekable", 1, 0);
-        if (result < 0) goto finish;
-        // Reuse one socket across the ranges a single open needs.
-        result = av_dict_set_int(&ioOptions, "multiple_requests", 1, 0);
-        if (result < 0) goto finish;
-        result = avio_open2(
-            &openedIO,
-            path,
-            AVIO_FLAG_READ,
-            *context ? &(*context)->interrupt_callback : NULL,
-            &ioOptions
-        );
-        if (result < 0) goto finish;
-        int64_t length = avio_size(openedIO);
-        if (length > 0) {
-            // HTTP uses end_offset as its effective EOF, so only this response's
-            // length can bound later ranges without silently truncating the tail.
-            result = av_opt_set_int(
-                openedIO,
-                "end_offset",
-                length,
-                AV_OPT_SEARCH_CHILDREN
-            );
-            if (result < 0) goto finish;
-        }
-        (*context)->pb = openedIO;
-    }
     const AVInputFormat *format = disc_image_input_format(path);
     if (format) {
         // The stream sits behind the disc's filesystem metadata, and the demuxer
@@ -897,18 +1118,6 @@ static int open_media_source(
         av_dict_set_int(&options, "resync_size", 16LL * 1024 * 1024, 0);
     }
     result = avformat_open_input(context, path, format, &options);
-    if (result >= 0 && openedIO) {
-        // avformat_open_input marks caller-supplied IO as custom; ownership moves
-        // here so the existing avformat_close_input paths still close the socket.
-        (*context)->flags &= ~AVFMT_FLAG_CUSTOM_IO;
-        openedIO = NULL;
-    }
-finish:
-    if (result < 0 && *context && (*context)->pb == openedIO) {
-        (*context)->pb = NULL;
-    }
-    if (openedIO) avio_closep(&openedIO);
-    av_dict_free(&ioOptions);
     av_dict_free(&options);
     if (sourceReadContext) {
         sourceReadContext->formatContext = result >= 0 ? *context : NULL;
@@ -2986,6 +3195,7 @@ PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreateWithSourceRe
 
 PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     const char *path,
+    bool isRemote,
     PBFFmpegSourceReadMonitor *monitor,
     char *errorBuffer,
     size_t errorBufferSize
@@ -2999,6 +3209,7 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg demux source");
         return NULL;
     }
+    source->isRemote = isRemote;
     atomic_init(&source->interrupted, false);
     if (pthread_mutex_init(&source->lock, NULL) != 0) {
         set_error(errorBuffer, errorBufferSize, "Unable to initialize FFmpeg demux source");
@@ -3082,11 +3293,32 @@ PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     source->queueCount = source->formatContext->nb_streams;
     if (source->queueCount > 0) {
         source->queues = calloc(source->queueCount, sizeof(*source->queues));
+        source->lastQueuedTimestamps = malloc(
+            source->queueCount * sizeof(*source->lastQueuedTimestamps)
+        );
+        source->replayThroughTimestamps = malloc(
+            source->queueCount * sizeof(*source->replayThroughTimestamps)
+        );
+        source->replayCaughtUp = calloc(
+            source->queueCount,
+            sizeof(*source->replayCaughtUp)
+        );
     }
-    if (source->queueCount > 0 && !source->queues) {
+    if (source->queueCount > 0 &&
+        (!source->queues || !source->lastQueuedTimestamps ||
+         !source->replayThroughTimestamps || !source->replayCaughtUp)) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg packet queues");
         PBFFmpegDemuxSourceDestroy(source);
         return NULL;
+    }
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        source->lastQueuedTimestamps[index] = AV_NOPTS_VALUE;
+        source->replayThroughTimestamps[index] = AV_NOPTS_VALUE;
+        source->replayCaughtUp[index] = true;
+    }
+    if (source->formatContext->pb) {
+        int64_t length = avio_size(source->formatContext->pb);
+        if (length > 0) source->knownByteLength = length;
     }
     source->videoStreamIndex = av_find_best_stream(
         source->formatContext,
@@ -3107,6 +3339,9 @@ void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source) {
         clear_packet_queue(&source->queues[index]);
     }
     free(source->queues);
+    free(source->lastQueuedTimestamps);
+    free(source->replayThroughTimestamps);
+    free(source->replayCaughtUp);
     close_media_source(&source->formatContext, &source->sourceReadContext);
     av_free(source->path);
     pthread_cond_destroy(&source->changed);
@@ -3144,6 +3379,9 @@ bool PBFFmpegDemuxSourceSeek(
     pthread_mutex_lock(&source->lock);
     for (unsigned int index = 0; index < source->queueCount; index++) {
         clear_packet_queue(&source->queues[index]);
+        source->lastQueuedTimestamps[index] = AV_NOPTS_VALUE;
+        source->replayThroughTimestamps[index] = AV_NOPTS_VALUE;
+        source->replayCaughtUp[index] = true;
     }
     source->reachedEnd = false;
     source->readResult = 0;
@@ -3164,6 +3402,39 @@ bool PBFFmpegDemuxSourceSeek(
         return false;
     }
     return true;
+}
+
+double PBFFmpegDemuxSourceGetBufferedDurationSeconds(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    int64_t shortest = INT64_MAX;
+    bool found = false;
+    for (unsigned int index = 0; index < source->queueCount; index++) {
+        const PBFFmpegPacketQueue *queue = &source->queues[index];
+        if (queue->subscribers == 0) continue;
+        if (queue->bufferedDurationMicroseconds < shortest) {
+            shortest = queue->bufferedDurationMicroseconds;
+        }
+        found = true;
+    }
+    pthread_mutex_unlock(&source->lock);
+    return found ? (double)shortest / AV_TIME_BASE : 0;
+}
+
+double PBFFmpegDemuxSourceGetPrefetchDurationSeconds(void) {
+    return (double)PB_DEMUX_PREFETCH_DURATION_MICROSECONDS / AV_TIME_BASE;
+}
+
+unsigned int PBFFmpegDemuxSourceGetReconnectAttemptCount(
+    PBFFmpegDemuxSource *source
+) {
+    if (!source) return 0;
+    pthread_mutex_lock(&source->lock);
+    unsigned int count = source->reconnectAttemptCount;
+    pthread_mutex_unlock(&source->lock);
+    return count;
 }
 
 void PBFFmpegMediaSourceInformationDestroy(
@@ -3554,9 +3825,10 @@ bool PBFFmpegReaderOpenWithDemuxSource(
         errorBuffer,
         errorBufferSize
     );
-    pthread_mutex_lock(&source->lock);
-    source->prebuffersAudio = false;
-    pthread_mutex_unlock(&source->lock);
+    if (opened && !begin_demux_source_prefetch(source)) {
+        set_error(errorBuffer, errorBufferSize, "Unable to start FFmpeg demux prefetch");
+        return false;
+    }
     return opened;
 }
 
@@ -3618,7 +3890,21 @@ void PBFFmpegReaderDestroy(PBFFmpegReader *reader) {
 PBFFmpegMediaSourceInformation *PBFFmpegReaderCopyMediaSourceInformation(
     const PBFFmpegReader *reader
 ) {
-    return reader && reader->formatContext
+    if (!reader) return NULL;
+    if (reader->demuxSource) {
+        pthread_mutex_lock(&reader->demuxSource->lock);
+        PBFFmpegMediaSourceInformation *information =
+            reader->demuxSource->formatContext
+                ? copy_media_source_information(
+                    reader->demuxSource->formatContext,
+                    NULL,
+                    0
+                )
+                : NULL;
+        pthread_mutex_unlock(&reader->demuxSource->lock);
+        return information;
+    }
+    return reader->formatContext
         ? copy_media_source_information(reader->formatContext, NULL, 0)
         : NULL;
 }
@@ -3914,7 +4200,15 @@ static PBFFmpegReadResult copy_compressed_sample(
                 || atomic_load_explicit(&reader->cancelled, memory_order_relaxed)) {
                 return PBFFmpegReadResultCancelled;
             }
-            if (readResult != AVERROR_EOF) return PBFFmpegReadResultError;
+            if (readResult != AVERROR_EOF) {
+                set_av_error(
+                    errorBuffer,
+                    errorBufferSize,
+                    "Read demuxed video packet",
+                    readResult
+                );
+                return PBFFmpegReadResultError;
+            }
             return PBFFmpegReadResultEnd;
         }
 
@@ -4158,6 +4452,12 @@ static bool configure_audio_reader(
     }
 
     AVStream *stream = reader->formatContext->streams[reader->audioStreamIndex];
+    reader->codecParameters = avcodec_parameters_alloc();
+    if (!reader->codecParameters ||
+        avcodec_parameters_copy(reader->codecParameters, stream->codecpar) < 0) {
+        set_error(errorBuffer, errorBufferSize, "Unable to copy audio codec parameters");
+        return false;
+    }
     reader->sampleRate = stream->codecpar->sample_rate;
     reader->channelCount = stream->codecpar->ch_layout.nb_channels;
     if (reader->sampleRate <= 0 || reader->channelCount <= 0) {
@@ -4281,7 +4581,7 @@ bool PBFFmpegAudioReaderOpenWithDemuxSource(
     }
     reader->demuxSource = source;
     reader->formatContext = source->formatContext;
-    return configure_audio_reader(
+    bool opened = configure_audio_reader(
         reader,
         source->path,
         0,
@@ -4290,6 +4590,16 @@ bool PBFFmpegAudioReaderOpenWithDemuxSource(
         errorBuffer,
         errorBufferSize
     );
+    if (opened) {
+        pthread_mutex_lock(&source->lock);
+        source->prebuffersAudio = false;
+        pthread_mutex_unlock(&source->lock);
+    }
+    if (opened && !begin_demux_source_prefetch(source)) {
+        set_error(errorBuffer, errorBufferSize, "Unable to start FFmpeg demux prefetch");
+        return false;
+    }
+    return opened;
 }
 
 PBFFmpegAudioReader *PBFFmpegAudioReaderCreate(
@@ -4329,6 +4639,7 @@ void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
     if (reader->formatDescription) CFRelease(reader->formatDescription);
     if (reader->codecMagicCookie) CFRelease(reader->codecMagicCookie);
     av_bsf_free(&reader->bitstreamFilter);
+    avcodec_parameters_free(&reader->codecParameters);
     av_packet_free(&reader->filteredPacket);
     av_packet_free(&reader->packet);
     if (reader->demuxSource) {
@@ -4856,7 +5167,6 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
     if (cancellation_requested(&reader->cancelled)) {
         return PBFFmpegReadResultCancelled;
     }
-    AVStream *stream = reader->formatContext->streams[reader->audioStreamIndex];
     while (true) {
         if (cancellation_requested(&reader->cancelled)) {
             return PBFFmpegReadResultCancelled;
@@ -4880,7 +5190,19 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                 av_packet_unref(reader->filteredPacket);
                 return readResult;
             }
-            if (result == AVERROR_EOF) return PBFFmpegReadResultEnd;
+            if (result == AVERROR_EOF) {
+                if (reader->inputReadResult < 0 &&
+                    reader->inputReadResult != AVERROR_EOF) {
+                    set_av_error(
+                        errorBuffer,
+                        errorBufferSize,
+                        "Read demuxed audio packet",
+                        reader->inputReadResult
+                    );
+                    return PBFFmpegReadResultError;
+                }
+                return PBFFmpegReadResultEnd;
+            }
             if (result == AVERROR_INVALIDDATA) {
                 av_packet_unref(reader->filteredPacket);
                 av_bsf_flush(reader->bitstreamFilter);
@@ -4900,6 +5222,16 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                     }
                     continue;
                 }
+                if (reader->inputReadResult < 0 &&
+                    reader->inputReadResult != AVERROR_EOF) {
+                    set_av_error(
+                        errorBuffer,
+                        errorBufferSize,
+                        "Read demuxed audio packet",
+                        reader->inputReadResult
+                    );
+                    return PBFFmpegReadResultError;
+                }
                 return PBFFmpegReadResultEnd;
             }
         }
@@ -4918,8 +5250,11 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                 return PBFFmpegReadResultCancelled;
             }
             reader->inputEnded = true;
+            reader->inputReadResult = result;
             if (reader->bitstreamFilter) continue;
-            return PBFFmpegReadResultEnd;
+            if (result == AVERROR_EOF) return PBFFmpegReadResultEnd;
+            set_av_error(errorBuffer, errorBufferSize, "Read demuxed audio packet", result);
+            return PBFFmpegReadResultError;
         }
         if (reader->packet->stream_index != reader->audioStreamIndex) {
             av_packet_unref(reader->packet);
@@ -4929,8 +5264,8 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
             PBFFmpegReadResult readResult = create_audio_sample(
                 reader,
                 reader->packet,
-                stream->codecpar,
-                stream->codecpar->extradata_size > 0
+                reader->codecParameters,
+                reader->codecParameters->extradata_size > 0
                     ? PBFFmpegAudioCookieSourceExtradata
                     : PBFFmpegAudioCookieSourceSynthesized,
                 reader->packet->pts,
@@ -5118,6 +5453,11 @@ PBFFmpegSubtitleReader *PBFFmpegSubtitleReaderCreateWithDemuxSource(
         PBFFmpegSubtitleReaderDestroy(reader);
         return NULL;
     }
+    if (!begin_demux_source_prefetch(source)) {
+        set_error(errorBuffer, errorBufferSize, "Unable to start FFmpeg demux prefetch");
+        PBFFmpegSubtitleReaderDestroy(reader);
+        return NULL;
+    }
     return reader;
 }
 
@@ -5275,5 +5615,14 @@ PBFFmpegReadResult PBFFmpegSubtitleReaderCopyNextCue(
         return PBFFmpegReadResultSample;
     }
     if (packetResult == AVERROR_EXIT) return PBFFmpegReadResultCancelled;
+    if (packetResult != AVERROR_EOF) {
+        set_av_error(
+            errorBuffer,
+            errorBufferSize,
+            "Read demuxed subtitle packet",
+            packetResult
+        );
+        return PBFFmpegReadResultError;
+    }
     return PBFFmpegReadResultEnd;
 }

@@ -71,7 +71,7 @@ import Testing
     var error = [CChar](repeating: 0, count: 512)
 
     let source = fixture.path.withCString {
-        PBFFmpegDemuxSourceCreate($0, monitor, &error, error.count)
+        PBFFmpegDemuxSourceCreate($0, false, monitor, &error, error.count)
     }
     let openedSource = try #require(source)
     defer { PBFFmpegDemuxSourceDestroy(openedSource) }

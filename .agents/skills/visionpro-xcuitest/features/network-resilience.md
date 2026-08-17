@@ -2,7 +2,7 @@
 
 远程播放期间连接中断、恢复或变慢时的行为。目标：缓冲充足时用户毫无感知；缓冲耗尽时给出说明当前阶段的指示，而不是报错退出。
 
-本特性的实现属于[总表](../../../../docs/plans/03-media-byte-stream/overview.md)第三阶段（P1 至 P6、E1 至 E4），当前尚未落地，因此全部判据都是待建。地图先立这一条，让"无人看守"显式可见。
+本特性的实现属于[总表](../../../../docs/plans/03-media-byte-stream/overview.md)第三阶段。播放引擎的 P1 至 P6 已实现；等待与失败界面 E1 至 E4 由后续阶段实现。
 
 ## Sub-features
 
@@ -19,7 +19,7 @@
 
 ## Driving it
 
-抖动是无法靠真机自然等待取证的，需要能操纵服务端行为的替身。PlaybackCore 测试里已有 `RecordingRangeServer`（`HTTPMediaSourceRangeTests.swift`）：本机真开 socket、按剧本回答字节、记录收到的请求、可开关连接复用。它是这条特性的替身基座，需要扩展出按剧本断连、拒答、变慢、不报长度的能力。
+抖动无法靠真机自然等待取证。PlaybackCore 的 `RecordingRangeServer`（`HTTPMediaSourceRangeTests.swift`）在本机打开真实 socket，记录请求，并可在响应途中断连、持续拒答或延迟分块响应。
 
 真机侧可用的粗粒度手段是在播放中断开服务器进程或网络，观察诊断串与 PlaybackCore live debug 通道。
 
@@ -27,8 +27,9 @@
 
 | 种类 | 判据 | 谁守 |
 |---|---|---|
-| 结构 | 无消费者阻塞时读线程仍填包至水位线 | **待建** |
-| 结构 | 一次读失败不被当作播完；退避重连有限次 | **待建** |
+| 结构 | 无消费者阻塞时读线程仍填包至水位线 | `sharedDemuxPrefetchesWithoutABlockedConsumer` |
+| 结构 | 一次读失败不被当作播完，重连后从断点继续 | `sharedDemuxReconnectsAfterOneReadFailureAndContinuesFromCheckpoint` |
+| 结构 | 有限次重连耗尽后才报真实错误，且错误不是播放结束 | `sharedDemuxReportsErrorOnlyAfterFiniteReconnectAttemptsAreExhausted` |
 | 结构 | 四类播放中失败各自可区分，位置不丢 | **待建** |
 | 物理 | 缓冲充足时断开连接，播放不中断且无指示出现 | **待建**（总表 V4） |
 | 物理 | 缓冲耗尽时指示显示当前阶段 | **待建** |

@@ -6,9 +6,22 @@ final class FFmpegDemuxSession: @unchecked Sendable {
     private let sourceReadMeter: PlaybackSourceReadMeter
     private var source: OpaquePointer?
     private var sourceArgument: String?
+    private var sourceIsRemote = false
 
     init(sourceReadMeter: PlaybackSourceReadMeter) {
         self.sourceReadMeter = sourceReadMeter
+    }
+
+    func configureSource(isRemote: Bool) throws {
+        try lock.withLock {
+            guard source == nil else {
+                if sourceIsRemote != isRemote {
+                    throw FFmpegDemuxSessionError.sourceChanged
+                }
+                return
+            }
+            sourceIsRemote = isRemote
+        }
     }
 
     deinit {
@@ -37,6 +50,7 @@ final class FFmpegDemuxSession: @unchecked Sendable {
             let opened = argument.withCString {
                 PBFFmpegDemuxSourceCreate(
                     $0,
+                    sourceIsRemote,
                     sourceReadMeter.bridgeMonitor,
                     &error,
                     error.count
