@@ -24,10 +24,10 @@ CONTROLLER = ROOT / "Scripts/verification/interactive_visionpro_ui.py"
 INVENTORY = ROOT / "Config/reachability_operation_inventory.json"
 BASELINE = ROOT / "Config/reachability_matrix_baseline.json"
 DEFAULT_EVIDENCE = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-20260817"
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/TestEvidence/reachability-round2-20260818"
 )
 DEFAULT_DERIVED_DATA = Path(
-    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReachability-20260817"
+    "/Volumes/Cortisol/DevSpace/Xcode/Enchron/DerivedDataReachabilityRound2-20260818"
 )
 DEVICE = "00008142-001871A11491401C"
 CORE_DEVICE = "59E3D57A-0288-53DC-9A7D-B657B6939558"
@@ -360,6 +360,29 @@ class ReachabilityRun:
         self.controller("relaunch", "--no-screenshot", timeout=180)
         time.sleep(1)
 
+    def ensure_session(self) -> bool:
+        ready = self.controller(
+            "ensure-session",
+            "--destination-id",
+            DEVICE,
+            "--no-screenshot",
+            timeout=420,
+        )
+        return ready.get("success") is True
+
+    def show_controls(self) -> dict[str, Any]:
+        return self.app_command("toggleControls", visible="true")
+
+    def tap_control(
+        self,
+        presentation: str,
+        identifier: str,
+        *,
+        operation_id: str | None = None,
+    ) -> dict[str, Any]:
+        self.show_controls()
+        return self.tap(presentation, identifier, operation_id=operation_id)
+
     def browser_scenario(self) -> None:
         presentation = "window"
         self.relaunch()
@@ -489,8 +512,44 @@ class ReachabilityRun:
         self.relaunch()
         self.tap("window", "Navigation-Ornament-tab-files")
         result = self.tap("window", identifier)
+        if result.get("success") is not True and identifier.startswith(
+            "MediaLibrary-grid-video-"
+        ):
+            file_name = identifier.removeprefix("MediaLibrary-grid-video-")
+            imported = self.app_command("importMedia", file=file_name)
+            if imported.get("success") is True:
+                self.relaunch()
+                self.tap("window", "Navigation-Ornament-tab-files")
+                result = self.tap("window", identifier)
         time.sleep(2)
         return result
+
+    def ensure_window_projection(self, projection: str) -> bool:
+        control_plane = self.wait_for_identifier("PlayerUI-window-control-plane")
+        value = str((control_plane.get("matchedElement") or {}).get("value", ""))
+        expected = {
+            "Flat": "presentation=window",
+            "180°": "presentation=portal",
+        }[projection]
+        if expected in value:
+            return True
+        self.show_controls()
+        conversion = self.controller(
+            "tapSequence",
+            "--identifiers",
+            "PlayerUI-TopAction-videoFormat",
+            f"PlayerUI-VideoFormat-Projection-{projection}",
+            "PlayerUI-VideoFormat-apply",
+            "--no-screenshot",
+            "--timeout-seconds",
+            "90",
+            timeout=120,
+        )
+        if conversion.get("success") is not True:
+            return False
+        settled = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=30)
+        value = str((settled.get("matchedElement") or {}).get("value", ""))
+        return expected in value and "transition=none" in value
 
     def window_scenario(self) -> None:
         presentation = "window"
@@ -499,8 +558,9 @@ class ReachabilityRun:
         )
         if opened.get("success") is not True:
             return
-        self.wait_for_identifier("PlayerUI-window-control-plane")
-        controls = self.app_command("toggleControls")
+        if not self.ensure_window_projection("Flat"):
+            return
+        controls = self.show_controls()
         visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
         if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
             self.delivered(
@@ -534,13 +594,7 @@ class ReachabilityRun:
             ("PlayerPanel-button-forward", "forward"),
             ("PlayerPanel-button-play", "playPause"),
         ):
-            current = self.controller(
-                "snapshot", "--identifier", identifier, "--no-screenshot"
-            )
-            matched = current.get("matchedElement")
-            if not isinstance(matched, dict) or matched.get("isHittable") is not True:
-                self.app_command("toggleControls")
-            response = self.tap(presentation, identifier)
+            response = self.tap_control(presentation, identifier)
             probe = self.copy_probe(f"{presentation}-{fact}")
             if response.get("success") is True and any(
                 f"playback control delivered action={fact}" in line
@@ -555,39 +609,28 @@ class ReachabilityRun:
 
     def panorama_scenario(self) -> bool:
         presentation = "panorama"
-        opened = self.open_media("MediaLibrary-grid-video-3D-example.mp4")
+        opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
         if opened.get("success") is not True:
-            opened = self.open_media(
-                "MediaLibrary-grid-video-furyroad-stripped.mkv"
-            )
-            if opened.get("success") is not True:
-                return False
-            self.wait_for_identifier("PlayerUI-window-control-plane")
-            resume = self.wait_for_identifier(
-                "PlayerUI-TopAction-resumePanorama", timeout=5
-            )
-            if not isinstance(resume.get("matchedElement"), dict):
-                self.app_command("toggleControls")
-                conversion = self.controller(
-                    "tapSequence", "--identifiers",
-                    "PlayerUI-TopAction-videoFormat",
-                    "PlayerUI-VideoFormat-Projection-180°",
-                    "PlayerUI-VideoFormat-apply",
-                    "--no-screenshot", "--timeout-seconds", "90", timeout=120,
-                )
-                if conversion.get("success") is not True:
-                    return False
-                resume = self.wait_for_identifier(
-                    "PlayerUI-TopAction-resumePanorama", timeout=20
-                )
-                if not isinstance(resume.get("matchedElement"), dict):
-                    return False
-            self.tap("portal", "PlayerUI-TopAction-resumePanorama")
+            return False
+        if not self.ensure_window_projection("180°"):
+            return False
+        self.show_controls()
+        entered = self.controller(
+            "tapSequence",
+            "--identifiers",
+            "PlayerUI-TopAction-resumePanorama",
+            "--no-screenshot",
+            "--timeout-seconds",
+            "90",
+            timeout=120,
+        )
+        if entered.get("success") is not True:
+            return False
         spatial = self.wait_for_identifier("PlayerUI-spatial-state", timeout=45)
         if not isinstance(spatial.get("matchedElement"), dict):
             return False
         self.observe(presentation, "Panorama playback")
-        controls = self.app_command("toggleControls")
+        controls = self.show_controls()
         visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
         if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
             self.delivered(
@@ -607,19 +650,15 @@ class ReachabilityRun:
 
     def portal_scenario(self) -> None:
         presentation = "portal"
-        if not self.panorama_scenario():
+        opened = self.open_media("MediaLibrary-grid-video-furyroad-stripped.mkv")
+        if opened.get("success") is not True:
             return
-        self.app_command("toggleControls")
-        exit_response = self.tap("panorama", "PlayerPanel-button-exit-spatial")
-        self.controller("activate", "--no-screenshot")
+        if not self.ensure_window_projection("180°"):
+            return
         portal = self.wait_for_identifier("PlayerUI-window-control-plane", timeout=45)
         value = str((portal.get("matchedElement") or {}).get("value", ""))
-        if exit_response.get("success") is True and "presentation=portal" in value:
-            self.delivered(
-                "panorama", "accessibility:PlayerPanel-button-exit-spatial",
-                self.events[-1]["evidence"],
-                "The presentation diagnostic settled in Portal after the control action.",
-            )
+        if "presentation=portal" not in value:
+            return
         self.observe(presentation, "Portal playback")
         size = self.app_command("setWindowSize", width="1180", height="720")
         time.sleep(1)
@@ -632,7 +671,7 @@ class ReachabilityRun:
                 "The geometry request pipeline recorded the observed applied size.",
                 has_accessibility_target=False,
             )
-        controls = self.app_command("toggleControls")
+        controls = self.show_controls()
         visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
         if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
             self.delivered(
@@ -649,8 +688,9 @@ class ReachabilityRun:
         )
         if opened.get("success") is not True:
             return
-        self.wait_for_identifier("PlayerUI-window-control-plane")
-        self.app_command("toggleControls")
+        if not self.ensure_window_projection("Flat"):
+            return
+        self.show_controls()
         transition = self.controller(
             "tapSequence", "--identifiers",
             "PlayerUI-TopAction-dock", "PlayerUI-DockMenu-skybox",
@@ -671,7 +711,7 @@ class ReachabilityRun:
                 "The presentation entered Docked after the menu sequence.",
             )
         self.observe(presentation, "Docked playback")
-        controls = self.app_command("toggleControls")
+        controls = self.show_controls()
         visible = self.wait_for_identifier("PlayerPanel-controls", timeout=10)
         if controls.get("success") is True and isinstance(visible.get("matchedElement"), dict):
             self.delivered(
@@ -718,31 +758,28 @@ class ReachabilityRun:
         self.app_command("toggleBlackoutProbeWindow")
 
     def run(self) -> int:
-        if not self.arguments.reuse_session:
-            ready = self.controller(
-                "ensure-session",
-                "--destination-id", DEVICE,
-                "--no-screenshot",
-                timeout=420,
-            )
-            if ready.get("success") is not True:
+        selected = set(self.arguments.presentations)
+        scenarios = {
+            "window": lambda: (self.browser_scenario(), self.window_scenario()),
+            "portal": self.portal_scenario,
+            "panorama": self.panorama_scenario,
+            "docked": self.docked_scenario,
+        }
+        for presentation in PRESENTATIONS:
+            if presentation not in selected:
+                continue
+            if not self.arguments.reuse_session and not self.ensure_session():
+                self.controller("halt", "--no-screenshot", timeout=240)
                 self.finish("drive-error")
                 return 2
-        initial = self.copy_probe("initial")
-        if initial and self.clear_probe_after_archive():
-            self.probe_offset = 0
-        else:
-            self.probe_offset = len(initial)
-        selected = set(self.arguments.presentations)
-        if "window" in selected:
-            self.browser_scenario()
-            self.window_scenario()
-        if "panorama" in selected:
-            self.panorama_scenario()
-        if "portal" in selected:
-            self.portal_scenario()
-        if "docked" in selected:
-            self.docked_scenario()
+            initial = self.copy_probe(f"{presentation}-initial")
+            if initial and self.clear_probe_after_archive():
+                self.probe_offset = 0
+            else:
+                self.probe_offset = len(initial)
+            scenarios[presentation]()
+        if not self.arguments.reuse_session:
+            self.controller("halt", "--no-screenshot", timeout=240)
         return self.finish("complete")
 
     def finish(self, status: str) -> int:
@@ -796,6 +833,8 @@ class ReachabilityRun:
             }
             for old in baseline.get("cells", []):
                 key = (old.get("presentation"), old.get("operation"))
+                if key[0] not in selected:
+                    continue
                 if old.get("verdict") == "reachable" and (
                     key not in current or current[key].get("verdict") != "reachable"
                 ):

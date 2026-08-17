@@ -131,7 +131,10 @@ final class TestCommandChannel {
         case "ping":
             return Response(id: request.id, ok: true, detail: nil, payload: nil)
         case "toggleControls":
-            appModel.toggleControlsFromPlaybackSurface()
+            let requestedVisibility = request.args["visible"].flatMap(Bool.init)
+            if requestedVisibility == nil || requestedVisibility != appModel.showControls {
+                appModel.toggleControlsFromPlaybackSurface()
+            }
             return Response(
                 id: request.id,
                 ok: true,

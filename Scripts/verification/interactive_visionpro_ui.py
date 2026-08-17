@@ -26,10 +26,11 @@ APP_COMMAND_PATH = "Documents/test-command.json"
 APP_RESPONSE_ROOT = "Documents/test-responses"
 COMMAND_NOTIFICATION = "com.enchron.interactive-device-ui.command"
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-# A process belongs to this repository's automation scope only when its command
-# line carries one of these alongside the repository root. Matching a bare tool
-# name would reach an unrelated project's build on the same machine.
-SCOPE_MARKERS = ("Enchron.xcodeproj", Path(__file__).name)
+CONTROLLER_PROCESS_MARKER = Path(__file__).name
+RUNNER_PROCESS_MARKERS = (
+    "xcodebuild test-without-building",
+    "InteractiveDeviceUITests/testInteractiveDeviceSession",
+)
 # A stop is an ordinary command round trip, and those were measured at a 2.6
 # second median with the device busy. Five seconds sat close enough to that to
 # expire on a session that was merely playing, which then skipped the graceful
@@ -274,7 +275,11 @@ def scoped_processes() -> list[tuple[int, str]]:
     for pid, _, command in rows:
         if pid in lineage:
             continue
-        if not any(marker in command for marker in SCOPE_MARKERS):
+        is_controller = CONTROLLER_PROCESS_MARKER in command
+        is_interactive_runner = all(
+            marker in command for marker in RUNNER_PROCESS_MARKERS
+        )
+        if not is_controller and not is_interactive_runner:
             continue
         if f"{root}/" in command or working_directory(pid) == root:
             scoped.append((pid, command))
