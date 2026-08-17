@@ -1463,6 +1463,44 @@ func ffmpegDecodedAudioProducesInterleavedFloatPCMWithDeclaredLayout(
     #expect(sampleCount > 1)
 }
 
+@Test func trueHDSubframesAreAggregatedBeforeTheyReachCoreMedia() throws {
+    silenceFFmpegDiagnostics()
+    let fixture = try #require(
+        Bundle.module.url(forResource: "audio-truehd-5.1", withExtension: "mka")
+            ?? Bundle.module.url(
+                forResource: "audio-truehd-5.1",
+                withExtension: "mka",
+                subdirectory: "Fixtures"
+            )
+    )
+    var error = [CChar](repeating: 0, count: 512)
+    let reader = fixture.path.withCString { path in
+        PBFFmpegAudioReaderCreate(path, 0, -1, &error, error.count)
+    }
+    let activeReader = try #require(reader, Comment(rawValue: cString(error)))
+    defer { PBFFmpegAudioReaderDestroy(activeReader) }
+
+    var frameCounts: [Int] = []
+    while true {
+        var sample: Unmanaged<CMSampleBuffer>?
+        var metadata = PBFFmpegAudioSampleMetadata()
+        let result = PBFFmpegAudioReaderCopyNextSample(
+            activeReader,
+            &sample,
+            &metadata,
+            &error,
+            error.count
+        )
+        if result == PBFFmpegReadResultEnd { break }
+        #expect(result == PBFFmpegReadResultSample, Comment(rawValue: cString(error)))
+        let buffer = try #require(sample?.takeRetainedValue())
+        frameCounts.append(CMSampleBufferGetNumSamples(buffer))
+    }
+
+    #expect(frameCounts == [4_800, 4_800, 2_400])
+    #expect(frameCounts.reduce(0, +) == 12_000)
+}
+
 @Test func ffmpegUndecodableAudioNamesTheCodecInsteadOfGuessing() throws {
     silenceFFmpegDiagnostics()
     let fixture = FileManager.default.temporaryDirectory

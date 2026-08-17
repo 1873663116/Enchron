@@ -6,6 +6,7 @@
 #include <libavcodec/avcodec.h>
 #include <libavcodec/bsf.h>
 #include <libavformat/avformat.h>
+#include <libavutil/audio_fifo.h>
 #include <libavutil/avutil.h>
 #include <libavutil/dovi_meta.h>
 #include <libavutil/mastering_display_metadata.h>
@@ -38,11 +39,22 @@ typedef struct {
 } PBFFmpegSourceReadContext;
 
 typedef struct PBFFmpegPacketNode {
-    AVPacket *packet;
+    AVPacket packet;
     int64_t timestampMicroseconds;
     int64_t durationMicroseconds;
     struct PBFFmpegPacketNode *next;
 } PBFFmpegPacketNode;
+
+enum { PB_PACKET_NODE_POOL_CHUNK_SIZE = 256 };
+enum { PB_AUDIO_PACKET_BATCH_LIMIT = 256 };
+enum { PB_TRUEHD_DECODER_PACKET_BATCH_LIMIT = 120 };
+static const int64_t PB_AUDIO_PACKET_BATCH_DURATION_MICROSECONDS =
+    AV_TIME_BASE / 4;
+
+typedef struct PBFFmpegPacketNodePoolChunk {
+    PBFFmpegPacketNode nodes[PB_PACKET_NODE_POOL_CHUNK_SIZE];
+    struct PBFFmpegPacketNodePoolChunk *next;
+} PBFFmpegPacketNodePoolChunk;
 
 typedef struct {
     PBFFmpegPacketNode *head;
@@ -74,6 +86,8 @@ struct PBFFmpegDemuxSource {
     int64_t *lastQueuedTimestamps;
     int64_t *replayThroughTimestamps;
     bool *replayCaughtUp;
+    PBFFmpegPacketNode *freePacketNodes;
+    PBFFmpegPacketNodePoolChunk *packetNodePoolChunks;
     unsigned int reconnectAttemptCount;
 };
 
@@ -176,7 +190,10 @@ struct PBFFmpegAudioReader {
     PBFFmpegSourceReadContext sourceReadContext;
     AVFormatContext *formatContext;
     PBFFmpegDemuxSource *demuxSource;
+    PBFFmpegPacketNode *demuxPacketBatch;
+    PBFFmpegPacketNode *consumedDemuxPacketBatch;
     AVPacket *packet;
+    AVPacket *decoderBatchPacket;
     AVCodecContext *decoder;
     AVFrame *decodedFrame;
     SwrContext *resampler;
@@ -191,6 +208,18 @@ struct PBFFmpegAudioReader {
     bool decoderDrained;
     bool outputsPCM;
     int64_t nextPCMSample;
+    uint8_t *pendingPCMData;
+    size_t pendingPCMByteCount;
+    size_t pendingPCMCapacity;
+    int pendingPCMFrameCount;
+    int64_t pendingPCMStartSample;
+    PBFFmpegAudioSampleMetadata pendingPCMMetadata;
+    AVAudioFifo *decodedAudioFifo;
+    uint8_t **decodedBatchData;
+    int decodedBatchCapacity;
+    enum AVSampleFormat decodedInputFormat;
+    int64_t decodedFifoStartSample;
+    int64_t decodedFifoStartTimestamp;
     CMAudioFormatDescriptionRef formatDescription;
     char codecName[64];
     AVCodecParameters *codecParameters;
@@ -278,13 +307,45 @@ uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
         : 0;
 }
 
-static void clear_packet_queue(PBFFmpegPacketQueue *queue) {
+static PBFFmpegPacketNode *take_packet_node(PBFFmpegDemuxSource *source) {
+    if (!source) return NULL;
+    if (!source->freePacketNodes) {
+        PBFFmpegPacketNodePoolChunk *chunk = calloc(1, sizeof(*chunk));
+        if (!chunk) return NULL;
+        chunk->next = source->packetNodePoolChunks;
+        source->packetNodePoolChunks = chunk;
+        for (size_t index = 0; index < PB_PACKET_NODE_POOL_CHUNK_SIZE; index++) {
+            chunk->nodes[index].next = source->freePacketNodes;
+            source->freePacketNodes = &chunk->nodes[index];
+        }
+    }
+    PBFFmpegPacketNode *node = source->freePacketNodes;
+    source->freePacketNodes = node->next;
+    node->next = NULL;
+    node->timestampMicroseconds = AV_NOPTS_VALUE;
+    node->durationMicroseconds = 0;
+    return node;
+}
+
+static void return_packet_node(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketNode *node
+) {
+    if (!source || !node) return;
+    av_packet_unref(&node->packet);
+    node->next = source->freePacketNodes;
+    source->freePacketNodes = node;
+}
+
+static void clear_packet_queue(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketQueue *queue
+) {
     if (!queue) return;
     PBFFmpegPacketNode *node = queue->head;
     while (node) {
         PBFFmpegPacketNode *next = node->next;
-        av_packet_free(&node->packet);
-        free(node);
+        return_packet_node(source, node);
         node = next;
     }
     queue->head = NULL;
@@ -556,17 +617,15 @@ static void *demux_source_read_loop(void *opaque) {
                 ->streams[packet->stream_index]->codecpar->codec_type ==
                     AVMEDIA_TYPE_SUBTITLE;
             if (queue->subscribers > 0 || prebuffersAudio || prebuffersSubtitle) {
-                PBFFmpegPacketNode *node = calloc(1, sizeof(*node));
-                if (node) node->packet = av_packet_alloc();
-                if (!node || !node->packet) {
-                    if (node) free(node);
+                PBFFmpegPacketNode *node = take_packet_node(source);
+                if (!node) {
                     source->readResult = AVERROR(ENOMEM);
                     source->reachedEnd = true;
                 } else {
                     node->timestampMicroseconds = timestamp;
                     node->durationMicroseconds =
                         packet_duration_microseconds(source, packet);
-                    av_packet_move_ref(node->packet, packet);
+                    av_packet_move_ref(&node->packet, packet);
                     if (queue->tail) {
                         queue->tail->next = node;
                     } else {
@@ -647,7 +706,7 @@ static void unsubscribe_from_demux_stream(
     pthread_mutex_lock(&source->lock);
     PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
     queue->subscribers = 0;
-    clear_packet_queue(queue);
+    clear_packet_queue(source, queue);
     source->lastQueuedTimestamps[streamIndex] = AV_NOPTS_VALUE;
     source->replayThroughTimestamps[streamIndex] = AV_NOPTS_VALUE;
     source->replayCaughtUp[streamIndex] = true;
@@ -694,11 +753,109 @@ static int copy_next_demux_packet(
         queue->summedDurationMicroseconds = 0;
     }
     update_packet_queue_buffered_duration(queue);
-    av_packet_move_ref(packet, node->packet);
-    av_packet_free(&node->packet);
-    free(node);
+    av_packet_move_ref(packet, &node->packet);
+    return_packet_node(source, node);
     pthread_cond_broadcast(&source->changed);
     pthread_mutex_unlock(&source->lock);
+    return 0;
+}
+
+static void return_packet_node_list(
+    PBFFmpegDemuxSource *source,
+    PBFFmpegPacketNode **nodes
+) {
+    if (!source || !nodes || !*nodes) return;
+    pthread_mutex_lock(&source->lock);
+    PBFFmpegPacketNode *node = *nodes;
+    *nodes = NULL;
+    while (node) {
+        PBFFmpegPacketNode *next = node->next;
+        return_packet_node(source, node);
+        node = next;
+    }
+    pthread_cond_broadcast(&source->changed);
+    pthread_mutex_unlock(&source->lock);
+}
+
+static int copy_next_demux_packet_batch(
+    PBFFmpegDemuxSource *source,
+    int streamIndex,
+    atomic_bool *cancelled,
+    PBFFmpegPacketNode **availableNodes,
+    PBFFmpegPacketNode **consumedNodes,
+    AVPacket *packet
+) {
+    if (!source || !packet || !availableNodes || !consumedNodes ||
+        streamIndex < 0 ||
+        (unsigned int)streamIndex >= source->queueCount) {
+        return AVERROR(EINVAL);
+    }
+    if (cancellation_requested(cancelled)) return AVERROR_EXIT;
+
+    if (!*availableNodes) {
+        pthread_mutex_lock(&source->lock);
+        PBFFmpegPacketNode *consumedNode = *consumedNodes;
+        *consumedNodes = NULL;
+        while (consumedNode) {
+            PBFFmpegPacketNode *next = consumedNode->next;
+            return_packet_node(source, consumedNode);
+            consumedNode = next;
+        }
+
+        PBFFmpegPacketQueue *queue = &source->queues[streamIndex];
+        queue->waiters++;
+        if (!start_demux_source_read_thread(source)) {
+            queue->waiters--;
+            pthread_mutex_unlock(&source->lock);
+            return AVERROR(ENOMEM);
+        }
+        pthread_cond_broadcast(&source->changed);
+        while (!queue->head && !source->reachedEnd &&
+               !cancellation_requested(cancelled)) {
+            pthread_cond_wait(&source->changed, &source->lock);
+        }
+        queue->waiters--;
+        if (cancellation_requested(cancelled)) {
+            pthread_mutex_unlock(&source->lock);
+            return AVERROR_EXIT;
+        }
+        if (!queue->head) {
+            int result = source->readResult < 0
+                ? source->readResult
+                : AVERROR_EOF;
+            pthread_mutex_unlock(&source->lock);
+            return result;
+        }
+
+        PBFFmpegPacketNode *batchHead = queue->head;
+        PBFFmpegPacketNode *batchTail = batchHead;
+        unsigned int batchCount = 1;
+        int64_t batchDurationMicroseconds = batchHead->durationMicroseconds;
+        while (batchTail->next && batchCount < PB_AUDIO_PACKET_BATCH_LIMIT &&
+               batchDurationMicroseconds <
+                   PB_AUDIO_PACKET_BATCH_DURATION_MICROSECONDS) {
+            batchTail = batchTail->next;
+            batchCount++;
+            batchDurationMicroseconds += batchTail->durationMicroseconds;
+        }
+        queue->head = batchTail->next;
+        batchTail->next = NULL;
+        if (!queue->head) queue->tail = NULL;
+        queue->summedDurationMicroseconds -= batchDurationMicroseconds;
+        if (queue->summedDurationMicroseconds < 0) {
+            queue->summedDurationMicroseconds = 0;
+        }
+        update_packet_queue_buffered_duration(queue);
+        *availableNodes = batchHead;
+        pthread_cond_broadcast(&source->changed);
+        pthread_mutex_unlock(&source->lock);
+    }
+
+    PBFFmpegPacketNode *node = *availableNodes;
+    *availableNodes = node->next;
+    av_packet_move_ref(packet, &node->packet);
+    node->next = *consumedNodes;
+    *consumedNodes = node;
     return 0;
 }
 
@@ -3276,7 +3433,13 @@ void PBFFmpegDemuxSourceDestroy(PBFFmpegDemuxSource *source) {
     if (!source) return;
     stop_demux_source_read_thread(source);
     for (unsigned int index = 0; index < source->queueCount; index++) {
-        clear_packet_queue(&source->queues[index]);
+        clear_packet_queue(source, &source->queues[index]);
+    }
+    PBFFmpegPacketNodePoolChunk *chunk = source->packetNodePoolChunks;
+    while (chunk) {
+        PBFFmpegPacketNodePoolChunk *next = chunk->next;
+        free(chunk);
+        chunk = next;
     }
     free(source->queues);
     free(source->lastQueuedTimestamps);
@@ -3318,7 +3481,7 @@ bool PBFFmpegDemuxSourceSeek(
     stop_demux_source_read_thread(source);
     pthread_mutex_lock(&source->lock);
     for (unsigned int index = 0; index < source->queueCount; index++) {
-        clear_packet_queue(&source->queues[index]);
+        clear_packet_queue(source, &source->queues[index]);
         source->lastQueuedTimestamps[index] = AV_NOPTS_VALUE;
         source->replayThroughTimestamps[index] = AV_NOPTS_VALUE;
         source->replayCaughtUp[index] = true;
@@ -4465,6 +4628,8 @@ static bool configure_audio_reader(
     reader->timeBase = stream->time_base;
     reader->startTimestamp = stream_start_timestamp(reader->formatContext, stream);
     reader->nextPCMSample = 0;
+    reader->decodedInputFormat = AV_SAMPLE_FMT_NONE;
+    reader->decodedFifoStartTimestamp = AV_NOPTS_VALUE;
     if (reader->packet == NULL) {
         set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg audio packet");
         return false;
@@ -4485,7 +4650,9 @@ static bool configure_audio_reader(
         }
         reader->decoder = avcodec_alloc_context3(decoder);
         reader->decodedFrame = av_frame_alloc();
-        if (!reader->decoder || !reader->decodedFrame) {
+        reader->decoderBatchPacket = av_packet_alloc();
+        if (!reader->decoder || !reader->decodedFrame ||
+            !reader->decoderBatchPacket) {
             set_error(errorBuffer, errorBufferSize, "Unable to allocate FFmpeg audio decoder");
             return false;
         }
@@ -4629,18 +4796,237 @@ void PBFFmpegAudioReaderCancel(PBFFmpegAudioReader *reader) {
 void PBFFmpegAudioReaderDestroy(PBFFmpegAudioReader *reader) {
     if (reader == NULL) return;
     if (reader->formatDescription) CFRelease(reader->formatDescription);
+    free(reader->pendingPCMData);
+    av_audio_fifo_free(reader->decodedAudioFifo);
+    if (reader->decodedBatchData) {
+        av_freep(&reader->decodedBatchData[0]);
+        av_freep(&reader->decodedBatchData);
+    }
     swr_free(&reader->resampler);
     av_channel_layout_uninit(&reader->outputChannelLayout);
     av_frame_free(&reader->decodedFrame);
     avcodec_free_context(&reader->decoder);
     avcodec_parameters_free(&reader->codecParameters);
+    av_packet_free(&reader->decoderBatchPacket);
     av_packet_free(&reader->packet);
     if (reader->demuxSource) {
+        return_packet_node_list(reader->demuxSource, &reader->demuxPacketBatch);
+        return_packet_node_list(
+            reader->demuxSource,
+            &reader->consumedDemuxPacketBatch
+        );
         unsubscribe_from_demux_stream(reader->demuxSource, reader->audioStreamIndex);
     } else {
         close_media_source(&reader->formatContext, &reader->sourceReadContext);
     }
     free(reader);
+}
+
+static int decoded_audio_minimum_buffer_frames(const PBFFmpegAudioReader *reader) {
+    if (!reader || reader->sampleRate <= 0) return 1;
+    int frames = reader->codecParameters &&
+            reader->codecParameters->codec_id == AV_CODEC_ID_TRUEHD
+        ? reader->sampleRate / 10
+        : reader->sampleRate / 50;
+    return frames > 0 ? frames : 1;
+}
+
+static int read_next_audio_packet(
+    PBFFmpegAudioReader *reader,
+    AVPacket *packet
+) {
+    int result = reader->demuxSource
+        ? copy_next_demux_packet_batch(
+            reader->demuxSource,
+            reader->audioStreamIndex,
+            &reader->cancelled,
+            &reader->demuxPacketBatch,
+            &reader->consumedDemuxPacketBatch,
+            packet
+        )
+        : av_read_frame(reader->formatContext, packet);
+    if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
+    return result;
+}
+
+static int aggregate_truehd_decoder_packet(PBFFmpegAudioReader *reader) {
+    if (!reader || !reader->packet || !reader->decoderBatchPacket ||
+        !reader->codecParameters ||
+        reader->codecParameters->codec_id != AV_CODEC_ID_TRUEHD) {
+        return 0;
+    }
+    int64_t targetDuration = av_rescale_q(
+        decoded_audio_minimum_buffer_frames(reader),
+        (AVRational){1, reader->sampleRate},
+        reader->timeBase
+    );
+    int64_t accumulatedDuration = FFMAX(reader->packet->duration, 0);
+    unsigned int packetCount = 1;
+    while (accumulatedDuration < targetDuration &&
+           packetCount < PB_TRUEHD_DECODER_PACKET_BATCH_LIMIT) {
+        int result = read_next_audio_packet(reader, reader->decoderBatchPacket);
+        if (result < 0) {
+            reader->inputEnded = true;
+            reader->inputReadResult = result;
+            return result == AVERROR_EOF ? 0 : result;
+        }
+        if (reader->decoderBatchPacket->stream_index != reader->audioStreamIndex) {
+            av_packet_unref(reader->decoderBatchPacket);
+            continue;
+        }
+        int packetSize = reader->packet->size;
+        result = av_grow_packet(
+            reader->packet,
+            reader->decoderBatchPacket->size
+        );
+        if (result < 0) {
+            av_packet_unref(reader->decoderBatchPacket);
+            return result;
+        }
+        memcpy(
+            reader->packet->data + packetSize,
+            reader->decoderBatchPacket->data,
+            reader->decoderBatchPacket->size
+        );
+        reader->packet->duration += reader->decoderBatchPacket->duration;
+        accumulatedDuration += FFMAX(reader->decoderBatchPacket->duration, 0);
+        packetCount++;
+        av_packet_unref(reader->decoderBatchPacket);
+    }
+    return 0;
+}
+
+static PBFFmpegReadResult emit_pending_decoded_audio_sample(
+    PBFFmpegAudioReader *reader,
+    CMSampleBufferRef *sampleOut,
+    PBFFmpegAudioSampleMetadata *metadataOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (reader->pendingPCMFrameCount <= 0) return PBFFmpegReadResultEnd;
+    if (!reader->formatDescription || !reader->pendingPCMData) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation state is incomplete");
+        return PBFFmpegReadResultError;
+    }
+
+    size_t bytesPerFrame = (size_t)reader->channelCount * sizeof(float);
+    size_t expectedByteCount = (size_t)reader->pendingPCMFrameCount * bytesPerFrame;
+    if (expectedByteCount != reader->pendingPCMByteCount) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation size is inconsistent");
+        return PBFFmpegReadResultError;
+    }
+
+    CMBlockBufferRef block = NULL;
+    OSStatus status = CMBlockBufferCreateWithMemoryBlock(
+        kCFAllocatorDefault,
+        NULL,
+        reader->pendingPCMByteCount,
+        kCFAllocatorDefault,
+        NULL,
+        0,
+        reader->pendingPCMByteCount,
+        0,
+        &block
+    );
+    if (status == noErr) {
+        status = CMBlockBufferReplaceDataBytes(
+            reader->pendingPCMData,
+            block,
+            0,
+            reader->pendingPCMByteCount
+        );
+    }
+    CMSampleTimingInfo timing = {
+        .duration = CMTimeMake(1, reader->sampleRate),
+        .presentationTimeStamp = CMTimeMake(
+            reader->pendingPCMStartSample,
+            reader->sampleRate
+        ),
+        .decodeTimeStamp = kCMTimeInvalid,
+    };
+    CMItemCount sampleCount = reader->pendingPCMFrameCount;
+    if (status == noErr) {
+        status = CMSampleBufferCreateReady(
+            kCFAllocatorDefault,
+            block,
+            reader->formatDescription,
+            sampleCount,
+            1,
+            &timing,
+            1,
+            &bytesPerFrame,
+            sampleOut
+        );
+    }
+    if (block) CFRelease(block);
+    if (status != noErr) {
+        char message[160];
+        snprintf(
+            message,
+            sizeof(message),
+            "Create aggregated PCM CMSampleBuffer failed (%d)",
+            (int)status
+        );
+        set_error(errorBuffer, errorBufferSize, message);
+        return PBFFmpegReadResultError;
+    }
+
+    if (metadataOut) {
+        *metadataOut = reader->pendingPCMMetadata;
+        metadataOut->packetDuration = av_rescale_q(
+            reader->pendingPCMFrameCount,
+            (AVRational){1, reader->sampleRate},
+            reader->timeBase
+        );
+        metadataOut->payloadByteCount = reader->pendingPCMByteCount;
+    }
+    reader->pendingPCMByteCount = 0;
+    reader->pendingPCMFrameCount = 0;
+    memset(&reader->pendingPCMMetadata, 0, sizeof(reader->pendingPCMMetadata));
+    return PBFFmpegReadResultSample;
+}
+
+static int reserve_pending_decoded_audio_capacity(
+    PBFFmpegAudioReader *reader,
+    int additionalFrameCapacity,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (additionalFrameCapacity <= 0 || reader->channelCount <= 0) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation received no capacity");
+        return AVERROR_INVALIDDATA;
+    }
+    size_t bytesPerFrame = (size_t)reader->channelCount * sizeof(float);
+    if ((size_t)additionalFrameCapacity > SIZE_MAX / bytesPerFrame) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation size overflowed");
+        return AVERROR(EOVERFLOW);
+    }
+    size_t byteCount = (size_t)additionalFrameCapacity * bytesPerFrame;
+    if (reader->pendingPCMByteCount > SIZE_MAX - byteCount) {
+        set_error(errorBuffer, errorBufferSize, "Decoded PCM aggregation capacity overflowed");
+        return AVERROR(EOVERFLOW);
+    }
+    size_t requiredCapacity = reader->pendingPCMByteCount + byteCount;
+    if (requiredCapacity > reader->pendingPCMCapacity) {
+        size_t newCapacity = reader->pendingPCMCapacity > 0
+            ? reader->pendingPCMCapacity
+            : requiredCapacity;
+        while (newCapacity < requiredCapacity) {
+            if (newCapacity > SIZE_MAX / 2) {
+                newCapacity = requiredCapacity;
+                break;
+            }
+            newCapacity *= 2;
+        }
+        uint8_t *newData = realloc(reader->pendingPCMData, newCapacity);
+        if (!newData) {
+            set_error(errorBuffer, errorBufferSize, "Unable to grow decoded PCM aggregation storage");
+            return AVERROR(ENOMEM);
+        }
+        reader->pendingPCMData = newData;
+        reader->pendingPCMCapacity = newCapacity;
+    }
+    return 0;
 }
 
 static UInt32 audio_frames_per_packet(const AVCodecParameters *parameters) {
@@ -4962,6 +5348,197 @@ static PBFFmpegReadResult create_audio_sample(
     return PBFFmpegReadResultSample;
 }
 
+static void clear_decoded_audio_conversion(PBFFmpegAudioReader *reader) {
+    av_audio_fifo_free(reader->decodedAudioFifo);
+    reader->decodedAudioFifo = NULL;
+    if (reader->decodedBatchData) {
+        av_freep(&reader->decodedBatchData[0]);
+        av_freep(&reader->decodedBatchData);
+    }
+    reader->decodedBatchCapacity = 0;
+    reader->decodedInputFormat = AV_SAMPLE_FMT_NONE;
+    swr_free(&reader->resampler);
+    av_channel_layout_uninit(&reader->outputChannelLayout);
+    if (reader->formatDescription) {
+        CFRelease(reader->formatDescription);
+        reader->formatDescription = NULL;
+    }
+}
+
+static int configure_decoded_audio_conversion(
+    PBFFmpegAudioReader *reader,
+    const AVChannelLayout *inputLayout,
+    enum AVSampleFormat inputFormat,
+    int inputSampleRate,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    clear_decoded_audio_conversion(reader);
+    if (av_channel_layout_copy(&reader->outputChannelLayout, inputLayout) < 0) {
+        set_error(errorBuffer, errorBufferSize, "Unable to preserve decoded audio channel layout");
+        return AVERROR(ENOMEM);
+    }
+    reader->channelCount = inputLayout->nb_channels;
+    reader->decodedInputFormat = inputFormat;
+    int batchCapacity = decoded_audio_minimum_buffer_frames(reader);
+    reader->decodedAudioFifo = av_audio_fifo_alloc(
+        inputFormat,
+        reader->channelCount,
+        batchCapacity
+    );
+    if (!reader->decodedAudioFifo) {
+        set_error(errorBuffer, errorBufferSize, "Unable to allocate decoded audio aggregation storage");
+        clear_decoded_audio_conversion(reader);
+        return AVERROR(ENOMEM);
+    }
+    int lineSize = 0;
+    int result = av_samples_alloc_array_and_samples(
+        &reader->decodedBatchData,
+        &lineSize,
+        reader->channelCount,
+        batchCapacity,
+        inputFormat,
+        0
+    );
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Allocate decoded audio batch storage", result);
+        clear_decoded_audio_conversion(reader);
+        return result;
+    }
+    reader->decodedBatchCapacity = batchCapacity;
+    result = swr_alloc_set_opts2(
+        &reader->resampler,
+        &reader->outputChannelLayout,
+        AV_SAMPLE_FMT_FLT,
+        reader->sampleRate,
+        inputLayout,
+        inputFormat,
+        inputSampleRate,
+        0,
+        NULL
+    );
+    if (result >= 0) result = swr_init(reader->resampler);
+    if (result < 0) {
+        set_av_error(errorBuffer, errorBufferSize, "Configure decoded audio conversion", result);
+        clear_decoded_audio_conversion(reader);
+        return result;
+    }
+    if (ensure_decoded_pcm_audio_format(
+            reader,
+            &reader->outputChannelLayout,
+            errorBuffer,
+            errorBufferSize
+        ) < 0) {
+        clear_decoded_audio_conversion(reader);
+        return AVERROR_INVALIDDATA;
+    }
+    reader->decodedFifoStartTimestamp = AV_NOPTS_VALUE;
+    return 0;
+}
+
+static PBFFmpegReadResult convert_decoded_audio_fifo(
+    PBFFmpegAudioReader *reader,
+    int frameCount,
+    CMSampleBufferRef *sampleOut,
+    PBFFmpegAudioSampleMetadata *metadataOut,
+    char *errorBuffer,
+    size_t errorBufferSize
+) {
+    if (!reader->decodedAudioFifo || !reader->resampler ||
+        frameCount <= 0 ||
+        frameCount > av_audio_fifo_size(reader->decodedAudioFifo)) {
+        set_error(errorBuffer, errorBufferSize, "Decoded audio aggregation state is inconsistent");
+        return PBFFmpegReadResultError;
+    }
+    if (frameCount > reader->decodedBatchCapacity) {
+        av_freep(&reader->decodedBatchData[0]);
+        av_freep(&reader->decodedBatchData);
+        int lineSize = 0;
+        int allocationResult = av_samples_alloc_array_and_samples(
+            &reader->decodedBatchData,
+            &lineSize,
+            reader->channelCount,
+            frameCount,
+            reader->decodedInputFormat,
+            0
+        );
+        if (allocationResult < 0) {
+            set_av_error(
+                errorBuffer,
+                errorBufferSize,
+                "Grow decoded audio batch storage",
+                allocationResult
+            );
+            return PBFFmpegReadResultError;
+        }
+        reader->decodedBatchCapacity = frameCount;
+    }
+    int outputCapacity = swr_get_out_samples(reader->resampler, frameCount);
+    if (outputCapacity <= 0 ||
+        reserve_pending_decoded_audio_capacity(
+            reader,
+            outputCapacity,
+            errorBuffer,
+            errorBufferSize
+        ) < 0) {
+        if (outputCapacity <= 0) {
+            set_error(errorBuffer, errorBufferSize, "Decoded audio conversion produced no capacity");
+        }
+        return PBFFmpegReadResultError;
+    }
+    int readSamples = av_audio_fifo_read(
+        reader->decodedAudioFifo,
+        (void **)reader->decodedBatchData,
+        frameCount
+    );
+    if (readSamples != frameCount) {
+        set_error(errorBuffer, errorBufferSize, "Decoded audio aggregation could not read a complete batch");
+        return PBFFmpegReadResultError;
+    }
+    uint8_t *outputData[1] = {
+        reader->pendingPCMData + reader->pendingPCMByteCount,
+    };
+    int convertedSamples = swr_convert(
+        reader->resampler,
+        outputData,
+        outputCapacity,
+        (const uint8_t **)reader->decodedBatchData,
+        readSamples
+    );
+    if (convertedSamples <= 0) {
+        if (convertedSamples < 0) {
+            set_av_error(errorBuffer, errorBufferSize, "Convert decoded audio to interleaved PCM", convertedSamples);
+        } else {
+            set_error(errorBuffer, errorBufferSize, "Decoded audio conversion produced no samples");
+        }
+        return PBFFmpegReadResultError;
+    }
+    reader->pendingPCMStartSample = reader->decodedFifoStartSample;
+    reader->pendingPCMMetadata.packetPTS = reader->decodedFifoStartTimestamp;
+    reader->pendingPCMMetadata.packetDTS = AV_NOPTS_VALUE;
+    reader->pendingPCMMetadata.timeBaseNumerator = reader->timeBase.num;
+    reader->pendingPCMMetadata.timeBaseDenominator = reader->timeBase.den;
+    reader->pendingPCMMetadata.cookieSource = PBFFmpegAudioCookieSourceUnavailable;
+    reader->pendingPCMByteCount =
+        (size_t)convertedSamples * (size_t)reader->channelCount * sizeof(float);
+    reader->pendingPCMFrameCount = convertedSamples;
+    reader->decodedFifoStartSample += convertedSamples;
+    if (reader->decodedFifoStartTimestamp != AV_NOPTS_VALUE) {
+        reader->decodedFifoStartTimestamp += av_rescale_q(
+            convertedSamples,
+            (AVRational){1, reader->sampleRate},
+            reader->timeBase
+        );
+    }
+    return emit_pending_decoded_audio_sample(
+        reader,
+        sampleOut,
+        metadataOut,
+        errorBuffer,
+        errorBufferSize
+    );
+}
+
 static PBFFmpegReadResult create_decoded_audio_sample(
     PBFFmpegAudioReader *reader,
     AVFrame *frame,
@@ -4980,7 +5557,9 @@ static PBFFmpegReadResult create_decoded_audio_sample(
         : reader->decoder->sample_rate > 0
         ? reader->decoder->sample_rate
         : reader->sampleRate;
-    if (inputLayout->nb_channels <= 0 || inputSampleRate <= 0 || frame->nb_samples <= 0) {
+    enum AVSampleFormat inputFormat = (enum AVSampleFormat)frame->format;
+    if (inputLayout->nb_channels <= 0 || inputSampleRate <= 0 ||
+        inputFormat == AV_SAMPLE_FMT_NONE || frame->nb_samples <= 0) {
         char message[192];
         snprintf(
             message,
@@ -4998,84 +5577,33 @@ static PBFFmpegReadResult create_decoded_audio_sample(
         set_error(errorBuffer, errorBufferSize, "Decoded audio changed the declared sample rate");
         return PBFFmpegReadResultError;
     }
-    if (av_channel_layout_compare(inputLayout, &reader->outputChannelLayout) != 0) {
-        av_channel_layout_uninit(&reader->outputChannelLayout);
-        if (av_channel_layout_copy(&reader->outputChannelLayout, inputLayout) < 0) {
-            set_error(errorBuffer, errorBufferSize, "Unable to preserve decoded audio channel layout");
-            return PBFFmpegReadResultError;
-        }
-        reader->channelCount = inputLayout->nb_channels;
-        swr_free(&reader->resampler);
-        if (reader->formatDescription) {
-            CFRelease(reader->formatDescription);
-            reader->formatDescription = NULL;
-        }
-    }
-    if (!reader->resampler) {
-        int result = swr_alloc_set_opts2(
-            &reader->resampler,
-            &reader->outputChannelLayout,
-            AV_SAMPLE_FMT_FLT,
-            reader->sampleRate,
-            inputLayout,
-            (enum AVSampleFormat)frame->format,
-            inputSampleRate,
-            0,
-            NULL
-        );
-        if (result >= 0) result = swr_init(reader->resampler);
-        if (result < 0) {
-            set_av_error(errorBuffer, errorBufferSize, "Configure decoded audio conversion", result);
-            return PBFFmpegReadResultError;
-        }
-    }
 
-    int outputCapacity = swr_get_out_samples(reader->resampler, frame->nb_samples);
-    if (outputCapacity <= 0) {
-        set_error(errorBuffer, errorBufferSize, "Decoded audio conversion produced no capacity");
-        return PBFFmpegReadResultError;
-    }
-    AVFrame *output = av_frame_alloc();
-    if (!output) {
-        set_error(errorBuffer, errorBufferSize, "Unable to allocate decoded PCM frame");
-        return PBFFmpegReadResultError;
-    }
-    output->format = AV_SAMPLE_FMT_FLT;
-    output->sample_rate = reader->sampleRate;
-    output->nb_samples = outputCapacity;
-    int result = av_channel_layout_copy(
-        &output->ch_layout,
-        &reader->outputChannelLayout
-    );
-    if (result >= 0) result = av_frame_get_buffer(output, 0);
-    if (result < 0) {
-        av_frame_free(&output);
-        set_av_error(errorBuffer, errorBufferSize, "Allocate decoded PCM storage", result);
-        return PBFFmpegReadResultError;
-    }
-    int convertedSamples = swr_convert(
-        reader->resampler,
-        output->data,
-        outputCapacity,
-        (const uint8_t **)frame->extended_data,
-        frame->nb_samples
-    );
-    if (convertedSamples < 0) {
-        av_frame_free(&output);
-        set_av_error(errorBuffer, errorBufferSize, "Convert decoded audio to interleaved PCM", convertedSamples);
-        return PBFFmpegReadResultError;
-    }
-    if (convertedSamples == 0) {
-        av_frame_free(&output);
-        return PBFFmpegReadResultEnd;
-    }
-    if (ensure_decoded_pcm_audio_format(
+    CMSampleBufferRef completedPreviousFormatSample = NULL;
+    PBFFmpegAudioSampleMetadata completedPreviousFormatMetadata = {0};
+    bool needsConfiguration = !reader->decodedAudioFifo ||
+        reader->decodedInputFormat != inputFormat ||
+        av_channel_layout_compare(inputLayout, &reader->outputChannelLayout) != 0;
+    if (needsConfiguration && reader->decodedAudioFifo &&
+        av_audio_fifo_size(reader->decodedAudioFifo) > 0) {
+        PBFFmpegReadResult flushResult = convert_decoded_audio_fifo(
             reader,
-            &reader->outputChannelLayout,
+            av_audio_fifo_size(reader->decodedAudioFifo),
+            &completedPreviousFormatSample,
+            &completedPreviousFormatMetadata,
+            errorBuffer,
+            errorBufferSize
+        );
+        if (flushResult != PBFFmpegReadResultSample) return flushResult;
+    }
+    if (needsConfiguration && configure_decoded_audio_conversion(
+            reader,
+            inputLayout,
+            inputFormat,
+            inputSampleRate,
             errorBuffer,
             errorBufferSize
         ) < 0) {
-        av_frame_free(&output);
+        if (completedPreviousFormatSample) CFRelease(completedPreviousFormatSample);
         return PBFFmpegReadResultError;
     }
 
@@ -5089,66 +5617,45 @@ static PBFFmpegReadResult create_decoded_audio_sample(
             reader->timeBase,
             (AVRational){1, reader->sampleRate}
         );
-        if (startSample < reader->nextPCMSample) {
-            startSample = reader->nextPCMSample;
-        }
+        if (startSample < reader->nextPCMSample) startSample = reader->nextPCMSample;
     }
-    reader->nextPCMSample = startSample + convertedSamples;
-
-    size_t bytesPerFrame = (size_t)reader->channelCount * sizeof(float);
-    size_t byteCount = (size_t)convertedSamples * bytesPerFrame;
-    CMBlockBufferRef block = NULL;
-    OSStatus status = CMBlockBufferCreateWithMemoryBlock(
-        kCFAllocatorDefault,
-        NULL,
-        byteCount,
-        kCFAllocatorDefault,
-        NULL,
-        0,
-        byteCount,
-        0,
-        &block
+    if (av_audio_fifo_size(reader->decodedAudioFifo) == 0) {
+        reader->decodedFifoStartSample = startSample;
+        reader->decodedFifoStartTimestamp = frameTimestamp;
+    }
+    int writtenSamples = av_audio_fifo_write(
+        reader->decodedAudioFifo,
+        (void * const *)frame->extended_data,
+        frame->nb_samples
     );
-    if (status == noErr) {
-        status = CMBlockBufferReplaceDataBytes(output->data[0], block, 0, byteCount);
-    }
-    CMSampleTimingInfo timing = {
-        .duration = CMTimeMake(1, reader->sampleRate),
-        .presentationTimeStamp = CMTimeMake(startSample, reader->sampleRate),
-        .decodeTimeStamp = kCMTimeInvalid,
-    };
-    CMItemCount sampleCount = convertedSamples;
-    if (status == noErr) {
-        status = CMSampleBufferCreateReady(
-            kCFAllocatorDefault,
-            block,
-            reader->formatDescription,
-            sampleCount,
-            1,
-            &timing,
-            1,
-            &bytesPerFrame,
-            sampleOut
-        );
-    }
-    if (block) CFRelease(block);
-    av_frame_free(&output);
-    if (status != noErr) {
-        char message[160];
-        snprintf(message, sizeof(message), "Create decoded PCM CMSampleBuffer failed (%d)", (int)status);
-        set_error(errorBuffer, errorBufferSize, message);
+    if (writtenSamples != frame->nb_samples) {
+        if (completedPreviousFormatSample) CFRelease(completedPreviousFormatSample);
+        set_error(errorBuffer, errorBufferSize, "Decoded audio aggregation could not append a complete frame");
         return PBFFmpegReadResultError;
     }
-    if (metadataOut) {
-        metadataOut->packetPTS = frameTimestamp;
-        metadataOut->packetDTS = AV_NOPTS_VALUE;
-        metadataOut->packetDuration = frame->duration;
-        metadataOut->timeBaseNumerator = reader->timeBase.num;
-        metadataOut->timeBaseDenominator = reader->timeBase.den;
-        metadataOut->payloadByteCount = byteCount;
-        metadataOut->cookieSource = PBFFmpegAudioCookieSourceUnavailable;
+    reader->nextPCMSample = startSample + writtenSamples;
+    if (completedPreviousFormatSample) {
+        *sampleOut = completedPreviousFormatSample;
+        if (metadataOut) *metadataOut = completedPreviousFormatMetadata;
+        return PBFFmpegReadResultSample;
     }
-    return PBFFmpegReadResultSample;
+    int minimumFrames = decoded_audio_minimum_buffer_frames(reader);
+    int availableFrames = av_audio_fifo_size(reader->decodedAudioFifo);
+    if (availableFrames < minimumFrames) {
+        return PBFFmpegReadResultEnd;
+    }
+    int conversionFrames = frame->nb_samples >= minimumFrames &&
+            availableFrames == frame->nb_samples
+        ? frame->nb_samples
+        : minimumFrames;
+    return convert_decoded_audio_fifo(
+        reader,
+        conversionFrames,
+        sampleOut,
+        metadataOut,
+        errorBuffer,
+        errorBufferSize
+    );
 }
 
 PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
@@ -5172,6 +5679,27 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
             return PBFFmpegReadResultCancelled;
         }
         if (reader->decoder) {
+            if (reader->decodedAudioFifo &&
+                av_audio_fifo_size(reader->decodedAudioFifo) >=
+                    decoded_audio_minimum_buffer_frames(reader)) {
+                return convert_decoded_audio_fifo(
+                    reader,
+                    decoded_audio_minimum_buffer_frames(reader),
+                    sampleOut,
+                    metadataOut,
+                    errorBuffer,
+                    errorBufferSize
+                );
+            }
+            if (reader->pendingPCMFrameCount >= decoded_audio_minimum_buffer_frames(reader)) {
+                return emit_pending_decoded_audio_sample(
+                    reader,
+                    sampleOut,
+                    metadataOut,
+                    errorBuffer,
+                    errorBufferSize
+                );
+            }
             int result = avcodec_receive_frame(reader->decoder, reader->decodedFrame);
             if (result == 0) {
                 if (reader->decodedFrame->nb_samples <= 0) {
@@ -5191,6 +5719,29 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                 return readResult;
             }
             if (result == AVERROR_EOF) {
+                if (reader->decodedAudioFifo &&
+                    av_audio_fifo_size(reader->decodedAudioFifo) > 0) {
+                    return convert_decoded_audio_fifo(
+                        reader,
+                        FFMIN(
+                            av_audio_fifo_size(reader->decodedAudioFifo),
+                            reader->decodedBatchCapacity
+                        ),
+                        sampleOut,
+                        metadataOut,
+                        errorBuffer,
+                        errorBufferSize
+                    );
+                }
+                if (reader->pendingPCMFrameCount > 0) {
+                    return emit_pending_decoded_audio_sample(
+                        reader,
+                        sampleOut,
+                        metadataOut,
+                        errorBuffer,
+                        errorBufferSize
+                    );
+                }
                 if (reader->inputReadResult < 0 &&
                     reader->inputReadResult != AVERROR_EOF) {
                     set_av_error(
@@ -5220,15 +5771,7 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
                 return PBFFmpegReadResultEnd;
             }
         }
-        int result = reader->demuxSource
-            ? copy_next_demux_packet(
-                reader->demuxSource,
-                reader->audioStreamIndex,
-                &reader->cancelled,
-                reader->packet
-            )
-            : av_read_frame(reader->formatContext, reader->packet);
-        if (!reader->demuxSource) publish_source_bytes(&reader->sourceReadContext);
+        int result = read_next_audio_packet(reader, reader->packet);
         if (result < 0) {
             if (result == AVERROR_EXIT || cancellation_requested(&reader->cancelled)) {
                 return PBFFmpegReadResultCancelled;
@@ -5245,6 +5788,22 @@ PBFFmpegReadResult PBFFmpegAudioReaderCopyNextSample(
             continue;
         }
         if (reader->decoder) {
+            result = aggregate_truehd_decoder_packet(reader);
+            if (result == AVERROR_EXIT ||
+                cancellation_requested(&reader->cancelled)) {
+                av_packet_unref(reader->packet);
+                return PBFFmpegReadResultCancelled;
+            }
+            if (result < 0) {
+                av_packet_unref(reader->packet);
+                set_av_error(
+                    errorBuffer,
+                    errorBufferSize,
+                    "Aggregate FFmpeg TrueHD decoder packet",
+                    result
+                );
+                return PBFFmpegReadResultError;
+            }
             result = avcodec_send_packet(reader->decoder, reader->packet);
             av_packet_unref(reader->packet);
             if (result == AVERROR_INVALIDDATA) continue;
