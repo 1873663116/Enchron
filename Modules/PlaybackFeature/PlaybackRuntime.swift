@@ -484,6 +484,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                     request.url,
                     startTime: CMTime(seconds: startTimeSeconds, preferredTimescale: 60_000),
                     initialRate: Float(initialSpeed.value),
+                    sourceIsRemote: request.source.isRemote,
                     initialStereoLayout: initialFormat.flatMap {
                         Self.coreStereoLayout(
                             for: Self.playbackStereoLayout(from: $0.stereoLayout)
@@ -1224,6 +1225,7 @@ public final class PlaybackRuntime: PlaybackRuntimeControlling {
                 ),
                 startsPaused: true,
                 initialRate: Float(speed.value),
+                sourceIsRemote: request.source.isRemote,
                 initialStereoLayout: initialStereoLayout,
                 initialProjectionOverride: initialProjectionOverride,
                 provenance: "presentationConversionPrepared",

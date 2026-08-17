@@ -332,6 +332,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
+        sourceIsRemote: Bool = false,
         provenance: String = "appOpen",
         accessRequirement: String = "appAdapterManaged"
     ) async throws {
@@ -349,6 +350,7 @@ public final class SampleBufferPlaybackSession: @unchecked Sendable {
             : preferredPlaybackRate
         sourceURL = url
         sourceAsset = asset
+        try demuxSession?.configureSource(isRemote: sourceIsRemote)
         let sourceInformation: MediaSourceInformation?
         if let mediaSourceInformationLoader {
             sourceInformation = if demuxSession != nil {

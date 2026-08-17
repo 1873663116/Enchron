@@ -76,6 +76,7 @@ public final class PlaybackCoreController {
     private var seekGeneration: UInt64 = 0
     private var subtitleSelectionGeneration: UInt64 = 0
     private var formatOverrideGeneration: UInt64 = 0
+    private var selectedSourceIsRemote = false
 
     public init() {
         sessionFactory = { sessionID in
@@ -106,6 +107,7 @@ public final class PlaybackCoreController {
         startTime: CMTime = .zero,
         startsPaused: Bool = false,
         initialRate: Float? = nil,
+        sourceIsRemote: Bool = false,
         initialStereoLayout: VideoStereoLayout? = nil,
         initialProjectionOverride: VideoProjectionOverride? = nil,
         provenance: String = "appOpen",
@@ -142,6 +144,7 @@ public final class PlaybackCoreController {
 
         selectedURL = url
         selectedAsset = asset
+        selectedSourceIsRemote = sourceIsRemote
         setStatus(.loading)
         let session = sessionFactory(sessionID)
         if let initialStereoLayout {
@@ -184,6 +187,7 @@ public final class PlaybackCoreController {
                 startTime: startTime,
                 startsPaused: startsPaused,
                 initialRate: initialRate,
+                sourceIsRemote: sourceIsRemote,
                 provenance: provenance,
                 accessRequirement: accessRequirement
             )
@@ -763,6 +767,7 @@ public final class PlaybackCoreController {
         return try await open(
             url,
             asset: selectedAsset,
+            sourceIsRemote: selectedSourceIsRemote,
             initialStereoLayout: stereoLayout,
             initialProjectionOverride: projectionOverride,
             provenance: "reopen",
@@ -776,6 +781,7 @@ public final class PlaybackCoreController {
         if clearSource {
             selectedURL = nil
             selectedAsset = nil
+            selectedSourceIsRemote = false
         }
         formatOverrideGeneration &+= 1
         activeFormatOverrideTask?.cancel()
@@ -799,6 +805,7 @@ public final class PlaybackCoreController {
         if clearSource {
             selectedURL = nil
             selectedAsset = nil
+            selectedSourceIsRemote = false
         }
         formatOverrideGeneration &+= 1
         subtitleSelectionGeneration &+= 1

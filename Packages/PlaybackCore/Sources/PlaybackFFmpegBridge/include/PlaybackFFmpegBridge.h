@@ -65,6 +65,7 @@ uint64_t PBFFmpegSourceReadMonitorGetTotalBytesRead(
 
 PBFFmpegDemuxSource *PBFFmpegDemuxSourceCreate(
     const char *path,
+    bool isRemote,
     PBFFmpegSourceReadMonitor *monitor,
     char *errorBuffer,
     size_t errorBufferSize
@@ -80,6 +81,13 @@ bool PBFFmpegDemuxSourceSeek(
     double seconds,
     char *errorBuffer,
     size_t errorBufferSize
+);
+double PBFFmpegDemuxSourceGetBufferedDurationSeconds(
+    PBFFmpegDemuxSource *source
+);
+double PBFFmpegDemuxSourceGetPrefetchDurationSeconds(void);
+unsigned int PBFFmpegDemuxSourceGetReconnectAttemptCount(
+    PBFFmpegDemuxSource *source
 );
 
 PBFFmpegMediaSourceInformation *PBFFmpegMediaSourceInformationCreate(
