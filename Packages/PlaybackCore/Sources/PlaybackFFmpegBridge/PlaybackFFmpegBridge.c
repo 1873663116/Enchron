@@ -2660,6 +2660,76 @@ static OSStatus create_annexb_format(
     return status;
 }
 
+static OSStatus create_h264_format_from_avcc(
+    const AVCodecParameters *parameters,
+    CFDictionaryRef extensions,
+    CMVideoFormatDescriptionRef *formatOut
+) {
+    if (!parameters->extradata || parameters->extradata_size < 7 ||
+        parameters->extradata[0] != 1) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+    const uint8_t *configuration = parameters->extradata;
+    size_t configurationSize = (size_t)parameters->extradata_size;
+    const uint8_t *sets[31 + 255] = {0};
+    size_t sizes[31 + 255] = {0};
+    size_t setCount = 0;
+    size_t offset = 6;
+    size_t spsCount = configuration[5] & 0x1f;
+    if (spsCount == 0) return kCMFormatDescriptionError_InvalidParameter;
+    for (size_t index = 0; index < spsCount; index++) {
+        if (offset > configurationSize - 2) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        size_t size = ((size_t)configuration[offset] << 8) |
+            configuration[offset + 1];
+        offset += 2;
+        if (size == 0 || size > configurationSize - offset) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        sets[setCount] = configuration + offset;
+        sizes[setCount++] = size;
+        offset += size;
+    }
+    if (offset >= configurationSize) {
+        return kCMFormatDescriptionError_InvalidParameter;
+    }
+    size_t ppsCount = configuration[offset++];
+    if (ppsCount == 0) return kCMFormatDescriptionError_InvalidParameter;
+    for (size_t index = 0; index < ppsCount; index++) {
+        if (offset > configurationSize - 2) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        size_t size = ((size_t)configuration[offset] << 8) |
+            configuration[offset + 1];
+        offset += 2;
+        if (size == 0 || size > configurationSize - offset) {
+            return kCMFormatDescriptionError_InvalidParameter;
+        }
+        sets[setCount] = configuration + offset;
+        sizes[setCount++] = size;
+        offset += size;
+    }
+
+    CMVideoFormatDescriptionRef baseFormat = NULL;
+    OSStatus status = CMVideoFormatDescriptionCreateFromH264ParameterSets(
+        kCFAllocatorDefault,
+        setCount,
+        sets,
+        sizes,
+        (int)(configuration[4] & 0x03) + 1,
+        &baseFormat
+    );
+    if (status != noErr || !baseFormat) return status;
+    status = create_format_by_adding_extensions(
+        baseFormat,
+        extensions,
+        formatOut
+    );
+    CFRelease(baseFormat);
+    return status;
+}
+
 static OSStatus create_dolby_vision_format(
     const AVCodecParameters *parameters,
     CFDictionaryRef atoms,
@@ -2782,7 +2852,13 @@ static OSStatus create_compressed_format(
         }
         CFDictionarySetValue(atoms, atom, configuration);
         CFDictionarySetValue(extensions, kCMFormatDescriptionExtension_SampleDescriptionExtensionAtoms, atoms);
-        if (type == kCMVideoCodecType_DolbyVisionHEVC) {
+        if (parameters->codec_id == AV_CODEC_ID_H264) {
+            status = create_h264_format_from_avcc(
+                parameters,
+                extensions,
+                formatOut
+            );
+        } else if (type == kCMVideoCodecType_DolbyVisionHEVC) {
             CMVideoFormatDescriptionRef baseFormat = NULL;
             status = create_dolby_vision_format(parameters, atoms, &baseFormat);
             if (status == noErr && baseFormat) {
