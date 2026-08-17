@@ -42,7 +42,7 @@ public struct AppearanceModeButton: View {
             }
             .animation(DesignTokens.AnimationToken.selection, value: isActive)
             .frame(width: visualSize, height: visualSize)
-            .enchronGlassBackground(in: Circle())
+            .background(DesignTokens.Surface.elevated, in: Circle())
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect(.automatic)
             .frame(width: targetSize, height: targetSize)

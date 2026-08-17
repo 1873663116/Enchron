@@ -573,8 +573,7 @@ struct PlaybackTopActions: View {
         .frame(width: 360)
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(shape)
-        .clipShape(shape)
-        .enchronGlassBackground(in: shape)
+        .enchronListGroupSurface(in: shape)
         .background {
             secondaryMenuInteractionShield(shape)
         }
@@ -726,8 +725,7 @@ struct PlaybackTopActions: View {
         .frame(width: 520)
         .fixedSize(horizontal: false, vertical: true)
         .contentShape(shape)
-        .clipShape(shape)
-        .enchronGlassBackground(in: shape)
+        .enchronListGroupSurface(in: shape)
         .background {
             secondaryMenuInteractionShield(shape)
         }
@@ -744,9 +742,9 @@ struct PlaybackTopActions: View {
 
 }
 
-/// Opens an inline panel in the same SwiftUI tree. The glass label owns hover
-/// feedback, while the outer button remains plain so inserting the panel does
-/// not interrupt an in-flight scale animation on the label's glass layer.
+/// Opens an inline panel in the same SwiftUI tree. The label owns hover feedback,
+/// while the outer button remains plain so inserting the panel does not interrupt
+/// an in-flight scale animation on the label.
 private struct PlaybackTopSecondaryPanelButton: View {
     let systemName: String
     let accessibilityLabel: String

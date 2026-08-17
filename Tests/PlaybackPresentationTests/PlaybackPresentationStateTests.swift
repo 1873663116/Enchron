@@ -1774,6 +1774,48 @@ struct PlaybackPresentationStateTests {
         )
     }
 
+    @Test("progress track clicks map the scrubber travel to seek targets")
+    func progressTrackClicksMapToSeekTargets() {
+        let travelWidth: CGFloat = 660
+        let thumbDiameter: CGFloat = 20
+
+        #expect(
+            PlaybackSeekPresentation.target(
+                at: 10,
+                travelWidth: travelWidth,
+                thumbDiameter: thumbDiameter
+            ) == 0
+        )
+        #expect(
+            PlaybackSeekPresentation.target(
+                at: 340,
+                travelWidth: travelWidth,
+                thumbDiameter: thumbDiameter
+            ) == 0.5
+        )
+        #expect(
+            PlaybackSeekPresentation.target(
+                at: 670,
+                travelWidth: travelWidth,
+                thumbDiameter: thumbDiameter
+            ) == 1
+        )
+        #expect(
+            PlaybackSeekPresentation.target(
+                at: -40,
+                travelWidth: travelWidth,
+                thumbDiameter: thumbDiameter
+            ) == 0
+        )
+        #expect(
+            PlaybackSeekPresentation.target(
+                at: 720,
+                travelWidth: travelWidth,
+                thumbDiameter: thumbDiameter
+            ) == 1
+        )
+    }
+
     @Test("environment card reveal motion stays within the approved range")
     func environmentCardRevealMotionContract() {
         #expect(EnvironmentCardRevealMotion.initialScale == 0.985)

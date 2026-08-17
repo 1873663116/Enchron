@@ -113,7 +113,7 @@ public struct GlassCapsuleIconLabelButton: View {
                     minHeight: DesignTokens.Interactive.regular
                 )
                 .clipShape(Capsule())
-                .enchronGlassBackground(in: Capsule())
+                .background(DesignTokens.Surface.elevated, in: Capsule())
                 .enchronHoverContentShape(Capsule())
                 .enchronHoverEffect(.automatic)
         }
@@ -175,7 +175,7 @@ public struct GlassCircleIconLabel: View {
             .foregroundStyle(iconColor)
             .frame(width: visualSize, height: visualSize)
             .clipShape(Circle())
-            .enchronGlassBackground(in: Circle())
+            .background(DesignTokens.Surface.elevated, in: Circle())
             .enchronHoverContentShape(Circle())
             .enchronHoverEffect(.automatic)
             .accessibilityLabel(accessibilityLabel)
@@ -1608,7 +1608,6 @@ private struct SettingListSelectionIndicator: View {
                         .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.white)
                 }
-                .enchronGlassBackground(in: Circle())
         } else {
             Circle()
                 .stroke(DesignTokens.SourceSidebar.selectionIndicator, lineWidth: DesignTokens.Stroke.regular)
