@@ -872,7 +872,7 @@ struct ComponentStandardsPreview: View {
             .spec("thumbnailHeight", "140pt", "thumbnail height for grid cards") {
                 tokenBarSwatch(DesignTokens.Card.thumbnailHeight, max: 224)
             },
-            .spec("gridSpacing", "20pt", "grid inter-item spacing") {
+            .spec("gridSpacing", "16pt", "grid inter-item spacing") {
                 tokenBarSwatch(DesignTokens.Card.gridSpacing, max: 224)
             },
         ]

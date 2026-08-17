@@ -432,7 +432,7 @@ public enum DesignTokens {
         /// Thumbnail height for grid cards
         public static let thumbnailHeight: CGFloat = 140
         /// Grid inter-item spacing
-        public static let gridSpacing: CGFloat = Spacing.lg     // 20
+        public static let gridSpacing: CGFloat = Spacing.md     // 16
         /// Centered placeholder icon size for grid card thumbnails (no preview)
         public static let placeholderIconSize: CGFloat = 45
     }

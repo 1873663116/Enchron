@@ -353,6 +353,7 @@ public struct GridCard: View {
         }
         .frame(width: cardWidth)
         .clipShape(shape)
+        .contentShape(.contextMenuPreview, shape)
         .contentShape(shape)
         .background {
             if selectionEnabled && isSelected {
@@ -745,7 +746,55 @@ private struct GridCardFamilyPreview: View {
     }
 }
 
+private struct GridCardSpacingComparisonPreview: View {
+    var body: some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxl) {
+            comparisonRow(
+                "Before · 20 pt",
+                spacing: DesignTokens.Spacing.lg
+            )
+            comparisonRow(
+                "After · 16 pt",
+                spacing: DesignTokens.Card.gridSpacing
+            )
+        }
+        .padding(DesignTokens.Spacing.xl)
+    }
+
+    private func comparisonRow(
+        _ title: String,
+        spacing: CGFloat
+    ) -> some View {
+        VStack(alignment: .leading, spacing: DesignTokens.Spacing.sm) {
+            Text(title)
+                .font(DesignTokens.Typography.sectionHeader)
+                .foregroundStyle(.secondary)
+
+            HStack(alignment: .top, spacing: spacing) {
+                GridCard.folder(title: "Movies", count: 24)
+                GridCard.video(
+                    title: "Interstellar",
+                    fileSize: "8.2 GB",
+                    duration: "2:49:00",
+                    badges: ["HDR10+"]
+                )
+                GridCard.video(
+                    title: "Blade Runner 2049",
+                    fileSize: "45.6 GB",
+                    duration: "2:29:55",
+                    badges: ["HDR"],
+                    watchedProgress: 0.42
+                )
+            }
+        }
+    }
+}
+
 #Preview("GridCard family") {
     GridCardFamilyPreview()
+}
+
+#Preview("GridCard spacing comparison") {
+    GridCardSpacingComparisonPreview()
 }
 #endif
