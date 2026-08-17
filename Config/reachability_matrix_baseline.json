@@ -1881,6 +1881,766 @@
       "operation": "scroll:file-list",
       "presentation": "docked",
       "verdict": "not-applicable"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-error-primary",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-error-secondary",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-apply",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-automatic",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-cancel",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:Settings-category-{item.id}",
+      "presentation": "window",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-error-primary",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-error-secondary",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-apply",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-automatic",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-cancel",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:Settings-category-{item.id}",
+      "presentation": "portal",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-error-primary",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-error-secondary",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-apply",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-automatic",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-cancel",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:Settings-category-{item.id}",
+      "presentation": "panorama",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-back",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-FilesScreen-navBackForward-forward",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-address",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-cancel",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-connect",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-guest",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-name",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-password",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-smb-username",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-address",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-cancel",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-connect",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-name",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-password",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourceConnection-webDAV-username",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFiles",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addFolder",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addPhotos",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addSMB",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-addWebDAV",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-refresh",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-source-{item.id}",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-SourcesSidebar-sourceMore",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-error-primary",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:FileBrowsing-error-secondary",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-CustomAngle",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-HDRFallback",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-apply",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-automatic",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-cancel",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerPanel-VideoFormat-{title}-{label(option)}",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-CustomAngle",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-HDRFallback",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-apply",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-automatic",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-cancel",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:PlayerUI-VideoFormat-{title}-{label(option)}",
+      "presentation": "docked",
+      "verdict": "known-defect"
+    },
+    {
+      "operation": "accessibility:Settings-category-{item.id}",
+      "presentation": "docked",
+      "verdict": "known-defect"
     }
   ],
   "schemaVersion": 1

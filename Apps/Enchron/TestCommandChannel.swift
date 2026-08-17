@@ -172,6 +172,8 @@ final class TestCommandChannel {
             )
         case "scrollEmby":
             return try scrollEmby(request)
+        case "showFileBrowserError":
+            return try showFileBrowserError(request)
         case "seekNormalized":
             return try seekNormalized(request)
         case "setDockedPlacement":
@@ -377,6 +379,26 @@ final class TestCommandChannel {
             ok: true,
             detail: nil,
             payload: [handledPage, direction.rawValue]
+        )
+    }
+
+    private func showFileBrowserError(_ request: Request) throws -> Response {
+        let message = request.args["message"] ?? "Reachability verification error"
+        let errorRequest = FileBrowserReachabilityErrorRequest(message: message)
+        NotificationCenter.default.post(
+            name: .fileBrowserReachabilityError,
+            object: errorRequest
+        )
+        guard errorRequest.wasHandled else {
+            throw CommandError(
+                message: "No visible Files screen accepted showFileBrowserError."
+            )
+        }
+        return Response(
+            id: request.id,
+            ok: true,
+            detail: nil,
+            payload: [message]
         )
     }
 

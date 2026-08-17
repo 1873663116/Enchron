@@ -51,11 +51,20 @@ struct PlayerInfoBarView: View {
                 onEnterImmersive: enterImmersive,
                 onApplyFormat: applyFormat,
                 onRestoreAutomaticFormat: restoreAutomaticFormat,
-                onSecondaryMenuVisibilityChange: onSecondaryMenuVisibilityChange
+                onSecondaryMenuVisibilityChange: onSecondaryMenuVisibilityChange,
+                onReachabilityAction: recordReachability
             )
         } moreControl: {
             ProductionPlaybackMoreMenu()
         }
+    }
+
+    private func recordReachability(_ action: String) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "reachability top actions delivered action=\(action)"
+        )
+#endif
     }
 
     private var initialPresentedMenu: PlaybackTopSecondaryMenu? {

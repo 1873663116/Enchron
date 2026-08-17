@@ -24,11 +24,15 @@ C() { python3 Scripts/verification/interactive_visionpro_ui.py --device <id> \
 C tap --identifier FileBrowsing-SourcesSidebar-sourceMore
 C tap --identifier plus
 C tap --label SMB
-C typeText --identifier FileBrowsing-SourceConnection-address  --text <host>
-C typeText --identifier FileBrowsing-SourceConnection-username --text <user>
-C typeText --identifier FileBrowsing-SourceConnection-password --text <secret>
-C tap --identifier FileBrowsing-SourceConnection-connect
+C typeText --identifier FileBrowsing-SourceConnection-smb-address  --text <host>
+C typeText --identifier FileBrowsing-SourceConnection-smb-username --text <user>
+C typeText --identifier FileBrowsing-SourceConnection-smb-password --text <secret>
+C tap --identifier FileBrowsing-SourceConnection-smb-connect
 ```
+
+WebDAV 使用同一后缀集合与 `FileBrowsing-SourceConnection-webDAV-` 前缀。SMB 另有
+`FileBrowsing-SourceConnection-smb-guest`；两种表单均有 `name`、`address`、
+`username`、`password`、`connect` 与 `cancel`。
 
 `typeText` 必须带 `--identifier`，runner 自己先点再输。首次凭据连接后系统弹"保存密码?"，`tap --label '以后'` 可合成关掉。
 

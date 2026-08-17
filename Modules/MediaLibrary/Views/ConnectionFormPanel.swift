@@ -49,7 +49,8 @@ public struct ConnectionFormPanel: View {
     }
 
     private let kind: SourceConnectionKind
-    private let identifierPrefix: String
+    private let accessibilityIdentifierPrefix: String
+    private let guestAccessibilityIdentifier: String
     private let onConnect: ConnectAction
     private let onCancel: () -> Void
     private let onConnected: () -> Void
@@ -71,6 +72,7 @@ public struct ConnectionFormPanel: View {
         password: Binding<String>,
         connectsAsGuest: Binding<Bool>,
         accessibilityIdentifierPrefix: String,
+        guestAccessibilityIdentifier: String,
         onConnect: @escaping ConnectAction,
         onCancel: @escaping () -> Void = {},
         onConnected: @escaping () -> Void = {}
@@ -81,7 +83,8 @@ public struct ConnectionFormPanel: View {
         _username = username
         _password = password
         _connectsAsGuest = connectsAsGuest
-        identifierPrefix = accessibilityIdentifierPrefix
+        self.accessibilityIdentifierPrefix = accessibilityIdentifierPrefix
+        self.guestAccessibilityIdentifier = guestAccessibilityIdentifier
         self.onConnect = onConnect
         self.onCancel = onCancel
         self.onConnected = onConnected
@@ -156,10 +159,16 @@ public struct ConnectionFormPanel: View {
     @ViewBuilder
     private var fields: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-            labelledField("Display Name", identifierSuffix: "name") {
+            labelledField(
+                "Display Name",
+                accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-name"
+            ) {
                 TextField("Display Name", text: $name, prompt: Text("Optional"))
             }
-            labelledField(kind.addressLabel, identifierSuffix: "address") {
+            labelledField(
+                kind.addressLabel,
+                accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-address"
+            ) {
                 TextField(
                     kind.addressLabel,
                     text: $address,
@@ -169,14 +178,20 @@ public struct ConnectionFormPanel: View {
 
             if showsCredentials {
                 VStack(alignment: .leading, spacing: DesignTokens.Spacing.md) {
-                    labelledField("Username", identifierSuffix: "username") {
+                    labelledField(
+                        "Username",
+                        accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-username"
+                    ) {
                         TextField(
                             "Username",
                             text: $username,
                             prompt: Text("Username")
                         )
                     }
-                    labelledField("Password", identifierSuffix: "password") {
+                    labelledField(
+                        "Password",
+                        accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-password"
+                    ) {
                         SecureField(
                             "Password",
                             text: $password,
@@ -191,7 +206,7 @@ public struct ConnectionFormPanel: View {
                 Toggle("Connect as Guest", isOn: $connectsAsGuest)
                     .font(DesignTokens.Typography.selectionHeader)
                     .tint(DesignTokens.Theme.accent)
-                    .accessibilityIdentifier(identifier("guest"))
+                    .accessibilityIdentifier(guestAccessibilityIdentifier)
             }
         }
         .textFieldStyle(.roundedBorder)
@@ -201,7 +216,7 @@ public struct ConnectionFormPanel: View {
 
     private func labelledField(
         _ label: String,
-        identifierSuffix: String,
+        accessibilityIdentifier: String,
         @ViewBuilder field: () -> some View
     ) -> some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.xs) {
@@ -209,7 +224,7 @@ public struct ConnectionFormPanel: View {
                 .font(DesignTokens.Typography.sectionHeader)
                 .foregroundStyle(DesignTokens.Surface.supportingText)
             field()
-                .accessibilityIdentifier(identifier(identifierSuffix))
+                .accessibilityIdentifier(accessibilityIdentifier)
                 .accessibilityLabel(label)
         }
     }
@@ -233,21 +248,21 @@ public struct ConnectionFormPanel: View {
                     systemImage: "exclamationmark.triangle.fill",
                     text: message,
                     tint: DesignTokens.SourceConnection.failureColor,
-                    identifier: identifier("error")
+                    accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-error"
                 )
             case .timedOut(let message):
                 statusLine(
                     systemImage: "clock.badge.exclamationmark",
                     text: message,
                     tint: DesignTokens.SourceConnection.timeoutColor,
-                    identifier: identifier("error")
+                    accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-error"
                 )
             case .connected:
                 statusLine(
                     systemImage: "checkmark.circle.fill",
                     text: "Connected",
                     tint: DesignTokens.SourceConnection.successColor,
-                    identifier: identifier("success")
+                    accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-success"
                 )
             }
         }
@@ -258,7 +273,7 @@ public struct ConnectionFormPanel: View {
         systemImage: String,
         text: String,
         tint: Color,
-        identifier: String
+        accessibilityIdentifier: String
     ) -> some View {
         HStack(spacing: DesignTokens.Spacing.xs) {
             Image(systemName: systemImage)
@@ -268,7 +283,7 @@ public struct ConnectionFormPanel: View {
                 .foregroundStyle(DesignTokens.Surface.accessoryText)
             Spacer(minLength: 0)
         }
-        .accessibilityIdentifier(identifier)
+        .accessibilityIdentifier(accessibilityIdentifier)
     }
 
     private var actions: some View {
@@ -279,14 +294,14 @@ public struct ConnectionFormPanel: View {
                 systemName: "xmark",
                 accessibilityLabel: "Cancel",
                 action: cancel,
-                accessibilityIdentifier: identifier("cancel")
+                accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-cancel"
             )
             GlassCapsuleIconLabelButton(
                 title: "Connect",
                 systemName: "link",
                 accessibilityLabel: "Connect",
                 action: connect,
-                accessibilityIdentifier: identifier("connect")
+                accessibilityIdentifier: "\(accessibilityIdentifierPrefix)-connect"
             )
             .opacity(connectDisabled ? DesignTokens.SourceConnection.disabledActionOpacity : 1)
             .disabled(connectDisabled)
@@ -326,10 +341,6 @@ public struct ConnectionFormPanel: View {
     private func cancel() {
         connectTask?.cancel()
         onCancel()
-    }
-
-    private func identifier(_ suffix: String) -> String {
-        "\(identifierPrefix)-\(suffix)"
     }
 
     private func trimmed(_ value: String) -> String {

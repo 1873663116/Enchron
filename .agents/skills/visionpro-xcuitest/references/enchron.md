@@ -61,7 +61,7 @@ xcrun devicectl device copy from --device <CoreDevice ID> \
 
 `XCUIScreen.main.screenshot()` 在当前 visionOS 构建上返回 1×1 图像（4232 字节，仅 ICC 数据），runner 照常写文件、控制器照常报成功，肉眼看是一张黑图。runner 已改为屏幕图像退化时回退到 application 元素捕获。**判读任何截图前先看尺寸**：正常是 1920×1080、0.5 到 2.8 MB；1×1 表示捕获失败而不是画面全黑。该回退也能捕获沉浸空间内容。
 
-`app-command` 当前支持的动词以 `Apps/Enchron/TestCommandChannel.swift` 为准：ping、toggleControls、setWindowSize、toggleBlackoutProbeWindow、resetState、importMedia、listLibrary。没有退出沉浸的动词，用 `relaunch` 回到干净状态。
+`app-command` 当前支持的动词以 `Apps/Enchron/TestCommandChannel.swift` 为准。没有退出沉浸的动词，用 `relaunch` 回到干净状态。
 
 侧栏源条目 `FileBrowsing-SourcesSidebar-source-<id>` 下挂着删除按钮、图标与文本三个元素共享同一 identifier，`tap --identifier` 命中的是删除按钮。选中源要按 label 或 `--index`。
 
@@ -73,7 +73,7 @@ Emby 不滑动时的播放入口（2026-08-16 真机验证）：首页"接下来
 
 播放控制面板前缀是 `PlayerPanel-`（play、forward 等），与 `PlayerUI-` 顶栏不同族。跳转用 `PlayerPanel-button-forward`；进度条拖动是佩戴者专属（200ms 稳定按住的状态机）。More 菜单里 Subtitles 有 identifier（`PlayerUI-menu-subtitles`），Audio Track 及音轨条目无 identifier，按 label 命中，且菜单活不过两次往返，读 tap 自身返回的层级。同名条目（如两条 `und · aac · 2ch` 音轨）用 `--label` 加 `--index` 组合。
 
-`typeText` 必须带 `--identifier`：runner 解析目标元素后自己先 tap 再输入；不带 identifier 时返回"无匹配元素"，字段保持为空且没有别的失败信号。SMB 连接表单可全程合成驱动（`FileBrowsing-SourceConnection-{name,address,username,password,guest,connect,cancel}`，2026-08-16 真机验证）。首次凭据连接后系统弹"保存密码?"对话框，`tap --label '以后'` 可以合成关掉，不属于必须佩戴者的权限 Scene。从播放器退出后浏览位置回到 Media Library 根，重进远程目录要从侧栏重走。
+`typeText` 必须带 `--identifier`：runner 解析目标元素后自己先 tap 再输入；不带 identifier 时返回"无匹配元素"，字段保持为空且没有别的失败信号。SMB 连接表单可全程合成驱动，使用 `FileBrowsing-SourceConnection-smb-` 前缀；WebDAV 使用 `FileBrowsing-SourceConnection-webDAV-` 前缀。字段与按钮的完整集合以 [远程来源特性](../features/remote-source-connection.md) 为准。首次凭据连接后系统弹"保存密码?"对话框，`tap --label '以后'` 可以合成关掉，不属于必须佩戴者的权限 Scene。从播放器退出后浏览位置回到 Media Library 根，重进远程目录要从侧栏重走。
 
 ## 测试媒体
 
@@ -124,4 +124,3 @@ runner 继续常驻；在有意重启之前，后续命令应保持同一个 ses
 - 旧 runner 未干净停止时启动新 runner：会让 session 身份、权限、结果包和目标 App 所有权变得含混。
 - 看到 `Wait for com.xiongzhipeng.XrPlayer to idle` 就判定失败：历史成功快照和点击前也出现过同一行。
 - 在不同于 `xcodebuild` 的 PTY 中执行 `sudo -v`：不能覆盖 Xcode 随后启动的 `devicectl diagnose` 认证。
-

@@ -63,6 +63,13 @@ struct SettingsScreen: View {
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("Settings-SettingsScreen")
         .task { await refreshCacheUsage() }
+        .onChange(of: selectedCategoryID) { _, category in
+#if DEBUG
+            appModel.recordSurfaceInputProbe(
+                "reachability settings delivered action=category.\(category)"
+            )
+#endif
+        }
         .sheet(isPresented: $showsLicenses) {
             OpenSourceLicensesView()
         }

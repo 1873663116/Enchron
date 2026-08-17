@@ -569,7 +569,10 @@ struct FusedPlayerPanel: View {
             identifierPrefix: "PlayerPanel-VideoFormat",
             onCancel: cancelVideoFormatEditing,
             onApply: applyVideoFormatEditing,
-            onRestoreAutomaticFormat: restoreAutomaticFormat
+            onRestoreAutomaticFormat: restoreAutomaticFormat,
+            onReachabilityAction: { action in
+                live.onReachabilityAction("videoFormat.\(action)")
+            }
         )
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("PlayerPanel-VideoFormat")

@@ -239,12 +239,16 @@ struct PlaybackVideoFormatEditor: View {
     let onCancel: () -> Void
     let onApply: () -> Void
     let onRestoreAutomaticFormat: () -> Void
+    let onReachabilityAction: (String) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: DesignTokens.Spacing.lg) {
             menuHeading("Video Format", supporting: "Choose how the video is presented")
 
-            Button(action: onRestoreAutomaticFormat) {
+            Button {
+                onReachabilityAction("automatic")
+                onRestoreAutomaticFormat()
+            } label: {
                 HStack(spacing: DesignTokens.Spacing.md) {
                     Image(systemName: mediaFormatProvenance == .source
                         ? "checkmark.circle.fill"
@@ -301,7 +305,7 @@ struct PlaybackVideoFormatEditor: View {
             if showsDolbyVisionFallback {
                 Divider()
 
-                Toggle(isOn: $usesDolbyVisionFallback) {
+                Toggle(isOn: dolbyVisionFallbackSelection) {
                     VStack(alignment: .leading, spacing: DesignTokens.Spacing.xxs) {
                         Text("HDR Fallback")
                             .font(DesignTokens.Typography.selectionHeader)
@@ -315,9 +319,15 @@ struct PlaybackVideoFormatEditor: View {
 
             HStack {
                 Spacer()
-                Button("Cancel", action: onCancel)
+                Button("Cancel") {
+                    onReachabilityAction("cancel")
+                    onCancel()
+                }
                     .accessibilityIdentifier("\(identifierPrefix)-cancel")
-                Button("Apply", action: onApply)
+                Button("Apply") {
+                    onReachabilityAction("apply")
+                    onApply()
+                }
                     .buttonStyle(.borderedProminent)
                     .accessibilityIdentifier("\(identifierPrefix)-apply")
             }
@@ -341,6 +351,7 @@ struct PlaybackVideoFormatEditor: View {
             get: { projection == .customAngle ? horizontalFieldOfViewDegrees : nil },
             set: { value in
                 guard let value else { return }
+                onReachabilityAction("customAngle")
                 projection = .customAngle
                 horizontalFieldOfViewDegrees = value
             }
@@ -361,6 +372,7 @@ struct PlaybackVideoFormatEditor: View {
                 ForEach(options, id: \.self) { option in
                     let isSelected = selection.wrappedValue == option
                     Button {
+                        onReachabilityAction("option.\(title).\(label(option))")
                         selection.wrappedValue = option
                     } label: {
                         Text(label(option))
@@ -405,6 +417,16 @@ struct PlaybackVideoFormatEditor: View {
         case .topBottom: "Top-Bottom"
         }
     }
+
+    private var dolbyVisionFallbackSelection: Binding<Bool> {
+        Binding(
+            get: { usesDolbyVisionFallback },
+            set: { value in
+                onReachabilityAction("hdrFallback")
+                usesDolbyVisionFallback = value
+            }
+        )
+    }
 }
 
 struct PlaybackTopActions: View {
@@ -423,6 +445,7 @@ struct PlaybackTopActions: View {
     private let onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout, Bool) -> Void)?
     private let onRestoreAutomaticFormat: (() -> Void)?
     private let onSecondaryMenuVisibilityChange: ((Bool) -> Void)?
+    private let onReachabilityAction: (String) -> Void
 
     @State private var state: PlaybackTopActionsState
 
@@ -442,7 +465,8 @@ struct PlaybackTopActions: View {
         onEnterImmersive: ((SpatialSceneDomain.CinemaEnvironment?, SpatialSceneDomain.EnvironmentEffect?) -> Void)? = nil,
         onApplyFormat: ((PlaybackModel.ProjectionType, Int?, PlaybackModel.StereoLayout, Bool) -> Void)? = nil,
         onRestoreAutomaticFormat: (() -> Void)? = nil,
-        onSecondaryMenuVisibilityChange: ((Bool) -> Void)? = nil
+        onSecondaryMenuVisibilityChange: ((Bool) -> Void)? = nil,
+        onReachabilityAction: @escaping (String) -> Void = { _ in }
     ) {
         self.controlsVisible = controlsVisible
         self.immersiveEntryTarget = immersiveEntryTarget
@@ -461,6 +485,7 @@ struct PlaybackTopActions: View {
         self.onApplyFormat = onApplyFormat
         self.onRestoreAutomaticFormat = onRestoreAutomaticFormat
         self.onSecondaryMenuVisibilityChange = onSecondaryMenuVisibilityChange
+        self.onReachabilityAction = onReachabilityAction
         _state = State(
                 initialValue: PlaybackTopActionsState(
                     presentedMenu: initialPresentedMenu,
@@ -735,7 +760,10 @@ struct PlaybackTopActions: View {
             identifierPrefix: "PlayerUI-VideoFormat",
             onCancel: cancelVideoFormat,
             onApply: applyVideoFormat,
-            onRestoreAutomaticFormat: restoreAutomaticFormat
+            onRestoreAutomaticFormat: restoreAutomaticFormat,
+            onReachabilityAction: { action in
+                onReachabilityAction("videoFormat.\(action)")
+            }
         )
         .padding(DesignTokens.Spacing.lg)
         .frame(width: 520)

@@ -701,6 +701,7 @@ struct ConnectionFormFixture: View {
             password: $password,
             connectsAsGuest: $connectsAsGuest,
             accessibilityIdentifierPrefix: "DesignPreview-connection-\(kind.rawValue)",
+            guestAccessibilityIdentifier: "DesignPreview-connection-\(kind.rawValue)-guest",
             onConnect: mockConnect,
             onCancel: onDismiss,
             onConnected: onDismiss
