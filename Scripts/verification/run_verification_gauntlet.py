@@ -67,6 +67,10 @@ STRUCTURE_CHECKS = (
         runs_in_quick_mode=False,
     ),
     StructureCheck("media-byte-stream", "verify_media_byte_stream.py"),
+    StructureCheck(
+        "media-byte-stream-conformance",
+        "verify_media_byte_stream_conformance.py",
+    ),
     StructureCheck("media-discovery-admission", "verify_media_discovery_admission.py"),
     StructureCheck("glass-usage", "verify_glass_usage.py"),
     StructureCheck("hover-region-clipping", "check_hover_region_clipping.py"),

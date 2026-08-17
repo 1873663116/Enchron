@@ -10,6 +10,7 @@ included:
 excluded:
   - .build
   - Packages/PlaybackCore/.build
+  - Tests/MediaByteStreamConformance/.build
 
 # ── 内置规则 ──────────────────────────────────
 opt_in_rules:
