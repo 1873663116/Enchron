@@ -363,8 +363,22 @@ public struct MainView: View {
             if let decision = playbackLauncher.pendingResumeDecision {
                 ResumeDecisionCard(
                     message: "Continue from \(PlaybackTimeFormatter.clock(decision.seconds)) or start from the beginning.",
-                    onResume: playbackLauncher.resumePendingPlayback,
-                    onStartOver: playbackLauncher.startPendingPlaybackFromBeginning
+                    onResume: {
+#if DEBUG
+                        appModel.recordSurfaceInputProbe(
+                            "reachability resume decision delivered action=resume"
+                        )
+#endif
+                        playbackLauncher.resumePendingPlayback()
+                    },
+                    onStartOver: {
+#if DEBUG
+                        appModel.recordSurfaceInputProbe(
+                            "reachability resume decision delivered action=startOver"
+                        )
+#endif
+                        playbackLauncher.startPendingPlaybackFromBeginning()
+                    }
                 )
             }
         }
@@ -523,6 +537,12 @@ public struct MainView: View {
                 controlsVisible: showsPlaybackChrome,
                 onSecondaryMenuVisibilityChange: {
                     isWindowSecondaryMenuPresented = $0
+                    appModel.setControlsFocused($0)
+#if DEBUG
+                    appModel.recordSurfaceInputProbe(
+                        "reachability top secondary menu visible=\($0)"
+                    )
+#endif
                 }
             )
                 .frame(maxWidth: .infinity)
@@ -1360,6 +1380,7 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
         switch action {
         case .retry:
             Button("Retry") {
+                recordReachability(action)
                 playbackRuntime.setUserVisibleIssue(nil)
                 onRetry()
             }
@@ -1367,16 +1388,26 @@ private struct PlaybackIssueAlertModifier: ViewModifier {
             .accessibilityIdentifier(primaryActionIdentifier)
         case .close:
             Button("Close", role: .cancel) {
+                recordReachability(action)
                 playbackRuntime.setUserVisibleIssue(nil)
                 onClose()
             }
             .accessibilityIdentifier(secondaryActionIdentifier)
         case .confirm:
             Button("OK", role: .cancel) {
+                recordReachability(action)
                 playbackRuntime.setUserVisibleIssue(nil)
             }
             .accessibilityIdentifier(confirmActionIdentifier)
         }
+    }
+
+    private func recordReachability(_ action: PlaybackUserVisibleIssueAction) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "reachability playback issue delivered location=\(location) action=\(action)"
+        )
+#endif
     }
 
     private var primaryActionIdentifier: String {

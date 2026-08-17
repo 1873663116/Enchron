@@ -377,30 +377,42 @@ struct WindowPlaybackRootView<
                         .frame(height: surfaceTapTopInset)
                         .allowsHitTesting(false)
 
-                    Color.clear
-                        .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        .contentShape(Rectangle())
-                        .gesture(
-                            SpatialTapGesture()
-                                .onEnded { _ in onSurfaceTap() }
-                        )
-                        .accessibilityAddTraits(.isButton)
-                        .accessibilityLabel("Playback surface")
-                        .accessibilityIdentifier("PlayerUI-window-playback-surface")
-                        .accessibilityAction {
-                            onSurfaceTap()
-                        }
-                        // An open secondary menu owns Accessibility interaction
-                        // in its visible bounds. The spatial tap layer remains
-                        // active outside the menu and returns to the tree when
-                        // the menu closes.
-                        .accessibilityHidden(hidesSurfaceFromAccessibility)
+                    surfaceTapLayer(onSurfaceTap: onSurfaceTap)
                 }
             }
         } else {
             videoContent
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    @ViewBuilder
+    private func surfaceTapLayer(onSurfaceTap: @escaping () -> Void) -> some View {
+        if hidesSurfaceFromAccessibility {
+            surfaceTapGestureLayer(onSurfaceTap: onSurfaceTap)
+                .accessibilityHidden(true)
+        } else {
+            surfaceTapGestureLayer(onSurfaceTap: onSurfaceTap)
+                .accessibilityAddTraits(.isButton)
+                .accessibilityLabel("Playback surface")
+                .accessibilityIdentifier("PlayerUI-window-playback-surface")
+                .accessibilityAction {
+                    onSurfaceTap()
+                }
+        }
+    }
+
+    private func surfaceTapGestureLayer(
+        onSurfaceTap: @escaping () -> Void
+    ) -> some View {
+        Color.clear
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .allowsHitTesting(!hidesSurfaceFromAccessibility)
+            .gesture(
+                SpatialTapGesture()
+                    .onEnded { _ in onSurfaceTap() }
+            )
     }
 
     /// The playback surface begins below the stable button row. Secondary

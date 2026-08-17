@@ -357,17 +357,33 @@ struct PlaybackVideoFormatEditor: View {
             Text(title)
                 .font(DesignTokens.Typography.metadata)
                 .foregroundStyle(.secondary)
-            Picker(title, selection: selection) {
+            HStack(spacing: .zero) {
                 ForEach(options, id: \.self) { option in
-                    Text(label(option))
-                        .tag(option)
-                        .accessibilityIdentifier(
-                            "\(identifierPrefix)-\(title)-\(label(option))"
-                        )
+                    let isSelected = selection.wrappedValue == option
+                    Button {
+                        selection.wrappedValue = option
+                    } label: {
+                        Text(label(option))
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+                            .contentShape(Rectangle())
+                            .background {
+                                if isSelected {
+                                    Capsule()
+                                        .fill(DesignTokens.Surface.selected)
+                                }
+                            }
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier(
+                        "\(identifierPrefix)-\(title)-\(label(option))"
+                    )
+                    .accessibilityAddTraits(isSelected ? .isSelected : [])
+                    .accessibilityValue(isSelected ? "Selected" : "Not selected")
                 }
             }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            .frame(height: DesignTokens.Interactive.regular)
+            .enchronGlassControl()
+            .accessibilityElement(children: .contain)
             .accessibilityLabel(title)
         }
     }

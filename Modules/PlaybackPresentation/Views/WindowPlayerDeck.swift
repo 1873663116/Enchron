@@ -169,6 +169,13 @@ struct WindowPlayerDeckView: View {
             onRestoreAutomaticFormat: {
                 self.restoreAutomaticFormat()
             },
+            onReachabilityAction: { action in
+#if DEBUG
+                self.appModel.recordSurfaceInputProbe(
+                    "reachability playerPanel delivered action=\(action)"
+                )
+#endif
+            },
             subtitleItems: subtitleItems,
             audioItems: audioItems,
             speedItems: speedItems,
@@ -373,18 +380,26 @@ struct ProductionPlaybackMoreMenu: View {
             accessibilityLabel: "More",
             accessibilityIdentifier: "PlayerUI-TopAction-more"
         ) {
-            if !subtitleItems.isEmpty {
-                Menu("Subtitles") {
-                    selectableMenuItems(subtitleItems)
+            Group {
+                if !subtitleItems.isEmpty {
+                    Menu("Subtitles") {
+                        selectableMenuItems(subtitleItems)
+                            .onAppear {
+                                recordReachability("menu.subtitles")
+                            }
+                    }
+                    .accessibilityIdentifier("PlayerUI-menu-subtitles")
                 }
-                .accessibilityIdentifier("PlayerUI-menu-subtitles")
+                if !audioItems.isEmpty {
+                    menuSection("Audio Track", items: audioItems)
+                }
+                menuSection("Playback Speed", items: speedItems)
+                if !episodeItems.isEmpty {
+                    menuSection("Episodes", items: episodeItems)
+                }
             }
-            if !audioItems.isEmpty {
-                menuSection("Audio Track", items: audioItems)
-            }
-            menuSection("Playback Speed", items: speedItems)
-            if !episodeItems.isEmpty {
-                menuSection("Episodes", items: episodeItems)
+            .onAppear {
+                recordReachability("menu.more")
             }
         }
         .accessibilityLabel("More playback settings")
@@ -412,12 +427,23 @@ struct ProductionPlaybackMoreMenu: View {
     private func selection(_ items: [DeckMenuItem]) -> Binding<String> {
         Binding(
             get: { items.first(where: \.isSelected)?.id ?? "" },
-            set: { id in items.first(where: { $0.id == id })?.action() }
+            set: { id in
+                recordReachability("menu.item.\(id)")
+                items.first(where: { $0.id == id })?.action()
+            }
         )
     }
 
     private func register() {
         appModel.registerControlsInteraction()
+    }
+
+    private func recordReachability(_ action: String) {
+#if DEBUG
+        appModel.recordSurfaceInputProbe(
+            "reachability top actions delivered action=\(action)"
+        )
+#endif
     }
 
     private var subtitleItems: [DeckMenuItem] {

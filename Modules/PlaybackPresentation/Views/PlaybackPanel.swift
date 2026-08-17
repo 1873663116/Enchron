@@ -60,6 +60,7 @@ struct FusedPlayerPanelLive {
         Bool
     ) -> Void
     var onRestoreAutomaticFormat: () -> Void
+    var onReachabilityAction: (String) -> Void = { _ in }
     var subtitleItems: [DeckMenuItem]
     var audioItems: [DeckMenuItem]
     var speedItems: [DeckMenuItem]
@@ -491,6 +492,7 @@ struct FusedPlayerPanel: View {
                 identifier: "ScreenSize",
                 onChange: { value in
                     onInteraction()
+                    live.onReachabilityAction("slider.ScreenSize")
                     live.onSetScreenScale(value)
                 }
             )
@@ -504,6 +506,7 @@ struct FusedPlayerPanel: View {
                 identifier: "Distance",
                 onChange: { value in
                     onInteraction()
+                    live.onReachabilityAction("slider.Distance")
                     live.onSetScreenDistance(value)
                 }
             )
@@ -517,6 +520,7 @@ struct FusedPlayerPanel: View {
                 identifier: "Elevation",
                 onChange: { value in
                     onInteraction()
+                    live.onReachabilityAction("slider.Elevation")
                     live.onSetScreenElevation(value)
                 }
             )
@@ -524,6 +528,7 @@ struct FusedPlayerPanel: View {
                 Spacer()
                 Button("Restore Defaults") {
                     onInteraction()
+                    live.onReachabilityAction("dockedPlacement.reset")
                     live.onResetDockedPlacement()
                 }
                 .buttonStyle(.borderless)
@@ -828,9 +833,11 @@ struct FusedPlayerPanel: View {
     private func toggleMediaInformation() {
         if expansion.isShowing(.mediaInformation) {
             changeExpansion(to: .collapsed)
+            live?.onReachabilityAction("mediaInformation.close")
         } else {
             guard mediaInformationIsExpandable else { return }
             changeExpansion(to: .mediaInformation)
+            live?.onReachabilityAction("mediaInformation.open")
         }
         onInteraction()
     }
@@ -1117,19 +1124,19 @@ struct FusedPlayerPanel: View {
 
     @ViewBuilder
     private func liveMoreMenuSections(_ live: FusedPlayerPanelLive) -> some View {
-        if !live.subtitleItems.isEmpty {
-            Menu("Subtitles") {
-                liveMenuItems(live.subtitleItems, category: "subtitle")
+        Group {
+            if !live.subtitleItems.isEmpty {
+                Menu("Subtitles") {
+                    liveMenuItems(live.subtitleItems, category: "subtitle")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-subtitles")
             }
-            .accessibilityIdentifier("PlayerPanel-menu-subtitles")
-        }
-        if !live.audioItems.isEmpty {
-            Menu("Audio Track") {
-                liveMenuItems(live.audioItems, category: "audio")
+            if !live.audioItems.isEmpty {
+                Menu("Audio Track") {
+                    liveMenuItems(live.audioItems, category: "audio")
+                }
+                .accessibilityIdentifier("PlayerPanel-menu-audio")
             }
-            .accessibilityIdentifier("PlayerPanel-menu-audio")
-        }
-        Section("Playback Settings") {
             Menu("Playback Speed") {
                 liveMenuItems(live.speedItems, category: "speed")
             }
@@ -1141,6 +1148,9 @@ struct FusedPlayerPanel: View {
                 .accessibilityIdentifier("PlayerPanel-menu-episodes")
             }
         }
+        .onAppear {
+            live.onReachabilityAction("menu.more")
+        }
     }
 
     @ViewBuilder
@@ -1148,22 +1158,22 @@ struct FusedPlayerPanel: View {
         _ items: [DeckMenuItem],
         category: String
     ) -> some View {
-        Picker("", selection: liveSelection(items)) {
-            ForEach(items) { item in
-                Text(item.title)
-                    .tag(item.id)
-                    .accessibilityIdentifier("PlayerPanel-menu-\(category)-\(item.id)")
+        ForEach(items) { item in
+            Button {
+                live?.onReachabilityAction("menu.item.\(item.id)")
+                item.action()
+            } label: {
+                if item.isSelected {
+                    Label(item.title, systemImage: "checkmark")
+                } else {
+                    Text(item.title)
+                }
             }
+            .accessibilityIdentifier("PlayerPanel-menu-\(category)-\(item.id)")
         }
-        .pickerStyle(.inline)
-        .labelsHidden()
-    }
-
-    private func liveSelection(_ items: [DeckMenuItem]) -> Binding<String> {
-        Binding(
-            get: { items.first(where: \.isSelected)?.id ?? "" },
-            set: { id in items.first(where: { $0.id == id })?.action() }
-        )
+        .onAppear {
+            live?.onReachabilityAction("menu.\(category)")
+        }
     }
 
     private func menuOption(_ title: String) -> some View {
@@ -1619,6 +1629,7 @@ struct FusedPlayerPanel: View {
         progress = target
         armPendingSeek(for: target)
         live?.onSeek(target)
+        live?.onReachabilityAction("progress.adjust")
         onInteraction()
     }
 
@@ -1631,6 +1642,7 @@ struct FusedPlayerPanel: View {
         }
         timelineFeedbackTrigger += 1
         changeExpansion(to: .timeline)
+        live?.onReachabilityAction("precisionTimeline.open")
         onInteraction()
     }
 
@@ -1649,6 +1661,7 @@ struct FusedPlayerPanel: View {
         if expansion.isShowing(.settings) {
             videoFormatEditing.discard()
             changeExpansion(to: .collapsed)
+            live?.onReachabilityAction("settings.close")
         } else {
             if PlaybackPanelSettingsPolicy.showsVideoFormatEditor(
                 for: presentation
@@ -1660,6 +1673,7 @@ struct FusedPlayerPanel: View {
                 videoFormatEditing.beginEditing()
             }
             changeExpansion(to: .settings)
+            live?.onReachabilityAction("settings.open")
         }
         onInteraction()
     }

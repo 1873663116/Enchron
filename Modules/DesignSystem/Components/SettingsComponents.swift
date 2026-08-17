@@ -1023,7 +1023,7 @@ struct SettingListGroupRow: View {
             return DesignTokens.Spacing.lg
         }
     }
-    private var usesRowHover: Bool { !isEmbeddedOnly }
+    private var usesRowHover: Bool { usesWholeRowButton }
     private var usesWholeRowButton: Bool {
         if case .automatic = accessory {
             return true

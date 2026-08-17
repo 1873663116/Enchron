@@ -20,6 +20,11 @@ struct PlayerInfoBarView: View {
             GlassCircleIconButton.back(
                 accessibilityLabel: "Back",
                 action: {
+#if DEBUG
+                    appModel.recordSurfaceInputProbe(
+                        "reachability top actions delivered action=back"
+                    )
+#endif
                     launcher.stopPlayback()
                 },
                 accessibilityIdentifier: "PlayerUI-InfoBar-button-back"
