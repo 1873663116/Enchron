@@ -267,6 +267,118 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
     }
 
+    private enum ByteRangeRequest {
+        case entireRepresentation
+        case bounded(start: Int64, end: Int64)
+        case openEnded(start: Int64)
+        case suffix(length: Int64)
+        case rejected
+
+        init(header: String?) {
+            guard let header else {
+                self = .entireRepresentation
+                return
+            }
+            guard header.contains(",") == false,
+                  let separator = header.firstIndex(of: "="),
+                  header[..<separator].caseInsensitiveCompare("bytes") == .orderedSame else {
+                self = .rejected
+                return
+            }
+            let bounds = header[header.index(after: separator)...]
+                .split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
+            guard bounds.count == 2 else {
+                self = .rejected
+                return
+            }
+            if bounds[0].isEmpty {
+                guard let length = Int64(bounds[1]), length > 0 else {
+                    self = .rejected
+                    return
+                }
+                self = .suffix(length: length)
+                return
+            }
+            guard let start = Int64(bounds[0]), start >= 0 else {
+                self = .rejected
+                return
+            }
+            if bounds[1].isEmpty {
+                self = .openEnded(start: start)
+                return
+            }
+            guard let end = Int64(bounds[1]), end >= start else {
+                self = .rejected
+                return
+            }
+            self = .bounded(start: start, end: end)
+        }
+
+        var isPartial: Bool {
+            if case .entireRepresentation = self { false } else { true }
+        }
+
+        var canUseSequentialTransfer: Bool {
+            switch self {
+            case .entireRepresentation, .openEnded(start: 0), .bounded(start: 0, end: _): true
+            default: false
+            }
+        }
+
+        func discoveryRange(chunkSize: Int64, lengthHint: Int64?) -> Range<Int64>? {
+            switch self {
+            case .entireRepresentation:
+                return 0..<min(chunkSize, Self.positive(lengthHint) ?? chunkSize)
+            case .suffix(let length):
+                guard let hint = Self.positive(lengthHint) else { return 0..<chunkSize }
+                let start = max(0, hint - length)
+                guard let chunkEnd = Self.addingWithoutOverflow(start, chunkSize) else { return nil }
+                return start..<min(hint, chunkEnd)
+            case .bounded(let start, let end):
+                guard let chunkEnd = Self.addingWithoutOverflow(start, chunkSize) else { return nil }
+                let requestedEnd = Self.addingWithoutOverflow(end, 1) ?? Int64.max
+                let hintedEnd = Self.positive(lengthHint).flatMap { $0 > start ? $0 : nil }
+                    ?? Int64.max
+                return start..<min(chunkEnd, requestedEnd, hintedEnd)
+            case .openEnded(let start):
+                guard let end = Self.addingWithoutOverflow(start, chunkSize) else { return nil }
+                let hintedEnd = Self.positive(lengthHint).flatMap { $0 > start ? $0 : nil }
+                    ?? Int64.max
+                return start..<min(end, hintedEnd)
+            case .rejected:
+                return nil
+            }
+        }
+
+        func resolvedRange(contentLength: Int64) -> Range<Int64>? {
+            guard contentLength >= 0 else { return nil }
+            switch self {
+            case .entireRepresentation:
+                return 0..<contentLength
+            case .bounded(let start, let end):
+                guard start < contentLength else { return nil }
+                return start..<(min(end, contentLength - 1) + 1)
+            case .openEnded(let start):
+                guard start < contentLength else { return nil }
+                return start..<contentLength
+            case .suffix(let length):
+                guard contentLength > 0 else { return nil }
+                return max(0, contentLength - length)..<contentLength
+            case .rejected:
+                return nil
+            }
+        }
+
+        private static func addingWithoutOverflow(_ value: Int64, _ addition: Int64) -> Int64? {
+            let result = value.addingReportingOverflow(addition)
+            return result.overflow ? nil : result.partialValue
+        }
+
+        private static func positive(_ value: Int64?) -> Int64? {
+            value.flatMap { $0 > 0 ? $0 : nil }
+        }
+    }
+
     public static let shared = MediaByteStreamServer()
 
     private let readChunkSize: Int64
@@ -470,11 +582,11 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         let attributes = registration.source.byteStreamAttributes
         let knownLength = registration.lock.withLock {
             registration.authoritativeContentLength
-        } ?? attributes.contentLength
+        }
         if method == "HEAD" {
             let length = knownLength
             var response = "HTTP/1.1 200 OK\r\n"
-            response += "Accept-Ranges: \(attributes.supportsSeeking && length != nil ? "bytes" : "none")\r\n"
+            response += "Accept-Ranges: \(attributes.supportsSeeking ? "bytes" : "none")\r\n"
             response += "Content-Type: application/octet-stream\r\n"
             if let length { response += "Content-Length: \(length)\r\n" }
             response += "\r\n"
@@ -483,29 +595,59 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             return
         }
 
+        let byteRangeRequest = ByteRangeRequest(header: rangeHeader)
+        if case .rejected = byteRangeRequest {
+            sendRangeNotSatisfiable(length: knownLength, on: connection)
+            return
+        }
+        await respond(
+            to: byteRangeRequest,
+            knownLength: knownLength,
+            attributes: attributes,
+            registration: registration,
+            on: connection
+        )
+    }
+
+    private func respond(
+        to request: ByteRangeRequest,
+        knownLength: Int64?,
+        attributes: MediaByteStreamAttributes,
+        registration: Registration,
+        on connection: NWConnection
+    ) async {
         guard attributes.supportsSeeking else {
-            guard Self.canServeSequentially(rangeHeader) else {
+            guard request.canUseSequentialTransfer else {
                 sendRangeNotSatisfiable(length: nil, on: connection)
                 return
             }
             await sendChunked(registration: registration, on: connection)
             return
         }
-        let hintedLength = knownLength
-        let initialRange = if let hintedLength {
-            Self.byteRange(from: rangeHeader, contentLength: hintedLength)
+
+        let initialRange: Range<Int64>
+        if let knownLength {
+            guard let requestedRange = request.resolvedRange(contentLength: knownLength) else {
+                sendRangeNotSatisfiable(length: knownLength, on: connection)
+                return
+            }
+            initialRange = requestedRange.prefix(upToCount: readChunkSize)
         } else {
-            Self.initialByteRange(from: rangeHeader, chunkSize: readChunkSize)
+            guard let discoveryRange = request.discoveryRange(
+                chunkSize: readChunkSize,
+                lengthHint: attributes.contentLength
+            ) else {
+                sendRangeNotSatisfiable(length: nil, on: connection)
+                return
+            }
+            initialRange = discoveryRange
         }
-        guard var requestedRange = initialRange else {
-            sendRangeNotSatisfiable(length: hintedLength, on: connection)
-            return
-        }
+
         do {
-            let firstEnd = min(requestedRange.lowerBound + readChunkSize, requestedRange.upperBound)
-            let first = try await read(requestedRange.lowerBound..<firstEnd, registration: registration)
-            guard let actualLength = first.contentLength ?? hintedLength else {
-                guard Self.canServeSequentially(rangeHeader), requestedRange.lowerBound == 0 else {
+            let first = try await read(initialRange, registration: registration)
+            guard let actualLength = first.contentLength ?? knownLength,
+                  actualLength >= 0 else {
+                guard request.canUseSequentialTransfer, initialRange.lowerBound == 0 else {
                     sendRangeNotSatisfiable(length: nil, on: connection)
                     return
                 }
@@ -513,34 +655,33 @@ public final class MediaByteStreamServer: @unchecked Sendable {
                 return
             }
             guard first.supportsSeeking else {
-                guard Self.canServeSequentially(rangeHeader) else {
+                guard request.canUseSequentialTransfer, initialRange.lowerBound == 0 else {
                     sendRangeNotSatisfiable(length: actualLength, on: connection)
                     return
                 }
                 await sendChunked(registration: registration, initial: first, on: connection)
                 return
             }
-            guard let corrected = Self.byteRange(from: rangeHeader, contentLength: actualLength) else {
+            guard let requestedRange = request.resolvedRange(contentLength: actualLength) else {
                 sendRangeNotSatisfiable(length: actualLength, on: connection)
                 return
             }
-            requestedRange = corrected
-            let isPartial = rangeHeader != nil
             let responseLength = Int64(requestedRange.count)
             lock.withLock {
                 statistics.requestCount += 1
                 statistics.largestRequest = max(statistics.largestRequest, responseLength)
             }
-            var response = "HTTP/1.1 \(isPartial ? "206 Partial Content" : "200 OK")\r\n"
+            var response = "HTTP/1.1 \(request.isPartial ? "206 Partial Content" : "200 OK")\r\n"
             response += "Accept-Ranges: bytes\r\nContent-Type: application/octet-stream\r\n"
             response += "Content-Length: \(responseLength)\r\n"
-            if isPartial {
+            if request.isPartial {
                 response += "Content-Range: bytes \(requestedRange.lowerBound)-\(requestedRange.upperBound - 1)/\(actualLength)\r\n"
             }
             response += "\r\n"
             try await send(Data(response.utf8), on: connection)
             var offset = requestedRange.lowerBound
-            if first.data.isEmpty == false {
+            if initialRange.lowerBound == requestedRange.lowerBound,
+               first.data.isEmpty == false {
                 let payload = first.data.prefix(Int(min(Int64(first.data.count), requestedRange.upperBound - offset)))
                 try await send(Data(payload), on: connection)
                 offset += Int64(payload.count)
@@ -549,7 +690,12 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             while offset < requestedRange.upperBound {
                 let end = min(offset + readChunkSize, requestedRange.upperBound)
                 let result = try await read(offset..<end, registration: registration)
-                guard result.data.isEmpty == false else { connection.cancel(); return }
+                guard result.data.isEmpty == false,
+                      result.supportsSeeking,
+                      result.contentLength == nil || result.contentLength == actualLength else {
+                    connection.cancel()
+                    return
+                }
                 let payload = result.data.prefix(Int(min(Int64(result.data.count), requestedRange.upperBound - offset)))
                 try await send(Data(payload), on: connection)
                 offset += Int64(payload.count)
@@ -570,13 +716,12 @@ public final class MediaByteStreamServer: @unchecked Sendable {
             return MediaByteRangeRead(
                 data: cached.data,
                 contentLength: cached.contentLength
-                    ?? registration.lock.withLock { registration.authoritativeContentLength }
-                    ?? registration.source.byteStreamAttributes.contentLength,
+                    ?? registration.lock.withLock { registration.authoritativeContentLength },
                 supportsSeeking: true
             )
         }
         let result = try await registration.source.read(in: range)
-        if let contentLength = result.contentLength {
+        if let contentLength = result.contentLength, contentLength >= 0 {
             registration.lock.withLock {
                 registration.authoritativeContentLength = contentLength
             }
@@ -671,50 +816,12 @@ public final class MediaByteStreamServer: @unchecked Sendable {
         }
     }
 
-    private static func byteRange(from header: String?, contentLength: Int64) -> Range<Int64>? {
-        guard contentLength >= 0 else { return nil }
-        guard let header else { return 0..<contentLength }
-        guard header.hasPrefix("bytes="), header.contains(",") == false else { return nil }
-        let bounds = header.dropFirst("bytes=".count)
-            .split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
-        guard bounds.count == 2 else { return nil }
-        if bounds[0].isEmpty {
-            guard let suffix = Int64(bounds[1]), suffix > 0 else { return nil }
-            return max(0, contentLength - suffix)..<contentLength
-        }
-        guard let start = Int64(bounds[0]), start >= 0, start < contentLength else { return nil }
-        let end: Int64
-        if bounds[1].isEmpty { end = contentLength - 1 }
-        else {
-            guard let parsed = Int64(bounds[1]), parsed >= start else { return nil }
-            end = min(parsed, contentLength - 1)
-        }
-        return start..<(end + 1)
-    }
+}
 
-    private static func initialByteRange(
-        from header: String?,
-        chunkSize: Int64
-    ) -> Range<Int64>? {
-        guard let header else { return 0..<chunkSize }
-        guard header.hasPrefix("bytes="), header.contains(",") == false else { return nil }
-        let bounds = header.dropFirst("bytes=".count)
-            .split(separator: "-", maxSplits: 1, omittingEmptySubsequences: false)
-        guard bounds.count == 2,
-              let start = Int64(bounds[0]),
-              start >= 0 else { return nil }
-        let chunkEnd = start.addingReportingOverflow(chunkSize)
-        guard chunkEnd.overflow == false else { return nil }
-        if bounds[1].isEmpty { return start..<chunkEnd.partialValue }
-        guard let requestedEnd = Int64(bounds[1]), requestedEnd >= start else { return nil }
-        let exclusiveEnd = requestedEnd.addingReportingOverflow(1)
-        guard exclusiveEnd.overflow == false else { return nil }
-        return start..<min(exclusiveEnd.partialValue, chunkEnd.partialValue)
-    }
-
-    private static func canServeSequentially(_ rangeHeader: String?) -> Bool {
-        guard let rangeHeader else { return true }
-        return rangeHeader.contains(",") == false
-            && rangeHeader.lowercased().hasPrefix("bytes=0-")
+extension Range where Bound == Int64 {
+    fileprivate func prefix(upToCount count: Int64) -> Range<Int64> {
+        let candidate = lowerBound.addingReportingOverflow(count)
+        let end = candidate.overflow ? upperBound : Swift.min(upperBound, candidate.partialValue)
+        return lowerBound..<end
     }
 }

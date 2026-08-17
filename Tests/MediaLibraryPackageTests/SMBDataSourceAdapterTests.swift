@@ -139,7 +139,7 @@ struct SMBDataSourceAdapterTests {
         #expect(source.requestedRanges == [7..<10])
     }
 
-    @Test("HEAD reports range capability without reading SMB bytes")
+    @Test("HEAD does not publish a directory length before reading source bytes")
     func headDoesNotReadSource() async throws {
         let source = RecordingByteRangeSource(data: Data("0123456789".utf8))
         let server = MediaByteStreamServer()
@@ -154,7 +154,7 @@ struct SMBDataSourceAdapterTests {
 
         #expect(httpResponse.statusCode == 200)
         #expect(httpResponse.value(forHTTPHeaderField: "Accept-Ranges") == "bytes")
-        #expect(httpResponse.value(forHTTPHeaderField: "Content-Length") == "10")
+        #expect(httpResponse.value(forHTTPHeaderField: "Content-Length") == nil)
         #expect(source.requestedRanges.isEmpty)
     }
 
@@ -310,8 +310,10 @@ private final class RecordingByteRangeSource: MediaByteRangeSource, @unchecked S
 
     func read(in range: Range<Int64>) async throws -> MediaByteRangeRead {
         lock.withLock { ranges.append(range) }
+        let lower = min(Int(range.lowerBound), data.count)
+        let upper = min(Int(range.upperBound), data.count)
         return MediaByteRangeRead(
-            data: data[Int(range.lowerBound)..<Int(range.upperBound)],
+            data: data[lower..<upper],
             contentLength: Int64(data.count),
             supportsSeeking: true
         )
