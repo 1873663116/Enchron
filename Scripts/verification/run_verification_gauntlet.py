@@ -414,6 +414,33 @@ def run_source_parity(
     )
 
 
+def run_media_discovery_capability_matrix(
+    run_directory: Path,
+    environment: dict[str, str],
+) -> LayerResult:
+    log = run_directory / "media-discovery-capability-matrix.log"
+    code, _ = run_logged(
+        "media discovery capability matrix",
+        [
+            sys.executable,
+            str(
+                REPOSITORY_ROOT
+                / "Scripts/verification/verify_media_discovery_capability_matrix.py"
+            ),
+            "--scratch-path",
+            str(PLAYBACK_CORE_SCRATCH),
+        ],
+        log,
+        environment,
+    )
+    return LayerResult(
+        "Media discovery capability matrix",
+        "PASS" if code == 0 else "FAIL",
+        "all proven source combinations replayed" if code == 0 else f"checker exited {code}",
+        (relative_log(log, run_directory),),
+    )
+
+
 def feature_gap_count(output: str, code: int) -> int | None:
     if code == 0 and "every declared evidence has an owner" in output:
         return 0
@@ -624,12 +651,16 @@ def main() -> int:
             results.extend(
                 [
                     skipped("Source parity"),
+                    skipped("Media discovery capability matrix"),
                     skipped("Feature evidence coverage"),
                     skipped("Guard self-tests"),
                 ]
             )
         else:
             results.append(run_source_parity(run_directory, environment, baseline))
+            results.append(
+                run_media_discovery_capability_matrix(run_directory, environment)
+            )
             results.append(run_feature_coverage(run_directory, environment))
             results.append(run_guard_selftests(run_directory, environment))
 

@@ -1,0 +1,622 @@
+{
+  "version": 1,
+  "probe": {
+    "product": "PlaybackCoreRemoteMediaProbe",
+    "stages": [
+      "tracks",
+      "video-reader",
+      "decode --seconds 1"
+    ]
+  },
+  "containers": [
+    {
+      "extension": "mp4",
+      "fixture": {
+        "path": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-avsync-30s.mp4",
+        "sha256": "31444db5d84f3c8ea9af0f22a4d8602bd9bc2848d2e23ff857fbaf4ede9316aa"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=65536 video_tracks=1 audio_tracks=2 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "2",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=65536 video_stream=0 duration_seconds=30.0",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=393216 codec=avc1 session_status=0 samples=29 sample_bytes=331709 decoded_frames=29 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=none transfer=none matrix=none full_range=none atoms=avcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "avc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=65432 video_tracks=1 audio_tracks=2 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "2",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=65432 video_stream=0 duration_seconds=30.0",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=669664 codec=avc1 session_status=0 samples=29 sample_bytes=331709 decoded_frames=29 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=none transfer=none matrix=none full_range=none atoms=avcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "avc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "mkv",
+      "fixture": {
+        "path": "TestVectors/Enchron/PlaybackBehavior/sdr-bframe-multiaudio-subtitles-30s.mkv",
+        "sha256": "4877f4030938ccf9e58933112a15ae59db46f5206b823b092aea0398f3a0f1d2"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=32768 video_tracks=1 audio_tracks=2 subtitle_tracks=3",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "2",
+                "subtitle_tracks": "3"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=32768 video_stream=0 duration_seconds=30.021",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=393216 codec=avc1 session_status=0 samples=32 sample_bytes=378235 decoded_frames=32 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_709_2 transfer=ITU_R_709_2 matrix=ITU_R_709_2 full_range=0 atoms=avcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "avc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=32664 video_tracks=1 audio_tracks=2 subtitle_tracks=3",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "2",
+                "subtitle_tracks": "3"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=32768 video_stream=0 duration_seconds=30.021",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=393216 codec=avc1 session_status=0 samples=32 sample_bytes=378235 decoded_frames=32 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_709_2 transfer=ITU_R_709_2 matrix=ITU_R_709_2 full_range=0 atoms=avcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "avc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "avi",
+      "fixture": {
+        "path": "TestVectors/Upstream/FATE/MPEG4-Part2/packed_bframes.avi",
+        "sha256": "450a89377f024ce11d176d2be0fa3756df005aa45294866b383fee18a17cbf48"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "video-open-rejected",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=151912 video_tracks=1 audio_tracks=0 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "0",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 2,
+              "stdout": "",
+              "stderr": "video reader open failed: Unsupported codec: mpeg4 is not available for compressed sample rendering on this device",
+              "expectation": {
+                "error": "video reader open failed: Unsupported codec: mpeg4 is not available for compressed sample rendering on this device"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 2,
+              "stdout": "",
+              "stderr": "video reader open failed: Unsupported codec: mpeg4 is not available for compressed sample rendering on this device",
+              "expectation": {
+                "error": "video reader open failed: Unsupported codec: mpeg4 is not available for compressed sample rendering on this device"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "video-open-rejected",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=135476 video_tracks=1 audio_tracks=0 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "0",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 2,
+              "stdout": "",
+              "stderr": "video reader open failed: Unsupported codec: mpeg4 is not available for compressed sample rendering on this device",
+              "expectation": {
+                "error": "video reader open failed: Unsupported codec: mpeg4 is not available for compressed sample rendering on this device"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 2,
+              "stdout": "",
+              "stderr": "video reader open failed: Unsupported codec: mpeg4 is not available for compressed sample rendering on this device",
+              "expectation": {
+                "error": "video reader open failed: Unsupported codec: mpeg4 is not available for compressed sample rendering on this device"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "mov",
+      "fixture": {
+        "path": "Samples/DynamicRange/HLG/Apple-Official/HDRMovie.mov",
+        "sha256": "b6ad35c00e93277e9d794c340b9996758b43dd8092aa56eabdbbcd38ef84d17b"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=69919 video_tracks=1 audio_tracks=0 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "0",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=69919 video_stream=0 duration_seconds=14.0",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=102687 codec=hvc1 session_status=0 samples=31 sample_bytes=20609 decoded_frames=31 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=ITU_R_2100_HLG matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "hvc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=431310 video_tracks=1 audio_tracks=0 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "0",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=431310 video_stream=0 duration_seconds=14.0",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=464078 codec=hvc1 session_status=0 samples=31 sample_bytes=20609 decoded_frames=31 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=ITU_R_2100_HLG matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "hvc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "m4v",
+      "fixture": null,
+      "transports": {
+        "local": {
+          "evidence": "unproven",
+          "sourceScope": "local-file",
+          "reason": "TestMedia contains no .m4v fixture."
+        },
+        "http": {
+          "evidence": "unproven",
+          "sourceScope": "http-byte-range",
+          "reason": "TestMedia contains no .m4v fixture."
+        }
+      }
+    },
+    {
+      "extension": "webm",
+      "fixture": null,
+      "transports": {
+        "local": {
+          "evidence": "unproven",
+          "sourceScope": "local-file",
+          "reason": "TestMedia contains no .webm fixture."
+        },
+        "http": {
+          "evidence": "unproven",
+          "sourceScope": "http-byte-range",
+          "reason": "TestMedia contains no .webm fixture."
+        }
+      }
+    },
+    {
+      "extension": "ts",
+      "fixture": {
+        "path": "TestVectors/Display/HLG-Patches/TS/01. 5%_Patch_0_C64_C16_HLG_HDR.ts",
+        "sha256": "e7bcb6120bb5a6d02c96b72186aac2bca27411f575cb6656716e1b2d6370e15a"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=282768 video_tracks=1 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=282768 video_stream=0 duration_seconds=60.05998888888889",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=315536 codec=hvc1 session_status=0 samples=25 sample_bytes=13187 decoded_frames=25 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=ITU_R_2100_HLG matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "hvc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=282664 video_tracks=1 audio_tracks=1 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "1",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=282664 video_stream=0 duration_seconds=60.05998888888889",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=315432 codec=hvc1 session_status=0 samples=25 sample_bytes=13187 decoded_frames=25 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=ITU_R_2100_HLG matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "hvc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "m2ts",
+      "fixture": {
+        "path": "Samples/DynamicRange/DolbyVision/Profile7.6/FEL_test_for_AVS.m2ts",
+        "sha256": "89464ed27a1e060ff48fbbf43cb71dcd8975498558764e9fc11cce564d67630c"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-file",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=905360 video_tracks=2 audio_tracks=0 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "2",
+                "audio_tracks": "0",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=905360 video_stream=0 duration_seconds=119.99486666666667",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=1724560 codec=hvc1 session_status=0 samples=25 sample_bytes=692750 decoded_frames=25 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=SMPTE_ST_2084_PQ matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "hvc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=905360 video_tracks=2 audio_tracks=0 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "2",
+                "audio_tracks": "0",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=905360 video_stream=0 duration_seconds=119.99486666666667",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=1724560 codec=hvc1 session_status=0 samples=25 sample_bytes=692750 decoded_frames=25 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=SMPTE_ST_2084_PQ matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "hvc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "extension": "flv",
+      "fixture": null,
+      "transports": {
+        "local": {
+          "evidence": "unproven",
+          "sourceScope": "local-file",
+          "reason": "TestMedia contains no .flv fixture."
+        },
+        "http": {
+          "evidence": "unproven",
+          "sourceScope": "http-byte-range",
+          "reason": "TestMedia contains no .flv fixture."
+        }
+      }
+    },
+    {
+      "extension": "iso",
+      "fixture": {
+        "path": "Samples/DynamicRange/DolbyVision/Profile7.6/FEL_test_for_AVS.iso",
+        "sha256": "b3e788d13eb5933fddc80f903eb013cbc58a27f2b28a87bc63647a492a642ca9"
+      },
+      "transports": {
+        "local": {
+          "evidence": "proven",
+          "sourceScope": "local-udf-image",
+          "playbackOutcome": "first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=6387824 video_tracks=2 audio_tracks=0 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "2",
+                "audio_tracks": "0",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=6387824 video_stream=0 duration_seconds=119.99486666666667",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=8157296 codec=hvc1 session_status=0 samples=25 sample_bytes=692750 decoded_frames=25 submit_failures=0 callback_failures=0 first_decode_status=0 color_primaries=ITU_R_2020 transfer=SMPTE_ST_2084_PQ matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=ok",
+              "stderr": "",
+              "expectation": {
+                "codec": "hvc1",
+                "decode": "ok",
+                "decodedFrames": "positive"
+              }
+            }
+          }
+        },
+        "http": {
+          "evidence": "proven",
+          "sourceScope": "http-byte-range-without-local-udf-detection",
+          "playbackOutcome": "no-first-frame",
+          "stages": {
+            "streams": {
+              "exitCode": 0,
+              "stdout": "stage=tracks bytes_read=6915867 video_tracks=1 audio_tracks=0 subtitle_tracks=0",
+              "stderr": "",
+              "expectation": {
+                "video_tracks": "1",
+                "audio_tracks": "0",
+                "subtitle_tracks": "0"
+              }
+            },
+            "open": {
+              "exitCode": 0,
+              "stdout": "stage=video-reader bytes_read=6915867 video_stream=0 duration_seconds=119.99486666666667",
+              "stderr": "",
+              "expectation": {
+                "video_stream": "0",
+                "duration": "positive"
+              }
+            },
+            "firstFrame": {
+              "exitCode": 0,
+              "stdout": "stage=decode bytes_read=8554809 codec=hvc1 session_status=0 samples=46 sample_bytes=626094 decoded_frames=0 submit_failures=0 callback_failures=46 first_decode_status=-12909 color_primaries=ITU_R_2020 transfer=SMPTE_ST_2084_PQ matrix=ITU_R_2020 full_range=0 atoms=hvcC mastering=0 light_level=0 decode=no_frames",
+              "stderr": "",
+              "expectation": {
+                "codec": "hvc1",
+                "decode": "no_frames",
+                "decodedFrames": "zero"
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
