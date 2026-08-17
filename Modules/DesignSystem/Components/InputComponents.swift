@@ -63,7 +63,6 @@ public struct GlassSearchField: View {
             }
         }
         .onSubmit(deactivateInput)
-        .accessibilityIdentifier(accessibilityIdentifier)
         .accessibilityLabel(placeholder)
     }
 

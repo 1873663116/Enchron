@@ -134,10 +134,20 @@ struct FilesScreen: View {
             )
         }
         .alert("New Library Folder", isPresented: $isCreatingFolder) {
-            TextField("Folder name", text: $newFolderName)
+            TextField(
+                "Folder name",
+                text: Binding(
+                    get: { newFolderName },
+                    set: {
+                        recordReachability("newFolder.name")
+                        newFolderName = $0
+                    }
+                )
+            )
                 .accessibilityIdentifier("MediaLibrary-NewFolder-name")
             Button("Cancel") { newFolderName = "" }
             Button("Create") {
+                recordReachability("newFolder.create")
                 mediaLibrary.createFolder(named: newFolderName)
                 newFolderName = ""
             }
@@ -150,10 +160,20 @@ struct FilesScreen: View {
                 set: { if !$0 { folderToRename = nil } }
             )
         ) {
-            TextField("Folder name", text: $renamedFolderName)
+            TextField(
+                "Folder name",
+                text: Binding(
+                    get: { renamedFolderName },
+                    set: {
+                        recordReachability("renameFolder.name")
+                        renamedFolderName = $0
+                    }
+                )
+            )
                 .accessibilityIdentifier("MediaLibrary-RenameFolder-name")
             Button("Cancel") { folderToRename = nil }
             Button("Rename") {
+                recordReachability("renameFolder.confirm")
                 if let folderToRename {
                     mediaLibrary.rename(folderToRename, to: renamedFolderName)
                 }
@@ -183,6 +203,7 @@ struct FilesScreen: View {
             titleVisibility: .visible
         ) {
             Button("Delete Selected", role: .destructive) {
+                recordReachability("multiSelect.confirmDelete")
                 mediaLibrary.removeReferences(withIDs: selectedMediaReferenceIDs)
                 endMediaReferenceSelection()
             }
@@ -237,7 +258,10 @@ struct FilesScreen: View {
                 set: { if !$0 { mediaLibrary.lastErrorMessage = nil } }
             )
         ) {
-            Button("OK") { mediaLibrary.lastErrorMessage = nil }
+            Button("OK") {
+                recordReachability("mediaLibraryError.dismiss")
+                mediaLibrary.lastErrorMessage = nil
+            }
                 .accessibilityIdentifier("MediaLibrary-error-dismiss")
         } message: {
             Text(
@@ -255,8 +279,14 @@ struct FilesScreen: View {
             title: "Library & Sources",
             containerIdentifier: "FileBrowsing-MainWindow-sidebar",
             identifierPrefix: "FileBrowsing-SourcesSidebar",
-            onSelectSource: { id in select(sourceID: id) },
-            onAddSource: { type in presentConnection(for: type) },
+            onSelectSource: { id in
+                recordReachability("sidebar.select.\(id)")
+                select(sourceID: id)
+            },
+            onAddSource: { type in
+                recordReachability("sidebar.add.\(type.rawValue)")
+                presentConnection(for: type)
+            },
             onImportFolder: presentFolderImporter,
             onRefresh: { Task { await viewModel.loadFiles() } },
             onDeleteSources: deleteSources
@@ -481,7 +511,13 @@ struct FilesScreen: View {
     private var topBar: some View {
         HStack(alignment: .center) {
             SidebarToggleButton(
-                isVisible: $sidebarIsVisible,
+                isVisible: Binding(
+                    get: { sidebarIsVisible },
+                    set: {
+                        recordReachability("files.sidebarToggle")
+                        sidebarIsVisible = $0
+                    }
+                ),
                 accessibilityIdentifier: "FileBrowsing-FilesScreen-sidebarToggle"
             )
             NavBackForwardCapsuleControl(
@@ -513,7 +549,13 @@ struct FilesScreen: View {
                 mediaReferenceSelectionControls
             } else {
                 ViewModeCapsuleControl(
-                    selection: $viewMode,
+                    selection: Binding(
+                        get: { viewMode },
+                        set: {
+                            recordReachability("files.viewMode")
+                            viewMode = $0
+                        }
+                    ),
                     accessibilityIdentifier: "FileBrowsing-FilesScreen-viewMode"
                 )
                 SortMenuButton(
@@ -521,11 +563,23 @@ struct FilesScreen: View {
                     sortOrder: $sortOrder,
                     accessibilityIdentifier: "FileBrowsing-FilesScreen-sort"
                 )
-                .onChange(of: sortKey) { _, _ in applySort() }
-                .onChange(of: sortOrder) { _, _ in applySort() }
+                .onChange(of: sortKey) { _, _ in
+                    recordReachability("files.sort")
+                    applySort()
+                }
+                .onChange(of: sortOrder) { _, _ in
+                    recordReachability("files.sort")
+                    applySort()
+                }
                 manageMenu
                 SearchInputCapsule(
-                    text: Binding(get: { viewModel.searchText }, set: { viewModel.searchText = $0 }),
+                    text: Binding(
+                        get: { viewModel.searchText },
+                        set: {
+                            recordReachability("files.search")
+                            viewModel.searchText = $0
+                        }
+                    ),
                     placeholder: "Search media...",
                     accessibilityIdentifier: "FileBrowsing-FilesScreen-search"
                 )
@@ -563,42 +617,50 @@ struct FilesScreen: View {
 
     private var manageMenu: some View {
         Menu {
-            Button {
-                fileSelectionKind = .files
-                isFileImporterPresented = true
-            } label: {
-                Label("Add Files", systemImage: "doc.badge.plus")
-            }
-            .accessibilityIdentifier("MediaLibrary-Manage-addFiles")
-            Button {
-                presentFolderImporter()
-            } label: {
-                Label("Add Folder", systemImage: "folder.badge.plus")
-            }
-            .accessibilityIdentifier("MediaLibrary-Manage-addFolder")
-            Button {
-                requestPhotosAccessAndPresentPicker()
-            } label: {
-                Label("Add from Photos", systemImage: "photo.on.rectangle")
-            }
-            .accessibilityIdentifier("MediaLibrary-Manage-addPhotos")
-            Divider()
-            Button {
-                isCreatingFolder = true
-            } label: {
-                Label("New Library Folder", systemImage: "folder.badge.plus")
-            }
-            .accessibilityIdentifier("MediaLibrary-Manage-newFolder")
-            if !isBrowsingSource {
+            Group {
+                Button {
+                    recordReachability("manage.addFiles")
+                    fileSelectionKind = .files
+                    isFileImporterPresented = true
+                } label: {
+                    Label("Add Files", systemImage: "doc.badge.plus")
+                }
+                .accessibilityIdentifier("MediaLibrary-Manage-addFiles")
+                Button {
+                    recordReachability("manage.addFolder")
+                    presentFolderImporter()
+                } label: {
+                    Label("Add Folder", systemImage: "folder.badge.plus")
+                }
+                .accessibilityIdentifier("MediaLibrary-Manage-addFolder")
+                Button {
+                    recordReachability("manage.addPhotos")
+                    requestPhotosAccessAndPresentPicker()
+                } label: {
+                    Label("Add from Photos", systemImage: "photo.on.rectangle")
+                }
+                .accessibilityIdentifier("MediaLibrary-Manage-addPhotos")
                 Divider()
                 Button {
-                    beginMediaReferenceSelection()
+                    recordReachability("manage.newFolder")
+                    isCreatingFolder = true
                 } label: {
-                    Label("Select Multiple", systemImage: "checkmark.circle")
+                    Label("New Library Folder", systemImage: "folder.badge.plus")
                 }
-                .disabled(displayedLibraryReferences.isEmpty)
-                .accessibilityIdentifier("MediaLibrary-Manage-selectMultiple")
+                .accessibilityIdentifier("MediaLibrary-Manage-newFolder")
+                if !isBrowsingSource {
+                    Divider()
+                    Button {
+                        recordReachability("manage.selectMultiple")
+                        beginMediaReferenceSelection()
+                    } label: {
+                        Label("Select Multiple", systemImage: "checkmark.circle")
+                    }
+                    .disabled(displayedLibraryReferences.isEmpty)
+                    .accessibilityIdentifier("MediaLibrary-Manage-selectMultiple")
+                }
             }
+            .onAppear { recordReachability("manage.open") }
         } label: {
             GlassCircleIconLabel(
                 systemName: "ellipsis",
@@ -620,10 +682,12 @@ struct FilesScreen: View {
 
             Menu {
                 Button("Media Library") {
+                    recordReachability("multiSelect.move")
                     moveSelectedMediaReferences(to: nil)
                 }
                 ForEach(mediaLibrary.allFolders) { folder in
                     Button(folder.name) {
+                        recordReachability("multiSelect.move")
                         moveSelectedMediaReferences(to: folder.id)
                     }
                 }
@@ -634,6 +698,7 @@ struct FilesScreen: View {
             .accessibilityIdentifier("MediaLibrary-MultiSelect-move")
 
             Button(role: .destructive) {
+                recordReachability("multiSelect.delete")
                 isBatchRemoveConfirmationPresented = true
             } label: {
                 Label("Delete", systemImage: "trash")
@@ -642,6 +707,7 @@ struct FilesScreen: View {
             .accessibilityIdentifier("MediaLibrary-MultiSelect-delete")
 
             Button("Done") {
+                recordReachability("multiSelect.done")
                 endMediaReferenceSelection()
             }
             .accessibilityIdentifier("MediaLibrary-MultiSelect-done")
@@ -676,7 +742,10 @@ struct FilesScreen: View {
                             title: folder.name,
                             count: nil,
                             accessibilityIdentifier: "FileBrowsing-grid-folder-\(folder.name)",
-                            action: { Task { await viewModel.navigateToFolder(folder) } }
+                            action: {
+                                recordReachability("remote.folder")
+                                Task { await viewModel.navigateToFolder(folder) }
+                            }
                         )
                     }
                     ForEach(viewModel.displayedFiles) { file in
@@ -687,7 +756,10 @@ struct FilesScreen: View {
                             duration: "",
                             watchedProgress: viewModel.fileViewingStates[file.id]?.progress,
                             accessibilityIdentifier: "FileBrowsing-grid-video-\(file.name)",
-                            action: { viewModel.selectFile(file) }
+                            action: {
+                                recordReachability("remote.video")
+                                viewModel.selectFile(file)
+                            }
                         )
                         .contextMenu {
                             if let source = viewModel.activeDataSource {
@@ -708,7 +780,10 @@ struct FilesScreen: View {
                             count: mediaLibrary.library.folders(in: folder.id).count
                                 + mediaLibrary.library.references(in: folder.id).count,
                             accessibilityIdentifier: "MediaLibrary-grid-folder-\(folder.name)",
-                            action: { mediaLibrary.open(folder) }
+                            action: {
+                                recordReachability("library.folder")
+                                mediaLibrary.open(folder)
+                            }
                         )
                         .contextMenu { libraryFolderActions(folder) }
                     }
@@ -856,6 +931,7 @@ struct FilesScreen: View {
     }
 
     private func activateMediaReference(_ reference: FileBrowsingDomain.MediaReference) {
+        recordReachability("library.video")
         AppModel.recordProbe(
             "libraryTap name=\(reference.name) selectionActive=\(mediaReferenceSelectionIsActive)"
         )
@@ -871,6 +947,12 @@ struct FilesScreen: View {
     private func moveSelectedMediaReferences(to folderID: UUID?) {
         mediaLibrary.moveReferences(withIDs: selectedMediaReferenceIDs, to: folderID)
         endMediaReferenceSelection()
+    }
+
+    private func recordReachability(_ action: String) {
+#if DEBUG
+        AppModel.recordProbe("reachability files delivered action=\(action)")
+#endif
     }
 
     @ViewBuilder

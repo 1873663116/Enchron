@@ -66,6 +66,13 @@ final class TestCommandChannel {
             path: "TestMediaInbox",
             directoryHint: .isDirectory
         )
+        var inboxIsDirectory: ObjCBool = false
+        if fileManager.fileExists(
+            atPath: inboxURL.path,
+            isDirectory: &inboxIsDirectory
+        ), inboxIsDirectory.boolValue == false {
+            try fileManager.removeItem(at: inboxURL)
+        }
         try fileManager.createDirectory(
             at: responsesURL,
             withIntermediateDirectories: true
