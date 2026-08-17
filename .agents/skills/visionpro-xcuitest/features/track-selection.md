@@ -5,6 +5,7 @@
 ## Sub-features
 
 - 音轨切换（含同名多轨）。
+- 音轨在打开、预热、播放、跳转或 renderer 失败时退休，视频继续播放与跳转。
 - 字幕轨切换与关闭。
 - 外挂字幕（本地同目录、远程来源、Emby 的 external stream）。
 - 选择在跳转与呈现切换后保持。
@@ -31,13 +32,17 @@ Subtitles 有 identifier（`PlayerUI-menu-subtitles`）；Audio Track 与全部�
 | 种类 | 判据 | 谁守 |
 |---|---|---|
 | 结构 | 切换后 `PlaybackSessionReport` 携带新轨道 ID；本地来源写入 MediaStateStore，Emby 来源立即回报服务器 | 模拟器单测（TrackSelectionPreferenceTests） |
+| 结构 | 音轨失败后 `audioRetired=true`、`hasAudio=false`，反复跳转不抛致命错误且视频样本继续投递 | PlaybackCore 单测（`retiredAudioStaysNonfatalAcrossRepeatedSeeks`、`audioRendererFailureRetiresAudioAndVideoContinues`） |
 | 结构 | 字幕 cue 的文本与时刻正确 | PlaybackCore 单测（SubtitleProviderTests） |
 | 物理 | 诊断串 `audioTrack` 或 `subtitleTrack` 变更，同时 `lifecycle=Playing`、`session` 不变、`audioRendererStatus=rendering` | 真机 |
+| 物理 | 不支持或运行中失败的音轨显示感叹号；诊断串为 `audioRetired=true`，`lifecycle` 不进入 Failed，跳转后视频继续推进 | 待做：不支持音频真机样片 |
 | 感知 | 不适用（听得到哪条轨是事实不是感受，由 audioRendererStatus 与轨道 ID 共同证明） | |
 
 ## 证明的终态
 
 诊断串里 `audioTrack` 由 1 变为 2（或字幕轨相应变化），且同一次读取中 `session` 与切换前一致、`lifecycle=Playing`、`actualRate=1.0`。会话 ID 变了说明重开了媒体会话，即失败。跳转之后再读一次，选择仍应保持。
+
+音轨退休场景的终态是 `audioRetired=true`、`lifecycle` 保持 Playing 或 Paused、视频时间继续推进。再次跳转后仍保持相同会话，视频到达目标位置。
 
 ## Gotchas
 
