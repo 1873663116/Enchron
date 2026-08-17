@@ -58,6 +58,23 @@ nonisolated extension FileBrowsingDomain {
 
 
 nonisolated extension FileBrowsingDomain {
+    public struct MediaDiscoveryAdmissionPolicy: Sendable, Equatable {
+        public let allowedExtensions: Set<String>
+
+        public init(allowedExtensions: Set<String>) {
+            self.allowedExtensions = Set(allowedExtensions.map { $0.lowercased() })
+        }
+
+        public static let mediaFiles = MediaDiscoveryAdmissionPolicy(
+            allowedExtensions: [
+                "mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv", "iso"
+            ]
+        )
+    }
+}
+
+
+nonisolated extension FileBrowsingDomain {
     public struct FileFilter: Sendable, Equatable {
         public let allowedExtensions: Set<String>
 
@@ -70,9 +87,7 @@ nonisolated extension FileBrowsingDomain {
         }
 
         public static let playable = FileFilter(
-            allowedExtensions: [
-                "mp4", "mkv", "avi", "mov", "m4v", "webm", "ts", "m2ts", "flv", "iso"
-            ]
+            allowedExtensions: MediaDiscoveryAdmissionPolicy.mediaFiles.allowedExtensions
         )
 
         public static let externalSubtitles = FileFilter(
